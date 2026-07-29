@@ -1,0 +1,97 @@
+# Durable execution model
+
+This page defines the runtime model implemented by `@flows/workflow-engine`, `@flows/engine-store`, and `@flows/journal`. It explains what survives process loss, what is replayed, and where the current durability boundary stops.
+
+## Core terms
+
+- A **workflow** is a typed definition plus a registered Effect handler.
+- An **execution** is one workflow invocation identified by `executionId`.
+- An **activity** is a schema-encoded effect boundary with a stable key, attempt number, and durability tier.
+- A **run row** stores execution status, ownership, encoded payload, and encoded result.
+- An **attempt row** stores the state and outcome of one `(run, step-key digest, attempt)` tuple.
+- A **suspension** is a non-terminal result that releases run ownership until a wake resumes the handler.
+
+## The lifecycle
+
+```text
+pending → running → completed
+                  ↘ failed
+                  ↘ suspended → running
+                  ↘ cancelled
+```
+
+Only `running` runs have an owner. A driver reads the exact persisted snapshot, claims it, activates the claim, and maintains a heartbeat. Moving to `suspended` or a terminal status clears owner and heartbeat atomically.
+
+All start and wake paths enter the same keyed `RunCoordinator`, so concurrent callers either join one local drain or race through the same database claim. A stale owner may be replaced only after the heartbeat is at least 30 seconds old and the application’s liveness probe reports it dead or unreachable.
+
+## Replay from the top
+
+The registered handler is not serialized. On resume, the engine invokes it from the beginning with the persisted payload. Each durable boundary decides whether to return recorded state or do new work:
+
+```ts
+const handler = () =>
+  Effect.gen(function*() {
+    const first = yield* firstActivity       // recorded attempt on replay
+    const signal = yield* DurableDeferred.await(gate) // suspends until completed
+    const frontier = yield* frontierActivity // runs after the wake
+    return `${first}/${signal}/${frontier}`
+  })
+```
+
+This shape is adapted from the repository’s durable replay test. The local statement before the deferred executes again, but `firstActivity` does not dispatch again; its recorded attempt is returned. After the deferred is completed and the run is reclaimed, `frontierActivity` becomes live.
+
+See [determinism and replay](determinism-and-replay.md) for authoring rules.
+
+## What is persisted
+
+With `EngineStore`, the following can outlive the driving fiber:
+
+- encoded workflow payload and result;
+- run status, claim, owner, and heartbeat;
+- activity attempts, checkpoints, outcomes, errors, and metadata;
+- journal entries;
+- shared cache entries.
+
+Deferred completions and clock deadlines pass through `DurableEngineState`. The API is durability-shaped, but this repository only ships an in-memory implementation. An application must provide a durable implementation for those values to survive process loss.
+
+Workflow registrations, active fibers, the workflow handler function, and the run coordinator’s active map stay in memory. A restarted process must reconstruct layers and register handlers before it can resume stored executions.
+
+## Execution IDs
+
+`Workflow.execute` needs one of:
+
+- an explicit `executionId` supplied by the caller; or
+- an `idempotencyKey(payload)` declared by the workflow.
+
+An explicit ID wins. Without either, execution dies with `Workflow.ExecutionIdRequired` before the engine is invoked. Reusing an ID with a different workflow tag or encoded payload is rejected as a defect by the durable driver.
+
+## Durability is boundary-based
+
+Ordinary TypeScript and Effect combinators are not individually journaled. Durability attaches at:
+
+- `Activity`;
+- `DurableDeferred`;
+- durable clocks;
+- durable queues built from deferreds and Effect’s persisted queue;
+- child workflow execution;
+- explicit journal or time-travel effect boundaries.
+
+Calling an API, reading the filesystem, generating randomness, or consulting wall-clock time outside one of those boundaries can make replay diverge. Host services make these dependencies injectable, but injection alone does not record their results.
+
+## Current phase model
+
+The implemented library has definition, execution, and replay:
+
+1. definitions and layers are assembled in memory;
+2. the handler executes under a workflow engine;
+3. a resume re-executes it against stored boundaries.
+
+A separate discovery phase, pure static planning phase, and serializable action-graph builder are **Planned**. The current runtime does not expose a plan value that enumerates every future activity or cache hit before execution. See [workflows and the action graph](action-graph.md).
+
+## Related
+
+- [Execution and data flow](../architecture/execution-data-flow.md)
+- [Journal](journal.md)
+- [Failure and retry policy](failure-and-retry.md)
+- [Subworkflows](subworkflows.md)
+- [`@flows/engine-store` reference](../reference/engine-store.md)

@@ -1,7 +1,13 @@
 # Smithers Flows
 
-Smithers Flows is a standalone durable-execution engine for reliable workflows. It provides a Temporal/Restate-class
-execution foundation extracted from the `flows` monorepo, with no agent abstraction or agent-layer packages.
+Smithers Flows is an unreleased, standalone Effect-based durable-execution engine. It provides typed workflows,
+journal-backed execution state, content-addressed activities, capability-checked host effects, synchronization, and
+time-travel protocols.
+
+## Documentation
+
+Start with the [documentation index](docs/README.md). It includes a recommended reading order, concept guides,
+deployment limitations, and one reference page for every package.
 
 ## Packages
 
@@ -27,6 +33,3 @@ Install dependencies and typecheck every package:
 npm install
 npm run check
 ```
-
-Package checks typecheck source files only. The copied `@flows/keys` test suite retains one type-only import from
-`@flows/core`, which belongs to the agent layer and is intentionally not part of this repository.

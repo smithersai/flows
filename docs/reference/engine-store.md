@@ -1,0 +1,53 @@
+# `@flows/engine-store`
+
+This page is the public API reference for the journal-backed `WorkflowEngine` composition, deferred/clock state contract, and hermetic boundary contract. The current composition is Node-oriented.
+
+## `EngineStore`
+
+```ts
+const layer = EngineStore.layer({
+  owner: { hostId: "worker-a" },
+  journalSource: "engine-a",
+  isAlive: (owner) => checkOwner(owner)
+})
+```
+
+`Options` contains `owner.hostId`, `journalSource`, and optional `isAlive`. `make(options)` returns a `WorkflowEngine` service; `layer(options)` provides both `WorkflowEngine` and `WorkflowEngine.SnapshotBoundary`.
+
+Required services are `Journal`, `RunStore`, `AttemptStore`, `CacheStore`, `DurableEngineState`, kernel `Jj`, `StepBoundary`, and `Scope`. `EngineCompositionError` represents an engine that was invoked without a complete composition.
+
+The engine stores a versioned state envelope in each run row, fences run and attempt ownership, replays encoded exits, and writes engine decisions to the journal. Cache addresses are `Digest.digest(stepKey)`, not the raw `sk1_…` value.
+
+## `DurableEngineState`
+
+The service addresses deferreds by workflow/execution/deferred name and clocks by workflow/execution/clock name. It exposes:
+
+- `deferred` and first-writer-wins `completeDeferred`
+- `clock`, first-writer-wins `scheduleClock`, and `completeClock`
+- `dueClocks(nowMs)`
+
+Outcome unions distinguish newly written, existing, completed, and missing rows. `makeMemory` and `layerMemory` are the only bundled implementations; they can be shared across fresh engine instances in a test but do not survive process loss.
+
+## `StepBoundary`
+
+<a id="stepboundary"></a>
+
+`Descriptor` contains `readSet`, `writeSet`, and `boundaryMode` (`hard` or `expected`). A service implements:
+
+```ts
+interface Service {
+  prepare(descriptor: Descriptor): Effect<PreparedBoundary, UnsupportedBoundary>
+  settle(prepared: PreparedBoundary): Effect<BoundaryEvidence, UndeclaredWrite | UnsupportedBoundary>
+  replayOutputs(evidence: BoundaryEvidence): Effect<void, UnsupportedBoundary>
+}
+```
+
+`BoundaryEvidence` contains declared outputs, a diff identity, and an optional expected-set deviation. A hard undeclared write fails with `UndeclaredWrite`; expected mode records a deviation.
+
+`make(service)` wraps an implementation. `layerTest(options?)` is deterministic and supports changed-path/deviation/replay assertions, but it does not enforce a real sandbox.
+
+## Cache admission
+
+EngineStore admits a cache record only when the activity is sealed, the boundary is hard, and no deviation occurred. Only a content-key record has an address another run can reproduce; an ordinal-key record remains run-local. A cache hit calls `replayOutputs` before returning the stored result.
+
+See [Assembling a durable engine](../guides/durable-engine.md), [Implementation status](../architecture/implementation-status.md), and [Step keys](../concepts/step-keys.md).

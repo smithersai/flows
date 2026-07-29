@@ -1,0 +1,45 @@
+# `@flows/host`
+
+This page is the public API reference for the raw portable host surface and its platform bundles. Permission enforcement is provided separately by `@flows/kernel`.
+
+## Closed service set
+
+The root exports `HostService`, `HostServiceTags`, `HostServiceIds`, and `HostBuiltinNames`. The protected service set is Effect `FileSystem`, Effect `Path`, `Shell`, `Pty`, `Jj`, and `HttpTransport`; Clock and Random are the named built-ins.
+
+## Service namespaces
+
+| Namespace | Main public API |
+| --- | --- |
+| `Shell` | `Shell` tag; `exec`, `stream`; `ShellOptions`, `ShellResult`, `ShellChunk`; `make`, `makeNoop`, `layerNoop` |
+| `Pty` | `Pty` tag; scoped `spawn`; `PtyHandle` write/resize/output/attach/exit; constructors and no-op layer |
+| `Jj` | `Jj` tag; `snapshot`, `restore`, `diff`, `workspaceAdd`, `workspaceForget`, `status`; constructors and no-op layer |
+| `HttpTransport` | one-hop `execute`; `make`, `makeNoop`, `layerNoop` |
+| `HostError` | `ShellError`, `PtyError`, `JjError`, code schemas, and constructor helpers |
+| `RemoteSandbox` | `Provider`, `ProviderError`, `layerShell`, and scripted `TestSandbox` |
+
+Shell cancellation is Effect fiber interruption. PTY handles and remote-sandbox acquisition require `Scope`.
+
+## Platform bundles
+
+| Namespace | Layer |
+| --- | --- |
+| `NodeHost` | `layer` using Node filesystem/path, child processes, PTY, Jujutsu, and HTTP |
+| `BunHost` | `layer` using Bun adapters with compatible fallbacks |
+| `BrowserHost` | `layer(options)` over injected browser filesystem and bash-like bindings; PTY/Jujutsu unavailable |
+| `TestHost` | `layer(options?)` with memory files, scripted commands, test clock, and seeded Random |
+
+`TestHost` additionally exports `makeMemoryFs`, `makeStubBash`, `layerSeededRandom`, and a zero-option `TestHost` layer.
+
+```ts
+const HostLayer = TestHost.layer({
+  files: { "/input.txt": "data" },
+  commands: { "tool --version": { stdout: "1.0\n" } },
+  seed: 42
+})
+```
+
+## Deep imports
+
+Package exports allow public module imports such as `@flows/host/node/NodeShell` and `@flows/host/browser/BrowserFileSystem`; `internal/*` is blocked. Prefer the root namespaces unless constructing a custom bundle.
+
+See [Hosts and capabilities](../concepts/hosts-and-capabilities.md), the [`@flows/kernel` reference](kernel.md), and the hosted adapters for [Cloudflare](host-cloudflare.md) and [Vercel](host-vercel.md).
