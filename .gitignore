@@ -1,0 +1,63 @@
+node_modules/
+dist/
+.artifacts/
+*.log
+.DS_Store
+*.tsbuildinfo
+# packages/*/node_modules/
+packages/*/dist/
+packages/*/dist-chrome/
+packages/*/dist-firefox/
+packages/ai/src/providers/data/
+packages/ai/src/providers/.model-generation-*/
+*.cpuprofile
+
+# Environment
+.env
+
+# Editor files
+.vscode/
+.zed/
+.idea/
+.claude/
+*.swp
+*.swo
+*~
+
+# Package specific
+.npm/
+coverage/
+.nyc_output/
+.pi_config/
+tui-debug.log
+compaction-results/
+.opencode/
+syntax.jsonl
+out.jsonl
+pi-*.html
+out.html
+packages/coding-agent/binaries/
+todo.md
+plans/
+.pi/hf-sessions/
+.pi/hf-sessions-backup/
+collect.sh
+
+# Reference corpus — shallow clones read by agents, never committed.
+# Restore commands live in docs/specs/Research/Reference Corpus 2026-07-27.md
+reference/*
+!reference/electrobun-shell/
+
+# Smithers run store (ephemeral — never commit)
+smithers.db
+smithers.db-shm
+smithers.db-wal
+
+# Electrobun build output
+app/.electrobun/
+
+# agent review scratch
+REVIEW-*.md
+packages/*/REVIEW-*.md
+packages/*/.smithers/
+.smithers/bug-reports/

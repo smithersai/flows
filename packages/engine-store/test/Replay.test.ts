@@ -1,0 +1,163 @@
+import { Journal, type Ownership, RunStore, TestJournal } from "@flows/journal"
+import { Jj } from "@flows/kernel"
+import { Activity, DurableDeferred, Workflow } from "@flows/workflow-engine"
+import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
+import * as Schema from "effect/Schema"
+import { describe, expect, it } from "vitest"
+import * as DurableEngineState from "../src/DurableEngineState.ts"
+import * as EngineStore from "../src/EngineStore.ts"
+import * as StepBoundary from "../src/StepBoundary.ts"
+
+const ReplayWorkflow = Workflow.make("Replay/Workflow", {
+  payload: {},
+  success: Schema.String
+})
+
+const gate = DurableDeferred.make("race-winner", {
+  success: Schema.String
+})
+
+const jj = Jj.make({
+  snapshot: () => Effect.succeed({ changeId: "test-snapshot" as never }),
+  restore: () => Effect.void,
+  diff: () => Effect.succeed(""),
+  workspaceAdd: () => Effect.void,
+  workspaceForget: () => Effect.void,
+  status: () => Effect.succeed("")
+})
+
+describe("deterministic replay", () => {
+  it("replays completed work and continues the frontier through a claimed resume", async () => {
+    let firstDispatches = 0
+    let frontierDispatches = 0
+    let claims = 0
+    const decisions: Array<string> = []
+    const owners: Array<Ownership.OwnerId> = []
+    const state = DurableEngineState.makeMemory()
+
+    const firstActivity = Activity.make({
+      name: "first",
+      success: Schema.String,
+      tier: "sealed",
+      idempotencyKey: "replay-first-v1",
+      execute: Effect.sync(() => {
+        firstDispatches++
+        return "first-result"
+      })
+    })
+    const frontierActivity = Activity.make({
+      name: "frontier",
+      success: Schema.String,
+      tier: "sealed",
+      idempotencyKey: "replay-frontier-v1",
+      execute: Effect.sync(() => {
+        frontierDispatches++
+        return "frontier-result"
+      })
+    })
+    const handler = () =>
+      Effect.gen(function*() {
+        const first = yield* firstActivity
+        decisions.push(`before:${first}`)
+        const winner = yield* DurableDeferred.await(gate)
+        decisions.push(`winner:${winner}`)
+        const frontier = yield* frontierActivity
+        return `${first}/${winner}/${frontier}`
+      })
+
+    const result = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function*() {
+          const baseStore = yield* RunStore.RunStore
+          const countingStore = RunStore.makeNoop({
+            ...baseStore,
+            claim: (runId, expected, owner, nowMs) =>
+              Effect.sync(() => {
+                claims++
+                owners.push(owner)
+              }).pipe(
+                Effect.andThen(baseStore.claim(runId, expected, owner, nowMs))
+              ),
+            steal: (runId, expected, owner, nowMs, evidence) =>
+              Effect.sync(() => {
+                claims++
+                owners.push(owner)
+              }).pipe(
+                Effect.andThen(
+                  baseStore.steal(runId, expected, owner, nowMs, evidence)
+                )
+              )
+          })
+
+          const makeEngine = EngineStore.make({
+            owner: { hostId: "replay-host" },
+            journalSource: "replay-test",
+            isAlive: () => Effect.succeed(false)
+          }).pipe(Effect.provideService(RunStore.RunStore, countingStore))
+
+          const firstEngine = yield* makeEngine
+          yield* firstEngine.register(ReplayWorkflow, handler)
+          yield* firstEngine.execute(ReplayWorkflow, {
+            executionId: "replay-run",
+            payload: {},
+            discard: true
+          })
+          const suspended = yield* baseStore.get("replay-run")
+
+          const restartedEngine = yield* makeEngine
+          yield* restartedEngine.register(ReplayWorkflow, handler)
+          yield* restartedEngine.deferredDone(gate, {
+            workflowName: ReplayWorkflow._tag,
+            executionId: "replay-run",
+            deferredName: gate.name,
+            exit: Exit.succeed("winner-a")
+          })
+          yield* restartedEngine.deferredDone(gate, {
+            workflowName: ReplayWorkflow._tag,
+            executionId: "replay-run",
+            deferredName: gate.name,
+            exit: Exit.succeed("winner-b")
+          })
+          const value = yield* restartedEngine.execute(ReplayWorkflow, {
+            executionId: "replay-run",
+            payload: {},
+            discard: false
+          })
+          const completed = yield* baseStore.get("replay-run")
+          const journal = yield* Journal.Journal
+          yield* journal.flush
+          const entries = yield* journal.entries({
+            runId: "replay-run" as never,
+            limit: 100
+          })
+          return { suspended, completed, entries, value }
+        }).pipe(
+          Effect.provideService(DurableEngineState.DurableEngineState, state),
+          Effect.provideService(Jj.Jj, jj)
+        )
+      ).pipe(
+        Effect.provide(StepBoundary.layerTest()),
+        Effect.provide(TestJournal.layer())
+      )
+    )
+
+    expect(result.suspended.status).toBe("suspended")
+    expect(result.suspended.owner).toBeNull()
+    expect(result.completed.status).toBe("completed")
+    expect(result.value).toBe("first-result/winner-a/frontier-result")
+    expect(firstDispatches).toBe(1)
+    expect(frontierDispatches).toBe(1)
+    expect(decisions.filter((decision) => decision === "before:first-result")).toHaveLength(2)
+    expect(decisions.filter((decision) => decision.startsWith("winner:"))).toEqual([
+      "winner:winner-a"
+    ])
+    expect(claims).toBe(2)
+    expect(owners.map((owner) => owner.hostId)).toEqual(["replay-host", "replay-host"])
+    expect(owners.map((owner) => owner.pid)).toEqual([process.pid, process.pid])
+    expect(new Set(owners.map((owner) => owner.nonce)).size).toBe(2)
+    expect(
+      result.entries.entries.filter((entry) => entry.eventType === "flows.engine.deferred-completed")
+    ).toHaveLength(1)
+  })
+})

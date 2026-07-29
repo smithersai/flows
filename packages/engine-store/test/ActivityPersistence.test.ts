@@ -1,0 +1,249 @@
+import { AttemptStore, CacheStore, Journal, type Ownership, RunStore } from "@flows/journal"
+import * as TestJournal from "@flows/journal/test/TestJournal"
+import { Jj } from "@flows/kernel"
+import { Digest } from "@flows/keys"
+import * as Cause from "effect/Cause"
+import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
+import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
+import { describe, expect, it } from "vitest"
+import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as StepBoundary from "../src/StepBoundary.ts"
+
+const owner: Ownership.OwnerId = { hostId: "activity-host", pid: 11, nonce: "activity-process" }
+
+const boundary: ActivityPersistence.BoundaryMetadata = {
+  readSet: [],
+  writeSet: ["output.txt"],
+  boundaryMode: "hard"
+}
+
+const jj = Layer.succeed(
+  Jj.Jj,
+  Jj.make({
+    snapshot: () => Effect.succeed({ changeId: "activity-snapshot" as never }),
+    restore: () => Effect.void,
+    diff: () => Effect.succeed(""),
+    workspaceAdd: () => Effect.void,
+    workspaceForget: () => Effect.void,
+    status: () => Effect.succeed("")
+  })
+)
+
+const activate = (runId: string) =>
+  Effect.gen(function*() {
+    const runs = yield* RunStore.RunStore
+    yield* runs.create(runId, "{}")
+    const row = yield* runs.get(runId)
+    const snapshot = { status: row.status, owner: row.owner, heartbeatAtMs: row.heartbeatAtMs }
+    const claim = yield* runs.claim(runId, snapshot, owner, 1)
+    if (claim._tag !== "Claimed") {
+      return yield* Effect.die(new Error(`run ${runId} claim was lost`))
+    }
+    const activated = yield* runs.activate(runId, owner, claim.claimedAtMs, snapshot)
+    if (activated._tag !== "Activated") {
+      return yield* Effect.die(new Error(`run ${runId} activation was lost`))
+    }
+  })
+
+const layer = Layer.mergeAll(TestJournal.layer(), StepBoundary.layerTest(), jj)
+
+describe("ActivityPersistence", () => {
+  it("does not dispatch when attempt admission reports an existing or conflicting row", async () => {
+    let dispatches = 0
+    const result = await Effect.runPromise(
+      Effect.gen(function*() {
+        yield* activate("admission-rejected")
+        const base = yield* AttemptStore.AttemptStore
+        const execute = () =>
+          Effect.sync(() => {
+            dispatches++
+            return "unexpected"
+          })
+        const run = (outcome: AttemptStore.PutResult) =>
+          Effect.exit(
+            Effect.provideService(
+              ActivityPersistence.make({
+                runId: "admission-rejected",
+                owner,
+                sourceId: "activity-test",
+                execute
+              })({
+                activity: {},
+                attempt: 1,
+                key: `admission/${outcome._tag}`,
+                tier: "sealed"
+              }),
+              AttemptStore.AttemptStore,
+              AttemptStore.makeNoop({ ...base, put: () => Effect.succeed(outcome) })
+            )
+          )
+        return yield* Effect.all([
+          run({ _tag: "ExistingSame" }),
+          run({ _tag: "Conflict" })
+        ])
+      }).pipe(Effect.provide(layer), Effect.scoped)
+    )
+
+    expect(dispatches).toBe(0)
+    expect(result.every(Exit.isFailure)).toBe(true)
+  })
+
+  it("suppresses terminal and cache writes after every rejected attempt finish", async () => {
+    const outcomes: ReadonlyArray<AttemptStore.FinishResult> = [
+      { _tag: "FenceLost" },
+      { _tag: "NotFound" },
+      { _tag: "StateChanged" }
+    ]
+    let dispatches = 0
+    const result = await Effect.runPromise(
+      Effect.gen(function*() {
+        yield* activate("finish-rejected")
+        const base = yield* AttemptStore.AttemptStore
+        const exits = yield* Effect.forEach(outcomes, (outcome, index) =>
+          Effect.exit(
+            Effect.provideService(
+              ActivityPersistence.make({
+                runId: "finish-rejected",
+                owner,
+                sourceId: "activity-test",
+                execute: () =>
+                  Effect.sync(() => {
+                    dispatches++
+                    return index
+                  })
+              })({
+                activity: {},
+                attempt: index + 1,
+                key: `finish-rejected/${index}`,
+                tier: "sealed",
+                metadata: boundary
+              }),
+              AttemptStore.AttemptStore,
+              AttemptStore.makeNoop({
+                ...base,
+                get: () => Effect.succeedNone,
+                put: () => Effect.succeed({ _tag: "Inserted" }),
+                finish: () => Effect.succeed(outcome)
+              })
+            )
+          ))
+        const journal = yield* Journal.Journal
+        yield* journal.flush
+        return {
+          exits,
+          entries: yield* journal.entries({ runId: "finish-rejected" as never, limit: 20 })
+        }
+      }).pipe(Effect.provide(layer), Effect.scoped)
+    )
+
+    expect(dispatches).toBe(3)
+    expect(
+      result.exits.every((exit) => Exit.isFailure(exit) && Cause.hasInterruptsOnly(exit.cause))
+    ).toBe(true)
+    expect(result.entries.entries.map((entry) => entry.eventType)).toEqual([
+      "flows.engine.attempt-started",
+      "flows.engine.attempt-started",
+      "flows.engine.attempt-started"
+    ])
+  })
+
+  it("preserves the first global cache writer when a concurrent miss loses the put race", async () => {
+    const key = "cache-conflict"
+    const keyDigest = Digest.digest(key)
+    const result = await Effect.runPromise(
+      Effect.gen(function*() {
+        yield* activate("cache-conflict-run")
+        const cache = yield* CacheStore.CacheStore
+        yield* cache.put({
+          keyDigest,
+          result: "first",
+          meta: { tier: "sealed", boundary: { declaredOutputs: {}, diffIdentity: "first" } },
+          createdAtMs: 1,
+          recordedRunId: "winning-run",
+          recordedEventSeq: 0
+        })
+        const value = yield* Effect.provideService(
+          ActivityPersistence.make({
+            runId: "cache-conflict-run",
+            owner,
+            sourceId: "activity-test",
+            execute: () => Effect.succeed("second")
+          })({
+            activity: {},
+            attempt: 1,
+            key,
+            tier: "sealed",
+            metadata: boundary
+          }),
+          CacheStore.CacheStore,
+          CacheStore.makeNoop({
+            ...cache,
+            get: () => Effect.succeedNone
+          })
+        )
+        return { value, cached: yield* cache.get(keyDigest) }
+      }).pipe(Effect.provide(layer), Effect.scoped)
+    )
+
+    expect(result.value).toBe("second")
+    expect(Option.getOrThrow(result.cached).result).toBe("first")
+  })
+
+  it("ignores cache rows without schema-valid hard-boundary evidence", async () => {
+    let dispatches = 0
+    const values = await Effect.runPromise(
+      Effect.gen(function*() {
+        yield* activate("malformed-cache-run")
+        const cache = yield* CacheStore.CacheStore
+        const malformed = [
+          { tier: "sealed" },
+          { tier: "sealed", boundary: { declaredOutputs: {}, diffIdentity: "" } },
+          {
+            tier: "sealed",
+            boundary: {
+              declaredOutputs: {},
+              diffIdentity: "d",
+              deviation: {
+                _tag: "ExpectedSetDeviation",
+                paths: ["undeclared"],
+                diffIdentity: "d"
+              }
+            }
+          }
+        ]
+        for (const [index, meta] of malformed.entries()) {
+          yield* cache.put({
+            keyDigest: Digest.digest(`malformed-cache/${index}`),
+            result: "untrusted",
+            meta,
+            createdAtMs: 1,
+            recordedRunId: "external-run",
+            recordedEventSeq: index
+          })
+        }
+        return yield* Effect.forEach(malformed, (_, index) =>
+          ActivityPersistence.make({
+            runId: "malformed-cache-run",
+            owner,
+            sourceId: "activity-test",
+            execute: () =>
+              Effect.sync(() => {
+                dispatches++
+                return `fresh-${index}`
+              })
+          })({
+            activity: {},
+            attempt: index + 1,
+            key: `malformed-cache/${index}`,
+            tier: "sealed",
+            metadata: boundary
+          }))
+      }).pipe(Effect.provide(layer), Effect.scoped)
+    )
+
+    expect(values).toEqual(["fresh-0", "fresh-1", "fresh-2"])
+    expect(dispatches).toBe(3)
+  })
+})

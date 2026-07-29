@@ -1,0 +1,103 @@
+[
+  {
+    "name": "ordinary sealed",
+    "kind": "content",
+    "input": {
+      "body": { "module": "read", "version": 1 },
+      "inputs": { "path": "src/index.ts" },
+      "layers": ["fs/node"],
+      "capabilities": { "fs:read": ["src/**"] }
+    },
+    "expected": "sk1_a7a476246d4e1241af7911aef2131befca4e7abce4f98c7ee25ebf5bc9ae492c"
+  },
+  {
+    "name": "reordered declarations",
+    "kind": "content",
+    "input": {
+      "body": { "version": 1, "module": "read" },
+      "inputs": { "path": "src/index.ts" },
+      "layers": ["fs/node", "clock/live"],
+      "capabilities": { "net:get": ["api.example/**", "cdn.example/**"], "fs:read": ["src/**", "package.json"] }
+    },
+    "expected": "sk1_451e6d17d0031b8e418ef9c4f82c083c4dfe0d681e5446bd54279e43153f210c"
+  },
+  {
+    "name": "reordered declarations equivalent",
+    "kind": "content",
+    "input": {
+      "body": { "module": "read", "version": 1 },
+      "inputs": { "path": "src/index.ts" },
+      "layers": ["clock/live", "fs/node"],
+      "capabilities": { "fs:read": ["package.json", "src/**"], "net:get": ["cdn.example/**", "api.example/**"] }
+    },
+    "expected": "sk1_451e6d17d0031b8e418ef9c4f82c083c4dfe0d681e5446bd54279e43153f210c"
+  },
+  {
+    "name": "literal input",
+    "kind": "content",
+    "input": { "body": "use-input", "inputs": { "value": "a" }, "layers": [], "capabilities": {} },
+    "expected": "sk1_4d037062cf3f2fc54ae93e314e7989b75d9e6b1e0cc3a426f81971d2960bb13f"
+  },
+  {
+    "name": "digest input",
+    "kind": "content",
+    "input": { "body": "use-input", "inputs": { "value": { "digest": "a" } }, "layers": [], "capabilities": {} },
+    "expected": "sk1_c6ff636133dd10965dcf2a9565193318ebd5deb90e3598f4b61f93671b1b4de9"
+  },
+  {
+    "name": "compensable ordinal",
+    "kind": "ordinal",
+    "input": { "runId": "run-7", "parentScope": "root", "ordinal": 2, "tier": "compensable" },
+    "expected": "sk1_8bfee3173546c2bc34216e23e664e668ae95c45820f7b8d2d5167fefc300fb5b"
+  },
+  {
+    "name": "hermetic bash",
+    "kind": "content",
+    "input": {
+      "body": { "command": "cat input > output" },
+      "inputs": {},
+      "layers": ["bash/hermetic"],
+      "capabilities": { "fs:read": ["input"], "fs:write": ["output"] },
+      "hermetic": { "readSet": [{ "path": "input", "digest": "abc" }], "writeSet": ["output"], "boundaryMode": "hard" }
+    },
+    "expected": "sk1_4dceecbdc4bc02547bf9925cf6c3b8f31c9f1b4312f002e11c712ea99bbb579a"
+  },
+  {
+    "name": "widened write set",
+    "kind": "content",
+    "input": {
+      "body": { "command": "cat input > output" },
+      "inputs": {},
+      "layers": ["bash/hermetic"],
+      "capabilities": { "fs:read": ["input"], "fs:write": ["output", "extra"] },
+      "hermetic": {
+        "readSet": [{ "path": "input", "digest": "abc" }],
+        "writeSet": ["extra", "output"],
+        "boundaryMode": "hard"
+      }
+    },
+    "expected": "sk1_290876a4f78fa70e41df6e95c66b23f0622b97f61e3be1445e990bbb135b975a"
+  },
+  {
+    "name": "changed layer",
+    "kind": "content",
+    "input": {
+      "body": { "module": "read", "version": 1 },
+      "inputs": { "path": "src/index.ts" },
+      "layers": ["fs/browser"],
+      "capabilities": { "fs:read": ["src/**"] }
+    },
+    "expected": "sk1_e2ac6b366ae08f57f07b94dd15d36d8894ead3427898dc7da0ace7e695b33e36"
+  },
+  {
+    "name": "changed capability",
+    "kind": "content",
+    "input": {
+      "body": { "module": "read", "version": 1 },
+      "inputs": { "path": "src/index.ts" },
+      "layers": ["fs/node"],
+      "capabilities": { "fs:read": ["src/**", "package.json"] }
+    },
+    "expected": "sk1_ec23b279a57aedf01150c909cc5ba0ba7ce2de1770677d4dd459c69854ce3742"
+  }
+]

@@ -1,0 +1,311 @@
+/**
+ * Capability values, wildcard policy patterns, and effect-tier
+ * classification.
+ *
+ * Governing design:
+ * `docs/specs/Concepts/Permission Kernel.md` and
+ * `docs/specs/Concepts/Effect Taxonomy.md`.
+ *
+ * @since 0.1.0
+ */
+import { Option, Schema } from "effect"
+
+/**
+ * A host operation that can be authorized by the permission kernel.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export type Action =
+  | "fs:read"
+  | "fs:write"
+  | "net:get"
+  | "net:post"
+  | "model:call"
+  | "proc:spawn"
+  | "jj:status"
+  | "jj:diff"
+  | "jj:snapshot"
+  | "jj:restore"
+  | "jj:workspace-add"
+  | "jj:workspace-forget"
+
+const Action = Schema.Literals(
+  [
+    "fs:read",
+    "fs:write",
+    "net:get",
+    "net:post",
+    "model:call",
+    "proc:spawn",
+    "jj:status",
+    "jj:diff",
+    "jj:snapshot",
+    "jj:restore",
+    "jj:workspace-add",
+    "jj:workspace-forget"
+  ] as const
+)
+
+const actions: ReadonlySet<string> = new Set([
+  "fs:read",
+  "fs:write",
+  "net:get",
+  "net:post",
+  "model:call",
+  "proc:spawn",
+  "jj:status",
+  "jj:diff",
+  "jj:snapshot",
+  "jj:restore",
+  "jj:workspace-add",
+  "jj:workspace-forget"
+])
+
+/**
+ * An exact adapter request subject to authorization.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export class Capability extends Schema.Class<Capability>("@flows/kernel/Capability")({
+  action: Action,
+  resource: Schema.String
+}) {}
+
+/**
+ * Constructs an exact capability.
+ *
+ * @since 0.1.0
+ * @category constructors
+ */
+export const make = (action: Action, resource: string): Capability => new Capability({ action, resource })
+
+/**
+ * Formats an exact capability for storage and display.
+ *
+ * @since 0.1.0
+ * @category formatting
+ */
+export const format = (capability: Capability): string => `${capability.action}:${capability.resource}`
+
+/**
+ * Formats a capability pattern for durable key material.
+ *
+ * @since 0.1.0
+ * @category formatting
+ */
+export const formatPattern = (pattern: CapabilityPattern): string => `${pattern.action}:${pattern.resource}`
+
+/**
+ * Parses an exact capability. The action is the first two colon-separated
+ * components; all remaining text belongs to the resource.
+ *
+ * @since 0.1.0
+ * @category parsing
+ */
+export const parse = (input: string): Option.Option<Capability> => {
+  const components = input.split(":")
+  const namespace = components[0]
+  const operation = components[1]
+  if (namespace === undefined || operation === undefined || components.length < 3) {
+    return Option.none()
+  }
+  const action = `${namespace}:${operation}`
+  return actions.has(action)
+    ? Option.some(make(action as Action, components.slice(2).join(":")))
+    : Option.none()
+}
+
+/**
+ * An action selector accepted in a capability pattern.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export type PatternAction = Action | "fs:*" | "net:*" | "model:*" | "proc:*" | "jj:*" | "*"
+
+const PatternAction = Schema.Literals(
+  [
+    "fs:read",
+    "fs:write",
+    "net:get",
+    "net:post",
+    "model:call",
+    "proc:spawn",
+    "jj:status",
+    "jj:diff",
+    "jj:snapshot",
+    "jj:restore",
+    "jj:workspace-add",
+    "jj:workspace-forget",
+    "fs:*",
+    "net:*",
+    "model:*",
+    "proc:*",
+    "jj:*",
+    "*"
+  ] as const
+)
+
+/**
+ * An action and resource glob used to grant or deny a family of capabilities.
+ * Resource globs are slash-normalized and matched against the whole resource.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export class CapabilityPattern extends Schema.Class<CapabilityPattern>("@flows/kernel/CapabilityPattern")({
+  action: PatternAction,
+  resource: Schema.String
+}) {}
+
+const normalizeSlashes = (value: string): string => value.replaceAll("\\", "/")
+
+const matchesAction = (pattern: PatternAction, action: Action): boolean =>
+  pattern === "*" || pattern === action || (pattern.endsWith(":*") && action.startsWith(pattern.slice(0, -1)))
+
+const matchesResource = (pattern: string, resource: string): boolean => {
+  const normalizedPattern = normalizeSlashes(pattern)
+  const normalizedResource = normalizeSlashes(resource)
+  let expression = normalizedPattern
+    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+    .replaceAll("*", ".*")
+    .replaceAll("?", ".")
+  if (expression.endsWith(" .*")) {
+    expression = `${expression.slice(0, -3)}( .*)?`
+  }
+  const windowsPath = /^[A-Za-z]:\//.test(normalizedPattern) || /^[A-Za-z]:\//.test(normalizedResource)
+  return new RegExp(`^${expression}$`, windowsPath ? "is" : "s").test(normalizedResource)
+}
+
+/**
+ * Tests whether an exact capability is selected by a pattern.
+ *
+ * @since 0.1.0
+ * @category predicates
+ */
+export const matches = (pattern: CapabilityPattern, capability: Capability): boolean =>
+  matchesAction(pattern.action, capability.action) && matchesResource(pattern.resource, capability.resource)
+
+const actionSubsumes = (left: PatternAction, right: PatternAction): boolean => {
+  if (left === "*" || left === right) {
+    return true
+  }
+  return left.endsWith(":*") && right !== "*" && right.startsWith(left.slice(0, -1))
+}
+
+const resourceSubsumes = (left: string, right: string): boolean => {
+  const normalizedLeft = normalizeSlashes(left)
+  const normalizedRight = normalizeSlashes(right)
+  if (normalizedLeft === normalizedRight || normalizedLeft === "**") {
+    return true
+  }
+  if (!normalizedLeft.endsWith("/**")) {
+    return false
+  }
+  const prefix = normalizedLeft.slice(0, -3)
+  return normalizedRight.startsWith(`${prefix}/`)
+}
+
+/**
+ * Conservatively determines whether every capability selected by `right` is
+ * also selected by `left`. It returns `false` for glob relationships that
+ * cannot be proven by its syntactic checks.
+ *
+ * @since 0.1.0
+ * @category predicates
+ */
+export const subsumes = (left: CapabilityPattern, right: CapabilityPattern): boolean =>
+  actionSubsumes(left.action, right.action) && resourceSubsumes(left.resource, right.resource)
+
+/**
+ * The durability and retry semantics of an effect.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export type EffectTier = "sealed" | "compensable" | "irreversible"
+
+const lexicalPath = (path: string): string => {
+  const normalized = normalizeSlashes(path)
+  const drive = /^[A-Za-z]:\//.exec(normalized)?.[0]
+  const absolute = drive !== undefined || normalized.startsWith("/")
+  const prefix = drive ?? (absolute ? "/" : "")
+  const segments: Array<string> = []
+  for (const segment of normalized.slice(prefix.length).split("/")) {
+    if (segment === "" || segment === ".") {
+      continue
+    }
+    if (segment === "..") {
+      if (segments.length > 0 && segments[segments.length - 1] !== "..") {
+        segments.pop()
+      } else if (!absolute) {
+        segments.push(segment)
+      }
+    } else {
+      segments.push(segment)
+    }
+  }
+  return `${prefix}${segments.join("/")}` || (absolute ? prefix : ".")
+}
+
+const isAbsolutePath = (path: string): boolean => path.startsWith("/") || /^[A-Za-z]:\//.test(path)
+
+const isInsideWorkspace = (resource: string, workspaceRoot: string): boolean => {
+  const root = lexicalPath(workspaceRoot)
+  const normalizedResource = normalizeSlashes(resource)
+  const resolved = lexicalPath(
+    isAbsolutePath(normalizedResource) ? normalizedResource : `${root}/${normalizedResource}`
+  )
+  const windowsRoot = /^[A-Za-z]:\//.test(root)
+  const comparableRoot = windowsRoot ? root.toLowerCase() : root
+  const comparableResolved = windowsRoot ? resolved.toLowerCase() : resolved
+  const prefix = comparableRoot.endsWith("/") ? comparableRoot : `${comparableRoot}/`
+  return comparableResolved === comparableRoot || comparableResolved.startsWith(prefix)
+}
+
+/**
+ * Options used to classify workspace-relative file writes.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export interface TierOptions {
+  readonly workspaceRoot: string
+}
+
+/**
+ * Determines the effect tier for an exact capability.
+ *
+ * @since 0.1.0
+ * @category predicates
+ */
+export const tierOf = (capability: Capability, options: TierOptions): EffectTier => {
+  switch (capability.action) {
+    case "fs:read":
+    case "net:get":
+    case "model:call":
+    case "jj:status":
+    case "jj:diff":
+      return "sealed"
+    case "fs:write":
+      return isInsideWorkspace(capability.resource, options.workspaceRoot) ? "compensable" : "irreversible"
+    case "jj:snapshot":
+    case "jj:restore":
+    case "jj:workspace-add":
+    case "jj:workspace-forget":
+      return "compensable"
+    case "net:post":
+    case "proc:spawn":
+      return "irreversible"
+  }
+}
+
+/**
+ * Determines whether retrying an effect requires an idempotency key.
+ *
+ * @since 0.1.0
+ * @category predicates
+ */
+export const requiresIdempotencyKey = (tier: EffectTier): boolean => tier === "irreversible"

@@ -1,0 +1,237 @@
+import * as Jj from "@flows/host/Jj"
+import { Journal, RunStore } from "@flows/journal"
+import type * as JournalEvent from "@flows/journal/JournalEvent"
+import type { OwnerId } from "@flows/journal/Ownership"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import { describe, expect, it } from "vitest"
+import type { Result as CompensationResult } from "../src/Compensation.ts"
+import type { EffectRecord } from "../src/EffectBoundary.ts"
+import * as EffectHandlerRegistry from "../src/EffectHandlerRegistry.ts"
+import * as MemoryTimeTravelStore from "../src/MemoryTimeTravelStore.ts"
+import * as Recovery from "../src/Recovery.ts"
+import type { AuditDetail } from "../src/Rewind.ts"
+import { error } from "../src/TimeTravelError.ts"
+import { type Audit, TimeTravelStore } from "../src/TimeTravelStore.ts"
+
+const owner: OwnerId = { hostId: "recovery-host", pid: 40, nonce: "recovery-owner" }
+const frame = { lineageId: "run/root", seq: 0 } as const
+
+const makeRuns = (): RunStore.Service & { readonly state: () => RunStore.RunRow } => {
+  let row: RunStore.RunRow = {
+    runId: "run",
+    status: "running",
+    createdAtMs: 0,
+    startedAtMs: 0,
+    finishedAtMs: null,
+    owner,
+    heartbeatAtMs: 0,
+    claim: null,
+    claimedAtMs: null,
+    stateJson: "{\"cursor\":7}"
+  }
+  const service = RunStore.makeNoop({
+    get: () => Effect.succeed({ ...row }),
+    transitionOwned: (_runId, currentOwner, status, stateJson) =>
+      Effect.sync(() => {
+        if (row.owner?.nonce !== currentOwner.nonce) return { _tag: "FenceLost" as const }
+        row = {
+          ...row,
+          status,
+          stateJson: stateJson ?? row.stateJson,
+          ...(status === "running"
+            ? {}
+            : {
+              owner: null,
+              heartbeatAtMs: null,
+              claim: null,
+              claimedAtMs: null
+            })
+        }
+        return { _tag: "Transitioned" as const }
+      })
+  })
+  return Object.assign(service, { state: () => ({ ...row }) })
+}
+
+const journal = (hasSuffix: boolean): Journal.Service =>
+  Journal.makeNoop({
+    entries: () =>
+      Effect.succeed({
+        entries: hasSuffix
+          ? [{
+            runId: "run" as JournalEvent.RunId,
+            seq: 1 as JournalEvent.Seq,
+            eventId: "event-1",
+            sourceId: "recovery" as JournalEvent.SourceId,
+            sourceSeq: 1 as JournalEvent.SourceSeq,
+            emittedAtMs: 1,
+            eventType: "suffix",
+            payload: {},
+            meta: {}
+          } as JournalEvent.Entry]
+          : [],
+        hasMore: false
+      })
+  })
+
+const effect: EffectRecord = {
+  id: "send",
+  kind: "send",
+  tier: "irreversible",
+  status: "succeeded",
+  runId: "run",
+  lineageId: "run/root",
+  seq: 1,
+  durableBoundary: true,
+  providerStream: false
+}
+
+const compensation: CompensationResult = {
+  handlerReceipts: [{
+    id: "send:rollback",
+    effect,
+    data: { value: "sent" }
+  }],
+  workspace: {
+    currentChangeId: "current",
+    targetChangeId: "target"
+  }
+}
+
+const audit = (
+  phase: AuditDetail["phase"],
+  detailCompensation?: CompensationResult
+): Audit => ({
+  id: `audit-${phase}`,
+  runId: "run",
+  frame,
+  status: "in_progress",
+  detail: {
+    version: 1,
+    phase,
+    originalStatus: "suspended",
+    suffixCount: 1,
+    suffixTailSeq: 1,
+    ...(detailCompensation === undefined ? {} : { compensation: detailCompensation }),
+    warnings: [],
+    cancelledChildren: []
+  } satisfies AuditDetail
+})
+
+const seed = (
+  store: ReturnType<typeof MemoryTimeTravelStore.make>,
+  value: Audit
+) => Effect.runSync(store.writeAudit(value))
+
+const runRecovery = (
+  store: ReturnType<typeof MemoryTimeTravelStore.make>,
+  runs: RunStore.Service,
+  jj: Jj.Jj,
+  registry: EffectHandlerRegistry.Service,
+  hasSuffix: boolean
+) =>
+  Effect.runPromise(
+    Recovery.recover({ owner }).pipe(
+      Effect.provide(Layer.succeed(TimeTravelStore, store)),
+      Effect.provide(Layer.succeed(RunStore.RunStore, runs)),
+      Effect.provide(Layer.succeed(Journal.Journal, journal(hasSuffix))),
+      Effect.provide(Layer.succeed(Jj.Jj, jj)),
+      Effect.provide(Layer.succeed(EffectHandlerRegistry.EffectHandlerRegistry, registry))
+    )
+  )
+
+describe("Recovery", () => {
+  it("finishes the suspended transition when the archive transaction committed", async () => {
+    const store = MemoryTimeTravelStore.make()
+    seed(store, audit("archive_committed"))
+    const runs = makeRuns()
+    const registry = EffectHandlerRegistry.makeNoop()
+    const jj = Jj.makeNoop({
+      snapshot: () => Effect.succeed({ changeId: "current" }),
+      restore: () => Effect.void
+    })
+
+    const outcomes = await runRecovery(store, runs, jj, registry, false)
+
+    expect(outcomes).toEqual([{ _tag: "Completed", auditId: "audit-archive_committed" }])
+    expect(runs.state()).toMatchObject({ status: "suspended", owner: null })
+    expect(store.state().audits).toMatchObject([
+      { id: "audit-archive_committed", status: "completed" }
+    ])
+  })
+
+  it("restores jj and handler receipts when the archive transaction did not commit", async () => {
+    const store = MemoryTimeTravelStore.make()
+    seed(store, audit("compensated", compensation))
+    const runs = makeRuns()
+    const external: Array<string> = []
+    const registry = Effect.runSync(
+      EffectHandlerRegistry.make([{
+        kind: "send",
+        tier: "irreversible",
+        requiresIdempotencyKey: true,
+        residue: () => "message residue",
+        revert: () => Effect.succeed({ value: "sent" }),
+        rollback: (_crossed, receipt) =>
+          Effect.sync(() => {
+            external.push(String((receipt as { readonly value: string }).value))
+          })
+      }])
+    )
+    let pointer = "target"
+    const jj = Jj.makeNoop({
+      snapshot: () => Effect.succeed({ changeId: pointer }),
+      restore: (changeId) =>
+        Effect.sync(() => {
+          pointer = changeId
+        })
+    })
+
+    const outcomes = await runRecovery(store, runs, jj, registry, true)
+
+    expect(outcomes).toEqual([{ _tag: "RolledBack", auditId: "audit-compensated" }])
+    expect(pointer).toBe("current")
+    expect(external).toEqual(["sent"])
+    expect(runs.state()).toMatchObject({ status: "suspended", owner: null })
+    expect(store.state().audits).toMatchObject([
+      { id: "audit-compensated", status: "failed" }
+    ])
+  })
+
+  it("records an unrecoverable typed terminal failure without inventing a run status", async () => {
+    const store = MemoryTimeTravelStore.make()
+    seed(store, audit("compensated", compensation))
+    const runs = makeRuns()
+    const registry = Effect.runSync(
+      EffectHandlerRegistry.make([{
+        kind: "send",
+        tier: "irreversible",
+        requiresIdempotencyKey: true,
+        residue: () => "message residue",
+        revert: () => Effect.succeed({ value: "sent" }),
+        rollback: () => Effect.fail(error("compensation_failed", "rollback failed"))
+      }])
+    )
+    const jj = Jj.makeNoop({
+      snapshot: () => Effect.succeed({ changeId: "target" }),
+      restore: () => Effect.void
+    })
+
+    const outcomes = await runRecovery(store, runs, jj, registry, true)
+
+    expect(outcomes[0]).toMatchObject({
+      _tag: "Failed",
+      auditId: "audit-compensated",
+      error: { code: "compensation_failed" }
+    })
+    expect(runs.state().status).toBe("running")
+    expect(["pending", "running", "suspended", "completed", "failed", "cancelled"]).toContain(
+      runs.state().status
+    )
+    expect(store.state().audits[0]).toMatchObject({
+      status: "failed",
+      detail: { phase: "terminal_failure" }
+    })
+  })
+})
