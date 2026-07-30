@@ -197,6 +197,128 @@ describe("RunStore", () => {
     )
   })
 
+  it("claims and transfers stale ownership observably in one statement", async () => {
+    const result = await migrated(Effect.gen(function*() {
+      const store = yield* RunStore
+      yield* activateNew(store, "run-claim-and-own-transfer", ownerA)
+      yield* TestClock.adjust(Duration.seconds(31))
+      const stale = yield* store.get("run-claim-and-own-transfer")
+      const nowMs = yield* Clock.currentTimeMillis
+      const outcome = yield* store.claimAndOwn(
+        stale.runId,
+        snapshot(stale),
+        ownerB,
+        nowMs,
+        staleEvidence(ownerA, ownerB, nowMs)
+      )
+      const oldOwnerHeartbeat = yield* store.heartbeat(stale.runId, ownerA, nowMs + 1)
+      return { oldOwnerHeartbeat, outcome, row: yield* store.get(stale.runId) }
+    }))
+
+    expect(result.outcome).toEqual({ _tag: "Activated" })
+    expect(result.row).toMatchObject({
+      status: "running",
+      owner: ownerB,
+      heartbeatAtMs: 31_000,
+      claim: null,
+      claimedAtMs: null
+    })
+    expect(result.oldOwnerHeartbeat).toEqual({ _tag: "FenceLost" })
+  })
+
+  it("installs an owner different from the process claiming by proxy", async () => {
+    const engineOwner: OwnerId = { hostId: "engine-host", pid: 404, nonce: "engine-to-spawn" }
+    const result = await migrated(Effect.gen(function*() {
+      const store = yield* RunStore
+      yield* store.create("run-proxy-claim", "{}")
+      const pending = yield* store.get("run-proxy-claim")
+      const outcome = yield* store.claimAndOwn(
+        pending.runId,
+        snapshot(pending),
+        engineOwner,
+        yield* Clock.currentTimeMillis
+      )
+      return { outcome, row: yield* store.get(pending.runId) }
+    }))
+
+    expect(engineOwner).not.toEqual(ownerA)
+    expect(result.outcome).toEqual({ _tag: "Activated" })
+    expect(result.row.owner).toEqual(engineOwner)
+    expect(result.row.status).toBe("running")
+    expect(result.row.heartbeatAtMs).toBe(0)
+  })
+
+  it("allows exactly one of two concurrent claim-and-own calls to win", async () => {
+    const result = await migrated(Effect.gen(function*() {
+      const store = yield* RunStore
+      yield* store.create("run-concurrent-claim-and-own", "{}")
+      const pending = yield* store.get("run-concurrent-claim-and-own")
+      const expected = snapshot(pending)
+      const nowMs = yield* Clock.currentTimeMillis
+      const outcomes = yield* Effect.all(
+        [
+          store.claimAndOwn(pending.runId, expected, ownerA, nowMs),
+          store.claimAndOwn(pending.runId, expected, ownerB, nowMs)
+        ],
+        { concurrency: "unbounded" }
+      )
+      return { outcomes, row: yield* store.get(pending.runId) }
+    }))
+
+    expect(result.outcomes.filter((outcome) => outcome._tag === "Activated")).toHaveLength(1)
+    expect(result.outcomes.filter((outcome) => outcome._tag !== "Activated")).toHaveLength(1)
+    expect(["HeartbeatFresh", "SnapshotChanged"]).toContain(
+      result.outcomes.find((outcome) => outcome._tag !== "Activated")?._tag
+    )
+    expect([ownerA, ownerB]).toContainEqual(result.row.owner)
+  })
+
+  it("refuses claim-and-own while a different owner's heartbeat is fresh", async () => {
+    const result = await migrated(Effect.gen(function*() {
+      const store = yield* RunStore
+      const running = yield* activateNew(store, "run-fresh-claim-and-own", ownerA)
+      const outcome = yield* store.claimAndOwn(
+        running.runId,
+        snapshot(running),
+        ownerB,
+        yield* Clock.currentTimeMillis
+      )
+      return { outcome, row: yield* store.get(running.runId) }
+    }))
+
+    expect(result.outcome).toEqual({ _tag: "HeartbeatFresh" })
+    expect(result.row.owner).toEqual(ownerA)
+    expect(result.row.heartbeatAtMs).toBe(0)
+  })
+
+  it("refuses claim-and-own when the expected snapshot has changed", async () => {
+    const result = await migrated(Effect.gen(function*() {
+      const store = yield* RunStore
+      yield* store.create("run-stale-claim-and-own-snapshot", "{}")
+      const staleExpected = snapshot(yield* store.get("run-stale-claim-and-own-snapshot"))
+      expect(
+        yield* store.claim("run-stale-claim-and-own-snapshot", staleExpected, ownerA, 0)
+      ).toEqual({ _tag: "Claimed", claimedAtMs: 0 })
+      expect(
+        yield* store.activate("run-stale-claim-and-own-snapshot", ownerA, 0, staleExpected)
+      ).toEqual({ _tag: "Activated" })
+      expect(
+        yield* store.transitionOwned("run-stale-claim-and-own-snapshot", ownerA, "suspended")
+      ).toEqual({ _tag: "Transitioned" })
+      const outcome = yield* store.claimAndOwn(
+        "run-stale-claim-and-own-snapshot",
+        staleExpected,
+        ownerB,
+        yield* Clock.currentTimeMillis
+      )
+      return { outcome, row: yield* store.get("run-stale-claim-and-own-snapshot") }
+    }))
+
+    expect(result.outcome).toEqual({ _tag: "SnapshotChanged" })
+    expect(result.row.status).toBe("suspended")
+    expect(result.row.owner).toBeNull()
+  })
+
   it("rejects an ordinary claim while the recorded heartbeat is fresh", async () => {
     const outcome = await migrated(Effect.gen(function*() {
       const store = yield* RunStore

@@ -37,7 +37,7 @@ This page is the public API reference for durable events, run ownership, activit
 
 - `RunStatus`: `pending`, `running`, `suspended`, `completed`, `failed`, or `cancelled`.
 - `RunRow` and `RunSnapshot`.
-- fenced `create`, `get`, `claim`, `activate`, `abandonClaim`, `recoverClaim`, `heartbeat`, `transitionOwned`, and `steal`.
+- fenced `create`, `get`, `claim`, `claimAndOwn`, `activate`, `abandonClaim`, `recoverClaim`, `heartbeat`, `transitionOwned`, and `steal`.
 - tagged outcome unions for every compare-and-set operation.
 - `make`, `layer`, `makeNoop`, and `layerNoop`.
 

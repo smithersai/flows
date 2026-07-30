@@ -126,6 +126,7 @@ describe("service contracts", () => {
     expect((await Effect.runPromise(Effect.flip(service.create("run", "{}")))).method).toBe("create")
     expect((await Effect.runPromise(Effect.flip(service.get("run")))).method).toBe("get")
     expect(await Effect.runPromise(service.claim("run", expected, owner, 0))).toEqual({ _tag: "NotFound" })
+    expect(await Effect.runPromise(service.claimAndOwn("run", expected, owner, 0))).toEqual({ _tag: "NotFound" })
     expect(await Effect.runPromise(service.activate("run", owner, 0, expected))).toEqual({ _tag: "ClaimLost" })
     expect(await Effect.runPromise(service.abandonClaim("run", owner, 0))).toEqual({ _tag: "ClaimLost" })
     expect(
