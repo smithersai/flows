@@ -118,6 +118,21 @@ export type ClaimOutcome =
   | { readonly _tag: "SnapshotChanged" }
 
 /**
+ * Result of claiming and activating ownership in one compare-and-swap.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export type ClaimAndOwnOutcome =
+  | { readonly _tag: "Activated" }
+  | { readonly _tag: "NotFound" }
+  | { readonly _tag: "AlreadyClaimed" }
+  | { readonly _tag: "HeartbeatFresh" }
+  | { readonly _tag: "SnapshotChanged" }
+
+type ClaimLossOutcome = Exclude<ClaimOutcome, { readonly _tag: "Claimed" }>
+
+/**
  * Result of activating a held claim.
  *
  * @since 0.1.0
@@ -188,6 +203,17 @@ export interface Service {
     claimant: OwnerId,
     nowMs: number
   ) => Effect.Effect<ClaimOutcome, RunStoreError>
+  /**
+   * Claims and activates an exact snapshot atomically under the supplied owner.
+   * Replacing a different running owner also requires matching liveness evidence.
+   */
+  readonly claimAndOwn: (
+    runId: string,
+    expected: RunSnapshot,
+    owner: OwnerId,
+    nowMs: number,
+    evidence?: LivenessEvidence | undefined
+  ) => Effect.Effect<ClaimAndOwnOutcome, RunStoreError>
   readonly activate: (
     runId: string,
     claimant: OwnerId,
@@ -375,7 +401,7 @@ const selectRun = (sql: SqlClient.SqlClient, runId: string) =>
 const classifyClaimLoss = (
   row: DatabaseRunRow | undefined,
   nowMs: number
-): ClaimOutcome => {
+): ClaimLossOutcome => {
   if (row === undefined) return notFound
   if (row.claimHostId !== null) return alreadyClaimed
   if (
@@ -525,6 +551,61 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
       })
     )
   )
+
+  const claimAndOwn = Effect.fn("flows/journal/RunStore.claimAndOwn")((
+    runId: string,
+    expected: RunSnapshot,
+    owner: OwnerId,
+    nowMs: number,
+    evidence?: LivenessEvidence | undefined
+  ): Effect.Effect<ClaimAndOwnOutcome, RunStoreError> => {
+    const canReplaceExpectedOwner = expected.status !== "running" ||
+      (expected.owner !== null && sameOwner(expected.owner, owner)) ||
+      (evidence !== undefined && evidenceMatches(expected, owner, nowMs, evidence))
+
+    if (!canReplaceExpectedOwner) {
+      return write("claimAndOwn", selectRun(sql, runId)).pipe(
+        Effect.map((current) => classifyClaimLoss(current[0], nowMs))
+      )
+    }
+
+    return write(
+      "claimAndOwn",
+      Effect.gen(function*() {
+        const rows = yield* sql<{ readonly runId: string }>`
+          UPDATE flows_runs
+          SET
+            status = 'running',
+            started_at_ms = COALESCE(started_at_ms, ${nowMs}),
+            finished_at_ms = NULL,
+            owner_host_id = ${owner.hostId},
+            owner_pid = ${owner.pid},
+            owner_nonce = ${owner.nonce},
+            heartbeat_at_ms = ${nowMs}
+          WHERE run_id = ${runId}
+            AND status IN ('pending', 'suspended', 'running')
+            AND status = ${expected.status}
+            AND owner_host_id IS ${expected.owner?.hostId ?? null}
+            AND owner_pid IS ${expected.owner?.pid ?? null}
+            AND owner_nonce IS ${expected.owner?.nonce ?? null}
+            AND heartbeat_at_ms IS ${expected.heartbeatAtMs}
+            AND claim_host_id IS NULL
+            AND claim_pid IS NULL
+            AND claim_nonce IS NULL
+            AND claimed_at_ms IS NULL
+            AND (
+              status <> 'running'
+              OR heartbeat_at_ms IS NULL
+              OR heartbeat_at_ms < ${nowMs - heartbeatStaleAfterMs}
+            )
+          RETURNING run_id AS "runId"
+        `
+        if (rows.length > 0) return activated
+        const current = yield* selectRun(sql, runId)
+        return classifyClaimLoss(current[0], nowMs)
+      })
+    )
+  })
 
   const activate = Effect.fn("flows/journal/RunStore.activate")((
     runId: string,
@@ -787,6 +868,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
     create,
     get,
     claim,
+    claimAndOwn,
     activate,
     abandonClaim,
     recoverClaim,
@@ -810,6 +892,7 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service => {
     create: Effect.fn("flows/journal/RunStore.create")(() => unavailable("create")),
     get: Effect.fn("flows/journal/RunStore.get")(() => unavailable("get")),
     claim: Effect.fn("flows/journal/RunStore.claim")(() => Effect.succeed(notFound)),
+    claimAndOwn: Effect.fn("flows/journal/RunStore.claimAndOwn")(() => Effect.succeed(notFound)),
     activate: Effect.fn("flows/journal/RunStore.activate")(() => Effect.succeed(claimLost)),
     abandonClaim: Effect.fn("flows/journal/RunStore.abandonClaim")(() => Effect.succeed(claimLost)),
     recoverClaim: Effect.fn("flows/journal/RunStore.recoverClaim")(() => Effect.succeed(notFound)),
