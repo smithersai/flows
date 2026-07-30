@@ -75,6 +75,7 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
+    "@flows/database": "*",
     "@flows/keys": "*",
     "@flows/workflow-engine": "*",
     "@flows/journal": "*",

@@ -95,6 +95,7 @@ export const make = (
       engine: Deferred.await(engine)
     })
     const deferred = yield* DeferredPersistence.make({
+      owner,
       journalSource: options.journalSource,
       scheduleResume: (workflowName, executionId, reason) => driver.scheduleResume(workflowName, executionId, reason)
     })

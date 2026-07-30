@@ -11,3 +11,4 @@
 ### Added
 
 - Added the non-blocking journal, fenced run and attempt stores, run coordinator, migrations, and content-addressed cache.
+- Added migration 0002 for durable deferred completions and absolute clock deadlines.

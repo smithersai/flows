@@ -52,7 +52,11 @@ With `EngineStore`, the following can outlive the driving fiber:
 - journal entries;
 - shared cache entries.
 
-Deferred completions and clock deadlines pass through `DurableEngineState`. The API is durability-shaped, but this repository only ships an in-memory implementation. An application must provide a durable implementation for those values to survive process loss.
+Deferred completions and clock deadlines pass through `DurableEngineState`.
+`DurableEngineState.layer` persists them in the journal-migrated SQL schema;
+`layerMemory` is available for deterministic tests. Re-registering a workflow
+re-arms every pending absolute deadline and re-delivers claim-gated wakes for
+stored completions.
 
 Workflow registrations, active fibers, the workflow handler function, and the run coordinator’s active map stay in memory. A restarted process must reconstruct layers and register handlers before it can resume stored executions.
 

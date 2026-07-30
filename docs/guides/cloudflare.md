@@ -36,7 +36,11 @@ This database adapter is separate from `CloudflareFileSystem`: the former stores
 
 ## Current blockers for the full engine
 
-`EngineStore` itself imports Node owner-identity APIs. Its only bundled `DurableEngineState` is in-memory, and no production `StepBoundary` is included. A fully restart-durable Worker composition therefore needs an edge-safe engine-store change plus persistent deferred/clock and boundary implementations. Those pieces are **Planned**.
+`EngineStore` itself imports Node owner-identity APIs, and no production
+`StepBoundary` is included. `DurableEngineState.layer` is SQL-backed but still
+requires a compatible edge `Database` layer. A fully restart-durable Worker
+composition therefore still needs edge-safe engine owner identity and boundary
+implementations. Those pieces are **Planned**.
 
 You can use the Cloudflare host and database adapters independently now. Do not substitute the no-op shell/Jujutsu services for workloads that declare those capabilities.
 

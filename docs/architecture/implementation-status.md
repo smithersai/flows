@@ -16,7 +16,7 @@ This page distinguishes usable source-backed behavior from contracts and planned
 | Cache rows | First-writer-wins content-addressed results with run/sequence provenance |
 | Capability kernel | Monotone capability sets, rules, attended/unattended grants, journal-backed decisions, and guarded Host layers |
 | Host bundles | Node, Bun, browser/test, Cloudflare, Vercel Edge, and Vercel Node adapters |
-| Durable primitives | Deferred completion ordering, absolute clock rows, durable queue API, and attached child workflow wake-up |
+| Durable primitives | SQL-backed deferred completions and absolute clock rows, restart re-arming and wake recovery, durable queue API, and attached child workflow wake-up |
 | Sync | Read-only catch-up and credit-bounded follow over schema-backed Effect RPC |
 | Time travel utilities | Replay projections, memory/SQL time-travel stores, fork, rewind, compensation, recovery, and tier-aware retry |
 
@@ -25,7 +25,6 @@ This page distinguishes usable source-backed behavior from contracts and planned
 | Contract | What is missing |
 | --- | --- |
 | `StepBoundary` | A host layer that enforces read/write sets, detects changed paths, captures outputs, and replays those outputs |
-| `DurableEngineState` | A SQL or hosted implementation for deferred completions and clock deadlines; only `makeMemory`/`layerMemory` ship |
 | Cross-host liveness | `EngineStore.Options.isAlive` is application-supplied |
 | `RunCatalog` | A durable workspace run list/watch; static and memory implementations ship |
 | Browser Jujutsu and PTY | Typed unavailable implementations ship |

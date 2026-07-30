@@ -48,6 +48,8 @@ describe("journal migrations", () => {
 
     expect(schema.master.filter((row) => row.type === "table").map((row) => row.name).sort()).toEqual([
       "flows_attempts",
+      "flows_clock_deadlines",
+      "flows_deferred_completions",
       "flows_journal_events",
       "flows_migrations",
       "flows_runs",
@@ -68,6 +70,22 @@ describe("journal migrations", () => {
         "started_at_ms",
         "state",
         "step_key_digest"
+      ],
+      flows_clock_deadlines: [
+        "clock_name",
+        "completed_at_ms",
+        "deferred_name",
+        "due_at_ms",
+        "execution_id",
+        "workflow_name"
+      ],
+      flows_deferred_completions: [
+        "completed_at_ms",
+        "deferred_name",
+        "execution_id",
+        "exit_json",
+        "metadata_json",
+        "workflow_name"
       ],
       flows_journal_events: [
         "emitted_at_ms",
@@ -115,6 +133,8 @@ describe("journal migrations", () => {
     const runsSql = schema.master.find((row) => row.name === "flows_runs")?.sql ?? ""
     const attemptsSql = schema.master.find((row) => row.name === "flows_attempts")?.sql ?? ""
     const cacheSql = schema.master.find((row) => row.name === "flows_step_cache")?.sql ?? ""
+    const deferredsSql = schema.master.find((row) => row.name === "flows_deferred_completions")?.sql ?? ""
+    const clocksSql = schema.master.find((row) => row.name === "flows_clock_deadlines")?.sql ?? ""
     expect(journalSql).toContain("PRIMARY KEY (run_id, seq)")
     expect(journalSql).toContain("UNIQUE (run_id, source_id, source_seq)")
     expect(runsSql).toContain("CHECK")
@@ -130,6 +150,15 @@ describe("journal migrations", () => {
     expect(cacheSql).toContain("typeof(created_at_ms) = 'integer'")
     expect(cacheSql).toContain("length(recorded_run_id) > 0")
     expect(cacheSql).toContain("typeof(recorded_event_seq) = 'integer'")
+    expect(deferredsSql).toContain("completed_at_ms BIGINT NOT NULL")
+    expect(deferredsSql).toContain("FOREIGN KEY (execution_id) REFERENCES flows_runs (run_id)")
+    expect(clocksSql).toContain("due_at_ms BIGINT NOT NULL")
+    expect(clocksSql).toContain("completed_at_ms BIGINT")
+    expect(clocksSql).toContain("FOREIGN KEY (execution_id) REFERENCES flows_runs (run_id)")
+    expect(`${deferredsSql}${clocksSql}`).not.toMatch(/json_valid|typeof/)
+    expect(
+      schema.master.some((row) => row.name === "flows_clock_deadlines_pending_idx" && row.type === "index")
+    ).toBe(true)
   })
 
   it("rejects a half-populated owner tuple", async () => {

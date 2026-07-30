@@ -1,0 +1,195 @@
+import { Database, NodeDatabase } from "@flows/database"
+import { DurableEngineState, EngineStore, StepBoundary } from "@flows/engine-store"
+import { AttemptStore, CacheStore, Migrations, RunStore, SqlJournal } from "@flows/journal"
+import { Jj } from "@flows/kernel"
+import { DurableClock, DurableDeferred, Workflow } from "@flows/workflow-engine"
+import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
+import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
+import * as Schema from "effect/Schema"
+
+const mode = process.argv[2]
+const filename = process.argv[3]
+const executionId = process.argv[4]
+
+if (mode === undefined || filename === undefined || executionId === undefined) {
+  throw new Error("usage: durable-wait-child.ts <mode> <filename> <execution-id> [value]")
+}
+
+const WaitWorkflow = Workflow.make("DurableWaiting/HardKill", {
+  payload: {},
+  success: Schema.String
+})
+
+const TimerWorkflow = Workflow.make("DurableWaiting/FutureTimer", {
+  payload: {},
+  success: Schema.String
+})
+
+const deferred = DurableDeferred.make("answer", {
+  success: Schema.String
+})
+
+const jj = Jj.make({
+  snapshot: () => Effect.succeed({ changeId: "durable-wait-child" as never }),
+  restore: () => Effect.void,
+  diff: () => Effect.succeed(""),
+  workspaceAdd: () => Effect.void,
+  workspaceForget: () => Effect.void,
+  status: () => Effect.succeed("")
+})
+
+const database = NodeDatabase.layer({ filename })
+const migratedDatabase = Layer.provideMerge(Migrations.layer, database)
+const sqlServices = Layer.provideMerge(
+  Layer.mergeAll(
+    AttemptStore.layer,
+    CacheStore.layer,
+    RunStore.layer,
+    DurableEngineState.layer,
+    SqlJournal.layer({ capacity: 64, overflow: "reject" })
+  ),
+  migratedDatabase
+)
+const requirements = Layer.mergeAll(
+  sqlServices,
+  StepBoundary.layerTest(),
+  Layer.succeed(Jj.Jj, jj)
+)
+
+const line = (value: unknown): Effect.Effect<void> =>
+  Effect.sync(() => {
+    process.stdout.write(`${JSON.stringify(value)}\n`)
+  })
+
+const waitUntilTerminal = Effect.fn("waitUntilTerminal")((runId: string) =>
+  Effect.gen(function*() {
+    const runs = yield* RunStore.RunStore
+    for (let count = 0; count < 400; count++) {
+      const row = yield* runs.get(runId)
+      if (row.status === "completed" || row.status === "failed" || row.status === "cancelled") {
+        return row
+      }
+      yield* Effect.sleep("25 millis")
+    }
+    return yield* Effect.die(new Error(`run ${runId} did not become terminal`))
+  })
+)
+
+const stateCompletion = Effect.gen(function*() {
+  const state = yield* DurableEngineState.make
+  const outcome = yield* state.completeDeferred({
+    workflowName: "DurableState/ProcessRace",
+    executionId,
+    deferredName: "answer",
+    exit: Exit.succeed(process.argv[5] ?? ""),
+    completedAtMs: Date.now()
+  })
+  yield* line({ tag: outcome._tag, row: outcome.row })
+}).pipe(Effect.provide(database))
+
+const stateInitialization = Effect.gen(function*() {
+  const { sql } = yield* Database.Database
+  yield* sql`
+    INSERT INTO flows_runs (run_id, status, created_at_ms, state_json)
+    VALUES (${executionId}, 'suspended', 0, '{}')
+  `
+  yield* line({ status: "initialized" })
+}).pipe(Effect.provide(migratedDatabase))
+
+const engineProgram = Effect.scoped(
+  Effect.gen(function*() {
+    const engine = yield* EngineStore.make({
+      owner: { hostId: `durable-wait-${mode}` },
+      journalSource: "durable-wait-test",
+      isAlive: () => Effect.succeed(false)
+    })
+
+    if (mode === "wait-start") {
+      yield* engine.register(
+        WaitWorkflow,
+        () => DurableDeferred.await(deferred)
+      )
+      yield* engine.execute(WaitWorkflow, {
+        executionId,
+        payload: {},
+        discard: true
+      })
+      yield* line({ status: "suspended" })
+      return yield* Effect.never
+    }
+
+    if (mode === "wait-complete-unregistered") {
+      yield* engine.deferredDone(deferred, {
+        workflowName: WaitWorkflow._tag,
+        executionId,
+        deferredName: deferred.name,
+        exit: Exit.succeed("resumed-after-kill")
+      })
+      return yield* line({ status: "completion-recorded" })
+    }
+
+    if (mode === "wait-restart") {
+      yield* engine.register(
+        WaitWorkflow,
+        () => DurableDeferred.await(deferred)
+      )
+      const row = yield* waitUntilTerminal(executionId)
+      return yield* line({ status: row.status, state: JSON.parse(row.stateJson) as unknown })
+    }
+
+    if (mode === "timer-start") {
+      yield* engine.register(
+        TimerWorkflow,
+        () =>
+          DurableClock.sleep({
+            name: "wake",
+            duration: "3 seconds",
+            inMemoryThreshold: "1 millis"
+          }).pipe(Effect.as("timer-fired"))
+      )
+      yield* engine.execute(TimerWorkflow, {
+        executionId,
+        payload: {},
+        discard: true
+      })
+      yield* line({ status: "suspended" })
+      return yield* Effect.never
+    }
+
+    if (mode === "timer-restart") {
+      yield* engine.register(
+        TimerWorkflow,
+        () =>
+          DurableClock.sleep({
+            name: "wake",
+            duration: "3 seconds",
+            inMemoryThreshold: "1 millis"
+          }).pipe(Effect.as("timer-fired"))
+      )
+      const state = yield* DurableEngineState.DurableEngineState
+      const clock = yield* state.clock({
+        workflowName: TimerWorkflow._tag,
+        executionId,
+        clockName: "wake"
+      })
+      yield* line({
+        status: "restarted",
+        completedAtMs: Option.getOrThrow(clock).completedAtMs
+      })
+      const row = yield* waitUntilTerminal(executionId)
+      return yield* line({ status: row.status, state: JSON.parse(row.stateJson) as unknown })
+    }
+
+    return yield* Effect.die(new Error(`unknown mode ${mode}`))
+  }).pipe(Effect.provide(requirements))
+)
+
+await Effect.runPromise(
+  mode === "state-complete"
+    ? stateCompletion
+    : mode === "state-init"
+    ? stateInitialization
+    : engineProgram
+)

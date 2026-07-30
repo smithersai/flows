@@ -26,7 +26,12 @@ The service addresses deferreds by workflow/execution/deferred name and clocks b
 - `clock`, first-writer-wins `scheduleClock`, and `completeClock`
 - `dueClocks(nowMs)`
 
-Outcome unions distinguish newly written, existing, completed, and missing rows. `makeMemory` and `layerMemory` are the only bundled implementations; they can be shared across fresh engine instances in a test but do not survive process loss.
+Outcome unions distinguish newly written, existing, completed, and missing
+rows. `make` and `layer` provide SQL persistence through `Database`;
+`makeMemory` and `layerMemory` remain deterministic test implementations.
+Clock creation is fenced against the active run owner. Deferred and clock
+completion use first-writer and compare-and-set admission before the existing
+claim-gated wake path.
 
 ## `StepBoundary`
 

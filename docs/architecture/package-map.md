@@ -43,7 +43,11 @@ flowchart TD
 
 ## Two persistence seams
 
-`@flows/journal` owns event rows, run rows, attempt rows, and cache rows. `@flows/engine-store` currently adds `DurableEngineState` for deferred completions and clock deadlines. Its only shipped implementation is in memory, so the latter seam must be replaced by an application-owned durable implementation for restart-safe deferreds and clocks.
+`@flows/journal` owns event rows, run rows, attempt rows, cache rows, and the
+migrations for deferred completions and clock deadlines.
+`@flows/engine-store` adds `DurableEngineState`: `layer` persists those waits
+through `Database`, while `layerMemory` remains available for deterministic
+tests.
 
 `@flows/time-travel` adds audit, receipt, snapshot, lineage-edge, and archive tables through `SqlTimeTravelStore`. Those tables are separate from the journal migration.
 

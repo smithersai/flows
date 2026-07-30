@@ -4,10 +4,13 @@
  *
  * @since 0.1.0
  */
+import { Database } from "@flows/database/Database"
+import type { OwnerId } from "@flows/journal/Ownership"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import * as Schema from "effect/Schema"
 
 /**
  * The durable address of a deferred result.
@@ -108,7 +111,7 @@ export interface Service {
   // TODO(piece-6): fold into @flows/journal — needs ClockStore.get(workflowName, executionId, clockName).
   readonly clock: (address: ClockAddress) => Effect.Effect<Option.Option<ClockRow>>
   // TODO(piece-6): fold into @flows/journal — needs ClockStore.scheduleFirstWriterWins(rowWithAbsoluteDueAtMs).
-  readonly scheduleClock: (row: ClockRow) => Effect.Effect<ScheduleClockOutcome>
+  readonly scheduleClock: (row: ClockRow, owner?: OwnerId) => Effect.Effect<ScheduleClockOutcome>
   // TODO(piece-6): fold into @flows/journal — needs ClockStore.completeOnce(address, completedAtMs).
   readonly completeClock: (
     address: ClockAddress,
@@ -116,6 +119,14 @@ export interface Service {
   ) => Effect.Effect<CompleteClockOutcome>
   // TODO(piece-6): fold into @flows/journal — needs ClockStore.due(nowMs).
   readonly dueClocks: (nowMs: number) => Effect.Effect<ReadonlyArray<ClockRow>>
+  /**
+   * Lists completed deferred addresses for registration-time wake recovery.
+   *
+   * Optional so existing custom implementations remain source-compatible.
+   */
+  readonly completedDeferreds?: (
+    workflowName: string
+  ) => Effect.Effect<ReadonlyArray<DeferredAddress>>
 }
 
 /**
@@ -133,6 +144,373 @@ const deferredKey = (address: DeferredAddress): string =>
 
 const clockKey = (address: ClockAddress): string =>
   JSON.stringify([address.workflowName, address.executionId, address.clockName])
+
+const NonNegativeSafeInt = Schema.Int.check(
+  Schema.isGreaterThanOrEqualTo(0),
+  Schema.isLessThanOrEqualTo(Number.MAX_SAFE_INTEGER)
+)
+
+const DeferredDatabaseRow = Schema.Struct({
+  workflowName: Schema.String,
+  executionId: Schema.String,
+  deferredName: Schema.String,
+  exitJson: Schema.String,
+  metadataJson: Schema.NullOr(Schema.String),
+  completedAtMs: NonNegativeSafeInt
+})
+
+type DeferredDatabaseRow = typeof DeferredDatabaseRow.Type
+
+const ClockDatabaseRow = Schema.Struct({
+  workflowName: Schema.String,
+  executionId: Schema.String,
+  clockName: Schema.String,
+  deferredName: Schema.String,
+  dueAtMs: NonNegativeSafeInt,
+  completedAtMs: Schema.NullOr(NonNegativeSafeInt)
+})
+
+type ClockDatabaseRow = typeof ClockDatabaseRow.Type
+
+const DeferredAddressDatabaseRow = Schema.Struct({
+  workflowName: Schema.String,
+  executionId: Schema.String,
+  deferredName: Schema.String
+})
+
+const encodeJson = (value: unknown, field: string): Effect.Effect<string> =>
+  Effect.try({
+    try: () => JSON.stringify(value),
+    catch: (cause) => new Error(`${field} must be JSON-serializable`, { cause })
+  }).pipe(
+    Effect.orDie,
+    Effect.flatMap((encoded) =>
+      encoded === undefined
+        ? Effect.die(new Error(`${field} must be JSON-serializable`))
+        : Effect.succeed(encoded)
+    )
+  )
+
+const decodeJson = (value: string, field: string): Effect.Effect<unknown> =>
+  Effect.try({
+    try: () => JSON.parse(value) as unknown,
+    catch: (cause) => new Error(`could not decode ${field}`, { cause })
+  }).pipe(Effect.orDie)
+
+const decodeDeferredRow = (input: unknown): Effect.Effect<DeferredRow> =>
+  Schema.decodeUnknownEffect(DeferredDatabaseRow)(input).pipe(
+    Effect.orDie,
+    Effect.flatMap((row) =>
+      Effect.all({
+        exit: decodeJson(row.exitJson, "exit_json"),
+        metadata: row.metadataJson === null
+          ? Effect.succeed(undefined)
+          : decodeJson(row.metadataJson, "metadata_json")
+      }).pipe(
+        Effect.map(({ exit, metadata }) => ({
+          workflowName: row.workflowName,
+          executionId: row.executionId,
+          deferredName: row.deferredName,
+          exit,
+          ...(metadata === undefined ? {} : { metadata }),
+          completedAtMs: row.completedAtMs
+        }))
+      )
+    )
+  )
+
+const decodeClockRow = (input: unknown): Effect.Effect<ClockRow> =>
+  Schema.decodeUnknownEffect(ClockDatabaseRow)(input).pipe(
+    Effect.orDie,
+    Effect.map((row) => ({
+      workflowName: row.workflowName,
+      executionId: row.executionId,
+      clockName: row.clockName,
+      deferredName: row.deferredName,
+      dueAtMs: row.dueAtMs,
+      completedAtMs: row.completedAtMs
+    }))
+  )
+
+/**
+ * Constructs the database-backed durable-state implementation.
+ *
+ * Clock creation is fenced against the current run owner. Deferred completion
+ * and clock firing are external trigger admissions protected by first-writer
+ * and compare-and-set semantics; execution remains claim-gated by `RunStore`.
+ *
+ * @since 0.1.0
+ * @category constructors
+ */
+export const make: Effect.Effect<Service, never, Database> = Effect.gen(function*() {
+  const database = yield* Database
+  const { sql } = database
+
+  const selectDeferred = (address: DeferredAddress) =>
+    sql<DeferredDatabaseRow>`
+      SELECT
+        workflow_name AS "workflowName",
+        execution_id AS "executionId",
+        deferred_name AS "deferredName",
+        exit_json AS "exitJson",
+        metadata_json AS "metadataJson",
+        completed_at_ms AS "completedAtMs"
+      FROM flows_deferred_completions
+      WHERE workflow_name = ${address.workflowName}
+        AND execution_id = ${address.executionId}
+        AND deferred_name = ${address.deferredName}
+    `
+
+  const selectClock = (address: ClockAddress) =>
+    sql<ClockDatabaseRow>`
+      SELECT
+        workflow_name AS "workflowName",
+        execution_id AS "executionId",
+        clock_name AS "clockName",
+        deferred_name AS "deferredName",
+        due_at_ms AS "dueAtMs",
+        completed_at_ms AS "completedAtMs"
+      FROM flows_clock_deadlines
+      WHERE workflow_name = ${address.workflowName}
+        AND execution_id = ${address.executionId}
+        AND clock_name = ${address.clockName}
+    `
+
+  const deferred: Service["deferred"] = Effect.fn("DurableEngineState.deferred")((address) =>
+    selectDeferred(address).pipe(
+      Effect.orDie,
+      Effect.flatMap((rows) =>
+        rows[0] === undefined
+          ? Effect.succeedNone
+          : Effect.map(decodeDeferredRow(rows[0]), Option.some)
+      )
+    )
+  )
+
+  const completeDeferred: Service["completeDeferred"] = Effect.fn(
+    "DurableEngineState.completeDeferred"
+  )((row) =>
+    Effect.gen(function*() {
+      const exitJson = yield* encodeJson(row.exit, "exit")
+      const metadataJson = row.metadata === undefined
+        ? null
+        : yield* encodeJson(row.metadata, "metadata")
+      return yield* database.write(
+        Effect.gen(function*() {
+          const inserted = yield* sql<DeferredDatabaseRow>`
+            INSERT INTO flows_deferred_completions (
+              workflow_name,
+              execution_id,
+              deferred_name,
+              exit_json,
+              metadata_json,
+              completed_at_ms
+            ) VALUES (
+              ${row.workflowName},
+              ${row.executionId},
+              ${row.deferredName},
+              ${exitJson},
+              ${metadataJson},
+              ${row.completedAtMs}
+            )
+            ON CONFLICT (workflow_name, execution_id, deferred_name) DO NOTHING
+            RETURNING
+              workflow_name AS "workflowName",
+              execution_id AS "executionId",
+              deferred_name AS "deferredName",
+              exit_json AS "exitJson",
+              metadata_json AS "metadataJson",
+              completed_at_ms AS "completedAtMs"
+          `
+          if (inserted[0] !== undefined) {
+            return {
+              _tag: "Completed" as const,
+              row: yield* decodeDeferredRow(inserted[0])
+            }
+          }
+          const existing = yield* selectDeferred(row)
+          if (existing[0] === undefined) {
+            return yield* Effect.die(
+              new Error("deferred completion disappeared during first-writer transaction")
+            )
+          }
+          return {
+            _tag: "Existing" as const,
+            row: yield* decodeDeferredRow(existing[0])
+          }
+        })
+      ).pipe(Effect.orDie)
+    })
+  )
+
+  const clock: Service["clock"] = Effect.fn("DurableEngineState.clock")((address) =>
+    selectClock(address).pipe(
+      Effect.orDie,
+      Effect.flatMap((rows) =>
+        rows[0] === undefined
+          ? Effect.succeedNone
+          : Effect.map(decodeClockRow(rows[0]), Option.some)
+      )
+    )
+  )
+
+  const scheduleClock: Service["scheduleClock"] = Effect.fn("DurableEngineState.scheduleClock")((row, owner) =>
+    owner === undefined
+      ? Effect.interrupt
+      : database.write(
+        Effect.gen(function*() {
+          const inserted = yield* sql<ClockDatabaseRow>`
+            INSERT INTO flows_clock_deadlines (
+              workflow_name,
+              execution_id,
+              clock_name,
+              deferred_name,
+              due_at_ms,
+              completed_at_ms
+            )
+            SELECT
+              ${row.workflowName},
+              ${row.executionId},
+              ${row.clockName},
+              ${row.deferredName},
+              ${row.dueAtMs},
+              ${row.completedAtMs}
+            WHERE EXISTS (
+              SELECT 1
+              FROM flows_runs
+              WHERE run_id = ${row.executionId}
+                AND status = 'running'
+                AND owner_host_id = ${owner.hostId}
+                AND owner_pid = ${owner.pid}
+                AND owner_nonce = ${owner.nonce}
+            )
+            ON CONFLICT (workflow_name, execution_id, clock_name) DO NOTHING
+            RETURNING
+              workflow_name AS "workflowName",
+              execution_id AS "executionId",
+              clock_name AS "clockName",
+              deferred_name AS "deferredName",
+              due_at_ms AS "dueAtMs",
+              completed_at_ms AS "completedAtMs"
+          `
+          if (inserted[0] !== undefined) {
+            return {
+              _tag: "Scheduled" as const,
+              row: yield* decodeClockRow(inserted[0])
+            }
+          }
+          const existing = yield* selectClock(row)
+          if (existing[0] !== undefined) {
+            return {
+              _tag: "Existing" as const,
+              row: yield* decodeClockRow(existing[0])
+            }
+          }
+          return yield* Effect.interrupt
+        })
+      ).pipe(Effect.orDie)
+  )
+
+  const completeClock: Service["completeClock"] = Effect.fn("DurableEngineState.completeClock")((
+    address,
+    completedAtMs
+  ) =>
+    database.write(
+      Effect.gen(function*() {
+        const updated = yield* sql<ClockDatabaseRow>`
+          UPDATE flows_clock_deadlines
+          SET completed_at_ms = ${completedAtMs}
+          WHERE workflow_name = ${address.workflowName}
+            AND execution_id = ${address.executionId}
+            AND clock_name = ${address.clockName}
+            AND completed_at_ms IS NULL
+          RETURNING
+            workflow_name AS "workflowName",
+            execution_id AS "executionId",
+            clock_name AS "clockName",
+            deferred_name AS "deferredName",
+            due_at_ms AS "dueAtMs",
+            completed_at_ms AS "completedAtMs"
+        `
+        if (updated[0] !== undefined) {
+          return {
+            _tag: "Completed" as const,
+            row: yield* decodeClockRow(updated[0])
+          }
+        }
+        const existing = yield* selectClock(address)
+        return existing[0] === undefined
+          ? { _tag: "NotFound" as const }
+          : {
+            _tag: "AlreadyCompleted" as const,
+            row: yield* decodeClockRow(existing[0])
+          }
+      })
+    ).pipe(Effect.orDie)
+  )
+
+  const dueClocks: Service["dueClocks"] = Effect.fn("DurableEngineState.dueClocks")((nowMs) =>
+    sql<ClockDatabaseRow>`
+      SELECT
+        workflow_name AS "workflowName",
+        execution_id AS "executionId",
+        clock_name AS "clockName",
+        deferred_name AS "deferredName",
+        due_at_ms AS "dueAtMs",
+        completed_at_ms AS "completedAtMs"
+      FROM flows_clock_deadlines
+      WHERE completed_at_ms IS NULL
+        AND due_at_ms <= ${nowMs}
+      ORDER BY due_at_ms, execution_id, clock_name
+    `.pipe(
+      Effect.orDie,
+      Effect.flatMap((rows) => Effect.forEach(rows, decodeClockRow))
+    )
+  )
+
+  const completedDeferreds: NonNullable<Service["completedDeferreds"]> = Effect.fn(
+    "DurableEngineState.completedDeferreds"
+  )((workflowName) =>
+    sql<Record<string, unknown>>`
+      SELECT
+        workflow_name AS "workflowName",
+        execution_id AS "executionId",
+        deferred_name AS "deferredName"
+      FROM flows_deferred_completions
+      WHERE workflow_name = ${workflowName}
+      ORDER BY execution_id, deferred_name
+    `.pipe(
+      Effect.orDie,
+      Effect.flatMap((rows) =>
+        Effect.forEach(
+          rows,
+          (row) => Schema.decodeUnknownEffect(DeferredAddressDatabaseRow)(row).pipe(Effect.orDie)
+        )
+      )
+    )
+  )
+
+  return DurableEngineState.of({
+    deferred,
+    completeDeferred,
+    clock,
+    scheduleClock,
+    completeClock,
+    dueClocks,
+    completedDeferreds
+  })
+})
+
+/**
+ * Provides database-backed durable engine state.
+ *
+ * @since 0.1.0
+ * @category layers
+ */
+export const layer: Layer.Layer<DurableEngineState, never, Database> = Layer.effect(
+  DurableEngineState,
+  make
+)
 
 /**
  * Constructs a deterministic in-memory durable-state implementation.
@@ -199,6 +577,21 @@ export const makeMemory = (): Service => {
             left.dueAtMs - right.dueAtMs ||
             left.executionId.localeCompare(right.executionId) ||
             left.clockName.localeCompare(right.clockName)
+          )
+      )
+    ),
+    completedDeferreds: Effect.fn("DurableEngineState.completedDeferreds")((workflowName) =>
+      Effect.sync(() =>
+        Array.from(deferreds.values())
+          .filter((row) => row.workflowName === workflowName)
+          .map(({ workflowName, executionId, deferredName }) => ({
+            workflowName,
+            executionId,
+            deferredName
+          }))
+          .sort((left, right) =>
+            left.executionId.localeCompare(right.executionId) ||
+            left.deferredName.localeCompare(right.deferredName)
           )
       )
     )

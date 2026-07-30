@@ -53,13 +53,18 @@ For a persistent deployment:
 2. wrap it with `Database.make` or a runtime adapter,
 3. run `Journal.Migrations`,
 4. construct `SqlJournal`, `RunStore`, `AttemptStore`, and `CacheStore` from that database,
-5. provide the resulting services to `EngineStore.layer`.
+5. construct `DurableEngineState.layer` from the same migrated database,
+6. provide the resulting services to `EngineStore.layer`.
 
 Migrations must complete before any store service is exposed. `Database.write` wraps a SQL transaction and retries retryable SQLite write failures; non-SQLite drivers retain their own transaction behavior.
 
 ## Services still owned by the application
 
-The library currently supplies only `DurableEngineState.layerMemory`. Deferred completions and scheduled clocks stored there do not survive process loss. A persistent implementation is required for production restart durability.
+Use `DurableEngineState.layer` for process-restart durability.
+`DurableEngineState.layerMemory` remains intended for tests. On workflow
+registration, the SQL implementation re-arms every pending future or overdue
+clock and re-delivers wakes for stored completions through the normal run
+claim path.
 
 `StepBoundary.layerTest` does not create a sandbox. Supply a boundary that enforces declared writes and returns observed read/write evidence before admitting cross-run cache entries.
 

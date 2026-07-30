@@ -3,7 +3,7 @@
  *
  * @since 0.1.0
  */
-import { Journal } from "@flows/journal"
+import { Journal, type Ownership } from "@flows/journal"
 import { type DurableClock, type DurableDeferred, type Workflow, WorkflowEngine } from "@flows/workflow-engine"
 import * as Clock from "effect/Clock"
 import * as Duration from "effect/Duration"
@@ -33,6 +33,7 @@ export type ResumeReason = "deferred" | "clock"
  * @category models
  */
 export interface Dependencies {
+  readonly owner: Ownership.OwnerId
   readonly journalSource: string
   readonly scheduleResume: (
     workflowName: string,
@@ -143,20 +144,16 @@ export const make = (
           )
         }
         yield* journal.flush.pipe(Effect.orDie)
-        if (completion._tag === "Completed" || receipt._tag === "Accepted") {
-          yield* dependencies.scheduleResume(
-            row.workflowName,
-            row.executionId,
-            reason
-          )
-        }
+        yield* dependencies.scheduleResume(
+          row.workflowName,
+          row.executionId,
+          reason
+        )
       })
 
     const fireClock = (row: DurableEngineState.ClockRow): Effect.Effect<void> =>
       Effect.gen(function*() {
         const completedAtMs = yield* Clock.currentTimeMillis
-        const completion = yield* state.completeClock(row, completedAtMs)
-        if (completion._tag === "NotFound") return
         yield* completeDeferred(
           {
             workflowName: row.workflowName,
@@ -166,11 +163,12 @@ export const make = (
             metadata: {
               clockName: row.clockName,
               dueAtMs: row.dueAtMs,
-              completedAtMs: completion.row.completedAtMs
+              completedAtMs
             }
           },
           "clock"
         )
+        yield* state.completeClock(row, completedAtMs)
       })
 
     const armClock = (row: DurableEngineState.ClockRow): Effect.Effect<void> =>
@@ -183,6 +181,33 @@ export const make = (
         ),
         Effect.asVoid
       )
+
+    const recordClockScheduled = (
+      row: DurableEngineState.ClockRow
+    ): Effect.Effect<void> =>
+      Effect.gen(function*() {
+        const receipt = yield* journal.emit(
+          JournalRecords.clockScheduled({
+            runId: row.executionId,
+            sourceId: `${dependencies.journalSource}:clock:${
+              JSON.stringify([row.workflowName, row.executionId, row.clockName])
+            }`,
+            sourceSeq: 0
+          }, {
+            workflowName: row.workflowName,
+            executionId: row.executionId,
+            clockName: row.clockName,
+            deferredName: row.deferredName,
+            dueAtMs: row.dueAtMs
+          })
+        ).pipe(Effect.orDie)
+        if (receipt._tag === "Dropped") {
+          return yield* Effect.die(
+            new Error(`durable clock journal admission was dropped for ${row.executionId}/${row.clockName}`)
+          )
+        }
+        yield* journal.flush.pipe(Effect.orDie)
+      })
 
     const scheduleClock: Service["scheduleClock"] = Effect.fn("DeferredPersistence.scheduleClock")((
       workflow,
@@ -197,45 +222,36 @@ export const make = (
           deferredName: options.clock.deferred.name,
           dueAtMs: nowMs + Duration.toMillis(options.clock.duration),
           completedAtMs: null
-        })
-        const receipt = yield* journal.emit(
-          JournalRecords.clockScheduled({
-            runId: options.executionId,
-            sourceId: `${dependencies.journalSource}:clock:${
-              JSON.stringify([workflow._tag, options.executionId, options.clock.name])
-            }`,
-            sourceSeq: 0
-          }, {
-            workflowName: scheduled.row.workflowName,
-            executionId: scheduled.row.executionId,
-            clockName: scheduled.row.clockName,
-            deferredName: scheduled.row.deferredName,
-            dueAtMs: scheduled.row.dueAtMs
-          })
-        ).pipe(Effect.orDie)
-        if (receipt._tag === "Dropped") {
-          return yield* Effect.die(
-            new Error(`durable clock journal admission was dropped for ${options.executionId}/${options.clock.name}`)
-          )
-        }
-        yield* journal.flush.pipe(Effect.orDie)
+        }, dependencies.owner)
+        yield* recordClockScheduled(scheduled.row)
         yield* armClock(scheduled.row)
       })
     )
 
     const sweepDue: Service["sweepDue"] = Effect.fn("DeferredPersistence.sweepDue")((workflowName) =>
-      Clock.currentTimeMillis.pipe(
-        Effect.flatMap(state.dueClocks),
-        Effect.flatMap((rows) =>
-          Effect.forEach(
-            workflowName === undefined
-              ? rows
-              : rows.filter((row) => row.workflowName === workflowName),
-            fireClock,
+      Effect.gen(function*() {
+        const rows = yield* state.dueClocks(Number.MAX_SAFE_INTEGER)
+        yield* Effect.forEach(
+          workflowName === undefined
+            ? rows
+            : rows.filter((row) => row.workflowName === workflowName),
+          (row) => recordClockScheduled(row).pipe(Effect.andThen(armClock(row))),
+          { discard: true }
+        )
+        if (workflowName !== undefined && state.completedDeferreds !== undefined) {
+          const completions = yield* state.completedDeferreds(workflowName)
+          yield* Effect.forEach(
+            completions,
+            (address) =>
+              dependencies.scheduleResume(
+                address.workflowName,
+                address.executionId,
+                "deferred"
+              ),
             { discard: true }
           )
-        )
-      )
+        }
+      })
     )
 
     return {

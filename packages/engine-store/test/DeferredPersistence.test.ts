@@ -9,6 +9,12 @@ import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as DeferredPersistence from "../src/internal/DeferredPersistence.ts"
 
+const owner = {
+  hostId: "deferred-test",
+  pid: 1,
+  nonce: "owner"
+}
+
 const TestWorkflow = Workflow.make("DeferredPersistence/Test", {
   payload: {},
   success: Schema.String
@@ -57,6 +63,7 @@ const build = (
   onResume?: () => void
 ) =>
   DeferredPersistence.make({
+    owner,
     journalSource: "deferred-test",
     scheduleResume: (_workflowName, executionId, reason) =>
       Effect.sync(() => {
@@ -98,7 +105,11 @@ describe("DeferredPersistence", () => {
       "flush",
       "flush"
     ])
-    expect(result.resumes).toEqual(["duplicate:deferred"])
+    expect(result.resumes).toEqual([
+      "duplicate:deferred",
+      "duplicate:deferred",
+      "duplicate:deferred"
+    ])
   })
 
   it("makes delivery durable before scheduling a resume", async () => {
@@ -158,27 +169,26 @@ describe("DeferredPersistence", () => {
     expect(Option.getOrThrow(result)).toEqual(Exit.succeed("persisted"))
   })
 
-  it("fires a due clock once and reuses its original deadline on replay", async () => {
+  it("re-arms a future clock after restart and fires its original deadline", async () => {
     const result = await Effect.runPromise(
       Effect.scoped(Effect.gen(function*() {
         const state = DurableEngineState.makeMemory()
         const events: Array<string> = []
         const resumes: Array<string> = []
         const journal = makeJournal(events)
-        const first = yield* build(state, journal, resumes)
         const clock = DurableClock.make({ name: "wake", duration: "10 seconds" })
 
-        yield* first.scheduleClock(TestWorkflow, {
-          executionId: "clock-run",
-          clock
-        })
+        yield* Effect.scoped(Effect.gen(function*() {
+          const first = yield* build(state, journal, resumes)
+          yield* first.scheduleClock(TestWorkflow, {
+            executionId: "clock-run",
+            clock
+          })
+        }))
         yield* TestClock.adjust("5 seconds")
 
         const restarted = yield* build(state, journal, resumes)
-        yield* restarted.scheduleClock(TestWorkflow, {
-          executionId: "clock-run",
-          clock
-        })
+        yield* restarted.sweepDue(TestWorkflow._tag)
         const before = Option.getOrThrow(
           yield* state.clock({
             workflowName: TestWorkflow._tag,
@@ -187,17 +197,39 @@ describe("DeferredPersistence", () => {
           })
         )
 
-        yield* TestClock.adjust("5 seconds")
+        yield* TestClock.adjust("4999 millis")
+        yield* Effect.yieldNow
+        const pending = Option.getOrThrow(yield* state.clock(before))
+        yield* TestClock.adjust("1 millis")
         yield* Effect.yieldNow
         const after = Option.getOrThrow(yield* state.clock(before))
-        return { before, after, events, resumes }
+        return { before, pending, after, events, resumes }
       })).pipe(Effect.provide(TestClock.layer()))
     )
 
     expect(result.before.dueAtMs).toBe(10_000)
+    expect(result.pending.completedAtMs).toBeNull()
     expect(result.after.completedAtMs).toBe(10_000)
     expect(result.resumes).toEqual(["clock-run:clock"])
     expect(result.events.filter((event) => event === "emit:flows.engine.clock-scheduled")).toHaveLength(1)
     expect(result.events.filter((event) => event === "emit:flows.engine.deferred-completed")).toHaveLength(1)
+  })
+
+  it("re-delivers a wake for a completion recorded before registration", async () => {
+    const resumes: Array<string> = []
+    await Effect.runPromise(Effect.scoped(Effect.gen(function*() {
+      const state = DurableEngineState.makeMemory()
+      yield* state.completeDeferred({
+        workflowName: TestWorkflow._tag,
+        executionId: "completion-during-downtime",
+        deferredName: "answer",
+        exit: Exit.succeed("ready"),
+        completedAtMs: 1
+      })
+      const restarted = yield* build(state, makeJournal([]), resumes)
+      yield* restarted.sweepDue(TestWorkflow._tag)
+    })))
+
+    expect(resumes).toEqual(["completion-during-downtime:deferred"])
   })
 })

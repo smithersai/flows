@@ -38,4 +38,7 @@ Directories use `.flows-dir` markers. `watch` is unsupported because the injecte
 
 ## Runtime boundary
 
-The default host layer is edge-safe, but `EngineStore` currently imports Node identity APIs and ships no persistent `DurableEngineState` or production `StepBoundary`. See the [Cloudflare guide](../guides/cloudflare.md) before composing the full engine.
+The default host layer is edge-safe, but `EngineStore` currently imports Node
+identity APIs and ships no production `StepBoundary`. The persistent
+`DurableEngineState` requires a compatible `Database` layer. See the
+[Cloudflare guide](../guides/cloudflare.md) before composing the full engine.
