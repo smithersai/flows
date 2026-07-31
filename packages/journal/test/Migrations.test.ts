@@ -84,8 +84,8 @@ describe("journal migrations", () => {
         "deferred_name",
         "execution_id",
         "exit_json",
-        "metadata_json",
-        "flow_name"
+        "flow_name",
+        "metadata_json"
       ],
       flows_journal_events: [
         "emitted_at_ms",
