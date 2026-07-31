@@ -462,7 +462,9 @@ export const make = (
           if (parent === undefined) return
           if (parent === targetId) {
             chain.push(parent)
-            return yield* Effect.fail(new FlowCycleDetected({ code: "flow_cycle_detected", path: [...chain].reverse() }))
+            return yield* Effect.fail(
+              new FlowCycleDetected({ code: "flow_cycle_detected", path: [...chain].reverse() })
+            )
           }
           if (seen.has(parent)) return
           seen.add(parent)

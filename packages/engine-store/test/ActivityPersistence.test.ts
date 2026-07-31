@@ -8,8 +8,8 @@ import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
-import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as Inconsistency from "../src/Inconsistency.ts"
+import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 
 const owner: Ownership.OwnerId = { hostId: "activity-host", pid: 11, nonce: "activity-process" }
