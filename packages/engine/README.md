@@ -33,7 +33,7 @@ namespace.
 ### Flow — define, handle, run, observe
 
 ```ts
-import { Activity, Flow, FlowEngine, RetryPolicy } from "@smithers/engine"
+import { Activity, Flow, FlowEngine } from "@smithers/engine"
 import { Effect, Option, Schema } from "effect"
 
 class ReviewFailed extends Schema.TaggedErrorClass<ReviewFailed>()(
@@ -243,9 +243,9 @@ const program = Effect.gen(function*() {
 
 ```ts
 import { FlowProxy, FlowProxyServer } from "@smithers/engine"
+import { Layer } from "effect"
 import { HttpApi } from "effect/unstable/http"
 import { RpcServer } from "effect/unstable/rpc"
-import { Layer } from "effect"
 
 declare const Review: import("@smithers/engine").Flow.Any
 
