@@ -43,6 +43,8 @@ Stated deviation from smithers (`packages/db/src/adapter.js`), which allocates u
 
 Because that transaction both replays and can abort at COMMIT, `emitDurable` mutates the in-memory clock and publishes to `changes`/the per-run wake PubSub strictly *after* the transaction returns, exactly as the queued path publishes outside `persistBatch`. A rolled-back write is never observable to a subscriber and never becomes an allocation floor.
 
+The two channels also fail independently. When the optimistic writer fiber dies, the queued channel is finished — `emitLossy`, `emit` under memory allocation, `flush`, and live `stream` consumers all fail with `sink_failed`, because nothing will drain that queue again and hiding the loss would be worse. `emitDurable` is not gated by it: it opens its own transaction inline, so the lossless lifecycle channel keeps working as soon as the database is healthy again. A transient telemetry-batch failure can no longer revoke the lossless-emit guarantee for the life of the process.
+
 ### Migrations
 
 `Migrations.run` creates the journal, sequence, run, attempt, cache, and supporting tables. `Migrations.layer` runs it as a layer dependency. Apply it before store construction.

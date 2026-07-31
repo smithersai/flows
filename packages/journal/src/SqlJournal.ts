@@ -118,11 +118,20 @@ interface SourceEvent {
   readonly status: "pending" | "committed"
 }
 
-type Status = "open" | "closing" | "closed" | "failed"
+type Status = "open" | "closing" | "closed"
 
 interface State {
   status: Status
-  failure: JournalError | undefined
+  /**
+   * Set when the optimistic writer fiber dies. It gates the lossy channel —
+   * whose queue nothing will drain again — and the live stream, which would
+   * otherwise silently hide the entries the fiber lost. It deliberately does
+   * NOT gate `emitDurable`: the durable channel writes its own transaction
+   * inline and stays available whenever the database is healthy, so one
+   * transient telemetry-batch failure cannot revoke the lossless-emit
+   * guarantee for the rest of the process's life.
+   */
+  sinkFailure: JournalError | undefined
   pending: number
   readonly sequences: Map<RunId, number>
   readonly sourceSequences: Map<string, number>
@@ -291,7 +300,7 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
       )
       const state: State = {
         status: "open",
-        failure: undefined,
+        sinkFailure: undefined,
         pending: 0,
         sequences: initialized.sequences,
         sourceSequences: initialized.sourceSequences,
@@ -308,8 +317,8 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
       }
 
       const flushInternal: Effect.Effect<void, JournalError> = Effect.suspend(() => {
-        if (state.status === "failed") {
-          return Effect.fail(state.failure!)
+        if (state.sinkFailure !== undefined) {
+          return Effect.fail(state.sinkFailure)
         }
         if (state.status === "closed") {
           return Effect.fail(error("journal_closed", "journal is closed"))
@@ -328,9 +337,6 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
 
       const prepare = (input: Input, emittedAtMs: number): Result.Result<Prepared, JournalError> =>
         Result.gen(function*() {
-          if (state.status === "failed") {
-            return yield* Result.fail(state.failure!)
-          }
           if (state.status !== "open") {
             return yield* Result.fail(error("journal_closed", "journal is closed"))
           }
@@ -364,6 +370,9 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
           Effect.suspend(() =>
             Effect.fromResult(
               Result.gen(function*() {
+                if (state.sinkFailure !== undefined) {
+                  return yield* Result.fail(state.sinkFailure)
+                }
                 const { metaJson, payloadJson, validated } = yield* prepare(input, emittedAtMs)
                 const key = sourceKey(validated.runId, validated.sourceId)
                 const nextSourceSeq = state.sourceSequences.get(key) ?? 0
@@ -541,8 +550,8 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
             const wake = yield* subscribeRun(streamOptions.runId)
             let cursor: number = streamOptions.afterSequence ?? -1
             const readAvailable: Effect.Effect<ReadonlyArray<Entry>, JournalError> = Effect.suspend(() =>
-              state.status === "failed"
-                ? Effect.fail(state.failure!)
+              state.sinkFailure !== undefined
+                ? Effect.fail(state.sinkFailure)
                 : Effect.gen(function*() {
                   const all: Array<Entry> = []
                   while (true) {
@@ -893,8 +902,7 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
       }
 
       const failSink = (cause: JournalError): void => {
-        state.status = "failed"
-        state.failure = cause
+        state.sinkFailure = cause
         state.pending = 0
         completeFlushWaiters(Effect.fail(cause))
         for (const subscribers of wakes.values()) {
@@ -930,20 +938,14 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
       yield* Effect.forkScoped(writer)
       yield* Effect.addFinalizer(() =>
         Effect.gen(function*() {
-          const shouldDrain = yield* Effect.sync(() => {
-            if (state.status !== "open") {
-              return state.status === "closing"
-            }
-            state.status = "closing"
-            return true
-          })
-          if (shouldDrain) {
-            yield* Effect.ignore(flushInternal)
-          }
+          // A scope finalizer runs once, and nothing else moves the status, so
+          // the journal is always `open` here.
           yield* Effect.sync(() => {
-            if (state.status !== "failed") {
-              state.status = "closed"
-            }
+            state.status = "closing"
+          })
+          yield* Effect.ignore(flushInternal)
+          yield* Effect.sync(() => {
+            state.status = "closed"
           })
           yield* Queue.shutdown(queue)
           yield* PubSub.shutdown(changes)

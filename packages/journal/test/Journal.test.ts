@@ -107,6 +107,34 @@ const failedDatabaseWithReadSignal = (
     })
   ).pipe(Layer.provide(TestDatabase.layer))
 
+/**
+ * A database whose writes fail until `repair` is called, modelling a transient
+ * persistence outage that the queued writer fiber observes and that later
+ * clears.
+ */
+const transientlyFailingDatabase = (): {
+  readonly layer: Layer.Layer<Database>
+  repair: () => void
+} => {
+  let broken = true
+  return {
+    repair: () => {
+      broken = false
+    },
+    layer: Layer.effect(
+      Database,
+      Effect.gen(function*() {
+        const database = yield* Database
+        const write: DatabaseService["write"] = (effect) =>
+          broken
+            ? Effect.fail(new DatabaseError({ code: "io", cause: new Error("sink unavailable") }))
+            : database.write(effect)
+        return Database.of({ sql: database.sql, write })
+      })
+    ).pipe(Layer.provide(TestDatabase.layer))
+  }
+}
+
 const defectDatabase: Layer.Layer<Database> = Layer.effect(
   Database,
   Effect.gen(function*() {
@@ -877,6 +905,34 @@ describe("Journal", () => {
     }).pipe(
       Effect.provide(
         journalLayer({ capacity: 4, overflow: "reject" }, failedDatabase)
+      ),
+      Effect.scoped
+    )
+  })
+
+  effect("keeps the durable channel writable after a lossy sink failure", () => {
+    const run = runId("sink-failure-durable")
+    const source = sourceId("producer")
+    const database = transientlyFailingDatabase()
+
+    return Effect.gen(function*() {
+      const journal = yield* Journal
+      yield* journal.emit(input(run, source, "queued", {}))
+      // The queued writer fiber dies on the transient outage.
+      expect((yield* Effect.flip(journal.flush)).code).toBe("sink_failed")
+      expect((yield* Effect.flip(journal.emitLossy(input(run, source, "later", {})))).code).toBe(
+        "sink_failed"
+      )
+
+      // The database recovers; the lossless lifecycle channel must recover too.
+      database.repair()
+      const receipt = yield* journal.emitDurable(input(run, source, "lifecycle", {}))
+      expect(receipt._tag).toBe("Accepted")
+      const page = yield* journal.entries({ runId: run, limit: 10 })
+      expect(page.entries.map((entry) => entry.eventType)).toEqual(["lifecycle"])
+    }).pipe(
+      Effect.provide(
+        journalLayer({ capacity: 4, overflow: "reject", allocation: "queue" }, database.layer)
       ),
       Effect.scoped
     )
