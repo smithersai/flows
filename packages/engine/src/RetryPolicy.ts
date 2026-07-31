@@ -26,6 +26,8 @@ import * as Schema from "effect/Schema"
  * The delay before attempt `n + 1` is
  * `min(initialMs * factor^(n - 1), maxMs)`, where `n` is the attempt that
  * just failed. `maxAttempts` bounds the total number of attempts;
+ * `expirationMs` bounds the total wall-clock retry duration
+ * (schedule-to-close, mirroring Temporal's `expirationInterval`);
  * `jitterRatio` spreads the final portion of each delay uniformly;
  * `nonRetryable` lists error tags that must never be retried.
  *
@@ -37,6 +39,7 @@ export const RetryPolicy = Schema.Struct({
   factor: Schema.Number,
   maxMs: Schema.Number,
   maxAttempts: Schema.optional(Schema.Number),
+  expirationMs: Schema.optional(Schema.Number),
   jitterRatio: Schema.optional(Schema.Number),
   nonRetryable: Schema.optional(Schema.Array(Schema.String))
 })
@@ -60,6 +63,7 @@ export const make = (options: {
   readonly factor: number
   readonly maxMs: number
   readonly maxAttempts?: number | undefined
+  readonly expirationMs?: number | undefined
   readonly jitterRatio?: number | undefined
   readonly nonRetryable?: ReadonlyArray<string> | undefined
 }): RetryPolicy => ({
@@ -67,6 +71,7 @@ export const make = (options: {
   factor: options.factor,
   maxMs: options.maxMs,
   ...(options.maxAttempts !== undefined ? { maxAttempts: options.maxAttempts } : {}),
+  ...(options.expirationMs !== undefined ? { expirationMs: options.expirationMs } : {}),
   ...(options.jitterRatio !== undefined ? { jitterRatio: options.jitterRatio } : {}),
   ...(options.nonRetryable !== undefined ? { nonRetryable: options.nonRetryable } : {})
 })
@@ -75,7 +80,9 @@ export const make = (options: {
  * The default engine retry policy.
  *
  * Uses a 200ms initial delay growing by 1.5x, capped at 30s, and never gives
- * up.
+ * up: it declares neither `maxAttempts` nor `expirationMs`. Bound long-lived
+ * retries with `make({ ..., expirationMs })` when a wall-clock give-up is
+ * required.
  *
  * @category constructors
  * @since 0.1.0
@@ -105,7 +112,7 @@ export interface RetryAfter {
  */
 export interface GiveUp {
   readonly _tag: "GiveUp"
-  readonly reason: "nonRetryable" | "exhausted"
+  readonly reason: "nonRetryable" | "exhausted" | "expired"
 }
 
 /**
@@ -139,6 +146,25 @@ export const giveUp = (reason: GiveUp["reason"]): RetryDecision => ({
 })
 
 /**
+ * A retry sequence crossed the policy's `expirationMs` wall-clock bound.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
+export class RetryPolicyExpired extends Schema.TaggedErrorClass<RetryPolicyExpired>()(
+  "@smithers/engine/RetryPolicyExpired",
+  {
+    code: Schema.Literal("retry_policy_expired").pipe(
+      Schema.withConstructorDefault(Effect.succeed("retry_policy_expired"))
+    ),
+    activityName: Schema.String,
+    attempt: Schema.Number,
+    expirationMs: Schema.Number,
+    lastError: Schema.optional(Schema.Unknown)
+  }
+) {}
+
+/**
  * A retry sequence exhausted the policy's `maxAttempts` bound.
  *
  * @category errors
@@ -164,7 +190,9 @@ export class RetryAttemptsExhausted extends Schema.TaggedErrorClass<RetryAttempt
  *
  * `attempt` is the 1-based attempt that just failed. Returns `None` when the
  * policy gives up: `maxAttempts` reached, a non-positive computed interval,
- * or a cap below the initial interval.
+ * a cap below the initial interval, or — when the policy declares
+ * `expirationMs` and the caller supplies `elapsedMs` — an elapsed retry
+ * duration that the next delay would push past the expiration bound.
  *
  * Jitter is deterministic-friendly: `options.random` is a `[0, 1)` sample
  * supplied by the caller and defaults to `1`, which leaves the delay at its
@@ -177,7 +205,10 @@ export class RetryAttemptsExhausted extends Schema.TaggedErrorClass<RetryAttempt
 export const nextDelay = (
   policy: RetryPolicy,
   attempt: number,
-  options?: { readonly random?: number | undefined }
+  options?: {
+    readonly random?: number | undefined
+    readonly elapsedMs?: number | undefined
+  }
 ): Option.Option<number> => {
   if (policy.maxAttempts !== undefined && attempt >= policy.maxAttempts) {
     return Option.none()
@@ -194,6 +225,13 @@ export const nextDelay = (
     const random = options?.random ?? 1
     delay = delay * (1 - policy.jitterRatio) + random * delay * policy.jitterRatio
   }
+  if (
+    policy.expirationMs !== undefined &&
+    options?.elapsedMs !== undefined &&
+    options.elapsedMs + delay >= policy.expirationMs
+  ) {
+    return Option.none()
+  }
   return Option.some(delay)
 }
 
@@ -208,11 +246,12 @@ export const nextDelay = (
  */
 export const nextDelayEffect = (
   policy: RetryPolicy,
-  attempt: number
+  attempt: number,
+  options?: { readonly elapsedMs?: number | undefined }
 ): Effect.Effect<Option.Option<number>> =>
   policy.jitterRatio === undefined || policy.jitterRatio <= 0
-    ? Effect.sync(() => nextDelay(policy, attempt))
-    : Effect.map(Random.next, (random) => nextDelay(policy, attempt, { random }))
+    ? Effect.sync(() => nextDelay(policy, attempt, { elapsedMs: options?.elapsedMs }))
+    : Effect.map(Random.next, (random) => nextDelay(policy, attempt, { random, elapsedMs: options?.elapsedMs }))
 
 /**
  * Extracts the stable identity tag of an error for non-retryable matching:
@@ -261,15 +300,22 @@ export const decide = (
     readonly attempt: number
     readonly error: unknown
     readonly random?: number | undefined
+    readonly elapsedMs?: number | undefined
   }
 ): RetryDecision => {
   if (isNonRetryable(policy, options.error)) {
     return giveUp("nonRetryable")
   }
   return Option.match(
-    nextDelay(policy, options.attempt, { random: options.random }),
+    nextDelay(policy, options.attempt, { random: options.random, elapsedMs: options.elapsedMs }),
     {
-      onNone: () => giveUp("exhausted"),
+      onNone: () =>
+        // The expiration bound is the only give-up that depends on elapsed
+        // time: when dropping it would have allowed another attempt, the
+        // sequence expired rather than exhausted.
+        Option.isSome(nextDelay(policy, options.attempt, { random: options.random }))
+          ? giveUp("expired")
+          : giveUp("exhausted"),
       onSome: retryAfter
     }
   )
@@ -290,6 +336,7 @@ export const decideEffect = (
   options: {
     readonly attempt: number
     readonly error: unknown
+    readonly elapsedMs?: number | undefined
   }
 ): Effect.Effect<RetryDecision> =>
   policy.jitterRatio === undefined || policy.jitterRatio <= 0

@@ -11,6 +11,7 @@
  */
 import * as StepKey from "@smithers/keys/StepKey"
 import * as Cause from "effect/Cause"
+import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -716,6 +717,11 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
         currentOrdinal ?? instance.activityState.nextOrdinal()
       )
       const policy = activity.retryPolicy
+      // Elapsed retry time for the policy's expiration bound. The origin is
+      // this in-process sequence's start: a resume after process death
+      // restarts the elapsed measurement (the attempt count, not the start
+      // time, is what durable engines persist).
+      const retryStartMs = yield* Clock.currentTimeMillis
       let currentAttempt = attempt
       while (true) {
         if (
@@ -782,7 +788,8 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
           if (failure !== undefined) {
             const decision = yield* RetryPolicy.decideEffect(policy, {
               attempt: currentAttempt,
-              error: failure.error
+              error: failure.error,
+              elapsedMs: (yield* Clock.currentTimeMillis) - retryStartMs
             })
             if (decision._tag === "RetryAfter") {
               yield* Effect.sleep(decision.delayMs)
@@ -796,6 +803,18 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
                     activityName: activity.name,
                     attempt: currentAttempt,
                     maxAttempts: policy.maxAttempts ?? currentAttempt,
+                    lastError: failure.error
+                  })
+                )
+              })
+            }
+            if (decision.reason === "expired") {
+              return new Flow.Complete({
+                exit: Exit.die(
+                  new RetryPolicy.RetryPolicyExpired({
+                    activityName: activity.name,
+                    attempt: currentAttempt,
+                    expirationMs: policy.expirationMs ?? 0,
                     lastError: failure.error
                   })
                 )

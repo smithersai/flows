@@ -81,6 +81,91 @@ describe("nextDelay", () => {
   })
 })
 
+describe("expiration (issue #36)", () => {
+  const policy = RetryPolicy.make({
+    initialMs: 100,
+    factor: 2,
+    maxMs: 1000,
+    expirationMs: 1_000
+  })
+
+  it("gives up when elapsed time plus the next delay would cross the expiration bound", () => {
+    // Temporal's ComputeNextDelay: done when elapsed + backoff exceeds the
+    // expiration interval, independent of attempt counts.
+    expect(RetryPolicy.nextDelay(policy, 1, { elapsedMs: 0 })).toEqual(some(100))
+    expect(RetryPolicy.nextDelay(policy, 3, { elapsedMs: 500 })).toEqual(some(400))
+    expect(RetryPolicy.nextDelay(policy, 3, { elapsedMs: 700 })).toEqual(none)
+    expect(RetryPolicy.nextDelay(policy, 1, { elapsedMs: 1_000 })).toEqual(none)
+  })
+
+  it("ignores elapsed time when the policy declares no expiration", () => {
+    const unbounded = RetryPolicy.make({ initialMs: 100, factor: 2, maxMs: 1000 })
+    expect(RetryPolicy.nextDelay(unbounded, 5, { elapsedMs: Number.MAX_SAFE_INTEGER })).toEqual(some(1000))
+  })
+
+  it("decide reports the expired give-up distinctly from exhaustion", () => {
+    const decision = RetryPolicy.decide(policy, {
+      attempt: 2,
+      error: new Error("still down"),
+      elapsedMs: 5_000
+    })
+    expect(decision).toEqual({ _tag: "GiveUp", reason: "expired" })
+  })
+
+  it("an expressible wall-clock bound stops an activity retrying against a dead dependency", async () => {
+    let attempts = 0
+    const activity = Activity.make({
+      name: "RetryPolicy/expires",
+      success: Schema.Number,
+      error: Schema.String,
+      retryPolicy: RetryPolicy.make({
+        initialMs: 100,
+        factor: 1,
+        maxMs: 100,
+        expirationMs: 250
+      }),
+      execute: Effect.suspend(() => {
+        attempts++
+        return Effect.fail("dependency-down")
+      })
+    })
+    const flow = Flow.make("RetryPolicy/expiring-flow", {
+      payload: {},
+      success: Schema.Number,
+      error: Schema.String
+    })
+
+    const exit = await Effect.runPromise(
+      Effect.gen(function*() {
+        const engine = yield* FlowEngine.FlowEngine
+        const fiber = yield* engine.activityExecute(activity, 1).pipe(Effect.forkChild)
+        yield* Effect.yieldNow
+        // Attempts at t=0, 100, 200; the delay to t=300 crosses the 250ms
+        // expiration, so the sequence stops with a die.
+        yield* TestClock.adjust(1_000)
+        const result = yield* Fiber.join(fiber)
+        return result._tag === "Complete" ? result.exit : Exit.succeed("suspended" as never)
+      }).pipe(
+        Effect.provide(flow.toLayer(() => Effect.succeed(0)).pipe(
+          Layer.provideMerge(FlowEngine.layerMemory)
+        )),
+        Effect.provideService(
+          FlowEngine.FlowInstance,
+          FlowEngine.FlowInstance.initial(flow, "retry-policy-expires")
+        ),
+        Effect.provide(TestClock.layer()),
+        Effect.scoped
+      )
+    )
+
+    expect(attempts).toBe(3)
+    expect(Exit.isFailure(exit)).toBe(true)
+    if (Exit.isFailure(exit)) {
+      expect(JSON.stringify(exit.cause)).toContain("retry_policy_expired")
+    }
+  })
+})
+
 describe("decide", () => {
   it("short-circuits a nonRetryable-tagged error to giveUp on attempt 1", () => {
     const policy = RetryPolicy.make({
