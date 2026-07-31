@@ -211,6 +211,55 @@ describe("RunDriver cycle detection", () => {
     expect((failure as RunDriver.FlowCycleDetected).path).toEqual(["b", "c"])
   })
 
+  it("rejects a concurrently formed mutual cycle instead of admitting both edges (issue #29)", async () => {
+    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+      const store = yield* RunStore.RunStore
+      // Force an async boundary inside every parent-chain read so the two
+      // fibers' cycle checks provably interleave: without serialization both
+      // checks complete before either edge is recorded (the TOCTOU race).
+      const yieldingStore: RunStore.Service = {
+        ...store,
+        get: (runId) => Effect.yieldNow.pipe(Effect.andThen(store.get(runId)))
+      }
+      const driver = yield* makeDriver().pipe(
+        Effect.provideService(RunStore.RunStore, yieldingStore)
+      )
+      yield* driver.register(TestFlow, () => Effect.succeed("ok"))
+
+      yield* store.create(
+        "race-a",
+        JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {} })
+      )
+      yield* store.create(
+        "race-b",
+        JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {} })
+      )
+
+      // Fiber 1: A executes B. Fiber 2: B executes A. Together they close a
+      // cycle; exactly one must be refused.
+      const exits = yield* Effect.all([
+        Effect.exit(driver.execute(TestFlow, {
+          executionId: "race-b",
+          payload: {},
+          discard: true,
+          parent: { executionId: "race-a" } as FlowEngine.FlowInstance["Service"]
+        })),
+        Effect.exit(driver.execute(TestFlow, {
+          executionId: "race-a",
+          payload: {},
+          discard: true,
+          parent: { executionId: "race-b" } as FlowEngine.FlowInstance["Service"]
+        }))
+      ], { concurrency: "unbounded" })
+      return { exits }
+    })))
+
+    const failures = result.exits.filter(Exit.isFailure)
+    expect(failures).toHaveLength(1)
+    const failure = findCycleFailure(failures[0]!.cause)
+    expect(failure).toBeInstanceOf(RunDriver.FlowCycleDetected)
+  })
+
   it("terminates on a pre-existing corrupt store cycle instead of hanging", async () => {
     const exit = await Effect.runPromise(Effect.exit(provideJournal(Effect.gen(function*() {
       const driver = yield* makeDriver()

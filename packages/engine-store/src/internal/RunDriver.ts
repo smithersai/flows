@@ -14,6 +14,7 @@ import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
+import * as Semaphore from "effect/Semaphore"
 import type * as Scope from "effect/Scope"
 import * as DurableEngineState from "../DurableEngineState.ts"
 import * as JournalRecords from "./JournalRecords.ts"
@@ -707,6 +708,9 @@ export const make = (
       )
     )
 
+    /** Serializes cycle check + edge record across concurrent executes (issue #29). */
+    const cycleGate = yield* Semaphore.make(1)
+
     const execute: Service["execute"] = Effect.fn("FlowEngine.execute")(
       function*<const Discard extends boolean>(
         flow: Flow.Any,
@@ -722,10 +726,20 @@ export const make = (
             new Error(`Flow ${flow._tag} is not registered`)
           )
         }
-        if (options.parent !== undefined) {
-          yield* detectCycle(options.executionId, options.parent.executionId)
-        }
-        yield* ensureRun(flow, options)
+        // The cycle check and the edge record must be one atomic step: two
+        // concurrent executes that jointly close a cycle would otherwise
+        // both observe a cycle-free graph before either records its edge,
+        // then deadlock on mutual `coordinator.run` (issue #29). The gate
+        // covers only check+record — never `coordinator.run` — so nested
+        // child executes cannot deadlock on it.
+        yield* Semaphore.withPermits(cycleGate, 1)(
+          Effect.gen(function*() {
+            if (options.parent !== undefined) {
+              yield* detectCycle(options.executionId, options.parent.executionId)
+            }
+            yield* ensureRun(flow, options)
+          })
+        )
         yield* coordinator.run(options.executionId)
         if (options.discard) return undefined as Discard extends true ? void : never
         const result = yield* poll(flow, options.executionId)
