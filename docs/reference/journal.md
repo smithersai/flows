@@ -49,6 +49,8 @@ The two channels also fail independently. When the optimistic writer fiber dies,
 
 `Migrations.run` creates the journal, sequence, run, attempt, cache, and supporting tables. `Migrations.layer` runs it as a layer dependency. Apply it before store construction.
 
+`Migrations.runThrough(name)` applies the ladder only up to and including `name` (`Migrations.names` lists them in order). A database in the field is always some prefix of the ladder *with rows in it*, so that is the state schema evolution has to survive: migrate to a prefix, populate, then run the rest. `packages/journal/test/Migrations.test.ts` does exactly that across `0003`/`0004`, which `Migrations.run` alone could only ever apply to an empty table — the one case SQLite never rejects.
+
 ## Run ownership
 
 `RunStore` exports:
