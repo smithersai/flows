@@ -25,7 +25,11 @@ const owner = { hostId: "host-a", pid: 42, nonce: "nonce-a" }
 const failingDatabase = (cause: unknown): Layer.Layer<DatabaseModule.Database> => {
   const sql = new Proxy(
     () => Effect.fail(cause),
-    { apply: () => Effect.fail(cause) }
+    {
+      apply: () => Effect.fail(cause),
+      // `in` builds a predicate fragment during construction, before any query runs.
+      get: (target, property) => property === "in" ? () => "" : Reflect.get(target, property)
+    }
   ) as unknown as SqlClient.SqlClient
   const write: DatabaseModule.DatabaseService["write"] = (effect) => effect
   return Layer.succeed(DatabaseModule.Database)(

@@ -113,10 +113,64 @@ export interface FinishAttempt extends AttemptId {
  */
 export type PutResult =
   | { readonly _tag: "Inserted" }
+  | { readonly _tag: "Upserted" }
   | { readonly _tag: "ExistingSame" }
   | { readonly _tag: "Conflict" }
   | { readonly _tag: "FenceLost" }
   | { readonly _tag: "RunNotFound" }
+
+/**
+ * Fields an unfenced patch may rewrite.
+ *
+ * A patch never touches `state`, `started_at_ms`, or `finished_at_ms`: those
+ * are the fenced lifecycle, and only `put`/`heartbeat`/`finish` move them. An
+ * omitted field is left as recorded.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface AttemptPatch {
+  readonly checkpoint?: unknown
+  readonly error?: unknown
+  readonly outcome?: unknown
+  readonly meta?: unknown
+}
+
+/**
+ * Result of an unfenced attempt patch.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type PatchResult =
+  | { readonly _tag: "Patched" }
+  | { readonly _tag: "NotFound" }
+
+/**
+ * Store-wide policy.
+ *
+ * The defaults reproduce the historical behaviour exactly, so an existing
+ * caller is unaffected by supplying nothing.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface Options {
+  /**
+   * States the store treats as "attempt still in progress". `heartbeat` and
+   * `finish` fence on membership, and `finish` refuses them as targets.
+   * Defaults to `["running"]`.
+   */
+  readonly inProgressStates?: ReadonlyArray<string> | undefined
+  /** Largest encoded checkpoint accepted, in bytes. Defaults to 1 MiB. */
+  readonly maxCheckpointBytes?: number | undefined
+  /**
+   * `"insert"` (the default) is first-writer-wins: a re-put with different
+   * content reports `Conflict`. `"upsert"` overwrites it and reports
+   * `Upserted`. Both modes keep the run-ownership fence.
+   */
+  readonly putMode?: "insert" | "upsert" | undefined
+}
 
 /**
  * Result of a fenced attempt heartbeat.
@@ -160,6 +214,12 @@ export interface Service {
     checkpoint?: unknown
   ) => Effect.Effect<HeartbeatResult, AttemptStoreError>
   readonly finish: (attempt: FinishAttempt, owner: OwnerId) => Effect.Effect<FinishResult, AttemptStoreError>
+  /**
+   * Rewrites opaque fields outside the fenced lifecycle. Executors record
+   * response text, worktree pointers, or cache flags this way without
+   * competing for the attempt fence.
+   */
+  readonly patch: (id: AttemptId, patch: AttemptPatch) => Effect.Effect<PatchResult, AttemptStoreError>
 }
 
 /**
@@ -216,16 +276,19 @@ const encode = (value: unknown, field: string): Effect.Effect<string, AttemptSto
 const encodeOptional = (value: unknown | undefined, field: string): Effect.Effect<string | null, AttemptStoreError> =>
   value === undefined ? Effect.succeed(null) : Effect.map(encode(value, field), (encoded) => encoded)
 
-const maxCheckpointBytes = 1024 * 1024
+const defaultMaxCheckpointBytes = 1024 * 1024
 
-const encodeCheckpoint = (value: unknown | undefined): Effect.Effect<string | null, AttemptStoreError> =>
-  Effect.flatMap(
-    encodeOptional(value, "checkpoint"),
-    (encoded) =>
-      encoded !== null && new TextEncoder().encode(encoded).length > maxCheckpointBytes
-        ? Effect.fail(error("invalid_attempt", `checkpoint must not exceed ${maxCheckpointBytes} bytes`))
-        : Effect.succeed(encoded)
-  )
+const defaultInProgressStates: ReadonlyArray<string> = ["running"]
+
+const encodeCheckpointWith =
+  (maxBytes: number) => (value: unknown | undefined): Effect.Effect<string | null, AttemptStoreError> =>
+    Effect.flatMap(
+      encodeOptional(value, "checkpoint"),
+      (encoded) =>
+        encoded !== null && new TextEncoder().encode(encoded).length > maxBytes
+          ? Effect.fail(error("invalid_attempt", `checkpoint must not exceed ${maxBytes} bytes`))
+          : Effect.succeed(encoded)
+    )
 
 const decode = (value: string | null, field: string): Effect.Effect<unknown | undefined, AttemptStoreError> =>
   value === null
@@ -313,36 +376,50 @@ const decodeRow = (input: unknown): Effect.Effect<Attempt, AttemptStoreError> =>
   )
 
 /**
- * Builds the SQL-backed attempt store.
+ * Builds the SQL-backed attempt store under an explicit policy.
  *
  * @category constructors
  * @since 0.1.0
  */
-export const make: Effect.Effect<Service, never, Database> = Effect.gen(function*() {
-  const database = yield* Database
-  const { sql } = database
+export const makeWith = (options: Options = {}): Effect.Effect<Service, AttemptStoreError, Database> =>
+  Effect.gen(function*() {
+    const database = yield* Database
+    const { sql } = database
+    const inProgressStates = options.inProgressStates ?? defaultInProgressStates
+    const maxCheckpointBytes = options.maxCheckpointBytes ?? defaultMaxCheckpointBytes
+    const upsert = options.putMode === "upsert"
+    if (inProgressStates.length === 0 || inProgressStates.some((state) => state.length === 0)) {
+      return yield* Effect.fail(
+        error("invalid_attempt", "inProgressStates must contain at least one non-empty state")
+      )
+    }
+    if (!Number.isSafeInteger(maxCheckpointBytes) || maxCheckpointBytes <= 0) {
+      return yield* Effect.fail(error("invalid_attempt", "maxCheckpointBytes must be a positive safe integer"))
+    }
+    const encodeCheckpoint = encodeCheckpointWith(maxCheckpointBytes)
+    const inProgress = sql.in("state", inProgressStates as Array<string>)
 
-  const put: Service["put"] = Effect.fn("AttemptStore.put")((attempt, owner) =>
-    Effect.gen(function*() {
-      yield* validateId(attempt)
-      if (
-        attempt.state.length === 0 ||
-        !Number.isSafeInteger(attempt.startedAtMs) ||
-        attempt.startedAtMs < 0 ||
-        (attempt.finishedAtMs !== undefined &&
-          (!Number.isSafeInteger(attempt.finishedAtMs) || attempt.finishedAtMs < 0)) ||
-        (attempt.heartbeatAtMs !== undefined &&
-          (!Number.isSafeInteger(attempt.heartbeatAtMs) || attempt.heartbeatAtMs < 0))
-      ) {
-        return yield* Effect.fail(error("invalid_attempt", "attempt timestamps and state are invalid"))
-      }
-      const checkpoint = yield* encodeCheckpoint(attempt.checkpoint)
-      const attemptError = yield* encodeOptional(attempt.error, "error")
-      const outcome = yield* encodeOptional(attempt.outcome, "outcome")
-      const meta = yield* encode(attempt.meta, "meta")
-      return yield* database.write(
-        Effect.gen(function*() {
-          const inserted = yield* sql<{ readonly attempt: number }>`
+    const put: Service["put"] = Effect.fn("AttemptStore.put")((attempt, owner) =>
+      Effect.gen(function*() {
+        yield* validateId(attempt)
+        if (
+          attempt.state.length === 0 ||
+          !Number.isSafeInteger(attempt.startedAtMs) ||
+          attempt.startedAtMs < 0 ||
+          (attempt.finishedAtMs !== undefined &&
+            (!Number.isSafeInteger(attempt.finishedAtMs) || attempt.finishedAtMs < 0)) ||
+          (attempt.heartbeatAtMs !== undefined &&
+            (!Number.isSafeInteger(attempt.heartbeatAtMs) || attempt.heartbeatAtMs < 0))
+        ) {
+          return yield* Effect.fail(error("invalid_attempt", "attempt timestamps and state are invalid"))
+        }
+        const checkpoint = yield* encodeCheckpoint(attempt.checkpoint)
+        const attemptError = yield* encodeOptional(attempt.error, "error")
+        const outcome = yield* encodeOptional(attempt.outcome, "outcome")
+        const meta = yield* encode(attempt.meta, "meta")
+        return yield* database.write(
+          Effect.gen(function*() {
+            const inserted = yield* sql<{ readonly attempt: number }>`
             INSERT INTO flows_attempts (
               run_id, step_key_digest, attempt, state, started_at_ms, finished_at_ms,
               heartbeat_at_ms, checkpoint_json, error_json, outcome_json, meta_json
@@ -362,22 +439,52 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
             ON CONFLICT (run_id, step_key_digest, attempt) DO NOTHING
             RETURNING attempt
           `
-          if (inserted.length > 0) {
-            return { _tag: "Inserted" } as const
-          }
+            if (inserted.length > 0) {
+              return { _tag: "Inserted" } as const
+            }
 
-          const runRows = yield* sql<RunFenceRow>`
+            if (upsert) {
+              const replaced = yield* sql<{ readonly attempt: number }>`
+              UPDATE flows_attempts
+              SET
+                state = ${attempt.state},
+                started_at_ms = ${attempt.startedAtMs},
+                finished_at_ms = ${attempt.finishedAtMs ?? null},
+                heartbeat_at_ms = ${attempt.heartbeatAtMs ?? null},
+                checkpoint_json = ${checkpoint},
+                error_json = ${attemptError},
+                outcome_json = ${outcome},
+                meta_json = ${meta}
+              WHERE run_id = ${attempt.runId}
+                AND step_key_digest = ${attempt.stepKeyDigest}
+                AND attempt = ${attempt.attempt}
+                AND EXISTS (
+                  SELECT 1 FROM flows_runs
+                  WHERE run_id = ${attempt.runId}
+                    AND status = 'running'
+                    AND owner_host_id = ${owner.hostId}
+                    AND owner_pid = ${owner.pid}
+                    AND owner_nonce = ${owner.nonce}
+                )
+              RETURNING attempt
+            `
+              if (replaced.length > 0) {
+                return { _tag: "Upserted" } as const
+              }
+            }
+
+            const runRows = yield* sql<RunFenceRow>`
             SELECT status, owner_host_id, owner_pid, owner_nonce
             FROM flows_runs WHERE run_id = ${attempt.runId}
           `
-          if (runRows.length === 0) {
-            return { _tag: "RunNotFound" } as const
-          }
-          if (!ownsRunningRun(runRows[0]!, owner)) {
-            return { _tag: "FenceLost" } as const
-          }
+            if (runRows.length === 0) {
+              return { _tag: "RunNotFound" } as const
+            }
+            if (!ownsRunningRun(runRows[0]!, owner)) {
+              return { _tag: "FenceLost" } as const
+            }
 
-          const rows = yield* sql<AttemptRow>`
+            const rows = yield* sql<AttemptRow>`
             SELECT run_id, step_key_digest, attempt, state, started_at_ms, finished_at_ms,
               heartbeat_at_ms, checkpoint_json, error_json, outcome_json, meta_json
             FROM flows_attempts
@@ -385,48 +492,48 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
               AND step_key_digest = ${attempt.stepKeyDigest}
               AND attempt = ${attempt.attempt}
           `
-          /* v8 ignore next -- the owned run and conflicting row are read in the same serialized write transaction */
-          if (rows.length === 0) {
-            return yield* Effect.fail(error("unknown", "attempt disappeared during put"))
-          }
-          return sameAttempt(rows[0]!, attempt, checkpoint, attemptError, outcome, meta)
-            ? { _tag: "ExistingSame" } as const
-            : { _tag: "Conflict" } as const
-        })
-      ).pipe(Effect.mapError(mapPersistenceError))
-    })
-  )
+            /* v8 ignore next -- the owned run and conflicting row are read in the same serialized write transaction */
+            if (rows.length === 0) {
+              return yield* Effect.fail(error("unknown", "attempt disappeared during put"))
+            }
+            return sameAttempt(rows[0]!, attempt, checkpoint, attemptError, outcome, meta)
+              ? { _tag: "ExistingSame" } as const
+              : { _tag: "Conflict" } as const
+          })
+        ).pipe(Effect.mapError(mapPersistenceError))
+      })
+    )
 
-  const get: Service["get"] = Effect.fn("AttemptStore.get")((id) =>
-    Effect.gen(function*() {
-      yield* validateId(id)
-      const rows = yield* sql<Record<string, unknown>>`
+    const get: Service["get"] = Effect.fn("AttemptStore.get")((id) =>
+      Effect.gen(function*() {
+        yield* validateId(id)
+        const rows = yield* sql<Record<string, unknown>>`
         SELECT run_id, step_key_digest, attempt, state, started_at_ms, finished_at_ms,
           heartbeat_at_ms, checkpoint_json, error_json, outcome_json, meta_json
         FROM flows_attempts
         WHERE run_id = ${id.runId} AND step_key_digest = ${id.stepKeyDigest} AND attempt = ${id.attempt}
       `.pipe(Effect.mapError(mapPersistenceError))
-      return rows.length === 0 ? Option.none() : yield* Effect.map(decodeRow(rows[0]!), Option.some)
-    })
-  )
+        return rows.length === 0 ? Option.none() : yield* Effect.map(decodeRow(rows[0]!), Option.some)
+      })
+    )
 
-  const heartbeat: Service["heartbeat"] = Effect.fn("AttemptStore.heartbeat")((
-    runId,
-    stepKeyDigest,
-    attempt,
-    owner,
-    nowMs,
-    checkpointValue
-  ) =>
-    Effect.gen(function*() {
-      yield* validateId({ runId, stepKeyDigest, attempt })
-      if (!Number.isSafeInteger(nowMs) || nowMs < 0) {
-        return yield* Effect.fail(error("invalid_attempt", "nowMs must be a non-negative safe integer"))
-      }
-      const checkpoint = yield* encodeCheckpoint(checkpointValue)
-      return yield* database.write(
-        Effect.gen(function*() {
-          const updated = yield* sql<{ readonly attempt: number }>`
+    const heartbeat: Service["heartbeat"] = Effect.fn("AttemptStore.heartbeat")((
+      runId,
+      stepKeyDigest,
+      attempt,
+      owner,
+      nowMs,
+      checkpointValue
+    ) =>
+      Effect.gen(function*() {
+        yield* validateId({ runId, stepKeyDigest, attempt })
+        if (!Number.isSafeInteger(nowMs) || nowMs < 0) {
+          return yield* Effect.fail(error("invalid_attempt", "nowMs must be a non-negative safe integer"))
+        }
+        const checkpoint = yield* encodeCheckpoint(checkpointValue)
+        return yield* database.write(
+          Effect.gen(function*() {
+            const updated = yield* sql<{ readonly attempt: number }>`
             UPDATE flows_attempts
             SET
               heartbeat_at_ms = ${nowMs},
@@ -434,7 +541,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
             WHERE run_id = ${runId}
               AND step_key_digest = ${stepKeyDigest}
               AND attempt = ${attempt}
-              AND state = 'running'
+              AND ${inProgress}
               AND EXISTS (
                 SELECT 1 FROM flows_runs
                 WHERE run_id = ${runId}
@@ -445,56 +552,56 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
               )
             RETURNING attempt
           `
-          if (updated.length > 0) {
-            return { _tag: "Updated" } as const
-          }
-          const found = yield* sql<Pick<AttemptRow, "state">>`
+            if (updated.length > 0) {
+              return { _tag: "Updated" } as const
+            }
+            const found = yield* sql<Pick<AttemptRow, "state">>`
             SELECT state FROM flows_attempts
             WHERE run_id = ${runId} AND step_key_digest = ${stepKeyDigest} AND attempt = ${attempt}
           `
-          if (found.length === 0) {
-            return { _tag: "NotFound" } as const
-          }
-          const runRows = yield* sql<RunFenceRow>`
+            if (found.length === 0) {
+              return { _tag: "NotFound" } as const
+            }
+            const runRows = yield* sql<RunFenceRow>`
             SELECT status, owner_host_id, owner_pid, owner_nonce
             FROM flows_runs WHERE run_id = ${runId}
           `
-          return runRows.length === 0 || !ownsRunningRun(runRows[0]!, owner)
-            ? { _tag: "FenceLost" } as const
-            : { _tag: "StateChanged" } as const
-        })
-      ).pipe(Effect.mapError(mapPersistenceError))
-    })
-  )
+            return runRows.length === 0 || !ownsRunningRun(runRows[0]!, owner)
+              ? { _tag: "FenceLost" } as const
+              : { _tag: "StateChanged" } as const
+          })
+        ).pipe(Effect.mapError(mapPersistenceError))
+      })
+    )
 
-  const finish: Service["finish"] = Effect.fn("AttemptStore.finish")((attempt, owner) =>
-    Effect.gen(function*() {
-      yield* validateId(attempt)
-      if (
-        attempt.state.length === 0 ||
-        attempt.state === "running" ||
-        !Number.isSafeInteger(attempt.finishedAtMs) ||
-        attempt.finishedAtMs < 0
-      ) {
-        return yield* Effect.fail(error("invalid_attempt", "finish requires a terminal state and valid timestamp"))
-      }
-      const attemptError = yield* encodeOptional(attempt.error, "error")
-      const outcome = yield* encodeOptional(attempt.outcome, "outcome")
-      const meta = yield* encodeOptional(attempt.meta, "meta")
-      return yield* database.write(
-        Effect.gen(function*() {
-          const updated = yield* sql<{ readonly attempt: number }>`
+    const finish: Service["finish"] = Effect.fn("AttemptStore.finish")((attempt, owner) =>
+      Effect.gen(function*() {
+        yield* validateId(attempt)
+        if (
+          attempt.state.length === 0 ||
+          inProgressStates.includes(attempt.state) ||
+          !Number.isSafeInteger(attempt.finishedAtMs) ||
+          attempt.finishedAtMs < 0
+        ) {
+          return yield* Effect.fail(error("invalid_attempt", "finish requires a terminal state and valid timestamp"))
+        }
+        const attemptError = yield* encodeOptional(attempt.error, "error")
+        const outcome = yield* encodeOptional(attempt.outcome, "outcome")
+        const meta = yield* encodeOptional(attempt.meta, "meta")
+        return yield* database.write(
+          Effect.gen(function*() {
+            const updated = yield* sql<{ readonly attempt: number }>`
             UPDATE flows_attempts
             SET
               state = ${attempt.state},
               finished_at_ms = ${attempt.finishedAtMs},
-              error_json = ${attemptError},
+              error_json = COALESCE(${attemptError}, error_json),
               outcome_json = ${outcome},
               meta_json = COALESCE(${meta}, meta_json)
             WHERE run_id = ${attempt.runId}
               AND step_key_digest = ${attempt.stepKeyDigest}
               AND attempt = ${attempt.attempt}
-              AND state = 'running'
+              AND ${inProgress}
               AND EXISTS (
                 SELECT 1 FROM flows_runs
                 WHERE run_id = ${attempt.runId}
@@ -505,32 +612,67 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
               )
             RETURNING attempt
           `
-          if (updated.length > 0) {
-            return { _tag: "Finished" } as const
-          }
-          const found = yield* sql<Pick<AttemptRow, "state">>`
+            if (updated.length > 0) {
+              return { _tag: "Finished" } as const
+            }
+            const found = yield* sql<Pick<AttemptRow, "state">>`
             SELECT state FROM flows_attempts
             WHERE run_id = ${attempt.runId}
               AND step_key_digest = ${attempt.stepKeyDigest}
               AND attempt = ${attempt.attempt}
           `
-          if (found.length === 0) {
-            return { _tag: "NotFound" } as const
-          }
-          const runRows = yield* sql<RunFenceRow>`
+            if (found.length === 0) {
+              return { _tag: "NotFound" } as const
+            }
+            const runRows = yield* sql<RunFenceRow>`
             SELECT status, owner_host_id, owner_pid, owner_nonce
             FROM flows_runs WHERE run_id = ${attempt.runId}
           `
-          return runRows.length === 0 || !ownsRunningRun(runRows[0]!, owner)
-            ? { _tag: "FenceLost" } as const
-            : { _tag: "StateChanged" } as const
-        })
-      ).pipe(Effect.mapError(mapPersistenceError))
-    })
-  )
+            return runRows.length === 0 || !ownsRunningRun(runRows[0]!, owner)
+              ? { _tag: "FenceLost" } as const
+              : { _tag: "StateChanged" } as const
+          })
+        ).pipe(Effect.mapError(mapPersistenceError))
+      })
+    )
 
-  return { put, get, heartbeat, finish }
-})
+    const patch: Service["patch"] = Effect.fn("AttemptStore.patch")((id, fields) =>
+      Effect.gen(function*() {
+        yield* validateId(id)
+        const checkpoint = yield* encodeCheckpoint(fields.checkpoint)
+        const attemptError = yield* encodeOptional(fields.error, "error")
+        const outcome = yield* encodeOptional(fields.outcome, "outcome")
+        const meta = yield* encodeOptional(fields.meta, "meta")
+        return yield* database.write(
+          Effect.map(
+            sql<{ readonly attempt: number }>`
+            UPDATE flows_attempts
+            SET
+              checkpoint_json = COALESCE(${checkpoint}, checkpoint_json),
+              error_json = COALESCE(${attemptError}, error_json),
+              outcome_json = COALESCE(${outcome}, outcome_json),
+              meta_json = COALESCE(${meta}, meta_json)
+            WHERE run_id = ${id.runId}
+              AND step_key_digest = ${id.stepKeyDigest}
+              AND attempt = ${id.attempt}
+            RETURNING attempt
+          `,
+            (rows) => rows.length > 0 ? { _tag: "Patched" } as const : { _tag: "NotFound" } as const
+          )
+        ).pipe(Effect.mapError(mapPersistenceError))
+      })
+    )
+
+    return { put, get, heartbeat, finish, patch }
+  })
+
+/**
+ * Builds the SQL-backed attempt store with default policy.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const make: Effect.Effect<Service, never, Database> = Effect.orDie(makeWith())
 
 /**
  * Creates an attempt store from an implementation.
@@ -545,6 +687,7 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service => {
     get: Effect.fn("AttemptStore.get")(() => unavailable("get")),
     heartbeat: Effect.fn("AttemptStore.heartbeat")(() => unavailable("heartbeat")),
     finish: Effect.fn("AttemptStore.finish")(() => unavailable("finish")),
+    patch: Effect.fn("AttemptStore.patch")(() => unavailable("patch")),
     ...overrides
   }
 }
@@ -565,3 +708,12 @@ export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<Attempt
  * @since 0.1.0
  */
 export const layer: Layer.Layer<AttemptStore, never, Database> = Layer.effect(AttemptStore)(make)
+
+/**
+ * Provides the SQL-backed attempt store under an explicit policy.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
+export const layerWith = (options: Options): Layer.Layer<AttemptStore, AttemptStoreError, Database> =>
+  Layer.effect(AttemptStore)(makeWith(options))
