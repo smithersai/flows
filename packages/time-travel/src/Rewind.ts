@@ -417,6 +417,7 @@ export const rewind = (
       let archiveCommitted = false
       let compensation: Compensation.Result = { handlerReceipts: [] }
       let detail: AuditDetail | undefined
+      const cancelledChildren: Array<string> = []
 
       return yield* Effect.uninterruptibleMask((restore) =>
         Effect.gen(function*() {
@@ -493,7 +494,14 @@ export const rewind = (
               yield* store.updateAudit(auditId, { detail })
               yield* runHook(options, "assess-boundary")
 
-              const cancelledChildren: Array<string> = []
+              /**
+               * Cancelling a detached child is terminal and happens before the
+               * archive commit point, so it is the one rewind mutation a
+               * rollback cannot undo. Each cancellation is therefore recorded
+               * on the audit as it happens: the rollback path spreads the
+               * current `detail`, and an undisclosed irreversible side effect
+               * is worse than a slower protocol.
+               */
               for (
                 const child of [...childAssessment.cancellable].sort(
                   (left, right) => right.edge.parentSeq - left.edge.parentSeq
@@ -501,6 +509,8 @@ export const rewind = (
               ) {
                 yield* cancelChild(runs, options, child)
                 cancelledChildren.push(child.edge.childRunId)
+                detail = { ...detail, cancelledChildren: [...cancelledChildren] }
+                yield* store.updateAudit(auditId, { detail })
               }
 
               const handlerReceipts = yield* Compensation.compensate(plan)
@@ -513,7 +523,7 @@ export const rewind = (
                 ...detail,
                 phase: "compensated",
                 compensation,
-                cancelledChildren
+                cancelledChildren: [...cancelledChildren]
               }
               yield* store.updateAudit(auditId, { detail })
 
@@ -551,7 +561,7 @@ export const rewind = (
                 archive,
                 assessments: plan.assessments,
                 warnings: childAssessment.warnings,
-                cancelledChildren
+                cancelledChildren: [...cancelledChildren]
               }
             })
           )
@@ -580,13 +590,21 @@ export const rewind = (
               const rollbackFailure = Exit.isFailure(rollbackExit)
                 ? Cause.squash(rollbackExit.cause)
                 : undefined
+              // Child cancellation has no inverse, so a "rolled back" rewind
+              // still owns that residue and has to name it.
+              const residue = cancelledChildren.length === 0
+                ? ""
+                : `; ${cancelledChildren.length} detached child run(s) stay cancelled: ${
+                  cancelledChildren.join(", ")
+                }`
               detail = {
                 ...detail,
                 phase: rollbackFailure === undefined ? "rolled_back" : "terminal_failure",
                 compensation: undefined,
-                failure: rollbackFailure === undefined
+                cancelledChildren: [...cancelledChildren],
+                failure: (rollbackFailure === undefined
                   ? failure.message
-                  : `${failure.message}; rollback failed: ${String(rollbackFailure)}`
+                  : `${failure.message}; rollback failed: ${String(rollbackFailure)}`) + residue
               }
               yield* Effect.ignore(
                 store.updateAudit(auditId, {

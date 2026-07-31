@@ -382,6 +382,90 @@ describe("Rewind", () => {
     expect(runs.state("child")).toMatchObject({ status: "cancelled", owner: null })
   })
 
+  it("discloses irreversibly cancelled children when the rewind rolls back", async () => {
+    const edge: LineageEdge = {
+      parentRunId: "run",
+      parentSeq: 1,
+      childRunId: "child",
+      kind: "child",
+      attached: false
+    }
+    const store = MemoryTimeTravelStore.make({ records: [baseline()], edges: [edge] })
+    const runs = makeRuns([row("run"), row("child", "suspended")])
+    const jj = makeJj("current")
+
+    const failure = await Effect.runPromise(
+      Effect.flip(
+        provide(
+          Rewind.rewind({
+            runId: "run",
+            frame,
+            owner,
+            auditId: "audit-rollback-cancelled",
+            detachedChildPolicy: "cancel",
+            hooks: {
+              beforeStep: (step) =>
+                step === "compensate-effects"
+                  ? Effect.fail(new Error("injected compensate-effects"))
+                  : Effect.void
+            }
+          }),
+          { store, runs, jj: jj.service }
+        )
+      )
+    )
+
+    // The parent rolls back, but the child cancellation is terminal and
+    // cannot be undone — the audit must say so.
+    expect(failure.code).toBe("unknown")
+    expect(runs.state("run").status).toBe("suspended")
+    expect(runs.state("child").status).toBe("cancelled")
+    const audit = store.state().audits.at(-1)!
+    expect(audit.status).toBe("failed")
+    const detail = audit.detail as Rewind.AuditDetail
+    expect(detail.phase).toBe("rolled_back")
+    expect(detail.cancelledChildren).toEqual(["child"])
+    expect(detail.failure).toContain("child")
+  })
+
+  it("discloses every cancelled child, newest edge first, when the rewind rolls back", async () => {
+    const edges: ReadonlyArray<LineageEdge> = [
+      { parentRunId: "run", parentSeq: 1, childRunId: "child-a", kind: "child", attached: false },
+      { parentRunId: "run", parentSeq: 2, childRunId: "child-b", kind: "child", attached: false }
+    ]
+    const store = MemoryTimeTravelStore.make({ records: [baseline()], edges: [...edges] })
+    const runs = makeRuns([row("run"), row("child-a", "suspended"), row("child-b", "suspended")])
+    const jj = makeJj("current")
+
+    await Effect.runPromise(
+      Effect.flip(
+        provide(
+          Rewind.rewind({
+            runId: "run",
+            frame,
+            owner,
+            auditId: "audit-cancel-order",
+            detachedChildPolicy: "cancel",
+            hooks: {
+              beforeStep: (step) =>
+                step === "restore-workspace"
+                  ? Effect.fail(new Error("injected restore-workspace"))
+                  : Effect.void
+            }
+          }),
+          { store, runs, jj: jj.service }
+        )
+      )
+    )
+
+    expect(runs.state("child-a").status).toBe("cancelled")
+    expect(runs.state("child-b").status).toBe("cancelled")
+    const detail = store.state().audits.at(-1)!.detail as Rewind.AuditDetail
+    // Cancellation walks the highest parentSeq first; the audit keeps that order.
+    expect(detail.cancelledChildren).toEqual(["child-b", "child-a"])
+    expect(detail.phase).toBe("rolled_back")
+  })
+
   it("resolves the full suffix before running any handler", async () => {
     let reverts = 0
     const handler: EffectHandlerRegistry.Handler = {

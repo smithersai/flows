@@ -28,6 +28,8 @@ This page is the public API reference for journal projection replay, time-travel
 
 `Rewind.Options` includes target run/frame, owner, audit ID, page size, detached-child policy, rate-limit hook, child-liveness hook, and fault-injection hooks. `Rewind.Result` returns audit, archive, assessments, warnings, and cancelled children.
 
+Cancelling a detached child under `detachedChildPolicy: "cancel"` is terminal and happens *before* the archive commit point, so it is the one rewind mutation rollback cannot undo. Each cancellation is written to the audit detail as it happens, and a rewind that later rolls back keeps the full `cancelledChildren` list and names the surviving cancellations in `detail.failure`. A `rolled_back` audit therefore never understates what the attempt left behind.
+
 ## External-effect records
 
 `EffectBoundary.guard` records an external effect’s intended and terminal status using the journal. `fromEntry` and `fromEntries` decode those records. `eventType` is the stable journal event name.
