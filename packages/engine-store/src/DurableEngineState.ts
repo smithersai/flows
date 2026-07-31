@@ -201,10 +201,8 @@ export interface Service {
   readonly dueClocks: (nowMs: number) => Effect.Effect<ReadonlyArray<ClockRow>>
   /**
    * Lists completed deferred addresses for registration-time wake recovery.
-   *
-   * Optional so existing custom implementations remain source-compatible.
    */
-  readonly completedDeferreds?: (
+  readonly completedDeferreds: (
     flowName: string
   ) => Effect.Effect<ReadonlyArray<DeferredAddress>>
   /**
@@ -593,7 +591,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
     )
   )
 
-  const completedDeferreds: NonNullable<Service["completedDeferreds"]> = Effect.fn(
+  const completedDeferreds: Service["completedDeferreds"] = Effect.fn(
     "DurableEngineState.completedDeferreds"
   )((flowName) =>
     sql<Record<string, unknown>>`

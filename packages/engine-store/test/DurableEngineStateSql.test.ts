@@ -68,14 +68,10 @@ describe("SQL DurableEngineState", () => {
             completedAtMs: 11
           })
         ], { concurrency: "unbounded" })
-        const completedDeferreds = second.completedDeferreds
-        if (completedDeferreds === undefined) {
-          return yield* Effect.die(new Error("SQL state does not expose completion recovery"))
-        }
         return {
           outcomes,
           row: Option.getOrThrow(yield* first.deferred(address)),
-          completed: yield* completedDeferreds(address.flowName)
+          completed: yield* second.completedDeferreds(address.flowName)
         }
       }).pipe(Effect.provide(migratedDatabase))
     )

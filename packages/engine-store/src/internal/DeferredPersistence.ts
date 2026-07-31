@@ -238,7 +238,7 @@ export const make = (
           (row) => recordClockScheduled(row).pipe(Effect.andThen(armClock(row))),
           { discard: true }
         )
-        if (flowName !== undefined && state.completedDeferreds !== undefined) {
+        if (flowName !== undefined) {
           const completions = yield* state.completedDeferreds(flowName)
           yield* Effect.forEach(
             completions,
