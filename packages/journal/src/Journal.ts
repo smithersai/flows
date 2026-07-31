@@ -13,6 +13,7 @@ import * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
 import * as Stream from "effect/Stream"
 import type { Entry, Input, RunId, Seq, SourceSeq } from "./JournalEvent.ts"
+import type { OwnerId } from "./Ownership.ts"
 import type { Projection } from "./Projection.ts"
 
 /**
@@ -25,6 +26,7 @@ export const JournalErrorCode = Schema.Literals([
   "invalid_event",
   "idempotency_conflict",
   "sequence_conflict",
+  "fence_lost",
   "queue_overflow",
   "journal_closed",
   "sink_failed",
@@ -187,12 +189,31 @@ export interface EntriesPage {
  * writers never fork the per-run clock
  * (`docs/specs/Concepts/Journal Queue.md`, "The durable path").
  *
+ * The surface is split into two channels:
+ *
+ * - The lifecycle channel — `emitDurable`, and `emit` whenever an `owner` is
+ *   passed or the journal allocates in SQL — returns `DurableReceipt`, so a
+ *   dropped lifecycle event is unrepresentable: the write commits, dedupes, or
+ *   fails with a typed error.
+ * - The lossy channel — `emitLossy` — keeps the optimistic queue and its
+ *   overflow policies for telemetry, where `Dropped` receipts and
+ *   `drop-oldest` evictions are acceptable. Telemetry callers still on `emit`
+ *   should move to `emitLossy`; `emit` remains only so existing call sites
+ *   keep compiling while that sweep lands.
+ *
+ * Passing an `owner` fences the write on the run's persisted ownership: the
+ * durable insert only commits while `flows_runs` still records that owner, and
+ * a reclaimed run fails the write with a `fence_lost` error. Ownerless writes
+ * stay unfenced by design — external-trigger admissions such as deferred
+ * completions are first-writer-wins regardless of who owns the run.
+ *
  * @category models
  * @since 0.1.0
  */
 export interface Service {
-  readonly emit: (input: Input) => Effect.Effect<EmitReceipt, JournalError>
-  readonly emitDurable: (input: Input) => Effect.Effect<DurableReceipt, JournalError>
+  readonly emit: (input: Input, owner?: OwnerId) => Effect.Effect<EmitReceipt, JournalError>
+  readonly emitLossy: (input: Input) => Effect.Effect<EmitReceipt, JournalError>
+  readonly emitDurable: (input: Input, owner?: OwnerId) => Effect.Effect<DurableReceipt, JournalError>
   readonly stream: (options: StreamOptions) => Stream.Stream<Entry, JournalError>
   readonly entries: (options: EntriesOptions) => Effect.Effect<EntriesPage, JournalError>
   readonly changes: Effect.Effect<PubSub.Subscription<Entry>, never, Scope.Scope>
@@ -234,6 +255,7 @@ const unavailable = (method: string): JournalError =>
 export const makeNoop = (overrides: Partial<Service> = {}): Service => {
   const service: Service = {
     emit: Effect.fn("Journal.emit")(() => Effect.fail(unavailable("emit"))),
+    emitLossy: Effect.fn("Journal.emitLossy")(() => Effect.fail(unavailable("emitLossy"))),
     emitDurable: Effect.fn("Journal.emitDurable")(() => Effect.fail(unavailable("emitDurable"))),
     stream: (options) =>
       Stream.unwrap(

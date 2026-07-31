@@ -39,6 +39,7 @@ import {
   type StreamOptions
 } from "./Journal.ts"
 import { Entry, Input, makeEventId, type RunId, type Seq, type SourceId, type SourceSeq } from "./JournalEvent.ts"
+import type { OwnerId } from "./Ownership.ts"
 import type { Projection } from "./Projection.ts"
 
 /**
@@ -358,7 +359,7 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
           }
         })
 
-      const queuedEmit: Service["emit"] = Effect.fn("Journal.emit")((input: Input) =>
+      const queuedEmit: Service["emitLossy"] = Effect.fn("Journal.emit")((input: Input) =>
         Effect.flatMap(Clock.currentTimeMillis, (emittedAtMs) =>
           Effect.suspend(() =>
             Effect.fromResult(
@@ -609,33 +610,72 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
           }
         })
 
+      /**
+       * When `owner` is present the insert is fenced on the run's persisted
+       * ownership with the same `WHERE EXISTS` predicate
+       * `DurableEngineState.scheduleClock` uses, following Temporal's shard
+       * `rangeID` check (`service/history/shard/context_impl.go`,
+       * `renewRangeLocked`) reduced to one SQL predicate: a zombie owner whose
+       * run was reclaimed cannot append, and fails with `fence_lost`.
+       */
       const insertOne = (
-        queued: QueuedEntry
+        queued: QueuedEntry,
+        owner?: OwnerId
       ): Effect.Effect<Commit, JournalError | SqlError.SqlError> =>
         Effect.gen(function*() {
           const duplicate = yield* selectExisting(queued)
           if (duplicate !== undefined) {
             return duplicate
           }
-          const inserted = yield* sql<JournalRow>`
-            INSERT INTO flows_journal_events (
-              run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
-              event_type, payload_json, meta_json
-            ) VALUES (
-              ${queued.runId},
-              ${queued.seq},
-              ${queued.eventId},
-              ${queued.sourceId},
-              ${queued.sourceSeq},
-              ${queued.emittedAtMs},
-              ${queued.eventType},
-              ${queued.payloadJson},
-              ${queued.metaJson}
-            )
-            ON CONFLICT DO NOTHING
-            RETURNING run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
-              event_type, payload_json, meta_json
-          `
+          const insert = owner === undefined
+            ? sql<JournalRow>`
+              INSERT INTO flows_journal_events (
+                run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
+                event_type, payload_json, meta_json
+              ) VALUES (
+                ${queued.runId},
+                ${queued.seq},
+                ${queued.eventId},
+                ${queued.sourceId},
+                ${queued.sourceSeq},
+                ${queued.emittedAtMs},
+                ${queued.eventType},
+                ${queued.payloadJson},
+                ${queued.metaJson}
+              )
+              ON CONFLICT DO NOTHING
+              RETURNING run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
+                event_type, payload_json, meta_json
+            `
+            : sql<JournalRow>`
+              INSERT INTO flows_journal_events (
+                run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
+                event_type, payload_json, meta_json
+              )
+              SELECT
+                ${queued.runId},
+                ${queued.seq},
+                ${queued.eventId},
+                ${queued.sourceId},
+                ${queued.sourceSeq},
+                ${queued.emittedAtMs},
+                ${queued.eventType},
+                ${queued.payloadJson},
+                ${queued.metaJson}
+              WHERE EXISTS (
+                SELECT 1
+                FROM flows_runs
+                WHERE run_id = ${queued.runId}
+                  AND status = 'running'
+                  AND owner_host_id = ${owner.hostId}
+                  AND owner_pid = ${owner.pid}
+                  AND owner_nonce = ${owner.nonce}
+              )
+              ON CONFLICT DO NOTHING
+              RETURNING run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
+                event_type, payload_json, meta_json
+            `
+          const inserted = yield* insert
           if (inserted.length > 0) {
             return {
               entry: yield* decodeRow(inserted[0]!),
@@ -647,17 +687,22 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
             return racedDuplicate
           }
           return yield* Effect.fail(
-            error(
-              "sequence_conflict",
-              `sequence ${queued.seq} for run ${queued.runId} was committed by another writer`
-            )
+            owner === undefined
+              ? error(
+                "sequence_conflict",
+                `sequence ${queued.seq} for run ${queued.runId} was committed by another writer`
+              )
+              : error(
+                "fence_lost",
+                `run ${queued.runId} is no longer owned by ${owner.hostId}:${owner.pid}:${owner.nonce}`
+              )
           )
         })
 
       const persistBatch = (
         batch: ReadonlyArray<QueuedEntry>
       ): Effect.Effect<ReadonlyArray<Commit>, JournalError> =>
-        database.write(Effect.forEach(batch, insertOne)).pipe(
+        database.write(Effect.forEach(batch, (queued) => insertOne(queued))).pipe(
           Effect.mapError((cause) =>
             isJournalError(cause)
               ? cause
@@ -737,7 +782,10 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
           (rows) => Number(rows[0]?.next ?? 0)
         )
 
-      const emitDurable: Service["emitDurable"] = Effect.fn("Journal.emitDurable")((input: Input) =>
+      const emitDurable: Service["emitDurable"] = Effect.fn("Journal.emitDurable")((
+        input: Input,
+        owner?: OwnerId
+      ) =>
         Effect.flatMap(Clock.currentTimeMillis, (emittedAtMs) =>
           Effect.flatMap(Effect.fromResult(prepare(input, emittedAtMs)), ({ metaJson, payloadJson, validated }) =>
             database.write(
@@ -777,7 +825,7 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
                   payloadJson,
                   metaJson
                 }
-                const commit = yield* insertOne(queued)
+                const commit = yield* insertOne(queued, owner)
                 rememberCommitted(queued, commit.entry.seq)
                 yield* publish([commit])
                 return commit.inserted
@@ -791,7 +839,17 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
             )))
       )
 
-      const emit: Service["emit"] = options.allocation === "sql" ? emitDurable : queuedEmit
+      /**
+       * A fenced `emit` always takes the durable path: fencing is a property of
+       * the SQL sink, and the optimistic queue would decouple the receipt from
+       * the fence check. Ownerless emits keep their configured allocation.
+       */
+      const emit: Service["emit"] = (input, owner) =>
+        owner !== undefined || options.allocation === "sql"
+          ? emitDurable(input, owner)
+          : queuedEmit(input)
+
+      const emitLossy: Service["emitLossy"] = queuedEmit
 
       const recordCommits = (
         batch: ReadonlyArray<QueuedEntry>,
@@ -912,6 +970,7 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
 
       return makeJournal({
         emit,
+        emitLossy,
         emitDurable,
         stream,
         entries: readPage,

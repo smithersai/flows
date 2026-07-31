@@ -1,0 +1,307 @@
+import { Database, type DatabaseService } from "@smithers/database/Database"
+import * as TestDatabase from "@smithers/database/test/TestDatabase"
+import { Deferred, Effect, Layer } from "effect"
+import { TestClock } from "effect/testing"
+import { describe, expect, it } from "vitest"
+import { type DurableReceipt, Journal, type JournalError, makeNoop } from "../src/Journal.ts"
+import { Input, type RunId, type SourceId, type SourceSeq } from "../src/JournalEvent.ts"
+import * as Migrations from "../src/Migrations.ts"
+import type { OwnerId } from "../src/Ownership.ts"
+import * as SqlJournal from "../src/SqlJournal.ts"
+
+const runId = (value: string): RunId => value as RunId
+const sourceId = (value: string): SourceId => value as SourceId
+const sourceSeq = (value: number): SourceSeq => value as SourceSeq
+
+const ownerA: OwnerId = { hostId: "host-a", pid: 1, nonce: "nonce-a" }
+const ownerB: OwnerId = { hostId: "host-b", pid: 2, nonce: "nonce-b" }
+
+const effect = <E>(name: string, body: () => Effect.Effect<void, E>) =>
+  it(name, () => Effect.runPromise(body().pipe(Effect.provide(TestClock.layer()))))
+
+const input = (
+  run: RunId,
+  source: SourceId,
+  eventType: string,
+  payload: unknown,
+  sequence?: SourceSeq
+): Input =>
+  new Input({
+    runId: run,
+    sourceId: source,
+    ...(sequence === undefined ? {} : { sourceSeq: sequence }),
+    eventType,
+    payload
+  }, { disableChecks: true })
+
+const migratedDatabase = (database: Layer.Layer<Database> = TestDatabase.layer) =>
+  Layer.provideMerge(Migrations.layer, database)
+
+const options: SqlJournal.SqlJournalOptions = { capacity: 8, overflow: "reject" }
+
+const journalLayer = (
+  overrides: Partial<SqlJournal.SqlJournalOptions> = {},
+  database: Layer.Layer<Database> = TestDatabase.layer
+) => SqlJournal.layer({ ...options, ...overrides }).pipe(Layer.provideMerge(migratedDatabase(database)))
+
+const withJournal = <A, E>(
+  body: Effect.Effect<A, E, Journal | Database>,
+  overrides: Partial<SqlJournal.SqlJournalOptions> = {},
+  database: Layer.Layer<Database> = TestDatabase.layer
+) => Effect.scoped(body.pipe(Effect.provide(journalLayer(overrides, database))))
+
+/**
+ * Lets the first `passthrough` writes commit immediately and parks every later
+ * write behind the gate, so tests can hold the queue writer mid-batch.
+ */
+const gateWrites = (gate: Deferred.Deferred<void>, passthrough = 0): Layer.Layer<Database> =>
+  Layer.effect(
+    Database,
+    Effect.gen(function*() {
+      const database = yield* Database
+      let seen = 0
+      const write: DatabaseService["write"] = (writeEffect) =>
+        Effect.suspend(() => {
+          seen += 1
+          return seen <= passthrough
+            ? database.write(writeEffect)
+            : Deferred.await(gate).pipe(Effect.andThen(database.write(writeEffect)))
+        })
+      return Database.of({ sql: database.sql, write })
+    })
+  ).pipe(Layer.provide(TestDatabase.layer))
+
+const activateRun = (database: Database["Service"], run: RunId, owner: OwnerId) =>
+  database.sql`
+    INSERT INTO flows_runs (
+      run_id, status, created_at_ms, started_at_ms,
+      owner_host_id, owner_pid, owner_nonce, heartbeat_at_ms, state_json
+    ) VALUES (
+      ${run}, 'running', 0, 0,
+      ${owner.hostId}, ${owner.pid}, ${owner.nonce}, 0, '{}'
+    )
+  `
+
+const reclaimRun = (database: Database["Service"], run: RunId, owner: OwnerId) =>
+  database.sql`
+    UPDATE flows_runs
+    SET owner_host_id = ${owner.hostId},
+      owner_pid = ${owner.pid},
+      owner_nonce = ${owner.nonce}
+    WHERE run_id = ${run}
+  `
+
+const seqsOf = (database: Database["Service"], run: RunId) =>
+  Effect.map(
+    database.sql<{ readonly seq: number }>`
+      SELECT seq FROM flows_journal_events WHERE run_id = ${run} ORDER BY seq ASC
+    `,
+    (rows) => rows.map((row) => row.seq)
+  )
+
+// A compile-time pin: the lifecycle receipt vocabulary has no "Dropped" arm.
+const lifecycleTag = (receipt: DurableReceipt): "Accepted" | "Duplicate" => receipt._tag
+
+describe("SqlJournal ownership fencing", () => {
+  effect("a fenced durable emit from the current owner commits", () =>
+    withJournal(
+      Effect.gen(function*() {
+        const journal = yield* Journal
+        const database = yield* Database
+        const run = runId("fenced")
+        yield* activateRun(database, run, ownerA)
+        const receipt = yield* journal.emitDurable(input(run, sourceId("s"), "created", 1), ownerA)
+        expect(lifecycleTag(receipt)).toBe("Accepted")
+        expect(yield* seqsOf(database, run)).toEqual([receipt.seq])
+      })
+    ))
+
+  effect("a reclaimed run fences out the zombie owner's durable writes", () =>
+    withJournal(
+      Effect.gen(function*() {
+        const journal = yield* Journal
+        const database = yield* Database
+        const run = runId("reclaimed")
+        yield* activateRun(database, run, ownerA)
+        yield* journal.emitDurable(input(run, sourceId("a"), "first", 1), ownerA)
+        yield* reclaimRun(database, run, ownerB)
+        const failure = yield* Effect.flip(
+          journal.emitDurable(input(run, sourceId("a"), "zombie", 2), ownerA)
+        )
+        expect((failure as JournalError).code).toBe("fence_lost")
+        // The fenced-out entry must not reach the durable journal.
+        expect(yield* seqsOf(database, run)).toEqual([0])
+        const next = yield* journal.emitDurable(input(run, sourceId("b"), "second", 3), ownerB)
+        expect(next._tag).toBe("Accepted")
+        expect(yield* seqsOf(database, run)).toEqual([0, next.seq])
+      })
+    ))
+
+  effect("emit with an owner routes through the durable fenced path under memory allocation", () =>
+    withJournal(
+      Effect.gen(function*() {
+        const journal = yield* Journal
+        const database = yield* Database
+        const run = runId("routed")
+        yield* activateRun(database, run, ownerA)
+        const receipt = yield* journal.emit(input(run, sourceId("s"), "created", 1), ownerA)
+        // Committed synchronously, without a flush: the fenced path is durable.
+        expect(yield* seqsOf(database, run)).toEqual([receipt.seq])
+        yield* reclaimRun(database, run, ownerB)
+        const failure = yield* Effect.flip(journal.emit(input(run, sourceId("s"), "zombie", 2), ownerA))
+        expect((failure as JournalError).code).toBe("fence_lost")
+        expect(yield* seqsOf(database, run)).toEqual([receipt.seq])
+      })
+    ))
+
+  effect("an ownerless emit stays unfenced for external-trigger admissions", () =>
+    withJournal(
+      Effect.gen(function*() {
+        const journal = yield* Journal
+        const database = yield* Database
+        const run = runId("external")
+        yield* activateRun(database, run, ownerA)
+        yield* reclaimRun(database, run, ownerB)
+        // Deferred completions and other first-writer-wins admissions carry no
+        // owner and must land regardless of who owns the run.
+        yield* journal.emit(input(run, sourceId("trigger"), "queued", 1))
+        yield* journal.flush
+        const durable = yield* journal.emitDurable(input(run, sourceId("trigger"), "durable", 2))
+        expect(durable._tag).toBe("Accepted")
+        expect(yield* seqsOf(database, run)).toEqual([0, 1])
+      })
+    ))
+
+  effect("a fenced retry of an already-committed entry stays idempotent after fence loss", () =>
+    withJournal(
+      Effect.gen(function*() {
+        const journal = yield* Journal
+        const database = yield* Database
+        const run = runId("retry")
+        yield* activateRun(database, run, ownerA)
+        const first = yield* journal.emitDurable(
+          input(run, sourceId("s"), "created", 1, sourceSeq(0)),
+          ownerA
+        )
+        yield* reclaimRun(database, run, ownerB)
+        const retry = yield* journal.emitDurable(
+          input(run, sourceId("s"), "created", 1, sourceSeq(0)),
+          ownerA
+        )
+        expect(retry).toEqual({ _tag: "Duplicate", seq: first.seq, sourceSeq: 0, status: "committed" })
+      })
+    ))
+})
+
+describe("SqlJournal lossy and lifecycle channels", () => {
+  effect("the lossy channel drops per policy while the lifecycle channel commits", () => {
+    const gate = Deferred.makeUnsafe<void>()
+    const run = runId("channels")
+    const source = sourceId("telemetry")
+    return withJournal(
+      Effect.gen(function*() {
+        const journal = yield* Journal
+        const database = yield* Database
+        yield* journal.emitLossy(input(run, source, "event", 0))
+        yield* Effect.yieldNow
+        yield* journal.emitLossy(input(run, source, "event", 1))
+        const dropped = yield* journal.emitLossy(input(run, source, "event", 2))
+        expect(dropped).toMatchObject({ _tag: "Dropped", seq: 2, policy: "drop-newest" })
+        yield* Deferred.succeed(gate, undefined)
+        yield* journal.flush
+        const durable = yield* journal.emitDurable(input(run, sourceId("lifecycle"), "finished", 3))
+        expect(lifecycleTag(durable)).toBe("Accepted")
+        // The dropped telemetry admission consumed seq 2; the lifecycle entry
+        // is allocated after it and always lands.
+        expect(yield* seqsOf(database, run)).toEqual([0, 1, durable.seq])
+      }).pipe(Effect.ensuring(Deferred.succeed(gate, undefined))),
+      { capacity: 1, overflow: "drop-newest", batchSize: 1 },
+      gateWrites(gate)
+    )
+  })
+
+  effect("the lossy channel backpressures with a typed failure under the reject policy", () => {
+    const gate = Deferred.makeUnsafe<void>()
+    const run = runId("reject")
+    const source = sourceId("telemetry")
+    return withJournal(
+      Effect.gen(function*() {
+        const journal = yield* Journal
+        yield* journal.emitLossy(input(run, source, "event", 0))
+        yield* Effect.yieldNow
+        yield* journal.emitLossy(input(run, source, "event", 1))
+        const failure = yield* Effect.flip(journal.emitLossy(input(run, source, "event", 2)))
+        expect((failure as JournalError).code).toBe("queue_overflow")
+        yield* Deferred.succeed(gate, undefined)
+        yield* journal.flush
+      }).pipe(Effect.ensuring(Deferred.succeed(gate, undefined))),
+      { capacity: 1, overflow: "reject", batchSize: 1 },
+      gateWrites(gate)
+    )
+  })
+
+  effect("drop-oldest cannot evict a lifecycle entry", () => {
+    const gate = Deferred.makeUnsafe<void>()
+    const run = runId("evictions")
+    const source = sourceId("telemetry")
+    return withJournal(
+      Effect.gen(function*() {
+        const journal = yield* Journal
+        const database = yield* Database
+        // Lifecycle entries never share the lossy queue: they are already
+        // durable before any telemetry eviction can happen.
+        const lifecycle = yield* journal.emitDurable(input(run, sourceId("lifecycle"), "started", 0))
+        yield* journal.emitLossy(input(run, source, "event", 1))
+        yield* Effect.yieldNow
+        yield* journal.emitLossy(input(run, source, "event", 2))
+        const evicting = yield* journal.emitLossy(input(run, source, "event", 3))
+        expect(evicting).toMatchObject({
+          _tag: "Accepted",
+          evicted: { policy: "drop-oldest", count: 1 }
+        })
+        yield* Deferred.succeed(gate, undefined)
+        yield* journal.flush
+        const seqs = yield* seqsOf(database, run)
+        expect(seqs).toContain(lifecycle.seq)
+        expect(seqs).toEqual([0, 1, 3])
+      }).pipe(Effect.ensuring(Deferred.succeed(gate, undefined))),
+      { capacity: 1, overflow: "drop-oldest", batchSize: 1 },
+      gateWrites(gate, 1)
+    )
+  })
+
+  effect("emitLossy stays on the optimistic queue even under sql allocation", () =>
+    withJournal(
+      Effect.gen(function*() {
+        const journal = yield* Journal
+        const database = yield* Database
+        const run = runId("sql-lossy")
+        const receipt = yield* journal.emitLossy(input(run, sourceId("telemetry"), "event", 0))
+        expect(receipt._tag).toBe("Accepted")
+        yield* journal.flush
+        expect(yield* seqsOf(database, run)).toEqual([0])
+      }),
+      { allocation: "sql" }
+    ))
+
+  it("the lifecycle receipt type cannot represent Dropped", () => {
+    // @ts-expect-error -- Dropped is unrepresentable in the lifecycle receipt.
+    const dropped: DurableReceipt = {
+      _tag: "Dropped",
+      seq: 0,
+      sourceSeq: 0,
+      policy: "drop-newest"
+    }
+    expect(dropped).toBeDefined()
+    expect(lifecycleTag({ _tag: "Duplicate", seq: 0, sourceSeq: 0, status: "committed" }))
+      .toBe("Duplicate")
+  })
+
+  effect("the noop journal reports emitLossy as unavailable", () =>
+    Effect.gen(function*() {
+      const journal = makeNoop()
+      const failure = yield* Effect.flip(journal.emitLossy(input(runId("run"), sourceId("s"), "x", 1)))
+      expect((failure as JournalError).code).toBe("journal_closed")
+      expect((failure as JournalError).message).toContain("emitLossy")
+    }))
+})
