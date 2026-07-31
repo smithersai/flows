@@ -89,10 +89,12 @@ export interface Attempt extends AttemptId {
 }
 
 /**
- * Input used to finish an existing attempt. When `meta` is omitted, the
- * terminal rewrite preserves the opaque value recorded by `put`. Supplying
- * `meta` replaces it atomically with the terminal state, which lets an
- * executor durably record flags discovered while handling a failure.
+ * Input used to finish an existing attempt. `error`, `outcome`, and `meta`
+ * follow the same rule as {@link AttemptPatch}: an omitted field is left as
+ * recorded, so a terminal transition never erases a value written mid-flight
+ * by `put` or `patch`. Supplying one replaces it atomically with the terminal
+ * state, which lets an executor durably record what it discovered while
+ * handling a failure.
  *
  * @category models
  * @since 0.1.0
@@ -596,7 +598,7 @@ export const makeWith = (options: Options = {}): Effect.Effect<Service, AttemptS
               state = ${attempt.state},
               finished_at_ms = ${attempt.finishedAtMs},
               error_json = COALESCE(${attemptError}, error_json),
-              outcome_json = ${outcome},
+              outcome_json = COALESCE(${outcome}, outcome_json),
               meta_json = COALESCE(${meta}, meta_json)
             WHERE run_id = ${attempt.runId}
               AND step_key_digest = ${attempt.stepKeyDigest}

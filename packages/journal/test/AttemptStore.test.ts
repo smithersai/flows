@@ -114,6 +114,72 @@ describe("AttemptStore", () => {
     })
   })
 
+  it("preserves an outcome recorded by patch when the terminal transition omits one", async () => {
+    const result = await migrated(Effect.gen(function*() {
+      yield* createRun()
+      const store = yield* AttemptStore
+      yield* store.put({
+        runId: "run-1",
+        stepKeyDigest: "digest-1",
+        attempt: 0,
+        state: "running",
+        startedAtMs: 10,
+        meta: {}
+      }, owner)
+      expect(
+        yield* store.patch({ runId: "run-1", stepKeyDigest: "digest-1", attempt: 0 }, {
+          outcome: { responseText: "partial", worktreeRef: "ref-1" }
+        })
+      ).toEqual({ _tag: "Patched" })
+      expect(
+        yield* store.finish({
+          runId: "run-1",
+          stepKeyDigest: "digest-1",
+          attempt: 0,
+          state: "failed",
+          finishedAtMs: 20
+        }, owner)
+      ).toEqual({ _tag: "Finished" })
+      return yield* store.get({ runId: "run-1", stepKeyDigest: "digest-1", attempt: 0 })
+    }))
+
+    expect(Option.getOrThrow(result)).toMatchObject({
+      state: "failed",
+      finishedAtMs: 20,
+      outcome: { responseText: "partial", worktreeRef: "ref-1" }
+    })
+  })
+
+  it("replaces a recorded outcome when the terminal transition supplies one", async () => {
+    const result = await migrated(Effect.gen(function*() {
+      yield* createRun()
+      const store = yield* AttemptStore
+      yield* store.put({
+        runId: "run-1",
+        stepKeyDigest: "digest-1",
+        attempt: 0,
+        state: "running",
+        startedAtMs: 10,
+        outcome: { value: "mid-flight" },
+        meta: {}
+      }, owner)
+      yield* store.finish({
+        runId: "run-1",
+        stepKeyDigest: "digest-1",
+        attempt: 0,
+        state: "completed",
+        finishedAtMs: 20,
+        outcome: { value: "terminal" }
+      }, owner)
+      return yield* store.get({ runId: "run-1", stepKeyDigest: "digest-1", attempt: 0 })
+    }))
+
+    expect(Option.getOrThrow(result)).toMatchObject({
+      state: "completed",
+      outcome: { value: "terminal" }
+    })
+  })
+
   it("atomically records failure metadata discovered at the terminal transition", async () => {
     const result = await migrated(Effect.gen(function*() {
       yield* createRun()

@@ -94,7 +94,7 @@ Promote a field to a column only when it must appear in a CAS guard. `Transition
 | `maxCheckpointBytes` | `1048576` | Largest encoded checkpoint accepted. Raise it when the durable mid-attempt checkpoint is an agent session rather than a cursor. |
 | `putMode` | `"insert"` | `"insert"` is first-writer-wins: a re-put with different content reports `Conflict`. `"upsert"` overwrites the row and reports `Upserted`. Both keep the run-ownership fence. |
 
-`finish` COALESCEs `error_json` and `meta_json`: an error recorded mid-flight survives a terminal claim that omits one, and supplying an error replaces it. `outcome_json` is still written unconditionally, because a terminal outcome is the point of the call.
+`finish` COALESCEs `error_json`, `outcome_json`, and `meta_json`: a value recorded mid-flight by `put` or `patch` survives a terminal claim that omits it, and supplying one replaces it. Only `put`'s upsert rewrites those columns unconditionally, because an upsert restates the whole row.
 
 `patch(id, fields)` is the unfenced surface for opaque fields — checkpoint, error, outcome, and metadata — and never moves `state`, `started_at_ms`, or `finished_at_ms`. Omitted fields are left as recorded. It returns `Patched` or `NotFound`. Fields such as response text, worktree pointers, or cache flags belong in `meta`; the fenced lifecycle stays with `put`/`heartbeat`/`finish`.
 
