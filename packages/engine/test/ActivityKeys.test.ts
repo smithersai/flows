@@ -7,21 +7,96 @@ const effect = (name: string, body: () => Effect.Effect<void, unknown, never>) =
   it(name, () => Effect.runPromise(body()))
 
 describe("activity execution keys", () => {
-  effect("replays a caller-supplied sealed key even when the activity is renamed", () => {
+  effect("namespaces string idempotency keys by activity name so distinct activities never collide", () => {
+    // Issue #9: `chargeCard` and `sendEmail` both declaring
+    // `idempotencyKey: "order-123"` must NOT share a step key — otherwise the
+    // second replays the first's persisted outcome against the wrong schema.
+    let charges = 0
+    let emails = 0
+    const chargeCard = Activity.make({
+      name: "ActivityKeys/chargeCard",
+      success: Schema.Number,
+      idempotencyKey: "order-123",
+      execute: Effect.sync(() => {
+        charges++
+        return 42
+      })
+    })
+    const sendEmail = Activity.make({
+      name: "ActivityKeys/sendEmail",
+      success: Schema.String,
+      idempotencyKey: "order-123",
+      execute: Effect.sync(() => {
+        emails++
+        return "sent"
+      })
+    })
+    const flow = Flow.make("ActivityKeys/no-collision", {
+      payload: { run: Schema.String },
+      success: Schema.String
+    })
+    const layer = flow.toLayer(() =>
+      Effect.gen(function*() {
+        const amount = yield* chargeCard
+        const receipt = yield* sendEmail
+        return `${amount}:${receipt}`
+      })
+    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+
+    return Effect.gen(function*() {
+      expect(yield* flow.execute({ run: "one" }, { executionId: "run-one" })).toBe("42:sent")
+      expect(charges).toBe(1)
+      expect(emails).toBe(1)
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("replays the same activity's string idempotency key across attempts", () => {
     let executions = 0
+    const activity = () =>
+      Activity.make({
+        name: "ActivityKeys/stable",
+        success: Schema.Number,
+        idempotencyKey: "sealed/caller-key",
+        execute: Effect.sync(() => ++executions)
+      })
+    const flow = Flow.make("ActivityKeys/replay", {
+      payload: { run: Schema.String },
+      success: Schema.Number
+    })
+    const layer = flow.toLayer(() => Effect.andThen(activity(), activity())).pipe(
+      Layer.provideMerge(FlowEngine.layerMemory)
+    )
+
+    return Effect.gen(function*() {
+      expect(yield* flow.execute({ run: "one" }, { executionId: "run-one" })).toBe(1)
+      expect(executions).toBe(1)
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("keeps an explicit ContentIdentity caller-owned so replay survives an activity rename", () => {
+    // The object-form idempotencyKey is the escape hatch for rename-stable
+    // identity: the caller owns the full key material, so the activity name
+    // intentionally does not enter the digest.
+    let executions = 0
+    const identity = {
+      body: "sealed/caller-owned",
+      inputs: {},
+      layers: [],
+      capabilities: {}
+    }
     const first = Activity.make({
       name: "ActivityKeys/first-name",
       success: Schema.Number,
-      idempotencyKey: "sealed/caller-key",
+      idempotencyKey: identity,
       execute: Effect.sync(() => ++executions)
     })
     const renamed = Activity.make({
       name: "ActivityKeys/renamed",
       success: Schema.Number,
-      idempotencyKey: "sealed/caller-key",
+      idempotencyKey: identity,
       execute: Effect.sync(() => ++executions)
     })
-    const flow = Flow.make("ActivityKeys/replay", {
+    const flow = Flow.make("ActivityKeys/rename-stable", {
       payload: { run: Schema.String },
       success: Schema.Number
     })

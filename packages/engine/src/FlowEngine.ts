@@ -454,10 +454,21 @@ const activityKey = (
   ordinal: number
 ): string => {
   if (activity.tier === "sealed" && activity.idempotencyKey !== undefined) {
+    // Skyframe's SkyKey is (functionName, argument): a string idempotencyKey
+    // is namespaced by the activity name so two distinct activities sharing an
+    // idempotency string can never collide and replay each other's outcomes.
+    // The object-form `ContentIdentity` stays caller-owned (no name folded in)
+    // as the explicit escape hatch for rename-stable identity. Note: this
+    // changes the digest of every persisted string-key row from before this
+    // fix; those keys were unsafe to replay (cross-activity aliasing), so the
+    // break is intentional.
     return Result.getOrThrow(StepKey.content(
       typeof activity.idempotencyKey === "string"
         ? {
-          body: activity.idempotencyKey,
+          body: {
+            activity: activity.name,
+            idempotencyKey: activity.idempotencyKey
+          },
           inputs: {},
           layers: [],
           capabilities: {}
