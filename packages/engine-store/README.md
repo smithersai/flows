@@ -11,7 +11,11 @@ Vault notes:
 — the latter records the cache-inconsistency receiver (strict by default), the
 typed `FlowCycleDetected`, and the waiting-reason taxonomy.
 
-Public errors live in `EngineStore.Errors` and each carries a stable `code`:
+The root exports the `DurableEngineState`, `EngineStore`, `StepBoundary`,
+`Inconsistency`, and `Errors` namespaces.
+
+Public errors live in the root `Errors` namespace and each carries a stable
+`code`:
 `FlowCycleDetected` (`flow_cycle_detected`), `CacheConflictDetected`
 (`cache_conflict_detected`), `AttemptAdmissionRejected`
 (`attempt_admission_rejected`).
@@ -45,6 +49,9 @@ DurableEngineState.layer persists deferred completions and absolute clock
 deadlines through Database after Journal.Migrations has run.
 DurableEngineState.layerMemory remains the deterministic in-memory test
 implementation. StepBoundary.layerTest() is a deterministic test boundary.
+Inconsistency is the cache-conflict receiver: `layerStrict` (the default,
+verdict `"fail"`) and `layerTolerant` both journal the conflict and require
+Journal; `make`, `makeNoop`, and `layerNoop` are the direct constructors.
 Production activity dispatch is content-keyed for sealed activities with
 identity, and ordinal-keyed otherwise. Compensable activities require
 SnapshotBoundary; irreversible retries require an activity idempotency key.
