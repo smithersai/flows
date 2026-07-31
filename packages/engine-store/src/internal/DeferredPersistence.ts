@@ -138,7 +138,11 @@ export const make = (
         })
         const row = completion.row
 
-        const receipt = yield* journal.emit(
+        // Durable channel: a deferred completion is a lifecycle record and
+        // must never take the droppable lossy queue. It stays ownerless by
+        // design — external-trigger admissions are first-writer-wins
+        // regardless of who owns the run (issue #10).
+        yield* journal.emitDurable(
           JournalRecords.deferredCompleted({
             runId: options.executionId,
             sourceId: `${dependencies.journalSource}:deferred:${
@@ -153,13 +157,6 @@ export const make = (
             ...(row.metadata === undefined ? {} : { metadata: row.metadata })
           })
         ).pipe(Effect.orDie)
-        if (receipt._tag === "Dropped") {
-          return yield* Effect.die(
-            new Error(
-              `durable deferred journal admission was dropped for ${options.executionId}/${options.deferredName}`
-            )
-          )
-        }
         yield* journal.flush.pipe(Effect.orDie)
         yield* dependencies.scheduleResume(
           row.flowName,
@@ -209,7 +206,10 @@ export const make = (
       row: DurableEngineState.ClockRow
     ): Effect.Effect<void> =>
       Effect.gen(function*() {
-        const receipt = yield* journal.emit(
+        // Durable channel: clock schedule records are lifecycle evidence and
+        // must never be droppable (issue #10). Ownerless: registration-time
+        // sweeps re-record clocks the current process does not own.
+        yield* journal.emitDurable(
           JournalRecords.clockScheduled({
             runId: row.executionId,
             sourceId: `${dependencies.journalSource}:clock:${
@@ -224,11 +224,6 @@ export const make = (
             dueAtMs: row.dueAtMs
           })
         ).pipe(Effect.orDie)
-        if (receipt._tag === "Dropped") {
-          return yield* Effect.die(
-            new Error(`durable clock journal admission was dropped for ${row.executionId}/${row.clockName}`)
-          )
-        }
         yield* journal.flush.pipe(Effect.orDie)
       })
 

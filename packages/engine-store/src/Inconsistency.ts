@@ -20,7 +20,7 @@
  *
  * @since 0.1.0
  */
-import { type CacheStore, Journal } from "@smithers/journal"
+import { type CacheStore, Journal, type Ownership } from "@smithers/journal"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -74,11 +74,20 @@ export class Inconsistency extends Context.Service<Inconsistency, Service>()("fl
 export interface MakeOptions {
   readonly journal: Journal.Service
   readonly verdict: InconsistencyVerdict
+  /**
+   * When present, the conflict record is fenced to this owner: a reclaimed
+   * run cannot append hermeticity evidence it no longer owns.
+   */
+  readonly owner?: Ownership.OwnerId | undefined
 }
 
 /**
  * Builds a receiver that journals every conflict under the run that attempted
  * the write and returns a fixed verdict.
+ *
+ * The record goes through the journal's durable channel: a cache conflict is
+ * hermeticity evidence, and a `tolerate` verdict that silently dropped its
+ * only record would wire the detector to /dev/null (issue #10).
  *
  * @category constructors
  * @since 0.1.0
@@ -86,7 +95,7 @@ export interface MakeOptions {
 export const make = (options: MakeOptions): Service => ({
   note: Effect.fn("Inconsistency.note")((event) =>
     Effect.as(
-      options.journal.emit(JournalRecords.cacheConflict(
+      options.journal.emitDurable(JournalRecords.cacheConflict(
         { runId: event.attempted.recordedRunId, sourceId: "flows/engine-store/inconsistency" },
         {
           key: event.key,
@@ -102,7 +111,7 @@ export const make = (options: MakeOptions): Service => ({
             createdAtMs: event.attempted.createdAtMs
           }
         }
-      )),
+      ), options.owner),
       options.verdict
     )
   )

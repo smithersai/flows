@@ -190,13 +190,17 @@ describe("FaultMatrix", () => {
         })
         const cache = yield* CacheStore.CacheStore
         const cached = yield* cache.get(Digest.digest(key))
+        const journal = yield* Journal.Journal
+        yield* journal.flush
+        const entries = yield* journal.entries({ runId: "crash-after-finish" as never, limit: 50 })
         return {
           crashed,
           recovered,
           firstDispatches: first.dispatches(),
           secondDispatches: second.dispatches(),
           row,
-          cached
+          cached,
+          eventTypes: entries.entries.map((entry) => entry.eventType)
         }
       }))
 
@@ -205,12 +209,17 @@ describe("FaultMatrix", () => {
       expect(result.secondDispatches).toBe(0)
       expect(result.recovered).toBe("v1")
       expect(Option.getOrThrow(result.row).state).toBe("succeeded")
-      // TODO(engine-hardening round 2): once Inconsistency conflict surfacing
-      // is fully landed, tighten this to the specific replay/receipt contract.
-      // For now assert order-independently: no divergent cache row exists.
-      if (Option.isSome(result.cached)) {
-        expect(result.cached.value.result).toBe("v1")
-      }
+      // The restarted replay converges the cache with the sealed completion:
+      // exactly one provenance-recorded cache row, under this run's id, and
+      // no conflict was ever journaled.
+      const cached = Option.getOrThrow(result.cached)
+      expect(cached.result).toBe("v1")
+      expect(cached.recordedRunId).toBe("crash-after-finish")
+      expect(Number.isSafeInteger(cached.recordedEventSeq)).toBe(true)
+      expect(
+        result.eventTypes.filter((eventType) => eventType === "flows.engine.cache-provenance")
+      ).toHaveLength(1)
+      expect(result.eventTypes).not.toContain("flows.engine.cache-conflict")
     })
 
     it("crash between boundary.settle and attempts.finish: the unfinished attempt is rejected, the next attempt completes exactly once", async () => {
@@ -260,7 +269,7 @@ describe("FaultMatrix", () => {
         const crashed = yield* first.execute(1).pipe(
           Effect.provideService(
             Journal.Journal,
-            Notifying.wrap(journal, crashAt("emit", "after", eventTypeIs("flows.engine.cache-provenance")))
+            Notifying.wrap(journal, crashAt("emitDurable", "after", eventTypeIs("flows.engine.cache-provenance")))
           ),
           Effect.exit
         )
@@ -284,12 +293,13 @@ describe("FaultMatrix", () => {
       expect(result.recovered).toBe("v3")
       expect(result.dispatches).toBe(1)
       expect(result.eventTypes).toContain("flows.engine.attempt-finished")
-      // TODO(engine-hardening round 2): tighten once Inconsistency receipts
-      // land. Order-independent invariant: whatever cache row exists must
-      // match the sealed completion — never a silent divergent overwrite.
-      if (Option.isSome(result.cached)) {
-        expect(result.cached.value.result).toBe("v3")
-      }
+      // The restarted replay converges the cache with the sealed completion
+      // and never journals a conflict for its own recovery write.
+      const cached = Option.getOrThrow(result.cached)
+      expect(cached.result).toBe("v3")
+      expect(cached.recordedRunId).toBe("crash-after-emit")
+      expect(Number.isSafeInteger(cached.recordedEventSeq)).toBe(true)
+      expect(result.eventTypes).not.toContain("flows.engine.cache-conflict")
     })
   })
 

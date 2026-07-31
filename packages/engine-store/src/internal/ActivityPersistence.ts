@@ -7,7 +7,7 @@
  *
  * @since 0.1.0
  */
-import { AttemptStore, CacheStore, Journal, type Ownership, RunStore } from "@smithers/journal"
+import { AttemptStore, CacheStore, Journal, type JournalEvent, type Ownership, RunStore } from "@smithers/journal"
 import { Jj } from "@smithers/kernel"
 import { Digest } from "@smithers/keys"
 import * as Clock from "effect/Clock"
@@ -116,6 +116,18 @@ export const make = (deps: Dependencies) =>
       const runs = yield* RunStore.RunStore
       const keyDigest = Digest.digest(input.key)
       const attemptId = { runId: deps.runId, stepKeyDigest: keyDigest, attempt: input.attempt }
+      /**
+       * Lifecycle events take the journal's durable channel, fenced to the
+       * owning process: the write commits inside the SQL sink while
+       * `flows_runs` still records `deps.owner`, so a reclaimed (zombie) run
+       * fails with `fence_lost` — surfaced as self-interruption, matching the
+       * store-level fence outcomes — and a saturated lossy queue can never
+       * drop an attempt lifecycle record (issue #10).
+       */
+      const emitLifecycle = (record: JournalEvent.Input) =>
+        journal.emitDurable(record, deps.owner).pipe(
+          Effect.catch((error) => error.code === "fence_lost" ? Effect.interrupt : Effect.fail(error))
+        )
       const fencedAtMs = yield* Clock.currentTimeMillis
       const heartbeat = yield* runs.heartbeat(deps.runId, deps.owner, fencedAtMs)
       if (heartbeat._tag !== "Updated") return yield* Effect.interrupt
@@ -130,6 +142,58 @@ export const make = (deps: Dependencies) =>
       }
 
       const cacheable = input.tier === "sealed" && input.metadata?.boundaryMode === "hard"
+
+      /**
+       * Records the sealed completion into the shared cache with provenance,
+       * failing (by default) on a divergent first-recorded row. Used by both
+       * the fresh completion path and succeeded-attempt replay, so a crash
+       * between `attempts.finish` and `cache.put` converges on restart
+       * instead of leaving the cache permanently behind the journal.
+       */
+      const recordCache = (options: {
+        readonly result: unknown
+        readonly meta: AttemptMeta
+        readonly createdAtMs: number
+      }) =>
+        Effect.gen(function*() {
+          const receipt = yield* emitLifecycle(
+            JournalRecords.cacheProvenance(source(deps), { keyDigest, action: "recorded" })
+          )
+          const entry = {
+            keyDigest,
+            result: options.result,
+            meta: options.meta,
+            createdAtMs: options.createdAtMs,
+            recordedRunId: deps.runId,
+            recordedEventSeq: receipt.seq
+          }
+          const cachePut = yield* cache.put(entry)
+          if (cachePut._tag === "Conflict") {
+            const conflicting = yield* cache.get(keyDigest)
+            const receiverOption = yield* Effect.serviceOption(Inconsistency.Inconsistency)
+            // Core default is STRICT: journal the conflict and fail the run
+            // (`docs/architecture/plugin-system.md`, the `cacheInconsistency`
+            // hook's core default). Providing `Inconsistency.layerTolerant`
+            // opts out.
+            const receiver = Option.isSome(receiverOption)
+              ? receiverOption.value
+              : Inconsistency.make({ journal, verdict: "fail", owner: deps.owner })
+            const verdict = yield* receiver.note({
+              key: keyDigest,
+              existing: Option.getOrUndefined(conflicting),
+              attempted: entry
+            })
+            if (verdict === "fail") {
+              return yield* Effect.fail(
+                new CacheConflictDetected({
+                  code: "cache_conflict_detected",
+                  keyDigest,
+                  recordedRunId: Option.isSome(conflicting) ? conflicting.value.recordedRunId : "unknown"
+                })
+              )
+            }
+          }
+        })
       if (cacheable) {
         const cached = yield* cache.get(keyDigest)
         if (Option.isSome(cached)) {
@@ -137,7 +201,7 @@ export const make = (deps: Dependencies) =>
           if (meta?.tier === "sealed" && meta.boundary !== undefined && meta.boundary.deviation === undefined) {
             const boundary = yield* StepBoundary.StepBoundary
             yield* boundary.replayOutputs(meta.boundary)
-            yield* journal.emit(JournalRecords.cacheProvenance(source(deps), {
+            yield* emitLifecycle(JournalRecords.cacheProvenance(source(deps), {
               keyDigest,
               recordedRunId: cached.value.recordedRunId,
               recordedEventSeq: cached.value.recordedEventSeq
@@ -155,6 +219,23 @@ export const make = (deps: Dependencies) =>
           if (meta?.boundary !== undefined) {
             const boundary = yield* StepBoundary.StepBoundary
             yield* boundary.replayOutputs(meta.boundary)
+          }
+          // Converge the cache with the durable completion: a crash between
+          // `attempts.finish` and `cache.put` otherwise leaves the sealed
+          // result permanently missing from the shared cache (issue #24).
+          // Reaching this branch with `cacheable` set means `cache.get`
+          // above missed or was unfit for replay.
+          if (
+            cacheable &&
+            meta?.tier === "sealed" &&
+            meta.boundary !== undefined &&
+            meta.boundary.deviation === undefined
+          ) {
+            yield* recordCache({
+              result: row.outcome,
+              meta,
+              createdAtMs: row.finishedAtMs ?? (yield* Clock.currentTimeMillis)
+            })
           }
           return row.outcome
         }
@@ -188,7 +269,7 @@ export const make = (deps: Dependencies) =>
           })
         )
       }
-      yield* journal.emit(JournalRecords.attemptStarted(source(deps), { ...attemptId, tier: input.tier }))
+      yield* emitLifecycle(JournalRecords.attemptStarted(source(deps), { ...attemptId, tier: input.tier }))
 
       let snapshotId: string | undefined
       if (input.tier === "compensable") {
@@ -204,7 +285,7 @@ export const make = (deps: Dependencies) =>
         }
         const snapshot = yield* jj.snapshot(`flows activity ${keyDigest} attempt ${input.attempt}`)
         snapshotId = snapshot.changeId
-        yield* journal.emit(JournalRecords.snapshotIdentified(source(deps), { ...attemptId, snapshotId }))
+        yield* emitLifecycle(JournalRecords.snapshotIdentified(source(deps), { ...attemptId, snapshotId }))
       }
 
       const boundary = input.tier === "sealed" && input.metadata !== undefined
@@ -223,8 +304,8 @@ export const make = (deps: Dependencies) =>
           meta: { tier: input.tier, ...(snapshotId === undefined ? {} : { snapshotId }) }
         }, deps.owner)
         if (finished._tag !== "Finished") return yield* Effect.interrupt
-        yield* journal.emit(JournalRecords.hardViolation(source(deps), { ...attemptId, error: preparedResult.cause }))
-        yield* journal.emit(JournalRecords.attemptFinished(source(deps), { ...attemptId, state: "failed" }))
+        yield* emitLifecycle(JournalRecords.hardViolation(source(deps), { ...attemptId, error: preparedResult.cause }))
+        yield* emitLifecycle(JournalRecords.attemptFinished(source(deps), { ...attemptId, state: "failed" }))
         return yield* Effect.failCause(preparedResult.cause)
       }
       const prepared = preparedResult === undefined ? undefined : preparedResult.value
@@ -240,7 +321,7 @@ export const make = (deps: Dependencies) =>
           meta: { tier: input.tier, ...(snapshotId === undefined ? {} : { snapshotId }) }
         }, deps.owner)
         if (finished._tag !== "Finished") return yield* Effect.interrupt
-        yield* journal.emit(JournalRecords.attemptFinished(source(deps), { ...attemptId, state: "failed" }))
+        yield* emitLifecycle(JournalRecords.attemptFinished(source(deps), { ...attemptId, state: "failed" }))
         return yield* Effect.failCause(outcome.cause)
       }
 
@@ -257,8 +338,8 @@ export const make = (deps: Dependencies) =>
           meta: { tier: input.tier, ...(snapshotId === undefined ? {} : { snapshotId }) }
         }, deps.owner)
         if (finished._tag !== "Finished") return yield* Effect.interrupt
-        yield* journal.emit(JournalRecords.hardViolation(source(deps), { ...attemptId, error: settled.cause }))
-        yield* journal.emit(JournalRecords.attemptFinished(source(deps), { ...attemptId, state: "failed" }))
+        yield* emitLifecycle(JournalRecords.hardViolation(source(deps), { ...attemptId, error: settled.cause }))
+        yield* emitLifecycle(JournalRecords.attemptFinished(source(deps), { ...attemptId, state: "failed" }))
         return yield* Effect.failCause(settled.cause)
       }
       const evidence = settled === undefined ? undefined : settled.value
@@ -274,48 +355,12 @@ export const make = (deps: Dependencies) =>
       )
       if (finished._tag !== "Finished") return yield* Effect.interrupt
       if (evidence?.deviation !== undefined) {
-        yield* journal.emit(JournalRecords.expectedSetDeviation(source(deps), { ...attemptId, ...evidence.deviation }))
+        yield* emitLifecycle(JournalRecords.expectedSetDeviation(source(deps), { ...attemptId, ...evidence.deviation }))
       }
-      yield* journal.emit(JournalRecords.attemptFinished(source(deps), { ...attemptId, state: "succeeded" }))
+      yield* emitLifecycle(JournalRecords.attemptFinished(source(deps), { ...attemptId, state: "succeeded" }))
 
       if (cacheable && evidence?.deviation === undefined) {
-        const receipt = yield* journal.emit(
-          JournalRecords.cacheProvenance(source(deps), { keyDigest, action: "recorded" })
-        )
-        const entry = {
-          keyDigest,
-          result: outcome.value,
-          meta,
-          createdAtMs: finishedAtMs,
-          recordedRunId: deps.runId,
-          recordedEventSeq: receipt.seq
-        }
-        const cachePut = yield* cache.put(entry)
-        if (cachePut._tag === "Conflict") {
-          const conflicting = yield* cache.get(keyDigest)
-          const receiverOption = yield* Effect.serviceOption(Inconsistency.Inconsistency)
-          // Core default is STRICT: journal the conflict and fail the run
-          // (`docs/architecture/plugin-system.md`, the `cacheInconsistency`
-          // hook's core default). Providing `Inconsistency.layerTolerant`
-          // opts out.
-          const receiver = Option.isSome(receiverOption)
-            ? receiverOption.value
-            : Inconsistency.make({ journal, verdict: "fail" })
-          const verdict = yield* receiver.note({
-            key: keyDigest,
-            existing: Option.getOrUndefined(conflicting),
-            attempted: entry
-          })
-          if (verdict === "fail") {
-            return yield* Effect.fail(
-              new CacheConflictDetected({
-                code: "cache_conflict_detected",
-                keyDigest,
-                recordedRunId: Option.isSome(conflicting) ? conflicting.value.recordedRunId : "unknown"
-              })
-            )
-          }
-        }
+        yield* recordCache({ result: outcome.value, meta, createdAtMs: finishedAtMs })
       }
       return outcome.value
     })

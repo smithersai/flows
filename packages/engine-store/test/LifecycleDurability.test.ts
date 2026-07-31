@@ -1,0 +1,241 @@
+/**
+ * Pins issue #10: every engine-store lifecycle journal write must go through
+ * the journal's durable (undroppable) channel, fenced to the owning process
+ * where the write is owned — never the optimistic lossy queue.
+ */
+import { AttemptStore, CacheStore, Journal, type JournalEvent, Ownership, RunStore } from "@smithers/journal"
+import * as Notifying from "@smithers/journal/test/Notifying"
+import * as TestJournal from "@smithers/journal/test/TestJournal"
+import { Jj } from "@smithers/kernel"
+import { Digest } from "@smithers/keys"
+import * as Clock from "effect/Clock"
+import * as Duration from "effect/Duration"
+import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
+import * as Fiber from "effect/Fiber"
+import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
+import type * as Scope from "effect/Scope"
+import { TestClock } from "effect/testing"
+import { describe, expect, it } from "vitest"
+import * as Inconsistency from "../src/Inconsistency.ts"
+import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as StepBoundary from "../src/StepBoundary.ts"
+
+const ownerA: Ownership.OwnerId = { hostId: "lifecycle-host-a", pid: 1, nonce: "lifecycle-owner-a" }
+const ownerB: Ownership.OwnerId = { hostId: "lifecycle-host-b", pid: 2, nonce: "lifecycle-owner-b" }
+
+const boundary: ActivityPersistence.BoundaryMetadata = {
+  readSet: [],
+  writeSet: ["output.txt"],
+  boundaryMode: "hard"
+}
+
+const jj = Layer.succeed(
+  Jj.Jj,
+  Jj.make({
+    snapshot: () => Effect.succeed({ changeId: "lifecycle-snapshot" as never }),
+    restore: () => Effect.void,
+    diff: () => Effect.succeed(""),
+    workspaceAdd: () => Effect.void,
+    workspaceForget: () => Effect.void,
+    status: () => Effect.succeed("")
+  })
+)
+
+const layer = Layer.mergeAll(TestJournal.layer(), StepBoundary.layerTest(), jj)
+
+const run = <A, E>(
+  effect: Effect.Effect<
+    A,
+    E,
+    | AttemptStore.AttemptStore
+    | CacheStore.CacheStore
+    | Journal.Journal
+    | RunStore.RunStore
+    | StepBoundary.StepBoundary
+    | Jj.Jj
+    | Scope.Scope
+  >
+) =>
+  Effect.runPromise(
+    effect.pipe(Effect.provide(layer), Effect.provide(TestClock.layer()), Effect.scoped) as Effect.Effect<A, E>
+  )
+
+/**
+ * A journal whose ownerless lossy channel drops every admission on the floor
+ * (the saturated-queue worst case). The durable channel still works, so a
+ * call site that uses the lifecycle channel keeps its events; a call site on
+ * the lossy channel silently loses them.
+ */
+const droppingLossy = (real: Journal.Service): Journal.Service =>
+  Journal.make({
+    ...real,
+    emit: (input, owner) =>
+      owner !== undefined
+        ? real.emit(input, owner)
+        : Effect.succeed({
+          _tag: "Dropped",
+          seq: 0 as JournalEvent.Seq,
+          sourceSeq: 0 as JournalEvent.SourceSeq,
+          policy: "drop-newest"
+        } as const),
+    emitLossy: () =>
+      Effect.succeed({
+        _tag: "Dropped",
+        seq: 0 as JournalEvent.Seq,
+        sourceSeq: 0 as JournalEvent.SourceSeq,
+        policy: "drop-newest"
+      } as const)
+  })
+
+const activate = (runId: string, owner: Ownership.OwnerId) =>
+  Effect.gen(function*() {
+    const runs = yield* RunStore.RunStore
+    yield* runs.create(runId, "{}")
+    yield* takeover(runs, runId, owner)
+  })
+
+const takeover = (runs: RunStore.Service, runId: string, claimant: Ownership.OwnerId) =>
+  Effect.gen(function*() {
+    const row = yield* runs.get(runId)
+    const snapshot = { status: row.status, owner: row.owner, heartbeatAtMs: row.heartbeatAtMs }
+    const stealing = row.status === "running" && row.owner !== null
+    const now = (yield* Clock.currentTimeMillis) +
+      (stealing ? Duration.toMillis(Ownership.heartbeatStaleAfter) + 1 : 0)
+    const evidence: Ownership.LivenessEvidence | undefined = stealing
+      ? { expectedOwner: row.owner!, checkedAtMs: now, kind: "cross-host-unreachable-stale" }
+      : undefined
+    const outcome = yield* runs.claimAndOwn(runId, snapshot, claimant, now, evidence)
+    if (outcome._tag !== "Activated") {
+      return yield* Effect.die(new Error(`run ${runId} takeover was lost: ${outcome._tag}`))
+    }
+  })
+
+const makeExecutor = (options: {
+  readonly runId: string
+  readonly owner: Ownership.OwnerId
+  readonly key: string
+  readonly result: unknown
+}) =>
+  ActivityPersistence.make({
+    runId: options.runId,
+    owner: options.owner,
+    sourceId: `lifecycle-${options.owner.nonce}`,
+    execute: () => Effect.succeed(options.result)
+  })
+
+const eventTypes = (entries: ReadonlyArray<JournalEvent.Entry>): ReadonlyArray<string> =>
+  entries.map((entry) => entry.eventType)
+
+describe("lifecycle journal durability", () => {
+  it("lifecycle events survive a lossy channel that drops every ownerless admission", async () => {
+    const key = "lifecycle/drop-proof"
+    const result = await run(Effect.gen(function*() {
+      yield* activate("drop-proof", ownerA)
+      const journal = yield* Journal.Journal
+      const cache = yield* CacheStore.CacheStore
+      const executor = makeExecutor({ runId: "drop-proof", owner: ownerA, key, result: "v1" })
+      const value = yield* executor({
+        activity: {},
+        attempt: 1,
+        key,
+        tier: "sealed",
+        metadata: boundary
+      }).pipe(Effect.provideService(Journal.Journal, droppingLossy(journal)))
+      yield* journal.flush
+      const entries = yield* journal.entries({ runId: "drop-proof" as never, limit: 100 })
+      const cached = yield* cache.get(Digest.digest(key))
+      return { value, entries: entries.entries, cached }
+    }))
+
+    expect(result.value).toBe("v1")
+    const types = eventTypes(result.entries)
+    expect(types).toContain("flows.engine.attempt-started")
+    expect(types).toContain("flows.engine.attempt-finished")
+    expect(types).toContain("flows.engine.cache-provenance")
+    // The cache row's provenance must reference the committed cache-provenance
+    // event, not an optimistic (possibly dropped) receipt.
+    const provenanceSeq = result.entries.find(
+      (entry) => entry.eventType === "flows.engine.cache-provenance"
+    )!.seq
+    expect(Option.getOrThrow(result.cached).recordedEventSeq).toBe(provenanceSeq)
+  })
+
+  it("a zombie owner cannot journal attempt-finished after fence loss", async () => {
+    const key = "lifecycle/fence-proof"
+    const result = await run(Effect.gen(function*() {
+      yield* activate("fence-proof", ownerA)
+      const attempts = yield* AttemptStore.AttemptStore
+      const runs = yield* RunStore.RunStore
+      const journal = yield* Journal.Journal
+      // Steal the run to owner B in the window between the attempt row
+      // sealing and the attempt-finished journal append.
+      const stealing = Notifying.wrap(
+        attempts,
+        (op, order, args) =>
+          op === "finish" && order === "after" &&
+            (args[0] as { readonly state: string }).state === "succeeded"
+            ? takeover(runs, "fence-proof", ownerB)
+            : Effect.void
+      )
+      const executor = makeExecutor({ runId: "fence-proof", owner: ownerA, key, result: "v1" })
+      const exit = yield* executor({
+        activity: {},
+        attempt: 1,
+        key,
+        tier: "sealed",
+        metadata: boundary
+      }).pipe(
+        Effect.provideService(AttemptStore.AttemptStore, stealing),
+        Effect.forkChild({ startImmediately: true }),
+        Effect.flatMap(Fiber.await)
+      )
+      yield* journal.flush
+      const entries = yield* journal.entries({ runId: "fence-proof" as never, limit: 100 })
+      return { exit, entries: entries.entries }
+    }))
+
+    expect(Exit.isSuccess(result.exit)).toBe(false)
+    expect(eventTypes(result.entries)).not.toContain("flows.engine.attempt-finished")
+  })
+
+  it("a tolerated cache conflict keeps its journal evidence even when the lossy channel drops", async () => {
+    const key = "lifecycle/conflict-proof"
+    const result = await run(Effect.gen(function*() {
+      yield* activate("conflict-proof", ownerA)
+      const journal = yield* Journal.Journal
+      const cache = yield* CacheStore.CacheStore
+      // A pre-existing divergent cache row forces cache.put into Conflict.
+      yield* cache.put({
+        keyDigest: Digest.digest(key),
+        result: "other-value",
+        meta: { tier: "sealed" },
+        createdAtMs: 0,
+        recordedRunId: "some-other-run",
+        recordedEventSeq: 0
+      })
+      const lossy = droppingLossy(journal)
+      const executor = makeExecutor({ runId: "conflict-proof", owner: ownerA, key, result: "v1" })
+      const value = yield* executor({
+        activity: {},
+        attempt: 1,
+        key,
+        tier: "sealed",
+        metadata: boundary
+      }).pipe(
+        Effect.provideService(Journal.Journal, lossy),
+        Effect.provideService(
+          Inconsistency.Inconsistency,
+          Inconsistency.make({ journal: lossy, verdict: "tolerate", owner: ownerA })
+        )
+      )
+      yield* journal.flush
+      const entries = yield* journal.entries({ runId: "conflict-proof" as never, limit: 100 })
+      return { value, entries: entries.entries }
+    }))
+
+    expect(result.value).toBe("v1")
+    expect(eventTypes(result.entries)).toContain("flows.engine.cache-conflict")
+  })
+})

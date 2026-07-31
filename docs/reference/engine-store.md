@@ -18,6 +18,8 @@ Required services are `Journal`, `RunStore`, `AttemptStore`, `CacheStore`, `Dura
 
 The engine stores a versioned state envelope in each run row, fences run and attempt ownership, replays encoded exits, and writes engine decisions to the journal. Cache addresses are `Digest.digest(stepKey)`, not the raw `sk1_…` value.
 
+Every engine-store lifecycle journal write — run decisions, attempt started/finished, hard violations, snapshot identity, cache provenance, deferred completions, clock schedules, interruption records, and the `Inconsistency` cache-conflict record — takes the journal's durable channel (`emitDurable`), so a saturated lossy queue can never drop one. Attempt lifecycle writes additionally pass the owner, fencing the append on the run's persisted ownership: a reclaimed (zombie) owner fails with `fence_lost` and self-interrupts instead of appending.
+
 ## `DurableEngineState`
 
 The service addresses deferreds by flow/execution/deferred name and clocks by flow/execution/clock name. It exposes:

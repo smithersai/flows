@@ -162,11 +162,20 @@ export const make = (
     const decodeState = (stateJson: string): Effect.Effect<PersistedState> =>
       Schema.decodeUnknownEffect(PersistedStateJson)(stateJson).pipe(Effect.orDie)
 
+    /**
+     * Run decisions are lifecycle records: they take the journal's durable
+     * channel so a saturated lossy queue can never drop them (issue #10).
+     * They stay ownerless because several decisions — `claim-lost`,
+     * `steal-refused-owner-alive`, post-transition `transitioned` — are
+     * legitimately recorded by a process that does not (or no longer does)
+     * own the run; the ownership fence for these paths is the run-row CAS
+     * that precedes each emit.
+     */
     const emitDecision = (
       runId: string,
       payload: unknown
     ): Effect.Effect<void> =>
-      journal.emit(
+      journal.emitDurable(
         JournalRecords.runDecision({
           runId,
           sourceId: dependencies.journalSource
@@ -279,7 +288,11 @@ export const make = (
           stateJson
         ).pipe(Effect.orDie)
         if (transitioned._tag !== "Transitioned") return
-        const receipt = yield* journal.emit(
+        // Durable channel (issue #10): the interruption record must survive
+        // the process exiting right after cancellation. Ownerless because the
+        // `cancelled` transition above has already released ownership; the
+        // fence is the transition CAS itself.
+        yield* journal.emitDurable(
           JournalRecords.interrupted({
             runId,
             sourceId: dependencies.journalSource
@@ -289,9 +302,6 @@ export const make = (
             owner: dependencies.owner
           })
         ).pipe(Effect.orDie)
-        if (receipt._tag !== "Dropped") {
-          yield* journal.flush.pipe(Effect.orDie)
-        }
       })
 
     const coordinatorDeferred = yield* Deferred.make<RunCoordinator.RunCoordinator<string, never>>()

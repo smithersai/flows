@@ -26,8 +26,7 @@ const makeJournal = (events: Array<string>) =>
       readonly seq: JournalEvent.Seq
       readonly sourceSeq: JournalEvent.SourceSeq
     }>()
-    return Journal.makeNoop({
-      emit: (input) =>
+    const record = (input: JournalEvent.Input, channel: string) =>
         Effect.sync(() => {
           const sourceSeq = input.sourceSeq ?? 0 as JournalEvent.SourceSeq
           const key = JSON.stringify([input.runId, input.sourceId, sourceSeq])
@@ -44,12 +43,15 @@ const makeJournal = (events: Array<string>) =>
             sourceSeq
           }
           admissions.set(key, row)
-          events.push(`emit:${input.eventType}`)
+          events.push(`${channel}:${input.eventType}`)
           return {
             _tag: "Accepted" as const,
             ...row
           }
-        }),
+        })
+    return Journal.makeNoop({
+      emit: (input) => record(input, "emit"),
+      emitDurable: (input) => record(input, "emit"),
       flush: Effect.sync(() => {
         events.push("flush")
       })
@@ -221,21 +223,22 @@ describe("DeferredPersistence", () => {
         const state = DurableEngineState.makeMemory()
         const events: Array<string> = []
         const resumes: Array<string> = []
-        // The first two flushes at fire time die (e.g. SQLITE_BUSY surfaced
-        // through the orDie flush path); the third succeeds.
+        // The first two durable emits at fire time die (e.g. SQLITE_BUSY
+        // surfaced through the orDie journal path); the third succeeds.
         let failuresRemaining = 0
-        let flushFailures = 0
+        let fireFailures = 0
         const base = makeJournal(events)
         const journal = {
           ...base,
-          flush: Effect.suspend(() => {
-            if (failuresRemaining > 0) {
-              failuresRemaining--
-              flushFailures++
-              return Effect.die(new Error("transient flush failure"))
-            }
-            return base.flush
-          })
+          emitDurable: (input: JournalEvent.Input) =>
+            Effect.suspend(() => {
+              if (failuresRemaining > 0 && input.eventType === "flows.engine.deferred-completed") {
+                failuresRemaining--
+                fireFailures++
+                return Effect.die(new Error("transient journal failure"))
+              }
+              return base.emitDurable(input)
+            })
         }
         const clock = DurableClock.make({ name: "retry", duration: "10 seconds" })
         const service = yield* build(state, journal as never, resumes)
@@ -249,8 +252,8 @@ describe("DeferredPersistence", () => {
 
         yield* TestClock.adjust("10 seconds")
         yield* Effect.yieldNow
-        // First fire failed at flush; without redispatch the timer fiber is
-        // dead and the clock row never completes in this process.
+        // First fire failed at the journal; without redispatch the timer
+        // fiber is dead and the clock row never completes in this process.
         const afterFirstFailure = Option.getOrThrow(yield* state.clock(address))
         yield* TestClock.adjust("100 millis")
         yield* Effect.yieldNow
@@ -258,11 +261,11 @@ describe("DeferredPersistence", () => {
         yield* TestClock.adjust("200 millis")
         yield* Effect.yieldNow
         const afterRetry = Option.getOrThrow(yield* state.clock(address))
-        return { afterFirstFailure, afterSecondFailure, afterRetry, flushFailures, resumes }
+        return { afterFirstFailure, afterSecondFailure, afterRetry, fireFailures, resumes }
       })).pipe(Effect.provide(TestClock.layer()))
     )
 
-    expect(result.flushFailures).toBe(2)
+    expect(result.fireFailures).toBe(2)
     expect(result.afterFirstFailure.completedAtMs).toBeNull()
     expect(result.afterSecondFailure.completedAtMs).toBeNull()
     expect(result.afterRetry.completedAtMs).not.toBeNull()

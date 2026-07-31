@@ -23,6 +23,7 @@ This page distinguishes usable source-backed behavior from contracts and planned
 | Run cycle detection | `execute` walks the persisted `parentExecutionId` chain and **fails** with the typed `FlowCycleDetected` (`code: "flow_cycle_detected"`, declared by `Engine.FlowEngine`, in the error channel — not a defect) instead of deadlocking |
 | Waiting taxonomy | `DurableEngineState.park` / `wake` / `waiting` / `waitingRuns` with `reason`/`wakeAt`/`token` columns (migration `0004`) |
 | Retry policy | `Engine.RetryPolicy`: data-shaped policy, pure `nextDelay`, `decideEffect` decision point driven by the persisted attempt count |
+| Lifecycle journal channel | Engine-store lifecycle events (run decisions, attempt lifecycle, deferred completions, clock schedules, interruptions, cache provenance/conflicts) are written with `emitDurable` — undroppable; attempt lifecycle appends are owner-fenced and a zombie owner self-interrupts on `fence_lost` |
 | Fault harness | `Journal.Notifying.wrap` / `layer` for interstitial crash and fence-loss injection around any Effect service |
 | Public error contract | `EngineStore.Errors` barrel-exports `FlowCycleDetected`, `CacheConflictDetected`, and `AttemptAdmissionRejected`; every one carries a stable `code` literal |
 | Time travel utilities | Replay projections, memory/SQL time-travel stores, fork, rewind, compensation, recovery, and tier-aware retry |
