@@ -153,7 +153,17 @@ const await_: <Success extends Schema.Constraint, Error extends Schema.Constrain
     if (Option.isNone(exit)) {
       return yield* Flow.suspend(instance)
     }
-    return yield* exit.value as Exit.Exit<any, any>
+    const value = exit.value as Exit.Exit<any, any>
+    // A recorded interruption is a durable *outcome*, not a request to
+    // suspend: mark the instance interrupted before re-raising so
+    // `Flow.intoResult` classifies the interrupt-only cause as a `Complete`
+    // failure. Without this the driver mistakes the cause for an external
+    // suspension interrupt, aborts without a terminal transition, and the
+    // run spins in the suspended-retry loop forever.
+    if (Exit.isFailure(value) && Cause.hasInterruptsOnly(value.cause)) {
+      instance.interrupted = true
+    }
+    return yield* value
   })
 
 export {
