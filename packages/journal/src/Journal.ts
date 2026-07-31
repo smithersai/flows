@@ -184,7 +184,8 @@ export interface EntriesPage {
  * `emit` trades durability for latency: its receipt is optimistic. `emitDurable`
  * is the synchronous counterpart — it allocates `seq` inside the writer's SQL
  * transaction, so the returned sequence is already committed and independent
- * writers never fork the per-run clock.
+ * writers never fork the per-run clock
+ * (`docs/specs/Concepts/Journal Queue.md`, "The durable path").
  *
  * @category models
  * @since 0.1.0

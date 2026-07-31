@@ -5,6 +5,11 @@
  * else a harness carries stays in `state_json`, which the run reference
  * documents as the extension point.
  *
+ * Governing design: `docs/specs/Concepts/Run Ownership.md` (guarded
+ * transitions and `cancel_requested_at_ms`) and
+ * `docs/specs/Concepts/Time Travel.md` (`parent_run_id` lineage).
+ * Schema boundary: `docs/specs/Research/Smithers Deviations 2026-07-28.md`.
+ *
  * @since 0.1.0
  */
 import * as Effect from "effect/Effect"

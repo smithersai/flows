@@ -699,6 +699,27 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
         state.sourceSequences.set(key, Math.max(state.sourceSequences.get(key) ?? 0, queued.sourceSeq + 1))
       }
 
+      /**
+       * Reads the durable allocation floor for a run (or a producer) inside the
+       * caller's transaction.
+       *
+       * Stated deviation from smithers `packages/db/src/adapter.js`, which
+       * allocates `MAX(seq) + 1` under `BEGIN IMMEDIATE`: Effect's SQL client
+       * has no `beginTransaction` hook on the SQLite backends we ship
+       * (`@effect/sql-sqlite-node` never forwards one), so `Database.write`
+       * runs the default DEFERRED transaction. The read therefore takes a
+       * shared lock and the later INSERT upgrades it. Under WAL — enabled by
+       * `NodeDatabase` — a concurrent writer makes that upgrade fail with
+       * `SQLITE_BUSY_SNAPSHOT`, which `WriteRetry.isRetryableSqliteWriteError`
+       * classifies as retryable, so the whole transaction (floor read
+       * included) replays against the committed snapshot. Allocation is
+       * conflict-free by retry rather than by lock escalation; the invariant
+       * is proved by
+       * `packages/journal/test/JournalDurable.test.ts` ("emitDurable never
+       * collides when two connections write one run concurrently").
+       *
+       * Governing design: `docs/specs/Concepts/Journal Queue.md`.
+       */
       const nextDurable = (
         column: "seq" | "source_seq",
         runId: RunId,

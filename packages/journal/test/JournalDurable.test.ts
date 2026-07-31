@@ -1,7 +1,11 @@
 import { Database } from "@smithers/database/Database"
+import * as NodeDatabase from "@smithers/database/node/NodeDatabase"
 import * as TestDatabase from "@smithers/database/test/TestDatabase"
 import { Context, Effect, Layer } from "effect"
 import { TestClock } from "effect/testing"
+import { mkdtemp, rm } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import { Journal, JournalError, makeNoop, type Service } from "../src/Journal.ts"
 import { Input, type RunId, type SourceId, type SourceSeq } from "../src/JournalEvent.ts"
@@ -202,4 +206,93 @@ describe("SqlJournal durable emission", () => {
       const failure = yield* Effect.flip(journal.emitDurable(input(runId("run"), sourceId("s"), "x", 1)))
       expect((failure as JournalError).code).toBe("journal_closed")
     }))
+})
+
+/**
+ * These cases need a real file and a real Clock: the deferred-transaction
+ * allocation documented in `docs/specs/Concepts/Journal Queue.md` relies on the
+ * SQLite busy/snapshot retry in `@smithers/database`, whose backoff sleeps.
+ */
+describe("SqlJournal durable emission across connections", () => {
+  const withTempFile = async <A>(body: (filename: string) => Promise<A>): Promise<A> => {
+    const directory = await mkdtemp(join(tmpdir(), "flows-journal-durable-"))
+    try {
+      return await body(join(directory, "journal.sqlite"))
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  }
+
+  const migrated = (filename: string) => Layer.provideMerge(Migrations.layer, NodeDatabase.layer({ filename }))
+
+  const connection = (filename: string) =>
+    Effect.map(
+      Layer.build(SqlJournal.layer({ ...options, capacity: 64 }).pipe(Layer.provide(migrated(filename)))),
+      (context) => Context.get(context, Journal) as Service
+    )
+
+  it(
+    "emitDurable never collides when two connections write one run concurrently",
+    () =>
+      withTempFile((filename) =>
+        Effect.runPromise(
+          Effect.scoped(
+            Effect.gen(function*() {
+              // Migrate once so both writers open an already-provisioned file.
+              yield* Effect.scoped(Effect.provide(Effect.void, migrated(filename)))
+              const left = yield* connection(filename)
+              const right = yield* connection(filename)
+              const run = runId("shared")
+              const writes = 8
+              const emit = (journal: Service, source: string) =>
+                Effect.forEach(
+                  Array.from({ length: writes }, (_, index) => index),
+                  (index) => journal.emitDurable(input(run, sourceId(source), `${source}${index}`, index)),
+                  { discard: true }
+                )
+              yield* Effect.all([emit(left, "left"), emit(right, "right")], { concurrency: 2, discard: true })
+              yield* Effect.scoped(
+                Effect.provide(
+                  Effect.gen(function*() {
+                    const database = yield* Database
+                    const rows = yield* seqsOf(database, run)
+                    expect(rows.map((row) => row.seq)).toEqual(
+                      Array.from({ length: writes * 2 }, (_, index) => index)
+                    )
+                  }),
+                  migrated(filename)
+                )
+              )
+            })
+          )
+        )
+      ),
+    30_000
+  )
+
+  it("emitDurable resumes from the durable floor after a restart", () =>
+    withTempFile((filename) =>
+      Effect.runPromise(
+        Effect.gen(function*() {
+          const run = runId("restarted")
+          yield* Effect.scoped(
+            Effect.gen(function*() {
+              const journal = yield* connection(filename)
+              yield* journal.emitDurable(input(run, sourceId("s"), "first", 0))
+              yield* journal.emitDurable(input(run, sourceId("s"), "second", 1))
+            })
+          )
+          // A cold process: the in-memory clock starts at zero and the SQL
+          // floor must win, otherwise the (run_id, seq) primary key collides.
+          yield* Effect.scoped(
+            Effect.gen(function*() {
+              const journal = yield* connection(filename)
+              const receipt = yield* journal.emitDurable(input(run, sourceId("s"), "third", 2))
+              expect(receipt.seq).toBe(2)
+              expect(receipt.sourceSeq).toBe(2)
+            })
+          )
+        })
+      )
+    ), 30_000)
 })
