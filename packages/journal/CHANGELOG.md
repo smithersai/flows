@@ -1,4 +1,4 @@
-# @flows/journal
+# @smithers/journal
 
 ## [Unreleased]
 

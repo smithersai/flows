@@ -1,10 +1,10 @@
-# @flows/host
+# @smithers/host
 
-@flows/host is the closed host capability surface. It defines Shell, Pty, Jj,
+@smithers/host is the closed host capability surface. It defines Shell, Pty, Jj,
 and HttpTransport, and uses Effect FileSystem and Path. It provides Node, Bun,
 Browser, and Test platform layers plus the provider-neutral `RemoteSandbox`
 adapter. Edge-specific implementations live in the
-separate `@flows/host-cloudflare` and `@flows/host-vercel` packages. A
+separate `@smithers/host-cloudflare` and `@smithers/host-vercel` packages. A
 Bun deployment uses `BunHost.layer`.
 
 The root exports HostError, HostServices flat, and the HttpTransport, Jj, Pty,
@@ -22,7 +22,7 @@ TestHost.layer(options?) = deterministic browser adapters + TestClock + seeded R
 ```
 
 ```ts
-import { NodeHost, Shell } from "@flows/host"
+import { NodeHost, Shell } from "@smithers/host"
 import { Effect } from "effect"
 
 const program = Effect.gen(function*() {

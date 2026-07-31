@@ -7,8 +7,8 @@
  *
  * @since 0.1.0
  */
-import type { ShellError } from "@flows/host/HostError"
-import * as HostShell from "@flows/host/Shell"
+import type { ShellError } from "@smithers/host/HostError"
+import * as HostShell from "@smithers/host/Shell"
 import { Context, Effect, Layer, Stream } from "effect"
 import { make as makeCapability } from "./Capability.ts"
 import { GrantStore } from "./GrantStore.ts"
@@ -37,7 +37,7 @@ export interface Shell {
  * @category services
  * @since 0.1.0
  */
-export const Shell: Context.Service<Shell, Shell> = Context.Service("@flows/kernel/Shell")
+export const Shell: Context.Service<Shell, Shell> = Context.Service("@smithers/kernel/Shell")
 
 /**
  * Constructs a permission-aware shell service from an implementation.

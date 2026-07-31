@@ -1,4 +1,4 @@
-import { Database, TestDatabase } from "@flows/database"
+import { Database, TestDatabase } from "@smithers/database"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import { describe, expect, it } from "vitest"
@@ -77,7 +77,7 @@ describe("journal migrations", () => {
         "deferred_name",
         "due_at_ms",
         "execution_id",
-        "workflow_name"
+        "flow_name"
       ],
       flows_deferred_completions: [
         "completed_at_ms",
@@ -85,7 +85,7 @@ describe("journal migrations", () => {
         "execution_id",
         "exit_json",
         "metadata_json",
-        "workflow_name"
+        "flow_name"
       ],
       flows_journal_events: [
         "emitted_at_ms",

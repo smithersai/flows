@@ -1,11 +1,11 @@
 # Durable execution model
 
-This page defines the runtime model implemented by `@flows/workflow-engine`, `@flows/engine-store`, and `@flows/journal`. It explains what survives process loss, what is replayed, and where the current durability boundary stops.
+This page defines the runtime model implemented by `@smithers/engine`, `@smithers/engine-store`, and `@smithers/journal`. It explains what survives process loss, what is replayed, and where the current durability boundary stops.
 
 ## Core terms
 
-- A **workflow** is a typed definition plus a registered Effect handler.
-- An **execution** is one workflow invocation identified by `executionId`.
+- A **flow** is a typed definition plus a registered Effect handler.
+- An **execution** is one flow invocation identified by `executionId`.
 - An **activity** is a schema-encoded effect boundary with a stable key, attempt number, and durability tier.
 - A **run row** stores execution status, ownership, encoded payload, and encoded result.
 - An **attempt row** stores the state and outcome of one `(run, step-key digest, attempt)` tuple.
@@ -46,7 +46,7 @@ See [determinism and replay](determinism-and-replay.md) for authoring rules.
 
 With `EngineStore`, the following can outlive the driving fiber:
 
-- encoded workflow payload and result;
+- encoded flow payload and result;
 - run status, claim, owner, and heartbeat;
 - activity attempts, checkpoints, outcomes, errors, and metadata;
 - journal entries;
@@ -54,20 +54,20 @@ With `EngineStore`, the following can outlive the driving fiber:
 
 Deferred completions and clock deadlines pass through `DurableEngineState`.
 `DurableEngineState.layer` persists them in the journal-migrated SQL schema;
-`layerMemory` is available for deterministic tests. Re-registering a workflow
+`layerMemory` is available for deterministic tests. Re-registering a flow
 re-arms every pending absolute deadline and re-delivers claim-gated wakes for
 stored completions.
 
-Workflow registrations, active fibers, the workflow handler function, and the run coordinator’s active map stay in memory. A restarted process must reconstruct layers and register handlers before it can resume stored executions.
+Flow registrations, active fibers, the flow handler function, and the run coordinator’s active map stay in memory. A restarted process must reconstruct layers and register handlers before it can resume stored executions.
 
 ## Execution IDs
 
-`Workflow.execute` needs one of:
+`Flow.execute` needs one of:
 
 - an explicit `executionId` supplied by the caller; or
-- an `idempotencyKey(payload)` declared by the workflow.
+- an `idempotencyKey(payload)` declared by the flow.
 
-An explicit ID wins. Without either, execution dies with `Workflow.ExecutionIdRequired` before the engine is invoked. Reusing an ID with a different workflow tag or encoded payload is rejected as a defect by the durable driver.
+An explicit ID wins. Without either, execution dies with `Flow.ExecutionIdRequired` before the engine is invoked. Reusing an ID with a different flow tag or encoded payload is rejected as a defect by the durable driver.
 
 ## Durability is boundary-based
 
@@ -77,7 +77,7 @@ Ordinary TypeScript and Effect combinators are not individually journaled. Durab
 - `DurableDeferred`;
 - durable clocks;
 - durable queues built from deferreds and Effect’s persisted queue;
-- child workflow execution;
+- child flow execution;
 - explicit journal or time-travel effect boundaries.
 
 Calling an API, reading the filesystem, generating randomness, or consulting wall-clock time outside one of those boundaries can make replay diverge. Host services make these dependencies injectable, but injection alone does not record their results.
@@ -87,15 +87,15 @@ Calling an API, reading the filesystem, generating randomness, or consulting wal
 The implemented library has definition, execution, and replay:
 
 1. definitions and layers are assembled in memory;
-2. the handler executes under a workflow engine;
+2. the handler executes under a flow engine;
 3. a resume re-executes it against stored boundaries.
 
-A separate discovery phase, pure static planning phase, and serializable action-graph builder are **Planned**. The current runtime does not expose a plan value that enumerates every future activity or cache hit before execution. See [workflows and the action graph](action-graph.md).
+A separate discovery phase, pure static planning phase, and serializable action-graph builder are **Planned**. The current runtime does not expose a plan value that enumerates every future activity or cache hit before execution. See [flows and the action graph](action-graph.md).
 
 ## Related
 
 - [Execution and data flow](../architecture/execution-data-flow.md)
 - [Journal](journal.md)
 - [Failure and retry policy](failure-and-retry.md)
-- [Subworkflows](subworkflows.md)
-- [`@flows/engine-store` reference](../reference/engine-store.md)
+- [Subflows](subflows.md)
+- [`@smithers/engine-store` reference](../reference/engine-store.md)

@@ -1,6 +1,6 @@
-# @flows/journal
+# @smithers/journal
 
-@flows/journal owns durable event envelopes, run ownership, step attempts, and
+@smithers/journal owns durable event envelopes, run ownership, step attempts, and
 content-addressed cache entries. It depends on the Database service. Journal
 admission is bounded and non-blocking; ownership and durable stores use fenced
 SQL transitions.
@@ -22,8 +22,8 @@ retries idempotent. Rejected or dropped admissions consume their allocated
 numbers; replay must not assume contiguous sequences.
 
 ~~~ts
-import { Journal, JournalEvent, Migrations, SqlJournal } from "@flows/journal"
-import { NodeDatabase } from "@flows/database"
+import { Journal, JournalEvent, Migrations, SqlJournal } from "@smithers/journal"
+import { NodeDatabase } from "@smithers/database"
 import { Effect, Layer } from "effect"
 
 const journalLayer = SqlJournal.layer({ capacity: 1024, overflow: "reject" }).pipe(

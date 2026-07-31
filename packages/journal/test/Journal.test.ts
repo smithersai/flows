@@ -1,5 +1,5 @@
-import { Database, DatabaseError, type DatabaseService } from "@flows/database/Database"
-import * as TestDatabase from "@flows/database/test/TestDatabase"
+import { Database, DatabaseError, type DatabaseService } from "@smithers/database/Database"
+import * as TestDatabase from "@smithers/database/test/TestDatabase"
 import { Deferred, Effect, Fiber, Layer, PubSub, Stream } from "effect"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"

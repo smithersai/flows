@@ -1,4 +1,4 @@
-import { Database, TestDatabase } from "@flows/database"
+import { Database, TestDatabase } from "@smithers/database"
 import { Cause, Clock, Deferred, Duration, Effect, Exit, Fiber } from "effect"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"

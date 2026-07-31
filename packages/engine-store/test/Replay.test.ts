@@ -1,6 +1,6 @@
-import { Journal, type Ownership, RunStore, TestJournal } from "@flows/journal"
-import { Jj } from "@flows/kernel"
-import { Activity, DurableDeferred, Workflow } from "@flows/workflow-engine"
+import { Journal, type Ownership, RunStore, TestJournal } from "@smithers/journal"
+import { Jj } from "@smithers/kernel"
+import { Activity, DurableDeferred, Flow } from "@smithers/engine"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Schema from "effect/Schema"
@@ -9,7 +9,7 @@ import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 
-const ReplayWorkflow = Workflow.make("Replay/Workflow", {
+const ReplayFlow = Flow.make("Replay/Flow", {
   payload: {},
   success: Schema.String
 })
@@ -97,8 +97,8 @@ describe("deterministic replay", () => {
           }).pipe(Effect.provideService(RunStore.RunStore, countingStore))
 
           const firstEngine = yield* makeEngine
-          yield* firstEngine.register(ReplayWorkflow, handler)
-          yield* firstEngine.execute(ReplayWorkflow, {
+          yield* firstEngine.register(ReplayFlow, handler)
+          yield* firstEngine.execute(ReplayFlow, {
             executionId: "replay-run",
             payload: {},
             discard: true
@@ -106,20 +106,20 @@ describe("deterministic replay", () => {
           const suspended = yield* baseStore.get("replay-run")
 
           const restartedEngine = yield* makeEngine
-          yield* restartedEngine.register(ReplayWorkflow, handler)
+          yield* restartedEngine.register(ReplayFlow, handler)
           yield* restartedEngine.deferredDone(gate, {
-            workflowName: ReplayWorkflow._tag,
+            flowName: ReplayFlow._tag,
             executionId: "replay-run",
             deferredName: gate.name,
             exit: Exit.succeed("winner-a")
           })
           yield* restartedEngine.deferredDone(gate, {
-            workflowName: ReplayWorkflow._tag,
+            flowName: ReplayFlow._tag,
             executionId: "replay-run",
             deferredName: gate.name,
             exit: Exit.succeed("winner-b")
           })
-          const value = yield* restartedEngine.execute(ReplayWorkflow, {
+          const value = yield* restartedEngine.execute(ReplayFlow, {
             executionId: "replay-run",
             payload: {},
             discard: false

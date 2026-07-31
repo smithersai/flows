@@ -1,5 +1,5 @@
 /**
- * @flows/database public API.
+ * @smithers/database public API.
  *
  * @since 0.1.0
  */

@@ -1,7 +1,7 @@
 /**
  * @since 0.1.0
  *
- * `@flows/host` — the Host layer.
+ * `@smithers/host` — the Host layer.
  *
  * Service modules are re-exported as namespaces, the way `effect`'s own index
  * does it, so each module keeps its `make` / `makeNoop` / `layerNoop` trio

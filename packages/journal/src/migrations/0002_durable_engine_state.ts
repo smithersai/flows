@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 
 /**
- * Creates the durable workflow waiting schema.
+ * Creates the durable flow waiting schema.
  *
  * @category migrations
  * @since 0.1.0
@@ -16,24 +16,24 @@ const durableEngineState: Effect.Effect<void, unknown, SqlClient.SqlClient> = Ef
   const sql = yield* SqlClient.SqlClient
 
   yield* sql`CREATE TABLE flows_deferred_completions (
-    workflow_name TEXT NOT NULL,
+    flow_name TEXT NOT NULL,
     execution_id TEXT NOT NULL,
     deferred_name TEXT NOT NULL,
     exit_json TEXT NOT NULL,
     metadata_json TEXT,
     completed_at_ms BIGINT NOT NULL,
-    PRIMARY KEY (workflow_name, execution_id, deferred_name),
+    PRIMARY KEY (flow_name, execution_id, deferred_name),
     FOREIGN KEY (execution_id) REFERENCES flows_runs (run_id)
   )`
 
   yield* sql`CREATE TABLE flows_clock_deadlines (
-    workflow_name TEXT NOT NULL,
+    flow_name TEXT NOT NULL,
     execution_id TEXT NOT NULL,
     clock_name TEXT NOT NULL,
     deferred_name TEXT NOT NULL,
     due_at_ms BIGINT NOT NULL,
     completed_at_ms BIGINT,
-    PRIMARY KEY (workflow_name, execution_id, clock_name),
+    PRIMARY KEY (flow_name, execution_id, clock_name),
     FOREIGN KEY (execution_id) REFERENCES flows_runs (run_id)
   )`
 

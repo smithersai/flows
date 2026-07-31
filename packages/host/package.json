@@ -1,5 +1,5 @@
 {
-  "name": "@flows/host",
+  "name": "@smithers/host",
   "type": "module",
   "version": "0.0.0",
   "license": "MIT",
@@ -16,13 +16,13 @@
   "tags": [
     "typescript",
     "effect",
-    "workflow",
+    "flow",
     "host"
   ],
   "keywords": [
     "typescript",
     "effect",
-    "workflow",
+    "flow",
     "host"
   ],
   "engines": {

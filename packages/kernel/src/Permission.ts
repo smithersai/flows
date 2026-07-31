@@ -19,7 +19,7 @@ import { Capability, CapabilityPattern, type EffectTier, matches } from "./Capab
  * @since 0.1.0
  */
 export class PermissionRequired extends Schema.TaggedErrorClass<PermissionRequired>()(
-  "@flows/kernel/PermissionRequired",
+  "@smithers/kernel/PermissionRequired",
   {
     code: Schema.Literal("permission_required"),
     requestId: Schema.String,
@@ -48,7 +48,7 @@ export class PermissionRequired extends Schema.TaggedErrorClass<PermissionRequir
  * @since 0.1.0
  */
 export class PermissionDenied extends Schema.TaggedErrorClass<PermissionDenied>()(
-  "@flows/kernel/PermissionDenied",
+  "@smithers/kernel/PermissionDenied",
   {
     code: Schema.Literal("permission_denied"),
     capability: Capability,
@@ -96,7 +96,7 @@ export type GrantStoreErrorCode = typeof GrantStoreErrorCode.Type
  * @since 0.1.0
  */
 export class GrantStoreError extends Schema.TaggedErrorClass<GrantStoreError>()(
-  "@flows/kernel/GrantStoreError",
+  "@smithers/kernel/GrantStoreError",
   {
     code: GrantStoreErrorCode,
     message: Schema.optional(Schema.String),
@@ -120,7 +120,7 @@ const RuleEffect = Schema.Literals(["allow", "deny", "ask"])
  * @category models
  * @since 0.1.0
  */
-export class Rule extends Schema.Class<Rule>("@flows/kernel/Permission/Rule")({
+export class Rule extends Schema.Class<Rule>("@smithers/kernel/Permission/Rule")({
   effect: RuleEffect,
   pattern: CapabilityPattern
 }) {}

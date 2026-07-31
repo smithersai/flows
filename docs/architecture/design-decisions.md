@@ -4,11 +4,11 @@ This page records the architectural decisions that explain the current source la
 
 ## D1. Durable execution is application-neutral
 
-Workflow payloads, activity inputs, and journal events remain application-defined values so the engine can be embedded without adopting a higher-level application model.
+Flow payloads, activity inputs, and journal events remain application-defined values so the engine can be embedded without adopting a higher-level application model.
 
 Consequence: the journal uses an open `eventType` plus `payload` envelope, and the engine records engine-specific events without closing the union around one application.
 
-## D2. Workflow bodies replay; activities record effects
+## D2. Flow bodies replay; activities record effects
 
 A resume re-enters the registered handler from the top. Application effects must cross `Activity`, `DurableDeferred`, clock, or another recorded boundary. This is the basis of [deterministic replay](../concepts/determinism-and-replay.md).
 
@@ -16,19 +16,19 @@ Consequence: local computation between boundaries must be deterministic, while a
 
 ## D3. Key computation sits above storage
 
-`@flows/workflow-engine` computes content or ordinal step keys before calling `WorkflowEngine.Encoded.activityExecute`. Memory and durable engines therefore receive the same identity instead of implementing key policy independently.
+`@smithers/engine` computes content or ordinal step keys before calling `FlowEngine.Encoded.activityExecute`. Memory and durable engines therefore receive the same identity instead of implementing key policy independently.
 
 Consequence: activity names are diagnostic. A sealed content identity, not the name, controls reuse.
 
 ## D4. Cache admission requires evidence
 
-A content key alone does not prove hermetic execution. `@flows/engine-store` caches only sealed activities that carry a hard `StepBoundary` descriptor and settle without a deviation.
+A content key alone does not prove hermetic execution. `@smithers/engine-store` caches only sealed activities that carry a hard `StepBoundary` descriptor and settle without a deviation.
 
 Consequence: the repository ships a `StepBoundary` contract and a test layer, but no production boundary. Cross-run cache admission is unavailable until a host supplies enforcement and output materialization.
 
 ## D5. Host access is closed and decorated
 
-The Host surface is exactly FileSystem, Path, Shell, PTY, Jujutsu, and one-hop HTTP, with Effect Clock and Random treated as swappable built-ins. The kernel decorates these services rather than asking each workflow to remember permission checks.
+The Host surface is exactly FileSystem, Path, Shell, PTY, Jujutsu, and one-hop HTTP, with Effect Clock and Random treated as swappable built-ins. The kernel decorates these services rather than asking each flow to remember permission checks.
 
 Consequence: ambient authority can only shrink through `CapabilitySet.attenuate`, and capability failures stay in the Effect error channel when callers use kernel service tags.
 
@@ -58,6 +58,6 @@ Consequence: time travel depends on explicit effect-boundary records, lineage ed
 
 ## D10. Remote sync is read-only
 
-`@flows/sync` exports catch-up and follow RPCs over journal entries. Mutation, resume, and permission decisions are deliberately outside this protocol.
+`@smithers/sync` exports catch-up and follow RPCs over journal entries. Mutation, resume, and permission decisions are deliberately outside this protocol.
 
 Consequence: consumers can rebuild read models without acquiring run ownership or receiving write authority.

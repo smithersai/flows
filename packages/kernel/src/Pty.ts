@@ -7,8 +7,8 @@
  *
  * @since 0.1.0
  */
-import type { PtyError } from "@flows/host/HostError"
-import * as HostPty from "@flows/host/Pty"
+import type { PtyError } from "@smithers/host/HostError"
+import * as HostPty from "@smithers/host/Pty"
 import { Context, Effect, Layer } from "effect"
 import type * as Scope from "effect/Scope"
 import { make as makeCapability } from "./Capability.ts"
@@ -39,7 +39,7 @@ export interface Pty {
  * @category services
  * @since 0.1.0
  */
-export const Pty: Context.Service<Pty, Pty> = Context.Service("@flows/kernel/Pty")
+export const Pty: Context.Service<Pty, Pty> = Context.Service("@smithers/kernel/Pty")
 
 /**
  * Constructs a permission-aware pseudo-terminal service from an implementation.

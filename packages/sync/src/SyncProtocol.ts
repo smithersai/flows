@@ -6,7 +6,7 @@
  *
  * @since 0.1.0
  */
-import * as JournalEvent from "@flows/journal/JournalEvent"
+import * as JournalEvent from "@smithers/journal/JournalEvent"
 import * as Schema from "effect/Schema"
 
 /**

@@ -1,5 +1,5 @@
-import * as Host from "@flows/host"
-import * as HostHttpTransport from "@flows/host/HttpTransport"
+import * as Host from "@smithers/host"
+import * as HostHttpTransport from "@smithers/host/HttpTransport"
 import { Effect, FileSystem as EffectFileSystem, Option, Path as EffectPath } from "effect"
 import * as EffectHttpClient from "effect/unstable/http/HttpClient"
 import { describe, expect, it } from "vitest"

@@ -1,6 +1,6 @@
-# `@flows/engine-store`
+# `@smithers/engine-store`
 
-This page is the public API reference for the journal-backed `WorkflowEngine` composition, deferred/clock state contract, and hermetic boundary contract. The current composition is Node-oriented.
+This page is the public API reference for the journal-backed `FlowEngine` composition, deferred/clock state contract, and hermetic boundary contract. The current composition is Node-oriented.
 
 ## `EngineStore`
 
@@ -12,7 +12,7 @@ const layer = EngineStore.layer({
 })
 ```
 
-`Options` contains `owner.hostId`, `journalSource`, and optional `isAlive`. `make(options)` returns a `WorkflowEngine` service; `layer(options)` provides both `WorkflowEngine` and `WorkflowEngine.SnapshotBoundary`.
+`Options` contains `owner.hostId`, `journalSource`, and optional `isAlive`. `make(options)` returns a `FlowEngine` service; `layer(options)` provides both `FlowEngine` and `FlowEngine.SnapshotBoundary`.
 
 Required services are `Journal`, `RunStore`, `AttemptStore`, `CacheStore`, `DurableEngineState`, kernel `Jj`, `StepBoundary`, and `Scope`. `EngineCompositionError` represents an engine that was invoked without a complete composition.
 
@@ -20,7 +20,7 @@ The engine stores a versioned state envelope in each run row, fences run and att
 
 ## `DurableEngineState`
 
-The service addresses deferreds by workflow/execution/deferred name and clocks by workflow/execution/clock name. It exposes:
+The service addresses deferreds by flow/execution/deferred name and clocks by flow/execution/clock name. It exposes:
 
 - `deferred` and first-writer-wins `completeDeferred`
 - `clock`, first-writer-wins `scheduleClock`, and `completeClock`

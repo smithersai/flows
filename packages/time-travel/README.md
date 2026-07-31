@@ -1,4 +1,4 @@
-# @flows/time-travel
+# @smithers/time-travel
 
 Durable, browser-safe replay and fork primitives over public journal contracts.
 Rewind archives a single parent journal suffix atomically; attached child events
@@ -8,6 +8,8 @@ share the global sealed cache, and never mutate the parent.
 
 This package follows Effect service/tag/layer conventions. The SQL store uses
 portable scalar SQL and owns its migration; it does not depend on journal internals.
+SQL forks clone the parent's restartable engine snapshot and attempt rows, so
+they can be driven after rebuilding engine layers.
 
 `EffectBoundary.guard` journals intended and terminal evidence around tiered
 effects. `EffectHandlerRegistry` and `Compensation` classify and reverse

@@ -1,6 +1,6 @@
 # Assembling a durable engine
 
-This guide describes the services required by `@flows/engine-store` and gives a local SQL-backed composition pattern. It also identifies which services must be replaced before a multi-process deployment is durable.
+This guide describes the services required by `@smithers/engine-store` and gives a local SQL-backed composition pattern. It also identifies which services must be replaced before a multi-process deployment is durable.
 
 ## Required services
 
@@ -15,9 +15,9 @@ This guide describes the services required by `@flows/engine-store` and gives a 
 `TestJournal.layer()` supplies the four SQL services over an in-memory SQLite database. It is useful for integration tests, not restart durability:
 
 ```ts
-import { DurableEngineState, EngineStore, StepBoundary } from "@flows/engine-store"
-import { TestJournal } from "@flows/journal"
-import { Jj } from "@flows/kernel"
+import { DurableEngineState, EngineStore, StepBoundary } from "@smithers/engine-store"
+import { TestJournal } from "@smithers/journal"
+import { Jj } from "@smithers/kernel"
 import { Effect, Layer } from "effect"
 
 const jj = Jj.make({
@@ -43,7 +43,7 @@ const EngineLayer = EngineStore.layer({
 }).pipe(Layer.provide(Requirements))
 ```
 
-`EngineLayer` provides the `WorkflowEngine` service. Merge it with workflow handler layers, then run workflow operations inside the resulting layer scope.
+`EngineLayer` provides the `FlowEngine` service. Merge it with flow handler layers, then run flow operations inside the resulting layer scope.
 
 ## Persistent SQL composition
 
@@ -61,7 +61,7 @@ Migrations must complete before any store service is exposed. `Database.write` w
 ## Services still owned by the application
 
 Use `DurableEngineState.layer` for process-restart durability.
-`DurableEngineState.layerMemory` remains intended for tests. On workflow
+`DurableEngineState.layerMemory` remains intended for tests. On flow
 registration, the SQL implementation re-arms every pending future or overdue
 clock and re-delivers wakes for stored completions through the normal run
 claim path.
@@ -76,6 +76,6 @@ Give each worker a stable `hostId`; the engine adds process identity and a rando
 
 ## Wake behavior
 
-Deferred and clock completion schedule a resume. A committed journal-driven `resumeSignal` is not implemented, so suspended execution can also rely on the workflow engine’s polling schedule.
+Deferred and clock completion schedule a resume. A committed journal-driven `resumeSignal` is not implemented, so suspended execution can also rely on the flow engine’s polling schedule.
 
-See the [`@flows/engine-store` reference](../reference/engine-store.md), [Journal](../concepts/journal.md), and [Implementation status](../architecture/implementation-status.md).
+See the [`@smithers/engine-store` reference](../reference/engine-store.md), [Journal](../concepts/journal.md), and [Implementation status](../architecture/implementation-status.md).

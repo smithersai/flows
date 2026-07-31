@@ -1,9 +1,9 @@
 /**
  * Shared contract suite for complete Host bundles.
  *
- * This test-only source file is exported as `@flows/host/test/contract`.
+ * This test-only source file is exported as `@smithers/host/test/contract`.
  * Keeping the suite on that explicit subpath lets sibling host packages reuse
- * it without adding Vitest to the production `@flows/host` root barrel.
+ * it without adding Vitest to the production `@smithers/host` root barrel.
  *
  * @since 0.1.0
  */

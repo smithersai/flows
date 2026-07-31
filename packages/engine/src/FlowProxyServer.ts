@@ -1,0 +1,173 @@
+/**
+ * Server-side layers for flow proxy APIs.
+ *
+ * `layerHttpApi` connects the HTTP API group created by `FlowProxy` to the
+ * supplied flows. `layerRpcHandlers` does the same for the generated RPC
+ * definitions. Both layers route execute, discard, and resume requests to the
+ * matching flow operation, while the `FlowEngine` and flow handler
+ * services stay on the server side.
+ *
+ * @since 4.0.0
+ */
+import type { NonEmptyReadonlyArray } from "effect/Array"
+import * as Context from "effect/Context"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import type * as HttpApi from "effect/unstable/httpapi/HttpApi"
+import * as HttpApiBuilder from "effect/unstable/httpapi/HttpApiBuilder"
+import type * as HttpApiGroup from "effect/unstable/httpapi/HttpApiGroup"
+import type * as Rpc from "effect/unstable/rpc/Rpc"
+import type * as Flow from "./Flow.ts"
+import type { FlowEngine } from "./FlowEngine.ts"
+
+/**
+ * Creates handlers for a flow HTTP API group, wiring execute, discard, and
+ * resume endpoints to the supplied flows.
+ *
+ * @category layers
+ * @since 4.0.0
+ */
+export const layerHttpApi = <
+  ApiId extends string,
+  Groups extends HttpApiGroup.Constraint,
+  Identifier extends HttpApiGroup.Identifier<Groups>,
+  const Flows extends NonEmptyReadonlyArray<Flow.Any>
+>(
+  api: HttpApi.HttpApi<ApiId, Groups>,
+  identifier: Identifier,
+  flows: Flows
+): Layer.Layer<
+  HttpApiGroup.Service<ApiId, Identifier>,
+  never,
+  FlowEngine | Flow.RequirementsHandler<Flows[number]>
+> =>
+  HttpApiBuilder.group(
+    api,
+    identifier,
+    // Untraced because proxy handler construction recursively resolves flows.
+    Effect.fnUntraced(function*(handlers: any) {
+      for (const flow_ of flows) {
+        const flow = flow_ as Flow.AnyWithProps
+        handlers = handlers
+          .handle(
+            flow._tag,
+            ({ payload: request }: {
+              payload: {
+                payload: any
+                executionId?: string | undefined
+              }
+            }) =>
+              flow.execute(request.payload, {
+                executionId: request.executionId
+              }).pipe(
+                Effect.tapDefect(Effect.logError),
+                Effect.annotateLogs({
+                  module: "FlowProxyServer",
+                  method: flow._tag
+                })
+              )
+          )
+          .handle(
+            flow._tag + "Discard",
+            ({ payload: request }: {
+              payload: {
+                payload: any
+                executionId?: string | undefined
+              }
+            }) =>
+              flow.execute(request.payload, {
+                discard: true,
+                executionId: request.executionId
+              }).pipe(
+                Effect.tapDefect(Effect.logError),
+                Effect.annotateLogs({
+                  module: "FlowProxyServer",
+                  method: flow._tag + "Discard"
+                })
+              )
+          )
+          .handle(
+            flow._tag + "Resume",
+            ({ payload }: { payload: any }) =>
+              flow.resume(payload.executionId).pipe(
+                Effect.tapDefect(Effect.logError),
+                Effect.annotateLogs({
+                  module: "FlowProxyServer",
+                  method: flow._tag + "Resume"
+                })
+              )
+          )
+      }
+      return handlers as HttpApiBuilder.Handlers<never>
+    })
+  )
+
+/**
+ * Creates RPC handlers for the supplied flows, wiring execute, discard,
+ * and resume RPCs to flow operations.
+ *
+ * @category layers
+ * @since 4.0.0
+ */
+export const layerRpcHandlers = <
+  const Flows extends NonEmptyReadonlyArray<Flow.Any>,
+  const Prefix extends string = ""
+>(flows: Flows, options?: {
+  readonly prefix?: Prefix
+}): Layer.Layer<
+  RpcHandlers<Flows[number], Prefix>,
+  never,
+  FlowEngine | Flow.RequirementsHandler<Flows[number]>
+> =>
+  Layer.effectContext(Effect.gen(function*() {
+    const context = yield* Effect.context<never>()
+    const prefix = options?.prefix ?? ""
+    const handlers = new Map<string, Rpc.Handler<string>>()
+    for (const flow_ of flows) {
+      const flow = flow_ as Flow.AnyWithProps
+      const tag = `${prefix}${flow._tag}`
+      const tagDiscard = `${tag}Discard`
+      const tagResume = `${tag}Resume`
+      const key = `effect/rpc/Rpc/${tag}`
+      const keyDiscard = `${key}Discard`
+      const keyResume = `${key}Resume`
+      handlers.set(key, {
+        context,
+        tag,
+        handler: (request: any) =>
+          flow.execute(request.payload, {
+            executionId: request.executionId
+          }) as any
+      } as any)
+      handlers.set(keyDiscard, {
+        context,
+        tag: tagDiscard,
+        handler: (request: any) =>
+          flow.execute(request.payload, {
+            discard: true,
+            executionId: request.executionId
+          }) as any
+      } as any)
+      handlers.set(keyResume, {
+        context,
+        tag: tagResume,
+        handler: (payload: any) => flow.resume(payload.executionId) as any
+      } as any)
+    }
+    return Context.makeUnsafe(handlers)
+  }))
+
+/**
+ * Union of RPC handler services required to serve the generated flow
+ * execute, discard, and resume RPCs.
+ *
+ * @category services
+ * @since 4.0.0
+ */
+export type RpcHandlers<Flows extends Flow.Any, Prefix extends string> = Flows extends Flow.Flow<
+  infer _Name,
+  infer _Payload,
+  infer _Success,
+  infer _Error
+> ? Rpc.Handler<`${Prefix}${_Name}`> | Rpc.Handler<`${Prefix}${_Name}Discard`> | Rpc.Handler<`${Prefix}${_Name}Resume`>
+  : never

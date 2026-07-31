@@ -1,5 +1,5 @@
-import * as Journal from "@flows/journal/Journal"
-import type * as JournalEvent from "@flows/journal/JournalEvent"
+import * as Journal from "@smithers/journal/Journal"
+import type * as JournalEvent from "@smithers/journal/JournalEvent"
 import * as Effect from "effect/Effect"
 import * as HashMap from "effect/HashMap"
 import * as Layer from "effect/Layer"

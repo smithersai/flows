@@ -1,5 +1,5 @@
 {
-  "name": "@flows/kernel",
+  "name": "@smithers/kernel",
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
@@ -16,13 +16,13 @@
   "tags": [
     "typescript",
     "effect",
-    "workflow",
+    "flow",
     "capabilities"
   ],
   "keywords": [
     "typescript",
     "effect",
-    "workflow",
+    "flow",
     "capabilities"
   ],
   "engines": {
@@ -75,8 +75,8 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@flows/host": "*",
-    "@flows/journal": "*",
+    "@smithers/host": "*",
+    "@smithers/journal": "*",
     "effect": "4.0.0-beta.102"
   },
   "devDependencies": {

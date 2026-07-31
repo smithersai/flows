@@ -1,7 +1,7 @@
 /**
  * @since 0.1.0
  *
- * `@flows/kernel` — capability enforcement at the Host boundary.
+ * `@smithers/kernel` — capability enforcement at the Host boundary.
  */
 
 /**

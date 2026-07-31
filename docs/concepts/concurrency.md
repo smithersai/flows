@@ -1,6 +1,6 @@
 # Concurrency
 
-This page explains concurrency that exists in workflow handlers, activities, durable queues, ownership, and journal admission. It separates those mechanisms from the planned static graph scheduler.
+This page explains concurrency that exists in flow handlers, activities, durable queues, ownership, and journal admission. It separates those mechanisms from the planned static graph scheduler.
 
 ## Handler concurrency
 
@@ -13,13 +13,13 @@ const [checked, tested] = yield* Effect.all(
 )
 ```
 
-The enclosing workflow handler does not complete until both effects complete. Error and interruption behavior follows `Effect.all`; Smithers Flows does not add an implicit “continue unrelated nodes” policy.
+The enclosing flow handler does not complete until both effects complete. Error and interruption behavior follows `Effect.all`; Smithers Flows does not add an implicit “continue unrelated nodes” policy.
 
 Activities receive stable per-run ordinals from the engine. The ordinal is part of an ordinal step key, so changing branch structure or evaluation order can change identity. For cross-run cache reuse, declare a content identity instead of relying on an ordinal.
 
 ## Durable races
 
-`Activity.raceAll` and `DurableDeferred.raceAll` preserve the workflow abstractions while racing alternatives. They are distinct from a planned graph-level race node. Use them only when every loser has acceptable interruption semantics.
+`Activity.raceAll` and `DurableDeferred.raceAll` preserve the flow abstractions while racing alternatives. They are distinct from a planned graph-level race node. Use them only when every loser has acceptable interruption semantics.
 
 ## Queue workers
 
@@ -33,7 +33,7 @@ const WorkerLayer = DurableQueue.worker(
 )
 ```
 
-Queue persistence comes from Effect’s `PersistedQueueFactory`. The workflow offers an item with a deterministic id, awaits a durable deferred token, and resumes after a worker records the handler exit.
+Queue persistence comes from Effect’s `PersistedQueueFactory`. The flow offers an item with a deterministic id, awaits a durable deferred token, and resumes after a worker records the handler exit.
 
 ## Run and attempt exclusion
 

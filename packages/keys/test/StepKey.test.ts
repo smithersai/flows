@@ -1,4 +1,4 @@
-import type * as CoreKeyMaterial from "@flows/core/KeyMaterial"
+import type * as CoreKeyMaterial from "@smithers/core/KeyMaterial"
 import { Result, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import * as StepKey from "../src/StepKey.ts"

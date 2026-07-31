@@ -6,7 +6,7 @@
  *
  * @since 0.1.0
  */
-import { TestDatabase } from "@flows/database"
+import { TestDatabase } from "@smithers/database"
 import * as Layer from "effect/Layer"
 import * as AttemptStore from "../AttemptStore.ts"
 import * as CacheStore from "../CacheStore.ts"

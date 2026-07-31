@@ -1,6 +1,6 @@
-# @flows/engine-store
+# @smithers/engine-store
 
-@flows/engine-store composes the encoded workflow engine with journal-backed
+@smithers/engine-store composes the encoded flow engine with journal-backed
 run ownership, attempts, cache provenance, and event records. It also supplies
 durable deferred and clock state and the step-boundary contract.
 
@@ -9,12 +9,12 @@ EngineStore.layer(options)
 ├─ RunDriver: RunStore + RunCoordinator
 ├─ ActivityPersistence: AttemptStore + CacheStore + StepBoundary + Jj
 ├─ DeferredPersistence: DurableEngineState + Journal + resume scheduling
-└─ WorkflowEngine.makeUnsafe(encoded)
+└─ FlowEngine.makeUnsafe(encoded)
 ```
 
 The layer requires Journal, RunStore, AttemptStore, CacheStore,
 DurableEngineState, StepBoundary, Jj, and Scope. EngineStore.make returns the
-typed WorkflowEngine service. EngineStore.layer also provides SnapshotBoundary.
+typed FlowEngine service. EngineStore.layer also provides SnapshotBoundary.
 
 ```ts
 const engineLayer = EngineStore.layer({

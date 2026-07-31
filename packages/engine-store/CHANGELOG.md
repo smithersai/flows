@@ -10,7 +10,7 @@
 
 ### Added
 
-- Added the journal-backed workflow-engine composition, claim-gated run
+- Added the journal-backed engine composition, claim-gated run
   driver, durable deferred and absolute-clock state, activity persistence
   wiring, and deterministic test layers.
 - Added SQL-backed deferred completions and clock deadlines with owner-fenced

@@ -1,5 +1,5 @@
-import { Journal, Ownership, RunStore, TestJournal } from "@flows/journal"
-import { Workflow, WorkflowEngine } from "@flows/workflow-engine"
+import { Journal, Ownership, RunStore, TestJournal } from "@smithers/journal"
+import { Flow, FlowEngine } from "@smithers/engine"
 import * as Cause from "effect/Cause"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
@@ -11,7 +11,7 @@ import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as RunDriver from "../src/internal/RunDriver.ts"
 
-const TestWorkflow = Workflow.make("Ownership/Test", {
+const TestFlow = Flow.make("Ownership/Test", {
   payload: {},
   success: Schema.String
 })
@@ -28,11 +28,11 @@ const ownerB: Ownership.OwnerId = {
   nonce: "owner-b"
 }
 
-const fakeEngine = {} as unknown as WorkflowEngine.WorkflowEngine["Service"]
+const fakeEngine = {} as unknown as FlowEngine.FlowEngine["Service"]
 
 const persistedState = JSON.stringify({
   version: 1,
-  workflowName: TestWorkflow._tag,
+  flowName: TestFlow._tag,
   payload: {}
 })
 
@@ -91,16 +91,16 @@ describe("RunDriver ownership", () => {
           executions++
           return "done"
         })
-      yield* first.register(TestWorkflow, handler)
-      yield* second.register(TestWorkflow, handler)
+      yield* first.register(TestFlow, handler)
+      yield* second.register(TestFlow, handler)
 
       yield* Effect.all([
-        first.execute(TestWorkflow, {
+        first.execute(TestFlow, {
           executionId: "concurrent",
           payload: {},
           discard: true
         }),
-        second.execute(TestWorkflow, {
+        second.execute(TestFlow, {
           executionId: "concurrent",
           payload: {},
           discard: true
@@ -123,8 +123,8 @@ describe("RunDriver ownership", () => {
           probes++
           return false
         }))
-      yield* driver.register(TestWorkflow, () => Effect.succeed("wrong"))
-      yield* driver.resume(TestWorkflow, "fresh")
+      yield* driver.register(TestFlow, () => Effect.succeed("wrong"))
+      yield* driver.resume(TestFlow, "fresh")
       return yield* store.get("fresh")
     })))
 
@@ -146,8 +146,8 @@ describe("RunDriver ownership", () => {
           expect(owner).toEqual(ownerA)
           return false
         }))
-      yield* driver.register(TestWorkflow, () => Effect.succeed("recovered"))
-      yield* driver.resume(TestWorkflow, "stale")
+      yield* driver.register(TestFlow, () => Effect.succeed("recovered"))
+      yield* driver.resume(TestFlow, "stale")
       return yield* store.get("stale")
     })))
 
@@ -185,12 +185,12 @@ describe("RunDriver ownership", () => {
       const driver = yield* makeDriver(ownerB, () => Effect.succeed(false)).pipe(
         Effect.provideService(RunStore.RunStore, racing)
       )
-      yield* driver.register(TestWorkflow, () =>
+      yield* driver.register(TestFlow, () =>
         Effect.sync(() => {
           executions++
           return "wrong"
         }))
-      yield* driver.resume(TestWorkflow, "activation-race")
+      yield* driver.resume(TestFlow, "activation-race")
       return {
         abandoned,
         row: yield* base.get("activation-race")
@@ -206,12 +206,12 @@ describe("RunDriver ownership", () => {
   it("suspension atomically clears owner and heartbeat", async () => {
     const row = await Effect.runPromise(provideJournal(Effect.gen(function*() {
       const driver = yield* makeDriver(ownerA)
-      yield* driver.register(TestWorkflow, () =>
+      yield* driver.register(TestFlow, () =>
         Effect.flatMap(
-          WorkflowEngine.WorkflowInstance,
-          Workflow.suspend
+          FlowEngine.FlowInstance,
+          Flow.suspend
         ))
-      yield* driver.execute(TestWorkflow, {
+      yield* driver.execute(TestFlow, {
         executionId: "suspended",
         payload: {},
         discard: true
@@ -230,7 +230,7 @@ describe("RunDriver ownership", () => {
       const driver = yield* makeDriver(ownerA)
       const started = yield* Deferred.make<void>()
       let interrupted = false
-      yield* driver.register(TestWorkflow, () =>
+      yield* driver.register(TestFlow, () =>
         Deferred.succeed(started, undefined).pipe(
           Effect.andThen(Effect.never),
           Effect.ensuring(
@@ -240,7 +240,7 @@ describe("RunDriver ownership", () => {
           )
         ))
 
-      const fiber = yield* driver.execute(TestWorkflow, {
+      const fiber = yield* driver.execute(TestFlow, {
         executionId: "fence-loss",
         payload: {},
         discard: true

@@ -3,8 +3,8 @@
  *
  * @since 0.1.0
  */
-import { Jj } from "@flows/host/Jj"
-import * as CacheStore from "@flows/journal/CacheStore"
+import { Jj } from "@smithers/host/Jj"
+import * as CacheStore from "@smithers/journal/CacheStore"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as Random from "effect/Random"

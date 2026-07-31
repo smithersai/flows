@@ -1,4 +1,4 @@
-# @flows/kernel
+# @smithers/kernel
 
 ## [Unreleased]
 

@@ -1,4 +1,4 @@
-# @flows/kernel
+# @smithers/kernel
 
 The capability kernel: monotone authority, typed grant requests, and Effect
 layers that enforce permissions at every Host boundary. `HostServices.layer`
@@ -24,7 +24,7 @@ consumers use those tags rather than narrower raw tags.
 
 ```ts
 import { Effect } from "effect"
-import { Capability, GrantStore, Workspace } from "@flows/kernel"
+import { Capability, GrantStore, Workspace } from "@smithers/kernel"
 
 const program = Effect.gen(function*() {
   const store = yield* GrantStore.GrantStore
@@ -131,22 +131,22 @@ journal contradictory decisions and closure cannot strand a waiter. The
 
 ## Host decoration
 
-`HostServices.layer` consumes the shared closed `@flows/host` surface and
+`HostServices.layer` consumes the shared closed `@smithers/host` surface and
 publishes distinct permission-aware `FileSystem`, `HttpClient`, `Shell`,
 `Pty`, and `Jj` tags. `Path` is an explicit pure pass-through. The filesystem,
 shell, pty, and jj decorators also rebind their legacy Host or Effect tags to
 the guarded implementation while migrations are in progress. HTTP is stricter:
 neither Effect's `HttpClient` nor the Host `HttpTransport` is republished,
 because their fixed error channels would erase permission failures. HTTP
-consumers must require `@flows/kernel/HttpClient`.
+consumers must require `@smithers/kernel/HttpClient`.
 
 `HostServices.HostServiceIds` is the exact stable slot list re-exported from
-`@flows/host`. `ProtectedHostServiceTags` maps those six slots, in order, to the
+`@smithers/host`. `ProtectedHostServiceTags` maps those six slots, in order, to the
 permission-aware tags; the final raw `HttpTransport` slot maps to the kernel
 `HttpClient`. Planners resolve implementation identities for these slots into
 core key-material `layers`.
 
-The current public `@flows/host` contract exports each service as a subpath.
+The current public `@smithers/host` contract exports each service as a subpath.
 Kernel runtime code imports only the closed `HostServices` contract and the
 `Shell`, `Pty`, `Jj`, error, and single-hop `HttpTransport` subpaths; it never
 imports a Node platform bundle. Integration tests provide the actual Host tags
@@ -173,8 +173,8 @@ accepted as a dependency.
 ## Composition
 
 ```ts
-import { Journal } from "@flows/journal"
-import { HostServices, JournalGrantStore, Workspace } from "@flows/kernel"
+import { Journal } from "@smithers/journal"
+import { HostServices, JournalGrantStore, Workspace } from "@smithers/kernel"
 import { Layer } from "effect"
 
 declare const journal: Layer.Layer<Journal.Journal>
@@ -210,7 +210,7 @@ These stable codes are public contracts.
 
 ## Test helpers
 
-`@flows/kernel/test/TestGrantStore` (not on the root barrel) exports
+`@smithers/kernel/test/TestGrantStore` (not on the root barrel) exports
 `layerAllow` (alias of `GrantStore.layerNoop`), `layerDeny(reason?)`, and
 `layerScripted(replies)` which consumes `once` / `run` / `remembered` / `deny`
 resolutions in order and rejects once the script is exhausted.

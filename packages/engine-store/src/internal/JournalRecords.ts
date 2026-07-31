@@ -3,7 +3,7 @@
  *
  * @since 0.1.0
  */
-import { Journal, JournalEvent } from "@flows/journal"
+import { Journal, JournalEvent } from "@smithers/journal"
 import * as Effect from "effect/Effect"
 
 /** @since 0.1.0 @category models */

@@ -3,11 +3,11 @@
  *
  * @since 0.1.0
  */
-import type { Jj } from "@flows/host/Jj"
-import * as Journal from "@flows/journal/Journal"
-import type * as JournalEvent from "@flows/journal/JournalEvent"
-import type { LivenessEvidence, OwnerId } from "@flows/journal/Ownership"
-import * as RunStore from "@flows/journal/RunStore"
+import type { Jj } from "@smithers/host/Jj"
+import * as Journal from "@smithers/journal/Journal"
+import type * as JournalEvent from "@smithers/journal/JournalEvent"
+import type { LivenessEvidence, OwnerId } from "@smithers/journal/Ownership"
+import * as RunStore from "@smithers/journal/RunStore"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"

@@ -1,6 +1,6 @@
 # Step keys and content addressing
 
-This page defines how `@flows/keys` creates deterministic activity identities and how those identities control replay and cache reuse. It also states the limits of what a key proves.
+This page defines how `@smithers/keys` creates deterministic activity identities and how those identities control replay and cache reuse. It also states the limits of what a key proves.
 
 ## Two key classes
 
@@ -11,7 +11,7 @@ Every step key is `sk1_` followed by a lowercase SHA-256 digest.
 A content key can be reused across executions:
 
 ```ts
-import { StepKey } from "@flows/keys"
+import { StepKey } from "@smithers/keys"
 import { Result } from "effect"
 
 const key = Result.getOrThrow(
@@ -77,7 +77,7 @@ The repository does not currently ship the planner that produces a whole depende
 
 ## Activity key selection
 
-`@flows/workflow-engine` chooses:
+`@smithers/engine` chooses:
 
 ```text
 sealed + idempotencyKey → StepKey.content
@@ -86,7 +86,7 @@ compensable             → StepKey.ordinal(tier = compensable)
 irreversible            → StepKey.ordinal(tier = irreversible)
 ```
 
-The computed key is passed into the encoded engine. `@flows/engine-store` then uses `Digest.digest(key)` as the attempt and cache database address.
+The computed key is passed into the encoded engine. `@smithers/engine-store` then uses `Digest.digest(key)` as the attempt and cache database address.
 
 ## What changes a content key
 
@@ -104,4 +104,4 @@ A content key says “this output is a function of these declarations.” It can
 - output capture and replay;
 - no detected deviation.
 
-Those enforcement pieces are why `EngineStore` refuses cache admission without boundary evidence. See [workflows and the action graph](action-graph.md) and [host adapters and capabilities](hosts-and-capabilities.md).
+Those enforcement pieces are why `EngineStore` refuses cache admission without boundary evidence. See [flows and the action graph](action-graph.md) and [host adapters and capabilities](hosts-and-capabilities.md).

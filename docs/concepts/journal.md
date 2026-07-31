@@ -1,6 +1,6 @@
 # Journal
 
-This page explains the durable event journal and the adjacent run, attempt, and cache stores in `@flows/journal`. It focuses on semantics and invariants; the [package reference](../reference/journal.md) lists exact exported types.
+This page explains the durable event journal and the adjacent run, attempt, and cache stores in `@smithers/journal`. It focuses on semantics and invariants; the [package reference](../reference/journal.md) lists exact exported types.
 
 ## Open event envelope
 
@@ -81,7 +81,7 @@ Attempt heartbeats may include a JSON checkpoint up to 1 MiB. Omitting a checkpo
 - different content → `Conflict`;
 - no row → `Inserted`.
 
-`@flows/engine-store` uses `Digest.digest(stepKey)` as the cache address. It admits only hard, deviation-free sealed boundaries.
+`@smithers/engine-store` uses `Digest.digest(stepKey)` as the cache address. It admits only hard, deviation-free sealed boundaries.
 
 ## Migrations
 
@@ -93,7 +93,7 @@ Attempt heartbeats may include a JSON checkpoint up to 1 MiB. Omitting a checkpo
 - `flows_step_cache`;
 - migration bookkeeping.
 
-Time-travel tables use a separate migration in `@flows/time-travel`.
+Time-travel tables use a separate migration in `@smithers/time-travel`.
 
 ## Operational rule
 

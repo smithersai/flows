@@ -112,7 +112,7 @@ const unsupported = (): UnsupportedBoundary =>
 /**
  * Deterministic in-memory boundary suitable only for tests.
  *
- * TODO(piece-6): fold into @flows/journal — needs just-bash VFS seeding,
+ * TODO(piece-6): fold into @smithers/journal — needs just-bash VFS seeding,
  * sandbox bind mounts, structured changed-path reporting, and output
  * materialization in host/kernel public contracts.
  *

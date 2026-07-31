@@ -1,8 +1,8 @@
-# @flows/database
+# @smithers/database
 
-@flows/database is the thin SQL boundary for durable packages. It wraps an
+@smithers/database is the thin SQL boundary for durable packages. It wraps an
 Effect SQL client with normalized errors and transaction-scoped SQLite write
-retries. Domain schema and queries belong to @flows/journal.
+retries. Domain schema and queries belong to @smithers/journal.
 
 ~~~text
 NodeDatabase.layer({ filename, ...retryOptions })
@@ -17,7 +17,7 @@ SQL client. makeNoop and layerNoop fail with DatabaseError { code:
 this package. TestDatabase.layer is the test boundary.
 
 ~~~ts
-import { Database, NodeDatabase } from "@flows/database"
+import { Database, NodeDatabase } from "@smithers/database"
 import { Effect } from "effect"
 
 const program = Effect.gen(function*() {

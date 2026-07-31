@@ -1,10 +1,10 @@
-# Workflows and the action graph
+# Flows and the action graph
 
 This page explains the repository’s Bazel-like properties—content-addressed actions, explicit Effect dependencies, hermetic-boundary contracts, and cached results—while distinguishing them from the static action planner that is not yet implemented.
 
 ## The graph that exists today
 
-A workflow handler defines dependencies through Effect structure:
+A flow handler defines dependencies through Effect structure:
 
 ```ts
 const program = Effect.gen(function*() {
@@ -17,7 +17,7 @@ const program = Effect.gen(function*() {
 })
 ```
 
-Sequencing creates dependency edges. `Effect.all` exposes independent branches. `Activity.raceAll` and `DurableDeferred.raceAll` create a persisted race result. Calling another workflow creates a child execution dependency.
+Sequencing creates dependency edges. `Effect.all` exposes independent branches. `Activity.raceAll` and `DurableDeferred.raceAll` create a persisted race result. Calling another flow creates a child execution dependency.
 
 The graph is therefore explicit in the Effect program but discovered dynamically as the handler runs. There is no public `Node` or static graph value in this repository.
 
@@ -39,7 +39,7 @@ A sealed activity is reusable only when it has a content identity. A non-sealed 
 
 ## Hermeticity is an evidence gate
 
-`StepKey.content` can describe a hermetic action, but it does not enforce one. Cache admission in `@flows/engine-store` additionally requires:
+`StepKey.content` can describe a hermetic action, but it does not enforce one. Cache admission in `@smithers/engine-store` additionally requires:
 
 1. activity tier `sealed`;
 2. metadata that decodes as a `StepBoundary.Descriptor`;
@@ -53,7 +53,7 @@ Without that host layer, the durable engine can still replay an attempt within o
 
 ## Graph-local key material
 
-`@flows/keys` exports a low-level `KeyMaterial` shape with three input forms:
+`@smithers/keys` exports a low-level `KeyMaterial` shape with three input forms:
 
 - `Literal` — hash the value inline;
 - `Ref` — replace a graph-local node ID with its dependency digest and retain a value path;

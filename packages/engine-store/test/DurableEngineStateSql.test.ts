@@ -1,5 +1,5 @@
-import { Database, TestDatabase } from "@flows/database"
-import { Migrations, type Ownership } from "@flows/journal"
+import { Database, TestDatabase } from "@smithers/database"
+import { Migrations, type Ownership } from "@smithers/journal"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -50,7 +50,7 @@ describe("SQL DurableEngineState", () => {
         const first = yield* DurableEngineState.make
         const second = yield* DurableEngineState.make
         const address = {
-          workflowName: "DurableState/Workflow",
+          flowName: "DurableState/Flow",
           executionId: "deferred-race",
           deferredName: "answer"
         }
@@ -75,7 +75,7 @@ describe("SQL DurableEngineState", () => {
         return {
           outcomes,
           row: Option.getOrThrow(yield* first.deferred(address)),
-          completed: yield* completedDeferreds(address.workflowName)
+          completed: yield* completedDeferreds(address.flowName)
         }
       }).pipe(Effect.provide(migratedDatabase))
     )
@@ -88,7 +88,7 @@ describe("SQL DurableEngineState", () => {
     const exit = result.row.exit as Exit.Exit<string>
     expect(Exit.isSuccess(exit) && ["left", "right"].includes(exit.value)).toBe(true)
     expect(result.completed).toEqual([{
-      workflowName: "DurableState/Workflow",
+      flowName: "DurableState/Flow",
       executionId: "deferred-race",
       deferredName: "answer"
     }])
@@ -101,7 +101,7 @@ describe("SQL DurableEngineState", () => {
         const first = yield* DurableEngineState.make
         const second = yield* DurableEngineState.make
         const clock = {
-          workflowName: "DurableState/Workflow",
+          flowName: "DurableState/Flow",
           executionId: "clock-race",
           clockName: "wake",
           deferredName: "DurableClock/wake",

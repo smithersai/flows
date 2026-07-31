@@ -11,7 +11,7 @@
 import { Context, Effect } from "effect"
 import { type Capability, type CapabilityPattern, matches } from "./Capability.ts"
 
-const CapabilitySetTypeId: unique symbol = Symbol.for("@flows/kernel/CapabilitySet")
+const CapabilitySetTypeId: unique symbol = Symbol.for("@smithers/kernel/CapabilitySet")
 
 /**
  * A normalized conjunction of any-of capability-pattern groups.
@@ -158,7 +158,7 @@ export const equals = (
 }
 
 const CurrentCapabilities: Context.Reference<CapabilitySet> = Context.Reference<CapabilitySet>(
-  "@flows/kernel/CurrentCapabilities",
+  "@smithers/kernel/CurrentCapabilities",
   { defaultValue: () => unrestricted }
 )
 

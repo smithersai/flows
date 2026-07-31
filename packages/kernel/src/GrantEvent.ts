@@ -35,7 +35,7 @@ export const GrantScope = Schema.Literals(["once", "run", "remembered"])
  * @category models
  * @since 0.1.0
  */
-export class OnceGrant extends Schema.TaggedClass<OnceGrant>()("@flows/kernel/GrantEvent/OnceGrant", {
+export class OnceGrant extends Schema.TaggedClass<OnceGrant>()("@smithers/kernel/GrantEvent/OnceGrant", {
   eventType: Schema.Literal("flows.kernel.grant.once.v1"),
   requestId: Schema.String,
   runId: Schema.String,
@@ -53,7 +53,7 @@ export class OnceGrant extends Schema.TaggedClass<OnceGrant>()("@flows/kernel/Gr
  * @since 0.1.0
  */
 export class RememberedGrant extends Schema.TaggedClass<RememberedGrant>()(
-  "@flows/kernel/GrantEvent/RememberedGrant",
+  "@smithers/kernel/GrantEvent/RememberedGrant",
   {
     eventType: Schema.Literal("flows.kernel.grant.remembered.v1"),
     requestId: Schema.String,
@@ -72,7 +72,7 @@ export class RememberedGrant extends Schema.TaggedClass<RememberedGrant>()(
  * @category models
  * @since 0.1.0
  */
-export class RunGrant extends Schema.TaggedClass<RunGrant>()("@flows/kernel/GrantEvent/RunGrant", {
+export class RunGrant extends Schema.TaggedClass<RunGrant>()("@smithers/kernel/GrantEvent/RunGrant", {
   eventType: Schema.Literal("flows.kernel.grant.run.v1"),
   requestId: Schema.String,
   runId: Schema.String,
@@ -89,7 +89,7 @@ export class RunGrant extends Schema.TaggedClass<RunGrant>()("@flows/kernel/Gran
  * @category models
  * @since 0.1.0
  */
-export class DeniedGrant extends Schema.TaggedClass<DeniedGrant>()("@flows/kernel/GrantEvent/DeniedGrant", {
+export class DeniedGrant extends Schema.TaggedClass<DeniedGrant>()("@smithers/kernel/GrantEvent/DeniedGrant", {
   eventType: Schema.Literal("flows.kernel.grant.denied.v1"),
   requestId: Schema.String,
   runId: Schema.String,
@@ -113,7 +113,7 @@ export class DeniedGrant extends Schema.TaggedClass<DeniedGrant>()("@flows/kerne
  * @since 0.1.0
  */
 export class EnvelopeGrant extends Schema.TaggedClass<EnvelopeGrant>()(
-  "@flows/kernel/GrantEvent/EnvelopeGrant",
+  "@smithers/kernel/GrantEvent/EnvelopeGrant",
   {
     eventType: Schema.Literal("flows.kernel.grant.envelope.v1"),
     runId: Schema.String,

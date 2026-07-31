@@ -4,7 +4,7 @@ This page describes the portable host surface and the permission kernel that med
 
 ## The closed host surface
 
-`@flows/host` defines these protected services:
+`@smithers/host` defines these protected services:
 
 - Effect `FileSystem`
 - Effect `Path`
@@ -26,7 +26,7 @@ The kernel exports parallel services such as `FileSystem`, `Shell`, `Pty`, `Jj`,
 3. calls the raw host service only when allowed.
 
 ```ts
-import { Capability, Permission } from "@flows/kernel"
+import { Capability, Permission } from "@smithers/kernel"
 
 const rule = new Permission.Rule({
   effect: "allow",
@@ -58,4 +58,4 @@ The kernel is a capability check, not an operating-system sandbox. Hermetic exec
 - Default Cloudflare and Vercel `Shell`, `Pty`, and `Jj` layers are unsupported/no-op adapters; sandbox-backed shell variants are available.
 - The Node-flavored Vercel host uses ephemeral `/tmp` storage.
 
-See the [`@flows/host` reference](../reference/host.md), [`@flows/kernel` reference](../reference/kernel.md), and deployment guides for [Cloudflare](../guides/cloudflare.md) and [Vercel](../guides/vercel.md).
+See the [`@smithers/host` reference](../reference/host.md), [`@smithers/kernel` reference](../reference/kernel.md), and deployment guides for [Cloudflare](../guides/cloudflare.md) and [Vercel](../guides/vercel.md).

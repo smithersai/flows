@@ -1,4 +1,4 @@
-import { Database as DatabaseModule, TestDatabase } from "@flows/database"
+import { Database as DatabaseModule, TestDatabase } from "@smithers/database"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"

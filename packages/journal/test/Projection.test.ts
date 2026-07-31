@@ -1,4 +1,4 @@
-import * as TestDatabase from "@flows/database/test/TestDatabase"
+import * as TestDatabase from "@smithers/database/test/TestDatabase"
 import { Cause, Deferred, Effect, Exit, Fiber, Layer, Result, Stream } from "effect"
 import { describe, expect, it } from "vitest"
 import { Journal } from "../src/Journal.ts"

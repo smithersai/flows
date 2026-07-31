@@ -1,4 +1,4 @@
-# @flows/keys
+# @smithers/keys
 
 ## [Unreleased]
 

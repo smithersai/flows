@@ -1,10 +1,10 @@
-# @flows/keys
+# @smithers/keys
 
-`@flows/keys` owns pure, synchronous step identity. It canonicalizes safe data and produces versioned `sk1_<sha256>` keys. It has no host services and rejects secret-bearing or non-canonical values.
+`@smithers/keys` owns pure, synchronous step identity. It canonicalizes safe data and produces versioned `sk1_<sha256>` keys. It has no host services and rejects secret-bearing or non-canonical values.
 
-`KeyMaterial` and `InputRef` are owned by this package. `@flows/core` produces
+`KeyMaterial` and `InputRef` are owned by this package. `@smithers/core` produces
 structurally compatible planner values; keys does not import another
-`@flows/*` package.
+`@smithers/*` package.
 
 ## Exports
 
@@ -16,7 +16,7 @@ structurally compatible planner values; keys does not import another
 ## Worked example
 
 ```ts
-import { StepKey } from "@flows/keys"
+import { StepKey } from "@smithers/keys"
 import { Result } from "effect"
 
 const key = Result.getOrThrow(StepKey.content({

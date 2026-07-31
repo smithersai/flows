@@ -1,8 +1,8 @@
-import { Database, NodeDatabase } from "@flows/database"
-import { DurableEngineState, EngineStore, StepBoundary } from "@flows/engine-store"
-import { AttemptStore, CacheStore, Migrations, RunStore, SqlJournal } from "@flows/journal"
-import { Jj } from "@flows/kernel"
-import { DurableClock, DurableDeferred, Workflow } from "@flows/workflow-engine"
+import { Database, NodeDatabase } from "@smithers/database"
+import { DurableEngineState, EngineStore, StepBoundary } from "@smithers/engine-store"
+import { AttemptStore, CacheStore, Migrations, RunStore, SqlJournal } from "@smithers/journal"
+import { Jj } from "@smithers/kernel"
+import { DurableClock, DurableDeferred, Flow } from "@smithers/engine"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
@@ -17,12 +17,12 @@ if (mode === undefined || filename === undefined || executionId === undefined) {
   throw new Error("usage: durable-wait-child.ts <mode> <filename> <execution-id> [value]")
 }
 
-const WaitWorkflow = Workflow.make("DurableWaiting/HardKill", {
+const WaitFlow = Flow.make("DurableWaiting/HardKill", {
   payload: {},
   success: Schema.String
 })
 
-const TimerWorkflow = Workflow.make("DurableWaiting/FutureTimer", {
+const TimerFlow = Flow.make("DurableWaiting/FutureTimer", {
   payload: {},
   success: Schema.String
 })
@@ -80,7 +80,7 @@ const waitUntilTerminal = Effect.fn("waitUntilTerminal")((runId: string) =>
 const stateCompletion = Effect.gen(function*() {
   const state = yield* DurableEngineState.make
   const outcome = yield* state.completeDeferred({
-    workflowName: "DurableState/ProcessRace",
+    flowName: "DurableState/ProcessRace",
     executionId,
     deferredName: "answer",
     exit: Exit.succeed(process.argv[5] ?? ""),
@@ -108,10 +108,10 @@ const engineProgram = Effect.scoped(
 
     if (mode === "wait-start") {
       yield* engine.register(
-        WaitWorkflow,
+        WaitFlow,
         () => DurableDeferred.await(deferred)
       )
-      yield* engine.execute(WaitWorkflow, {
+      yield* engine.execute(WaitFlow, {
         executionId,
         payload: {},
         discard: true
@@ -122,7 +122,7 @@ const engineProgram = Effect.scoped(
 
     if (mode === "wait-complete-unregistered") {
       yield* engine.deferredDone(deferred, {
-        workflowName: WaitWorkflow._tag,
+        flowName: WaitFlow._tag,
         executionId,
         deferredName: deferred.name,
         exit: Exit.succeed("resumed-after-kill")
@@ -132,7 +132,7 @@ const engineProgram = Effect.scoped(
 
     if (mode === "wait-restart") {
       yield* engine.register(
-        WaitWorkflow,
+        WaitFlow,
         () => DurableDeferred.await(deferred)
       )
       const row = yield* waitUntilTerminal(executionId)
@@ -141,7 +141,7 @@ const engineProgram = Effect.scoped(
 
     if (mode === "timer-start") {
       yield* engine.register(
-        TimerWorkflow,
+        TimerFlow,
         () =>
           DurableClock.sleep({
             name: "wake",
@@ -149,7 +149,7 @@ const engineProgram = Effect.scoped(
             inMemoryThreshold: "1 millis"
           }).pipe(Effect.as("timer-fired"))
       )
-      yield* engine.execute(TimerWorkflow, {
+      yield* engine.execute(TimerFlow, {
         executionId,
         payload: {},
         discard: true
@@ -160,7 +160,7 @@ const engineProgram = Effect.scoped(
 
     if (mode === "timer-restart") {
       yield* engine.register(
-        TimerWorkflow,
+        TimerFlow,
         () =>
           DurableClock.sleep({
             name: "wake",
@@ -170,7 +170,7 @@ const engineProgram = Effect.scoped(
       )
       const state = yield* DurableEngineState.DurableEngineState
       const clock = yield* state.clock({
-        workflowName: TimerWorkflow._tag,
+        flowName: TimerFlow._tag,
         executionId,
         clockName: "wake"
       })

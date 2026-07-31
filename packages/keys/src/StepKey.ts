@@ -86,7 +86,7 @@ export interface OrdinalIdentity {
 export type InputRef = CoreInputRef
 
 /**
- * Digest-free planner material produced by `@flows/core`.
+ * Digest-free planner material produced by `@smithers/core`.
  *
  * @since 0.1.0
  * @category models
@@ -99,7 +99,7 @@ export type KeyMaterial = CoreKeyMaterial
  * @since 0.1.0
  * @category errors
  */
-export class KeyMaterialError extends Schema.TaggedErrorClass<KeyMaterialError>()("@flows/keys/KeyMaterialError", {
+export class KeyMaterialError extends Schema.TaggedErrorClass<KeyMaterialError>()("@smithers/keys/KeyMaterialError", {
   code: Schema.Literals(["missing_dependency", "non_content_material"]),
   message: Schema.String
 }) {}

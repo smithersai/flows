@@ -1,6 +1,6 @@
 # Getting started
 
-This guide runs a typed workflow with the in-memory engine. It is the shortest executable path through `@flows/workflow-engine`; it does not provide process-crash durability.
+This guide runs a typed flow with the in-memory engine. It is the shortest executable path through `@smithers/engine`; it does not provide process-crash durability.
 
 ## Prerequisites
 
@@ -13,13 +13,13 @@ npm run check
 
 When consuming the packages from another workspace, add the packages you use as workspace or file dependencies until releases exist.
 
-## Define and run a workflow
+## Define and run a flow
 
 ```ts
-import { Workflow, WorkflowEngine } from "@flows/workflow-engine"
+import { Flow, FlowEngine } from "@smithers/engine"
 import { Effect, Layer, Schema } from "effect"
 
-const Greeting = Workflow.make("example/Greeting", {
+const Greeting = Flow.make("example/Greeting", {
   payload: { name: Schema.String },
   success: Schema.String
 })
@@ -27,7 +27,7 @@ const Greeting = Workflow.make("example/Greeting", {
 const GreetingLayer = Greeting.toLayer(({ name }) =>
   Effect.succeed(`Hello, ${name}.`)
 ).pipe(
-  Layer.provideMerge(WorkflowEngine.layerMemory)
+  Layer.provideMerge(FlowEngine.layerMemory)
 )
 
 const program = Greeting.execute(
@@ -40,14 +40,14 @@ console.log(
 )
 ```
 
-`Workflow.make` defines durable schemas and a stable workflow tag. `toLayer` registers the handler with whichever `WorkflowEngine` is supplied. `execute` requires a caller-selected execution ID because this workflow did not opt into an idempotency key.
+`Flow.make` defines durable schemas and a stable flow tag. `toLayer` registers the handler with whichever `FlowEngine` is supplied. `execute` requires a caller-selected execution ID because this flow did not opt into an idempotency key.
 
 ## Derive an execution ID
 
-Use a workflow idempotency key only when identical keys truly mean the same logical execution:
+Use a flow idempotency key only when identical keys truly mean the same logical execution:
 
 ```ts
-const Greeting = Workflow.make("example/Greeting", {
+const Greeting = Flow.make("example/Greeting", {
   payload: { name: Schema.String },
   success: Schema.String,
   idempotencyKey: ({ name }) => name.normalize("NFC").toLowerCase()
@@ -56,11 +56,11 @@ const Greeting = Workflow.make("example/Greeting", {
 const executionId = yield* Greeting.executionId({ name: "Ada" })
 ```
 
-An explicit `executionId` always wins. Without either source, execution dies with `Workflow.ExecutionIdRequired` before invoking the engine.
+An explicit `executionId` always wins. Without either source, execution dies with `Flow.ExecutionIdRequired` before invoking the engine.
 
 ## Choose the next guide
 
-- Add durable boundaries in [Writing a workflow](writing-a-workflow.md).
+- Add durable boundaries in [Writing a flow](writing-a-flow.md).
 - Replace memory state with the SQL-backed composition in [Assembling a durable engine](durable-engine.md).
 - Build deterministic fixtures in [Testing](testing.md).
 

@@ -1,11 +1,11 @@
 /**
- * Durable deferred-completion and clock-deadline state used by the workflow
+ * Durable deferred-completion and clock-deadline state used by the flow
  * engine adapter.
  *
  * @since 0.1.0
  */
-import { Database } from "@flows/database/Database"
-import type { OwnerId } from "@flows/journal/Ownership"
+import { Database } from "@smithers/database/Database"
+import type { OwnerId } from "@smithers/journal/Ownership"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -19,7 +19,7 @@ import * as Schema from "effect/Schema"
  * @category models
  */
 export interface DeferredAddress {
-  readonly workflowName: string
+  readonly flowName: string
   readonly executionId: string
   readonly deferredName: string
 }
@@ -56,7 +56,7 @@ export type CompleteDeferredOutcome =
  * @category models
  */
 export interface ClockAddress {
-  readonly workflowName: string
+  readonly flowName: string
   readonly executionId: string
   readonly clockName: string
 }
@@ -95,7 +95,7 @@ export type CompleteClockOutcome =
   | { readonly _tag: "NotFound" }
 
 /**
- * Minimal durable state missing from the current `@flows/journal` contract.
+ * Minimal durable state missing from the current `@smithers/journal` contract.
  *
  * A successful mutation means the row is durable. Callers may therefore
  * journal and schedule a wake only after the mutation returns.
@@ -104,20 +104,20 @@ export type CompleteClockOutcome =
  * @category models
  */
 export interface Service {
-  // TODO(piece-6): fold into @flows/journal — needs DeferredStore.get(workflowName, executionId, deferredName).
+  // TODO(piece-6): fold into @smithers/journal — needs DeferredStore.get(flowName, executionId, deferredName).
   readonly deferred: (address: DeferredAddress) => Effect.Effect<Option.Option<DeferredRow>>
-  // TODO(piece-6): fold into @flows/journal — needs DeferredStore.completeFirstWriterWins(row).
+  // TODO(piece-6): fold into @smithers/journal — needs DeferredStore.completeFirstWriterWins(row).
   readonly completeDeferred: (row: DeferredRow) => Effect.Effect<CompleteDeferredOutcome>
-  // TODO(piece-6): fold into @flows/journal — needs ClockStore.get(workflowName, executionId, clockName).
+  // TODO(piece-6): fold into @smithers/journal — needs ClockStore.get(flowName, executionId, clockName).
   readonly clock: (address: ClockAddress) => Effect.Effect<Option.Option<ClockRow>>
-  // TODO(piece-6): fold into @flows/journal — needs ClockStore.scheduleFirstWriterWins(rowWithAbsoluteDueAtMs).
+  // TODO(piece-6): fold into @smithers/journal — needs ClockStore.scheduleFirstWriterWins(rowWithAbsoluteDueAtMs).
   readonly scheduleClock: (row: ClockRow, owner?: OwnerId) => Effect.Effect<ScheduleClockOutcome>
-  // TODO(piece-6): fold into @flows/journal — needs ClockStore.completeOnce(address, completedAtMs).
+  // TODO(piece-6): fold into @smithers/journal — needs ClockStore.completeOnce(address, completedAtMs).
   readonly completeClock: (
     address: ClockAddress,
     completedAtMs: number
   ) => Effect.Effect<CompleteClockOutcome>
-  // TODO(piece-6): fold into @flows/journal — needs ClockStore.due(nowMs).
+  // TODO(piece-6): fold into @smithers/journal — needs ClockStore.due(nowMs).
   readonly dueClocks: (nowMs: number) => Effect.Effect<ReadonlyArray<ClockRow>>
   /**
    * Lists completed deferred addresses for registration-time wake recovery.
@@ -125,7 +125,7 @@ export interface Service {
    * Optional so existing custom implementations remain source-compatible.
    */
   readonly completedDeferreds?: (
-    workflowName: string
+    flowName: string
   ) => Effect.Effect<ReadonlyArray<DeferredAddress>>
 }
 
@@ -140,10 +140,10 @@ export class DurableEngineState extends Context.Service<DurableEngineState, Serv
 ) {}
 
 const deferredKey = (address: DeferredAddress): string =>
-  JSON.stringify([address.workflowName, address.executionId, address.deferredName])
+  JSON.stringify([address.flowName, address.executionId, address.deferredName])
 
 const clockKey = (address: ClockAddress): string =>
-  JSON.stringify([address.workflowName, address.executionId, address.clockName])
+  JSON.stringify([address.flowName, address.executionId, address.clockName])
 
 const NonNegativeSafeInt = Schema.Int.check(
   Schema.isGreaterThanOrEqualTo(0),
@@ -151,7 +151,7 @@ const NonNegativeSafeInt = Schema.Int.check(
 )
 
 const DeferredDatabaseRow = Schema.Struct({
-  workflowName: Schema.String,
+  flowName: Schema.String,
   executionId: Schema.String,
   deferredName: Schema.String,
   exitJson: Schema.String,
@@ -162,7 +162,7 @@ const DeferredDatabaseRow = Schema.Struct({
 type DeferredDatabaseRow = typeof DeferredDatabaseRow.Type
 
 const ClockDatabaseRow = Schema.Struct({
-  workflowName: Schema.String,
+  flowName: Schema.String,
   executionId: Schema.String,
   clockName: Schema.String,
   deferredName: Schema.String,
@@ -173,7 +173,7 @@ const ClockDatabaseRow = Schema.Struct({
 type ClockDatabaseRow = typeof ClockDatabaseRow.Type
 
 const DeferredAddressDatabaseRow = Schema.Struct({
-  workflowName: Schema.String,
+  flowName: Schema.String,
   executionId: Schema.String,
   deferredName: Schema.String
 })
@@ -208,7 +208,7 @@ const decodeDeferredRow = (input: unknown): Effect.Effect<DeferredRow> =>
           : decodeJson(row.metadataJson, "metadata_json")
       }).pipe(
         Effect.map(({ exit, metadata }) => ({
-          workflowName: row.workflowName,
+          flowName: row.flowName,
           executionId: row.executionId,
           deferredName: row.deferredName,
           exit,
@@ -223,7 +223,7 @@ const decodeClockRow = (input: unknown): Effect.Effect<ClockRow> =>
   Schema.decodeUnknownEffect(ClockDatabaseRow)(input).pipe(
     Effect.orDie,
     Effect.map((row) => ({
-      workflowName: row.workflowName,
+      flowName: row.flowName,
       executionId: row.executionId,
       clockName: row.clockName,
       deferredName: row.deferredName,
@@ -249,14 +249,14 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
   const selectDeferred = (address: DeferredAddress) =>
     sql<DeferredDatabaseRow>`
       SELECT
-        workflow_name AS "workflowName",
+        flow_name AS "flowName",
         execution_id AS "executionId",
         deferred_name AS "deferredName",
         exit_json AS "exitJson",
         metadata_json AS "metadataJson",
         completed_at_ms AS "completedAtMs"
       FROM flows_deferred_completions
-      WHERE workflow_name = ${address.workflowName}
+      WHERE flow_name = ${address.flowName}
         AND execution_id = ${address.executionId}
         AND deferred_name = ${address.deferredName}
     `
@@ -264,14 +264,14 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
   const selectClock = (address: ClockAddress) =>
     sql<ClockDatabaseRow>`
       SELECT
-        workflow_name AS "workflowName",
+        flow_name AS "flowName",
         execution_id AS "executionId",
         clock_name AS "clockName",
         deferred_name AS "deferredName",
         due_at_ms AS "dueAtMs",
         completed_at_ms AS "completedAtMs"
       FROM flows_clock_deadlines
-      WHERE workflow_name = ${address.workflowName}
+      WHERE flow_name = ${address.flowName}
         AND execution_id = ${address.executionId}
         AND clock_name = ${address.clockName}
     `
@@ -299,23 +299,23 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
         Effect.gen(function*() {
           const inserted = yield* sql<DeferredDatabaseRow>`
             INSERT INTO flows_deferred_completions (
-              workflow_name,
+              flow_name,
               execution_id,
               deferred_name,
               exit_json,
               metadata_json,
               completed_at_ms
             ) VALUES (
-              ${row.workflowName},
+              ${row.flowName},
               ${row.executionId},
               ${row.deferredName},
               ${exitJson},
               ${metadataJson},
               ${row.completedAtMs}
             )
-            ON CONFLICT (workflow_name, execution_id, deferred_name) DO NOTHING
+            ON CONFLICT (flow_name, execution_id, deferred_name) DO NOTHING
             RETURNING
-              workflow_name AS "workflowName",
+              flow_name AS "flowName",
               execution_id AS "executionId",
               deferred_name AS "deferredName",
               exit_json AS "exitJson",
@@ -361,7 +361,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
         Effect.gen(function*() {
           const inserted = yield* sql<ClockDatabaseRow>`
             INSERT INTO flows_clock_deadlines (
-              workflow_name,
+              flow_name,
               execution_id,
               clock_name,
               deferred_name,
@@ -369,7 +369,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
               completed_at_ms
             )
             SELECT
-              ${row.workflowName},
+              ${row.flowName},
               ${row.executionId},
               ${row.clockName},
               ${row.deferredName},
@@ -384,9 +384,9 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
                 AND owner_pid = ${owner.pid}
                 AND owner_nonce = ${owner.nonce}
             )
-            ON CONFLICT (workflow_name, execution_id, clock_name) DO NOTHING
+            ON CONFLICT (flow_name, execution_id, clock_name) DO NOTHING
             RETURNING
-              workflow_name AS "workflowName",
+              flow_name AS "flowName",
               execution_id AS "executionId",
               clock_name AS "clockName",
               deferred_name AS "deferredName",
@@ -420,12 +420,12 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
         const updated = yield* sql<ClockDatabaseRow>`
           UPDATE flows_clock_deadlines
           SET completed_at_ms = ${completedAtMs}
-          WHERE workflow_name = ${address.workflowName}
+          WHERE flow_name = ${address.flowName}
             AND execution_id = ${address.executionId}
             AND clock_name = ${address.clockName}
             AND completed_at_ms IS NULL
           RETURNING
-            workflow_name AS "workflowName",
+            flow_name AS "flowName",
             execution_id AS "executionId",
             clock_name AS "clockName",
             deferred_name AS "deferredName",
@@ -452,7 +452,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
   const dueClocks: Service["dueClocks"] = Effect.fn("DurableEngineState.dueClocks")((nowMs) =>
     sql<ClockDatabaseRow>`
       SELECT
-        workflow_name AS "workflowName",
+        flow_name AS "flowName",
         execution_id AS "executionId",
         clock_name AS "clockName",
         deferred_name AS "deferredName",
@@ -470,14 +470,14 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
 
   const completedDeferreds: NonNullable<Service["completedDeferreds"]> = Effect.fn(
     "DurableEngineState.completedDeferreds"
-  )((workflowName) =>
+  )((flowName) =>
     sql<Record<string, unknown>>`
       SELECT
-        workflow_name AS "workflowName",
+        flow_name AS "flowName",
         execution_id AS "executionId",
         deferred_name AS "deferredName"
       FROM flows_deferred_completions
-      WHERE workflow_name = ${workflowName}
+      WHERE flow_name = ${flowName}
       ORDER BY execution_id, deferred_name
     `.pipe(
       Effect.orDie,
@@ -580,12 +580,12 @@ export const makeMemory = (): Service => {
           )
       )
     ),
-    completedDeferreds: Effect.fn("DurableEngineState.completedDeferreds")((workflowName) =>
+    completedDeferreds: Effect.fn("DurableEngineState.completedDeferreds")((flowName) =>
       Effect.sync(() =>
         Array.from(deferreds.values())
-          .filter((row) => row.workflowName === workflowName)
-          .map(({ workflowName, executionId, deferredName }) => ({
-            workflowName,
+          .filter((row) => row.flowName === flowName)
+          .map(({ flowName, executionId, deferredName }) => ({
+            flowName,
             executionId,
             deferredName
           }))

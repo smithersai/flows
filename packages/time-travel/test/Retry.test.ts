@@ -1,5 +1,5 @@
-import * as Jj from "@flows/host/Jj"
-import { CacheStore } from "@flows/journal"
+import * as Jj from "@smithers/host/Jj"
+import { CacheStore } from "@smithers/journal"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"

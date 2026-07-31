@@ -1,6 +1,6 @@
-# @flows/sync
+# @smithers/sync
 
-`@flows/sync` is the browser-safe, read-only replication layer for canonical `@flows/journal` entries. `@flows/control` owns mutations; sync never writes a journal entry.
+`@smithers/sync` is the browser-safe, read-only replication layer for canonical `@smithers/journal` entries. `@smithers/control` owns mutations; sync never writes a journal entry.
 
 ## Key exports
 
@@ -18,8 +18,8 @@
 Provide `SyncServer.layer` with `Journal.Journal` and `RunCatalog.RunCatalog`. Provide `SyncClient.layer` with an Effect RPC client protocol. `RunCatalog` has `layerStatic`, `makeMemory`, and `layerNoop`; both client and server have `layerNoop` stubs.
 
 ```ts
-import * as RunCatalog from "@flows/sync/RunCatalog"
-import * as SyncServer from "@flows/sync/SyncServer"
+import * as RunCatalog from "@smithers/sync/RunCatalog"
+import * as SyncServer from "@smithers/sync/SyncServer"
 import { Layer } from "effect"
 
 const serverLayer = SyncServer.layer.pipe(

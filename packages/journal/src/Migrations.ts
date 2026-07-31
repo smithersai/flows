@@ -7,7 +7,7 @@
  *
  * @since 0.1.0
  */
-import { Database } from "@flows/database"
+import { Database } from "@smithers/database"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Migrator from "effect/unstable/sql/Migrator"

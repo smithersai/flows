@@ -1,6 +1,6 @@
 # Determinism and replay
 
-This page defines the replay contract for workflow authors and engine implementers. It covers current handler re-execution, activity memoization, suspension, and the distinction between engine replay and time-travel projection.
+This page defines the replay contract for flow authors and engine implementers. It covers current handler re-execution, activity memoization, suspension, and the distinction between engine replay and time-travel projection.
 
 ## The replay function
 
@@ -20,7 +20,7 @@ On resume, the durable engine:
 
 Control flow is re-evaluated. It is not restored from a JavaScript stack snapshot.
 
-## Deterministic workflow code
+## Deterministic flow code
 
 Code between durable boundaries must produce the same control flow when given the same payload and recorded values. Do not use:
 
@@ -52,13 +52,13 @@ The output may be nondeterministic. Replay safety comes from recording its encod
 
 ## Activity identity
 
-For a sealed activity with an `idempotencyKey`, the workflow engine computes a content key. The activity’s display `name` is not part of that key. Renaming an activity while keeping the same content identity reuses the same result.
+For a sealed activity with an `idempotencyKey`, the flow engine computes a content key. The activity’s display `name` is not part of that key. Renaming an activity while keeping the same content identity reuses the same result.
 
 Sealed activities without a content identity, plus compensable and irreversible activities, use an ordinal allocated by traversal order within the execution. Changing control flow before an ordinal boundary can therefore change which operation occupies that ordinal. Prefer stable content identities for replayable reads.
 
 ## Suspension
 
-When a durable deferred has no stored exit, `DurableDeferred.await` marks the workflow suspended and interrupts the current workflow fiber. `Workflow.intoResult` converts the suspension interrupt into a `Workflow.Suspended` value. The durable driver stores `suspended` and releases ownership.
+When a durable deferred has no stored exit, `DurableDeferred.await` marks the flow suspended and interrupts the current flow fiber. `Flow.intoResult` converts the suspension interrupt into a `Flow.Suspended` value. The durable driver stores `suspended` and releases ownership.
 
 Completing the deferred persists its first result, records and flushes a journal event, then schedules a claim-gated wake. Re-execution reads the completion and proceeds.
 
@@ -72,21 +72,21 @@ The current public API does not expose a separate durable record for every losin
 
 Two APIs use “replay” differently:
 
-- `EngineStore` replay re-runs a registered workflow handler and returns stored boundaries.
-- `TimeTravel.Replay.rederive` is read-only. It folds committed journal entries up to a `Frame` and optionally resolves cache values. It never invokes a workflow handler or activity dispatcher.
+- `EngineStore` replay re-runs a registered flow handler and returns stored boundaries.
+- `TimeTravel.Replay.rederive` is read-only. It folds committed journal entries up to a `Frame` and optionally resolves cache values. It never invokes a flow handler or activity dispatcher.
 
 The latter is suitable for rebuilding a view or assessing a frame. It is not an engine resume.
 
 ## Source changes
 
-There is no workflow-source digest check. Existing activity keys and ordinal positions determine what reuses recorded state after a code edit:
+There is no flow-source digest check. Existing activity keys and ordinal positions determine what reuses recorded state after a code edit:
 
 - changed content identity → new activity result;
 - unchanged content identity → existing result;
 - changed control flow around ordinal activities → potentially different ordinal mapping;
-- changed workflow schemas → stored payload or result decoding may fail as a defect.
+- changed flow schemas → stored payload or result decoding may fail as a defect.
 
-Version workflow tags, activity bodies, and schemas deliberately when compatibility changes.
+Version flow tags, activity bodies, and schemas deliberately when compatibility changes.
 
 ## Related
 

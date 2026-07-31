@@ -1,4 +1,4 @@
-import { Database } from "@flows/database/Database"
+import { Database } from "@smithers/database/Database"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -17,6 +17,30 @@ export const migrate: Effect.Effect<void, unknown, Database> = Effect.gen(functi
 })
 const decode = (value: string | null): unknown | undefined => value === null ? undefined : JSON.parse(value) as unknown
 const mapError = (cause: unknown) => error("unknown", "time-travel persistence failed", cause)
+
+const restartableStateJson = (stateJson: string) =>
+  Effect.try({
+    try: () => {
+      const decoded = JSON.parse(stateJson) as unknown
+      if (
+        typeof decoded !== "object" ||
+        decoded === null ||
+        Array.isArray(decoded) ||
+        !("version" in decoded) ||
+        decoded.version !== 1 ||
+        !("flowName" in decoded) ||
+        typeof decoded.flowName !== "string" ||
+        !("payload" in decoded)
+      ) {
+        throw new Error("parent run state is not a version-1 engine snapshot")
+      }
+      const restartable: Record<string, unknown> = { ...decoded }
+      delete restartable.result
+      delete restartable.cancellation
+      return JSON.stringify(restartable)
+    },
+    catch: (cause) => error("unknown", "could not materialize executable fork state", cause)
+  })
 
 interface EdgeRow {
   readonly parent_run_id: string
@@ -258,9 +282,16 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, Database> = Eff
           `
           const runId = `${parentRunId}:fork:${frame.seq}:${Number(existing[0]?.count ?? 0) + 1}`
           const nowMs = yield* Clock.currentTimeMillis
+          const parentState = yield* sql<{ readonly state_json: string }>`
+            SELECT state_json FROM flows_runs WHERE run_id = ${parentRunId}
+          `
+          if (parentState[0] === undefined) {
+            return yield* Effect.fail(error("not_found", `parent ${parentRunId} was not found`))
+          }
+          const stateJson = yield* restartableStateJson(parentState[0].state_json)
           yield* sql`
             INSERT INTO flows_runs (run_id, status, created_at_ms, state_json)
-            VALUES (${runId}, 'pending', ${nowMs}, '{}')
+            VALUES (${runId}, 'pending', ${nowMs}, ${stateJson})
           `
           yield* sql`
             INSERT INTO flows_journal_events
@@ -271,6 +302,35 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, Database> = Eff
                    event_type, payload_json, meta_json
             FROM flows_journal_events
             WHERE run_id = ${parentRunId} AND seq <= ${frame.seq}
+          `
+          yield* sql`
+            INSERT INTO flows_attempts (
+              run_id,
+              step_key_digest,
+              attempt,
+              state,
+              started_at_ms,
+              finished_at_ms,
+              heartbeat_at_ms,
+              checkpoint_json,
+              error_json,
+              outcome_json,
+              meta_json
+            )
+            SELECT
+              ${runId},
+              step_key_digest,
+              attempt,
+              state,
+              started_at_ms,
+              finished_at_ms,
+              heartbeat_at_ms,
+              checkpoint_json,
+              error_json,
+              outcome_json,
+              meta_json
+            FROM flows_attempts
+            WHERE run_id = ${parentRunId}
           `
           yield* sql`
             INSERT INTO flows_time_travel_edges

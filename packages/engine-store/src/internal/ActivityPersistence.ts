@@ -1,5 +1,5 @@
 /**
- * Durable activity dispatch at the workflow-engine encoded seam.
+ * Durable activity dispatch at the engine encoded seam.
  *
  * Governing designs: `docs/specs/Concepts/Run Ownership.md`,
  * `docs/specs/Concepts/Step Keys.md`, and
@@ -7,9 +7,9 @@
  *
  * @since 0.1.0
  */
-import { AttemptStore, CacheStore, Journal, type Ownership, RunStore } from "@flows/journal"
-import { Jj } from "@flows/kernel"
-import { Digest } from "@flows/keys"
+import { AttemptStore, CacheStore, Journal, type Ownership, RunStore } from "@smithers/journal"
+import { Jj } from "@smithers/kernel"
+import { Digest } from "@smithers/keys"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"

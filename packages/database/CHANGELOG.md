@@ -1,4 +1,4 @@
-# @flows/database
+# @smithers/database
 
 ## [Unreleased]
 

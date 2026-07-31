@@ -1,9 +1,9 @@
 /**
- * The key-material contract, owned here in `@flows/keys` — the lowest package
- * in the keying seam. `@flows/core` produces values matching this shape (its
+ * The key-material contract, owned here in `@smithers/keys` — the lowest package
+ * in the keying seam. `@smithers/core` produces values matching this shape (its
  * richer `KeyMaterial` with concrete `Effects`/`Placement` is structurally
  * assignable, since this module treats those fields opaquely for hashing).
- * Keys stays pure: it never imports `@flows/*` (enforced by Purity.test.ts).
+ * Keys stays pure: it never imports `@smithers/*` (enforced by Purity.test.ts).
  *
  * @since 0.1.0
  */
@@ -23,7 +23,7 @@ export type InputRef =
 /**
  * Everything that can change a step's result, handed to the digest. `effects`
  * and `placement` are opaque here — canonically serialized, never interpreted
- * — which is what keeps this package free of `@flows/core` types.
+ * — which is what keeps this package free of `@smithers/core` types.
  *
  * @since 0.1.0
  * @category models

@@ -1,12 +1,12 @@
 # Failure and retry
 
-This page describes the retry and terminal-failure rules implemented by workflows, activities, run ownership, and time-travel recovery. It does not define a workflow-wide graph failure scheduler, which is planned.
+This page describes the retry and terminal-failure rules implemented by flows, activities, run ownership, and time-travel recovery. It does not define a flow-wide graph failure scheduler, which is planned.
 
-## Workflow outcomes
+## Flow outcomes
 
-A handler completes with an encoded success or expected failure, or returns `Workflow.Suspended`. The durable engine persists the decision and updates the run row. A suspended run may be resumed explicitly, by deferred completion, by a clock, or by completion of an attached child workflow.
+A handler completes with an encoded success or expected failure, or returns `Flow.Suspended`. The durable engine persists the decision and updates the run row. A suspended run may be resumed explicitly, by deferred completion, by a clock, or by completion of an attached child flow.
 
-`Workflow.SuspendOnFailure` can convert a handler failure into suspension. `Workflow.CaptureDefects` controls whether defects are captured into the workflow result. These references should be set centrally; changing them between replays changes runtime policy.
+`Flow.SuspendOnFailure` can convert a handler failure into suspension. `Flow.CaptureDefects` controls whether defects are captured into the flow result. These references should be set centrally; changing them between replays changes runtime policy.
 
 ## Activity attempts
 
@@ -19,7 +19,7 @@ Each durable attempt is addressed by:
 `Activity.retry` increments `Activity.CurrentAttempt` and delegates scheduling to Effect:
 
 ```ts
-import { Activity } from "@flows/workflow-engine"
+import { Activity } from "@smithers/engine"
 const result = yield* Activity.retry(
   WriteArtifact,
   { times: 4 }
@@ -46,7 +46,7 @@ The default heartbeat interval is one second and the stale threshold is 30 secon
 
 ## Recovery utilities
 
-`@flows/time-travel` includes:
+`@smithers/time-travel` includes:
 
 - `Retry.retry`, which reattempts an operation while blocking unsafe irreversible retries.
 - `Recovery.recover`, which completes or rolls back interrupted rewind audits during startup.

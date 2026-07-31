@@ -1,5 +1,5 @@
-import { Journal, JournalEvent } from "@flows/journal"
-import { DurableClock, DurableDeferred, Workflow, WorkflowEngine } from "@flows/workflow-engine"
+import { Journal, JournalEvent } from "@smithers/journal"
+import { DurableClock, DurableDeferred, Flow, FlowEngine } from "@smithers/engine"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
@@ -15,7 +15,7 @@ const owner = {
   nonce: "owner"
 }
 
-const TestWorkflow = Workflow.make("DeferredPersistence/Test", {
+const TestFlow = Flow.make("DeferredPersistence/Test", {
   payload: {},
   success: Schema.String
 })
@@ -65,7 +65,7 @@ const build = (
   DeferredPersistence.make({
     owner,
     journalSource: "deferred-test",
-    scheduleResume: (_workflowName, executionId, reason) =>
+    scheduleResume: (_flowName, executionId, reason) =>
       Effect.sync(() => {
         onResume?.()
         resumes.push(`${executionId}:${reason}`)
@@ -83,7 +83,7 @@ describe("DeferredPersistence", () => {
       const resumes: Array<string> = []
       const service = yield* build(state, makeJournal(events), resumes)
       const address = {
-        workflowName: TestWorkflow._tag,
+        flowName: TestFlow._tag,
         executionId: "duplicate",
         deferredName: "answer"
       }
@@ -118,7 +118,7 @@ describe("DeferredPersistence", () => {
     const resumes: Array<string> = []
     let durableAtResume = false
     const address = {
-      workflowName: TestWorkflow._tag,
+      flowName: TestFlow._tag,
       executionId: "ordered",
       deferredName: "answer"
     }
@@ -146,15 +146,15 @@ describe("DeferredPersistence", () => {
       const journal = makeJournal([])
       const first = yield* build(state, journal, [])
       yield* first.deferredDone({
-        workflowName: TestWorkflow._tag,
+        flowName: TestFlow._tag,
         executionId: "restart",
         deferredName: "answer",
         exit: Exit.succeed("persisted")
       })
 
       const restarted = yield* build(state, journal, [])
-      const instance = WorkflowEngine.WorkflowInstance.initial(
-        TestWorkflow,
+      const instance = FlowEngine.FlowInstance.initial(
+        TestFlow,
         "restart"
       )
       return yield* restarted.deferredResult(
@@ -162,7 +162,7 @@ describe("DeferredPersistence", () => {
           success: Schema.String
         })
       ).pipe(
-        Effect.provideService(WorkflowEngine.WorkflowInstance, instance)
+        Effect.provideService(FlowEngine.FlowInstance, instance)
       )
     })))
 
@@ -180,7 +180,7 @@ describe("DeferredPersistence", () => {
 
         yield* Effect.scoped(Effect.gen(function*() {
           const first = yield* build(state, journal, resumes)
-          yield* first.scheduleClock(TestWorkflow, {
+          yield* first.scheduleClock(TestFlow, {
             executionId: "clock-run",
             clock
           })
@@ -188,10 +188,10 @@ describe("DeferredPersistence", () => {
         yield* TestClock.adjust("5 seconds")
 
         const restarted = yield* build(state, journal, resumes)
-        yield* restarted.sweepDue(TestWorkflow._tag)
+        yield* restarted.sweepDue(TestFlow._tag)
         const before = Option.getOrThrow(
           yield* state.clock({
-            workflowName: TestWorkflow._tag,
+            flowName: TestFlow._tag,
             executionId: "clock-run",
             clockName: "wake"
           })
@@ -220,14 +220,14 @@ describe("DeferredPersistence", () => {
     await Effect.runPromise(Effect.scoped(Effect.gen(function*() {
       const state = DurableEngineState.makeMemory()
       yield* state.completeDeferred({
-        workflowName: TestWorkflow._tag,
+        flowName: TestFlow._tag,
         executionId: "completion-during-downtime",
         deferredName: "answer",
         exit: Exit.succeed("ready"),
         completedAtMs: 1
       })
       const restarted = yield* build(state, makeJournal([]), resumes)
-      yield* restarted.sweepDue(TestWorkflow._tag)
+      yield* restarted.sweepDue(TestFlow._tag)
     })))
 
     expect(resumes).toEqual(["completion-during-downtime:deferred"])

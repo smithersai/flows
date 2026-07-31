@@ -1,5 +1,5 @@
 /**
- * Durable `WorkflowEngine.Encoded` composition over `@flows/journal`.
+ * Durable `FlowEngine.Encoded` composition over `@smithers/journal`.
  *
  * Governing designs: `docs/specs/Concepts/Run Ownership.md`,
  * `docs/specs/Concepts/Step Keys.md`, and
@@ -7,9 +7,9 @@
  *
  * @since 0.1.0
  */
-import { AttemptStore, CacheStore, Journal, type Ownership, RunStore } from "@flows/journal"
-import { Jj } from "@flows/kernel"
-import { type Activity, Workflow, WorkflowEngine } from "@flows/workflow-engine"
+import { AttemptStore, CacheStore, Journal, type Ownership, RunStore } from "@smithers/journal"
+import { Jj } from "@smithers/kernel"
+import { type Activity, Flow, FlowEngine } from "@smithers/engine"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -77,7 +77,7 @@ const ownerId = (hostId: string): Ownership.OwnerId => ({
  */
 export const make = (
   options: Options
-): Effect.Effect<WorkflowEngine.WorkflowEngine["Service"], never, Requirements> =>
+): Effect.Effect<FlowEngine.FlowEngine["Service"], never, Requirements> =>
   Effect.gen(function*() {
     const owner = ownerId(options.owner.hostId)
     const attemptStore = yield* AttemptStore.AttemptStore
@@ -87,7 +87,7 @@ export const make = (
     const runStore = yield* RunStore.RunStore
     const stepBoundary = yield* StepBoundary.StepBoundary
 
-    const engine = yield* Deferred.make<WorkflowEngine.WorkflowEngine["Service"]>()
+    const engine = yield* Deferred.make<FlowEngine.FlowEngine["Service"]>()
     const driver = yield* RunDriver.make({
       owner,
       journalSource: options.journalSource,
@@ -97,22 +97,22 @@ export const make = (
     const deferred = yield* DeferredPersistence.make({
       owner,
       journalSource: options.journalSource,
-      scheduleResume: (workflowName, executionId, reason) => driver.scheduleResume(workflowName, executionId, reason)
+      scheduleResume: (flowName, executionId, reason) => driver.scheduleResume(flowName, executionId, reason)
     })
 
-    const activityExecute = Effect.fn("WorkflowEngine.activityExecute")(function*(input: {
+    const activityExecute = Effect.fn("FlowEngine.activityExecute")(function*(input: {
       readonly activity: Activity.Any
       readonly attempt: number
       readonly key: string
       readonly tier: ActivityPersistence.Tier
       readonly metadata: unknown
     }) {
-      const parent = yield* WorkflowEngine.WorkflowInstance
-      const instance = WorkflowEngine.WorkflowInstance.initial(
-        parent.workflow,
+      const parent = yield* FlowEngine.FlowInstance
+      const instance = FlowEngine.FlowInstance.initial(
+        parent.flow,
         parent.executionId
       )
-      const workflowEngine = yield* Deferred.await(engine)
+      const flowEngine = yield* Deferred.await(engine)
       instance.interrupted = parent.interrupted
       return yield* ActivityPersistence.make({
         runId: parent.executionId,
@@ -132,11 +132,11 @@ export const make = (
           ? { metadata: input.metadata }
           : {})
       }).pipe(
-        Workflow.intoResult,
-        Effect.provideService(WorkflowEngine.WorkflowInstance, instance),
+        Flow.intoResult,
+        Effect.provideService(FlowEngine.FlowInstance, instance),
         Effect.provideService(
-          WorkflowEngine.WorkflowEngine,
-          workflowEngine
+          FlowEngine.FlowEngine,
+          flowEngine
         ),
         Effect.provideService(AttemptStore.AttemptStore, attemptStore),
         Effect.provideService(CacheStore.CacheStore, cacheStore),
@@ -147,10 +147,10 @@ export const make = (
       )
     })
 
-    const encoded: WorkflowEngine.Encoded = {
-      register: Effect.fn("WorkflowEngine.register")((workflow, execute) =>
-        driver.register(workflow, execute).pipe(
-          Effect.tap(() => deferred.sweepDue(workflow._tag))
+    const encoded: FlowEngine.Encoded = {
+      register: Effect.fn("FlowEngine.register")((flow, execute) =>
+        driver.register(flow, execute).pipe(
+          Effect.tap(() => deferred.sweepDue(flow._tag))
         )
       ),
       execute: driver.execute,
@@ -163,16 +163,16 @@ export const make = (
       deferredDone: deferred.deferredDone,
       scheduleClock: deferred.scheduleClock
       // TODO(piece-6): resumeSignal remains unimplemented until Journal Queue
-      // exposes a committed event-driven wake subscription. The workflow
+      // exposes a committed event-driven wake subscription. The flow
       // engine's suspension polling schedule remains the fallback.
     }
-    const service = WorkflowEngine.makeUnsafe(encoded)
+    const service = FlowEngine.makeUnsafe(encoded)
     yield* Deferred.succeed(engine, service)
     return service
   })
 
 /**
- * Provides the durable workflow engine.
+ * Provides the durable flow engine.
  *
  * @since 0.1.0
  * @category layers
@@ -180,14 +180,14 @@ export const make = (
 export const layer = (
   options: Options
 ): Layer.Layer<
-  WorkflowEngine.SnapshotBoundary | WorkflowEngine.WorkflowEngine,
+  FlowEngine.SnapshotBoundary | FlowEngine.FlowEngine,
   never,
   Requirements
 > => {
   const snapshotBoundary = Layer.effect(
-    WorkflowEngine.SnapshotBoundary,
+    FlowEngine.SnapshotBoundary,
     Effect.map(Jj.Jj, (jj) =>
-      WorkflowEngine.SnapshotBoundary.of({
+      FlowEngine.SnapshotBoundary.of({
         snapshot: Effect.fn("SnapshotBoundary.snapshot")(({ key, attempt }) =>
           jj.snapshot(`flows activity ${key} attempt ${attempt}`).pipe(
             Effect.orDie,
@@ -204,7 +204,7 @@ export const layer = (
       }))
   )
   return Layer.merge(
-    Layer.effect(WorkflowEngine.WorkflowEngine, make(options)),
+    Layer.effect(FlowEngine.FlowEngine, make(options)),
     snapshotBoundary
   )
 }

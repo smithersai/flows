@@ -1,5 +1,5 @@
 /**
- * Durable workflow-engine persistence and ownership composition.
+ * Durable engine persistence and ownership composition.
  *
  * @since 0.1.0
  */

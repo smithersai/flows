@@ -1,11 +1,11 @@
-# `@flows/database`
+# `@smithers/database`
 
-This page is the public API reference for the thin SQL transaction service. `@flows/database` owns driver composition and normalized database failures; journal tables and queries belong to `@flows/journal`.
+This page is the public API reference for the thin SQL transaction service. `@smithers/database` owns driver composition and normalized database failures; journal tables and queries belong to `@smithers/journal`.
 
 ## Import
 
 ```ts
-import { Database, NodeDatabase, TestDatabase } from "@flows/database"
+import { Database, NodeDatabase, TestDatabase } from "@smithers/database"
 ```
 
 ## `Database`
@@ -48,4 +48,4 @@ const DatabaseLayer = NodeDatabase.layer({
 
 The database service does not run domain migrations. Compose [`Journal.Migrations.layer`](journal.md#migrations) before exposing journal stores. The Vercel server adapter can wrap a PostgreSQL client, but `Database.write`’s extra write-retry classification remains SQLite-oriented.
 
-See [Assembling a durable engine](../guides/durable-engine.md) and the [`@flows/journal` reference](journal.md).
+See [Assembling a durable engine](../guides/durable-engine.md) and the [`@smithers/journal` reference](journal.md).

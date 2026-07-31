@@ -1,12 +1,12 @@
 /**
- * Claim-gated durable workflow run lifecycle.
+ * Claim-gated durable flow run lifecycle.
  *
  * Governing design: `docs/specs/Concepts/Run Ownership.md`.
  *
  * @since 0.1.0
  */
-import { Journal, Ownership, RunCoordinator, RunStore } from "@flows/journal"
-import { Workflow, WorkflowEngine } from "@flows/workflow-engine"
+import { Journal, Ownership, RunCoordinator, RunStore } from "@smithers/journal"
+import { Flow, FlowEngine } from "@smithers/engine"
 import * as Clock from "effect/Clock"
 import * as Deferred from "effect/Deferred"
 import * as Duration from "effect/Duration"
@@ -25,7 +25,7 @@ import * as JournalRecords from "./JournalRecords.ts"
  */
 export interface PersistedState {
   readonly version: 1
-  readonly workflowName: string
+  readonly flowName: string
   readonly payload: unknown
   readonly parentExecutionId?: string | undefined
   readonly result?: unknown
@@ -36,7 +36,7 @@ export interface PersistedState {
 
 const PersistedStateSchema = Schema.Struct({
   version: Schema.Literal(1),
-  workflowName: Schema.String,
+  flowName: Schema.String,
   payload: Schema.Unknown,
   parentExecutionId: Schema.optional(Schema.String),
   result: Schema.optional(Schema.Unknown),
@@ -57,24 +57,24 @@ export interface Dependencies {
   readonly owner: Ownership.OwnerId
   readonly journalSource: string
   readonly isAlive: (owner: Ownership.OwnerId) => Effect.Effect<boolean>
-  readonly engine: Effect.Effect<WorkflowEngine.WorkflowEngine["Service"]>
+  readonly engine: Effect.Effect<FlowEngine.FlowEngine["Service"]>
 }
 
 /**
- * Claim-gated operations composed into the encoded workflow engine.
+ * Claim-gated operations composed into the encoded flow engine.
  *
  * @since 0.1.0
  * @category models
  */
 export interface Service {
-  readonly register: WorkflowEngine.Encoded["register"]
-  readonly execute: WorkflowEngine.Encoded["execute"]
-  readonly poll: WorkflowEngine.Encoded["poll"]
-  readonly interrupt: WorkflowEngine.Encoded["interrupt"]
-  readonly interruptUnsafe: WorkflowEngine.Encoded["interruptUnsafe"]
-  readonly resume: WorkflowEngine.Encoded["resume"]
+  readonly register: FlowEngine.Encoded["register"]
+  readonly execute: FlowEngine.Encoded["execute"]
+  readonly poll: FlowEngine.Encoded["poll"]
+  readonly interrupt: FlowEngine.Encoded["interrupt"]
+  readonly interruptUnsafe: FlowEngine.Encoded["interruptUnsafe"]
+  readonly resume: FlowEngine.Encoded["resume"]
   readonly scheduleResume: (
-    workflowName: string,
+    flowName: string,
     executionId: string,
     reason: "deferred" | "clock" | "parent" | "operator"
   ) => Effect.Effect<void>
@@ -82,11 +82,11 @@ export interface Service {
 }
 
 interface Registration {
-  readonly workflow: Workflow.Any
+  readonly flow: Flow.Any
   readonly execute: (
     payload: object,
     executionId: string
-  ) => Effect.Effect<unknown, unknown, WorkflowEngine.WorkflowInstance | WorkflowEngine.WorkflowEngine>
+  ) => Effect.Effect<unknown, unknown, FlowEngine.FlowInstance | FlowEngine.FlowEngine>
 }
 
 const snapshot = (row: RunStore.RunRow): RunStore.RunSnapshot => ({
@@ -118,7 +118,7 @@ export const make = (
     const journal = yield* Journal.Journal
     const store = yield* RunStore.RunStore
     const registrations = new Map<string, Registration>()
-    const liveInstances = new Map<string, WorkflowEngine.WorkflowInstance["Service"]>()
+    const liveInstances = new Map<string, FlowEngine.FlowInstance["Service"]>()
 
     const encodeState = (state: PersistedState): Effect.Effect<string> =>
       Schema.encodeEffect(PersistedStateJson)(state).pipe(Effect.orDie)
@@ -272,7 +272,7 @@ export const make = (
         if (initial === undefined) return
 
         const state = yield* decodeState(initial.stateJson)
-        const registration = registrations.get(state.workflowName)
+        const registration = registrations.get(state.flowName)
         if (registration === undefined) return
         if (!(yield* claimAndActivate(initial))) return
 
@@ -286,21 +286,21 @@ export const make = (
         if (cleared._tag !== "Transitioned") return
 
         const payload = yield* (Schema.decodeUnknownEffect(
-          Schema.toCodecJson(registration.workflow.payloadSchema)
+          Schema.toCodecJson(registration.flow.payloadSchema)
         )(activeState.payload).pipe(Effect.orDie) as Effect.Effect<unknown>)
-        const instance = WorkflowEngine.WorkflowInstance.initial(
-          registration.workflow,
+        const instance = FlowEngine.FlowInstance.initial(
+          registration.flow,
           executionId
         )
         liveInstances.set(executionId, instance)
-        const workflowEngine = yield* dependencies.engine
+        const flowEngine = yield* dependencies.engine
 
         const result = yield* Effect.scoped(
           Effect.raceFirst(
             registration.execute(payload as object, executionId).pipe(
-              Workflow.intoResult,
-              Effect.provideService(WorkflowEngine.WorkflowInstance, instance),
-              Effect.provideService(WorkflowEngine.WorkflowEngine, workflowEngine)
+              Flow.intoResult,
+              Effect.provideService(FlowEngine.FlowInstance, instance),
+              Effect.provideService(FlowEngine.FlowEngine, flowEngine)
             ),
             Ownership.heartbeatLoop(executionId, dependencies.owner).pipe(
               Effect.provideService(RunStore.RunStore, store)
@@ -312,9 +312,9 @@ export const make = (
         )
 
         const encodedResult = yield* (Schema.encodeEffect(
-          Schema.toCodecJson(Workflow.Result({
-            success: registration.workflow.successSchema,
-            error: registration.workflow.errorSchema
+          Schema.toCodecJson(Flow.Result({
+            success: registration.flow.successSchema,
+            error: registration.flow.errorSchema
           }))
         )(result).pipe(Effect.orDie) as Effect.Effect<unknown>)
         const nextState: PersistedState = { ...activeState, result: encodedResult }
@@ -351,22 +351,22 @@ export const make = (
     yield* Deferred.succeed(coordinatorDeferred, coordinator)
 
     const ensureRun = (
-      workflow: Workflow.Any,
+      flow: Flow.Any,
       options: {
         readonly executionId: string
         readonly payload: object
-        readonly parent?: WorkflowEngine.WorkflowInstance["Service"] | undefined
+        readonly parent?: FlowEngine.FlowInstance["Service"] | undefined
       }
     ): Effect.Effect<void> =>
       Effect.gen(function*() {
         const payload = yield* (Schema.encodeEffect(
-          Schema.toCodecJson(workflow.payloadSchema)
+          Schema.toCodecJson(flow.payloadSchema)
         )(
           options.payload
         ).pipe(Effect.orDie) as Effect.Effect<unknown>)
         const state: PersistedState = {
           version: 1,
-          workflowName: workflow._tag,
+          flowName: flow._tag,
           payload,
           ...(options.parent === undefined
             ? {}
@@ -385,18 +385,18 @@ export const make = (
         const existing = yield* store.get(options.executionId).pipe(Effect.orDie)
         const persisted = yield* decodeState(existing.stateJson)
         if (
-          persisted.workflowName !== workflow._tag ||
+          persisted.flowName !== flow._tag ||
           !samePayload(persisted.payload, payload)
         ) {
           return yield* Effect.die(
             new Error(
-              `execution ${options.executionId} already belongs to a different workflow tag or encoded payload`
+              `execution ${options.executionId} already belongs to a different flow tag or encoded payload`
             )
           )
         }
       })
 
-    const poll: Service["poll"] = Effect.fn("WorkflowEngine.poll")((workflow, executionId) =>
+    const poll: Service["poll"] = Effect.fn("FlowEngine.poll")((flow, executionId) =>
       store.get(executionId).pipe(
         Effect.catch((error) =>
           error.code === "not_found_row"
@@ -408,52 +408,52 @@ export const make = (
           return decodeState(row.stateJson).pipe(
             Effect.flatMap((state) => {
               if (
-                state.workflowName !== workflow._tag ||
+                state.flowName !== flow._tag ||
                 state.result === undefined
               ) {
                 return Effect.succeedNone
               }
               return (Schema.decodeUnknownEffect(
-                Schema.toCodecJson(Workflow.Result({
-                  success: workflow.successSchema,
-                  error: workflow.errorSchema
+                Schema.toCodecJson(Flow.Result({
+                  success: flow.successSchema,
+                  error: flow.errorSchema
                 }))
               )(state.result).pipe(
                 Effect.orDie,
                 Effect.map(Option.some)
-              ) as Effect.Effect<Option.Option<Workflow.Result<unknown, unknown>>>)
+              ) as Effect.Effect<Option.Option<Flow.Result<unknown, unknown>>>)
             })
           )
         })
       )
     )
 
-    const execute: Service["execute"] = Effect.fn("WorkflowEngine.execute")(
+    const execute: Service["execute"] = Effect.fn("FlowEngine.execute")(
       function*<const Discard extends boolean>(
-        workflow: Workflow.Any,
+        flow: Flow.Any,
         options: {
           readonly executionId: string
           readonly payload: object
           readonly discard: Discard
-          readonly parent?: WorkflowEngine.WorkflowInstance["Service"] | undefined
+          readonly parent?: FlowEngine.FlowInstance["Service"] | undefined
         }
       ) {
-        if (!registrations.has(workflow._tag)) {
+        if (!registrations.has(flow._tag)) {
           return yield* Effect.die(
-            new Error(`Workflow ${workflow._tag} is not registered`)
+            new Error(`Flow ${flow._tag} is not registered`)
           )
         }
-        yield* ensureRun(workflow, options)
+        yield* ensureRun(flow, options)
         yield* coordinator.run(options.executionId)
         if (options.discard) return undefined as Discard extends true ? void : never
-        const result = yield* poll(workflow, options.executionId)
-        return Option.getOrElse(result, () => new Workflow.Suspended({})) as Discard extends true ? void
-          : Workflow.Result<unknown, unknown>
+        const result = yield* poll(flow, options.executionId)
+        return Option.getOrElse(result, () => new Flow.Suspended({})) as Discard extends true ? void
+          : Flow.Result<unknown, unknown>
       }
     )
 
-    const interrupt = Effect.fn("WorkflowEngine.interrupt")((
-      _workflow: Workflow.Any,
+    const interrupt = Effect.fn("FlowEngine.interrupt")((
+      _flow: Flow.Any,
       executionId: string
     ): Effect.Effect<void> =>
       Effect.sync(() => {
@@ -462,8 +462,8 @@ export const make = (
       }).pipe(Effect.andThen(coordinator.interrupt(executionId)))
     )
 
-    const scheduleResume: Service["scheduleResume"] = Effect.fn("WorkflowEngine.scheduleResume")((
-      workflowName,
+    const scheduleResume: Service["scheduleResume"] = Effect.fn("FlowEngine.scheduleResume")((
+      flowName,
       executionId,
       reason
     ) =>
@@ -477,7 +477,7 @@ export const make = (
         )
         if (row === undefined) return
         const state = yield* decodeState(row.stateJson)
-        if (state.workflowName !== workflowName) return
+        if (state.flowName !== flowName) return
         yield* emitDecision(executionId, {
           decision: "wake-scheduled",
           reason
@@ -487,17 +487,17 @@ export const make = (
     )
 
     return {
-      register: Effect.fn("WorkflowEngine.register")((workflow, handler) =>
+      register: Effect.fn("FlowEngine.register")((flow, handler) =>
         Effect.acquireRelease(
           Effect.sync(() => {
-            const registration = { workflow, execute: handler }
-            registrations.set(workflow._tag, registration)
+            const registration = { flow, execute: handler }
+            registrations.set(flow._tag, registration)
             return registration
           }),
           (registration) =>
             Effect.sync(() => {
-              if (registrations.get(workflow._tag) === registration) {
-                registrations.delete(workflow._tag)
+              if (registrations.get(flow._tag) === registration) {
+                registrations.delete(flow._tag)
               }
             })
         ).pipe(Effect.asVoid)
@@ -505,13 +505,13 @@ export const make = (
       execute,
       poll,
       interrupt,
-      interruptUnsafe: Effect.fn("WorkflowEngine.interruptUnsafe")(interrupt),
-      resume: Effect.fn("WorkflowEngine.resume")((workflow, executionId) =>
-        scheduleResume(workflow._tag, executionId, "operator").pipe(
+      interruptUnsafe: Effect.fn("FlowEngine.interruptUnsafe")(interrupt),
+      resume: Effect.fn("FlowEngine.resume")((flow, executionId) =>
+        scheduleResume(flow._tag, executionId, "operator").pipe(
           Effect.andThen(coordinator.run(executionId))
         )
       ),
       scheduleResume,
-      active: Effect.fn("WorkflowEngine.active")(() => coordinator.active)()
+      active: Effect.fn("FlowEngine.active")(() => coordinator.active)()
     }
   })

@@ -9,7 +9,7 @@
  *
  * @since 0.1.0
  */
-import { Database } from "@flows/database/Database"
+import { Database } from "@smithers/database/Database"
 import { Clock, Context, Effect, Layer, Schema } from "effect"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"
 import type { LivenessEvidence, OwnerId } from "./Ownership.ts"

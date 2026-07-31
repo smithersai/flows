@@ -1,6 +1,6 @@
-# `@flows/host`
+# `@smithers/host`
 
-This page is the public API reference for the raw portable host surface and its platform bundles. Permission enforcement is provided separately by `@flows/kernel`.
+This page is the public API reference for the raw portable host surface and its platform bundles. Permission enforcement is provided separately by `@smithers/kernel`.
 
 ## Closed service set
 
@@ -40,6 +40,6 @@ const HostLayer = TestHost.layer({
 
 ## Deep imports
 
-Package exports allow public module imports such as `@flows/host/node/NodeShell` and `@flows/host/browser/BrowserFileSystem`; `internal/*` is blocked. Prefer the root namespaces unless constructing a custom bundle.
+Package exports allow public module imports such as `@smithers/host/node/NodeShell` and `@smithers/host/browser/BrowserFileSystem`; `internal/*` is blocked. Prefer the root namespaces unless constructing a custom bundle.
 
-See [Hosts and capabilities](../concepts/hosts-and-capabilities.md), the [`@flows/kernel` reference](kernel.md), and the hosted adapters for [Cloudflare](host-cloudflare.md) and [Vercel](host-vercel.md).
+See [Hosts and capabilities](../concepts/hosts-and-capabilities.md), the [`@smithers/kernel` reference](kernel.md), and the hosted adapters for [Cloudflare](https://github.com/smithersai/plugins/blob/main/docs/reference/host-cloudflare.md) and [Vercel](https://github.com/smithersai/plugins/blob/main/docs/reference/host-vercel.md).

@@ -3,8 +3,8 @@
  *
  * @since 0.1.0
  */
-import { Journal, type Ownership } from "@flows/journal"
-import { type DurableClock, type DurableDeferred, type Workflow, WorkflowEngine } from "@flows/workflow-engine"
+import { Journal, type Ownership } from "@smithers/journal"
+import { type DurableClock, type DurableDeferred, type Flow, FlowEngine } from "@smithers/engine"
 import * as Clock from "effect/Clock"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
@@ -27,7 +27,7 @@ export type ResumeReason = "deferred" | "clock"
  * Dependencies for durable deferred and clock persistence.
  *
  * `scheduleResume` must enter the run coordinator and ownership claim path. It
- * must never invoke a workflow handler directly.
+ * must never invoke a flow handler directly.
  *
  * @since 0.1.0
  * @category models
@@ -36,7 +36,7 @@ export interface Dependencies {
   readonly owner: Ownership.OwnerId
   readonly journalSource: string
   readonly scheduleResume: (
-    workflowName: string,
+    flowName: string,
     executionId: string,
     reason: ResumeReason
   ) => Effect.Effect<void>
@@ -49,7 +49,7 @@ export interface Dependencies {
  * @category models
  */
 export interface DeferredDoneOptions {
-  readonly workflowName: string
+  readonly flowName: string
   readonly executionId: string
   readonly deferredName: string
   readonly exit: Exit.Exit<unknown, unknown>
@@ -68,27 +68,27 @@ export interface Service {
   ) => Effect.Effect<
     Option.Option<Exit.Exit<unknown, unknown>>,
     never,
-    WorkflowEngine.WorkflowInstance
+    FlowEngine.FlowInstance
   >
   readonly deferredDone: (options: DeferredDoneOptions) => Effect.Effect<void>
   readonly scheduleClock: (
-    workflow: Workflow.Any,
+    flow: Flow.Any,
     options: {
       readonly executionId: string
       readonly clock: DurableClock.DurableClock
     }
   ) => Effect.Effect<void>
-  readonly sweepDue: (workflowName?: string) => Effect.Effect<void>
+  readonly sweepDue: (flowName?: string) => Effect.Effect<void>
 }
 
 const clockKey = (row: DurableEngineState.ClockAddress): string =>
-  JSON.stringify([row.workflowName, row.executionId, row.clockName])
+  JSON.stringify([row.flowName, row.executionId, row.clockName])
 
 /**
  * Constructs durable deferred and clock persistence.
  *
  * Delivery ordering is `durable state -> durable journal -> claim-gated
- * resume`. The delivery operation itself never invokes a workflow handler.
+ * resume`. The delivery operation itself never invokes a flow handler.
  *
  * @since 0.1.0
  * @category constructors
@@ -112,7 +112,7 @@ export const make = (
       Effect.gen(function*() {
         const completedAtMs = yield* Clock.currentTimeMillis
         const completion = yield* state.completeDeferred({
-          workflowName: options.workflowName,
+          flowName: options.flowName,
           executionId: options.executionId,
           deferredName: options.deferredName,
           exit: options.exit,
@@ -125,11 +125,11 @@ export const make = (
           JournalRecords.deferredCompleted({
             runId: options.executionId,
             sourceId: `${dependencies.journalSource}:deferred:${
-              JSON.stringify([options.workflowName, options.executionId, options.deferredName])
+              JSON.stringify([options.flowName, options.executionId, options.deferredName])
             }`,
             sourceSeq: 0
           }, {
-            workflowName: row.workflowName,
+            flowName: row.flowName,
             executionId: row.executionId,
             deferredName: row.deferredName,
             exit: row.exit,
@@ -145,7 +145,7 @@ export const make = (
         }
         yield* journal.flush.pipe(Effect.orDie)
         yield* dependencies.scheduleResume(
-          row.workflowName,
+          row.flowName,
           row.executionId,
           reason
         )
@@ -156,7 +156,7 @@ export const make = (
         const completedAtMs = yield* Clock.currentTimeMillis
         yield* completeDeferred(
           {
-            workflowName: row.workflowName,
+            flowName: row.flowName,
             executionId: row.executionId,
             deferredName: row.deferredName,
             exit: Exit.void,
@@ -190,11 +190,11 @@ export const make = (
           JournalRecords.clockScheduled({
             runId: row.executionId,
             sourceId: `${dependencies.journalSource}:clock:${
-              JSON.stringify([row.workflowName, row.executionId, row.clockName])
+              JSON.stringify([row.flowName, row.executionId, row.clockName])
             }`,
             sourceSeq: 0
           }, {
-            workflowName: row.workflowName,
+            flowName: row.flowName,
             executionId: row.executionId,
             clockName: row.clockName,
             deferredName: row.deferredName,
@@ -210,13 +210,13 @@ export const make = (
       })
 
     const scheduleClock: Service["scheduleClock"] = Effect.fn("DeferredPersistence.scheduleClock")((
-      workflow,
+      flow,
       options
     ) =>
       Effect.gen(function*() {
         const nowMs = yield* Clock.currentTimeMillis
         const scheduled = yield* state.scheduleClock({
-          workflowName: workflow._tag,
+          flowName: flow._tag,
           executionId: options.executionId,
           clockName: options.clock.name,
           deferredName: options.clock.deferred.name,
@@ -228,23 +228,23 @@ export const make = (
       })
     )
 
-    const sweepDue: Service["sweepDue"] = Effect.fn("DeferredPersistence.sweepDue")((workflowName) =>
+    const sweepDue: Service["sweepDue"] = Effect.fn("DeferredPersistence.sweepDue")((flowName) =>
       Effect.gen(function*() {
         const rows = yield* state.dueClocks(Number.MAX_SAFE_INTEGER)
         yield* Effect.forEach(
-          workflowName === undefined
+          flowName === undefined
             ? rows
-            : rows.filter((row) => row.workflowName === workflowName),
+            : rows.filter((row) => row.flowName === flowName),
           (row) => recordClockScheduled(row).pipe(Effect.andThen(armClock(row))),
           { discard: true }
         )
-        if (workflowName !== undefined && state.completedDeferreds !== undefined) {
-          const completions = yield* state.completedDeferreds(workflowName)
+        if (flowName !== undefined && state.completedDeferreds !== undefined) {
+          const completions = yield* state.completedDeferreds(flowName)
           yield* Effect.forEach(
             completions,
             (address) =>
               dependencies.scheduleResume(
-                address.workflowName,
+                address.flowName,
                 address.executionId,
                 "deferred"
               ),
@@ -256,9 +256,9 @@ export const make = (
 
     return {
       deferredResult: Effect.fn("DeferredPersistence.deferredResult")(function*(deferred) {
-        const instance = yield* WorkflowEngine.WorkflowInstance
+        const instance = yield* FlowEngine.FlowInstance
         const row = yield* state.deferred({
-          workflowName: instance.workflow._tag,
+          flowName: instance.flow._tag,
           executionId: instance.executionId,
           deferredName: deferred.name
         })

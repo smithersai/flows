@@ -1,4 +1,4 @@
-# `@flows/time-travel`
+# `@smithers/time-travel`
 
 This page is the public API reference for journal projection replay, time-travel stores, forks, compensating recovery, and audited rewind. The package is a protocol library and is not automatically wired into every engine execution.
 
@@ -42,6 +42,11 @@ This page is the public API reference for journal projection replay, time-travel
 
 ## Integration caveat
 
-`SqlTimeTravelStore.createFork` does not create the versioned persisted state expected by `EngineStore`. The application must also create boundary records, snapshots, and lineage where its workflow semantics require them. Automatic integration is **Planned**.
+`SqlTimeTravelStore.createFork` creates a restartable engine row, copies
+attempts, copies the selected journal prefix, and records lineage in
+`flows_time_travel_edges`. Current run state and attempts are not historical
+per-frame snapshots, so applications must still create boundary records and
+snapshots where exact frame semantics require them. Automatic integration is
+**Planned**.
 
 See [Time travel](../concepts/time-travel.md), [Failure and retry](../concepts/failure-and-retry.md), and [Implementation status](../architecture/implementation-status.md).

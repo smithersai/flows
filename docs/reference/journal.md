@@ -1,6 +1,6 @@
-# `@flows/journal`
+# `@smithers/journal`
 
-This page is the public API reference for durable events, run ownership, activity attempts, and content-cache rows. The package stores engine facts; workflow orchestration is implemented by `@flows/engine-store`.
+This page is the public API reference for durable events, run ownership, activity attempts, and content-cache rows. The package stores engine facts; flow orchestration is implemented by `@smithers/engine-store`.
 
 ## Journal events
 
@@ -57,4 +57,4 @@ Both stores export SQL `make`/`layer` plus no-op test seams.
 
 `Projection.make` is an identity constructor for `{ name, initial, reduce }`. `TestJournal.layer(options?)` composes migrations and all SQL stores over in-memory SQLite.
 
-See [Journal semantics](../concepts/journal.md), [Concurrency](../concepts/concurrency.md), and the [`@flows/engine-store` reference](engine-store.md).
+See [Journal semantics](../concepts/journal.md), [Concurrency](../concepts/concurrency.md), and the [`@smithers/engine-store` reference](engine-store.md).

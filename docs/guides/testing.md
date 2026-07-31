@@ -1,16 +1,16 @@
 # Testing
 
-This guide covers deterministic host fixtures, an in-memory workflow engine, and SQL-backed engine integration tests. It does not require external services.
+This guide covers deterministic host fixtures, an in-memory flow engine, and SQL-backed engine integration tests. It does not require external services.
 
 ## Unit-test a handler
 
-Use `WorkflowEngine.layerMemory` when the behavior under test does not require restart replay:
+Use `FlowEngine.layerMemory` when the behavior under test does not require restart replay:
 
 ```ts
 const layer = Build.toLayer(({ target }) =>
   Effect.succeed({ artifact: `${target}.js` })
 ).pipe(
-  Layer.provideMerge(WorkflowEngine.layerMemory)
+  Layer.provideMerge(FlowEngine.layerMemory)
 )
 
 const result = await Effect.runPromise(
@@ -28,7 +28,7 @@ Select explicit execution IDs so failures are reproducible.
 `TestHost.layer` supplies an in-memory filesystem, stub shell, seeded Random, HTTP transport, PTY, and Jujutsu service. Configure only the seams a test exercises:
 
 ```ts
-import { TestHost } from "@flows/host"
+import { TestHost } from "@smithers/host"
 
 const HostLayer = TestHost.layer({
   files: { "/workspace/input.txt": "hello" },
@@ -83,4 +83,4 @@ Run all package checks with:
 npm run check
 ```
 
-See [Determinism and replay](../concepts/determinism-and-replay.md) and the package references for [`@flows/host`](../reference/host.md) and [`@flows/journal`](../reference/journal.md).
+See [Determinism and replay](../concepts/determinism-and-replay.md) and the package references for [`@smithers/host`](../reference/host.md) and [`@smithers/journal`](../reference/journal.md).

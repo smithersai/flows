@@ -7,8 +7,8 @@
  *
  * @since 0.1.0
  */
-import * as JournalModule from "@flows/journal/Journal"
-import * as JournalEvent from "@flows/journal/JournalEvent"
+import * as JournalModule from "@smithers/journal/Journal"
+import * as JournalEvent from "@smithers/journal/JournalEvent"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import type { CapabilityPattern } from "./Capability.ts"
