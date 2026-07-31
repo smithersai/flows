@@ -28,6 +28,8 @@ Shell cancellation is Effect fiber interruption. PTY handles and remote-sandbox 
 | `BrowserHost` | `layer(options)` over injected browser filesystem and bash-like bindings; PTY/Jujutsu unavailable |
 | `TestHost` | `layer(options?)` with memory files, scripted commands, test clock, and seeded Random |
 
+`BunShell` also exports `make(runtime)`, which builds the `Shell` over an explicit `BunRuntime` (`{ spawn }`) instead of the `Bun` global. `layer` is `Layer.suspend`ed: on Bun it binds `make` to `Bun.spawn` (resolved per spawn, so a `Bun` global without `spawn` fails with `shell_unavailable` rather than dying at layer construction), and off Bun it is `NodeShell.layer`. Because host tests and CI run on Node, the `BunHost` contract suite exercises the fallback only; the `Bun.spawn` paths — stdin, timeout kill, interrupt finalizer, streaming — are covered by driving `make` with a fake runtime in `packages/host/test/BunShell.test.ts`.
+
 `TestHost` additionally exports `makeMemoryFs`, `makeStubBash`, `layerSeededRandom`, and a zero-option `TestHost` layer.
 
 ```ts

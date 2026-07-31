@@ -19,12 +19,22 @@ import * as NodeShell from "../node/NodeShell.ts"
 import { Shell } from "../Shell.ts"
 import type { ShellChunk, ShellOptions, ShellResult } from "../Shell.ts"
 
-interface BunStdin {
+/**
+ * The pieces of `Bun.spawn`'s subprocess handle this module uses.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface BunStdin {
   readonly write: (data: string | Uint8Array) => number
   readonly end: () => void
 }
 
-interface BunSubprocess {
+/**
+ * @category models
+ * @since 0.1.0
+ */
+export interface BunSubprocess {
   readonly stdin: BunStdin
   readonly stdout: ReadableStream<Uint8Array>
   readonly stderr: ReadableStream<Uint8Array>
@@ -33,7 +43,11 @@ interface BunSubprocess {
   readonly kill: (signal?: string | number) => void
 }
 
-interface BunSpawnOptions {
+/**
+ * @category models
+ * @since 0.1.0
+ */
+export interface BunSpawnOptions {
   readonly cmd: ReadonlyArray<string>
   readonly cwd?: string | undefined
   readonly env?: Readonly<Record<string, string>> | undefined
@@ -42,11 +56,18 @@ interface BunSpawnOptions {
   readonly stderr: "pipe"
 }
 
-interface BunRuntime {
+/**
+ * The `Bun` global reduced to the one function this module needs, so the
+ * implementation can be constructed and tested off a Bun runtime.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface BunRuntime {
   readonly spawn: (options: BunSpawnOptions) => BunSubprocess
 }
 
-const runtime = (): BunRuntime => {
+const globalRuntime = (): BunRuntime => {
   const value: unknown = Reflect.get(globalThis, "Bun")
   if ((typeof value !== "object" || value === null) && typeof value !== "function") {
     throw new Error("Bun runtime is unavailable")
@@ -79,8 +100,8 @@ const timeoutError = (method: string, command: string, timeoutMs: number): Shell
     command
   })
 
-const spawn = (command: string, options: ShellOptions): BunSubprocess =>
-  runtime().spawn({
+const spawn = (bun: BunRuntime, command: string, options: ShellOptions): BunSubprocess =>
+  bun.spawn({
     cmd: shellCommand(command),
     cwd: options.cwd,
     env: options.env,
@@ -113,12 +134,12 @@ const readText = async (stream: ReadableStream<Uint8Array>): Promise<string> => 
   }
 }
 
-const exec = Effect.fn("BunShell.exec")(
-  (command: string, options: ShellOptions = {}): Effect.Effect<ShellResult, ShellError> =>
+const makeExec = (bun: BunRuntime): Shell["exec"] =>
+  Effect.fn("BunShell.exec")((command: string, options: ShellOptions = {}): Effect.Effect<ShellResult, ShellError> =>
     Effect.callback<ShellResult, ShellError>((resume) => {
       let subprocess: BunSubprocess
       try {
-        subprocess = spawn(command, options)
+        subprocess = spawn(bun, command, options)
       } catch (cause) {
         resume(Effect.fail(toShellError("exec", command)(cause)))
         return
@@ -166,81 +187,111 @@ const exec = Effect.fn("BunShell.exec")(
         killUnsafe(subprocess)
       })
     })
-)
+  )
 
-const execStream = (command: string, options: ShellOptions = {}): Stream.Stream<ShellChunk, ShellError> =>
-  Stream.callback<ShellChunk, ShellError>((queue) =>
-    Effect.acquireRelease(
-      Effect.try({
-        try: () => {
-          const subprocess = spawn(command, options)
+const makeStream =
+  (bun: BunRuntime): Shell["stream"] =>
+  (command: string, options: ShellOptions = {}): Stream.Stream<ShellChunk, ShellError> =>
+    Stream.callback<ShellChunk, ShellError>((queue) =>
+      /**
+       * The spawn failure is reported through the queue, not by failing the
+       * acquire: an `acquireRelease` whose acquire fails inside
+       * `Stream.callback` leaves the consumer waiting on a queue nothing will
+       * ever end. `NodeShell.execStreamUnbounded` has the same shape for the
+       * same reason.
+       */
+      Effect.acquireRelease(
+        Effect.sync(() => {
           let settled = false
-
-          const fail = (error: ShellError): void => {
-            if (settled) return
-            settled = true
-            Queue.failCauseUnsafe(queue, Cause.fail(error))
+          let subprocess: BunSubprocess
+          try {
+            subprocess = spawn(bun, command, options)
+          } catch (cause) {
+            Queue.failCauseUnsafe(queue, Cause.fail(toShellError("execStream", command)(cause)))
+            return { subprocess: undefined, timer: undefined }
           }
+          {
+            const fail = (error: ShellError): void => {
+              if (settled) return
+              settled = true
+              Queue.failCauseUnsafe(queue, Cause.fail(error))
+            }
 
-          const pump = async (
-            kind: ShellChunk["kind"],
-            readable: ReadableStream<Uint8Array>
-          ): Promise<void> => {
-            const reader = readable.getReader()
-            try {
-              while (true) {
-                const next = await reader.read()
-                if (next.done) return
-                Queue.offerUnsafe(queue, { kind, chunk: next.value })
+            const pump = async (
+              kind: ShellChunk["kind"],
+              readable: ReadableStream<Uint8Array>
+            ): Promise<void> => {
+              const reader = readable.getReader()
+              try {
+                while (true) {
+                  const next = await reader.read()
+                  if (next.done) return
+                  Queue.offerUnsafe(queue, { kind, chunk: next.value })
+                }
+              } catch (cause) {
+                fail(toShellError("execStream", command)(cause))
+              } finally {
+                reader.releaseLock()
               }
+            }
+
+            const timeoutMs = options.timeoutMs
+            const timer = timeoutMs === undefined
+              ? undefined
+              : setTimeout(() => {
+                fail(timeoutError("execStream", command, timeoutMs))
+                killUnsafe(subprocess)
+              }, timeoutMs)
+
+            try {
+              feedStdin(subprocess, options.stdin)
             } catch (cause) {
               fail(toShellError("execStream", command)(cause))
-            } finally {
-              reader.releaseLock()
-            }
-          }
-
-          const timeoutMs = options.timeoutMs
-          const timer = timeoutMs === undefined
-            ? undefined
-            : setTimeout(() => {
-              fail(timeoutError("execStream", command, timeoutMs))
               killUnsafe(subprocess)
-            }, timeoutMs)
+            }
 
-          try {
-            feedStdin(subprocess, options.stdin)
-          } catch (cause) {
-            fail(toShellError("execStream", command)(cause))
-            killUnsafe(subprocess)
+            void Promise.all([
+              pump("stdout", subprocess.stdout),
+              pump("stderr", subprocess.stderr),
+              subprocess.exited
+            ]).then(
+              () => {
+                if (timer !== undefined) clearTimeout(timer)
+                if (!settled) {
+                  settled = true
+                  Queue.endUnsafe(queue)
+                }
+              },
+              (cause: unknown) => fail(toShellError("execStream", command)(cause))
+            )
+
+            return { subprocess, timer }
           }
-
-          void Promise.all([
-            pump("stdout", subprocess.stdout),
-            pump("stderr", subprocess.stderr),
-            subprocess.exited
-          ]).then(
-            () => {
-              if (timer !== undefined) clearTimeout(timer)
-              if (!settled) {
-                settled = true
-                Queue.endUnsafe(queue)
-              }
-            },
-            (cause: unknown) => fail(toShellError("execStream", command)(cause))
-          )
-
-          return { subprocess, timer }
-        },
-        catch: toShellError("execStream", command)
-      }),
-      ({ subprocess, timer }) =>
-        Effect.sync(() => {
-          if (timer !== undefined) clearTimeout(timer)
-          killUnsafe(subprocess)
-        })
+        }),
+        ({ subprocess, timer }) =>
+          Effect.sync(() => {
+            if (timer !== undefined) clearTimeout(timer)
+            if (subprocess !== undefined) killUnsafe(subprocess)
+          })
+      )
     )
-  )
+
+/**
+ * Builds a `Shell` over an explicit Bun runtime.
+ *
+ * The runtime is a parameter, not the `Bun` global, so every `Bun.spawn` path —
+ * buffered and streaming execution, stdin, the timeout kill, and the interrupt
+ * finalizer — is constructible and testable under Node, where `layer` selects
+ * the Node implementation instead.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const make = (bun: BunRuntime): Shell =>
+  Shell.of({
+    exec: makeExec(bun),
+    stream: makeStream(bun)
+  })
 
 /**
  * Provides the `Shell` service backed by `Bun.spawn`.
@@ -248,9 +299,10 @@ const execStream = (command: string, options: ShellOptions = {}): Stream.Stream<
  * @category layers
  * @since 0.1.0
  */
-export const layer: Layer.Layer<Shell> = Reflect.has(globalThis, "Bun")
-  ? Layer.succeed(Shell)({
-    exec,
-    stream: execStream
-  })
-  : NodeShell.layer
+export const layer: Layer.Layer<Shell> = Layer.suspend(() =>
+  Reflect.has(globalThis, "Bun")
+    // Resolved per spawn, so a `Bun` global without `spawn` still surfaces as a
+    // `shell_unavailable` failure rather than a layer-construction defect.
+    ? Layer.succeed(Shell)(make({ spawn: (spawnOptions) => globalRuntime().spawn(spawnOptions) }))
+    : NodeShell.layer
+)
