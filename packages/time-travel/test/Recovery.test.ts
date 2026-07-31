@@ -48,8 +48,8 @@ const makeRuns = (): RunStore.Service & { readonly state: () => RunStore.RunRow 
               heartbeatAtMs: null,
               claim: null,
               claimedAtMs: null,
-    parentRunId: null,
-    cancelRequestedAtMs: null
+              parentRunId: null,
+              cancelRequestedAtMs: null
             })
         }
         return { _tag: "Transitioned" as const }

@@ -78,8 +78,8 @@ const runRow = (): RunStore.RunRow => ({
   heartbeatAtMs: null,
   claim: null,
   claimedAtMs: null,
-    parentRunId: null,
-    cancelRequestedAtMs: null,
+  parentRunId: null,
+  cancelRequestedAtMs: null,
   stateJson: "{\"cursor\":9}"
 })
 

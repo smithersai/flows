@@ -43,8 +43,10 @@ This page is the public API reference for journal projection replay, time-travel
 ## Integration caveat
 
 `SqlTimeTravelStore.createFork` creates a restartable engine row, copies
-attempts, copies the selected journal prefix, and records lineage in
-`flows_time_travel_edges`. Current run state and attempts are not historical
+attempts, copies the selected journal prefix, and records lineage twice: in
+`flows_time_travel_edges` for the attach/detach protocol, and in the child's
+`flows_runs.parent_run_id` so ancestry is walkable with a recursive CTE and
+survives edge archival. Current run state and attempts are not historical
 per-frame snapshots, so applications must still create boundary records and
 snapshots where exact frame semantics require them. Automatic integration is
 **Planned**.

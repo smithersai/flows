@@ -290,8 +290,8 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, Database> = Eff
           }
           const stateJson = yield* restartableStateJson(parentState[0].state_json)
           yield* sql`
-            INSERT INTO flows_runs (run_id, status, created_at_ms, state_json)
-            VALUES (${runId}, 'pending', ${nowMs}, ${stateJson})
+            INSERT INTO flows_runs (run_id, status, created_at_ms, parent_run_id, state_json)
+            VALUES (${runId}, 'pending', ${nowMs}, ${parentRunId}, ${stateJson})
           `
           yield* sql`
             INSERT INTO flows_journal_events

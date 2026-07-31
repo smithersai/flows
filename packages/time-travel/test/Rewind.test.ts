@@ -114,8 +114,8 @@ const row = (
   heartbeatAtMs: status === "running" ? 0 : null,
   claim: null,
   claimedAtMs: null,
-    parentRunId: null,
-    cancelRequestedAtMs: null,
+  parentRunId: null,
+  cancelRequestedAtMs: null,
   stateJson: "{\"cursor\":5}"
 })
 

@@ -47,8 +47,9 @@ This page distinguishes usable source-backed behavior from contracts and planned
 
 - `EngineStore` is currently Node-specific because it uses `process.pid` and `node:crypto`.
 - `SqlTimeTravelStore.createFork` materializes executable state from the
-  parent's current persisted snapshot and attempts. Those records are not
-  historical per journal frame.
+  parent's current persisted snapshot and attempts, and records the lineage
+  edge on `flows_runs.parent_run_id`. Those records are not historical per
+  journal frame.
 - The time-travel package reads cache keys from effect-boundary metadata. Callers recording those boundaries must use the same cache address convention as the cache producer.
 - Flow registrations and active fibers are scoped in memory. A restarted process must re-register handlers before driving stored runs.
 - The `Database.write` retry classifier is SQLite-oriented even though the Vercel store adapter can wrap a PostgreSQL `SqlClient`.
