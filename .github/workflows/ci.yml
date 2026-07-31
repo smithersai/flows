@@ -1,0 +1,24 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: check + test (coverage gates enforced)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck all workspaces
+        run: npm run check
+      # Package vitest configs with `coverage.enabled: true` compute and
+      # enforce their coverage thresholds on every run — a red gate fails CI.
+      - name: Test all workspaces
+        run: npm test
