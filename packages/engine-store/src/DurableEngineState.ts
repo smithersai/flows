@@ -768,18 +768,73 @@ export const layer: Layer.Layer<DurableEngineState, never, Database> = Layer.eff
 )
 
 /**
+ * A run's ownership view as the in-memory implementation needs it for the
+ * same fences the SQL implementation reads from `flows_runs`.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export interface MemoryRunView {
+  readonly status: "pending" | "running" | "suspended" | "completed" | "failed" | "cancelled"
+  readonly owner: OwnerId | null
+}
+
+/**
+ * Options for the in-memory durable-state implementation.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export interface MemoryOptions {
+  /**
+   * Resolves a run's existence, status, and owner — the in-memory analogue
+   * of the `flows_runs` lookups the SQL implementation performs for its
+   * `park`/`wake`/`scheduleClock` fences. `Option.none()` means the run does
+   * not exist. When omitted, every run is treated as running and owned by
+   * whichever owner is presented (the permissive legacy shape for tests
+   * that exercise only deferred/clock state without a run table).
+   */
+  readonly runs?: (runId: string) => Option.Option<MemoryRunView>
+}
+
+/**
  * Constructs a deterministic in-memory durable-state implementation.
  *
  * The returned service can be shared by multiple fresh engine instances in a
- * test to model process restart over the same storage.
+ * test to model process restart over the same storage. With `runs` supplied
+ * it enforces the same ownership fences as the SQL implementation and is
+ * held to the same contract suite
+ * (`test/contract/DurableEngineStateContract.ts`).
  *
  * @since 0.1.0
  * @category constructors
  */
-export const makeMemory = (): Service => {
+export const makeMemory = (options: MemoryOptions = {}): Service => {
   const deferreds = new Map<string, DeferredRow>()
   const clocks = new Map<string, ClockRow>()
   const waitingRows = new Map<string, WaitingRow>()
+
+  const sameOwner = (left: OwnerId, right: OwnerId): boolean =>
+    left.hostId === right.hostId && left.pid === right.pid && left.nonce === right.nonce
+
+  /** Mirrors the SQL `flows_runs` owner-match predicate for a run. */
+  const runView = (runId: string, presented: OwnerId | undefined): {
+    readonly exists: boolean
+    readonly running: boolean
+    readonly owned: boolean
+  } => {
+    if (options.runs === undefined) {
+      return { exists: true, running: true, owned: true }
+    }
+    const view = options.runs(runId)
+    if (Option.isNone(view)) {
+      return { exists: false, running: false, owned: false }
+    }
+    const owned = presented !== undefined &&
+      view.value.owner !== null &&
+      sameOwner(view.value.owner, presented)
+    return { exists: true, running: view.value.status === "running", owned }
+  }
 
   return DurableEngineState.of({
     deferred: Effect.fn("DurableEngineState.deferred")((address) =>
@@ -799,15 +854,23 @@ export const makeMemory = (): Service => {
     clock: Effect.fn("DurableEngineState.clock")((address) =>
       Effect.sync(() => Option.fromNullishOr(clocks.get(clockKey(address))))
     ),
-    scheduleClock: Effect.fn("DurableEngineState.scheduleClock")((row) =>
-      Effect.sync(() => {
+    scheduleClock: Effect.fn("DurableEngineState.scheduleClock")((row, owner) =>
+      Effect.suspend(() => {
+        // Mirrors the SQL fence: creation requires the presented owner to
+        // currently run the execution; a lost fence surfaces as
+        // self-interruption, an existing row wins regardless.
+        if (owner === undefined) return Effect.interrupt
         const key = clockKey(row)
         const existing = clocks.get(key)
         if (existing !== undefined) {
-          return { _tag: "Existing" as const, row: existing }
+          return Effect.succeed({ _tag: "Existing" as const, row: existing })
+        }
+        const view = runView(row.executionId, owner)
+        if (!view.exists || !view.running || !view.owned) {
+          return Effect.interrupt
         }
         clocks.set(key, row)
-        return { _tag: "Scheduled" as const, row }
+        return Effect.succeed({ _tag: "Scheduled" as const, row })
       })
     ),
     completeClock: Effect.fn("DurableEngineState.completeClock")((address, completedAtMs) =>
@@ -851,8 +914,15 @@ export const makeMemory = (): Service => {
           )
       )
     ),
-    park: Effect.fn("DurableEngineState.park")((runId, waitingPayload) =>
+    park: Effect.fn("DurableEngineState.park")((runId, waitingPayload, owner) =>
       Effect.sync(() => {
+        // Mirrors the SQL fence: only the current owner of an existing run
+        // may park it; anything else reports NotFound, exactly like the
+        // owner-guarded UPDATE matching no row.
+        const view = runView(runId, owner)
+        if (!view.exists || !view.owned) {
+          return { _tag: "NotFound" as const }
+        }
         const row: WaitingRow = {
           runId,
           reason: waitingPayload.reason,
@@ -867,7 +937,11 @@ export const makeMemory = (): Service => {
       Effect.sync(() => {
         const row = waitingRows.get(runId)
         if (row === undefined) {
-          return { _tag: "NotWaiting" as const }
+          // Mirrors SQL: an unknown run is NotFound, an existing unparked
+          // run is NotWaiting.
+          return runView(runId, undefined).exists
+            ? { _tag: "NotWaiting" as const }
+            : { _tag: "NotFound" as const }
         }
         waitingRows.delete(runId)
         return { _tag: "Woken" as const, row }
