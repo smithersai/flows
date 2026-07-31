@@ -9,7 +9,7 @@ This page distinguishes usable source-backed behavior from contracts and planned
 | Flow definitions | Typed `Flow.make`, registration layers, explicit or idempotency-derived execution IDs |
 | Recorded steps | Typed `Activity.make` with success/error schemas, tiers, metadata, annotations, and encoded exits |
 | In-memory runtime | Flow execution, polling, suspension, resume, interruption, deferreds, clocks, and activity memoization |
-| Durable run state | SQL-backed run rows, exact claims, activation fences, heartbeats, stale-owner steal, terminal transitions, lineage (`parent_run_id`), and cancellation requests guarded inside the transition CAS |
+| Durable run state | SQL-backed run rows, exact claims, activation fences, heartbeats, stale-owner steal, terminal transitions, lineage (`parent_run_id`), and cancellation requests that are durably recorded, polled by the owning driver on the heartbeat cadence, and guarded inside the terminal-transition CAS (a raced request cancels the run instead of finalizing it) |
 | Attempt state | Fenced attempt admission, a configurable in-progress vocabulary and checkpoint cap, optional upsert admission, first terminal result, an unfenced patch surface, and opaque metadata |
 | Journal | Bounded optimistic queue, batching, idempotent producer events, paging, replay-then-follow streams, projections, and a multi-writer-safe `emitDurable` that allocates the canonical sequence inside the write transaction |
 | Content addressing | Canonical serialization, SHA-256 content keys, graph-reference resolution, and run-local ordinal keys |

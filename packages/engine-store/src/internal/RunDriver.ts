@@ -121,6 +121,13 @@ const snapshot = (row: RunStore.RunRow): RunStore.RunSnapshot => ({
 
 const samePayload = (left: unknown, right: unknown): boolean => JSON.stringify(left) === JSON.stringify(right)
 
+/**
+ * Sentinel produced when the cancel-request poll observes a durable
+ * cancellation before the flow settles.
+ */
+const cancelRequested = { _tag: "CancelRequested" } as const
+type CancelRequested = typeof cancelRequested
+
 const withoutResult = (state: PersistedState): PersistedState => {
   const { cancellation: _, result: __, ...rest } = state
   return rest
@@ -306,6 +313,26 @@ export const make = (
 
     const coordinatorDeferred = yield* Deferred.make<RunCoordinator.RunCoordinator<string, never>>()
 
+    /**
+     * Observes a durably recorded cancellation request
+     * (`RunStore.requestCancel` / `cancel_requested_at_ms`) from another
+     * process. Polls on the heartbeat cadence — the request is unfenced, so
+     * only the owner can act on it, and it must act within a poll interval
+     * (issue #11). Completes when a request is observed; races against the
+     * flow like the heartbeat loop.
+     */
+    const cancelPollLoop = (executionId: string): Effect.Effect<CancelRequested> =>
+      Effect.gen(function*() {
+        while (true) {
+          yield* Effect.sleep(Ownership.heartbeatInterval)
+          const requested = yield* store.get(executionId).pipe(
+            Effect.map((row) => row.cancelRequestedAtMs !== null),
+            Effect.catch(() => Effect.succeed(false))
+          )
+          if (requested) return cancelRequested
+        }
+      })
+
     const drive = (executionId: string): Effect.Effect<void> =>
       Effect.gen(function*() {
         const initial = yield* store.get(executionId).pipe(
@@ -343,19 +370,25 @@ export const make = (
 
         const result = yield* Effect.scoped(
           Effect.raceFirst(
-            registration.execute(payload as object, executionId).pipe(
-              Flow.intoResult,
-              Effect.provideService(FlowEngine.FlowInstance, instance),
-              Effect.provideService(FlowEngine.FlowEngine, flowEngine)
+            Effect.raceFirst(
+              registration.execute(payload as object, executionId).pipe(
+                Flow.intoResult,
+                Effect.provideService(FlowEngine.FlowInstance, instance),
+                Effect.provideService(FlowEngine.FlowEngine, flowEngine)
+              ),
+              Ownership.heartbeatLoop(executionId, dependencies.owner).pipe(
+                Effect.provideService(RunStore.RunStore, store)
+              )
             ),
-            Ownership.heartbeatLoop(executionId, dependencies.owner).pipe(
-              Effect.provideService(RunStore.RunStore, store)
-            )
+            cancelPollLoop(executionId)
           )
         ).pipe(
           Effect.onInterrupt(() => cancelOwned(executionId, activeState)),
           Effect.ensuring(Effect.sync(() => liveInstances.delete(executionId)))
         )
+        if (result._tag === "CancelRequested") {
+          return yield* cancelOwned(executionId, activeState)
+        }
 
         const encodedResult = yield* (Schema.encodeEffect(
           Schema.toCodecJson(Flow.Result({
@@ -369,12 +402,20 @@ export const make = (
           : Exit.isSuccess(result.exit)
           ? "completed"
           : "failed"
+        // Finalize is guarded on `cancel_requested_at_ms` inside the same
+        // CAS: a cancellation request that raced past the last poll turns
+        // the terminal transition into GuardFailed, and the run cancels
+        // instead of finalizing (issue #11).
         const transitioned = yield* store.transitionOwned(
           executionId,
           dependencies.owner,
           status,
-          yield* encodeState(nextState)
+          yield* encodeState(nextState),
+          { cancelRequested: "absent" }
         ).pipe(Effect.orDie)
+        if (transitioned._tag === "GuardFailed") {
+          return yield* cancelOwned(executionId, activeState)
+        }
         if (transitioned._tag !== "Transitioned") return
 
         yield* emitDecision(executionId, {
