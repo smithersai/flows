@@ -1,60 +1,46 @@
 # @smithers/engine-store
 
-@smithers/engine-store composes the encoded flow engine with journal-backed
-run ownership, attempts, cache provenance, and event records. It also supplies
-durable deferred and clock state and the step-boundary contract.
+Durable persistence adapter for `@smithers/engine`. It composes journal-backed
+run ownership, attempts, cache provenance, deferreds, clocks, and workspace
+snapshot boundaries into a `FlowEngine` layer.
 
-Vault notes:
-[`Concepts/Run Ownership`](../../../docs/specs/Concepts/Run%20Ownership.md),
-[`Concepts/Step Keys`](../../../docs/specs/Concepts/Step%20Keys.md), and
-[`Concepts/Engine Hardening Round 1`](../../../docs/specs/Concepts/Engine%20Hardening%20Round%201.md)
-— the latter records the cache-inconsistency receiver (strict by default), the
-typed `FlowCycleDetected`, and the waiting-reason taxonomy.
-
-The root exports the `DurableEngineState`, `EngineStore`, `StepBoundary`,
-`Inconsistency`, and `Errors` namespaces.
-
-Public errors live in the root `Errors` namespace and each carries a stable
-`code`:
-`FlowCycleDetected` (`flow_cycle_detected`), `CacheConflictDetected`
-(`cache_conflict_detected`), `AttemptAdmissionRejected`
-(`attempt_admission_rejected`).
-
-```text
-EngineStore.layer(options)
-├─ RunDriver: RunStore + RunCoordinator
-├─ ActivityPersistence: AttemptStore + CacheStore + StepBoundary + Jj
-├─ DeferredPersistence: DurableEngineState + Journal + resume scheduling
-└─ FlowEngine.makeUnsafe(encoded)
+```sh
+npm install @smithers/engine-store
 ```
 
-The layer requires Journal, RunStore, AttemptStore, CacheStore,
-DurableEngineState, StepBoundary, Jj, and Scope. EngineStore.make returns the
-typed FlowEngine service. EngineStore.layer also provides SnapshotBoundary.
+## Public API
+
+The root exports these namespaces; each is also available from its matching
+`@smithers/engine-store/*` subpath.
+
+| Namespace            | Public exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `DurableEngineState` | `DurableEngineState` / `Service` persist deferreds, clocks, and parked-run state through `deferred`, `completeDeferred`, `clock`, `scheduleClock`, `completeClock`, `dueClocks`, `completedDeferreds`, `park`, `wake`, `waiting`, and `waitingRuns`. Address/row types are `DeferredAddress`, `DeferredRow`, `ClockAddress`, `ClockRow`, `Waiting`, `WaitingRow`, and `WaitingRunsFilter`; outcome types are `CompleteDeferredOutcome`, `ScheduleClockOutcome`, `CompleteClockOutcome`, `ParkOutcome`, and `WakeOutcome`; `WaitingReason` is the open wait taxonomy. `make` / `layer` use `Database`; `makeMemory` / `layerMemory` are deterministic in-memory variants. |
+| `EngineStore`        | `Options` configures owner identity, journal source, and liveness probing. `make` builds the service and `layer` provides `FlowEngine` plus `SnapshotBoundary`; `EngineCompositionError` is the stable composition error.                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `StepBoundary`       | Schemas/types `BoundaryMode`, `ReadSetEntry`, `Descriptor`, `BoundaryDeviation`, and `BoundaryEvidence`; `PreparedBoundary`, `Service`, and `StepBoundary`; errors `UndeclaredWrite` and `UnsupportedBoundary`; `make`, `TestOptions`, and `layerTest`.                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `Inconsistency`      | `Inconsistency` / `Service` receive `CacheConflict` and return `InconsistencyVerdict`. `MakeOptions`, `make`, `makeNoop`, and `layerNoop` build receivers; `layerStrict` journals then fails and `layerTolerant` journals then continues.                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `Errors`             | Stable `FlowCycleDetected`, `AttemptAdmissionRejected`, and `CacheConflictDetected` errors.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 ```ts
+import { FlowEngine } from "@smithers/engine"
+import { EngineStore } from "@smithers/engine-store"
+import { Effect } from "effect"
+
 const engineLayer = EngineStore.layer({
   owner: { hostId: "worker-a" },
-  journalSource: "engine-store",
-  isAlive: (owner) => probe(owner)
+  journalSource: "engine-store"
 })
+
+const program = Effect.gen(function*() {
+  return yield* FlowEngine.FlowEngine
+}).pipe(Effect.provide(engineLayer))
 ```
 
-owner.hostId is the host identity used by the liveness probe. The
-implementation adds process id and a fresh nonce. Registrations and active
-fibers are process-local; encoded run state, attempts, deferreds, clocks,
-ownership, and journal records come from the supplied layers.
+`EngineStore.layer` requires `Journal`, `RunStore`, `AttemptStore`, `CacheStore`,
+`DurableEngineState`, `StepBoundary`, `Jj`, and `Scope`. Run migrations before
+using the SQL-backed durable state.
 
-DurableEngineState.layer persists deferred completions and absolute clock
-deadlines through Database after Journal.Migrations has run.
-DurableEngineState.layerMemory remains the deterministic in-memory test
-implementation. StepBoundary.layerTest() is a deterministic test boundary.
-Inconsistency is the cache-conflict receiver: `layerStrict` (the default,
-verdict `"fail"`) and `layerTolerant` both journal the conflict and require
-Journal; `make`, `makeNoop`, and `layerNoop` are the direct constructors.
-Production activity dispatch is content-keyed for sealed activities with
-identity, and ordinal-keyed otherwise. Compensable activities require
-SnapshotBoundary; irreversible retries require an activity idempotency key.
-
-See the [reference](../../docs/reference/engine-store.md) for the exact
-contracts, outcomes, persistence order, and explicit exclusions.
+See the [engine-store reference](../../docs/reference/engine-store.md),
+[Run Ownership](../../../docs/specs/Concepts/Run%20Ownership.md),
+[Step Keys](../../../docs/specs/Concepts/Step%20Keys.md), and
+[Engine Hardening Round 1](../../../docs/specs/Concepts/Engine%20Hardening%20Round%201.md).

@@ -1,48 +1,45 @@
 # @smithers/plugin
 
-The flows plugin kernel: a Vite-shaped, Effect-native extension seam.
+Typed, Effect-native plugin kernel for flows. It owns the hook catalog,
+Vite-style plugin resolution and ordering, config resolution, dispatch service,
+and startup kernel used by higher architectural layers.
 
-Governing spec: [`docs/architecture/plugin-system.md`](../../docs/architecture/plugin-system.md).
-
-Vault notes (the source of truth for design):
-[`Specs/Plugin Kernel`](../../../docs/specs/Specs/Plugin%20Kernel.md) — what shipped
-and every stated deviation from
-[`Specs/Plugin API`](../../../docs/specs/Specs/Plugin%20API.md), the
-product-facing contract.
-
-This package ships exactly three things:
-
-1. **A typed hook surface** — `FlowsHooks`, declared in the package entry point so
-   `declare module "@smithers/plugin"` augmentation merges into it. Each entry is
-   either a bare handler or `{ order?: "pre" | "post", handler }`, and its dispatch
-   kind is fixed in the type: `SequentialHook`, `ParallelHook`, `FirstHook`,
-   `WaterfallHook`.
-2. **Resolution and ordering** — `Resolve.resolve` flattens nested arrays, drops
-   falsy entries, applies `apply` filters, rejects duplicate names, and partitions
-   `pre` / normal / `post` (then per-hook `order` within each hook). It runs once
-   and produces a frozen ordered handler list per hook; runtime dispatch is an
-   array walk.
-3. **Config execution** — `Kernel.make` runs the `config` waterfall, decodes and
-   freezes a `ResolvedConfig`, then fires `configResolved` in parallel and merges
-   plugin layers with `Layer.provideMerge`, left to right.
-
-```ts
-import { Effect, Option } from "effect"
-import type { FlowsPlugin } from "@smithers/plugin"
-import { Kernel } from "@smithers/plugin"
-
-const quotaPark = (): FlowsPlugin => ({
-  name: "flows-plugin-quota-park",
-  hooks: {
-    classifyError: (error) => Effect.succeed(isQuota(error) ? Option.some("transient") : Option.none()),
-    waitStart: (wait) => wait.reason === "quota" ? Effect.log(`parked until ${wait.wakeAt}`) : Effect.void
-  }
-})
-
-const kernel = yield* Kernel.make([quotaPark()], { engine: { maxConcurrency: 8 } })
-yield* kernel.plugins.parallel("runStart", { runId })
+```sh
+npm install @smithers/plugin
 ```
 
-Hooks declared here that nothing consumes yet are types plus registry support
-only — the engine call sites land with their consumers. Cancellation is fiber
-interruption through scope closure; there is no `AbortSignal` anywhere.
+## Public API
+
+`FlowsHooks` and the Hooks, Plugin, and PluginError members are flat root
+exports. The remaining modules are namespaced; every source module is also
+available from its matching `@smithers/plugin/*` subpath.
+
+| Export               | Public exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `FlowsHooks`         | Augmentable interface defining `config`, `configResolved`, run/step lifecycle, retry, shareability, inconsistency, wait, checkpoint, and journal hooks. It must be augmented through `declare module "@smithers/plugin"`.                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Hooks (flat)         | Dispatch types `HookKind`, `HookMeta`, `HookObject`, `HookEntry`, `SequentialHook`, `ParallelHook`, `FirstHook`, and `WaterfallHook`; utilities `KindOf`, `HandlerOf`, `KeysOfKind`, `ArgsOf`, `ReturnOf`, `SuccessOf`, and `ContextOf`; models `RunId`, `ErrorClass`, `RetryDecision`, `Shareability`, `InconsistencyVerdict`, `ActivityMeta`, `StepContext`, `RunContext`, `RunEndContext`, `StepEndContext`, `ControlRequest`, `ControlRejected`, `WaitContext`, `CacheRow`, `InconsistencyEvent`, `RetryContext`, `ShareabilityContext`, `CheckpointContext`, and `TelemetryEvent`; runtime `engineHooks`, `handlerOf`, and `orderOf`. |
+| Plugin (flat)        | `Apply`, `FlowsPlugin`, `PluginInput`, and identity constructor `make`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Plugin errors (flat) | `PluginErrorCode` schema/type and `PluginError`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `Config`             | `RetryConfig`, `EngineConfig`, `FlowsConfig`, `ResolvedConfig`, `FlowsConfigSchema`, `defaults`, `merge`, `resolve`, and `deepFreeze`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `Kernel`             | `Kernel` result model, `runConfig`, and `make(plugins, config)` resolve config and merge plugin layers.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `Plugins`            | `Service` / `Plugins` dispatch `sequential`, `parallel`, `first`, and `waterfall` hooks; `make`, `makeNoop`, `layer`, and `layerNoop`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `Resolve`            | `HandlerRecord`, `Resolved`, and `Options`; `resolve` flattens, filters, validates, orders, and freezes plugins; `layer` merges resolved plugin layers.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+
+```ts
+import { type FlowsPlugin, Kernel } from "@smithers/plugin"
+import { Effect } from "effect"
+
+const telemetry: FlowsPlugin = {
+  name: "flows-plugin-telemetry",
+  hooks: { runStart: ({ runId }) => Effect.log(`started ${runId}`) }
+}
+
+const program = Effect.gen(function*() {
+  const kernel = yield* Kernel.make([telemetry], {})
+  yield* kernel.plugins.parallel("runStart", { runId: "run-1" })
+})
+```
+
+See the [plugin architecture](../../docs/architecture/plugin-system.md),
+[Plugin Kernel](../../../docs/specs/Specs/Plugin%20Kernel.md), and
+[Plugin API](../../../docs/specs/Specs/Plugin%20API.md).

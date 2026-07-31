@@ -61,3 +61,4 @@ REVIEW-*.md
 packages/*/REVIEW-*.md
 packages/*/.smithers/
 .smithers/bug-reports/
+.smithers/executions/

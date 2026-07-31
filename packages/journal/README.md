@@ -1,33 +1,46 @@
 # @smithers/journal
 
-@smithers/journal owns durable event envelopes, run ownership, step attempts, and
-content-addressed cache entries. It depends on the Database service. Journal
-admission is bounded and non-blocking; ownership and durable stores use fenced
-SQL transitions.
+Durable event, run-ownership, attempt, and content-cache services for flows.
+It owns the SQL schema above `@smithers/database`, bounded journal admission,
+fenced run transitions, and the records consumed by engine-store and sync.
 
-```text
-NodeDatabase.layer({ filename })
-  └─ Migrations.layer
-       ├─ SqlJournal.layer({ capacity, overflow, batchSize? })
-       ├─ RunStore.layer
-       ├─ AttemptStore.layer
-       └─ CacheStore.layer
-
-TestJournal.layer(options?) supplies the same services over :memory: SQLite.
+```sh
+npm install @smithers/journal
 ```
 
-The event envelope has two sequence domains. Seq is the canonical per-run
-replay order. SourceSeq is allocated per run and source and makes producer
-retries idempotent. Rejected or dropped admissions consume their allocated
-numbers; replay must not assume contiguous sequences.
+## Public API
+
+The root exports these namespaces, also available from matching
+`@smithers/journal/*` subpaths.
+
+| Namespace        | Public exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `JournalEvent`   | Branded schema/types `RunId`, `Seq`, `SourceId`, and `SourceSeq`; input/committed schemas `Input` and `Entry`; deterministic `makeEventId`.                                                                                                                                                                                                                                                                                                                                   |
+| `Journal`        | `Journal` / `Service` operations `emit`, `emitLossy`, `emitDurable`, `stream`, `entries`, `changes`, `project`, and `flush`; `JournalErrorCode` / `JournalError`; `OverflowPolicy`; receipts `Accepted`, `Duplicate`, `Dropped`, `EmitReceipt`, and `DurableReceipt`; `StreamOptions`, `EntriesOptions`, and `EntriesPage`; `make`, `makeNoop`, and `layerNoop`.                                                                                                              |
+| `SqlJournal`     | `SqlJournalOptions` and database-backed `layer(options)`. `allocation` selects in-memory or transactional SQL sequence allocation.                                                                                                                                                                                                                                                                                                                                            |
+| `Projection`     | Reproducible `Projection` model and identity constructor `make`.                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `Migrations`     | `run` and prerequisite `layer` install the package schema.                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `RunStore`       | `RunStatus`, `RunStoreErrorCode`, `RunStoreError`, `RunSnapshot`, `RunRow`, `CreateOptions`, and `TransitionGuard`; outcome types `RequestCancelOutcome`, `ClaimOutcome`, `ClaimAndOwnOutcome`, `ActivateOutcome`, `AbandonClaimOutcome`, `RecoverClaimOutcome`, `HeartbeatOutcome`, and `TransitionOutcome`; `Service` / `RunStore` for create/get/cancel, claim/activate/recover/steal, heartbeat, and owned transitions; `make`, `makeNoop`, `layerNoop`, and SQL `layer`. |
+| `Ownership`      | `OwnerId`, `LivenessEvidence`, `LivenessProbe`, `heartbeatInterval`, `heartbeatStaleAfter`, and `heartbeatLoop`.                                                                                                                                                                                                                                                                                                                                                              |
+| `AttemptStore`   | `AttemptStoreErrorCode`, `AttemptStoreError`, `AttemptId`, `Attempt`, `FinishAttempt`, `AttemptPatch`, `Options`, and result types `PutResult`, `PatchResult`, `HeartbeatResult`, `FinishResult`; `Service` / `AttemptStore` operations `put`, `get`, `heartbeat`, `finish`, and `patch`; `makeWith`, `make`, `makeNoop`, `layerNoop`, `layer`, and `layerWith`.                                                                                                              |
+| `CacheStore`     | `CacheStoreErrorCode`, `CacheStoreError`, `CacheEntry`, and `PutResult`; `Service` / `CacheStore` operations `get`, `put`, and `evict`; `make`, `makeNoop`, `layerNoop`, and SQL `layer`.                                                                                                                                                                                                                                                                                     |
+| `RunCoordinator` | Scoped keyed-drain `RunCoordinator` (`active`, `run`, `wake`, `interrupt`) and `make`.                                                                                                                                                                                                                                                                                                                                                                                        |
+| `TestJournal`    | `TestJournalOptions` and `layer(options?)`, providing migrated in-memory Journal, RunStore, AttemptStore, and CacheStore services.                                                                                                                                                                                                                                                                                                                                            |
+| `Notifying`      | `Order`, `Hook`, `wrap`, and `layer` inject before/after notifications around Effect-valued service operations.                                                                                                                                                                                                                                                                                                                                                               |
+
+The public `migrations/0001_initial`, `0002_durable_engine_state`,
+`0003_run_metadata`, and `0004_waiting_reason` subpaths each default-export
+their migration Effect; normal callers should use `Migrations.run` or
+`Migrations.layer`.
 
 ```ts
 import { NodeDatabase } from "@smithers/database"
 import { Journal, JournalEvent, Migrations, SqlJournal } from "@smithers/journal"
 import { Effect, Layer } from "effect"
 
+const database = NodeDatabase.layer({ filename: "flows.db" })
 const journalLayer = SqlJournal.layer({ capacity: 1024, overflow: "reject" }).pipe(
-  Layer.provide(Layer.provideMerge(Migrations.layer, NodeDatabase.layer({ filename: "flows.db" })))
+  Layer.provide(Layer.provideMerge(Migrations.layer, database))
 )
 
 const program = Effect.gen(function*() {
@@ -38,61 +51,13 @@ const program = Effect.gen(function*() {
     eventType: "run.created",
     payload: { version: 1 }
   })
-})
-
-Effect.runPromise(Effect.provide(program, journalLayer))
+}).pipe(Effect.provide(journalLayer))
 ```
 
-## Sequence allocation: memory or SQL
+`Seq` is canonical per-run replay order; `SourceSeq` identifies producer
+retries. Rejected and dropped admissions may consume either sequence, so gaps
+are valid.
 
-`SqlJournalOptions.allocation` chooses where the canonical seq is assigned.
-`"memory"` (the default) allocates in process and queues the write, so the
-receipt is optimistic and one process must own the run. `"sql"` makes `emit`
-an alias for `emitDurable`.
-
-`emitDurable` allocates seq and sourceSeq as MAX + 1 inside the writer's
-transaction, using the in-memory clock as a floor, and inserts the row before
-returning, so its receipt is already committed. It is the path for
-cross-process supervisors, cold restarts, and time-travel forks: any number of
-writers may share one run. Deduplication is unchanged — an exact producer
-retry returns Duplicate, and a reused producer sequence with different content
-fails with idempotency_conflict.
-
-Deviation from smithers, which allocates under BEGIN IMMEDIATE: the SQLite
-backends here expose no beginTransaction hook, so the transaction is DEFERRED
-and a racing writer loses the lock upgrade with SQLITE_BUSY_SNAPSHOT, which
-@smithers/database classifies as retryable and replays whole. Allocation is
-conflict-free by retry rather than by lock escalation.
-
-## Run metadata, guards, and cancellation
-
-Migration 0003 adds two columns to flows_runs. `cancel_requested_at_ms` is
-stamped by the unfenced `RunStore.requestCancel`, whose outcomes are
-CancelRequested, AlreadyRequested (reporting the original request time), and
-NotFound. `parent_run_id` records fork lineage for @smithers/time-travel.
-
-Every owned transition accepts an optional `TransitionGuard`, an extra CAS
-predicate over that metadata: `{ cancelRequested: "absent" | "present" }`. A
-guard that does not hold returns the distinct GuardFailed outcome, which is
-deliberately not FenceLost — losing ownership and losing a lifecycle race are
-different failures.
-
-## Attempt policy
-
-`AttemptStore.Options` makes previously hard-coded policy explicit, with the
-old values as defaults: `inProgressStates` (states that count as in progress
-for the heartbeat and finish fences, default `["running"]`),
-`maxCheckpointBytes` (default 1 MiB), and `putMode` (`"insert"`
-first-writer-wins, reporting Conflict, or `"upsert"`, reporting Upserted).
-`AttemptStore.patch` rewrites opaque fields — checkpoint, error, outcome, meta
-— outside the ownership fence, and never moves state, started_at_ms, or
-finished_at_ms.
-
-The root exports JournalEvent, Journal, SqlJournal, Projection, Migrations,
-RunStore, Ownership, AttemptStore, CacheStore, RunCoordinator, and TestJournal.
-Each service module follows the Effect shape: make where an implementation is
-accepted, makeNoop, layerNoop, and production layer where a Database is
-required.
-
-See the [reference](../../docs/reference/journal.md) for the complete service
-signatures, outcome unions, error codes, and fencing rules.
+See the [journal reference](../../docs/reference/journal.md),
+[Journal Queue](../../../docs/specs/Concepts/Journal%20Queue.md), and
+[Run Ownership](../../../docs/specs/Concepts/Run%20Ownership.md).

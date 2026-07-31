@@ -1,19 +1,44 @@
 # @smithers/time-travel
 
-Durable, browser-safe replay and fork primitives over public journal contracts.
-Rewind archives a single parent journal suffix atomically; attached child events
-share that sequence and are therefore included, fixing Smithers' child-blind
-truncation behavior. Forks copy a prefix with deterministic event identifiers,
-share the global sealed cache, and never mutate the parent.
+Durable replay, fork, rewind, recovery, and compensation primitives over the
+journal and engine-store contracts. It owns both in-memory and SQL state stores
+and records effect-boundary evidence used to make time-travel decisions.
 
-This package follows Effect service/tag/layer conventions. The SQL store uses
-portable scalar SQL and owns its migration; it does not depend on journal internals.
-SQL forks clone the parent's restartable engine snapshot and attempt rows, so
-they can be driven after rebuilding engine layers.
+```sh
+npm install @smithers/time-travel
+```
 
-`EffectBoundary.guard` journals intended and terminal evidence around tiered
-effects. `EffectHandlerRegistry` and `Compensation` classify and reverse
-crossed effects. `Recovery` resumes interrupted audits and `Retry` applies
-bounded retry policy.
+## Public API
 
-See the [package reference](../../docs/reference/time-travel.md).
+The root exports these namespaces, also available from matching
+`@smithers/time-travel/*` subpaths.
+
+| Namespace               | Public exports                                                                                                                                                                                                                                                                                       |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Frame`                 | `Frame` schema/type plus `LineageEdgeKind` schema/type and `LineageEdge`.                                                                                                                                                                                                                            |
+| `TimeTravelError`       | `TimeTravelErrorCode` schema/type, `TimeTravelError`, and `error(code, message, cause?)`.                                                                                                                                                                                                            |
+| `TimeTravelStore`       | Models `Snapshot`, `Descendants`, `Audit`, `Receipt`, `ArchiveResult`, and `Fork`; `Service` / `TimeTravelStore` operations `snapshotAt`, `descendants`, `writeAudit`, `updateAudit`, `pendingAudits`, `archiveAndTruncate`, `createFork`, and `recordReceipt`; `make`, `makeNoop`, and `layerNoop`. |
+| `MemoryTimeTravelStore` | `JournalRecord`, `MemoryState`, and `Options`; deterministic `make(options?)` and `layer(options?)`.                                                                                                                                                                                                 |
+| `SqlTimeTravelStore`    | Database-backed `migrate`, `make`, and `layer`.                                                                                                                                                                                                                                                      |
+| `Replay`                | `Projection`, `ReplayOptions`, and `rederive(frame, projection, options)` replay a journal prefix.                                                                                                                                                                                                   |
+| `Fork`                  | `ForkOptions` and `fork(options)` copy a prefix to a child run without mutating the parent.                                                                                                                                                                                                          |
+| `Rewind`                | `RewindStep`, `RateLimitDecision`, `DetachedChildPolicy`, `DetachedChildWarning`, `AuditDetail`, `Options`, `Result`, and `rewind(options)`.                                                                                                                                                         |
+| `Compensation`          | Planning/result models `Assessment`, `Plan`, `WorkspaceReceipt`, and `Result`; `assess`, `compensate`, `restoreWorkspace`, `execute`, `rollback`, and `toStoreReceipts`.                                                                                                                             |
+| `EffectHandlerRegistry` | `Classification`, `Assessment`, `RollbackReceipt`, and `Handler`; `Service` / `EffectHandlerRegistry` expose `handlers`, `register`, `resolve`, `assess`, `revert`, and `rollback`; `make`, `makeNoop`, `layer`, and `layerNoop`.                                                                    |
+| `EffectBoundary`        | `EffectTier`, `EffectStatus`, `EffectRecord`, and `Description`; `eventType`; `guard`, `fromEntry`, and `fromEntries`.                                                                                                                                                                               |
+| `Recovery`              | `Options`, `Outcome`, and `recover(options)` resume interrupted audits.                                                                                                                                                                                                                              |
+| `Retry`                 | `AttemptContext`, `BlockedReason`, `Outcome`, `Options`, and bounded `retry(options)`.                                                                                                                                                                                                               |
+
+```ts
+import { MemoryTimeTravelStore, TimeTravelStore } from "@smithers/time-travel"
+import { Effect } from "effect"
+
+const program = Effect.gen(function*() {
+  const store = yield* TimeTravelStore.TimeTravelStore
+  return yield* store.pendingAudits()
+}).pipe(Effect.provide(MemoryTimeTravelStore.layer()))
+```
+
+See the [time-travel reference](../../docs/reference/time-travel.md),
+[Time Travel](../../../docs/specs/Concepts/Time%20Travel.md), and
+[Time Travel Compensation](../../../docs/specs/Concepts/Time%20Travel%20Compensation.md).

@@ -1,38 +1,39 @@
 # @smithers/database
 
-@smithers/database is the thin SQL boundary for durable packages. It wraps an
-Effect SQL client with normalized errors and transaction-scoped SQLite write
-retries. Domain schema and queries belong to @smithers/journal.
+Thin Effect SQL boundary for the durable flows packages. It provides a normalized
+database service and Node/in-memory SQLite layers; journal schema and queries stay
+in `@smithers/journal`.
 
-~~~text
-NodeDatabase.layer({ filename, ...retryOptions })
-  └─ SQLite client → Database.make(sql, retryOptions)
-TestDatabase.layer = NodeDatabase.layer({ filename: ":memory:" })
-Database.layerNoop = unsupported SQL + writes
-~~~
+```sh
+npm install @smithers/database
+```
 
-Database.Database exposes sql and write(effect). Database.make wraps an existing
-SQL client. makeNoop and layerNoop fail with DatabaseError { code:
-"unsupported" }. NodeDatabase.layer is the only deployment database layer in
-this package. TestDatabase.layer is the test boundary.
+## Public API
 
-~~~ts
+The root exports these namespaces; each is also available from its matching
+subpath, such as `@smithers/database/Database`.
+
+| Namespace      | Public exports                                                                                                                                                                                                                                                |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Database`     | `Database` and `DatabaseService` expose `sql` plus transaction-scoped `write(effect)`. `DatabaseErrorCode`, `DatabaseError`, and `fromSqlError` normalize driver failures. `make` wraps a SQL client; `makeNoop` and `layerNoop` provide an unsupported stub. |
+| `NodeDatabase` | `NodeDatabaseOptions` configures SQLite and write retries; `layer(options)` provides `Database`.                                                                                                                                                              |
+| `TestDatabase` | `layer` provides the production Node adapter over a fresh `:memory:` database.                                                                                                                                                                                |
+
+```ts
 import { Database, NodeDatabase } from "@smithers/database"
 import { Effect } from "effect"
 
 const program = Effect.gen(function*() {
-  const db = yield* Database.Database
-  return yield* db.write(db.sql\`SELECT 1 AS value\`)
-})
+  const database = yield* Database.Database
+  return yield* database.write(database.sql`SELECT 1 AS value`)
+}).pipe(Effect.provide(NodeDatabase.layer({ filename: "flows.db" })))
 
-Effect.runPromise(Effect.provide(program, NodeDatabase.layer({ filename: "flows.db" })))
-~~~
+Effect.runPromise(program)
+```
 
-DatabaseErrorCode is "busy" | "constraint" | "io" | "unsupported" | "unknown".
-Recognized SQLite busy, locked, I/O, and lock-timeout writes retry with
-defaults of 10 total attempts, 50 ms initial delay, and a 10,000 ms delay cap.
-The schedule is exponential and jittered. Constraints, syntax errors, and
-arbitrary application errors are not retried.
+SQLite busy, locked, I/O, and lock-timeout writes are retried. Constraints,
+syntax errors, and arbitrary application errors are not.
 
-See the [reference](../../docs/reference/database.md) for signatures and
-defaults.
+See the [database reference](../../docs/reference/database.md),
+[Journal Queue](../../../docs/specs/Concepts/Journal%20Queue.md), and
+[Run Ownership](../../../docs/specs/Concepts/Run%20Ownership.md).
