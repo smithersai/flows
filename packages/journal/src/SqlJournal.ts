@@ -27,7 +27,7 @@ import * as Queue from "effect/Queue"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
-import * as SqlError from "effect/unstable/sql/SqlError"
+import type * as SqlError from "effect/unstable/sql/SqlError"
 import {
   type EmitReceipt,
   type EntriesPage,

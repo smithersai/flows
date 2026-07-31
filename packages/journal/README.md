@@ -5,7 +5,7 @@ content-addressed cache entries. It depends on the Database service. Journal
 admission is bounded and non-blocking; ownership and durable stores use fenced
 SQL transitions.
 
-~~~text
+```text
 NodeDatabase.layer({ filename })
   └─ Migrations.layer
        ├─ SqlJournal.layer({ capacity, overflow, batchSize? })
@@ -14,16 +14,16 @@ NodeDatabase.layer({ filename })
        └─ CacheStore.layer
 
 TestJournal.layer(options?) supplies the same services over :memory: SQLite.
-~~~
+```
 
 The event envelope has two sequence domains. Seq is the canonical per-run
 replay order. SourceSeq is allocated per run and source and makes producer
 retries idempotent. Rejected or dropped admissions consume their allocated
 numbers; replay must not assume contiguous sequences.
 
-~~~ts
-import { Journal, JournalEvent, Migrations, SqlJournal } from "@smithers/journal"
+```ts
 import { NodeDatabase } from "@smithers/database"
+import { Journal, JournalEvent, Migrations, SqlJournal } from "@smithers/journal"
 import { Effect, Layer } from "effect"
 
 const journalLayer = SqlJournal.layer({ capacity: 1024, overflow: "reject" }).pipe(
@@ -41,7 +41,7 @@ const program = Effect.gen(function*() {
 })
 
 Effect.runPromise(Effect.provide(program, journalLayer))
-~~~
+```
 
 The root exports JournalEvent, Journal, SqlJournal, Projection, Migrations,
 RunStore, Ownership, AttemptStore, CacheStore, RunCoordinator, and TestJournal.
