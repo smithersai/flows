@@ -59,4 +59,6 @@ interface Service {
 
 EngineStore admits a cache record only when the activity is sealed, the boundary is hard, and no deviation occurred. Only a content-key record has an address another run can reproduce; an ordinal-key record remains run-local. A cache hit calls `replayOutputs` before returning the stored result.
 
+Replaying a succeeded attempt row also converges the cache: if a crash landed between `attempts.finish` and `cache.put`, the restarted executor re-records the sealed completion (with fresh cache-provenance) instead of leaving the cache permanently behind the journal. A divergent first-recorded row still surfaces through the `Inconsistency` receiver, strict by default.
+
 See [Assembling a durable engine](../guides/durable-engine.md), [Implementation status](../architecture/implementation-status.md), and [Step keys](../concepts/step-keys.md).
