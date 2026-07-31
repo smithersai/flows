@@ -52,7 +52,7 @@ export class SyncError extends Schema.TaggedErrorClass<SyncError>()("flows/sync/
    *
    * @since 0.1.0
    */
-  static readonly is = (value: unknown): value is SyncError => Predicate.isTagged(value, "SyncError")
+  static readonly is = (value: unknown): value is SyncError => Predicate.isTagged(value, "flows/sync/SyncError")
 }
 
 /**
