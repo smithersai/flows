@@ -51,6 +51,16 @@ export interface SqlJournalOptions {
   readonly capacity: number
   readonly overflow: OverflowPolicy
   readonly batchSize?: number | undefined
+  /**
+   * Where the canonical per-run sequence is allocated.
+   *
+   * `"memory"` (the default) allocates in process memory and admits the event
+   * to the writer queue, which is the lowest-latency path but assumes a single
+   * writer process per run. `"sql"` routes `emit` through `emitDurable`, so the
+   * sequence is allocated inside the writer's transaction and any number of
+   * writers may share a run.
+   */
+  readonly allocation?: "memory" | "sql" | undefined
 }
 
 interface QueuedEntry {
@@ -86,6 +96,12 @@ interface SourceSequenceRow {
 interface SequenceRow {
   readonly run_id: string
   readonly next_seq: number
+}
+
+interface Prepared {
+  readonly validated: Input
+  readonly payloadJson: string
+  readonly metaJson: string
 }
 
 interface Commit {
@@ -309,38 +325,45 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
         )
       })
 
-      const emit: Service["emit"] = Effect.fn("Journal.emit")((input: Input) =>
+      const prepare = (input: Input, emittedAtMs: number): Result.Result<Prepared, JournalError> =>
+        Result.gen(function*() {
+          if (state.status === "failed") {
+            return yield* Result.fail(state.failure!)
+          }
+          if (state.status !== "open") {
+            return yield* Result.fail(error("journal_closed", "journal is closed"))
+          }
+          const validated = yield* Result.mapError(
+            decodeInput(input),
+            (cause) => error("invalid_event", "event violates the journal input contract", cause)
+          )
+          if (
+            validated.runId.length === 0 ||
+            validated.sourceId.length === 0 ||
+            validated.eventType.length === 0
+          ) {
+            return yield* Result.fail(
+              error("invalid_event", "runId, sourceId, and eventType must not be empty")
+            )
+          }
+          if (!Number.isSafeInteger(emittedAtMs) || emittedAtMs < 0) {
+            return yield* Result.fail(
+              error("invalid_event", "emittedAtMs must be a non-negative safe integer")
+            )
+          }
+          return {
+            validated,
+            payloadJson: yield* encodeJson(validated.payload, "payload"),
+            metaJson: yield* encodeJson(validated.meta ?? null, "meta")
+          }
+        })
+
+      const queuedEmit: Service["emit"] = Effect.fn("Journal.emit")((input: Input) =>
         Effect.flatMap(Clock.currentTimeMillis, (emittedAtMs) =>
           Effect.suspend(() =>
             Effect.fromResult(
               Result.gen(function*() {
-                if (state.status === "failed") {
-                  return yield* Result.fail(state.failure!)
-                }
-                if (state.status !== "open") {
-                  return yield* Result.fail(error("journal_closed", "journal is closed"))
-                }
-                const validated = yield* Result.mapError(
-                  decodeInput(input),
-                  (cause) => error("invalid_event", "event violates the journal input contract", cause)
-                )
-                if (
-                  validated.runId.length === 0 ||
-                  validated.sourceId.length === 0 ||
-                  validated.eventType.length === 0
-                ) {
-                  return yield* Result.fail(
-                    error("invalid_event", "runId, sourceId, and eventType must not be empty")
-                  )
-                }
-                if (!Number.isSafeInteger(emittedAtMs) || emittedAtMs < 0) {
-                  return yield* Result.fail(
-                    error("invalid_event", "emittedAtMs must be a non-negative safe integer")
-                  )
-                }
-
-                const payloadJson = yield* encodeJson(validated.payload, "payload")
-                const metaJson = yield* encodeJson(validated.meta ?? null, "meta")
+                const { metaJson, payloadJson, validated } = yield* prepare(input, emittedAtMs)
                 const key = sourceKey(validated.runId, validated.sourceId)
                 const nextSourceSeq = state.sourceSequences.get(key) ?? 0
                 const sourceSeq: SourceSeq = validated.sourceSeq ?? (nextSourceSeq as SourceSeq)
@@ -663,6 +686,92 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
           { discard: true }
         )
 
+      const rememberCommitted = (queued: QueuedEntry, seq: Seq): void => {
+        state.sourceEvents.set(sourceEventKey(queued.runId, queued.sourceId, queued.sourceSeq), {
+          seq,
+          eventType: queued.eventType,
+          payloadJson: queued.payloadJson,
+          metaJson: queued.metaJson,
+          status: "committed"
+        })
+        state.sequences.set(queued.runId, Math.max(state.sequences.get(queued.runId) ?? 0, seq + 1))
+        const key = sourceKey(queued.runId, queued.sourceId)
+        state.sourceSequences.set(key, Math.max(state.sourceSequences.get(key) ?? 0, queued.sourceSeq + 1))
+      }
+
+      const nextDurable = (
+        column: "seq" | "source_seq",
+        runId: RunId,
+        sourceId: SourceId | undefined
+      ): Effect.Effect<number, SqlError.SqlError> =>
+        Effect.map(
+          column === "seq"
+            ? sql<{ readonly next: number | null }>`
+              SELECT MAX(seq) + 1 AS next FROM flows_journal_events WHERE run_id = ${runId}
+            `
+            : sql<{ readonly next: number | null }>`
+              SELECT MAX(source_seq) + 1 AS next FROM flows_journal_events
+              WHERE run_id = ${runId} AND source_id = ${sourceId!}
+            `,
+          (rows) => Number(rows[0]?.next ?? 0)
+        )
+
+      const emitDurable: Service["emitDurable"] = Effect.fn("Journal.emitDurable")((input: Input) =>
+        Effect.flatMap(Clock.currentTimeMillis, (emittedAtMs) =>
+          Effect.flatMap(Effect.fromResult(prepare(input, emittedAtMs)), ({ metaJson, payloadJson, validated }) =>
+            database.write(
+              Effect.gen(function*() {
+                const key = sourceKey(validated.runId, validated.sourceId)
+                const sourceSeq: SourceSeq = validated.sourceSeq ??
+                  (Math.max(
+                    yield* nextDurable("source_seq", validated.runId, validated.sourceId),
+                    state.sourceSequences.get(key) ?? 0
+                  ) as SourceSeq)
+                if (
+                  !Number.isSafeInteger(sourceSeq) ||
+                  sourceSeq < 0 ||
+                  sourceSeq === Number.MAX_SAFE_INTEGER
+                ) {
+                  return yield* Effect.fail(
+                    error("invalid_event", "journal sequence is outside the allocatable safe integer range")
+                  )
+                }
+                const seq = Math.max(
+                  yield* nextDurable("seq", validated.runId, undefined),
+                  state.sequences.get(validated.runId) ?? 0
+                ) as Seq
+                if (!Number.isSafeInteger(seq) || seq === Number.MAX_SAFE_INTEGER) {
+                  return yield* Effect.fail(
+                    error("invalid_event", "journal sequence is outside the allocatable safe integer range")
+                  )
+                }
+                const queued: QueuedEntry = {
+                  runId: validated.runId,
+                  seq,
+                  eventId: makeEventId(validated.runId, validated.sourceId, sourceSeq),
+                  sourceId: validated.sourceId,
+                  sourceSeq,
+                  emittedAtMs,
+                  eventType: validated.eventType,
+                  payloadJson,
+                  metaJson
+                }
+                const commit = yield* insertOne(queued)
+                rememberCommitted(queued, commit.entry.seq)
+                yield* publish([commit])
+                return commit.inserted
+                  ? { _tag: "Accepted", seq: commit.entry.seq, sourceSeq } as const
+                  : { _tag: "Duplicate", seq: commit.entry.seq, sourceSeq, status: "committed" } as const
+              })
+            ).pipe(
+              Effect.mapError((cause) =>
+                isJournalError(cause) ? cause : error("sink_failed", "durable journal write failed", cause)
+              )
+            )))
+      )
+
+      const emit: Service["emit"] = options.allocation === "sql" ? emitDurable : queuedEmit
+
       const recordCommits = (
         batch: ReadonlyArray<QueuedEntry>,
         commits: ReadonlyArray<Commit>
@@ -706,7 +815,11 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
         Queue.takeBetween(queue, 1, batchSize).pipe(
           Effect.flatMap((batch) =>
             persistBatch(batch).pipe(
-              Effect.tap((commits) => Effect.sync(() => recordCommits(batch, commits))),
+              Effect.tap((commits) =>
+                Effect.sync(() =>
+                  recordCommits(batch, commits)
+                )
+              ),
               Effect.tap(publish),
               Effect.tap(() => Effect.sync(() => settle(batch.length)))
             )
@@ -778,6 +891,7 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
 
       return makeJournal({
         emit,
+        emitDurable,
         stream,
         entries: readPage,
         changes: PubSub.subscribe(changes),

@@ -15,6 +15,7 @@ This page is the public API reference for durable events, run ownership, activit
 | Operation | Result |
 | --- | --- |
 | `emit(input)` | `Accepted`, `Duplicate`, or `Dropped` receipt |
+| `emitDurable(input)` | `Accepted` or `Duplicate` receipt whose `seq` is already committed |
 | `entries({ runId, after?, limit })` | Durable page and `hasMore` |
 | `stream({ runId, afterSequence? })` | Replay-then-follow stream |
 | `changes` | Scoped subscription to locally committed entries |
@@ -25,7 +26,18 @@ This page is the public API reference for durable events, run ownership, activit
 
 ## SQL journal
 
-`SqlJournal.layer(options)` provides the bounded batching implementation over `Database`. Options are `capacity`, `overflow`, and optional `batchSize`. Admission is optimistic: an accepted receipt precedes durability.
+`SqlJournal.layer(options)` provides the bounded batching implementation over `Database`. Options are `capacity`, `overflow`, optional `batchSize`, and optional `allocation`.
+
+### Sequence allocation
+
+`allocation` selects where the canonical per-run `seq` is assigned.
+
+| Mode | `emit` behaviour | Writers per run |
+| --- | --- | --- |
+| `"memory"` (default) | Allocates in process memory and queues the write. The receipt is optimistic: a crash can lose an accepted-but-unwritten event. | One process |
+| `"sql"` | `emit` is `emitDurable`. | Any number |
+
+`emitDurable` allocates both sequences inside the writer's transaction (`MAX(seq) + 1` under the SQLite write lock, taking the in-memory clock as a floor) and inserts the row before returning, so the returned `seq` is already committed. `(run_id, source_id, source_seq)` deduplication is unchanged: an exact producer retry returns `Duplicate` with `status: "committed"`, and a reused producer sequence carrying different content fails with `idempotency_conflict`. Use it wherever a caller acts on the returned sequence — lifecycle finalization, cross-process supervisors, or any deployment where a second writer may open the same run.
 
 ### Migrations
 

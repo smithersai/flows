@@ -123,6 +123,17 @@ export interface Dropped {
 export type EmitReceipt = Accepted | Duplicate | Dropped
 
 /**
+ * Result of a synchronously durable journal admission.
+ *
+ * A durable admission is never dropped: it either commits, returns the
+ * committed sequence of an exact producer retry, or fails.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type DurableReceipt = Accepted | Duplicate
+
+/**
  * Cursor used to replay a run and then follow its committed tail.
  *
  * @category models
@@ -170,11 +181,17 @@ export interface EntriesPage {
  * Exact retries return `Duplicate` with the original canonical `seq` and do
  * not consume either allocation.
  *
+ * `emit` trades durability for latency: its receipt is optimistic. `emitDurable`
+ * is the synchronous counterpart — it allocates `seq` inside the writer's SQL
+ * transaction, so the returned sequence is already committed and independent
+ * writers never fork the per-run clock.
+ *
  * @category models
  * @since 0.1.0
  */
 export interface Service {
   readonly emit: (input: Input) => Effect.Effect<EmitReceipt, JournalError>
+  readonly emitDurable: (input: Input) => Effect.Effect<DurableReceipt, JournalError>
   readonly stream: (options: StreamOptions) => Stream.Stream<Entry, JournalError>
   readonly entries: (options: EntriesOptions) => Effect.Effect<EntriesPage, JournalError>
   readonly changes: Effect.Effect<PubSub.Subscription<Entry>, never, Scope.Scope>
@@ -216,6 +233,7 @@ const unavailable = (method: string): JournalError =>
 export const makeNoop = (overrides: Partial<Service> = {}): Service => {
   const service: Service = {
     emit: Effect.fn("Journal.emit")(() => Effect.fail(unavailable("emit"))),
+    emitDurable: Effect.fn("Journal.emitDurable")(() => Effect.fail(unavailable("emitDurable"))),
     stream: (options) =>
       Stream.unwrap(
         Effect.fn("Journal.stream")((_options: StreamOptions) => Effect.succeed(Stream.fail(unavailable("stream"))))(

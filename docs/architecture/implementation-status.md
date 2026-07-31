@@ -11,7 +11,7 @@ This page distinguishes usable source-backed behavior from contracts and planned
 | In-memory runtime | Flow execution, polling, suspension, resume, interruption, deferreds, clocks, and activity memoization |
 | Durable run state | SQL-backed run rows, exact claims, activation fences, heartbeats, stale-owner steal, and terminal transitions |
 | Attempt state | Fenced attempt admission, checkpoints up to 1 MiB, first terminal result, and opaque metadata |
-| Journal | Bounded optimistic queue, batching, idempotent producer events, paging, replay-then-follow streams, and projections |
+| Journal | Bounded optimistic queue, batching, idempotent producer events, paging, replay-then-follow streams, projections, and a multi-writer-safe `emitDurable` that allocates the canonical sequence inside the write transaction |
 | Content addressing | Canonical serialization, SHA-256 content keys, graph-reference resolution, and run-local ordinal keys |
 | Cache rows | First-writer-wins content-addressed results with run/sequence provenance |
 | Capability kernel | Monotone capability sets, rules, attended/unattended grants, journal-backed decisions, and guarded Host layers |
