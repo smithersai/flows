@@ -1,0 +1,247 @@
+/**
+ * Shared behavioural contract for every `DurableEngineState` implementation.
+ *
+ * Modeled on `packages/host/test/contract/HostContract.ts`: one suite, run
+ * against both the SQL and the in-memory implementations, so the two can
+ * never diverge silently (issue #23 — memory `park` used to drop the owner
+ * fence the SQL layer enforces).
+ */
+import type { Ownership } from "@smithers/journal"
+import * as Cause from "effect/Cause"
+import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
+import * as Fiber from "effect/Fiber"
+import * as Option from "effect/Option"
+import { describe, expect, it } from "vitest"
+import type * as DurableEngineState from "../../src/DurableEngineState.ts"
+
+export interface HarnessContext {
+  readonly state: DurableEngineState.Service
+  /** A fresh service instance over the same underlying storage (restart). */
+  readonly restart: Effect.Effect<DurableEngineState.Service>
+  /** Seeds a run row the implementation's ownership fences read. */
+  readonly seedRun: (
+    runId: string,
+    owner: Ownership.OwnerId | null,
+    status?: "pending" | "running" | "suspended" | "completed" | "failed" | "cancelled"
+  ) => Effect.Effect<void>
+}
+
+export interface Harness {
+  readonly label: string
+  readonly run: <A>(body: (context: HarnessContext) => Effect.Effect<A>) => Promise<A>
+}
+
+const owner: Ownership.OwnerId = { hostId: "contract", pid: 1, nonce: "owner" }
+const otherOwner: Ownership.OwnerId = { hostId: "contract", pid: 2, nonce: "other" }
+
+/** Observes a fence loss (self-interruption) as an Exit on a child fiber. */
+const awaitExit = <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<Exit.Exit<A, E>, never, R> =>
+  effect.pipe(Effect.forkChild({ startImmediately: true }), Effect.flatMap(Fiber.await))
+
+export const describeContract = (harness: Harness): void => {
+  describe(`DurableEngineState contract (${harness.label})`, () => {
+    it("round-trips a park through waiting and wake, surviving a restart", async () => {
+      const result = await harness.run((context) =>
+        Effect.gen(function*() {
+          yield* context.seedRun("parked", owner)
+          const parked = yield* context.state.park(
+            "parked",
+            { reason: "approval", wakeAt: 1_000, token: "tok" },
+            owner
+          )
+          const restarted = yield* context.restart
+          const waiting = yield* restarted.waiting("parked")
+          const woken = yield* restarted.wake("parked")
+          const afterWake = yield* restarted.waiting("parked")
+          return { parked, waiting, woken, afterWake }
+        })
+      )
+
+      const row = { runId: "parked", reason: "approval", wakeAt: 1_000, token: "tok" }
+      expect(result.parked).toEqual({ _tag: "Parked", row })
+      expect(Option.getOrThrow(result.waiting)).toEqual(row)
+      expect(result.woken).toEqual({ _tag: "Woken", row })
+      expect(Option.isNone(result.afterWake)).toBe(true)
+    })
+
+    it("rejects a park from a non-owning process with NotFound", async () => {
+      const result = await harness.run((context) =>
+        Effect.gen(function*() {
+          yield* context.seedRun("fenced", owner)
+          const attempt = yield* context.state.park("fenced", { reason: "approval" }, otherOwner)
+          const waiting = yield* context.state.waiting("fenced")
+          return { attempt, waiting }
+        })
+      )
+
+      expect(result.attempt).toEqual({ _tag: "NotFound" })
+      expect(Option.isNone(result.waiting)).toBe(true)
+    })
+
+    it("rejects a park for a run that does not exist", async () => {
+      const result = await harness.run((context) => context.state.park("missing", { reason: "event" }, owner))
+      expect(result).toEqual({ _tag: "NotFound" })
+    })
+
+    it("rejects a park for an unowned run", async () => {
+      const result = await harness.run((context) =>
+        Effect.gen(function*() {
+          yield* context.seedRun("unowned", null, "pending")
+          return yield* context.state.park("unowned", { reason: "quota" }, owner)
+        })
+      )
+      expect(result).toEqual({ _tag: "NotFound" })
+    })
+
+    it("reports NotFound when waking an unknown run and NotWaiting for an unparked run", async () => {
+      const result = await harness.run((context) =>
+        Effect.gen(function*() {
+          yield* context.seedRun("unparked", owner)
+          return {
+            unknown: yield* context.state.wake("unknown-run"),
+            unparked: yield* context.state.wake("unparked")
+          }
+        })
+      )
+
+      expect(result.unknown).toEqual({ _tag: "NotFound" })
+      expect(result.unparked).toEqual({ _tag: "NotWaiting" })
+    })
+
+    it("overwrites the waiting payload when a parked run parks again", async () => {
+      const result = await harness.run((context) =>
+        Effect.gen(function*() {
+          yield* context.seedRun("re-parked", owner)
+          yield* context.state.park("re-parked", { reason: "quota", wakeAt: 500 }, owner)
+          yield* context.state.park("re-parked", { reason: "event", token: "second" }, owner)
+          return Option.getOrThrow(yield* context.state.waiting("re-parked"))
+        })
+      )
+
+      expect(result).toEqual({ runId: "re-parked", reason: "event", wakeAt: null, token: "second" })
+    })
+
+    it("filters and orders waitingRuns for sweeper consumption", async () => {
+      const result = await harness.run((context) =>
+        Effect.gen(function*() {
+          for (const runId of ["due-quota", "future-quota", "due-approval", "no-wake"]) {
+            yield* context.seedRun(runId, owner)
+          }
+          yield* context.state.park("due-quota", { reason: "quota", wakeAt: 500 }, owner)
+          yield* context.state.park("future-quota", { reason: "quota", wakeAt: 5_000 }, owner)
+          yield* context.state.park("due-approval", { reason: "approval", wakeAt: 100 }, owner)
+          yield* context.state.park("no-wake", { reason: "event" }, owner)
+          return {
+            dueQuota: yield* context.state.waitingRuns({ reason: "quota", dueBeforeMs: 1_000 }),
+            allQuota: yield* context.state.waitingRuns({ reason: "quota" }),
+            dueAll: yield* context.state.waitingRuns({ dueBeforeMs: 1_000 }),
+            all: yield* context.state.waitingRuns()
+          }
+        })
+      )
+
+      expect(result.dueQuota).toEqual([{ runId: "due-quota", reason: "quota", wakeAt: 500, token: null }])
+      expect(result.allQuota.map((row) => row.runId)).toEqual(["due-quota", "future-quota"])
+      expect(result.dueAll.map((row) => row.runId)).toEqual(["due-approval", "due-quota"])
+      expect(result.all).toHaveLength(4)
+    })
+
+    it("fences clock creation to the current owner of a running run", async () => {
+      const clockRow: DurableEngineState.ClockRow = {
+        flowName: "Contract/Flow",
+        executionId: "clock-run",
+        clockName: "wake",
+        deferredName: "wake-deferred",
+        dueAtMs: 1_000,
+        completedAtMs: null
+      }
+      const result = await harness.run((context) =>
+        Effect.gen(function*() {
+          yield* context.seedRun("clock-run", owner, "running")
+          const fenced = yield* awaitExit(context.state.scheduleClock(clockRow, otherOwner))
+          const missingOwner = yield* awaitExit(context.state.scheduleClock(clockRow))
+          const afterFenced = yield* context.state.clock(clockRow)
+          const scheduled = yield* context.state.scheduleClock(clockRow, owner)
+          const duplicate = yield* context.state.scheduleClock({ ...clockRow, dueAtMs: 9_999 }, owner)
+          return { fenced, missingOwner, afterFenced, scheduled, duplicate }
+        })
+      )
+
+      expect(Exit.isFailure(result.fenced) && Cause.hasInterruptsOnly(result.fenced.cause)).toBe(true)
+      expect(Exit.isFailure(result.missingOwner) && Cause.hasInterruptsOnly(result.missingOwner.cause)).toBe(true)
+      expect(Option.isNone(result.afterFenced)).toBe(true)
+      expect(result.scheduled).toEqual({ _tag: "Scheduled", row: clockRow })
+      // First-writer-wins: a duplicate schedule returns the existing row.
+      expect(result.duplicate).toEqual({ _tag: "Existing", row: clockRow })
+    })
+
+    it("completes a clock exactly once and lists only due, uncompleted clocks", async () => {
+      const base: DurableEngineState.ClockRow = {
+        flowName: "Contract/Flow",
+        executionId: "due-run",
+        clockName: "first",
+        deferredName: "first-deferred",
+        dueAtMs: 100,
+        completedAtMs: null
+      }
+      const later: DurableEngineState.ClockRow = {
+        ...base,
+        clockName: "second",
+        deferredName: "second-deferred",
+        dueAtMs: 5_000
+      }
+      const result = await harness.run((context) =>
+        Effect.gen(function*() {
+          yield* context.seedRun("due-run", owner, "running")
+          yield* context.state.scheduleClock(base, owner)
+          yield* context.state.scheduleClock(later, owner)
+          const due = yield* context.state.dueClocks(1_000)
+          const completed = yield* context.state.completeClock(base, 150)
+          const again = yield* context.state.completeClock(base, 999)
+          const missing = yield* context.state.completeClock({ ...base, clockName: "ghost" }, 1)
+          const dueAfter = yield* context.state.dueClocks(1_000)
+          return { due, completed, again, missing, dueAfter }
+        })
+      )
+
+      expect(result.due).toEqual([base])
+      expect(result.completed).toEqual({ _tag: "Completed", row: { ...base, completedAtMs: 150 } })
+      expect(result.again).toEqual({ _tag: "AlreadyCompleted", row: { ...base, completedAtMs: 150 } })
+      expect(result.missing).toEqual({ _tag: "NotFound" })
+      expect(result.dueAfter).toEqual([])
+    })
+
+    it("keeps the first deferred completion and reads it back after a restart", async () => {
+      const row: DurableEngineState.DeferredRow = {
+        flowName: "Contract/Flow",
+        executionId: "deferred-run",
+        deferredName: "answer",
+        exit: { value: "first" },
+        completedAtMs: 10
+      }
+      const result = await harness.run((context) =>
+        Effect.gen(function*() {
+          yield* context.seedRun("deferred-run", owner, "running")
+          const first = yield* context.state.completeDeferred(row)
+          const second = yield* context.state.completeDeferred({
+            ...row,
+            exit: { value: "different" },
+            completedAtMs: 20
+          })
+          const restarted = yield* context.restart
+          const read = yield* restarted.deferred(row)
+          const listed = yield* restarted.completedDeferreds("Contract/Flow")
+          return { first, second, read, listed }
+        })
+      )
+
+      expect(result.first._tag).toBe("Completed")
+      expect(result.second._tag).toBe("Existing")
+      expect(Option.getOrThrow(result.read).exit).toEqual({ value: "first" })
+      expect(result.listed).toEqual([
+        { flowName: "Contract/Flow", executionId: "deferred-run", deferredName: "answer" }
+      ])
+    })
+  })
+}
