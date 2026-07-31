@@ -63,3 +63,5 @@ This page distinguishes usable source-backed behavior from contracts and planned
 - The `Database.write` retry classifier is SQLite-oriented even though the Vercel store adapter can wrap a PostgreSQL `SqlClient`.
 
 The package is unreleased. Treat these boundaries as source-level contracts, not compatibility promises.
+
+For the smithers-engine cutover view of this status — what is closed, partial, and missing versus the smithers internal engine — see [smithers-replacement-gaps](smithers-replacement-gaps.md).
