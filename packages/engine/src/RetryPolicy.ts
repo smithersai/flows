@@ -1,0 +1,294 @@
+/**
+ * Defines data-shaped retry policies for durable activity retries.
+ *
+ * A `RetryPolicy` is a plain value — initial interval, backoff factor, cap,
+ * optional maximum attempts, optional jitter, and optional non-retryable
+ * error tags — so the next retry delay can be derived from a persisted
+ * attempt count instead of fiber-local `Schedule` state. `nextDelay` mirrors
+ * Temporal's `ExponentialRetryPolicy.ComputeNextDelay` formula, and `decide`
+ * is the engine's single retry decision point: the core default a pluggable
+ * `resolveRetry` resolution can later dispatch in front of.
+ *
+ * @since 0.1.0
+ */
+import * as Effect from "effect/Effect"
+import * as Option from "effect/Option"
+import * as Random from "effect/Random"
+import * as Schema from "effect/Schema"
+
+/**
+ * Data-shaped retry policy schema.
+ *
+ * The delay before attempt `n + 1` is
+ * `min(initialMs * factor^(n - 1), maxMs)`, where `n` is the attempt that
+ * just failed. `maxAttempts` bounds the total number of attempts;
+ * `jitterRatio` spreads the final portion of each delay uniformly;
+ * `nonRetryable` lists error tags that must never be retried.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export const RetryPolicy = Schema.Struct({
+  initialMs: Schema.Number,
+  factor: Schema.Number,
+  maxMs: Schema.Number,
+  maxAttempts: Schema.optional(Schema.Number),
+  jitterRatio: Schema.optional(Schema.Number),
+  nonRetryable: Schema.optional(Schema.Array(Schema.String))
+})
+
+/**
+ * The value form of a {@link RetryPolicy}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type RetryPolicy = typeof RetryPolicy.Type
+
+/**
+ * Creates a `RetryPolicy` value.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const make = (options: {
+  readonly initialMs: number
+  readonly factor: number
+  readonly maxMs: number
+  readonly maxAttempts?: number | undefined
+  readonly jitterRatio?: number | undefined
+  readonly nonRetryable?: ReadonlyArray<string> | undefined
+}): RetryPolicy => ({
+  initialMs: options.initialMs,
+  factor: options.factor,
+  maxMs: options.maxMs,
+  ...(options.maxAttempts !== undefined ? { maxAttempts: options.maxAttempts } : {}),
+  ...(options.jitterRatio !== undefined ? { jitterRatio: options.jitterRatio } : {}),
+  ...(options.nonRetryable !== undefined ? { nonRetryable: options.nonRetryable } : {})
+})
+
+/**
+ * The default engine retry policy.
+ *
+ * Mirrors the historical `Schedule.min([exponential(200, 1.5),
+ * spaced(30000)])` envelope: 200ms initial delay growing by 1.5x, capped at
+ * 30s, never giving up.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const defaultRetryPolicy: RetryPolicy = make({
+  initialMs: 200,
+  factor: 1.5,
+  maxMs: 30000
+})
+
+/**
+ * A retry decision: wait `delayMs` before the next attempt.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface RetryAfter {
+  readonly _tag: "RetryAfter"
+  readonly delayMs: number
+}
+
+/**
+ * A retry decision: stop retrying.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface GiveUp {
+  readonly _tag: "GiveUp"
+  readonly reason: "nonRetryable" | "exhausted"
+}
+
+/**
+ * The outcome of the engine's retry decision point.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type RetryDecision = RetryAfter | GiveUp
+
+/**
+ * Creates a `RetryAfter` decision.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const retryAfter = (delayMs: number): RetryDecision => ({
+  _tag: "RetryAfter",
+  delayMs
+})
+
+/**
+ * Creates a `GiveUp` decision.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const giveUp = (reason: GiveUp["reason"]): RetryDecision => ({
+  _tag: "GiveUp",
+  reason
+})
+
+/**
+ * A retry sequence exhausted the policy's `maxAttempts` bound.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
+export class RetryAttemptsExhausted extends Schema.TaggedErrorClass<RetryAttemptsExhausted>()(
+  "@smithers/engine/RetryAttemptsExhausted",
+  {
+    code: Schema.Literal("retry_attempts_exhausted").pipe(
+      Schema.withConstructorDefault(Effect.succeed("retry_attempts_exhausted"))
+    ),
+    activityName: Schema.String,
+    attempt: Schema.Number,
+    maxAttempts: Schema.Number,
+    lastError: Schema.optional(Schema.Unknown)
+  }
+) {}
+
+/**
+ * Computes the delay before attempt `attempt + 1` from the persisted attempt
+ * count, mirroring Temporal's `ComputeNextDelay`
+ * (`common/backoff/retrypolicy.go`).
+ *
+ * `attempt` is the 1-based attempt that just failed. Returns `None` when the
+ * policy gives up: `maxAttempts` reached, a non-positive computed interval,
+ * or a cap below the initial interval.
+ *
+ * Jitter is deterministic-friendly: `options.random` is a `[0, 1)` sample
+ * supplied by the caller and defaults to `1`, which leaves the delay at its
+ * un-jittered value. Use {@link nextDelayEffect} to sample the `Random`
+ * service instead.
+ *
+ * @category Attempts
+ * @since 0.1.0
+ */
+export const nextDelay = (
+  policy: RetryPolicy,
+  attempt: number,
+  options?: { readonly random?: number | undefined }
+): Option.Option<number> => {
+  if (policy.maxAttempts !== undefined && attempt >= policy.maxAttempts) {
+    return Option.none()
+  }
+  const raw = policy.initialMs * Math.pow(policy.factor, attempt - 1)
+  if (!(raw > 0)) {
+    return Option.none()
+  }
+  let delay = Math.min(raw, policy.maxMs)
+  if (delay < policy.initialMs) {
+    return Option.none()
+  }
+  if (policy.jitterRatio !== undefined && policy.jitterRatio > 0) {
+    const random = options?.random ?? 1
+    delay = delay * (1 - policy.jitterRatio) + random * delay * policy.jitterRatio
+  }
+  return Option.some(delay)
+}
+
+/**
+ * Computes the next retry delay, sampling the `Random` service for jitter.
+ *
+ * Deterministic under `Random.withSeed`. Policies without a `jitterRatio`
+ * never touch the service.
+ *
+ * @category Attempts
+ * @since 0.1.0
+ */
+export const nextDelayEffect = (
+  policy: RetryPolicy,
+  attempt: number
+): Effect.Effect<Option.Option<number>> =>
+  policy.jitterRatio === undefined || policy.jitterRatio <= 0
+    ? Effect.sync(() => nextDelay(policy, attempt))
+    : Effect.map(Random.next, (random) => nextDelay(policy, attempt, { random }))
+
+/**
+ * Extracts the stable identity tag of an error for non-retryable matching:
+ * a string `_tag` property when present, otherwise the `Error` name.
+ *
+ * @category Attempts
+ * @since 0.1.0
+ */
+export const errorTag = (error: unknown): string | undefined => {
+  if (typeof error === "object" && error !== null && "_tag" in error && typeof error._tag === "string") {
+    return error._tag
+  }
+  if (error instanceof Error) {
+    return error.name
+  }
+  return undefined
+}
+
+/**
+ * Whether an error is classified non-retryable by the policy.
+ *
+ * @category Attempts
+ * @since 0.1.0
+ */
+export const isNonRetryable = (policy: RetryPolicy, error: unknown): boolean => {
+  if (policy.nonRetryable === undefined || policy.nonRetryable.length === 0) {
+    return false
+  }
+  const tag = errorTag(error)
+  return tag !== undefined && policy.nonRetryable.includes(tag)
+}
+
+/**
+ * The pure core of the engine's single retry decision point.
+ *
+ * Non-retryable classification is evaluated here and nowhere else. This is
+ * the default a pluggable `resolveRetry` resolution falls back to when no
+ * plugin claims the decision.
+ *
+ * @category Attempts
+ * @since 0.1.0
+ */
+export const decide = (
+  policy: RetryPolicy,
+  options: {
+    readonly attempt: number
+    readonly error: unknown
+    readonly random?: number | undefined
+  }
+): RetryDecision => {
+  if (isNonRetryable(policy, options.error)) {
+    return giveUp("nonRetryable")
+  }
+  return Option.match(
+    nextDelay(policy, options.attempt, { random: options.random }),
+    {
+      onNone: () => giveUp("exhausted"),
+      onSome: retryAfter
+    }
+  )
+}
+
+/**
+ * Effect form of {@link decide}, sampling the `Random` service for jitter.
+ *
+ * This is the engine-facing decision function: keep calls to it behind a
+ * single decision point so a plugin hook dispatch can later be inserted in
+ * front of it without touching call sites.
+ *
+ * @category Attempts
+ * @since 0.1.0
+ */
+export const decideEffect = (
+  policy: RetryPolicy,
+  options: {
+    readonly attempt: number
+    readonly error: unknown
+  }
+): Effect.Effect<RetryDecision> =>
+  policy.jitterRatio === undefined || policy.jitterRatio <= 0
+    ? Effect.sync(() => decide(policy, options))
+    : Effect.map(Random.next, (random) => decide(policy, { ...options, random }))

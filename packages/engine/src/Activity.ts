@@ -23,6 +23,7 @@ import type * as Types from "effect/Types"
 import * as DurableDeferred from "./DurableDeferred.ts"
 import * as Flow from "./Flow.ts"
 import type { FlowEngine, FlowInstance } from "./FlowEngine.ts"
+import type * as RetryPolicy from "./RetryPolicy.ts"
 
 const TypeId = "~effect/flow/Activity"
 
@@ -116,6 +117,7 @@ export interface Activity<
   readonly tier: Tier
   readonly idempotencyKey: IdempotencyKey | undefined
   readonly metadata: unknown
+  readonly retryPolicy: RetryPolicy.RetryPolicy | undefined
   annotate<I, S>(
     key: Context.Key<I, S>,
     value: S
@@ -164,6 +166,7 @@ export interface Any {
   readonly tier: Tier
   readonly idempotencyKey: IdempotencyKey | undefined
   readonly metadata: unknown
+  readonly retryPolicy: RetryPolicy.RetryPolicy | undefined
 }
 
 /**
@@ -182,6 +185,7 @@ export interface AnyWithProps {
   readonly tier: Tier
   readonly idempotencyKey: IdempotencyKey | undefined
   readonly metadata: unknown
+  readonly retryPolicy: RetryPolicy.RetryPolicy | undefined
 }
 
 /**
@@ -204,6 +208,7 @@ export const make = <
   readonly idempotencyKey?: IdempotencyKey | undefined
   readonly metadata?: unknown
   readonly interruptRetryPolicy?: Schedule.Schedule<any, unknown> | undefined
+  readonly retryPolicy?: RetryPolicy.RetryPolicy | undefined
   readonly annotations?: Context.Context<never> | undefined
 }): Activity<Success, Error, Exclude<R, FlowInstance | FlowEngine | Scope>> => {
   const successSchema = options.success ?? (Schema.Void as any as Success)
@@ -233,6 +238,7 @@ export const make = <
     tier: options.tier ?? "sealed",
     idempotencyKey: options.idempotencyKey,
     metadata: options.metadata,
+    retryPolicy: options.retryPolicy,
     annotate(tag: Context.Key<any, any>, value: any) {
       return make({
         ...options,

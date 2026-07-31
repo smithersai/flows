@@ -43,3 +43,8 @@ export * as FlowProxy from "./FlowProxy.ts"
  * @since 4.0.0
  */
 export * as FlowProxyServer from "./FlowProxyServer.ts"
+
+/**
+ * @since 4.0.0
+ */
+export * as RetryPolicy from "./RetryPolicy.ts"

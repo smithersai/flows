@@ -10,7 +10,7 @@
  * @since 4.0.0
  */
 import * as StepKey from "@smithers/keys/StepKey"
-import type * as Cause from "effect/Cause"
+import * as Cause from "effect/Cause"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -27,6 +27,7 @@ import * as Activity from "./Activity.ts"
 import type { DurableClock } from "./DurableClock.ts"
 import type * as DurableDeferred from "./DurableDeferred.ts"
 import * as Flow from "./Flow.ts"
+import * as RetryPolicy from "./RetryPolicy.ts"
 
 /**
  * The identity and boundary information supplied to an encoded activity
@@ -142,6 +143,9 @@ export class FlowEngine extends Context.Service<
         readonly discard?: Discard | undefined
         readonly suspendedRetrySchedule?:
           | Schedule.Schedule<any, unknown>
+          | undefined
+        readonly suspendedRetryPolicy?:
+          | RetryPolicy.RetryPolicy
           | undefined
       }
     ) => Effect.Effect<
@@ -468,9 +472,7 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
     register: Effect.fnUntraced(function*(flow, execute) {
       const services = yield* Effect.context<FlowEngine>()
       yield* options.register(flow, (payload, executionId) =>
-        Effect.suspend(() =>
-          execute(payload, executionId)
-        ).pipe(
+        Effect.suspend(() => execute(payload, executionId)).pipe(
           Effect.updateContext(
             (input) => Context.merge(services, input) as Context.Context<any>
           )
@@ -492,11 +494,15 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
         readonly suspendedRetrySchedule?:
           | Schedule.Schedule<any, unknown>
           | undefined
+        readonly suspendedRetryPolicy?:
+          | RetryPolicy.RetryPolicy
+          | undefined
       }
     ) {
       const payload = opts.payload
       const executionId = opts.executionId
-      const suspendedRetrySchedule = opts.suspendedRetrySchedule ?? defaultRetrySchedule
+      const suspendedRetrySchedule = opts.suspendedRetrySchedule
+      const suspendedRetryPolicy = opts.suspendedRetryPolicy ?? RetryPolicy.defaultRetryPolicy
       yield* Effect.annotateCurrentSpan({ executionId })
       let result = Option.none<Flow.Result<Success["Type"], Error["Type"]>>()
 
@@ -536,21 +542,39 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
       }
 
       let sleep: Effect.Effect<any> | undefined
+      let resumeAttempt = 0
       while (true) {
         const wrapped = yield* run
         result = Option.some(wrapped)
         if (wrapped._tag === "Complete") {
           return yield* wrapped.exit as Exit.Exit<any>
         }
-        sleep ??= (yield* Schedule.toStepWithSleep(suspendedRetrySchedule))(
-          void 0
-        ).pipe(
-          Effect.catch(() =>
-            Effect.die(
-              `${self._tag}.execute: suspendedRetrySchedule exhausted`
+        // The durable path derives the resume delay from the attempt count
+        // (data policy) so backoff survives a restart; an explicit Schedule
+        // stays supported at the API edge for backward compatibility.
+        if (suspendedRetrySchedule !== undefined) {
+          sleep ??= (yield* Schedule.toStepWithSleep(suspendedRetrySchedule))(
+            void 0
+          ).pipe(
+            Effect.catch(() =>
+              Effect.die(
+                `${self._tag}.execute: suspendedRetrySchedule exhausted`
+              )
             )
           )
-        )
+        } else {
+          resumeAttempt = resumeAttempt + 1
+          const delay = yield* RetryPolicy.nextDelayEffect(
+            suspendedRetryPolicy,
+            resumeAttempt
+          )
+          if (Option.isNone(delay)) {
+            return yield* Effect.die(
+              `${self._tag}.execute: suspendedRetryPolicy exhausted`
+            )
+          }
+          sleep = Effect.sleep(delay.value)
+        }
         yield* (options.resumeSignal === undefined
           ? sleep
           : Effect.raceFirst(sleep, options.resumeSignal(self, executionId)))
@@ -573,62 +597,100 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
         instance.executionId,
         currentOrdinal ?? instance.activityState.nextOrdinal()
       )
-      if (
-        activity.tier === "irreversible" &&
-        attempt > 1 &&
-        activity.idempotencyKey === undefined
-      ) {
-        return yield* Effect.die(
-          new Activity.IrreversibleRetryRequiresIdempotencyKey({
-            activityName: activity.name,
-            attempt
-          })
-        )
-      }
-      const input: ActivityExecuteOptions = {
-        activity,
-        attempt,
-        key,
-        tier: activity.tier,
-        metadata: activity.metadata
-      }
-      let result: Flow.Result<unknown, unknown>
-      if (activity.tier === "compensable") {
-        const boundaryOption = yield* Effect.serviceOption(SnapshotBoundary)
-        if (Option.isNone(boundaryOption)) {
+      const policy = activity.retryPolicy
+      let currentAttempt = attempt
+      while (true) {
+        if (
+          activity.tier === "irreversible" &&
+          currentAttempt > 1 &&
+          activity.idempotencyKey === undefined
+        ) {
           return yield* Effect.die(
-            `Compensable activity "${activity.name}" requires SnapshotBoundary`
+            new Activity.IrreversibleRetryRequiresIdempotencyKey({
+              activityName: activity.name,
+              attempt: currentAttempt
+            })
           )
         }
-        const boundary = boundaryOption.value
-        const boundaryOptions: SnapshotBoundaryOptions = {
-          flow: instance.flow,
-          executionId: instance.executionId,
+        const input: ActivityExecuteOptions = {
+          activity,
+          attempt: currentAttempt,
           key,
-          attempt,
+          tier: activity.tier,
           metadata: activity.metadata
         }
-        if (attempt > 1 && instance.activityState.snapshots.has(key)) {
-          yield* boundary.restore(
-            instance.activityState.snapshots.get(key),
-            boundaryOptions
+        let result: Flow.Result<unknown, unknown>
+        if (activity.tier === "compensable") {
+          const boundaryOption = yield* Effect.serviceOption(SnapshotBoundary)
+          if (Option.isNone(boundaryOption)) {
+            return yield* Effect.die(
+              `Compensable activity "${activity.name}" requires SnapshotBoundary`
+            )
+          }
+          const boundary = boundaryOption.value
+          const boundaryOptions: SnapshotBoundaryOptions = {
+            flow: instance.flow,
+            executionId: instance.executionId,
+            key,
+            attempt: currentAttempt,
+            metadata: activity.metadata
+          }
+          if (currentAttempt > 1 && instance.activityState.snapshots.has(key)) {
+            yield* boundary.restore(
+              instance.activityState.snapshots.get(key),
+              boundaryOptions
+            )
+          }
+          const snapshot = yield* boundary.snapshot(boundaryOptions)
+          instance.activityState.snapshots.set(key, snapshot)
+          result = yield* options.activityExecute(input).pipe(
+            Effect.ensuring(Effect.asVoid(boundary.diff(snapshot, boundaryOptions))),
+            Effect.provideService(Activity.CurrentAttempt, currentAttempt)
+          )
+        } else {
+          result = yield* options.activityExecute(input).pipe(
+            Effect.provideService(Activity.CurrentAttempt, currentAttempt)
           )
         }
-        const snapshot = yield* boundary.snapshot(boundaryOptions)
-        instance.activityState.snapshots.set(key, snapshot)
-        result = yield* options.activityExecute(input).pipe(
-          Effect.ensuring(Effect.asVoid(boundary.diff(snapshot, boundaryOptions)))
+        if (result._tag === "Suspended") {
+          return result
+        }
+        // The engine's single retry decision point. The delay is derived from
+        // the attempt count — persisted by durable engines and passed back in
+        // on resume — so a backoff sequence survives process death.
+        // nonRetryable classification is evaluated here and nowhere else.
+        if (policy !== undefined && result.exit._tag === "Failure") {
+          const failure = result.exit.cause.reasons.find(Cause.isFailReason)
+          if (failure !== undefined) {
+            const decision = yield* RetryPolicy.decideEffect(policy, {
+              attempt: currentAttempt,
+              error: failure.error
+            })
+            if (decision._tag === "RetryAfter") {
+              yield* Effect.sleep(decision.delayMs)
+              currentAttempt = currentAttempt + 1
+              continue
+            }
+            if (decision.reason === "exhausted") {
+              return new Flow.Complete({
+                exit: Exit.die(
+                  new RetryPolicy.RetryAttemptsExhausted({
+                    activityName: activity.name,
+                    attempt: currentAttempt,
+                    maxAttempts: policy.maxAttempts ?? currentAttempt,
+                    lastError: failure.error
+                  })
+                )
+              })
+            }
+            // nonRetryable: fall through and propagate the original failure.
+          }
+        }
+        const exit = yield* Effect.orDie(
+          Schema.decodeEffect(activity.exitSchemaPartial)(toJsonExit(result.exit))
         )
-      } else {
-        result = yield* options.activityExecute(input)
+        return new Flow.Complete({ exit })
       }
-      if (result._tag === "Suspended") {
-        return result
-      }
-      const exit = yield* Effect.orDie(
-        Schema.decodeEffect(activity.exitSchemaPartial)(toJsonExit(result.exit))
-      )
-      return new Flow.Complete({ exit })
     }),
     // Untraced because the explicit span below carries deferred attributes.
     deferredResult: Effect.fnUntraced(
@@ -702,11 +764,6 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
       )
     )
   })
-
-const defaultRetrySchedule = Schedule.min([
-  Schedule.exponential(200, 1.5),
-  Schedule.spaced(30000)
-])
 
 /**
  * Layer that provides an in-memory `FlowEngine`.
