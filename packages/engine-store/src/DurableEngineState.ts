@@ -731,11 +731,10 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
         FROM flows_runs
         WHERE waiting_reason IS NOT NULL
         ORDER BY waiting_wake_at_ms, run_id
-      `
-    ).pipe(
-      Effect.orDie,
-      Effect.flatMap((rows) => Effect.forEach(rows, decodeWaitingRow))
-    )
+      `).pipe(
+        Effect.orDie,
+        Effect.flatMap((rows) => Effect.forEach(rows, decodeWaitingRow))
+      )
   )
 
   return DurableEngineState.of({

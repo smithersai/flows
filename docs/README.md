@@ -62,6 +62,7 @@ documented in the [plugins repository](https://github.com/smithersai/plugins).
 - [Execution and data flow](architecture/execution-data-flow.md)
 - [Design decisions](architecture/design-decisions.md)
 - [Implementation status](architecture/implementation-status.md)
+- [Plugin system](architecture/plugin-system.md)
 
 ## Documentation conventions
 

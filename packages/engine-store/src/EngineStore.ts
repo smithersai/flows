@@ -7,9 +7,9 @@
  *
  * @since 0.1.0
  */
+import { type Activity, Flow, FlowEngine } from "@smithers/engine"
 import { AttemptStore, CacheStore, Journal, type Ownership, RunStore } from "@smithers/journal"
 import { Jj } from "@smithers/kernel"
-import { type Activity, Flow, FlowEngine } from "@smithers/engine"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"

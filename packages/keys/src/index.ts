@@ -20,5 +20,5 @@ export * as Digest from "./Digest.ts"
  * @since 0.1.0
  * @category keys
  */
-export * as StepKey from "./StepKey.ts"
 export * as KeyMaterial from "./KeyMaterial.ts"
+export * as StepKey from "./StepKey.ts"

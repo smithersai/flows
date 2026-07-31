@@ -18,6 +18,12 @@ This page distinguishes usable source-backed behavior from contracts and planned
 | Host bundles | Node, Bun, browser/test, Cloudflare, Vercel Edge, and Vercel Node adapters |
 | Durable primitives | SQL-backed deferred completions and absolute clock rows, restart re-arming and wake recovery, durable queue API, and attached child flow wake-up |
 | Sync | Read-only catch-up and credit-bounded follow over schema-backed Effect RPC |
+| Plugin kernel | `@smithers/plugin`: typed hook catalog, `resolve`/`Kernel.make`, `enforce`/`order` resolution, `apply` filtering, config waterfall + `configResolved`, and sequential/parallel/first/waterfall dispatch |
+| Cache-conflict receiver | `EngineStore.Inconsistency` (`layerStrict` / `layerTolerant` / `layerNoop`): `CacheStore.put` conflicts are journalled as `flows.engine.cache-conflict` instead of discarded |
+| Run cycle detection | `execute` walks the persisted `parentExecutionId` chain and raises `FlowCycleDetected` instead of deadlocking |
+| Waiting taxonomy | `DurableEngineState.park` / `wake` / `waiting` / `waitingRuns` with `reason`/`wakeAt`/`token` columns (migration `0004`) |
+| Retry policy | `Engine.RetryPolicy`: data-shaped policy, pure `nextDelay`, `decideEffect` decision point driven by the persisted attempt count |
+| Fault harness | `Journal.Notifying.wrap` / `layer` for interstitial crash and fence-loss injection around any Effect service |
 | Time travel utilities | Replay projections, memory/SQL time-travel stores, fork, rewind, compensation, recovery, and tier-aware retry |
 
 ## Implemented contracts with no production implementation
@@ -37,6 +43,7 @@ This page distinguishes usable source-backed behavior from contracts and planned
 - A packaged production layer that composes database, migrations, journal stores, durable deferred/clock state, kernel, Host, and engine.
 - Event-driven `resumeSignal`; suspension polling remains the fallback.
 - Journal checkpointing/compaction for unbounded histories.
+- Plugin dispatch at the engine seams (`resolveRetry`, `classifyError`, `cacheInconsistency`, `resolveShareability`, `waitStart`/`wake`) — the kernel ships, the core call sites still use their built-in defaults.
 - Graph-level failure policies such as quarantine or continue-on-failure.
 - Detached child flow construction and lifecycle policy.
 - Automatic creation of time-travel snapshots, lineage edges, and boundary records from ordinary engine execution.

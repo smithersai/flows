@@ -6,14 +6,11 @@
  *
  * @since 0.1.0
  */
-import type {
-  InputRef as CoreInputRef,
-  KeyMaterial as CoreKeyMaterial
-} from "./KeyMaterial.ts"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 import * as Canonical from "./Canonical.ts"
 import * as Digest from "./Digest.ts"
+import type { InputRef as CoreInputRef, KeyMaterial as CoreKeyMaterial } from "./KeyMaterial.ts"
 
 /**
  * A stable, versioned step-key digest.
@@ -220,10 +217,12 @@ export const fromKeyMaterial = (
   dependencyDigests: Readonly<Record<string, string>>
 ): Result.Result<StepKey, KeyMaterialError | Canonical.CanonicalError> => {
   if (material.kind !== "sealed") {
-    return Result.fail(new KeyMaterialError({
-      code: "non_content_material",
-      message: `Cannot create a content key for ${material.kind} material`
-    }))
+    return Result.fail(
+      new KeyMaterialError({
+        code: "non_content_material",
+        message: `Cannot create a content key for ${material.kind} material`
+      })
+    )
   }
   const inputs: Record<string, unknown> = {}
   for (let index = 0; index < material.inputs.length; index++) {
@@ -234,10 +233,12 @@ export const fromKeyMaterial = (
     }
     const digest = dependencyDigests[input.from]
     if (digest === undefined) {
-      return Result.fail(new KeyMaterialError({
-        code: "missing_dependency",
-        message: `Missing digest for graph dependency ${input.from}`
-      }))
+      return Result.fail(
+        new KeyMaterialError({
+          code: "missing_dependency",
+          message: `Missing digest for graph dependency ${input.from}`
+        })
+      )
     }
     inputs[String(index)] = input._tag === "Pending"
       ? { kind: "pending", digest }

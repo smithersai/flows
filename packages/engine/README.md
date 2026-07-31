@@ -6,15 +6,15 @@ reference/effect/packages/effect/src/unstable/flow tree. The fork adds
 content-addressed activity identity, durability tiers, explicit execution IDs,
 snapshot boundaries, and an optional resume signal.
 
-~~~text
+```text
 Flow → Activity → FlowEngine
              ├─ DurableDeferred
              ├─ DurableClock
              └─ DurableQueue
 FlowProxy / FlowProxyServer derive RPC and HTTP surfaces.
-~~~
+```
 
-~~~ts
+```ts
 import { Activity, Flow, FlowEngine } from "@smithers/engine"
 import { Effect, Schema } from "effect"
 
@@ -24,12 +24,12 @@ const Review = Flow.make("Review", {
 })
 
 const program = Review.execute({ pr: "42" }, { executionId: "run-17" }).pipe(
-  Effect.provide(Review.toLayer(({ pr }) =>
-    Activity.make({ name: "review", success: Schema.String, execute: Effect.succeed(pr) })
-  )),
+  Effect.provide(
+    Review.toLayer(({ pr }) => Activity.make({ name: "review", success: Schema.String, execute: Effect.succeed(pr) }))
+  ),
   Effect.provide(FlowEngine.layerMemory)
 )
-~~~
+```
 
 Root namespaces are Activity, DurableClock, DurableDeferred, DurableQueue,
 Flow, FlowEngine, FlowProxy, and FlowProxyServer. See the

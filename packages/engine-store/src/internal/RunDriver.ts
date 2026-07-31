@@ -5,8 +5,8 @@
  *
  * @since 0.1.0
  */
-import { Journal, Ownership, RunCoordinator, RunStore } from "@smithers/journal"
 import { Flow, FlowEngine } from "@smithers/engine"
+import { Journal, Ownership, RunCoordinator, RunStore } from "@smithers/journal"
 import * as Clock from "effect/Clock"
 import * as Deferred from "effect/Deferred"
 import * as Duration from "effect/Duration"

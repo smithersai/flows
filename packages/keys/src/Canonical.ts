@@ -3,8 +3,8 @@
  *
  * @since 0.1.0
  */
-import * as Result from "effect/Result"
 import * as Redacted from "effect/Redacted"
+import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 
 /**

@@ -1,5 +1,5 @@
-import { Journal, JournalEvent } from "@smithers/journal"
 import { DurableClock, DurableDeferred, Flow, FlowEngine } from "@smithers/engine"
+import { Journal, JournalEvent } from "@smithers/journal"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"

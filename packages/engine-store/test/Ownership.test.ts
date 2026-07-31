@@ -1,5 +1,5 @@
-import { Journal, Ownership, RunStore, TestJournal } from "@smithers/journal"
 import { Flow, FlowEngine } from "@smithers/engine"
+import { Journal, Ownership, RunStore, TestJournal } from "@smithers/journal"
 import * as Cause from "effect/Cause"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
