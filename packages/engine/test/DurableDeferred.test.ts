@@ -1,9 +1,33 @@
 import { Cause, Effect, Exit, Layer, Option, Schema } from "effect"
 import { describe, expect, it } from "vitest"
-import { DurableDeferred, Flow, FlowEngine } from "../src/index.ts"
+import { Activity, DurableDeferred, Flow, FlowEngine } from "../src/index.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, never>) =>
   it(name, () => Effect.runPromise(body()))
+
+const pollSuspended = <A, E, R>(
+  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>
+) =>
+  Effect.gen(function*() {
+    let result = yield* poll
+    for (let i = 0; i < 20 && Option.isNone(result); i++) {
+      yield* Effect.yieldNow
+      result = yield* poll
+    }
+    return result
+  })
+
+const pollComplete = <A, E, R>(
+  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>
+) =>
+  Effect.gen(function*() {
+    let result = yield* poll
+    for (let i = 0; i < 20 && (Option.isNone(result) || result.value._tag !== "Complete"); i++) {
+      yield* Effect.yieldNow
+      result = yield* poll
+    }
+    return result
+  })
 
 const Gate = DurableDeferred.make("DurableDeferred/Gate", {
   success: Schema.String,
@@ -27,10 +51,7 @@ const completeToken = <S extends Schema.Constraint, E extends Schema.Constraint>
   deferred: DurableDeferred.DurableDeferred<S, E>,
   flow: Flow.Any,
   executionId: string
-) =>
-  Effect.sync(() =>
-    DurableDeferred.tokenFromExecutionId(deferred, { flow, executionId })
-  )
+) => Effect.sync(() => DurableDeferred.tokenFromExecutionId(deferred, { flow, executionId }))
 
 describe("DurableDeferred", () => {
   effect("tokens round-trip through their base64url encoding", () =>
@@ -77,13 +98,14 @@ describe("DurableDeferred", () => {
     )
     return Effect.gen(function*() {
       const executionId = yield* flow.execute({ id: "s" }, { discard: true })
+      yield* Effect.yieldNow
       const suspended = yield* flow.poll(executionId)
       expect(Option.isSome(suspended) && suspended.value._tag).toBe("Suspended")
 
       const token = yield* completeToken(Gate, flow, executionId)
       yield* DurableDeferred.succeed(Gate, { token, value: "hello" })
 
-      const result = yield* flow.poll(executionId)
+      const result = yield* pollComplete(flow.poll(executionId))
       expect(Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)).toBe(true)
       if (Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)) {
         expect(result.value.exit.value).toBe("got:hello")
@@ -98,10 +120,11 @@ describe("DurableDeferred", () => {
     )
     return Effect.gen(function*() {
       const executionId = yield* flow.execute({ id: "f" }, { discard: true })
+      yield* Effect.yieldNow
       const token = yield* completeToken(Gate, flow, executionId)
       yield* DurableDeferred.fail(Gate, { token, error: "boom" })
 
-      const result = yield* flow.poll(executionId)
+      const result = yield* pollComplete(flow.poll(executionId))
       expect(Option.isSome(result) && result.value._tag === "Complete" && Exit.isFailure(result.value.exit)).toBe(true)
       if (Option.isSome(result) && result.value._tag === "Complete" && Exit.isFailure(result.value.exit)) {
         expect(result.value.exit.cause.reasons.find(Cause.isFailReason)?.error).toBe("boom")
@@ -118,10 +141,11 @@ describe("DurableDeferred", () => {
     )
     return Effect.gen(function*() {
       const executionId = yield* flow.execute({ id: "h" }, { discard: true })
+      yield* Effect.yieldNow
       const token = yield* completeToken(Gate, flow, executionId)
       yield* DurableDeferred.fail(Gate, { token, error: "boom" })
 
-      const result = yield* flow.poll(executionId)
+      const result = yield* pollComplete(flow.poll(executionId))
       expect(Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)).toBe(true)
       if (Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)) {
         expect(result.value.exit.value).toBe("recovered:boom")
@@ -136,13 +160,14 @@ describe("DurableDeferred", () => {
     )
     return Effect.gen(function*() {
       const executionId = yield* flow.execute({ id: "d" }, { discard: true })
+      yield* Effect.yieldNow
       const token = yield* completeToken(Gate, flow, executionId)
       yield* DurableDeferred.failCause(Gate, {
         token,
         cause: Cause.die("defective")
       })
 
-      const result = yield* flow.poll(executionId)
+      const result = yield* pollComplete(flow.poll(executionId))
       expect(Option.isSome(result) && result.value._tag === "Complete" && Exit.isFailure(result.value.exit)).toBe(true)
       if (Option.isSome(result) && result.value._tag === "Complete" && Exit.isFailure(result.value.exit)) {
         expect(result.value.exit.cause.reasons.some(Cause.isDieReason)).toBe(true)
@@ -157,13 +182,14 @@ describe("DurableDeferred", () => {
     )
     return Effect.gen(function*() {
       const executionId = yield* flow.execute({ id: "w" }, { discard: true })
+      yield* Effect.yieldNow
       const token = yield* completeToken(Gate, flow, executionId)
       yield* DurableDeferred.succeed(Gate, { token, value: "first" })
       // a divergent duplicate completion must not overwrite the winner
       yield* DurableDeferred.succeed(Gate, { token, value: "second" })
       yield* DurableDeferred.fail(Gate, { token, error: "late-failure" })
 
-      const result = yield* flow.poll(executionId)
+      const result = yield* pollComplete(flow.poll(executionId))
       expect(Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)).toBe(true)
       if (Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)) {
         expect(result.value.exit.value).toBe("got:first")
@@ -283,15 +309,16 @@ describe("DurableDeferred", () => {
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
     return Effect.gen(function*() {
       const executionId = yield* flow.execute({ id: "p" }, { discard: true })
+      yield* Effect.yieldNow
       const tokenB = DurableDeferred.tokenFromExecutionId(B, { flow, executionId })
       // resolving the not-yet-awaited deferred first must not complete the flow
       yield* DurableDeferred.succeed(B, { token: tokenB, value: "b" })
-      const stillSuspended = yield* flow.poll(executionId)
+      const stillSuspended = yield* pollSuspended(flow.poll(executionId))
       expect(Option.isSome(stillSuspended) && stillSuspended.value._tag).toBe("Suspended")
 
       const tokenA = DurableDeferred.tokenFromExecutionId(A, { flow, executionId })
       yield* DurableDeferred.succeed(A, { token: tokenA, value: "a" })
-      const result = yield* flow.poll(executionId)
+      const result = yield* pollComplete(flow.poll(executionId))
       expect(Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)).toBe(true)
       if (Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)) {
         expect(result.value.exit.value).toBe("a+b")
