@@ -73,6 +73,43 @@ describe("activity execution keys", () => {
     }).pipe(Effect.provide(layer))
   })
 
+  effect("folds the boundary descriptor into string idempotency keys so a changed read set misses (issue #25)", () => {
+    // Skyframe's dirty→recheck→rebuild collapses to key-based invalidation
+    // here: the hermetic descriptor (readSet digests, writeSet,
+    // boundaryMode) is part of the content key, so an activity whose
+    // declared inputs changed can never replay the stale cached result.
+    let executions = 0
+    const build = (digest: string) =>
+      Activity.make({
+        name: "ActivityKeys/build",
+        success: Schema.Number,
+        idempotencyKey: "v1",
+        metadata: {
+          readSet: [{ path: "src/input.ts", digest }],
+          writeSet: ["out/artifact"],
+          boundaryMode: "hard"
+        },
+        execute: Effect.sync(() => ++executions)
+      })
+    const flow = Flow.make("ActivityKeys/boundary-invalidation", {
+      payload: { run: Schema.String },
+      success: Schema.Number
+    })
+    const layer = flow.toLayer(() =>
+      Effect.gen(function*() {
+        // Same digest replays; the changed digest must re-execute.
+        yield* build("d1")
+        yield* build("d1")
+        return yield* build("d2")
+      })
+    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+
+    return Effect.gen(function*() {
+      expect(yield* flow.execute({ run: "one" }, { executionId: "run-boundary" })).toBe(2)
+      expect(executions).toBe(2)
+    }).pipe(Effect.provide(layer))
+  })
+
   effect("keeps an explicit ContentIdentity caller-owned so replay survives an activity rename", () => {
     // The object-form idempotencyKey is the escape hatch for rename-stable
     // identity: the caller owns the full key material, so the activity name

@@ -458,6 +458,53 @@ export interface Encoded {
   ) => Effect.Effect<void>
 }
 
+/**
+ * Extracts the hermetic boundary descriptor from an activity's metadata when
+ * it is shaped like one (`readSet` digests, `writeSet`, `boundaryMode`).
+ *
+ * The descriptor is what gates cross-run cacheability, so it must be part of
+ * the content key (issue #25): a changed read-set digest, write set, or
+ * boundary mode yields a different key and therefore a cache miss — the
+ * Skyframe dirty→recheck→rebuild model collapsed into key-based
+ * invalidation. Metadata of any other shape stays out of the key.
+ */
+const boundaryHermetic = (
+  metadata: unknown
+): NonNullable<StepKey.ContentIdentity["hermetic"]> | undefined => {
+  if (typeof metadata !== "object" || metadata === null) return undefined
+  const candidate = metadata as {
+    readonly readSet?: unknown
+    readonly writeSet?: unknown
+    readonly boundaryMode?: unknown
+  }
+  if (
+    !Array.isArray(candidate.readSet) ||
+    !Array.isArray(candidate.writeSet) ||
+    (candidate.boundaryMode !== "hard" && candidate.boundaryMode !== "expected")
+  ) {
+    return undefined
+  }
+  const readSet: Array<{ readonly path: string; readonly digest: string }> = []
+  for (const entry of candidate.readSet) {
+    if (
+      typeof entry !== "object" || entry === null ||
+      typeof (entry as { path?: unknown }).path !== "string" ||
+      typeof (entry as { digest?: unknown }).digest !== "string"
+    ) {
+      return undefined
+    }
+    readSet.push(entry as { readonly path: string; readonly digest: string })
+  }
+  if (!candidate.writeSet.every((path) => typeof path === "string")) {
+    return undefined
+  }
+  return {
+    readSet,
+    writeSet: candidate.writeSet as ReadonlyArray<string>,
+    boundaryMode: candidate.boundaryMode
+  }
+}
+
 const activityKey = (
   activity: Activity.Any,
   executionId: string,
@@ -481,7 +528,14 @@ const activityKey = (
           },
           inputs: {},
           layers: [],
-          capabilities: {}
+          capabilities: {},
+          // The cacheability-gating boundary descriptor is content identity
+          // (issue #25): a changed read set, write set, or boundary mode
+          // must miss rather than replay a stale cross-run cache entry.
+          ...(() => {
+            const hermetic = boundaryHermetic(activity.metadata)
+            return hermetic === undefined ? {} : { hermetic }
+          })()
         }
         : activity.idempotencyKey
     ))
