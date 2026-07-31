@@ -77,7 +77,7 @@ Hook failures are typed: a handler that fails does so with its declared error ch
 Mirrors Vite exactly, with Effect types:
 
 1. The application assembles a `FlowsConfig` (plugin list, store options, retry defaults, engine options). `plugins` accepts nested arrays and falsy values; the list is flattened and filtered, so a preset is just a function returning `FlowsPlugin[]`.
-2. **`config` hook (waterfall, sequential)**: each plugin may return a partial config to be deep-merged, or mutate-and-return. Runs before any Layer is built.
+2. **`config` hook (waterfall, sequential)**: each plugin may return a partial config to be deep-merged, or mutate-and-return. Runs before any Layer is built. Namespaces outside the known option groups (`retry`/`engine`/`store`) are carried through resolution verbatim and deep-frozen — a plugin's own namespace (e.g. `myPlugin: { endpoint }`) is readable from the resolved config; the plugin validates it itself.
 3. The core resolves defaults, producing a frozen `ResolvedConfig`.
 4. **`configResolved` hook (parallel)**: plugins capture the final config. After this point config is immutable for the process lifetime.
 5. All plugin `layer`s are merged (in resolved order, `Layer.provideMerge` left-to-right so `pre` plugins' services are visible to later ones) into the engine's environment. This composed layer is the single place plugins meet DI — the same shape opencode uses for its app layer.

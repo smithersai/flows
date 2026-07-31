@@ -106,6 +106,39 @@ describe("Kernel.make", () => {
     expect(kernel.layer).toBeDefined()
   })
 
+  it("carries plugin-contributed config namespaces through resolution", async () => {
+    // Issue #15: a namespace a plugin adds via the config waterfall must
+    // survive decode/defaults/freeze so configResolved (and the plugin
+    // itself) can read it back.
+    const captured: Array<ResolvedConfig> = []
+    const kernel = await run(Kernel.make(
+      [
+        {
+          name: "my-plugin",
+          hooks: {
+            config: () => Effect.succeed({ myPlugin: { endpoint: "https://example.test" } }),
+            configResolved: (config) => Effect.sync(() => void captured.push(config))
+          }
+        }
+      ],
+      { engine: { maxConcurrency: 2 }, otherNamespace: { flag: true } }
+    ))
+    expect(kernel.config["myPlugin"]).toEqual({ endpoint: "https://example.test" })
+    expect(kernel.config["otherNamespace"]).toEqual({ flag: true })
+    expect(Object.isFrozen(kernel.config["myPlugin"])).toBe(true)
+    expect(captured[0]?.["myPlugin"]).toEqual({ endpoint: "https://example.test" })
+    // known namespaces still decode and default
+    expect(kernel.config.engine.maxConcurrency).toBe(2)
+    expect(kernel.config.retry.maxAttempts).toBe(3)
+  })
+
+  it("still rejects invalid known namespaces while keeping unknown ones", async () => {
+    const error = await run(
+      Config.resolve({ retry: { maxAttempts: "many" }, myPlugin: { a: 1 } } as never).pipe(Effect.flip)
+    )
+    expect(error.code).toBe("config_invalid")
+  })
+
   it("drops the plugins field from the resolved config", async () => {
     const kernel = await run(Kernel.make([], { plugins: ["not-a-plugin"], store: { url: "sqlite://x" } }))
     expect("plugins" in kernel.config).toBe(false)

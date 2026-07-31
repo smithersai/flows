@@ -58,6 +58,12 @@ export interface FlowsConfig {
   readonly retry?: RetryConfig | undefined
   readonly engine?: EngineConfig | undefined
   readonly store?: { readonly url?: string | undefined } | undefined
+  /**
+   * Plugin-contributed namespaces. The kernel is open for augmentation: any
+   * key a plugin adds through the `config` waterfall survives resolution
+   * verbatim (it is not decoded, only frozen).
+   */
+  readonly [namespace: string]: unknown
 }
 
 /**
@@ -75,6 +81,12 @@ export interface ResolvedConfig {
   }
   readonly engine: { readonly maxConcurrency: number }
   readonly store: { readonly url?: string | undefined }
+  /**
+   * Plugin-contributed namespaces carried through the waterfall, deep-frozen
+   * but otherwise untouched. Read them back with an index access and validate
+   * in the owning plugin.
+   */
+  readonly [namespace: string]: unknown
 }
 
 /**
@@ -150,8 +162,19 @@ export const resolve = (config: FlowsConfig): Effect.Effect<ResolvedConfig, Plug
     Effect.mapError((cause) =>
       new PluginError({ code: "config_invalid", message: "post-waterfall config failed decoding", cause })
     ),
-    Effect.map((decoded) => deepFreeze(merge(defaults, { ...decoded, plugins: undefined })))
+    Effect.map((decoded) => {
+      // Schema decoding strips excess properties; the kernel is open for
+      // augmentation, so every namespace outside the known option groups
+      // (plugin-contributed config) is carried through resolution verbatim.
+      const extras: Record<string, unknown> = {}
+      for (const key of Object.keys(config)) {
+        if (!knownNamespaces.has(key)) extras[key] = config[key]
+      }
+      return deepFreeze(merge(merge(defaults, extras), { ...decoded, plugins: undefined }))
+    })
   )
+
+const knownNamespaces: ReadonlySet<string> = new Set([...Object.keys(FlowsConfigSchema.fields)])
 
 /**
  * Recursively freezes a value's own enumerable object properties.
