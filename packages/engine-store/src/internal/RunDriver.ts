@@ -48,6 +48,26 @@ const PersistedStateSchema = Schema.Struct({
 const PersistedStateJson = Schema.fromJsonString(PersistedStateSchema)
 
 /**
+ * Raised when a flow (directly or through mutual ancestry) attempts to
+ * execute an execution id that already appears in its own persisted
+ * `parentExecutionId` chain.
+ *
+ * Detection walks the already-persisted parent chain from the requesting
+ * parent upward — an O(depth) check, not a dependency-graph DFS — because
+ * `parentExecutionId` is the only edge our runtime model can express.
+ *
+ * @since 0.1.0
+ * @category errors
+ */
+export class FlowCycleDetected extends Schema.TaggedErrorClass<FlowCycleDetected>()(
+  "flows/engine-store/FlowCycleDetected",
+  {
+    /** Ordered execution ids from the cycle's target back to itself. */
+    path: Schema.Array(Schema.String)
+  }
+) {}
+
+/**
  * Dependencies for the run driver.
  *
  * @since 0.1.0
@@ -396,6 +416,57 @@ export const make = (
         }
       })
 
+    const parentOf = (executionId: string): Effect.Effect<string | undefined> =>
+      store.get(executionId).pipe(
+        Effect.catch((error) =>
+          error.code === "not_found_row"
+            ? Effect.succeed(undefined)
+            : Effect.die(error)
+        ),
+        Effect.flatMap((row) =>
+          row === undefined
+            ? Effect.succeed(undefined)
+            : decodeState(row.stateJson).pipe(Effect.map((state) => state.parentExecutionId))
+        )
+      )
+
+    /**
+     * Walks the persisted `parentExecutionId` chain upward from `startId`
+     * looking for `targetId`. This is the only dependency edge our runtime
+     * model can express, so this O(depth) walk covers every cycle the
+     * engine can create — no DFS over an in-flight dependency graph is
+     * needed.
+     *
+     * A repeated id in the chain that is not `targetId` indicates a
+     * pre-existing (unrelated) corrupt cycle in the store; the walk
+     * terminates there rather than looping forever.
+     */
+    const detectCycle = (
+      targetId: string,
+      startId: string
+    ): Effect.Effect<void> =>
+      Effect.gen(function*() {
+        if (startId === targetId) {
+          return yield* Effect.die(new FlowCycleDetected({ path: [targetId] }))
+        }
+
+        const chain: Array<string> = [startId]
+        const seen = new Set<string>([startId])
+        let current = startId
+        while (true) {
+          const parent = yield* parentOf(current)
+          if (parent === undefined) return
+          if (parent === targetId) {
+            chain.push(parent)
+            return yield* Effect.die(new FlowCycleDetected({ path: [...chain].reverse() }))
+          }
+          if (seen.has(parent)) return
+          seen.add(parent)
+          chain.push(parent)
+          current = parent
+        }
+      })
+
     const poll: Service["poll"] = Effect.fn("FlowEngine.poll")((flow, executionId) =>
       store.get(executionId).pipe(
         Effect.catch((error) =>
@@ -442,6 +513,9 @@ export const make = (
           return yield* Effect.die(
             new Error(`Flow ${flow._tag} is not registered`)
           )
+        }
+        if (options.parent !== undefined) {
+          yield* detectCycle(options.executionId, options.parent.executionId)
         }
         yield* ensureRun(flow, options)
         yield* coordinator.run(options.executionId)
