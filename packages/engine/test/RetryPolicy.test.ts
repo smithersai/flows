@@ -125,6 +125,149 @@ describe("decide", () => {
   })
 })
 
+// Parity: Temporal `common/backoff/retry_test.go:285` (duration overflow) and
+// `retrypolicy_test.go:269` (constant / conditional policies).
+describe("nextDelay numeric boundaries", () => {
+  it("clamps an overflowing exponential to maxMs instead of returning Infinity", () => {
+    const explosive = RetryPolicy.make({
+      initialMs: 1000,
+      factor: 1e6,
+      maxMs: 30000
+    })
+    // 1000 * 1e6^999 overflows IEEE754 to Infinity before the cap is applied.
+    const delay = RetryPolicy.nextDelay(explosive, 1000)
+    expect(Option.isSome(delay)).toBe(true)
+    if (Option.isSome(delay)) {
+      expect(Number.isFinite(delay.value)).toBe(true)
+      expect(delay.value).toBe(30000)
+    }
+  })
+
+  it("clamps at the largest finite attempt index without producing NaN", () => {
+    const policy = RetryPolicy.make({ initialMs: 1, factor: 2, maxMs: 60000 })
+    for (const attempt of [1024, Number.MAX_SAFE_INTEGER]) {
+      const delay = RetryPolicy.nextDelay(policy, attempt)
+      expect(Option.isSome(delay)).toBe(true)
+      if (Option.isSome(delay)) {
+        expect(Number.isNaN(delay.value)).toBe(false)
+        expect(delay.value).toBe(60000)
+      }
+    }
+  })
+
+  it("keeps an overflowing delay clamped once jitter is applied", () => {
+    const jittered = RetryPolicy.make({
+      initialMs: 1000,
+      factor: 1e6,
+      maxMs: 30000,
+      jitterRatio: 0.5
+    })
+    expect(RetryPolicy.nextDelay(jittered, 1000, { random: 0 })).toEqual(some(15000))
+    expect(RetryPolicy.nextDelay(jittered, 1000, { random: 1 })).toEqual(some(30000))
+  })
+
+  it("expresses a constant-delay policy as factor 1", () => {
+    const constant = RetryPolicy.make({ initialMs: 250, factor: 1, maxMs: 250 })
+    for (const attempt of [1, 2, 7, 500]) {
+      expect(RetryPolicy.nextDelay(constant, attempt)).toEqual(some(250))
+    }
+  })
+
+  it("a constant policy with maxAttempts stops exactly at the bound", () => {
+    const constant = RetryPolicy.make({
+      initialMs: 250,
+      factor: 1,
+      maxMs: 250,
+      maxAttempts: 4
+    })
+    expect(RetryPolicy.decide(constant, { attempt: 3, error: "e" })).toEqual(
+      RetryPolicy.retryAfter(250)
+    )
+    expect(RetryPolicy.decide(constant, { attempt: 4, error: "e" })).toEqual(
+      RetryPolicy.giveUp("exhausted")
+    )
+  })
+
+  it("a fractional factor still never dips below the initial interval", () => {
+    const decaying = RetryPolicy.make({ initialMs: 100, factor: 0.5, maxMs: 1000 })
+    expect(RetryPolicy.nextDelay(decaying, 1)).toEqual(some(100))
+    // attempt 2 computes 50ms, which is below initialMs, so the policy gives up
+    expect(RetryPolicy.nextDelay(decaying, 2)).toEqual(none)
+    expect(RetryPolicy.decide(decaying, { attempt: 2, error: "e" })).toEqual(
+      RetryPolicy.giveUp("exhausted")
+    )
+  })
+
+  it("maxAttempts of 1 refuses to retry the very first failure", () => {
+    const once = RetryPolicy.make({
+      initialMs: 100,
+      factor: 2,
+      maxMs: 1000,
+      maxAttempts: 1
+    })
+    expect(RetryPolicy.nextDelay(once, 1)).toEqual(none)
+    expect(RetryPolicy.decide(once, { attempt: 1, error: "e" })).toEqual(
+      RetryPolicy.giveUp("exhausted")
+    )
+  })
+
+  it("nonRetryable classification wins over an otherwise valid delay and over exhaustion", () => {
+    const policy = RetryPolicy.make({
+      initialMs: 100,
+      factor: 2,
+      maxMs: 1000,
+      maxAttempts: 1,
+      nonRetryable: ["Fatal"]
+    })
+    expect(
+      RetryPolicy.decide(policy, { attempt: 1, error: { _tag: "Fatal" } })
+    ).toEqual(RetryPolicy.giveUp("nonRetryable"))
+    // an untagged error at the same attempt is exhausted, not nonRetryable
+    expect(RetryPolicy.decide(policy, { attempt: 1, error: "plain" })).toEqual(
+      RetryPolicy.giveUp("exhausted")
+    )
+  })
+
+  it("errorTag reads _tag, then Error name, and is otherwise undefined", () => {
+    expect(RetryPolicy.errorTag({ _tag: "Tagged" })).toBe("Tagged")
+    expect(RetryPolicy.errorTag(new RangeError("x"))).toBe("RangeError")
+    expect(RetryPolicy.errorTag({ _tag: 7 })).toBe(undefined)
+    expect(RetryPolicy.errorTag("string")).toBe(undefined)
+    expect(RetryPolicy.errorTag(null)).toBe(undefined)
+  })
+
+  it("an empty nonRetryable list classifies nothing as non-retryable", () => {
+    const policy = RetryPolicy.make({
+      initialMs: 100,
+      factor: 2,
+      maxMs: 1000,
+      nonRetryable: []
+    })
+    expect(RetryPolicy.isNonRetryable(policy, { _tag: "Anything" })).toBe(false)
+    expect(RetryPolicy.decide(policy, { attempt: 1, error: { _tag: "Anything" } })).toEqual(
+      RetryPolicy.retryAfter(100)
+    )
+  })
+
+  it("decideEffect skips the Random service when jitter is absent or zero", async () => {
+    const noJitter = RetryPolicy.make({ initialMs: 100, factor: 2, maxMs: 1000 })
+    const zeroJitter = RetryPolicy.make({
+      initialMs: 100,
+      factor: 2,
+      maxMs: 1000,
+      jitterRatio: 0
+    })
+    for (const policy of [noJitter, zeroJitter]) {
+      const decision = await Effect.runPromise(
+        RetryPolicy.decideEffect(policy, { attempt: 1, error: "e" })
+      )
+      expect(decision).toEqual(RetryPolicy.retryAfter(100))
+      const delay = await Effect.runPromise(RetryPolicy.nextDelayEffect(policy, 1))
+      expect(delay).toEqual(some(100))
+    }
+  })
+})
+
 describe("defaultRetryPolicy", () => {
   it("mirrors the historical exponential(200, 1.5) / spaced(30000) envelope", () => {
     expect(RetryPolicy.nextDelay(RetryPolicy.defaultRetryPolicy, 1)).toEqual(some(200))
