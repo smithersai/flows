@@ -82,6 +82,31 @@ export class SnapshotBoundary extends Context.Service<
 >()("flows/engine/SnapshotBoundary") {}
 
 /**
+ * Raised when executing a flow would close a cycle in the persisted
+ * parent-execution chain — a child asking to execute an execution id that
+ * already appears among its own ancestors.
+ *
+ * This is a **typed failure**, never a defect: the caller is expected to be
+ * able to recover from it (see `docs/specs/Concepts/Run Ownership.md` and
+ * `docs/architecture/implementation-status.md`). Detection itself lives in
+ * `@smithers/engine-store`'s `internal/RunDriver.ts`, which walks the
+ * persisted chain in O(depth); the error is declared here because it is part
+ * of the `execute` contract this package owns.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
+export class FlowCycleDetected extends Schema.TaggedErrorClass<FlowCycleDetected>()(
+  "flows/engine/FlowCycleDetected",
+  {
+    /** Stable public error code. */
+    code: Schema.Literal("flow_cycle_detected"),
+    /** Ordered execution ids from the cycle's target back to itself. */
+    path: Schema.Array(Schema.String)
+  }
+) {}
+
+/**
  * Service that represents flow runtimes, responsible for registering and
  * executing flows and coordinating activities, durable deferreds,
  * interrupts, resumes, and clocks.
@@ -150,7 +175,7 @@ export class FlowEngine extends Context.Service<
       }
     ) => Effect.Effect<
       Discard extends true ? string : Success["Type"],
-      Error["Type"],
+      Error["Type"] | FlowCycleDetected,
       | Payload["EncodingServices"]
       | Success["DecodingServices"]
       | Error["DecodingServices"]
@@ -373,7 +398,8 @@ export interface Encoded {
       readonly parent?: FlowInstance["Service"] | undefined
     }
   ) => Effect.Effect<
-    Discard extends true ? void : Flow.Result<unknown, unknown>
+    Discard extends true ? void : Flow.Result<unknown, unknown>,
+    FlowCycleDetected
   >
   readonly poll: (
     flow: Flow.Any,

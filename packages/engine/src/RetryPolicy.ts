@@ -9,6 +9,10 @@
  * is the engine's single retry decision point: the core default a pluggable
  * `resolveRetry` resolution can later dispatch in front of.
  *
+ * Vault: [[Failure Policy]] (`docs/specs/Concepts/Failure Policy.md`) and
+ * [[Engine Hardening Round 1]]
+ * (`docs/specs/Concepts/Engine Hardening Round 1.md`), section 6.
+ *
  * @since 0.1.0
  */
 import * as Effect from "effect/Effect"

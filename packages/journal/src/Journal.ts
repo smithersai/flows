@@ -3,6 +3,10 @@
  *
  * Governing design: `docs/specs/Concepts/Journal Queue.md`.
  *
+ * The ownership fence and the lossless `emit` / lossy `emitLossy` split are
+ * recorded in [[Engine Hardening Round 1]]
+ * (`docs/specs/Concepts/Engine Hardening Round 1.md`), section 1.
+ *
  * @since 0.1.0
  */
 import * as Context from "effect/Context"

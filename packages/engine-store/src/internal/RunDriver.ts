@@ -56,16 +56,20 @@ const PersistedStateJson = Schema.fromJsonString(PersistedStateSchema)
  * parent upward — an O(depth) check, not a dependency-graph DFS — because
  * `parentExecutionId` is the only edge our runtime model can express.
  *
+ * The class is declared by `@smithers/engine` (it is part of the `execute`
+ * contract) and re-exported here for the detector's callers. See
+ * `docs/specs/Concepts/Run Ownership.md`.
+ *
  * @since 0.1.0
  * @category errors
  */
-export class FlowCycleDetected extends Schema.TaggedErrorClass<FlowCycleDetected>()(
-  "flows/engine-store/FlowCycleDetected",
-  {
-    /** Ordered execution ids from the cycle's target back to itself. */
-    path: Schema.Array(Schema.String)
-  }
-) {}
+export const FlowCycleDetected = FlowEngine.FlowCycleDetected
+
+/**
+ * @since 0.1.0
+ * @category errors
+ */
+export type FlowCycleDetected = FlowEngine.FlowCycleDetected
 
 /**
  * Dependencies for the run driver.
@@ -444,10 +448,10 @@ export const make = (
     const detectCycle = (
       targetId: string,
       startId: string
-    ): Effect.Effect<void> =>
+    ): Effect.Effect<void, FlowCycleDetected> =>
       Effect.gen(function*() {
         if (startId === targetId) {
-          return yield* Effect.die(new FlowCycleDetected({ path: [targetId] }))
+          return yield* Effect.fail(new FlowCycleDetected({ code: "flow_cycle_detected", path: [targetId] }))
         }
 
         const chain: Array<string> = [startId]
@@ -458,7 +462,7 @@ export const make = (
           if (parent === undefined) return
           if (parent === targetId) {
             chain.push(parent)
-            return yield* Effect.die(new FlowCycleDetected({ path: [...chain].reverse() }))
+            return yield* Effect.fail(new FlowCycleDetected({ code: "flow_cycle_detected", path: [...chain].reverse() }))
           }
           if (seen.has(parent)) return
           seen.add(parent)

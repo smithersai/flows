@@ -6,6 +6,10 @@
  * frozen lists this module produces; there is no lookup and no registration
  * after start.
  *
+ * Vault: [[Plugin Kernel]] (`docs/specs/Specs/Plugin Kernel.md`) — the shipped
+ * kernel and its stated deviations from [[Plugin API]]
+ * (`docs/specs/Specs/Plugin API.md`).
+ *
  * @since 0.1.0
  */
 import * as Effect from "effect/Effect"

@@ -2,6 +2,12 @@
  * Durable deferred-completion and clock-deadline state used by the flow
  * engine adapter.
  *
+ * The waiting-reason taxonomy (one `waiting` status plus
+ * `reason`/`wakeAt`/`token`, migration 0004) is specified by
+ * [[Run Ownership]] (`docs/specs/Concepts/Run Ownership.md`) and recorded in
+ * [[Engine Hardening Round 1]]
+ * (`docs/specs/Concepts/Engine Hardening Round 1.md`), section 5.
+ *
  * @since 0.1.0
  */
 import { Database } from "@smithers/database/Database"

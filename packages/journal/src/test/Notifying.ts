@@ -14,6 +14,9 @@
  * failure propagation across fiber joins, so those helpers have no residue
  * here.
  *
+ * Vault: [[Engine Hardening Round 1]]
+ * (`docs/specs/Concepts/Engine Hardening Round 1.md`), section 7.
+ *
  * Governing designs: `docs/specs/Concepts/Run Ownership.md` and the bazel
  * Skyframe audit (test-harness gap).
  *

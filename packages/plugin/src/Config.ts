@@ -3,6 +3,10 @@
  *
  * Governing design: `docs/architecture/plugin-system.md`.
  *
+ * Vault: [[Plugin Kernel]] (`docs/specs/Specs/Plugin Kernel.md`) — the shipped
+ * kernel and its stated deviations from [[Plugin API]]
+ * (`docs/specs/Specs/Plugin API.md`).
+ *
  * The types here are deliberately minimal structural placeholders: the engine
  * and the harness wire their real option groups in a later round. What is
  * contractual today is the *shape of the pipeline* — a mutable `FlowsConfig`

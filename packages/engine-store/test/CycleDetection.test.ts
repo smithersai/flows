@@ -39,7 +39,7 @@ const provideJournal = <A, E, R>(
     Effect.scoped
   ) as Effect.Effect<A, E, Exclude<R, Journal.Journal | RunStore.RunStore | Scope.Scope>>
 
-const findCycleDefect = (cause: Cause.Cause<unknown>) => cause.reasons.find(Cause.isDieReason)?.defect
+const findCycleFailure = (cause: Cause.Cause<unknown>) => cause.reasons.find(Cause.isFailReason)?.error
 
 describe("RunDriver cycle detection", () => {
   it("fails a direct self-execute with a 1-element cycle path", async () => {
@@ -56,9 +56,11 @@ describe("RunDriver cycle detection", () => {
 
     expect(Exit.isFailure(exit)).toBe(true)
     if (Exit.isSuccess(exit)) return
-    const defect = findCycleDefect(exit.cause)
-    expect(defect).toBeInstanceOf(RunDriver.FlowCycleDetected)
-    expect((defect as RunDriver.FlowCycleDetected).path).toEqual(["self"])
+    const failure = findCycleFailure(exit.cause)
+    expect(failure).toBeInstanceOf(RunDriver.FlowCycleDetected)
+    expect((failure as RunDriver.FlowCycleDetected).code).toBe("flow_cycle_detected")
+    expect((failure as RunDriver.FlowCycleDetected)._tag).toBe("flows/engine/FlowCycleDetected")
+    expect((failure as RunDriver.FlowCycleDetected).path).toEqual(["self"])
   })
 
   it("executes a legitimate deep parent chain with no cycle", async () => {
@@ -118,9 +120,11 @@ describe("RunDriver cycle detection", () => {
 
     expect(Exit.isFailure(exit)).toBe(true)
     if (Exit.isSuccess(exit)) return
-    const defect = findCycleDefect(exit.cause)
-    expect(defect).toBeInstanceOf(RunDriver.FlowCycleDetected)
-    expect((defect as RunDriver.FlowCycleDetected).path).toEqual(["a", "b"])
+    const failure = findCycleFailure(exit.cause)
+    expect(failure).toBeInstanceOf(RunDriver.FlowCycleDetected)
+    expect((failure as RunDriver.FlowCycleDetected).code).toBe("flow_cycle_detected")
+    expect((failure as RunDriver.FlowCycleDetected)._tag).toBe("flows/engine/FlowCycleDetected")
+    expect((failure as RunDriver.FlowCycleDetected).path).toEqual(["a", "b"])
   })
 
   it("catches the same mutual cycle from the other entry point", async () => {
@@ -153,9 +157,11 @@ describe("RunDriver cycle detection", () => {
 
     expect(Exit.isFailure(exit)).toBe(true)
     if (Exit.isSuccess(exit)) return
-    const defect = findCycleDefect(exit.cause)
-    expect(defect).toBeInstanceOf(RunDriver.FlowCycleDetected)
-    expect((defect as RunDriver.FlowCycleDetected).path).toEqual(["x", "y", "z"])
+    const failure = findCycleFailure(exit.cause)
+    expect(failure).toBeInstanceOf(RunDriver.FlowCycleDetected)
+    expect((failure as RunDriver.FlowCycleDetected).code).toBe("flow_cycle_detected")
+    expect((failure as RunDriver.FlowCycleDetected)._tag).toBe("flows/engine/FlowCycleDetected")
+    expect((failure as RunDriver.FlowCycleDetected).path).toEqual(["x", "y", "z"])
   })
 
   it("terminates on a pre-existing corrupt store cycle instead of hanging", async () => {

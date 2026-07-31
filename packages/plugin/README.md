@@ -4,6 +4,12 @@ The flows plugin kernel: a Vite-shaped, Effect-native extension seam.
 
 Governing spec: [`docs/architecture/plugin-system.md`](../../docs/architecture/plugin-system.md).
 
+Vault notes (the source of truth for design):
+[`Specs/Plugin Kernel`](../../../docs/specs/Specs/Plugin%20Kernel.md) — what shipped
+and every stated deviation from
+[`Specs/Plugin API`](../../../docs/specs/Specs/Plugin%20API.md), the
+product-facing contract.
+
 This package ships exactly three things:
 
 1. **A typed hook surface** — `FlowsHooks`, declared in the package entry point so

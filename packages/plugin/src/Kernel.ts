@@ -4,6 +4,10 @@
  *
  * Governing design: `docs/architecture/plugin-system.md` ("Config story").
  *
+ * Vault: [[Plugin Kernel]] (`docs/specs/Specs/Plugin Kernel.md`) — the shipped
+ * kernel and its stated deviations from [[Plugin API]]
+ * (`docs/specs/Specs/Plugin API.md`).
+ *
  * Order of operations, per the spec:
  *
  * 1. flatten / filter / validate / order the plugin list;

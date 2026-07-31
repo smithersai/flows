@@ -27,3 +27,9 @@ export * as StepBoundary from "./StepBoundary.ts"
  * @category services
  */
 export * as Inconsistency from "./Inconsistency.ts"
+
+/**
+ * @since 0.1.0
+ * @category errors
+ */
+export * as Errors from "./Errors.ts"

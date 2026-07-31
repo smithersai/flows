@@ -4,6 +4,10 @@
  *
  * Governing design: `docs/architecture/plugin-system.md`.
  *
+ * Vault: [[Plugin Kernel]] (`docs/specs/Specs/Plugin Kernel.md`) — the shipped
+ * kernel and its stated deviations from [[Plugin API]]
+ * (`docs/specs/Specs/Plugin API.md`).
+ *
  * @since 0.1.0
  */
 

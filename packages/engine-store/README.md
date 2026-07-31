@@ -4,6 +4,18 @@
 run ownership, attempts, cache provenance, and event records. It also supplies
 durable deferred and clock state and the step-boundary contract.
 
+Vault notes:
+[`Concepts/Run Ownership`](../../../docs/specs/Concepts/Run%20Ownership.md),
+[`Concepts/Step Keys`](../../../docs/specs/Concepts/Step%20Keys.md), and
+[`Concepts/Engine Hardening Round 1`](../../../docs/specs/Concepts/Engine%20Hardening%20Round%201.md)
+— the latter records the cache-inconsistency receiver (strict by default), the
+typed `FlowCycleDetected`, and the waiting-reason taxonomy.
+
+Public errors live in `EngineStore.Errors` and each carries a stable `code`:
+`FlowCycleDetected` (`flow_cycle_detected`), `CacheConflictDetected`
+(`cache_conflict_detected`), `AttemptAdmissionRejected`
+(`attempt_admission_rejected`).
+
 ```text
 EngineStore.layer(options)
 ├─ RunDriver: RunStore + RunCoordinator

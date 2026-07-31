@@ -4,6 +4,10 @@
  *
  * Governing design: `docs/architecture/plugin-system.md` ("The hook catalog").
  *
+ * Vault: [[Plugin Kernel]] (`docs/specs/Specs/Plugin Kernel.md`) — the shipped
+ * kernel and its stated deviations from [[Plugin API]]
+ * (`docs/specs/Specs/Plugin API.md`).
+ *
  * `FlowsHooks` is **open for augmentation, closed for dispatch**: a harness
  * declares its own hooks with `declare module "@smithers/plugin"` and holds its
  * own dispatcher over the augmented interface, while the engine dispatches only

@@ -7,6 +7,10 @@
  * own instance — the harness's is instantiated over its augmented `FlowsHooks`
  * — so there is no inheritance machinery and no re-export dance.
  *
+ * Vault: [[Plugin Kernel]] (`docs/specs/Specs/Plugin Kernel.md`) — the shipped
+ * kernel and its stated deviations from [[Plugin API]]
+ * (`docs/specs/Specs/Plugin API.md`).
+ *
  * Cancellation is fiber interruption via scope closure; nothing here threads an
  * `AbortSignal`.
  *

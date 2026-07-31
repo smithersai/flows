@@ -5,6 +5,11 @@
  * assignable, since this module treats those fields opaquely for hashing).
  * Keys stays pure: it never imports `@smithers/*` (enforced by Purity.test.ts).
  *
+ * Governing contract: [[Step Keys]] (`docs/specs/Concepts/Step Keys.md`).
+ * The nominal (never shape-sniffed) `InputRef` and the hashed `version` are
+ * recorded in [[Engine Hardening Round 1]]
+ * (`docs/specs/Concepts/Engine Hardening Round 1.md`), section 3.
+ *
  * @since 0.1.0
  */
 

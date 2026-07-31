@@ -9,6 +9,7 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as Inconsistency from "../src/Inconsistency.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 
 const owner: Ownership.OwnerId = { hostId: "activity-host", pid: 11, nonce: "activity-process" }
@@ -48,6 +49,14 @@ const activate = (runId: string) =>
   })
 
 const layer = Layer.mergeAll(TestJournal.layer(), StepBoundary.layerTest(), jj)
+
+/**
+ * These cases assert the *cache row* outcome of a lost put race, not the
+ * run-level verdict, so they opt into the tolerant inconsistency receiver.
+ * The shipped core default is `Inconsistency.layerStrict` — covered by
+ * `test/Inconsistency.test.ts`.
+ */
+const tolerantLayer = Layer.provideMerge(Inconsistency.layerTolerant, layer)
 
 describe("ActivityPersistence", () => {
   it("does not dispatch when attempt admission reports an existing or conflicting row", async () => {
@@ -184,7 +193,7 @@ describe("ActivityPersistence", () => {
           })
         )
         return { value, cached: yield* cache.get(keyDigest) }
-      }).pipe(Effect.provide(layer), Effect.scoped)
+      }).pipe(Effect.provide(tolerantLayer), Effect.scoped)
     )
 
     expect(result.value).toBe("second")
@@ -240,7 +249,7 @@ describe("ActivityPersistence", () => {
             tier: "sealed",
             metadata: boundary
           }))
-      }).pipe(Effect.provide(layer), Effect.scoped)
+      }).pipe(Effect.provide(tolerantLayer), Effect.scoped)
     )
 
     expect(values).toEqual(["fresh-0", "fresh-1", "fresh-2"])

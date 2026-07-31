@@ -3,6 +3,10 @@
  *
  * Governing design: `docs/architecture/plugin-system.md` ("The plugin object").
  *
+ * Vault: [[Plugin Kernel]] (`docs/specs/Specs/Plugin Kernel.md`) — the shipped
+ * kernel and its stated deviations from [[Plugin API]]
+ * (`docs/specs/Specs/Plugin API.md`).
+ *
  * @since 0.1.0
  */
 import type * as Layer from "effect/Layer"

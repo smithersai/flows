@@ -24,7 +24,7 @@ Reference basis (per the corpus rule): `reference/effect` Layer idioms and `unst
 
 - Not a module graph. Vite's `resolveId`/`load`/`transform` triad exists because Vite transforms modules. Flows are Effect code, not sources to rewrite — there is **no transform hook** and no virtual-module analogue.
 - Not an event bus. Hooks are typed call sites owned by the core; plugins cannot invent hooks or emit to each other. Cross-plugin communication happens the Effect way: a plugin exposes a service via its `layer`, another plugin requires it.
-- Not a sandbox. Plugins are trusted code composed by the application author, like Vite plugins. Capability enforcement remains the kernel's job.
+- Not a sandbox. Plugins are trusted code composed by the application author, like Vite plugins. Capability enforcement remains the kernel's job. **Deviation, stated:** `docs/specs/Specs/Plugin API.md` says "plugins are untrusted" and declares a `capabilities` field. That is deferred, not rejected — it needs `Permission Kernel` enforcement for plugin-provided layers at the `Host Adapters` boundary, and a `capabilities` field that nothing enforces would be a type that lies. See `docs/specs/Specs/Plugin Kernel.md` for the full deviation record.
 
 ## The plugin object
 
@@ -124,7 +124,7 @@ Selected signatures and the plugin each was designed for:
 
 **`resolveShareability`** — `(ctx: { tier: Tier; boundaryMode: BoundaryMode; evidence: BoundaryEvidence }) => Effect<Option<Shareability>>` where `Shareability = { shareable: true } | { shareable: false; reason: string }`. This ports `SkyKey.valueIsShareable()`: the executor asks once and never re-derives `tier === "sealed" && boundaryMode === "hard"` inline. Example: a plugin marking results unshareable when the host reported non-hermetic reads.
 
-**`cacheInconsistency`** — `(event: { key: string; existing: CacheRow; attempted: CacheRow }) => Effect<InconsistencyVerdict>` with `InconsistencyVerdict = "fail" | "tolerate"`; sequential, first `"fail"` wins after all handlers run (every handler always observes the event — that is why this is sequential, not first). The core default plugin (`flows-plugin-strict-cache`, installed unless replaced) journals a `cache_conflict` record and returns `"fail"` — Skyframe's `THROWING` `GraphInconsistencyReceiver`. A tolerant deployment swaps in a plugin returning `"tolerate"`.
+**`cacheInconsistency`** — `(event: { key: string; existing: CacheRow; attempted: CacheRow }) => Effect<InconsistencyVerdict>` with `InconsistencyVerdict = "fail" | "tolerate"`; sequential, first `"fail"` wins after all handlers run (every handler always observes the event — that is why this is sequential, not first). The core default plugin (`flows-plugin-strict-cache`, installed unless replaced) journals a `cache_conflict` record and returns `"fail"`. Until the dispatcher is wired, `ActivityPersistence` applies that same strict default inline when no `Inconsistency` layer is provided (`Inconsistency.layerTolerant` opts out) — Skyframe's `THROWING` `GraphInconsistencyReceiver`. A tolerant deployment swaps in a plugin returning `"tolerate"`.
 
 **`runControl`** — `(req: { verb: "pause" | "resume" | "cancel" | "hijack"; actor: string; reason?: string; runId: RunId }) => Effect<void, ControlRejected>`. Runs before the durable transition; a typed failure vetoes it. The attribution record itself is core (journalled with the transition); *hijack semantics* — handing the agent session to a human — is a harness plugin on this hook, exactly as the Smithers audit prescribed.
 

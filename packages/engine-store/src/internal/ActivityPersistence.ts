@@ -294,11 +294,13 @@ export const make = (deps: Dependencies) =>
         if (cachePut._tag === "Conflict") {
           const conflicting = yield* cache.get(keyDigest)
           const receiverOption = yield* Effect.serviceOption(Inconsistency.Inconsistency)
-          // The unwired fallback tolerates, preserving the pre-receiver
-          // executor contract; engine wiring provides `layerStrict`.
+          // Core default is STRICT: journal the conflict and fail the run
+          // (`docs/architecture/plugin-system.md`, the `cacheInconsistency`
+          // hook's core default). Providing `Inconsistency.layerTolerant`
+          // opts out.
           const receiver = Option.isSome(receiverOption)
             ? receiverOption.value
-            : Inconsistency.make({ journal, verdict: "tolerate" })
+            : Inconsistency.make({ journal, verdict: "fail" })
           const verdict = yield* receiver.note({
             key: keyDigest,
             existing: Option.getOrUndefined(conflicting),

@@ -8,7 +8,10 @@
  *
  * Governing design: smithers-replacement audit P0 #2 — express every wait
  * reason (approval / event / timer / quota) through one open taxonomy on
- * `DurableEngineState` rather than per-reason inline states.
+ * `DurableEngineState` rather than per-reason inline states. Vault:
+ * [[Run Ownership]] (`docs/specs/Concepts/Run Ownership.md`) and
+ * [[Engine Hardening Round 1]]
+ * (`docs/specs/Concepts/Engine Hardening Round 1.md`), section 5.
  *
  * @since 0.1.0
  */
