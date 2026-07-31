@@ -28,6 +28,8 @@ const makeRuns = (): RunStore.Service & { readonly state: () => RunStore.RunRow 
     heartbeatAtMs: 0,
     claim: null,
     claimedAtMs: null,
+    parentRunId: null,
+    cancelRequestedAtMs: null,
     stateJson: "{\"cursor\":7}"
   }
   const service = RunStore.makeNoop({
@@ -45,7 +47,9 @@ const makeRuns = (): RunStore.Service & { readonly state: () => RunStore.RunRow 
               owner: null,
               heartbeatAtMs: null,
               claim: null,
-              claimedAtMs: null
+              claimedAtMs: null,
+    parentRunId: null,
+    cancelRequestedAtMs: null
             })
         }
         return { _tag: "Transitioned" as const }

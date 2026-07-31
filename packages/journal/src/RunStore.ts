@@ -101,8 +101,53 @@ export interface RunRow extends RunSnapshot {
   readonly finishedAtMs: number | null
   readonly claim: OwnerId | null
   readonly claimedAtMs: number | null
+  readonly parentRunId: string | null
+  readonly cancelRequestedAtMs: number | null
   readonly stateJson: string
 }
+
+/**
+ * Metadata recorded when a run row is created.
+ *
+ * `parentRunId` is the lineage edge a fork, rewind, or continue-as-new child
+ * carries. It is a column rather than a `state_json` field because ancestry is
+ * walked in SQL.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export interface CreateOptions {
+  readonly parentRunId?: string | undefined
+}
+
+/**
+ * An extra compare-and-swap predicate over first-class run metadata.
+ *
+ * A guard is the seam for lifecycle rules a harness must enforce atomically —
+ * `{ cancelRequested: "absent" }` is the "do not finalize a run someone asked
+ * to cancel" rule, expressed as SQL rather than as a read-then-write race.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export interface TransitionGuard {
+  readonly cancelRequested?: "absent" | "present" | undefined
+}
+
+/**
+ * Result of recording a cancellation request.
+ *
+ * The request is deliberately unfenced: any observer may ask, and the owner
+ * decides. `requestedAtMs` is the winning request, so a repeat request reports
+ * the original time rather than overwriting it.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export type RequestCancelOutcome =
+  | { readonly _tag: "CancelRequested"; readonly requestedAtMs: number }
+  | { readonly _tag: "AlreadyRequested"; readonly requestedAtMs: number }
+  | { readonly _tag: "NotFound" }
 
 /**
  * Result of acquiring claim columns for a later activation.
@@ -187,6 +232,7 @@ export type TransitionOutcome =
   | { readonly _tag: "Transitioned" }
   | { readonly _tag: "FenceLost" }
   | { readonly _tag: "NotFound" }
+  | { readonly _tag: "GuardFailed" }
 
 /**
  * Fenced persistence operations for durable runs.
@@ -195,8 +241,14 @@ export type TransitionOutcome =
  * @category models
  */
 export interface Service {
-  readonly create: (runId: string, stateJson: string) => Effect.Effect<void, RunStoreError>
+  readonly create: (
+    runId: string,
+    stateJson: string,
+    options?: CreateOptions | undefined
+  ) => Effect.Effect<void, RunStoreError>
   readonly get: (runId: string) => Effect.Effect<RunRow, RunStoreError>
+  /** Records an unfenced cancellation request that later guarded transitions observe. */
+  readonly requestCancel: (runId: string, nowMs: number) => Effect.Effect<RequestCancelOutcome, RunStoreError>
   readonly claim: (
     runId: string,
     expected: RunSnapshot,
@@ -242,7 +294,8 @@ export interface Service {
     runId: string,
     owner: OwnerId,
     toStatus: RunStatus,
-    stateJson?: string | undefined
+    stateJson?: string | undefined,
+    guard?: TransitionGuard | undefined
   ) => Effect.Effect<TransitionOutcome, RunStoreError>
   readonly steal: (
     runId: string,
@@ -276,6 +329,7 @@ const livenessUnconfirmed = { _tag: "LivenessUnconfirmed" } as const
 const updated = { _tag: "Updated" } as const
 const fenceLost = { _tag: "FenceLost" } as const
 const transitioned = { _tag: "Transitioned" } as const
+const guardFailed = { _tag: "GuardFailed" } as const
 
 const heartbeatStaleAfterMs = 30_000
 const terminalStatuses: ReadonlySet<RunStatus> = new Set(["completed", "failed", "cancelled"])
@@ -294,6 +348,8 @@ const DatabaseRunRow = Schema.Struct({
   claimPid: Schema.NullOr(Schema.Number),
   claimNonce: Schema.NullOr(Schema.String),
   claimedAtMs: Schema.NullOr(Schema.Number),
+  parentRunId: Schema.NullOr(Schema.String),
+  cancelRequestedAtMs: Schema.NullOr(Schema.Number),
   stateJson: Schema.String
 })
 
@@ -372,6 +428,8 @@ const decodeRunRow = (method: string, input: unknown): Effect.Effect<RunRow, Run
         heartbeatAtMs: row.heartbeatAtMs,
         claim,
         claimedAtMs: row.claimedAtMs,
+        parentRunId: row.parentRunId,
+        cancelRequestedAtMs: row.cancelRequestedAtMs,
         stateJson: row.stateJson
       })
     })
@@ -393,6 +451,8 @@ const selectRun = (sql: SqlClient.SqlClient, runId: string) =>
       claim_pid AS "claimPid",
       claim_nonce AS "claimNonce",
       claimed_at_ms AS "claimedAtMs",
+      parent_run_id AS "parentRunId",
+      cancel_requested_at_ms AS "cancelRequestedAtMs",
       state_json AS "stateJson"
     FROM flows_runs
     WHERE run_id = ${runId}
@@ -453,9 +513,10 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
     database.write(effect).pipe(Effect.mapError((cause) => persistenceError(method, cause)))
 
   const create = Effect.fn("flows/journal/RunStore.create")(
-    (runId: string, stateJson: string): Effect.Effect<void, RunStoreError> => {
-      if (runId.length === 0 || !isJsonString(stateJson)) {
-        return Effect.fail(invalidRunError("create", { runId, stateJson }))
+    (runId: string, stateJson: string, options?: CreateOptions | undefined): Effect.Effect<void, RunStoreError> => {
+      const parentRunId = options?.parentRunId ?? null
+      if (runId.length === 0 || !isJsonString(stateJson) || parentRunId?.length === 0) {
+        return Effect.fail(invalidRunError("create", { runId, stateJson, parentRunId }))
       }
       return Clock.currentTimeMillis.pipe(
         Effect.flatMap((createdAtMs) =>
@@ -476,6 +537,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
               claim_pid,
               claim_nonce,
               claimed_at_ms,
+              parent_run_id,
               state_json
             ) VALUES (
               ${runId},
@@ -491,6 +553,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
               NULL,
               NULL,
               NULL,
+              ${parentRunId},
               ${stateJson}
             )
           `.pipe(Effect.asVoid)
@@ -509,6 +572,36 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
       )
     )
   )
+
+  const requestCancel = Effect.fn("flows/journal/RunStore.requestCancel")((
+    runId: string,
+    nowMs: number
+  ): Effect.Effect<RequestCancelOutcome, RunStoreError> => {
+    if (!Number.isSafeInteger(nowMs) || nowMs < 0) {
+      return Effect.fail(invalidRunError("requestCancel", { runId, nowMs }))
+    }
+    return write(
+      "requestCancel",
+      Effect.gen(function*() {
+        const rows = yield* sql<{ readonly requestedAtMs: number }>`
+          UPDATE flows_runs
+          SET cancel_requested_at_ms = ${nowMs}
+          WHERE run_id = ${runId}
+            AND cancel_requested_at_ms IS NULL
+          RETURNING cancel_requested_at_ms AS "requestedAtMs"
+        `
+        if (rows[0] !== undefined) {
+          return { _tag: "CancelRequested", requestedAtMs: Number(rows[0].requestedAtMs) } as const
+        }
+        const current = yield* sql<{ readonly requestedAtMs: number | null }>`
+          SELECT cancel_requested_at_ms AS "requestedAtMs" FROM flows_runs WHERE run_id = ${runId}
+        `
+        return current[0]?.requestedAtMs == null
+          ? notFound
+          : { _tag: "AlreadyRequested", requestedAtMs: Number(current[0].requestedAtMs) } as const
+      })
+    )
+  })
 
   const claim = Effect.fn("flows/journal/RunStore.claim")((
     runId: string,
@@ -765,7 +858,8 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
     runId: string,
     owner: OwnerId,
     toStatus: RunStatus,
-    stateJson?: string | undefined
+    stateJson?: string | undefined,
+    guard?: TransitionGuard | undefined
   ): Effect.Effect<TransitionOutcome, RunStoreError> => {
     if (
       Schema.decodeUnknownResult(RunStatus)(toStatus)._tag === "Failure" ||
@@ -773,6 +867,10 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
     ) {
       return Effect.fail(invalidRunError("transitionOwned", { runId, toStatus, stateJson }))
     }
+    // A guard is compiled into the same UPDATE as the ownership fence, so a
+    // concurrent cancellation request can never slip between check and write.
+    const requireCancelAbsent = guard?.cancelRequested === "absent" ? 1 : 0
+    const requireCancelPresent = guard?.cancelRequested === "present" ? 1 : 0
     return Clock.currentTimeMillis.pipe(
       Effect.flatMap((transitionedAtMs) =>
         write(
@@ -790,6 +888,8 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
                   AND owner_host_id = ${owner.hostId}
                   AND owner_pid = ${owner.pid}
                   AND owner_nonce = ${owner.nonce}
+                  AND (${requireCancelAbsent} = 0 OR cancel_requested_at_ms IS NULL)
+                  AND (${requireCancelPresent} = 0 OR cancel_requested_at_ms IS NOT NULL)
                 RETURNING run_id AS "runId"
               `
               : yield* sql<{ readonly runId: string }>`
@@ -811,12 +911,20 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
                   AND owner_host_id = ${owner.hostId}
                   AND owner_pid = ${owner.pid}
                   AND owner_nonce = ${owner.nonce}
+                  AND (${requireCancelAbsent} = 0 OR cancel_requested_at_ms IS NULL)
+                  AND (${requireCancelPresent} = 0 OR cancel_requested_at_ms IS NOT NULL)
                 RETURNING run_id AS "runId"
               `
             /* v8 ignore next -- both CAS outcomes are asserted; V8 reports a synthetic implicit branch */
             if (rows.length > 0) return transitioned
             const current = yield* selectRun(sql, runId)
-            return current.length === 0 ? notFound : fenceLost
+            const row = current[0]
+            if (row === undefined) return notFound
+            const ownsRow = row.status === "running" &&
+              row.ownerHostId === owner.hostId &&
+              row.ownerPid === owner.pid &&
+              row.ownerNonce === owner.nonce
+            return ownsRow ? guardFailed : fenceLost
           })
         )
       )
@@ -867,6 +975,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
   return RunStore.of({
     create,
     get,
+    requestCancel,
     claim,
     claimAndOwn,
     activate,
@@ -891,6 +1000,7 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service => {
   return RunStore.of({
     create: Effect.fn("flows/journal/RunStore.create")(() => unavailable("create")),
     get: Effect.fn("flows/journal/RunStore.get")(() => unavailable("get")),
+    requestCancel: Effect.fn("flows/journal/RunStore.requestCancel")(() => Effect.succeed(notFound)),
     claim: Effect.fn("flows/journal/RunStore.claim")(() => Effect.succeed(notFound)),
     claimAndOwn: Effect.fn("flows/journal/RunStore.claimAndOwn")(() => Effect.succeed(notFound)),
     activate: Effect.fn("flows/journal/RunStore.activate")(() => Effect.succeed(claimLost)),

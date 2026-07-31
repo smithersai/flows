@@ -48,10 +48,35 @@ This page is the public API reference for durable events, run ownership, activit
 `RunStore` exports:
 
 - `RunStatus`: `pending`, `running`, `suspended`, `completed`, `failed`, or `cancelled`.
-- `RunRow` and `RunSnapshot`.
-- fenced `create`, `get`, `claim`, `claimAndOwn`, `activate`, `abandonClaim`, `recoverClaim`, `heartbeat`, `transitionOwned`, and `steal`.
+- `RunRow`, `RunSnapshot`, `CreateOptions`, and `TransitionGuard`.
+- fenced `create`, `get`, `claim`, `claimAndOwn`, `activate`, `abandonClaim`, `recoverClaim`, `heartbeat`, `transitionOwned`, and `steal`, plus unfenced `requestCancel`.
 - tagged outcome unions for every compare-and-set operation.
 - `make`, `layer`, `makeNoop`, and `layerNoop`.
+
+### Run metadata: columns versus `state_json`
+
+`flows_runs` carries exactly two metadata columns beyond identity, lifecycle, and ownership:
+
+| Column | Why it is a column |
+| --- | --- |
+| `cancel_requested_at_ms` | It participates in a compare-and-swap. `transitionOwned(..., { cancelRequested: "absent" })` compiles the predicate into the same `UPDATE` as the ownership fence, so a cancellation request cannot slip between a read and a terminal write. |
+| `parent_run_id` | Lineage is walked in SQL. A recursive CTE over `parent_run_id` answers ancestry questions that a JSON side-channel would force into decode-then-filter. |
+
+Everything else a harness records about a run — workflow name and hash, cancel attribution, pause and hijack requests, VCS coordinates, config — stays in `state_json`. That is the intended extension point, not a workaround: those fields are read with the row, never guarded on, and adding a column per harness concept would make the schema a union of its consumers. `state_json` is checked to be valid JSON, and `transitionOwned` replaces it atomically with the status change.
+
+When a `state_json` field does need to be scanned, index the expression rather than promoting the column:
+
+```sql
+CREATE INDEX flows_runs_workflow_name_idx
+ON flows_runs (json_extract(state_json, '$.workflowName'));
+
+SELECT run_id FROM flows_runs
+WHERE json_extract(state_json, '$.workflowName') = 'deploy';
+```
+
+Promote a field to a column only when it must appear in a CAS guard. `TransitionGuard` is the seam for that: new guarded metadata extends the interface and the single `UPDATE`, rather than adding a transition variant per rule.
+
+`requestCancel(runId, nowMs)` records the request without an owner fence — any observer may ask, and the owner decides at its next guarded transition. It returns `CancelRequested`, `AlreadyRequested` (with the original request time, which is never overwritten), or `NotFound`. A guarded transition that loses only to its guard returns `GuardFailed`, distinct from `FenceLost`.
 
 `Ownership.OwnerId` contains `hostId`, `pid`, and `nonce`. `LivenessEvidence` records observer and observation time. `heartbeatLoop`, `heartbeatInterval`, and `heartbeatStaleAfter` support scoped ownership maintenance.
 

@@ -100,6 +100,7 @@ describe("journal migrations", () => {
       ],
       flows_migrations: ["created_at", "migration_id", "name"],
       flows_runs: [
+        "cancel_requested_at_ms",
         "claim_host_id",
         "claim_nonce",
         "claim_pid",
@@ -110,6 +111,7 @@ describe("journal migrations", () => {
         "owner_host_id",
         "owner_nonce",
         "owner_pid",
+        "parent_run_id",
         "run_id",
         "started_at_ms",
         "state_json",
