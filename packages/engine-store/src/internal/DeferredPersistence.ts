@@ -248,11 +248,9 @@ export const make = (
 
     const sweepDue: Service["sweepDue"] = Effect.fn("DeferredPersistence.sweepDue")((flowName) =>
       Effect.gen(function*() {
-        const rows = yield* state.dueClocks(Number.MAX_SAFE_INTEGER)
+        const rows = yield* state.pendingClocks(flowName === undefined ? {} : { flowName })
         yield* Effect.forEach(
-          flowName === undefined
-            ? rows
-            : rows.filter((row) => row.flowName === flowName),
+          rows,
           (row) => recordClockScheduled(row).pipe(Effect.andThen(armClock(row))),
           { discard: true }
         )

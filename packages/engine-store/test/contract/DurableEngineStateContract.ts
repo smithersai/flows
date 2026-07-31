@@ -238,6 +238,54 @@ export const describeContract = (harness: Harness): void => {
       expect(result.dueAfter).toEqual([])
     })
 
+    it("scopes pendingClocks to an execution or flow without a due-time bound (issue #35)", async () => {
+      const result = await harness.run((context) =>
+        Effect.gen(function*() {
+          for (const runId of ["clocks-target", "clocks-other"]) {
+            yield* context.seedRun(runId, owner)
+          }
+          const base = {
+            flowName: "clocks-flow",
+            deferredName: "clocks-deferred",
+            completedAtMs: null
+          }
+          // A populated store: another execution's clock, a future clock, a
+          // due clock, and a completed clock on the target execution.
+          yield* context.state.scheduleClock(
+            { ...base, executionId: "clocks-other", clockName: "other", dueAtMs: 10 },
+            owner
+          )
+          yield* context.state.scheduleClock(
+            { ...base, executionId: "clocks-target", clockName: "future", dueAtMs: 999_999 },
+            owner
+          )
+          yield* context.state.scheduleClock(
+            { ...base, executionId: "clocks-target", clockName: "due", dueAtMs: 5 },
+            owner
+          )
+          yield* context.state.scheduleClock(
+            { ...base, executionId: "clocks-target", clockName: "done", dueAtMs: 1 },
+            owner
+          )
+          yield* context.state.completeClock(
+            { flowName: "clocks-flow", executionId: "clocks-target", clockName: "done" },
+            2
+          )
+          return {
+            byExecution: yield* context.state.pendingClocks({ executionId: "clocks-target" }),
+            byFlow: yield* context.state.pendingClocks({ flowName: "clocks-flow" }),
+            all: yield* context.state.pendingClocks({})
+          }
+        })
+      )
+
+      // Execution scope: pending only (future ones included), never other
+      // executions' rows, ordered by due time.
+      expect(result.byExecution.map((row) => row.clockName)).toEqual(["due", "future"])
+      expect(result.byFlow.map((row) => row.clockName)).toEqual(["due", "other", "future"])
+      expect(result.all).toHaveLength(3)
+    })
+
     it("keeps the first deferred completion and reads it back after a restart", async () => {
       const row: DurableEngineState.DeferredRow = {
         flowName: "Contract/Flow",

@@ -480,8 +480,7 @@ export const make = (
           // else waits on an external event (deferred completion). This is
           // what makes `waitingRuns` sweepers and the 0004 partial index
           // match real suspensions (issue #12).
-          const pendingClocks = (yield* engineState.dueClocks(Number.MAX_SAFE_INTEGER))
-            .filter((clock) => clock.executionId === executionId && clock.completedAtMs === null)
+          const pendingClocks = yield* engineState.pendingClocks({ executionId })
           const waiting: DurableEngineState.Waiting = pendingClocks.length > 0
             ? {
               reason: "timer",

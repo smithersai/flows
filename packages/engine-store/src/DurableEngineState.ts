@@ -200,6 +200,17 @@ export interface Service {
   // TODO(piece-6): fold into @smithers/journal — needs ClockStore.due(nowMs).
   readonly dueClocks: (nowMs: number) => Effect.Effect<ReadonlyArray<ClockRow>>
   /**
+   * Lists uncompleted clock rows scoped to an execution or flow, with no
+   * due-time bound. Suspension-reason derivation and registration-time
+   * recovery use this instead of abusing `dueClocks` as an all-clocks
+   * listing (issue #35): `dueClocks` is a due-timer sweeper query and may
+   * grow a result cap without affecting park correctness.
+   */
+  readonly pendingClocks: (scope: {
+    readonly executionId?: string
+    readonly flowName?: string
+  }) => Effect.Effect<ReadonlyArray<ClockRow>>
+  /**
    * Lists completed deferred addresses for registration-time wake recovery.
    */
   readonly completedDeferreds: (
@@ -591,6 +602,52 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
     )
   )
 
+  const pendingClocks: Service["pendingClocks"] = Effect.fn("DurableEngineState.pendingClocks")((scope) =>
+    (scope.executionId !== undefined
+      ? sql<ClockDatabaseRow>`
+      SELECT
+        flow_name AS "flowName",
+        execution_id AS "executionId",
+        clock_name AS "clockName",
+        deferred_name AS "deferredName",
+        due_at_ms AS "dueAtMs",
+        completed_at_ms AS "completedAtMs"
+      FROM flows_clock_deadlines
+      WHERE completed_at_ms IS NULL
+        AND execution_id = ${scope.executionId}
+      ORDER BY due_at_ms, execution_id, clock_name
+    `
+      : scope.flowName !== undefined
+      ? sql<ClockDatabaseRow>`
+      SELECT
+        flow_name AS "flowName",
+        execution_id AS "executionId",
+        clock_name AS "clockName",
+        deferred_name AS "deferredName",
+        due_at_ms AS "dueAtMs",
+        completed_at_ms AS "completedAtMs"
+      FROM flows_clock_deadlines
+      WHERE completed_at_ms IS NULL
+        AND flow_name = ${scope.flowName}
+      ORDER BY due_at_ms, execution_id, clock_name
+    `
+      : sql<ClockDatabaseRow>`
+      SELECT
+        flow_name AS "flowName",
+        execution_id AS "executionId",
+        clock_name AS "clockName",
+        deferred_name AS "deferredName",
+        due_at_ms AS "dueAtMs",
+        completed_at_ms AS "completedAtMs"
+      FROM flows_clock_deadlines
+      WHERE completed_at_ms IS NULL
+      ORDER BY due_at_ms, execution_id, clock_name
+    `).pipe(
+        Effect.orDie,
+        Effect.flatMap((rows) => Effect.forEach(rows, decodeClockRow))
+      )
+  )
+
   const completedDeferreds: Service["completedDeferreds"] = Effect.fn(
     "DurableEngineState.completedDeferreds"
   )((flowName) =>
@@ -752,6 +809,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
     scheduleClock,
     completeClock,
     dueClocks,
+    pendingClocks,
     completedDeferreds,
     park,
     wake,
@@ -896,6 +954,21 @@ export const makeMemory = (options: MemoryOptions = {}): Service => {
       Effect.sync(() =>
         Array.from(clocks.values())
           .filter((row) => row.completedAtMs === null && row.dueAtMs <= nowMs)
+          .sort((left, right) =>
+            left.dueAtMs - right.dueAtMs ||
+            left.executionId.localeCompare(right.executionId) ||
+            left.clockName.localeCompare(right.clockName)
+          )
+      )
+    ),
+    pendingClocks: Effect.fn("DurableEngineState.pendingClocks")((scope) =>
+      Effect.sync(() =>
+        Array.from(clocks.values())
+          .filter((row) =>
+            row.completedAtMs === null &&
+            (scope.executionId === undefined || row.executionId === scope.executionId) &&
+            (scope.flowName === undefined || row.flowName === scope.flowName)
+          )
           .sort((left, right) =>
             left.dueAtMs - right.dueAtMs ||
             left.executionId.localeCompare(right.executionId) ||
