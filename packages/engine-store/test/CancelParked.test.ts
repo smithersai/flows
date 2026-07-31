@@ -31,10 +31,12 @@ const jj = Jj.make({
 const withEngine = <A>(
   body: (
     engine: FlowEngine.FlowEngine["Service"],
-    store: RunStore.Service
+    store: RunStore.Service,
+    state: DurableEngineState.Service
   ) => Effect.Effect<A, any, any>
-) =>
-  Effect.runPromise(
+) => {
+  const state = DurableEngineState.makeMemory()
+  return Effect.runPromise(
     Effect.scoped(
       Effect.gen(function*() {
         const store = yield* RunStore.RunStore
@@ -43,12 +45,9 @@ const withEngine = <A>(
           journalSource: "cancel-parked-test",
           isAlive: () => Effect.succeed(false)
         })) as FlowEngine.FlowEngine["Service"]
-        return yield* body(engine, store)
+        return yield* body(engine, store, state)
       }).pipe(
-        Effect.provideService(
-          DurableEngineState.DurableEngineState,
-          DurableEngineState.makeMemory()
-        ),
+        Effect.provideService(DurableEngineState.DurableEngineState, state),
         Effect.provideService(Jj.Jj, jj)
       )
     ).pipe(
@@ -57,6 +56,7 @@ const withEngine = <A>(
       Effect.provide(TestClock.layer())
     ) as Effect.Effect<A>
   )
+}
 
 describe("cancel requests reach parked runs (issue #27)", () => {
   it("the sweeper cancels a run parked on a deferred that never completes", async () => {
@@ -66,7 +66,7 @@ describe("cancel requests reach parked runs (issue #27)", () => {
     })
     const gate = DurableDeferred.make("cancel-parked-gate", { success: Schema.String })
 
-    const result = await withEngine((engine, store) =>
+    const result = await withEngine((engine, store, state) =>
       Effect.gen(function*() {
         yield* engine.register(EventFlow as never, (() =>
           Effect.map(DurableDeferred.await(gate), (value) => `gated:${value}`)) as never)
@@ -87,12 +87,18 @@ describe("cancel requests reach parked runs (issue #27)", () => {
           yield* TestClock.adjust(Duration.toMillis(Ownership.heartbeatInterval))
           row = yield* store.get("cancel-parked-sweep")
         }
-        return { suspendedStatus: suspended.status, row }
+        // Issue #28: a terminally cancelled run must not keep a live-looking
+        // waiting row a sweeper would perpetually re-poke.
+        const waitingAfterCancel = yield* state.waiting("cancel-parked-sweep")
+        const sweepAfterCancel = yield* state.waitingRuns()
+        return { suspendedStatus: suspended.status, row, waitingAfterCancel, sweepAfterCancel }
       }))
 
     expect(result.suspendedStatus).toBe("suspended")
     expect(result.row.status).toBe("cancelled")
     expect(result.row.owner).toBeNull()
+    expect(result.waitingAfterCancel._tag).toBe("None")
+    expect(result.sweepAfterCancel).toEqual([])
   })
 
   it("a resumed cancel-requested run cancels without re-executing flow side effects", async () => {

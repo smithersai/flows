@@ -700,6 +700,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
         WHERE waiting_reason = ${filter.reason}
           AND waiting_wake_at_ms IS NOT NULL
           AND waiting_wake_at_ms <= ${filter.dueBeforeMs}
+          AND status NOT IN ('completed', 'failed', 'cancelled')
         ORDER BY waiting_wake_at_ms, run_id
       `
       : filter?.reason !== undefined
@@ -711,6 +712,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
           waiting_token AS "waitingToken"
         FROM flows_runs
         WHERE waiting_reason = ${filter.reason}
+          AND status NOT IN ('completed', 'failed', 'cancelled')
         ORDER BY waiting_wake_at_ms, run_id
       `
       : filter?.dueBeforeMs !== undefined
@@ -724,6 +726,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
         WHERE waiting_reason IS NOT NULL
           AND waiting_wake_at_ms IS NOT NULL
           AND waiting_wake_at_ms <= ${filter.dueBeforeMs}
+          AND status NOT IN ('completed', 'failed', 'cancelled')
         ORDER BY waiting_wake_at_ms, run_id
       `
       : sql<WaitingDatabaseRow>`
@@ -734,6 +737,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
           waiting_token AS "waitingToken"
         FROM flows_runs
         WHERE waiting_reason IS NOT NULL
+          AND status NOT IN ('completed', 'failed', 'cancelled')
         ORDER BY waiting_wake_at_ms, run_id
       `).pipe(
         Effect.orDie,
@@ -953,6 +957,17 @@ export const makeMemory = (options: MemoryOptions = {}): Service => {
     waitingRuns: Effect.fn("DurableEngineState.waitingRuns")((filter) =>
       Effect.sync(() =>
         Array.from(waitingRows.values())
+          // Mirrors the SQL status predicate: a terminally closed run's
+          // stale waiting row never surfaces to a sweeper (issue #28). The
+          // permissive default (no `runs` view) treats every run as live.
+          .filter((row) => {
+            if (options.runs === undefined) return true
+            const view = options.runs(row.runId)
+            return Option.isNone(view) ||
+              view.value.status === "pending" ||
+              view.value.status === "running" ||
+              view.value.status === "suspended"
+          })
           .filter((row) => filter?.reason === undefined || row.reason === filter.reason)
           .filter((row) =>
             filter?.dueBeforeMs === undefined ||

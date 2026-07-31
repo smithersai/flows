@@ -25,6 +25,11 @@ export interface HarnessContext {
     owner: Ownership.OwnerId | null,
     status?: "pending" | "running" | "suspended" | "completed" | "failed" | "cancelled"
   ) => Effect.Effect<void>
+  /** Moves an already-seeded run to a new status (ownership released). */
+  readonly setStatus: (
+    runId: string,
+    status: "pending" | "running" | "suspended" | "completed" | "failed" | "cancelled"
+  ) => Effect.Effect<void>
 }
 
 export interface Harness {
@@ -145,6 +150,27 @@ export const describeContract = (harness: Harness): void => {
       expect(result.allQuota.map((row) => row.runId)).toEqual(["due-quota", "future-quota"])
       expect(result.dueAll.map((row) => row.runId)).toEqual(["due-approval", "due-quota"])
       expect(result.all).toHaveLength(4)
+    })
+
+    it("excludes terminally closed runs from waitingRuns (issue #28)", async () => {
+      const result = await harness.run((context) =>
+        Effect.gen(function*() {
+          yield* context.seedRun("closed-timer", owner)
+          yield* context.seedRun("live-timer", owner)
+          yield* context.state.park("closed-timer", { reason: "timer", wakeAt: 100 }, owner)
+          yield* context.state.park("live-timer", { reason: "timer", wakeAt: 200 }, owner)
+          // A raced cancel closed the run after it parked; its stale waiting
+          // row must never surface to a sweeper again.
+          yield* context.setStatus("closed-timer", "cancelled")
+          return {
+            due: yield* context.state.waitingRuns({ reason: "timer", dueBeforeMs: 1_000 }),
+            all: yield* context.state.waitingRuns()
+          }
+        })
+      )
+
+      expect(result.due.map((row) => row.runId)).toEqual(["live-timer"])
+      expect(result.all.map((row) => row.runId)).toEqual(["live-timer"])
     })
 
     it("fences clock creation to the current owner of a running run", async () => {

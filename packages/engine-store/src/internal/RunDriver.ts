@@ -301,6 +301,12 @@ export const make = (
           stateJson
         ).pipe(Effect.orDie)
         if (transitioned._tag !== "Transitioned") return
+        // A cancel can race the final poll after the run already parked
+        // (park precedes the guarded terminal CAS). Clear the waiting row so
+        // the terminally cancelled run never surfaces to a sweeper again
+        // (issue #28); `waitingRuns`' status filter covers a crash landing
+        // between the transition above and this wake.
+        yield* engineState.wake(runId).pipe(Effect.asVoid)
         // Durable channel (issue #10): the interruption record must survive
         // the process exiting right after cancellation. Ownerless because the
         // `cancelled` transition above has already released ownership; the

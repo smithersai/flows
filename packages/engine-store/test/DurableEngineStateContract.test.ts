@@ -41,6 +41,17 @@ const sqlHarness: Harness = {
                 ${owner === null ? null : 0},
                 '{}'
               )
+            `.pipe(Effect.orDie, Effect.asVoid),
+          setStatus: (runId, status) =>
+            database.sql`
+              UPDATE flows_runs
+              SET
+                status = ${status},
+                owner_host_id = NULL,
+                owner_pid = NULL,
+                owner_nonce = NULL,
+                heartbeat_at_ms = NULL
+              WHERE run_id = ${runId}
             `.pipe(Effect.orDie, Effect.asVoid)
         }
         return yield* body(context)
@@ -64,6 +75,10 @@ const memoryHarness: Harness = {
       seedRun: (runId, owner, status = "running") =>
         Effect.sync(() => {
           runs.set(runId, { status, owner })
+        }),
+      setStatus: (runId, status) =>
+        Effect.sync(() => {
+          runs.set(runId, { status, owner: null })
         })
     }
     return Effect.runPromise(body(context) as Effect.Effect<never>)
