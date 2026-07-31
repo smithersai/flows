@@ -374,13 +374,15 @@ export const make = (
      */
     const cancelPollLoop = (executionId: string): Effect.Effect<CancelRequested> =>
       Effect.gen(function*() {
+        // Check-first: a request that raced in just before activation is
+        // observed without waiting out a full heartbeat (issue #27).
         while (true) {
-          yield* Effect.sleep(Ownership.heartbeatInterval)
           const requested = yield* store.get(executionId).pipe(
             Effect.map((row) => row.cancelRequestedAtMs !== null),
             Effect.catch(() => Effect.succeed(false))
           )
           if (requested) return cancelRequested
+          yield* Effect.sleep(Ownership.heartbeatInterval)
         }
       })
 
@@ -401,12 +403,19 @@ export const make = (
         if (!(yield* claimAndActivate(initial))) return
 
         const activeState = withoutResult(state)
+        // The activation transition carries the cancel guard: a run whose
+        // cancellation was durably requested while it was parked must cancel
+        // here instead of re-executing flow side effects (issue #27).
         const cleared = yield* store.transitionOwned(
           executionId,
           dependencies.owner,
           "running",
-          yield* encodeState(activeState)
+          yield* encodeState(activeState),
+          { cancelRequested: "absent" }
         ).pipe(Effect.orDie)
+        if (cleared._tag === "GuardFailed") {
+          return yield* cancelOwned(executionId, withoutResult(state))
+        }
         if (cleared._tag !== "Transitioned") return
         // A run that re-enters execution is no longer waiting: clear any
         // parked waiting-reason payload (idempotent when none exists).
@@ -508,6 +517,38 @@ export const make = (
       drain: drive
     })
     yield* Deferred.succeed(coordinatorDeferred, coordinator)
+
+    /**
+     * Delivers cancellation to parked runs (issue #27). A suspended run has
+     * no owner and therefore no cancel poll, so `requestCancel` against it
+     * is write-only until something re-drives the run — a run parked on a
+     * deferred that never completes could otherwise never be cancelled. The
+     * sweep lists parked rows, and wakes any whose cancel was durably
+     * requested; the re-activation cancel guard then closes the run without
+     * re-executing the flow.
+     */
+    const sweepCancelRequested: Effect.Effect<void> = Effect.gen(function*() {
+      const parked = yield* engineState.waitingRuns()
+      for (const waiting of parked) {
+        const row = yield* store.get(waiting.runId).pipe(
+          Effect.catch(() => Effect.succeed(undefined))
+        )
+        if (
+          row !== undefined &&
+          row.status === "suspended" &&
+          row.cancelRequestedAtMs !== null
+        ) {
+          yield* coordinator.wake(row.runId)
+        }
+      }
+    })
+    yield* Effect.forkScoped(
+      Effect.forever(
+        Effect.sleep(Ownership.heartbeatInterval).pipe(
+          Effect.andThen(sweepCancelRequested)
+        )
+      )
+    )
 
     const ensureRun = (
       flow: Flow.Any,
