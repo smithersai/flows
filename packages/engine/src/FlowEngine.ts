@@ -335,6 +335,15 @@ export class FlowInstance extends Context.Service<
     interrupted: boolean
 
     /**
+     * The waiting classification the flow declared for its next suspension
+     * via {@link annotateWaiting}. Durable drivers read it when parking the
+     * run so approval and quota waits (and their wake token) are
+     * representable; when absent the driver derives `timer`/`event` from
+     * durable state.
+     */
+    waiting: WaitingAnnotation | undefined
+
+    /**
      * When SuspendOnFailure is triggered, the cause of the failure is stored
      * here.
      */
@@ -359,6 +368,7 @@ export class FlowInstance extends Context.Service<
       scope: Scope.makeUnsafe(),
       suspended: false,
       interrupted: false,
+      waiting: undefined,
       cause: undefined,
       activityState: {
         count: 0,
@@ -482,6 +492,45 @@ const activityKey = (
     tier: activity.tier === "sealed" ? "unsealed" : activity.tier
   }))
 }
+
+/**
+ * The waiting classification a flow can declare before suspending.
+ *
+ * Mirrors the durable store's waiting payload: `reason` is the supervisor
+ * vocabulary (`approval`, `event`, `timer`, `quota`, or a plugin-defined
+ * reason), `wakeAt` an absolute deadline, and `token` compare-and-swap
+ * material a wake handler matches against.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface WaitingAnnotation {
+  readonly reason: string
+  readonly wakeAt?: number | undefined
+  readonly token?: string | undefined
+}
+
+/**
+ * Declares how the flow is about to wait, so a durable driver parks the run
+ * with that reason and token instead of the derived `timer`/`event` default.
+ *
+ * Call it immediately before awaiting the deferred that models the wait:
+ *
+ * ```ts
+ * yield* FlowEngine.annotateWaiting({ reason: "approval", token: requestId })
+ * const decision = yield* DurableDeferred.await(approvalGate)
+ * ```
+ *
+ * @category combinators
+ * @since 0.1.0
+ */
+export const annotateWaiting = (
+  waiting: WaitingAnnotation | undefined
+): Effect.Effect<void, never, FlowInstance> =>
+  Effect.gen(function*() {
+    const instance = yield* FlowInstance
+    instance.waiting = waiting
+  })
 
 /**
  * Builds a typed `FlowEngine` service from a low-level encoded

@@ -480,8 +480,15 @@ export const make = (
           // else waits on an external event (deferred completion). This is
           // what makes `waitingRuns` sweepers and the 0004 partial index
           // match real suspensions (issue #12).
+          // A flow-declared classification (FlowEngine.annotateWaiting) wins:
+          // it is the only way an approval or quota wait — and its wake
+          // token — reaches the parked row (issue #31). The durable-state
+          // derivation stays the fallback.
+          const declared = instance.waiting
           const pendingClocks = yield* engineState.pendingClocks({ executionId })
-          const waiting: DurableEngineState.Waiting = pendingClocks.length > 0
+          const waiting: DurableEngineState.Waiting = declared !== undefined
+            ? declared
+            : pendingClocks.length > 0
             ? {
               reason: "timer",
               wakeAt: Math.min(...pendingClocks.map((clock) => clock.dueAtMs))

@@ -125,8 +125,8 @@ export type WaitingReason = "approval" | "event" | "timer" | "quota" | (string &
  */
 export interface Waiting {
   readonly reason: WaitingReason
-  readonly wakeAt?: number
-  readonly token?: string
+  readonly wakeAt?: number | undefined
+  readonly token?: string | undefined
 }
 
 /**

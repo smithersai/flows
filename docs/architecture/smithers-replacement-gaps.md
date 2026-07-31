@@ -41,6 +41,13 @@ definition. Smithers' inline per-reason states in `engine.js` (pinned by
 `e2e/faults` restart-waiting-approval/event/timer) are replaced by the one open
 taxonomy, per the pluggability rule.
 
+The production park path reaches the full taxonomy through
+`FlowEngine.annotateWaiting` (issue #31): a flow declares
+`{ reason, wakeAt?, token? }` immediately before suspending and the driver
+parks the run with exactly that payload (`AnnotatedWaiting.test.ts` pins the
+approval-with-token and due-quota sweeps end-to-end); without an annotation the
+driver derives `timer`/`event` from durable clock state.
+
 ### 2. Fenced claim and owner liveness — closed, one caveat
 
 `RunStore.claimAndOwn` (PR #7) carries the fence; the hardening wave added the
