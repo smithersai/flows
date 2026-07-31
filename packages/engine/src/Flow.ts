@@ -30,6 +30,7 @@ import * as Tranformation from "effect/SchemaTransformation"
 import * as Scope from "effect/Scope"
 import type { ExitEncoded } from "effect/unstable/rpc/RpcMessage"
 import type { FlowEngine, FlowInstance } from "./FlowEngine.ts"
+import type * as RetryPolicy from "./RetryPolicy.ts"
 
 const TypeId = "~effect/flow/Flow"
 
@@ -73,6 +74,7 @@ export interface Flow<
   readonly errorSchema: Error
   readonly annotations: Context.Context<never>
   readonly idempotencyKey?: ((payload: Payload["Type"]) => string) | undefined
+  readonly suspendedRetryPolicy?: RetryPolicy.RetryPolicy | undefined
 
   /**
    * Add an annotation to the flow.
@@ -245,6 +247,7 @@ export interface Any {
   readonly errorSchema: Schema.Top
   readonly annotations: Context.Context<never>
   readonly idempotencyKey?: ((payload: any) => string) | undefined
+  readonly suspendedRetryPolicy?: RetryPolicy.RetryPolicy | undefined
 }
 
 /**
@@ -359,7 +362,8 @@ const Proto = {
       successSchema: this.successSchema,
       errorSchema: this.errorSchema,
       annotations: Context.add(this.annotations, tag, value),
-      idempotencyKey: this.idempotencyKey
+      idempotencyKey: this.idempotencyKey,
+      suspendedRetryPolicy: this.suspendedRetryPolicy
     })
   },
   annotateMerge(this: AnyWithProps, context: Context.Context<any>) {
@@ -369,7 +373,8 @@ const Proto = {
       successSchema: this.successSchema,
       errorSchema: this.errorSchema,
       annotations: Context.merge(this.annotations, context),
-      idempotencyKey: this.idempotencyKey
+      idempotencyKey: this.idempotencyKey,
+      suspendedRetryPolicy: this.suspendedRetryPolicy
     })
   },
   execute<const Discard extends boolean = false>(
@@ -391,7 +396,8 @@ const Proto = {
               engine.execute(this as any, {
                 executionId,
                 payload,
-                discard: opts?.discard
+                discard: opts?.discard,
+                suspendedRetryPolicy: this.suspendedRetryPolicy
               })
             ))
       )
@@ -444,6 +450,7 @@ const makeProto = <
   readonly errorSchema: Error
   readonly annotations: Context.Context<never>
   readonly idempotencyKey?: ((payload: Payload["Type"]) => string) | undefined
+  readonly suspendedRetryPolicy?: RetryPolicy.RetryPolicy | undefined
 }): Flow<Tag, Payload, Success, Error> => {
   function Flow() {}
   Object.setPrototypeOf(Flow, Proto)
@@ -474,6 +481,7 @@ export const make = <
     | undefined
   readonly success?: Success
   readonly error?: Error
+  readonly suspendedRetryPolicy?: RetryPolicy.RetryPolicy | undefined
   readonly annotations?: Context.Context<never>
 }): Flow<
   Tag,
@@ -490,7 +498,8 @@ export const make = <
     successSchema: options.success ?? (Schema.Void as any),
     errorSchema: options.error ?? (Schema.Never as any),
     annotations: options.annotations ?? Context.empty(),
-    idempotencyKey: options.idempotencyKey as any
+    idempotencyKey: options.idempotencyKey as any,
+    suspendedRetryPolicy: options.suspendedRetryPolicy
   })
 
 const ResultTypeId = "~effect/flow/Flow/Result"
