@@ -24,7 +24,10 @@ describe("StepKey", () => {
   it("keeps reordered declarations equal and all material changes distinct", () => {
     const byName = new Map((vectors as ReadonlyArray<Vector>).map((vector) => [vector.name, vector.expected]))
     expect(byName.get("reordered declarations")).toBe(byName.get("reordered declarations equivalent"))
-    expect(byName.get("literal input")).not.toBe(byName.get("digest input"))
+    // Renamed from "digest input": a plain `{ digest }` JSON literal can no
+    // longer represent a real digest reference (StepKey.digestInput's brand
+    // isn't JSON-representable), so this now pins that it hashes as a literal.
+    expect(byName.get("literal input")).not.toBe(byName.get("digest-shaped literal"))
     expect(byName.get("hermetic bash")).not.toBe(byName.get("widened write set"))
     expect(byName.get("ordinary sealed")).not.toBe(byName.get("changed layer"))
     expect(byName.get("ordinary sealed")).not.toBe(byName.get("changed capability"))
@@ -140,5 +143,130 @@ describe("StepKey", () => {
     }, digest))
 
     expect(new Set([literal, pending, projected, bounded]).size).toBe(4)
+  })
+
+  it("gives all four graph-local input kinds carrying identical payloads distinct keys", () => {
+    const base: CoreKeyMaterial.KeyMaterial = {
+      version: "flows/key-material/v1",
+      kind: "sealed",
+      body: { operation: "test" },
+      inputs: [],
+      layers: [],
+      capabilities: [],
+      effects: undefined,
+      placement: undefined
+    }
+    const digest = { dependency: "shared-digest" }
+    const literal = get(StepKey.fromKeyMaterial({
+      ...base,
+      inputs: [{ _tag: "Literal", value: "shared-digest" }]
+    }, digest))
+    const pending = get(StepKey.fromKeyMaterial({
+      ...base,
+      inputs: [{ _tag: "Pending", from: "dependency" }]
+    }, digest))
+    const refEmptyPath = get(StepKey.fromKeyMaterial({
+      ...base,
+      inputs: [{ _tag: "Ref", from: "dependency", path: [] }]
+    }, digest))
+    const refProjected = get(StepKey.fromKeyMaterial({
+      ...base,
+      inputs: [{ _tag: "Ref", from: "dependency", path: ["field"] }]
+    }, digest))
+
+    expect(new Set([literal, pending, refEmptyPath, refProjected]).size).toBe(4)
+  })
+
+  it("distinguishes Pending{from} from Ref{from, path: []} even though both resolve the same dependency digest", () => {
+    // Regression for the bazel-audit P0 #2 finding: both variants fell through
+    // normalizeInputs's shape-sniffing to the same `{ digest }` shape.
+    const material = (
+      inputRef: CoreKeyMaterial.InputRef
+    ): CoreKeyMaterial.KeyMaterial => ({
+      version: "flows/key-material/v1",
+      kind: "sealed",
+      body: "op",
+      inputs: [inputRef],
+      layers: [],
+      capabilities: [],
+      effects: undefined,
+      placement: undefined
+    })
+    const digests = { dependency: "same-digest" }
+    const pending = get(StepKey.fromKeyMaterial(material({ _tag: "Pending", from: "dependency" }), digests))
+    const refEmptyPath = get(
+      StepKey.fromKeyMaterial(material({ _tag: "Ref", from: "dependency", path: [] }), digests)
+    )
+
+    expect(pending).not.toBe(refEmptyPath)
+  })
+
+  it("hashes a literal value that looks like a digest reference differently from a real digest input", () => {
+    // Regression for the bazel-audit P0 #2 finding: a literal `{ digest: "abc" }`
+    // value used to shape-sniff identically to `StepKey.digestInput("abc")`.
+    const lookalikeLiteral = get(StepKey.content({
+      body: "op",
+      inputs: { value: { digest: "abc" } },
+      layers: [],
+      capabilities: {}
+    }))
+    const realDigest = get(StepKey.content({
+      body: "op",
+      inputs: { value: StepKey.digestInput("abc") },
+      layers: [],
+      capabilities: {}
+    }))
+
+    expect(lookalikeLiteral).not.toBe(realDigest)
+  })
+
+  it("recognizes only values produced by digestInput as digest references", () => {
+    expect(StepKey.isDigestInput(StepKey.digestInput("abc"))).toBe(true)
+    expect(StepKey.isDigestInput({ digest: "abc" })).toBe(false)
+    expect(StepKey.isDigestInput(null)).toBe(false)
+    expect(StepKey.isDigestInput("abc")).toBe(false)
+  })
+
+  it("changes the key when KeyMaterial.version changes, all else equal", () => {
+    const base = {
+      kind: "sealed",
+      body: { operation: "test" },
+      inputs: [],
+      layers: [],
+      capabilities: [],
+      effects: undefined,
+      placement: undefined
+    } as const
+    const v1 = get(StepKey.fromKeyMaterial({ ...base, version: "flows/key-material/v1" }, {}))
+    // KeyMaterial.version is currently a single-literal type; simulate a future
+    // version bump the same way an upstream producer migration would.
+    const v2 = get(
+      StepKey.fromKeyMaterial(
+        { ...base, version: "flows/key-material/v2" } as unknown as CoreKeyMaterial.KeyMaterial,
+        {}
+      )
+    )
+
+    expect(v1).not.toBe(v2)
+  })
+
+  it("is deterministic: repeated calls with the same input produce the same key", () => {
+    const material: CoreKeyMaterial.KeyMaterial = {
+      version: "flows/key-material/v1",
+      kind: "sealed",
+      body: { operation: "test" },
+      inputs: [{ _tag: "Ref", from: "dependency", path: ["field"] }],
+      layers: ["host:v1"],
+      capabilities: ["cap:a"],
+      effects: { writes: ["/workspace"] },
+      placement: { kind: "client" }
+    }
+    const digests = { dependency: "digest" }
+    const first = get(StepKey.fromKeyMaterial(material, digests))
+    const second = get(StepKey.fromKeyMaterial(material, digests))
+    const third = get(StepKey.fromKeyMaterial(material, digests))
+
+    expect(first).toBe(second)
+    expect(second).toBe(third)
   })
 })

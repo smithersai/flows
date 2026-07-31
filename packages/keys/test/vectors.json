@@ -39,10 +39,10 @@
     "expected": "sk1_4d037062cf3f2fc54ae93e314e7989b75d9e6b1e0cc3a426f81971d2960bb13f"
   },
   {
-    "name": "digest input",
+    "name": "digest-shaped literal",
     "kind": "content",
     "input": { "body": "use-input", "inputs": { "value": { "digest": "a" } }, "layers": [], "capabilities": {} },
-    "expected": "sk1_c6ff636133dd10965dcf2a9565193318ebd5deb90e3598f4b61f93671b1b4de9"
+    "expected": "sk1_8f362be063bfff449cdd350d33a665ae0321132945c3d1168d88593ae44e729c"
   },
   {
     "name": "compensable ordinal",
