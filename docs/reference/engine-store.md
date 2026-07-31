@@ -29,13 +29,28 @@ The service addresses deferreds by flow/execution/deferred name and clocks by fl
 - `deferred` and first-writer-wins `completeDeferred`
 - `clock`, first-writer-wins `scheduleClock`, and `completeClock`
 - `dueClocks(nowMs)`
+- owner-fenced `park`, idempotent `wake`, `waiting`, and sweeper-ordered `waitingRuns`
+
+The run driver populates the waiting taxonomy on the execution path: a run
+that suspends parks before its `suspended` transition — reason `timer` with
+the earliest pending clock deadline as `wakeAt` when a durable clock is
+outstanding, reason `event` otherwise — and every resume wakes (clears) the
+waiting payload when the run re-enters `running`. `waitingRuns` and the
+migration `0004` partial index therefore match real suspensions, not only
+rows written through the store API directly.
 
 Outcome unions distinguish newly written, existing, completed, and missing
 rows. `make` and `layer` provide SQL persistence through `Database`;
-`makeMemory` and `layerMemory` remain deterministic test implementations.
+`makeMemory(options?)` and `layerMemory` are deterministic in-memory
+implementations that, given a `runs` lookup, enforce the same
+`park`/`wake`/`scheduleClock` ownership fences as the SQL layer — both are
+pinned by one shared contract suite
+(`packages/engine-store/test/contract/DurableEngineStateContract.ts`).
 Clock creation is fenced against the active run owner. Deferred and clock
 completion use first-writer and compare-and-set admission before the existing
-claim-gated wake path.
+claim-gated wake path. A durable clock whose fire fails transiently is
+redispatched with capped exponential backoff (Temporal timer-queue
+semantics) rather than being lost until process restart.
 
 ## `StepBoundary`
 
