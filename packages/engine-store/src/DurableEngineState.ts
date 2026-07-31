@@ -855,7 +855,7 @@ export const makeMemory = (options: MemoryOptions = {}): Service => {
       Effect.sync(() => Option.fromNullishOr(clocks.get(clockKey(address))))
     ),
     scheduleClock: Effect.fn("DurableEngineState.scheduleClock")((row, owner) =>
-      Effect.suspend(() => {
+      Effect.suspend((): Effect.Effect<ScheduleClockOutcome> => {
         // Mirrors the SQL fence: creation requires the presented owner to
         // currently run the execution; a lost fence surfaces as
         // self-interruption, an existing row wins regardless.
