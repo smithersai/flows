@@ -11,6 +11,7 @@ import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as FiberMap from "effect/FiberMap"
 import * as Option from "effect/Option"
+import * as Schedule from "effect/Schedule"
 import type * as Scope from "effect/Scope"
 import * as DurableEngineState from "../DurableEngineState.ts"
 import * as JournalRecords from "./JournalRecords.ts"
@@ -83,6 +84,22 @@ export interface Service {
 
 const clockKey = (row: DurableEngineState.ClockAddress): string =>
   JSON.stringify([row.flowName, row.executionId, row.clockName])
+
+/**
+ * Redispatch policy for a durable clock whose fire failed.
+ *
+ * Temporal redispatches timer-queue tasks with backoff until they are acked
+ * (`reference/temporal` `service/history` timer queue + `common/backoff`); we
+ * mirror that here so one transient journal/flush error at fire time cannot
+ * lose the timer until a process restart. Exponential from 100ms, capped at
+ * 30s, forever — the fire is idempotent (first-writer deferred completion,
+ * deduplicated journal admission, CAS clock completion), so retrying an
+ * arbitrary prefix is safe.
+ */
+const fireRetryPolicy = Schedule.min([
+  Schedule.exponential("100 millis"),
+  Schedule.spaced("30 seconds")
+])
 
 /**
  * Constructs durable deferred and clock persistence.
@@ -175,6 +192,12 @@ export const make = (
       Clock.currentTimeMillis.pipe(
         Effect.flatMap((nowMs) =>
           fireClock(row).pipe(
+            // A failed fire (journal emit/flush defect included) must not kill
+            // the one-shot timer fiber: expose the full cause and redispatch
+            // with backoff until the fire is durably acked.
+            Effect.sandbox,
+            Effect.retry(fireRetryPolicy),
+            Effect.orDie,
             Effect.delay(Duration.millis(Math.max(0, row.dueAtMs - nowMs))),
             FiberMap.run(timers, clockKey(row), { onlyIfMissing: true })
           )

@@ -215,6 +215,60 @@ describe("DeferredPersistence", () => {
     expect(result.events.filter((event) => event === "emit:flows.engine.deferred-completed")).toHaveLength(1)
   })
 
+  it("redispatches a clock fire with backoff after a transient journal failure instead of losing the timer", async () => {
+    const result = await Effect.runPromise(
+      Effect.scoped(Effect.gen(function*() {
+        const state = DurableEngineState.makeMemory()
+        const events: Array<string> = []
+        const resumes: Array<string> = []
+        // The first two flushes at fire time die (e.g. SQLITE_BUSY surfaced
+        // through the orDie flush path); the third succeeds.
+        let failuresRemaining = 0
+        let flushFailures = 0
+        const base = makeJournal(events)
+        const journal = {
+          ...base,
+          flush: Effect.suspend(() => {
+            if (failuresRemaining > 0) {
+              failuresRemaining--
+              flushFailures++
+              return Effect.die(new Error("transient flush failure"))
+            }
+            return base.flush
+          })
+        }
+        const clock = DurableClock.make({ name: "retry", duration: "10 seconds" })
+        const service = yield* build(state, journal as never, resumes)
+        yield* service.scheduleClock(TestFlow, { executionId: "retry-run", clock })
+        failuresRemaining = 2
+        const address = {
+          flowName: TestFlow._tag,
+          executionId: "retry-run",
+          clockName: "retry"
+        }
+
+        yield* TestClock.adjust("10 seconds")
+        yield* Effect.yieldNow
+        // First fire failed at flush; without redispatch the timer fiber is
+        // dead and the clock row never completes in this process.
+        const afterFirstFailure = Option.getOrThrow(yield* state.clock(address))
+        yield* TestClock.adjust("100 millis")
+        yield* Effect.yieldNow
+        const afterSecondFailure = Option.getOrThrow(yield* state.clock(address))
+        yield* TestClock.adjust("200 millis")
+        yield* Effect.yieldNow
+        const afterRetry = Option.getOrThrow(yield* state.clock(address))
+        return { afterFirstFailure, afterSecondFailure, afterRetry, flushFailures, resumes }
+      })).pipe(Effect.provide(TestClock.layer()))
+    )
+
+    expect(result.flushFailures).toBe(2)
+    expect(result.afterFirstFailure.completedAtMs).toBeNull()
+    expect(result.afterSecondFailure.completedAtMs).toBeNull()
+    expect(result.afterRetry.completedAtMs).not.toBeNull()
+    expect(result.resumes).toEqual(["retry-run:clock"])
+  })
+
   it("re-delivers a wake for a completion recorded before registration", async () => {
     const resumes: Array<string> = []
     await Effect.runPromise(Effect.scoped(Effect.gen(function*() {
