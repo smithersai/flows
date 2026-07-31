@@ -143,6 +143,18 @@ export const make = (
     const store = yield* RunStore.RunStore
     const registrations = new Map<string, Registration>()
     const liveInstances = new Map<string, FlowEngine.FlowInstance["Service"]>()
+    /**
+     * Second-and-later parent edges for executions that already exist.
+     *
+     * The persisted `parentExecutionId` records only the first parent (the
+     * creator); a diamond — `A executes C`, then `B executes C` — adds a
+     * `C -> B` edge the row cannot carry. Those requesting edges are the ones
+     * that produce the in-process mutual `coordinator.run` await, so they are
+     * tracked here and walked by `detectCycle` alongside the persisted edge.
+     * The map is rebuilt naturally on restart: re-driving `B` re-executes `C`
+     * and re-records the edge before any new cycle can form.
+     */
+    const requestedParents = new Map<string, Set<string>>()
 
     const encodeState = (state: PersistedState): Effect.Effect<string> =>
       Schema.encodeEffect(PersistedStateJson)(state).pipe(Effect.orDie)
@@ -418,9 +430,20 @@ export const make = (
             )
           )
         }
+        // The row already exists, so `store.create` never records this
+        // request's parent. Record the extra edge (a diamond's second
+        // parent) so `detectCycle` can traverse it.
+        if (
+          options.parent !== undefined &&
+          persisted.parentExecutionId !== options.parent.executionId
+        ) {
+          const parents = requestedParents.get(options.executionId) ?? new Set<string>()
+          parents.add(options.parent.executionId)
+          requestedParents.set(options.executionId, parents)
+        }
       })
 
-    const parentOf = (executionId: string): Effect.Effect<string | undefined> =>
+    const parentsOf = (executionId: string): Effect.Effect<ReadonlyArray<string>> =>
       store.get(executionId).pipe(
         Effect.catch((error) =>
           error.code === "not_found_row"
@@ -431,19 +454,23 @@ export const make = (
           row === undefined
             ? Effect.succeed(undefined)
             : decodeState(row.stateJson).pipe(Effect.map((state) => state.parentExecutionId))
-        )
+        ),
+        Effect.map((persisted) => {
+          const parents = new Set(requestedParents.get(executionId) ?? [])
+          if (persisted !== undefined) parents.add(persisted)
+          return [...parents]
+        })
       )
 
     /**
-     * Walks the persisted `parentExecutionId` chain upward from `startId`
-     * looking for `targetId`. This is the only dependency edge our runtime
-     * model can express, so this O(depth) walk covers every cycle the
-     * engine can create — no DFS over an in-flight dependency graph is
-     * needed.
+     * Walks the parent DAG upward from `startId` looking for `targetId`. The
+     * edges are the persisted `parentExecutionId` (the creating parent) plus
+     * every recorded second-parent request edge — a diamond gives a run two
+     * parents, and a cycle reachable only through the second one must still
+     * be reported.
      *
-     * A repeated id in the chain that is not `targetId` indicates a
-     * pre-existing (unrelated) corrupt cycle in the store; the walk
-     * terminates there rather than looping forever.
+     * A repeated id that is not `targetId` (a pre-existing corrupt cycle in
+     * the store) terminates that branch rather than looping forever.
      */
     const detectCycle = (
       targetId: string,
@@ -454,23 +481,28 @@ export const make = (
           return yield* Effect.fail(new FlowCycleDetected({ code: "flow_cycle_detected", path: [targetId] }))
         }
 
-        const chain: Array<string> = [startId]
         const seen = new Set<string>([startId])
-        let current = startId
-        while (true) {
-          const parent = yield* parentOf(current)
-          if (parent === undefined) return
-          if (parent === targetId) {
-            chain.push(parent)
-            return yield* Effect.fail(
-              new FlowCycleDetected({ code: "flow_cycle_detected", path: [...chain].reverse() })
-            )
-          }
-          if (seen.has(parent)) return
-          seen.add(parent)
-          chain.push(parent)
-          current = parent
-        }
+        const walk = (
+          current: string,
+          chain: ReadonlyArray<string>
+        ): Effect.Effect<void, FlowCycleDetected> =>
+          Effect.gen(function*() {
+            const parents = yield* parentsOf(current)
+            for (const parent of parents) {
+              if (parent === targetId) {
+                return yield* Effect.fail(
+                  new FlowCycleDetected({
+                    code: "flow_cycle_detected",
+                    path: [...chain, parent].reverse()
+                  })
+                )
+              }
+              if (seen.has(parent)) continue
+              seen.add(parent)
+              yield* walk(parent, [...chain, parent])
+            }
+          })
+        yield* walk(startId, [startId])
       })
 
     const poll: Service["poll"] = Effect.fn("FlowEngine.poll")((flow, executionId) =>

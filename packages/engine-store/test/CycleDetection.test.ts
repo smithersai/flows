@@ -164,6 +164,51 @@ describe("RunDriver cycle detection", () => {
     expect((failure as RunDriver.FlowCycleDetected).path).toEqual(["x", "y", "z"])
   })
 
+  it("catches a diamond cycle reachable only through the second parent edge", async () => {
+    const exit = await Effect.runPromise(Effect.exit(provideJournal(Effect.gen(function*() {
+      const driver = yield* makeDriver()
+      yield* driver.register(TestFlow, () => Effect.succeed("ok"))
+      const store = yield* RunStore.RunStore
+
+      // A previously created C, so C's persisted parent is A. B exists too.
+      yield* store.create(
+        "a",
+        JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {} })
+      )
+      yield* store.create(
+        "b",
+        JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {} })
+      )
+      yield* store.create(
+        "c",
+        JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {}, parentExecutionId: "a" })
+      )
+
+      // B executes C: the row already exists, so this second parent edge is
+      // never persisted — it must still be recorded for cycle detection.
+      yield* driver.execute(TestFlow, {
+        executionId: "c",
+        payload: {},
+        discard: true,
+        parent: { executionId: "b" } as FlowEngine.FlowInstance["Service"]
+      })
+
+      // C executes B: a cycle reachable only through the C -> B request edge.
+      return yield* driver.execute(TestFlow, {
+        executionId: "b",
+        payload: {},
+        discard: true,
+        parent: { executionId: "c" } as FlowEngine.FlowInstance["Service"]
+      })
+    }))))
+
+    expect(Exit.isFailure(exit)).toBe(true)
+    if (Exit.isSuccess(exit)) return
+    const failure = findCycleFailure(exit.cause)
+    expect(failure).toBeInstanceOf(RunDriver.FlowCycleDetected)
+    expect((failure as RunDriver.FlowCycleDetected).path).toEqual(["b", "c"])
+  })
+
   it("terminates on a pre-existing corrupt store cycle instead of hanging", async () => {
     const exit = await Effect.runPromise(Effect.exit(provideJournal(Effect.gen(function*() {
       const driver = yield* makeDriver()
