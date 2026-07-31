@@ -1,0 +1,104 @@
+/**
+ * End-to-end sync behavior under injected transport faults.
+ *
+ * @since 0.1.0
+ */
+import { Journal, JournalEvent } from "@smithers/journal"
+import { Effect, Fiber, type Scope, Stream } from "effect"
+import { describe, expect, it } from "vitest"
+import type * as SyncRpcs from "../src/SyncRpcs.ts"
+import type * as SyncServer from "../src/SyncServer.ts"
+import * as TestSocket from "../src/test/TestSocket.ts"
+import * as TestSync from "../src/test/TestSync.ts"
+
+const runId = (value: string) => value as JournalEvent.RunId
+const sourceId = "source" as JournalEvent.SourceId
+
+const program = <A, E>(
+  effect: Effect.Effect<A, E, Journal.Journal | Scope.Scope | SyncRpcs.SyncAuth | SyncServer.SyncServer>
+) => Effect.runPromiseExit(effect.pipe(Effect.provide(TestSync.layerTest), Effect.scoped))
+
+describe("sync over a faulty transport", () => {
+  it("never skips past an entry whose frame the transport keeps dropping", async () => {
+    const id = runId("dropped-forever")
+    const exit = await program(
+      Effect.gen(function*() {
+        const journal = yield* Journal.Journal
+        const pair = yield* TestSocket.makePair()
+        pair.faults.dropRange(id, 1, 1)
+        const client = yield* TestSync.connect(pair)
+
+        const fiber = yield* Stream.runCollect(
+          client.subscribe({ scope: { _tag: "Run", runId: id }, cursors: [] }).pipe(Stream.take(3))
+        ).pipe(Effect.forkChild({ startImmediately: true }))
+
+        for (const value of [0, 1, 2]) {
+          yield* journal.emit({ runId: id, sourceId, eventType: `event-${value}`, payload: { value } })
+          yield* journal.flush
+        }
+        const settled = yield* Fiber.join(fiber).pipe(Effect.timeoutOption("200 millis"))
+        yield* Fiber.interrupt(fiber)
+        return settled
+      })
+    )
+
+    expect(exit).toMatchObject({ _tag: "Success", value: { _tag: "None" } })
+  })
+
+  it("delivers stalled traffic once the transport resumes", async () => {
+    const id = runId("stalled-transport")
+    const exit = await program(
+      Effect.gen(function*() {
+        const journal = yield* Journal.Journal
+        const pair = yield* TestSocket.makePair()
+        const client = yield* TestSync.connect(pair)
+
+        yield* journal.emit({ runId: id, sourceId, eventType: "before-stall", payload: { value: 0 } })
+        yield* journal.flush
+
+        pair.faults.stall()
+        const fiber = yield* Stream.runCollect(
+          client.subscribe({ scope: { _tag: "Run", runId: id }, cursors: [] }).pipe(Stream.take(1))
+        ).pipe(Effect.forkChild({ startImmediately: true }))
+
+        const stalled = yield* Fiber.join(fiber).pipe(Effect.timeoutOption("200 millis"))
+        pair.faults.resume()
+        const entries = yield* Fiber.join(fiber)
+        return {
+          stalledTag: stalled._tag,
+          eventTypes: Array.from(entries).map((entry) => entry.eventType)
+        }
+      })
+    )
+
+    expect(exit).toMatchObject({
+      _tag: "Success",
+      value: { stalledTag: "None", eventTypes: ["before-stall"] }
+    })
+  })
+
+  it("retries instead of failing the subscription when the transport disconnects mid-stream", async () => {
+    const id = runId("disconnected")
+    const exit = await program(
+      Effect.gen(function*() {
+        const journal = yield* Journal.Journal
+        const pair = yield* TestSocket.makePair()
+        const client = yield* TestSync.connect(pair)
+
+        yield* journal.emit({ runId: id, sourceId, eventType: "first", payload: { value: 0 } })
+        yield* journal.flush
+
+        const fiber = yield* Stream.runCollect(
+          client.subscribe({ scope: { _tag: "Run", runId: id }, cursors: [] }).pipe(Stream.take(2))
+        ).pipe(Effect.forkChild({ startImmediately: true }))
+
+        yield* pair.faults.disconnect()
+        const settled = yield* Fiber.await(fiber).pipe(Effect.timeoutOption("500 millis"))
+        yield* Fiber.interrupt(fiber)
+        return settled._tag
+      })
+    )
+
+    expect(exit).toMatchObject({ _tag: "Success", value: "None" })
+  })
+})
