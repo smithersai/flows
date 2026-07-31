@@ -1,7 +1,7 @@
-import { Database } from "@smithers/database/Database"
+import { Database, DatabaseError } from "@smithers/database/Database"
 import * as NodeDatabase from "@smithers/database/node/NodeDatabase"
 import * as TestDatabase from "@smithers/database/test/TestDatabase"
-import { Context, Effect, Layer } from "effect"
+import { Context, Effect, Layer, PubSub } from "effect"
 import { TestClock } from "effect/testing"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -186,6 +186,44 @@ describe("SqlJournal durable emission", () => {
         const failure = yield* Effect.flip(journal.emitDurable(input(runId("run"), sourceId("s"), "x", 1)))
         expect((failure as JournalError).code).toBe("sink_failed")
       })
+    ))
+
+  effect("emitDurable publishes nothing when the transaction fails at commit", () =>
+    Effect.scoped(
+      Effect.gen(function*() {
+        const database = yield* Database
+        // Models a COMMIT-time failure: the body (including the INSERT) runs to
+        // completion, then the transaction aborts and rolls the row back.
+        const commitFails = Layer.succeed(Database)(
+          Database.of({
+            sql: database.sql,
+            write: (effect) =>
+              database.write(
+                Effect.flatMap(effect, () =>
+                  Effect.fail(
+                    new DatabaseError({ code: "busy" })
+                  ))
+              ) as never
+          })
+        )
+        const journal = yield* Effect.map(
+          Layer.build(SqlJournal.layer(options).pipe(Layer.provide(commitFails))),
+          (context) => Context.get(context, Journal) as Service
+        )
+        const subscription = yield* journal.changes
+        const run = runId("commit-failure")
+        yield* Effect.flip(journal.emitDurable(input(run, sourceId("s"), "created", 1)))
+        expect(yield* PubSub.remaining(subscription)).toBe(0)
+        const rows = yield* seqsOf(database, run)
+        expect(rows).toEqual([])
+        // The rolled-back sequence must not become an in-memory allocation
+        // floor: the next successful write still starts at 0.
+        const healthy = yield* Effect.map(
+          Layer.build(SqlJournal.layer(options).pipe(Layer.provide(Layer.succeed(Database)(database)))),
+          (context) => Context.get(context, Journal) as Service
+        )
+        expect((yield* healthy.emitDurable(input(run, sourceId("s"), "created", 1))).seq).toBe(0)
+      }).pipe(Effect.provide(migratedDatabase))
     ))
 
   effect("emitDurable rejects a closed journal", () =>

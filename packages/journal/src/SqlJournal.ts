@@ -826,13 +826,27 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
                   metaJson
                 }
                 const commit = yield* insertOne(queued, owner)
-                rememberCommitted(queued, commit.entry.seq)
-                yield* publish([commit])
-                return commit.inserted
-                  ? { _tag: "Accepted", seq: commit.entry.seq, sourceSeq } as const
-                  : { _tag: "Duplicate", seq: commit.entry.seq, sourceSeq, status: "committed" } as const
+                return { commit, queued, sourceSeq }
               })
             ).pipe(
+              /**
+               * `database.write` is a retrying transaction: its body replays on
+               * `SQLITE_BUSY(_SNAPSHOT)` and can still abort at COMMIT after the
+               * body succeeded. Cache mutation and publication therefore happen
+               * strictly after the transaction returns, so subscribers never
+               * observe a rolled-back entry and a replayed body never publishes
+               * twice. Mirrors the queued path, which publishes in a `.tap`
+               * outside `persistBatch`.
+               */
+              Effect.tap(({ commit, queued }) =>
+                Effect.sync(() => rememberCommitted(queued, commit.entry.seq))
+              ),
+              Effect.tap(({ commit }) => publish([commit])),
+              Effect.map(({ commit, sourceSeq }) =>
+                commit.inserted
+                  ? { _tag: "Accepted", seq: commit.entry.seq, sourceSeq } as const
+                  : { _tag: "Duplicate", seq: commit.entry.seq, sourceSeq, status: "committed" } as const
+              ),
               Effect.mapError((cause) =>
                 isJournalError(cause) ? cause : error("sink_failed", "durable journal write failed", cause)
               )
