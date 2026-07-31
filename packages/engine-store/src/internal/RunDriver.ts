@@ -317,6 +317,51 @@ export const make = (
         ).pipe(Effect.orDie)
       })
 
+    /**
+     * Releases an interrupted run reclaimably instead of closing it
+     * (issue #26). A drive-fiber interruption is not evidence of operator
+     * cancellation — process shutdown closes the coordinator scope, and the
+     * heartbeat loop self-interrupts on any heartbeat error — so the run
+     * transitions back to `suspended` while the fence is still validly held,
+     * leaving it claimable by any worker (Temporal worker-shutdown
+     * semantics). On genuine fence loss the owned transition fails
+     * harmlessly.
+     */
+    const releaseOwned = (
+      runId: string,
+      state: PersistedState
+    ): Effect.Effect<void> =>
+      Effect.gen(function*() {
+        const transitioned = yield* store.transitionOwned(
+          runId,
+          dependencies.owner,
+          "suspended",
+          yield* encodeState(withoutResult(state))
+        ).pipe(Effect.orDie)
+        if (transitioned._tag !== "Transitioned") return
+        yield* emitDecision(runId, {
+          decision: "interrupt-released",
+          owner: dependencies.owner
+        })
+      })
+
+    /**
+     * Discriminates an interruption cause by durable state: only an
+     * interruption backed by a recorded cancel request closes the run;
+     * anything else releases it for reclaim (issue #26).
+     */
+    const settleInterrupted = (
+      runId: string,
+      state: PersistedState
+    ): Effect.Effect<void> =>
+      store.get(runId).pipe(
+        Effect.map((row) => row.cancelRequestedAtMs !== null),
+        Effect.catch(() => Effect.succeed(false)),
+        Effect.flatMap((requested) =>
+          requested ? cancelOwned(runId, state) : releaseOwned(runId, state)
+        )
+      )
+
     const coordinatorDeferred = yield* Deferred.make<RunCoordinator.RunCoordinator<string, never>>()
 
     /**
@@ -392,7 +437,7 @@ export const make = (
             cancelPollLoop(executionId)
           )
         ).pipe(
-          Effect.onInterrupt(() => cancelOwned(executionId, activeState)),
+          Effect.onInterrupt(() => settleInterrupted(executionId, activeState)),
           Effect.ensuring(Effect.sync(() => liveInstances.delete(executionId)))
         )
         if (result._tag === "CancelRequested") {
@@ -646,10 +691,17 @@ export const make = (
       _flow: Flow.Any,
       executionId: string
     ): Effect.Effect<void> =>
-      Effect.sync(() => {
+      Effect.gen(function*() {
         const instance = liveInstances.get(executionId)
         if (instance !== undefined) instance.interrupted = true
-      }).pipe(Effect.andThen(coordinator.interrupt(executionId)))
+        // Operator intent is recorded durably before the fiber interrupt so
+        // the interruption handler can tell cancellation apart from shutdown
+        // (issue #26), and so the request survives if this process dies
+        // before the interrupt lands.
+        const nowMs = yield* Clock.currentTimeMillis
+        yield* store.requestCancel(executionId, nowMs).pipe(Effect.ignore)
+        yield* coordinator.interrupt(executionId)
+      })
     )
 
     const scheduleResume: Service["scheduleResume"] = Effect.fn("FlowEngine.scheduleResume")((
