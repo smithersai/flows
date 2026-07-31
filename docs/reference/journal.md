@@ -26,7 +26,11 @@ This page is the public API reference for durable events, run ownership, activit
 
 ## SQL journal
 
-`SqlJournal.layer(options)` provides the bounded batching implementation over `Database`. Options are `capacity`, `overflow`, optional `batchSize`, and optional `allocation`.
+`SqlJournal.layer(options)` provides the bounded batching implementation over `Database`. Options are `capacity`, `overflow`, optional `batchSize`, optional `allocation`, and optional `sourceEventCache`.
+
+### Source-event index bound
+
+`sourceEventCache` (default `4096`) bounds the in-process index that answers `emit` idempotency from memory. Startup loads only the most recent `sourceEventCache` events (`ORDER BY emitted_at_ms DESC … LIMIT`), and admission evicts the least-recently-added *committed* entry once the bound is exceeded; uncommitted entries are never evicted, because the database does not hold them yet. The index is a cache, not the authority: the writer re-checks `(run_id, source_id, source_seq)` under its unique constraint on every insert, so an evicted event that is re-emitted is still deduplicated durably (no second row) and still fails with `idempotency_conflict` on changed content. The only degradation past the window is a memory-path receipt reported as `Accepted` rather than `Duplicate`, the same behaviour the `drop-oldest` eviction path already had. Resident memory and startup decode are therefore O(`sourceEventCache`), not O(total events ever written).
 
 ### Sequence allocation
 

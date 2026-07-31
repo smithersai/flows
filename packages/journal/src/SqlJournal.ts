@@ -62,7 +62,23 @@ export interface SqlJournalOptions {
    * writers may share a run.
    */
   readonly allocation?: "memory" | "sql" | undefined
+  /**
+   * Upper bound on the in-process source-event index — the map that answers
+   * `emit` idempotency from memory.
+   *
+   * The index is a cache, never the authority: the writer's `insertOne` always
+   * re-checks `flows_journal_events` under the `(run_id, source_id,
+   * source_seq)` unique constraint, so an evicted entry re-emitted later is
+   * still deduplicated durably and still reports an `idempotency_conflict` on
+   * changed content. Bounding it keeps startup decode and resident memory
+   * O(bound) rather than O(total events ever written), mirroring Temporal's
+   * refusal to hold unbounded history in a shard (`service/history`).
+   */
+  readonly sourceEventCache?: number | undefined
 }
+
+/** Default retained window of the source-event index. */
+const defaultSourceEventCache = 4096
 
 interface QueuedEntry {
   readonly runId: RunId
@@ -189,7 +205,12 @@ const decodeRow = (row: JournalRow): Effect.Effect<Entry, JournalError> =>
     )
   )
 
-const validateOptions = (options: SqlJournalOptions): Effect.Effect<number, JournalError> =>
+interface ValidatedOptions {
+  readonly batchSize: number
+  readonly sourceEventCache: number
+}
+
+const validateOptions = (options: SqlJournalOptions): Effect.Effect<ValidatedOptions, JournalError> =>
   Effect.suspend(() => {
     if (!Number.isSafeInteger(options.capacity) || options.capacity <= 0) {
       return Effect.fail(error("invalid_event", "capacity must be a positive safe integer"))
@@ -198,7 +219,11 @@ const validateOptions = (options: SqlJournalOptions): Effect.Effect<number, Jour
     if (!Number.isSafeInteger(batchSize) || batchSize <= 0) {
       return Effect.fail(error("invalid_event", "batchSize must be a positive safe integer"))
     }
-    return Effect.succeed(batchSize)
+    const sourceEventCache = options.sourceEventCache ?? defaultSourceEventCache
+    if (!Number.isSafeInteger(sourceEventCache) || sourceEventCache <= 0) {
+      return Effect.fail(error("invalid_event", "sourceEventCache must be a positive safe integer"))
+    }
+    return Effect.succeed({ batchSize, sourceEventCache })
   })
 
 const isJournalError = Schema.is(JournalError)
@@ -218,7 +243,7 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
   Layer.effect(
     Journal,
     Effect.gen(function*() {
-      const batchSize = yield* validateOptions(options)
+      const { batchSize, sourceEventCache } = yield* validateOptions(options)
       const database = yield* Database
       const sql = database.sql
       const queue = yield* Queue.dropping<QueuedEntry>(options.capacity)
@@ -238,10 +263,18 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
       `.pipe(
         Effect.mapError((cause) => error("sink_failed", "could not initialize journal source sequences", cause))
       )
+      /**
+       * Only the most recent `sourceEventCache` events are decoded at startup.
+       * Older events stay durable-only: their idempotency is enforced by the
+       * writer's `(run_id, source_id, source_seq)` re-check, so the process
+       * never has to hold the whole history to stay correct.
+       */
       const sourceEventRows = yield* sql<JournalRow>`
         SELECT run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
           event_type, payload_json, meta_json
         FROM flows_journal_events
+        ORDER BY emitted_at_ms DESC, run_id DESC, seq DESC
+        LIMIT ${sourceEventCache}
       `.pipe(
         Effect.mapError((cause) => error("sink_failed", "could not initialize journal source events", cause))
       )
@@ -272,7 +305,9 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
             )
           }
           const sourceEvents = new Map<string, SourceEvent>()
-          for (const entry of durableEntries) {
+          // Seeded oldest-first so the map's insertion order stays the
+          // eviction order once `retain` starts adding newer events.
+          for (const entry of [...durableEntries].reverse()) {
             if (
               !Number.isSafeInteger(entry.seq) ||
               !Number.isSafeInteger(entry.sourceSeq) ||
@@ -306,6 +341,26 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
         sourceSequences: initialized.sourceSequences,
         sourceEvents: initialized.sourceEvents,
         flushWaiters: new Set()
+      }
+
+      /**
+       * Adds an entry to the bounded source-event index, evicting the
+       * least-recently added *committed* entry when the bound is exceeded.
+       *
+       * Uncommitted entries are never evicted: they are not in the database
+       * yet, so memory is the only place their identity exists. Committed ones
+       * are always re-derivable from `flows_journal_events`, which is what
+       * makes the bound safe.
+       */
+      const retain = (identity: string, event: SourceEvent): void => {
+        state.sourceEvents.delete(identity)
+        state.sourceEvents.set(identity, event)
+        if (state.sourceEvents.size <= sourceEventCache) return
+        for (const [candidate, retained] of state.sourceEvents) {
+          if (retained.status !== "committed" || candidate === identity) continue
+          state.sourceEvents.delete(candidate)
+          return
+        }
       }
 
       const completeFlushWaiters = (exit: Effect.Effect<void, JournalError>): void => {
@@ -462,7 +517,7 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
                   } satisfies EmitReceipt
                 }
 
-                state.sourceEvents.set(identity, {
+                retain(identity, {
                   seq,
                   eventType: validated.eventType,
                   payloadJson,
@@ -741,7 +796,7 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
         )
 
       const rememberCommitted = (queued: QueuedEntry, seq: Seq): void => {
-        state.sourceEvents.set(sourceEventKey(queued.runId, queued.sourceId, queued.sourceSeq), {
+        retain(sourceEventKey(queued.runId, queued.sourceId, queued.sourceSeq), {
           seq,
           eventType: queued.eventType,
           payloadJson: queued.payloadJson,
@@ -848,7 +903,9 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
                * outside `persistBatch`.
                */
               Effect.tap(({ commit, queued }) =>
-                Effect.sync(() => rememberCommitted(queued, commit.entry.seq))
+                Effect.sync(() =>
+                  rememberCommitted(queued, commit.entry.seq)
+                )
               ),
               Effect.tap(({ commit }) => publish([commit])),
               Effect.map(({ commit, sourceSeq }) =>
@@ -881,7 +938,7 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
         for (let index = 0; index < commits.length; index++) {
           const queued = batch[index]!
           const commit = commits[index]!
-          state.sourceEvents.set(
+          retain(
             sourceEventKey(queued.runId, queued.sourceId, queued.sourceSeq),
             {
               seq: commit.entry.seq,
@@ -916,11 +973,7 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
         Queue.takeBetween(queue, 1, batchSize).pipe(
           Effect.flatMap((batch) =>
             persistBatch(batch).pipe(
-              Effect.tap((commits) =>
-                Effect.sync(() =>
-                  recordCommits(batch, commits)
-                )
-              ),
+              Effect.tap((commits) => Effect.sync(() => recordCommits(batch, commits))),
               Effect.tap(publish),
               Effect.tap(() => Effect.sync(() => settle(batch.length)))
             )
