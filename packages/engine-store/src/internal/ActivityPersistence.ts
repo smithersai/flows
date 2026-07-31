@@ -15,6 +15,7 @@ import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
+import * as Inconsistency from "../Inconsistency.ts"
 import * as StepBoundary from "../StepBoundary.ts"
 import * as JournalRecords from "./JournalRecords.ts"
 
@@ -62,6 +63,16 @@ export class AttemptAdmissionRejected extends Schema.TaggedErrorClass<AttemptAdm
     code: Schema.Literal("attempt_admission_rejected"),
     keyDigest: Schema.String,
     outcome: Schema.String
+  }
+) {}
+
+/** @since 0.1.0 @category errors */
+export class CacheConflictDetected extends Schema.TaggedErrorClass<CacheConflictDetected>()(
+  "flows/engine-store/CacheConflictDetected",
+  {
+    code: Schema.Literal("cache_conflict_detected"),
+    keyDigest: Schema.String,
+    recordedRunId: Schema.String
   }
 ) {}
 
@@ -271,14 +282,38 @@ export const make = (deps: Dependencies) =>
         const receipt = yield* journal.emit(
           JournalRecords.cacheProvenance(source(deps), { keyDigest, action: "recorded" })
         )
-        yield* cache.put({
+        const entry = {
           keyDigest,
           result: outcome.value,
           meta,
           createdAtMs: finishedAtMs,
           recordedRunId: deps.runId,
           recordedEventSeq: receipt.seq
-        })
+        }
+        const cachePut = yield* cache.put(entry)
+        if (cachePut._tag === "Conflict") {
+          const conflicting = yield* cache.get(keyDigest)
+          const receiverOption = yield* Effect.serviceOption(Inconsistency.Inconsistency)
+          // The unwired fallback tolerates, preserving the pre-receiver
+          // executor contract; engine wiring provides `layerStrict`.
+          const receiver = Option.isSome(receiverOption)
+            ? receiverOption.value
+            : Inconsistency.make({ journal, verdict: "tolerate" })
+          const verdict = yield* receiver.note({
+            key: keyDigest,
+            existing: Option.getOrUndefined(conflicting),
+            attempted: entry
+          })
+          if (verdict === "fail") {
+            return yield* Effect.fail(
+              new CacheConflictDetected({
+                code: "cache_conflict_detected",
+                keyDigest,
+                recordedRunId: Option.isSome(conflicting) ? conflicting.value.recordedRunId : "unknown"
+              })
+            )
+          }
+        }
       }
       return outcome.value
     })
