@@ -67,7 +67,7 @@ describe("HostServices", () => {
     await Effect.runPromise(program)
   })
 
-  it("intercepts legacy Host and filesystem tags still exposed by their decorators", async () => {
+  it("intercepts the underlying @smithers/host and effect FileSystem tags, not just the kernel decorators", async () => {
     const checks: Array<Capability.Capability> = []
     const deny = GrantStore.of({
       check: (capability) => {

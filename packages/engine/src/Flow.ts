@@ -23,7 +23,6 @@ import { constFalse, constTrue, dual, identity } from "effect/Function"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Predicate from "effect/Predicate"
-import type * as Schedule from "effect/Schedule"
 import * as Schema from "effect/Schema"
 import * as SchemaIssue from "effect/SchemaIssue"
 import * as SchemaParser from "effect/SchemaParser"
@@ -74,7 +73,6 @@ export interface Flow<
   readonly errorSchema: Error
   readonly annotations: Context.Context<never>
   readonly idempotencyKey?: ((payload: Payload["Type"]) => string) | undefined
-  readonly suspendedRetrySchedule?: Schedule.Schedule<any, unknown> | undefined
 
   /**
    * Add an annotation to the flow.
@@ -247,7 +245,6 @@ export interface Any {
   readonly errorSchema: Schema.Top
   readonly annotations: Context.Context<never>
   readonly idempotencyKey?: ((payload: any) => string) | undefined
-  readonly suspendedRetrySchedule?: Schedule.Schedule<any, unknown> | undefined
 }
 
 /**
@@ -362,8 +359,7 @@ const Proto = {
       successSchema: this.successSchema,
       errorSchema: this.errorSchema,
       annotations: Context.add(this.annotations, tag, value),
-      idempotencyKey: this.idempotencyKey,
-      suspendedRetrySchedule: this.suspendedRetrySchedule
+      idempotencyKey: this.idempotencyKey
     })
   },
   annotateMerge(this: AnyWithProps, context: Context.Context<any>) {
@@ -373,8 +369,7 @@ const Proto = {
       successSchema: this.successSchema,
       errorSchema: this.errorSchema,
       annotations: Context.merge(this.annotations, context),
-      idempotencyKey: this.idempotencyKey,
-      suspendedRetrySchedule: this.suspendedRetrySchedule
+      idempotencyKey: this.idempotencyKey
     })
   },
   execute<const Discard extends boolean = false>(
@@ -396,8 +391,7 @@ const Proto = {
               engine.execute(this as any, {
                 executionId,
                 payload,
-                discard: opts?.discard,
-                suspendedRetrySchedule: this.suspendedRetrySchedule
+                discard: opts?.discard
               })
             ))
       )
@@ -450,7 +444,6 @@ const makeProto = <
   readonly errorSchema: Error
   readonly annotations: Context.Context<never>
   readonly idempotencyKey?: ((payload: Payload["Type"]) => string) | undefined
-  readonly suspendedRetrySchedule?: Schedule.Schedule<any, unknown> | undefined
 }): Flow<Tag, Payload, Success, Error> => {
   function Flow() {}
   Object.setPrototypeOf(Flow, Proto)
@@ -481,7 +474,6 @@ export const make = <
     | undefined
   readonly success?: Success
   readonly error?: Error
-  readonly suspendedRetrySchedule?: Schedule.Schedule<any, unknown> | undefined
   readonly annotations?: Context.Context<never>
 }): Flow<
   Tag,
@@ -498,8 +490,7 @@ export const make = <
     successSchema: options.success ?? (Schema.Void as any),
     errorSchema: options.error ?? (Schema.Never as any),
     annotations: options.annotations ?? Context.empty(),
-    idempotencyKey: options.idempotencyKey as any,
-    suspendedRetrySchedule: options.suspendedRetrySchedule
+    idempotencyKey: options.idempotencyKey as any
   })
 
 const ResultTypeId = "~effect/flow/Flow/Result"

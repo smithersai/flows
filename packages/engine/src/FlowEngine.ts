@@ -20,7 +20,6 @@ import * as Latch from "effect/Latch"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Result from "effect/Result"
-import * as Schedule from "effect/Schedule"
 import * as Schema from "effect/Schema"
 import * as Scope from "effect/Scope"
 import * as Activity from "./Activity.ts"
@@ -166,9 +165,6 @@ export class FlowEngine extends Context.Service<
         readonly executionId: string
         readonly payload: Payload["Type"]
         readonly discard?: Discard | undefined
-        readonly suspendedRetrySchedule?:
-          | Schedule.Schedule<any, unknown>
-          | undefined
         readonly suspendedRetryPolicy?:
           | RetryPolicy.RetryPolicy
           | undefined
@@ -517,9 +513,6 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
         readonly executionId: string
         readonly payload: Payload["Type"]
         readonly discard?: Discard | undefined
-        readonly suspendedRetrySchedule?:
-          | Schedule.Schedule<any, unknown>
-          | undefined
         readonly suspendedRetryPolicy?:
           | RetryPolicy.RetryPolicy
           | undefined
@@ -527,7 +520,6 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
     ) {
       const payload = opts.payload
       const executionId = opts.executionId
-      const suspendedRetrySchedule = opts.suspendedRetrySchedule
       const suspendedRetryPolicy = opts.suspendedRetryPolicy ?? RetryPolicy.defaultRetryPolicy
       yield* Effect.annotateCurrentSpan({ executionId })
       let result = Option.none<Flow.Result<Success["Type"], Error["Type"]>>()
@@ -567,7 +559,6 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
         return yield* wrapped.exit
       }
 
-      let sleep: Effect.Effect<any> | undefined
       let resumeAttempt = 0
       while (true) {
         const wrapped = yield* run
@@ -575,32 +566,19 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
         if (wrapped._tag === "Complete") {
           return yield* wrapped.exit as Exit.Exit<any>
         }
-        // The durable path derives the resume delay from the attempt count
-        // (data policy) so backoff survives a restart; an explicit Schedule
-        // stays supported at the API edge for backward compatibility.
-        if (suspendedRetrySchedule !== undefined) {
-          sleep ??= (yield* Schedule.toStepWithSleep(suspendedRetrySchedule))(
-            void 0
-          ).pipe(
-            Effect.catch(() =>
-              Effect.die(
-                `${self._tag}.execute: suspendedRetrySchedule exhausted`
-              )
-            )
+        // The resume delay is derived from the attempt count (data policy) so
+        // backoff survives a restart.
+        resumeAttempt = resumeAttempt + 1
+        const delay = yield* RetryPolicy.nextDelayEffect(
+          suspendedRetryPolicy,
+          resumeAttempt
+        )
+        if (Option.isNone(delay)) {
+          return yield* Effect.die(
+            `${self._tag}.execute: suspendedRetryPolicy exhausted`
           )
-        } else {
-          resumeAttempt = resumeAttempt + 1
-          const delay = yield* RetryPolicy.nextDelayEffect(
-            suspendedRetryPolicy,
-            resumeAttempt
-          )
-          if (Option.isNone(delay)) {
-            return yield* Effect.die(
-              `${self._tag}.execute: suspendedRetryPolicy exhausted`
-            )
-          }
-          sleep = Effect.sleep(delay.value)
         }
+        const sleep = Effect.sleep(delay.value)
         yield* (options.resumeSignal === undefined
           ? sleep
           : Effect.raceFirst(sleep, options.resumeSignal(self, executionId)))

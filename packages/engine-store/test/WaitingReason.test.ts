@@ -87,10 +87,10 @@ describe("waiting-reason taxonomy", () => {
     })
   }
 
-  it("decodes a legacy NULL-reason row as not waiting", async () => {
+  it("decodes a NULL-reason row (a running, unparked run) as not waiting", async () => {
     const result = await Effect.runPromise(
       Effect.gen(function*() {
-        const runId = "legacy-null-reason"
+        const runId = "null-reason"
         yield* insertRunningRun(runId)
         const state = yield* DurableEngineState.make
         return {
