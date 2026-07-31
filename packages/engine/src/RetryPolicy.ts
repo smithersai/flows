@@ -74,9 +74,8 @@ export const make = (options: {
 /**
  * The default engine retry policy.
  *
- * Mirrors the historical `Schedule.min([exponential(200, 1.5),
- * spaced(30000)])` envelope: 200ms initial delay growing by 1.5x, capped at
- * 30s, never giving up.
+ * Uses a 200ms initial delay growing by 1.5x, capped at 30s, and never gives
+ * up.
  *
  * @category constructors
  * @since 0.1.0

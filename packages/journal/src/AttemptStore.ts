@@ -149,8 +149,8 @@ export type PatchResult =
 /**
  * Store-wide policy.
  *
- * The defaults reproduce the historical behaviour exactly, so an existing
- * caller is unaffected by supplying nothing.
+ * Defaults treat only `running` attempts as in progress, cap checkpoints at
+ * 1 MiB, and make attempt insertion first-writer-wins.
  *
  * @category models
  * @since 0.1.0
