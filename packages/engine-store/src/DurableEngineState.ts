@@ -791,7 +791,7 @@ export interface MemoryOptions {
    * of the `flows_runs` lookups the SQL implementation performs for its
    * `park`/`wake`/`scheduleClock` fences. `Option.none()` means the run does
    * not exist. When omitted, every run is treated as running and owned by
-   * whichever owner is presented (the permissive legacy shape for tests
+   * whichever owner is presented (a deliberately permissive default for tests
    * that exercise only deferred/clock state without a run table).
    */
   readonly runs?: (runId: string) => Option.Option<MemoryRunView>
