@@ -9,6 +9,7 @@ import * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
+import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
 
 const TestFlow = Flow.make("Ownership/Test", {
@@ -76,6 +77,7 @@ const provideJournal = <A, E, R>(
 ) =>
   effect.pipe(
     Effect.provide(TestJournal.layer()),
+    Effect.provide(DurableEngineState.layerMemory),
     Effect.provide(TestClock.layer()),
     Effect.scoped
   ) as Effect.Effect<A, E, Exclude<R, Journal.Journal | RunStore.RunStore | Scope.Scope>>

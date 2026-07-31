@@ -15,6 +15,7 @@ import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
+import * as DurableEngineState from "../DurableEngineState.ts"
 import * as JournalRecords from "./JournalRecords.ts"
 
 /**
@@ -144,10 +145,15 @@ const withoutResult = (state: PersistedState): PersistedState => {
  */
 export const make = (
   dependencies: Dependencies
-): Effect.Effect<Service, never, Journal.Journal | RunStore.RunStore | Scope.Scope> =>
+): Effect.Effect<
+  Service,
+  never,
+  DurableEngineState.DurableEngineState | Journal.Journal | RunStore.RunStore | Scope.Scope
+> =>
   Effect.gen(function*() {
     const journal = yield* Journal.Journal
     const store = yield* RunStore.RunStore
+    const engineState = yield* DurableEngineState.DurableEngineState
     const registrations = new Map<string, Registration>()
     const liveInstances = new Map<string, FlowEngine.FlowInstance["Service"]>()
     /**
@@ -357,6 +363,9 @@ export const make = (
           yield* encodeState(activeState)
         ).pipe(Effect.orDie)
         if (cleared._tag !== "Transitioned") return
+        // A run that re-enters execution is no longer waiting: clear any
+        // parked waiting-reason payload (idempotent when none exists).
+        yield* engineState.wake(executionId)
 
         const payload = yield* (Schema.decodeUnknownEffect(
           Schema.toCodecJson(registration.flow.payloadSchema)
@@ -402,6 +411,24 @@ export const make = (
           : Exit.isSuccess(result.exit)
           ? "completed"
           : "failed"
+        if (status === "suspended") {
+          // Park while this process still owns the row (`park` is
+          // owner-fenced; the suspended transition below releases
+          // ownership). The reason is derived from durable state: a pending
+          // clock row means a timer wake with a known deadline; anything
+          // else waits on an external event (deferred completion). This is
+          // what makes `waitingRuns` sweepers and the 0004 partial index
+          // match real suspensions (issue #12).
+          const pendingClocks = (yield* engineState.dueClocks(Number.MAX_SAFE_INTEGER))
+            .filter((clock) => clock.executionId === executionId && clock.completedAtMs === null)
+          const waiting: DurableEngineState.Waiting = pendingClocks.length > 0
+            ? {
+              reason: "timer",
+              wakeAt: Math.min(...pendingClocks.map((clock) => clock.dueAtMs))
+            }
+            : { reason: "event" }
+          yield* engineState.park(executionId, waiting, dependencies.owner)
+        }
         // Finalize is guarded on `cancel_requested_at_ms` inside the same
         // CAS: a cancellation request that raced past the last poll turns
         // the terminal transition into GuardFailed, and the run cancels
