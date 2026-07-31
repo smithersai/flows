@@ -211,6 +211,50 @@ describe("RunDriver cycle detection", () => {
     expect((failure as RunDriver.FlowCycleDetected).path).toEqual(["b", "c"])
   })
 
+  it("admits a legitimate cycle-free fan-in diamond (issue #37)", async () => {
+    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+      const driver = yield* makeDriver()
+      yield* driver.register(TestFlow, () => Effect.succeed("ok"))
+      const store = yield* RunStore.RunStore
+
+      // Root fans out to A and B; both converge on C. Two parents, no cycle:
+      // an over-reporting detector regression must not refuse this shape.
+      yield* store.create(
+        "diamond-root",
+        JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {} })
+      )
+      yield* store.create(
+        "diamond-a",
+        JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {}, parentExecutionId: "diamond-root" })
+      )
+      yield* store.create(
+        "diamond-b",
+        JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {}, parentExecutionId: "diamond-root" })
+      )
+
+      // A creates C (persisted first-parent edge), then B converges on C
+      // (request-only second-parent edge). Both must succeed.
+      const first = yield* Effect.exit(driver.execute(TestFlow, {
+        executionId: "diamond-c",
+        payload: {},
+        discard: true,
+        parent: { executionId: "diamond-a" } as FlowEngine.FlowInstance["Service"]
+      }))
+      const second = yield* Effect.exit(driver.execute(TestFlow, {
+        executionId: "diamond-c",
+        payload: {},
+        discard: true,
+        parent: { executionId: "diamond-b" } as FlowEngine.FlowInstance["Service"]
+      }))
+      const row = yield* store.get("diamond-c")
+      return { first, second, status: row.status }
+    })))
+
+    expect(Exit.isSuccess(result.first)).toBe(true)
+    expect(Exit.isSuccess(result.second)).toBe(true)
+    expect(result.status).toBe("completed")
+  })
+
   it("rejects a concurrently formed mutual cycle instead of admitting both edges (issue #29)", async () => {
     const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
       const store = yield* RunStore.RunStore
