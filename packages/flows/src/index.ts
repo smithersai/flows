@@ -15,6 +15,11 @@
  * ```ts
  * import { Engine, Host, Journal } from "@smithers/flows"
  * ```
+ *
+ * One caveat: `Plugin` is re-exported as a namespace, but declaration merging
+ * into `FlowsHooks` must target the owning module — `declare module
+ * "@smithers/plugin"`, never `"@smithers/flows"`. A re-export is not an
+ * augmentation target.
  */
 
 export * as Database from "@smithers/database"
@@ -24,5 +29,6 @@ export * as Host from "@smithers/host"
 export * as Journal from "@smithers/journal"
 export * as Kernel from "@smithers/kernel"
 export * as Keys from "@smithers/keys"
+export * as Plugin from "@smithers/plugin"
 export * as Sync from "@smithers/sync"
 export * as TimeTravel from "@smithers/time-travel"

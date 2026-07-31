@@ -11,6 +11,7 @@ describe("barrel", () => {
       "Journal",
       "Kernel",
       "Keys",
+      "Plugin",
       "Sync",
       "TimeTravel"
     ])
@@ -25,6 +26,7 @@ describe("barrel", () => {
       ["Journal", Flows.Journal],
       ["Kernel", Flows.Kernel],
       ["Keys", Flows.Keys],
+      ["Plugin", Flows.Plugin],
       ["Sync", Flows.Sync],
       ["TimeTravel", Flows.TimeTravel]
     ] as const

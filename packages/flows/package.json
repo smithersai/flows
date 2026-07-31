@@ -60,6 +60,7 @@
     "@smithers/journal": "0.0.0",
     "@smithers/kernel": "0.1.0",
     "@smithers/keys": "0.0.0",
+    "@smithers/plugin": "0.0.0",
     "@smithers/sync": "0.0.0",
     "@smithers/time-travel": "0.0.0",
     "effect": "4.0.0-beta.102"

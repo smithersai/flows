@@ -69,3 +69,9 @@ export * as RunCoordinator from "./RunCoordinator.ts"
  * @since 0.1.0
  */
 export * as TestJournal from "./test/TestJournal.ts"
+
+/**
+ * @category testing
+ * @since 0.1.0
+ */
+export * as Notifying from "./test/Notifying.ts"
