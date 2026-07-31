@@ -115,7 +115,10 @@ describe("journal migrations", () => {
         "run_id",
         "started_at_ms",
         "state_json",
-        "status"
+        "status",
+        "waiting_reason",
+        "waiting_token",
+        "waiting_wake_at_ms"
       ],
       flows_step_cache: [
         "created_at_ms",

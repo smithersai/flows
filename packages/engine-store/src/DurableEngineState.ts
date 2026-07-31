@@ -95,6 +95,80 @@ export type CompleteClockOutcome =
   | { readonly _tag: "NotFound" }
 
 /**
+ * The core wait-reason vocabulary a supervisor understands for wake policy.
+ *
+ * Left open (`string & {}`) so a plugin can park on a reason the core
+ * taxonomy has not named yet — the store persists whatever it is given
+ * rather than rejecting unknown reasons.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export type WaitingReason = "approval" | "event" | "timer" | "quota" | (string & {})
+
+/**
+ * The payload recorded when a run parks.
+ *
+ * `reason` and `wakeAt` earn columns because a supervisor sweeper queries
+ * them (`WHERE waiting_reason = 'quota' AND waiting_wake_at_ms <= ?`);
+ * `token` is compare-and-swap/lookup material a wake handler matches
+ * against.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export interface Waiting {
+  readonly reason: WaitingReason
+  readonly wakeAt?: number
+  readonly token?: string
+}
+
+/**
+ * A decoded waiting row for a parked run.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export interface WaitingRow {
+  readonly runId: string
+  readonly reason: WaitingReason
+  readonly wakeAt: number | null
+  readonly token: string | null
+}
+
+/**
+ * A predicate over `waitingRuns` — omitted fields are unconstrained.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export interface WaitingRunsFilter {
+  readonly reason?: string
+  readonly dueBeforeMs?: number
+}
+
+/**
+ * Result of recording that a run parked on a waiting reason.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export type ParkOutcome =
+  | { readonly _tag: "Parked"; readonly row: WaitingRow }
+  | { readonly _tag: "NotFound" }
+
+/**
+ * Result of clearing a run's waiting payload on wake.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export type WakeOutcome =
+  | { readonly _tag: "Woken"; readonly row: WaitingRow }
+  | { readonly _tag: "NotWaiting" }
+  | { readonly _tag: "NotFound" }
+
+/**
  * Minimal durable state missing from the current `@smithers/journal` contract.
  *
  * A successful mutation means the row is durable. Callers may therefore
@@ -127,6 +201,31 @@ export interface Service {
   readonly completedDeferreds?: (
     flowName: string
   ) => Effect.Effect<ReadonlyArray<DeferredAddress>>
+  /**
+   * Records the waiting-reason payload for a parked run, fenced to the
+   * current owner so a stale process cannot park a run it no longer runs.
+   */
+  readonly park: (
+    runId: string,
+    waiting: Waiting,
+    owner: OwnerId
+  ) => Effect.Effect<ParkOutcome>
+  /**
+   * Clears a run's waiting payload on wake or resume. Idempotent: waking a
+   * run that is not waiting reports `NotWaiting` rather than failing.
+   */
+  readonly wake: (runId: string) => Effect.Effect<WakeOutcome>
+  /**
+   * Reads the current waiting payload for a run, if any.
+   */
+  readonly waiting: (runId: string) => Effect.Effect<Option.Option<WaitingRow>>
+  /**
+   * Lists parked runs matching an optional reason/due-before filter, ordered
+   * for sweeper consumption (earliest wake first).
+   */
+  readonly waitingRuns: (
+    filter?: WaitingRunsFilter
+  ) => Effect.Effect<ReadonlyArray<WaitingRow>>
 }
 
 /**
@@ -171,6 +270,26 @@ const ClockDatabaseRow = Schema.Struct({
 })
 
 type ClockDatabaseRow = typeof ClockDatabaseRow.Type
+
+const WaitingDatabaseRow = Schema.Struct({
+  runId: Schema.String,
+  waitingReason: Schema.String,
+  waitingWakeAtMs: Schema.NullOr(NonNegativeSafeInt),
+  waitingToken: Schema.NullOr(Schema.String)
+})
+
+type WaitingDatabaseRow = typeof WaitingDatabaseRow.Type
+
+const decodeWaitingRow = (input: unknown): Effect.Effect<WaitingRow> =>
+  Schema.decodeUnknownEffect(WaitingDatabaseRow)(input).pipe(
+    Effect.orDie,
+    Effect.map((row) => ({
+      runId: row.runId,
+      reason: row.waitingReason,
+      wakeAt: row.waitingWakeAtMs,
+      token: row.waitingToken
+    }))
+  )
 
 const DeferredAddressDatabaseRow = Schema.Struct({
   flowName: Schema.String,
@@ -490,6 +609,135 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
     )
   )
 
+  const selectWaiting = (runId: string) =>
+    sql<WaitingDatabaseRow>`
+      SELECT
+        run_id AS "runId",
+        waiting_reason AS "waitingReason",
+        waiting_wake_at_ms AS "waitingWakeAtMs",
+        waiting_token AS "waitingToken"
+      FROM flows_runs
+      WHERE run_id = ${runId}
+        AND waiting_reason IS NOT NULL
+    `
+
+  const park: Service["park"] = Effect.fn("DurableEngineState.park")((runId, waiting, owner) =>
+    database.write(
+      Effect.gen(function*() {
+        const updated = yield* sql<WaitingDatabaseRow>`
+          UPDATE flows_runs
+          SET
+            waiting_reason = ${waiting.reason},
+            waiting_wake_at_ms = ${waiting.wakeAt ?? null},
+            waiting_token = ${waiting.token ?? null}
+          WHERE run_id = ${runId}
+            AND owner_host_id = ${owner.hostId}
+            AND owner_pid = ${owner.pid}
+            AND owner_nonce = ${owner.nonce}
+          RETURNING
+            run_id AS "runId",
+            waiting_reason AS "waitingReason",
+            waiting_wake_at_ms AS "waitingWakeAtMs",
+            waiting_token AS "waitingToken"
+        `
+        if (updated[0] === undefined) {
+          return { _tag: "NotFound" as const }
+        }
+        return { _tag: "Parked" as const, row: yield* decodeWaitingRow(updated[0]) }
+      })
+    ).pipe(Effect.orDie)
+  )
+
+  const wake: Service["wake"] = Effect.fn("DurableEngineState.wake")((runId) =>
+    database.write(
+      Effect.gen(function*() {
+        const before = yield* selectWaiting(runId)
+        if (before[0] === undefined) {
+          const existing = yield* sql<{ runId: string }>`
+            SELECT run_id AS "runId" FROM flows_runs WHERE run_id = ${runId}
+          `
+          return existing[0] === undefined ? { _tag: "NotFound" as const } : { _tag: "NotWaiting" as const }
+        }
+        const row = yield* decodeWaitingRow(before[0])
+        yield* sql`
+          UPDATE flows_runs
+          SET
+            waiting_reason = NULL,
+            waiting_wake_at_ms = NULL,
+            waiting_token = NULL
+          WHERE run_id = ${runId}
+            AND waiting_reason IS NOT NULL
+        `
+        return { _tag: "Woken" as const, row }
+      })
+    ).pipe(Effect.orDie)
+  )
+
+  const waiting: Service["waiting"] = Effect.fn("DurableEngineState.waiting")((runId) =>
+    selectWaiting(runId).pipe(
+      Effect.orDie,
+      Effect.flatMap((rows) =>
+        rows[0] === undefined
+          ? Effect.succeedNone
+          : Effect.map(decodeWaitingRow(rows[0]), Option.some)
+      )
+    )
+  )
+
+  const waitingRuns: Service["waitingRuns"] = Effect.fn("DurableEngineState.waitingRuns")((filter) =>
+    (filter?.reason !== undefined && filter.dueBeforeMs !== undefined
+      ? sql<WaitingDatabaseRow>`
+        SELECT
+          run_id AS "runId",
+          waiting_reason AS "waitingReason",
+          waiting_wake_at_ms AS "waitingWakeAtMs",
+          waiting_token AS "waitingToken"
+        FROM flows_runs
+        WHERE waiting_reason = ${filter.reason}
+          AND waiting_wake_at_ms IS NOT NULL
+          AND waiting_wake_at_ms <= ${filter.dueBeforeMs}
+        ORDER BY waiting_wake_at_ms, run_id
+      `
+      : filter?.reason !== undefined
+      ? sql<WaitingDatabaseRow>`
+        SELECT
+          run_id AS "runId",
+          waiting_reason AS "waitingReason",
+          waiting_wake_at_ms AS "waitingWakeAtMs",
+          waiting_token AS "waitingToken"
+        FROM flows_runs
+        WHERE waiting_reason = ${filter.reason}
+        ORDER BY waiting_wake_at_ms, run_id
+      `
+      : filter?.dueBeforeMs !== undefined
+      ? sql<WaitingDatabaseRow>`
+        SELECT
+          run_id AS "runId",
+          waiting_reason AS "waitingReason",
+          waiting_wake_at_ms AS "waitingWakeAtMs",
+          waiting_token AS "waitingToken"
+        FROM flows_runs
+        WHERE waiting_reason IS NOT NULL
+          AND waiting_wake_at_ms IS NOT NULL
+          AND waiting_wake_at_ms <= ${filter.dueBeforeMs}
+        ORDER BY waiting_wake_at_ms, run_id
+      `
+      : sql<WaitingDatabaseRow>`
+        SELECT
+          run_id AS "runId",
+          waiting_reason AS "waitingReason",
+          waiting_wake_at_ms AS "waitingWakeAtMs",
+          waiting_token AS "waitingToken"
+        FROM flows_runs
+        WHERE waiting_reason IS NOT NULL
+        ORDER BY waiting_wake_at_ms, run_id
+      `
+    ).pipe(
+      Effect.orDie,
+      Effect.flatMap((rows) => Effect.forEach(rows, decodeWaitingRow))
+    )
+  )
+
   return DurableEngineState.of({
     deferred,
     completeDeferred,
@@ -497,7 +745,11 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
     scheduleClock,
     completeClock,
     dueClocks,
-    completedDeferreds
+    completedDeferreds,
+    park,
+    wake,
+    waiting,
+    waitingRuns
   })
 })
 
@@ -524,6 +776,7 @@ export const layer: Layer.Layer<DurableEngineState, never, Database> = Layer.eff
 export const makeMemory = (): Service => {
   const deferreds = new Map<string, DeferredRow>()
   const clocks = new Map<string, ClockRow>()
+  const waitingRows = new Map<string, WaitingRow>()
 
   return DurableEngineState.of({
     deferred: Effect.fn("DurableEngineState.deferred")((address) =>
@@ -592,6 +845,45 @@ export const makeMemory = (): Service => {
           .sort((left, right) =>
             left.executionId.localeCompare(right.executionId) ||
             left.deferredName.localeCompare(right.deferredName)
+          )
+      )
+    ),
+    park: Effect.fn("DurableEngineState.park")((runId, waitingPayload) =>
+      Effect.sync(() => {
+        const row: WaitingRow = {
+          runId,
+          reason: waitingPayload.reason,
+          wakeAt: waitingPayload.wakeAt ?? null,
+          token: waitingPayload.token ?? null
+        }
+        waitingRows.set(runId, row)
+        return { _tag: "Parked" as const, row }
+      })
+    ),
+    wake: Effect.fn("DurableEngineState.wake")((runId) =>
+      Effect.sync(() => {
+        const row = waitingRows.get(runId)
+        if (row === undefined) {
+          return { _tag: "NotWaiting" as const }
+        }
+        waitingRows.delete(runId)
+        return { _tag: "Woken" as const, row }
+      })
+    ),
+    waiting: Effect.fn("DurableEngineState.waiting")((runId) =>
+      Effect.sync(() => Option.fromNullishOr(waitingRows.get(runId)))
+    ),
+    waitingRuns: Effect.fn("DurableEngineState.waitingRuns")((filter) =>
+      Effect.sync(() =>
+        Array.from(waitingRows.values())
+          .filter((row) => filter?.reason === undefined || row.reason === filter.reason)
+          .filter((row) =>
+            filter?.dueBeforeMs === undefined ||
+            (row.wakeAt !== null && row.wakeAt <= filter.dueBeforeMs)
+          )
+          .sort((left, right) =>
+            (left.wakeAt ?? Number.MAX_SAFE_INTEGER) - (right.wakeAt ?? Number.MAX_SAFE_INTEGER) ||
+            left.runId.localeCompare(right.runId)
           )
       )
     )

@@ -15,11 +15,13 @@ import * as SqlClient from "effect/unstable/sql/SqlClient"
 import initial from "./migrations/0001_initial.ts"
 import durableEngineState from "./migrations/0002_durable_engine_state.ts"
 import runMetadata from "./migrations/0003_run_metadata.ts"
+import waitingReason from "./migrations/0004_waiting_reason.ts"
 
 const migrations = {
   "0001_initial": initial,
   "0002_durable_engine_state": durableEngineState,
-  "0003_run_metadata": runMetadata
+  "0003_run_metadata": runMetadata,
+  "0004_waiting_reason": waitingReason
 }
 
 /**
