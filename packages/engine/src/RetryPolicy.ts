@@ -191,8 +191,10 @@ export class RetryAttemptsExhausted extends Schema.TaggedErrorClass<RetryAttempt
  * `attempt` is the 1-based attempt that just failed. Returns `None` when the
  * policy gives up: `maxAttempts` reached, a non-positive computed interval,
  * a cap below the initial interval, or — when the policy declares
- * `expirationMs` and the caller supplies `elapsedMs` — an elapsed retry
- * duration that the next delay would push past the expiration bound.
+ * `expirationMs` and the caller supplies `elapsedMs` — an elapsed duration
+ * past the expiration bound. Otherwise the delay is capped to the remaining
+ * expiration window, expiring only when that window cannot fit one more
+ * full-value (`initialMs`) attempt.
  *
  * Jitter is deterministic-friendly: `options.random` is a `[0, 1)` sample
  * supplied by the caller and defaults to `1`, which leaves the delay at its
@@ -213,24 +215,30 @@ export const nextDelay = (
   if (policy.maxAttempts !== undefined && attempt >= policy.maxAttempts) {
     return Option.none()
   }
+  if (
+    policy.expirationMs !== undefined &&
+    options?.elapsedMs !== undefined &&
+    options.elapsedMs > policy.expirationMs
+  ) {
+    return Option.none()
+  }
   const raw = policy.initialMs * Math.pow(policy.factor, attempt - 1)
   if (!(raw > 0)) {
     return Option.none()
   }
   let delay = Math.min(raw, policy.maxMs)
+  // Temporal caps the delay to the remaining expiration window rather than
+  // refusing outright; the below-initial check then expires sequences whose
+  // remaining window cannot fit one more full-value attempt.
+  if (policy.expirationMs !== undefined && options?.elapsedMs !== undefined) {
+    delay = Math.min(delay, Math.max(0, policy.expirationMs - options.elapsedMs))
+  }
   if (delay < policy.initialMs) {
     return Option.none()
   }
   if (policy.jitterRatio !== undefined && policy.jitterRatio > 0) {
     const random = options?.random ?? 1
     delay = delay * (1 - policy.jitterRatio) + random * delay * policy.jitterRatio
-  }
-  if (
-    policy.expirationMs !== undefined &&
-    options?.elapsedMs !== undefined &&
-    options.elapsedMs + delay >= policy.expirationMs
-  ) {
-    return Option.none()
   }
   return Option.some(delay)
 }

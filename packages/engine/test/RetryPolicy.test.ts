@@ -89,13 +89,54 @@ describe("expiration (issue #36)", () => {
     expirationMs: 1_000
   })
 
-  it("gives up when elapsed time plus the next delay would cross the expiration bound", () => {
-    // Temporal's ComputeNextDelay: done when elapsed + backoff exceeds the
-    // expiration interval, independent of attempt counts.
+  it("gives up once the expiration bound leaves no room for another full-value attempt", () => {
+    // Temporal's ComputeNextDelay: done when elapsed passes the expiration
+    // interval, or when the remaining window caps the delay below initialMs.
     expect(RetryPolicy.nextDelay(policy, 1, { elapsedMs: 0 })).toEqual(some(100))
     expect(RetryPolicy.nextDelay(policy, 3, { elapsedMs: 500 })).toEqual(some(400))
-    expect(RetryPolicy.nextDelay(policy, 3, { elapsedMs: 700 })).toEqual(none)
+    // elapsed 950 leaves a 50ms window, below the 100ms initial interval
+    expect(RetryPolicy.nextDelay(policy, 3, { elapsedMs: 950 })).toEqual(none)
+    // elapsed exactly at the bound leaves a zero window
     expect(RetryPolicy.nextDelay(policy, 1, { elapsedMs: 1_000 })).toEqual(none)
+    // elapsed past the bound gives up before computing any interval
+    expect(RetryPolicy.nextDelay(policy, 1, { elapsedMs: 1_001 })).toEqual(none)
+  })
+
+  it("caps the final retry delay to the remaining expiration interval instead of expiring early", () => {
+    // Temporal parity: `retrypolicy_test.go` TestExpirationOverflow — with
+    // initial 2s / expiration 5s, the retry after 2s elapsed is capped to the
+    // remaining 3s window rather than refused because 2s + 4s > 5s.
+    const temporal = RetryPolicy.make({
+      initialMs: 2_000,
+      factor: 2,
+      maxMs: 1_000_000,
+      expirationMs: 5_000
+    })
+    expect(RetryPolicy.nextDelay(temporal, 1, { elapsedMs: 0 })).toEqual(some(2_000))
+    expect(RetryPolicy.nextDelay(temporal, 2, { elapsedMs: 2_000 })).toEqual(some(3_000))
+    // the capped delay must still clear the initial interval: at 3.5s elapsed
+    // only 1.5s remains, below the 2s initial interval, so the policy expires
+    expect(RetryPolicy.nextDelay(temporal, 2, { elapsedMs: 3_500 })).toEqual(none)
+    expect(
+      RetryPolicy.decide(temporal, { attempt: 2, error: "e", elapsedMs: 2_000 })
+    ).toEqual(RetryPolicy.retryAfter(3_000))
+    expect(
+      RetryPolicy.decide(temporal, { attempt: 2, error: "e", elapsedMs: 3_500 })
+    ).toEqual(RetryPolicy.giveUp("expired"))
+  })
+
+  it("applies jitter to the expiration-capped delay, never exceeding the remaining window", () => {
+    const jittered = RetryPolicy.make({
+      initialMs: 100,
+      factor: 2,
+      maxMs: 1_000,
+      expirationMs: 1_000,
+      jitterRatio: 0.5
+    })
+    // attempt 3 computes 400ms, capped to the remaining 300ms, then jittered
+    // within [150, 300] — matching Temporal's cap-then-jitter ordering.
+    expect(RetryPolicy.nextDelay(jittered, 3, { elapsedMs: 700, random: 0 })).toEqual(some(150))
+    expect(RetryPolicy.nextDelay(jittered, 3, { elapsedMs: 700, random: 1 })).toEqual(some(300))
   })
 
   it("ignores elapsed time when the policy declares no expiration", () => {
