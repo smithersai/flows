@@ -680,53 +680,63 @@ export const make = (
         // `state_json` parent can outlive a rejected edge (issue #55). The
         // edge table is the single source of truth for cycle detection in
         // every owner process and across restarts (issues #40/#41).
-        if (options.parent !== undefined) {
-          yield* engineState.recordRunParent(
-            options.executionId,
-            options.parent.executionId
-          ).pipe(
-            Effect.catch((error) =>
-              Effect.fail(
-                new FlowCycleDetected({ code: "flow_cycle_detected", path: error.path })
+        //
+        // The edge record and the run-row creation share one outer storage
+        // transaction (issue #80): a crash between them used to commit a
+        // durable orphan edge for a child run that never existed — never
+        // GC'd, permanently walked by cycle detection, and able to force a
+        // false FlowCycleDetected if the execution id was later reused
+        // under an inverted topology. The stores' own writes become
+        // savepoints of this transaction, so either both commit or neither.
+        yield* engineState.transaction(Effect.gen(function*() {
+          if (options.parent !== undefined) {
+            yield* engineState.recordRunParent(
+              options.executionId,
+              options.parent.executionId
+            ).pipe(
+              Effect.catch((error) =>
+                Effect.fail(
+                  new FlowCycleDetected({ code: "flow_cycle_detected", path: error.path })
+                )
               )
             )
-          )
-        }
-        const state: PersistedState = {
-          version: 1,
-          flowName: flow._tag,
-          payload,
-          ...(options.parent === undefined
-            ? {}
-            : { parentExecutionId: options.parent.executionId })
-        }
-        const created = yield* store.create(
-          options.executionId,
-          yield* encodeState(state)
-        ).pipe(Effect.exit)
-        if (Exit.isSuccess(created)) return
+          }
+          const state: PersistedState = {
+            version: 1,
+            flowName: flow._tag,
+            payload,
+            ...(options.parent === undefined
+              ? {}
+              : { parentExecutionId: options.parent.executionId })
+          }
+          const created = yield* store.create(
+            options.executionId,
+            yield* encodeState(state)
+          ).pipe(Effect.exit)
+          if (Exit.isSuccess(created)) return
 
-        const failure = Option.getOrThrow(Exit.findErrorOption(created))
-        if (!(failure instanceof RunStore.RunStoreError) || failure.code !== "constraint") {
-          return yield* Effect.die(failure)
-        }
-        const existing = yield* store.get(options.executionId).pipe(Effect.orDie)
-        const persisted = yield* decodeState(existing.stateJson)
-        if (
-          persisted.flowName !== flow._tag ||
-          !samePayload(persisted.payload, payload)
-        ) {
-          return yield* Effect.die(
-            new Error(
-              `execution ${options.executionId} already belongs to a different flow tag or encoded payload`
+          const failure = Option.getOrThrow(Exit.findErrorOption(created))
+          if (!(failure instanceof RunStore.RunStoreError) || failure.code !== "constraint") {
+            return yield* Effect.die(failure)
+          }
+          const existing = yield* store.get(options.executionId).pipe(Effect.orDie)
+          const persisted = yield* decodeState(existing.stateJson)
+          if (
+            persisted.flowName !== flow._tag ||
+            !samePayload(persisted.payload, payload)
+          ) {
+            return yield* Effect.die(
+              new Error(
+                `execution ${options.executionId} already belongs to a different flow tag or encoded payload`
+              )
             )
-          )
-        }
-        // The row already exists; the durable edge recorded above is the
-        // only place a diamond's second parent lives (issues #41/#48): a
-        // driver-local side table would be invisible to other owners over
-        // the same store, lost across restart, and would grow without bound
-        // for the driver's lifetime.
+          }
+          // The row already exists; the durable edge recorded above is the
+          // only place a diamond's second parent lives (issues #41/#48): a
+          // driver-local side table would be invisible to other owners over
+          // the same store, lost across restart, and would grow without
+          // bound for the driver's lifetime.
+        }))
       })
 
     const poll: Service["poll"] = Effect.fn("FlowEngine.poll")((flow, executionId) =>

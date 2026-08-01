@@ -10,7 +10,7 @@
  *
  * @since 0.1.0
  */
-import { Database } from "@smithers/database/Database"
+import { Database, DatabaseError } from "@smithers/database/Database"
 import type { OwnerId } from "@smithers/journal/Ownership"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
@@ -384,6 +384,18 @@ export interface Service {
    * Lists the durably recorded parent edges of a run, oldest first.
    */
   readonly runParents: (childId: string) => Effect.Effect<ReadonlyArray<RunParentEdge>>
+  /**
+   * Runs `effect` inside one storage write transaction, so a caller can make
+   * several store operations atomic — the run driver wraps the parent-edge
+   * record and the run-row creation it guards, closing the crash window that
+   * left a durable orphan edge for a run that was never created (issue #80).
+   * Nested store writes become savepoints of this transaction. Storage
+   * failures are defects, matching the store methods' own posture.
+   *
+   * The in-memory twin runs the effect directly: it has no crash windows to
+   * close and therefore nothing to roll back.
+   */
+  readonly transaction: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>
 }
 
 /**
@@ -579,11 +591,15 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
   // `seq` is a store-global insertion order used only to list a run's
   // parents oldest first; cycle rejection happens atomically inside
   // `recordRunParent`'s transaction, so no UNIQUE(seq) is needed (issues
-  // #54/#66). There is deliberately no FK to `flows_runs` (the tables live
-  // in different migration lanes); a lane that deletes run rows must call
-  // `removeRunParentsForRun` so edges of deleted runs are pruned (issue
-  // #66). The `parent_id` index serves that reverse-direction cleanup; the
-  // cycle walk itself reads by `child_id` via the primary key.
+  // #54/#66). The PRIMARY KEY (child_id, parent_id) is the unique
+  // constraint on edges. There is deliberately no FK to `flows_runs` (the
+  // tables live in different migration lanes); instead of a comment-only
+  // call contract, the AFTER DELETE trigger below prunes a deleted run's
+  // edges at the database level, so a future retention/GC lane cannot
+  // silently leave ghost edges in the cycle walk (issue #81).
+  // `removeRunParentsForRun` remains for lanes that clear edges without
+  // deleting run rows. The `parent_id` index serves that reverse-direction
+  // cleanup; the cycle walk itself reads by `child_id` via the primary key.
   yield* database.write(sql`
     CREATE TABLE IF NOT EXISTS flows_run_parents (
       child_id TEXT NOT NULL,
@@ -595,6 +611,19 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
   yield* database.write(sql`
     CREATE INDEX IF NOT EXISTS flows_run_parents_parent_idx
     ON flows_run_parents (parent_id)
+  `).pipe(Effect.orDie)
+  // Database-level GC enforcement (issue #81): any lane that deletes a run
+  // row — retention, time-travel archival, a future prune job — drops the
+  // run's parent edges in the same statement's transaction, whether or not
+  // it knows to call `removeRunParentsForRun`. Ghost edges of deleted runs
+  // can therefore never accumulate into future cycle walks.
+  yield* database.write(sql`
+    CREATE TRIGGER IF NOT EXISTS flows_run_parents_gc
+    AFTER DELETE ON flows_runs
+    BEGIN
+      DELETE FROM flows_run_parents
+      WHERE child_id = OLD.run_id OR parent_id = OLD.run_id;
+    END
   `).pipe(Effect.orDie)
   // Serves the stale-running sweep's per-tick predicate (issue #79):
   // `status = 'running' AND heartbeat_at_ms < cutoff`, ordered by heartbeat.
@@ -1139,9 +1168,14 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
           // The cycle check shares the insert's transaction: a hit fails the
           // effect, rolling the insert back, so a rejected edge is never
           // durable and there is no check-then-record window for another
-          // writer to slip through (issues #54/#55/#56). Writers serialize
-          // on the write transaction, so of two edges that jointly close a
-          // cycle, exactly the later one fails.
+          // writer to slip through (issues #54/#55/#56). The insert
+          // precedes the walk, so the transaction holds the write lock
+          // while walking: under `Database.write`'s documented contract —
+          // write transactions are mutually serialized (issue #74) — of two
+          // edges that jointly close a cycle, exactly the later one fails.
+          // This is a contract requirement, not a SQLite artifact; a
+          // backend that ran writes at READ COMMITTED would break it and is
+          // excluded by the Database contract.
           const cycle = yield* findCyclePath(childId, parentId, parentIdsOf)
           if (cycle !== undefined) {
             return yield* Effect.fail(new RunParentCycleError({ path: cycle }))
@@ -1177,6 +1211,16 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
     `).pipe(Effect.orDie, Effect.asVoid)
   )
 
+  const transaction: Service["transaction"] = <A, E, R>(
+    effect: Effect.Effect<A, E, R>
+  ): Effect.Effect<A, E, R> =>
+    database.write(effect).pipe(
+      Effect.catchIf(
+        (error): error is DatabaseError => error instanceof DatabaseError,
+        (error) => Effect.die(error)
+      )
+    ) as Effect.Effect<A, E, R>
+
   const runParents: Service["runParents"] = Effect.fn("DurableEngineState.runParents")((childId) =>
     sql<RunParentDatabaseRow>`
       SELECT
@@ -1209,7 +1253,8 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
     attemptSurvivors,
     recordRunParent,
     removeRunParentsForRun,
-    runParents
+    runParents,
+    transaction
   })
 })
 
@@ -1571,7 +1616,11 @@ export const makeMemory = (options: MemoryOptions = {}): Service => {
           .map(([parentId, seq]) => ({ childId, parentId, seq }))
           .sort((left, right) => left.seq - right.seq)
       )
-    )
+    ),
+    // The in-memory twin has no crash windows between writes, so the
+    // atomicity `transaction` exists to provide (issue #80) holds trivially;
+    // the effect runs directly and nothing is rolled back.
+    transaction: (effect) => effect
   })
 }
 
