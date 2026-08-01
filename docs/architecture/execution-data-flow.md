@@ -65,7 +65,7 @@ The engine store hashes that key again for its database address, confirms the ru
 `DurableDeferred.await` and long `DurableClock.sleep` calls return `Flow.Suspended` when no result exists. The driver transitions the run to `suspended`, clearing owner and heartbeat. Deferred completion is ordered:
 
 1. store the completion;
-2. emit and flush its journal record;
+2. emit its journal record on the durable channel (which commits it), then flush the lossy queue best-effort — a latched lossy-sink failure is logged, never fatal to delivery;
 3. schedule a claim-gated wake.
 
 The flow engine still uses polling as a fallback because `EngineStore` does not implement `resumeSignal`.

@@ -122,6 +122,21 @@ export const make = (
     const journal = yield* Journal.Journal
     const timers = yield* FiberMap.make<string>()
 
+    // The durable channel commits inside `emitDurable`; the flush that
+    // follows only pushes the *lossy* queue. Once the journal's lossy writer
+    // latches a `sink_failed` it stays latched for the process (issue #43),
+    // so treating a flush failure as a defect would turn every committed
+    // durable write into a permanent stall. Log and move on: durable
+    // delivery must never be coupled to lossy-channel health.
+    const flushLossy = journal.flush.pipe(
+      Effect.catchCause((cause) =>
+        Effect.logWarning(
+          "engine-store: lossy journal flush failed after a committed durable write; continuing",
+          cause
+        )
+      )
+    )
+
     const completeDeferred = (
       options: DeferredDoneOptions,
       reason: ResumeReason = "deferred"
@@ -157,7 +172,7 @@ export const make = (
             ...(row.metadata === undefined ? {} : { metadata: row.metadata })
           })
         ).pipe(Effect.orDie)
-        yield* journal.flush.pipe(Effect.orDie)
+        yield* flushLossy
         yield* dependencies.scheduleResume(
           row.flowName,
           row.executionId,
@@ -224,7 +239,7 @@ export const make = (
             dueAtMs: row.dueAtMs
           })
         ).pipe(Effect.orDie)
-        yield* journal.flush.pipe(Effect.orDie)
+        yield* flushLossy
       })
 
     const scheduleClock: Service["scheduleClock"] = Effect.fn("DeferredPersistence.scheduleClock")((

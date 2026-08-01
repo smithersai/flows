@@ -272,6 +272,67 @@ describe("DeferredPersistence", () => {
     expect(result.resumes).toEqual(["retry-run:clock"])
   })
 
+  it("delivers deferred completions and clock fires while the lossy sink failure is latched", async () => {
+    // Issue #43: SqlJournal latches `sinkFailure` forever after one lossy
+    // writer error, so `flush` fails on every subsequent call while
+    // `emitDurable` keeps committing. Durable delivery must survive that.
+    const result = await Effect.runPromise(
+      Effect.scoped(Effect.gen(function*() {
+        const state = DurableEngineState.makeMemory()
+        const events: Array<string> = []
+        const resumes: Array<string> = []
+        let flushFailures = 0
+        const base = makeJournal(events)
+        const journal: Journal.Service = {
+          ...base,
+          flush: Effect.suspend(() => {
+            flushFailures++
+            return Effect.fail(
+              new Journal.JournalError({
+                code: "sink_failed",
+                message: "journal sink failed"
+              })
+            )
+          })
+        }
+        const service = yield* build(state, journal, resumes)
+
+        const deferredAddress = {
+          flowName: TestFlow._tag,
+          executionId: "latched-run",
+          deferredName: "answer"
+        }
+        yield* service.deferredDone({
+          ...deferredAddress,
+          exit: Exit.succeed("still delivered")
+        })
+        const deferredRow = Option.getOrThrow(yield* state.deferred(deferredAddress))
+
+        const clock = DurableClock.make({ name: "latched", duration: "10 seconds" })
+        yield* service.scheduleClock(TestFlow, { executionId: "latched-run", clock })
+        yield* TestClock.adjust("10 seconds")
+        yield* Effect.yieldNow
+        const clockRow = Option.getOrThrow(
+          yield* state.clock({
+            flowName: TestFlow._tag,
+            executionId: "latched-run",
+            clockName: "latched"
+          })
+        )
+        return { deferredRow, clockRow, events, resumes, flushFailures }
+      })).pipe(Effect.provide(TestClock.layer()))
+    )
+
+    // Every flush attempt failed with the latched sink error...
+    expect(result.flushFailures).toBeGreaterThanOrEqual(3)
+    // ...yet the durable channel committed and delivery still happened.
+    expect(result.deferredRow.exit).toEqual(Exit.succeed("still delivered"))
+    expect(result.clockRow.completedAtMs).not.toBeNull()
+    expect(result.events).toContain("emit:flows.engine.deferred-completed")
+    expect(result.events).toContain("emit:flows.engine.clock-scheduled")
+    expect(result.resumes).toEqual(["latched-run:deferred", "latched-run:clock"])
+  })
+
   it("re-delivers a wake for a completion recorded before registration", async () => {
     const resumes: Array<string> = []
     await Effect.runPromise(Effect.scoped(Effect.gen(function*() {
