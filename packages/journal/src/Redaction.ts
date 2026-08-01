@@ -4,7 +4,17 @@
  * The journal is permanent and broadly readable: every entry is replayed to
  * sync subscribers and to time-travel consumers. A secret that reaches
  * `payload_json` is therefore not a transient leak, so redaction happens once,
- * on the write path, rather than at each reader.
+ * on the journal write path, rather than at each reader.
+ *
+ * Redaction is an **observability** concern and is confined to journal events
+ * and export/display surfaces. It is deliberately not applied to executable
+ * state — `flows_runs.state_json`, attempt checkpoints, errors, outcomes, and
+ * cache results — because those are decoded and re-entered on resume: a
+ * placeholder there resumes the flow with the wrong data, and replacing a
+ * non-string value with a placeholder string makes the persisted state fail
+ * schema decode outright, leaving the run undrivable (issue #72). A value
+ * that must never reach durable executable state is a `Redacted` field in the
+ * caller's own schema, not a name-suffix guess made at the storage seam.
  *
  * The rule set is adopted from smithers' `_traceRedaction` (its `case22`
  * secret-injection-no-leak fault case), which redacts both structurally — by
@@ -153,11 +163,11 @@ export const make = (options?: Options): Redactor => (value) => redact(value, op
  * Applies a redactor to an already-encoded JSON string, returning the
  * re-encoded result.
  *
- * `RunStore` receives durable run state pre-encoded, so it cannot funnel
- * through the same value-level chokepoint the other stores use; this keeps it
- * on one code path anyway. A string that does not parse is returned untouched
- * — validation is the caller's, and rejecting here would turn a redaction
- * concern into a schema error.
+ * For export and display surfaces that hold a column verbatim — a rendered
+ * `state_json`, a support bundle — where the value is already encoded and must
+ * not be decoded into the executable path. A string that does not parse is
+ * returned untouched: validation is the caller's, and rejecting here would
+ * turn a redaction concern into a schema error.
  *
  * @since 0.1.0
  * @category redaction

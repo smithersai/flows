@@ -114,8 +114,14 @@ describe("Redaction", () => {
     )
   })
 
-  const secret = { apiKey: "sk-ant-api03-abcdefgh", note: "call with Bearer abcdefghijkl" }
-  const scrubbed = { apiKey: Redaction.placeholder, note: "call with Bearer [REDACTED_TOKEN]" }
+  // Executable state must round-trip verbatim: a field whose name merely ends
+  // in `token`/`secret` is ordinary flow data, and a non-string value replaced
+  // by a placeholder string breaks schema decode on resume (issue #72).
+  const executable = {
+    pageToken: "page-2",
+    clientSecret: { rotationMs: 900, scopes: ["read"] },
+    retries: 3
+  }
 
   const storeLayers = Layer.mergeAll(
     RunStore.layer,
@@ -127,17 +133,40 @@ describe("Redaction", () => {
     body: Effect.Effect<A, E, RunStore.RunStore | AttemptStore.AttemptStore | CacheStore.CacheStore | Database>
   ) => Effect.runPromise(body.pipe(Effect.provide(storeLayers), Effect.provide(TestClock.layer())))
 
-  it("never persists a secret in a run's durable state", async () => {
+  it("round-trips a run's durable state verbatim", async () => {
     const stateJson = await withStores(Effect.gen(function*() {
       const store = yield* RunStore.RunStore
-      yield* store.create("run-redaction", JSON.stringify({ payload: secret }))
+      yield* store.create("run-redaction", JSON.stringify({ payload: executable }))
       return (yield* store.get("run-redaction")).stateJson
     }))
 
-    expect(JSON.parse(stateJson)).toEqual({ payload: scrubbed })
+    expect(JSON.parse(stateJson)).toEqual({ payload: executable })
   })
 
-  it("never persists a secret in an attempt checkpoint, error, or outcome", async () => {
+  it("round-trips durable state written by transitionOwned verbatim", async () => {
+    const stateJson = await withStores(Effect.gen(function*() {
+      const database = yield* Database
+      yield* database.sql`
+        INSERT INTO flows_runs (
+          run_id, status, created_at_ms, owner_host_id, owner_pid, owner_nonce, heartbeat_at_ms, state_json
+        ) VALUES ('run-transition', 'running', 1, 'host-a', 42, 'nonce-a', 1, '{}')
+      `
+      const store = yield* RunStore.RunStore
+      const owner = { hostId: "host-a", pid: 42, nonce: "nonce-a" }
+      const outcome = yield* store.transitionOwned(
+        "run-transition",
+        owner,
+        "running",
+        JSON.stringify({ payload: executable })
+      )
+      expect(outcome._tag).toBe("Transitioned")
+      return (yield* store.get("run-transition")).stateJson
+    }))
+
+    expect(JSON.parse(stateJson)).toEqual({ payload: executable })
+  })
+
+  it("round-trips attempt checkpoints, errors, outcomes, and meta verbatim", async () => {
     const attempt = await withStores(Effect.gen(function*() {
       const database = yield* Database
       yield* database.sql`
@@ -153,8 +182,8 @@ describe("Redaction", () => {
         attempt: 0,
         state: "running",
         startedAtMs: 10,
-        checkpoint: secret,
-        meta: secret
+        checkpoint: executable,
+        meta: executable
       }, owner)
       yield* store.finish({
         runId: "run-attempt",
@@ -162,27 +191,49 @@ describe("Redaction", () => {
         attempt: 0,
         state: "failed",
         finishedAtMs: 20,
-        error: secret,
-        outcome: secret
+        error: executable,
+        outcome: executable
       }, owner)
       return yield* store.get({ runId: "run-attempt", stepKeyDigest: "digest-1", attempt: 0 })
     }))
 
     expect(Option.getOrThrow(attempt)).toMatchObject({
-      checkpoint: scrubbed,
-      error: scrubbed,
-      outcome: scrubbed,
-      meta: scrubbed
+      checkpoint: executable,
+      error: executable,
+      outcome: executable,
+      meta: executable
     })
   })
 
-  it("never persists a secret in a cached step result", async () => {
+  it("round-trips attempt fields written by patch verbatim", async () => {
+    const attempt = await withStores(Effect.gen(function*() {
+      const database = yield* Database
+      yield* database.sql`
+        INSERT INTO flows_runs (
+          run_id, status, created_at_ms, owner_host_id, owner_pid, owner_nonce, heartbeat_at_ms, state_json
+        ) VALUES ('run-patch', 'running', 1, 'host-a', 42, 'nonce-a', 1, '{}')
+      `
+      const store = yield* AttemptStore.AttemptStore
+      const id = { runId: "run-patch", stepKeyDigest: "digest-2", attempt: 0 }
+      yield* store.put({ ...id, state: "running", startedAtMs: 10, meta: null }, {
+        hostId: "host-a",
+        pid: 42,
+        nonce: "nonce-a"
+      })
+      yield* store.patch(id, { checkpoint: executable })
+      return yield* store.get(id)
+    }))
+
+    expect(Option.getOrThrow(attempt)).toMatchObject({ checkpoint: executable })
+  })
+
+  it("round-trips a cached step result verbatim", async () => {
     const entry = await withStores(Effect.gen(function*() {
       const store = yield* CacheStore.CacheStore
       yield* store.put({
         keyDigest: "digest-cache",
-        result: secret,
-        meta: secret,
+        result: executable,
+        meta: executable,
         createdAtMs: 1,
         recordedRunId: "run-cache",
         recordedEventSeq: 0
@@ -190,37 +241,7 @@ describe("Redaction", () => {
       return yield* store.get("digest-cache")
     }))
 
-    expect(Option.getOrThrow(entry)).toMatchObject({ result: scrubbed, meta: scrubbed })
-  })
-
-  it("keeps store payloads verbatim when redaction is disabled", async () => {
-    const noop = Layer.mergeAll(
-      RunStore.layerWith({ redact: Redaction.makeNoop() }),
-      CacheStore.layerWith({ redact: Redaction.makeNoop() })
-    ).pipe(Layer.provideMerge(Layer.provideMerge(Migrations.layer, TestDatabase.layer)))
-
-    const result = await Effect.runPromise(
-      Effect.gen(function*() {
-        const runStore = yield* RunStore.RunStore
-        const cacheStore = yield* CacheStore.CacheStore
-        yield* runStore.create("run-raw", JSON.stringify(secret))
-        yield* cacheStore.put({
-          keyDigest: "digest-raw",
-          result: secret,
-          meta: null,
-          createdAtMs: 1,
-          recordedRunId: "run-raw",
-          recordedEventSeq: 0
-        })
-        return {
-          stateJson: (yield* runStore.get("run-raw")).stateJson,
-          cached: Option.getOrThrow(yield* cacheStore.get("digest-raw")).result
-        }
-      }).pipe(Effect.provide(noop), Effect.provide(TestClock.layer()))
-    )
-
-    expect(JSON.parse(result.stateJson)).toEqual(secret)
-    expect(result.cached).toEqual(secret)
+    expect(Option.getOrThrow(entry)).toMatchObject({ result: executable, meta: executable })
   })
 
   effect("keeps payloads verbatim when redaction is disabled", () =>

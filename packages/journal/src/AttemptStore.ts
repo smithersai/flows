@@ -20,7 +20,6 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as SqlError from "effect/unstable/sql/SqlError"
-import * as Redaction from "./Redaction.ts"
 import type { OwnerId } from "./Ownership.ts"
 
 /**
@@ -173,13 +172,6 @@ export interface Options {
    * `Upserted`. Both modes keep the run-ownership fence.
    */
   readonly putMode?: "insert" | "upsert" | undefined
-  /**
-   * Applied to every opaque field before it is written. Checkpoints, failure
-   * causes, outcomes, and metadata are durable and are replayed to sync and
-   * time-travel consumers, so they are scrubbed by default exactly like
-   * journal payloads. Pass `Redaction.makeNoop()` to persist them verbatim.
-   */
-  readonly redact?: Redaction.Redactor | undefined
 }
 
 /**
@@ -271,10 +263,13 @@ interface RunFenceRow {
 const error = (code: AttemptStoreErrorCode, message: string, cause?: unknown): AttemptStoreError =>
   new AttemptStoreError({ code, message, ...(cause === undefined ? {} : { cause }) })
 
-const encodeWith =
-  (redactor: Redaction.Redactor) => (value: unknown, field: string): Effect.Effect<string, AttemptStoreError> =>
+// Checkpoints, outcomes, errors, and metadata are executable state: a
+// checkpoint is handed back to the retrying step and an outcome is returned
+// verbatim as the replayed result, so nothing rewrites them on the way
+// through (issue #72).
+const encode = (value: unknown, field: string): Effect.Effect<string, AttemptStoreError> =>
   Effect.try({
-    try: () => JSON.stringify(redactor(value)),
+    try: () => JSON.stringify(value),
     catch: (cause) => error("invalid_attempt", `${field} must be JSON-serializable`, cause)
   }).pipe(
     Effect.flatMap((encoded) =>
@@ -405,9 +400,6 @@ export const makeWith = (options: Options = {}): Effect.Effect<Service, AttemptS
     const inProgressStates = options.inProgressStates ?? defaultInProgressStates
     const maxCheckpointBytes = options.maxCheckpointBytes ?? defaultMaxCheckpointBytes
     const upsert = options.putMode === "upsert"
-    // Every opaque field funnels through this encoder, so no attempt write can
-    // persist an unscrubbed credential (issue #58).
-    const encode = encodeWith(options.redact ?? Redaction.make())
     const encodeOptional = encodeOptionalWith(encode)
     if (inProgressStates.length === 0 || inProgressStates.some((state) => state.length === 0)) {
       return yield* Effect.fail(

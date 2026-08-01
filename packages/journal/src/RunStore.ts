@@ -13,7 +13,6 @@ import { Database } from "@smithers/database/Database"
 import { Clock, Context, Effect, Layer, Schema } from "effect"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"
 import type { LivenessEvidence, OwnerId } from "./Ownership.ts"
-import * as Redaction from "./Redaction.ts"
 
 /**
  * Stable run states understood by the durability layer.
@@ -498,37 +497,21 @@ const evidenceMatchesOwner = (
 }
 
 /**
- * Store-wide policy.
+ * Constructs the production `RunStore` implementation.
  *
- * @since 0.1.0
- * @category models
- */
-export interface Options {
-  /**
-   * Applied to durable run state before it is written. `flows_runs.state_json`
-   * carries flow payloads and results, so it is a credential-leak surface just
-   * like a journal payload; it is scrubbed by default and replayed scrubbed to
-   * sync and time-travel consumers. Pass `Redaction.makeNoop()` to persist
-   * state verbatim.
-   */
-  readonly redact?: Redaction.Redactor | undefined
-}
-
-/**
- * Constructs the production `RunStore` implementation under an explicit
- * policy.
+ * `state_json` is executable state: it is decoded and re-entered on every
+ * resume, so it is persisted and returned byte-for-byte. Nothing rewrites it
+ * on the way through — a redactor here would silently change what the flow
+ * re-reads (issue #72). Credential hygiene is an observability concern and
+ * lives on the journal-event and export surfaces; a value that must never be
+ * persisted at all is a `Redacted` field in the caller's state schema.
  *
  * @since 0.1.0
  * @category constructors
  */
-export const makeWith = (options: Options = {}): Effect.Effect<Service, never, Database> =>
-Effect.gen(function*() {
+export const make: Effect.Effect<Service, never, Database> = Effect.gen(function*() {
   const database = yield* Database
   const sql = database.sql
-  const redactor = options.redact ?? Redaction.make()
-  // Every durable state write funnels through here, so no write path can
-  // persist an unscrubbed payload (issue #58).
-  const prepareState = (stateJson: string): string => Redaction.redactJsonString(stateJson, redactor)
 
   const write = <A, E, R>(
     method: string,
@@ -542,7 +525,6 @@ Effect.gen(function*() {
       if (runId.length === 0 || !isJsonString(stateJson) || parentRunId?.length === 0) {
         return Effect.fail(invalidRunError("create", { runId, stateJson, parentRunId }))
       }
-      const state = prepareState(stateJson)
       return Clock.currentTimeMillis.pipe(
         Effect.flatMap((createdAtMs) =>
           write(
@@ -579,7 +561,7 @@ Effect.gen(function*() {
               NULL,
               NULL,
               ${parentRunId},
-              ${state}
+              ${stateJson}
             )
           `.pipe(Effect.asVoid)
           )
@@ -892,7 +874,7 @@ Effect.gen(function*() {
     ) {
       return Effect.fail(invalidRunError("transitionOwned", { runId, toStatus, stateJson }))
     }
-    const state = stateJson === undefined ? null : prepareState(stateJson)
+    const state = stateJson ?? null
     // A guard is compiled into the same UPDATE as the ownership fence, so a
     // concurrent cancellation request can never slip between check and write.
     const requireCancelAbsent = guard?.cancelRequested === "absent" ? 1 : 0
@@ -1013,14 +995,6 @@ Effect.gen(function*() {
   })
 })
 
-/**
- * Constructs the production `RunStore` implementation with default policy.
- *
- * @since 0.1.0
- * @category constructors
- */
-export const make: Effect.Effect<Service, never, Database> = makeWith()
-
 
 /**
  * Constructs a stub `RunStore` whose direct operations fail and whose
@@ -1064,12 +1038,3 @@ export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<RunStor
  * @category layers
  */
 export const layer: Layer.Layer<RunStore, never, Database> = Layer.effect(RunStore, make)
-
-/**
- * Provides the database-backed `RunStore` under an explicit policy.
- *
- * @since 0.1.0
- * @category layers
- */
-export const layerWith = (options: Options): Layer.Layer<RunStore, never, Database> =>
-  Layer.effect(RunStore, makeWith(options))
