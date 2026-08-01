@@ -283,13 +283,28 @@ const retryInfraInterrupt = (
     )
 
 /**
- * Context reference carrying the stable per-run ordinal allocated by
- * `Activity.retry`, when present.
+ * The ordinal slot a retry sequence shares across its attempts.
+ *
+ * `Activity.retry` cannot allocate the ordinal itself — allocation is scoped
+ * by activity name and only the engine knows which activity is being
+ * dispatched (issue #73) — so it provides an empty slot the engine fills on
+ * the first attempt and reads back on every later one.
  *
  * @category Attempts
  * @since 0.1.0
  */
-export const CurrentOrdinal = Context.Reference<number | undefined>(
+export interface OrdinalSlot {
+  value: number | undefined
+}
+
+/**
+ * Context reference carrying the ordinal slot of the enclosing
+ * `Activity.retry` sequence, when present.
+ *
+ * @category Attempts
+ * @since 0.1.0
+ */
+export const CurrentOrdinal = Context.Reference<OrdinalSlot | undefined>(
   "flows/engine/Activity/CurrentOrdinal",
   { defaultValue: () => undefined }
 )
@@ -314,20 +329,15 @@ export const retry: {
   (effect: Effect.Effect<any, any, any>, options: {}) =>
     Effect.suspend(() => {
       let attempt = 1
-      let ordinal: number | undefined
+      // One slot for the whole retry sequence: the engine fills it with the
+      // name-scoped ordinal it allocates for the first attempt, and every
+      // later attempt of the same sequence reuses that ordinal (issue #73).
+      const slot: OrdinalSlot = { value: undefined }
       return Effect.suspend(() =>
-        Effect.gen(function*() {
-          if (ordinal === undefined) {
-            const instance = yield* Effect.serviceOption(InstanceTag)
-            if (instance._tag === "Some") {
-              ordinal = instance.value.activityState.nextOrdinal()
-            }
-          }
-          return yield* effect.pipe(
-            Effect.provideService(CurrentAttempt, attempt++),
-            Effect.provideService(CurrentOrdinal, ordinal)
-          )
-        })
+        effect.pipe(
+          Effect.provideService(CurrentAttempt, attempt++),
+          Effect.provideService(CurrentOrdinal, slot)
+        )
       ).pipe(Effect.retry(options))
     })
 )
@@ -366,7 +376,10 @@ export const idempotencyKey: (
   }) {
     const instance = yield* InstanceTag
     const attempt = yield* CurrentAttempt
-    const ordinal = instance.activityState.nextOrdinal()
+    // Internal durable operations keep their own single counter: their
+    // identity is deliberately name-free (the name is diagnostic only), so
+    // they are ordered by allocation within the run.
+    const ordinal = instance.activityState.nextOrdinal("idempotency")
     return Result.getOrThrow(StepKey.ordinal({
       runId: instance.executionId,
       ordinal,

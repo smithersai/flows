@@ -94,12 +94,13 @@ describe("expirationMs survives a restart mid-retry (issue #45)", () => {
       })
 
     // The activity carries no idempotency key, so its step key is the first
-    // ordinal key of the run — recomputable here to observe the persisted
-    // attempt row directly.
+    // ordinal key allocated in the activity's own name scope (issue #73) —
+    // recomputable here to observe the persisted attempt row directly.
     const attemptId = {
       runId: "retry-expiration-run",
       stepKeyDigest: Digest.digest(Result.getOrThrow(StepKey.ordinal({
         runId: "retry-expiration-run",
+        parentScope: "activity:retry-expiration-flaky",
         ordinal: 1,
         tier: "unsealed"
       }))),

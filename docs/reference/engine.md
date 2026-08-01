@@ -26,7 +26,7 @@ This page is the public API reference for typed flows, recorded activities, dura
 | `InfraInterrupt` | Host-loss/rebalancing marker |
 | `IrreversibleRetryRequiresIdempotencyKey` | Unsafe retry failure |
 | `retry(effect, options)` | Effect retry with durable attempt context |
-| `CurrentAttempt`, `CurrentOrdinal` | Runtime references |
+| `CurrentAttempt`, `CurrentOrdinal` | Runtime references. `CurrentOrdinal` carries an `OrdinalSlot` (`{ value }`) rather than a number: the engine allocates the name-scoped ordinal at dispatch and fills the slot, so every attempt of one `Activity.retry` sequence shares it (issue #73) |
 | `idempotencyKey(name, options?)` | Internal run-local ordinal key |
 | `raceAll(name, activities)` | Durable activity race |
 

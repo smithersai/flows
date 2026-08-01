@@ -355,7 +355,7 @@ export class FlowInstance extends Context.Service<
     readonly activityState: {
       count: number
       readonly latch: Latch.Latch
-      readonly nextOrdinal: () => number
+      readonly nextOrdinal: (scope: string) => number
       readonly snapshots: Map<string, unknown>
     }
   }
@@ -364,7 +364,10 @@ export class FlowInstance extends Context.Service<
     flow: Flow.Any,
     executionId: string
   ): FlowInstance["Service"] {
-    let ordinal = 0
+    // Ordinals are counted per allocation scope, not per run: the engine
+    // scopes activity dispatches by activity name so a permuted fiber
+    // interleaving cannot renumber them across a replay (issue #73).
+    const ordinals = new Map<string, number>()
     return FlowInstance.of({
       executionId,
       flow,
@@ -376,7 +379,11 @@ export class FlowInstance extends Context.Service<
       activityState: {
         count: 0,
         latch: Latch.makeUnsafe(),
-        nextOrdinal: () => ++ordinal,
+        nextOrdinal: (scope: string) => {
+          const next = (ordinals.get(scope) ?? 0) + 1
+          ordinals.set(scope, next)
+          return next
+        },
         snapshots: new Map()
       }
     })
@@ -582,8 +589,18 @@ const activityKey = (
       hermetic === undefined ? identity : { ...identity, hermetic }
     ))
   }
+  // The ordinal is allocated from a counter scoped to this activity's name
+  // and the name is folded into the key as `parentScope` (issue #73). One
+  // per-run counter bumped in fiber-arrival order made the identity of a
+  // compensable, irreversible, or unsealed activity depend on scheduling:
+  // under `Effect.all` with concurrency a replay could hand `chargeCard` the
+  // ordinal `sendEmail` recorded and replay the wrong attempt rows,
+  // checkpoint, and outcome. Per-name counters are stable under any
+  // interleaving of *distinct* activities; the scope also keeps two
+  // activities from sharing the number 1.
   return Result.getOrThrow(StepKey.ordinal({
     runId: executionId,
+    parentScope: `activity:${activity.name}`,
     ordinal,
     tier: activity.tier === "sealed" ? "unsealed" : activity.tier
   }))
@@ -772,12 +789,14 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
       R
     >(activity: Activity.Activity<Success, Error, R>, attempt: number) {
       const instance = yield* FlowInstance
-      const currentOrdinal = yield* Activity.CurrentOrdinal
-      const key = activityKey(
-        activity,
-        instance.executionId,
-        currentOrdinal ?? instance.activityState.nextOrdinal()
-      )
+      // `Activity.retry` hands down an empty slot rather than a number: the
+      // ordinal can only be allocated here, where the activity — and so its
+      // allocation scope — is known (issue #73). The slot keeps the same
+      // ordinal across every attempt of one retry sequence.
+      const slot = yield* Activity.CurrentOrdinal
+      const ordinal = slot?.value ?? instance.activityState.nextOrdinal(`activity:${activity.name}`)
+      if (slot !== undefined) slot.value = ordinal
+      const key = activityKey(activity, instance.executionId, ordinal)
       const policy = activity.retryPolicy
       // Elapsed retry time for the policy's expiration bound. Durable
       // drivers persist the first attempt's start time alongside the attempt

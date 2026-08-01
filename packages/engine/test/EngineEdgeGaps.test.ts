@@ -6,15 +6,16 @@ const effect = (name: string, body: () => Effect.Effect<void, unknown, never>) =
   it(name, () => Effect.runPromise(body()))
 
 describe("Activity.retry outside a flow", () => {
-  effect("still advances CurrentAttempt when no flow instance allocates an ordinal", () => {
-    // Outside a flow there is no `FlowInstance` to allocate a run-local
-    // ordinal from; the retry wrapper must still work and report attempts.
+  effect("still advances CurrentAttempt when no engine dispatch fills the ordinal slot", () => {
+    // Outside a flow no engine dispatch ever fills the slot (allocation is
+    // name-scoped and happens at dispatch, issue #73); the retry wrapper must
+    // still work and report attempts.
     const attempts: Array<number> = []
     const body = Effect.gen(function*() {
       const attempt = yield* Activity.CurrentAttempt
-      const ordinal = yield* Activity.CurrentOrdinal
+      const slot = yield* Activity.CurrentOrdinal
       attempts.push(attempt)
-      expect(ordinal).toBeUndefined()
+      expect(slot?.value).toBeUndefined()
       return attempt < 3 ? yield* Effect.fail("again") : attempt
     })
 
@@ -25,12 +26,32 @@ describe("Activity.retry outside a flow", () => {
   })
 
   effect("allocates a single stable ordinal for all attempts inside a flow", () => {
+    // The engine fills the retry sequence's slot on the first dispatch and
+    // every later attempt reuses it, so the activity keeps one identity
+    // across the whole sequence (issue #73).
     const ordinals: Array<number | undefined> = []
-    const body = Effect.gen(function*() {
-      const attempt = yield* Activity.CurrentAttempt
-      ordinals.push(yield* Activity.CurrentOrdinal)
-      return attempt < 3 ? yield* Effect.fail("again") : attempt
+    let attempts = 0
+    const activity = Activity.make({
+      name: "Edge/retry-ordinal-activity",
+      tier: "unsealed",
+      success: Schema.Number,
+      error: Schema.String,
+      execute: Effect.gen(function*() {
+        attempts++
+        return attempts < 3 ? yield* Effect.fail("again") : attempts
+      })
     })
+    const body = Effect.gen(function*() {
+      const result = yield* activity
+      ordinals.push((yield* Activity.CurrentOrdinal)?.value)
+      return result
+    }).pipe(
+      Effect.tapError(() =>
+        Effect.gen(function*() {
+          ordinals.push((yield* Activity.CurrentOrdinal)?.value)
+        })
+      )
+    )
     const flow = Flow.make("Edge/retry-ordinal", {
       payload: { id: Schema.String },
       success: Schema.Number,

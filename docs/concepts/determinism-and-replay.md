@@ -54,7 +54,7 @@ The output may be nondeterministic. Replay safety comes from recording its encod
 
 For a sealed activity with an `idempotencyKey`, the flow engine computes a content key. A **string** `idempotencyKey` is namespaced by the activity `name` (mirroring Skyframe's `SkyKey = (functionName, argument)`), so two distinct activities that pick the same idempotency string never share a key or replay each other's outcomes. This means renaming an activity that uses a string key changes its identity. An **object-form** `ContentIdentity` is caller-owned: the `name` is not folded in, so it is the escape hatch for rename-stable identity. String-key digests persisted before this namespacing do not replay against the new keys; those rows were unsafe (cross-activity aliasing), so the break is intentional.
 
-Sealed activities without a content identity, plus compensable and irreversible activities, use an ordinal allocated by traversal order within the execution. Changing control flow before an ordinal boundary can therefore change which operation occupies that ordinal. Prefer stable content identities for replayable reads.
+Sealed activities without a content identity, plus compensable and irreversible activities, use an ordinal allocated from a counter scoped to the activity's name, with the name folded into the key (issue #73). Concurrent activities of different names are therefore stable under any interleaving. Repeated invocations of one activity are numbered in allocation order, so changing control flow before such a boundary can still change which invocation occupies which ordinal. Prefer stable content identities for replayable reads.
 
 ## Suspension
 
