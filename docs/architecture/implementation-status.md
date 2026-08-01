@@ -67,7 +67,7 @@ This page distinguishes usable source-backed behavior from contracts and planned
   journal frame.
 - The time-travel package reads cache keys from effect-boundary metadata. Callers recording those boundaries must use the same cache address convention as the cache producer.
 - Flow registrations and active fibers are scoped in memory. A restarted process must re-register handlers before driving stored runs.
-- The `Database.write` retry classifier is SQLite-oriented even though the Vercel store adapter can wrap a PostgreSQL `SqlClient`.
+- The `Database.write` retry classifier is dialect-blind (issue #78): a hand-supplied PostgreSQL `SqlClient` — as the Vercel store adapter can wrap — gets the same bounded retry as SQLite. What is still missing for those backends is a shipped `Database` layer and a dialect-parameterized migration ladder, tracked above under "Postgres/PGlite dialect parity". A backend that does land must pass `packages/database/test/contract/DatabaseWriteContract.ts`, the conformance suite for the write-serialization contract (issue #97).
 
 The package is unreleased. Treat these boundaries as source-level contracts, not compatibility promises.
 
