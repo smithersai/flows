@@ -16,6 +16,7 @@ The root exports `HostService`, `HostServiceTags`, `HostServiceIds`, and `HostBu
 | `HttpTransport` | one-hop `execute`; `make`, `makeNoop`, `layerNoop` |
 | `HostError` | `ShellError`, `PtyError`, `JjError`, code schemas, and constructor helpers |
 | `RemoteSandbox` | `Provider`, `ProviderError`, `layerShell`, and scripted `TestSandbox` |
+| `SandboxHealth` | `SandboxHealth` tag; `probe` with a deadline; `Healthy`/`Unhealthy` (`component: "sandbox"`, closed `UnhealthyReason`); `PingProvider`; `make`, `makeNoop`, `layer`, `layerNoop` |
 
 Shell cancellation is Effect fiber interruption. PTY handles and remote-sandbox acquisition require `Scope`.
 
