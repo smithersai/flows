@@ -78,13 +78,13 @@ const drive = (
       yield* engine.activityExecute(activity as never, 1)
     }
   }).pipe(
-      Effect.as(keys as ReadonlyArray<{ readonly name: string; readonly key: string }>),
-      Effect.provideService(
-        FlowEngine.FlowInstance,
-        FlowEngine.FlowInstance.initial(flow, executionId)
-      ),
-      Effect.provide(Layer.succeed(FlowEngine.FlowEngine)(scriptedEngine(keys)))
-    ) as Effect.Effect<ReadonlyArray<{ readonly name: string; readonly key: string }>>
+    Effect.as(keys as ReadonlyArray<{ readonly name: string; readonly key: string }>),
+    Effect.provideService(
+      FlowEngine.FlowInstance,
+      FlowEngine.FlowInstance.initial(flow, executionId)
+    ),
+    Effect.provide(Layer.succeed(FlowEngine.FlowEngine)(scriptedEngine(keys)))
+  ) as Effect.Effect<ReadonlyArray<{ readonly name: string; readonly key: string }>>
 }
 
 const keyOf = (
@@ -133,7 +133,7 @@ describe("ordinal step key stability under permuted scheduling (issue #73)", () 
 /** One drive of a run executing an arbitrary program against the engine. */
 const driveProgram = (
   executionId: string,
-  program: (engine: FlowEngine.FlowEngine["Service"]) => Effect.Effect<void, unknown, FlowEngine.FlowInstance>
+  program: (engine: FlowEngine.FlowEngine["Service"]) => Effect.Effect<unknown, unknown, any>
 ): Effect.Effect<ReadonlyArray<{ readonly name: string; readonly key: string }>> => {
   const keys: Array<{ readonly name: string; readonly key: string }> = []
   const engine = scriptedEngine(keys)
