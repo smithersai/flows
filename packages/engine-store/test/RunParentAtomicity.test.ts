@@ -43,8 +43,7 @@ const services = Layer.mergeAll(
   DurableEngineState.layer
 ).pipe(Layer.provideMerge(migratedDatabase))
 
-const parentInstance = (executionId: string) =>
-  ({ executionId } as FlowEngine.FlowInstance["Service"])
+const parentInstance = (executionId: string) => ({ executionId } as FlowEngine.FlowInstance["Service"])
 
 const run = <A, E, R>(effect: Effect.Effect<A, E, R>): Promise<A> =>
   Effect.runPromise(

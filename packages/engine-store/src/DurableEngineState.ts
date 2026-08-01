@@ -1219,7 +1219,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
         (error): error is DatabaseError => error instanceof DatabaseError,
         (error) => Effect.die(error)
       )
-    ) as Effect.Effect<A, E, R>
+    )
 
   const runParents: Service["runParents"] = Effect.fn("DurableEngineState.runParents")((childId) =>
     sql<RunParentDatabaseRow>`
