@@ -12,6 +12,7 @@ import * as Clock from "effect/Clock"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
+import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
 import { describe, expect, it, vi } from "vitest"
 
@@ -30,10 +31,10 @@ vi.mock("@smithers/journal", async (importOriginal) => {
     RunCoordinator: {
       ...actual.RunCoordinator,
       make: (options: never) =>
-        (actual.RunCoordinator.make(options) as Effect.Effect<
+        (actual.RunCoordinator.make(options) as unknown as Effect.Effect<
           { wake: (key: unknown) => Effect.Effect<void> },
           never,
-          never
+          Scope.Scope
         >).pipe(
           Effect.map((coordinator) => ({
             ...coordinator,
