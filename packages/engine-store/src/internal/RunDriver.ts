@@ -339,13 +339,32 @@ export const make = (
       state: PersistedState
     ): Effect.Effect<void> =>
       Effect.gen(function*() {
+        // Park before releasing ownership (`park` is owner-fenced). The
+        // durable waiting row is what makes a released run visible to the
+        // parked-run sweeper: without it nothing ever re-drives the run and
+        // a durable `requestCancel` against it is write-only forever
+        // (issue #39). On genuine fence loss the park reports NotFound
+        // harmlessly, exactly like the transition below.
+        const parked = yield* engineState.park(runId, { reason: "released" }, dependencies.owner)
         const transitioned = yield* store.transitionOwned(
           runId,
           dependencies.owner,
           "suspended",
           yield* encodeState(withoutResult(state))
         ).pipe(Effect.orDie)
-        if (transitioned._tag !== "Transitioned") return
+        if (transitioned._tag !== "Transitioned") {
+          // Fence lost between park and release: the run is someone else's
+          // (or already settled), so our reclaim marker is bogus. Clear it
+          // only if it is still ours — a new owner may have parked a real
+          // waiting reason in between.
+          if (parked._tag === "Parked") {
+            const current = yield* engineState.waiting(runId)
+            if (Option.isSome(current) && current.value.reason === "released") {
+              yield* engineState.wake(runId)
+            }
+          }
+          return
+        }
         yield* emitDecision(runId, {
           decision: "interrupt-released",
           owner: dependencies.owner
@@ -537,6 +556,13 @@ export const make = (
      * sweep lists parked rows, and wakes any whose cancel was durably
      * requested; the re-activation cancel guard then closes the run without
      * re-executing the flow.
+     *
+     * The same sweep reclaims interrupt-released runs (issue #39): a run
+     * parked with reason `released` was interrupted mid-activity by shutdown
+     * or a heartbeat self-interrupt, has no pending clock and no completed
+     * deferred, and would otherwise never be re-driven. Waking it re-enters
+     * the ordinary claim/activate path, which also delivers any pending
+     * cancel via the activation guard.
      */
     const sweepCancelRequested: Effect.Effect<void> = Effect.gen(function*() {
       const parked = yield* engineState.waitingRuns()
@@ -547,7 +573,7 @@ export const make = (
         if (
           row !== undefined &&
           row.status === "suspended" &&
-          row.cancelRequestedAtMs !== null
+          (row.cancelRequestedAtMs !== null || waiting.reason === "released")
         ) {
           yield* coordinator.wake(row.runId)
         }
