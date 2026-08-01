@@ -1,0 +1,282 @@
+/**
+ * Round-6 adoption guard for stale running attempt rows.
+ *
+ * Issue #86: adoption keyed on `state === "running"` alone treated a live
+ * concurrent same-key dispatch's freshly inserted row as crash evidence and
+ * double-executed the sealed side effect. Adoption now requires liveness
+ * evidence — the row's recorded admitting incarnation must differ from the
+ * current one (which holds the run fence, so any other incarnation has
+ * provably lost it).
+ *
+ * Issue #87: a compensable attempt's pre-image snapshot only reached the
+ * durable row at finish, so adoption re-executed a crashed attempt 1 on the
+ * dead incarnation's half-mutated workspace and snapshotted the dirty tree
+ * as the compensation baseline. The pre-image is now patched into the
+ * running row before the body runs, and adoption restores it.
+ *
+ * Issue #91: adoption re-emitted `attemptStarted`/`snapshotIdentified` as
+ * fresh journal rows because lifecycle records carried no `sourceSeq`. They
+ * now take a dedicated per-attempt producer identity, so a re-emission is an
+ * exact retry the journal collapses into a `Duplicate`.
+ */
+import { AttemptStore, Journal, type Ownership, RunStore } from "@smithers/journal"
+import * as TestJournal from "@smithers/journal/test/TestJournal"
+import { Jj } from "@smithers/kernel"
+import { Digest } from "@smithers/keys"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
+import { describe, expect, it } from "vitest"
+import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as JournalRecords from "../src/internal/JournalRecords.ts"
+import * as StepBoundary from "../src/StepBoundary.ts"
+
+const owner: Ownership.OwnerId = { hostId: "adoption-host", pid: 7, nonce: "live" }
+const deadOwner: Ownership.OwnerId = { hostId: "adoption-host", pid: 7, nonce: "dead" }
+
+const scriptedJj = (calls: Array<{ readonly op: string; readonly id?: string }>) =>
+  Layer.succeed(
+    Jj.Jj,
+    Jj.make({
+      snapshot: () =>
+        Effect.sync(() => {
+          calls.push({ op: "snapshot" })
+          return { changeId: `fresh-${calls.length}` as never }
+        }),
+      restore: (id) =>
+        Effect.sync(() => {
+          calls.push({ op: "restore", id })
+        }),
+      diff: () => Effect.succeed(""),
+      workspaceAdd: () => Effect.void,
+      workspaceForget: () => Effect.void,
+      status: () => Effect.succeed("")
+    })
+  )
+
+const activate = (runId: string) =>
+  Effect.gen(function*() {
+    const runs = yield* RunStore.RunStore
+    yield* runs.create(runId, "{}")
+    const row = yield* runs.get(runId)
+    const snapshot = { status: row.status, owner: row.owner, heartbeatAtMs: row.heartbeatAtMs }
+    const claim = yield* runs.claim(runId, snapshot, owner, 1)
+    if (claim._tag !== "Claimed") {
+      return yield* Effect.die(new Error(`run ${runId} claim was lost`))
+    }
+    const activated = yield* runs.activate(runId, owner, claim.claimedAtMs, snapshot)
+    if (activated._tag !== "Activated") {
+      return yield* Effect.die(new Error(`run ${runId} activation was lost`))
+    }
+  })
+
+const layers = (calls: Array<{ readonly op: string; readonly id?: string }>) =>
+  Layer.mergeAll(TestJournal.layer(), StepBoundary.layerTest(), scriptedJj(calls))
+
+describe("adoption requires a superseded incarnation (issue #86)", () => {
+  it("rejects a running row admitted by the current incarnation instead of double-executing", async () => {
+    let dispatches = 0
+    const key = "adoption/live-duplicate"
+    const exit = await Effect.runPromise(
+      Effect.gen(function*() {
+        yield* activate("adoption-live")
+        const attempts = yield* AttemptStore.AttemptStore
+        // A concurrent same-key dispatch in this incarnation inserted the
+        // running row moments ago: its meta records the live incarnation.
+        yield* attempts.put(
+          {
+            runId: "adoption-live",
+            stepKeyDigest: Digest.digest(key),
+            attempt: 1,
+            state: "running",
+            startedAtMs: 5,
+            meta: { tier: "sealed", admittedBy: owner }
+          },
+          owner
+        )
+        return yield* Effect.exit(
+          ActivityPersistence.make({
+            runId: "adoption-live",
+            owner,
+            sourceId: "adoption-test",
+            execute: () =>
+              Effect.sync(() => {
+                dispatches++
+                return "charged"
+              })
+          })({ activity: {}, attempt: 1, key, tier: "sealed" })
+        )
+      }).pipe(Effect.provide(layers([])), Effect.scoped)
+    )
+    expect(dispatches).toBe(0)
+    expect(exit._tag).toBe("Failure")
+    expect(JSON.stringify(exit)).toContain("attempt_admission_rejected")
+  })
+
+  it("still adopts a running row admitted by a superseded incarnation", async () => {
+    let dispatches = 0
+    const key = "adoption/dead-owner"
+    const result = await Effect.runPromise(
+      Effect.gen(function*() {
+        yield* activate("adoption-dead")
+        const attempts = yield* AttemptStore.AttemptStore
+        yield* attempts.put(
+          {
+            runId: "adoption-dead",
+            stepKeyDigest: Digest.digest(key),
+            attempt: 1,
+            state: "running",
+            startedAtMs: 0,
+            meta: { tier: "sealed", admittedBy: deadOwner }
+          },
+          owner
+        )
+        const outcome = yield* ActivityPersistence.make({
+          runId: "adoption-dead",
+          owner,
+          sourceId: "adoption-test",
+          execute: () =>
+            Effect.sync(() => {
+              dispatches++
+              return "recovered"
+            })
+        })({ activity: {}, attempt: 1, key, tier: "sealed" })
+        return outcome
+      }).pipe(Effect.provide(layers([])), Effect.scoped)
+    )
+    expect(dispatches).toBe(1)
+    expect(result).toBe("recovered")
+  })
+})
+
+describe("adopted compensable attempts restore their own pre-image (issue #87)", () => {
+  it("restores the crashed attempt's persisted pre-image instead of snapshotting the dirty tree", async () => {
+    const calls: Array<{ readonly op: string; readonly id?: string }> = []
+    const key = "adoption/compensable"
+    const result = await Effect.runPromise(
+      Effect.gen(function*() {
+        yield* activate("adoption-compensable")
+        const attempts = yield* AttemptStore.AttemptStore
+        // The dead incarnation snapshotted the clean tree, persisted the
+        // pre-image, half-mutated the workspace, and was SIGKILLed.
+        yield* attempts.put(
+          {
+            runId: "adoption-compensable",
+            stepKeyDigest: Digest.digest(key),
+            attempt: 1,
+            state: "running",
+            startedAtMs: 0,
+            meta: { tier: "compensable", snapshotId: "pre-image", admittedBy: deadOwner }
+          },
+          owner
+        )
+        const outcome = yield* ActivityPersistence.make({
+          runId: "adoption-compensable",
+          owner,
+          sourceId: "adoption-test",
+          execute: () => Effect.succeed("compensated")
+        })({ activity: {}, attempt: 1, key, tier: "compensable" })
+        const row = yield* attempts.get({
+          runId: "adoption-compensable",
+          stepKeyDigest: Digest.digest(key),
+          attempt: 1
+        })
+        return { outcome, row }
+      }).pipe(Effect.provide(layers(calls)), Effect.scoped)
+    )
+    // The clean tree is restored before re-execution and no fresh snapshot
+    // of the dirty state becomes the compensation baseline.
+    expect(calls).toEqual([{ op: "restore", id: "pre-image" }])
+    expect(result.outcome).toBe("compensated")
+    expect(Option.isSome(result.row)).toBe(true)
+    if (Option.isSome(result.row)) {
+      expect((result.row.value.meta as { snapshotId?: string }).snapshotId).toBe("pre-image")
+    }
+  })
+
+  it("persists the pre-image into the running row before executing the body", async () => {
+    const calls: Array<{ readonly op: string; readonly id?: string }> = []
+    const key = "adoption/pre-image-persisted"
+    const observed = await Effect.runPromise(
+      Effect.gen(function*() {
+        yield* activate("adoption-preimage")
+        const attempts = yield* AttemptStore.AttemptStore
+        let runningMeta: unknown
+        yield* ActivityPersistence.make({
+          runId: "adoption-preimage",
+          owner,
+          sourceId: "adoption-test",
+          execute: () =>
+            Effect.gen(function*() {
+              const row = yield* attempts.get({
+                runId: "adoption-preimage",
+                stepKeyDigest: Digest.digest(key),
+                attempt: 1
+              })
+              runningMeta = Option.isSome(row) ? row.value.meta : undefined
+              return "done"
+            })
+        })({ activity: {}, attempt: 1, key, tier: "compensable" })
+        return runningMeta
+      }).pipe(Effect.provide(layers(calls)), Effect.scoped)
+    )
+    // A SIGKILL at any point during the body must find the pre-image in the
+    // durable row, not only at finish.
+    expect((observed as { snapshotId?: string }).snapshotId).toBe("fresh-1")
+  })
+})
+
+describe("adoption re-emissions are producer-idempotent (issue #91)", () => {
+  it("collapses the re-executed attempt's announcements into the dead incarnation's rows", async () => {
+    const calls: Array<{ readonly op: string; readonly id?: string }> = []
+    const key = "adoption/dedupe"
+    const digest = Digest.digest(key)
+    const events = await Effect.runPromise(
+      Effect.gen(function*() {
+        yield* activate("adoption-dedupe")
+        const attempts = yield* AttemptStore.AttemptStore
+        const journal = yield* Journal.Journal
+        // The dead incarnation admitted the attempt, announced it, snapshotted
+        // and announced the pre-image, then was SIGKILLed mid-body.
+        yield* attempts.put(
+          {
+            runId: "adoption-dedupe",
+            stepKeyDigest: digest,
+            attempt: 1,
+            state: "running",
+            startedAtMs: 0,
+            meta: { tier: "compensable", snapshotId: "pre-image", admittedBy: deadOwner }
+          },
+          owner
+        )
+        const attemptId = { runId: "adoption-dedupe", stepKeyDigest: digest, attempt: 1 }
+        yield* journal.emitDurable(
+          JournalRecords.attemptStarted(
+            { runId: "adoption-dedupe", sourceId: `adoption-test:attempt:${digest}:1:started`, sourceSeq: 0 },
+            { ...attemptId, tier: "compensable" }
+          ),
+          owner
+        )
+        yield* journal.emitDurable(
+          JournalRecords.snapshotIdentified(
+            { runId: "adoption-dedupe", sourceId: `adoption-test:attempt:${digest}:1:snapshot`, sourceSeq: 0 },
+            { ...attemptId, snapshotId: "pre-image" }
+          ),
+          owner
+        )
+        yield* ActivityPersistence.make({
+          runId: "adoption-dedupe",
+          owner,
+          sourceId: "adoption-test",
+          execute: () => Effect.succeed("recovered")
+        })({ activity: {}, attempt: 1, key, tier: "compensable" })
+        const page = yield* journal.entries({ runId: "adoption-dedupe" as never, limit: 100 })
+        return page.entries
+      }).pipe(Effect.provide(layers(calls)), Effect.scoped)
+    )
+    const started = events.filter((event) => event.eventType === "flows.engine.attempt-started")
+    const snapshots = events.filter((event) => event.eventType === "flows.engine.snapshot-identified")
+    expect(started).toHaveLength(1)
+    expect(snapshots).toHaveLength(1)
+  })
+})

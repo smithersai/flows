@@ -79,7 +79,11 @@ const takeover = (runs: RunStore.Service, runId: string, claimant: Ownership.Own
     const now = (yield* Clock.currentTimeMillis) +
       (stealing ? Duration.toMillis(Ownership.heartbeatStaleAfter) + 1 : 0)
     const evidence: Ownership.LivenessEvidence | undefined = stealing
-      ? { expectedOwner: row.owner!, checkedAtMs: now, kind: "cross-host-unreachable-stale" }
+      ? {
+        expectedOwner: row.owner!,
+        checkedAtMs: now,
+        kind: row.owner!.hostId === claimant.hostId ? "same-host-pid-dead" : "cross-host-unreachable-stale"
+      }
       : undefined
     const outcome = yield* runs.claimAndOwn(runId, snapshot, claimant, now, evidence)
     if (outcome._tag !== "Activated") {
@@ -237,11 +241,15 @@ describe("FaultMatrix", () => {
         )
 
         // Restarted engine: attempt 1 is durably mid-flight — crash evidence,
-        // not a live admission (issue #71). The re-drive adopts the row and
-        // re-executes under the original attempt number instead of refusing
-        // admission, so a no-policy run recovers instead of failing with an
-        // infrastructure tag.
-        const second = makeExecutor({ runId: "crash-before-finish", owner: ownerA, key, result: "v2" })
+        // not a live admission (issue #71). The restarted process is a new
+        // incarnation (fresh ownership nonce, issue #86) that re-claims the
+        // run; the re-drive adopts the row and re-executes under the original
+        // attempt number instead of refusing admission, so a no-policy run
+        // recovers instead of failing with an infrastructure tag.
+        const runs = yield* RunStore.RunStore
+        const ownerARestarted: Ownership.OwnerId = { ...ownerA, nonce: "fault-owner-a-restarted" }
+        yield* takeover(runs, "crash-before-finish", ownerARestarted)
+        const second = makeExecutor({ runId: "crash-before-finish", owner: ownerARestarted, key, result: "v2" })
         const readmitted = yield* second.execute(1)
         const digest = Digest.digest(key)
         const rowOne = yield* attempts.get({ runId: "crash-before-finish", stepKeyDigest: digest, attempt: 1 })

@@ -7,7 +7,7 @@
  *
  * @since 0.1.0
  */
-import { AttemptStore, CacheStore, Journal, type JournalEvent, type Ownership, RunStore } from "@smithers/journal"
+import { AttemptStore, CacheStore, Journal, type JournalEvent, Ownership, RunStore } from "@smithers/journal"
 import { Jj } from "@smithers/kernel"
 import { Digest } from "@smithers/keys"
 import * as Cause from "effect/Cause"
@@ -89,7 +89,13 @@ export interface Dependencies {
 const AttemptMeta = Schema.Struct({
   tier: Schema.Literals(["sealed", "compensable", "irreversible"]),
   boundary: Schema.optional(StepBoundary.BoundaryEvidence),
-  snapshotId: Schema.optional(Schema.String)
+  snapshotId: Schema.optional(Schema.String),
+  // The incarnation that admitted the running row (issue #86): adoption may
+  // only claim a row whose admitting incarnation is provably superseded —
+  // this owner holds the run fence, so any *other* recorded incarnation has
+  // lost it. A row admitted by the current incarnation is a live concurrent
+  // dispatch, not crash evidence.
+  admittedBy: Schema.optional(Ownership.OwnerId)
 })
 
 type AttemptMeta = typeof AttemptMeta.Type
@@ -332,17 +338,32 @@ export const make = (deps: Dependencies) =>
        * re-execute under its original number rather than fall through to
        * `attempts.put` (whose `Conflict` on the differing `startedAtMs`
        * surfaced as `AttemptAdmissionRejected`, permanently failing a
-       * no-policy run with an infrastructure tag). The row is adopted as-is;
-       * the ordinary fenced `attempts.finish` transition below records the
-       * re-execution's outcome. Caveat: two live same-process dispatches of
-       * one key+attempt still arbitrate through `put`'s first-writer insert —
-       * adoption only triggers on a row that already existed before this
-       * dispatch read it.
+       * no-policy run with an infrastructure tag). The row is adopted; the
+       * ordinary fenced `attempts.finish` transition below records the
+       * re-execution's outcome.
+       *
+       * Adoption requires liveness evidence (issue #86): the row's recorded
+       * `admittedBy` incarnation must differ from the current one. This owner
+       * holds the run fence (heartbeat above), so a differing incarnation has
+       * provably lost it; a row admitted by the *current* incarnation is a
+       * live concurrent same-key dispatch and falls through to `attempts.put`,
+       * whose `Conflict` surfaces as `AttemptAdmissionRejected` instead of
+       * silently double-executing the side effect. A row without `admittedBy`
+       * predates this evidence and keeps the #71 crash-evidence reading.
        */
-      const adopted = Option.isSome(existing) && existing.value.state === "running"
+      const runningRow = Option.isSome(existing) && existing.value.state === "running"
+        ? existing.value
+        : undefined
+      const runningMeta = runningRow === undefined ? undefined : decodeMeta(runningRow.meta)
+      const sameIncarnation = (candidate: Ownership.OwnerId): boolean =>
+        candidate.hostId === deps.owner.hostId &&
+        candidate.pid === deps.owner.pid &&
+        candidate.nonce === deps.owner.nonce
+      const adopted = runningRow !== undefined &&
+        (runningMeta?.admittedBy === undefined || !sameIncarnation(runningMeta.admittedBy))
       if (!adopted) {
         const now = yield* Clock.currentTimeMillis
-        const initialMeta: AttemptMeta = { tier: input.tier }
+        const initialMeta: AttemptMeta = { tier: input.tier, admittedBy: deps.owner }
         const put = yield* attempts.put(
           { ...attemptId, state: "running", startedAtMs: now, meta: initialMeta },
           deps.owner
@@ -359,24 +380,59 @@ export const make = (deps: Dependencies) =>
             })
           )
         }
+      } else {
+        // Re-home the adopted row to the current incarnation so a concurrent
+        // dispatch in *this* process reads it as live, not as crash evidence.
+        // The unfenced patch keeps the dead incarnation's other meta (tier,
+        // pre-image snapshot) intact.
+        yield* attempts.patch(attemptId, {
+          meta: { ...runningMeta, tier: input.tier, admittedBy: deps.owner } satisfies AttemptMeta
+        })
       }
-      yield* emitLifecycle(JournalRecords.attemptStarted(source(deps), { ...attemptId, tier: input.tier }))
+      // Lifecycle announcements take a per-attempt producer identity
+      // (issue #91): adoption re-executes an attempt whose dead incarnation
+      // may already have announced it, and lifecycle records without a
+      // `sourceSeq` allocate a fresh journal row on every emission. A
+      // dedicated `(sourceId, sourceSeq 0)` per record makes the re-emission
+      // an exact producer retry the journal collapses into a `Duplicate`.
+      const attemptSource = (record: string): JournalRecords.EventOptions => ({
+        runId: deps.runId,
+        sourceId: `${deps.sourceId}:attempt:${keyDigest}:${input.attempt}:${record}`,
+        sourceSeq: 0
+      })
+      yield* emitLifecycle(JournalRecords.attemptStarted(attemptSource("started"), { ...attemptId, tier: input.tier }))
 
       let snapshotId: string | undefined
       if (input.tier === "compensable") {
         const jj = yield* Jj.Jj
-        if (input.attempt > 1) {
-          const previous = yield* attempts.get({ ...attemptId, attempt: input.attempt - 1 })
-          if (
-            Option.isSome(previous) &&
-            decodeMeta(previous.value.meta)?.snapshotId !== undefined
-          ) {
-            yield* jj.restore(decodeMeta(previous.value.meta)!.snapshotId!)
+        if (adopted && runningMeta?.snapshotId !== undefined) {
+          // The dead incarnation persisted this attempt's own pre-image
+          // before mutating the workspace (issue #87): restore it so the
+          // re-execution runs on the clean tree, and keep it as the attempt's
+          // compensation baseline instead of snapshotting the dirty state.
+          yield* jj.restore(runningMeta.snapshotId)
+          snapshotId = runningMeta.snapshotId
+        } else {
+          if (input.attempt > 1) {
+            const previous = yield* attempts.get({ ...attemptId, attempt: input.attempt - 1 })
+            if (
+              Option.isSome(previous) &&
+              decodeMeta(previous.value.meta)?.snapshotId !== undefined
+            ) {
+              yield* jj.restore(decodeMeta(previous.value.meta)!.snapshotId!)
+            }
           }
+          const snapshot = yield* jj.snapshot(`flows activity ${keyDigest} attempt ${input.attempt}`)
+          snapshotId = snapshot.changeId
+          // Persist the pre-image into the running row before announcing it
+          // (issue #87): a SIGKILL mid-attempt must not lose the only
+          // reference to the clean tree, or adoption re-executes on top of
+          // the dead incarnation's partial mutations.
+          yield* attempts.patch(attemptId, {
+            meta: { tier: input.tier, admittedBy: deps.owner, snapshotId } satisfies AttemptMeta
+          })
         }
-        const snapshot = yield* jj.snapshot(`flows activity ${keyDigest} attempt ${input.attempt}`)
-        snapshotId = snapshot.changeId
-        yield* emitLifecycle(JournalRecords.snapshotIdentified(source(deps), { ...attemptId, snapshotId }))
+        yield* emitLifecycle(JournalRecords.snapshotIdentified(attemptSource("snapshot"), { ...attemptId, snapshotId }))
       }
 
       const boundary = input.tier === "sealed" && input.metadata !== undefined
