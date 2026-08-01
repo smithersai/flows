@@ -113,17 +113,33 @@ const CauseJson = Schema.Struct({
 })
 
 /**
+ * Encodes a live `Cause` into the plain tagged-reason JSON `rehydrateCause`
+ * decodes. Persisting the `Cause` object itself left the durable shape to
+ * whatever the ambient serializer produced (`Cause.toJSON` emits
+ * `{_id, failures}`, a structural walk emits `{reasons}`), so a change in
+ * the store's encoding silently broke failed-attempt replay. The write side
+ * now owns the shape explicitly.
+ */
+const persistCause = (cause: Cause.Cause<unknown>): typeof CauseJson.Type => ({
+  reasons: cause.reasons.map((reason) =>
+    Cause.isFailReason(reason)
+      ? { _tag: "Fail" as const, error: reason.error }
+      : Cause.isDieReason(reason)
+      ? { _tag: "Die" as const, defect: reason.defect }
+      : { _tag: "Interrupt" as const, fiberId: reason.fiberId ?? null }
+  )
+})
+
+/**
  * Rebuilds the persisted failure of a `failed` attempt row so replay can
  * rethrow the original domain error (issue #59). The row's `error` column
- * holds the JSON round trip of the failing `Cause` — a plain object whose
- * `reasons` carry the tagged `Fail`/`Die`/`Interrupt` material. `Fail`
- * errors are already schema-encoded by `Activity.executeEncoded`, so their
- * `_tag` survives and `RetryPolicy` non-retryable matching applies on
- * replay exactly as it did on the live attempt. The decoded plain object
- * still satisfies `Cause.isCause`'s structural check without being a real
- * `Cause`, so live reasons are rebuilt unconditionally from the tagged
- * material; anything unrecognizable becomes a defect carrying the raw
- * persisted value.
+ * holds the {@link persistCause} encoding of the failing `Cause` — a plain
+ * object whose `reasons` carry the tagged `Fail`/`Die`/`Interrupt` material.
+ * `Fail` errors are already schema-encoded by `Activity.executeEncoded`, so
+ * their `_tag` survives and `RetryPolicy` non-retryable matching applies on
+ * replay exactly as it did on the live attempt. Live reasons are rebuilt
+ * unconditionally from the tagged material; anything unrecognizable becomes
+ * a defect carrying the raw persisted value.
  */
 const rehydrateCause = (error: unknown): Cause.Cause<unknown> => {
   const decoded = Schema.decodeUnknownResult(CauseJson)(error)
@@ -307,23 +323,42 @@ export const make = (deps: Dependencies) =>
         }
       }
 
-      const now = yield* Clock.currentTimeMillis
-      const initialMeta: AttemptMeta = { tier: input.tier }
-      const put = yield* attempts.put(
-        { ...attemptId, state: "running", startedAtMs: now, meta: initialMeta },
-        deps.owner
-      )
-      if (put._tag === "FenceLost" || put._tag === "RunNotFound") {
-        return yield* Effect.interrupt
-      }
-      if (put._tag !== "Inserted") {
-        return yield* Effect.fail(
-          new AttemptAdmissionRejected({
-            code: "attempt_admission_rejected",
-            keyDigest,
-            outcome: put._tag
-          })
+      /**
+       * A persisted `running` row read while this owner holds the run fence
+       * is crash evidence, not a live admission (issue #71): the incarnation
+       * that admitted the attempt died before finishing (SIGKILL, OOM), and
+       * the #53 stale-running sweep re-drove the run to a new owner — or the
+       * same owner after restart. The attempt never completed, so it must
+       * re-execute under its original number rather than fall through to
+       * `attempts.put` (whose `Conflict` on the differing `startedAtMs`
+       * surfaced as `AttemptAdmissionRejected`, permanently failing a
+       * no-policy run with an infrastructure tag). The row is adopted as-is;
+       * the ordinary fenced `attempts.finish` transition below records the
+       * re-execution's outcome. Caveat: two live same-process dispatches of
+       * one key+attempt still arbitrate through `put`'s first-writer insert —
+       * adoption only triggers on a row that already existed before this
+       * dispatch read it.
+       */
+      const adopted = Option.isSome(existing) && existing.value.state === "running"
+      if (!adopted) {
+        const now = yield* Clock.currentTimeMillis
+        const initialMeta: AttemptMeta = { tier: input.tier }
+        const put = yield* attempts.put(
+          { ...attemptId, state: "running", startedAtMs: now, meta: initialMeta },
+          deps.owner
         )
+        if (put._tag === "FenceLost" || put._tag === "RunNotFound") {
+          return yield* Effect.interrupt
+        }
+        if (put._tag !== "Inserted") {
+          return yield* Effect.fail(
+            new AttemptAdmissionRejected({
+              code: "attempt_admission_rejected",
+              keyDigest,
+              outcome: put._tag
+            })
+          )
+        }
       }
       yield* emitLifecycle(JournalRecords.attemptStarted(source(deps), { ...attemptId, tier: input.tier }))
 
@@ -356,7 +391,7 @@ export const make = (deps: Dependencies) =>
           ...attemptId,
           state: "failed",
           finishedAtMs,
-          error: preparedResult.cause,
+          error: persistCause(preparedResult.cause),
           // A boundary is prepared only for sealed work, while snapshots are
           // created only for compensable work. The two capabilities are
           // disjoint, so a preparation failure can never carry a snapshot.
@@ -376,7 +411,7 @@ export const make = (deps: Dependencies) =>
           ...attemptId,
           state: "failed",
           finishedAtMs,
-          error: outcome.cause,
+          error: persistCause(outcome.cause),
           meta: { tier: input.tier, ...(snapshotId === undefined ? {} : { snapshotId }) }
         }, deps.owner)
         if (finished._tag !== "Finished") return yield* Effect.interrupt
@@ -393,7 +428,7 @@ export const make = (deps: Dependencies) =>
           ...attemptId,
           state: "failed",
           finishedAtMs: failedAtMs,
-          error: settled.cause,
+          error: persistCause(settled.cause),
           // Settlement, like preparation, runs only for sealed work; a
           // compensable snapshot is therefore unreachable on this path.
           meta: { tier: input.tier }

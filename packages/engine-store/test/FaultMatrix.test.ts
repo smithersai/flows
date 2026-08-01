@@ -222,7 +222,7 @@ describe("FaultMatrix", () => {
       expect(result.eventTypes).not.toContain("flows.engine.cache-conflict")
     })
 
-    it("crash between boundary.settle and attempts.finish: the unfinished attempt is rejected, the next attempt completes exactly once", async () => {
+    it("crash between boundary.settle and attempts.finish: the in-flight attempt is adopted and completes exactly once", async () => {
       const key = "fault/settle-then-finish"
       const result = await run(Effect.gen(function*() {
         yield* activate("crash-before-finish", ownerA)
@@ -236,27 +236,22 @@ describe("FaultMatrix", () => {
           Effect.exit
         )
 
-        // Restarted engine: attempt 1 is durably mid-flight, so re-admission is
-        // refused; recovery is a fresh attempt, which may re-execute because no
-        // durable completion exists yet.
+        // Restarted engine: attempt 1 is durably mid-flight — crash evidence,
+        // not a live admission (issue #71). The re-drive adopts the row and
+        // re-executes under the original attempt number instead of refusing
+        // admission, so a no-policy run recovers instead of failing with an
+        // infrastructure tag.
         const second = makeExecutor({ runId: "crash-before-finish", owner: ownerA, key, result: "v2" })
-        const readmitted = yield* second.execute(1).pipe(Effect.exit)
-        const retried = yield* second.execute(2)
+        const readmitted = yield* second.execute(1)
         const digest = Digest.digest(key)
         const rowOne = yield* attempts.get({ runId: "crash-before-finish", stepKeyDigest: digest, attempt: 1 })
-        const rowTwo = yield* attempts.get({ runId: "crash-before-finish", stepKeyDigest: digest, attempt: 2 })
-        return { crashed, readmitted, retried, rowOne, rowTwo, dispatches: first.dispatches() + second.dispatches() }
+        return { crashed, readmitted, rowOne, dispatches: first.dispatches() + second.dispatches() }
       }))
 
       expect(isCrash(result.crashed)).toBe(true)
-      const readmittedError = Exit.isFailure(result.readmitted)
-        ? Cause.squash(result.readmitted.cause) as { readonly _tag?: string }
-        : {}
-      expect(readmittedError._tag).toBe("flows/engine-store/AttemptAdmissionRejected")
-      expect(result.retried).toBe("v2")
-      // Exactly one durable completion: the crashed attempt never seals.
-      expect(Option.getOrThrow(result.rowOne).state).toBe("running")
-      expect(Option.getOrThrow(result.rowTwo).state).toBe("succeeded")
+      expect(result.readmitted).toBe("v2")
+      // Exactly one durable completion, under the original attempt number.
+      expect(Option.getOrThrow(result.rowOne).state).toBe("succeeded")
       expect(result.dispatches).toBe(2)
     })
 

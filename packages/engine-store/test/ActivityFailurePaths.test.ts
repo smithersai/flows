@@ -281,4 +281,42 @@ describe("activity executor failure paths", () => {
     expect(eventTypes).not.toContain("flows.engine.attempt-finished")
     expect(eventTypes).not.toContain("flows.engine.hard-violation")
   })
+
+  it("persists the failing cause as explicit tagged-reason JSON, independent of the store's serializer", async () => {
+    // The write side owns the durable shape: `Fail`, `Die`, and `Interrupt`
+    // reasons (with and without a fiber id) all round-trip as `{reasons}` so
+    // failed-attempt replay (issue #59) cannot be broken by a change in how
+    // the attempt store serializes opaque values.
+    const cause = Cause.fromReasons([
+      Cause.makeFailReason("boom"),
+      Cause.makeDieReason("defective"),
+      Cause.makeInterruptReason(5),
+      Cause.makeInterruptReason(undefined)
+    ])
+    const result = await run(Effect.gen(function*() {
+      yield* activate("tagged-cause", ownerA)
+      const attempts = yield* AttemptStore.AttemptStore
+      const exit = yield* executor({
+        runId: "tagged-cause",
+        execute: () => Effect.failCause(cause)
+      })(input("cause/tagged")).pipe(Effect.exit)
+      const row = yield* attempts.get({
+        runId: "tagged-cause",
+        stepKeyDigest: Digest.digest("cause/tagged"),
+        attempt: 1
+      })
+      return { exit, row }
+    }))
+
+    expect(Exit.isFailure(result.exit)).toBe(true)
+    const persisted = Option.getOrThrow(result.row).error as {
+      readonly reasons: ReadonlyArray<Record<string, unknown>>
+    }
+    expect(persisted.reasons).toEqual([
+      { _tag: "Fail", error: "boom" },
+      { _tag: "Die", defect: "defective" },
+      { _tag: "Interrupt", fiberId: 5 },
+      { _tag: "Interrupt", fiberId: null }
+    ])
+  })
 })
