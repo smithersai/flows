@@ -235,4 +235,77 @@ describe("same-name invocation identity (issue #85)", () => {
       expect(new Set(keys).size).toBe(2)
     })
   })
+
+  const notifyContent = (user: string) =>
+    Activity.make({
+      name: "OrdinalKeyStability/notifyContent",
+      tier: "irreversible",
+      idempotencyKey: { body: { user }, inputs: {}, layers: [], capabilities: {} },
+      success: Schema.Void,
+      execute: Effect.void
+    })
+  const notifyContentA = notifyContent("user-a")
+  const notifyContentB = notifyContent("user-b")
+
+  effect("an object-form idempotencyKey pins each invocation's key under swapped arrival order (issue #101)", () => {
+    // The idempotency component is a union: a `ContentIdentity` object must
+    // refine the allocation scope exactly as a string does. Refining only
+    // the string form left object-keyed activities on the name-only counter,
+    // so a replay with reversed fiber arrival swapped their ordinals — and
+    // with them the recorded attempt rows and outcomes.
+    return Effect.gen(function*() {
+      const first = yield* drive("ordinal-object-key-run", [notifyContentA, notifyContentB])
+      const replay = yield* drive("ordinal-object-key-run", [notifyContentB, notifyContentA])
+      const [keyA1, keyB1] = first.map((entry) => entry.key)
+      const [keyB2, keyA2] = replay.map((entry) => entry.key)
+      expect(keyA1).toBe(keyA2)
+      expect(keyB1).toBe(keyB2)
+      expect(keyA1).not.toBe(keyB1)
+    })
+  })
+})
+
+describe("same identity dispatched twice inside Activity.retry (issue #100)", () => {
+  effect("each dispatch of one declaration in a retry block owns its own key", () => {
+    // `Activity.retry(gen { yield* charge; yield* charge })`: a single-valued
+    // slot handed the first dispatch's ordinal to the second, so under a
+    // durable engine the second charge silently replayed the first's
+    // recorded outcome instead of executing.
+    return Effect.gen(function*() {
+      const entries = yield* driveProgram("ordinal-same-identity-block", (engine) =>
+        Activity.retry(
+          Effect.gen(function*() {
+            yield* engine.activityExecute(repeatedCharge as never, 1)
+            yield* engine.activityExecute(repeatedCharge as never, 1)
+          }),
+          { times: 0 }
+        ))
+      const keys = keyOf(entries, repeatedCharge.name)
+      expect(keys).toHaveLength(2)
+      expect(new Set(keys).size).toBe(2)
+    })
+  })
+
+  effect("both dispatches keep their identities across every attempt of the sequence", () => {
+    return Effect.gen(function*() {
+      const entries = yield* driveProgram("ordinal-same-identity-retry", (engine) => {
+        let attempt = 0
+        return Activity.retry(
+          Effect.gen(function*() {
+            yield* engine.activityExecute(repeatedCharge as never, 1)
+            yield* engine.activityExecute(repeatedCharge as never, 1)
+            attempt++
+            if (attempt < 3) return yield* Effect.fail("again")
+          }),
+          { times: 5 }
+        )
+      })
+      const keys = keyOf(entries, repeatedCharge.name)
+      expect(keys).toHaveLength(6)
+      // Attempt n dispatches the same (first, second) pair of identities.
+      expect(new Set(keys).size).toBe(2)
+      expect(keys[0]).not.toBe(keys[1])
+      expect(keys.slice(2)).toEqual([keys[0], keys[1], keys[0], keys[1]])
+    })
+  })
 })

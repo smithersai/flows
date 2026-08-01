@@ -28,6 +28,7 @@ import type { DurableClock } from "./DurableClock.ts"
 import type * as DurableDeferred from "./DurableDeferred.ts"
 import * as Flow from "./Flow.ts"
 import * as RetryPolicy from "./RetryPolicy.ts"
+import * as StepIdentity from "./StepIdentity.ts"
 
 /**
  * The identity and boundary information supplied to an encoded activity
@@ -590,21 +591,27 @@ const withEnvironment = (
 
 /**
  * The ordinal allocation scope of an activity dispatch — its stable
- * declaration identity (issue #85).
+ * declaration identity (issue #85), derived by the one canonical path in
+ * `StepIdentity` (issue #101).
  *
- * The activity name always contributes (issue #73), and a declared string
- * `idempotencyKey` refines the scope further: two concurrent invocations of
- * one activity name with distinguishable inputs declare distinct keys, so
- * each owns its own counter and a replay that reverses fiber-arrival order
- * can never hand one invocation the other's recorded outcome. Without a
- * declared key, invocations of one name share a counter and remain
- * allocation-ordered — indistinguishable declarations have no material to
- * order them by.
+ * The activity name always contributes (issue #73), and a declared
+ * `idempotencyKey` refines the scope further — the string form and the
+ * object `ContentIdentity` form both, through the same canonicalization:
+ * two concurrent invocations of one activity name with distinguishable
+ * inputs declare distinct keys, so each owns its own counter and a replay
+ * that reverses fiber-arrival order can never hand one invocation the
+ * other's recorded outcome. Refining only the string form left object-keyed
+ * activities on the name-only counter and exposed to exactly that swap.
+ * Without a declared key, invocations of one name share a counter and
+ * remain allocation-ordered — indistinguishable declarations have no
+ * material to order them by.
  */
 const ordinalScope = (activity: Activity.Any): string =>
-  typeof activity.idempotencyKey === "string"
-    ? `activity:${activity.name}#${activity.idempotencyKey}`
-    : `activity:${activity.name}`
+  StepIdentity.allocationScope({
+    kind: "activity",
+    name: activity.name,
+    idempotency: activity.idempotencyKey
+  })
 
 const activityKey = (
   activity: Activity.Any,
@@ -854,11 +861,28 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
       // its allocation scope — is known (issue #73). The slot is keyed by
       // scope so a retry block dispatching several distinct activities pins
       // each to its own ordinal (issue #84), reused across every attempt of
-      // the sequence.
+      // the sequence. Within one attempt the n-th dispatch of a scope takes
+      // the n-th pinned ordinal (issue #100): a retry block may dispatch one
+      // declaration several times, and each dispatch owns its own identity —
+      // allocated on the attempt that first reaches it, replayed by position
+      // on every later attempt.
       const scope = ordinalScope(activity)
       const slot = yield* Activity.CurrentOrdinal
-      const ordinal = slot?.values.get(scope) ?? instance.activityState.nextOrdinal(scope)
-      if (slot !== undefined) slot.values.set(scope, ordinal)
+      let ordinal: number
+      if (slot === undefined) {
+        ordinal = instance.activityState.nextOrdinal(scope)
+      } else {
+        const index = slot.cursors.get(scope) ?? 0
+        slot.cursors.set(scope, index + 1)
+        const pinned = slot.values.get(scope) ?? []
+        if (index < pinned.length) {
+          ordinal = pinned[index]!
+        } else {
+          ordinal = instance.activityState.nextOrdinal(scope)
+          pinned.push(ordinal)
+          slot.values.set(scope, pinned)
+        }
+      }
       // Ordinal keys are run-local, so the environment is not their key
       // material; `activityKey` folds it into content keys only (issue #75).
       const environment = yield* Activity.CurrentContentEnvironment

@@ -48,3 +48,8 @@ export * as FlowProxyServer from "./FlowProxyServer.ts"
  * @since 4.0.0
  */
 export * as RetryPolicy from "./RetryPolicy.ts"
+
+/**
+ * @since 4.0.0
+ */
+export * as StepIdentity from "./StepIdentity.ts"
