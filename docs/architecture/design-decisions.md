@@ -32,11 +32,15 @@ The Host surface is exactly FileSystem, Path, Shell, PTY, Jujutsu, and one-hop H
 
 Consequence: ambient authority can only shrink through `CapabilitySet.attenuate`, and capability failures stay in the Effect error channel when callers use kernel service tags.
 
-## D6. Journal admission is optimistic
+## D6. The journal becomes the authoritative logical WAL; only telemetry admission is optimistic
 
-`Journal.emit` allocates order and attempts a bounded, non-blocking queue admission before SQL persistence. `flush` is the explicit durability barrier.
+The target architecture makes the journal flows' own authoritative logical (domain) write-ahead log. The SQLite or PostgreSQL WAL beneath it is the storage durability substrate only, and is never consumed as the application event API.
 
-Consequence: an `Accepted` receipt is not a write-ahead guarantee. Process failure can lose accepted but unflushed entries, and dropping overflow policies create valid sequence holes.
+Lifecycle evidence takes the durable channel: `emitDurable` (and `emit` with an owner, or under `allocation: "sql"`) allocates inside the write transaction and returns only once the row is committed. A durable boundary must not advance the run or expose its result before that commit. Telemetry takes `emitLossy`, a bounded non-blocking queue whose `Dropped` receipts and evictions are accepted outcomes; `flush` is the explicit barrier for that channel.
+
+Consequence: a lossy `Accepted` receipt is not a durability guarantee — process failure can lose accepted but unflushed telemetry, and dropping overflow policies create valid sequence holes. Nothing may be reconstructed from telemetry alone. Local commit is also not remote atomicity: external effects still need idempotency keys, fencing tokens, or compensation.
+
+Open production blocker: executable authority still lives in `RunStore`, `AttemptStore`, `CacheStore`, and `DurableEngineState`; a state transition and its lifecycle entry are two separate transactions. See [implementation status](implementation-status.md).
 
 ## D7. One owner drives a run
 

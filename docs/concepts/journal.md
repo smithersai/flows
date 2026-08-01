@@ -30,11 +30,19 @@ Each committed entry has:
 
 There is no global order across runs.
 
-## Optimistic admission
+## The journal is intended to be flows' authoritative logical WAL
 
-`SqlJournal.emit` performs validation, allocates both sequences, and attempts a non-blocking bounded queue offer. It returns before SQL commits.
+The journal is flows' own logical (domain) write-ahead log: run decisions, attempt lifecycle, deferred completions, clock schedules, permission decisions, and cache provenance. It is intended to become the authoritative state history. The SQLite or PostgreSQL WAL underneath it is only the storage durability substrate; it is never read as the application event API.
 
-An `Accepted` receipt means the event entered the writer queue. It does not mean the row is durable. Call `journal.flush` where durability must precede a decision, as `JournalGrantStore` and durable-deferred delivery do.
+The rule that follows is that **a durable boundary may not advance the run or expose its result until the corresponding logical WAL entry is committed**. That is what the lifecycle channel is for: `emitDurable` — and `emit` when an owner is passed or the journal is configured with `allocation: "sql"` — allocates inside the write transaction and returns a receipt that is already committed.
+
+A local commit is not remote atomicity. No journal write makes an external effect atomic with it, so effects outside the database still carry idempotency keys, fencing tokens, or a declared compensation.
+
+## Optimistic admission (only telemetry may accept loss)
+
+`SqlJournal.emitLossy`, and `emit` on the default in-memory allocation path with no owner, perform validation, allocate both sequences, and attempt a non-blocking bounded queue offer. They return before SQL commits.
+
+An `Accepted` receipt from that queue means only that the event entered the writer queue. It does not mean the row is durable, and a crash can lose it. `emitLossy` is **lossy by construction and off the critical path**; nothing may be reconstructed from it and no correctness argument may cite it. Transitional authoritative callers using queued `emit`, such as `JournalGrantStore`, call `journal.flush` and fail closed before activating a decision. New lifecycle callers use `emitDurable`.
 
 Overflow policy is explicit:
 
@@ -95,6 +103,19 @@ Attempt heartbeats may include a JSON checkpoint up to 1 MiB. Omitting a checkpo
 
 Time-travel tables use a separate migration in `@smithers/time-travel`.
 
+## State authority today, and the open gap
+
+`RunStore`, `AttemptStore`, `CacheStore`, and `DurableEngineState` hold the **executable authoritative state**. No engine state is derived from journal entries today; the entries explain what happened, the rows decide what happens next.
+
+Engine-store lifecycle events do use `emitDurable`, so they block until committed and cannot be dropped. But the state transition and its lifecycle entry commit in **separate database transactions** — the run-row compare-and-swap, then the decision emit; the attempt write, then the attempt event. A crash between the two leaves durable state that the journal does not explain.
+
+This is a **production blocker**, not a settled design. Execution stays correct across it, because the store rows are authoritative and self-consistent, but audit, sync, and time travel all read the journal as the account of record and can therefore see a hole. Do not read this page as a claim that transitions and entries are atomic, or that state is journal-derived.
+
+The intended resolution is to make the logical WAL authoritative, in one of two shapes:
+
+1. derive the store rows from the log, so there is a single commit; or
+2. commit the state projection and its journal entry in one transaction.
+
 ## Operational rule
 
-Use `overflow: "reject"` for events that authorize work or are required for recovery. A dropping journal cannot safely serve as the durable source of permission grants, deferred completion ordering, or time-travel audit.
+Use `emitLossy` only for telemetry where a drop is acceptable. Put anything that authorizes work or is required for recovery on the durable channel; a transitional queued caller must use `overflow: "reject"`, `flush`, and fail closed before acting. A dropping queue cannot serve as the durable source of permission grants, deferred completion ordering, or time-travel audit.

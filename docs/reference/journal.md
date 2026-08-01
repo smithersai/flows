@@ -15,6 +15,7 @@ This page is the public API reference for durable events, run ownership, activit
 | Operation | Result |
 | --- | --- |
 | `emit(input)` | `Accepted`, `Duplicate`, or `Dropped` receipt |
+| `emitLossy(input)` | Optimistic telemetry receipt; `Dropped` and eviction are accepted outcomes |
 | `emitDurable(input)` | `Accepted` or `Duplicate` receipt whose `seq` is already committed |
 | `entries({ runId, after?, limit })` | Durable page and `hasMore` |
 | `stream({ runId, afterSequence? })` | Replay-then-follow stream |
@@ -34,14 +35,16 @@ This page is the public API reference for durable events, run ownership, activit
 
 ### Sequence allocation
 
-`allocation` selects where the canonical per-run `seq` is assigned.
+The journal is flows' logical write-ahead log and is intended to become the authoritative state history; the storage engine's own WAL sits underneath it as a durability substrate and is never an event API. `allocation` selects where the canonical per-run `seq` is assigned, and therefore which of the two channels `emit` lands on.
 
 | Mode | `emit` behaviour | Writers per run |
 | --- | --- | --- |
-| `"memory"` (default) | Allocates in process memory and queues the write. The receipt is optimistic: a crash can lose an accepted-but-unwritten event. | One process |
+| `"memory"` (default) | Allocates in process memory and queues the write. The receipt alone is suitable only for telemetry; an authoritative caller must `flush` and fail closed before acting. Prefer `emitDurable` for lifecycle evidence. | One process |
 | `"sql"` | `emit` is `emitDurable`. | Any number |
 
-`emitDurable` allocates both sequences inside the writer's transaction (`MAX(seq) + 1`, taking the in-memory clock as a floor) and inserts the row before returning, so the returned `seq` is already committed. `(run_id, source_id, source_seq)` deduplication is unchanged: an exact producer retry returns `Duplicate` with `status: "committed"`, and a reused producer sequence carrying different content fails with `idempotency_conflict`. Use it wherever a caller acts on the returned sequence — lifecycle finalization, cross-process supervisors, or any deployment where a second writer may open the same run.
+`emitDurable` allocates both sequences inside the writer's transaction (`MAX(seq) + 1`, taking the in-memory clock as a floor) and inserts the row before returning, so the returned `seq` is already committed. `(run_id, source_id, source_seq)` deduplication is unchanged: an exact producer retry returns `Duplicate` with `status: "committed"`, and a reused producer sequence carrying different content fails with `idempotency_conflict`. Use it wherever a caller acts on the returned sequence — lifecycle finalization, cross-process supervisors, or any deployment where a second writer may open the same run. A durable boundary must not advance the run or expose its result until this commit returns.
+
+Committing here makes the entry durable but does not yet make flows' whole view crash-consistent: a store transition (`RunStore`, `AttemptStore`, `CacheStore`, `DurableEngineState`) and its lifecycle entry are currently **two separate transactions**. Closing that window is an open production blocker, tracked in [implementation status](../architecture/implementation-status.md). No local transaction makes a remote effect atomic either, so external effects still need idempotency keys, fencing tokens, or compensation.
 
 Stated deviation from smithers (`packages/db/src/adapter.js`), which allocates under `BEGIN IMMEDIATE`: the SQLite backends we ship give Effect's SQL client no `beginTransaction` hook, so `Database.write` opens the default DEFERRED transaction. The floor read holds a shared lock and the INSERT upgrades it; under WAL a concurrent writer makes that upgrade fail `SQLITE_BUSY_SNAPSHOT`, which the database package classifies as retryable and replays the whole transaction — floor read included — against the committed snapshot. Allocation is therefore conflict-free by retry, not by lock escalation, and `packages/journal/test/JournalDurable.test.ts` proves it with two connections writing one run concurrently and with a cold-restart floor case.
 

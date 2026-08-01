@@ -1,8 +1,9 @@
 /**
- * SQLite-backed non-blocking journal.
+ * SQLite-backed logical journal with durable and lossy channels.
  *
- * Accepted events remain optimistic until the single scoped writer commits
- * them. A process crash can therefore lose accepted-but-unwritten events.
+ * Lossy telemetry events remain optimistic until the single scoped writer
+ * commits them, so a process crash can lose accepted-but-unwritten telemetry.
+ * Lifecycle events use `emitDurable` and return only after commit.
  *
  * Governing design: `docs/specs/Concepts/Journal Queue.md`.
  * Prior-art decision: `docs/specs/Research/Sync Decision 2026-07-28.md`.
@@ -250,10 +251,10 @@ const isJournalError = Schema.is(JournalError)
 /**
  * Provides the SQLite-backed journal.
  *
- * `emit` performs validation, canonical per-run sequence allocation, producer
+ * Under the default in-memory allocation, ownerless `emit` performs validation,
  * sequence allocation, and unsafe non-blocking queue admission in one
- * synchronous section. The scoped writer persists the already-assigned
- * sequence without reordering it.
+ * synchronous section. `emitLossy` always uses that telemetry path.
+ * `emitDurable`, fenced `emit`, and `emit` under SQL allocation commit inline.
  *
  * @category layers
  * @since 0.1.0

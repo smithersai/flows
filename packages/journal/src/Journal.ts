@@ -1,5 +1,5 @@
 /**
- * Non-blocking durable journal contract.
+ * Logical journal contract with durable lifecycle and lossy telemetry channels.
  *
  * Governing design: `docs/specs/Concepts/Journal Queue.md`.
  *
@@ -68,11 +68,12 @@ export class JournalError extends Schema.TaggedErrorClass<JournalError>()("flows
 export type OverflowPolicy = "reject" | "drop-newest" | "drop-oldest"
 
 /**
- * Receipt for a new event admitted to the writer queue.
+ * Receipt for a newly admitted event.
  *
- * `seq` and `sourceSeq` are allocated synchronously inside `emit` and returned
- * before any SQL, subscriber, telemetry, or queue-capacity wait. `seq` orders
- * the run; `sourceSeq` identifies producer retries.
+ * On the lossy channel, `seq` and `sourceSeq` are allocated synchronously and
+ * returned before SQL commits. On the durable channel, the same receipt shape
+ * is returned only after the entry commits. `seq` orders the run; `sourceSeq`
+ * identifies producer retries.
  *
  * @category models
  * @since 0.1.0
@@ -121,7 +122,7 @@ export interface Dropped {
 }
 
 /**
- * Result of a non-blocking journal admission attempt.
+ * Receipt union for admission that may use the lossy queue.
  *
  * @category models
  * @since 0.1.0
@@ -187,11 +188,28 @@ export interface EntriesPage {
  * Exact retries return `Duplicate` with the original canonical `seq` and do
  * not consume either allocation.
  *
- * `emit` trades durability for latency: its receipt is optimistic. `emitDurable`
- * is the synchronous counterpart — it allocates `seq` inside the writer's SQL
- * transaction, so the returned sequence is already committed and independent
- * writers never fork the per-run clock
+ * This table is flows' logical (domain) write-ahead log and is intended to
+ * become the authoritative state history. The storage engine's own WAL
+ * underneath it is a durability substrate only and is never consumed as the
+ * application event API. A durable boundary must not advance a run or expose
+ * its result until its lifecycle entry is committed. No local commit makes a
+ * remote effect atomic, so external effects still need idempotency keys,
+ * fencing tokens, or compensation.
+ *
+ * Ownerless `emit` under the default in-memory allocation trades durability for
+ * latency: its receipt is optimistic. `emitDurable` is the synchronous
+ * counterpart — it allocates `seq` inside the writer's SQL transaction, so the
+ * returned sequence is already committed and independent writers never fork
+ * the per-run clock
  * (`docs/specs/Concepts/Journal Queue.md`, "The durable path").
+ *
+ * Caveat on scope: the stores above this log (`RunStore`, `AttemptStore`,
+ * `CacheStore`, and engine-store's `DurableEngineState`) hold the executable
+ * authoritative state, and no state is derived from these entries today. A
+ * state transition also commits in a *different* transaction from the
+ * lifecycle entry describing it, which leaves a crash-consistency gap for
+ * audit, sync, and time travel — a known production blocker, not a settled
+ * design.
  *
  * The surface is split into two channels:
  *
@@ -229,7 +247,7 @@ export interface Service {
 }
 
 /**
- * Context service for non-blocking durable journaling.
+ * Context service for durable lifecycle evidence and lossy telemetry.
  *
  * @category services
  * @since 0.1.0

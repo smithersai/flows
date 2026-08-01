@@ -4,6 +4,18 @@ Durable event, run-ownership, attempt, and content-cache services for flows.
 It owns the SQL schema above `@smithers/database`, bounded journal admission,
 fenced run transitions, and the records consumed by engine-store and sync.
 
+The journal is flows' own **logical (domain) write-ahead log**, intended to
+become the authoritative state history.
+The SQLite or PostgreSQL WAL beneath it is only the storage durability
+substrate and is never consumed as the application event API. Lifecycle
+evidence takes `emitDurable`, which commits before it returns, and a durable
+boundary must not advance a run or expose its result before that commit.
+`emitLossy` is the telemetry channel: bounded, optimistic, lossy by
+construction, and never a basis for reconstructing what happened. Today the
+state/entry transaction gap described below prevents the WAL from being the
+sole state authority. Committing locally is not remote atomicity — external
+effects still need idempotency keys, fencing tokens, or compensation.
+
 ```sh
 npm install @smithers/journal
 ```
@@ -45,7 +57,7 @@ const journalLayer = SqlJournal.layer({ capacity: 1024, overflow: "reject" }).pi
 
 const program = Effect.gen(function*() {
   const journal = yield* Journal.Journal
-  return yield* journal.emit({
+  return yield* journal.emitDurable({
     runId: "run-1" as JournalEvent.RunId,
     sourceId: "engine" as JournalEvent.SourceId,
     eventType: "run.created",
@@ -57,6 +69,13 @@ const program = Effect.gen(function*() {
 `Seq` is canonical per-run replay order; `SourceSeq` identifies producer
 retries. Rejected and dropped admissions may consume either sequence, so gaps
 are valid.
+
+`RunStore`, `AttemptStore`, and `CacheStore` (with `DurableEngineState` in
+`@smithers/engine-store`) hold the executable authoritative state today; it is
+not derived from journal entries, and a state transition commits in a separate
+transaction from the lifecycle entry describing it. That crash-consistency
+window is a known production blocker for audit, sync, and time travel — see
+[implementation status](../../docs/architecture/implementation-status.md).
 
 See the [journal reference](../../docs/reference/journal.md),
 [Journal Queue](../../../docs/specs/Concepts/Journal%20Queue.md), and

@@ -40,6 +40,15 @@ const program = Effect.gen(function*() {
 `DurableEngineState`, `StepBoundary`, `Jj`, and `Scope`. Run migrations before
 using the SQL-backed durable state.
 
+`RunStore`, `AttemptStore`, `CacheStore`, and `DurableEngineState` are the
+executable authorities today. Lifecycle events use `emitDurable` and block
+until committed, but the state transition and event insert are separate
+transactions. A crash between them can leave audit, sync, and time-travel
+history incomplete; closing that gap by deriving state from the logical WAL or
+committing each projection with its entry is a production blocker. No local WAL
+makes a remote effect atomic, so external effects still need idempotency keys,
+fencing, or compensation.
+
 See the [engine-store reference](../../docs/reference/engine-store.md),
 [Run Ownership](../../../docs/specs/Concepts/Run%20Ownership.md),
 [Step Keys](../../../docs/specs/Concepts/Step%20Keys.md), and

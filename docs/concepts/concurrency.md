@@ -46,7 +46,7 @@ The protocols reject mismatched owners and stale snapshots. They do not provide 
 
 ## Journal admission
 
-The SQL journal queue uses optimistic, non-blocking admission. `Journal.emit` can return an `Accepted` receipt before the batch is flushed durably. Capacity limits bound queued events and bytes; excess input is rejected instead of waiting indefinitely.
+The SQL journal queue provides optimistic, non-blocking admission. `emitLossy` uses it for telemetry, where loss is acceptable; transitional ownerless `emit` under default in-memory allocation also uses it, but an authoritative caller must `flush` and fail closed before acting. Capacity limits bound queued events and bytes; excess input is rejected instead of waiting indefinitely. Engine-store lifecycle events use `emitDurable`, which commits inline and blocks until it does.
 
 Sequence allocation may produce holes when a reserved event is rejected or a transaction fails. Consumers must treat sequence numbers as ordered cursors, not contiguous counters.
 
