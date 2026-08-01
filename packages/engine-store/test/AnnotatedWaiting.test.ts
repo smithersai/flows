@@ -66,11 +66,14 @@ describe("annotated waiting reasons reach the parked row (issue #31)", () => {
 
     const result = await withEngine((engine, store, state) =>
       Effect.gen(function*() {
-        yield* engine.register(ApprovalFlow as never, (() =>
-          Effect.gen(function*() {
-            yield* FlowEngine.annotateWaiting({ reason: "approval", token: "request-42" })
-            return yield* Effect.map(DurableDeferred.await(gate), (value) => `approved:${value}`)
-          })) as never)
+        yield* engine.register(
+          ApprovalFlow as never,
+          (() =>
+            Effect.gen(function*() {
+              yield* FlowEngine.annotateWaiting({ reason: "approval", token: "request-42" })
+              return yield* Effect.map(DurableDeferred.await(gate), (value) => `approved:${value}`)
+            })) as never
+        )
         yield* engine.execute(ApprovalFlow as never, {
           executionId: "annotated-approval",
           payload: {},
@@ -94,7 +97,8 @@ describe("annotated waiting reasons reach the parked row (issue #31)", () => {
         const finished = yield* store.get("annotated-approval")
         const afterWake = yield* state.waiting("annotated-approval")
         return { parked, approvalSweep, finished, afterWake }
-      }))
+      })
+    )
 
     expect(Option.isSome(result.parked)).toBe(true)
     if (Option.isSome(result.parked)) {
@@ -115,11 +119,14 @@ describe("annotated waiting reasons reach the parked row (issue #31)", () => {
 
     const result = await withEngine((engine, _store, state) =>
       Effect.gen(function*() {
-        yield* engine.register(QuotaFlow as never, (() =>
-          Effect.gen(function*() {
-            yield* FlowEngine.annotateWaiting({ reason: "quota", wakeAt: 60_000 })
-            return yield* Effect.map(DurableDeferred.await(gate), (value) => value)
-          })) as never)
+        yield* engine.register(
+          QuotaFlow as never,
+          (() =>
+            Effect.gen(function*() {
+              yield* FlowEngine.annotateWaiting({ reason: "quota", wakeAt: 60_000 })
+              return yield* Effect.map(DurableDeferred.await(gate), (value) => value)
+            })) as never
+        )
         yield* engine.execute(QuotaFlow as never, {
           executionId: "annotated-quota",
           payload: {},
@@ -128,7 +135,8 @@ describe("annotated waiting reasons reach the parked row (issue #31)", () => {
         return {
           due: yield* state.waitingRuns({ reason: "quota", dueBeforeMs: 100_000 })
         }
-      }))
+      })
+    )
 
     expect(result.due).toEqual([
       { runId: "annotated-quota", reason: "quota", wakeAt: 60_000, token: null }

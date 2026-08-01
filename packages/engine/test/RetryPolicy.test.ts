@@ -146,9 +146,11 @@ describe("expiration (issue #36)", () => {
         const result = yield* Fiber.join(fiber)
         return result._tag === "Complete" ? result.exit : Exit.succeed("suspended" as never)
       }).pipe(
-        Effect.provide(flow.toLayer(() => Effect.succeed(0)).pipe(
-          Layer.provideMerge(FlowEngine.layerMemory)
-        )),
+        Effect.provide(
+          flow.toLayer(() => Effect.succeed(0)).pipe(
+            Layer.provideMerge(FlowEngine.layerMemory)
+          )
+        ),
         Effect.provideService(
           FlowEngine.FlowInstance,
           FlowEngine.FlowInstance.initial(flow, "retry-policy-expires")
@@ -490,6 +492,39 @@ describe("engine retry decision point", () => {
       expect(Schema.is(RetryPolicy.RetryAttemptsExhausted)(error)).toBe(true)
       expect((error as RetryPolicy.RetryAttemptsExhausted).attempt).toBe(3)
       expect((error as RetryPolicy.RetryAttemptsExhausted).maxAttempts).toBe(3)
+      // the terminal operation failure is not discarded by the exhaustion
+      // wrapper: callers can still recover the error that actually ended the
+      // retry sequence (Temporal `retry_test.go:222` parity)
+      // it is stored in its *encoded* form so the defect stays serializable
+      const last = (error as RetryPolicy.RetryAttemptsExhausted).lastError
+      expect(last).toEqual({ _tag: "RetryPolicy/Flaky" })
+    }))
+
+  effect("the exhaustion defect carries the *final* failure, not the first one", () =>
+    Effect.gen(function*() {
+      let attempts = 0
+      const activity = Activity.make({
+        name: "RetryPolicy/exhausted-last-error",
+        success: Schema.Void,
+        error: Schema.String,
+        retryPolicy: RetryPolicy.make({
+          initialMs: 100,
+          factor: 1,
+          maxMs: 100,
+          maxAttempts: 3
+        }),
+        execute: Effect.suspend(() => Effect.fail(`failure-${++attempts}`))
+      })
+      const fiber = yield* activity.pipe(Effect.exit, Effect.forkChild)
+      yield* Effect.yieldNow
+      yield* TestClock.adjust(300)
+      const exit = yield* Fiber.join(fiber)
+      const defect = Exit.isFailure(exit)
+        ? exit.cause.reasons.find((reason) => reason._tag === "Die")
+        : undefined
+      const error = (defect as { defect: unknown }).defect as RetryPolicy.RetryAttemptsExhausted
+      expect(attempts).toBe(3)
+      expect(error.lastError).toBe("failure-3")
     }))
 
   effect(

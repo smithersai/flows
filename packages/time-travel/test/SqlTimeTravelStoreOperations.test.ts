@@ -66,11 +66,13 @@ describe("SqlTimeTravelStore.snapshotAt", () => {
   it("returns the newest snapshot at or before the frame, scoped to one lineage", async () => {
     const result = await run((store, sql) =>
       Effect.gen(function*() {
-        for (const row of [
-          { lineage: "main", seq: 0, changeId: "c0" },
-          { lineage: "main", seq: 5, changeId: "c5" },
-          { lineage: "other", seq: 7, changeId: "x7" }
-        ]) {
+        for (
+          const row of [
+            { lineage: "main", seq: 0, changeId: "c0" },
+            { lineage: "main", seq: 5, changeId: "c5" },
+            { lineage: "other", seq: 7, changeId: "x7" }
+          ]
+        ) {
           yield* sql`
             INSERT INTO flows_time_travel_snapshots (run_id, lineage_id, seq, change_id)
             VALUES ('run', ${row.lineage}, ${row.seq}, ${row.changeId})
@@ -299,7 +301,9 @@ describe("SqlTimeTravelStore.createFork", () => {
     it(`refuses to fork when the parent ${scenario.name}`, async () => {
       const error = await run((store, sql) =>
         Effect.gen(function*() {
-          yield* scenario.running ? insertRunningRun(sql, "parent") : insertRun(sql, "parent", { claimHostId: "host-b" })
+          yield* scenario.running
+            ? insertRunningRun(sql, "parent")
+            : insertRun(sql, "parent", { claimHostId: "host-b" })
           return yield* Effect.flip(store.createFork("parent", { lineageId: "main", seq: 0 }))
         })
       )

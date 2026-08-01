@@ -112,7 +112,8 @@ describe("compensable snapshot boundary", () => {
     })
     const boundary = FlowEngine.SnapshotBoundary.of({
       snapshot: (options) => Effect.sync(() => (events.push(`snapshot:${options.attempt}`), "snap")),
-      restore: (snapshot, options) => Effect.sync(() => void events.push(`restore:${String(snapshot)}:${options.attempt}`)),
+      restore: (snapshot, options) =>
+        Effect.sync(() => void events.push(`restore:${String(snapshot)}:${options.attempt}`)),
       diff: (snapshot, options) =>
         Effect.sync(() => {
           events.push(`diff:${String(snapshot)}:${options.attempt}`)

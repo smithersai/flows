@@ -501,7 +501,7 @@ const boundaryHermetic = (
   }
   return {
     readSet,
-    writeSet: candidate.writeSet as ReadonlyArray<string>,
+    writeSet: candidate.writeSet,
     boundaryMode: candidate.boundaryMode
   }
 }

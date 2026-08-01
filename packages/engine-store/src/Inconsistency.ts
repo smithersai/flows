@@ -95,23 +95,26 @@ export interface MakeOptions {
 export const make = (options: MakeOptions): Service => ({
   note: Effect.fn("Inconsistency.note")((event) =>
     Effect.as(
-      options.journal.emitDurable(JournalRecords.cacheConflict(
-        { runId: event.attempted.recordedRunId, sourceId: "flows/engine-store/inconsistency" },
-        {
-          key: event.key,
-          verdict: options.verdict,
-          existing: event.existing === undefined ? null : {
-            recordedRunId: event.existing.recordedRunId,
-            recordedEventSeq: event.existing.recordedEventSeq,
-            createdAtMs: event.existing.createdAtMs
-          },
-          attempted: {
-            recordedRunId: event.attempted.recordedRunId,
-            recordedEventSeq: event.attempted.recordedEventSeq,
-            createdAtMs: event.attempted.createdAtMs
+      options.journal.emitDurable(
+        JournalRecords.cacheConflict(
+          { runId: event.attempted.recordedRunId, sourceId: "flows/engine-store/inconsistency" },
+          {
+            key: event.key,
+            verdict: options.verdict,
+            existing: event.existing === undefined ? null : {
+              recordedRunId: event.existing.recordedRunId,
+              recordedEventSeq: event.existing.recordedEventSeq,
+              createdAtMs: event.existing.createdAtMs
+            },
+            attempted: {
+              recordedRunId: event.attempted.recordedRunId,
+              recordedEventSeq: event.attempted.recordedEventSeq,
+              createdAtMs: event.attempted.createdAtMs
+            }
           }
-        }
-      ), options.owner),
+        ),
+        options.owner
+      ),
       options.verdict
     )
   )

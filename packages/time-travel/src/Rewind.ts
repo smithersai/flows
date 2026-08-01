@@ -594,9 +594,7 @@ export const rewind = (
               // still owns that residue and has to name it.
               const residue = cancelledChildren.length === 0
                 ? ""
-                : `; ${cancelledChildren.length} detached child run(s) stay cancelled: ${
-                  cancelledChildren.join(", ")
-                }`
+                : `; ${cancelledChildren.length} detached child run(s) stay cancelled: ${cancelledChildren.join(", ")}`
               detail = {
                 ...detail,
                 phase: rollbackFailure === undefined ? "rolled_back" : "terminal_failure",

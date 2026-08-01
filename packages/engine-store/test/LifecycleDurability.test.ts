@@ -74,19 +74,23 @@ const droppingLossy = (real: Journal.Service): Journal.Service =>
     emit: (input, owner) =>
       owner !== undefined
         ? real.emit(input, owner)
-        : Effect.succeed({
+        : Effect.succeed(
+          {
+            _tag: "Dropped",
+            seq: 0 as JournalEvent.Seq,
+            sourceSeq: 0 as JournalEvent.SourceSeq,
+            policy: "drop-newest"
+          } as const
+        ),
+    emitLossy: () =>
+      Effect.succeed(
+        {
           _tag: "Dropped",
           seq: 0 as JournalEvent.Seq,
           sourceSeq: 0 as JournalEvent.SourceSeq,
           policy: "drop-newest"
-        } as const),
-    emitLossy: () =>
-      Effect.succeed({
-        _tag: "Dropped",
-        seq: 0 as JournalEvent.Seq,
-        sourceSeq: 0 as JournalEvent.SourceSeq,
-        policy: "drop-newest"
-      } as const)
+        } as const
+      )
   })
 
 const activate = (runId: string, owner: Ownership.OwnerId) =>

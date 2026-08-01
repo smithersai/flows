@@ -74,10 +74,12 @@ describe("Shell facade", () => {
     const chunks = await Effect.runPromise(Stream.runCollect(shell.stream("anything")))
     const decoder = new TextDecoder()
 
-    expect(Array.from(chunks).map((chunk) => ({
-      kind: chunk.kind,
-      text: decoder.decode(chunk.chunk)
-    }))).toEqual([
+    expect(
+      Array.from(chunks).map((chunk) => ({
+        kind: chunk.kind,
+        text: decoder.decode(chunk.chunk)
+      }))
+    ).toEqual([
       { kind: "stdout", text: "out" },
       { kind: "stderr", text: "err" }
     ])

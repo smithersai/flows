@@ -175,6 +175,67 @@ describe("DurableDeferred", () => {
     }).pipe(Effect.provide(layer))
   })
 
+  effect("a recorded interruption is a terminal outcome, not a request to suspend", () => {
+    const { flow, layer } = makeFlow(
+      "DurableDeferred/await-interrupt",
+      DurableDeferred.await(Gate)
+    )
+    return Effect.gen(function*() {
+      const executionId = yield* flow.execute({ id: "int" }, { discard: true })
+      yield* Effect.yieldNow
+      const token = yield* completeToken(Gate, flow, executionId)
+      yield* DurableDeferred.failCause(Gate, { token, cause: Cause.interrupt(1) })
+
+      // an interrupt-only cause must terminate the run; if it were mistaken for
+      // an external suspension interrupt the run would spin in suspended-retry
+      const result = yield* pollComplete(flow.poll(executionId))
+      expect(Option.isSome(result) && result.value._tag).toBe("Complete")
+      if (Option.isSome(result) && result.value._tag === "Complete") {
+        expect(Exit.isFailure(result.value.exit)).toBe(true)
+        if (Exit.isFailure(result.value.exit)) {
+          expect(Cause.hasInterruptsOnly(result.value.exit.cause)).toBe(true)
+        }
+      }
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("into drops interrupt reasons from a mixed cause and records the failure", () => {
+    const Mixed = DurableDeferred.make("DurableDeferred/Mixed", {
+      success: Schema.Number,
+      error: Schema.String
+    })
+    const flow = Flow.make("DurableDeferred/into-mixed", {
+      payload: { id: Schema.String },
+      success: Schema.String,
+      idempotencyKey: ({ id }) => id
+    })
+    const mixedCause = Cause.fromReasons<string>([
+      ...Cause.fail("boom").reasons,
+      ...Cause.interrupt(7).reasons
+    ])
+    const layer = flow.toLayer(() =>
+      Effect.gen(function*() {
+        const engine = yield* FlowEngine.FlowEngine
+        yield* DurableDeferred.into(
+          Effect.failCause(mixedCause) as Effect.Effect<number, string>,
+          Mixed
+        ).pipe(Effect.exit)
+        const persisted = yield* engine.deferredResult(Mixed)
+        expect(Option.isSome(persisted)).toBe(true)
+        if (Option.isNone(persisted)) return "missing"
+        const exit = persisted.value as Exit.Exit<number, string>
+        expect(Exit.isFailure(exit)).toBe(true)
+        if (!Exit.isFailure(exit)) return "not-a-failure"
+        // the interrupt reason is stripped; only the typed failure is durable
+        expect(exit.cause.reasons.some(Cause.isInterruptReason)).toBe(false)
+        return String(exit.cause.reasons.find(Cause.isFailReason)?.error)
+      })
+    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+    return Effect.gen(function*() {
+      expect(yield* flow.execute({ id: "mixed" })).toBe("boom")
+    }).pipe(Effect.provide(layer))
+  })
+
   effect("the first completion wins and later completions are ignored", () => {
     const { flow, layer } = makeFlow(
       "DurableDeferred/first-wins",
@@ -282,6 +343,49 @@ describe("DurableDeferred", () => {
     }).pipe(Effect.provide(layer))
   })
 
+  effect("raceAll over durable waits settles on the one branch that resolves", () => {
+    const Fast = DurableDeferred.make("DurableDeferred/Race/Fast", { success: Schema.String })
+    const Slow = DurableDeferred.make("DurableDeferred/Race/Slow", { success: Schema.String })
+    const flow = Flow.make("DurableDeferred/race-partial", {
+      payload: { id: Schema.String },
+      success: Schema.String,
+      idempotencyKey: ({ id }) => id
+    })
+    const layer = flow.toLayer(() =>
+      DurableDeferred.raceAll({
+        name: "either",
+        success: Schema.String,
+        error: Schema.Never,
+        effects: [DurableDeferred.await(Fast), DurableDeferred.await(Slow)]
+      })
+    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+    return Effect.gen(function*() {
+      const executionId = yield* flow.execute({ id: "rp" }, { discard: true })
+      yield* Effect.yieldNow
+      // neither branch has a result yet, so the race itself is suspended
+      const suspended = yield* pollSuspended(flow.poll(executionId))
+      expect(Option.isSome(suspended) && suspended.value._tag).toBe("Suspended")
+
+      const tokenSlow = DurableDeferred.tokenFromExecutionId(Slow, { flow, executionId })
+      yield* DurableDeferred.succeed(Slow, { token: tokenSlow, value: "slow" })
+      const result = yield* pollComplete(flow.poll(executionId))
+      expect(Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)).toBe(true)
+      if (Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)) {
+        expect(result.value.exit.value).toBe("slow")
+      }
+
+      // a late completion of the losing branch cannot change the settled race
+      const tokenFast = DurableDeferred.tokenFromExecutionId(Fast, { flow, executionId })
+      yield* DurableDeferred.succeed(Fast, { token: tokenFast, value: "fast" })
+      yield* Effect.yieldNow
+      const settled = yield* flow.poll(executionId)
+      expect(
+        Option.isSome(settled) && settled.value._tag === "Complete" && Exit.isSuccess(settled.value.exit) &&
+          settled.value.exit.value
+      ).toBe("slow")
+    }).pipe(Effect.provide(layer))
+  })
+
   effect("withActivityAttempt scopes the deferred name to the current attempt", () =>
     Effect.gen(function*() {
       const scoped = yield* Gate.withActivityAttempt
@@ -291,6 +395,50 @@ describe("DurableDeferred", () => {
       )
       expect(retryScoped.name).toBe(`${Gate.name}/3`)
     }))
+
+  effect("concurrently awaited deferreds resume only once every branch has a result", () => {
+    const A = DurableDeferred.make("DurableDeferred/Concurrent/A", { success: Schema.String })
+    const B = DurableDeferred.make("DurableDeferred/Concurrent/B", { success: Schema.String })
+    let bodies = 0
+    const flow = Flow.make("DurableDeferred/concurrent", {
+      payload: { id: Schema.String },
+      success: Schema.String,
+      idempotencyKey: ({ id }) => id
+    })
+    const layer = flow.toLayer(() =>
+      Effect.gen(function*() {
+        bodies++
+        const [a, b] = yield* Effect.all(
+          [DurableDeferred.await(A), DurableDeferred.await(B)],
+          { concurrency: "unbounded" }
+        )
+        return `${a}+${b}`
+      })
+    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+    return Effect.gen(function*() {
+      const executionId = yield* flow.execute({ id: "c" }, { discard: true })
+      yield* Effect.yieldNow
+      expect(Option.isSome(yield* flow.poll(executionId))).toBe(true)
+
+      // resolving one branch of the concurrent pair is a *partial* frontier:
+      // the flow re-runs, records A's result, and suspends again on B
+      const tokenA = DurableDeferred.tokenFromExecutionId(A, { flow, executionId })
+      yield* DurableDeferred.succeed(A, { token: tokenA, value: "a" })
+      const partial = yield* pollSuspended(flow.poll(executionId))
+      expect(Option.isSome(partial) && partial.value._tag).toBe("Suspended")
+
+      const tokenB = DurableDeferred.tokenFromExecutionId(B, { flow, executionId })
+      yield* DurableDeferred.succeed(B, { token: tokenB, value: "b" })
+      const result = yield* pollComplete(flow.poll(executionId))
+      expect(Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)).toBe(true)
+      if (Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)) {
+        expect(result.value.exit.value).toBe("a+b")
+      }
+      // one body run per resolution plus the initial attempt: resumption is
+      // bounded by how many times the frontier advanced, not by branch count
+      expect(bodies).toBe(3)
+    }).pipe(Effect.provide(layer))
+  })
 
   effect("independent deferreds resume the flow as each one resolves", () => {
     const A = DurableDeferred.make("DurableDeferred/Parallel/A", { success: Schema.String })

@@ -68,8 +68,10 @@ describe("cancel requests reach parked runs (issue #27)", () => {
 
     const result = await withEngine((engine, store, state) =>
       Effect.gen(function*() {
-        yield* engine.register(EventFlow as never, (() =>
-          Effect.map(DurableDeferred.await(gate), (value) => `gated:${value}`)) as never)
+        yield* engine.register(
+          EventFlow as never,
+          (() => Effect.map(DurableDeferred.await(gate), (value) => `gated:${value}`)) as never
+        )
         yield* engine.execute(EventFlow as never, {
           executionId: "cancel-parked-sweep",
           payload: {},
@@ -92,7 +94,8 @@ describe("cancel requests reach parked runs (issue #27)", () => {
         const waitingAfterCancel = yield* state.waiting("cancel-parked-sweep")
         const sweepAfterCancel = yield* state.waitingRuns()
         return { suspendedStatus: suspended.status, row, waitingAfterCancel, sweepAfterCancel }
-      }))
+      })
+    )
 
     expect(result.suspendedStatus).toBe("suspended")
     expect(result.row.status).toBe("cancelled")
@@ -111,12 +114,15 @@ describe("cancel requests reach parked runs (issue #27)", () => {
 
     const result = await withEngine((engine, store) =>
       Effect.gen(function*() {
-        yield* engine.register(EventFlow as never, (() =>
-          Effect.sync(() => {
-            bodyRuns += 1
-          }).pipe(
-            Effect.andThen(Effect.map(DurableDeferred.await(gate), (value) => `gated:${value}`))
-          )) as never)
+        yield* engine.register(
+          EventFlow as never,
+          (() =>
+            Effect.sync(() => {
+              bodyRuns += 1
+            }).pipe(
+              Effect.andThen(Effect.map(DurableDeferred.await(gate), (value) => `gated:${value}`))
+            )) as never
+        )
         yield* engine.execute(EventFlow as never, {
           executionId: "cancel-parked-resume",
           payload: {},
@@ -136,7 +142,8 @@ describe("cancel requests reach parked runs (issue #27)", () => {
         })
         const row = yield* store.get("cancel-parked-resume")
         return { runsAfterSuspend, bodyRuns, row }
-      }))
+      })
+    )
 
     expect(result.runsAfterSuspend).toBe(1)
     expect(result.bodyRuns).toBe(1)

@@ -27,28 +27,28 @@ const makeJournal = (events: Array<string>) =>
       readonly sourceSeq: JournalEvent.SourceSeq
     }>()
     const record = (input: JournalEvent.Input, channel: string) =>
-        Effect.sync(() => {
-          const sourceSeq = input.sourceSeq ?? 0 as JournalEvent.SourceSeq
-          const key = JSON.stringify([input.runId, input.sourceId, sourceSeq])
-          const existing = admissions.get(key)
-          if (existing !== undefined) {
-            return {
-              _tag: "Duplicate" as const,
-              ...existing,
-              status: "committed" as const
-            }
-          }
-          const row = {
-            seq: admissions.size as JournalEvent.Seq,
-            sourceSeq
-          }
-          admissions.set(key, row)
-          events.push(`${channel}:${input.eventType}`)
+      Effect.sync(() => {
+        const sourceSeq = input.sourceSeq ?? 0 as JournalEvent.SourceSeq
+        const key = JSON.stringify([input.runId, input.sourceId, sourceSeq])
+        const existing = admissions.get(key)
+        if (existing !== undefined) {
           return {
-            _tag: "Accepted" as const,
-            ...row
+            _tag: "Duplicate" as const,
+            ...existing,
+            status: "committed" as const
           }
-        })
+        }
+        const row = {
+          seq: admissions.size as JournalEvent.Seq,
+          sourceSeq
+        }
+        admissions.set(key, row)
+        events.push(`${channel}:${input.eventType}`)
+        return {
+          _tag: "Accepted" as const,
+          ...row
+        }
+      })
     return Journal.makeNoop({
       emit: (input) => record(input, "emit"),
       emitDurable: (input) => record(input, "emit"),

@@ -14,8 +14,8 @@ import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
-import * as Semaphore from "effect/Semaphore"
 import type * as Scope from "effect/Scope"
+import * as Semaphore from "effect/Semaphore"
 import * as DurableEngineState from "../DurableEngineState.ts"
 import * as JournalRecords from "./JournalRecords.ts"
 
@@ -364,9 +364,7 @@ export const make = (
       store.get(runId).pipe(
         Effect.map((row) => row.cancelRequestedAtMs !== null),
         Effect.catch(() => Effect.succeed(false)),
-        Effect.flatMap((requested) =>
-          requested ? cancelOwned(runId, state) : releaseOwned(runId, state)
-        )
+        Effect.flatMap((requested) => requested ? cancelOwned(runId, state) : releaseOwned(runId, state))
       )
 
     const coordinatorDeferred = yield* Deferred.make<RunCoordinator.RunCoordinator<string, never>>()

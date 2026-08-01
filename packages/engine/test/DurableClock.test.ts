@@ -1,7 +1,7 @@
 import { Duration, Effect, Exit, Layer, Option, Schema } from "effect"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
-import { Activity, DurableClock, Flow, FlowEngine } from "../src/index.ts"
+import { Activity, DurableClock, DurableDeferred, Flow, FlowEngine } from "../src/index.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, never>) =>
   it(name, () => Effect.runPromise(body().pipe(Effect.provide(TestClock.layer()))))
@@ -177,6 +177,46 @@ describe("DurableClock", () => {
       if (Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)) {
         expect(result.value.exit.value).toBe(1)
       }
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("an early wake wins the race against the armed timer, which then fires into a no-op", () => {
+    const flow = Flow.make("DurableClock/early-wake", {
+      payload: { id: Schema.String },
+      success: Schema.Number,
+      idempotencyKey: ({ id }) => id
+    })
+    let bodiesPastSleep = 0
+    const layer = flow.toLayer(() =>
+      Effect.gen(function*() {
+        yield* DurableClock.sleep({
+          name: "wakeable",
+          duration: "10 minutes",
+          inMemoryThreshold: "1 second"
+        })
+        return ++bodiesPastSleep
+      })
+    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+    return Effect.gen(function*() {
+      const executionId = yield* flow.execute({ id: "e" }, { discard: true })
+      yield* TestClock.adjust("1 minute")
+      expect(Option.isSome(yield* flow.poll(executionId))).toBe(true)
+
+      const clock = DurableClock.make({ name: "wakeable", duration: "10 minutes" })
+      const token = DurableDeferred.tokenFromExecutionId(clock.deferred, { flow, executionId })
+      yield* DurableDeferred.succeed(clock.deferred, { token, value: undefined })
+
+      const woken = yield* pollComplete(flow.poll(executionId))
+      expect(Option.isSome(woken) && woken.value._tag).toBe("Complete")
+      expect(bodiesPastSleep).toBe(1)
+
+      // the timer still fires at its original deadline; it must not resume the
+      // already-completed flow or overwrite the recorded wake
+      yield* TestClock.adjust("10 minutes")
+      yield* Effect.yieldNow
+      const settled = yield* flow.poll(executionId)
+      expect(Option.isSome(settled) && settled.value._tag).toBe("Complete")
+      expect(bodiesPastSleep).toBe(1)
     }).pipe(Effect.provide(layer))
   })
 
