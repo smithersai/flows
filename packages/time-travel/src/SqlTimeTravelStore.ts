@@ -15,8 +15,14 @@ export const migrate: Effect.Effect<void, unknown, Database> = Effect.gen(functi
   yield* sql`CREATE TABLE IF NOT EXISTS flows_time_travel_edges (parent_run_id TEXT NOT NULL, parent_seq INTEGER NOT NULL, child_run_id TEXT NOT NULL UNIQUE, kind TEXT NOT NULL, attached INTEGER NOT NULL)`
   yield* sql`CREATE TABLE IF NOT EXISTS flows_time_travel_archive (run_id TEXT NOT NULL, seq INTEGER NOT NULL, event_id TEXT NOT NULL, source_id TEXT NOT NULL, source_seq INTEGER NOT NULL, emitted_at_ms INTEGER NOT NULL, event_type TEXT NOT NULL, payload_json TEXT NOT NULL, meta_json TEXT NOT NULL, archived_at_ms INTEGER NOT NULL, PRIMARY KEY (run_id, seq))`
 })
-const decode = (value: string | null): unknown | undefined => value === null ? undefined : JSON.parse(value) as unknown
 const mapError = (cause: unknown) => error("unknown", "time-travel persistence failed", cause)
+const decode = (value: string | null) =>
+  value === null
+    ? Effect.succeed(undefined)
+    : Effect.try({
+      try: () => JSON.parse(value) as unknown,
+      catch: mapError
+    })
 
 const restartableStateJson = (stateJson: string) =>
   Effect.try({
@@ -145,13 +151,15 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, Database> = Eff
           >`SELECT * FROM flows_time_travel_audits WHERE id = ${id}`
           if (rows[0] === undefined) return yield* Effect.fail(error("not_found", `audit ${id} was not found`))
           const row = rows[0]
+          const rateLimit = yield* decode(row.rate_limit_json)
+          const detail = yield* decode(row.detail_json)
           const audit = {
             id: row.id,
             runId: row.run_id,
             frame: { lineageId: row.lineage_id, seq: row.seq },
             status: row.status,
-            rateLimit: decode(row.rate_limit_json),
-            detail: decode(row.detail_json)
+            rateLimit,
+            detail
           }
           const next = { ...audit, ...patch }
           yield* sql`UPDATE flows_time_travel_audits SET status = ${next.status}, rate_limit_json = ${
@@ -172,15 +180,20 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, Database> = Eff
           readonly detail_json: string | null
         }
       >`SELECT * FROM flows_time_travel_audits WHERE status = 'in_progress'`.pipe(
-        Effect.map((rows) =>
-          rows.map((row) => ({
-            id: row.id,
-            runId: row.run_id,
-            frame: { lineageId: row.lineage_id, seq: row.seq },
-            status: row.status,
-            rateLimit: decode(row.rate_limit_json),
-            detail: decode(row.detail_json)
-          }))
+        Effect.flatMap((rows) =>
+          Effect.forEach(rows, (row) =>
+            Effect.gen(function*() {
+              const rateLimit = yield* decode(row.rate_limit_json)
+              const detail = yield* decode(row.detail_json)
+              return {
+                id: row.id,
+                runId: row.run_id,
+                frame: { lineageId: row.lineage_id, seq: row.seq },
+                status: row.status,
+                rateLimit,
+                detail
+              }
+            }))
         ),
         Effect.mapError(mapError)
       )

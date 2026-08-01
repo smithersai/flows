@@ -344,7 +344,7 @@ describe("Retry", () => {
               })
           }),
           cache(Option.none()),
-          Jj.makeNoop()
+          Jj.makeNoop({})
         )
       )
     )

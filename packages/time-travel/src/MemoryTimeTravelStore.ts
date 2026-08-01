@@ -98,6 +98,7 @@ export const make = (options: Options = {}): TimeTravelStore.Service & { readonl
     Effect.try({
       try: () => {
         const before = state()
+        const beforeSequence = sequence
         try {
           return body()
         } catch (cause) {
@@ -109,6 +110,7 @@ export const make = (options: Options = {}): TimeTravelStore.Service & { readonl
           snapshots = [...before.snapshots]
           liveRuns.clear()
           for (const runId of before.liveRuns) liveRuns.add(runId)
+          sequence = beforeSequence
           throw cause
         }
       },

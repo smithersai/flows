@@ -129,6 +129,41 @@ describe("truncation", () => {
     }
   })
 
+  for (const failAt of ["writeAudit", "updateAudit"] as const) {
+    it(`rolls back the ${failAt} in-memory persistence fault`, async () => {
+      const store = Memory.make({ failAt })
+      if (failAt === "updateAudit") {
+        await Effect.runPromise(
+          store.writeAudit({
+            id: "audit",
+            runId: "parent",
+            frame: { lineageId: "parent/root", seq: 0 },
+            status: "in_progress"
+          })
+        )
+      }
+      const before = store.state()
+      const failure = await Effect.runPromise(
+        Effect.flip(
+          failAt === "writeAudit"
+            ? store.writeAudit({
+              id: "audit",
+              runId: "parent",
+              frame: { lineageId: "parent/root", seq: 0 },
+              status: "in_progress"
+            })
+            : store.updateAudit("audit", { status: "completed" })
+        )
+      )
+
+      expect(failure).toMatchObject({
+        code: "unknown",
+        message: `injected failure at ${failAt}`
+      })
+      expect(store.state()).toEqual(before)
+    })
+  }
+
   it("reports a missing audit without changing the stored audit history", async () => {
     const store = Memory.make()
     const failure = await Effect.runPromise(Effect.flip(store.updateAudit("missing", { status: "failed" })))
@@ -159,5 +194,36 @@ describe("truncation", () => {
 
     expect(failure).toMatchObject({ code: "unknown", message: "memory transaction failed" })
     expect(store.state()).toEqual(before)
+  })
+
+  it("does not consume a fork identity when an in-memory transaction rolls back", async () => {
+    let reads = 0
+    const flaky = {
+      runId: "parent",
+      seq: 0,
+      eventId: "parent-0",
+      lineageId: "parent/root",
+      payload: null
+    }
+    Object.defineProperty(flaky, "runId", {
+      enumerable: true,
+      get: () => {
+        reads += 1
+        if (reads === 1) throw new Error("transient record read failure")
+        return "parent"
+      }
+    })
+    const store = Memory.make({ records: [flaky] })
+
+    const failure = await Effect.runPromise(
+      Effect.flip(store.createFork("parent", { lineageId: "parent/root", seq: 0 }))
+    )
+    const fork = await Effect.runPromise(
+      store.createFork("parent", { lineageId: "parent/root", seq: 0 })
+    )
+
+    expect(failure).toMatchObject({ code: "unknown", message: "memory transaction failed" })
+    expect(fork.runId).toBe("parent:fork:1")
+    expect(store.state().edges).toEqual([fork.edge])
   })
 })

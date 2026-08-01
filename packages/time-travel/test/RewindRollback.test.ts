@@ -287,6 +287,46 @@ describe("Rewind rollback parity row 4", () => {
 })
 
 describe("Rewind protocol fault matrix", () => {
+  for (
+    const scenario of [
+      { failAt: "writeAudit", auditStatus: undefined },
+      { failAt: "updateAudit", auditStatus: "in_progress" },
+      { failAt: "archiveAndTruncate:commit", auditStatus: "failed" }
+    ] as const
+  ) {
+    it(`restores ownership and history after the ${scenario.failAt} store fault`, async () => {
+      const initialRecords = [stored(0, "baseline", {}), stored(1, "suffix", {})]
+      const store = MemoryTimeTravelStore.make({ records: initialRecords, failAt: scenario.failAt })
+      const runs = makeRuns(runRow())
+
+      const failure = await Effect.runPromise(
+        Effect.flip(
+          provide(
+            Rewind.rewind({
+              runId: "run",
+              frame,
+              owner,
+              auditId: `audit-${scenario.failAt}`
+            }),
+            { store, runs, jj: makeJj().service }
+          )
+        )
+      )
+
+      expect(failure).toMatchObject({
+        code: "unknown",
+        message: `injected failure at ${scenario.failAt}`
+      })
+      expect(runs.state()).toEqual(runRow())
+      expect(store.state().records).toEqual(initialRecords)
+      expect(store.state().archived).toEqual([])
+      expect(store.state().receipts).toEqual([])
+      expect(store.state().audits.map((audit) => audit.status)).toEqual(
+        scenario.auditStatus === undefined ? [] : [scenario.auditStatus]
+      )
+    })
+  }
+
   it("fails a journal read, rolls ownership back, and records the audit failure", async () => {
     const store = MemoryTimeTravelStore.make({ records: records() })
     const runs = makeRuns(runRow())

@@ -116,7 +116,10 @@ describe("SQL fork execution", () => {
         created.states.find((row) => row.run_id === "fork-parent")!.state_json
       ) as Record<string, unknown>
       expect(created.parentResult).toBe("activity-result")
-      expect(parentState.result).toBeDefined()
+      expect(parentState.result).toEqual({
+        _tag: "Complete",
+        exit: { _tag: "Success", value: "activity-result" }
+      })
       expect(childState).toMatchObject({
         version: 1,
         flowName: ForkFlow._tag,

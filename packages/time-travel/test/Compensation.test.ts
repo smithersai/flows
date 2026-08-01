@@ -47,7 +47,7 @@ const registryOf = (handlers: Parameters<typeof EffectHandlerRegistry.make>[0]) 
     Effect.runSync(EffectHandlerRegistry.make(handlers))
   )
 
-const jjOf = (overrides: Partial<Jj.Jj["Service"]> = {}) => Layer.succeed(Jj.Jj, Jj.makeNoop(overrides))
+const jjOf = (overrides: Partial<Jj.Jj> = {}) => Layer.succeed(Jj.Jj, Jj.makeNoop(overrides))
 
 describe("Compensation.assess", () => {
   it("blocks a sealed effect that never recorded a cache key", async () => {
@@ -89,7 +89,7 @@ describe("Compensation.assess", () => {
       Effect.flip(
         Compensation.assess([record({ id: "seal", kind: "read", tier: "sealed", seq: 1, cacheKey: "digest" })])
           .pipe(
-            Effect.provide(cache({ get: () => Effect.fail(error("unknown", "cache down")) })),
+            Effect.provide(cache({ get: () => Effect.fail(new CacheStore.CacheStoreError({ code: "unknown", message: "cache down" })) })),
             Effect.provide(registryOf([]))
           )
       )
@@ -332,7 +332,7 @@ describe("Compensation.restoreWorkspace", () => {
         Effect.provide(
           jjOf({
             snapshot: () => Effect.succeed({ changeId: pointer }),
-            restore: (changeId) =>
+            restore: (changeId: string) =>
               Effect.sync(() => {
                 pointer = changeId
               })
@@ -378,6 +378,41 @@ describe("Compensation.restoreWorkspace", () => {
     expect(failure.message).toContain("could not snapshot current jj state")
   })
 
+  it("reports a handler cleanup failure alongside a pre-restore snapshot failure", async () => {
+    const registry = registryOf([{
+      kind: "send",
+      tier: "irreversible",
+      requiresIdempotencyKey: true,
+      residue: () => "residue",
+      revert: () => Effect.succeed({}),
+      rollback: () => Effect.fail(error("compensation_failed", "handler cleanup failed"))
+    }])
+    const plan = await planFor([compensable], "target")
+    const receipt = {
+      id: "send:rollback",
+      effect: record({ id: "send", kind: "send", tier: "irreversible", seq: 2 }),
+      data: {}
+    }
+
+    const failure = await Effect.runPromise(
+      Effect.flip(
+        Compensation.restoreWorkspace(plan, [receipt]).pipe(
+          Effect.provide(registry),
+          Effect.provide(jjOf({ snapshot: () => Effect.fail(jjError({ code: "not_installed", method: "snapshot" })) }))
+        )
+      )
+    )
+
+    expect(failure).toMatchObject({
+      code: "compensation_failed",
+      message: expect.stringContaining("could not snapshot current jj state"),
+      cause: {
+        snapshot: expect.anything(),
+        handlerRollback: expect.anything()
+      }
+    })
+  })
+
   it("restores the original pointer and the receipts when the target restore fails", async () => {
     const restores: Array<string> = []
     const rolledBack: Array<string> = []
@@ -406,7 +441,7 @@ describe("Compensation.restoreWorkspace", () => {
           Effect.provide(
             jjOf({
               snapshot: () => Effect.succeed({ changeId: "current" }),
-              restore: (changeId) =>
+              restore: (changeId: string) =>
                 Effect.gen(function*() {
                   restores.push(changeId)
                   if (changeId === "target") {
@@ -457,7 +492,7 @@ describe("Compensation.restoreWorkspace", () => {
             Effect.provide(
               jjOf({
                 snapshot: () => Effect.succeed({ changeId: "current" }),
-                restore: (changeId) =>
+                restore: (changeId: string) =>
                   changeId === "target" || faults.workspaceRollback
                     ? Effect.fail(jjError({ code: "conflict", method: "restore" }))
                     : Effect.void
@@ -524,7 +559,7 @@ describe("Compensation.execute", () => {
         Effect.provide(
           jjOf({
             snapshot: () => Effect.succeed({ changeId: "current" }),
-            restore: (changeId) =>
+            restore: (changeId: string) =>
               Effect.sync(() => {
                 order.push(`jj:${changeId}`)
               })
@@ -568,7 +603,7 @@ describe("Compensation.rollback", () => {
         Effect.provide(registry),
         Effect.provide(
           jjOf({
-            restore: (changeId) =>
+            restore: (changeId: string) =>
               Effect.sync(() => {
                 order.push(`jj:${changeId}`)
               })

@@ -148,7 +148,7 @@ describe("Fork.fork", () => {
           }).pipe(
             Effect.provide(Layer.succeed(RunStore.RunStore, RunStore.makeNoop({ get: () => Effect.succeed(row()) }))),
             Effect.provide(Layer.succeed(TimeTravelStore, MemoryTimeTravelStore.make())),
-            Effect.provide(Layer.succeed(Jj.Jj, Jj.makeNoop()))
+            Effect.provide(Layer.succeed(Jj.Jj, Jj.makeNoop({})))
           )
         )
       )
@@ -164,7 +164,7 @@ describe("Fork.fork", () => {
           }).pipe(
             Effect.provide(Layer.succeed(RunStore.RunStore, RunStore.makeNoop())),
             Effect.provide(Layer.succeed(TimeTravelStore, MemoryTimeTravelStore.make())),
-            Effect.provide(Layer.succeed(Jj.Jj, Jj.makeNoop()))
+            Effect.provide(Layer.succeed(Jj.Jj, Jj.makeNoop({})))
           )
         )
       )

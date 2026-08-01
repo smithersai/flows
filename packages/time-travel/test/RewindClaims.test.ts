@@ -128,17 +128,10 @@ describe("Rewind run claim arbitration", () => {
   it("refuses pending or suspended rows with dangling ownership evidence", async () => {
     for (
       const unavailable of [
-        row("run", "suspended"),
-        row("run", "pending")
-      ]
+        { ...row("run", "suspended"), owner, heartbeatAtMs: 1 },
+        { ...row("run", "pending"), claim: owner, claimedAtMs: 1 }
+      ] satisfies ReadonlyArray<RunStore.RunRow>
     ) {
-      if (unavailable.status === "suspended") {
-        unavailable.owner = owner
-        unavailable.heartbeatAtMs = 1
-      } else {
-        unavailable.claim = owner
-        unavailable.claimedAtMs = 1
-      }
       let claims = 0
       const failure = await rewind(
         RunStore.makeNoop({

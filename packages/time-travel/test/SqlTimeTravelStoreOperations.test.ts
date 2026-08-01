@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest"
 import * as SqlTimeTravelStore from "../src/SqlTimeTravelStore.ts"
 import type * as TimeTravelStore from "../src/TimeTravelStore.ts"
 
-const run = <A>(body: (store: TimeTravelStore.Service, sql: Database["sql"]) => Effect.Effect<A, unknown, Database>) =>
+const run = <A>(body: (store: TimeTravelStore.Service, sql: DatabaseModule.DatabaseService["sql"]) => Effect.Effect<A, unknown, Database>) =>
   Effect.runPromise(
     Effect.gen(function*() {
       yield* Migrations.run
@@ -18,7 +18,7 @@ const run = <A>(body: (store: TimeTravelStore.Service, sql: Database["sql"]) => 
   )
 
 const insertRun = (
-  sql: Database["sql"],
+  sql: DatabaseModule.DatabaseService["sql"],
   runId: string,
   options: {
     readonly status?: string
@@ -43,7 +43,7 @@ const insertRun = (
   `
 
 /** The run table constrains ownership columns, so a live run must be inserted whole. */
-const insertRunningRun = (sql: Database["sql"], runId: string) =>
+const insertRunningRun = (sql: DatabaseModule.DatabaseService["sql"], runId: string) =>
   sql`
     INSERT INTO flows_runs
       (run_id, status, created_at_ms, state_json, owner_host_id, owner_pid, owner_nonce, heartbeat_at_ms)
@@ -61,6 +61,16 @@ const rootCause = (error: unknown): { readonly code?: string; readonly message?:
     current = current.cause as typeof current
   }
   return current
+}
+
+const causeMessages = (error: unknown): ReadonlyArray<string> => {
+  const messages: Array<string> = []
+  let current: unknown = error
+  while (typeof current === "object" && current !== null) {
+    if ("message" in current && typeof current.message === "string") messages.push(current.message)
+    current = "cause" in current ? current.cause : undefined
+  }
+  return messages
 }
 
 describe("SqlTimeTravelStore.snapshotAt", () => {
@@ -219,7 +229,8 @@ describe("SqlTimeTravelStore audits", () => {
   it("fails updateAudit for an unknown id", async () => {
     const error = await run((store) => Effect.flip(store.updateAudit("nope", { status: "completed" })))
 
-    expect(error).toMatchObject({ code: "unknown" })
+    expect(error).toMatchObject({ code: "unknown", message: "time-travel persistence failed" })
+    expect(rootCause(error)).toMatchObject({ code: "not_found", message: "audit nope was not found" })
   })
 
   it("keeps absent optional fields absent when an audit is updated", async () => {
@@ -245,6 +256,25 @@ describe("SqlTimeTravelStore audits", () => {
       detail: undefined
     })
   })
+
+  it("returns a typed persistence failure for malformed persisted audit JSON", async () => {
+    const failure = await run((store, sql) =>
+      Effect.gen(function*() {
+        yield* sql`
+          INSERT INTO flows_time_travel_audits
+            (id, run_id, lineage_id, seq, status, rate_limit_json, detail_json)
+          VALUES ('malformed', 'run', 'main', 0, 'in_progress', NULL, '{')
+        `
+        return yield* Effect.flip(store.pendingAudits())
+      })
+    )
+
+    expect(failure).toMatchObject({
+      code: "unknown",
+      message: "time-travel persistence failed",
+      cause: expect.anything()
+    })
+  })
 })
 
 describe("SqlTimeTravelStore construction", () => {
@@ -254,6 +284,122 @@ describe("SqlTimeTravelStore construction", () => {
     )
 
     expect(exit._tag).toBe("Failure")
+  })
+})
+
+describe("SqlTimeTravelStore persistence fault matrix", () => {
+  const audit: TimeTravelStore.Audit = {
+    id: "audit",
+    runId: "run",
+    frame: { lineageId: "main", seq: 0 },
+    status: "in_progress"
+  }
+
+  for (
+    const scenario of [
+      {
+        method: "snapshotAt",
+        table: "flows_time_travel_snapshots",
+        invoke: (store: TimeTravelStore.Service) => store.snapshotAt("run", audit.frame)
+      },
+      {
+        method: "descendants",
+        table: "flows_time_travel_edges",
+        invoke: (store: TimeTravelStore.Service) => store.descendants("run", audit.frame)
+      },
+      {
+        method: "writeAudit",
+        table: "flows_time_travel_audits",
+        invoke: (store: TimeTravelStore.Service) => store.writeAudit(audit)
+      },
+      {
+        method: "updateAudit",
+        table: "flows_time_travel_audits",
+        invoke: (store: TimeTravelStore.Service) => store.updateAudit("audit", { status: "failed" })
+      },
+      {
+        method: "pendingAudits",
+        table: "flows_time_travel_audits",
+        invoke: (store: TimeTravelStore.Service) => store.pendingAudits()
+      },
+      {
+        method: "archiveAndTruncate",
+        table: "flows_time_travel_edges",
+        invoke: (store: TimeTravelStore.Service) => store.archiveAndTruncate("run", audit.frame, [])
+      },
+      {
+        method: "createFork",
+        table: "flows_runs",
+        invoke: (store: TimeTravelStore.Service) => store.createFork("run", audit.frame)
+      },
+      {
+        method: "recordReceipt",
+        table: "flows_time_travel_receipts",
+        invoke: (store: TimeTravelStore.Service) =>
+          store.recordReceipt({ id: "receipt", auditId: "audit", effectId: "effect", receipt: {} })
+      }
+    ] as const
+  ) {
+    it(`maps a ${scenario.method} database failure to the store's typed error`, async () => {
+      const failure = await run((store, sql) =>
+        Effect.gen(function*() {
+          yield* sql.unsafe(`DROP TABLE ${scenario.table}`)
+          return yield* Effect.flip(scenario.invoke(store))
+        })
+      )
+
+      expect(failure).toMatchObject({
+        code: "unknown",
+        message: "time-travel persistence failed",
+        cause: expect.anything()
+      })
+    })
+  }
+
+  it("rolls journal archival back when receipt persistence fails at commit", async () => {
+    const result = await run((store, sql) =>
+      Effect.gen(function*() {
+        yield* insertRun(sql, "run")
+        for (const seq of [0, 2]) {
+          yield* sql`
+            INSERT INTO flows_journal_events
+              (run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
+               event_type, payload_json, meta_json)
+            VALUES ('run', ${seq}, ${`event-${seq}`}, 'source', ${seq}, 0, 'test', '{}', '{}')
+          `
+        }
+        yield* store.recordReceipt({
+          id: "duplicate",
+          auditId: "audit",
+          effectId: "existing",
+          receipt: { existing: true }
+        })
+
+        const failure = yield* Effect.flip(
+          store.archiveAndTruncate("run", { lineageId: "main", seq: 0 }, [{
+            id: "duplicate",
+            auditId: "audit",
+            effectId: "new",
+            receipt: { existing: false }
+          }])
+        )
+        const journal = yield* sql<{ readonly seq: number }>`
+          SELECT seq FROM flows_journal_events WHERE run_id = 'run' ORDER BY seq
+        `
+        const archive = yield* sql<{ readonly seq: number }>`
+          SELECT seq FROM flows_time_travel_archive WHERE run_id = 'run' ORDER BY seq
+        `
+        const receipts = yield* sql<{ readonly id: string; readonly effect_id: string }>`
+          SELECT id, effect_id FROM flows_time_travel_receipts ORDER BY id
+        `
+        return { failure, journal, archive, receipts }
+      })
+    )
+
+    expect(result.failure).toMatchObject({ code: "unknown", message: "time-travel persistence failed" })
+    expect(result.journal).toEqual([{ seq: 0 }, { seq: 2 }])
+    expect(result.archive).toEqual([])
+    expect(result.receipts).toEqual([{ id: "duplicate", effect_id: "existing" }])
   })
 })
 
@@ -385,14 +531,27 @@ describe("SqlTimeTravelStore.createFork", () => {
     expect(rootCause(error)).toMatchObject({ code: "live_parent", message: "parent grandparent is live" })
   })
 
-  it("rejects a parent whose persisted state is not a version-1 engine snapshot", async () => {
-    const error = await run((store, sql) =>
-      Effect.gen(function*() {
-        yield* insertRun(sql, "parent", { stateJson: JSON.stringify({ version: 2, flowName: "Demo", payload: {} }) })
-        return yield* Effect.flip(store.createFork("parent", { lineageId: "main", seq: 0 }))
-      })
-    )
+  for (
+    const [name, stateJson] of [
+      ["malformed JSON", "{"],
+      ["null", JSON.stringify(null)],
+      ["an array", JSON.stringify([])],
+      ["a missing version", JSON.stringify({ flowName: "Demo", payload: {} })],
+      ["a newer version", JSON.stringify({ version: 2, flowName: "Demo", payload: {} })],
+      ["a non-string flow name", JSON.stringify({ version: 1, flowName: 1, payload: {} })],
+      ["a missing payload", JSON.stringify({ version: 1, flowName: "Demo" })]
+    ] as const
+  ) {
+    it(`rejects ${name} as a restartable parent state`, async () => {
+      const failure = await run((store, sql) =>
+        Effect.gen(function*() {
+          yield* insertRun(sql, "parent", { stateJson })
+          return yield* Effect.flip(store.createFork("parent", { lineageId: "main", seq: 0 }))
+        })
+      )
 
-    expect(error).toMatchObject({ code: "unknown" })
-  })
+      expect(failure).toMatchObject({ code: "unknown", message: "time-travel persistence failed" })
+      expect(causeMessages(failure)).toContain("could not materialize executable fork state")
+    })
+  }
 })

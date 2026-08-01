@@ -1,9 +1,12 @@
 import * as CacheStore from "@smithers/journal/CacheStore"
 import * as Journal from "@smithers/journal/Journal"
 import type { Entry, RunId, Seq, SourceId, SourceSeq } from "@smithers/journal/JournalEvent"
+import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import * as Result from "effect/Result"
 import { describe, expect, it } from "vitest"
 import * as Replay from "../src/Replay.ts"
 
@@ -269,5 +272,37 @@ describe("Replay", () => {
 
     expect(pages).toBe(1)
     expect(failure).toMatchObject({ code: "not_found" })
+  })
+
+  it("preserves a projection defect without misclassifying it as a persistence failure", async () => {
+    const journal = Journal.makeNoop({
+      entries: () => Effect.succeed({ entries: [entry(0, "first")], hasMore: false })
+    })
+
+    const exit = await Effect.runPromise(
+      Effect.exit(
+        Replay.rederive(
+          { lineageId: "run/root", seq: 0 },
+          {
+            initial: 0,
+            reduce: () => {
+              throw new Error("projection invariant failed")
+            }
+          },
+          { runId: "run" }
+        ).pipe(
+          Effect.provide(Layer.succeed(Journal.Journal, journal)),
+          Effect.provide(CacheStore.layerNoop())
+        )
+      )
+    )
+
+    expect(Exit.isFailure(exit)).toBe(true)
+    if (Exit.isFailure(exit)) {
+      const defect = Cause.findDefect(exit.cause)
+      expect(Result.isSuccess(defect) ? defect.success : undefined).toMatchObject({
+        message: "projection invariant failed"
+      })
+    }
   })
 })

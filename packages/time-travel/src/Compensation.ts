@@ -273,12 +273,14 @@ export const restoreWorkspace = (
       Effect.gen(function*() {
         const currentExit = yield* Effect.exit(jj.snapshot("flows rewind pre-restore"))
         if (Exit.isFailure(currentExit)) {
-          yield* Effect.ignore(rollbackHandlers(registry, handlerReceipts))
+          const handlerRollback = yield* Effect.exit(rollbackHandlers(registry, handlerReceipts))
           return yield* Effect.fail(
             error(
               "compensation_failed",
               `could not snapshot current jj state: ${causeMessage(currentExit.cause)}`,
-              currentExit.cause
+              Exit.isFailure(handlerRollback)
+                ? { snapshot: currentExit.cause, handlerRollback: handlerRollback.cause }
+                : currentExit.cause
             )
           )
         }

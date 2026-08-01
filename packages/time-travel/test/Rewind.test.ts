@@ -310,6 +310,37 @@ describe("Rewind", () => {
     expect(runs.state("child").status).toBe("completed")
   })
 
+  it("preserves failed and cancelled detached children as disclosed terminal orphans", async () => {
+    for (const status of ["failed", "cancelled"] as const) {
+      const edge: LineageEdge = {
+        parentRunId: "run",
+        parentSeq: 1,
+        childRunId: `child-${status}`,
+        kind: "child",
+        attached: false
+      }
+      const store = MemoryTimeTravelStore.make({ records: [baseline()], edges: [edge] })
+      const runs = makeRuns([row("run"), row(edge.childRunId, status)])
+
+      const result = await Effect.runPromise(
+        provide(
+          Rewind.rewind({ runId: "run", frame, owner, auditId: `audit-${status}` }),
+          { store, runs, jj: makeJj("current").service }
+        )
+      )
+
+      expect(result.warnings).toEqual([
+        {
+          childRunId: edge.childRunId,
+          parentSeq: 1,
+          reason: `Terminal detached child ${edge.childRunId} survives as an orphaned lineage edge.`
+        }
+      ])
+      expect(result.archive.orphaned).toEqual([edge])
+      expect(runs.state(edge.childRunId).status).toBe(status)
+    }
+  })
+
   it("blocks a live detached child before any compensation runs", async () => {
     let reverts = 0
     const handler: EffectHandlerRegistry.Handler = {
