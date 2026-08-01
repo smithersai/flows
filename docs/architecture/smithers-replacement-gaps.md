@@ -142,12 +142,18 @@ task, not a subsystem.
 
 The P0 harness the audit demanded exists: `Journal.Notifying.wrap`/`layer`
 injects interstitial crashes and fence loss around any Effect service, and
-`FaultMatrix.test.ts` (15 cases) plus `DurableWaitingRestart`,
-`WaitingReason`, and `Ownership` tests pin crash/restart invariants
-deterministically — the bazel `GraphTester` shape. Parity with smithers'
-`e2e/faults` enumeration is partial only where the underlying feature is
-missing: no pause, hijack, quota-wake, or continue-as-new lineage cases yet.
-Cases accrete as §§4–7 land; the harness itself is no longer a gap.
+`FaultMatrix.test.ts` (9 it-blocks: 7 fault injections — 3 interstitial
+crashes, 4 fence losses — plus 2 tests of the `Notifying` wrapper itself)
+plus `DurableWaitingRestart`, `WaitingReason`, and `Ownership` tests pin
+crash/restart invariants deterministically — the bazel `GraphTester` shape.
+Parity with smithers' `e2e/faults` enumeration is still far off, and not
+only where the underlying feature is missing (no pause, hijack, quota-wake,
+or continue-as-new lineage cases yet): holes remain where the feature
+already ships — journal payload redaction (smithers case 22, issue #46),
+sandbox health/heartbeat taxonomy (case 02, issue #49), and memory-budget /
+soak assertions (cases 16/28, issue #50) have no fault cases either. Cases
+accrete as §§4–7 and those issues land; the harness itself is no longer a
+gap.
 
 ## New gaps the audit did not list
 
