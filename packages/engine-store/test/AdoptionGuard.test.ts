@@ -336,3 +336,105 @@ describe("adoption re-emissions are producer-idempotent (issue #91)", () => {
     expect(snapshots).toHaveLength(1)
   })
 })
+
+describe("the adoption claim is fenced at the moment it lands (issue #102)", () => {
+  const seedAdoptable = (runId: string, key: string) =>
+    Effect.gen(function*() {
+      yield* activate(runId)
+      const attempts = yield* AttemptStore.AttemptStore
+      yield* attempts.put(
+        {
+          runId,
+          stepKeyDigest: Digest.digest(key),
+          attempt: 1,
+          state: "running",
+          startedAtMs: 0,
+          meta: { tier: "sealed", admittedBy: deadOwner }
+        },
+        owner
+      )
+    })
+
+  it("parks instead of re-homing when the run fence was lost while waiting", async () => {
+    // The entry heartbeat passes; the claim-time re-verification fails —
+    // exactly a fence lost between admission and the claim landing.
+    let dispatches = 0
+    let heartbeats = 0
+    const flakyFence = Layer.effect(RunStore.RunStore)(
+      Effect.gen(function*() {
+        const real = yield* RunStore.RunStore
+        return {
+          ...real,
+          heartbeat: (runId: string, who: Ownership.OwnerId, nowMs: number) =>
+            Effect.suspend(() => {
+              heartbeats++
+              return heartbeats === 1
+                ? real.heartbeat(runId, who, nowMs)
+                : Effect.succeed({ _tag: "FenceLost" } as const)
+            })
+        }
+      })
+    )
+    const key = "adoption/claim-fence-lost"
+    const exit = await Effect.runPromise(
+      Effect.gen(function*() {
+        yield* seedAdoptable("adoption-fence", key)
+        return yield* Effect.exit(
+          ActivityPersistence.make({
+            runId: "adoption-fence",
+            owner,
+            sourceId: "adoption-test",
+            execute: () =>
+              Effect.sync(() => {
+                dispatches++
+                return "must-not-run"
+              })
+          })({ activity: {}, attempt: 1, key, tier: "sealed" })
+        )
+      }).pipe(
+        Effect.provide(flakyFence.pipe(Layer.provideMerge(layers([])))),
+        Effect.scoped
+      )
+    )
+    expect(dispatches).toBe(0)
+    expect(exit._tag).toBe("Failure")
+    expect(JSON.stringify(exit)).toContain("Interrupt")
+  })
+
+  it("parks when the adoptable row vanished before the re-home landed", async () => {
+    let dispatches = 0
+    const vanishingPatch = Layer.effect(AttemptStore.AttemptStore)(
+      Effect.gen(function*() {
+        const real = yield* AttemptStore.AttemptStore
+        return {
+          ...real,
+          patch: () => Effect.succeed({ _tag: "NotFound" } as const)
+        }
+      })
+    )
+    const key = "adoption/claim-row-vanished"
+    const exit = await Effect.runPromise(
+      Effect.gen(function*() {
+        yield* seedAdoptable("adoption-vanish", key)
+        return yield* Effect.exit(
+          ActivityPersistence.make({
+            runId: "adoption-vanish",
+            owner,
+            sourceId: "adoption-test",
+            execute: () =>
+              Effect.sync(() => {
+                dispatches++
+                return "must-not-run"
+              })
+          })({ activity: {}, attempt: 1, key, tier: "sealed" })
+        )
+      }).pipe(
+        Effect.provide(vanishingPatch.pipe(Layer.provideMerge(layers([])))),
+        Effect.scoped
+      )
+    )
+    expect(dispatches).toBe(0)
+    expect(exit._tag).toBe("Failure")
+    expect(JSON.stringify(exit)).toContain("Interrupt")
+  })
+})
