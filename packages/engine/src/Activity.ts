@@ -321,18 +321,24 @@ export const CurrentContentEnvironment = Context.Reference<ContentEnvironment>(
 )
 
 /**
- * The ordinal slot a retry sequence shares across its attempts.
+ * The ordinal slots a retry sequence shares across its attempts, keyed by
+ * allocation scope.
  *
- * `Activity.retry` cannot allocate the ordinal itself — allocation is scoped
- * by activity name and only the engine knows which activity is being
- * dispatched (issue #73) — so it provides an empty slot the engine fills on
- * the first attempt and reads back on every later one.
+ * `Activity.retry` cannot allocate ordinals itself — allocation is scoped by
+ * activity identity and only the engine knows which activity is being
+ * dispatched (issue #73) — so it provides an empty map the engine fills per
+ * scope on the first attempt and reads back on every later one. The map is
+ * scope-keyed rather than a single value because one retry block may
+ * dispatch several distinct activities; a shared unkeyed slot handed the
+ * first activity's ordinal to every later one, silently skipping their own
+ * name-scoped counters and aliasing a later independent dispatch onto an
+ * in-block key (issue #84).
  *
  * @category Attempts
  * @since 0.1.0
  */
 export interface OrdinalSlot {
-  value: number | undefined
+  readonly values: Map<string, number>
 }
 
 /**
@@ -367,10 +373,11 @@ export const retry: {
   (effect: Effect.Effect<any, any, any>, options: {}) =>
     Effect.suspend(() => {
       let attempt = 1
-      // One slot for the whole retry sequence: the engine fills it with the
-      // name-scoped ordinal it allocates for the first attempt, and every
-      // later attempt of the same sequence reuses that ordinal (issue #73).
-      const slot: OrdinalSlot = { value: undefined }
+      // One slot map for the whole retry sequence: the engine fills each
+      // activity's scope with the ordinal it allocates on the first attempt,
+      // and every later attempt of the same sequence reuses those ordinals
+      // (issues #73, #84).
+      const slot: OrdinalSlot = { values: new Map() }
       return Effect.suspend(() =>
         effect.pipe(
           Effect.provideService(CurrentAttempt, attempt++),

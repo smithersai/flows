@@ -27,7 +27,7 @@ This page is the public API reference for typed flows, recorded activities, dura
 | `IrreversibleRetryRequiresIdempotencyKey` | Unsafe retry failure |
 | `retry(effect, options)` | Effect retry with durable attempt context |
 | `CurrentContentEnvironment` | The resolved `{ layers, capabilities }` a sealed content key is computed under. Folded into **both** key forms — a caller-supplied `ContentIdentity` cannot opt out — so swapping a Model/Host layer or attenuating a capability misses the cross-run cache instead of serving a stale result (issue #75). Defaults to the empty environment; the composition that wires those layers declares it |
-| `CurrentAttempt`, `CurrentOrdinal` | Runtime references. `CurrentOrdinal` carries an `OrdinalSlot` (`{ value }`) rather than a number: the engine allocates the name-scoped ordinal at dispatch and fills the slot, so every attempt of one `Activity.retry` sequence shares it (issue #73) |
+| `CurrentAttempt`, `CurrentOrdinal` | Runtime references. `CurrentOrdinal` carries an `OrdinalSlot` (`{ values: Map<scope, ordinal> }`) rather than a number: the engine allocates each dispatch's ordinal under its declaration-identity scope and records it per scope, so every attempt of one `Activity.retry` sequence reuses its own activity's ordinal even when the block dispatches several distinct activities (issues #73, #84) |
 | `idempotencyKey(name, options?)` | Internal run-local ordinal key |
 | `raceAll(name, activities)` | Durable activity race |
 

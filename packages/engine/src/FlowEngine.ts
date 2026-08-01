@@ -572,11 +572,30 @@ const withEnvironment = (
       capabilities: { ...identity.capabilities, ...environment.capabilities }
     }
 
+/**
+ * The ordinal allocation scope of an activity dispatch — its stable
+ * declaration identity (issue #85).
+ *
+ * The activity name always contributes (issue #73), and a declared string
+ * `idempotencyKey` refines the scope further: two concurrent invocations of
+ * one activity name with distinguishable inputs declare distinct keys, so
+ * each owns its own counter and a replay that reverses fiber-arrival order
+ * can never hand one invocation the other's recorded outcome. Without a
+ * declared key, invocations of one name share a counter and remain
+ * allocation-ordered — indistinguishable declarations have no material to
+ * order them by.
+ */
+const ordinalScope = (activity: Activity.Any): string =>
+  typeof activity.idempotencyKey === "string"
+    ? `activity:${activity.name}#${activity.idempotencyKey}`
+    : `activity:${activity.name}`
+
 const activityKey = (
   activity: Activity.Any,
   executionId: string,
   ordinal: number,
-  environment: Activity.ContentEnvironment
+  environment: Activity.ContentEnvironment,
+  scope: string
 ): string => {
   if (activity.tier === "sealed" && activity.idempotencyKey !== undefined) {
     // Skyframe's SkyKey is (functionName, argument): a string idempotencyKey
@@ -612,18 +631,20 @@ const activityKey = (
       hermetic === undefined ? scoped : { ...scoped, hermetic }
     ))
   }
-  // The ordinal is allocated from a counter scoped to this activity's name
-  // and the name is folded into the key as `parentScope` (issue #73). One
-  // per-run counter bumped in fiber-arrival order made the identity of a
-  // compensable, irreversible, or unsealed activity depend on scheduling:
-  // under `Effect.all` with concurrency a replay could hand `chargeCard` the
-  // ordinal `sendEmail` recorded and replay the wrong attempt rows,
-  // checkpoint, and outcome. Per-name counters are stable under any
-  // interleaving of *distinct* activities; the scope also keeps two
-  // activities from sharing the number 1.
+  // The ordinal is allocated from a counter scoped to this activity's
+  // declaration identity and that scope is folded into the key as
+  // `parentScope` (issues #73, #85). One per-run counter bumped in
+  // fiber-arrival order made the identity of a compensable, irreversible, or
+  // unsealed activity depend on scheduling: under `Effect.all` with
+  // concurrency a replay could hand `chargeCard` the ordinal `sendEmail`
+  // recorded and replay the wrong attempt rows, checkpoint, and outcome.
+  // Per-identity counters are stable under any interleaving of distinct
+  // declarations — distinct names, or one name with distinct declared
+  // idempotency keys; the scope also keeps two identities from sharing the
+  // number 1.
   return Result.getOrThrow(StepKey.ordinal({
     runId: executionId,
-    parentScope: `activity:${activity.name}`,
+    parentScope: scope,
     ordinal,
     tier: activity.tier === "sealed" ? "unsealed" : activity.tier
   }))
@@ -812,17 +833,20 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
       R
     >(activity: Activity.Activity<Success, Error, R>, attempt: number) {
       const instance = yield* FlowInstance
-      // `Activity.retry` hands down an empty slot rather than a number: the
-      // ordinal can only be allocated here, where the activity — and so its
-      // allocation scope — is known (issue #73). The slot keeps the same
-      // ordinal across every attempt of one retry sequence.
+      // `Activity.retry` hands down an empty slot map rather than a number:
+      // the ordinal can only be allocated here, where the activity — and so
+      // its allocation scope — is known (issue #73). The slot is keyed by
+      // scope so a retry block dispatching several distinct activities pins
+      // each to its own ordinal (issue #84), reused across every attempt of
+      // the sequence.
+      const scope = ordinalScope(activity)
       const slot = yield* Activity.CurrentOrdinal
-      const ordinal = slot?.value ?? instance.activityState.nextOrdinal(`activity:${activity.name}`)
-      if (slot !== undefined) slot.value = ordinal
+      const ordinal = slot?.values.get(scope) ?? instance.activityState.nextOrdinal(scope)
+      if (slot !== undefined) slot.values.set(scope, ordinal)
       // Ordinal keys are run-local, so the environment is not their key
       // material; `activityKey` folds it into content keys only (issue #75).
       const environment = yield* Activity.CurrentContentEnvironment
-      const key = activityKey(activity, instance.executionId, ordinal, environment)
+      const key = activityKey(activity, instance.executionId, ordinal, environment, scope)
       const policy = activity.retryPolicy
       // Elapsed retry time for the policy's expiration bound. Durable
       // drivers persist the first attempt's start time alongside the attempt

@@ -15,7 +15,7 @@ describe("Activity.retry outside a flow", () => {
       const attempt = yield* Activity.CurrentAttempt
       const slot = yield* Activity.CurrentOrdinal
       attempts.push(attempt)
-      expect(slot?.value).toBeUndefined()
+      expect(slot?.values.size).toBe(0)
       return attempt < 3 ? yield* Effect.fail("again") : attempt
     })
 
@@ -42,12 +42,12 @@ describe("Activity.retry outside a flow", () => {
     })
     const body = Effect.gen(function*() {
       const result = yield* activity
-      ordinals.push((yield* Activity.CurrentOrdinal)?.value)
+      ordinals.push((yield* Activity.CurrentOrdinal)?.values.get("activity:Edge/retry-ordinal-activity"))
       return result
     }).pipe(
       Effect.tapError(() =>
         Effect.gen(function*() {
-          ordinals.push((yield* Activity.CurrentOrdinal)?.value)
+          ordinals.push((yield* Activity.CurrentOrdinal)?.values.get("activity:Edge/retry-ordinal-activity"))
         })
       )
     )
