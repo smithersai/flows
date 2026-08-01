@@ -163,11 +163,11 @@ describe("a refused stale hit invalidates the poisoned entry (issue #99)", () =>
             return yield* dispatch(runId, key, () => Effect.sync(() => results[executions++]))
           }).pipe(Effect.provide(StepBoundary.layerTest({ readSnapshot: measured })))
         const first = yield* run("stale-conflict-first", declared.readSet)
-        // The declared digest went stale: the hit is refused, the entry is
-        // invalidated, and the differing result must record cleanly.
+        // The declared digest went stale: the hit is refused and the entry
+        // is invalidated, so the re-execution proceeds cleanly.
         const second = yield* run("stale-conflict-second", [{ path: "config.json", digest: "D2" }])
         // A permanently poisoned row made this third run fail forever; a
-        // clean invalidation leaves the second run's result as the entry.
+        // clean invalidation lets it re-execute instead.
         const third = yield* run("stale-conflict-third", [{ path: "config.json", digest: "D2" }])
         const entry = yield* cache.get(keyDigest)
         return { first, second, third, entry }
@@ -177,10 +177,10 @@ describe("a refused stale hit invalidates the poisoned entry (issue #99)", () =>
     expect(outcome.second).toBe("fresh-1")
     expect(outcome.third).toBe("fresh-2")
     expect(executions).toBe(3)
-    expect(Option.isSome(outcome.entry)).toBe(true)
-    if (Option.isSome(outcome.entry)) {
-      expect(outcome.entry.value.result).toBe("fresh-2")
-    }
+    // The stale-declaration executions were computed against content the
+    // key does not describe, so nothing may be re-recorded under it
+    // (issue #106) — the poisoned row is gone and stays gone.
+    expect(Option.isNone(outcome.entry)).toBe(true)
   })
 })
 

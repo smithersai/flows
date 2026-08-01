@@ -98,6 +98,14 @@ export interface Dependencies {
 const AttemptMeta = Schema.Struct({
   tier: Schema.Literals(["sealed", "compensable", "irreversible"]),
   boundary: Schema.optional(StepBoundary.BoundaryEvidence),
+  /**
+   * The prepare-time measurement matched the caller-declared read set the
+   * step key was derived from (issue #106). Only such completions may enter
+   * the shared cache: a stale declaration executes against the *real*
+   * content, so recording its result under the declaration's key would hand
+   * a later, genuinely accurate run the wrong value as a verified hit.
+   */
+  readSetVerified: Schema.optional(Schema.Literal(true)),
   snapshotId: Schema.optional(Schema.String),
   // The incarnation that admitted the running row. Since issues #102/#103
   // the adoption decision rests on the admission permit rather than this
@@ -358,11 +366,16 @@ export const make = (deps: Dependencies) => {
               // result permanently missing from the shared cache (issue #24).
               // Reaching this branch with `cacheable` set means `cache.get`
               // above missed or was unfit for replay.
+              // Only a row whose recorded read set was verified at prepare
+              // time may converge into the shared cache (issue #106): an
+              // unverified result was computed against content the key does
+              // not describe.
               if (
                 cacheable &&
                 meta?.tier === "sealed" &&
                 meta.boundary !== undefined &&
-                meta.boundary.deviation === undefined
+                meta.boundary.deviation === undefined &&
+                meta.readSetVerified === true
               ) {
                 yield* recordCache({
                   result: row.outcome,
@@ -580,10 +593,17 @@ export const make = (deps: Dependencies) => {
           }
           const evidence = settled === undefined ? undefined : settled.value
           const finishedAtMs = yield* Clock.currentTimeMillis
+          // The declared read set is the key material; the prepare-time
+          // measurement is the evidence it described reality when the body
+          // ran (issue #106). A mismatch means the result was computed from
+          // different inputs than the key claims — the attempt itself is
+          // fine, but the completion must never enter the shared cache.
+          const readSetVerified = prepared !== undefined && StepBoundary.readSetMatches(prepared)
           const meta: AttemptMeta = {
             tier: input.tier,
             ...(snapshotId === undefined ? {} : { snapshotId }),
-            ...(evidence === undefined ? {} : { boundary: evidence })
+            ...(evidence === undefined ? {} : { boundary: evidence }),
+            ...(readSetVerified ? { readSetVerified: true as const } : {})
           }
           const finished = yield* attempts.finish(
             { ...attemptId, state: "succeeded", finishedAtMs, outcome: outcome.value, meta },
@@ -598,7 +618,16 @@ export const make = (deps: Dependencies) => {
           yield* emitLifecycle(JournalRecords.attemptFinished(source(deps), { ...attemptId, state: "succeeded" }))
 
           if (cacheable && evidence?.deviation === undefined) {
-            yield* recordCache({ result: outcome.value, meta, createdAtMs: finishedAtMs })
+            if (readSetVerified) {
+              yield* recordCache({ result: outcome.value, meta, createdAtMs: finishedAtMs })
+            } else {
+              // Visible, not silent (issue #106): the run continues on its
+              // own result, but the stale declaration is journalled so the
+              // missing cache entry is explainable.
+              yield* emitLifecycle(
+                JournalRecords.cacheProvenance(source(deps), { keyDigest, action: "unverified_read_set" })
+              )
+            }
           }
           return outcome.value
         })

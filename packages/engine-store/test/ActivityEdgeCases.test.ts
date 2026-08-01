@@ -383,7 +383,10 @@ describe("cache convergence from a succeeded attempt row", () => {
               outcome: "recorded-outcome",
               meta: {
                 tier: "sealed",
-                boundary: { declaredOutputs: {}, diffIdentity: "identity" }
+                boundary: { declaredOutputs: {}, diffIdentity: "identity" },
+                // Convergence re-records only completions whose read set was
+                // verified at prepare time (issue #106).
+                readSetVerified: true
               }
             })
         })
