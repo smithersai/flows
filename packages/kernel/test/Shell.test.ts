@@ -37,7 +37,11 @@ describe("Shell", () => {
 
     return Effect.gen(function*() {
       const shell = yield* Shell.Shell
-      yield* Effect.exit(shell.exec("blocked", { cwd: "/work" }))
+      expect(yield* Effect.flip(shell.exec("blocked", { cwd: "/work" }))).toMatchObject({
+        code: "permission_denied",
+        capability: { action: "proc:spawn", resource: "blocked" },
+        reason: "denied by test"
+      })
       expect(invoked).toBe(false)
       expect(checks).toEqual([{ action: "proc:spawn", resource: "blocked" }])
     }).pipe(
@@ -139,7 +143,11 @@ describe("Pty", () => {
 
     return Effect.gen(function*() {
       const pty = yield* Pty.Pty
-      yield* Effect.exit(pty.spawn("blocked", { cols: 80, rows: 24 }))
+      expect(yield* Effect.flip(pty.spawn("blocked", { cols: 80, rows: 24 }))).toMatchObject({
+        code: "permission_denied",
+        capability: { action: "proc:spawn", resource: "blocked" },
+        reason: "denied by test"
+      })
       expect(invoked).toBe(false)
       expect(checks).toEqual([{ action: "proc:spawn", resource: "blocked" }])
     }).pipe(

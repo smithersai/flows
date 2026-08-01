@@ -116,7 +116,15 @@ describe("FileSystem stubs", () => {
     Effect.gen(function*() {
       const fileSystem = yield* FileSystem.FileSystem
       const failure = yield* Effect.flip(fileSystem.readFileString("a"))
-      expect(failure).toBeDefined()
+      expect(failure).toMatchObject({
+        _tag: "PlatformError",
+        reason: {
+          _tag: "NotFound",
+          module: "FileSystem",
+          method: "readFileString",
+          pathOrDescriptor: "a"
+        }
+      })
       expect(fileSystem["~effect/platform/FileSystem"]).toBe("~effect/platform/FileSystem")
     }).pipe(Effect.provide(FileSystem.layerNoop())))
 
@@ -124,7 +132,15 @@ describe("FileSystem stubs", () => {
     Effect.gen(function*() {
       const fileSystem = yield* FileSystem.FileSystem
       expect(yield* fileSystem.readFileString("a")).toBe("stubbed")
-      expect(yield* Effect.flip(fileSystem.writeFileString("a", "b"))).toBeDefined()
+      expect(yield* Effect.flip(fileSystem.writeFileString("a", "b"))).toMatchObject({
+        _tag: "PlatformError",
+        reason: {
+          _tag: "NotFound",
+          module: "FileSystem",
+          method: "writeFileString",
+          pathOrDescriptor: "a"
+        }
+      })
     }).pipe(
       Effect.provide(FileSystem.layerNoop({ readFileString: () => Effect.succeed("stubbed") }))
     ))

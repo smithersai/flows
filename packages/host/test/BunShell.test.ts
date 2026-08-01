@@ -60,17 +60,15 @@ const fake = (options: FakeOptions = {}): Fake => {
   let ended = false
   let killed = false
   let settle: (code: number) => void = () => {}
+  let rejectExit: (cause: unknown) => void = () => {}
   let created: BunSubprocess | undefined
   const exitCode = options.exitCode ?? 0
-  const exited = options.exitedRejects === true
-    ? Promise.reject(new Error("subprocess handle broke"))
-    : options.hang === true
-    ? new Promise<number>((resolve) => {
+  const exited = options.exitedRejects === true || options.hang === true
+    ? new Promise<number>((resolve, reject) => {
       settle = resolve
+      rejectExit = reject
     })
     : Promise.resolve(exitCode)
-  // An unobserved rejection is only settled once the implementation awaits it.
-  exited.catch(() => {})
   const subprocess: BunSubprocess = {
     stdin: {
       write: (data) => {
@@ -99,6 +97,12 @@ const fake = (options: FakeOptions = {}): Fake => {
       spawn: (spawn) => {
         spawnOptions.push(spawn)
         created = subprocess
+        if (options.exitedRejects === true) {
+          // Queue the rejection after the adapter has attached its Promise.all
+          // observer, so this test verifies its typed failure rather than
+          // suppressing an otherwise unobserved rejection in the fixture.
+          queueMicrotask(() => rejectExit(new Error("subprocess handle broke")))
+        }
         return subprocess
       }
     },

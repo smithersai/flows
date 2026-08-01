@@ -109,7 +109,11 @@ describe("Jj", () => {
 
     return Effect.gen(function*() {
       const jj = yield* Jj.Jj
-      yield* Effect.exit(jj.status())
+      expect(yield* Effect.flip(jj.status())).toMatchObject({
+        code: "permission_denied",
+        capability: { action: "jj:status", resource: "." },
+        reason: "denied by test"
+      })
       expect(invoked).toBe(false)
       expect(checks).toEqual([{ action: "jj:status", resource: "." }])
     }).pipe(

@@ -136,7 +136,10 @@ const itEffect = <A, E>(name: string, body: () => Effect.Effect<A, E>): void => 
   it(name, () => Effect.runPromise(body()))
 }
 
-const awaitPending = (store: GrantStore.Service, count: number) =>
+const awaitPending = (
+  store: GrantStore.Service,
+  count: number
+): Effect.Effect<ReadonlyArray<GrantStore.PendingRequest>> =>
   Effect.suspend(() =>
     Effect.flatMap(store.list, (pending) =>
       pending.length >= count

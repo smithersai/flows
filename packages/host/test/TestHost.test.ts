@@ -77,7 +77,7 @@ describe("TestHost scripted shell", () => {
   const run = <A, E>(
     effect: Effect.Effect<A, E, Shell>,
     commands?: Readonly<Record<string, { stdout?: string; stderr?: string; exitCode?: number }>>
-  ) => Effect.runPromise(Effect.provide(effect, TestHost.layer({ commands })))
+  ) => Effect.runPromise(Effect.provide(effect, TestHost.layer(commands === undefined ? {} : { commands })))
 
   it("reports an unlisted command the way a shell reports a missing binary", async () => {
     const result = await run(

@@ -190,7 +190,11 @@ describe("FileSystem", () => {
     return provide(
       Effect.gen(function*() {
         const fileSystem = yield* FileSystem.FileSystem
-        yield* Effect.exit(fileSystem.writeFile("blocked", new Uint8Array()))
+        expect(yield* Effect.flip(fileSystem.writeFile("blocked", new Uint8Array()))).toMatchObject({
+          code: "permission_denied",
+          capability: { action: "fs:write", resource: "/workspace/blocked" },
+          reason: "denied by test"
+        })
         expect(called).toBe(false)
         expect(checks).toEqual([{ action: "fs:write", resource: "/workspace/blocked" }])
       }),
@@ -279,7 +283,11 @@ describe("FileSystem", () => {
     return provide(
       Effect.gen(function*() {
         const fileSystem = yield* FileSystem.FileSystem
-        yield* Effect.exit(fileSystem.readFile("link"))
+        expect(yield* Effect.flip(fileSystem.readFile("link"))).toMatchObject({
+          code: "permission_denied",
+          capability: { action: "fs:read", resource: "/outside/secret" },
+          reason: "denied by test"
+        })
         expect(invoked).toBe(false)
         expect(checks).toEqual([{ action: "fs:read", resource: "/outside/secret" }])
       }),
@@ -313,7 +321,11 @@ describe("FileSystem", () => {
     return provide(
       Effect.gen(function*() {
         const fileSystem = yield* FileSystem.FileSystem
-        yield* Effect.exit(fileSystem.writeFile("link", new Uint8Array()))
+        expect(yield* Effect.flip(fileSystem.writeFile("link", new Uint8Array()))).toMatchObject({
+          code: "permission_denied",
+          capability: { action: "fs:write", resource: "/outside/new-file" },
+          reason: "denied by test"
+        })
         expect(invoked).toBe(false)
         expect(checks).toEqual([{ action: "fs:write", resource: "/outside/new-file" }])
       }),
@@ -340,7 +352,11 @@ describe("FileSystem", () => {
     return provide(
       Effect.gen(function*() {
         const fileSystem = yield* FileSystem.FileSystem
-        yield* Effect.exit(fileSystem.writeFile("linked", new Uint8Array()))
+        expect(yield* Effect.flip(fileSystem.writeFile("linked", new Uint8Array()))).toMatchObject({
+          code: "permission_denied",
+          capability: { action: "fs:write", resource: "/workspace/linked" },
+          reason: "hard-linked files cannot be confined to the workspace"
+        })
         expect(invoked).toBe(false)
         expect(checks).toEqual([])
       }),

@@ -46,7 +46,7 @@ const file = (calls: Array<string>): EffectFileSystem.File => ({
   read: () =>
     Effect.sync(() => {
       calls.push("file.read")
-      return 0 as EffectFileSystem.Size
+      return EffectFileSystem.Size(BigInt(0))
     }),
   readAlloc: () =>
     Effect.sync(() => {
@@ -60,7 +60,7 @@ const file = (calls: Array<string>): EffectFileSystem.File => ({
   write: () =>
     Effect.sync(() => {
       calls.push("file.write")
-      return 0 as EffectFileSystem.Size
+      return EffectFileSystem.Size(BigInt(0))
     }),
   writeAll: () =>
     Effect.sync(() => {
@@ -81,7 +81,7 @@ const hostFileSystem = (calls: Array<string>): EffectFileSystem.FileSystem => {
     copyFile: () => record("copyFile", undefined),
     chmod: () => record("chmod", undefined),
     chown: () => record("chown", undefined),
-    glob: () => record("glob", [] as ReadonlyArray<string>),
+    glob: () => record("glob", [] as Array<string>),
     exists: () => record("exists", false),
     link: () => record("link", undefined),
     makeDirectory: () => record("makeDirectory", undefined),
@@ -90,7 +90,7 @@ const hostFileSystem = (calls: Array<string>): EffectFileSystem.FileSystem => {
     makeTempFile: () => record("makeTempFile", "/tmp/file"),
     makeTempFileScoped: () => record("makeTempFileScoped", "/tmp/file"),
     open: () => record("open", file(calls)),
-    readDirectory: () => record("readDirectory", [] as ReadonlyArray<string>),
+    readDirectory: () => record("readDirectory", [] as Array<string>),
     readFile: () => record("readFile", new Uint8Array()),
     readFileString: () => record("readFileString", ""),
     readLink: () => record("readLink", "/workspace/target"),

@@ -4,7 +4,7 @@ import { Deferred, Effect, Layer } from "effect"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import { type DurableReceipt, Journal, type JournalError, makeNoop } from "../src/Journal.ts"
-import { Input, type RunId, type SourceId, type SourceSeq } from "../src/JournalEvent.ts"
+import { Input, type RunId, type Seq, type SourceId, type SourceSeq } from "../src/JournalEvent.ts"
 import * as Migrations from "../src/Migrations.ts"
 import type { OwnerId } from "../src/Ownership.ts"
 import * as SqlJournal from "../src/SqlJournal.ts"
@@ -285,15 +285,16 @@ describe("SqlJournal lossy and lifecycle channels", () => {
     ))
 
   it("the lifecycle receipt type cannot represent Dropped", () => {
-    // @ts-expect-error -- Dropped is unrepresentable in the lifecycle receipt.
-    const dropped: DurableReceipt = {
+    const forged = {
       _tag: "Dropped",
-      seq: 0,
-      sourceSeq: 0,
+      seq: 0 as Seq,
+      sourceSeq: sourceSeq(0),
       policy: "drop-newest"
-    }
+    } as const
+    // @ts-expect-error -- Dropped is unrepresentable in the lifecycle receipt.
+    const dropped: DurableReceipt = forged
     expect(dropped).toBeDefined()
-    expect(lifecycleTag({ _tag: "Duplicate", seq: 0, sourceSeq: 0, status: "committed" }))
+    expect(lifecycleTag({ _tag: "Duplicate", seq: 0 as Seq, sourceSeq: sourceSeq(0), status: "committed" }))
       .toBe("Duplicate")
   })
 

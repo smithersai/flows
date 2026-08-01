@@ -931,7 +931,7 @@ describe("Journal", () => {
       expect(page.entries.map((entry) => entry.eventType)).toEqual(["lifecycle"])
     }).pipe(
       Effect.provide(
-        journalLayer({ capacity: 4, overflow: "reject", allocation: "queue" }, database.layer)
+        journalLayer({ capacity: 4, overflow: "reject", allocation: "memory" }, database.layer)
       ),
       Effect.scoped
     )
@@ -988,7 +988,7 @@ describe("Journal", () => {
       expect(page.entries.map((entry) => entry.eventType)).toEqual(["written"])
     }).pipe(
       Effect.provide(
-        journalLayer({ capacity: 4, overflow: "reject", allocation: "queue" }, database.layer)
+        journalLayer({ capacity: 4, overflow: "reject", allocation: "memory" }, database.layer)
       ),
       Effect.scoped
     )
@@ -1049,7 +1049,7 @@ describe("Journal", () => {
       expect(after.entries.map((entry) => entry.eventType)).toEqual(["queued", "after"])
     }).pipe(
       Effect.provide(
-        journalLayer({ capacity: 8, overflow: "reject", allocation: "queue", batchSize: 1 }, database)
+        journalLayer({ capacity: 8, overflow: "reject", allocation: "memory", batchSize: 1 }, database)
       ),
       Effect.scoped
     )

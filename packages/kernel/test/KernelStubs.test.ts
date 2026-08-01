@@ -1,3 +1,4 @@
+import type { JjError } from "@smithers/host/HostError"
 import { Effect, Stream } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Jj from "../src/Jj.ts"
@@ -49,8 +50,8 @@ describe("kernel stubs without any host", () => {
       ])
     )
 
-    expect(errors.map((error) => error.code)).toEqual(Array.from({ length: 6 }, () => "not_installed"))
-    expect(errors.map((error) => error.method)).toEqual([
+    expect(errors.map((error) => (error as JjError).code)).toEqual(Array.from({ length: 6 }, () => "not_installed"))
+    expect(errors.map((error) => (error as JjError).method)).toEqual([
       "snapshot",
       "restore",
       "diff",

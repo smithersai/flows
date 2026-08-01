@@ -116,7 +116,11 @@ describe("HttpClient", () => {
     const calls: Array<string> = []
     return Effect.gen(function*() {
       const client = yield* HttpClient.HttpClient
-      yield* Effect.exit(client.post("https://example.test/write"))
+      expect(yield* Effect.flip(client.post("https://example.test/write"))).toMatchObject({
+        code: "permission_denied",
+        capability: { action: "net:post", resource: "example.test" },
+        reason: "denied by test"
+      })
       expect(checks).toEqual([{ action: "net:post", resource: "example.test" }])
       expect(calls).toEqual([])
     }).pipe((effect) => protectedClient(effect, transport(calls), store(checks, false)))

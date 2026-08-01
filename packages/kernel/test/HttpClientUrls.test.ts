@@ -1,5 +1,6 @@
 import * as HostHttpTransport from "@smithers/host/HttpTransport"
 import { Effect } from "effect"
+import type * as EffectHttpClientError from "effect/unstable/http/HttpClientError"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
 import { describe, expect, it } from "vitest"
 import type * as Capability from "../src/Capability.ts"
@@ -47,6 +48,22 @@ const provide = <A, E>(
   )
 
 const unparsable = "not a url"
+
+const expectUnavailable = (
+  failure: HttpClient.HttpClientError,
+  method: string,
+  url: string
+): void => {
+  expect(failure).toMatchObject({
+    _tag: "HttpClientError",
+    reason: {
+      _tag: "TransportError",
+      request: { method, url }
+    }
+  })
+  const transportFailure = failure as EffectHttpClientError.HttpClientError
+  expect(String(transportFailure.reason.cause)).toContain("HTTP transport is unavailable on this host")
+}
 
 describe("HttpClient unparsable URLs", () => {
   itEffect("names net:get for a rejected GET", () => {
@@ -121,7 +138,11 @@ describe("HttpClient stub layer", () => {
   itEffect("provides an unavailable client", () =>
     Effect.gen(function*() {
       const client = yield* HttpClient.HttpClient
-      expect(yield* Effect.flip(client.get("https://example.test"))).toBeDefined()
+      expectUnavailable(
+        yield* Effect.flip(client.get("https://example.test")),
+        "GET",
+        "https://example.test"
+      )
     }).pipe(Effect.provide(HttpClient.layerNoop())))
 
   itEffect("provides overridden model execution while plain requests stay unavailable", () =>
@@ -129,7 +150,11 @@ describe("HttpClient stub layer", () => {
       const client = yield* HttpClient.HttpClient
       expect(yield* client.executeModel(HttpClientRequest.get("https://example.test"), "m"))
         .toMatchObject({ status: 299 })
-      expect(yield* Effect.flip(client.get("https://example.test"))).toBeDefined()
+      expectUnavailable(
+        yield* Effect.flip(client.get("https://example.test")),
+        "GET",
+        "https://example.test"
+      )
     }).pipe(
       Effect.provide(
         HttpClient.layerNoop({

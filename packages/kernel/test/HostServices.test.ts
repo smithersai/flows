@@ -33,34 +33,59 @@ const fileSystem = EffectFileSystem.makeNoop({
 
 describe("HostServices", () => {
   it("shares the complete platform-port list and maps every slot to one protected tag", () => {
-    expect(HostServices.HostServiceTags).toHaveLength(6)
-    expect(new Set(HostServices.HostServiceTags)).toHaveLength(6)
-    expect(HostServices.HostServiceTags).toContain(HostHttpTransport.HttpTransport)
+    expect(HostServices.HostServiceTags).toEqual(Host.HostServiceTags)
     expect(HostServices.HostServiceIds).toEqual(Host.HostServiceIds)
-    expect(HostServices.ProtectedHostServiceTags).toHaveLength(HostServices.HostServiceIds.length)
-    expect(new Set(HostServices.ProtectedHostServiceTags)).toHaveLength(HostServices.HostServiceIds.length)
-    expect(HostServices.ProtectedHostServiceTags).toContain(HttpClient.HttpClient)
-    expect(HostServices.ProtectedHostServiceTags).not.toContain(HostHttpTransport.HttpTransport)
+    expect(HostServices.ProtectedHostServiceTags).toEqual([
+      FileSystem.FileSystem,
+      EffectPath.Path,
+      Shell.Shell,
+      Pty.Pty,
+      Jj.Jj,
+      HttpClient.HttpClient
+    ])
   })
 
-  it("builds every protected service over a host bundle", async () => {
+  it("binds every raw alias to its protected implementation and preserves host behavior", async () => {
     const http = EffectHttpClient.make((request) => Effect.succeed({ status: 200, headers: {}, request } as never))
     const program = Effect.gen(function*() {
-      expect(yield* FileSystem.FileSystem).toBeDefined()
-      expect(yield* EffectFileSystem.FileSystem).toBeDefined()
-      expect(yield* EffectPath.Path).toBeDefined()
-      expect(yield* Shell.Shell).toBeDefined()
-      expect(yield* Host.Shell.Shell).toBeDefined()
-      expect(yield* Pty.Pty).toBeDefined()
-      expect(yield* Host.Pty.Pty).toBeDefined()
-      expect(yield* Jj.Jj).toBeDefined()
-      expect(yield* Host.Jj.Jj).toBeDefined()
-      expect(yield* HttpClient.HttpClient).toBeDefined()
+      const protectedFileSystem = yield* FileSystem.FileSystem
+      const rawFileSystem = yield* EffectFileSystem.FileSystem
+      expect(rawFileSystem).toBe(protectedFileSystem)
+      expect(Array.from(yield* protectedFileSystem.readFile("/workspace/.keep"))).toEqual([])
+
+      const path = yield* EffectPath.Path
+      expect(path.normalize("/workspace/src/../src")).toBe("/workspace/src")
+
+      const protectedShell = yield* Shell.Shell
+      const rawShell = yield* Host.Shell.Shell
+      expect(rawShell).toBe(protectedShell)
+      expect(yield* protectedShell.exec("fixture")).toEqual({ stdout: "protected\n", stderr: "", exitCode: 0 })
+
+      const protectedPty = yield* Pty.Pty
+      const rawPty = yield* Host.Pty.Pty
+      expect(rawPty).toBe(protectedPty)
+      expect(yield* Effect.flip(Effect.scoped(protectedPty.spawn("fixture", { cols: 80, rows: 24 }))))
+        .toMatchObject({ code: "unsupported", message: "no pty in the browser (requested: fixture)" })
+
+      const protectedJj = yield* Jj.Jj
+      const rawJj = yield* Host.Jj.Jj
+      expect(rawJj).toBe(protectedJj)
+      expect(yield* Effect.flip(protectedJj.status())).toMatchObject({
+        code: "not_installed",
+        command: "jj status",
+        message: "jj is not available in the browser"
+      })
+
+      const client = yield* HttpClient.HttpClient
+      expect((yield* client.get("https://example.test/health")).status).toBe(200)
     }).pipe(
       Effect.provide(HostServices.layer),
       Effect.provideService(EffectFileSystem.FileSystem, fileSystem),
-      Effect.provide(Host.TestHost.layer({ files: { "/workspace/.keep": "" } })),
       Effect.provideService(HostHttpTransport.HttpTransport, HostHttpTransport.make(http.execute)),
+      Effect.provide(Host.TestHost.layer({
+        files: { "/workspace/.keep": "" },
+        commands: { fixture: { stdout: "protected\n" } }
+      })),
       Effect.provide(Workspace.layer("/workspace")),
       Effect.provideService(GrantStore, allowAll)
     )
@@ -81,18 +106,34 @@ describe("HostServices", () => {
     const http = EffectHttpClient.make((request) => Effect.succeed({ status: 200, headers: {}, request } as never))
     const program = Effect.gen(function*() {
       const shell = yield* Host.Shell.Shell
-      yield* Effect.exit(shell.exec("blocked"))
+      expect(yield* Effect.flip(shell.exec("blocked"))).toMatchObject({
+        code: "permission_denied",
+        capability: { action: "proc:spawn", resource: "blocked" },
+        reason: "denied by integration test"
+      })
       const pty = yield* Host.Pty.Pty
-      yield* Effect.exit(pty.spawn("blocked-pty", { cols: 80, rows: 24 }))
+      expect(yield* Effect.flip(pty.spawn("blocked-pty", { cols: 80, rows: 24 }))).toMatchObject({
+        code: "permission_denied",
+        capability: { action: "proc:spawn", resource: "blocked-pty" },
+        reason: "denied by integration test"
+      })
       const jj = yield* Host.Jj.Jj
-      yield* Effect.exit(jj.status())
-      const fileSystem = yield* EffectFileSystem.FileSystem
-      yield* Effect.exit(fileSystem.readFile("/workspace/.keep"))
+      expect(yield* Effect.flip(jj.status())).toMatchObject({
+        code: "permission_denied",
+        capability: { action: "jj:status", resource: "." },
+        reason: "denied by integration test"
+      })
+      const protectedFileSystem = yield* EffectFileSystem.FileSystem
+      expect(yield* Effect.flip(protectedFileSystem.readFile("/workspace/.keep"))).toMatchObject({
+        code: "permission_denied",
+        capability: { action: "fs:read", resource: "/workspace/.keep" },
+        reason: "denied by integration test"
+      })
     }).pipe(
       Effect.provide(HostServices.layer),
       Effect.provideService(EffectFileSystem.FileSystem, fileSystem),
-      Effect.provide(Host.TestHost.layer({ files: { "/workspace/.keep": "" } })),
       Effect.provideService(HostHttpTransport.HttpTransport, HostHttpTransport.make(http.execute)),
+      Effect.provide(Host.TestHost.layer({ files: { "/workspace/.keep": "" } })),
       Effect.provide(Workspace.layer("/workspace")),
       Effect.provideService(GrantStore, deny),
       Effect.scoped

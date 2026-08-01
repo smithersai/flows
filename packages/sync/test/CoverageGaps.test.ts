@@ -152,7 +152,7 @@ describe("sync malformed and terminal boundaries", () => {
       }).pipe(
         Effect.provide(
           Layer.mergeAll(
-            Journal.layerNoop({ entries: () => Effect.fail("offline") }),
+            Journal.layerNoop({ entries: () => Effect.fail("offline" as unknown as Journal.JournalError) }),
             RunCatalog.layerStatic([runId("boundary")])
           )
         )
@@ -171,7 +171,7 @@ describe("sync malformed and terminal boundaries", () => {
         const frames: Array<string> = []
         const fiber = yield* pair.server.runRaw((bytes) =>
           Effect.sync(() => {
-            frames.push(new TextDecoder().decode(bytes))
+            frames.push(typeof bytes === "string" ? bytes : new TextDecoder().decode(bytes))
           })
         ).pipe(Effect.forkChild)
         yield* write("null")
@@ -191,7 +191,7 @@ describe("sync malformed and terminal boundaries", () => {
         const pair = yield* TestSocket.makePair()
         const frames: Array<string> = []
         const fiber = yield* pair.server.runRaw((bytes) => {
-          frames.push(new TextDecoder().decode(bytes))
+          frames.push(typeof bytes === "string" ? bytes : new TextDecoder().decode(bytes))
         }).pipe(Effect.forkChild)
         const write = yield* pair.client.writer
         yield* write("synchronous")
