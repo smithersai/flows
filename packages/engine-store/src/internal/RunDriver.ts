@@ -569,7 +569,23 @@ export const make = (
     yield* Effect.forkScoped(
       Effect.forever(
         Effect.sleep(Ownership.heartbeatInterval).pipe(
-          Effect.andThen(sweepCancelRequested)
+          Effect.andThen(
+            // One transient defect (a `SQLITE_BUSY` escaping `waitingRuns()`'s
+            // `orDie`, a wake failure) must not kill the sweeper for the rest
+            // of the process lifetime (issue #44) — that would silently revert
+            // to pre-#27 behavior where cancel of parked runs is never
+            // delivered. Mirror `armClock`'s hardening: expose the full cause,
+            // log it, and keep ticking.
+            sweepCancelRequested.pipe(
+              Effect.sandbox,
+              Effect.catchCause((cause) =>
+                Effect.logWarning(
+                  "engine-store: parked-run cancel sweep failed; retrying next tick",
+                  cause
+                )
+              )
+            )
+          )
         )
       )
     )
