@@ -50,8 +50,7 @@ const gatedEngine = (gate: Deferred.Deferred<void>) =>
     interrupt: () => Effect.void,
     interruptUnsafe: () => Effect.void,
     resume: () => Effect.void,
-    activityExecute: () =>
-      Effect.as(Deferred.await(gate), new Flow.Complete({ exit: Exit.void })),
+    activityExecute: () => Effect.as(Deferred.await(gate), new Flow.Complete({ exit: Exit.void })),
     deferredResult: () => Effect.succeedNone,
     deferredDone: () => Effect.void,
     scheduleClock: () => Effect.void
@@ -59,8 +58,14 @@ const gatedEngine = (gate: Deferred.Deferred<void>) =>
 
 const drive = (
   executionId: string,
-  program: (engine: FlowEngine.FlowEngine["Service"], gate: Deferred.Deferred<void>) => Effect.Effect<unknown>
-) =>
+  program: (
+    engine: FlowEngine.FlowEngine["Service"],
+    gate: Deferred.Deferred<void>
+    // The `as never` activity casts below erase the dispatch requirements, so
+    // the program's `R` widens; `drive` discharges both services and pins the
+    // boundary back to `never` in its own return type.
+  ) => Effect.Effect<unknown, unknown, any>
+): Effect.Effect<Exit.Exit<unknown, unknown>> =>
   Effect.gen(function*() {
     const gate = yield* Deferred.make<void>()
     const engine = gatedEngine(gate)
@@ -72,7 +77,7 @@ const drive = (
       Effect.provide(Layer.succeed(FlowEngine.FlowEngine)(engine)),
       Effect.exit
     )
-  })
+  }) as Effect.Effect<Exit.Exit<unknown, unknown>>
 
 const dies = (exit: Exit.Exit<unknown, unknown>): boolean =>
   Exit.isFailure(exit) &&

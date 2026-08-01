@@ -401,7 +401,9 @@ export const make = (deps: Dependencies) => {
            */
           const emitConverging = (record: JournalEvent.Input) =>
             emitLifecycle(record).pipe(
-              Effect.catch((error) => error.code === "idempotency_conflict" ? Effect.succeed(undefined) : Effect.fail(error))
+              Effect.catch((error) =>
+                error.code === "idempotency_conflict" ? Effect.succeed(undefined) : Effect.fail(error)
+              )
             )
           const existing = yield* attempts.get(attemptId)
           if (Option.isSome(existing)) {

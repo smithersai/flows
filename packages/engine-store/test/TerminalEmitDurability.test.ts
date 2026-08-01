@@ -59,8 +59,7 @@ const dispatch = (
   runId: string,
   key: string,
   execute: () => Effect.Effect<unknown, unknown>,
-  options: { readonly tier?: ActivityPersistence.Tier; readonly metadata?: ActivityPersistence.BoundaryMetadata } =
-    {}
+  options: { readonly tier?: ActivityPersistence.Tier; readonly metadata?: ActivityPersistence.BoundaryMetadata } = {}
 ) =>
   ActivityPersistence.make({ runId, owner, sourceId: `terminal-emit-${runId}`, execute })({
     activity: {},
