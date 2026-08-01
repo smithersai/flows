@@ -33,7 +33,7 @@ This page distinguishes usable source-backed behavior from contracts and planned
 
 | Contract | What is missing |
 | --- | --- |
-| `StepBoundary` | A host layer that enforces read/write sets, detects changed paths, captures outputs, and replays those outputs |
+| `StepBoundary` (whole-tree detection) | `StepBoundary.layer` measures read sets, detects mutated declared reads, and captures/replays write-set outputs over the kernel `FileSystem`; detecting writes outside the declared sets still needs the jj diff surface |
 | Cross-host liveness | `EngineStore.Options.isAlive` is application-supplied |
 | `RunCatalog` | A durable workspace run list/watch; static and memory implementations ship |
 | Browser Jujutsu and PTY | Typed unavailable implementations ship |

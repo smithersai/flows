@@ -24,7 +24,7 @@ Consequence: activity names are diagnostic. A sealed content identity, not the n
 
 A content key alone does not prove hermetic execution. `@smithers/engine-store` caches only sealed activities that carry a hard `StepBoundary` descriptor and settle without a deviation.
 
-Consequence: the repository ships a `StepBoundary` contract and a test layer, but no production boundary. Cross-run cache admission is unavailable until a host supplies enforcement and output materialization.
+Consequence: cross-run cache admission requires the filesystem-backed `StepBoundary.layer` (or a stronger host boundary). It measures declared read sets and materializes declared outputs; writes outside the declared sets are only detected within the read set until a jj-diff-backed boundary lands.
 
 ## D5. Host access is closed and decorated
 

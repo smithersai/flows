@@ -116,8 +116,9 @@ lanes. What exists on our side: the `checkpoint` hook (sequential) in the
 catalog, the time-travel package's fork/rewind/replay over stored state, and
 `Jj` in host. What is missing: a `Checkpoint` host capability (layer-gated,
 `makeNoop` for browser) that actually snapshots agent-session/worktree state at
-step boundaries, and any worktree-lane lifecycle. `StepBoundary` also remains a
-contract with no production host layer. Done = the Checkpoint capability
+step boundaries, and any worktree-lane lifecycle. `StepBoundary` now ships a
+filesystem-backed production layer (read-set measurement, output
+materialization); whole-tree change detection still needs jj. Done = the Checkpoint capability
 invoked only via the `checkpoint` hook, never inline in the loop.
 
 ### 7. Quota park / wake — partial
