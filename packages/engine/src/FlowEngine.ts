@@ -533,25 +533,28 @@ const activityKey = (
     // changes the digest of every persisted string-key row from before this
     // fix; those keys were unsafe to replay (cross-activity aliasing), so the
     // break is intentional.
+    const identity: StepKey.ContentIdentity = typeof activity.idempotencyKey === "string"
+      ? {
+        body: {
+          activity: activity.name,
+          idempotencyKey: activity.idempotencyKey
+        },
+        inputs: {},
+        layers: [],
+        capabilities: {}
+      }
+      : activity.idempotencyKey
+    // The cacheability-gating boundary descriptor is content identity
+    // (issue #25): a changed read set, write set, or boundary mode must miss
+    // rather than replay a stale cross-run cache entry. Both key forms fold
+    // it through this one path — the caller-owned `ContentIdentity` keeps
+    // rename-stability (no name enters the digest) but can never opt out of
+    // the read-set material `ActivityPersistence` gates cacheability on
+    // (issue #57): the descriptor derived from `activity.metadata` overrides
+    // any caller-supplied `hermetic` field.
+    const hermetic = boundaryHermetic(activity.metadata)
     return Result.getOrThrow(StepKey.content(
-      typeof activity.idempotencyKey === "string"
-        ? {
-          body: {
-            activity: activity.name,
-            idempotencyKey: activity.idempotencyKey
-          },
-          inputs: {},
-          layers: [],
-          capabilities: {},
-          // The cacheability-gating boundary descriptor is content identity
-          // (issue #25): a changed read set, write set, or boundary mode
-          // must miss rather than replay a stale cross-run cache entry.
-          ...(() => {
-            const hermetic = boundaryHermetic(activity.metadata)
-            return hermetic === undefined ? {} : { hermetic }
-          })()
-        }
-        : activity.idempotencyKey
+      hermetic === undefined ? identity : { ...identity, hermetic }
     ))
   }
   return Result.getOrThrow(StepKey.ordinal({
