@@ -75,9 +75,12 @@ describe("Activity.idempotencyKey scoping", () => {
     return Effect.gen(function*() {
       const [plain, scoped, off] = yield* flow.execute({ id: "x" }, { executionId: "run-attempt" })
       expect(plain).toBe(ordinalKey("run-attempt", 1))
-      expect(scoped).toBe(ordinalKey("run-attempt", 2, "attempt:7"))
+      // Each parent scope owns its own counter (issue #98), so the
+      // attempt-scoped allocation numbers from 1 within `attempt:7`.
+      expect(scoped).toBe(ordinalKey("run-attempt", 1, "attempt:7"))
       // includeAttempt: false is identical in shape to omitting the option
-      expect(off).toBe(ordinalKey("run-attempt", 3))
+      // and draws from the same unscoped counter as `plain`.
+      expect(off).toBe(ordinalKey("run-attempt", 2))
     }).pipe(Effect.provide(layer))
   })
 
@@ -118,6 +121,46 @@ describe("Activity.idempotencyKey scoping", () => {
       // CurrentAttempt defaults to 1 when nothing provides it
       expect(a).toBe(ordinalKey("run-same", 1, "attempt:1"))
       expect(b).toBe(ordinalKey("run-same", 2, "attempt:1"))
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("keys with distinct parent scopes survive a replay with reversed arrival order (issue #98)", () => {
+    // Two concurrent `DurableQueue.offer`-style allocations each declare
+    // their payload key as `parentScope`. A run-global counter numbered them
+    // in fiber-arrival order, so a replay whose interleaving reversed the
+    // arrivals handed payload A payload B's ordinal — a brand-new key the
+    // persisted queue had never seen, duplicating the work item and leaving
+    // the original await watching a deferred nothing resolves. With the
+    // counter scoped per declared parent, arrival order is immaterial.
+    const flow = Flow.make("IdentityGaps/arrival-order", {
+      payload: { order: Schema.Array(Schema.String) },
+      success: Schema.Record(Schema.String, Schema.String)
+    })
+    const layer = flow.toLayer(({ order }) =>
+      Effect.gen(function*() {
+        const keys: Record<string, string> = {}
+        for (const parent of order) {
+          keys[parent] = yield* Activity.idempotencyKey("offer", { parentScope: parent })
+        }
+        return keys
+      })
+    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+
+    return Effect.gen(function*() {
+      const first = yield* flow.execute(
+        { order: ["payload:a", "payload:b"] },
+        { executionId: "run-arrival-1" }
+      )
+      const replay = yield* flow.execute(
+        { order: ["payload:b", "payload:a"] },
+        { executionId: "run-arrival-2" }
+      )
+      expect(first["payload:a"]).toBe(ordinalKey("run-arrival-1", 1, "payload:a"))
+      expect(first["payload:b"]).toBe(ordinalKey("run-arrival-1", 1, "payload:b"))
+      // Identity is a function of the declared parent alone, never of which
+      // fiber happened to allocate first.
+      expect(replay["payload:a"]).toBe(ordinalKey("run-arrival-2", 1, "payload:a"))
+      expect(replay["payload:b"]).toBe(ordinalKey("run-arrival-2", 1, "payload:b"))
     }).pipe(Effect.provide(layer))
   })
 })

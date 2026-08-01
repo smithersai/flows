@@ -25,6 +25,7 @@ import * as DurableDeferred from "./DurableDeferred.ts"
 import * as Flow from "./Flow.ts"
 import type { FlowEngine, FlowInstance } from "./FlowEngine.ts"
 import type * as RetryPolicy from "./RetryPolicy.ts"
+import * as StepIdentity from "./StepIdentity.ts"
 
 const TypeId = "~effect/flow/Activity"
 
@@ -354,11 +355,21 @@ export const layerContentEnvironment = (
  * name-scoped counters and aliasing a later independent dispatch onto an
  * in-block key (issue #84).
  *
+ * Each scope pins a *sequence* of ordinals rather than a single value
+ * (issue #100): one retry block may dispatch the same declaration several
+ * times, and a single-valued slot handed the first dispatch's ordinal to
+ * every later one, so the second dispatch silently replayed the first's
+ * recorded outcome. `cursors` counts the dispatches of each scope within the
+ * current attempt — `Activity.retry` resets it at every attempt boundary —
+ * so the n-th same-scope dispatch of every attempt reuses the n-th pinned
+ * ordinal.
+ *
  * @category Attempts
  * @since 0.1.0
  */
 export interface OrdinalSlot {
-  readonly values: Map<string, number>
+  readonly values: Map<string, Array<number>>
+  readonly cursors: Map<string, number>
 }
 
 /**
@@ -397,13 +408,17 @@ export const retry: {
       // activity's scope with the ordinal it allocates on the first attempt,
       // and every later attempt of the same sequence reuses those ordinals
       // (issues #73, #84).
-      const slot: OrdinalSlot = { values: new Map() }
-      return Effect.suspend(() =>
-        effect.pipe(
+      const slot: OrdinalSlot = { values: new Map(), cursors: new Map() }
+      return Effect.suspend(() => {
+        // Every attempt replays the block from its first dispatch, so the
+        // per-scope dispatch cursors restart with it (issue #100); the pinned
+        // ordinal sequences in `values` persist across attempts.
+        slot.cursors.clear()
+        return effect.pipe(
           Effect.provideService(CurrentAttempt, attempt++),
           Effect.provideService(CurrentOrdinal, slot)
         )
-      ).pipe(Effect.retry(options))
+      }).pipe(Effect.retry(options))
     })
 )
 
@@ -441,19 +456,33 @@ export const idempotencyKey: (
   }) {
     const instance = yield* InstanceTag
     const attempt = yield* CurrentAttempt
-    // Internal durable operations keep their own single counter: their
-    // identity is deliberately name-free (the name is diagnostic only), so
-    // they are ordered by allocation within the run.
-    const ordinal = instance.activityState.nextOrdinal("idempotency")
+    // Internal durable operations stay name-free (the name is diagnostic
+    // only), but their counter is scoped by the caller's declared
+    // `parentScope` through the canonical `StepIdentity` derivation (issue
+    // #98): a run-global counter numbered concurrent offers in fiber-arrival
+    // order, so a replay with a permuted interleaving handed one payload's
+    // ordinal to another and its await watched a deferred nothing resolves.
+    // With the counter scoped per declared parent, each scope numbers its
+    // own allocations deterministically; only allocations *within* one
+    // scope remain arrival-ordered — they carry no material to order them
+    // by.
+    const parentScope = options?.parentScope !== undefined
+      ? options.parentScope
+      : options?.includeAttempt
+      ? `attempt:${attempt}`
+      : undefined
+    const ordinal = instance.activityState.nextOrdinal(
+      StepIdentity.allocationScope({
+        kind: "internal",
+        name: "idempotency",
+        idempotency: parentScope
+      })
+    )
     return Result.getOrThrow(StepKey.ordinal({
       runId: instance.executionId,
       ordinal,
       tier: "unsealed",
-      ...(options?.parentScope !== undefined
-        ? { parentScope: options.parentScope }
-        : options?.includeAttempt
-        ? { parentScope: `attempt:${attempt}` }
-        : {})
+      ...(parentScope !== undefined ? { parentScope } : {})
     }))
   })
 
