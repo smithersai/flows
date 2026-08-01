@@ -330,8 +330,15 @@ export interface Service {
    * no pending clock, and no future deferred completion. A periodic
    * sweeper re-drives these through the ordinary claim/steal path — the
    * analog of Temporal's task-timeout re-dispatch (issue #53).
+   *
+   * `limit` caps one enumeration (issue #79): the rows come back oldest
+   * heartbeat first, so a capped sweep drains a mass owner death across
+   * ticks instead of waking every stale run in every driver every tick.
    */
-  readonly staleRunningRuns: (staleBeforeMs: number) => Effect.Effect<ReadonlyArray<string>>
+  readonly staleRunningRuns: (
+    staleBeforeMs: number,
+    limit?: number | undefined
+  ) => Effect.Effect<ReadonlyArray<string>>
   /**
    * The surviving attempt rows for an activity key, in one range read: the
    * earliest surviving row's start time (the durable retry origin when
@@ -588,6 +595,18 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
   yield* database.write(sql`
     CREATE INDEX IF NOT EXISTS flows_run_parents_parent_idx
     ON flows_run_parents (parent_id)
+  `).pipe(Effect.orDie)
+  // Serves the stale-running sweep's per-tick predicate (issue #79):
+  // `status = 'running' AND heartbeat_at_ms < cutoff`, ordered by heartbeat.
+  // A partial index keeps it tiny — only live running rows appear. Created
+  // here (not in the journal migration ladder, another lane's package) for
+  // the same reason as `flows_run_parents` above; `flows_runs` itself must
+  // already exist for any of this service's queries to work, so `make`
+  // composes over a migrated database by construction.
+  yield* database.write(sql`
+    CREATE INDEX IF NOT EXISTS flows_runs_stale_running_idx
+    ON flows_runs (heartbeat_at_ms)
+    WHERE status = 'running'
   `).pipe(Effect.orDie)
 
   const selectDeferred = (address: DeferredAddress) =>
@@ -1022,7 +1041,10 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
 
   const staleRunningRuns: Service["staleRunningRuns"] = Effect.fn(
     "DurableEngineState.staleRunningRuns"
-  )((staleBeforeMs) =>
+  )((staleBeforeMs, limit) =>
+    // `LIMIT -1` is SQLite's explicit "no limit"; the partial index created
+    // in `make` serves the predicate, so the per-tick sweep is an index
+    // range read instead of a full table scan (issue #79).
     sql<{ runId: string }>`
       SELECT run_id AS "runId"
       FROM flows_runs
@@ -1030,6 +1052,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
         AND heartbeat_at_ms IS NOT NULL
         AND heartbeat_at_ms < ${staleBeforeMs}
       ORDER BY heartbeat_at_ms, run_id
+      LIMIT ${limit ?? -1}
     `.pipe(
       Effect.orDie,
       Effect.map((rows) => rows.map((row) => String(row.runId)))
@@ -1480,7 +1503,7 @@ export const makeMemory = (options: MemoryOptions = {}): Service => {
           )
       )
     ),
-    staleRunningRuns: Effect.fn("DurableEngineState.staleRunningRuns")((staleBeforeMs) =>
+    staleRunningRuns: Effect.fn("DurableEngineState.staleRunningRuns")((staleBeforeMs, limit) =>
       Effect.sync(() => {
         // Mirrors the SQL scan of `flows_runs`: without an enumerator there
         // is nothing to scan, so no stale rows exist.
@@ -1496,12 +1519,15 @@ export const makeMemory = (options: MemoryOptions = {}): Service => {
             stale.push({ runId, heartbeatAtMs })
           }
         }
-        return stale
+        const ordered = stale
           .sort((left, right) =>
             left.heartbeatAtMs - right.heartbeatAtMs ||
             left.runId.localeCompare(right.runId)
           )
           .map((row) => row.runId)
+        // Mirrors the SQL LIMIT: oldest heartbeats first, capped per sweep
+        // (issue #79).
+        return limit === undefined ? ordered : ordered.slice(0, limit)
       })
     ),
     recordRunParent: Effect.fn("DurableEngineState.recordRunParent")((childId, parentId) =>

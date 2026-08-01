@@ -236,13 +236,17 @@ export const describeContract = (harness: Harness): void => {
           yield* context.seedRun("parked-stale", null, "suspended", null)
           return {
             beforeOne: yield* context.state.staleRunningRuns(1_000),
-            beforeBoth: yield* context.state.staleRunningRuns(10_000)
+            beforeBoth: yield* context.state.staleRunningRuns(10_000),
+            // The per-tick cap (issue #79): oldest heartbeats first, the
+            // backlog beyond the limit waits for the next sweep.
+            capped: yield* context.state.staleRunningRuns(10_000, 2)
           }
         })
       )
 
       expect(result.beforeOne).toEqual(["stale-old", "stale-old-b"])
       expect(result.beforeBoth).toEqual(["stale-old", "stale-old-b", "stale-newer"])
+      expect(result.capped).toEqual(["stale-old", "stale-old-b"])
     })
 
     it("excludes terminally closed runs from waitingRuns (issue #28)", async () => {

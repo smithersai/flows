@@ -175,4 +175,20 @@ describe("SQL DurableEngineState", () => {
     expect(Option.isNone(result.otherKey)).toBe(true)
     expect(Option.getOrThrow(result.pruned)).toEqual({ earliestStartedAtMs: 20, latest: 3 })
   })
+
+  it("creates the partial index the stale-running sweep's per-tick query needs (issue #79)", async () => {
+    const result = await Effect.runPromise(
+      Effect.gen(function*() {
+        yield* DurableEngineState.make
+        const { sql } = yield* Database.Database
+        const indexes = yield* sql<{ readonly name: string }>`
+          SELECT name FROM sqlite_master
+          WHERE type = 'index' AND tbl_name = 'flows_runs'
+        `
+        return indexes.map((row) => row.name)
+      }).pipe(Effect.provide(migratedDatabase))
+    )
+
+    expect(result).toContain("flows_runs_stale_running_idx")
+  })
 })

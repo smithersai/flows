@@ -127,6 +127,14 @@ const samePayload = (left: unknown, right: unknown): boolean => JSON.stringify(l
  * cancellation before the flow settles.
  */
 const cancelRequested = { _tag: "CancelRequested" } as const
+
+/**
+ * How many stale-running rows one heartbeat tick may wake (issue #79).
+ * Oldest heartbeats surface first, so a backlog larger than the batch
+ * drains across ticks; each successful steal removes the row from the
+ * stale window, and losing drivers see a shrinking batch next tick.
+ */
+const staleRunningSweepBatch = 64
 type CancelRequested = typeof cancelRequested
 
 const withoutResult = (state: PersistedState): PersistedState => {
@@ -612,8 +620,14 @@ export const make = (
      */
     const sweepStaleRunning: Effect.Effect<void> = Effect.gen(function*() {
       const nowMs = yield* Clock.currentTimeMillis
+      // Capped per tick (issue #79): oldest heartbeats come back first, so a
+      // mass owner death drains across successive ticks — batch after batch
+      // as each stolen run's heartbeat leaves the stale window — instead of
+      // every surviving driver waking every stale run every second and
+      // contending N-drivers × M-runs on the claim/steal CAS.
       const stale = yield* engineState.staleRunningRuns(
-        nowMs - Duration.toMillis(Ownership.heartbeatStaleAfter)
+        nowMs - Duration.toMillis(Ownership.heartbeatStaleAfter),
+        staleRunningSweepBatch
       )
       for (const runId of stale) {
         yield* coordinator.wake(runId)
