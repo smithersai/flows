@@ -1,9 +1,12 @@
-import { TestDatabase } from "@smithers/database"
+import { NodeDatabase, TestDatabase } from "@smithers/database"
 import { Migrations } from "@smithers/journal"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
+import { mkdtempSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 
@@ -139,5 +142,63 @@ describe("SQL cycle rejection under concurrency (issue #65)", () => {
     ])
     // The rejected insert rolled back inside its own transaction.
     expect(result.edgesOfA).toEqual([])
+  })
+})
+
+/**
+ * Issue #74: the shared-`:memory:` fixtures above serialize both writers on
+ * one connection's in-process transaction mutex, which is not the mechanism
+ * that exists between processes. This suite gives each writer its OWN SQLite
+ * connection over one database file, so serialization can only come from the
+ * database's cross-connection write transaction lock — the property the
+ * `Database.write` contract documents and the cycle detector's safety
+ * argument rests on. The insert precedes the ancestor walk, so each
+ * transaction holds the write lock while walking; the loser retries on busy
+ * and then sees the winner's committed edge.
+ */
+describe("cross-connection cycle rejection (issue #74)", () => {
+  it("two writers on separate connections racing a mutual cycle: exactly one fails, graph stays acyclic", async () => {
+    const filename = join(mkdtempSync(join(tmpdir(), "flows-cycle-")), "cycle.sqlite")
+    // Each owner builds its OWN connection layer over the same file, and the
+    // layer scope stays open for the whole race so both connections are live
+    // concurrently.
+    const owner = Effect.gen(function*() {
+      const context = yield* Layer.build(
+        Layer.provideMerge(Migrations.layer, NodeDatabase.layer({ filename })) as Layer.Layer<never>
+      )
+      return yield* (DurableEngineState.make.pipe(
+        Effect.provide(context as never)
+      ) as Effect.Effect<DurableEngineState.Service>)
+    })
+
+    const result = await Effect.runPromise(
+      Effect.scoped(Effect.gen(function*() {
+        const first = yield* owner
+        const second = yield* owner
+        const exits = yield* Effect.all([
+          Effect.exit(first.recordRunParent("xproc-a", "xproc-b")),
+          Effect.exit(second.recordRunParent("xproc-b", "xproc-a"))
+        ], { concurrency: "unbounded" })
+        // Read the graph back through BOTH connections: a durable edge must
+        // be visible to the writer that did not create it.
+        const edges = [
+          ...(yield* second.runParents("xproc-a")),
+          ...(yield* first.runParents("xproc-b"))
+        ]
+        return { exits, edges }
+      })) as Effect.Effect<{
+        readonly exits: ReadonlyArray<Exit.Exit<void, DurableEngineState.RunParentCycleError>>
+        readonly edges: ReadonlyArray<DurableEngineState.RunParentEdge>
+      }>
+    )
+
+    const failures = result.exits.filter(Exit.isFailure)
+    expect(failures).toHaveLength(1)
+    expect(cycleFailure(failures[0]!)).toBeInstanceOf(DurableEngineState.RunParentCycleError)
+    // Exactly the winner's edge is durable, and it is the one whose writer
+    // succeeded — the loser's edge was rolled back with its transaction.
+    expect(result.edges).toHaveLength(1)
+    const winner = result.exits.findIndex(Exit.isSuccess)
+    expect(result.edges[0]!.childId).toBe(winner === 0 ? "xproc-a" : "xproc-b")
   })
 })

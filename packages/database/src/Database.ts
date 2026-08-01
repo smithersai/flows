@@ -45,6 +45,19 @@ export class DatabaseError extends Schema.TaggedErrorClass<DatabaseError>()("flo
 /**
  * Generic database access, deliberately free of journal or Host knowledge.
  *
+ * **The `write` contract.** `write` runs its effect inside one transaction
+ * with transaction-scoped retries, and implementations MUST guarantee that
+ * write transactions are mutually serialized: two concurrent `write`
+ * transactions may not both commit results computed from snapshots that
+ * exclude each other's writes. Consumers depend on this for correctness,
+ * not just isolation hygiene — the engine store's cycle detector inserts an
+ * edge and walks the ancestor graph inside one `write`, and its safety
+ * argument ("of two edges that jointly close a cycle, exactly the later
+ * one fails") holds only under serialized writers. SQLite satisfies the
+ * contract with its single-writer transaction lock; a PostgreSQL-backed
+ * implementation must run write transactions at `SERIALIZABLE` (and retry
+ * `40001`) — plain READ COMMITTED does not satisfy this contract.
+ *
  * @category services
  * @since 0.1.0
  */
