@@ -41,6 +41,7 @@ import {
 import { Entry, Input, makeEventId, type RunId, type Seq, type SourceId, type SourceSeq } from "./JournalEvent.ts"
 import type { OwnerId } from "./Ownership.ts"
 import type { Projection } from "./Projection.ts"
+import * as Redaction from "./Redaction.ts"
 
 /**
  * SQL journal queue and batching options.
@@ -75,6 +76,17 @@ export interface SqlJournalOptions {
    * refusal to hold unbounded history in a shard (`service/history`).
    */
   readonly sourceEventCache?: number | undefined
+  /**
+   * Scrub applied to every `payload` and `meta` before it is encoded for
+   * persistence.
+   *
+   * Journal rows are permanent and are replayed verbatim to sync subscribers
+   * and time-travel consumers, so a credential that reaches `payload_json` is
+   * a durable, broadly readable leak. Redaction therefore defaults to
+   * `Redaction.make()`; pass `Redaction.makeNoop()` to persist payloads
+   * verbatim by choice.
+   */
+  readonly redact?: Redaction.Redactor | undefined
 }
 
 /** Default retained window of the source-event index. */
@@ -214,6 +226,7 @@ const decodeRow = (row: JournalRow): Effect.Effect<Entry, JournalError> =>
 interface ValidatedOptions {
   readonly batchSize: number
   readonly sourceEventCache: number
+  readonly redact: Redaction.Redactor
 }
 
 const validateOptions = (options: SqlJournalOptions): Effect.Effect<ValidatedOptions, JournalError> =>
@@ -229,7 +242,7 @@ const validateOptions = (options: SqlJournalOptions): Effect.Effect<ValidatedOpt
     if (!Number.isSafeInteger(sourceEventCache) || sourceEventCache <= 0) {
       return Effect.fail(error("invalid_event", "sourceEventCache must be a positive safe integer"))
     }
-    return Effect.succeed({ batchSize, sourceEventCache })
+    return Effect.succeed({ batchSize, sourceEventCache, redact: options.redact ?? Redaction.make() })
   })
 
 const isJournalError = Schema.is(JournalError)
@@ -249,7 +262,7 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
   Layer.effect(
     Journal,
     Effect.gen(function*() {
-      const { batchSize, sourceEventCache } = yield* validateOptions(options)
+      const { batchSize, redact, sourceEventCache } = yield* validateOptions(options)
       const database = yield* Database
       const sql = database.sql
       const queue = yield* Queue.dropping<QueuedEntry>(options.capacity)
@@ -428,10 +441,12 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
               error("invalid_event", "emittedAtMs must be a non-negative safe integer")
             )
           }
+          // Redaction happens here, at the single point every channel funnels
+          // through, so no write path can bypass it (issue #46).
           return {
             validated,
-            payloadJson: yield* encodeJson(validated.payload, "payload"),
-            metaJson: yield* encodeJson(validated.meta ?? null, "meta")
+            payloadJson: yield* encodeJson(redact(validated.payload), "payload"),
+            metaJson: yield* encodeJson(redact(validated.meta ?? null), "meta")
           }
         })
 

@@ -23,6 +23,12 @@ export * as Journal from "./Journal.ts"
 export * as SqlJournal from "./SqlJournal.ts"
 
 /**
+ * @category redaction
+ * @since 0.1.0
+ */
+export * as Redaction from "./Redaction.ts"
+
+/**
  * @category projections
  * @since 0.1.0
  */
