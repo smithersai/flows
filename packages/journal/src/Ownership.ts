@@ -86,21 +86,50 @@ export const heartbeatInterval: Duration.Duration = Duration.seconds(1)
 export const heartbeatStaleAfter: Duration.Duration = Duration.seconds(30)
 
 /**
+ * How far the owner's wall clock may run behind a peer's before the lease
+ * reasoning stops holding.
+ *
+ * The owner stamps `heartbeat_at_ms` from *its* clock and a would-be stealer
+ * compares that stamp against *its own*, so the two hosts' clock offset is
+ * subtracted directly from the owner's real safety margin. This constant names
+ * that allowance instead of leaving it implicit in a "two ticks" arithmetic
+ * accident, and it is a budgeted allowance, not a guarantee: see
+ * {@link heartbeatWriteTolerance} for what happens once it is exceeded.
+ *
+ * @since 0.1.0
+ * @category constants
+ */
+export const heartbeatSkewAllowance: Duration.Duration = Duration.seconds(10)
+
+/**
  * How long the owner may keep working through *failing* heartbeat writes.
  *
  * A peer judges staleness by the persisted heartbeat and may steal the run the
  * instant it is {@link heartbeatStaleAfter} old, so an owner that tolerated
  * write failures for exactly that long would still be executing side effects
- * when the steal is admitted. The budget is therefore strictly shorter than
- * the steal cutoff by two heartbeat ticks: one because the owner only
- * re-evaluates the budget once per {@link heartbeatInterval}, and one as
- * headroom for interruption latency and cross-host clock skew.
+ * when the steal is admitted. The budget is therefore
+ * {@link heartbeatStaleAfter} minus {@link heartbeatSkewAllowance} (the peer's
+ * clock may already read that much later than the owner's) minus one
+ * {@link heartbeatInterval} (the owner only re-evaluates the budget once per
+ * pulse, so it may notice the expiry a full tick late).
+ *
+ * This bounds, but does not eliminate, overlap. Beyond
+ * {@link heartbeatSkewAllowance} of clock offset a peer can be admitted while
+ * the old owner is still running. *Durable* writes stay safe regardless — they
+ * are fenced by the ownership compare-and-set, so the displaced owner's writes
+ * fail rather than corrupt. Non-durable external side effects (an HTTP call, a
+ * spawned process) can genuinely overlap. That is inherent to any wall-clock
+ * lease and is stated here rather than asserted away; a caller that cannot
+ * tolerate any overlap needs an external fencing token at the side effect
+ * itself, not a larger timeout.
  *
  * @since 0.1.0
  * @category constants
  */
 export const heartbeatWriteTolerance: Duration.Duration = Duration.millis(
-  Duration.toMillis(heartbeatStaleAfter) - 2 * Duration.toMillis(heartbeatInterval)
+  Duration.toMillis(heartbeatStaleAfter) -
+    Duration.toMillis(heartbeatSkewAllowance) -
+    Duration.toMillis(heartbeatInterval)
 )
 
 /**
@@ -115,9 +144,12 @@ export const heartbeatWriteTolerance: Duration.Duration = Duration.millis(
  * interrupts immediately. A failed heartbeat *write* is not: the persisted
  * heartbeat is still there and no other process may steal the run until it is
  * `heartbeatStaleAfter` old, so transient write errors are tolerated for
- * `heartbeatWriteTolerance` — deliberately shorter than the steal cutoff, so
- * the owner is always interrupted *before* a peer may steal the run rather
- * than while it is still running side effects. Every successful pulse re-arms
+ * `heartbeatWriteTolerance` — deliberately shorter than the steal cutoff by a
+ * pulse plus `heartbeatSkewAllowance`, so an owner whose clock lags a peer's
+ * by up to that allowance is still interrupted *before* the peer may steal the
+ * run rather than while it is still running side effects. Past that allowance
+ * the fence still protects durable writes but non-durable side effects may
+ * overlap; see {@link heartbeatWriteTolerance}. Every successful pulse re-arms
  * the window.
  *
  * @since 0.1.0

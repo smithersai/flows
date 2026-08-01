@@ -6,6 +6,7 @@ import * as Migrations from "../src/Migrations.ts"
 import {
   heartbeatInterval,
   heartbeatLoop,
+  heartbeatSkewAllowance,
   heartbeatStaleAfter,
   heartbeatWriteTolerance,
   type LivenessEvidence,
@@ -784,12 +785,12 @@ describe("RunStore", () => {
         // again. The successful pulse re-arms the fence, so the second outage
         // gets a full window of its own and the loop is still alive after a
         // total outage far longer than `heartbeatStaleAfter`.
-        yield* TestClock.adjust(Duration.seconds(25))
+        yield* TestClock.adjust(Duration.millis(Duration.toMillis(heartbeatWriteTolerance) - Duration.toMillis(heartbeatInterval)))
         broken.value = false
         yield* TestClock.adjust(heartbeatInterval)
         yield* Effect.yieldNow
         broken.value = true
-        yield* TestClock.adjust(Duration.seconds(25))
+        yield* TestClock.adjust(Duration.millis(Duration.toMillis(heartbeatWriteTolerance) - Duration.toMillis(heartbeatInterval)))
         yield* Effect.yieldNow
         return owningFiber.pollUnsafe()
       })).pipe(
@@ -799,6 +800,25 @@ describe("RunStore", () => {
     )
 
     expect(alive).toBe(undefined)
+  })
+
+  it("reserves a named cross-host clock skew allowance in the write budget", () => {
+    // The owner stamps `heartbeat_at_ms` from its own clock and a peer judges
+    // staleness against *its* clock, so the offset between the two hosts eats
+    // directly into the owner's margin. The budget must name that allowance
+    // and still leave a pulse of headroom on top of it.
+    expect(Duration.toMillis(heartbeatSkewAllowance)).toBeGreaterThan(Duration.toMillis(heartbeatInterval))
+    expect(Duration.toMillis(heartbeatWriteTolerance)).toBe(
+      Duration.toMillis(heartbeatStaleAfter) -
+        Duration.toMillis(heartbeatSkewAllowance) -
+        Duration.toMillis(heartbeatInterval)
+    )
+    // An owner whose clock lags a peer's by up to the allowance is still
+    // interrupted before that peer may legally steal the run.
+    expect(
+      Duration.toMillis(heartbeatWriteTolerance) + Duration.toMillis(heartbeatSkewAllowance) +
+        Duration.toMillis(heartbeatInterval)
+    ).toBeLessThanOrEqual(Duration.toMillis(heartbeatStaleAfter))
   })
 
   it("suspends while clearing owner, heartbeat, and an in-flight claim atomically", async () => {
