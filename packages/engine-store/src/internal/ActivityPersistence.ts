@@ -106,6 +106,14 @@ const AttemptMeta = Schema.Struct({
    * a later, genuinely accurate run the wrong value as a verified hit.
    */
   readSetVerified: Schema.optional(Schema.Literal(true)),
+  /**
+   * The failed row records a boundary violation (a prepare or settle
+   * failure), so the failed replay branch can re-emit the `hardViolation`
+   * journal record idempotently after a crash in the finish→emit window
+   * (issue #109) — the violation kind is not recoverable from the persisted
+   * cause alone.
+   */
+  hardViolation: Schema.optional(Schema.Literal(true)),
   snapshotId: Schema.optional(Schema.String),
   // The incarnation that admitted the running row. Since issues #102/#103
   // the adoption decision rests on the admission permit rather than this
@@ -368,6 +376,33 @@ export const make = (deps: Dependencies) => {
       // row is visible and replays it instead of re-executing the body.
       return yield* admission.withPermit(`${deps.runId}|${keyDigest}|${input.attempt}`)(
         Effect.gen(function*() {
+          // Lifecycle announcements take a per-attempt producer identity
+          // (issue #91): adoption — or a replay after a crash in the
+          // finish→emit window (issue #109) — re-emits records a dead
+          // incarnation may already have announced, and lifecycle records
+          // without a `sourceSeq` allocate a fresh journal row on every
+          // emission. A dedicated `(sourceId, sourceSeq 0)` per record makes
+          // the re-emission an exact producer retry the journal collapses
+          // into a `Duplicate`.
+          const attemptSource = (record: string): JournalRecords.EventOptions => ({
+            runId: deps.runId,
+            sourceId: `${deps.sourceId}:attempt:${keyDigest}:${input.attempt}:${record}`,
+            sourceSeq: 0
+          })
+          /**
+           * Journal-convergence emit for the replay branches (issue #109):
+           * an identical re-emission collapses into a `Duplicate`, and an
+           * `idempotency_conflict` means the journal already holds a
+           * terminal record under this producer identity whose payload was
+           * recorded by another lineage — a time-travel fork copies the
+           * parent's journal rows, so the copied record names the parent
+           * run. Either way the terminal event exists; only its absence is
+           * the defect being repaired.
+           */
+          const emitConverging = (record: JournalEvent.Input) =>
+            emitLifecycle(record).pipe(
+              Effect.catch((error) => error.code === "idempotency_conflict" ? Effect.succeed(undefined) : Effect.fail(error))
+            )
           const existing = yield* attempts.get(attemptId)
           if (Option.isSome(existing)) {
             const row = existing.value
@@ -411,9 +446,40 @@ export const make = (deps: Dependencies) => {
                   createdAtMs: row.finishedAtMs ?? (yield* Clock.currentTimeMillis)
                 })
               }
+              // Converge the journal with the durable completion (issue
+              // #109): a crash between `attempts.finish` and the terminal
+              // emits left `attemptStarted` without `attemptFinished`
+              // forever. The per-attempt producer identity collapses the
+              // re-emission into a `Duplicate` on ordinary replays.
+              if (meta?.boundary?.deviation !== undefined) {
+                yield* emitConverging(
+                  JournalRecords.expectedSetDeviation(attemptSource("deviation"), {
+                    ...attemptId,
+                    ...meta.boundary.deviation
+                  })
+                )
+              }
+              yield* emitConverging(
+                JournalRecords.attemptFinished(attemptSource("finished"), { ...attemptId, state: "succeeded" })
+              )
               return row.outcome
             }
             if (row.state === "failed") {
+              // Converge the journal before rethrowing (issue #109): the
+              // violation kind survives in the row meta because the
+              // persisted cause alone cannot distinguish a boundary
+              // violation from an ordinary execution failure.
+              if (decodeMeta(row.meta)?.hardViolation === true) {
+                yield* emitConverging(
+                  JournalRecords.hardViolation(attemptSource("hard-violation"), {
+                    ...attemptId,
+                    error: rehydrateCause(row.error)
+                  })
+                )
+              }
+              yield* emitConverging(
+                JournalRecords.attemptFinished(attemptSource("finished"), { ...attemptId, state: "failed" })
+              )
               // A durably failed attempt is replayed by rethrowing the persisted
               // domain failure — never by readmission (issue #59). Falling
               // through to `attempts.put` here surfaced the row as
@@ -508,17 +574,6 @@ export const make = (deps: Dependencies) => {
             })
             if (rehomed._tag !== "Patched") return yield* Effect.interrupt
           }
-          // Lifecycle announcements take a per-attempt producer identity
-          // (issue #91): adoption re-executes an attempt whose dead incarnation
-          // may already have announced it, and lifecycle records without a
-          // `sourceSeq` allocate a fresh journal row on every emission. A
-          // dedicated `(sourceId, sourceSeq 0)` per record makes the re-emission
-          // an exact producer retry the journal collapses into a `Duplicate`.
-          const attemptSource = (record: string): JournalRecords.EventOptions => ({
-            runId: deps.runId,
-            sourceId: `${deps.sourceId}:attempt:${keyDigest}:${input.attempt}:${record}`,
-            sourceSeq: 0
-          })
           yield* emitLifecycle(
             JournalRecords.attemptStarted(attemptSource("started"), { ...attemptId, tier: input.tier })
           )
@@ -574,13 +629,18 @@ export const make = (deps: Dependencies) => {
               // A boundary is prepared only for sealed work, while snapshots are
               // created only for compensable work. The two capabilities are
               // disjoint, so a preparation failure can never carry a snapshot.
-              meta: { tier: input.tier }
+              meta: { tier: input.tier, hardViolation: true }
             }, deps.owner)
             if (finished._tag !== "Finished") return yield* Effect.interrupt
             yield* emitLifecycle(
-              JournalRecords.hardViolation(source(deps), { ...attemptId, error: preparedResult.cause })
+              JournalRecords.hardViolation(attemptSource("hard-violation"), {
+                ...attemptId,
+                error: preparedResult.cause
+              })
             )
-            yield* emitLifecycle(JournalRecords.attemptFinished(source(deps), { ...attemptId, state: "failed" }))
+            yield* emitLifecycle(
+              JournalRecords.attemptFinished(attemptSource("finished"), { ...attemptId, state: "failed" })
+            )
             return yield* Effect.failCause(preparedResult.cause)
           }
           const prepared = preparedResult === undefined ? undefined : preparedResult.value
@@ -596,7 +656,9 @@ export const make = (deps: Dependencies) => {
               meta: { tier: input.tier, ...(snapshotId === undefined ? {} : { snapshotId }) }
             }, deps.owner)
             if (finished._tag !== "Finished") return yield* Effect.interrupt
-            yield* emitLifecycle(JournalRecords.attemptFinished(source(deps), { ...attemptId, state: "failed" }))
+            yield* emitLifecycle(
+              JournalRecords.attemptFinished(attemptSource("finished"), { ...attemptId, state: "failed" })
+            )
             return yield* Effect.failCause(outcome.cause)
           }
 
@@ -612,11 +674,15 @@ export const make = (deps: Dependencies) => {
               error: persistCause(settled.cause),
               // Settlement, like preparation, runs only for sealed work; a
               // compensable snapshot is therefore unreachable on this path.
-              meta: { tier: input.tier }
+              meta: { tier: input.tier, hardViolation: true }
             }, deps.owner)
             if (finished._tag !== "Finished") return yield* Effect.interrupt
-            yield* emitLifecycle(JournalRecords.hardViolation(source(deps), { ...attemptId, error: settled.cause }))
-            yield* emitLifecycle(JournalRecords.attemptFinished(source(deps), { ...attemptId, state: "failed" }))
+            yield* emitLifecycle(
+              JournalRecords.hardViolation(attemptSource("hard-violation"), { ...attemptId, error: settled.cause })
+            )
+            yield* emitLifecycle(
+              JournalRecords.attemptFinished(attemptSource("finished"), { ...attemptId, state: "failed" })
+            )
             return yield* Effect.failCause(settled.cause)
           }
           const evidence = settled === undefined ? undefined : settled.value
@@ -640,10 +706,12 @@ export const make = (deps: Dependencies) => {
           if (finished._tag !== "Finished") return yield* Effect.interrupt
           if (evidence?.deviation !== undefined) {
             yield* emitLifecycle(
-              JournalRecords.expectedSetDeviation(source(deps), { ...attemptId, ...evidence.deviation })
+              JournalRecords.expectedSetDeviation(attemptSource("deviation"), { ...attemptId, ...evidence.deviation })
             )
           }
-          yield* emitLifecycle(JournalRecords.attemptFinished(source(deps), { ...attemptId, state: "succeeded" }))
+          yield* emitLifecycle(
+            JournalRecords.attemptFinished(attemptSource("finished"), { ...attemptId, state: "succeeded" })
+          )
 
           if (cacheable && evidence?.deviation === undefined) {
             if (readSetVerified) {
