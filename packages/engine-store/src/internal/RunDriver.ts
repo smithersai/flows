@@ -594,13 +594,21 @@ export const make = (
         readonly payload: object
         readonly parent?: FlowEngine.FlowInstance["Service"] | undefined
       }
-    ): Effect.Effect<void> =>
+    ): Effect.Effect<DurableEngineState.RecordRunParentOutcome | undefined> =>
       Effect.gen(function*() {
         const payload = yield* (Schema.encodeEffect(
           Schema.toCodecJson(flow.payloadSchema)
         )(
           options.payload
         ).pipe(Effect.orDie) as Effect.Effect<unknown>)
+        // Every requested parent — first (creating) parent and a diamond's
+        // second parent alike — is recorded as a durable, seq-ordered edge:
+        // `detectCycle` in every owner process and after every restart must
+        // see it (issues #40/#41), and the seq is what arbitrates a
+        // cross-owner race that jointly closes a cycle.
+        const recordEdge = options.parent === undefined
+          ? Effect.succeed(undefined)
+          : engineState.recordRunParent(options.executionId, options.parent.executionId)
         const state: PersistedState = {
           version: 1,
           flowName: flow._tag,
@@ -613,7 +621,7 @@ export const make = (
           options.executionId,
           yield* encodeState(state)
         ).pipe(Effect.exit)
-        if (Exit.isSuccess(created)) return
+        if (Exit.isSuccess(created)) return yield* recordEdge
 
         const failure = Option.getOrThrow(Exit.findErrorOption(created))
         if (!(failure instanceof RunStore.RunStoreError) || failure.code !== "constraint") {
@@ -633,7 +641,7 @@ export const make = (
         }
         // The row already exists, so `store.create` never records this
         // request's parent. Record the extra edge (a diamond's second
-        // parent) so `detectCycle` can traverse it.
+        // parent) durably so every owner's `detectCycle` can traverse it.
         if (
           options.parent !== undefined &&
           persisted.parentExecutionId !== options.parent.executionId
@@ -642,6 +650,7 @@ export const make = (
           parents.add(options.parent.executionId)
           requestedParents.set(options.executionId, parents)
         }
+        return yield* recordEdge
       })
 
     const parentsOf = (executionId: string): Effect.Effect<ReadonlyArray<string>> =>
@@ -656,11 +665,16 @@ export const make = (
             ? Effect.succeed(undefined)
             : decodeState(row.stateJson).pipe(Effect.map((state) => state.parentExecutionId))
         ),
-        Effect.map((persisted) => {
-          const parents = new Set(requestedParents.get(executionId) ?? [])
-          if (persisted !== undefined) parents.add(persisted)
-          return [...parents]
-        })
+        Effect.flatMap((persisted) =>
+          engineState.runParents(executionId).pipe(
+            Effect.map((edges) => {
+              const parents = new Set(requestedParents.get(executionId) ?? [])
+              for (const edge of edges) parents.add(edge.parentId)
+              if (persisted !== undefined) parents.add(persisted)
+              return [...parents]
+            })
+          )
+        )
       )
 
     /**
@@ -762,14 +776,44 @@ export const make = (
         // then deadlock on mutual `coordinator.run` (issue #29). The gate
         // covers only check+record — never `coordinator.run` — so nested
         // child executes cannot deadlock on it.
-        yield* Semaphore.withPermits(cycleGate, 1)(
+        const recorded = yield* Semaphore.withPermits(cycleGate, 1)(
           Effect.gen(function*() {
             if (options.parent !== undefined) {
               yield* detectCycle(options.executionId, options.parent.executionId)
             }
-            yield* ensureRun(flow, options)
+            return yield* ensureRun(flow, options)
           })
         )
+        // The in-process gate cannot serialize other owner processes over
+        // the same store (issue #40): two workers can each pass the
+        // pre-check before either edge lands. Re-check after the durable
+        // edge insert; if a cycle now exists, exactly one writer withdraws —
+        // the newest edge (max seq among the cycle's recorded edges) loses,
+        // its writer deletes it and reports the cycle, every earlier writer
+        // proceeds. The newest writer always sees the complete cycle at its
+        // re-check, so at least (and, with unique seqs, exactly) one loser
+        // exists and the mutual `coordinator.run` deadlock cannot form.
+        if (recorded !== undefined && options.parent !== undefined) {
+          const parentId = options.parent.executionId
+          const postCheck = yield* Effect.exit(
+            detectCycle(options.executionId, parentId)
+          )
+          if (Exit.isFailure(postCheck)) {
+            const cycle = Option.getOrThrow(Exit.findErrorOption(postCheck))
+            const nodes = new Set([options.executionId, parentId, ...cycle.path])
+            let maxSeq = recorded.edge.seq
+            for (const node of nodes) {
+              const edges = yield* engineState.runParents(node)
+              for (const edge of edges) {
+                if (nodes.has(edge.parentId) && edge.seq > maxSeq) maxSeq = edge.seq
+              }
+            }
+            if (recorded._tag === "Recorded" && maxSeq === recorded.edge.seq) {
+              yield* engineState.removeRunParent(options.executionId, parentId)
+              return yield* Effect.fail(cycle)
+            }
+          }
+        }
         yield* coordinator.run(options.executionId)
         if (options.discard) return undefined as Discard extends true ? void : never
         const result = yield* poll(flow, options.executionId)

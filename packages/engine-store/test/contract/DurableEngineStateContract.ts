@@ -127,6 +127,32 @@ export const describeContract = (harness: Harness): void => {
       expect(result).toEqual({ runId: "re-parked", reason: "event", wakeAt: null, token: "second" })
     })
 
+    it("records run-parent edges durably with a total seq order (issues #40/#41)", async () => {
+      const result = await harness.run((context) =>
+        Effect.gen(function*() {
+          const first = yield* context.state.recordRunParent("edge-child", "edge-parent-a")
+          const duplicate = yield* context.state.recordRunParent("edge-child", "edge-parent-a")
+          const second = yield* context.state.recordRunParent("edge-child", "edge-parent-b")
+          // Edges survive a restart: they are what a fresh owner's cycle
+          // detector walks.
+          const restarted = yield* context.restart
+          const parents = yield* restarted.runParents("edge-child")
+          yield* restarted.removeRunParent("edge-child", "edge-parent-a")
+          const afterRemove = yield* restarted.runParents("edge-child")
+          const none = yield* restarted.runParents("edge-none")
+          return { first, duplicate, second, parents, afterRemove, none }
+        })
+      )
+
+      expect(result.first._tag).toBe("Recorded")
+      expect(result.duplicate).toEqual({ _tag: "Existing", edge: result.first.edge })
+      expect(result.second._tag).toBe("Recorded")
+      expect(result.second.edge.seq).toBeGreaterThan(result.first.edge.seq)
+      expect(result.parents).toEqual([result.first.edge, result.second.edge])
+      expect(result.afterRemove).toEqual([result.second.edge])
+      expect(result.none).toEqual([])
+    })
+
     it("filters and orders waitingRuns for sweeper consumption", async () => {
       const result = await harness.run((context) =>
         Effect.gen(function*() {

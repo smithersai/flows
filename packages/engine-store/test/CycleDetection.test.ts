@@ -304,6 +304,65 @@ describe("RunDriver cycle detection", () => {
     expect(failure).toBeInstanceOf(RunDriver.FlowCycleDetected)
   })
 
+  it(
+    "rejects a mutual cycle formed across two driver instances over one shared store (issue #40)",
+    async () => {
+      const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        // Force an async boundary inside every parent-chain read so the two
+        // drivers' cycle checks provably interleave: each driver has its own
+        // in-process cycle gate, so nothing in-process serializes them.
+        const yieldingStore: RunStore.Service = {
+          ...store,
+          get: (runId) => Effect.yieldNow.pipe(Effect.andThen(store.get(runId)))
+        }
+        // Two owner processes over the same shared RunStore/state.
+        const driverOne = yield* makeDriver().pipe(
+          Effect.provideService(RunStore.RunStore, yieldingStore)
+        )
+        const driverTwo = yield* makeDriver().pipe(
+          Effect.provideService(RunStore.RunStore, yieldingStore)
+        )
+        yield* driverOne.register(TestFlow, () => Effect.succeed("ok"))
+        yield* driverTwo.register(TestFlow, () => Effect.succeed("ok"))
+
+        yield* store.create(
+          "xrace-a",
+          JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {} })
+        )
+        yield* store.create(
+          "xrace-b",
+          JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {} })
+        )
+
+        // Worker 1: A executes B. Worker 2: B executes A. Together they
+        // close a cycle; exactly one must be refused, and neither may
+        // deadlock on mutual coordinator awaits.
+        const exits = yield* Effect.all([
+          Effect.exit(driverOne.execute(TestFlow, {
+            executionId: "xrace-b",
+            payload: {},
+            discard: true,
+            parent: { executionId: "xrace-a" } as FlowEngine.FlowInstance["Service"]
+          })),
+          Effect.exit(driverTwo.execute(TestFlow, {
+            executionId: "xrace-a",
+            payload: {},
+            discard: true,
+            parent: { executionId: "xrace-b" } as FlowEngine.FlowInstance["Service"]
+          }))
+        ], { concurrency: "unbounded" })
+        return { exits }
+      })))
+
+      const failures = result.exits.filter(Exit.isFailure)
+      expect(failures).toHaveLength(1)
+      const failure = findCycleFailure(failures[0]!.cause)
+      expect(failure).toBeInstanceOf(RunDriver.FlowCycleDetected)
+    },
+    10_000
+  )
+
   it("terminates on a pre-existing corrupt store cycle instead of hanging", async () => {
     const exit = await Effect.runPromise(Effect.exit(provideJournal(Effect.gen(function*() {
       const driver = yield* makeDriver()

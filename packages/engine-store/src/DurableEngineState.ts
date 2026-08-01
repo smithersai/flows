@@ -175,6 +175,35 @@ export type WakeOutcome =
   | { readonly _tag: "NotFound" }
 
 /**
+ * A durable parent edge in the run DAG.
+ *
+ * The run row's `state_json` carries only the first (creating) parent; a
+ * diamond gives a run a second parent the row cannot express. Cycle
+ * detection must see every edge from every owner process and across
+ * restarts (issues #40/#41), so edges are persisted here. `seq` is a
+ * store-global insertion order used to arbitrate concurrently recorded
+ * edges that jointly close a cycle: the newest edge loses.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export interface RunParentEdge {
+  readonly childId: string
+  readonly parentId: string
+  readonly seq: number
+}
+
+/**
+ * Result of recording a durable parent edge (idempotent).
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export type RecordRunParentOutcome =
+  | { readonly _tag: "Recorded"; readonly edge: RunParentEdge }
+  | { readonly _tag: "Existing"; readonly edge: RunParentEdge }
+
+/**
  * Minimal durable state missing from the current `@smithers/journal` contract.
  *
  * A successful mutation means the row is durable. Callers may therefore
@@ -241,6 +270,24 @@ export interface Service {
   readonly waitingRuns: (
     filter?: WaitingRunsFilter
   ) => Effect.Effect<ReadonlyArray<WaitingRow>>
+  /**
+   * Durably records a parent edge in the run DAG, first-writer-wins per
+   * `(child, parent)` pair. The assigned `seq` is a store-global insertion
+   * order used by cross-owner cycle arbitration (issue #40).
+   */
+  readonly recordRunParent: (
+    childId: string,
+    parentId: string
+  ) => Effect.Effect<RecordRunParentOutcome>
+  /**
+   * Removes a previously recorded parent edge — the rollback half of the
+   * cross-owner cycle arbitration (the losing edge is withdrawn).
+   */
+  readonly removeRunParent: (childId: string, parentId: string) => Effect.Effect<void>
+  /**
+   * Lists the durably recorded parent edges of a run, oldest first.
+   */
+  readonly runParents: (childId: string) => Effect.Effect<ReadonlyArray<RunParentEdge>>
 }
 
 /**
@@ -305,6 +352,17 @@ const decodeWaitingRow = (input: unknown): Effect.Effect<WaitingRow> =>
       token: row.waitingToken
     }))
   )
+
+const RunParentDatabaseRow = Schema.Struct({
+  childId: Schema.String,
+  parentId: Schema.String,
+  seq: NonNegativeSafeInt
+})
+
+type RunParentDatabaseRow = typeof RunParentDatabaseRow.Type
+
+const decodeRunParentEdge = (input: unknown): Effect.Effect<RunParentEdge> =>
+  Schema.decodeUnknownEffect(RunParentDatabaseRow)(input).pipe(Effect.orDie)
 
 const DeferredAddressDatabaseRow = Schema.Struct({
   flowName: Schema.String,
@@ -379,6 +437,20 @@ const decodeClockRow = (input: unknown): Effect.Effect<ClockRow> =>
 export const make: Effect.Effect<Service, never, Database> = Effect.gen(function*() {
   const database = yield* Database
   const { sql } = database
+
+  // Engine-store-owned storage for durable run-parent edges (issues
+  // #40/#41). The canonical `flows_*` migrations live in
+  // `@smithers/journal` (another lane's package), so this table is created
+  // idempotently here instead of via a numbered migration; it should fold
+  // into the journal migration chain when that lane picks it up.
+  yield* database.write(sql`
+    CREATE TABLE IF NOT EXISTS flows_run_parents (
+      child_id TEXT NOT NULL,
+      parent_id TEXT NOT NULL,
+      seq BIGINT NOT NULL,
+      PRIMARY KEY (child_id, parent_id)
+    )
+  `).pipe(Effect.orDie)
 
   const selectDeferred = (address: DeferredAddress) =>
     sql<DeferredDatabaseRow>`
@@ -802,6 +874,80 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
       )
   )
 
+  const selectRunParent = (childId: string, parentId: string) =>
+    sql<RunParentDatabaseRow>`
+      SELECT
+        child_id AS "childId",
+        parent_id AS "parentId",
+        seq AS "seq"
+      FROM flows_run_parents
+      WHERE child_id = ${childId}
+        AND parent_id = ${parentId}
+    `
+
+  const recordRunParent: Service["recordRunParent"] = Effect.fn(
+    "DurableEngineState.recordRunParent"
+  )((childId, parentId) =>
+    database.write(
+      Effect.gen(function*() {
+        // MAX(seq)+1 and the insert share one write transaction, so the
+        // assigned seq is a total insertion order over the store.
+        const inserted = yield* sql<RunParentDatabaseRow>`
+          INSERT INTO flows_run_parents (child_id, parent_id, seq)
+          SELECT ${childId}, ${parentId}, COALESCE(MAX(seq), 0) + 1
+          FROM flows_run_parents
+          WHERE TRUE
+          ON CONFLICT (child_id, parent_id) DO NOTHING
+          RETURNING
+            child_id AS "childId",
+            parent_id AS "parentId",
+            seq AS "seq"
+        `
+        if (inserted[0] !== undefined) {
+          return {
+            _tag: "Recorded" as const,
+            edge: yield* decodeRunParentEdge(inserted[0])
+          }
+        }
+        const existing = yield* selectRunParent(childId, parentId)
+        if (existing[0] === undefined) {
+          return yield* Effect.die(
+            new Error("run parent edge disappeared during first-writer transaction")
+          )
+        }
+        return {
+          _tag: "Existing" as const,
+          edge: yield* decodeRunParentEdge(existing[0])
+        }
+      })
+    ).pipe(Effect.orDie)
+  )
+
+  const removeRunParent: Service["removeRunParent"] = Effect.fn(
+    "DurableEngineState.removeRunParent"
+  )((childId, parentId) =>
+    database.write(sql`
+      DELETE FROM flows_run_parents
+      WHERE child_id = ${childId}
+        AND parent_id = ${parentId}
+    `).pipe(Effect.orDie, Effect.asVoid)
+  )
+
+  const runParents: Service["runParents"] = Effect.fn("DurableEngineState.runParents")((childId) =>
+    sql<RunParentDatabaseRow>`
+      SELECT
+        child_id AS "childId",
+        parent_id AS "parentId",
+        seq AS "seq"
+      FROM flows_run_parents
+      WHERE child_id = ${childId}
+      ORDER BY seq
+    `.pipe(
+      Effect.orDie,
+      Effect.flatMap((rows) => Effect.forEach(rows, decodeRunParentEdge))
+    )
+  )
+
   return DurableEngineState.of({
     deferred,
     completeDeferred,
@@ -814,7 +960,10 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
     park,
     wake,
     waiting,
-    waitingRuns
+    waitingRuns,
+    recordRunParent,
+    removeRunParent,
+    runParents
   })
 })
 
@@ -875,6 +1024,9 @@ export const makeMemory = (options: MemoryOptions = {}): Service => {
   const deferreds = new Map<string, DeferredRow>()
   const clocks = new Map<string, ClockRow>()
   const waitingRows = new Map<string, WaitingRow>()
+  // childId -> (parentId -> seq); `parentSeq` mirrors the SQL MAX(seq)+1.
+  const parentEdges = new Map<string, Map<string, number>>()
+  let parentSeq = 0
 
   const sameOwner = (left: OwnerId, right: OwnerId): boolean =>
     left.hostId === right.hostId && left.pid === right.pid && left.nonce === right.nonce
@@ -1050,6 +1202,40 @@ export const makeMemory = (options: MemoryOptions = {}): Service => {
             (left.wakeAt ?? Number.MAX_SAFE_INTEGER) - (right.wakeAt ?? Number.MAX_SAFE_INTEGER) ||
             left.runId.localeCompare(right.runId)
           )
+      )
+    ),
+    recordRunParent: Effect.fn("DurableEngineState.recordRunParent")((childId, parentId) =>
+      Effect.sync(() => {
+        const parents = parentEdges.get(childId) ?? new Map<string, number>()
+        const existing = parents.get(parentId)
+        if (existing !== undefined) {
+          return {
+            _tag: "Existing" as const,
+            edge: { childId, parentId, seq: existing }
+          }
+        }
+        parentSeq += 1
+        parents.set(parentId, parentSeq)
+        parentEdges.set(childId, parents)
+        return {
+          _tag: "Recorded" as const,
+          edge: { childId, parentId, seq: parentSeq }
+        }
+      })
+    ),
+    removeRunParent: Effect.fn("DurableEngineState.removeRunParent")((childId, parentId) =>
+      Effect.sync(() => {
+        const parents = parentEdges.get(childId)
+        if (parents === undefined) return
+        parents.delete(parentId)
+        if (parents.size === 0) parentEdges.delete(childId)
+      })
+    ),
+    runParents: Effect.fn("DurableEngineState.runParents")((childId) =>
+      Effect.sync(() =>
+        Array.from(parentEdges.get(childId) ?? [])
+          .map(([parentId, seq]) => ({ childId, parentId, seq }))
+          .sort((left, right) => left.seq - right.seq)
       )
     )
   })
