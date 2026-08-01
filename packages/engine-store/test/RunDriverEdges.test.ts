@@ -33,8 +33,7 @@ const owner: Ownership.OwnerId = { hostId: "edge-host", pid: 7, nonce: "edge" }
 
 const fakeEngine = {} as unknown as FlowEngine.FlowEngine["Service"]
 
-const stateJson = (flowName: string, payload: unknown = {}) =>
-  JSON.stringify({ version: 1, flowName, payload })
+const stateJson = (flowName: string, payload: unknown = {}) => JSON.stringify({ version: 1, flowName, payload })
 
 const makeDriver = (
   isAlive: (owner: Ownership.OwnerId) => Effect.Effect<boolean> = () => Effect.succeed(false)
@@ -53,7 +52,11 @@ const provideJournal = <A, E, R>(
     Effect.provide(TestJournal.layer()),
     Effect.provide(DurableEngineState.layerMemory),
     Effect.scoped
-  ) as Effect.Effect<A, E, Exclude<R, Journal.Journal | RunStore.RunStore | Scope.Scope>>
+  ) as Effect.Effect<
+    A,
+    E,
+    Exclude<R, Journal.Journal | RunStore.RunStore | DurableEngineState.DurableEngineState | Scope.Scope>
+  >
 
 const storeError = (code: RunStore.RunStoreErrorCode, method: string) =>
   new RunStore.RunStoreError({ code, method, message: `${code}: ${method}`, cause: undefined })
@@ -329,7 +332,7 @@ describe("RunDriver execute preconditions", () => {
       }))
     })))
 
-    expect((((Exit.isFailure(exit) ? Cause.squash(exit.cause) : undefined)) as RunStore.RunStoreError).code)
+    expect(((Exit.isFailure(exit) ? Cause.squash(exit.cause) : undefined) as RunStore.RunStoreError).code)
       .toBe("persistence_failed")
   })
 })
@@ -509,7 +512,7 @@ describe("RunDriver stale-owner recovery", () => {
     })))
 
     expect(Exit.isFailure(exit) && Cause.hasDies(exit.cause)).toBe(true)
-    expect((((Exit.isFailure(exit) ? Cause.squash(exit.cause) : undefined)) as RunStore.RunStoreError).code)
+    expect(((Exit.isFailure(exit) ? Cause.squash(exit.cause) : undefined) as RunStore.RunStoreError).code)
       .toBe("decode_failed")
   })
 })
@@ -670,7 +673,11 @@ const provideJournalWithTestClock = <A, E, R>(
     Effect.provide(DurableEngineState.layerMemory),
     Effect.provide(TestClock.layer()),
     Effect.scoped
-  ) as Effect.Effect<A, E, Exclude<R, Journal.Journal | RunStore.RunStore | Scope.Scope>>
+  ) as Effect.Effect<
+    A,
+    E,
+    Exclude<R, Journal.Journal | RunStore.RunStore | DurableEngineState.DurableEngineState | Scope.Scope>
+  >
 
 describe("RunDriver parked-cancel sweep", () => {
   it("ignores parked entries whose run row can no longer be read", async () => {

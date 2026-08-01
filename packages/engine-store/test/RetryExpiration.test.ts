@@ -10,11 +10,11 @@ import { AttemptStore, Journal, RunStore, TestJournal } from "@smithers/journal"
 import { Jj } from "@smithers/kernel"
 import { Digest, StepKey } from "@smithers/keys"
 import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
 import * as Fiber from "effect/Fiber"
 import * as Option from "effect/Option"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
-import * as Exit from "effect/Exit"
 import * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
@@ -88,9 +88,10 @@ describe("expirationMs survives a restart mid-retry (issue #45)", () => {
     })
     // Yield the activity itself (it is Effectable): that is the engine
     // dispatch path; `.execute` would be the raw body.
-    const handler = () => Effect.gen(function*() {
-      return yield* flaky
-    })
+    const handler = () =>
+      Effect.gen(function*() {
+        return yield* flaky
+      })
 
     // The activity carries no idempotency key, so its step key is the first
     // ordinal key of the run — recomputable here to observe the persisted

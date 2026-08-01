@@ -103,6 +103,16 @@ export type CompleteClockOutcome =
 /**
  * The core wait-reason vocabulary a supervisor understands for wake policy.
  *
+ * - `approval` — parked until a human (or policy) approves; woken by token.
+ * - `event` — parked on an external event / deferred completion.
+ * - `timer` — parked until `wakeAt`; woken by the durable clock sweep.
+ * - `quota` — parked on provider quota; woken at `wakeAt` when known.
+ * - `released` — the owning process released the run without settling it
+ *   (shutdown, heartbeat self-interrupt; issue #39). A released row has no
+ *   held lease and no `wakeAt`: any supervisor/sweeper MUST scan for this
+ *   reason explicitly and re-drive the run through the claim path, or
+ *   released runs are stranded forever (issue #67).
+ *
  * Left open (`string & {}`) so a plugin can park on a reason the core
  * taxonomy has not named yet — the store persists whatever it is given
  * rather than rejecting unknown reasons.
@@ -110,7 +120,7 @@ export type CompleteClockOutcome =
  * @since 0.1.0
  * @category models
  */
-export type WaitingReason = "approval" | "event" | "timer" | "quota" | (string & {})
+export type WaitingReason = "approval" | "event" | "timer" | "quota" | "released" | (string & {})
 
 /**
  * The payload recorded when a run parks.
@@ -151,6 +161,16 @@ export interface WaitingRow {
 export interface WaitingRunsFilter {
   readonly reason?: string
   readonly dueBeforeMs?: number
+  /**
+   * When `true`, only parked runs whose cancellation was durably requested
+   * (`flows_runs.cancel_requested_at_ms IS NOT NULL`). Lets the parked-run
+   * sweep fetch actionable rows instead of scanning every parked run and
+   * probing each with a `store.get` (issue #68). The in-memory
+   * implementation reads the flag from the `runs` view
+   * (`MemoryRunView.cancelRequestedAtMs`); without a view it stays
+   * permissive and the sweeper's own per-row guard decides.
+   */
+  readonly cancelRequested?: boolean
 }
 
 /**
@@ -290,6 +310,16 @@ export interface Service {
   readonly waitingRuns: (
     filter?: WaitingRunsFilter
   ) => Effect.Effect<ReadonlyArray<WaitingRow>>
+  /**
+   * Lists run ids whose row is `running` with a heartbeat strictly older
+   * than `staleBeforeMs` — an owner that stopped heartbeating without
+   * releasing the run (SIGKILL, OOM, power loss). Nothing else ever
+   * revisits such a run: it has no waiting row for the parked-run sweep,
+   * no pending clock, and no future deferred completion. A periodic
+   * sweeper re-drives these through the ordinary claim/steal path — the
+   * analog of Temporal's task-timeout re-dispatch (issue #53).
+   */
+  readonly staleRunningRuns: (staleBeforeMs: number) => Effect.Effect<ReadonlyArray<string>>
   /**
    * Durably records a parent edge in the run DAG, first-writer-wins per
    * `(child, parent)` pair.
@@ -509,6 +539,15 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
   // `@smithers/journal` (another lane's package), so this table is created
   // idempotently here instead of via a numbered migration; it should fold
   // into the journal migration chain when that lane picks it up.
+  //
+  // `seq` is a store-global insertion order used only to list a run's
+  // parents oldest first; cycle rejection happens atomically inside
+  // `recordRunParent`'s transaction, so no UNIQUE(seq) is needed (issues
+  // #54/#66). There is deliberately no FK to `flows_runs` (the tables live
+  // in different migration lanes); a lane that deletes run rows must call
+  // `removeRunParentsForRun` so edges of deleted runs are pruned (issue
+  // #66). The `parent_id` index serves that reverse-direction cleanup; the
+  // cycle walk itself reads by `child_id` via the primary key.
   yield* database.write(sql`
     CREATE TABLE IF NOT EXISTS flows_run_parents (
       child_id TEXT NOT NULL,
@@ -516,6 +555,10 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
       seq BIGINT NOT NULL,
       PRIMARY KEY (child_id, parent_id)
     )
+  `).pipe(Effect.orDie)
+  yield* database.write(sql`
+    CREATE INDEX IF NOT EXISTS flows_run_parents_parent_idx
+    ON flows_run_parents (parent_id)
   `).pipe(Effect.orDie)
 
   const selectDeferred = (address: DeferredAddress) =>
@@ -883,8 +926,12 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
     )
   )
 
-  const waitingRuns: Service["waitingRuns"] = Effect.fn("DurableEngineState.waitingRuns")((filter) =>
-    (filter?.reason !== undefined && filter.dueBeforeMs !== undefined
+  const waitingRuns: Service["waitingRuns"] = Effect.fn("DurableEngineState.waitingRuns")((filter) => {
+    // `1 = 0` short-circuits the cancel predicate away when the caller did
+    // not ask for it, so the reason/wake filters (and the 0004 index) stay
+    // the leading predicates (issue #68).
+    const cancelRequestedOnly = filter?.cancelRequested === true ? 1 : 0
+    return (filter?.reason !== undefined && filter.dueBeforeMs !== undefined
       ? sql<WaitingDatabaseRow>`
         SELECT
           run_id AS "runId",
@@ -895,6 +942,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
         WHERE waiting_reason = ${filter.reason}
           AND waiting_wake_at_ms IS NOT NULL
           AND waiting_wake_at_ms <= ${filter.dueBeforeMs}
+          AND (${cancelRequestedOnly} = 0 OR cancel_requested_at_ms IS NOT NULL)
           AND status NOT IN ('completed', 'failed', 'cancelled')
         ORDER BY waiting_wake_at_ms, run_id
       `
@@ -907,6 +955,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
           waiting_token AS "waitingToken"
         FROM flows_runs
         WHERE waiting_reason = ${filter.reason}
+          AND (${cancelRequestedOnly} = 0 OR cancel_requested_at_ms IS NOT NULL)
           AND status NOT IN ('completed', 'failed', 'cancelled')
         ORDER BY waiting_wake_at_ms, run_id
       `
@@ -921,6 +970,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
         WHERE waiting_reason IS NOT NULL
           AND waiting_wake_at_ms IS NOT NULL
           AND waiting_wake_at_ms <= ${filter.dueBeforeMs}
+          AND (${cancelRequestedOnly} = 0 OR cancel_requested_at_ms IS NOT NULL)
           AND status NOT IN ('completed', 'failed', 'cancelled')
         ORDER BY waiting_wake_at_ms, run_id
       `
@@ -932,12 +982,29 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
           waiting_token AS "waitingToken"
         FROM flows_runs
         WHERE waiting_reason IS NOT NULL
+          AND (${cancelRequestedOnly} = 0 OR cancel_requested_at_ms IS NOT NULL)
           AND status NOT IN ('completed', 'failed', 'cancelled')
         ORDER BY waiting_wake_at_ms, run_id
       `).pipe(
         Effect.orDie,
         Effect.flatMap((rows) => Effect.forEach(rows, decodeWaitingRow))
       )
+  })
+
+  const staleRunningRuns: Service["staleRunningRuns"] = Effect.fn(
+    "DurableEngineState.staleRunningRuns"
+  )((staleBeforeMs) =>
+    sql<{ runId: string }>`
+      SELECT run_id AS "runId"
+      FROM flows_runs
+      WHERE status = 'running'
+        AND heartbeat_at_ms IS NOT NULL
+        AND heartbeat_at_ms < ${staleBeforeMs}
+      ORDER BY heartbeat_at_ms, run_id
+    `.pipe(
+      Effect.orDie,
+      Effect.map((rows) => rows.map((row) => String(row.runId)))
+    )
   )
 
   const selectRunParent = (childId: string, parentId: string) =>
@@ -1011,9 +1078,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
         }
       })
     ).pipe(
-      Effect.catch((error) =>
-        error instanceof RunParentCycleError ? Effect.fail(error) : Effect.die(error)
-      )
+      Effect.catch((error) => error instanceof RunParentCycleError ? Effect.fail(error) : Effect.die(error))
     )
   )
 
@@ -1055,6 +1120,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
     wake,
     waiting,
     waitingRuns,
+    staleRunningRuns,
     recordRunParent,
     removeRunParentsForRun,
     runParents
@@ -1082,6 +1148,19 @@ export const layer: Layer.Layer<DurableEngineState, never, Database> = Layer.eff
 export interface MemoryRunView {
   readonly status: "pending" | "running" | "suspended" | "completed" | "failed" | "cancelled"
   readonly owner: OwnerId | null
+  /**
+   * The run's last heartbeat instant, mirroring `flows_runs.heartbeat_at_ms`.
+   * `undefined` means unknown — such a run never surfaces from
+   * `staleRunningRuns` (issue #53).
+   */
+  readonly heartbeatAtMs?: number | null | undefined
+  /**
+   * The run's durable cancel request, mirroring
+   * `flows_runs.cancel_requested_at_ms`. `undefined`/`null` means not
+   * requested — such a run never surfaces from a
+   * `waitingRuns({ cancelRequested: true })` query (issue #68).
+   */
+  readonly cancelRequestedAtMs?: number | null | undefined
 }
 
 /**
@@ -1100,6 +1179,13 @@ export interface MemoryOptions {
    * that exercise only deferred/clock state without a run table).
    */
   readonly runs?: (runId: string) => Option.Option<MemoryRunView>
+  /**
+   * Enumerates every known run — the in-memory analogue of scanning
+   * `flows_runs`, which `staleRunningRuns` needs (the `runs` lookup alone
+   * cannot enumerate). When omitted, `staleRunningRuns` reports no stale
+   * rows.
+   */
+  readonly listRuns?: () => Iterable<readonly [string, MemoryRunView]>
 }
 
 /**
@@ -1315,11 +1401,45 @@ export const makeMemory = (options: MemoryOptions = {}): Service => {
             filter?.dueBeforeMs === undefined ||
             (row.wakeAt !== null && row.wakeAt <= filter.dueBeforeMs)
           )
+          // Mirrors the SQL cancel predicate over
+          // `flows_runs.cancel_requested_at_ms` (issue #68). Without a
+          // `runs` view the flag is unknowable, so the query stays
+          // permissive and the sweeper's own per-row guard decides.
+          .filter((row) => {
+            if (filter?.cancelRequested !== true) return true
+            if (options.runs === undefined) return true
+            const view = options.runs(row.runId)
+            return Option.isSome(view) && view.value.cancelRequestedAtMs != null
+          })
           .sort((left, right) =>
             (left.wakeAt ?? Number.MAX_SAFE_INTEGER) - (right.wakeAt ?? Number.MAX_SAFE_INTEGER) ||
             left.runId.localeCompare(right.runId)
           )
       )
+    ),
+    staleRunningRuns: Effect.fn("DurableEngineState.staleRunningRuns")((staleBeforeMs) =>
+      Effect.sync(() => {
+        // Mirrors the SQL scan of `flows_runs`: without an enumerator there
+        // is nothing to scan, so no stale rows exist.
+        if (options.listRuns === undefined) return []
+        const stale: Array<{ runId: string; heartbeatAtMs: number }> = []
+        for (const [runId, view] of options.listRuns()) {
+          const heartbeatAtMs = view.heartbeatAtMs
+          if (
+            view.status === "running" &&
+            typeof heartbeatAtMs === "number" &&
+            heartbeatAtMs < staleBeforeMs
+          ) {
+            stale.push({ runId, heartbeatAtMs })
+          }
+        }
+        return stale
+          .sort((left, right) =>
+            left.heartbeatAtMs - right.heartbeatAtMs ||
+            left.runId.localeCompare(right.runId)
+          )
+          .map((row) => row.runId)
+      })
     ),
     recordRunParent: Effect.fn("DurableEngineState.recordRunParent")((childId, parentId) =>
       // A single synchronous step mirrors the SQL transaction: the cycle

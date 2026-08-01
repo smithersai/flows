@@ -50,7 +50,7 @@ const run = <A, E>(
     | CacheStore.CacheStore
     | Journal.Journal
     | RunStore.RunStore
-    | StepBoundary.StepBoundary
+    | StepBoundary.Service
     | Jj.Jj
     | Scope.Scope
   >
@@ -96,7 +96,7 @@ interface Executor {
     | CacheStore.CacheStore
     | Journal.Journal
     | RunStore.RunStore
-    | StepBoundary.StepBoundary
+    | StepBoundary.Service
     | Jj.Jj
   >
 }
@@ -315,7 +315,7 @@ describe("FaultMatrix", () => {
           op === "heartbeat" && order === "before" && !stolen
             ? Effect.suspend(() => {
               stolen = true
-              return takeover(runs, "fence-heartbeat", ownerB)
+              return takeover(runs, "fence-heartbeat", ownerB).pipe(Effect.orDie)
             })
             : Effect.void
 

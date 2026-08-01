@@ -47,12 +47,12 @@ type Services =
   | CacheStore.CacheStore
   | Journal.Journal
   | RunStore.RunStore
-  | StepBoundary.StepBoundary
+  | StepBoundary.Service
   | Jj.Jj
 
 const run = <A, E>(
   effect: Effect.Effect<A, E, Services | Scope.Scope>,
-  boundary: Layer.Layer<StepBoundary.StepBoundary> = StepBoundary.layerTest()
+  boundary: Layer.Layer<StepBoundary.Service> = StepBoundary.layerTest()
 ) =>
   Effect.runPromise(
     effect.pipe(

@@ -53,7 +53,7 @@ const run = <A, E>(
     | CacheStore.CacheStore
     | Journal.Journal
     | RunStore.RunStore
-    | StepBoundary.StepBoundary
+    | StepBoundary.Service
     | Jj.Jj
     | Scope.Scope
   >
@@ -180,7 +180,7 @@ describe("lifecycle journal durability", () => {
         (op, order, args) =>
           op === "finish" && order === "after" &&
             (args[0] as { readonly state: string }).state === "succeeded"
-            ? takeover(runs, "fence-proof", ownerB)
+            ? takeover(runs, "fence-proof", ownerB).pipe(Effect.orDie)
             : Effect.void
       )
       const executor = makeExecutor({ runId: "fence-proof", owner: ownerA, key, result: "v1" })

@@ -47,7 +47,11 @@ const provideJournal = <A, E, R>(
     Effect.provide(DurableEngineState.layerMemory),
     Effect.provide(TestClock.layer()),
     Effect.scoped
-  ) as Effect.Effect<A, E, Exclude<R, Journal.Journal | RunStore.RunStore | Scope.Scope>>
+  ) as Effect.Effect<
+    A,
+    E,
+    Exclude<R, Journal.Journal | RunStore.RunStore | DurableEngineState.DurableEngineState | Scope.Scope>
+  >
 
 describe("durable cancellation", () => {
   it("finalize refuses to complete a run whose cancel was durably requested", async () => {

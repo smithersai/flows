@@ -14,6 +14,26 @@ interface ChildResult {
   readonly stderr: string
 }
 
+/**
+ * The fixture's protocol lines are single-line JSON objects. The driver may
+ * also log to stdout (e.g. the issue #62 unregistered-flow warning fires by
+ * design in the `wait-complete-unregistered` mode), so parse only the lines
+ * that are protocol JSON.
+ */
+const jsonLines = (stdout: string): Array<Record<string, unknown>> =>
+  stdout
+    .trim()
+    .split("\n")
+    .filter((line) => line.startsWith("{"))
+    .map((line) => JSON.parse(line) as Record<string, unknown>)
+
+const lastJsonLine = (stdout: string): Record<string, unknown> => {
+  const lines = jsonLines(stdout)
+  const last = lines[lines.length - 1]
+  if (last === undefined) throw new Error(`child produced no JSON line\n${stdout}`)
+  return last
+}
+
 const runChild = (
   mode: string,
   filename: string,
@@ -106,17 +126,20 @@ describe("durable waiting across process loss", () => {
         filename,
         executionId
       )
-      expect(JSON.parse(completion.stdout.trim())).toEqual({
+      expect(lastJsonLine(completion.stdout)).toEqual({
         status: "completion-recorded"
       })
 
       const restarted = await runChild("wait-restart", filename, executionId)
-      const result = JSON.parse(restarted.stdout.trim()) as {
+      const result = lastJsonLine(restarted.stdout) as unknown as {
         readonly status: string
         readonly state: { readonly result?: unknown }
       }
       expect(result.status).toBe("completed")
-      expect(result.state.result).toBeDefined()
+      expect(result.state.result).toEqual({
+        _tag: "Complete",
+        exit: { _tag: "Success", value: "resumed-after-kill" }
+      })
     } finally {
       if (first.exitCode === null && first.signalCode === null) {
         await killHard(first)
@@ -135,7 +158,7 @@ describe("durable waiting across process loss", () => {
       await killHard(first)
 
       const restarted = await runChild("timer-restart", filename, executionId)
-      const lines = restarted.stdout.trim().split("\n").map((line) => JSON.parse(line) as Record<string, unknown>)
+      const lines = jsonLines(restarted.stdout)
       expect(lines[0]).toEqual({
         status: "restarted",
         completedAtMs: null
@@ -160,7 +183,7 @@ describe("durable waiting across process loss", () => {
         runChild("state-complete", filename, executionId, "right")
       ])
       const outcomes = results.map((result) =>
-        JSON.parse(result.stdout.trim()) as {
+        lastJsonLine(result.stdout) as unknown as {
           readonly tag: string
           readonly row: unknown
         }

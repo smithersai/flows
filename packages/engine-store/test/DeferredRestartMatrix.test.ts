@@ -1,7 +1,8 @@
-import { Activity, DurableDeferred, Flow } from "@smithers/engine"
+import { Activity, DurableDeferred, Flow, FlowEngine } from "@smithers/engine"
 import { Journal, RunStore, TestJournal } from "@smithers/journal"
 import { Jj } from "@smithers/kernel"
 import * as Cause from "effect/Cause"
+import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Schema from "effect/Schema"
@@ -27,9 +28,9 @@ const jj = Jj.make({
 const withRestart = <A>(
   body: (
     makeEngine: Effect.Effect<
-      EngineStore.EngineStore,
+      FlowEngine.FlowEngine["Service"],
       never,
-      RunStore.RunStore | DurableEngineState.DurableEngineState | Journal.Journal | Jj.Jj | StepBoundary.StepBoundary
+      RunStore.RunStore | DurableEngineState.DurableEngineState | Journal.Journal | Jj.Jj | StepBoundary.Service
     >,
     store: RunStore.RunStore["Service"]
   ) => Effect.Effect<A, any, any>
@@ -54,7 +55,7 @@ const withRestart = <A>(
     ).pipe(
       Effect.provide(StepBoundary.layerTest()),
       Effect.provide(TestJournal.layer())
-    )
+    ) as Effect.Effect<A, unknown>
   )
 
 describe("durable deferred outcomes across a restart", () => {
@@ -234,8 +235,8 @@ describe("partial dependency readiness across a restart", () => {
     const result = await withRestart((makeEngine, store) =>
       Effect.gen(function*() {
         const engine = yield* makeEngine
-        yield* engine.register(flow as any, handler as any)
-        yield* engine.execute(flow as any, {
+        yield* engine.register(flow, handler)
+        yield* engine.execute(flow, {
           executionId: "partial-run",
           payload: {},
           discard: true
@@ -249,7 +250,7 @@ describe("partial dependency readiness across a restart", () => {
           flowName: flow._tag,
           executionId: "partial-run",
           deferredName: first.name,
-          exit: Exit.succeed("a") as any
+          exit: Exit.succeed("a")
         })
         yield* afterFirstEngine.execute(flow as any, {
           executionId: "partial-run",
@@ -265,7 +266,7 @@ describe("partial dependency readiness across a restart", () => {
           flowName: flow._tag,
           executionId: "partial-run",
           deferredName: second.name,
-          exit: Exit.succeed("b") as any
+          exit: Exit.succeed("b")
         })
         const value = yield* finalEngine.execute(flow as any, {
           executionId: "partial-run",
@@ -319,8 +320,8 @@ describe("partial dependency readiness across a restart", () => {
     const result = await withRestart((makeEngine, store) =>
       Effect.gen(function*() {
         const engine = yield* makeEngine
-        yield* engine.register(flow as any, handler as any)
-        yield* engine.execute(flow as any, {
+        yield* engine.register(flow, handler)
+        yield* engine.execute(flow, {
           executionId: "ooo-run",
           payload: {},
           discard: true
@@ -362,5 +363,83 @@ describe("partial dependency readiness across a restart", () => {
     // the out-of-order completion is retained, not dropped
     expect(result.stillSuspended.status).toBe("suspended")
     expect(result.value).toBe("a+b")
+  })
+
+  /**
+   * Parity: Skyframe `ParallelEvaluatorTest.java`
+   * `partialReevaluationOneDuringAReevaluation` — a dependency that becomes
+   * ready *while a partial reevaluation is already in flight* must be
+   * consumed by that reevaluation (or the coalesced follow-up drive), not
+   * lost and not require an external re-drive.
+   */
+  it("consumes a second deferred completion that lands during an in-flight partial resume", async () => {
+    const flow = Flow.make("DeferredRestart/mid-resume", {
+      payload: {},
+      success: Schema.String
+    })
+
+    const result = await withRestart((makeEngine, store) =>
+      Effect.gen(function*() {
+        // in-memory latches: `reachedGate` is signalled by the resume pass
+        // after it consumed `first`; `gate` holds that pass open so the test
+        // can land `second`'s completion while the resume is still live
+        const reachedGate = yield* Deferred.make<void>()
+        const gate = yield* Deferred.make<void>()
+        const handler = () =>
+          Effect.gen(function*() {
+            const a = yield* DurableDeferred.await(first)
+            yield* Deferred.succeed(reachedGate, void 0)
+            yield* Deferred.await(gate)
+            const b = yield* DurableDeferred.await(second)
+            return `${a}*${b}`
+          })
+
+        const engine = yield* makeEngine
+        yield* engine.register(flow, handler)
+        yield* engine.execute(flow, {
+          executionId: "mid-resume-run",
+          payload: {},
+          discard: true
+        })
+        const suspendedRow = yield* store.get("mid-resume-run")
+
+        yield* engine.deferredDone(first, {
+          flowName: flow._tag,
+          executionId: "mid-resume-run",
+          deferredName: first.name,
+          exit: Exit.succeed("a")
+        })
+        yield* Deferred.await(reachedGate)
+        const inFlight = yield* store.get("mid-resume-run")
+
+        // lands during the in-flight resume: the run is past `first` but the
+        // resume pass has not yet requested `second`
+        yield* engine.deferredDone(second, {
+          flowName: flow._tag,
+          executionId: "mid-resume-run",
+          deferredName: second.name,
+          exit: Exit.succeed("b")
+        })
+        yield* Deferred.succeed(gate, void 0)
+
+        // no further execute/wake calls: the in-flight pass (or the wake
+        // coalesced by the coordinator) must finish the run on its own
+        let final = yield* store.get("mid-resume-run")
+        for (let count = 0; count < 400 && final.status !== "completed"; count++) {
+          yield* Effect.sleep("25 millis")
+          final = yield* store.get("mid-resume-run")
+        }
+        return { suspendedRow, inFlight, final }
+      })
+    )
+
+    expect(result.suspendedRow.status).toBe("suspended")
+    // the second completion landed while the resume pass was live, not parked
+    expect(result.inFlight.status).toBe("running")
+    expect(result.final.status).toBe("completed")
+    expect((JSON.parse(result.final.stateJson) as { result?: unknown }).result).toEqual({
+      _tag: "Complete",
+      exit: { _tag: "Success", value: "a*b" }
+    })
   })
 })

@@ -205,7 +205,6 @@ describe("attempt lifecycle journal failures", () => {
             Effect.fail(
               new Journal.JournalError({
                 code: "sink_failed",
-                method: "emitDurable",
                 message: "sink_failed: journal sink is down",
                 cause: undefined
               })
@@ -218,7 +217,7 @@ describe("attempt lifecycle journal failures", () => {
         return yield* Effect.exit(dispatch({
           runId: "journal-broken",
           key: "edge/journal-broken",
-          tier: "trusted",
+          tier: "sealed",
           execute: () => Effect.succeed("value")
         }))
       }).pipe(Effect.provide(Layer.provideMerge(failingJournal, base())), Effect.scoped)

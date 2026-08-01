@@ -13,7 +13,41 @@ import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import { TestClock } from "effect/testing"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
+
+/**
+ * Arms the coordinator-wake failure injection for issue #70: while positive,
+ * every `RunCoordinator.wake` dies with a defect (decrementing the budget).
+ * Zero (the default) leaves the real coordinator untouched, so the existing
+ * `waitingRuns`-defect test is unaffected.
+ */
+const wakeFailures = vi.hoisted(() => ({ budget: 0 }))
+
+vi.mock("@smithers/journal", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@smithers/journal")>()
+  return {
+    ...actual,
+    RunCoordinator: {
+      ...actual.RunCoordinator,
+      make: (options: never) =>
+        (actual.RunCoordinator.make(options) as Effect.Effect<
+          { wake: (key: unknown) => Effect.Effect<void> },
+          never,
+          never
+        >).pipe(
+          Effect.map((coordinator) => ({
+            ...coordinator,
+            wake: (key: unknown) =>
+              Effect.suspend(() =>
+                wakeFailures.budget-- > 0
+                  ? Effect.die(new Error("injected coordinator.wake defect"))
+                  : coordinator.wake(key)
+              )
+          }))
+        )
+    }
+  }
+})
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
@@ -88,8 +122,8 @@ describe("the cancel sweeper survives transient defects (issue #44)", () => {
         Effect.provide(TestJournal.layer()),
         Effect.provide(TestClock.layer())
       ) as Effect.Effect<{
-        afterBusy: RunStore.Run
-        row: RunStore.Run
+        afterBusy: RunStore.RunRow
+        row: RunStore.RunRow
         remainingBusyPolls: number
       }>
     )
@@ -97,6 +131,74 @@ describe("the cancel sweeper survives transient defects (issue #44)", () => {
     // The defect was actually exercised…
     expect(result.remainingBusyPolls).toBeLessThanOrEqual(0)
     expect(result.afterBusy.status).toBe("suspended")
+    // …and the sweeper survived it to deliver the cancel on a later tick.
+    expect(result.row.status).toBe("cancelled")
+    expect(result.row.owner).toBeNull()
+  })
+
+  it("delivers a parked cancel after coordinator.wake dies once with a defect (issue #70)", async () => {
+    // The other defect source the #44 sandbox exists to absorb: `wake` is
+    // typed `E = never`, so any failure inside it surfaces as a defect. A
+    // sandbox narrowed to only the `waitingRuns` poll would let this kill
+    // the sweeper for the process lifetime with the suite green.
+    const EventFlow = Flow.make("SweeperResilience/WakeDefect", {
+      payload: {},
+      success: Schema.String
+    })
+    const gate = DurableDeferred.make("sweeper-wake-defect-gate", { success: Schema.String })
+
+    const result = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function*() {
+          const store = yield* RunStore.RunStore
+          const engine = (yield* EngineStore.make({
+            owner: { hostId: "sweeper-wake-defect-host" },
+            journalSource: "sweeper-wake-defect-test",
+            isAlive: () => Effect.succeed(false)
+          })) as FlowEngine.FlowEngine["Service"]
+
+          yield* engine.register(
+            EventFlow as never,
+            (() => Effect.map(DurableDeferred.await(gate), (value) => `gated:${value}`)) as never
+          )
+          yield* engine.execute(EventFlow as never, {
+            executionId: "sweeper-wake-defect-cancel",
+            payload: {},
+            discard: true
+          })
+          const nowMs = yield* Clock.currentTimeMillis
+          yield* store.requestCancel("sweeper-wake-defect-cancel", nowMs)
+
+          // The first sweep wake dies with a defect and must not kill the
+          // sweeper.
+          wakeFailures.budget = 1
+          yield* TestClock.adjust(Duration.toMillis(Ownership.heartbeatInterval))
+          const afterDefect = yield* store.get("sweeper-wake-defect-cancel")
+
+          let row = afterDefect
+          for (let i = 0; i < 10 && row.status !== "cancelled"; i++) {
+            yield* TestClock.adjust(Duration.toMillis(Ownership.heartbeatInterval))
+            row = yield* store.get("sweeper-wake-defect-cancel")
+          }
+          return { afterDefect, row, remainingWakeFailures: wakeFailures.budget }
+        }).pipe(
+          Effect.provide(DurableEngineState.layerMemory),
+          Effect.provideService(Jj.Jj, jj)
+        )
+      ).pipe(
+        Effect.provide(StepBoundary.layerTest()),
+        Effect.provide(TestJournal.layer()),
+        Effect.provide(TestClock.layer())
+      ) as Effect.Effect<{
+        afterDefect: RunStore.RunRow
+        row: RunStore.RunRow
+        remainingWakeFailures: number
+      }>
+    )
+
+    // The wake defect was actually exercised…
+    expect(result.remainingWakeFailures).toBeLessThanOrEqual(0)
+    expect(result.afterDefect.status).toBe("suspended")
     // …and the sweeper survived it to deliver the cancel on a later tick.
     expect(result.row.status).toBe("cancelled")
     expect(result.row.owner).toBeNull()

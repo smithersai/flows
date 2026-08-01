@@ -80,7 +80,11 @@ const provideJournal = <A, E, R>(
     Effect.provide(DurableEngineState.layerMemory),
     Effect.provide(TestClock.layer()),
     Effect.scoped
-  ) as Effect.Effect<A, E, Exclude<R, Journal.Journal | RunStore.RunStore | Scope.Scope>>
+  ) as Effect.Effect<
+    A,
+    E,
+    Exclude<R, Journal.Journal | RunStore.RunStore | DurableEngineState.DurableEngineState | Scope.Scope>
+  >
 
 describe("RunDriver ownership", () => {
   it("allows one concurrent claimant to drive an execution", async () => {

@@ -23,7 +23,13 @@ export interface HarnessContext {
   readonly seedRun: (
     runId: string,
     owner: Ownership.OwnerId | null,
-    status?: "pending" | "running" | "suspended" | "completed" | "failed" | "cancelled"
+    status?: "pending" | "running" | "suspended" | "completed" | "failed" | "cancelled",
+    heartbeatAtMs?: number | null
+  ) => Effect.Effect<void>
+  /** Durably records a cancel request for an already-seeded run. */
+  readonly setCancelRequested: (
+    runId: string,
+    requestedAtMs: number
   ) => Effect.Effect<void>
   /** Moves an already-seeded run to a new status (ownership released). */
   readonly setStatus: (
@@ -34,7 +40,7 @@ export interface HarnessContext {
 
 export interface Harness {
   readonly label: string
-  readonly run: <A>(body: (context: HarnessContext) => Effect.Effect<A>) => Promise<A>
+  readonly run: <A>(body: (context: HarnessContext) => Effect.Effect<A, any, never>) => Promise<A>
 }
 
 const owner: Ownership.OwnerId = { hostId: "contract", pid: 1, nonce: "owner" }
@@ -176,6 +182,67 @@ export const describeContract = (harness: Harness): void => {
       expect(result.allQuota.map((row) => row.runId)).toEqual(["due-quota", "future-quota"])
       expect(result.dueAll.map((row) => row.runId)).toEqual(["due-approval", "due-quota"])
       expect(result.all).toHaveLength(4)
+    })
+
+    it("filters waitingRuns to cancel-requested rows (issue #68)", async () => {
+      const result = await harness.run((context) =>
+        Effect.gen(function*() {
+          yield* context.seedRun("cancel-parked", owner)
+          yield* context.seedRun("calm-parked", owner)
+          yield* context.state.park("cancel-parked", { reason: "event", wakeAt: 500 }, owner)
+          yield* context.state.park("calm-parked", { reason: "event", wakeAt: 100 }, owner)
+          yield* context.setCancelRequested("cancel-parked", 5)
+          return {
+            cancelOnly: yield* context.state.waitingRuns({ cancelRequested: true }),
+            cancelAndReason: yield* context.state.waitingRuns({
+              reason: "event",
+              cancelRequested: true
+            }),
+            cancelAndDue: yield* context.state.waitingRuns({
+              dueBeforeMs: 1_000,
+              cancelRequested: true
+            }),
+            cancelReasonDue: yield* context.state.waitingRuns({
+              reason: "event",
+              dueBeforeMs: 1_000,
+              cancelRequested: true
+            }),
+            unfiltered: yield* context.state.waitingRuns()
+          }
+        })
+      )
+
+      expect(result.cancelOnly.map((row) => row.runId)).toEqual(["cancel-parked"])
+      expect(result.cancelAndReason.map((row) => row.runId)).toEqual(["cancel-parked"])
+      expect(result.cancelAndDue.map((row) => row.runId)).toEqual(["cancel-parked"])
+      expect(result.cancelReasonDue.map((row) => row.runId)).toEqual(["cancel-parked"])
+      // The predicate is opt-in: an unfiltered query still lists everything.
+      expect(result.unfiltered.map((row) => row.runId)).toEqual(["calm-parked", "cancel-parked"])
+    })
+
+    it("lists only stale-running rows from staleRunningRuns (issue #53)", async () => {
+      const result = await harness.run((context) =>
+        Effect.gen(function*() {
+          // A hard-killed owner: running with a long-frozen heartbeat.
+          yield* context.seedRun("stale-old", owner, "running", 0)
+          // Same frozen heartbeat: run id breaks the tie deterministically.
+          yield* context.seedRun("stale-old-b", owner, "running", 0)
+          // A third stale run, later heartbeat: ordering material.
+          yield* context.seedRun("stale-newer", owner, "running", 5_000)
+          // A live run: fresh heartbeat, must never surface.
+          yield* context.seedRun("fresh", owner, "running", 90_000)
+          // Not running: staleness does not apply (a released/suspended row
+          // has no owner and no heartbeat, per the flows_runs CHECK).
+          yield* context.seedRun("parked-stale", null, "suspended", null)
+          return {
+            beforeOne: yield* context.state.staleRunningRuns(1_000),
+            beforeBoth: yield* context.state.staleRunningRuns(10_000)
+          }
+        })
+      )
+
+      expect(result.beforeOne).toEqual(["stale-old", "stale-old-b"])
+      expect(result.beforeBoth).toEqual(["stale-old", "stale-old-b", "stale-newer"])
     })
 
     it("excludes terminally closed runs from waitingRuns (issue #28)", async () => {

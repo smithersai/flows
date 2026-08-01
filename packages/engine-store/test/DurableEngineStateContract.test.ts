@@ -20,7 +20,7 @@ const sqlHarness: Harness = {
           restart: DurableEngineState.make.pipe(
             Effect.provideService(Database.Database, database)
           ),
-          seedRun: (runId, owner, status = "running") =>
+          seedRun: (runId, owner, status = "running", heartbeatAtMs = owner === null ? null : 0) =>
             database.sql`
               INSERT INTO flows_runs (
                 run_id,
@@ -38,9 +38,15 @@ const sqlHarness: Harness = {
                 ${owner?.hostId ?? null},
                 ${owner?.pid ?? null},
                 ${owner?.nonce ?? null},
-                ${owner === null ? null : 0},
+                ${heartbeatAtMs},
                 '{}'
               )
+            `.pipe(Effect.orDie, Effect.asVoid),
+          setCancelRequested: (runId, requestedAtMs) =>
+            database.sql`
+              UPDATE flows_runs
+              SET cancel_requested_at_ms = ${requestedAtMs}
+              WHERE run_id = ${runId}
             `.pipe(Effect.orDie, Effect.asVoid),
           setStatus: (runId, status) =>
             database.sql`
@@ -64,7 +70,8 @@ const memoryHarness: Harness = {
   run: (body) => {
     const runs = new Map<string, DurableEngineState.MemoryRunView>()
     const state = DurableEngineState.makeMemory({
-      runs: (runId) => Option.fromNullishOr(runs.get(runId))
+      runs: (runId) => Option.fromNullishOr(runs.get(runId)),
+      listRuns: () => runs.entries()
     })
     const context: HarnessContext = {
       state,
@@ -72,9 +79,16 @@ const memoryHarness: Harness = {
       // restart shape is the shared-instance model the existing memory
       // restart tests already use.
       restart: Effect.succeed(state),
-      seedRun: (runId, owner, status = "running") =>
+      seedRun: (runId, owner, status = "running", heartbeatAtMs = owner === null ? null : 0) =>
         Effect.sync(() => {
-          runs.set(runId, { status, owner })
+          runs.set(runId, { status, owner, heartbeatAtMs })
+        }),
+      setCancelRequested: (runId, requestedAtMs) =>
+        Effect.sync(() => {
+          const view = runs.get(runId)
+          if (view !== undefined) {
+            runs.set(runId, { ...view, cancelRequestedAtMs: requestedAtMs })
+          }
         }),
       setStatus: (runId, status) =>
         Effect.sync(() => {

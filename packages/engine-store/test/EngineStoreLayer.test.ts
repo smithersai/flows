@@ -66,16 +66,24 @@ describe("EngineStore.layer", () => {
     const result = await Effect.runPromise(
       Effect.scoped(Effect.gen(function*() {
         const boundary = yield* FlowEngine.SnapshotBoundary
-        const snapshot = yield* boundary.snapshot({ key: "step/one", attempt: 2 })
-        const diff = yield* boundary.diff(snapshot, { key: "step/one", attempt: 2 })
-        yield* boundary.restore(snapshot)
+        const options: FlowEngine.SnapshotBoundaryOptions = {
+          flow: LayerFlow,
+          executionId: "layer-exec",
+          key: "step/one",
+          attempt: 2,
+          metadata: undefined
+        }
+        const snapshot = yield* boundary.snapshot(options)
+        const diff = yield* boundary.diff(snapshot, options)
+        yield* boundary.restore(snapshot, options)
         return { snapshot, diff }
       })).pipe(
         Effect.provide(
           EngineStore.layer({ owner: { hostId: "layer-host" }, journalSource: "layer-test" }).pipe(
             Layer.provideMerge(baseLayers(recordingJj(calls), DurableEngineState.makeMemory()))
           )
-        )
+        ),
+        Effect.scoped
       )
     )
 
@@ -99,7 +107,14 @@ describe("EngineStore.layer", () => {
         Effect.exit(
           Effect.flatMap(
             FlowEngine.SnapshotBoundary,
-            (boundary) => boundary.snapshot({ key: "step/two", attempt: 1 })
+            (boundary) =>
+              boundary.snapshot({
+                flow: LayerFlow,
+                executionId: "layer-exec",
+                key: "step/two",
+                attempt: 1,
+                metadata: undefined
+              })
           )
         )
       ).pipe(
@@ -107,7 +122,8 @@ describe("EngineStore.layer", () => {
           EngineStore.layer({ owner: { hostId: "layer-host" }, journalSource: "layer-test" }).pipe(
             Layer.provideMerge(baseLayers(failing, DurableEngineState.makeMemory()))
           )
-        )
+        ),
+        Effect.scoped
       )
     )
 
@@ -133,7 +149,8 @@ describe("EngineStore.layer", () => {
           EngineStore.layer({ owner: { hostId: "layer-host" }, journalSource: "layer-test" }).pipe(
             Layer.provideMerge(baseLayers(recordingJj([]), state))
           )
-        )
+        ),
+        Effect.scoped
       )
     )
 
@@ -281,7 +298,7 @@ describe("EngineStore boundary metadata", () => {
           journalSource: "layer-test",
           isAlive: () => Effect.succeed(false)
         })
-        yield* engine.register(LayerFlow, () => hermetic as Effect.Effect<string, never, never>)
+        yield* engine.register(LayerFlow, () => hermetic as unknown as Effect.Effect<string, never, never>)
         const first = yield* engine.execute(LayerFlow, {
           executionId: "hermetic-a",
           payload: {},

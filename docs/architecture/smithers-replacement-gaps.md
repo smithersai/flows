@@ -33,7 +33,10 @@ hook catalog this analysis leans on.
 Closed by migration `0004_waiting_reason`
 (`packages/journal/src/migrations/0004_waiting_reason.ts`, commit `36fb342`).
 `DurableEngineState.park` / `wake` / `waiting` / `waitingRuns` round-trip
-`{ reason, wakeAt?, token? }` with `approval | event | timer | quota` reasons,
+`{ reason, wakeAt?, token? }` with `approval | event | timer | quota |
+released` reasons — `released` (issue #39) marks a run whose owning process
+released it without settling it (shutdown, heartbeat self-interrupt); it has
+no held lease and no `wakeAt`, so a sweeper must scan for the reason itself —
 an index on `(waiting_reason, waiting_wake_at_ms)` built for a sweeper query,
 and `WaitingReason.test.ts` covering per-reason round-trips, non-owner park
 rejection, and the due-quota-run query. This is exactly the audit's "done"
@@ -133,8 +136,12 @@ No `Supervisor` layer exists in `packages/engine`. But every primitive it
 needs landed: stale-lease steal in `claimAndOwn`, the `waitingRuns` due-run
 query, and the taxonomy index built for the sweeper (the migration's own
 docstring says so). Done = a scheduled Effect fiber — scan expired
-leases/due wakes → `claimAndOwn` → resume — as an opt-in `Supervisor.layer`,
-replacing smithers' `apps/cli/src/supervisor.js` claim-by-proxy process (the
+leases/due wakes **and `reason = 'released'` rows** → `claimAndOwn` → resume —
+as an opt-in `Supervisor.layer`. A released row (issue #39) has neither a held
+lease nor a `wakeAt`, so a supervisor that scans only expired leases and due
+wakes would strand released runs exactly as before #39 (issue #67): the
+released-reason scan is part of the Supervisor contract, not an optimization.
+It replaces smithers' `apps/cli/src/supervisor.js` claim-by-proxy process (the
 audit's explicit rejection of a separate CLI app stands). This is now a small
 task, not a subsystem.
 

@@ -32,7 +32,6 @@ const makeJournal = (events: Array<string>, options: { readonly flushFails?: boo
       ? Effect.fail(
         new Journal.JournalError({
           code: "sink_failed",
-          method: "flush",
           message: "sink_failed: lossy writer is latched",
           cause: undefined
         })

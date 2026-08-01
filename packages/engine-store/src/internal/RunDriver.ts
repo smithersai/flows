@@ -155,6 +155,13 @@ export const make = (
     const store = yield* RunStore.RunStore
     const engineState = yield* DurableEngineState.DurableEngineState
     const registrations = new Map<string, Registration>()
+    /**
+     * Runs already warned about waking without a registered flow (issue
+     * #62): the sweep retries every heartbeat, so the warning is emitted
+     * once per run, not once per tick. Cleared on every registration — a
+     * newly registered flow makes previously dropped runs drivable again.
+     */
+    const warnedUnregistered = new Set<string>()
     const liveInstances = new Map<string, FlowEngine.FlowInstance["Service"]>()
     const encodeState = (state: PersistedState): Effect.Effect<string> =>
       Schema.encodeEffect(PersistedStateJson)(state).pipe(Effect.orDie)
@@ -409,7 +416,23 @@ export const make = (
 
         const state = yield* decodeState(initial.stateJson)
         const registration = registrations.get(state.flowName)
-        if (registration === undefined) return
+        if (registration === undefined) {
+          // A wake for a flow this process has not registered — after a full
+          // restart the sweep re-drives released rows before (or without)
+          // the flow ever registering here. Dropping the wake silently made
+          // the #39 reclaim guarantee invisibly conditional on registration
+          // (issue #62): warn (once per run, the sweep retries every
+          // heartbeat) and leave the durable waiting row untouched so any
+          // process that does register the flow still reclaims the run.
+          if (!warnedUnregistered.has(executionId)) {
+            warnedUnregistered.add(executionId)
+            yield* Effect.logWarning(
+              `engine-store: run ${executionId} woke for flow ${state.flowName}, which is not registered in this process; leaving it parked for a worker that registers the flow`,
+              { runId: executionId, flowName: state.flowName }
+            )
+          }
+          return
+        }
         if (!(yield* claimAndActivate(initial))) return
 
         const activeState = withoutResult(state)
@@ -551,8 +574,19 @@ export const make = (
      * cancel via the activation guard.
      */
     const sweepCancelRequested: Effect.Effect<void> = Effect.gen(function*() {
-      const parked = yield* engineState.waitingRuns()
-      for (const waiting of parked) {
+      // Fetch only actionable rows (issue #68): the sweep acts solely on
+      // released rows and rows whose cancellation was durably requested, so
+      // a large quota/event-parked fleet must cost it nothing per tick. The
+      // per-row `store.get` below is a status guard over the (small)
+      // actionable set, not a probe over every parked run — the in-memory
+      // implementation without a `runs` view stays permissive on the cancel
+      // predicate and relies on exactly this guard.
+      const released = yield* engineState.waitingRuns({ reason: "released" })
+      const cancelRequestedRows = yield* engineState.waitingRuns({ cancelRequested: true })
+      const candidates = new Map<string, DurableEngineState.WaitingRow>()
+      for (const waiting of released) candidates.set(waiting.runId, waiting)
+      for (const waiting of cancelRequestedRows) candidates.set(waiting.runId, waiting)
+      for (const waiting of candidates.values()) {
         const row = yield* store.get(waiting.runId).pipe(
           Effect.catch(() => Effect.succeed(undefined))
         )
@@ -563,6 +597,26 @@ export const make = (
         ) {
           yield* coordinator.wake(row.runId)
         }
+      }
+    })
+    /**
+     * Reclaims hard-killed runs (issue #53). An owner that dies without
+     * releasing (SIGKILL, OOM, power loss) leaves a `running` row with a
+     * frozen heartbeat and no waiting row, so the parked-run sweep above
+     * never sees it, and the steal path — reachable only through `drive()` —
+     * is never entered. Enumerate stale-running rows and re-drive them: the
+     * ordinary claim/steal path (liveness check, exact-snapshot steal CAS)
+     * then decides whether the owner is genuinely dead — the analog of
+     * Temporal's task-timeout re-dispatch. A pending durable cancel is
+     * delivered by the re-activation guard, same as for parked runs.
+     */
+    const sweepStaleRunning: Effect.Effect<void> = Effect.gen(function*() {
+      const nowMs = yield* Clock.currentTimeMillis
+      const stale = yield* engineState.staleRunningRuns(
+        nowMs - Duration.toMillis(Ownership.heartbeatStaleAfter)
+      )
+      for (const runId of stale) {
+        yield* coordinator.wake(runId)
       }
     })
     yield* Effect.forkScoped(
@@ -576,6 +630,7 @@ export const make = (
             // delivered. Mirror `armClock`'s hardening: expose the full cause,
             // log it, and keep ticking.
             sweepCancelRequested.pipe(
+              Effect.andThen(sweepStaleRunning),
               Effect.sandbox,
               Effect.catchCause((cause) =>
                 Effect.logWarning(
@@ -769,6 +824,7 @@ export const make = (
           Effect.sync(() => {
             const registration = { flow, execute: handler }
             registrations.set(flow._tag, registration)
+            warnedUnregistered.clear()
             return registration
           }),
           (registration) =>
