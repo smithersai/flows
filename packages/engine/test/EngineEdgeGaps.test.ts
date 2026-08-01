@@ -1,6 +1,6 @@
 import { Cause, Effect, Exit, Layer, Option, Schema } from "effect"
 import { describe, expect, it } from "vitest"
-import { Activity, DurableDeferred, Flow, FlowEngine, RetryPolicy } from "../src/index.ts"
+import { Activity, DurableDeferred, Flow, FlowEngine, RetryPolicy, StepIdentity } from "../src/index.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, never>) =>
   it(name, () => Effect.runPromise(body()))
@@ -40,14 +40,18 @@ describe("Activity.retry outside a flow", () => {
         return attempts < 3 ? yield* Effect.fail("again") : attempts
       })
     })
+    const scope = StepIdentity.allocationScope({
+      kind: "activity",
+      name: "Edge/retry-ordinal-activity"
+    })
     const body = Effect.gen(function*() {
       const result = yield* activity
-      ordinals.push((yield* Activity.CurrentOrdinal)?.values.get("activity:Edge/retry-ordinal-activity"))
+      ordinals.push(...(yield* Activity.CurrentOrdinal)?.values.get(scope) ?? [undefined])
       return result
     }).pipe(
       Effect.tapError(() =>
         Effect.gen(function*() {
-          ordinals.push((yield* Activity.CurrentOrdinal)?.values.get("activity:Edge/retry-ordinal-activity"))
+          ordinals.push(...(yield* Activity.CurrentOrdinal)?.values.get(scope) ?? [undefined])
         })
       )
     )
