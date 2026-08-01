@@ -41,3 +41,7 @@ The client advances its local cursor as each entry is admitted to the consumer, 
 `SyncError` has stable transport, authorization, request, and closure codes. `SyncGapError` reports a non-monotonic or inconsistent server interval.
 
 See [Journal synchronization](../concepts/sync.md) and [Journal](../concepts/journal.md).
+
+## Fan-out budgets
+
+Subscription fan-out is covered by budget assertions, not only by frame assertions: `test/ServerSoak.test.ts` runs five concurrent workspace subscribers and requires an identical frame set from each, drains 200 subscribe/complete cycles and requires every per-run journal stream to be released afterwards, and soaks 200 five-subscriber rounds under a retained-heap budget. A regression that retains per-subscriber state passes every frame assertion in the other suites, so these are the tests that see it.
