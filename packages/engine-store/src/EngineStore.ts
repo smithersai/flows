@@ -20,6 +20,7 @@ import type * as Scope from "effect/Scope"
 import { randomUUID } from "node:crypto"
 import * as DurableEngineState from "./DurableEngineState.ts"
 import * as ActivityPersistence from "./internal/ActivityPersistence.ts"
+import * as AttemptAdmission from "./internal/AttemptAdmission.ts"
 import * as AttemptProbe from "./internal/AttemptProbe.ts"
 import * as DeferredPersistence from "./internal/DeferredPersistence.ts"
 import * as RunDriver from "./internal/RunDriver.ts"
@@ -83,6 +84,11 @@ export const make = (
 ): Effect.Effect<FlowEngine.FlowEngine["Service"], never, Requirements> =>
   Effect.gen(function*() {
     const owner = ownerId(options.owner.hostId)
+    // One admission mutex per incarnation, shared by every dispatch this
+    // store drives: `ActivityPersistence.make` runs per dispatch below, so a
+    // per-make default would never contend and the same-key exclusion the
+    // adoption evidence rests on (issues #102, #103) would silently vanish.
+    const admission = AttemptAdmission.makeUnsafe()
     const attemptStore = yield* AttemptStore.AttemptStore
     const cacheStore = yield* CacheStore.CacheStore
     const journal = yield* Journal.Journal
@@ -127,7 +133,8 @@ export const make = (
           (activityInput.activity as Activity.Any).executeEncoded as Effect.Effect<unknown, unknown>,
         idempotencyKey: input.activity.idempotencyKey === undefined
           ? undefined
-          : input.key
+          : input.key,
+        admission
       })({
         activity: input.activity,
         attempt: input.attempt,

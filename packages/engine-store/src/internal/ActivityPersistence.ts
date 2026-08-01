@@ -18,6 +18,7 @@ import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as Inconsistency from "../Inconsistency.ts"
 import * as StepBoundary from "../StepBoundary.ts"
+import * as AttemptAdmission from "./AttemptAdmission.ts"
 import * as JournalRecords from "./JournalRecords.ts"
 
 /** @since 0.1.0 @category models */
@@ -84,17 +85,26 @@ export interface Dependencies {
   readonly sourceId: string
   readonly execute: (input: ActivityInput) => Effect.Effect<unknown, unknown>
   readonly idempotencyKey?: string | undefined
+  /**
+   * The incarnation-wide admission mutex (issues #102, #103). `EngineStore`
+   * passes one shared instance per store incarnation so every dispatch of a
+   * given attempt key in this process serializes through it; when omitted, a
+   * fresh mutex private to this `make` call is used — correct only when all
+   * same-key dispatches share the returned executor.
+   */
+  readonly admission?: AttemptAdmission.Service | undefined
 }
 
 const AttemptMeta = Schema.Struct({
   tier: Schema.Literals(["sealed", "compensable", "irreversible"]),
   boundary: Schema.optional(StepBoundary.BoundaryEvidence),
   snapshotId: Schema.optional(Schema.String),
-  // The incarnation that admitted the running row (issue #86): adoption may
-  // only claim a row whose admitting incarnation is provably superseded —
-  // this owner holds the run fence, so any *other* recorded incarnation has
-  // lost it. A row admitted by the current incarnation is a live concurrent
-  // dispatch, not crash evidence.
+  // The incarnation that admitted the running row. Since issues #102/#103
+  // the adoption decision rests on the admission permit rather than this
+  // nonce — a live same-key fiber of this process would be holding the
+  // permit, which distinguishes a dead fiber from a live dispatch in a way
+  // the recorded incarnation cannot — but the field is kept as durable
+  // forensic evidence of which incarnation last drove the attempt.
   admittedBy: Schema.optional(Ownership.OwnerId)
 })
 
@@ -171,8 +181,9 @@ const rehydrateCause = (error: unknown): Cause.Cause<unknown> => {
  * @since 0.1.0
  * @category constructors
  */
-export const make = (deps: Dependencies) =>
-  Effect.fn("ActivityPersistence.execute")((input: ActivityInput) =>
+export const make = (deps: Dependencies) => {
+  const admission = deps.admission ?? AttemptAdmission.makeUnsafe()
+  return Effect.fn("ActivityPersistence.execute")((input: ActivityInput) =>
     Effect.gen(function*() {
       const attempts = yield* AttemptStore.AttemptStore
       const cache = yield* CacheStore.CacheStore
@@ -293,245 +304,273 @@ export const make = (deps: Dependencies) =>
         }
       }
 
-      const existing = yield* attempts.get(attemptId)
-      if (Option.isSome(existing)) {
-        const row = existing.value
-        if (row.state === "succeeded") {
-          const meta = decodeMeta(row.meta)
-          if (meta?.boundary !== undefined) {
-            const boundary = yield* StepBoundary.StepBoundary
-            yield* boundary.replayOutputs(meta.boundary)
-          }
-          // Converge the cache with the durable completion: a crash between
-          // `attempts.finish` and `cache.put` otherwise leaves the sealed
-          // result permanently missing from the shared cache (issue #24).
-          // Reaching this branch with `cacheable` set means `cache.get`
-          // above missed or was unfit for replay.
-          if (
-            cacheable &&
-            meta?.tier === "sealed" &&
-            meta.boundary !== undefined &&
-            meta.boundary.deviation === undefined
-          ) {
-            yield* recordCache({
-              result: row.outcome,
-              meta,
-              createdAtMs: row.finishedAtMs ?? (yield* Clock.currentTimeMillis)
-            })
-          }
-          return row.outcome
-        }
-        if (row.state === "failed") {
-          // A durably failed attempt is replayed by rethrowing the persisted
-          // domain failure — never by readmission (issue #59). Falling
-          // through to `attempts.put` here surfaced the row as
-          // `AttemptAdmissionRejected`, whose tag can never match a
-          // policy-declared `nonRetryable` classification, so a durably
-          // failed no-retry activity earned an extra real dispatch after
-          // resume. Temporal's prior art: mutable state persists the attempt
-          // failure and `ExecutionInfo.Attempt`, and its no-retry decision
-          // (`service/history/workflow/retry.go`) is re-evaluated from that
-          // persisted failure — the failure itself is durable, not just the
-          // fact that an attempt happened.
-          return yield* Effect.failCause(rehydrateCause(row.error))
-        }
-        if (row.state === "suspended") {
-          return yield* Effect.fail(
-            new AttemptSuspended({
-              code: "attempt_suspended",
-              runId: deps.runId,
-              keyDigest,
-              attempt: input.attempt
-            })
-          )
-        }
-      }
-
-      /**
-       * A persisted `running` row read while this owner holds the run fence
-       * is crash evidence, not a live admission (issue #71): the incarnation
-       * that admitted the attempt died before finishing (SIGKILL, OOM), and
-       * the #53 stale-running sweep re-drove the run to a new owner — or the
-       * same owner after restart. The attempt never completed, so it must
-       * re-execute under its original number rather than fall through to
-       * `attempts.put` (whose `Conflict` on the differing `startedAtMs`
-       * surfaced as `AttemptAdmissionRejected`, permanently failing a
-       * no-policy run with an infrastructure tag). The row is adopted; the
-       * ordinary fenced `attempts.finish` transition below records the
-       * re-execution's outcome.
-       *
-       * Adoption requires liveness evidence (issue #86): the row's recorded
-       * `admittedBy` incarnation must differ from the current one. This owner
-       * holds the run fence (heartbeat above), so a differing incarnation has
-       * provably lost it; a row admitted by the *current* incarnation is a
-       * live concurrent same-key dispatch and falls through to `attempts.put`,
-       * whose `Conflict` surfaces as `AttemptAdmissionRejected` instead of
-       * silently double-executing the side effect. A row without `admittedBy`
-       * predates this evidence and keeps the #71 crash-evidence reading.
-       */
-      const runningRow = Option.isSome(existing) && existing.value.state === "running"
-        ? existing.value
-        : undefined
-      const runningMeta = runningRow === undefined ? undefined : decodeMeta(runningRow.meta)
-      const sameIncarnation = (candidate: Ownership.OwnerId): boolean =>
-        candidate.hostId === deps.owner.hostId &&
-        candidate.pid === deps.owner.pid &&
-        candidate.nonce === deps.owner.nonce
-      const adopted = runningRow !== undefined &&
-        (runningMeta?.admittedBy === undefined || !sameIncarnation(runningMeta.admittedBy))
-      if (!adopted) {
-        const now = yield* Clock.currentTimeMillis
-        const initialMeta: AttemptMeta = { tier: input.tier, admittedBy: deps.owner }
-        const put = yield* attempts.put(
-          { ...attemptId, state: "running", startedAtMs: now, meta: initialMeta },
-          deps.owner
-        )
-        if (put._tag === "FenceLost" || put._tag === "RunNotFound") {
-          return yield* Effect.interrupt
-        }
-        if (put._tag !== "Inserted") {
-          return yield* Effect.fail(
-            new AttemptAdmissionRejected({
-              code: "attempt_admission_rejected",
-              keyDigest,
-              outcome: put._tag
-            })
-          )
-        }
-      } else {
-        // Re-home the adopted row to the current incarnation so a concurrent
-        // dispatch in *this* process reads it as live, not as crash evidence.
-        // The unfenced patch keeps the dead incarnation's other meta (tier,
-        // pre-image snapshot) intact.
-        yield* attempts.patch(attemptId, {
-          meta: { ...runningMeta, tier: input.tier, admittedBy: deps.owner } satisfies AttemptMeta
-        })
-      }
-      // Lifecycle announcements take a per-attempt producer identity
-      // (issue #91): adoption re-executes an attempt whose dead incarnation
-      // may already have announced it, and lifecycle records without a
-      // `sourceSeq` allocate a fresh journal row on every emission. A
-      // dedicated `(sourceId, sourceSeq 0)` per record makes the re-emission
-      // an exact producer retry the journal collapses into a `Duplicate`.
-      const attemptSource = (record: string): JournalRecords.EventOptions => ({
-        runId: deps.runId,
-        sourceId: `${deps.sourceId}:attempt:${keyDigest}:${input.attempt}:${record}`,
-        sourceSeq: 0
-      })
-      yield* emitLifecycle(JournalRecords.attemptStarted(attemptSource("started"), { ...attemptId, tier: input.tier }))
-
-      let snapshotId: string | undefined
-      if (input.tier === "compensable") {
-        const jj = yield* Jj.Jj
-        if (adopted && runningMeta?.snapshotId !== undefined) {
-          // The dead incarnation persisted this attempt's own pre-image
-          // before mutating the workspace (issue #87): restore it so the
-          // re-execution runs on the clean tree, and keep it as the attempt's
-          // compensation baseline instead of snapshotting the dirty state.
-          yield* jj.restore(runningMeta.snapshotId)
-          snapshotId = runningMeta.snapshotId
-        } else {
-          if (input.attempt > 1) {
-            const previous = yield* attempts.get({ ...attemptId, attempt: input.attempt - 1 })
-            if (
-              Option.isSome(previous) &&
-              decodeMeta(previous.value.meta)?.snapshotId !== undefined
-            ) {
-              yield* jj.restore(decodeMeta(previous.value.meta)!.snapshotId!)
+      // Everything from the durable-row read to the terminal transition runs
+      // under this process's exclusive permit for the attempt key (issues
+      // #102, #103): the adoption decision below is taken from a read no
+      // in-process racer can invalidate before the claim lands, and a
+      // concurrent same-key dispatch waits here until the winner's terminal
+      // row is visible and replays it instead of re-executing the body.
+      return yield* admission.withPermit(`${deps.runId}|${keyDigest}|${input.attempt}`)(
+        Effect.gen(function*() {
+          const existing = yield* attempts.get(attemptId)
+          if (Option.isSome(existing)) {
+            const row = existing.value
+            if (row.state === "succeeded") {
+              const meta = decodeMeta(row.meta)
+              if (meta?.boundary !== undefined) {
+                const boundary = yield* StepBoundary.StepBoundary
+                yield* boundary.replayOutputs(meta.boundary)
+              }
+              // Converge the cache with the durable completion: a crash between
+              // `attempts.finish` and `cache.put` otherwise leaves the sealed
+              // result permanently missing from the shared cache (issue #24).
+              // Reaching this branch with `cacheable` set means `cache.get`
+              // above missed or was unfit for replay.
+              if (
+                cacheable &&
+                meta?.tier === "sealed" &&
+                meta.boundary !== undefined &&
+                meta.boundary.deviation === undefined
+              ) {
+                yield* recordCache({
+                  result: row.outcome,
+                  meta,
+                  createdAtMs: row.finishedAtMs ?? (yield* Clock.currentTimeMillis)
+                })
+              }
+              return row.outcome
+            }
+            if (row.state === "failed") {
+              // A durably failed attempt is replayed by rethrowing the persisted
+              // domain failure — never by readmission (issue #59). Falling
+              // through to `attempts.put` here surfaced the row as
+              // `AttemptAdmissionRejected`, whose tag can never match a
+              // policy-declared `nonRetryable` classification, so a durably
+              // failed no-retry activity earned an extra real dispatch after
+              // resume. Temporal's prior art: mutable state persists the attempt
+              // failure and `ExecutionInfo.Attempt`, and its no-retry decision
+              // (`service/history/workflow/retry.go`) is re-evaluated from that
+              // persisted failure — the failure itself is durable, not just the
+              // fact that an attempt happened.
+              return yield* Effect.failCause(rehydrateCause(row.error))
+            }
+            if (row.state === "suspended") {
+              return yield* Effect.fail(
+                new AttemptSuspended({
+                  code: "attempt_suspended",
+                  runId: deps.runId,
+                  keyDigest,
+                  attempt: input.attempt
+                })
+              )
             }
           }
-          const snapshot = yield* jj.snapshot(`flows activity ${keyDigest} attempt ${input.attempt}`)
-          snapshotId = snapshot.changeId
-          // Persist the pre-image into the running row before announcing it
-          // (issue #87): a SIGKILL mid-attempt must not lose the only
-          // reference to the clean tree, or adoption re-executes on top of
-          // the dead incarnation's partial mutations.
-          yield* attempts.patch(attemptId, {
-            meta: { tier: input.tier, admittedBy: deps.owner, snapshotId } satisfies AttemptMeta
+
+          /**
+           * A persisted `running` row read while this owner holds the run fence
+           * is crash evidence, not a live admission (issue #71): the incarnation
+           * that admitted the attempt died before finishing (SIGKILL, OOM), and
+           * the #53 stale-running sweep re-drove the run to a new owner — or the
+           * same owner after restart. The attempt never completed, so it must
+           * re-execute under its original number rather than fall through to
+           * `attempts.put` (whose `Conflict` on the differing `startedAtMs`
+           * surfaced as `AttemptAdmissionRejected`, permanently failing a
+           * no-policy run with an infrastructure tag). The row is adopted; the
+           * ordinary fenced `attempts.finish` transition below records the
+           * re-execution's outcome.
+           *
+           * Adoption requires liveness evidence (issue #86), and that evidence is
+           * the admission permit held around this whole span (issues #102, #103):
+           * a live same-key dispatch of this process would be holding the permit,
+           * so a `running` row observed here cannot belong to a live in-process
+           * fiber — it is a dead fiber of this incarnation (an in-process
+           * re-drive after an interrupt, the #71 mode the recorded-nonce guard
+           * wrongly refused) or a superseded incarnation (which provably lost the
+           * run fence this owner holds). Deciding from the recorded `admittedBy`
+           * nonce could not tell those apart, and comparing it against a stale
+           * pre-claim read left a TOCTOU window where two concurrent dispatches
+           * both saw a dead owner and both executed an irreversible body.
+           */
+          const runningRow = Option.isSome(existing) && existing.value.state === "running"
+            ? existing.value
+            : undefined
+          const runningMeta = runningRow === undefined ? undefined : decodeMeta(runningRow.meta)
+          const adopted = runningRow !== undefined
+          if (!adopted) {
+            const now = yield* Clock.currentTimeMillis
+            const initialMeta: AttemptMeta = { tier: input.tier, admittedBy: deps.owner }
+            const put = yield* attempts.put(
+              { ...attemptId, state: "running", startedAtMs: now, meta: initialMeta },
+              deps.owner
+            )
+            if (put._tag === "FenceLost" || put._tag === "RunNotFound") {
+              return yield* Effect.interrupt
+            }
+            if (put._tag !== "Inserted") {
+              return yield* Effect.fail(
+                new AttemptAdmissionRejected({
+                  code: "attempt_admission_rejected",
+                  keyDigest,
+                  outcome: put._tag
+                })
+              )
+            }
+          } else {
+            // The claim is fenced at the moment it lands (issue #102): re-verify
+            // run ownership immediately before re-homing the row, so a process
+            // that lost the fence while waiting on the permit parks instead of
+            // patching a run it no longer owns. With the permit excluding
+            // in-process racers and the fence excluding every other process's
+            // writers (`put`/`finish` are owner-fenced), the patch below is
+            // exclusive even though `AttemptStore` has no conditional update.
+            const claimAtMs = yield* Clock.currentTimeMillis
+            const claimFence = yield* runs.heartbeat(deps.runId, deps.owner, claimAtMs)
+            if (claimFence._tag !== "Updated") return yield* Effect.interrupt
+            // Re-home the adopted row to the current incarnation; the patch
+            // keeps the dead incarnation's other meta (tier, pre-image
+            // snapshot) intact. A vanished row means the durable state moved
+            // under us — surface it as self-interruption like the fence losses.
+            const rehomed = yield* attempts.patch(attemptId, {
+              meta: { ...runningMeta, tier: input.tier, admittedBy: deps.owner } satisfies AttemptMeta
+            })
+            if (rehomed._tag !== "Patched") return yield* Effect.interrupt
+          }
+          // Lifecycle announcements take a per-attempt producer identity
+          // (issue #91): adoption re-executes an attempt whose dead incarnation
+          // may already have announced it, and lifecycle records without a
+          // `sourceSeq` allocate a fresh journal row on every emission. A
+          // dedicated `(sourceId, sourceSeq 0)` per record makes the re-emission
+          // an exact producer retry the journal collapses into a `Duplicate`.
+          const attemptSource = (record: string): JournalRecords.EventOptions => ({
+            runId: deps.runId,
+            sourceId: `${deps.sourceId}:attempt:${keyDigest}:${input.attempt}:${record}`,
+            sourceSeq: 0
           })
-        }
-        yield* emitLifecycle(JournalRecords.snapshotIdentified(attemptSource("snapshot"), { ...attemptId, snapshotId }))
-      }
+          yield* emitLifecycle(
+            JournalRecords.attemptStarted(attemptSource("started"), { ...attemptId, tier: input.tier })
+          )
 
-      const boundary = input.tier === "sealed" && input.metadata !== undefined
-        ? yield* StepBoundary.StepBoundary
-        : undefined
-      const preparedResult = boundary === undefined || input.metadata === undefined
-        ? undefined
-        : yield* boundary.prepare(input.metadata).pipe(Effect.exit)
-      if (preparedResult !== undefined && Exit.isFailure(preparedResult)) {
-        const finishedAtMs = yield* Clock.currentTimeMillis
-        const finished = yield* attempts.finish({
-          ...attemptId,
-          state: "failed",
-          finishedAtMs,
-          error: persistCause(preparedResult.cause),
-          // A boundary is prepared only for sealed work, while snapshots are
-          // created only for compensable work. The two capabilities are
-          // disjoint, so a preparation failure can never carry a snapshot.
-          meta: { tier: input.tier }
-        }, deps.owner)
-        if (finished._tag !== "Finished") return yield* Effect.interrupt
-        yield* emitLifecycle(JournalRecords.hardViolation(source(deps), { ...attemptId, error: preparedResult.cause }))
-        yield* emitLifecycle(JournalRecords.attemptFinished(source(deps), { ...attemptId, state: "failed" }))
-        return yield* Effect.failCause(preparedResult.cause)
-      }
-      const prepared = preparedResult === undefined ? undefined : preparedResult.value
+          let snapshotId: string | undefined
+          if (input.tier === "compensable") {
+            const jj = yield* Jj.Jj
+            if (adopted && runningMeta?.snapshotId !== undefined) {
+              // The dead incarnation persisted this attempt's own pre-image
+              // before mutating the workspace (issue #87): restore it so the
+              // re-execution runs on the clean tree, and keep it as the attempt's
+              // compensation baseline instead of snapshotting the dirty state.
+              yield* jj.restore(runningMeta.snapshotId)
+              snapshotId = runningMeta.snapshotId
+            } else {
+              if (input.attempt > 1) {
+                const previous = yield* attempts.get({ ...attemptId, attempt: input.attempt - 1 })
+                if (
+                  Option.isSome(previous) &&
+                  decodeMeta(previous.value.meta)?.snapshotId !== undefined
+                ) {
+                  yield* jj.restore(decodeMeta(previous.value.meta)!.snapshotId!)
+                }
+              }
+              const snapshot = yield* jj.snapshot(`flows activity ${keyDigest} attempt ${input.attempt}`)
+              snapshotId = snapshot.changeId
+              // Persist the pre-image into the running row before announcing it
+              // (issue #87): a SIGKILL mid-attempt must not lose the only
+              // reference to the clean tree, or adoption re-executes on top of
+              // the dead incarnation's partial mutations.
+              yield* attempts.patch(attemptId, {
+                meta: { tier: input.tier, admittedBy: deps.owner, snapshotId } satisfies AttemptMeta
+              })
+            }
+            yield* emitLifecycle(
+              JournalRecords.snapshotIdentified(attemptSource("snapshot"), { ...attemptId, snapshotId })
+            )
+          }
 
-      const outcome = yield* deps.execute(input).pipe(Effect.exit)
-      if (Exit.isFailure(outcome)) {
-        const finishedAtMs = yield* Clock.currentTimeMillis
-        const finished = yield* attempts.finish({
-          ...attemptId,
-          state: "failed",
-          finishedAtMs,
-          error: persistCause(outcome.cause),
-          meta: { tier: input.tier, ...(snapshotId === undefined ? {} : { snapshotId }) }
-        }, deps.owner)
-        if (finished._tag !== "Finished") return yield* Effect.interrupt
-        yield* emitLifecycle(JournalRecords.attemptFinished(source(deps), { ...attemptId, state: "failed" }))
-        return yield* Effect.failCause(outcome.cause)
-      }
+          const boundary = input.tier === "sealed" && input.metadata !== undefined
+            ? yield* StepBoundary.StepBoundary
+            : undefined
+          const preparedResult = boundary === undefined || input.metadata === undefined
+            ? undefined
+            : yield* boundary.prepare(input.metadata).pipe(Effect.exit)
+          if (preparedResult !== undefined && Exit.isFailure(preparedResult)) {
+            const finishedAtMs = yield* Clock.currentTimeMillis
+            const finished = yield* attempts.finish({
+              ...attemptId,
+              state: "failed",
+              finishedAtMs,
+              error: persistCause(preparedResult.cause),
+              // A boundary is prepared only for sealed work, while snapshots are
+              // created only for compensable work. The two capabilities are
+              // disjoint, so a preparation failure can never carry a snapshot.
+              meta: { tier: input.tier }
+            }, deps.owner)
+            if (finished._tag !== "Finished") return yield* Effect.interrupt
+            yield* emitLifecycle(
+              JournalRecords.hardViolation(source(deps), { ...attemptId, error: preparedResult.cause })
+            )
+            yield* emitLifecycle(JournalRecords.attemptFinished(source(deps), { ...attemptId, state: "failed" }))
+            return yield* Effect.failCause(preparedResult.cause)
+          }
+          const prepared = preparedResult === undefined ? undefined : preparedResult.value
 
-      const settled = prepared === undefined || boundary === undefined
-        ? undefined
-        : yield* boundary.settle(prepared).pipe(Effect.exit)
-      if (settled !== undefined && Exit.isFailure(settled)) {
-        const failedAtMs = yield* Clock.currentTimeMillis
-        const finished = yield* attempts.finish({
-          ...attemptId,
-          state: "failed",
-          finishedAtMs: failedAtMs,
-          error: persistCause(settled.cause),
-          // Settlement, like preparation, runs only for sealed work; a
-          // compensable snapshot is therefore unreachable on this path.
-          meta: { tier: input.tier }
-        }, deps.owner)
-        if (finished._tag !== "Finished") return yield* Effect.interrupt
-        yield* emitLifecycle(JournalRecords.hardViolation(source(deps), { ...attemptId, error: settled.cause }))
-        yield* emitLifecycle(JournalRecords.attemptFinished(source(deps), { ...attemptId, state: "failed" }))
-        return yield* Effect.failCause(settled.cause)
-      }
-      const evidence = settled === undefined ? undefined : settled.value
-      const finishedAtMs = yield* Clock.currentTimeMillis
-      const meta: AttemptMeta = {
-        tier: input.tier,
-        ...(snapshotId === undefined ? {} : { snapshotId }),
-        ...(evidence === undefined ? {} : { boundary: evidence })
-      }
-      const finished = yield* attempts.finish(
-        { ...attemptId, state: "succeeded", finishedAtMs, outcome: outcome.value, meta },
-        deps.owner
+          const outcome = yield* deps.execute(input).pipe(Effect.exit)
+          if (Exit.isFailure(outcome)) {
+            const finishedAtMs = yield* Clock.currentTimeMillis
+            const finished = yield* attempts.finish({
+              ...attemptId,
+              state: "failed",
+              finishedAtMs,
+              error: persistCause(outcome.cause),
+              meta: { tier: input.tier, ...(snapshotId === undefined ? {} : { snapshotId }) }
+            }, deps.owner)
+            if (finished._tag !== "Finished") return yield* Effect.interrupt
+            yield* emitLifecycle(JournalRecords.attemptFinished(source(deps), { ...attemptId, state: "failed" }))
+            return yield* Effect.failCause(outcome.cause)
+          }
+
+          const settled = prepared === undefined || boundary === undefined
+            ? undefined
+            : yield* boundary.settle(prepared).pipe(Effect.exit)
+          if (settled !== undefined && Exit.isFailure(settled)) {
+            const failedAtMs = yield* Clock.currentTimeMillis
+            const finished = yield* attempts.finish({
+              ...attemptId,
+              state: "failed",
+              finishedAtMs: failedAtMs,
+              error: persistCause(settled.cause),
+              // Settlement, like preparation, runs only for sealed work; a
+              // compensable snapshot is therefore unreachable on this path.
+              meta: { tier: input.tier }
+            }, deps.owner)
+            if (finished._tag !== "Finished") return yield* Effect.interrupt
+            yield* emitLifecycle(JournalRecords.hardViolation(source(deps), { ...attemptId, error: settled.cause }))
+            yield* emitLifecycle(JournalRecords.attemptFinished(source(deps), { ...attemptId, state: "failed" }))
+            return yield* Effect.failCause(settled.cause)
+          }
+          const evidence = settled === undefined ? undefined : settled.value
+          const finishedAtMs = yield* Clock.currentTimeMillis
+          const meta: AttemptMeta = {
+            tier: input.tier,
+            ...(snapshotId === undefined ? {} : { snapshotId }),
+            ...(evidence === undefined ? {} : { boundary: evidence })
+          }
+          const finished = yield* attempts.finish(
+            { ...attemptId, state: "succeeded", finishedAtMs, outcome: outcome.value, meta },
+            deps.owner
+          )
+          if (finished._tag !== "Finished") return yield* Effect.interrupt
+          if (evidence?.deviation !== undefined) {
+            yield* emitLifecycle(
+              JournalRecords.expectedSetDeviation(source(deps), { ...attemptId, ...evidence.deviation })
+            )
+          }
+          yield* emitLifecycle(JournalRecords.attemptFinished(source(deps), { ...attemptId, state: "succeeded" }))
+
+          if (cacheable && evidence?.deviation === undefined) {
+            yield* recordCache({ result: outcome.value, meta, createdAtMs: finishedAtMs })
+          }
+          return outcome.value
+        })
       )
-      if (finished._tag !== "Finished") return yield* Effect.interrupt
-      if (evidence?.deviation !== undefined) {
-        yield* emitLifecycle(JournalRecords.expectedSetDeviation(source(deps), { ...attemptId, ...evidence.deviation }))
-      }
-      yield* emitLifecycle(JournalRecords.attemptFinished(source(deps), { ...attemptId, state: "succeeded" }))
-
-      if (cacheable && evidence?.deviation === undefined) {
-        yield* recordCache({ result: outcome.value, meta, createdAtMs: finishedAtMs })
-      }
-      return outcome.value
     })
   )
+}

@@ -3,10 +3,14 @@
  *
  * Issue #86: adoption keyed on `state === "running"` alone treated a live
  * concurrent same-key dispatch's freshly inserted row as crash evidence and
- * double-executed the sealed side effect. Adoption now requires liveness
- * evidence — the row's recorded admitting incarnation must differ from the
- * current one (which holds the run fence, so any other incarnation has
- * provably lost it).
+ * double-executed the sealed side effect. Issues #102/#103: the recorded
+ * incarnation nonce was the wrong liveness evidence — it was compared
+ * against a pre-claim read (a TOCTOU window where two dispatches both adopt)
+ * and it refused same-incarnation re-drives whose fiber was provably dead
+ * (reopening #71). Adoption now runs under the store incarnation's admission
+ * permit: a running row observed while holding the key's permit cannot
+ * belong to a live in-process fiber, so it is crash evidence regardless of
+ * which incarnation recorded it.
  *
  * Issue #87: a compensable attempt's pre-image snapshot only reached the
  * durable row at finish, so adoption re-executed a crashed attempt 1 on the
@@ -73,19 +77,25 @@ const activate = (runId: string) =>
 const layers = (calls: Array<{ readonly op: string; readonly id?: string }>) =>
   Layer.mergeAll(TestJournal.layer(), StepBoundary.layerTest(), scriptedJj(calls))
 
-describe("adoption requires a superseded incarnation (issue #86)", () => {
-  it("rejects a running row admitted by the current incarnation instead of double-executing", async () => {
+describe("adoption liveness evidence is the admission permit (issues #86, #102, #103)", () => {
+  it("adopts a running row left by a dead fiber of the current incarnation (issue #103)", async () => {
+    // An in-process re-drive after a heartbeat-error self-interrupt: the
+    // interrupted attempt fiber left its running row behind, and the store's
+    // incarnation nonce is unchanged. The recorded-nonce guard read that as
+    // a live concurrent dispatch and refused adoption, so the fall-through
+    // `attempts.put` conflicted on the surviving row and permanently failed
+    // the run with `AttemptAdmissionRejected` — reopening issue #71. With
+    // the key permit held, no live in-process fiber can own the row, so it
+    // is crash evidence and must re-execute.
     let dispatches = 0
-    const key = "adoption/live-duplicate"
-    const exit = await Effect.runPromise(
+    const key = "adoption/same-incarnation-redrive"
+    const result = await Effect.runPromise(
       Effect.gen(function*() {
-        yield* activate("adoption-live")
+        yield* activate("adoption-redrive")
         const attempts = yield* AttemptStore.AttemptStore
-        // A concurrent same-key dispatch in this incarnation inserted the
-        // running row moments ago: its meta records the live incarnation.
         yield* attempts.put(
           {
-            runId: "adoption-live",
+            runId: "adoption-redrive",
             stepKeyDigest: Digest.digest(key),
             attempt: 1,
             state: "running",
@@ -94,23 +104,69 @@ describe("adoption requires a superseded incarnation (issue #86)", () => {
           },
           owner
         )
-        return yield* Effect.exit(
-          ActivityPersistence.make({
-            runId: "adoption-live",
-            owner,
-            sourceId: "adoption-test",
-            execute: () =>
-              Effect.sync(() => {
-                dispatches++
-                return "charged"
-              })
-          })({ activity: {}, attempt: 1, key, tier: "sealed" })
-        )
+        return yield* ActivityPersistence.make({
+          runId: "adoption-redrive",
+          owner,
+          sourceId: "adoption-test",
+          execute: () =>
+            Effect.sync(() => {
+              dispatches++
+              return "recovered"
+            })
+        })({ activity: {}, attempt: 1, key, tier: "sealed" })
       }).pipe(Effect.provide(layers([])), Effect.scoped)
     )
-    expect(dispatches).toBe(0)
-    expect(exit._tag).toBe("Failure")
-    expect(JSON.stringify(exit)).toContain("attempt_admission_rejected")
+    expect(dispatches).toBe(1)
+    expect(result).toBe("recovered")
+  })
+
+  it("serializes concurrent same-key dispatches so an irreversible body runs exactly once (issue #102)", async () => {
+    // The pre-permit guard decided adoption from a read taken before the
+    // claim landed: two concurrent dispatches could both observe the dead
+    // owner's row before either re-homed it, both adopt, and both execute
+    // the irreversible body. Under the shared admission permit the loser
+    // waits out the winner's whole span and replays its terminal row.
+    let dispatches = 0
+    const key = "adoption/concurrent-claim"
+    const results = await Effect.runPromise(
+      Effect.gen(function*() {
+        yield* activate("adoption-concurrent")
+        const attempts = yield* AttemptStore.AttemptStore
+        // The dead incarnation's row: adoptable evidence for whichever
+        // dispatch reads it first.
+        yield* attempts.put(
+          {
+            runId: "adoption-concurrent",
+            stepKeyDigest: Digest.digest(key),
+            attempt: 1,
+            state: "running",
+            startedAtMs: 0,
+            meta: { tier: "irreversible", admittedBy: deadOwner }
+          },
+          owner
+        )
+        // One executor (one shared admission mutex), dispatched twice
+        // concurrently — the in-process double-dispatch scenario.
+        const dispatch = ActivityPersistence.make({
+          runId: "adoption-concurrent",
+          owner,
+          sourceId: "adoption-test",
+          idempotencyKey: key,
+          execute: () =>
+            Effect.gen(function*() {
+              dispatches++
+              // Keep the body in flight long enough that the sibling
+              // dispatch is admitted while this one is mid-execution.
+              for (let i = 0; i < 20; i++) yield* Effect.yieldNow
+              return "charged"
+            })
+        })
+        const input = { activity: {}, attempt: 1, key, tier: "irreversible" as const }
+        return yield* Effect.all([dispatch(input), dispatch(input)], { concurrency: 2 })
+      }).pipe(Effect.provide(layers([])), Effect.scoped)
+    )
+    expect(dispatches).toBe(1)
+    expect(results).toEqual(["charged", "charged"])
   })
 
   it("still adopts a running row admitted by a superseded incarnation", async () => {
