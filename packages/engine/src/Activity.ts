@@ -87,6 +87,30 @@ export class IrreversibleRetryRequiresIdempotencyKey
 {}
 
 /**
+ * Two keyless invocations of one activity declaration were in flight
+ * concurrently, so their ordinals — and with them their step keys, attempt
+ * rows, and recorded outcomes — would be assigned by fiber arrival order. A
+ * crash-resume that replays the fibers in the opposite order would silently
+ * hand one invocation the other's recorded outcome (issue #111); Temporal
+ * fails such replays with a nondeterminism error, and the engine refuses the
+ * hazard up front instead of detecting it after the corruption. Declare an
+ * `idempotencyKey` distinguishing the invocations to dispatch them
+ * concurrently.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
+export class ConcurrentKeylessDispatch extends Schema.TaggedErrorClass<ConcurrentKeylessDispatch>()(
+  "@smithers/engine/ConcurrentKeylessDispatch",
+  {
+    code: Schema.Literal("concurrent_keyless_dispatch").pipe(
+      Schema.withConstructorDefault(Effect.succeed("concurrent_keyless_dispatch"))
+    ),
+    activityName: Schema.String
+  }
+) {}
+
+/**
  * Durable flow activity that behaves as an `Effect` and records its name,
  * result schemas, annotations, and encoded execution form for the flow
  * engine.

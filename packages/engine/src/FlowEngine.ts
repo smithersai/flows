@@ -358,6 +358,15 @@ export class FlowInstance extends Context.Service<
       readonly latch: Latch.Latch
       readonly nextOrdinal: (scope: string) => number
       readonly snapshots: Map<string, unknown>
+      /**
+       * Allocation scopes with a keyless dispatch currently in flight
+       * (issue #111). Keyless invocations of one declaration are
+       * allocation-ordered, so two in flight at once would take their
+       * ordinals from the fiber schedule and a replay could swap their
+       * recorded outcomes undetected; the engine refuses the second dispatch
+       * instead.
+       */
+      readonly keylessInFlight: Set<string>
     }
   }
 >()("effect/flow/FlowEngine/FlowInstance") {
@@ -385,7 +394,8 @@ export class FlowInstance extends Context.Service<
           ordinals.set(scope, next)
           return next
         },
-        snapshots: new Map()
+        snapshots: new Map(),
+        keylessInFlight: new Set()
       }
     })
   }
@@ -1033,7 +1043,32 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
         )
         return new Flow.Complete({ exit })
       }
-    }),
+    }, (body, activity) =>
+      // Keyless invocations of one declaration are allocation-ordered: with
+      // two in flight at once the ordinals — and so the step keys, attempt
+      // rows, and recorded outcomes — would be assigned by fiber arrival
+      // order, and a crash-resume replaying the fibers in the opposite order
+      // would silently hand one invocation the other's recorded outcome
+      // (issue #111). There is no engine-visible input material to order
+      // them by (inputs live in the execute closure), so the hazard is
+      // refused up front — Temporal's nondeterminism error, moved to the
+      // first run — and a declared idempotencyKey is the way out.
+      Effect.gen(function*() {
+        if (activity.idempotencyKey !== undefined) return yield* body
+        const instance = yield* FlowInstance
+        const inFlight = instance.activityState.keylessInFlight
+        const scope = ordinalScope(activity)
+        if (inFlight.has(scope)) {
+          return yield* Effect.die(
+            new Activity.ConcurrentKeylessDispatch({ activityName: activity.name })
+          )
+        }
+        inFlight.add(scope)
+        return yield* Effect.ensuring(
+          body,
+          Effect.sync(() => inFlight.delete(scope))
+        )
+      })),
     // Untraced because the explicit span below carries deferred attributes.
     deferredResult: Effect.fnUntraced(
       function*<Success extends Schema.Constraint, Error extends Schema.Constraint>(
