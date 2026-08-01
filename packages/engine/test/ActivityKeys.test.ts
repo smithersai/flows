@@ -214,6 +214,61 @@ describe("activity execution keys", () => {
     }
   )
 
+  effect(
+    "overrides a caller-pinned stale hermetic with the metadata descriptor so the read-set change still misses (issue #83)",
+    () => {
+      // Issue #57's mechanism is spread order alone: the descriptor derived
+      // from `activity.metadata` must win over a `hermetic` the caller
+      // pinned inside the object-form `ContentIdentity`. This is the
+      // caller-supplies case the #57 test never covered — a refactor that
+      // spread the caller's field last (`{ hermetic, ...identity }`) would
+      // freeze the key on the pinned digest and restore the #25 stale-replay
+      // bypass.
+      let executions = 0
+      const identity: StepKey.ContentIdentity = {
+        body: "sealed/pinned-hermetic",
+        inputs: {},
+        layers: [],
+        capabilities: {},
+        hermetic: {
+          readSet: [{ path: "src/input.ts", digest: "frozen" }],
+          writeSet: ["out/artifact"],
+          boundaryMode: "hard"
+        }
+      }
+      const build = (digest: string) =>
+        Activity.make({
+          name: "ActivityKeys/pinned-hermetic",
+          success: Schema.Number,
+          idempotencyKey: identity,
+          metadata: {
+            readSet: [{ path: "src/input.ts", digest }],
+            writeSet: ["out/artifact"],
+            boundaryMode: "hard"
+          },
+          execute: Effect.sync(() => ++executions)
+        })
+      const flow = Flow.make("ActivityKeys/pinned-hermetic-invalidation", {
+        payload: { run: Schema.String },
+        success: Schema.Number
+      })
+      const layer = flow.toLayer(() =>
+        Effect.gen(function*() {
+          // The pinned "frozen" digest never enters the key: same metadata
+          // digest replays, the changed digest re-executes.
+          yield* build("d1")
+          yield* build("d1")
+          return yield* build("d2")
+        })
+      ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+
+      return Effect.gen(function*() {
+        expect(yield* flow.execute({ run: "one" }, { executionId: "run-pinned-hermetic" })).toBe(2)
+        expect(executions).toBe(2)
+      }).pipe(Effect.provide(layer))
+    }
+  )
+
   effect("changes sealed replay identity when its input, layer, or capability material changes", () => {
     const keyFor = (input: string, layer: string, capability: string) =>
       Result.getOrThrow(StepKey.content({
