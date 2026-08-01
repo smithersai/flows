@@ -5,7 +5,7 @@
  * the same stores must give up with `retry_policy_expired` once the
  * wall-clock budget is exhausted, without re-dispatching the activity body.
  */
-import { Activity, Flow, type FlowEngine, RetryPolicy } from "@smithers/engine"
+import { Activity, Flow, type FlowEngine, RetryPolicy, StepIdentity } from "@smithers/engine"
 import { AttemptStore, Journal, RunStore, TestJournal } from "@smithers/journal"
 import { Jj } from "@smithers/kernel"
 import { Digest, StepKey } from "@smithers/keys"
@@ -100,7 +100,10 @@ describe("expirationMs survives a restart mid-retry (issue #45)", () => {
       runId: "retry-expiration-run",
       stepKeyDigest: Digest.digest(Result.getOrThrow(StepKey.ordinal({
         runId: "retry-expiration-run",
-        parentScope: "activity:retry-expiration-flaky",
+        parentScope: StepIdentity.allocationScope({
+          kind: "activity",
+          name: "retry-expiration-flaky"
+        }),
         ordinal: 1,
         tier: "unsealed"
       }))),
