@@ -266,3 +266,19 @@ describe("StepBoundary.layer host failures", () => {
     expect(failure).toMatchObject({ code: "unsupported_boundary" })
   })
 })
+
+describe("StepBoundary stays importable from a browser bundle (issue #114)", () => {
+  it("has no module-scope node: imports", async () => {
+    // The module exports the contract schemas, the service tag, and
+    // `layerTest` — all of which a browser composition must import — so a
+    // module-scope node: dependency would drag Node builtins into every
+    // bundle. Base64 goes through the platform-neutral `effect/Encoding`.
+    const fs = await import("node:fs/promises")
+    const url = await import("node:url")
+    const source = await fs.readFile(
+      url.fileURLToPath(new URL("../src/StepBoundary.ts", import.meta.url)),
+      "utf8"
+    )
+    expect(source).not.toMatch(/from "node:/)
+  })
+})
