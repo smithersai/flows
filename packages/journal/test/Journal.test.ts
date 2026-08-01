@@ -885,7 +885,7 @@ describe("Journal", () => {
     )
   })
 
-  effect("surfaces an unrecoverable sink failure and rejects later emits", () => {
+  effect("reports each lost batch once and keeps accepting work while the sink is down", () => {
     const run = runId("sink-failure")
     const source = sourceId("producer")
 
@@ -896,12 +896,14 @@ describe("Journal", () => {
 
       const flushFailure = yield* Effect.flip(journal.flush)
       expect(flushFailure.code).toBe("sink_failed")
-      const secondFlushFailure = yield* Effect.flip(journal.flush)
-      expect(secondFlushFailure.code).toBe("sink_failed")
-      const emitFailure = yield* Effect.flip(
-        journal.emit(input(run, source, "later", {}))
-      )
-      expect(emitFailure.code).toBe("sink_failed")
+      // The loss is spent: a flush with nothing outstanding has nothing to
+      // report and must not re-raise a stale failure.
+      yield* journal.flush
+      // The writer survived, so the channel still admits work — and the next
+      // lost batch is reported on its own flush.
+      const later = yield* journal.emit(input(run, source, "later", {}))
+      expect(later._tag).toBe("Accepted")
+      expect((yield* Effect.flip(journal.flush)).code).toBe("sink_failed")
     }).pipe(
       Effect.provide(
         journalLayer({ capacity: 4, overflow: "reject" }, failedDatabase)
@@ -918,11 +920,8 @@ describe("Journal", () => {
     return Effect.gen(function*() {
       const journal = yield* Journal
       yield* journal.emit(input(run, source, "queued", {}))
-      // The queued writer fiber dies on the transient outage.
+      // The queued writer loses the batch on the transient outage.
       expect((yield* Effect.flip(journal.flush)).code).toBe("sink_failed")
-      expect((yield* Effect.flip(journal.emitLossy(input(run, source, "later", {})))).code).toBe(
-        "sink_failed"
-      )
 
       // The database recovers; the lossless lifecycle channel must recover too.
       database.repair()
@@ -957,6 +956,39 @@ describe("Journal", () => {
           { capacity: 4, overflow: "reject" },
           failedDatabaseWithReadSignal(readStarted)
         )
+      ),
+      Effect.scoped
+    )
+  })
+
+  effect("recovers the lossy writer after a transient sink outage", () => {
+    const run = runId("sink-failure-recovers")
+    const source = sourceId("producer")
+    const database = transientlyFailingDatabase()
+
+    return Effect.gen(function*() {
+      const journal = yield* Journal
+      yield* journal.emitLossy(input(run, source, "lost", {}))
+      // Let the writer lose the batch with nobody waiting on it: the loss must
+      // still reach the next flush rather than vanish.
+      for (let attempt = 0; attempt < 8; attempt++) {
+        yield* Effect.yieldNow
+      }
+      // The outage is reported once, to the first flush after it.
+      expect((yield* Effect.flip(journal.flush)).code).toBe("sink_failed")
+
+      // The latch must not survive the outage: once the database recovers the
+      // queued writer keeps draining and `flush` — which durable delivery in
+      // engine-store calls with `orDie` — succeeds again.
+      database.repair()
+      const receipt = yield* journal.emitLossy(input(run, source, "written", {}))
+      expect(receipt._tag).toBe("Accepted")
+      yield* journal.flush
+      const page = yield* journal.entries({ runId: run, limit: 10 })
+      expect(page.entries.map((entry) => entry.eventType)).toEqual(["written"])
+    }).pipe(
+      Effect.provide(
+        journalLayer({ capacity: 4, overflow: "reject", allocation: "queue" }, database.layer)
       ),
       Effect.scoped
     )

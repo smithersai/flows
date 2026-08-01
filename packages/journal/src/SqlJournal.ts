@@ -139,15 +139,21 @@ type Status = "open" | "closing" | "closed"
 interface State {
   status: Status
   /**
-   * Set when the optimistic writer fiber dies. It gates the lossy channel —
-   * whose queue nothing will drain again — and the live stream, which would
-   * otherwise silently hide the entries the fiber lost. It deliberately does
-   * NOT gate `emitDurable`: the durable channel writes its own transaction
-   * inline and stays available whenever the database is healthy, so one
-   * transient telemetry-batch failure cannot revoke the lossless-emit
-   * guarantee for the rest of the process's life.
+   * The most recent batch the optimistic writer lost. It is a *report*, not a
+   * latch: the writer survives a failed batch, so a transient outage must not
+   * revoke the lossy channel — or, through `flush`, the durable delivery paths
+   * that call it — for the rest of the process's life.
+   *
+   * Each loss is reported to whoever was waiting on it (`flushWaiters`, live
+   * streams) and, via `lossEpoch`, to at most one later `flush` and to every
+   * live stream that had not yet observed it. After that the report is spent
+   * and the journal is usable again the moment the database is.
    */
   sinkFailure: JournalError | undefined
+  /** Incremented on every lost batch; identifies an unreported loss. */
+  lossEpoch: number
+  /** The highest `lossEpoch` already reported to a `flush` caller. */
+  flushedLossEpoch: number
   pending: number
   readonly sequences: Map<RunId, number>
   readonly sourceSequences: Map<string, number>
@@ -336,6 +342,8 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
       const state: State = {
         status: "open",
         sinkFailure: undefined,
+        lossEpoch: 0,
+        flushedLossEpoch: 0,
         pending: 0,
         sequences: initialized.sequences,
         sourceSequences: initialized.sourceSequences,
@@ -372,7 +380,14 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
       }
 
       const flushInternal: Effect.Effect<void, JournalError> = Effect.suspend(() => {
-        if (state.sinkFailure !== undefined) {
+        // A loss that happened while nothing was registered still has to reach
+        // a caller, so the first flush after it reports it — once. A later
+        // flush has nothing to do with the lost batch and must succeed, or a
+        // single transient outage would stall every durable delivery that
+        // flushes (`DeferredPersistence.completeDeferred`, `recordClockScheduled`)
+        // for the process's lifetime.
+        if (state.sinkFailure !== undefined && state.lossEpoch > state.flushedLossEpoch) {
+          state.flushedLossEpoch = state.lossEpoch
           return Effect.fail(state.sinkFailure)
         }
         if (state.status === "closed") {
@@ -425,9 +440,6 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
           Effect.suspend(() =>
             Effect.fromResult(
               Result.gen(function*() {
-                if (state.sinkFailure !== undefined) {
-                  return yield* Result.fail(state.sinkFailure)
-                }
                 const { metaJson, payloadJson, validated } = yield* prepare(input, emittedAtMs)
                 const key = sourceKey(validated.runId, validated.sourceId)
                 const nextSourceSeq = state.sourceSequences.get(key) ?? 0
@@ -604,8 +616,12 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
           Effect.fn("Journal.stream")(function*() {
             const wake = yield* subscribeRun(streamOptions.runId)
             let cursor: number = streamOptions.afterSequence ?? -1
+            // A live consumer is told about losses that happen while it is
+            // following, and only about those: a loss it never overlapped is
+            // already spent by the time it subscribes.
+            const subscribedLossEpoch = state.lossEpoch
             const readAvailable: Effect.Effect<ReadonlyArray<Entry>, JournalError> = Effect.suspend(() =>
-              state.sinkFailure !== undefined
+              state.sinkFailure !== undefined && state.lossEpoch > subscribedLossEpoch
                 ? Effect.fail(state.sinkFailure)
                 : Effect.gen(function*() {
                   const all: Array<Entry> = []
@@ -960,7 +976,14 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
 
       const failSink = (cause: JournalError): void => {
         state.sinkFailure = cause
+        state.lossEpoch += 1
         state.pending = 0
+        // A waiter that is already registered is the flush the loss belongs
+        // to, so reporting it there spends the report; only a loss nobody was
+        // waiting on is left for the next flush to pick up.
+        if (state.flushWaiters.size > 0) {
+          state.flushedLossEpoch = state.lossEpoch
+        }
         completeFlushWaiters(Effect.fail(cause))
         for (const subscribers of wakes.values()) {
           for (const wake of subscribers) {
@@ -969,17 +992,17 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
         }
       }
 
-      const writer = Effect.forever(
-        Queue.takeBetween(queue, 1, batchSize).pipe(
-          Effect.flatMap((batch) =>
-            persistBatch(batch).pipe(
-              Effect.tap((commits) => Effect.sync(() => recordCommits(batch, commits))),
-              Effect.tap(publish),
-              Effect.tap(() => Effect.sync(() => settle(batch.length)))
-            )
+      // One failed batch loses that batch and is reported as such; it never
+      // ends the writer. Only interruption (scope closure) stops the loop, so
+      // the queue keeps draining as soon as the database is healthy again.
+      const writeBatch = Queue.takeBetween(queue, 1, batchSize).pipe(
+        Effect.flatMap((batch) =>
+          persistBatch(batch).pipe(
+            Effect.tap((commits) => Effect.sync(() => recordCommits(batch, commits))),
+            Effect.tap(publish),
+            Effect.tap(() => Effect.sync(() => settle(batch.length)))
           )
-        )
-      ).pipe(
+        ),
         Effect.catch((cause) => Effect.sync(() => failSink(cause))),
         Effect.catchCause((cause) =>
           Cause.hasInterruptsOnly(cause)
@@ -987,6 +1010,8 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
             : Effect.sync(() => failSink(error("sink_failed", "journal writer failed", cause)))
         )
       )
+
+      const writer = Effect.forever(writeBatch)
 
       yield* Effect.forkScoped(writer)
       yield* Effect.addFinalizer(() =>
