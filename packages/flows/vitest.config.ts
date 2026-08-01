@@ -8,6 +8,7 @@ export default defineConfig({
       // thresholds — a red gate fails the run (issues #20/#32).
       enabled: true,
       provider: "v8",
+      include: ["src/**"],
       // Accurate, enforceable floors measured against the committed suite.
       // Ratchet upward as tests land; never lower without a written
       // justification.

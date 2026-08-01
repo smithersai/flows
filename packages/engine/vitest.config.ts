@@ -9,7 +9,7 @@ export default defineConfig({
       enabled: true,
       provider: "v8",
       // Every production module, including the public barrel, is measured.
-      exclude: [],
+      include: ["src/**"],
       // The suite must earn complete coverage in every category.
       thresholds: {
         branches: 100,
