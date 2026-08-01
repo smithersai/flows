@@ -802,23 +802,98 @@ describe("RunStore", () => {
     expect(alive).toBe(undefined)
   })
 
-  it("reserves a named cross-host clock skew allowance in the write budget", () => {
+  it("interrupts the owner at the write tolerance and admits a peer steal only once the persisted heartbeat is stale", async () => {
+    // The whole point of the skew allowance is the ordering of two *observable*
+    // events against one persisted heartbeat: the owner must have handed the
+    // fence back strictly before any peer can legally take it. This drives the
+    // real steal SQL, so it also pins the steal cutoff against
+    // `heartbeatStaleAfter` rather than restating the constant's definition.
+    const result = await migrated(Effect.gen(function*() {
+      const store = yield* RunStore
+      const activated = yield* activateNew(store, "run-steal-boundary", ownerA)
+      expect(activated.heartbeatAtMs).toBe(0)
+
+      const broken = { value: true }
+      const started = yield* Deferred.make<void>()
+      const owningFiber = yield* Effect.scoped(
+        Effect.gen(function*() {
+          yield* Deferred.succeed(started, undefined)
+          return yield* Effect.raceFirst(Effect.never, heartbeatLoop(activated.runId, ownerA))
+        })
+      ).pipe(
+        // Every heartbeat write fails, so the persisted timestamp stays at 0
+        // while the owner's tolerance budget burns down.
+        Effect.provide(flakyHeartbeatStore(broken)),
+        Effect.forkChild({ startImmediately: true })
+      )
+      yield* Deferred.await(started)
+
+      const stealAt = (atMs: number) =>
+        Effect.gen(function*() {
+          const row = yield* store.get(activated.runId)
+          return yield* store.steal(row.runId, snapshot(row), ownerC, atMs, staleEvidence(ownerA, ownerC, atMs))
+        })
+
+      yield* TestClock.adjust(Duration.millis(Duration.toMillis(heartbeatWriteTolerance) - 1))
+      yield* Effect.yieldNow
+      const ownerInsideBudget = owningFiber.pollUnsafe()
+      const peerInsideBudget = yield* stealAt(yield* Clock.currentTimeMillis)
+      // Same instant, but judged by a peer whose clock runs five seconds ahead
+      // of the owner's — the cross-host offset the allowance exists to absorb.
+      // The magnitude is chosen independently of the constants on purpose.
+      const aheadPeerInsideBudget = yield* stealAt((yield* Clock.currentTimeMillis) + 5_000)
+
+      yield* TestClock.adjust(Duration.millis(1))
+      yield* Effect.yieldNow
+      const ownerAtTolerance = owningFiber.pollUnsafe()
+
+      // The owner is already gone, yet the run is still not stealable: the
+      // remaining skew allowance plus a pulse is exactly the margin a peer
+      // whose clock runs ahead is allowed to consume.
+      yield* TestClock.adjust(
+        Duration.millis(Duration.toMillis(heartbeatStaleAfter) - Duration.toMillis(heartbeatWriteTolerance))
+      )
+      const peerAtStaleCutoff = yield* stealAt(yield* Clock.currentTimeMillis)
+
+      yield* TestClock.adjust(Duration.millis(1))
+      const stolenAtMs = yield* Clock.currentTimeMillis
+      const peerPastStaleCutoff = yield* stealAt(stolenAtMs)
+
+      return {
+        ownerInsideBudget,
+        peerInsideBudget,
+        aheadPeerInsideBudget,
+        ownerAtTolerance,
+        peerAtStaleCutoff,
+        peerPastStaleCutoff,
+        stolenAtMs,
+        finalClaim: (yield* store.get(activated.runId)).claim
+      }
+    }))
+
+    // Inside the budget the owner keeps working and no peer may take the run.
+    expect(result.ownerInsideBudget).toBe(undefined)
+    expect(result.peerInsideBudget).toEqual({ _tag: "HeartbeatFresh" })
+    expect(result.aheadPeerInsideBudget).toEqual({ _tag: "HeartbeatFresh" })
+    // At the tolerance the owner interrupts itself...
+    expect(
+      result.ownerAtTolerance !== undefined && Exit.isFailure(result.ownerAtTolerance) &&
+        Cause.hasInterruptsOnly(result.ownerAtTolerance.cause)
+    ).toBe(true)
+    // ...still strictly before the persisted heartbeat becomes stealable.
+    expect(result.peerAtStaleCutoff).toEqual({ _tag: "HeartbeatFresh" })
+    expect(result.peerPastStaleCutoff).toEqual({ _tag: "Claimed", claimedAtMs: result.stolenAtMs })
+    expect(result.stolenAtMs).toBe(Duration.toMillis(heartbeatStaleAfter) + 1)
+    expect(result.finalClaim).toEqual(ownerC)
+  })
+
+  it("reserves a clock skew allowance larger than one pulse in the write budget", () => {
     // The owner stamps `heartbeat_at_ms` from its own clock and a peer judges
     // staleness against *its* clock, so the offset between the two hosts eats
-    // directly into the owner's margin. The budget must name that allowance
-    // and still leave a pulse of headroom on top of it.
+    // directly into the owner's margin. Only the relation between the two
+    // independently chosen constants is asserted here; the margin's *effect* is
+    // covered behaviourally by the steal-boundary test above.
     expect(Duration.toMillis(heartbeatSkewAllowance)).toBeGreaterThan(Duration.toMillis(heartbeatInterval))
-    expect(Duration.toMillis(heartbeatWriteTolerance)).toBe(
-      Duration.toMillis(heartbeatStaleAfter) -
-        Duration.toMillis(heartbeatSkewAllowance) -
-        Duration.toMillis(heartbeatInterval)
-    )
-    // An owner whose clock lags a peer's by up to the allowance is still
-    // interrupted before that peer may legally steal the run.
-    expect(
-      Duration.toMillis(heartbeatWriteTolerance) + Duration.toMillis(heartbeatSkewAllowance) +
-        Duration.toMillis(heartbeatInterval)
-    ).toBeLessThanOrEqual(Duration.toMillis(heartbeatStaleAfter))
   })
 
   it("suspends while clearing owner, heartbeat, and an in-flight claim atomically", async () => {
