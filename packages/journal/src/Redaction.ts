@@ -150,6 +150,28 @@ export type Redactor = (value: unknown) => unknown
 export const make = (options?: Options): Redactor => (value) => redact(value, options)
 
 /**
+ * Applies a redactor to an already-encoded JSON string, returning the
+ * re-encoded result.
+ *
+ * `RunStore` receives durable run state pre-encoded, so it cannot funnel
+ * through the same value-level chokepoint the other stores use; this keeps it
+ * on one code path anyway. A string that does not parse is returned untouched
+ * — validation is the caller's, and rejecting here would turn a redaction
+ * concern into a schema error.
+ *
+ * @since 0.1.0
+ * @category redaction
+ */
+export const redactJsonString = (json: string, redactor: Redactor): string => {
+  try {
+    const encoded = JSON.stringify(redactor(JSON.parse(json) as unknown))
+    return encoded === undefined ? json : encoded
+  } catch {
+    return json
+  }
+}
+
+/**
  * The identity redactor, for callers that persist payloads verbatim by
  * choice — a trusted single-tenant store, or a suite asserting on raw input.
  *

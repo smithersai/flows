@@ -16,6 +16,7 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as SqlError from "effect/unstable/sql/SqlError"
+import * as Redaction from "./Redaction.ts"
 
 /**
  * Stable error codes returned by cache persistence operations.
@@ -128,9 +129,10 @@ const CacheEntryInput = Schema.Struct({
 const error = (code: CacheStoreErrorCode, message: string, cause?: unknown): CacheStoreError =>
   new CacheStoreError({ code, message, ...(cause === undefined ? {} : { cause }) })
 
-const encode = (value: unknown, field: string): Effect.Effect<string, CacheStoreError> =>
+const encodeWith =
+  (redactor: Redaction.Redactor) => (value: unknown, field: string): Effect.Effect<string, CacheStoreError> =>
   Effect.try({
-    try: () => JSON.stringify(value),
+    try: () => JSON.stringify(redactor(value)),
     catch: (cause) => error("invalid_cache", `${field} must be JSON-serializable`, cause)
   }).pipe(
     Effect.flatMap((encoded) =>
@@ -190,14 +192,34 @@ const decodeRow = (input: unknown): Effect.Effect<CacheEntry, CacheStoreError> =
   )
 
 /**
- * Builds the SQL-backed cache store.
+ * Store-wide policy.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface Options {
+  /**
+   * Applied to cached results and metadata before they are written. A cached
+   * step output is durable and replayed on every hit, so it is scrubbed by
+   * default exactly like a journal payload. Pass `Redaction.makeNoop()` to
+   * persist cached values verbatim.
+   */
+  readonly redact?: Redaction.Redactor | undefined
+}
+
+/**
+ * Builds the SQL-backed cache store under an explicit policy.
  *
  * @category constructors
  * @since 0.1.0
  */
-export const make: Effect.Effect<Service, never, Database> = Effect.gen(function*() {
+export const makeWith = (options: Options = {}): Effect.Effect<Service, never, Database> =>
+Effect.gen(function*() {
   const database = yield* Database
   const { sql } = database
+  // Both durable columns funnel through this encoder, so no cache write can
+  // persist an unscrubbed credential (issue #58).
+  const encode = encodeWith(options.redact ?? Redaction.make())
 
   const get: Service["get"] = Effect.fn("CacheStore.get")((keyDigest) =>
     Effect.gen(function*() {
@@ -255,6 +277,14 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
 })
 
 /**
+ * Builds the SQL-backed cache store with default policy.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const make: Effect.Effect<Service, never, Database> = makeWith()
+
+/**
  * Creates a cache store from an implementation.
  *
  * @category constructors
@@ -286,3 +316,12 @@ export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<CacheSt
  * @since 0.1.0
  */
 export const layer: Layer.Layer<CacheStore, never, Database> = Layer.effect(CacheStore)(make)
+
+/**
+ * Provides the SQL-backed cache store under an explicit policy.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
+export const layerWith = (options: Options): Layer.Layer<CacheStore, never, Database> =>
+  Layer.effect(CacheStore)(makeWith(options))

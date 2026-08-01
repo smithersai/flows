@@ -13,6 +13,7 @@ import { Database } from "@smithers/database/Database"
 import { Clock, Context, Effect, Layer, Schema } from "effect"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"
 import type { LivenessEvidence, OwnerId } from "./Ownership.ts"
+import * as Redaction from "./Redaction.ts"
 
 /**
  * Stable run states understood by the durability layer.
@@ -497,14 +498,37 @@ const evidenceMatchesOwner = (
 }
 
 /**
- * Constructs the production `RunStore` implementation.
+ * Store-wide policy.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export interface Options {
+  /**
+   * Applied to durable run state before it is written. `flows_runs.state_json`
+   * carries flow payloads and results, so it is a credential-leak surface just
+   * like a journal payload; it is scrubbed by default and replayed scrubbed to
+   * sync and time-travel consumers. Pass `Redaction.makeNoop()` to persist
+   * state verbatim.
+   */
+  readonly redact?: Redaction.Redactor | undefined
+}
+
+/**
+ * Constructs the production `RunStore` implementation under an explicit
+ * policy.
  *
  * @since 0.1.0
  * @category constructors
  */
-export const make: Effect.Effect<Service, never, Database> = Effect.gen(function*() {
+export const makeWith = (options: Options = {}): Effect.Effect<Service, never, Database> =>
+Effect.gen(function*() {
   const database = yield* Database
   const sql = database.sql
+  const redactor = options.redact ?? Redaction.make()
+  // Every durable state write funnels through here, so no write path can
+  // persist an unscrubbed payload (issue #58).
+  const prepareState = (stateJson: string): string => Redaction.redactJsonString(stateJson, redactor)
 
   const write = <A, E, R>(
     method: string,
@@ -518,6 +542,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
       if (runId.length === 0 || !isJsonString(stateJson) || parentRunId?.length === 0) {
         return Effect.fail(invalidRunError("create", { runId, stateJson, parentRunId }))
       }
+      const state = prepareState(stateJson)
       return Clock.currentTimeMillis.pipe(
         Effect.flatMap((createdAtMs) =>
           write(
@@ -554,7 +579,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
               NULL,
               NULL,
               ${parentRunId},
-              ${stateJson}
+              ${state}
             )
           `.pipe(Effect.asVoid)
           )
@@ -867,6 +892,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
     ) {
       return Effect.fail(invalidRunError("transitionOwned", { runId, toStatus, stateJson }))
     }
+    const state = stateJson === undefined ? null : prepareState(stateJson)
     // A guard is compiled into the same UPDATE as the ownership fence, so a
     // concurrent cancellation request can never slip between check and write.
     const requireCancelAbsent = guard?.cancelRequested === "absent" ? 1 : 0
@@ -882,7 +908,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
                 SET
                   status = 'running',
                   finished_at_ms = NULL,
-                  state_json = COALESCE(${stateJson ?? null}, state_json)
+                  state_json = COALESCE(${state}, state_json)
                 WHERE run_id = ${runId}
                   AND status = 'running'
                   AND owner_host_id = ${owner.hostId}
@@ -905,7 +931,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
                   claim_pid = NULL,
                   claim_nonce = NULL,
                   claimed_at_ms = NULL,
-                  state_json = COALESCE(${stateJson ?? null}, state_json)
+                  state_json = COALESCE(${state}, state_json)
                 WHERE run_id = ${runId}
                   AND status = 'running'
                   AND owner_host_id = ${owner.hostId}
@@ -988,6 +1014,15 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
 })
 
 /**
+ * Constructs the production `RunStore` implementation with default policy.
+ *
+ * @since 0.1.0
+ * @category constructors
+ */
+export const make: Effect.Effect<Service, never, Database> = makeWith()
+
+
+/**
  * Constructs a stub `RunStore` whose direct operations fail and whose
  * compare-and-swap operations report typed losses until overridden.
  *
@@ -1029,3 +1064,12 @@ export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<RunStor
  * @category layers
  */
 export const layer: Layer.Layer<RunStore, never, Database> = Layer.effect(RunStore, make)
+
+/**
+ * Provides the database-backed `RunStore` under an explicit policy.
+ *
+ * @since 0.1.0
+ * @category layers
+ */
+export const layerWith = (options: Options): Layer.Layer<RunStore, never, Database> =>
+  Layer.effect(RunStore, makeWith(options))
