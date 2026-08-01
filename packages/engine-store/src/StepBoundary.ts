@@ -141,6 +141,17 @@ const MaterializedOutputs = Schema.Struct({
   }))
 })
 
+/**
+ * The directory portion of a slash-separated path, or `undefined` for a
+ * bare filename (nothing to create). Boundary paths are workspace-relative
+ * and slash-separated — the same normalization the kernel `FileSystem`
+ * layer applies.
+ */
+const parentDirectory = (path: string): string | undefined => {
+  const index = path.lastIndexOf("/")
+  return index <= 0 ? undefined : path.slice(0, index)
+}
+
 const hostFailure = (cause: unknown): UnsupportedBoundary =>
   new UnsupportedBoundary({
     code: "unsupported_boundary",
@@ -236,6 +247,13 @@ export const makeFileSystem = (fs: FileSystem.FileSystem): Service => {
           const present = yield* fs.exists(output.path).pipe(Effect.mapError(hostFailure))
           if (present) yield* fs.remove(output.path).pipe(Effect.mapError(hostFailure))
         } else {
+          // The original body may have created the output's directory
+          // itself; a fresh workspace replaying the evidence has no such
+          // directory and `writeFile` does not create parents (issue #107).
+          const parent = parentDirectory(output.path)
+          if (parent !== undefined) {
+            yield* fs.makeDirectory(parent, { recursive: true }).pipe(Effect.mapError(hostFailure))
+          }
           yield* fs.writeFile(output.path, Uint8Array.from(Buffer.from(output.content, "base64"))).pipe(
             Effect.mapError(hostFailure)
           )

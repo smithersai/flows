@@ -294,22 +294,38 @@ export const make = (deps: Dependencies) => {
             const measured = yield* boundary.prepare(input.metadata).pipe(Effect.option)
             const verified = Option.isSome(measured) && StepBoundary.readSetMatches(measured.value)
             if (verified) {
-              yield* boundary.replayOutputs(meta.boundary)
+              const materialized = yield* boundary.replayOutputs(meta.boundary).pipe(Effect.exit)
+              if (Exit.isSuccess(materialized)) {
+                yield* emitLifecycle(JournalRecords.cacheProvenance(source(deps), {
+                  keyDigest,
+                  recordedRunId: cached.value.recordedRunId,
+                  recordedEventSeq: cached.value.recordedEventSeq
+                }))
+                return cached.value.result
+              }
+              // Evidence the host cannot re-materialize — a transient
+              // filesystem error, or a row recorded by a foreign boundary
+              // implementation — is not a hit and not a run failure
+              // (issue #107): failing here while the verified row survived
+              // repeated refuse→fail on every later run, the exact
+              // permanent-failure loop #99 closed one branch later. The
+              // refusal is journalled and the dispatch path below executes
+              // for real; the row survives for hosts that can replay it.
               yield* emitLifecycle(JournalRecords.cacheProvenance(source(deps), {
                 keyDigest,
+                action: "replay_failed",
                 recordedRunId: cached.value.recordedRunId,
                 recordedEventSeq: cached.value.recordedEventSeq
               }))
-              return cached.value.result
-            }
-            // Only a *measured* mismatch is evidence the inputs changed
-            // (issue #110): a host that cannot measure right now — a
-            // transient EIO/EACCES on any declared read path — says nothing
-            // about the read set, so the hit is merely refused for this
-            // dispatch (the path below re-prepares and surfaces the host
-            // failure as an ordinary attempt failure) and the valid shared
-            // row survives for every run whose host is healthy.
-            if (Option.isSome(measured)) {
+            } else if (Option.isSome(measured)) {
+              // Only a *measured* mismatch is evidence the inputs changed
+              // (issue #110): a host that cannot measure right now — a
+              // transient EIO/EACCES on any declared read path — says
+              // nothing about the read set, so the hit is merely refused for
+              // this dispatch (the path below re-prepares and surfaces the
+              // host failure as an ordinary attempt failure) and the valid
+              // shared row survives for every run whose host is healthy.
+              //
               // The durable emit is also the fence: `emitDurable` fails with
               // `fence_lost` for a zombie that lost the run, surfacing as
               // self-interruption before the eviction below can run.
@@ -359,7 +375,19 @@ export const make = (deps: Dependencies) => {
               const meta = decodeMeta(row.meta)
               if (meta?.boundary !== undefined) {
                 const boundary = yield* StepBoundary.StepBoundary
-                yield* boundary.replayOutputs(meta.boundary)
+                const materialized = yield* boundary.replayOutputs(meta.boundary).pipe(Effect.exit)
+                if (Exit.isFailure(materialized)) {
+                  // The attempt durably succeeded: its recorded outcome is
+                  // the truth, and re-materializing the workspace outputs is
+                  // best-effort — failing the dispatch here while the
+                  // terminal row survived recreated the #99 permanent
+                  // refuse→fail loop one branch earlier (issue #107). The
+                  // refusal is journalled so a missing output is
+                  // explainable rather than silent.
+                  yield* emitLifecycle(
+                    JournalRecords.cacheProvenance(source(deps), { keyDigest, action: "replay_failed" })
+                  )
+                }
               }
               // Converge the cache with the durable completion: a crash between
               // `attempts.finish` and `cache.put` otherwise leaves the sealed
