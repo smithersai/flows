@@ -12,6 +12,7 @@
  *
  * @since 0.1.0
  */
+import { Activity } from "@smithers/engine"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import type { FlowsConfig } from "./Config.ts"
@@ -162,6 +163,19 @@ export const resolve = <H = FlowsHooks>(
  * @since 0.1.0
  */
 export const layer = <H>(resolved: Resolved<H>): Layer.Layer<any, PluginError, any> => {
+  // The kernel is the composition that wires model/host/permission layers, so
+  // it is the component that declares `Activity.CurrentContentEnvironment`
+  // (issue #88): the resolved plugin identities, in resolution order, are the
+  // layer material folded into every sealed content key. Without this, the
+  // reference's empty default left sealed digests blind to a plugin swap and
+  // a stale cross-run cache entry was served. A plugin whose identity is
+  // config-sensitive must reflect that in its `name`; capability material
+  // stays empty until the deferred capability enforcement lands
+  // (`docs/architecture/plugin-system.md`, "Not a sandbox").
+  const environment = Activity.layerContentEnvironment({
+    layers: resolved.plugins.map((plugin) => plugin.name),
+    capabilities: {}
+  }) as unknown as Layer.Layer<any, PluginError, any>
   const layers = resolved.plugins.flatMap((plugin) =>
     plugin.layer
       ? [
@@ -179,6 +193,9 @@ export const layer = <H>(resolved: Resolved<H>): Layer.Layer<any, PluginError, a
       ]
       : []
   )
-  if (layers.length === 0) return Layer.empty as unknown as Layer.Layer<any, PluginError, any>
-  return layers.reduce((accumulated, next) => Layer.provideMerge(next, accumulated))
+  if (layers.length === 0) return environment
+  return Layer.provideMerge(
+    layers.reduce((accumulated, next) => Layer.provideMerge(next, accumulated)),
+    environment
+  )
 }

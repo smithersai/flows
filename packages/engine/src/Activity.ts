@@ -14,6 +14,7 @@ import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Effectable from "effect/Effectable"
 import { dual } from "effect/Function"
+import * as Layer from "effect/Layer"
 import * as Predicate from "effect/Predicate"
 import * as Result from "effect/Result"
 import type * as Schedule from "effect/Schedule"
@@ -307,10 +308,12 @@ export interface ContentEnvironment {
  * content key.
  *
  * The composition that wires the model, host, and permission layers declares
- * it; the engine cannot resolve layer identity on its own. The default is the
- * empty environment, which is the honest statement that nothing has been
- * declared — a composition that caches sealed activities across runs is
- * expected to declare one.
+ * it; the engine cannot resolve layer identity on its own. The plugin kernel
+ * (`@smithers/plugin`) provides it from the resolved plugin list, so every
+ * kernel-built composition carries layer material (issue #88); a composition
+ * wired without the kernel declares its own through
+ * {@link layerContentEnvironment}. The default is the empty environment,
+ * which is the honest statement that nothing has been declared.
  *
  * @category Idempotency
  * @since 0.1.0
@@ -319,6 +322,23 @@ export const CurrentContentEnvironment = Context.Reference<ContentEnvironment>(
   "flows/engine/Activity/CurrentContentEnvironment",
   { defaultValue: (): ContentEnvironment => ({ layers: [], capabilities: {} }) }
 )
+
+/**
+ * Declares the content environment of a composition as a layer.
+ *
+ * **When to use**
+ *
+ * Use in the composition that wires the model, host, and permission layers a
+ * flow runs against, so every sealed content key folds those identities into
+ * its digest. The plugin kernel calls this for kernel-built compositions
+ * (issue #88); hand-wired compositions call it themselves.
+ *
+ * @category Idempotency
+ * @since 0.1.0
+ */
+export const layerContentEnvironment = (
+  environment: ContentEnvironment
+): Layer.Layer<never> => Layer.succeed(CurrentContentEnvironment)(environment)
 
 /**
  * The ordinal slots a retry sequence shares across its attempts, keyed by

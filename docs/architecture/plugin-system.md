@@ -80,7 +80,7 @@ Mirrors Vite exactly, with Effect types:
 2. **`config` hook (waterfall, sequential)**: each plugin may return a partial config to be deep-merged, or mutate-and-return. Runs before any Layer is built. Namespaces outside the known option groups (`retry`/`engine`/`store`) are carried through resolution verbatim and deep-frozen — a plugin's own namespace (e.g. `myPlugin: { endpoint }`) is readable from the resolved config; the plugin validates it itself.
 3. The core resolves defaults, producing a frozen `ResolvedConfig`.
 4. **`configResolved` hook (parallel)**: plugins capture the final config. After this point config is immutable for the process lifetime.
-5. All plugin `layer`s are merged (in resolved order, `Layer.provideMerge` left-to-right so `pre` plugins' services are visible to later ones) into the engine's environment. This composed layer is the single place plugins meet DI — the same shape opencode uses for its app layer.
+5. All plugin `layer`s are merged (in resolved order, `Layer.provideMerge` left-to-right so `pre` plugins' services are visible to later ones) into the engine's environment. This composed layer is the single place plugins meet DI — the same shape opencode uses for its app layer. The merged layer also declares `Activity.CurrentContentEnvironment` from the resolved plugin identities (in order), so sealed content keys computed under a kernel-built composition fold the wired layer set into their digests and a plugin swap misses the cross-run cache instead of serving a stale result (issue #88); a plugin whose identity is config-sensitive must reflect that in its `name`, and capability material stays empty until capability enforcement lands.
 
 ## Resolution and ordering rules
 
