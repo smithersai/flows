@@ -8,9 +8,10 @@ import { FileSystem } from "@smithers/kernel"
 import { Digest } from "@smithers/keys"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
+import * as Encoding from "effect/Encoding"
 import * as Layer from "effect/Layer"
+import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
-import { Buffer } from "node:buffer"
 
 /** @since 0.1.0 @category models */
 export const BoundaryMode = Schema.Literals(["hard", "expected"])
@@ -131,13 +132,22 @@ const absentDigest = "absent"
 /**
  * The persisted shape of the production layer's `declaredOutputs`: the
  * declared write set's materialized post-state, so a cache-hit replay can
- * reproduce the outputs on a workspace that never ran the step. `content`
- * is base64; `null` records that the path did not exist at settle time.
+ * reproduce the outputs on a workspace that never ran the step.
+ *
+ * Outputs are recorded by content digest, never inlined unbounded
+ * (issue #113): a `null` digest records that the path did not exist at
+ * settle time; `content` (base64) is present only when the payload fits the
+ * configured inline bound, otherwise the bytes live in the host's
+ * content-addressed object directory under the digest and the row carries
+ * only the reference. Temporal's blob-size limits are the prior art — the
+ * evidence is persisted into every attempt row and cache entry.
  */
 const MaterializedOutputs = Schema.Struct({
   outputs: Schema.Array(Schema.Struct({
     path: Schema.String,
-    content: Schema.NullOr(Schema.String)
+    digest: Schema.NullOr(Schema.String),
+    sizeBytes: Schema.optional(Schema.Number),
+    content: Schema.optional(Schema.String)
   }))
 })
 
@@ -158,13 +168,35 @@ const hostFailure = (cause: unknown): UnsupportedBoundary =>
     message: `the host filesystem could not enforce the step boundary: ${String(cause)}`
   })
 
+/** @since 0.1.0 @category models */
+export interface FileSystemOptions {
+  /**
+   * Where blob-referenced outputs are stored, content-addressed by digest.
+   * Workspace-relative; defaults to `.flows/objects`.
+   */
+  readonly objectsDirectory?: string | undefined
+  /**
+   * The largest output (in bytes) inlined into the boundary evidence
+   * itself. Anything larger is written to {@link objectsDirectory} and
+   * recorded by digest reference only (issue #113). Defaults to 1 MiB.
+   */
+  readonly maxInlineBytes?: number | undefined
+}
+
+const defaultObjectsDirectory = ".flows/objects"
+const defaultMaxInlineBytes = 1024 * 1024
+
+type MaterializedOutput = typeof MaterializedOutputs.Type["outputs"][number]
+
 /**
  * Builds the filesystem-backed boundary service.
  *
  * @since 0.1.0
  * @category constructors
  */
-export const makeFileSystem = (fs: FileSystem.FileSystem): Service => {
+export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOptions = {}): Service => {
+  const objectsDirectory = options.objectsDirectory ?? defaultObjectsDirectory
+  const maxInlineBytes = options.maxInlineBytes ?? defaultMaxInlineBytes
   const measure = (path: string): Effect.Effect<string, UnsupportedBoundary> =>
     fs.exists(path).pipe(
       Effect.flatMap((present) =>
@@ -174,15 +206,58 @@ export const makeFileSystem = (fs: FileSystem.FileSystem): Service => {
       ),
       Effect.mapError(hostFailure)
     )
-  const capture = (path: string): Effect.Effect<string | null, UnsupportedBoundary> =>
-    fs.exists(path).pipe(
-      Effect.flatMap((present) =>
-        present
-          ? Effect.map(fs.readFile(path), (bytes) => Buffer.from(bytes).toString("base64"))
-          : Effect.succeed(null)
-      ),
-      Effect.mapError(hostFailure)
-    )
+  const capture = Effect.fn("StepBoundary.capture")(function*(path: string) {
+    const present = yield* fs.exists(path).pipe(Effect.mapError(hostFailure))
+    if (!present) return { path, digest: null } satisfies MaterializedOutput
+    const bytes = yield* fs.readFile(path).pipe(Effect.mapError(hostFailure))
+    const digest = Digest.digest(bytes)
+    if (bytes.length <= maxInlineBytes) {
+      return {
+        path,
+        digest,
+        sizeBytes: bytes.length,
+        content: Encoding.encodeBase64(bytes)
+      } satisfies MaterializedOutput
+    }
+    // Over the inline bound: the payload goes to the content-addressed
+    // object directory and the persisted row carries only the reference.
+    yield* fs.makeDirectory(objectsDirectory, { recursive: true }).pipe(Effect.mapError(hostFailure))
+    yield* fs.writeFile(`${objectsDirectory}/${digest}`, bytes).pipe(Effect.mapError(hostFailure))
+    return { path, digest, sizeBytes: bytes.length } satisfies MaterializedOutput
+  })
+  const materialize = Effect.fn("StepBoundary.materialize")(function*(output: MaterializedOutput) {
+    let bytes: Uint8Array
+    if (output.content !== undefined) {
+      const decoded = Encoding.decodeBase64(output.content)
+      if (Result.isFailure(decoded)) {
+        return yield* Effect.fail(hostFailure(decoded.failure))
+      }
+      bytes = decoded.success
+    } else {
+      const blobPath = `${objectsDirectory}/${output.digest}`
+      const present = yield* fs.exists(blobPath).pipe(Effect.mapError(hostFailure))
+      if (!present) {
+        // The reference cannot be resolved on this host — refusing routes
+        // the issue-#107 call sites to a real execution instead of
+        // materializing nothing silently.
+        return yield* Effect.fail(
+          new UnsupportedBoundary({
+            code: "unsupported_boundary",
+            message: `the referenced output blob ${output.digest} is not in ${objectsDirectory}`
+          })
+        )
+      }
+      bytes = yield* fs.readFile(blobPath).pipe(Effect.mapError(hostFailure))
+    }
+    // The original body may have created the output's directory itself; a
+    // fresh workspace replaying the evidence has no such directory and
+    // `writeFile` does not create parents (issue #107).
+    const parent = parentDirectory(output.path)
+    if (parent !== undefined) {
+      yield* fs.makeDirectory(parent, { recursive: true }).pipe(Effect.mapError(hostFailure))
+    }
+    yield* fs.writeFile(output.path, bytes).pipe(Effect.mapError(hostFailure))
+  })
   return make({
     prepare: Effect.fn("StepBoundary.prepare")(function*(descriptor) {
       // The dirty check's evidence (issue #90): what the host actually
@@ -209,12 +284,12 @@ export const makeFileSystem = (fs: FileSystem.FileSystem): Service => {
         if (declaredWrites.has(entry.path)) continue
         if ((yield* measure(entry.path)) !== entry.digest) undeclared.push(entry.path)
       }
-      const outputs: Array<{ readonly path: string; readonly content: string | null }> = []
+      const outputs: Array<MaterializedOutput> = []
       for (const path of prepared.descriptor.writeSet) {
-        outputs.push({ path, content: yield* capture(path) })
+        outputs.push(yield* capture(path))
       }
       const diffIdentity = Digest.digest(JSON.stringify(
-        outputs.map((output) => [output.path, output.content === null ? null : Digest.digest(output.content)])
+        outputs.map((output) => [output.path, output.digest])
       ))
       if (undeclared.length > 0 && prepared.descriptor.boundaryMode === "hard") {
         return yield* Effect.fail(
@@ -243,20 +318,11 @@ export const makeFileSystem = (fs: FileSystem.FileSystem): Service => {
         )
       }
       for (const output of decoded.success.outputs) {
-        if (output.content === null) {
+        if (output.digest === null) {
           const present = yield* fs.exists(output.path).pipe(Effect.mapError(hostFailure))
           if (present) yield* fs.remove(output.path).pipe(Effect.mapError(hostFailure))
         } else {
-          // The original body may have created the output's directory
-          // itself; a fresh workspace replaying the evidence has no such
-          // directory and `writeFile` does not create parents (issue #107).
-          const parent = parentDirectory(output.path)
-          if (parent !== undefined) {
-            yield* fs.makeDirectory(parent, { recursive: true }).pipe(Effect.mapError(hostFailure))
-          }
-          yield* fs.writeFile(output.path, Uint8Array.from(Buffer.from(output.content, "base64"))).pipe(
-            Effect.mapError(hostFailure)
-          )
+          yield* materialize(output)
         }
       }
     })
