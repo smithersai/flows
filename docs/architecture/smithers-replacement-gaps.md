@@ -204,7 +204,18 @@ gap.
    `@effect/sql-pglite` — thin, and the retry seam is already dialect-blind;
    (ii) split the ladder's SQLite-specific DDL (`INTEGER PRIMARY KEY`,
    `INSERT OR IGNORE`, `AUTOINCREMENT`) behind a dialect parameter on
-   `Migrations.run`; (iii) run the existing journal and engine-store suites
+   `Migrations.run`, **and port the statements that live outside the ladder
+   entirely** — `DurableEngineState.make` creates engine-store-owned schema
+   at construction (issues #40/#41/#79/#81), inventoried in
+   `packages/engine-store/src/internal/EngineStateSchema.ts` with the
+   dialects each is known to accept. Of those, `flows_run_parents_gc` is the
+   blocker: its inline `BEGIN...END` trigger body is SQLite-exclusive and
+   needs a `CREATE FUNCTION ... RETURNS trigger` plus
+   `CREATE TRIGGER ... FOR EACH ROW EXECUTE FUNCTION` on Postgres. Everything
+   in `make` is piped through `Effect.orDie`, so an unported statement is a
+   layer-construction defect, not a recoverable error. A test diffs the
+   catalog across `make` against that inventory, so newly added out-of-ladder
+   DDL cannot escape this list (issue #92); (iii) run the existing journal and engine-store suites
    against the PGlite layer as a second backend in CI, which is the only
    honest proof of parity. Until then the correct advice is explicit: migrate
    a pg-backed smithers workspace to flows only after (i)–(iii), or keep it on

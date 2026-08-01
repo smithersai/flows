@@ -17,6 +17,7 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
+import * as EngineStateSchema from "./internal/EngineStateSchema.ts"
 
 /**
  * The durable address of a deferred result.
@@ -588,61 +589,11 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
   const database = yield* Database
   const { sql } = database
 
-  // Engine-store-owned storage for durable run-parent edges (issues
-  // #40/#41). The canonical `flows_*` migrations live in
-  // `@smithers/journal` (another lane's package), so this table is created
-  // idempotently here instead of via a numbered migration; it should fold
-  // into the journal migration chain when that lane picks it up.
-  //
-  // `seq` is a store-global insertion order used only to list a run's
-  // parents oldest first; cycle rejection happens atomically inside
-  // `recordRunParent`'s transaction, so no UNIQUE(seq) is needed (issues
-  // #54/#66). The PRIMARY KEY (child_id, parent_id) is the unique
-  // constraint on edges. There is deliberately no FK to `flows_runs` (the
-  // tables live in different migration lanes); instead of a comment-only
-  // call contract, the AFTER DELETE trigger below prunes a deleted run's
-  // edges at the database level, so a future retention/GC lane cannot
-  // silently leave ghost edges in the cycle walk (issue #81).
-  // `removeRunParentsForRun` remains for lanes that clear edges without
-  // deleting run rows. The `parent_id` index serves that reverse-direction
-  // cleanup; the cycle walk itself reads by `child_id` via the primary key.
-  yield* database.write(sql`
-    CREATE TABLE IF NOT EXISTS flows_run_parents (
-      child_id TEXT NOT NULL,
-      parent_id TEXT NOT NULL,
-      seq BIGINT NOT NULL,
-      PRIMARY KEY (child_id, parent_id)
-    )
-  `).pipe(Effect.orDie)
-  yield* database.write(sql`
-    CREATE INDEX IF NOT EXISTS flows_run_parents_parent_idx
-    ON flows_run_parents (parent_id)
-  `).pipe(Effect.orDie)
-  // Database-level GC enforcement (issue #81): any lane that deletes a run
-  // row — retention, time-travel archival, a future prune job — drops the
-  // run's parent edges in the same statement's transaction, whether or not
-  // it knows to call `removeRunParentsForRun`. Ghost edges of deleted runs
-  // can therefore never accumulate into future cycle walks.
-  yield* database.write(sql`
-    CREATE TRIGGER IF NOT EXISTS flows_run_parents_gc
-    AFTER DELETE ON flows_runs
-    BEGIN
-      DELETE FROM flows_run_parents
-      WHERE child_id = OLD.run_id OR parent_id = OLD.run_id;
-    END
-  `).pipe(Effect.orDie)
-  // Serves the stale-running sweep's per-tick predicate (issue #79):
-  // `status = 'running' AND heartbeat_at_ms < cutoff`, ordered by heartbeat.
-  // A partial index keeps it tiny — only live running rows appear. Created
-  // here (not in the journal migration ladder, another lane's package) for
-  // the same reason as `flows_run_parents` above; `flows_runs` itself must
-  // already exist for any of this service's queries to work, so `make`
-  // composes over a migrated database by construction.
-  yield* database.write(sql`
-    CREATE INDEX IF NOT EXISTS flows_runs_stale_running_idx
-    ON flows_runs (heartbeat_at_ms)
-    WHERE status = 'running'
-  `).pipe(Effect.orDie)
+  // Engine-store-owned storage created outside the journal migration
+  // ladder (issues #40/#41/#79/#81). The statements, their rationale, and
+  // the dialects each is known to accept live in one machine-readable
+  // inventory so the pg-porting plan cannot omit them (issue #92).
+  yield* EngineStateSchema.apply(database)
 
   const selectDeferred = (address: DeferredAddress) =>
     sql<DeferredDatabaseRow>`
