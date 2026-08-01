@@ -42,7 +42,7 @@ const sendEmail = Activity.make({
 
 const repeatedCharge = Activity.make({
   name: "OrdinalKeyStability/repeated",
-  tier: "unsealed",
+  tier: "irreversible",
   success: Schema.Void,
   execute: Effect.void
 })

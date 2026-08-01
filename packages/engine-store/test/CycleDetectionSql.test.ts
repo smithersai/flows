@@ -164,7 +164,7 @@ describe("cross-connection cycle rejection (issue #74)", () => {
     // concurrently.
     const owner = Effect.gen(function*() {
       const context = yield* Layer.build(
-        Layer.provideMerge(Migrations.layer, NodeDatabase.layer({ filename })) as Layer.Layer<never>
+        Layer.provideMerge(Migrations.layer, NodeDatabase.layer({ filename })) as unknown as Layer.Layer<never>
       )
       return yield* (DurableEngineState.make.pipe(
         Effect.provide(context as never)

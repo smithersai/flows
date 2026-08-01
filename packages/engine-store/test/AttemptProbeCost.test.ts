@@ -96,7 +96,7 @@ describe("attempt probe cost over SQL durable state (issue #77)", () => {
         Effect.provide(StepBoundary.layerTest()),
         Effect.provide(stores),
         Effect.provide(TestClock.layer())
-      ) as Effect.Effect<{ row: { status: string } }>
+      ) as unknown as Effect.Effect<{ row: { status: string } }>
     )
 
     expect(dispatches).toBe(1)

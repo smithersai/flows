@@ -33,7 +33,6 @@ describe("Activity.retry outside a flow", () => {
     let attempts = 0
     const activity = Activity.make({
       name: "Edge/retry-ordinal-activity",
-      tier: "unsealed",
       success: Schema.Number,
       error: Schema.String,
       execute: Effect.gen(function*() {
