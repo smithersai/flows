@@ -7,6 +7,7 @@ import {
   heartbeatInterval,
   heartbeatLoop,
   heartbeatStaleAfter,
+  heartbeatWriteTolerance,
   type LivenessEvidence,
   type OwnerId
 } from "../src/Ownership.ts"
@@ -723,6 +724,47 @@ describe("RunStore", () => {
 
     expect(result.survived).toBe(undefined)
     expect(Exit.isFailure(result.exit) && Cause.hasInterruptsOnly(result.exit.cause)).toBe(true)
+  })
+
+  it("hands the fence back before the persisted heartbeat becomes stealable", async () => {
+    const broken = { value: true }
+    const result = await run(
+      Effect.scoped(Effect.gen(function*() {
+        const started = yield* Deferred.make<void>()
+        const owningFiber = yield* Effect.scoped(
+          Effect.gen(function*() {
+            yield* Deferred.succeed(started, undefined)
+            return yield* Effect.raceFirst(Effect.never, heartbeatLoop("run-heartbeat-window", ownerA))
+          })
+        ).pipe(Effect.forkChild({ startImmediately: true }))
+
+        yield* Deferred.await(started)
+        // The tolerance budget is a real budget: the owner keeps working while
+        // no peer could possibly steal.
+        yield* TestClock.adjust(Duration.millis(Duration.toMillis(heartbeatWriteTolerance) - 1))
+        yield* Effect.yieldNow
+        const survivedInsideBudget = owningFiber.pollUnsafe()
+        // A peer judges staleness by the *persisted* heartbeat, so the owner
+        // must already be interrupted by the time that timestamp crosses
+        // `heartbeatStaleAfter` — otherwise both execute the same activity.
+        yield* TestClock.adjust(
+          Duration.millis(
+            Duration.toMillis(heartbeatStaleAfter) - Duration.toMillis(heartbeatWriteTolerance)
+          )
+        )
+        yield* Effect.yieldNow
+        return { exit: owningFiber.pollUnsafe(), survivedInsideBudget }
+      })).pipe(
+        Effect.provide(flakyHeartbeatStore(broken)),
+        Effect.provide(TestClock.layer())
+      )
+    )
+
+    expect(result.survivedInsideBudget).toBe(undefined)
+    expect(Duration.toMillis(heartbeatWriteTolerance)).toBeLessThan(Duration.toMillis(heartbeatStaleAfter))
+    expect(
+      result.exit !== undefined && Exit.isFailure(result.exit) && Cause.hasInterruptsOnly(result.exit.cause)
+    ).toBe(true)
   })
 
   it("re-arms the tolerance window whenever a heartbeat write succeeds", async () => {

@@ -86,6 +86,24 @@ export const heartbeatInterval: Duration.Duration = Duration.seconds(1)
 export const heartbeatStaleAfter: Duration.Duration = Duration.seconds(30)
 
 /**
+ * How long the owner may keep working through *failing* heartbeat writes.
+ *
+ * A peer judges staleness by the persisted heartbeat and may steal the run the
+ * instant it is {@link heartbeatStaleAfter} old, so an owner that tolerated
+ * write failures for exactly that long would still be executing side effects
+ * when the steal is admitted. The budget is therefore strictly shorter than
+ * the steal cutoff by two heartbeat ticks: one because the owner only
+ * re-evaluates the budget once per {@link heartbeatInterval}, and one as
+ * headroom for interruption latency and cross-host clock skew.
+ *
+ * @since 0.1.0
+ * @category constants
+ */
+export const heartbeatWriteTolerance: Duration.Duration = Duration.millis(
+  Duration.toMillis(heartbeatStaleAfter) - 2 * Duration.toMillis(heartbeatInterval)
+)
+
+/**
  * Runs heartbeats until the persisted ownership fence is lost, then interrupts
  * itself. Race this effect with owned work so structured concurrency
  * interrupts the work when ownership disappears.
@@ -96,8 +114,11 @@ export const heartbeatStaleAfter: Duration.Duration = Duration.seconds(30)
  * A lost fence — any outcome other than `Updated` — is durable evidence and
  * interrupts immediately. A failed heartbeat *write* is not: the persisted
  * heartbeat is still there and no other process may steal the run until it is
- * `heartbeatStaleAfter` old, so transient write errors are tolerated until
- * that window closes. Every successful pulse re-arms the window.
+ * `heartbeatStaleAfter` old, so transient write errors are tolerated for
+ * `heartbeatWriteTolerance` — deliberately shorter than the steal cutoff, so
+ * the owner is always interrupted *before* a peer may steal the run rather
+ * than while it is still running side effects. Every successful pulse re-arms
+ * the window.
  *
  * @since 0.1.0
  * @category supervision
@@ -108,7 +129,7 @@ export const heartbeatLoop = (
 ): Effect.Effect<never, never, RunStore> =>
   Effect.gen(function*() {
     const runStore = yield* RunStore
-    const staleAfterMs = Duration.toMillis(heartbeatStaleAfter)
+    const toleranceMs = Duration.toMillis(heartbeatWriteTolerance)
     let lastPulseMs = yield* Clock.currentTimeMillis
     return yield* Effect.sleep(heartbeatInterval).pipe(
       Effect.andThen(Clock.currentTimeMillis),
@@ -121,7 +142,7 @@ export const heartbeatLoop = (
               })
               : Effect.interrupt
           ),
-          Effect.catch(() => nowMs - lastPulseMs >= staleAfterMs ? Effect.interrupt : Effect.void)
+          Effect.catch(() => nowMs - lastPulseMs >= toleranceMs ? Effect.interrupt : Effect.void)
         )
       ),
       Effect.forever
