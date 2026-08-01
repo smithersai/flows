@@ -10,6 +10,8 @@
 import { Effect, Fiber, FileSystem, Layer, Path, Stream } from "effect"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
 import type * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import type { JjErrorCode, PtyErrorCode, ShellErrorCode } from "../../src/HostError.ts"
 import type { HttpTransport } from "../../src/HttpTransport.ts"
@@ -34,6 +36,11 @@ export interface FailureCapability<Code extends string> {
 
 /**
  * Successful filesystem contract options.
+ *
+ * `scratchPath` is required only for hosts whose filesystem does not accept an
+ * OS temp path — an in-memory double, say. Omitting it takes
+ * {@link defaultScratchPath}, which is process-scoped and outside the working
+ * tree.
  *
  * @category models
  * @since 0.1.0
@@ -185,6 +192,27 @@ export const assertFailure = <A, E, R>(
     })
   )
 
+let scratchSeq = 0
+
+/**
+ * Allocates the scratch file path a contract bundle writes through when the
+ * caller declares no `scratchPath` of its own.
+ *
+ * The path is absolute under the OS temp directory and scoped by both process
+ * id and an allocation counter. A repo-relative default would put the file in
+ * the working tree, where it is neither ignored by git nor private to one test
+ * process: concurrent `vitest run` invocations would then race the same path,
+ * and the suite's `ensuring` remove could truncate a sibling's file between its
+ * write and its read.
+ *
+ * @category testing
+ * @since 0.1.0
+ */
+export const defaultScratchPath = (suite: string): string => {
+  const slug = suite.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "host"
+  return join(tmpdir(), `flows-host-contract-${process.pid}-${++scratchSeq}-${slug}`)
+}
+
 const provide = <A, E, R>(
   effect: Effect.Effect<A, E, R>,
   layer: HostContractLayer
@@ -230,6 +258,9 @@ export const runHostContract = (
   const ptyCap = caps.pty
   const jjCap = caps.jj
   const httpTransportCap = caps.httpTransport
+  const scratchPath = fileSystemCap.expected === "success"
+    ? fileSystemCap.scratchPath ?? defaultScratchPath(name)
+    : ""
 
   describe(`${name} Host contract`, () => {
     it("provides every tag in the closed Host service list", () =>
@@ -254,7 +285,7 @@ export const runHostContract = (
           })
           : Effect.gen(function*() {
             const fs = yield* FileSystem.FileSystem
-            const path = fileSystemCap.scratchPath ?? ".flows-host-contract"
+            const path = scratchPath
             const bytes = new TextEncoder().encode("host-contract")
             yield* Effect.gen(function*() {
               yield* fs.writeFile(path, bytes)

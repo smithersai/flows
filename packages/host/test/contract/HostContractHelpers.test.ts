@@ -5,9 +5,11 @@
  * capability declared unsupported quietly succeed.
  */
 import { Effect } from "effect"
+import { tmpdir } from "node:os"
+import { isAbsolute, relative, sep } from "node:path"
 import { describe, expect, it } from "vitest"
 import { ShellError } from "../../src/HostError.ts"
-import { assertFailure, errorCode } from "./HostContract.ts"
+import { assertFailure, defaultScratchPath, errorCode } from "./HostContract.ts"
 
 describe("errorCode", () => {
   it("prefers a string `code` field", () => {
@@ -52,5 +54,38 @@ describe("assertFailure", () => {
         assertFailure(Effect.fail(new ShellError({ code: "spawn_error", message: "no" })), "shell_unavailable")
       )
     ).rejects.toThrow()
+  })
+})
+
+describe("defaultScratchPath", () => {
+  const outsideCwd = (path: string) => {
+    const rel = relative(process.cwd(), path)
+    return rel.startsWith("..") || isAbsolute(rel)
+  }
+
+  it("is absolute and lands under the OS temp directory, never the working tree", () => {
+    const path = defaultScratchPath("NodeHost defaults")
+    expect(isAbsolute(path)).toBe(true)
+    expect(path.startsWith(tmpdir() + sep)).toBe(true)
+    expect(outsideCwd(path)).toBe(true)
+  })
+
+  it("scopes the path by process id so concurrent test processes cannot race it", () => {
+    expect(defaultScratchPath("NodeHost defaults")).toContain(`-${process.pid}-`)
+  })
+
+  it("never hands the same path to two suites, or to one suite twice", () => {
+    const paths = [
+      defaultScratchPath("NodeHost defaults"),
+      defaultScratchPath("NodeHost defaults"),
+      defaultScratchPath("BunHost defaults")
+    ]
+    expect(new Set(paths).size).toBe(3)
+  })
+
+  it("keeps the suite name recognizable but path-safe", () => {
+    const path = defaultScratchPath("NodeHost defaults/../escape")
+    expect(path).toContain("nodehost-defaults")
+    expect(path).not.toContain("..")
   })
 })

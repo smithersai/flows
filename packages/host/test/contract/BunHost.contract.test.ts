@@ -14,10 +14,7 @@ import { runHostContract } from "./HostContract.ts"
 const jjAvailable = spawnSync("jj", ["--version"], { stdio: "ignore" }).status === 0
 
 runHostContract("BunHost", BunHost.layer, {
-  fileSystem: {
-    expected: "success",
-    scratchPath: `/tmp/flows-bun-host-contract-${process.pid}`
-  },
+  fileSystem: { expected: "success" },
   path: { expected: "success" },
   shell: {
     expected: "success",

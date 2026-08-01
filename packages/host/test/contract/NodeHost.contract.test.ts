@@ -5,10 +5,7 @@ import { runHostContract } from "./HostContract.ts"
 const jjAvailable = spawnSync("jj", ["--version"], { stdio: "ignore" }).status === 0
 
 runHostContract("NodeHost", NodeHost.layer, {
-  fileSystem: {
-    expected: "success",
-    scratchPath: `/tmp/flows-node-host-contract-${process.pid}`
-  },
+  fileSystem: { expected: "success" },
   path: { expected: "success" },
   shell: {
     expected: "success",
