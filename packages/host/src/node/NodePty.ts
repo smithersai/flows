@@ -123,6 +123,14 @@ const makeHandle = (
       const ring = new Ring()
       const subscribers = new Set<Queue.Queue<Uint8Array, PtyError | Cause.Done>>()
       let exited: number | undefined
+      /**
+       * `exit` fires when the child is reaped, which is not when its output
+       * ends: anything still buffered in the pipe — or written by a grandchild
+       * that inherited it — arrives afterwards. `close` is the event that
+       * follows the stdio streams being drained and closed, so it, not `exit`,
+       * is end-of-output.
+       */
+      let outputEnded = false
 
       const broadcast = (chunk: Uint8Array): void => {
         ring.push(chunk)
@@ -133,6 +141,9 @@ const makeHandle = (
       child.stderr?.on("data", onData)
       child.on("exit", (code: number | null) => {
         exited = code ?? 1
+      })
+      child.on("close", () => {
+        outputEnded = true
         for (const queue of subscribers) Queue.endUnsafe(queue)
         subscribers.clear()
       })
@@ -143,7 +154,7 @@ const makeHandle = (
           Effect.acquireRelease(
             Effect.sync(() => {
               for (const chunk of ring.since(Math.max(fromCursor, ring.floor))) Queue.offerUnsafe(queue, chunk)
-              if (exited !== undefined) {
+              if (outputEnded) {
                 Queue.endUnsafe(queue)
                 return queue
               }

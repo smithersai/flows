@@ -20,6 +20,8 @@ The root exports `HostService`, `HostServiceTags`, `HostServiceIds`, and `HostBu
 
 Shell cancellation is Effect fiber interruption. PTY handles and remote-sandbox acquisition require `Scope`.
 
+A PTY output stream ends when the child's stdio pipes close, not when the child is reaped: `exitCode` resolves on the child's `exit`, while `output`/`attach` keep delivering anything still buffered in the pipe (or written by a grandchild that inherited it) until it closes.
+
 ## Platform bundles
 
 | Namespace | Layer |

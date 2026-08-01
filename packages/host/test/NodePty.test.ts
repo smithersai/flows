@@ -73,7 +73,6 @@ describe.skipIf(process.platform === "win32")("NodePty", () => {
     const error = await withPty("exit 0", (handle) =>
       Effect.gen(function*() {
         yield* handle.exitCode
-        yield* Effect.sleep(10)
         return yield* Effect.flip(handle.write(new TextEncoder().encode("late")))
       }))
 
@@ -94,11 +93,26 @@ describe.skipIf(process.platform === "win32")("NodePty", () => {
     expect(result.midway).toBe("beta\n")
   })
 
+  it("streams output that is written after the direct child exits, until the pipe itself closes", async () => {
+    // The shell exits immediately while a background grandchild keeps the
+    // stdout pipe open and writes later. Ending the stream on the child's
+    // `exit` event drops that tail; the pipe closing is the real end of output.
+    const result = await withPty("(sleep 0.05; echo late) & echo now", (handle) =>
+      Effect.gen(function*() {
+        const collected = yield* Effect.forkChild(Stream.runCollect(handle.output), { startImmediately: true })
+        const code = yield* handle.exitCode
+        return { code, output: text(yield* Fiber.join(collected)) }
+      }))
+
+    expect(result.code).toBe(0)
+    expect(result.output).toContain("now\n")
+    expect(result.output).toContain("late\n")
+  })
+
   it("clamps an attach cursor beyond what was retained to the live end of the ring", async () => {
     const replayed = await withPty("echo short", (handle) =>
       Effect.gen(function*() {
         yield* handle.exitCode
-        yield* Effect.sleep(10)
         return text(yield* Stream.runCollect(handle.attach(1_000_000)))
       }))
 
