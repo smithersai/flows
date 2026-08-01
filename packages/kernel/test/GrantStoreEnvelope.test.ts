@@ -41,10 +41,12 @@ const recorder = () => {
   }
 }
 
-const awaitPending = (store: GrantStore.Service, count: number): Effect.Effect<ReadonlyArray<{
-  readonly requestId: string
-  readonly capability: Capability
-}>> =>
+const awaitPending = (store: GrantStore.Service, count: number): Effect.Effect<
+  ReadonlyArray<{
+    readonly requestId: string
+    readonly capability: Capability
+  }>
+> =>
   Effect.suspend(() =>
     Effect.flatMap(store.list, (pending) =>
       pending.length >= count

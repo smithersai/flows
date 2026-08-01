@@ -28,8 +28,7 @@ const resolve = (
     return yield* FileSystem.canonicalResource(host, pathService, root, value)
   }).pipe(Effect.provide(path))
 
-const itEffect = <A, E>(name: string, body: () => Effect.Effect<A, E>) =>
-  it(name, () => Effect.runPromise(body()))
+const itEffect = <A, E>(name: string, body: () => Effect.Effect<A, E>) => it(name, () => Effect.runPromise(body()))
 
 describe("canonicalResource", () => {
   itEffect("resolves a workspace-relative value against the workspace root", () =>
@@ -38,27 +37,33 @@ describe("canonicalResource", () => {
       expect(yield* resolve(host, "sub/./nested/../file.ts")).toBe("/workspace/sub/file.ts")
     }))
 
-  itEffect("walks up to the nearest existing ancestor for a path that does not exist yet", () =>
-    Effect.gen(function*() {
-      const existing = new Set(["/workspace", "/"])
-      const host = EffectFileSystem.makeNoop({
-        realPath: (value) => existing.has(value) ? Effect.succeed(value) : Effect.fail(platformError("ENOENT")),
-        readLink: () => Effect.fail(platformError("EINVAL"))
+  itEffect(
+    "walks up to the nearest existing ancestor for a path that does not exist yet",
+    () =>
+      Effect.gen(function*() {
+        const existing = new Set(["/workspace", "/"])
+        const host = EffectFileSystem.makeNoop({
+          realPath: (value) => existing.has(value) ? Effect.succeed(value) : Effect.fail(platformError("ENOENT")),
+          readLink: () => Effect.fail(platformError("EINVAL"))
+        })
+        // Neither `missing` nor `missing/deep/file.txt` exists; the ancestor walk
+        // stops at `/workspace` and re-attaches the missing tail verbatim.
+        expect(yield* resolve(host, "missing/deep/file.txt")).toBe("/workspace/missing/deep/file.txt")
       })
-      // Neither `missing` nor `missing/deep/file.txt` exists; the ancestor walk
-      // stops at `/workspace` and re-attaches the missing tail verbatim.
-      expect(yield* resolve(host, "missing/deep/file.txt")).toBe("/workspace/missing/deep/file.txt")
-    }))
+  )
 
-  itEffect("fails with the original error when no ancestor up to the filesystem root exists", () =>
-    Effect.gen(function*() {
-      const host = EffectFileSystem.makeNoop({
-        realPath: (value) => value === "/workspace" ? Effect.succeed(value) : Effect.fail(platformError("EACCES")),
-        readLink: () => Effect.fail(platformError("EINVAL"))
+  itEffect(
+    "fails with the original error when no ancestor up to the filesystem root exists",
+    () =>
+      Effect.gen(function*() {
+        const host = EffectFileSystem.makeNoop({
+          realPath: (value) => value === "/workspace" ? Effect.succeed(value) : Effect.fail(platformError("EACCES")),
+          readLink: () => Effect.fail(platformError("EINVAL"))
+        })
+        const failure = yield* Effect.flip(resolve(host, "/elsewhere/file.txt"))
+        expect((failure as unknown as Error).message).toBe("EACCES")
       })
-      const failure = yield* Effect.flip(resolve(host, "/elsewhere/file.txt"))
-      expect((failure as unknown as Error).message).toBe("EACCES")
-    }))
+  )
 
   itEffect("follows a relative symlink target against the link's own directory", () =>
     Effect.gen(function*() {
@@ -77,8 +82,7 @@ describe("canonicalResource", () => {
   itEffect("follows an absolute symlink target that escapes the workspace", () =>
     Effect.gen(function*() {
       const host = EffectFileSystem.makeNoop({
-        realPath: (value) =>
-          value === "/workspace/link" ? Effect.fail(platformError("ENOENT")) : Effect.succeed(value),
+        realPath: (value) => value === "/workspace/link" ? Effect.fail(platformError("ENOENT")) : Effect.succeed(value),
         readLink: (value) =>
           value === "/workspace/link" ? Effect.succeed("/outside/target") : Effect.fail(platformError("EINVAL"))
       })
@@ -102,13 +106,16 @@ describe("canonicalResource", () => {
       expect(hops).toBe(41)
     }))
 
-  itEffect("maps a resolved path back onto the logical root when the root is itself a symlink", () =>
-    Effect.gen(function*() {
-      const host = EffectFileSystem.makeNoop({
-        realPath: (value) => Effect.succeed(value.replace("/workspace", "/private/workspace"))
+  itEffect(
+    "maps a resolved path back onto the logical root when the root is itself a symlink",
+    () =>
+      Effect.gen(function*() {
+        const host = EffectFileSystem.makeNoop({
+          realPath: (value) => Effect.succeed(value.replace("/workspace", "/private/workspace"))
+        })
+        expect(yield* resolve(host, "src/file.ts")).toBe("/workspace/src/file.ts")
       })
-      expect(yield* resolve(host, "src/file.ts")).toBe("/workspace/src/file.ts")
-    }))
+  )
 })
 
 describe("FileSystem stubs", () => {

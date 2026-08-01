@@ -40,9 +40,11 @@ describe("Notifying", () => {
   it("re-provides a real service under the same key as a layer", async () => {
     const log: Array<string> = []
     const layer = Notifying.layer(CacheStore, record(log)).pipe(
-      Layer.provide(Layer.succeed(CacheStore)(CacheStoreLive.makeNoop({
-        evict: () => Effect.void
-      })))
+      Layer.provide(
+        Layer.succeed(CacheStore)(CacheStoreLive.makeNoop({
+          evict: () => Effect.void
+        }))
+      )
     )
 
     await Effect.runPromise(

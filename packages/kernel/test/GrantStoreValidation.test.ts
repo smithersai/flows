@@ -17,8 +17,7 @@ import * as Workspace from "../src/Workspace.ts"
 const root = "/workspace"
 
 const capability = (action: Capability["action"], resource: string) => new Capability({ action, resource })
-const pattern = (action: CapabilityPattern["action"], resource: string) =>
-  new CapabilityPattern({ action, resource })
+const pattern = (action: CapabilityPattern["action"], resource: string) => new CapabilityPattern({ action, resource })
 
 const insideWrite = capability("fs:write", "/workspace/file.txt")
 const outsideWrite = capability("fs:write", "/outside/file.txt")
@@ -125,12 +124,15 @@ const envelopeCases: ReadonlyArray<EnvelopeCase> = [
   { name: "an exact write with no glob", pattern: pattern("fs:write", "/outside/file.txt"), valid: true },
   { name: "a write glob inside the workspace", pattern: pattern("fs:write", "/workspace/**"), valid: true },
   { name: "a write glob outside the workspace", pattern: pattern("fs:write", "/outside/**"), valid: false },
-  { name: "a question-mark write glob outside the workspace", pattern: pattern("fs:write", "/outside/?.txt"), valid: false },
+  {
+    name: "a question-mark write glob outside the workspace",
+    pattern: pattern("fs:write", "/outside/?.txt"),
+    valid: false
+  },
   { name: "a read glob anywhere", pattern: pattern("fs:read", "**"), valid: true }
 ]
 
-const make = (options?: GrantStore.MakeOptions) =>
-  GrantStore.make(options).pipe(Effect.provide(Workspace.layer(root)))
+const make = (options?: GrantStore.MakeOptions) => GrantStore.make(options).pipe(Effect.provide(Workspace.layer(root)))
 
 const itEffect = <A, E>(name: string, body: () => Effect.Effect<A, E>): void => {
   it(name, () => Effect.runPromise(body()))

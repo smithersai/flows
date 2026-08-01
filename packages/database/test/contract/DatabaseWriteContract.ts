@@ -17,11 +17,11 @@
  * edges that jointly close a cycle, exactly the later one fails" — is exactly
  * these tests.
  */
-import type * as Database from "../../src/Database.ts"
 import * as Deferred from "effect/Deferred"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import { describe, expect, it } from "vitest"
+import type * as Database from "../../src/Database.ts"
 
 /**
  * Two `Database` services over one shared store. They are separate connections

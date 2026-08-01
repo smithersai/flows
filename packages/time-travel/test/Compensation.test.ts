@@ -89,7 +89,11 @@ describe("Compensation.assess", () => {
       Effect.flip(
         Compensation.assess([record({ id: "seal", kind: "read", tier: "sealed", seq: 1, cacheKey: "digest" })])
           .pipe(
-            Effect.provide(cache({ get: () => Effect.fail(new CacheStore.CacheStoreError({ code: "unknown", message: "cache down" })) })),
+            Effect.provide(
+              cache({
+                get: () => Effect.fail(new CacheStore.CacheStoreError({ code: "unknown", message: "cache down" }))
+              })
+            ),
             Effect.provide(registryOf([]))
           )
       )

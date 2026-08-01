@@ -1,6 +1,6 @@
-import type * as CoreKeyMaterial from "../src/KeyMaterial.ts"
 import { Result, Schema } from "effect"
 import { describe, expect, it } from "vitest"
+import type * as CoreKeyMaterial from "../src/KeyMaterial.ts"
 import * as StepKey from "../src/StepKey.ts"
 import vectors from "./vectors.json" with { type: "json" }
 

@@ -9,8 +9,7 @@ import * as CapabilitySets from "../src/CapabilitySet.ts"
  * ceiling could be mistaken for its parent.
  */
 
-const pattern = (action: CapabilityPattern["action"], resource: string) =>
-  new CapabilityPattern({ action, resource })
+const pattern = (action: CapabilityPattern["action"], resource: string) => new CapabilityPattern({ action, resource })
 
 const reads = pattern("fs:read", "/workspace/**")
 const writes = pattern("fs:write", "/workspace/**")

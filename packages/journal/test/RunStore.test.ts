@@ -785,12 +785,16 @@ describe("RunStore", () => {
         // again. The successful pulse re-arms the fence, so the second outage
         // gets a full window of its own and the loop is still alive after a
         // total outage far longer than `heartbeatStaleAfter`.
-        yield* TestClock.adjust(Duration.millis(Duration.toMillis(heartbeatWriteTolerance) - Duration.toMillis(heartbeatInterval)))
+        yield* TestClock.adjust(
+          Duration.millis(Duration.toMillis(heartbeatWriteTolerance) - Duration.toMillis(heartbeatInterval))
+        )
         broken.value = false
         yield* TestClock.adjust(heartbeatInterval)
         yield* Effect.yieldNow
         broken.value = true
-        yield* TestClock.adjust(Duration.millis(Duration.toMillis(heartbeatWriteTolerance) - Duration.toMillis(heartbeatInterval)))
+        yield* TestClock.adjust(
+          Duration.millis(Duration.toMillis(heartbeatWriteTolerance) - Duration.toMillis(heartbeatInterval))
+        )
         yield* Effect.yieldNow
         return owningFiber.pollUnsafe()
       })).pipe(

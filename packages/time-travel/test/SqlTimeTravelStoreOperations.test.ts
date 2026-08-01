@@ -7,7 +7,12 @@ import { describe, expect, it } from "vitest"
 import * as SqlTimeTravelStore from "../src/SqlTimeTravelStore.ts"
 import type * as TimeTravelStore from "../src/TimeTravelStore.ts"
 
-const run = <A>(body: (store: TimeTravelStore.Service, sql: DatabaseModule.DatabaseService["sql"]) => Effect.Effect<A, unknown, Database>) =>
+const run = <A>(
+  body: (
+    store: TimeTravelStore.Service,
+    sql: DatabaseModule.DatabaseService["sql"]
+  ) => Effect.Effect<A, unknown, Database>
+) =>
   Effect.runPromise(
     Effect.gen(function*() {
       yield* Migrations.run
