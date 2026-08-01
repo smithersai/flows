@@ -300,6 +300,15 @@ export const make = (deps: Dependencies) => {
               recordedRunId: cached.value.recordedRunId,
               recordedEventSeq: cached.value.recordedEventSeq
             }))
+            // Skyframe invalidation, not just refusal (issue #99): a stale
+            // read set means the inputs changed, so the re-execution's
+            // result is *expected* to differ — left in place, the poisoned
+            // row turns the fresh `cache.put` into a Conflict, the strict
+            // verdict fails the run, and nothing ever removes the row, so
+            // every later run repeats the refuse → re-execute → conflict →
+            // fail cycle. The refusal is journalled above; evicting here
+            // lets the re-execution record cleanly under the same key.
+            yield* cache.evict(keyDigest)
           }
         }
       }

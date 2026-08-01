@@ -17,6 +17,7 @@ import { Jj } from "@smithers/kernel"
 import { Digest } from "@smithers/keys"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
@@ -138,6 +139,48 @@ describe("sealed cache hits verify the measured read set (issue #90)", () => {
     const result = await Effect.runPromise(replayWithMeasurement("vanished-read", []))
     expect(result.executions).toBe(2)
     expect(result.replays).toBe(0)
+  })
+})
+
+describe("a refused stale hit invalidates the poisoned entry (issue #99)", () => {
+  it("records the differing re-executed result cleanly instead of permanently failing", async () => {
+    // A stale read set means the inputs changed, so a *different* result is
+    // the expected case. Without eviction the fresh result conflicted with
+    // the poisoned row under the same key digest, the strict verdict failed
+    // the run with cache_conflict_detected, and — the row never being
+    // removed — every later run repeated the same refuse → re-execute →
+    // conflict → fail cycle forever.
+    const key = "read-set/stale-differing-result"
+    const keyDigest = Digest.digest(key)
+    const results = ["recorded", "fresh-1", "fresh-2"]
+    let executions = 0
+    const outcome = await Effect.runPromise(
+      Effect.gen(function*() {
+        const cache = yield* CacheStore.CacheStore
+        const run = (runId: string, measured: ReadonlyArray<StepBoundary.ReadSetEntry>) =>
+          Effect.gen(function*() {
+            yield* activate(runId)
+            return yield* dispatch(runId, key, () => Effect.sync(() => results[executions++]))
+          }).pipe(Effect.provide(StepBoundary.layerTest({ readSnapshot: measured })))
+        const first = yield* run("stale-conflict-first", declared.readSet)
+        // The declared digest went stale: the hit is refused, the entry is
+        // invalidated, and the differing result must record cleanly.
+        const second = yield* run("stale-conflict-second", [{ path: "config.json", digest: "D2" }])
+        // A permanently poisoned row made this third run fail forever; a
+        // clean invalidation leaves the second run's result as the entry.
+        const third = yield* run("stale-conflict-third", [{ path: "config.json", digest: "D2" }])
+        const entry = yield* cache.get(keyDigest)
+        return { first, second, third, entry }
+      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+    )
+    expect(outcome.first).toBe("recorded")
+    expect(outcome.second).toBe("fresh-1")
+    expect(outcome.third).toBe("fresh-2")
+    expect(executions).toBe(3)
+    expect(Option.isSome(outcome.entry)).toBe(true)
+    if (Option.isSome(outcome.entry)) {
+      expect(outcome.entry.value.result).toBe("fresh-2")
+    }
   })
 })
 
