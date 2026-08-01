@@ -551,10 +551,32 @@ const boundaryHermetic = (
   }
 }
 
+/**
+ * Folds the resolved environment into a content identity (issue #75).
+ *
+ * Layers and capabilities are engine-resolved material a caller must not be
+ * able to opt out of — the same argument the boundary descriptor rests on
+ * (issue #57) — so the caller's own declarations are kept and the
+ * environment's are added on top. The empty environment is a no-op, so an
+ * undeclared composition keeps the identity it had.
+ */
+const withEnvironment = (
+  identity: StepKey.ContentIdentity,
+  environment: Activity.ContentEnvironment
+): StepKey.ContentIdentity =>
+  environment.layers.length === 0 && Object.keys(environment.capabilities).length === 0
+    ? identity
+    : {
+      ...identity,
+      layers: [...identity.layers, ...environment.layers],
+      capabilities: { ...identity.capabilities, ...environment.capabilities }
+    }
+
 const activityKey = (
   activity: Activity.Any,
   executionId: string,
-  ordinal: number
+  ordinal: number,
+  environment: Activity.ContentEnvironment
 ): string => {
   if (activity.tier === "sealed" && activity.idempotencyKey !== undefined) {
     // Skyframe's SkyKey is (functionName, argument): a string idempotencyKey
@@ -585,8 +607,9 @@ const activityKey = (
     // (issue #57): the descriptor derived from `activity.metadata` overrides
     // any caller-supplied `hermetic` field.
     const hermetic = boundaryHermetic(activity.metadata)
+    const scoped = withEnvironment(identity, environment)
     return Result.getOrThrow(StepKey.content(
-      hermetic === undefined ? identity : { ...identity, hermetic }
+      hermetic === undefined ? scoped : { ...scoped, hermetic }
     ))
   }
   // The ordinal is allocated from a counter scoped to this activity's name
@@ -796,7 +819,10 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
       const slot = yield* Activity.CurrentOrdinal
       const ordinal = slot?.value ?? instance.activityState.nextOrdinal(`activity:${activity.name}`)
       if (slot !== undefined) slot.value = ordinal
-      const key = activityKey(activity, instance.executionId, ordinal)
+      // Ordinal keys are run-local, so the environment is not their key
+      // material; `activityKey` folds it into content keys only (issue #75).
+      const environment = yield* Activity.CurrentContentEnvironment
+      const key = activityKey(activity, instance.executionId, ordinal, environment)
       const policy = activity.retryPolicy
       // Elapsed retry time for the policy's expiration bound. Durable
       // drivers persist the first attempt's start time alongside the attempt

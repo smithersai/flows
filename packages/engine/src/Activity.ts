@@ -283,6 +283,44 @@ const retryInfraInterrupt = (
     )
 
 /**
+ * The resolved environment a sealed activity's content key is computed under.
+ *
+ * `layers` names the service implementations the activity body actually runs
+ * against (a model, a host, a sandbox) and `capabilities` the permission set
+ * it was granted. Both are mandatory content-key material — the Step Keys
+ * spec calls layers "the easiest part to forget and the most painful to
+ * discover" — because a sealed hard-boundary activity is cached across runs:
+ * without them, swapping `Model=sonnet` for `Model=opus` or attenuating a
+ * capability leaves the digest byte-identical and serves the stale result
+ * (issue #75).
+ *
+ * @category Idempotency
+ * @since 0.1.0
+ */
+export interface ContentEnvironment {
+  readonly layers: ReadonlyArray<string>
+  readonly capabilities: Readonly<Record<string, ReadonlyArray<string>>>
+}
+
+/**
+ * Context reference carrying the environment folded into every sealed
+ * content key.
+ *
+ * The composition that wires the model, host, and permission layers declares
+ * it; the engine cannot resolve layer identity on its own. The default is the
+ * empty environment, which is the honest statement that nothing has been
+ * declared — a composition that caches sealed activities across runs is
+ * expected to declare one.
+ *
+ * @category Idempotency
+ * @since 0.1.0
+ */
+export const CurrentContentEnvironment = Context.Reference<ContentEnvironment>(
+  "flows/engine/Activity/CurrentContentEnvironment",
+  { defaultValue: (): ContentEnvironment => ({ layers: [], capabilities: {} }) }
+)
+
+/**
  * The ordinal slot a retry sequence shares across its attempts.
  *
  * `Activity.retry` cannot allocate the ordinal itself — allocation is scoped
