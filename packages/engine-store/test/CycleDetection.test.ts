@@ -4,7 +4,7 @@ import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Schema from "effect/Schema"
-import type * as Scope from "effect/Scope"
+import * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
@@ -359,6 +359,57 @@ describe("RunDriver cycle detection", () => {
       expect(failures).toHaveLength(1)
       const failure = findCycleFailure(failures[0]!.cause)
       expect(failure).toBeInstanceOf(RunDriver.FlowCycleDetected)
+    },
+    10_000
+  )
+
+  it(
+    "keeps a diamond's second-parent edge across a restart so the cycle it closes is still detected (issue #41)",
+    async () => {
+      const exit = await Effect.runPromise(Effect.exit(provideJournal(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        yield* store.create(
+          "restart-a",
+          JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {} })
+        )
+        yield* store.create(
+          "restart-b",
+          JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {} })
+        )
+        yield* store.create(
+          "restart-c",
+          JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {}, parentExecutionId: "restart-a" })
+        )
+
+        // Process 1: B converges on C — a second-parent edge C -> B the run
+        // row cannot carry. Then the process dies.
+        const firstScope = yield* Scope.make()
+        const first = yield* makeDriver().pipe(Scope.provide(firstScope))
+        yield* first.register(TestFlow, () => Effect.succeed("ok"))
+        yield* first.execute(TestFlow, {
+          executionId: "restart-c",
+          payload: {},
+          discard: true,
+          parent: { executionId: "restart-b" } as FlowEngine.FlowInstance["Service"]
+        })
+        yield* Scope.close(firstScope, Exit.void)
+
+        // Process 2 (fresh driver, same store): C executes B — a cycle
+        // reachable only through the edge process 1 recorded. It must be
+        // refused, not admitted into a durable mutual deadlock.
+        const second = yield* makeDriver()
+        yield* second.register(TestFlow, () => Effect.succeed("ok"))
+        return yield* second.execute(TestFlow, {
+          executionId: "restart-b",
+          payload: {},
+          discard: true,
+          parent: { executionId: "restart-c" } as FlowEngine.FlowInstance["Service"]
+        })
+      }))))
+
+      expect(Exit.isFailure(exit)).toBe(true)
+      if (Exit.isSuccess(exit)) return
+      expect(findCycleFailure(exit.cause)).toBeInstanceOf(RunDriver.FlowCycleDetected)
     },
     10_000
   )

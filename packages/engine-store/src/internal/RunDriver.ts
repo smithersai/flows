@@ -157,19 +157,6 @@ export const make = (
     const engineState = yield* DurableEngineState.DurableEngineState
     const registrations = new Map<string, Registration>()
     const liveInstances = new Map<string, FlowEngine.FlowInstance["Service"]>()
-    /**
-     * Second-and-later parent edges for executions that already exist.
-     *
-     * The persisted `parentExecutionId` records only the first parent (the
-     * creator); a diamond — `A executes C`, then `B executes C` — adds a
-     * `C -> B` edge the row cannot carry. Those requesting edges are the ones
-     * that produce the in-process mutual `coordinator.run` await, so they are
-     * tracked here and walked by `detectCycle` alongside the persisted edge.
-     * The map is rebuilt naturally on restart: re-driving `B` re-executes `C`
-     * and re-records the edge before any new cycle can form.
-     */
-    const requestedParents = new Map<string, Set<string>>()
-
     const encodeState = (state: PersistedState): Effect.Effect<string> =>
       Schema.encodeEffect(PersistedStateJson)(state).pipe(Effect.orDie)
 
@@ -640,16 +627,11 @@ export const make = (
           )
         }
         // The row already exists, so `store.create` never records this
-        // request's parent. Record the extra edge (a diamond's second
-        // parent) durably so every owner's `detectCycle` can traverse it.
-        if (
-          options.parent !== undefined &&
-          persisted.parentExecutionId !== options.parent.executionId
-        ) {
-          const parents = requestedParents.get(options.executionId) ?? new Set<string>()
-          parents.add(options.parent.executionId)
-          requestedParents.set(options.executionId, parents)
-        }
+        // request's parent. The durable edge recorded below is the only
+        // place a diamond's second parent lives (issues #41/#48): a
+        // driver-local side table would be invisible to other owners over
+        // the same store, lost across restart, and would grow without bound
+        // for the driver's lifetime.
         return yield* recordEdge
       })
 
@@ -668,8 +650,7 @@ export const make = (
         Effect.flatMap((persisted) =>
           engineState.runParents(executionId).pipe(
             Effect.map((edges) => {
-              const parents = new Set(requestedParents.get(executionId) ?? [])
-              for (const edge of edges) parents.add(edge.parentId)
+              const parents = new Set(edges.map((edge) => edge.parentId))
               if (persisted !== undefined) parents.add(persisted)
               return [...parents]
             })
