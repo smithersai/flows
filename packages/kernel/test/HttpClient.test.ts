@@ -144,4 +144,46 @@ describe("HttpClient", () => {
       expect(calls).toEqual(["https://first.test/start", "https://second.test/next"])
     }).pipe((effect) => protectedClient(effect, redirects, store(checks)))
   })
+  itEffect("denies an unparsable model request as model:call, not net:post", () => {
+    const checks: Array<Capability.Capability> = []
+    const calls: Array<string> = []
+    return Effect.gen(function*() {
+      const client = yield* HttpClient.HttpClient
+      const failure = yield* Effect.flip(
+        client.executeModel(HttpClientRequest.post("/relative/messages"), "anthropic/claude")
+      )
+      expect(failure).toBeInstanceOf(PermissionDenied)
+      expect((failure as PermissionDenied).capability).toMatchObject({ action: "model:call" })
+      expect(checks).toEqual([])
+      expect(calls).toEqual([])
+    }).pipe((effect) => protectedClient(effect, transport(calls), store(checks)))
+  })
+
+  itEffect("answers both stub entry points with the host transport failure", () => {
+    const client = HttpClient.makeNoop()
+    return Effect.gen(function*() {
+      const executed = yield* Effect.flip(client.get("https://example.test/path"))
+      const model = yield* Effect.flip(
+        client.executeModel(HttpClientRequest.post("https://example.test/v1"), "anthropic/claude")
+      )
+      for (const failure of [executed, model]) {
+        expect(String((failure as { readonly cause?: unknown }).cause)).toContain(
+          "HTTP transport is unavailable on this host"
+        )
+      }
+    })
+  })
+
+  itEffect("lets a stub override answer in place of the unavailable transport", () => {
+    const overridden = HttpClient.makeNoop({
+      executeModel: () => Effect.succeed({ status: 200, headers: {} } as HttpClientResponse.HttpClientResponse)
+    })
+    return Effect.gen(function*() {
+      const response = yield* overridden.executeModel(
+        HttpClientRequest.post("https://example.test/v1"),
+        "anthropic/claude"
+      )
+      expect(response.status).toBe(200)
+    })
+  })
 })

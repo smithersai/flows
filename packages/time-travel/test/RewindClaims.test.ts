@@ -1,0 +1,389 @@
+import * as Jj from "@smithers/host/Jj"
+import { CacheStore, Journal, RunStore } from "@smithers/journal"
+import type { LivenessEvidence, OwnerId } from "@smithers/journal/Ownership"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
+import { describe, expect, it } from "vitest"
+import * as EffectHandlerRegistry from "../src/EffectHandlerRegistry.ts"
+import type { LineageEdge } from "../src/Frame.ts"
+import * as MemoryTimeTravelStore from "../src/MemoryTimeTravelStore.ts"
+import * as Rewind from "../src/Rewind.ts"
+import { TimeTravelStore } from "../src/TimeTravelStore.ts"
+
+/**
+ * A rewind may only run under an exclusive, activated claim on the run and on
+ * every detached child it intends to cancel. Each way that arbitration can be
+ * lost — an already-claimed row, a stolen activation, a fence lost between the
+ * claim and the cancellation — must surface as a typed refusal and must not
+ * leave a dangling claim behind.
+ */
+
+const owner: OwnerId = { hostId: "test-host", pid: 10, nonce: "rewind-owner" }
+const frame = { lineageId: "run/root", seq: 0 } as const
+
+const runError = (method: string, code: RunStore.RunStoreError["code"] = "not_found_row") =>
+  new RunStore.RunStoreError({ code, method, message: `${method} failed`, cause: method })
+
+const row = (
+  runId: string,
+  status: RunStore.RunStatus = "suspended"
+): RunStore.RunRow => ({
+  runId,
+  status,
+  createdAtMs: 0,
+  startedAtMs: 0,
+  finishedAtMs: null,
+  owner: status === "running" ? { hostId: "child-host", pid: 11, nonce: "child-owner" } : null,
+  heartbeatAtMs: status === "running" ? 0 : null,
+  claim: null,
+  claimedAtMs: null,
+  parentRunId: null,
+  cancelRequestedAtMs: null,
+  stateJson: "{}"
+})
+
+const baseline = (): MemoryTimeTravelStore.JournalRecord => ({
+  runId: "run",
+  seq: 0,
+  eventId: "event-0",
+  lineageId: "run/root",
+  payload: { eventType: "baseline", payload: {}, meta: { lineageId: "run/root" } }
+})
+
+const edge: LineageEdge = {
+  parentRunId: "run",
+  parentSeq: 1,
+  childRunId: "child",
+  kind: "child",
+  attached: false
+}
+
+const provide = <A, E, R>(
+  program: Effect.Effect<A, E, R>,
+  store: ReturnType<typeof MemoryTimeTravelStore.make>,
+  runs: RunStore.Service
+) =>
+  program.pipe(
+    Effect.provide(Layer.succeed(TimeTravelStore, store)),
+    Effect.provide(Layer.succeed(RunStore.RunStore, runs)),
+    Effect.provide(Journal.layerNoop({ entries: () => Effect.succeed({ entries: [], hasMore: false }) })),
+    Effect.provide(CacheStore.layerNoop({ get: () => Effect.succeed(Option.none()) })),
+    Effect.provide(
+      Layer.succeed(
+        Jj.Jj,
+        Jj.makeNoop({ snapshot: () => Effect.succeed({ changeId: "current" }), restore: () => Effect.void })
+      )
+    ),
+    Effect.provide(
+      Layer.succeed(
+        EffectHandlerRegistry.EffectHandlerRegistry,
+        EffectHandlerRegistry.makeNoop()
+      )
+    )
+  )
+
+const rewind = (
+  runs: RunStore.Service,
+  options: Partial<Rewind.Options> = {},
+  store = MemoryTimeTravelStore.make({ records: [baseline()] })
+) =>
+  Effect.runPromise(
+    Effect.flip(
+      provide(
+        Rewind.rewind({ runId: "run", frame, owner, auditId: "audit", ...options }),
+        store,
+        runs
+      )
+    )
+  )
+
+describe("Rewind run claim arbitration", () => {
+  it("refuses a run that is already running", async () => {
+    const failure = await rewind(RunStore.makeNoop({ get: () => Effect.succeed(row("run", "running")) }))
+
+    expect(failure).toMatchObject({
+      code: "busy",
+      message: "run run is not available for rewind"
+    })
+  })
+
+  it("refuses a terminal run without touching the claim columns", async () => {
+    let claims = 0
+    const failure = await rewind(
+      RunStore.makeNoop({
+        get: () => Effect.succeed(row("run", "completed")),
+        claim: () =>
+          Effect.sync(() => {
+            claims += 1
+            return { _tag: "NotFound" as const }
+          })
+      })
+    )
+
+    expect(claims).toBe(0)
+    expect(failure.code).toBe("busy")
+  })
+
+  it("maps a missing run row to a typed not_found failure", async () => {
+    const failure = await rewind(RunStore.makeNoop({ get: () => Effect.fail(runError("get")) }))
+
+    expect(failure).toMatchObject({ code: "not_found", message: "read run failed" })
+  })
+
+  it("maps a run store outage to unknown rather than not_found", async () => {
+    const failure = await rewind(
+      RunStore.makeNoop({ get: () => Effect.fail(runError("get", "persistence_failed")) })
+    )
+
+    expect(failure).toMatchObject({ code: "unknown", message: "read run failed" })
+  })
+
+  it("reports a run that disappeared between the read and the claim", async () => {
+    const failure = await rewind(
+      RunStore.makeNoop({
+        get: () => Effect.succeed(row("run")),
+        claim: () => Effect.succeed({ _tag: "NotFound" as const })
+      })
+    )
+
+    expect(failure).toMatchObject({ code: "not_found", message: "run run was not found" })
+  })
+
+  it("reports a lost claim race as busy", async () => {
+    const failure = await rewind(
+      RunStore.makeNoop({
+        get: () => Effect.succeed(row("run")),
+        claim: () => Effect.succeed({ _tag: "AlreadyClaimed" as const })
+      })
+    )
+
+    expect(failure).toMatchObject({ code: "busy", message: "run run lost the rewind claim" })
+  })
+
+  it("abandons the claim when activation is lost", async () => {
+    const abandoned: Array<number> = []
+    const failure = await rewind(
+      RunStore.makeNoop({
+        get: () => Effect.succeed(row("run")),
+        claim: () => Effect.succeed({ _tag: "Claimed" as const, claimedAtMs: 7 }),
+        activate: () => Effect.succeed({ _tag: "SnapshotChanged" as const }),
+        abandonClaim: (_runId, _claimant, claimedAtMs) =>
+          Effect.sync(() => {
+            abandoned.push(claimedAtMs)
+            return { _tag: "Abandoned" as const }
+          })
+      })
+    )
+
+    expect(abandoned).toEqual([7])
+    expect(failure).toMatchObject({ code: "busy", message: "run run lost the rewind activation" })
+  })
+
+  it("records a rate-limited rewind on its audit and refuses before any archive", async () => {
+    const store = MemoryTimeTravelStore.make({ records: [baseline()] })
+    const failure = await rewind(
+      RunStore.makeNoop({
+        get: () => Effect.succeed(row("run")),
+        claim: () => Effect.succeed({ _tag: "Claimed" as const, claimedAtMs: 1 }),
+        activate: () => Effect.succeed({ _tag: "Activated" as const }),
+        transitionOwned: () => Effect.succeed({ _tag: "Transitioned" as const })
+      }),
+      { rateLimit: () => Effect.succeed({ allowed: false, detail: { reason: "quota" } }) },
+      store
+    )
+
+    expect(failure).toMatchObject({
+      code: "rate_limited",
+      message: "rewind rate limit exceeded for run"
+    })
+    expect(store.state().audits[0]).toMatchObject({
+      status: "failed",
+      rateLimit: { reason: "quota" }
+    })
+    expect(store.state().records).toHaveLength(1)
+  })
+})
+
+describe("Rewind detached child cancellation", () => {
+  const parentRuns = (
+    childOverrides: Partial<RunStore.Service>,
+    childRow: RunStore.RunRow = row("child", "suspended")
+  ): RunStore.Service =>
+    RunStore.makeNoop({
+      get: (runId) => runId === "run" ? Effect.succeed(row("run")) : Effect.succeed(childRow),
+      claim: (runId, ...rest) =>
+        runId === "run"
+          ? Effect.succeed({ _tag: "Claimed" as const, claimedAtMs: 1 })
+          : (childOverrides.claim?.(runId, ...rest) ?? Effect.succeed({ _tag: "AlreadyClaimed" as const })),
+      activate: (runId, ...rest) =>
+        runId === "run"
+          ? Effect.succeed({ _tag: "Activated" as const })
+          : (childOverrides.activate?.(runId, ...rest) ?? Effect.succeed({ _tag: "Activated" as const })),
+      abandonClaim: childOverrides.abandonClaim ?? (() => Effect.succeed({ _tag: "Abandoned" as const })),
+      steal: childOverrides.steal ?? (() => Effect.succeed({ _tag: "AlreadyClaimed" as const })),
+      transitionOwned: (runId, ...rest) =>
+        runId === "run"
+          ? Effect.succeed({ _tag: "Transitioned" as const })
+          : (childOverrides.transitionOwned?.(runId, ...rest) ??
+            Effect.succeed({ _tag: "Transitioned" as const }))
+    })
+
+  const storeWithChild = () => MemoryTimeTravelStore.make({ records: [baseline()], edges: [edge] })
+
+  it("discloses a child whose evidence is missing instead of failing the rewind", async () => {
+    const store = storeWithChild()
+    const result = await Effect.runPromise(
+      provide(
+        Rewind.rewind({ runId: "run", frame, owner, auditId: "audit", detachedChildPolicy: "cancel" }),
+        store,
+        RunStore.makeNoop({
+          get: (runId) => runId === "run" ? Effect.succeed(row("run")) : Effect.fail(runError("get")),
+          claim: () => Effect.succeed({ _tag: "Claimed" as const, claimedAtMs: 1 }),
+          activate: () => Effect.succeed({ _tag: "Activated" as const }),
+          transitionOwned: () => Effect.succeed({ _tag: "Transitioned" as const })
+        })
+      )
+    )
+
+    expect(result.warnings).toEqual([
+      expect.objectContaining({
+        childRunId: "child",
+        reason: "Detached child evidence is missing; the orphaned lineage edge remains disclosed."
+      })
+    ])
+    expect(result.cancelledChildren).toEqual([])
+  })
+
+  it("refuses to cancel a running child with no liveness probe configured", async () => {
+    const failure = await rewind(
+      parentRuns({}, row("child", "running")),
+      { detachedChildPolicy: "cancel" },
+      storeWithChild()
+    )
+
+    expect(failure).toMatchObject({
+      code: "live_child",
+      message: "child child is running and has no cancellation evidence"
+    })
+  })
+
+  it("refuses to cancel a running child the probe cannot prove dead", async () => {
+    const failure = await rewind(
+      parentRuns({}, row("child", "running")),
+      {
+        detachedChildPolicy: "cancel",
+        childLivenessEvidence: () => Effect.succeed(undefined)
+      },
+      storeWithChild()
+    )
+
+    expect(failure).toMatchObject({ code: "live_child", message: "child child is still live" })
+  })
+
+  it("steals a proven-dead running child under a derived child owner and cancels it", async () => {
+    const stolen: Array<{ readonly nonce: string; readonly evidence: LivenessEvidence }> = []
+    const cancelled: Array<string> = []
+    const store = storeWithChild()
+
+    const result = await Effect.runPromise(
+      provide(
+        Rewind.rewind({
+          runId: "run",
+          frame,
+          owner,
+          auditId: "audit",
+          detachedChildPolicy: "cancel",
+          childLivenessEvidence: (_childRunId, childRow, childOwner, nowMs) =>
+            Effect.succeed({
+              expectedOwner: childRow.owner ?? childOwner,
+              checkedAtMs: nowMs,
+              kind: "cross-host-unreachable-stale"
+            })
+        }),
+        store,
+        parentRuns(
+          {
+            steal: (_runId, _expected, claimant, _nowMs, evidence) =>
+              Effect.sync(() => {
+                stolen.push({ nonce: claimant.nonce, evidence })
+                return { _tag: "Claimed" as const, claimedAtMs: 3 }
+              }),
+            transitionOwned: (runId, _claimant, status) =>
+              Effect.sync(() => {
+                cancelled.push(`${runId}:${status}`)
+                return { _tag: "Transitioned" as const }
+              })
+          },
+          row("child", "running")
+        )
+      )
+    )
+
+    expect(stolen[0]?.nonce).toBe("rewind-owner:rewind-child:child")
+    expect(cancelled).toEqual(["child:cancelled"])
+    expect(result.cancelledChildren).toEqual(["child"])
+  })
+
+  it("refuses when the child cannot be claimed for cancellation", async () => {
+    const failure = await rewind(
+      parentRuns({ claim: () => Effect.succeed({ _tag: "HeartbeatFresh" as const }) }),
+      { detachedChildPolicy: "cancel" },
+      storeWithChild()
+    )
+
+    expect(failure).toMatchObject({
+      code: "live_child",
+      message: "could not claim detached child child for cancellation"
+    })
+  })
+
+  it("abandons the child claim when its activation is lost", async () => {
+    const abandoned: Array<string> = []
+    const failure = await rewind(
+      parentRuns({
+        claim: () => Effect.succeed({ _tag: "Claimed" as const, claimedAtMs: 4 }),
+        activate: () => Effect.succeed({ _tag: "ClaimLost" as const }),
+        abandonClaim: (runId) =>
+          Effect.sync(() => {
+            abandoned.push(runId)
+            return { _tag: "Abandoned" as const }
+          })
+      }),
+      { detachedChildPolicy: "cancel" },
+      storeWithChild()
+    )
+
+    expect(abandoned).toEqual(["child"])
+    expect(failure).toMatchObject({
+      code: "live_child",
+      message: "detached child child lost its cancellation claim"
+    })
+  })
+
+  it("refuses when the child cancellation fence is lost", async () => {
+    const failure = await rewind(
+      parentRuns({
+        claim: () => Effect.succeed({ _tag: "Claimed" as const, claimedAtMs: 4 }),
+        transitionOwned: () => Effect.succeed({ _tag: "FenceLost" as const })
+      }),
+      { detachedChildPolicy: "cancel" },
+      storeWithChild()
+    )
+
+    expect(failure).toMatchObject({
+      code: "live_child",
+      message: "detached child child lost its cancellation fence"
+    })
+  })
+
+  it("surfaces a child persistence outage as a typed unknown failure", async () => {
+    const failure = await rewind(
+      parentRuns({ claim: () => Effect.fail(runError("claim", "persistence_failed")) }),
+      { detachedChildPolicy: "cancel" },
+      storeWithChild()
+    )
+
+    expect(failure).toMatchObject({ code: "unknown", message: "claim detached child failed" })
+  })
+})

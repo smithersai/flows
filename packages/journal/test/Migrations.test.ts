@@ -89,7 +89,7 @@ describe("journal migrations", () => {
     )
 
     expect(result.runs.map((row) => row.run_id)).toEqual(["run-done", "run-live"])
-    expect(result.runs[0]?.state_json).toBe('{"carried":true}')
+    expect(result.runs[0]?.state_json).toBe("{\"carried\":true}")
     for (const row of result.runs) {
       expect(row.parent_run_id).toBeNull()
       expect(row.cancel_requested_at_ms).toBeNull()

@@ -237,4 +237,153 @@ describe("Retry", () => {
     })
     expect(reruns).toBe(0)
   })
+
+  it("derives a unique default nonce from the effect and attempt when none is supplied", async () => {
+    const contexts: Array<Retry.AttemptContext> = []
+    const run = () =>
+      Effect.runPromise(
+        provide(
+          Retry.retry({
+            effect: crossed("sealed", { cacheKey: "missing" }),
+            previousAttempt: 1,
+            previousNonce: "old",
+            rerun: (context) =>
+              Effect.sync(() => {
+                contexts.push(context)
+                return "ok"
+              })
+          }),
+          cache(Option.none()),
+          jj()
+        )
+      )
+
+    await run()
+    await run()
+
+    expect(contexts).toHaveLength(2)
+    for (const context of contexts) {
+      expect(context.attempt).toBe(2)
+      expect(context.nonce).toMatch(/^sealed-effect:attempt:2:nonce:/)
+    }
+    expect(contexts[0]?.nonce).not.toBe(contexts[1]?.nonce)
+  })
+
+  it("fails when the sealed cache cannot be consulted rather than rerunning blind", async () => {
+    let reruns = 0
+    const failure = await Effect.runPromise(
+      Effect.flip(
+        provide(
+          Retry.retry({
+            effect: crossed("sealed", { cacheKey: "cache-key" }),
+            previousAttempt: 1,
+            previousNonce: "old",
+            makeNonce: () => Effect.succeed("new"),
+            rerun: () =>
+              Effect.sync(() => {
+                reruns += 1
+                return "ok"
+              })
+          }),
+          CacheStore.makeNoop(),
+          jj()
+        )
+      )
+    )
+
+    expect(reruns).toBe(0)
+    expect(failure).toMatchObject({
+      code: "unknown",
+      message: "could not consult sealed retry cache-key"
+    })
+  })
+
+  it("blocks a compensable retry that never recorded a pre-attempt snapshot", async () => {
+    let reruns = 0
+    const result = await Effect.runPromise(
+      provide(
+        Retry.retry({
+          effect: crossed("compensable"),
+          previousAttempt: 1,
+          previousNonce: "old",
+          makeNonce: () => Effect.succeed("new"),
+          rerun: () =>
+            Effect.sync(() => {
+              reruns += 1
+              return "ok"
+            })
+        }),
+        cache(Option.none()),
+        jj()
+      )
+    )
+
+    expect(result).toMatchObject({
+      _tag: "Blocked",
+      reason: "compensation_snapshot_missing",
+      attempt: 2,
+      nonce: "new"
+    })
+    expect(reruns).toBe(0)
+  })
+
+  it("fails a compensable retry whose snapshot restore fails, before rerunning", async () => {
+    let reruns = 0
+    const failure = await Effect.runPromise(
+      Effect.flip(
+        provide(
+          Retry.retry({
+            effect: crossed("compensable", { changeId: "before-attempt" }),
+            previousAttempt: 1,
+            previousNonce: "old",
+            makeNonce: () => Effect.succeed("new"),
+            rerun: () =>
+              Effect.sync(() => {
+                reruns += 1
+                return "ok"
+              })
+          }),
+          cache(Option.none()),
+          Jj.makeNoop()
+        )
+      )
+    )
+
+    expect(reruns).toBe(0)
+    expect(failure).toMatchObject({
+      code: "compensation_failed",
+      message: "could not restore before-attempt before retry"
+    })
+  })
+
+  it("retries an irreversible effect without a key when its handler does not require one", async () => {
+    const contexts: Array<Retry.AttemptContext> = []
+    const result = await Effect.runPromise(
+      Retry.retry({
+        effect: crossed("irreversible", { kind: "log.append" }),
+        previousAttempt: 1,
+        previousNonce: "old",
+        makeNonce: () => Effect.succeed("new"),
+        rerun: (context) =>
+          Effect.sync(() => {
+            contexts.push(context)
+            return "appended"
+          })
+      }).pipe(
+        Effect.provide(Layer.succeed(CacheStore.CacheStore, cache(Option.none()))),
+        Effect.provide(Layer.succeed(Jj.Jj, jj())),
+        Effect.provide(
+          Layer.succeed(
+            EffectHandlerRegistry.EffectHandlerRegistry,
+            Effect.runSync(
+              EffectHandlerRegistry.make([{ ...handler, kind: "log.append", requiresIdempotencyKey: false }])
+            )
+          )
+        )
+      )
+    )
+
+    expect(result._tag).toBe("Rerun")
+    expect(contexts[0]).toMatchObject({ attempt: 2, nonce: "new" })
+  })
 })

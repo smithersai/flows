@@ -73,4 +73,119 @@ describe("Replay", () => {
     expect(entries).toEqual(before)
     expect(dispatcher).toBeTypeOf("function")
   })
+
+  it("pages through the journal and stops once the last page is consumed", async () => {
+    const entries = [entry(0, "a"), entry(1, "b"), entry(2, "c"), entry(3, "d")]
+    const pageSizes: Array<number | undefined> = []
+    const journal = Journal.makeNoop({
+      entries: ({ after, limit }) =>
+        Effect.sync(() => {
+          pageSizes.push(limit)
+          const remaining = entries.filter((item) => item.seq > (after ?? -1))
+          const page = remaining.slice(0, limit)
+          return { entries: page, hasMore: remaining.length > page.length }
+        })
+    })
+
+    const state = await Effect.runPromise(
+      Replay.rederive(
+        { lineageId: "run/root", seq: 3 },
+        { initial: [] as Array<string>, reduce: (acc, current) => [...acc, String(current.payload)] },
+        { runId: "run", pageSize: 2 }
+      ).pipe(
+        Effect.provide(Layer.succeed(Journal.Journal, journal)),
+        Effect.provide(CacheStore.layerNoop())
+      )
+    )
+
+    expect(state).toEqual(["a", "b", "c", "d"])
+    expect(pageSizes).toEqual([2, 2])
+  })
+
+  it("defaults the page size when the caller supplies none", async () => {
+    const limits: Array<number | undefined> = []
+    const journal = Journal.makeNoop({
+      entries: ({ limit }) =>
+        Effect.sync(() => {
+          limits.push(limit)
+          return { entries: [entry(0, "only")], hasMore: false }
+        })
+    })
+
+    await Effect.runPromise(
+      Replay.rederive(
+        { lineageId: "run/root", seq: 0 },
+        { initial: 0, reduce: (count: number) => count + 1 },
+        { runId: "run" }
+      ).pipe(
+        Effect.provide(Layer.succeed(Journal.Journal, journal)),
+        Effect.provide(CacheStore.layerNoop())
+      )
+    )
+
+    expect(limits).toEqual([100])
+  })
+
+  it("skips entries from a sibling lineage and rejects a frame that is absent", async () => {
+    const sibling: Entry = { ...entry(0, "sibling"), meta: { lineageId: "run/other" } }
+    const journal = Journal.makeNoop({
+      entries: () => Effect.succeed({ entries: [sibling], hasMore: false })
+    })
+
+    const failure = await Effect.runPromise(
+      Effect.flip(
+        Replay.rederive(
+          { lineageId: "run/root", seq: 5 },
+          { initial: [] as Array<string>, reduce: (acc, current) => [...acc, String(current.payload)] },
+          { runId: "run" }
+        ).pipe(
+          Effect.provide(Layer.succeed(Journal.Journal, journal)),
+          Effect.provide(CacheStore.layerNoop())
+        )
+      )
+    )
+
+    expect(failure).toMatchObject({
+      code: "not_found",
+      message: "lineage run/root is not present in run"
+    })
+  })
+
+  it("fails when the journal cannot be read", async () => {
+    const failure = await Effect.runPromise(
+      Effect.flip(
+        Replay.rederive(
+          { lineageId: "run/root", seq: 1 },
+          { initial: 0, reduce: (count: number) => count + 1 },
+          { runId: "run" }
+        ).pipe(
+          Effect.provide(Journal.layerNoop()),
+          Effect.provide(CacheStore.layerNoop())
+        )
+      )
+    )
+
+    expect(failure).toMatchObject({ code: "unknown", message: "could not read journal" })
+  })
+
+  it("fails when a sealed result cannot be read rather than replaying without it", async () => {
+    const journal = Journal.makeNoop({
+      entries: () => Effect.succeed({ entries: [entry(0, "first", "sealed-key")], hasMore: false })
+    })
+
+    const failure = await Effect.runPromise(
+      Effect.flip(
+        Replay.rederive(
+          { lineageId: "run/root", seq: 1 },
+          { initial: 0, reduce: (count: number) => count + 1 },
+          { runId: "run" }
+        ).pipe(
+          Effect.provide(Layer.succeed(Journal.Journal, journal)),
+          Effect.provide(CacheStore.layerNoop())
+        )
+      )
+    )
+
+    expect(failure).toMatchObject({ code: "unknown", message: "could not read sealed result" })
+  })
 })

@@ -250,6 +250,28 @@ describe("StepKey", () => {
     expect(v1).not.toBe(v2)
   })
 
+  it("a changed dependency digest produces a new key even though the material is identical", () => {
+    const material: CoreKeyMaterial.KeyMaterial = {
+      version: "flows/key-material/v1",
+      kind: "sealed",
+      body: { operation: "test" },
+      inputs: [{ _tag: "Ref", from: "dependency", path: ["field"] }],
+      layers: ["host:v1"],
+      capabilities: ["cap:a"],
+      effects: { writes: ["/workspace"] },
+      placement: { kind: "client" }
+    }
+    // Only the *resolved* dependency value changes; every other byte of key
+    // material is held constant. Reuse of the cached result must be impossible.
+    const before = get(StepKey.fromKeyMaterial(material, { dependency: "digest-a" }))
+    const after = get(StepKey.fromKeyMaterial(material, { dependency: "digest-b" }))
+    expect(before).not.toBe(after)
+
+    // ...and a dependency that recomputes to the same digest keeps the identity,
+    // which is what makes memoized reuse safe.
+    expect(get(StepKey.fromKeyMaterial(material, { dependency: "digest-a" }))).toBe(before)
+  })
+
   it("is deterministic: repeated calls with the same input produce the same key", () => {
     const material: CoreKeyMaterial.KeyMaterial = {
       version: "flows/key-material/v1",

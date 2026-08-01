@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest"
 import * as EffectBoundary from "../src/EffectBoundary.ts"
 import type { EffectRecord } from "../src/EffectBoundary.ts"
 import * as EffectHandlerRegistry from "../src/EffectHandlerRegistry.ts"
+import { error } from "../src/TimeTravelError.ts"
 
 const crossed = (
   status: EffectRecord["status"] = "succeeded"
@@ -70,6 +71,108 @@ describe("EffectHandlerRegistry", () => {
       classification: "blocking",
       reason: "Effect effect-1 has unknown completion state.",
       residue: "the recipient may retain the message"
+    })
+  })
+
+  it("blocks an unregistered effect kind and discloses its recorded residue", () => {
+    const registry = EffectHandlerRegistry.makeNoop()
+    const assessment = Effect.runSync(registry.assess(crossed()))
+
+    expect(assessment).toEqual({
+      classification: "blocking",
+      reason: "No compensation handler is registered for mail.send.",
+      residue: "the recipient may retain the message"
+    })
+  })
+
+  it("falls back to a generic residue when the effect recorded none", () => {
+    const registry = EffectHandlerRegistry.makeNoop()
+    const assessment = Effect.runSync(
+      registry.assess({ ...crossed(), residue: undefined })
+    )
+
+    expect(assessment.residue).toBe("The mail.send effect remains outside the journal.")
+  })
+
+  it("blocks an effect whose handler is registered for a different tier", () => {
+    const registry = Effect.runSync(EffectHandlerRegistry.make([handler()]))
+    const assessment = Effect.runSync(
+      registry.assess({ ...crossed(), tier: "compensable" })
+    )
+
+    expect(assessment).toMatchObject({
+      classification: "blocking",
+      reason: "Handler mail.send is registered for irreversible, not compensable."
+    })
+  })
+
+  it("prefers a handler's own assessment over the default verdict", () => {
+    const registry = Effect.runSync(
+      EffectHandlerRegistry.make([{
+        ...handler(),
+        assess: () =>
+          Effect.succeed({
+            classification: "warning" as const,
+            reason: "the provider deduplicates by idempotency key",
+            residue: "a duplicate send is a no-op"
+          })
+      }])
+    )
+
+    expect(Effect.runSync(registry.assess(crossed()))).toEqual({
+      classification: "warning",
+      reason: "the provider deduplicates by idempotency key",
+      residue: "a duplicate send is a no-op"
+    })
+  })
+
+  it("fails revert and rollback for an unregistered effect kind", () => {
+    const registry = EffectHandlerRegistry.makeNoop()
+    const revertFailure = Effect.runSync(Effect.flip(registry.revert(crossed())))
+    const rollbackFailure = Effect.runSync(
+      Effect.flip(registry.rollback({ id: "effect-1:rollback", effect: crossed(), data: {} }))
+    )
+
+    for (const failure of [revertFailure, rollbackFailure]) {
+      expect(failure).toMatchObject({
+        code: "irreversible",
+        message: "no compensation handler is registered for effect kind mail.send"
+      })
+    }
+  })
+
+  it("refuses to revert through a handler registered for another tier", () => {
+    const registry = Effect.runSync(EffectHandlerRegistry.make([handler()]))
+    const failure = Effect.runSync(
+      Effect.flip(registry.revert({ ...crossed(), tier: "compensable" }))
+    )
+
+    expect(failure).toMatchObject({
+      code: "irreversible",
+      message: "handler mail.send cannot compensate compensable effect effect-1"
+    })
+  })
+
+  it("normalises handler revert and rollback failures into typed compensation errors", () => {
+    const registry = Effect.runSync(
+      EffectHandlerRegistry.make([{
+        ...handler(),
+        revert: () => Effect.fail(error("unknown", "provider timeout")),
+        rollback: () => Effect.fail(error("unknown", "provider timeout"))
+      }])
+    )
+
+    expect(Effect.runSync(Effect.flip(registry.revert(crossed())))).toMatchObject({
+      code: "compensation_failed",
+      message: "handler mail.send could not revert effect-1"
+    })
+    expect(
+      Effect.runSync(
+        Effect.flip(registry.rollback({ id: "effect-1:rollback", effect: crossed(), data: {} }))
+      )
+    ).toMatchObject({
+      code: "compensation_failed",
+      message: "handler mail.send could not roll back compensation for effect-1"
     })
   })
 
