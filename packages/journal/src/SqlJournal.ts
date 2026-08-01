@@ -989,10 +989,14 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
         }
       }
 
-      const failSink = (cause: JournalError): void => {
+      // `lost` is the size of the batch this failure destroyed. The writer
+      // survives a failed batch, so only that batch leaves the pending set;
+      // entries queued behind it are still undrained and a later flush must
+      // keep waiting for them rather than vouch for unpersisted work.
+      const failSink = (cause: JournalError, lost: number): void => {
         state.sinkFailure = cause
         state.lossEpoch += 1
-        state.pending = 0
+        state.pending = Math.max(0, state.pending - lost)
         // A waiter that is already registered is the flush the loss belongs
         // to, so reporting it there spends the report; only a loss nobody was
         // waiting on is left for the next flush to pick up.
@@ -1015,14 +1019,19 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
           persistBatch(batch).pipe(
             Effect.tap((commits) => Effect.sync(() => recordCommits(batch, commits))),
             Effect.tap(publish),
-            Effect.tap(() => Effect.sync(() => settle(batch.length)))
+            Effect.tap(() => Effect.sync(() => settle(batch.length))),
+            Effect.catch((cause) => Effect.sync(() => failSink(cause, batch.length))),
+            // Defects only: an interruption is scope closure, and it must end
+            // the writer rather than be reported as a lost batch.
+            Effect.catchDefect((defect) =>
+              Effect.sync(() =>
+                failSink(
+                  error("sink_failed", "journal writer failed", Cause.die(defect)),
+                  batch.length
+                )
+              )
+            )
           )
-        ),
-        Effect.catch((cause) => Effect.sync(() => failSink(cause))),
-        Effect.catchCause((cause) =>
-          Cause.hasInterruptsOnly(cause)
-            ? Effect.failCause(cause)
-            : Effect.sync(() => failSink(error("sink_failed", "journal writer failed", cause)))
         )
       )
 

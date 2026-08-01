@@ -994,6 +994,67 @@ describe("Journal", () => {
     )
   })
 
+  effect("never vouches for entries still queued behind a lost batch", () => {
+    const run = runId("sink-failure-queued-behind")
+    const source = sourceId("producer")
+    const gate = Deferred.makeUnsafe<void>()
+    // Loses the first batch, then holds every later batch at `gate`, so the
+    // entries queued behind the loss are provably still unpersisted while the
+    // flush under test runs.
+    const database = Layer.effect(
+      Database,
+      Effect.gen(function*() {
+        const inner = yield* Database
+        let first = true
+        const write: DatabaseService["write"] = (effect) => {
+          if (first) {
+            first = false
+            return Effect.fail(new DatabaseError({ code: "io", cause: new Error("sink unavailable") }))
+          }
+          return Deferred.await(gate).pipe(Effect.andThen(inner.write(effect)))
+        }
+        return Database.of({ sql: inner.sql, write })
+      })
+    ).pipe(Layer.provide(TestDatabase.layer))
+
+    return Effect.gen(function*() {
+      const journal = yield* Journal
+      yield* journal.emitLossy(input(run, source, "lost", {}))
+      yield* journal.emitLossy(input(run, source, "queued", {}))
+      // Let the writer lose the first batch and block on the second.
+      for (let attempt = 0; attempt < 8; attempt++) {
+        yield* Effect.yieldNow
+      }
+      // The loss is reported once, to this flush.
+      expect((yield* Effect.flip(journal.flush)).code).toBe("sink_failed")
+
+      // The writer survived the loss and still holds `queued`, so the next
+      // flush must not claim durability for it.
+      const pendingFlush = yield* journal.flush.pipe(Effect.forkChild({ startImmediately: true }))
+      for (let attempt = 0; attempt < 8; attempt++) {
+        yield* Effect.yieldNow
+      }
+      expect(pendingFlush.pollUnsafe()).toBe(undefined)
+
+      yield* Deferred.succeed(gate, undefined)
+      yield* Fiber.join(pendingFlush)
+      const page = yield* journal.entries({ runId: run, limit: 10 })
+      expect(page.entries.map((entry) => entry.eventType)).toEqual(["queued"])
+
+      // The counter is not desynchronized either: a later entry still gets a
+      // truthful flush.
+      yield* journal.emitLossy(input(run, source, "after", {}))
+      yield* journal.flush
+      const after = yield* journal.entries({ runId: run, limit: 10 })
+      expect(after.entries.map((entry) => entry.eventType)).toEqual(["queued", "after"])
+    }).pipe(
+      Effect.provide(
+        journalLayer({ capacity: 8, overflow: "reject", allocation: "queue", batchSize: 1 }, database)
+      ),
+      Effect.scoped
+    )
+  })
+
   effect("converts writer defects to sink_failed", () => {
     const run = runId("sink-defect")
     return Effect.gen(function*() {
