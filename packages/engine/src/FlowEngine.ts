@@ -450,6 +450,20 @@ export interface Encoded {
       readonly key: string
     }) => Effect.Effect<Option.Option<number>, never, FlowInstance>)
     | undefined
+  /**
+   * The highest persisted attempt number for `key`, when attempts survive.
+   *
+   * Durable drivers implement it so the attempt counter resumes from the
+   * persisted sequence after process death (issue #59): a replayed failed
+   * attempt keeps its original attempt number, the backoff ladder is not
+   * re-slept from attempt 1, and a persisted `nonRetryable` failure is
+   * decided against the original attempt instead of re-dispatching.
+   */
+  readonly activityLatestAttempt?:
+    | ((options: {
+      readonly key: string
+    }) => Effect.Effect<Option.Option<number>, never, FlowInstance>)
+    | undefined
   readonly deferredResult: (
     deferred: DurableDeferred.Any
   ) => Effect.Effect<
@@ -768,7 +782,16 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
       const retryStartMs = Option.isSome(durableOrigin)
         ? durableOrigin.value
         : yield* Clock.currentTimeMillis
-      let currentAttempt = attempt
+      // Resume the durable attempt counter (issue #59): a persisted attempt
+      // sequence keeps its numbering across process death, so replayed
+      // failed attempts do not re-sleep the backoff ladder from attempt 1
+      // and the retry decision below sees the true attempt count.
+      const latestAttempt = options.activityLatestAttempt !== undefined
+        ? yield* options.activityLatestAttempt({ key })
+        : Option.none<number>()
+      let currentAttempt = Option.isSome(latestAttempt) && latestAttempt.value > attempt
+        ? latestAttempt.value
+        : attempt
       while (true) {
         if (
           activity.tier === "irreversible" &&

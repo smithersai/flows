@@ -178,6 +178,29 @@ export const make = (
         }).pipe(Effect.orDie)
         return Option.map(first, (attempt) => attempt.startedAtMs)
       }),
+      // The durable attempt counter (issue #59): the highest contiguous
+      // persisted attempt for the key, so a resumed run replays failed
+      // attempts under their original numbers instead of restarting at 1 —
+      // the persisted failure is rethrown by `ActivityPersistence`, the
+      // retry decision sees the true attempt count, and the backoff ladder
+      // is not re-slept.
+      activityLatestAttempt: Effect.fnUntraced(function*(input: {
+        readonly key: string
+      }) {
+        const parent = yield* FlowEngine.FlowInstance
+        const stepKeyDigest = Digest.digest(input.key)
+        let latest = Option.none<number>()
+        for (let attempt = 1;; attempt++) {
+          const row = yield* attemptStore.get({
+            runId: parent.executionId,
+            stepKeyDigest,
+            attempt
+          }).pipe(Effect.orDie)
+          if (Option.isNone(row)) break
+          latest = Option.some(attempt)
+        }
+        return latest
+      }),
       deferredResult: deferred.deferredResult,
       deferredDone: deferred.deferredDone,
       scheduleClock: deferred.scheduleClock

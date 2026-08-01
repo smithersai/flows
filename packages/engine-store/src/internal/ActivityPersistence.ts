@@ -10,6 +10,7 @@
 import { AttemptStore, CacheStore, Journal, type JournalEvent, type Ownership, RunStore } from "@smithers/journal"
 import { Jj } from "@smithers/kernel"
 import { Digest } from "@smithers/keys"
+import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -99,6 +100,47 @@ const decodeMeta = (value: unknown): AttemptMeta | undefined => {
 }
 
 const source = (deps: Dependencies) => ({ runId: deps.runId, sourceId: deps.sourceId })
+
+const CauseJson = Schema.Struct({
+  reasons: Schema.Array(Schema.Union([
+    Schema.Struct({ _tag: Schema.Literal("Fail"), error: Schema.Unknown }),
+    Schema.Struct({ _tag: Schema.Literal("Die"), defect: Schema.Unknown }),
+    Schema.Struct({
+      _tag: Schema.Literal("Interrupt"),
+      fiberId: Schema.optional(Schema.NullOr(Schema.Number))
+    })
+  ]))
+})
+
+/**
+ * Rebuilds the persisted failure of a `failed` attempt row so replay can
+ * rethrow the original domain error (issue #59). The row's `error` column
+ * holds the JSON round trip of the failing `Cause` — a plain object whose
+ * `reasons` carry the tagged `Fail`/`Die`/`Interrupt` material. `Fail`
+ * errors are already schema-encoded by `Activity.executeEncoded`, so their
+ * `_tag` survives and `RetryPolicy` non-retryable matching applies on
+ * replay exactly as it did on the live attempt. The decoded plain object
+ * still satisfies `Cause.isCause`'s structural check without being a real
+ * `Cause`, so live reasons are rebuilt unconditionally from the tagged
+ * material; anything unrecognizable becomes a defect carrying the raw
+ * persisted value.
+ */
+const rehydrateCause = (error: unknown): Cause.Cause<unknown> => {
+  const decoded = Schema.decodeUnknownResult(CauseJson)(error)
+  if (decoded._tag === "Success" && decoded.success.reasons.length > 0) {
+    return Cause.fromReasons(decoded.success.reasons.map((reason) => {
+      switch (reason._tag) {
+        case "Fail":
+          return Cause.makeFailReason(reason.error)
+        case "Die":
+          return Cause.makeDieReason(reason.defect)
+        case "Interrupt":
+          return Cause.makeInterruptReason(reason.fiberId ?? undefined)
+      }
+    }))
+  }
+  return Cause.die(error)
+}
 
 /**
  * Constructs the encoded activity executor. The activity itself stays opaque;
@@ -238,6 +280,20 @@ export const make = (deps: Dependencies) =>
             })
           }
           return row.outcome
+        }
+        if (row.state === "failed") {
+          // A durably failed attempt is replayed by rethrowing the persisted
+          // domain failure — never by readmission (issue #59). Falling
+          // through to `attempts.put` here surfaced the row as
+          // `AttemptAdmissionRejected`, whose tag can never match a
+          // policy-declared `nonRetryable` classification, so a durably
+          // failed no-retry activity earned an extra real dispatch after
+          // resume. Temporal's prior art: mutable state persists the attempt
+          // failure and `ExecutionInfo.Attempt`, and its no-retry decision
+          // (`service/history/workflow/retry.go`) is re-evaluated from that
+          // persisted failure — the failure itself is durable, not just the
+          // fact that an attempt happened.
+          return yield* Effect.failCause(rehydrateCause(row.error))
         }
         if (row.state === "suspended") {
           return yield* Effect.fail(
