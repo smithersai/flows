@@ -563,14 +563,27 @@ const boundaryHermetic = (
 const withEnvironment = (
   identity: StepKey.ContentIdentity,
   environment: Activity.ContentEnvironment
-): StepKey.ContentIdentity =>
-  environment.layers.length === 0 && Object.keys(environment.capabilities).length === 0
-    ? identity
-    : {
-      ...identity,
-      layers: [...identity.layers, ...environment.layers],
-      capabilities: { ...identity.capabilities, ...environment.capabilities }
-    }
+): StepKey.ContentIdentity => {
+  if (environment.layers.length === 0 && Object.keys(environment.capabilities).length === 0) {
+    return identity
+  }
+  // A capability group declared by both sides unions rather than replaces
+  // (issue #89): an object spread let the environment's patterns overwrite
+  // the caller's, so two activities declaring distinct patterns under a
+  // shared group name hashed identically — a cross-run cache-key collision
+  // in the code path whose purpose is preventing them. `StepKey.content`
+  // sorts and dedupes within each group, so concatenation is canonical.
+  const capabilities: Record<string, ReadonlyArray<string>> = { ...identity.capabilities }
+  for (const [group, patterns] of Object.entries(environment.capabilities)) {
+    const declared = capabilities[group]
+    capabilities[group] = declared === undefined ? patterns : [...declared, ...patterns]
+  }
+  return {
+    ...identity,
+    layers: [...identity.layers, ...environment.layers],
+    capabilities
+  }
+}
 
 /**
  * The ordinal allocation scope of an activity dispatch — its stable
