@@ -1,4 +1,4 @@
-import { Cause, Effect, Exit, Layer, Option, Schema } from "effect"
+import { Cause, Effect, Exit, Layer, Option, Schema, Scope } from "effect"
 import { describe, expect, it } from "vitest"
 import { Activity, DurableDeferred, Flow, FlowEngine } from "../src/index.ts"
 
@@ -34,7 +34,14 @@ const Gate = DurableDeferred.make("DurableDeferred/Gate", {
   error: Schema.String
 })
 
-const makeFlow = (tag: string, body: Effect.Effect<any, any, any>) => {
+const makeFlow = (
+  tag: string,
+  body: Effect.Effect<
+    string,
+    string,
+    FlowEngine.FlowEngine | FlowEngine.FlowInstance | Scope.Scope
+  >
+) => {
   const flow = Flow.make(tag, {
     payload: { id: Schema.String },
     success: Schema.String,
@@ -437,6 +444,50 @@ describe("DurableDeferred", () => {
       // one body run per resolution plus the initial attempt: resumption is
       // bounded by how many times the frontier advanced, not by branch count
       expect(bodies).toBe(3)
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("precompleted concurrent deferreds finish in one replay without an intermediate suspension", () => {
+    // Bazel Skyframe parity: `StateMachineTest.java`
+    // parallelSubmachines_shorteningBothPathsReducesRestarts — when every
+    // concurrent dependency already has a value, evaluation completes in a
+    // single pass instead of suspending once per branch.
+    const A = DurableDeferred.make("DurableDeferred/Precompleted/A", { success: Schema.String })
+    const B = DurableDeferred.make("DurableDeferred/Precompleted/B", { success: Schema.String })
+    let bodies = 0
+    const flow = Flow.make("DurableDeferred/precompleted", {
+      payload: { id: Schema.String },
+      success: Schema.String,
+      idempotencyKey: ({ id }) => id
+    })
+    const layer = flow.toLayer(() =>
+      Effect.gen(function*() {
+        bodies++
+        const [a, b] = yield* Effect.all(
+          [DurableDeferred.await(A), DurableDeferred.await(B)],
+          { concurrency: "unbounded" }
+        )
+        return `${a}+${b}`
+      })
+    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+    return Effect.gen(function*() {
+      const executionId = yield* flow.executionId({ id: "pre" })
+      // Both branches are completed before the flow ever runs.
+      const tokenA = DurableDeferred.tokenFromExecutionId(A, { flow, executionId })
+      const tokenB = DurableDeferred.tokenFromExecutionId(B, { flow, executionId })
+      yield* DurableDeferred.succeed(A, { token: tokenA, value: "a" })
+      yield* DurableDeferred.succeed(B, { token: tokenB, value: "b" })
+
+      const startedId = yield* flow.execute({ id: "pre" }, { discard: true })
+      expect(startedId).toBe(executionId)
+      const result = yield* pollComplete(flow.poll(executionId))
+      expect(Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)).toBe(true)
+      if (Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)) {
+        expect(result.value.exit.value).toBe("a+b")
+      }
+      // The single replay reads both recorded results: exactly one body run,
+      // no intermediate suspension.
+      expect(bodies).toBe(1)
     }).pipe(Effect.provide(layer))
   })
 

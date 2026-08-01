@@ -114,7 +114,6 @@ describe("boundary descriptor identity", () => {
     const build = (digest: string) =>
       Activity.make({
         name: "Gaps/unsealed-boundary",
-        tier: "unsealed",
         success: Schema.Number,
         metadata: {
           readSet: [{ path: "a", digest }],

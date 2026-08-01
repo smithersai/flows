@@ -179,10 +179,10 @@ describe("concurrent activity bookkeeping", () => {
       Effect.map(
         Effect.all([failing("Definition/f1", "first-boom", 1), failing("Definition/f2", "second-boom", 2)], {
           concurrency: "unbounded",
-          mode: "validate"
+          mode: "result"
         }),
         () => "unreachable"
-      ) as Effect.Effect<string, string, any>
+      )
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
     return Effect.gen(function*() {
       yield* flow.execute({ id: "x" }, { executionId: "run-two-suspend", discard: true })

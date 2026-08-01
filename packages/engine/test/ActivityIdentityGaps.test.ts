@@ -1,10 +1,31 @@
 import { StepKey } from "@smithers/keys"
-import { Cause, Effect, Exit, Layer, Result, Schedule, Schema } from "effect"
+import { Cause, Effect, Exit, Layer, Result, Schedule, Schema, Scope } from "effect"
 import { describe, expect, it } from "vitest"
 import { Activity, Flow, FlowEngine } from "../src/index.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, never>) =>
   it(name, () => Effect.runPromise(body()))
+
+const hostFlow = Flow.make("IdentityGaps/host", {
+  payload: { id: Schema.String },
+  success: Schema.Void
+})
+
+const provideHost = <A, E>(
+  self: Effect.Effect<
+    A,
+    E,
+    FlowEngine.FlowEngine | FlowEngine.FlowInstance | Scope.Scope
+  >
+): Effect.Effect<A, E> =>
+  self.pipe(
+    Effect.scoped,
+    Effect.provideService(
+      FlowEngine.FlowInstance,
+      FlowEngine.FlowInstance.initial(hostFlow, "host-run")
+    ),
+    Effect.provide(FlowEngine.layerMemory)
+  )
 
 const ordinalKey = (runId: string, ordinal: number, parentScope?: string) =>
   Result.getOrThrow(StepKey.ordinal({
@@ -122,7 +143,7 @@ describe("infrastructure interrupt retry", () => {
       expect(Exit.isFailure(exit) && Cause.squash(exit.cause)).toBe("business-error")
       // a typed failure is never retried by the infra-interrupt policy
       expect(attempts).toBe(1)
-    })
+    }).pipe(provideHost)
   })
 
   effect("retries an infrastructure interrupt until the policy is exhausted, then dies", () => {
@@ -145,7 +166,7 @@ describe("infrastructure interrupt retry", () => {
       )
       // initial attempt + 2 recurrences
       expect(attempts).toBe(3)
-    })
+    }).pipe(provideHost)
   })
 
   effect("recovers when a retried infrastructure interrupt later succeeds", () => {
@@ -165,7 +186,7 @@ describe("infrastructure interrupt retry", () => {
 
     return Effect.gen(function*() {
       expect(yield* activity.execute).toBe(3)
-    })
+    }).pipe(provideHost)
   })
 
   effect("without a policy an infrastructure interrupt surfaces as its own typed failure", () => {
@@ -181,6 +202,6 @@ describe("infrastructure interrupt retry", () => {
       expect(
         Exit.isFailure(exit) && (Cause.squash(exit.cause) as Activity.InfraInterrupt)._tag
       ).toBe("@smithers/engine/InfraInterrupt")
-    })
+    }).pipe(provideHost)
   })
 })

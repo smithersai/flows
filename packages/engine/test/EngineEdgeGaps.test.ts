@@ -33,7 +33,8 @@ describe("Activity.retry outside a flow", () => {
     })
     const flow = Flow.make("Edge/retry-ordinal", {
       payload: { id: Schema.String },
-      success: Schema.Number
+      success: Schema.Number,
+      error: Schema.String
     })
     const layer = flow.toLayer(() => Activity.retry(body, { times: 5 })).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)

@@ -13,8 +13,18 @@
   "bugs": {
     "url": "https://github.com/smithersai/flows/issues"
   },
-  "tags": ["typescript", "effect", "plugin", "hooks"],
-  "keywords": ["typescript", "effect", "plugin", "hooks"],
+  "tags": [
+    "typescript",
+    "effect",
+    "plugin",
+    "hooks"
+  ],
+  "keywords": [
+    "typescript",
+    "effect",
+    "plugin",
+    "hooks"
+  ],
   "engines": {
     "node": ">=22.19.0"
   },
@@ -59,7 +69,7 @@
     "lint": "eslint src --max-warnings=0 && dprint check",
     "format": "dprint fmt",
     "build": "node scripts/build.mjs",
-    "check": "tsc -b tsconfig.json",
+    "check": "tsc -b tsconfig.json && tsc -p tsconfig.test.json --noEmit",
     "circular": "node scripts/circular.mjs",
     "test": "vitest",
     "coverage": "vitest --coverage"

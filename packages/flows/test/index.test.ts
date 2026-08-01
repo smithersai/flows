@@ -3,7 +3,7 @@ import * as Flows from "../src/index.ts"
 
 describe("barrel", () => {
   it("re-exports every engine package as a namespace", () => {
-    expect(Object.keys(Flows).toSorted()).toEqual([
+    expect(Object.keys(Flows).sort()).toEqual([
       "Database",
       "Engine",
       "EngineStore",

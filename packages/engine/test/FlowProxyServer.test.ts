@@ -1,11 +1,11 @@
-import { Effect, Exit, FileSystem, Layer, Option, Path, Schema } from "effect"
+import { Effect, Exit, FileSystem, Layer, Option, Path, Schema, Scope } from "effect"
 import { Etag, HttpPlatform } from "effect/unstable/http"
 import { HttpApi, HttpApiTest } from "effect/unstable/httpapi"
 import { RpcTest } from "effect/unstable/rpc"
 import { describe, expect, it } from "vitest"
 import { DurableDeferred, Flow, FlowEngine, FlowProxy, FlowProxyServer } from "../src/index.ts"
 
-const effect = (name: string, body: () => Effect.Effect<void, unknown, never>) =>
+const effect = (name: string, body: () => Effect.Effect<void, unknown, Scope.Scope>) =>
   it(name, () => Effect.runPromise(Effect.scoped(body())))
 
 const Echo = Flow.make("Proxy/Echo", {
