@@ -21,7 +21,7 @@ import { Database, NodeDatabase, TestDatabase } from "@smithers/database"
 | `makeNoop()` | Unsupported database stub |
 | `layerNoop` | Layer for the unsupported stub |
 
-`Database.write(effect)` runs `effect` through `sql.withTransaction` and applies bounded retry to retryable SQLite writes. The retry classifier recognizes lock/busy failures; other SQL failures are normalized without retry.
+`Database.write(effect)` runs `effect` through `sql.withTransaction` and applies bounded retry to retryable writes. The retry classifier is deliberately dialect-blind: it recognizes the SQLite lock/busy/IO codes *and* the Postgres transient SQLSTATEs (`40001` serialization_failure, `40P01` deadlock_detected, `55P03` lock_not_available, plus the text forms PGlite raises without a SQLSTATE), and `fromSqlError` normalizes both onto the same `busy` code. `Database.make` accepts any `SqlClient`, so a caller-supplied Postgres or PGlite client gets the retry behaviour rather than silently getting none (issue #78). A unique violation is never retried — it is the first-writer-wins signal the stores decide on. Other SQL failures are normalized without retry.
 
 ```ts
 const save = Effect.gen(function*() {
@@ -46,6 +46,8 @@ const DatabaseLayer = NodeDatabase.layer({
 
 ## Runtime notes
 
-The database service does not run domain migrations. Compose [`Journal.Migrations.layer`](journal.md#migrations) before exposing journal stores. The Vercel server adapter can wrap a PostgreSQL client, but `Database.write`’s extra write-retry classification remains SQLite-oriented.
+The database service does not run domain migrations. Compose [`Journal.Migrations.layer`](journal.md#migrations) before exposing journal stores.
+
+**Shipped backends are SQLite only.** `NodeDatabase` wraps `@effect/sql-sqlite-node`; the browser counterpart wraps Effect's sqlite-wasm OPFS worker. There is no `PgDatabase`/`PGliteDatabase` layer, and the journal migration ladder is SQLite-flavoured DDL, so a Postgres client wrapped by `Database.make` gets correct retry classification but not a runnable schema. This is an accepted, documented gap with a plan — see new gap 4 in [`../architecture/smithers-replacement-gaps.md`](../architecture/smithers-replacement-gaps.md).
 
 See [Assembling a durable engine](../guides/durable-engine.md) and the [`@smithers/journal` reference](journal.md).

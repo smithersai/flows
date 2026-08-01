@@ -62,18 +62,66 @@ describe("Database", () => {
   })
 
   it("recognizes only structured transient SQLite write failures", () => {
-    expect(WriteRetry.isRetryableSqliteWriteError("database is busy")).toBe(false)
-    expect(WriteRetry.isRetryableSqliteWriteError(unknownSqlError("plain failure"))).toBe(false)
-    expect(WriteRetry.isRetryableSqliteWriteError(unknownSqlError({ code: 5, message: "database is locked" })))
+    expect(WriteRetry.isRetryableWriteError("database is busy")).toBe(false)
+    expect(WriteRetry.isRetryableWriteError(unknownSqlError("plain failure"))).toBe(false)
+    expect(WriteRetry.isRetryableWriteError(unknownSqlError({ code: 5, message: "database is locked" })))
       .toBe(true)
-    expect(WriteRetry.isRetryableSqliteWriteError(unknownSqlError({ message: "database is busy" }))).toBe(true)
-    expect(WriteRetry.isRetryableSqliteWriteError(unknownSqlError({ message: "disk I/O error" }))).toBe(true)
-    expect(WriteRetry.isRetryableSqliteWriteError(unknownSqlError({ cause: { code: "SQLITE_LOCKED_SHAREDCACHE" } })))
+    expect(WriteRetry.isRetryableWriteError(unknownSqlError({ message: "database is busy" }))).toBe(true)
+    expect(WriteRetry.isRetryableWriteError(unknownSqlError({ message: "disk I/O error" }))).toBe(true)
+    expect(WriteRetry.isRetryableWriteError(unknownSqlError({ cause: { code: "SQLITE_LOCKED_SHAREDCACHE" } })))
       .toBe(true)
 
     const cyclic: { cause?: unknown } = {}
     cyclic.cause = cyclic
-    expect(WriteRetry.isRetryableSqliteWriteError(unknownSqlError(cyclic))).toBe(false)
+    expect(WriteRetry.isRetryableWriteError(unknownSqlError(cyclic))).toBe(false)
+  })
+
+  // `Database.make` accepts any SqlClient, so a caller can already supply a
+  // Postgres or PGlite client. Classification keyed only off SQLite codes made
+  // the retry silently inert there, so a serialization failure surfaced as a
+  // hard write error instead of being replayed (issue #78).
+  it("recognizes transient Postgres write failures by SQLSTATE", () => {
+    expect(WriteRetry.isRetryableWriteError(unknownSqlError({ code: "40001" }))).toBe(true)
+    expect(WriteRetry.isRetryableWriteError(unknownSqlError({ code: "40P01" }))).toBe(true)
+    expect(WriteRetry.isRetryableWriteError(unknownSqlError({ code: "55P03" }))).toBe(true)
+    expect(WriteRetry.isRetryableWriteError(unknownSqlError({ cause: { code: "40001" } }))).toBe(true)
+    // A serialization failure raised as text by PGlite, which does not always
+    // carry a SQLSTATE through the wire-less driver.
+    expect(
+      WriteRetry.isRetryableWriteError(
+        unknownSqlError({ message: "could not serialize access due to concurrent update" })
+      )
+    ).toBe(true)
+    expect(WriteRetry.isRetryableWriteError(unknownSqlError({ message: "deadlock detected" }))).toBe(true)
+    // Not transient: a unique violation must stay a first-writer-wins signal,
+    // and 42P01 is a missing relation.
+    expect(WriteRetry.isRetryableWriteError(unknownSqlError({ code: "23505" }))).toBe(false)
+    expect(WriteRetry.isRetryableWriteError(unknownSqlError({ code: "42P01" }))).toBe(false)
+  })
+
+  it("normalizes transient Postgres failures into the busy code", () => {
+    expect(Database.fromSqlError(unknownSqlError({ code: "40001" }))).toMatchObject({ code: "busy" })
+    expect(Database.fromSqlError(unknownSqlError({ code: "40P01" }))).toMatchObject({ code: "busy" })
+    expect(Database.fromSqlError(unknownSqlError({ code: "42P01" }))).toMatchObject({ code: "unknown" })
+  })
+
+  it("retries a Postgres serialization failure through the same schedule", async () => {
+    let attempts = 0
+    const database = Database.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
+    const program = Effect.gen(function*() {
+      const fiber = yield* database.write(
+        Effect.suspend(() => {
+          attempts += 1
+          return attempts < 3 ? Effect.fail(unknownSqlError({ code: "40001" })) : Effect.succeed("written")
+        })
+      ).pipe(Effect.forkChild({ startImmediately: true }))
+      yield* Effect.yieldNow
+      yield* TestClock.adjust("1 second")
+      return yield* Fiber.join(fiber)
+    }).pipe(Effect.provide(TestClock.layer()))
+
+    await expect(Effect.runPromise(program)).resolves.toBe("written")
+    expect(attempts).toBe(3)
   })
 
   it("retries transient write errors using TestClock", async () => {

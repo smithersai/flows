@@ -178,6 +178,37 @@ gap.
    restarted process must re-register before driving stored runs. Smithers'
    resume path assumes the engine can pick up any persisted run; the cutover
    shim must guarantee registration-before-resume.
+4. **SQLite-only dialect parity (accepted gap, issue #78).** flows ships two
+   `Database` backends and both are SQLite: `NodeDatabase` over
+   `@effect/sql-sqlite-node`, and the browser counterpart over Effect's
+   sqlite-wasm OPFS worker. The journal migration ladder
+   (`packages/journal/src/migrations/*`) is SQLite-flavoured DDL. Smithers,
+   however, supports PGlite and Postgres (`packages/db/src/ensure.js` and
+   `adapter.js` branch on `dialect === 'postgres'`, and `smithers migrate`
+   exists to move a workspace onto them), so stage 1 below is a *SQLite-only*
+   win: a workspace already on PGlite/Postgres cannot take it as written.
+
+   What has landed: write-retry classification is no longer dialect-blind.
+   `Database.make` accepts any `SqlClient`, and the classifier now recognises
+   the Postgres transient vocabulary (`40001`, `40P01`, `55P03`, plus the
+   PGlite text forms) alongside the SQLite codes, and `fromSqlError` maps them
+   to the same stable `busy` category — so a hand-supplied `PgClient` gets the
+   fencing/retry behaviour the ledger claims, rather than silently getting
+   none.
+
+   What remains, and is **accepted as a known gap** rather than scheduled
+   ahead of the cutover: no `PgDatabase`/`PGliteDatabase` layer, and a
+   dialect-portable migration ladder. The plan, in order, when a pg-backed
+   workspace actually needs stage 1: (i) add `packages/database/src/pg/` and
+   `packages/database/src/pglite/` layers over `@effect/sql-pg` /
+   `@effect/sql-pglite` — thin, and the retry seam is already dialect-blind;
+   (ii) split the ladder's SQLite-specific DDL (`INTEGER PRIMARY KEY`,
+   `INSERT OR IGNORE`, `AUTOINCREMENT`) behind a dialect parameter on
+   `Migrations.run`; (iii) run the existing journal and engine-store suites
+   against the PGlite layer as a second backend in CI, which is the only
+   honest proof of parity. Until then the correct advice is explicit: migrate
+   a pg-backed smithers workspace to flows only after (i)–(iii), or keep it on
+   `adapter.js` storage through stage 1.
 
 ## (a) Recommended migration sequence
 
@@ -188,8 +219,9 @@ existing smithers CLI unchanged.
    `adapter.js`'s `insertEventWithNextSeq`, `claimRunForResume`, and attempt
    tables with `@flows` Journal/RunStore/AttemptStore behind a compat module
    that preserves `adapter.js`'s call signatures. flows is strictly stronger
-   here (fencing, in-transaction seq, lease steal), so this is a pure win and
-   de-risks everything after. Shims needed: an event-shape translator
+   here (fencing, in-transaction seq, lease steal), so for a SQLite-backed
+   workspace this is a pure win and de-risks everything after; a pg-backed one
+   is blocked on new gap 4. Shims needed: an event-shape translator
    (smithers event rows ↔ journal producer events) and a one-shot data
    migration for live runs.
 2. **Engine loop for new runs only (shim: dual-engine routing).** New runs
@@ -245,5 +277,7 @@ verbs, lineage, quota), and two remain (checkpoints, supervisor — the latter
 now trivial). The durability core is at or above smithers parity; what stands
 between here and cutover is integration, not invariants: wire plugin dispatch,
 package the production layer, and ship the small `Supervisor`/`RunControl`
-layers, then begin stage 1 of the migration immediately — the storage swap is
-already a strict upgrade.
+layers, then begin stage 1 of the migration immediately — for a SQLite-backed
+workspace the storage swap is already a strict upgrade. For a PGlite- or
+Postgres-backed one it is not yet available at all; that is new gap 4, an
+accepted gap with a written plan, not an oversight.

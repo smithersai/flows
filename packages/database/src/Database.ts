@@ -64,7 +64,7 @@ export interface DatabaseService {
   readonly write: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E | DatabaseError, R>
 }
 
-const sqliteCode = (cause: unknown): string | undefined => {
+const causeCode = (cause: unknown): string | undefined => {
   if (typeof cause !== "object" || cause === null || !("code" in cause)) {
     return undefined
   }
@@ -72,20 +72,36 @@ const sqliteCode = (cause: unknown): string | undefined => {
   return typeof code === "string" ? code : undefined
 }
 
-const hasIoCause = (cause: unknown): boolean => {
+// Postgres reports a lost write race as a SQLSTATE rather than a lock error,
+// so it maps to the same stable `busy` category a SQLITE_BUSY does; a caller
+// that branches on the code sees one vocabulary across dialects (issue #78).
+const busyPostgresStates = new Set(["40001", "40P01", "55P03"])
+
+const hasCause = (cause: unknown, match: (code: string | undefined, message: string) => boolean): boolean => {
   const seen = new Set<unknown>()
   let current = cause
   while (typeof current === "object" && current !== null && !seen.has(current)) {
     seen.add(current)
-    const code = sqliteCode(current)
     const message = "message" in current && typeof current.message === "string" ? current.message.toLowerCase() : ""
-    if (code?.startsWith("SQLITE_IOERR") || message.includes("disk i/o error")) {
+    if (match(causeCode(current), message)) {
       return true
     }
     current = "cause" in current ? current.cause : undefined
   }
   return false
 }
+
+const hasIoCause = (cause: unknown): boolean =>
+  hasCause(cause, (code, message) => code?.startsWith("SQLITE_IOERR") === true || message.includes("disk i/o error"))
+
+const hasBusyCause = (cause: unknown): boolean =>
+  hasCause(
+    cause,
+    (code, message) =>
+      (code !== undefined && busyPostgresStates.has(code)) ||
+      message.includes("could not serialize access") ||
+      message.includes("deadlock detected")
+  )
 
 /**
  * Converts an Effect SQL error into the package's stable error vocabulary.
@@ -101,6 +117,8 @@ export const fromSqlError = (error: SqlError.SqlError): DatabaseError =>
       "constraint" :
       hasIoCause(error.reason.cause)
       ? "io"
+      : hasBusyCause(error.reason.cause)
+      ? "busy"
       : "unknown",
     cause: error
   })
@@ -117,7 +135,7 @@ export const make = (sql: SqlClient.SqlClient, options?: WriteRetry.WriteRetryOp
     write: Effect.fn("Database.write")(<A, E, R>(
       effect: Effect.Effect<A, E, R>
     ): Effect.Effect<A, E | DatabaseError, R> =>
-      WriteRetry.withSqliteWriteRetry(sql.withTransaction(effect), options).pipe(
+      WriteRetry.withWriteRetry(sql.withTransaction(effect), options).pipe(
         Effect.catchIf(SqlError.isSqlError, (error) => Effect.fail(fromSqlError(error)))
       )
     )

@@ -50,6 +50,7 @@ This page distinguishes usable source-backed behavior from contracts and planned
 - Graph-level failure policies such as quarantine or continue-on-failure.
 - Detached child flow construction and lifecycle policy.
 - Automatic creation of time-travel snapshots, lineage edges, and boundary records from ordinary engine execution.
+- **Postgres/PGlite dialect parity — an accepted gap, not scheduled (issue #78).** Both shipped `Database` backends are SQLite (`@effect/sql-sqlite-node`; sqlite-wasm OPFS in the browser) and the journal migration ladder is SQLite-flavoured DDL, so a smithers workspace already on PGlite or Postgres cannot take stage 1 of the documented cutover. What did land is the dialect-blind write-retry seam: `Database.make` takes any `SqlClient`, and classification now covers the Postgres transient SQLSTATEs (`40001`/`40P01`/`55P03` and PGlite's text forms) as well as the SQLite codes, normalized onto the same `busy` category, so a hand-supplied `PgClient` is degraded rather than silently unprotected. The remaining plan (pg/pglite layers, a dialect-parameterized ladder, the suites run against PGlite in CI) is written out as new gap 4 in [`smithers-replacement-gaps.md`](smithers-replacement-gaps.md).
 - A fully runnable engine-store deployment for Cloudflare Workers.
 - Fully durable serverless deferreds and clocks on Vercel.
 
