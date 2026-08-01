@@ -74,11 +74,11 @@ interface Service {
 
 `BoundaryEvidence` contains declared outputs, a diff identity, and an optional expected-set deviation. A hard undeclared write fails with `UndeclaredWrite`; expected mode records a deviation.
 
-`make(service)` wraps an implementation. `layerTest(options?)` is deterministic and supports changed-path/deviation/replay assertions, but it does not enforce a real sandbox.
+`make(service)` wraps an implementation. `layerTest(options?)` is deterministic and supports changed-path/deviation/replay/`readSnapshot` assertions, but it does not enforce a real sandbox.
 
 ## Cache admission
 
-EngineStore admits a cache record only when the activity is sealed, the boundary is hard, and no deviation occurred. Only a content-key record has an address another run can reproduce; an ordinal-key record remains run-local. A cache hit calls `replayOutputs` before returning the stored result.
+EngineStore admits a cache record only when the activity is sealed, the boundary is hard, and no deviation occurred. Only a content-key record has an address another run can reproduce; an ordinal-key record remains run-local. A cache hit is verified before it is served (issue #90): the store calls `prepare` and compares the descriptor's declared `readSet` against the `readSnapshot` the host measured. Reuse happens only when every declared read still matches — reads the host reports but the declaration never claimed are ignored, while a declared path that is missing or has a different digest refuses the hit, journals a `cache-provenance` record with `action: "stale_read_set"`, and falls through to a real execution. That is Skyframe's dirty-check invariant; the key alone only detects a *changed declaration*, not a stale one. A verified hit calls `replayOutputs` before returning the stored result.
 
 Replaying a succeeded attempt row also converges the cache: if a crash landed between `attempts.finish` and `cache.put`, the restarted executor re-records the sealed completion (with fresh cache-provenance) instead of leaving the cache permanently behind the journal. A divergent first-recorded row still surfaces through the `Inconsistency` receiver, strict by default.
 

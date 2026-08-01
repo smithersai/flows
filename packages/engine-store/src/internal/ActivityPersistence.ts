@@ -258,19 +258,37 @@ export const make = (deps: Dependencies) =>
             }
           }
         })
-      if (cacheable) {
+      if (cacheable && input.metadata !== undefined) {
         const cached = yield* cache.get(keyDigest)
         if (Option.isSome(cached)) {
           const meta = decodeMeta(cached.value.meta)
           if (meta?.tier === "sealed" && meta.boundary !== undefined && meta.boundary.deviation === undefined) {
             const boundary = yield* StepBoundary.StepBoundary
-            yield* boundary.replayOutputs(meta.boundary)
+            // Skyframe's dirty check, not "the declaration changed" (issue
+            // #90): the read-set digests folded into the step key are caller
+            // metadata, so reuse is justified only once the host has
+            // measured them and agreed. A stale declaration falls through to
+            // a real execution instead of replaying a pre-edit result, and
+            // the refusal is journalled so it is visible rather than silent.
+            // A boundary the host cannot enforce is likewise not a hit; the
+            // dispatch path below re-prepares and fails the attempt properly.
+            const measured = yield* boundary.prepare(input.metadata).pipe(Effect.option)
+            const verified = Option.isSome(measured) && StepBoundary.readSetMatches(measured.value)
+            if (verified) {
+              yield* boundary.replayOutputs(meta.boundary)
+              yield* emitLifecycle(JournalRecords.cacheProvenance(source(deps), {
+                keyDigest,
+                recordedRunId: cached.value.recordedRunId,
+                recordedEventSeq: cached.value.recordedEventSeq
+              }))
+              return cached.value.result
+            }
             yield* emitLifecycle(JournalRecords.cacheProvenance(source(deps), {
               keyDigest,
+              action: "stale_read_set",
               recordedRunId: cached.value.recordedRunId,
               recordedEventSeq: cached.value.recordedEventSeq
             }))
-            return cached.value.result
           }
         }
       }

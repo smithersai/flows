@@ -36,8 +36,30 @@ export type Descriptor = typeof Descriptor.Type
 /** @since 0.1.0 @category models */
 export interface PreparedBoundary {
   readonly descriptor: Descriptor
+  /**
+   * What the host actually measured for the declared read set at prepare
+   * time. The declared digests are caller metadata folded into the step key;
+   * this is the evidence that they still describe reality, and a sealed
+   * cache hit is refused when the two disagree (issue #90).
+   */
   readonly readSnapshot: ReadonlyArray<ReadSetEntry>
 }
+
+/**
+ * Whether every declared read still matches what the host measured.
+ *
+ * Reads the host reports but the declaration never claimed are ignored: the
+ * declaration is the dependency edge set, and an incidental extra read is not
+ * one of its edges. A declared path missing from the measurement counts as a
+ * mismatch — its value is unknown, so reuse cannot be justified.
+ *
+ * @since 0.1.0
+ * @category predicates
+ */
+export const readSetMatches = (prepared: PreparedBoundary): boolean =>
+  prepared.descriptor.readSet.every((entry) =>
+    prepared.readSnapshot.some((measured) => measured.path === entry.path && measured.digest === entry.digest)
+  )
 
 /** @since 0.1.0 @category models */
 export const BoundaryDeviation = Schema.TaggedStruct("ExpectedSetDeviation", {
@@ -97,6 +119,13 @@ export const make = (service: Service): Service => StepBoundary.of(service)
 /** @since 0.1.0 @category models */
 export interface TestOptions {
   readonly changedPaths?: ReadonlyArray<string> | undefined
+  /**
+   * What `prepare` reports as measured for the declared read set. Defaults
+   * to the declaration itself; a test supplies a different snapshot to stand
+   * for a file whose content moved out from under a stale declaration
+   * (issue #90).
+   */
+  readonly readSnapshot?: ReadonlyArray<ReadSetEntry> | undefined
   readonly declaredOutputs?: unknown
   readonly diffIdentity?: string | undefined
   readonly supported?: boolean | undefined
@@ -125,7 +154,7 @@ export const layerTest = (options: TestOptions = {}): Layer.Layer<Service> => {
   const service = make({
     prepare: Effect.fn("StepBoundary.prepare")(function*(descriptor) {
       if (options.supported === false) return yield* Effect.fail(unsupported())
-      return { descriptor, readSnapshot: descriptor.readSet }
+      return { descriptor, readSnapshot: options.readSnapshot ?? descriptor.readSet }
     }),
     settle: Effect.fn("StepBoundary.settle")(function*(prepared) {
       if (options.supported === false) return yield* Effect.fail(unsupported())

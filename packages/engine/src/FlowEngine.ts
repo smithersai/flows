@@ -510,9 +510,12 @@ export interface Encoded {
  *
  * The descriptor is what gates cross-run cacheability, so it must be part of
  * the content key (issue #25): a changed read-set digest, write set, or
- * boundary mode yields a different key and therefore a cache miss — the
- * Skyframe dirty→recheck→rebuild model collapsed into key-based
- * invalidation. Metadata of any other shape stays out of the key.
+ * boundary mode yields a different key and therefore a cache miss. The key
+ * is only half of Skyframe's dirty→recheck→rebuild model, though: these
+ * digests are caller-declared, so before a sealed hit is served the store
+ * re-measures them through `StepBoundary.prepare` and refuses a hit whose
+ * declaration no longer matches the host (issue #90). Metadata of any other
+ * shape stays out of the key.
  */
 const boundaryHermetic = (
   metadata: unknown

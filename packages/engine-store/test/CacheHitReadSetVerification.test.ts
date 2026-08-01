@@ -1,0 +1,177 @@
+/**
+ * Pins issue #90: a sealed hard-boundary cache hit was decided entirely from
+ * the caller-declared read-set digests folded into the step key. Nothing
+ * measured the filesystem, `StepBoundary.prepare`'s `readSnapshot` had no
+ * production reader, and `prepare` first ran strictly after the hit's early
+ * return — so a declaration whose digests had gone stale relative to the real
+ * files replayed a pre-edit result forever, with no detection path.
+ *
+ * The boundary is now measured before a hit is served: the recorded result is
+ * reused only when every declared read-set entry still matches what the host
+ * reports, which is Skyframe's dirty-check invariant (re-verify a node
+ * against its dependencies' current values before reuse).
+ */
+import { CacheStore, Journal, type Ownership, RunStore } from "@smithers/journal"
+import * as TestJournal from "@smithers/journal/test/TestJournal"
+import { Jj } from "@smithers/kernel"
+import { Digest } from "@smithers/keys"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import { describe, expect, it } from "vitest"
+import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as StepBoundary from "../src/StepBoundary.ts"
+
+const owner: Ownership.OwnerId = { hostId: "read-set-host", pid: 21, nonce: "read-set-process" }
+
+const declared: ActivityPersistence.BoundaryMetadata = {
+  readSet: [{ path: "config.json", digest: "D1" }],
+  writeSet: ["output.txt"],
+  boundaryMode: "hard"
+}
+
+const jjLayer = Layer.succeed(
+  Jj.Jj,
+  Jj.make({
+    snapshot: () => Effect.succeed({ changeId: "read-set-snapshot" as never }),
+    restore: () => Effect.void,
+    diff: () => Effect.succeed(""),
+    workspaceAdd: () => Effect.void,
+    workspaceForget: () => Effect.void,
+    status: () => Effect.succeed("")
+  })
+)
+
+const activate = (runId: string) =>
+  Effect.gen(function*() {
+    const runs = yield* RunStore.RunStore
+    yield* runs.create(runId, "{}")
+    const row = yield* runs.get(runId)
+    const snapshot = { status: row.status, owner: row.owner, heartbeatAtMs: row.heartbeatAtMs }
+    const claim = yield* runs.claim(runId, snapshot, owner, 1)
+    if (claim._tag !== "Claimed") return yield* Effect.die(new Error("claim lost"))
+    const activated = yield* runs.activate(runId, owner, claim.claimedAtMs, snapshot)
+    if (activated._tag !== "Activated") return yield* Effect.die(new Error("activation lost"))
+  })
+
+const dispatch = (runId: string, key: string, execute: () => Effect.Effect<unknown, unknown>) =>
+  ActivityPersistence.make({ runId, owner, sourceId: `read-set-${runId}`, execute })({
+    activity: {},
+    attempt: 1,
+    key,
+    tier: "sealed",
+    metadata: declared
+  })
+
+/**
+ * Runs the same sealed key twice: the first run records the cache entry, the
+ * second sees whatever `measured` reports for the declared read set.
+ */
+const replayWithMeasurement = (
+  label: string,
+  measured: ReadonlyArray<StepBoundary.ReadSetEntry>
+) =>
+  Effect.gen(function*() {
+    const key = `read-set/${label}`
+    let executions = 0
+    let replays = 0
+    const run = (runId: string, boundary: Layer.Layer<StepBoundary.Service>) =>
+      Effect.gen(function*() {
+        yield* activate(runId)
+        return yield* dispatch(runId, key, () =>
+          Effect.sync(() => {
+            executions++
+            return "recorded"
+          }))
+      }).pipe(Effect.provide(boundary))
+
+    // One journal/cache/run store shared by both runs, so the second run sees
+    // the first run's recorded entry — the cross-run reuse path.
+    const first = yield* run(`${label}-first`, StepBoundary.layerTest({ readSnapshot: declared.readSet }))
+    const second = yield* run(
+      `${label}-second`,
+      StepBoundary.layerTest({
+        readSnapshot: measured,
+        onReplay: () => {
+          replays++
+        }
+      })
+    )
+    return { executions, first, replays, second }
+  }).pipe(
+    Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)),
+    Effect.scoped
+  )
+
+describe("sealed cache hits verify the measured read set (issue #90)", () => {
+  it("serves the recorded result when every declared read still matches the host", async () => {
+    const result = await Effect.runPromise(
+      replayWithMeasurement("unchanged", [{ path: "config.json", digest: "D1" }])
+    )
+    expect(result.second).toBe("recorded")
+    expect(result.executions).toBe(1)
+    expect(result.replays).toBe(1)
+  })
+
+  it("ignores measured reads the declaration never claimed", async () => {
+    const result = await Effect.runPromise(
+      replayWithMeasurement("extra-reads", [
+        { path: "config.json", digest: "D1" },
+        { path: "incidental.txt", digest: "X" }
+      ])
+    )
+    expect(result.executions).toBe(1)
+    expect(result.replays).toBe(1)
+  })
+
+  it("re-executes when a declared read's digest has gone stale", async () => {
+    const result = await Effect.runPromise(
+      replayWithMeasurement("stale-digest", [{ path: "config.json", digest: "D2" }])
+    )
+    expect(result.second).toBe("recorded")
+    // The stale hit is refused: the activity runs a second time instead of
+    // replaying the pre-edit result and its boundary outputs.
+    expect(result.executions).toBe(2)
+    expect(result.replays).toBe(0)
+  })
+
+  it("re-executes when a declared read is missing from the measured set", async () => {
+    const result = await Effect.runPromise(replayWithMeasurement("vanished-read", []))
+    expect(result.executions).toBe(2)
+    expect(result.replays).toBe(0)
+  })
+})
+
+describe("cache provenance records a refused hit (issue #90)", () => {
+  it("emits a stale-read-set provenance record instead of a reuse record", async () => {
+    const key = "read-set/provenance"
+    const keyDigest = Digest.digest(key)
+    const records = await Effect.runPromise(
+      Effect.gen(function*() {
+        const cache = yield* CacheStore.CacheStore
+        yield* cache.put({
+          keyDigest,
+          result: "recorded",
+          meta: {
+            tier: "sealed",
+            boundary: { declaredOutputs: { paths: ["output.txt"] }, diffIdentity: "seeded-diff" }
+          },
+          createdAtMs: 1,
+          recordedRunId: "recorded-run",
+          recordedEventSeq: 0
+        })
+        yield* activate("provenance-run")
+        yield* dispatch("provenance-run", key, () => Effect.succeed("recorded")).pipe(
+          Effect.provide(StepBoundary.layerTest({ readSnapshot: [{ path: "config.json", digest: "D2" }] }))
+        )
+        const journal = yield* Journal.Journal
+        yield* journal.flush
+        const page = yield* journal.entries({ runId: "provenance-run" as never, limit: 50 })
+        return page.entries
+          .filter((entry) => entry.eventType === "flows.engine.cache-provenance")
+          .map((entry) => entry.payload as { readonly action?: string })
+      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+    )
+
+    expect(records.map((record) => record.action)).toContain("stale_read_set")
+  })
+})
