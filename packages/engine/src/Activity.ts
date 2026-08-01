@@ -402,18 +402,34 @@ export const retry: {
 } = dual(
   2,
   (effect: Effect.Effect<any, any, any>, options: {}) =>
-    Effect.suspend(() => {
-      let attempt = 1
+    Effect.gen(function*() {
+      // A nested retry block shares the enclosing block's slot instead of
+      // shadowing it with a fresh one (issue #108): a per-invocation slot was
+      // rebuilt on every outer attempt, discarding the pinned `values`, so a
+      // completed irreversible inner dispatch drew a brand-new ordinal — a
+      // new step key — and re-executed instead of replaying. Sharing the
+      // outermost slot keeps every pin alive for the whole outer sequence.
+      const enclosing = yield* CurrentOrdinal
       // One slot map for the whole retry sequence: the engine fills each
       // activity's scope with the ordinal it allocates on the first attempt,
       // and every later attempt of the same sequence reuses those ordinals
       // (issues #73, #84).
-      const slot: OrdinalSlot = { values: new Map(), cursors: new Map() }
-      return Effect.suspend(() => {
+      const slot: OrdinalSlot = enclosing ?? { values: new Map(), cursors: new Map() }
+      // Where each scope's dispatch cursor stood when this block was entered.
+      // An inner attempt replays the block from its own first dispatch, not
+      // from the outer attempt's start, so its cursors rewind to the block
+      // entry rather than to zero (issues #100, #108). At the top level the
+      // snapshot is empty and rewinding degenerates to a plain reset.
+      const entryCursors = new Map(slot.cursors)
+      let attempt = 1
+      return yield* Effect.suspend(() => {
         // Every attempt replays the block from its first dispatch, so the
         // per-scope dispatch cursors restart with it (issue #100); the pinned
         // ordinal sequences in `values` persist across attempts.
         slot.cursors.clear()
+        for (const [scope, cursor] of entryCursors) {
+          slot.cursors.set(scope, cursor)
+        }
         return effect.pipe(
           Effect.provideService(CurrentAttempt, attempt++),
           Effect.provideService(CurrentOrdinal, slot)

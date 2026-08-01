@@ -199,6 +199,69 @@ describe("ordinal slots inside Activity.retry (issue #84)", () => {
   })
 })
 
+describe("nested Activity.retry keeps inner pins across outer attempts (issue #108)", () => {
+  effect("an inner block's completed dispatch keeps its key when the outer block replays", () => {
+    // `outer retry { inner retry { charge }; flakyStep }`: outer attempt 1
+    // charges under ordinal N and fails later; outer attempt 2 re-enters the
+    // inner block. A per-invocation inner slot was rebuilt from scratch on
+    // every outer attempt, so the completed charge drew a brand-new ordinal —
+    // a new step key — and re-executed as a fresh attempt-1 step instead of
+    // replaying (the #84/#100 stability contract, broken one nesting level
+    // down).
+    return Effect.gen(function*() {
+      const entries = yield* driveProgram("ordinal-nested-retry", (engine) => {
+        let outerAttempt = 0
+        return Activity.retry(
+          Effect.gen(function*() {
+            yield* Activity.retry(
+              engine.activityExecute(chargeCard as never, 1),
+              { times: 0 }
+            )
+            outerAttempt++
+            if (outerAttempt < 3) return yield* Effect.fail("flaky")
+          }),
+          { times: 5 }
+        )
+      })
+      const keys = keyOf(entries, chargeCard.name)
+      expect(keys).toHaveLength(3)
+      expect(new Set(keys).size).toBe(1)
+    })
+  })
+
+  effect("inner retries still rewind their own dispatch cursors from the block entry", () => {
+    // The inner block's attempts must replay the inner dispatches by position
+    // from the *block entry*, not from the outer attempt's start — while a
+    // sibling dispatch of the same declaration before the block keeps its own
+    // pinned identity.
+    return Effect.gen(function*() {
+      const entries = yield* driveProgram("ordinal-nested-cursor", (engine) => {
+        let innerAttempt = 0
+        return Activity.retry(
+          Effect.gen(function*() {
+            yield* engine.activityExecute(repeatedCharge as never, 1)
+            yield* Activity.retry(
+              Effect.gen(function*() {
+                yield* engine.activityExecute(repeatedCharge as never, 1)
+                innerAttempt++
+                if (innerAttempt < 2) return yield* Effect.fail("again")
+              }),
+              { times: 5 }
+            )
+          }),
+          { times: 0 }
+        )
+      })
+      const keys = keyOf(entries, repeatedCharge.name)
+      // pre-block dispatch, then inner attempt 1 and inner attempt 2 of the
+      // same in-block identity.
+      expect(keys).toHaveLength(3)
+      expect(keys[1]).toBe(keys[2])
+      expect(keys[0]).not.toBe(keys[1])
+    })
+  })
+})
+
 describe("same-name invocation identity (issue #85)", () => {
   const notify = (idempotencyKey: string) =>
     Activity.make({
