@@ -6,7 +6,7 @@
  * parks the run with exactly that payload so reason-specific sweeps
  * (`WHERE waiting_reason = 'approval'`) see it.
  */
-import { DurableDeferred, Flow, FlowEngine } from "@smithers/engine"
+import { DurableClock, DurableDeferred, Flow, FlowEngine } from "@smithers/engine"
 import { RunStore, TestJournal } from "@smithers/journal"
 import { Jj } from "@smithers/kernel"
 import * as Effect from "effect/Effect"
@@ -141,5 +141,67 @@ describe("annotated waiting reasons reach the parked row (issue #31)", () => {
     expect(result.due).toEqual([
       { runId: "annotated-quota", reason: "quota", wakeAt: 60_000, token: null }
     ])
+  })
+
+  it("an annotation consumed by its resolved gate does not leak onto a later timer park (issue #42)", async () => {
+    const TwoStageFlow = Flow.make("Annotated/TwoStage", {
+      payload: {},
+      success: Schema.String
+    })
+    const gate = DurableDeferred.make("annotated-two-stage-gate", { success: Schema.String })
+
+    const result = await withEngine((engine, store, state) =>
+      Effect.gen(function*() {
+        yield* engine.register(
+          TwoStageFlow as never,
+          (() =>
+            Effect.gen(function*() {
+              yield* FlowEngine.annotateWaiting({ reason: "approval", token: "request-42" })
+              const approved = yield* DurableDeferred.await(gate)
+              // The second suspension is timer-backed: the replayed approval
+              // annotation must not classify this park.
+              yield* DurableClock.sleep({
+                name: "annotated-two-stage-timer",
+                duration: "5 minutes",
+                inMemoryThreshold: "1 second"
+              })
+              return `approved:${approved}`
+            })) as never
+        )
+        yield* engine.execute(TwoStageFlow as never, {
+          executionId: "annotated-two-stage",
+          payload: {},
+          discard: true
+        })
+        const firstPark = yield* state.waiting("annotated-two-stage")
+
+        // Resolve the approval gate; the next drive replays the annotation,
+        // passes through the resolved gate, and parks on the durable timer.
+        yield* engine.deferredDone(gate as never, {
+          flowName: TwoStageFlow._tag,
+          executionId: "annotated-two-stage",
+          deferredName: gate.name,
+          exit: Exit.succeed("yes")
+        })
+        yield* engine.execute(TwoStageFlow as never, {
+          executionId: "annotated-two-stage",
+          payload: {},
+          discard: true
+        })
+        const row = yield* store.get("annotated-two-stage")
+        const secondPark = yield* state.waiting("annotated-two-stage")
+        const timerSweep = yield* state.waitingRuns({ reason: "timer" })
+        const approvalSweep = yield* state.waitingRuns({ reason: "approval" })
+        return { firstPark, row, secondPark, timerSweep, approvalSweep }
+      })
+    )
+
+    expect(Option.getOrThrow(result.firstPark).reason).toBe("approval")
+    expect(result.row.status).toBe("suspended")
+    const parked = Option.getOrThrow(result.secondPark)
+    expect(parked.reason).toBe("timer")
+    expect(typeof parked.wakeAt).toBe("number")
+    expect(result.timerSweep.map((waiting) => waiting.runId)).toContain("annotated-two-stage")
+    expect(result.approvalSweep).toEqual([])
   })
 })

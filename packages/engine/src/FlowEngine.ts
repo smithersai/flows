@@ -569,6 +569,12 @@ export interface WaitingAnnotation {
  * Declares how the flow is about to wait, so a durable driver parks the run
  * with that reason and token instead of the derived `timer`/`event` default.
  *
+ * The annotation is scoped to the wait it precedes: once the awaited
+ * deferred passes through with a persisted result — including replays after
+ * the wait resolved — the declared classification is consumed, so a later
+ * suspension parks under its own reason (and keeps its timer `wakeAt`)
+ * instead of the stale one (issue #42).
+ *
  * Call it immediately before awaiting the deferred that models the wait:
  *
  * ```ts
@@ -842,6 +848,11 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
         if (Option.isNone(exit)) {
           return Option.none()
         }
+        // A persisted result means the annotated wait (if any) resolved: the
+        // waiting annotation is consumed here so a replayed
+        // `annotateWaiting` cannot classify a later, unrelated suspension
+        // (issue #42).
+        instance.waiting = undefined
         return Option.some(
           yield* Effect.orDie(
             Schema.decodeEffect(deferred.exitSchema)(toJsonExit(exit.value))
