@@ -294,13 +294,13 @@ const encodeCheckpointWith = (
   encodeOptional: (value: unknown | undefined, field: string) => Effect.Effect<string | null, AttemptStoreError>
 ) =>
 (value: unknown | undefined): Effect.Effect<string | null, AttemptStoreError> =>
-    Effect.flatMap(
-      encodeOptional(value, "checkpoint"),
-      (encoded) =>
-        encoded !== null && new TextEncoder().encode(encoded).length > maxBytes
-          ? Effect.fail(error("invalid_attempt", `checkpoint must not exceed ${maxBytes} bytes`))
-          : Effect.succeed(encoded)
-    )
+  Effect.flatMap(
+    encodeOptional(value, "checkpoint"),
+    (encoded) =>
+      encoded !== null && new TextEncoder().encode(encoded).length > maxBytes
+        ? Effect.fail(error("invalid_attempt", `checkpoint must not exceed ${maxBytes} bytes`))
+        : Effect.succeed(encoded)
+  )
 
 const decode = (value: string | null, field: string): Effect.Effect<unknown | undefined, AttemptStoreError> =>
   value === null

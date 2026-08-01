@@ -995,7 +995,6 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
   })
 })
 
-
 /**
  * Constructs a stub `RunStore` whose direct operations fail and whose
  * compare-and-swap operations report typed losses until overridden.

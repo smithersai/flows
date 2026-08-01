@@ -6,10 +6,10 @@ import { describe, expect, it } from "vitest"
 import * as AttemptStore from "../src/AttemptStore.ts"
 import * as CacheStore from "../src/CacheStore.ts"
 import { Journal } from "../src/Journal.ts"
-import * as RunStore from "../src/RunStore.ts"
 import { Input, type RunId, type SourceId } from "../src/JournalEvent.ts"
 import * as Migrations from "../src/Migrations.ts"
 import * as Redaction from "../src/Redaction.ts"
+import * as RunStore from "../src/RunStore.ts"
 import * as SqlJournal from "../src/SqlJournal.ts"
 
 const runId = (value: string): RunId => value as RunId
