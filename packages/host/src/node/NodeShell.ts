@@ -56,9 +56,10 @@ const spawn = (command: string, options: ExecOptions): ChildProcess.ChildProcess
   })
 
 const feedStdin = (child: ChildProcess.ChildProcess, stdin: string | undefined): void => {
-  if (child.stdin === null) return
-  if (stdin !== undefined) child.stdin.write(stdin)
-  child.stdin.end()
+  // `stdio: ["pipe", ...]` always yields a writable stdin; the optional chain is
+  // the same null-tolerance the stdout/stderr wiring below uses.
+  if (stdin !== undefined) child.stdin?.write(stdin)
+  child.stdin?.end()
 }
 
 const terminate = (child: ChildProcess.ChildProcess): Effect.Effect<void> =>
@@ -67,8 +68,9 @@ const terminate = (child: ChildProcess.ChildProcess): Effect.Effect<void> =>
       resume(Effect.void)
       return
     }
-    const closed = (): void => resume(Effect.void)
-    child.once("close", closed)
+    // `once` detaches itself, and Effect runs this finalizer uninterruptibly,
+    // so there is no path on which the listener outlives the termination.
+    child.once("close", () => resume(Effect.void))
     if (process.platform === "win32") {
       ChildProcess.execFile("taskkill", ["/pid", String(child.pid), "/T", "/F"], () => {
         if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL")
@@ -80,7 +82,6 @@ const terminate = (child: ChildProcess.ChildProcess): Effect.Effect<void> =>
         child.kill("SIGKILL")
       }
     }
-    return Effect.sync(() => child.off("close", closed))
   })
 
 // == exec

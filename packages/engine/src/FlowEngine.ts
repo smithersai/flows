@@ -1081,9 +1081,10 @@ export const layerMemory: Layer.Layer<FlowEngine> = Layer.effect(FlowEngine)(
         const state = executions.get(executionId)
         if (!state) return
         state.instance.interrupted = true
-        if (state.fiber) {
-          yield* Fiber.interrupt(state.fiber)
-        }
+        // `execute` installs the state and synchronously starts `resume`
+        // before it can return its execution id. `resume` assigns this fiber
+        // without yielding, so every publicly observable execution has one.
+        yield* Fiber.interrupt(state.fiber!)
       }),
       resume(_flow, executionId) {
         return resume(executionId)

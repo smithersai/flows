@@ -386,4 +386,69 @@ describe("Retry", () => {
     expect(result._tag).toBe("Rerun")
     expect(contexts[0]).toMatchObject({ attempt: 2, nonce: "new" })
   })
+
+  it("defaults an unregistered irreversible kind to requiring a key", async () => {
+    const result = await Effect.runPromise(
+      Retry.retry({
+        effect: crossed("irreversible", { kind: "unregistered" }),
+        previousAttempt: 0,
+        previousNonce: "old",
+        makeNonce: () => Effect.succeed("new"),
+        rerun: () => Effect.succeed("never")
+      }).pipe(
+        Effect.provide(Layer.succeed(CacheStore.CacheStore, cache(Option.none()))),
+        Effect.provide(Layer.succeed(Jj.Jj, jj())),
+        Effect.provide(
+          Layer.succeed(EffectHandlerRegistry.EffectHandlerRegistry, EffectHandlerRegistry.makeNoop())
+        )
+      )
+    )
+
+    expect(result).toMatchObject({
+      _tag: "Blocked",
+      reason: "idempotency_key_required",
+      attempt: 1,
+      nonce: "new"
+    })
+  })
+
+  it("reruns sealed work without a cache key and propagates its typed failure", async () => {
+    const failure = await Effect.runPromise(
+      Effect.flip(
+        provide(
+          Retry.retry({
+            effect: crossed("sealed"),
+            previousAttempt: 1,
+            previousNonce: "old",
+            makeNonce: () => Effect.succeed("new"),
+            rerun: (context) => Effect.fail(`rerun-${context.attempt}`)
+          }),
+          cache(Option.none()),
+          jj()
+        )
+      )
+    )
+
+    expect(failure).toBe("rerun-2")
+  })
+
+  it("does not swallow interruption while a fresh attempt is running", async () => {
+    const result = await Effect.runPromise(
+      Effect.exit(
+        provide(
+          Retry.retry({
+            effect: crossed("sealed"),
+            previousAttempt: 1,
+            previousNonce: "old",
+            makeNonce: () => Effect.succeed("new"),
+            rerun: () => Effect.interrupt
+          }),
+          cache(Option.none()),
+          jj()
+        )
+      )
+    )
+
+    expect(result._tag).toBe("Failure")
+  })
 })

@@ -260,6 +260,32 @@ describe("Compensation.compensate", () => {
 
     expect(failure.cause).toMatchObject({ rollback: expect.anything() })
   })
+
+  it("normalizes a non-Error compensation defect into the failure message", async () => {
+    const layer = registryOf([{
+      kind: "send",
+      tier: "irreversible",
+      requiresIdempotencyKey: true,
+      residue: () => "residue",
+      revert: () => Effect.die("provider-defect"),
+      rollback: () => Effect.void
+    }])
+    const plan = await Effect.runPromise(
+      Compensation.assess([irreversible("send", 1)]).pipe(
+        Effect.provide(cache()),
+        Effect.provide(layer)
+      )
+    )
+
+    const failure = await Effect.runPromise(
+      Effect.flip(Compensation.compensate(plan).pipe(Effect.provide(layer)))
+    )
+
+    expect(failure).toMatchObject({
+      code: "compensation_failed",
+      message: "could not compensate send: provider-defect"
+    })
+  })
 })
 
 describe("Compensation.restoreWorkspace", () => {
@@ -397,6 +423,58 @@ describe("Compensation.restoreWorkspace", () => {
     expect(rolledBack).toEqual(["send"])
     expect(failure.message).toContain("could not restore jj state target")
   })
+
+  for (
+    const faults of [
+      { workspaceRollback: true, handlerRollback: false },
+      { workspaceRollback: false, handlerRollback: true },
+      { workspaceRollback: true, handlerRollback: true }
+    ]
+  ) {
+    it(`reports target-restore cleanup failures (workspace=${faults.workspaceRollback}, handlers=${faults.handlerRollback})`, async () => {
+      const registry = registryOf([{
+        kind: "send",
+        tier: "irreversible",
+        requiresIdempotencyKey: true,
+        residue: () => "residue",
+        revert: () => Effect.succeed({}),
+        rollback: () =>
+          faults.handlerRollback
+            ? Effect.fail(error("compensation_failed", "handler cleanup failed"))
+            : Effect.void
+      }])
+      const plan = await planFor([compensable], "target")
+      const receipt = {
+        id: "send:rollback",
+        effect: record({ id: "send", kind: "send", tier: "irreversible", seq: 2 }),
+        data: {}
+      }
+
+      const failure = await Effect.runPromise(
+        Effect.flip(
+          Compensation.restoreWorkspace(plan, [receipt]).pipe(
+            Effect.provide(registry),
+            Effect.provide(
+              jjOf({
+                snapshot: () => Effect.succeed({ changeId: "current" }),
+                restore: (changeId) =>
+                  changeId === "target" || faults.workspaceRollback
+                    ? Effect.fail(jjError({ code: "conflict", method: "restore" }))
+                    : Effect.void
+              })
+            )
+          )
+        )
+      )
+      const cause = failure.cause as {
+        readonly workspaceRollback?: unknown
+        readonly handlerRollback?: unknown
+      }
+
+      expect(cause.workspaceRollback === undefined).toBe(!faults.workspaceRollback)
+      expect(cause.handlerRollback === undefined).toBe(!faults.handlerRollback)
+    })
+  }
 
   it("refuses a plan that needs a restore but carries no resolved pointer", async () => {
     const failure = await Effect.runPromise(

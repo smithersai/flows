@@ -353,6 +353,44 @@ describe("nextDelay numeric boundaries", () => {
       expect(delay).toEqual(some(100))
     }
   })
+
+  it("decideEffect samples Random once when jitter is enabled and stays in the jitter band", async () => {
+    const policy = RetryPolicy.make({
+      initialMs: 100,
+      factor: 2,
+      maxMs: 1000,
+      jitterRatio: 0.5
+    })
+    const decision = await Effect.runPromise(
+      RetryPolicy.decideEffect(policy, { attempt: 2, error: "e" }).pipe(Random.withSeed(42))
+    )
+    expect(decision._tag).toBe("RetryAfter")
+    // attempt 2 → 200ms base; a 0.5 jitter ratio keeps the delay in [100, 200]
+    const delayMs = decision._tag === "RetryAfter" ? decision.delayMs : Number.NaN
+    expect(delayMs).toBeGreaterThanOrEqual(100)
+    expect(delayMs).toBeLessThanOrEqual(200)
+    // deterministic under a fixed seed
+    const again = await Effect.runPromise(
+      RetryPolicy.decideEffect(policy, { attempt: 2, error: "e" }).pipe(Random.withSeed(42))
+    )
+    expect(again).toEqual(decision)
+  })
+
+  it("decideEffect still gives up on a nonRetryable error before sampling jitter", async () => {
+    const policy = RetryPolicy.make({
+      initialMs: 100,
+      factor: 2,
+      maxMs: 1000,
+      jitterRatio: 0.5,
+      nonRetryable: ["Fatal"]
+    })
+    const decision = await Effect.runPromise(
+      RetryPolicy.decideEffect(policy, { attempt: 1, error: { _tag: "Fatal" } }).pipe(
+        Random.withSeed(1)
+      )
+    )
+    expect(decision).toEqual(RetryPolicy.giveUp("nonRetryable"))
+  })
 })
 
 describe("defaultRetryPolicy", () => {

@@ -143,7 +143,7 @@ export interface Result {
 }
 
 interface ClaimedRun {
-  readonly row: RunStore.RunRow
+  readonly row: RunStore.RunRow & { readonly status: "pending" | "suspended" }
   readonly claimedAtMs: number
 }
 
@@ -200,12 +200,11 @@ const claimRun = (
     const row = yield* runs.get(options.runId).pipe(
       Effect.mapError((cause) => runStoreFailure("read run", cause))
     )
-    if (
-      row.status === "running" ||
-      row.owner !== null ||
-      row.claim !== null ||
-      (row.status !== "pending" && row.status !== "suspended")
-    ) {
+    if (row.status !== "pending" && row.status !== "suspended") {
+      return yield* Effect.fail(error("busy", `run ${options.runId} is not available for rewind`))
+    }
+    const rewindableRow: ClaimedRun["row"] = { ...row, status: row.status }
+    if (row.owner !== null || row.claim !== null) {
       return yield* Effect.fail(error("busy", `run ${options.runId} is not available for rewind`))
     }
     const expected = snapshotOf(row)
@@ -230,7 +229,7 @@ const claimRun = (
       yield* Effect.ignore(runs.abandonClaim(options.runId, options.owner, outcome.claimedAtMs))
       return yield* Effect.fail(error("busy", `run ${options.runId} lost the rewind activation`))
     }
-    return { row, claimedAtMs: outcome.claimedAtMs }
+    return { row: rewindableRow, claimedAtMs: outcome.claimedAtMs }
   })
 
 const runHook = (
@@ -413,7 +412,6 @@ export const rewind = (
         `${options.runId}:rewind:${options.owner.nonce}:${nowMs}:${options.frame.seq}`
 
       let claimed: ClaimedRun | undefined
-      let auditWritten = false
       let archiveCommitted = false
       let compensation: Compensation.Result = { handlerReceipts: [] }
       let detail: AuditDetail | undefined
@@ -425,11 +423,6 @@ export const rewind = (
             Effect.gen(function*() {
               claimed = yield* claimRun(runs, options, nowMs)
               const originalStatus = claimed.row.status
-              if (originalStatus !== "pending" && originalStatus !== "suspended") {
-                return yield* Effect.fail(
-                  error("busy", `run ${options.runId} cannot be rewound from ${originalStatus}`)
-                )
-              }
 
               const rateLimit = options.rateLimit?.({
                 runId: options.runId,
@@ -437,7 +430,7 @@ export const rewind = (
                 nowMs
               }) ?? Effect.succeed({ allowed: true } as const)
               const decision = yield* rateLimit
-              detail = initialDetail(originalStatus)
+              const auditDetail = initialDetail(originalStatus)
               const audit: Audit = {
                 id: auditId,
                 runId: options.runId,
@@ -446,10 +439,10 @@ export const rewind = (
                 rateLimit: "detail" in decision && decision.detail !== undefined
                   ? decision.detail
                   : { allowed: decision.allowed, checkedAtMs: nowMs },
-                detail
+                detail: auditDetail
               }
               yield* store.writeAudit(audit)
-              auditWritten = true
+              detail = auditDetail
 
               yield* runHook(options, "claim-run")
               yield* runHook(options, "rate-limit")
@@ -582,27 +575,27 @@ export const rewind = (
                 Effect.mapError((cause) => runStoreFailure("restore run state", cause)),
                 Effect.exit
               )
-              if (Exit.isFailure(restored) && !auditWritten) {
+              if (Exit.isFailure(restored) && detail === undefined) {
                 yield* Effect.ignore(runs.abandonClaim(options.runId, options.owner, claimed.claimedAtMs))
               }
             }
-            if (auditWritten && detail !== undefined) {
-              const rollbackFailure = Exit.isFailure(rollbackExit)
-                ? Cause.squash(rollbackExit.cause)
-                : undefined
+            if (detail !== undefined) {
+              const currentDetail = detail
+              const rollbackFailure = Exit.isFailure(rollbackExit) ? Cause.squash(rollbackExit.cause) : undefined
               // Child cancellation has no inverse, so a "rolled back" rewind
               // still owns that residue and has to name it.
               const residue = cancelledChildren.length === 0
                 ? ""
                 : `; ${cancelledChildren.length} detached child run(s) stay cancelled: ${cancelledChildren.join(", ")}`
+              const failureMessage = (rollbackFailure === undefined
+                ? failure.message
+                : `${failure.message}; rollback failed: ${String(rollbackFailure)}`) + residue
               detail = {
-                ...detail,
+                ...currentDetail,
                 phase: rollbackFailure === undefined ? "rolled_back" : "terminal_failure",
                 compensation: undefined,
                 cancelledChildren: [...cancelledChildren],
-                failure: (rollbackFailure === undefined
-                  ? failure.message
-                  : `${failure.message}; rollback failed: ${String(rollbackFailure)}`) + residue
+                failure: failureMessage
               }
               yield* Effect.ignore(
                 store.updateAudit(auditId, {
@@ -610,14 +603,11 @@ export const rewind = (
                   detail
                 })
               )
-              if (rollbackFailure !== undefined) {
-                const rollbackCause = Exit.isFailure(rollbackExit)
-                  ? rollbackExit.cause
-                  : undefined
+              if (Exit.isFailure(rollbackExit)) {
                 return yield* Effect.fail(
-                  error("compensation_failed", detail.failure!, {
+                  error("compensation_failed", failureMessage, {
                     rewind: protocolExit.cause,
-                    rollback: rollbackCause
+                    rollback: rollbackExit.cause
                   })
                 )
               }

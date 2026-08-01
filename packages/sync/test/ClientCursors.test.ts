@@ -36,6 +36,39 @@ const stubClient = (read: () => Effect.Effect<SyncProtocol.ReadResponse>) =>
   })
 
 describe("SyncClient cursors", () => {
+  it("canonicalizes duplicate supplied cursors through the Map key invariant", async () => {
+    const reads: Array<SyncProtocol.WorkspaceCursor> = []
+    const client = SyncClient.make({
+      client: {
+        "Sync.Read": (request: SyncProtocol.ReadRequest) => {
+          reads.push(request.cursors)
+          return Effect.succeed({
+            entries: [entry("duplicate", 5)],
+            cursors: [],
+            done: true
+          })
+        },
+        "Sync.Subscribe": () => Stream.empty
+      } as unknown as Parameters<typeof SyncClient.make>[0]["client"]
+    })
+
+    const values = await Effect.runPromise(
+      client.subscribe({
+        scope: { _tag: "Run", runId: runId("duplicate") },
+        cursors: [
+          { runId: runId("duplicate"), afterSeq: seq(3) },
+          { runId: runId("duplicate"), afterSeq: seq(4) }
+        ]
+      }).pipe(Stream.take(1), Stream.runCollect)
+    )
+
+    // Both cursor ingestion and acknowledgement use Map keys, so a canonical
+    // snapshot has one cursor per run and sorting never compares equal run IDs.
+    expect(reads).toEqual([[{ runId: "duplicate", afterSeq: 4 }]])
+    expect(Array.from(values).map((value) => value.seq)).toEqual([5])
+    expect(await Effect.runPromise(client.cursors)).toEqual([{ runId: "duplicate", afterSeq: 5 }])
+  })
+
   it("returns acknowledged cursors in canonical run order regardless of arrival order", async () => {
     let page = 0
     const client = stubClient(() => {

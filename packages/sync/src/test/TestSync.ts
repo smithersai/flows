@@ -75,7 +75,9 @@ export const connect = (pair: Pair) =>
     const server = yield* RpcServer.makeNoSerialization(SyncRpcs.SyncRpcs, {
       onFromServer: (response) => {
         const encoded = serverSerialization.encode(response)
-        return encoded === undefined ? Effect.void : Effect.orDie(serverWriter(encoded))
+        // The RPC server only emits values described by SyncRpcs; the JSON
+        // serializer therefore always produces a frame for this boundary.
+        return Effect.orDie(serverWriter(encoded!))
       },
       disableFatalDefects: true
     }).pipe(Effect.provide(handlers))

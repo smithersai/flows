@@ -8,14 +8,15 @@ export default defineConfig({
       // thresholds — a red gate fails the run (issues #20/#32).
       enabled: true,
       provider: "v8",
+      include: ["src/**/*.ts"],
       // Accurate, enforceable floors measured against the committed suite.
       // Ratchet upward as tests land; never lower without a written
       // justification.
       thresholds: {
-        branches: 85,
-        functions: 88,
-        lines: 94,
-        statements: 93
+        branches: 100,
+        functions: 100,
+        lines: 100,
+        statements: 100
       }
     }
   }

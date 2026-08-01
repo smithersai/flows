@@ -11,8 +11,9 @@ import * as JournalModule from "@smithers/journal/Journal"
 import * as JournalEvent from "@smithers/journal/JournalEvent"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as Schema from "effect/Schema"
 import type { CapabilityPattern } from "./Capability.ts"
-import { decode, encode, type GrantEvent } from "./GrantEvent.ts"
+import { decode, type GrantEvent, GrantEventSchema } from "./GrantEvent.ts"
 import * as GrantStore from "./GrantStore.ts"
 import { GrantStoreError, Rule } from "./Permission.ts"
 import { Workspace } from "./Workspace.ts"
@@ -63,6 +64,8 @@ const knownEventTypes: ReadonlySet<string> = new Set([
 ])
 
 const invalidReplay = (message: string): GrantStoreError => new GrantStoreError({ code: "invalid_resolution", message })
+
+const encodeGrantEvent = Schema.encodeSync(GrantEventSchema)
 
 const decodeTrustedEntry = (
   entry: JournalEvent.Entry,
@@ -246,10 +249,7 @@ export const make = (options: JournalGrantStoreOptions) =>
       )
     )
     const persist = (event: GrantEvent): Effect.Effect<void, GrantStoreError> => {
-      const payload = encode(event)
-      if (payload._tag === "Failure") {
-        return Effect.fail(journalFailed("could not encode grant event", payload.failure))
-      }
+      const payload = encodeGrantEvent(event)
       return Effect.gen(function*() {
         const receipt = yield* journal.emit(
           new JournalEvent.Input({
@@ -261,7 +261,7 @@ export const make = (options: JournalGrantStoreOptions) =>
             ) as JournalEvent.RunId,
             sourceId: options.sourceId as JournalEvent.SourceId,
             eventType: event.eventType,
-            payload: payload.success
+            payload
           })
         )
         if (receipt._tag === "Dropped") {

@@ -138,7 +138,16 @@ export type HostContractLayer = Layer.Layer<
   unknown
 >
 
-const errorCode = (error: unknown): string | undefined => {
+/**
+ * Normalizes the code a Host failure is identified by, across the three shapes
+ * the closed surface produces: a `code` field (`ShellError`, `PtyError`,
+ * `JjError`), a nested `reason._tag` (`PlatformError`, `HttpClientError`), and a
+ * bare `_tag`. Anything else is uncoded.
+ *
+ * @category testing
+ * @since 0.1.0
+ */
+export const errorCode = (error: unknown): string | undefined => {
   if (typeof error !== "object" || error === null) return undefined
   if ("code" in error && typeof error.code === "string") return error.code
   if (
@@ -154,7 +163,14 @@ const errorCode = (error: unknown): string | undefined => {
   return undefined
 }
 
-const assertFailure = <A, E, R>(
+/**
+ * Asserts that `effect` fails with `code`. Succeeding is itself a contract
+ * violation: a capability declared unsupported must never quietly work.
+ *
+ * @category testing
+ * @since 0.1.0
+ */
+export const assertFailure = <A, E, R>(
   effect: Effect.Effect<A, E, R>,
   code: string
 ): Effect.Effect<void, never, R> =>

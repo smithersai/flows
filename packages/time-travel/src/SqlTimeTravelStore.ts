@@ -198,7 +198,7 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, Database> = Eff
             SELECT COUNT(*) AS count FROM flows_journal_events
             WHERE run_id = ${runId} AND seq > ${frame.seq}
           `
-          let archived = Number(parentCount[0]?.count ?? 0)
+          let archived = Number(parentCount[0]!.count)
           yield* sql`
             INSERT OR IGNORE INTO flows_time_travel_archive
             SELECT run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
@@ -215,7 +215,7 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, Database> = Eff
               SELECT COUNT(*) AS count FROM flows_journal_events
               WHERE run_id = ${childRunId}
             `
-            archived += Number(count[0]?.count ?? 0)
+            archived += Number(count[0]!.count)
             yield* sql`
               INSERT OR IGNORE INTO flows_time_travel_archive
               SELECT run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
@@ -280,15 +280,12 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, Database> = Eff
             SELECT COUNT(*) AS count FROM flows_time_travel_edges
             WHERE parent_run_id = ${parentRunId} AND parent_seq = ${frame.seq}
           `
-          const runId = `${parentRunId}:fork:${frame.seq}:${Number(existing[0]?.count ?? 0) + 1}`
+          const runId = `${parentRunId}:fork:${frame.seq}:${Number(existing[0]!.count) + 1}`
           const nowMs = yield* Clock.currentTimeMillis
           const parentState = yield* sql<{ readonly state_json: string }>`
             SELECT state_json FROM flows_runs WHERE run_id = ${parentRunId}
           `
-          if (parentState[0] === undefined) {
-            return yield* Effect.fail(error("not_found", `parent ${parentRunId} was not found`))
-          }
-          const stateJson = yield* restartableStateJson(parentState[0].state_json)
+          const stateJson = yield* restartableStateJson(parentState[0]!.state_json)
           yield* sql`
             INSERT INTO flows_runs (run_id, status, created_at_ms, parent_run_id, state_json)
             VALUES (${runId}, 'pending', ${nowMs}, ${parentRunId}, ${stateJson})

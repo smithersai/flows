@@ -22,6 +22,14 @@ const owner: OwnerId = { hostId: "recovery-host", pid: 40, nonce: "recovery-owne
 const stranger: OwnerId = { hostId: "other-host", pid: 41, nonce: "stranger" }
 const frame = { lineageId: "run/root", seq: 0 } as const
 
+const runError = (method: string) =>
+  new RunStore.RunStoreError({
+    code: "persistence_failed",
+    method,
+    message: `${method} failed`,
+    cause: method
+  })
+
 const baseRow = (overrides: Partial<RunStore.RunRow>): RunStore.RunRow => ({
   runId: "run",
   status: "running",
@@ -159,6 +167,34 @@ describe("Recovery ownership arbitration", () => {
     expect(calls).toEqual(["claim:recovery-owner", "activate:5", "transitionOwned"])
   })
 
+  it("maps claim and activation persistence failures into terminal outcomes", async () => {
+    const scenarios = [
+      {
+        message: "claim recovery run failed",
+        runs: RunStore.makeNoop({
+          get: () => Effect.succeed(baseRow({ status: "pending" })),
+          claim: () => Effect.fail(runError("claim"))
+        })
+      },
+      {
+        message: "activate recovery run failed",
+        runs: RunStore.makeNoop({
+          get: () => Effect.succeed(baseRow({ status: "pending" })),
+          claim: () => Effect.succeed({ _tag: "Claimed" as const, claimedAtMs: 4 }),
+          activate: () => Effect.fail(runError("activate"))
+        })
+      }
+    ]
+
+    for (const scenario of scenarios) {
+      const { outcomes } = await runRecovery(scenario.runs)
+      expect(outcomes[0]).toMatchObject({
+        _tag: "Failed",
+        error: { code: "unknown", message: scenario.message }
+      })
+    }
+  })
+
   it("refuses a run that already carries an active claim", async () => {
     const runs = RunStore.makeNoop({
       get: () => Effect.succeed(baseRow({ status: "pending", claim: stranger, claimedAtMs: 3 }))
@@ -265,6 +301,27 @@ describe("Recovery ownership arbitration", () => {
     expect(outcomes).toEqual([{ _tag: "Completed", auditId: "audit" }])
   })
 
+  it("maps a failed ownership steal into a terminal outcome", async () => {
+    const runs = RunStore.makeNoop({
+      get: () => Effect.succeed(baseRow({ status: "running", owner: stranger })),
+      steal: () => Effect.fail(runError("steal"))
+    })
+
+    const { outcomes } = await runRecovery(runs, {
+      livenessEvidence: (_audit, row, claimant, nowMs) =>
+        Effect.succeed({
+          expectedOwner: row.owner ?? claimant,
+          checkedAtMs: nowMs,
+          kind: "cross-host-unreachable-stale"
+        })
+    })
+
+    expect(outcomes[0]).toMatchObject({
+      _tag: "Failed",
+      error: { code: "unknown", message: "steal recovery run failed" }
+    })
+  })
+
   it("propagates a missing run row as a typed not_found terminal failure", async () => {
     const runs = RunStore.makeNoop({
       get: () =>
@@ -299,6 +356,49 @@ describe("Recovery ownership arbitration", () => {
       error: { code: "busy", message: "run run lost its recovery fence" }
     })
     expect(audits[0]).toMatchObject({ status: "failed", detail: { phase: "terminal_failure" } })
+  })
+
+  it("maps suspension and rollback transition persistence failures", async () => {
+    const finish = await runRecovery(
+      RunStore.makeNoop({
+        get: () => Effect.succeed(baseRow({ status: "running", owner })),
+        transitionOwned: () => Effect.fail(runError("finish"))
+      })
+    )
+    const rollback = await runRecovery(
+      RunStore.makeNoop({
+        get: () => Effect.succeed(baseRow({ status: "running", owner })),
+        transitionOwned: () => Effect.fail(runError("restore"))
+      }),
+      {
+        audit: auditRow(
+          {
+            version: 1,
+            phase: "compensated",
+            originalStatus: "pending",
+            suffixCount: 1,
+            warnings: [],
+            cancelledChildren: []
+          } satisfies AuditDetail
+        ),
+        journal: Journal.makeNoop({
+          entries: () =>
+            Effect.succeed({
+              entries: [{ seq: 1 }] as never,
+              hasMore: false
+            })
+        })
+      }
+    )
+
+    expect(finish.outcomes[0]).toMatchObject({
+      _tag: "Failed",
+      error: { code: "unknown", message: "finish recovered suspension failed" }
+    })
+    expect(rollback.outcomes[0]).toMatchObject({
+      _tag: "Failed",
+      error: { code: "unknown", message: "restore recovered run failed" }
+    })
   })
 
   it("records a terminal failure when the rollback fence is lost", async () => {
@@ -378,6 +478,35 @@ describe("Recovery ownership arbitration", () => {
     expect(audits[0]).toMatchObject({ status: "failed", detail: { phase: "rolled_back" } })
   })
 
+  it("treats an already-completed protocol phase as committed", async () => {
+    let entryQueries = 0
+    const { outcomes } = await runRecovery(
+      RunStore.makeNoop({ get: () => Effect.succeed(baseRow({ status: "suspended" })) }),
+      {
+        audit: auditRow(
+          {
+            version: 1,
+            phase: "completed",
+            originalStatus: "suspended",
+            suffixCount: 1,
+            warnings: [],
+            cancelledChildren: []
+          } satisfies AuditDetail
+        ),
+        journal: Journal.makeNoop({
+          entries: () =>
+            Effect.sync(() => {
+              entryQueries += 1
+              return { entries: [], hasMore: false }
+            })
+        })
+      }
+    )
+
+    expect(outcomes).toEqual([{ _tag: "Completed", auditId: "audit" }])
+    expect(entryQueries).toBe(0)
+  })
+
   it("turns an unreadable journal into a typed terminal failure", async () => {
     const runs = RunStore.makeNoop({
       get: () => Effect.succeed(baseRow({ status: "suspended" }))
@@ -419,6 +548,82 @@ describe("Recovery ownership arbitration", () => {
     expect(audits[0]).toMatchObject({
       status: "failed",
       detail: { phase: "terminal_failure", version: 1 }
+    })
+  })
+
+  it("rejects every malformed recovery-detail shape independently", async () => {
+    for (
+      const detail of [
+        null,
+        [],
+        { version: 1 },
+        { version: 1, phase: 1, originalStatus: "suspended", suffixCount: 1, warnings: [], cancelledChildren: [] },
+        {
+          version: 1,
+          phase: "compensated",
+          originalStatus: "running",
+          suffixCount: 1,
+          warnings: [],
+          cancelledChildren: []
+        },
+        {
+          version: 1,
+          phase: "compensated",
+          originalStatus: "pending",
+          suffixCount: "1",
+          warnings: [],
+          cancelledChildren: []
+        },
+        {
+          version: 1,
+          phase: "compensated",
+          originalStatus: "pending",
+          suffixCount: 1,
+          warnings: {},
+          cancelledChildren: []
+        },
+        {
+          version: 1,
+          phase: "compensated",
+          originalStatus: "pending",
+          suffixCount: 1,
+          warnings: [],
+          cancelledChildren: {}
+        }
+      ]
+    ) {
+      const { outcomes } = await runRecovery(
+        RunStore.makeNoop({ get: () => Effect.succeed(baseRow({ status: "suspended" })) }),
+        { audit: auditRow(detail) }
+      )
+      expect(outcomes[0]).toMatchObject({
+        _tag: "Failed",
+        error: { code: "unknown", message: "audit audit has no recoverable protocol detail" }
+      })
+    }
+  })
+
+  it("normalizes a non-Error recovery defect", async () => {
+    const { outcomes } = await runRecovery(
+      RunStore.makeNoop({ get: () => Effect.succeed(baseRow({ status: "running", owner: stranger })) }),
+      { livenessEvidence: () => Effect.die("recovery-defect") }
+    )
+
+    expect(outcomes[0]).toMatchObject({
+      _tag: "Failed",
+      error: { code: "unknown", message: "recovery-defect" }
+    })
+  })
+
+  it("normalizes an Error recovery defect using its message", async () => {
+    const { outcomes } = await runRecovery(
+      RunStore.makeNoop({ get: () => Effect.succeed(baseRow({ status: "running", owner: stranger })) }),
+      { livenessEvidence: () => Effect.die(new Error("recovery-error")) }
+    )
+
+    expect(outcomes[0]).toMatchObject({
+      _tag: "Failed",
+      error: { code: "unknown", message: "recovery-error" }
     })
   })
 })

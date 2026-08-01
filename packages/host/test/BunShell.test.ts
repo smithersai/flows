@@ -37,6 +37,10 @@ interface FakeOptions {
   readonly exitCode?: number | undefined
   /** When set, `exited` only settles once `release` is called. */
   readonly hang?: boolean | undefined
+  /** Makes `stdin.write` throw, the way a closed Bun pipe does. */
+  readonly stdinThrows?: boolean | undefined
+  /** Rejects `exited` instead of resolving it. */
+  readonly exitedRejects?: boolean | undefined
 }
 
 interface Fake {
@@ -58,14 +62,19 @@ const fake = (options: FakeOptions = {}): Fake => {
   let settle: (code: number) => void = () => {}
   let created: BunSubprocess | undefined
   const exitCode = options.exitCode ?? 0
-  const exited = options.hang === true
+  const exited = options.exitedRejects === true
+    ? Promise.reject(new Error("subprocess handle broke"))
+    : options.hang === true
     ? new Promise<number>((resolve) => {
       settle = resolve
     })
     : Promise.resolve(exitCode)
+  // An unobserved rejection is only settled once the implementation awaits it.
+  exited.catch(() => {})
   const subprocess: BunSubprocess = {
     stdin: {
       write: (data) => {
+        if (options.stdinThrows === true) throw new Error("stdin is closed")
         stdinWrites.push(typeof data === "string" ? data : new TextDecoder().decode(data))
         return 0
       },
@@ -255,6 +264,141 @@ describe("BunShell.layer", () => {
         const shell = yield* Shell
         const failure = yield* Effect.flip(shell.exec("echo hi"))
         expect(failure.code).toBe("shell_unavailable")
+      }).pipe(Effect.provide(BunShell.layer))
+    })))
+})
+
+describe("BunShell platform and failure edges", () => {
+  const withPlatform = <A>(platform: string, f: () => A): A => {
+    const original = Object.getOwnPropertyDescriptor(process, "platform")!
+    Object.defineProperty(process, "platform", { ...original, value: platform })
+    try {
+      return f()
+    } finally {
+      Object.defineProperty(process, "platform", original)
+    }
+  }
+
+  it("invokes cmd.exe with the Windows argument form on win32", async () => {
+    const bun = fake()
+    const shell = BunShell.make(bun.runtime)
+
+    await withPlatform("win32", () => Effect.runPromise(shell.exec("dir")))
+
+    expect(bun.spawnOptions()[0]).toMatchObject({ cmd: ["cmd.exe", "/d", "/s", "/c", "dir"] })
+  })
+
+  it("invokes /bin/sh with -c off Windows", async () => {
+    const bun = fake()
+    const shell = BunShell.make(bun.runtime)
+
+    await Effect.runPromise(shell.exec("ls"))
+
+    expect(bun.spawnOptions()[0]).toMatchObject({ cmd: ["/bin/sh", "-c", "ls"] })
+  })
+
+  it("stringifies a non-Error spawn rejection into the message", () =>
+    Effect.runPromise(Effect.gen(function*() {
+      const shell = BunShell.make({
+        spawn: () => {
+          throw "spawn refused"
+        }
+      })
+
+      const failure = yield* Effect.flip(shell.exec("boom"))
+      expect(failure.code).toBe("spawn_error")
+      expect(failure.message).toBe("spawn refused")
+    })))
+
+  it("reports a failed stdin write once, ignoring the later child completion", () =>
+    Effect.runPromise(Effect.gen(function*() {
+      const bun = fake({ stdinThrows: true, stdout: readableOf(["ignored"]) })
+      const shell = BunShell.make(bun.runtime)
+
+      const failure = yield* Effect.flip(shell.exec("cat", { stdin: "input" }))
+      expect(failure.code).toBe("spawn_error")
+      expect(failure.message).toBe("stdin is closed")
+      expect(bun.kills()).toEqual(["SIGKILL"])
+
+      // The buffered result arrives after the failure and must not resettle it.
+      yield* Effect.sleep(10)
+    })))
+
+  it("clears the pending timeout timer when the fiber is interrupted first", async () => {
+    const budget = 10_000
+    const pending = new Set<unknown>()
+    const realSetTimeout = globalThis.setTimeout
+    const realClearTimeout = globalThis.clearTimeout
+    const setSpy = vi.spyOn(globalThis, "setTimeout").mockImplementation(
+      ((
+        handler: () => void,
+        delay?: number
+      ) => {
+        const id = realSetTimeout(handler, delay)
+        if (delay === budget) pending.add(id)
+        return id
+      }) as typeof setTimeout
+    )
+    const clearSpy = vi.spyOn(globalThis, "clearTimeout").mockImplementation(
+      ((id: never) => {
+        pending.delete(id)
+        realClearTimeout(id)
+      }) as typeof clearTimeout
+    )
+
+    try {
+      const bun = fake({ hang: true })
+      const shell = BunShell.make(bun.runtime)
+
+      await Effect.runPromise(Effect.gen(function*() {
+        const fiber = yield* shell.exec("sleep 100", { timeoutMs: budget }).pipe(
+          Effect.forkChild({ startImmediately: true })
+        )
+        yield* Effect.sleep(5)
+        yield* Fiber.interrupt(fiber)
+      }))
+
+      expect(bun.kills()).toEqual(["SIGKILL"])
+      // The 10s budget must not outlive the interrupted fiber as a leaked timer.
+      expect(pending.size).toBe(0)
+    } finally {
+      setSpy.mockRestore()
+      clearSpy.mockRestore()
+    }
+  })
+
+  it("reports a streamed stdin failure once, even when a reader fails afterwards", () =>
+    Effect.runPromise(Effect.gen(function*() {
+      const bun = fake({ stdinThrows: true, stdout: failingReadable() })
+      const shell = BunShell.make(bun.runtime)
+
+      const failure = yield* Effect.flip(collect(shell.stream("cat", { stdin: "input" })))
+      expect(failure.code).toBe("spawn_error")
+      expect(failure.message).toBe("stdin is closed")
+      expect(bun.kills()).toEqual(["SIGKILL"])
+    })))
+
+  it("fails the stream when the subprocess handle itself rejects", () =>
+    Effect.runPromise(Effect.gen(function*() {
+      const bun = fake({ exitedRejects: true })
+      const shell = BunShell.make(bun.runtime)
+
+      const failure = yield* Effect.flip(collect(shell.stream("cat")))
+      expect(failure.code).toBe("spawn_error")
+      expect(failure.message).toBe("subprocess handle broke")
+    })))
+})
+
+describe("BunShell.layer runtime resolution", () => {
+  it("reports shell_unavailable when the Bun global is not an object or function", () =>
+    Effect.runPromise(Effect.gen(function*() {
+      vi.stubGlobal("Bun", 42)
+
+      yield* Effect.gen(function*() {
+        const shell = yield* Shell
+        const failure = yield* Effect.flip(shell.exec("echo hi"))
+        expect(failure.code).toBe("shell_unavailable")
+        expect(failure.message).toBe("Bun runtime is unavailable")
       }).pipe(Effect.provide(BunShell.layer))
     })))
 })

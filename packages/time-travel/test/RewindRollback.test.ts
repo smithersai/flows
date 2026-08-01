@@ -2,7 +2,9 @@ import * as Jj from "@smithers/host/Jj"
 import { CacheStore, Journal, RunStore } from "@smithers/journal"
 import type * as JournalEvent from "@smithers/journal/JournalEvent"
 import type { OwnerId } from "@smithers/journal/Ownership"
+import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
+import * as Fiber from "effect/Fiber"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
@@ -11,6 +13,7 @@ import * as EffectHandlerRegistry from "../src/EffectHandlerRegistry.ts"
 import type { LineageEdge } from "../src/Frame.ts"
 import * as MemoryTimeTravelStore from "../src/MemoryTimeTravelStore.ts"
 import * as Rewind from "../src/Rewind.ts"
+import { error } from "../src/TimeTravelError.ts"
 import { TimeTravelStore } from "../src/TimeTravelStore.ts"
 
 const owner: OwnerId = { hostId: "test-host", pid: 20, nonce: "rollback-owner" }
@@ -25,7 +28,8 @@ const runError = () =>
   })
 
 const makeRuns = (
-  initial: RunStore.RunRow
+  initial: RunStore.RunRow,
+  overrides: Partial<RunStore.Service> = {}
 ): RunStore.Service & { readonly state: () => RunStore.RunRow } => {
   let row = { ...initial }
   const service = RunStore.makeNoop({
@@ -63,7 +67,8 @@ const makeRuns = (
         }
         return { _tag: "Transitioned" as const }
       }),
-    create: () => Effect.fail(runError())
+    create: () => Effect.fail(runError()),
+    ...overrides
   })
   return Object.assign(service, { state: () => ({ ...row }) })
 }
@@ -171,6 +176,30 @@ const makeJj = () => {
   return { service, pointer: () => pointer }
 }
 
+const provide = <A, E, R>(
+  program: Effect.Effect<A, E, R>,
+  options: {
+    readonly store: ReturnType<typeof MemoryTimeTravelStore.make>
+    readonly runs: RunStore.Service
+    readonly jj: Jj.Jj
+    readonly registry?: EffectHandlerRegistry.Service
+    readonly journal?: Journal.Service
+  }
+) =>
+  program.pipe(
+    Effect.provide(Layer.succeed(TimeTravelStore, options.store)),
+    Effect.provide(Layer.succeed(RunStore.RunStore, options.runs)),
+    Effect.provide(Layer.succeed(Journal.Journal, options.journal ?? makeJournal(options.store))),
+    Effect.provide(CacheStore.layerNoop({ get: () => Effect.succeed(Option.none()) })),
+    Effect.provide(Layer.succeed(Jj.Jj, options.jj)),
+    Effect.provide(
+      Layer.succeed(
+        EffectHandlerRegistry.EffectHandlerRegistry,
+        options.registry ?? EffectHandlerRegistry.makeNoop()
+      )
+    )
+  )
+
 const failureSteps: ReadonlyArray<Rewind.RewindStep> = [
   "claim-run",
   "rate-limit",
@@ -255,4 +284,270 @@ describe("Rewind rollback parity row 4", () => {
       expect(storeAfter.audits[0]?.status).not.toBe("in_progress")
     })
   }
+})
+
+describe("Rewind protocol fault matrix", () => {
+  it("fails a journal read, rolls ownership back, and records the audit failure", async () => {
+    const store = MemoryTimeTravelStore.make({ records: records() })
+    const runs = makeRuns(runRow())
+    const jj = makeJj()
+
+    const failure = await Effect.runPromise(
+      Effect.flip(
+        provide(
+          Rewind.rewind({ runId: "run", frame, owner, auditId: "audit-journal-failure" }),
+          { store, runs, jj: jj.service, journal: Journal.makeNoop() }
+        )
+      )
+    )
+
+    expect(failure).toMatchObject({ code: "unknown", message: "could not read suffix for run" })
+    expect(runs.state()).toEqual(runRow())
+    expect(store.state().records).toEqual(records())
+    expect(store.state().audits[0]).toMatchObject({ status: "failed", detail: { phase: "rolled_back" } })
+  })
+
+  it("accepts an empty continuation page, terminates, and derives the default audit id", async () => {
+    const store = MemoryTimeTravelStore.make({ records: [stored(0, "baseline", {})] })
+    const runs = makeRuns(runRow())
+    const jj = makeJj()
+    let pages = 0
+
+    const result = await Effect.runPromise(
+      provide(
+        Rewind.rewind({ runId: "run", frame, owner }),
+        {
+          store,
+          runs,
+          jj: jj.service,
+          journal: Journal.makeNoop({
+            entries: () =>
+              Effect.sync(() => {
+                pages += 1
+                return { entries: [], hasMore: true }
+              })
+          })
+        }
+      )
+    )
+
+    expect(pages).toBe(1)
+    expect(result.auditId).toMatch(/^run:rewind:rollback-owner:\d+:0$/)
+    expect(store.state().audits).toMatchObject([{ id: result.auditId, status: "completed" }])
+  })
+
+  it("reads every non-empty suffix page before archiving history", async () => {
+    const store = MemoryTimeTravelStore.make({
+      records: [
+        stored(0, "baseline", {}),
+        stored(1, "suffix", { value: 1 }),
+        stored(2, "suffix", { value: 2 })
+      ]
+    })
+    const runs = makeRuns(runRow())
+
+    const result = await Effect.runPromise(
+      provide(
+        Rewind.rewind({ runId: "run", frame, owner, auditId: "audit-paged", pageSize: 1 }),
+        { store, runs, jj: makeJj().service }
+      )
+    )
+
+    expect(result.archive.archived).toBe(2)
+    expect(store.state().archived.map((record) => record.seq)).toEqual([1, 2])
+    expect(store.state().records.map((record) => record.seq)).toEqual([0])
+  })
+
+  it("normalizes Error and non-Error protocol defects", async () => {
+    for (
+      const [defect, message] of [
+        [new Error("rewind-error"), "rewind-error"],
+        ["rewind-defect", "rewind-defect"]
+      ] as const
+    ) {
+      const store = MemoryTimeTravelStore.make({ records: [stored(0, "baseline", {})] })
+      const runs = makeRuns(runRow())
+      const jj = makeJj()
+      const failure = await Effect.runPromise(
+        Effect.flip(
+          provide(
+            Rewind.rewind({
+              runId: "run",
+              frame,
+              owner,
+              auditId: `audit-${message}`,
+              hooks: { beforeStep: () => Effect.die(defect) }
+            }),
+            { store, runs, jj: jj.service }
+          )
+        )
+      )
+
+      expect(failure).toMatchObject({ code: "unknown", message })
+      expect(runs.state()).toEqual(runRow())
+    }
+  })
+
+  it("does not compensate after the archive commit when suspension fails or loses its fence", async () => {
+    const persistenceError = new RunStore.RunStoreError({
+      code: "persistence_failed",
+      method: "transitionOwned",
+      message: "database unavailable",
+      cause: "transitionOwned"
+    })
+    for (
+      const scenario of [
+        {
+          message: "suspend rewound run failed",
+          transition: () => Effect.fail(persistenceError)
+        },
+        {
+          message: "run run lost ownership before suspension",
+          transition: () => Effect.succeed({ _tag: "FenceLost" as const })
+        }
+      ]
+    ) {
+      const store = MemoryTimeTravelStore.make({ records: [stored(0, "baseline", {}), stored(1, "suffix", {})] })
+      const runs = makeRuns(runRow(), { transitionOwned: scenario.transition })
+      const jj = makeJj()
+
+      const failure = await Effect.runPromise(
+        Effect.flip(
+          provide(
+            Rewind.rewind({ runId: "run", frame, owner, auditId: `audit-${scenario.message}` }),
+            { store, runs, jj: jj.service }
+          )
+        )
+      )
+
+      expect(failure.message).toBe(scenario.message)
+      expect(store.state().records.map((record) => record.seq)).toEqual([0])
+      expect(store.state().archived.map((record) => record.seq)).toEqual([1])
+      expect(store.state().audits[0]).toMatchObject({
+        status: "in_progress",
+        detail: { phase: "archive_committed" }
+      })
+    }
+  })
+
+  it("abandons the activated claim when pre-audit failure and state restoration both fail", async () => {
+    const abandoned: Array<number> = []
+    const persistenceError = new RunStore.RunStoreError({
+      code: "persistence_failed",
+      method: "transitionOwned",
+      message: "database unavailable",
+      cause: "transitionOwned"
+    })
+    const runs = RunStore.makeNoop({
+      get: () => Effect.succeed(runRow()),
+      claim: () => Effect.succeed({ _tag: "Claimed" as const, claimedAtMs: 8 }),
+      activate: () => Effect.succeed({ _tag: "Activated" as const }),
+      transitionOwned: () => Effect.fail(persistenceError),
+      abandonClaim: (_runId, _owner, claimedAtMs) =>
+        Effect.sync(() => {
+          abandoned.push(claimedAtMs)
+          return { _tag: "Abandoned" as const }
+        })
+    })
+    const store = MemoryTimeTravelStore.make({ records: [stored(0, "baseline", {})] })
+
+    const failure = await Effect.runPromise(
+      Effect.flip(
+        provide(
+          Rewind.rewind({
+            runId: "run",
+            frame,
+            owner,
+            auditId: "audit-preflight-failure",
+            rateLimit: () => Effect.fail(error("rate_limited", "rate limiter unavailable"))
+          }),
+          { store, runs, jj: makeJj().service }
+        )
+      )
+    )
+
+    expect(failure).toMatchObject({ code: "rate_limited", message: "rate limiter unavailable" })
+    expect(abandoned).toEqual([8])
+    expect(store.state().audits).toEqual([])
+  })
+
+  it("reports a terminal compensation failure when rewind rollback fails", async () => {
+    const store = MemoryTimeTravelStore.make({
+      records: records(),
+      snapshots: [{ runId: "run", frame, changeId: "target" }]
+    })
+    const runs = makeRuns(runRow())
+    const jj = makeJj()
+    const registry = Effect.runSync(
+      EffectHandlerRegistry.make([{
+        kind: "send",
+        tier: "irreversible",
+        requiresIdempotencyKey: true,
+        residue: () => "message residue",
+        revert: () => Effect.succeed({ sent: true }),
+        rollback: () => Effect.fail(error("compensation_failed", "provider rollback failed"))
+      }])
+    )
+
+    const failure = await Effect.runPromise(
+      Effect.flip(
+        provide(
+          Rewind.rewind({
+            runId: "run",
+            frame,
+            owner,
+            auditId: "audit-rollback-failure",
+            hooks: {
+              beforeStep: (step) =>
+                step === "restore-workspace" ? Effect.fail(new Error("stop before archive")) : Effect.void
+            }
+          }),
+          { store, runs, jj: jj.service, registry }
+        )
+      )
+    )
+
+    expect(failure).toMatchObject({ code: "compensation_failed" })
+    expect(failure.cause).toMatchObject({ rewind: expect.anything(), rollback: expect.anything() })
+    expect(store.state().audits[0]).toMatchObject({
+      status: "failed",
+      detail: { phase: "terminal_failure", failure: expect.stringContaining("rollback failed") }
+    })
+    expect(store.state().records).toEqual(records())
+  })
+
+  it("finishes rollback cleanup after interruption", async () => {
+    const store = MemoryTimeTravelStore.make({ records: records() })
+    const runs = makeRuns(runRow())
+    const jj = makeJj()
+    const entered = Effect.runSync(Deferred.make<void>())
+    const release = Effect.runSync(Deferred.make<void>())
+    const fiber = Effect.runFork(
+      provide(
+        Rewind.rewind({
+          runId: "run",
+          frame,
+          owner,
+          auditId: "audit-interrupted",
+          hooks: {
+            beforeStep: (step) =>
+              step === "load-suffix"
+                ? Deferred.succeed(entered, undefined).pipe(Effect.andThen(Deferred.await(release)))
+                : Effect.void
+          }
+        }),
+        { store, runs, jj: jj.service }
+      )
+    )
+
+    await Effect.runPromise(Deferred.await(entered))
+    await Effect.runPromise(Fiber.interrupt(fiber))
+    await Effect.runPromise(Deferred.succeed(release, undefined))
+    const exit = await Effect.runPromise(Fiber.await(fiber))
+
+    expect(exit._tag).toBe("Failure")
+    expect(runs.state()).toEqual(runRow())
+    expect(store.state().records).toEqual(records())
+    expect(store.state().audits[0]).toMatchObject({ status: "failed", detail: { phase: "rolled_back" } })
+  })
 })

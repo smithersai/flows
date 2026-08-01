@@ -8,17 +8,14 @@ export default defineConfig({
       // thresholds — a red gate fails the run (issue #20).
       enabled: true,
       provider: "v8",
-      // `src/index.ts` is a barrel with no behavior. `DurableDeferred.ts` is
-      // no longer excluded: it now carries flows-owned behavior (the recorded
-      // interrupt-only completion contract) and must be measured.
-      exclude: ["src/index.ts"],
-      // Accurate, enforceable floors for the current suite. Ratchet upward as
-      // tests land; never lower without a written justification.
+      // Every production module, including the public barrel, is measured.
+      exclude: [],
+      // The suite must earn complete coverage in every category.
       thresholds: {
-        branches: 80,
-        functions: 92,
-        lines: 92,
-        statements: 92
+        branches: 100,
+        functions: 100,
+        lines: 100,
+        statements: 100
       }
     }
   }

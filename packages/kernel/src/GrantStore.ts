@@ -186,13 +186,13 @@ const normalizeRules = (
   readonly configured: Array<Rule>
   readonly remembered: Array<Rule>
 } => {
-  if (rules === undefined || rules.length === 0) {
+  if (rules === undefined || rules.length === 0 || rules[0] === undefined) {
     return { configured: [], remembered: [] }
   }
   if (Array.isArray(rules[0])) {
     const rulesets = rules as ReadonlyArray<ReadonlyArray<Rule>>
     return {
-      configured: [...(rulesets[0] ?? [])],
+      configured: [...rulesets[0]!],
       remembered: rulesets.slice(1).flatMap((ruleset) => [...ruleset])
     }
   }
@@ -277,20 +277,18 @@ export const make = (
     yield* Effect.addFinalizer(() =>
       mutation.withPermit(
         Effect.gen(function*() {
-          if (!closed) {
-            closed = true
-            const entries = [...pending.values()]
-            pending.clear()
-            yield* Effect.forEach(
-              entries,
-              (entry) =>
-                Deferred.fail(
-                  entry.deferred,
-                  permissionDenied(entry.capability, "grant store closed")
-                ),
-              { discard: true }
-            )
-          }
+          closed = true
+          const entries = [...pending.values()]
+          pending.clear()
+          yield* Effect.forEach(
+            entries,
+            (entry) =>
+              Deferred.fail(
+                entry.deferred,
+                permissionDenied(entry.capability, "grant store closed")
+              ),
+            { discard: true }
+          )
         })
       )
     )
@@ -301,45 +299,19 @@ export const make = (
       meta: Record<string, unknown>,
       ceiling: CapabilitySet
     ): Effect.Effect<PendingEntry, GrantStoreError> =>
-      Effect.suspend(() => {
-        let registered = false
-        let requestId = ""
-        return Effect.uninterruptible(
-          Effect.gen(function*() {
-            if (closed) {
-              return yield* Effect.fail(new GrantStoreError({ code: "store_closed" }))
-            }
-            requestId = `permission-${nextRequestId++}`
-            if (pending.has(requestId)) {
-              return yield* Effect.fail(
-                new GrantStoreError({
-                  code: "duplicate_request",
-                  message: `duplicate permission request: ${requestId}`
-                })
-              )
-            }
-            const deferred = yield* Deferred.make<void, PermissionDenied>()
-            const entry: PendingEntry = {
-              requestId,
-              capability,
-              tier,
-              meta,
-              ceiling,
-              deferred
-            }
-            pending.set(requestId, entry)
-            registered = true
-            return entry
-          }).pipe(
-            Effect.onError(() =>
-              Effect.sync(() => {
-                if (registered) {
-                  pending.delete(requestId)
-                }
-              })
-            )
-          )
-        )
+      Effect.gen(function*() {
+        const requestId = `permission-${nextRequestId++}`
+        const deferred = yield* Deferred.make<void, PermissionDenied>()
+        const entry: PendingEntry = {
+          requestId,
+          capability,
+          tier,
+          meta,
+          ceiling,
+          deferred
+        }
+        pending.set(requestId, entry)
+        return entry
       })
 
     const nextUnattendedRequestId = Effect.sync(() => `permission-${nextRequestId++}`)

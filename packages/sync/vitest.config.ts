@@ -8,15 +8,13 @@ export default defineConfig({
       // thresholds — a red gate fails the run (issue #20).
       enabled: true,
       provider: "v8",
-      // Accurate, enforceable floors measured against the committed suite,
-      // re-ratcheted after the client-cursor/server-paging/transport-fault
-      // suites landed (issue #33). Ratchet upward as tests land; never lower
-      // without a written justification.
+      // The suite covers every reachable statement, branch, function, and
+      // line in the package, including its test transport boundary.
       thresholds: {
-        branches: 85,
-        functions: 96,
-        lines: 97,
-        statements: 96
+        branches: 100,
+        functions: 100,
+        lines: 100,
+        statements: 100
       }
     }
   }

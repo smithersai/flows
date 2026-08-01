@@ -309,3 +309,34 @@ describe("TestHost unsupported services", () => {
     expect(error.reason._tag).toBe("TransportError")
   })
 })
+
+describe("TestHost memory filesystem edges", () => {
+  it("refuses to list a file as a directory", async () => {
+    const memory = TestHost.makeMemoryFs({ "/dir/f.txt": "x" })
+
+    await expect(memory.readdir("/dir/f.txt")).rejects.toMatchObject({ code: "ENOENT" })
+    await expect(memory.readdir("/dir")).resolves.toEqual(["f.txt"])
+  })
+
+  it("reports files and directories as such, and never as symbolic links", async () => {
+    const memory = TestHost.makeMemoryFs({ "/dir/f.txt": "abc" })
+
+    const file = await memory.stat("/dir/f.txt")
+    const directory = await memory.stat("/dir")
+
+    expect([file.isFile(), file.isDirectory(), file.isSymbolicLink()]).toEqual([true, false, false])
+    expect([directory.isFile(), directory.isDirectory(), directory.isSymbolicLink()]).toEqual([false, true, false])
+  })
+
+  it("lists a nested path under its immediate parent name only once", async () => {
+    const memory = TestHost.makeMemoryFs({ "/a/b/c.txt": "x", "/a/b/d.txt": "y", "/a/top.txt": "z" })
+
+    expect(await memory.readdir("/a")).toEqual(["b", "top.txt"])
+  })
+})
+
+describe("TestHost scripted shell defaults", () => {
+  it("reports the interpreter root as the working directory", () => {
+    expect(TestHost.makeStubBash().getCwd?.()).toBe("/")
+  })
+})

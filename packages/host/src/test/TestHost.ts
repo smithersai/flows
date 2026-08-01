@@ -95,8 +95,8 @@ export const makeMemoryFs = (
       for (const key of entries.keys()) {
         if (key === dir || !key.startsWith(prefix)) continue
         const rest = key.slice(prefix.length)
-        const head = rest.split("/")[0]
-        if (head !== undefined && head !== "") names.add(head)
+        const slash = rest.indexOf("/")
+        names.add(slash === -1 ? rest : rest.slice(0, slash))
       }
       return [...names].sort()
     },

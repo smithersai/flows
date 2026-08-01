@@ -1,4 +1,5 @@
 import { Database } from "@smithers/database/Database"
+import * as DatabaseModule from "@smithers/database/Database"
 import * as TestDatabase from "@smithers/database/test/TestDatabase"
 import * as Migrations from "@smithers/journal/Migrations"
 import * as Effect from "effect/Effect"
@@ -126,6 +127,28 @@ describe("SqlTimeTravelStore.descendants", () => {
       attached: true
     })
   })
+
+  it("deduplicates an attached cycle while preserving every reachable edge", async () => {
+    const result = await run((store, sql) =>
+      Effect.gen(function*() {
+        for (
+          const [parentRunId, childRunId] of [
+            ["parent", "child"],
+            ["child", "parent"]
+          ] as const
+        ) {
+          yield* sql`
+            INSERT INTO flows_time_travel_edges (parent_run_id, parent_seq, child_run_id, kind, attached)
+            VALUES (${parentRunId}, 1, ${childRunId}, 'continuation', 1)
+          `
+        }
+        return yield* store.descendants("parent", { lineageId: "main", seq: 0 })
+      })
+    )
+
+    expect(result.attached.map((edge) => edge.childRunId)).toEqual(["child", "parent"])
+    expect(result.detached).toEqual([])
+  })
 })
 
 describe("SqlTimeTravelStore audits", () => {
@@ -197,6 +220,40 @@ describe("SqlTimeTravelStore audits", () => {
     const error = await run((store) => Effect.flip(store.updateAudit("nope", { status: "completed" })))
 
     expect(error).toMatchObject({ code: "unknown" })
+  })
+
+  it("keeps absent optional fields absent when an audit is updated", async () => {
+    const [audit] = await run((store) =>
+      Effect.gen(function*() {
+        yield* store.writeAudit({
+          id: "audit-empty",
+          runId: "run",
+          frame: { lineageId: "main", seq: 0 },
+          status: "in_progress"
+        })
+        yield* store.updateAudit("audit-empty", { status: "in_progress" })
+        return yield* store.pendingAudits()
+      })
+    )
+
+    expect(audit).toEqual({
+      id: "audit-empty",
+      runId: "run",
+      frame: { lineageId: "main", seq: 0 },
+      status: "in_progress",
+      rateLimit: undefined,
+      detail: undefined
+    })
+  })
+})
+
+describe("SqlTimeTravelStore construction", () => {
+  it("dies before exposing a store when its migration cannot run", async () => {
+    const exit = await Effect.runPromise(
+      Effect.exit(SqlTimeTravelStore.make.pipe(Effect.provide(DatabaseModule.layerNoop)))
+    )
+
+    expect(exit._tag).toBe("Failure")
   })
 })
 

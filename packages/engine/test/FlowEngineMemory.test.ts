@@ -51,7 +51,7 @@ describe("memory engine execution surface", () => {
     }).pipe(Effect.provide(layer))
   })
 
-  effect("interruptUnsafe interrupts a running execution's fiber", () => {
+  effect("interruptUnsafe interrupts the fiber established before discard returns", () => {
     const flow = Flow.make("Memory/interrupt-unsafe", {
       payload: { id: Schema.String },
       success: Schema.Void
@@ -63,6 +63,11 @@ describe("memory engine execution surface", () => {
       yield* flow.execute({ id: "x" }, { executionId: "run-i", discard: true })
       const engine = yield* FlowEngine.FlowEngine
       yield* engine.interruptUnsafe(flow, "run-i")
+      const result = yield* flow.poll("run-i").pipe(Effect.exit)
+      // A discard result is observable only after `resume` has installed the
+      // execution fiber; unsafe interruption can therefore always target it.
+      expect(Exit.isFailure(result)).toBe(true)
+      expect(Exit.isFailure(result) && String(result.cause)).toContain("Interrupt")
       // interrupting an unknown id is a no-op
       yield* flow.interrupt("missing")
     }).pipe(Effect.provide(layer))

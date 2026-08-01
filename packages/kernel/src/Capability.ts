@@ -247,7 +247,7 @@ const lexicalPath = (path: string): string => {
       segments.push(segment)
     }
   }
-  return `${prefix}${segments.join("/")}` || (absolute ? prefix : ".")
+  return `${prefix}${segments.join("/")}` || "."
 }
 
 const isAbsolutePath = (path: string): boolean => path.startsWith("/") || /^[A-Za-z]:\//.test(path)
@@ -262,7 +262,16 @@ const isInsideWorkspace = (resource: string, workspaceRoot: string): boolean => 
   const comparableRoot = windowsRoot ? root.toLowerCase() : root
   const comparableResolved = windowsRoot ? resolved.toLowerCase() : resolved
   const prefix = comparableRoot.endsWith("/") ? comparableRoot : `${comparableRoot}/`
-  return comparableResolved === comparableRoot || comparableResolved.startsWith(prefix)
+  if (comparableResolved === comparableRoot) {
+    return true
+  }
+  if (!comparableResolved.startsWith(prefix)) {
+    return false
+  }
+  // A relative root keeps its leading `..` segments, so a textual prefix match
+  // is not containment: `../../x` starts with `../` yet escapes the root `..`.
+  const remainder = comparableResolved.slice(prefix.length)
+  return remainder !== ".." && !remainder.startsWith("../")
 }
 
 /**

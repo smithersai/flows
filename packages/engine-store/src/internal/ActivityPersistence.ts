@@ -301,7 +301,10 @@ export const make = (deps: Dependencies) =>
           state: "failed",
           finishedAtMs,
           error: preparedResult.cause,
-          meta: { tier: input.tier, ...(snapshotId === undefined ? {} : { snapshotId }) }
+          // A boundary is prepared only for sealed work, while snapshots are
+          // created only for compensable work. The two capabilities are
+          // disjoint, so a preparation failure can never carry a snapshot.
+          meta: { tier: input.tier }
         }, deps.owner)
         if (finished._tag !== "Finished") return yield* Effect.interrupt
         yield* emitLifecycle(JournalRecords.hardViolation(source(deps), { ...attemptId, error: preparedResult.cause }))
@@ -335,7 +338,9 @@ export const make = (deps: Dependencies) =>
           state: "failed",
           finishedAtMs: failedAtMs,
           error: settled.cause,
-          meta: { tier: input.tier, ...(snapshotId === undefined ? {} : { snapshotId }) }
+          // Settlement, like preparation, runs only for sealed work; a
+          // compensable snapshot is therefore unreachable on this path.
+          meta: { tier: input.tier }
         }, deps.owner)
         if (finished._tag !== "Finished") return yield* Effect.interrupt
         yield* emitLifecycle(JournalRecords.hardViolation(source(deps), { ...attemptId, error: settled.cause }))

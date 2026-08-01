@@ -1,6 +1,8 @@
 import * as Journal from "@smithers/journal/Journal"
 import type * as JournalEvent from "@smithers/journal/JournalEvent"
+import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
+import * as Fiber from "effect/Fiber"
 import * as HashMap from "effect/HashMap"
 import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"
@@ -44,6 +46,123 @@ const handler = (
 })
 
 describe("EffectHandlerRegistry", () => {
+  it("preserves the original activity failure when recording its intended boundary fails", async () => {
+    const journal = Journal.makeNoop({
+      emit: () => Effect.fail(new Error("journal offline"))
+    })
+    const failure = await Effect.runPromise(
+      Effect.flip(
+        EffectBoundary.guard({
+          id: "emit-failure",
+          kind: "mail.send",
+          tier: "irreversible",
+          runId: "run",
+          lineageId: "run/root",
+          sourceId: "adapter",
+          metadata: "legacy metadata"
+        }, Effect.succeed("never")).pipe(Effect.provide(Layer.succeed(Journal.Journal, journal)))
+      )
+    )
+
+    expect(failure).toMatchObject({
+      code: "unknown",
+      message: "could not record intended boundary for effect emit-failure"
+    })
+  })
+
+  it("decodes only complete boundary records and retains every supported optional field", () => {
+    const valid = (overrides: Record<string, unknown> = {}): JournalEvent.Entry => ({
+      runId: "run" as JournalEvent.RunId,
+      seq: 4 as JournalEvent.Seq,
+      eventId: "event",
+      sourceId: "source" as JournalEvent.SourceId,
+      sourceSeq: 0 as JournalEvent.SourceSeq,
+      emittedAtMs: 0,
+      eventType: EffectBoundary.eventType,
+      payload: {
+        effect: {
+          id: "effect",
+          kind: "mail.send",
+          tier: "irreversible",
+          status: "succeeded",
+          runId: "run",
+          lineageId: "run/root",
+          input: null,
+          output: 0,
+          cacheKey: "cache",
+          changeId: "change",
+          idempotencyKey: "key",
+          residue: "residue",
+          durableBoundary: false,
+          providerStream: true,
+          attempt: 0,
+          nonce: "nonce",
+          ...overrides
+        }
+      },
+      meta: {}
+    })
+    const decoded = EffectBoundary.fromEntry(valid())
+
+    expect(decoded).toEqual({
+      id: "effect",
+      kind: "mail.send",
+      tier: "irreversible",
+      status: "succeeded",
+      runId: "run",
+      lineageId: "run/root",
+      seq: 4,
+      input: null,
+      output: 0,
+      cacheKey: "cache",
+      changeId: "change",
+      idempotencyKey: "key",
+      residue: "residue",
+      durableBoundary: false,
+      providerStream: true,
+      attempt: 0,
+      nonce: "nonce"
+    })
+    for (const payload of [null, [], {}, { effect: null }, { effect: {} }]) {
+      expect(EffectBoundary.fromEntry({ ...valid(), payload })).toBeUndefined()
+    }
+    for (
+      const [field, value] of Object.entries({ id: 1, kind: 1, tier: "bad", status: "bad", runId: 1, lineageId: 1 })
+    ) {
+      expect(EffectBoundary.fromEntry(valid({ [field]: value }))).toBeUndefined()
+    }
+    expect(EffectBoundary.fromEntry({ ...valid(), eventType: "other" })).toBeUndefined()
+  })
+
+  it("uses durable defaults and folds the latest boundary evidence in sequence order", () => {
+    const entry = (seq: number, id: string, status: EffectBoundary.EffectStatus): JournalEvent.Entry => ({
+      runId: "run" as JournalEvent.RunId,
+      seq: seq as JournalEvent.Seq,
+      eventId: String(seq),
+      sourceId: "source" as JournalEvent.SourceId,
+      sourceSeq: seq as JournalEvent.SourceSeq,
+      emittedAtMs: 0,
+      eventType: EffectBoundary.eventType,
+      payload: { effect: { id, kind: "kind", tier: "sealed", status, runId: "run", lineageId: "run/root" } },
+      meta: {}
+    })
+    expect(EffectBoundary.fromEntry(entry(1, "a", "intended"))).toMatchObject({
+      durableBoundary: true,
+      providerStream: false
+    })
+    expect(
+      EffectBoundary.fromEntries([
+        { ...entry(1, "ignored", "intended"), eventType: "other" },
+        entry(3, "a", "unknown"),
+        entry(2, "b", "succeeded"),
+        entry(4, "a", "succeeded")
+      ])
+    )
+      .toEqual([
+        expect.objectContaining({ id: "b", seq: 2 }),
+        expect.objectContaining({ id: "a", seq: 4, status: "succeeded" })
+      ])
+  })
   it("rejects duplicate stable effect kinds before exposing a registry", () => {
     const failure = Effect.runSync(
       Effect.flip(EffectHandlerRegistry.make([handler(), handler()]))
@@ -61,6 +180,17 @@ describe("EffectHandlerRegistry", () => {
     expect(updated.resolve("mail.send")).toBeDefined()
     expect(HashMap.size(original.handlers)).toBe(0)
     expect(HashMap.size(updated.handlers)).toBe(1)
+  })
+
+  it("rejects a duplicate registration on an existing immutable registry", () => {
+    const registry = Effect.runSync(EffectHandlerRegistry.make([handler()]))
+    const failure = Effect.runSync(Effect.flip(registry.register(handler())))
+
+    expect(failure).toMatchObject({
+      code: "unknown",
+      message: "effect handler mail.send is already registered"
+    })
+    expect(HashMap.size(registry.handlers)).toBe(1)
   })
 
   it("blocks unknown completion state with residue disclosure", () => {
@@ -232,6 +362,7 @@ describe("EffectHandlerRegistry", () => {
         lineageId: "run/root",
         sourceId: "adapter",
         sourceSeq: 10,
+        cacheKey: "mail-cache-key",
         metadata: { adapter: "mail" }
       }, Effect.succeed("sent")).pipe(
         Effect.provide(Layer.succeed(Journal.Journal, journal))
@@ -247,6 +378,7 @@ describe("EffectHandlerRegistry", () => {
     expect(emitted[1]?.meta).toMatchObject({
       adapter: "mail",
       lineageId: "run/root",
+      cacheKey: "mail-cache-key",
       timeTravel: {
         effectId: "effect-boundary",
         status: "succeeded"
@@ -288,5 +420,73 @@ describe("EffectHandlerRegistry", () => {
         readonly effect: { readonly status: string }
       }).effect.status
     )).toEqual(["intended", "unknown"])
+  })
+
+  it("preserves an activity failure when recording its unknown boundary also fails", async () => {
+    let emits = 0
+    const journal = Journal.makeNoop({
+      emit: () =>
+        Effect.suspend(() => {
+          emits += 1
+          return emits === 2
+            ? Effect.fail(new Error("terminal journal failure"))
+            : Effect.succeed({
+              _tag: "Accepted" as const,
+              seq: emits as JournalEvent.Seq,
+              sourceSeq: emits as JournalEvent.SourceSeq
+            })
+        })
+    })
+
+    const failure = await Effect.runPromise(
+      Effect.flip(
+        EffectBoundary.guard({
+          id: "terminal-emit-failure",
+          kind: "mail.send",
+          tier: "irreversible",
+          runId: "run",
+          lineageId: "run/root",
+          sourceId: "adapter"
+        }, Effect.fail("activity-failed")).pipe(Effect.provide(Layer.succeed(Journal.Journal, journal)))
+      )
+    )
+
+    expect(failure).toBe("activity-failed")
+    expect(emits).toBe(2)
+  })
+
+  it("settles an interrupted activity as unknown before the fiber exits", async () => {
+    const emitted: Array<string> = []
+    const entered = Effect.runSync(Deferred.make<void>())
+    const journal = Journal.makeNoop({
+      emit: (input) =>
+        Effect.sync(() => {
+          emitted.push((input.payload as { readonly effect: { readonly status: string } }).effect.status)
+          return {
+            _tag: "Accepted" as const,
+            seq: emitted.length as JournalEvent.Seq,
+            sourceSeq: emitted.length as JournalEvent.SourceSeq
+          }
+        })
+    })
+    const fiber = Effect.runFork(
+      EffectBoundary.guard({
+        id: "interrupted",
+        kind: "mail.send",
+        tier: "irreversible",
+        runId: "run",
+        lineageId: "run/root",
+        sourceId: "adapter"
+      }, Deferred.succeed(entered, undefined).pipe(Effect.andThen(Effect.never))).pipe(
+        Effect.provide(Layer.succeed(Journal.Journal, journal))
+      )
+    )
+
+    await Effect.runPromise(Deferred.await(entered))
+    await Effect.runPromise(Fiber.interrupt(fiber))
+    const exit = await Effect.runPromise(Fiber.await(fiber))
+
+    expect(exit._tag).toBe("Failure")
+    expect(emitted).toEqual(["intended", "unknown"])
   })
 })

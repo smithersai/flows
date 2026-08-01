@@ -125,6 +125,37 @@ describe("Rewind run claim arbitration", () => {
     expect(failure.code).toBe("busy")
   })
 
+  it("refuses pending or suspended rows with dangling ownership evidence", async () => {
+    for (
+      const unavailable of [
+        row("run", "suspended"),
+        row("run", "pending")
+      ]
+    ) {
+      if (unavailable.status === "suspended") {
+        unavailable.owner = owner
+        unavailable.heartbeatAtMs = 1
+      } else {
+        unavailable.claim = owner
+        unavailable.claimedAtMs = 1
+      }
+      let claims = 0
+      const failure = await rewind(
+        RunStore.makeNoop({
+          get: () => Effect.succeed(unavailable),
+          claim: () =>
+            Effect.sync(() => {
+              claims += 1
+              return { _tag: "Claimed" as const, claimedAtMs: 2 }
+            })
+        })
+      )
+
+      expect(failure).toMatchObject({ code: "busy", message: "run run is not available for rewind" })
+      expect(claims).toBe(0)
+    }
+  })
+
   it("maps a missing run row to a typed not_found failure", async () => {
     const failure = await rewind(RunStore.makeNoop({ get: () => Effect.fail(runError("get")) }))
 
@@ -159,6 +190,31 @@ describe("Rewind run claim arbitration", () => {
     )
 
     expect(failure).toMatchObject({ code: "busy", message: "run run lost the rewind claim" })
+  })
+
+  it("maps claim and activation persistence failures", async () => {
+    const scenarios = [
+      {
+        message: "claim run failed",
+        runs: RunStore.makeNoop({
+          get: () => Effect.succeed(row("run")),
+          claim: () => Effect.fail(runError("claim", "persistence_failed"))
+        })
+      },
+      {
+        message: "activate rewind claim failed",
+        runs: RunStore.makeNoop({
+          get: () => Effect.succeed(row("run")),
+          claim: () => Effect.succeed({ _tag: "Claimed" as const, claimedAtMs: 7 }),
+          activate: () => Effect.fail(runError("activate", "persistence_failed"))
+        })
+      }
+    ]
+
+    for (const scenario of scenarios) {
+      const failure = await rewind(scenario.runs)
+      expect(failure).toMatchObject({ code: "unknown", message: scenario.message })
+    }
   })
 
   it("abandons the claim when activation is lost", async () => {
@@ -385,5 +441,52 @@ describe("Rewind detached child cancellation", () => {
     )
 
     expect(failure).toMatchObject({ code: "unknown", message: "claim detached child failed" })
+  })
+
+  it("maps every remaining child ownership persistence failure", async () => {
+    const scenarios: ReadonlyArray<{
+      readonly message: string
+      readonly runs: RunStore.Service
+      readonly options?: Partial<Rewind.Options>
+    }> = [
+      {
+        message: "activate detached child failed",
+        runs: parentRuns({
+          claim: () => Effect.succeed({ _tag: "Claimed" as const, claimedAtMs: 4 }),
+          activate: () => Effect.fail(runError("activate", "persistence_failed"))
+        })
+      },
+      {
+        message: "cancel detached child failed",
+        runs: parentRuns({
+          claim: () => Effect.succeed({ _tag: "Claimed" as const, claimedAtMs: 4 }),
+          transitionOwned: () => Effect.fail(runError("cancel", "persistence_failed"))
+        })
+      },
+      {
+        message: "claim detached child failed",
+        runs: parentRuns(
+          { steal: () => Effect.fail(runError("steal", "persistence_failed")) },
+          row("child", "running")
+        ),
+        options: {
+          childLivenessEvidence: (_childRunId, childRow, childOwner, nowMs) =>
+            Effect.succeed({
+              expectedOwner: childRow.owner ?? childOwner,
+              checkedAtMs: nowMs,
+              kind: "cross-host-unreachable-stale"
+            })
+        }
+      }
+    ]
+
+    for (const scenario of scenarios) {
+      const failure = await rewind(
+        scenario.runs,
+        { detachedChildPolicy: "cancel", ...scenario.options },
+        storeWithChild()
+      )
+      expect(failure).toMatchObject({ code: "unknown", message: scenario.message })
+    }
   })
 })

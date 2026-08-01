@@ -85,7 +85,10 @@ const cursorMap = (cursors: WorkspaceCursor): Cursors =>
 
 const canonicalCursors = (cursors: ReadonlyMap<JournalEvent.RunId, JournalEvent.Seq>): WorkspaceCursor =>
   Array.from(cursors, ([runId, afterSeq]) => ({ runId, afterSeq })).sort((left, right) =>
-    left.runId < right.runId ? -1 : left.runId > right.runId ? 1 : 0
+    // A Map has one value per key, so this comparator never receives equal
+    // run IDs. `cursorMap` and the acknowledged cursor state both establish
+    // that invariant before reaching this boundary.
+    left.runId > right.runId ? 1 : -1
   )
 
 /**

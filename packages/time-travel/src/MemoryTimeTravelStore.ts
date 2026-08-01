@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import type { Frame, LineageEdge } from "./Frame.ts"
-import { error, type TimeTravelError } from "./TimeTravelError.ts"
+import { error, TimeTravelError } from "./TimeTravelError.ts"
 import * as TimeTravelStore from "./TimeTravelStore.ts"
 
 /** @since 0.1.0 @category models */
@@ -43,6 +43,7 @@ const descendantsFrom = (
   const attached: Array<LineageEdge> = []
   const detached: Array<LineageEdge> = []
   const attachedRunIds = new Set<string>()
+  const detachedRunIds = new Set<string>()
   const queue: Array<string> = []
 
   const include = (edge: LineageEdge): void => {
@@ -52,7 +53,9 @@ const descendantsFrom = (
       attachedRunIds.add(edge.childRunId)
       queue.push(edge.childRunId)
     } else {
+      if (detachedRunIds.has(edge.childRunId)) return
       detached.push(edge)
+      detachedRunIds.add(edge.childRunId)
     }
   }
 
@@ -110,8 +113,8 @@ export const make = (options: Options = {}): TimeTravelStore.Service & { readonl
         }
       },
       catch: (cause) =>
-        cause instanceof Error && "code" in cause
-          ? cause as TimeTravelError
+        cause instanceof TimeTravelError
+          ? cause
           : error("unknown", "memory transaction failed", cause)
     })
   const service = TimeTravelStore.make({

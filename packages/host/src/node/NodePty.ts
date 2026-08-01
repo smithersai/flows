@@ -59,8 +59,8 @@ class Ring {
     this.bytes += chunk.byteLength
     this.cursor += chunk.byteLength
     while (this.bytes > RING_BYTES && this.chunks.length > 1) {
-      const dropped = this.chunks.shift()
-      if (dropped === undefined) break
+      // The loop guard keeps at least two chunks, so `shift` always yields one.
+      const dropped = this.chunks.shift()!
       this.bytes -= dropped.byteLength
       this.floor += dropped.byteLength
     }
@@ -99,6 +99,26 @@ const makeHandle = (
         if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL")
       })
   ).pipe(
+    /**
+     * A child that cannot start reports it asynchronously through `error`, and
+     * an unobserved `error` event on a `ChildProcess` is rethrown by Node as an
+     * uncaught exception. `spawn` therefore waits for the child to reach one of
+     * its two terminal starting states before a handle exists at all.
+     */
+    Effect.tap((child) =>
+      Effect.callback<void, PtyError>((resume) => {
+        const onSpawn = (): void => {
+          child.off("error", onError)
+          resume(Effect.void)
+        }
+        const onError = (error: NodeJS.ErrnoException): void => {
+          child.off("spawn", onSpawn)
+          resume(Effect.fail(handleErrnoException("spawn")(error)))
+        }
+        child.once("spawn", onSpawn)
+        child.once("error", onError)
+      })
+    ),
     Effect.map((child): PtyHandle => {
       const ring = new Ring()
       const subscribers = new Set<Queue.Queue<Uint8Array, PtyError | Cause.Done>>()

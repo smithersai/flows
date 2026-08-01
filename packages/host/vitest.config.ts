@@ -15,13 +15,14 @@ export default defineConfig({
       // Accurate, enforceable floors measured against the committed suite.
       // Ratchet upward as tests land; never lower without a written
       // justification.
-      // Measured src-only on the committed suite: 95.13 stmts / 91.98
-      // branches / 94.28 funcs / 95.44 lines (issue #51).
+      // Measured src-only: the package is fully covered. Every branch of the
+      // Host surface — including the Windows, Bun, and unsupported-capability
+      // paths this runtime never takes on its own — has a behavioural case.
       thresholds: {
-        branches: 91,
-        functions: 94,
-        lines: 95,
-        statements: 95
+        branches: 100,
+        functions: 100,
+        lines: 100,
+        statements: 100
       }
     }
   }

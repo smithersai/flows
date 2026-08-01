@@ -188,4 +188,86 @@ describe("Replay", () => {
 
     expect(failure).toMatchObject({ code: "unknown", message: "could not read sealed result" })
   })
+
+  it("passes an absent sealed cache entry to the projection as undefined", async () => {
+    const journal = Journal.makeNoop({
+      entries: () => Effect.succeed({ entries: [entry(0, "first", "missing")], hasMore: false })
+    })
+
+    const values = await Effect.runPromise(
+      Replay.rederive(
+        { lineageId: "run/root", seq: 0 },
+        {
+          initial: [] as Array<unknown>,
+          reduce: (state, _entry, sealed) => [...state, sealed]
+        },
+        { runId: "run" }
+      ).pipe(
+        Effect.provide(Layer.succeed(Journal.Journal, journal)),
+        Effect.provide(CacheStore.layerNoop({ get: () => Effect.succeed(Option.none()) }))
+      )
+    )
+
+    expect(values).toEqual([undefined])
+  })
+
+  it("handles malformed additive metadata without treating it as lineage or cache evidence", async () => {
+    const malformed = [
+      { ...entry(0, "null"), meta: null },
+      { ...entry(1, "number"), meta: 1 },
+      { ...entry(2, "bad-lineage"), meta: { lineageId: 1 } },
+      { ...entry(3, "bad-cache"), meta: { lineageId: "run/root", cacheKey: 1 } }
+    ] as ReadonlyArray<Entry>
+    const journal = Journal.makeNoop({
+      entries: () => Effect.succeed({ entries: malformed, hasMore: false })
+    })
+
+    const values = await Effect.runPromise(
+      Replay.rederive(
+        { lineageId: "run/root", seq: 3 },
+        {
+          initial: [] as Array<string>,
+          reduce: (state, current, sealed) => [...state, `${String(current.payload)}:${String(sealed)}`]
+        },
+        { runId: "run" }
+      ).pipe(
+        Effect.provide(Layer.succeed(Journal.Journal, journal)),
+        Effect.provide(CacheStore.layerNoop())
+      )
+    )
+
+    expect(values).toEqual([
+      "null:undefined",
+      "number:undefined",
+      "bad-lineage:undefined",
+      "bad-cache:undefined"
+    ])
+  })
+
+  it("terminates a malformed empty continuation page instead of spinning", async () => {
+    let pages = 0
+    const journal = Journal.makeNoop({
+      entries: () =>
+        Effect.sync(() => {
+          pages += 1
+          return { entries: [], hasMore: true }
+        })
+    })
+
+    const failure = await Effect.runPromise(
+      Effect.flip(
+        Replay.rederive(
+          { lineageId: "run/root", seq: 0 },
+          { initial: 0, reduce: (count: number) => count + 1 },
+          { runId: "run" }
+        ).pipe(
+          Effect.provide(Layer.succeed(Journal.Journal, journal)),
+          Effect.provide(CacheStore.layerNoop())
+        )
+      )
+    )
+
+    expect(pages).toBe(1)
+    expect(failure).toMatchObject({ code: "not_found" })
+  })
 })

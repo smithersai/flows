@@ -370,6 +370,34 @@ describe("GrantStore", () => {
       })
     ))
 
+  itEffect("serializes request allocation and never reuses an interrupted request id", () =>
+    Effect.scoped(
+      Effect.gen(function*() {
+        const first = new Capability({ action: "fs:read", resource: "/workspace/first.md" })
+        const second = new Capability({ action: "fs:read", resource: "/workspace/second.md" })
+        const third = new Capability({ action: "fs:read", resource: "/workspace/third.md" })
+        const store = yield* make()
+        const firstFiber = yield* store.check(first).pipe(Effect.forkChild({ startImmediately: true }))
+        const secondFiber = yield* store.check(second).pipe(Effect.forkChild({ startImmediately: true }))
+
+        const initial = yield* awaitPending(store, 2)
+        expect(initial.map(({ requestId }) => requestId)).toEqual(["permission-1", "permission-2"])
+
+        yield* Fiber.interrupt(firstFiber)
+        const thirdFiber = yield* store.check(third).pipe(Effect.forkChild({ startImmediately: true }))
+        const remaining = yield* awaitPending(store, 2)
+        expect(remaining.map(({ requestId }) => requestId)).toEqual(["permission-2", "permission-3"])
+
+        // Allocation runs under the same permit as the closed-state check and
+        // the counter advances monotonically, so duplicate and mid-allocation
+        // cleanup branches are unreachable store states.
+        yield* Effect.forEach(remaining, ({ requestId }) => store.reply(requestId, "once"), { discard: true })
+        yield* Fiber.join(secondFiber)
+        yield* Fiber.join(thirdFiber)
+        expect(yield* store.list).toEqual([])
+      })
+    ))
+
   itEffect("unattended checks carry one exact capability and its tier", () =>
     Effect.scoped(
       Effect.gen(function*() {
