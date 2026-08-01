@@ -3,7 +3,13 @@ import { Cause, Clock, Deferred, Duration, Effect, Exit, Fiber } from "effect"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as Migrations from "../src/Migrations.ts"
-import { heartbeatInterval, heartbeatLoop, type LivenessEvidence, type OwnerId } from "../src/Ownership.ts"
+import {
+  heartbeatInterval,
+  heartbeatLoop,
+  heartbeatStaleAfter,
+  type LivenessEvidence,
+  type OwnerId
+} from "../src/Ownership.ts"
 import { type RunRow, type RunSnapshot, type RunStatus, RunStore } from "../src/RunStore.ts"
 import * as RunStoreLive from "../src/RunStore.ts"
 
@@ -669,13 +675,24 @@ describe("RunStore", () => {
     expect(Exit.isFailure(result) && Cause.hasInterruptsOnly(result.cause)).toBe(true)
   })
 
-  it("interrupts its owner when heartbeat persistence fails", async () => {
-    const failure = new RunStoreLive.RunStoreError({
-      code: "persistence_failed",
-      method: "heartbeat",
-      message: "persistence_failed: heartbeat failed",
-      cause: new Error("database unavailable")
+  const heartbeatFailure = new RunStoreLive.RunStoreError({
+    code: "persistence_failed",
+    method: "heartbeat",
+    message: "persistence_failed: heartbeat failed",
+    cause: new Error("database unavailable")
+  })
+
+  /** A heartbeat store whose writes fail exactly while `broken.value` is set. */
+  const flakyHeartbeatStore = (broken: { value: boolean }) =>
+    RunStoreLive.layerNoop({
+      heartbeat: (_runId: string, _owner: OwnerId, atMs: number) =>
+        broken.value
+          ? Effect.fail(heartbeatFailure)
+          : Effect.succeed({ _tag: "Updated" as const, heartbeatAtMs: atMs })
     })
+
+  it("keeps pulsing through transient heartbeat failures until the fence goes stale", async () => {
+    const broken = { value: true }
     const result = await run(
       Effect.scoped(Effect.gen(function*() {
         const started = yield* Deferred.make<void>()
@@ -687,20 +704,59 @@ describe("RunStore", () => {
         ).pipe(Effect.forkChild({ startImmediately: true }))
 
         yield* Deferred.await(started)
-        yield* TestClock.adjust(heartbeatInterval)
+        // Consecutive write failures inside the staleness window must not
+        // interrupt the owned work: no other process may legally steal the run
+        // while the persisted heartbeat is still fresh.
+        yield* TestClock.adjust(Duration.seconds(5))
         yield* Effect.yieldNow
-        return yield* Fiber.await(owningFiber)
+        const survived = owningFiber.pollUnsafe()
+        // The window then closes and the loop hands the fence back.
+        yield* TestClock.adjust(heartbeatStaleAfter)
+        yield* Effect.yieldNow
+        const exit = yield* Fiber.await(owningFiber)
+        return { exit, survived }
       })).pipe(
-        Effect.provide(
-          RunStoreLive.layerNoop({
-            heartbeat: () => Effect.fail(failure)
-          })
-        ),
+        Effect.provide(flakyHeartbeatStore(broken)),
         Effect.provide(TestClock.layer())
       )
     )
 
-    expect(Exit.isFailure(result) && Cause.hasInterruptsOnly(result.cause)).toBe(true)
+    expect(result.survived).toBe(undefined)
+    expect(Exit.isFailure(result.exit) && Cause.hasInterruptsOnly(result.exit.cause)).toBe(true)
+  })
+
+  it("re-arms the tolerance window whenever a heartbeat write succeeds", async () => {
+    const broken = { value: true }
+    const alive = await run(
+      Effect.scoped(Effect.gen(function*() {
+        const started = yield* Deferred.make<void>()
+        const owningFiber = yield* Effect.scoped(
+          Effect.gen(function*() {
+            yield* Deferred.succeed(started, undefined)
+            return yield* Effect.raceFirst(Effect.never, heartbeatLoop("run-heartbeat-flap", ownerA))
+          })
+        ).pipe(Effect.forkChild({ startImmediately: true }))
+
+        yield* Deferred.await(started)
+        // Flap: fail for most of a window, recover for one pulse, then fail
+        // again. The successful pulse re-arms the fence, so the second outage
+        // gets a full window of its own and the loop is still alive after a
+        // total outage far longer than `heartbeatStaleAfter`.
+        yield* TestClock.adjust(Duration.seconds(25))
+        broken.value = false
+        yield* TestClock.adjust(heartbeatInterval)
+        yield* Effect.yieldNow
+        broken.value = true
+        yield* TestClock.adjust(Duration.seconds(25))
+        yield* Effect.yieldNow
+        return owningFiber.pollUnsafe()
+      })).pipe(
+        Effect.provide(flakyHeartbeatStore(broken)),
+        Effect.provide(TestClock.layer())
+      )
+    )
+
+    expect(alive).toBe(undefined)
   })
 
   it("suspends while clearing owner, heartbeat, and an in-flight claim atomically", async () => {

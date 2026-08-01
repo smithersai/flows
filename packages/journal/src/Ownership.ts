@@ -93,6 +93,12 @@ export const heartbeatStaleAfter: Duration.Duration = Duration.seconds(30)
  * Pulses are delayed by `heartbeatInterval` and read the Effect `Clock`, so the
  * loop is fully driveable with `TestClock`.
  *
+ * A lost fence — any outcome other than `Updated` — is durable evidence and
+ * interrupts immediately. A failed heartbeat *write* is not: the persisted
+ * heartbeat is still there and no other process may steal the run until it is
+ * `heartbeatStaleAfter` old, so transient write errors are tolerated until
+ * that window closes. Every successful pulse re-arms the window.
+ *
  * @since 0.1.0
  * @category supervision
  */
@@ -102,11 +108,22 @@ export const heartbeatLoop = (
 ): Effect.Effect<never, never, RunStore> =>
   Effect.gen(function*() {
     const runStore = yield* RunStore
+    const staleAfterMs = Duration.toMillis(heartbeatStaleAfter)
+    let lastPulseMs = yield* Clock.currentTimeMillis
     return yield* Effect.sleep(heartbeatInterval).pipe(
       Effect.andThen(Clock.currentTimeMillis),
-      Effect.flatMap((nowMs) => runStore.heartbeat(runId, owner, nowMs)),
-      Effect.flatMap((outcome) => outcome._tag === "Updated" ? Effect.void : Effect.interrupt),
-      Effect.catch(() => Effect.interrupt),
+      Effect.flatMap((nowMs) =>
+        runStore.heartbeat(runId, owner, nowMs).pipe(
+          Effect.flatMap((outcome) =>
+            outcome._tag === "Updated"
+              ? Effect.sync(() => {
+                lastPulseMs = nowMs
+              })
+              : Effect.interrupt
+          ),
+          Effect.catch(() => nowMs - lastPulseMs >= staleAfterMs ? Effect.interrupt : Effect.void)
+        )
+      ),
       Effect.forever
     )
   })

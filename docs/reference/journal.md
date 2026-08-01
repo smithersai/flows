@@ -47,7 +47,7 @@ Stated deviation from smithers (`packages/db/src/adapter.js`), which allocates u
 
 Because that transaction both replays and can abort at COMMIT, `emitDurable` mutates the in-memory clock and publishes to `changes`/the per-run wake PubSub strictly *after* the transaction returns, exactly as the queued path publishes outside `persistBatch`. A rolled-back write is never observable to a subscriber and never becomes an allocation floor.
 
-The two channels also fail independently. When the optimistic writer fiber dies, the queued channel is finished — `emitLossy`, `emit` under memory allocation, `flush`, and live `stream` consumers all fail with `sink_failed`, because nothing will drain that queue again and hiding the loss would be worse. `emitDurable` is not gated by it: it opens its own transaction inline, so the lossless lifecycle channel keeps working as soon as the database is healthy again. A transient telemetry-batch failure can no longer revoke the lossless-emit guarantee for the life of the process.
+The two channels also fail independently, and neither failure is permanent. A batch the optimistic writer cannot persist is lost and reported — to the `flush` waiters that covered it, to live `stream` consumers that were following when it happened, and, if nobody was waiting, to the next `flush` — but the writer fiber survives it. Each loss is reported once; a later `flush` with nothing outstanding succeeds, so a single transient outage cannot stall the durable delivery paths in `engine-store` that call `flush` after `emitDurable`. `emitDurable` was never gated by it: it opens its own transaction inline, so the lossless lifecycle channel keeps working as soon as the database is healthy again.
 
 ### Migrations
 
@@ -90,7 +90,7 @@ Promote a field to a column only when it must appear in a CAS guard. `Transition
 
 `requestCancel(runId, nowMs)` records the request without an owner fence — any observer may ask, and the owner decides at its next guarded transition. It returns `CancelRequested`, `AlreadyRequested` (with the original request time, which is never overwritten), or `NotFound`. A guarded transition that loses only to its guard returns `GuardFailed`, distinct from `FenceLost`.
 
-`Ownership.OwnerId` contains `hostId`, `pid`, and `nonce`. `LivenessEvidence` records observer and observation time. `heartbeatLoop`, `heartbeatInterval`, and `heartbeatStaleAfter` support scoped ownership maintenance.
+`Ownership.OwnerId` contains `hostId`, `pid`, and `nonce`. `LivenessEvidence` records observer and observation time. `heartbeatLoop`, `heartbeatInterval`, and `heartbeatStaleAfter` support scoped ownership maintenance. The loop interrupts its owner immediately on durable evidence that the fence is gone (any outcome other than `Updated`), but tolerates failed heartbeat *writes* until the persisted heartbeat is `heartbeatStaleAfter` old — the point at which another process could legally steal the run. A successful pulse re-arms that window.
 
 ## Attempts and cache
 
