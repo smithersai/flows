@@ -222,6 +222,12 @@ export interface RunParentEdge {
  * @category models
  */
 export interface AttemptSurvivors {
+  /**
+   * The lowest surviving attempt number. Anything above 1 means the prune
+   * job removed a leading run of attempts; the engine store applies the
+   * pruned-prefix tolerance to it so both survivor paths agree (issue #96).
+   */
+  readonly earliestAttempt: number
   readonly earliestStartedAtMs: number
   readonly latest: number
 }
@@ -1092,9 +1098,12 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
    * One ordered range read replaces the engine store's per-attempt point
    * probes (issue #77): a fresh key costs one empty SELECT instead of 32
    * sequential gets, and a resumed key one SELECT instead of one per
-   * surviving attempt. Semantics match the point-probe fallback: the
-   * earliest surviving row is the durable retry origin (issue #69), the
-   * highest attempt contiguous from it the resumed counter (issue #59).
+   * surviving attempt. The earliest surviving row is the durable retry
+   * origin (issue #69) and the highest attempt contiguous from it the
+   * resumed counter (issue #59). This read is deliberately unbounded; the
+   * pruned-prefix tolerance that makes it agree with the point-probe
+   * fallback is applied once, by the caller, in
+   * `internal/AttemptProbe.probeAttempts` (issue #96).
    */
   const attemptSurvivors: NonNullable<Service["attemptSurvivors"]> = Effect.fn(
     "DurableEngineState.attemptSurvivors"
@@ -1116,7 +1125,11 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
           if (next !== latest + 1) break
           latest = next
         }
-        return Option.some({ earliestStartedAtMs: Number(first.startedAtMs), latest })
+        return Option.some({
+          earliestAttempt: Number(first.attempt),
+          earliestStartedAtMs: Number(first.startedAtMs),
+          latest
+        })
       })
     )
   )

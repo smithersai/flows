@@ -173,7 +173,7 @@ describe("SQL DurableEngineState", () => {
 
     expect(Option.isNone(result.fresh)).toBe(true)
     expect(Option.isNone(result.otherKey)).toBe(true)
-    expect(Option.getOrThrow(result.pruned)).toEqual({ earliestStartedAtMs: 20, latest: 3 })
+    expect(Option.getOrThrow(result.pruned)).toEqual({ earliestAttempt: 2, earliestStartedAtMs: 20, latest: 3 })
   })
 
   it("creates the partial index the stale-running sweep's per-tick query needs (issue #79)", async () => {

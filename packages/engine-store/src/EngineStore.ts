@@ -20,6 +20,7 @@ import type * as Scope from "effect/Scope"
 import { randomUUID } from "node:crypto"
 import * as DurableEngineState from "./DurableEngineState.ts"
 import * as ActivityPersistence from "./internal/ActivityPersistence.ts"
+import * as AttemptProbe from "./internal/AttemptProbe.ts"
 import * as DeferredPersistence from "./internal/DeferredPersistence.ts"
 import * as RunDriver from "./internal/RunDriver.ts"
 import * as StepBoundary from "./StepBoundary.ts"
@@ -60,58 +61,6 @@ export class EngineCompositionError extends Schema.TaggedErrorClass<EngineCompos
 ) {}
 
 const isBoundaryMetadata = Schema.is(StepBoundary.Descriptor)
-
-/**
- * How many leading attempt numbers the survivor scan tolerates missing
- * before concluding no attempt rows survive. A retention/prune job removes
- * attempts oldest-first, so a surviving sequence is contiguous once its
- * first row is found; the bound only caps the pruned prefix walk
- * (issue #69). Only the fallback path pays this: durable state that
- * implements `attemptSurvivors` answers with one range read (issue #77).
- */
-const prunedPrefixScanLimit = 32
-
-/**
- * Finds the surviving attempt rows for an activity key: the earliest row's
- * start time — the durable retry origin when attempt 1 itself was pruned
- * (issue #69) — and the highest contiguous attempt number, from which the
- * engine resumes the attempt counter (issue #59). `Option.none()` means no
- * attempt row survives.
- *
- * When the durable state can range-scan attempts, one ordered SELECT
- * answers both questions (issue #77); otherwise the point-read scan against
- * `AttemptStore` remains as the fallback, paying up to
- * `prunedPrefixScanLimit` sequential gets for a key that never ran.
- */
-const probeAttempts = (
-  attemptStore: AttemptStore.Service,
-  survivors: DurableEngineState.Service["attemptSurvivors"],
-  runId: string,
-  key: string
-): Effect.Effect<Option.Option<DurableEngineState.AttemptSurvivors>> =>
-  Effect.gen(function*() {
-    const stepKeyDigest = Digest.digest(key)
-    if (survivors !== undefined) {
-      return yield* survivors(runId, stepKeyDigest)
-    }
-    let earliest = Option.none<AttemptStore.Attempt>()
-    let attempt = 1
-    for (; attempt <= prunedPrefixScanLimit; attempt++) {
-      const row = yield* attemptStore.get({ runId, stepKeyDigest, attempt }).pipe(Effect.orDie)
-      if (Option.isSome(row)) {
-        earliest = row
-        break
-      }
-    }
-    if (Option.isNone(earliest)) return Option.none()
-    let latest = attempt
-    for (let next = attempt + 1;; next++) {
-      const row = yield* attemptStore.get({ runId, stepKeyDigest, attempt: next }).pipe(Effect.orDie)
-      if (Option.isNone(row)) break
-      latest = next
-    }
-    return Option.some({ earliestStartedAtMs: earliest.value.startedAtMs, latest })
-  })
 
 const ownerId = (hostId: string): Ownership.OwnerId => ({
   hostId,
@@ -225,7 +174,12 @@ export const make = (
         readonly key: string
       }) {
         const parent = yield* FlowEngine.FlowInstance
-        const survivors = yield* probeAttempts(attemptStore, attemptSurvivors, parent.executionId, input.key)
+        const survivors = yield* AttemptProbe.probeAttempts(
+          attemptStore,
+          attemptSurvivors,
+          parent.executionId,
+          Digest.digest(input.key)
+        )
         return Option.map(survivors, ({ earliestStartedAtMs }) => earliestStartedAtMs)
       }),
       // The durable attempt counter (issue #59): the highest contiguous
@@ -238,7 +192,12 @@ export const make = (
         readonly key: string
       }) {
         const parent = yield* FlowEngine.FlowInstance
-        const survivors = yield* probeAttempts(attemptStore, attemptSurvivors, parent.executionId, input.key)
+        const survivors = yield* AttemptProbe.probeAttempts(
+          attemptStore,
+          attemptSurvivors,
+          parent.executionId,
+          Digest.digest(input.key)
+        )
         return Option.map(survivors, ({ latest }) => latest)
       }),
       deferredResult: deferred.deferredResult,
