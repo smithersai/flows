@@ -89,9 +89,11 @@ export class SnapshotBoundary extends Context.Service<
  * This is a **typed failure**, never a defect: the caller is expected to be
  * able to recover from it (see `docs/specs/Concepts/Run Ownership.md` and
  * `docs/architecture/implementation-status.md`). Detection itself lives in
- * `@smithers/engine-store`'s `internal/RunDriver.ts`, which walks the
- * persisted chain in O(depth); the error is declared here because it is part
- * of the `execute` contract this package owns.
+ * `@smithers/engine-store`'s `DurableEngineState.recordRunParent`, which
+ * inserts the durable parent edge and walks the parent chain in O(depth)
+ * inside one storage transaction, rolling back on a hit; the error is
+ * declared here because it is part of the `execute` contract this package
+ * owns.
  *
  * @category errors
  * @since 0.1.0
@@ -444,6 +446,15 @@ export interface Encoded {
    * Durable drivers implement it so a `RetryPolicy.expirationMs`
    * (schedule-to-close) bound survives park/resume and process death
    * (issue #45); when absent the engine falls back to an in-process origin.
+   *
+   * `Option.none()` means no attempt row for `key` survives at all (for
+   * example a retention job pruned every attempt). The engine then falls
+   * back to the current clock — restarting the budget rather than failing
+   * the run, because turning benign retention pruning into spurious
+   * failures is worse than granting a fresh window — and logs a warning so
+   * the restarted budget is observable (issue #69). Drivers are expected to
+   * keep `Option.some` as long as any attempt row survives, using the
+   * earliest surviving row when attempt 1 itself was pruned.
    */
   readonly activityRetryOrigin?:
     | ((options: {
@@ -779,6 +790,20 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
           options.activityRetryOrigin !== undefined
         ? yield* options.activityRetryOrigin({ key })
         : Option.none<number>()
+      if (
+        policy?.expirationMs !== undefined &&
+        options.activityRetryOrigin !== undefined &&
+        Option.isNone(durableOrigin)
+      ) {
+        // A durable driver that finds no surviving attempt row cannot bound
+        // the schedule-to-close budget to the true first attempt. The engine
+        // keeps the in-process fallback — failing the run outright would
+        // turn benign attempt-row retention pruning into spurious failures —
+        // but the restarted budget is worth a trace (issue #69).
+        yield* Effect.logWarning(
+          `FlowEngine.activityExecute: no durable retry origin for "${activity.name}"; the expirationMs budget restarts from the current clock`
+        )
+      }
       const retryStartMs = Option.isSome(durableOrigin)
         ? durableOrigin.value
         : yield* Clock.currentTimeMillis

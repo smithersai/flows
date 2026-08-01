@@ -39,9 +39,38 @@ const provideJournal = <A, E, R>(
     Effect.provide(DurableEngineState.layerMemory),
     Effect.provide(TestClock.layer()),
     Effect.scoped
-  ) as Effect.Effect<A, E, Exclude<R, Journal.Journal | RunStore.RunStore | Scope.Scope>>
+  ) as Effect.Effect<
+    A,
+    E,
+    Exclude<R, Journal.Journal | RunStore.RunStore | DurableEngineState.DurableEngineState | Scope.Scope>
+  >
 
 const findCycleFailure = (cause: Cause.Cause<unknown>) => cause.reasons.find(Cause.isFailReason)?.error
+
+/**
+ * Creates a run row the way the driver would have: the creating parent goes
+ * into `state_json` AND the durable edge table. Since the redesign
+ * (issues #54/#55/#56) the durable edge table is the single source of truth
+ * for cycle detection — a persisted `parentExecutionId` whose edge does not
+ * exist is not a cycle-detection input.
+ */
+const createRun = (id: string, parent?: string) =>
+  Effect.gen(function*() {
+    const store = yield* RunStore.RunStore
+    const state = yield* DurableEngineState.DurableEngineState
+    yield* store.create(
+      id,
+      JSON.stringify({
+        version: 1,
+        flowName: TestFlow._tag,
+        payload: {},
+        ...(parent === undefined ? {} : { parentExecutionId: parent })
+      })
+    )
+    if (parent !== undefined) {
+      yield* state.recordRunParent(id, parent)
+    }
+  })
 
 describe("RunDriver cycle detection", () => {
   it("fails a direct self-execute with a 1-element cycle path", async () => {
@@ -69,20 +98,10 @@ describe("RunDriver cycle detection", () => {
     const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
       const driver = yield* makeDriver()
       yield* driver.register(TestFlow, () => Effect.succeed("ok"))
-      const store = yield* RunStore.RunStore
 
-      yield* store.create(
-        "root",
-        JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {} })
-      )
-      yield* store.create(
-        "child",
-        JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {}, parentExecutionId: "root" })
-      )
-      yield* store.create(
-        "grandchild",
-        JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {}, parentExecutionId: "child" })
-      )
+      yield* createRun("root")
+      yield* createRun("child", "root")
+      yield* createRun("grandchild", "child")
 
       return yield* driver.execute(TestFlow, {
         executionId: "great-grandchild",
@@ -99,17 +118,10 @@ describe("RunDriver cycle detection", () => {
     const exit = await Effect.runPromise(Effect.exit(provideJournal(Effect.gen(function*() {
       const driver = yield* makeDriver()
       yield* driver.register(TestFlow, () => Effect.succeed("never runs"))
-      const store = yield* RunStore.RunStore
 
       // A already exists and previously started B as a child.
-      yield* store.create(
-        "a",
-        JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {} })
-      )
-      yield* store.create(
-        "b",
-        JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {}, parentExecutionId: "a" })
-      )
+      yield* createRun("a")
+      yield* createRun("b", "a")
 
       // Now B attempts to execute A as its child: a cycle.
       return yield* driver.execute(TestFlow, {
@@ -133,20 +145,10 @@ describe("RunDriver cycle detection", () => {
     const exit = await Effect.runPromise(Effect.exit(provideJournal(Effect.gen(function*() {
       const driver = yield* makeDriver()
       yield* driver.register(TestFlow, () => Effect.succeed("never runs"))
-      const store = yield* RunStore.RunStore
 
-      yield* store.create(
-        "x",
-        JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {} })
-      )
-      yield* store.create(
-        "y",
-        JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {}, parentExecutionId: "x" })
-      )
-      yield* store.create(
-        "z",
-        JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {}, parentExecutionId: "y" })
-      )
+      yield* createRun("x")
+      yield* createRun("y", "x")
+      yield* createRun("z", "y")
 
       // z attempts to execute x, its grandparent: a cycle.
       return yield* driver.execute(TestFlow, {
@@ -170,21 +172,11 @@ describe("RunDriver cycle detection", () => {
     const exit = await Effect.runPromise(Effect.exit(provideJournal(Effect.gen(function*() {
       const driver = yield* makeDriver()
       yield* driver.register(TestFlow, () => Effect.succeed("ok"))
-      const store = yield* RunStore.RunStore
 
       // A previously created C, so C's persisted parent is A. B exists too.
-      yield* store.create(
-        "a",
-        JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {} })
-      )
-      yield* store.create(
-        "b",
-        JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {} })
-      )
-      yield* store.create(
-        "c",
-        JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {}, parentExecutionId: "a" })
-      )
+      yield* createRun("a")
+      yield* createRun("b")
+      yield* createRun("c", "a")
 
       // B executes C: the row already exists, so this second parent edge is
       // never persisted — it must still be recorded for cycle detection.
@@ -219,18 +211,9 @@ describe("RunDriver cycle detection", () => {
 
       // Root fans out to A and B; both converge on C. Two parents, no cycle:
       // an over-reporting detector regression must not refuse this shape.
-      yield* store.create(
-        "diamond-root",
-        JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {} })
-      )
-      yield* store.create(
-        "diamond-a",
-        JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {}, parentExecutionId: "diamond-root" })
-      )
-      yield* store.create(
-        "diamond-b",
-        JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {}, parentExecutionId: "diamond-root" })
-      )
+      yield* createRun("diamond-root")
+      yield* createRun("diamond-a", "diamond-root")
+      yield* createRun("diamond-b", "diamond-root")
 
       // A creates C (persisted first-parent edge), then B converges on C
       // (request-only second-parent edge). Both must succeed.
@@ -270,14 +253,8 @@ describe("RunDriver cycle detection", () => {
       )
       yield* driver.register(TestFlow, () => Effect.succeed("ok"))
 
-      yield* store.create(
-        "race-a",
-        JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {} })
-      )
-      yield* store.create(
-        "race-b",
-        JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {} })
-      )
+      yield* createRun("race-a")
+      yield* createRun("race-b")
 
       // Fiber 1: A executes B. Fiber 2: B executes A. Together they close a
       // cycle; exactly one must be refused.
@@ -326,14 +303,8 @@ describe("RunDriver cycle detection", () => {
         yield* driverOne.register(TestFlow, () => Effect.succeed("ok"))
         yield* driverTwo.register(TestFlow, () => Effect.succeed("ok"))
 
-        yield* store.create(
-          "xrace-a",
-          JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {} })
-        )
-        yield* store.create(
-          "xrace-b",
-          JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {} })
-        )
+        yield* createRun("xrace-a")
+        yield* createRun("xrace-b")
 
         // Worker 1: A executes B. Worker 2: B executes A. Together they
         // close a cycle; exactly one must be refused, and neither may
@@ -367,19 +338,9 @@ describe("RunDriver cycle detection", () => {
     "keeps a diamond's second-parent edge across a restart so the cycle it closes is still detected (issue #41)",
     async () => {
       const exit = await Effect.runPromise(Effect.exit(provideJournal(Effect.gen(function*() {
-        const store = yield* RunStore.RunStore
-        yield* store.create(
-          "restart-a",
-          JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {} })
-        )
-        yield* store.create(
-          "restart-b",
-          JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {} })
-        )
-        yield* store.create(
-          "restart-c",
-          JSON.stringify({ version: 1, flowName: TestFlow._tag, payload: {}, parentExecutionId: "restart-a" })
-        )
+        yield* createRun("restart-a")
+        yield* createRun("restart-b")
+        yield* createRun("restart-c", "restart-a")
 
         // Process 1: B converges on C — a second-parent edge C -> B the run
         // row cannot carry. Then the process dies.
@@ -441,5 +402,149 @@ describe("RunDriver cycle detection", () => {
     // No cycle involving "unrelated-target" exists, so the walk terminates
     // (rather than looping the p <-> q cycle forever) and the run proceeds.
     expect(Exit.isSuccess(exit)).toBe(true)
+  })
+
+  it(
+    "refuses the closing writer, never a legitimate chord, when both race (issue #54)",
+    async () => {
+      const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+        // Lineage chord-a -> chord-b -> chord-c (child -> parent edges).
+        yield* createRun("chord-c")
+        yield* createRun("chord-b", "chord-c")
+        yield* createRun("chord-a", "chord-b")
+
+        // Two owner processes over the same shared store.
+        const driverOne = yield* makeDriver()
+        const driverTwo = yield* makeDriver()
+        yield* driverOne.register(TestFlow, () => Effect.succeed("ok"))
+        yield* driverTwo.register(TestFlow, () => Effect.succeed("ok"))
+
+        // Worker 1 closes the cycle (C gets A as a parent); worker 2 records
+        // a legitimate chord (A gets its grandparent C as a second parent).
+        // Whatever the interleaving, the closing edge must be the one
+        // refused — the max-seq arbitration this replaces picked the chord.
+        const [closing, chord] = yield* Effect.all([
+          Effect.exit(driverOne.execute(TestFlow, {
+            executionId: "chord-c",
+            payload: {},
+            discard: true,
+            parent: { executionId: "chord-a" } as FlowEngine.FlowInstance["Service"]
+          })),
+          Effect.exit(driverTwo.execute(TestFlow, {
+            executionId: "chord-a",
+            payload: {},
+            discard: true,
+            parent: { executionId: "chord-c" } as FlowEngine.FlowInstance["Service"]
+          }))
+        ], { concurrency: "unbounded" })
+        return { closing, chord }
+      })))
+
+      expect(Exit.isSuccess(result.chord)).toBe(true)
+      expect(Exit.isFailure(result.closing)).toBe(true)
+      if (Exit.isSuccess(result.closing)) return
+      expect(findCycleFailure(result.closing.cause)).toBeInstanceOf(RunDriver.FlowCycleDetected)
+    },
+    10_000
+  )
+
+  it(
+    "leaves no durable trace of a rejected fresh-run edge: the winner replays and both nodes stay usable (issues #55/#56)",
+    async () => {
+      const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const driverOne = yield* makeDriver()
+        const driverTwo = yield* makeDriver()
+        yield* driverOne.register(TestFlow, () => Effect.succeed("ok"))
+        yield* driverTwo.register(TestFlow, () => Effect.succeed("ok"))
+
+        // Neither run row exists yet: both writers race fresh creates whose
+        // creating parents jointly close a cycle. The loser's rejection must
+        // leave nothing behind — no edge, no run row with a persisted
+        // `parentExecutionId` that would keep the cycle durably visible.
+        const runA = {
+          executionId: "wd-a",
+          payload: {},
+          discard: true as const,
+          parent: { executionId: "wd-b" } as FlowEngine.FlowInstance["Service"]
+        }
+        const runB = {
+          executionId: "wd-b",
+          payload: {},
+          discard: true as const,
+          parent: { executionId: "wd-a" } as FlowEngine.FlowInstance["Service"]
+        }
+        const exits = yield* Effect.all([
+          Effect.exit(driverOne.execute(TestFlow, runA)),
+          Effect.exit(driverTwo.execute(TestFlow, runB))
+        ], { concurrency: "unbounded" })
+
+        const loserOptions = Exit.isFailure(exits[0]) ? runA : runB
+        const winnerOptions = Exit.isFailure(exits[0]) ? runB : runA
+        // The winner replays idempotently — under the withdrawn-edge design
+        // the loser's persisted `state_json` parent made this spuriously
+        // fail with FlowCycleDetected forever (issue #55).
+        const winnerReplay = yield* Effect.exit(driverOne.execute(TestFlow, winnerOptions))
+        // A fresh child of the winner is also unaffected.
+        const freshChild = yield* Effect.exit(driverOne.execute(TestFlow, {
+          executionId: "wd-child",
+          payload: {},
+          discard: true,
+          parent: { executionId: winnerOptions.executionId } as FlowEngine.FlowInstance["Service"]
+        }))
+        // The loser's rejected create left no run row behind.
+        const loserRow = yield* Effect.exit(store.get(loserOptions.executionId))
+        return { exits, winnerReplay, freshChild, loserRow }
+      })))
+
+      expect(result.exits.filter(Exit.isFailure)).toHaveLength(1)
+      expect(Exit.isSuccess(result.winnerReplay)).toBe(true)
+      expect(Exit.isSuccess(result.freshChild)).toBe(true)
+      expect(Exit.isFailure(result.loserRow)).toBe(true)
+    },
+    10_000
+  )
+
+  it("a sequentially rejected edge leaves the graph exactly as it was (issue #56)", async () => {
+    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+      const state = yield* DurableEngineState.DurableEngineState
+      const driver = yield* makeDriver()
+      yield* driver.register(TestFlow, () => Effect.succeed("ok"))
+
+      yield* createRun("seq-a")
+      yield* createRun("seq-b", "seq-a")
+
+      // seq-b executing seq-a would close a cycle: refused.
+      const rejected = yield* Effect.exit(driver.execute(TestFlow, {
+        executionId: "seq-a",
+        payload: {},
+        discard: true,
+        parent: { executionId: "seq-b" } as FlowEngine.FlowInstance["Service"]
+      }))
+      // The rejection is atomic: no half-recorded edge survives it, so both
+      // runs stay fully usable afterwards (the crash window between insert
+      // and withdrawal that poisoned the pair no longer exists).
+      const edgesOfA = yield* state.runParents("seq-a")
+      const replay = yield* Effect.exit(driver.execute(TestFlow, {
+        executionId: "seq-b",
+        payload: {},
+        discard: true,
+        parent: { executionId: "seq-a" } as FlowEngine.FlowInstance["Service"]
+      }))
+      const freshChild = yield* Effect.exit(driver.execute(TestFlow, {
+        executionId: "seq-c",
+        payload: {},
+        discard: true,
+        parent: { executionId: "seq-a" } as FlowEngine.FlowInstance["Service"]
+      }))
+      return { rejected, edgesOfA, replay, freshChild }
+    })))
+
+    expect(Exit.isFailure(result.rejected)).toBe(true)
+    if (Exit.isSuccess(result.rejected)) return
+    expect(findCycleFailure(result.rejected.cause)).toBeInstanceOf(RunDriver.FlowCycleDetected)
+    expect(result.edgesOfA).toEqual([])
+    expect(Exit.isSuccess(result.replay)).toBe(true)
+    expect(Exit.isSuccess(result.freshChild)).toBe(true)
   })
 })

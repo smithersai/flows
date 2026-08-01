@@ -16,6 +16,7 @@ import { AttemptStore, Notifying, RunStore, TestJournal } from "@smithers/journa
 import { Jj } from "@smithers/kernel"
 import { Digest, StepKey } from "@smithers/keys"
 import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
@@ -23,6 +24,7 @@ import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
+import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 
 const ReplayFlow = Flow.make("NonRetryableReplay/Flow", {
@@ -220,5 +222,68 @@ describe("non-retryable verdict durability across resume", () => {
     const cause = row.error as { readonly reasons: ReadonlyArray<{ readonly _tag: string; readonly error?: unknown }> }
     expect(cause.reasons[0]?._tag).toBe("Fail")
     expect((cause.reasons[0]?.error as { readonly _tag: string })._tag).toBe("FatalBoom")
+  })
+
+  it("rehydrates persisted Die, Interrupt, and unrecognizable failure material", async () => {
+    // A failed row can hold defect or interrupt reasons (a crashed boundary
+    // preparation persists `Die` material), and a row written by an older
+    // schema may hold anything: replay must never re-dispatch for any of
+    // them.
+    const owner = { hostId: "rehydrate-host", pid: 1, nonce: "rehydrate-owner" }
+    const seedAndReplay = (key: string, error: unknown) =>
+      Effect.gen(function*() {
+        const attempts = yield* AttemptStore.AttemptStore
+        const runs = yield* RunStore.RunStore
+        const runId = `rehydrate-${Digest.digest(key).slice(0, 8)}`
+        yield* runs.create(runId, "{}")
+        const row = yield* runs.get(runId)
+        yield* runs.claimAndOwn(
+          runId,
+          { status: row.status, owner: row.owner, heartbeatAtMs: row.heartbeatAtMs },
+          owner,
+          0
+        )
+        const attemptId = { runId, stepKeyDigest: Digest.digest(key), attempt: 1 }
+        yield* attempts.put({ ...attemptId, state: "running", startedAtMs: 0, meta: { tier: "sealed" } }, owner)
+        yield* attempts.finish(
+          { ...attemptId, state: "failed", finishedAtMs: 0, error, meta: { tier: "sealed" } },
+          owner
+        )
+        let dispatches = 0
+        const executor = ActivityPersistence.make({
+          runId,
+          owner,
+          sourceId: "rehydrate-test",
+          execute: () => Effect.sync(() => dispatches++)
+        })
+        const exit = yield* executor({ activity: {}, attempt: 1, key, tier: "sealed" }).pipe(Effect.exit)
+        return { exit, dispatches }
+      })
+
+    const outcome = await provide(
+      Effect.all({
+        die: seedAndReplay("rehydrate/die", { reasons: [{ _tag: "Die", defect: { boom: true } }] }),
+        interrupt: seedAndReplay("rehydrate/interrupt", { reasons: [{ _tag: "Interrupt", fiberId: null }] }),
+        raw: seedAndReplay("rehydrate/raw", "not-a-cause-shape")
+      }),
+      DurableEngineState.makeMemory()
+    )
+
+    expect(outcome.die.dispatches).toBe(0)
+    expect(Exit.isFailure(outcome.die.exit)).toBe(true)
+    if (Exit.isFailure(outcome.die.exit)) {
+      expect(outcome.die.exit.cause.reasons[0]?._tag).toBe("Die")
+    }
+    expect(outcome.interrupt.dispatches).toBe(0)
+    expect(Exit.isFailure(outcome.interrupt.exit)).toBe(true)
+    if (Exit.isFailure(outcome.interrupt.exit)) {
+      expect(outcome.interrupt.exit.cause.reasons[0]?._tag).toBe("Interrupt")
+    }
+    // Unrecognizable persisted material degrades to a defect carrying it.
+    expect(outcome.raw.dispatches).toBe(0)
+    expect(Exit.isFailure(outcome.raw.exit)).toBe(true)
+    if (Exit.isFailure(outcome.raw.exit)) {
+      expect(outcome.raw.exit.cause.reasons[0]?._tag).toBe("Die")
+    }
   })
 })

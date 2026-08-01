@@ -10,30 +10,32 @@ import * as DurableEngineState from "../src/DurableEngineState.ts"
 const migratedDatabase = Layer.provideMerge(Migrations.layer, TestDatabase.layer)
 
 /**
- * The durable run-parent DAG (issues #40/#41) backs cross-owner cycle
- * arbitration: both implementations must agree on first-writer-wins, on the
- * store-global insertion order, and on withdrawal.
+ * The durable run-parent DAG (issues #40/#41) is the single source of truth
+ * for cycle detection: both implementations must agree on first-writer-wins,
+ * on the store-global insertion order, on atomic in-transaction cycle
+ * rejection (issues #54/#55/#56), and on run-scoped edge GC (issue #66).
  */
 interface Harness {
   readonly label: string
   readonly run: <A>(
-    body: (state: DurableEngineState.Service) => Effect.Effect<A, never, never>
+    body: (state: DurableEngineState.Service) => Effect.Effect<A, any, never>
   ) => Promise<A>
 }
 
 const sqlHarness: Harness = {
   label: "sql",
-  run: (body) =>
+  run: <A>(body: (state: DurableEngineState.Service) => Effect.Effect<A, any, never>) =>
     Effect.runPromise(
       Effect.flatMap(DurableEngineState.make, body).pipe(
         Effect.provide(migratedDatabase)
-      ) as Effect.Effect<never>
+      ) as Effect.Effect<A>
     )
 }
 
 const memoryHarness: Harness = {
-  label: "memory",
-  run: (body) => Effect.runPromise(body(DurableEngineState.makeMemory()) as Effect.Effect<never>)
+  run: <A>(body: (state: DurableEngineState.Service) => Effect.Effect<A, any, never>) =>
+    Effect.runPromise(body(DurableEngineState.makeMemory()) as Effect.Effect<A>),
+  label: "memory"
 }
 
 const describeContract = (harness: Harness) => {
@@ -77,13 +79,13 @@ const describeContract = (harness: Harness) => {
         Effect.gen(function*() {
           yield* state.recordRunParent("child", "parent-a")
           yield* state.recordRunParent("child", "parent-b")
-          yield* state.removeRunParent("child", "parent-a")
+          yield* state.removeRunParentsForRun("parent-a")
           const afterOne = yield* state.runParents("child")
           // Withdrawing an edge that was never recorded, and one for a child
           // with no edges at all, are both no-ops.
-          yield* state.removeRunParent("child", "parent-a")
-          yield* state.removeRunParent("unknown-child", "parent-a")
-          yield* state.removeRunParent("child", "parent-b")
+          yield* state.removeRunParentsForRun("parent-a")
+          yield* state.removeRunParentsForRun("unknown-child")
+          yield* state.removeRunParentsForRun("parent-b")
           return {
             afterOne,
             afterAll: yield* state.runParents("child"),
@@ -101,7 +103,7 @@ const describeContract = (harness: Harness) => {
       const result = await harness.run((state) =>
         Effect.gen(function*() {
           const original = yield* state.recordRunParent("child", "parent")
-          yield* state.removeRunParent("child", "parent")
+          yield* state.removeRunParentsForRun("parent")
           const later = yield* state.recordRunParent("child", "other-parent")
           const readded = yield* state.recordRunParent("child", "parent")
           return { original, later, readded, listed: yield* state.runParents("child") }
@@ -112,6 +114,78 @@ const describeContract = (harness: Harness) => {
       // A withdrawal never rewinds the sequence: the re-added edge sorts last.
       expect(result.readded.edge.seq).toBeGreaterThan(result.later.edge.seq)
       expect(result.listed.map((edge) => edge.parentId)).toEqual(["other-parent", "parent"])
+    })
+
+    it("atomically rejects an edge that would close a cycle, leaving no trace (issues #54/#55/#56)", async () => {
+      const result = await harness.run((state) =>
+        Effect.gen(function*() {
+          const selfCycle = yield* Effect.exit(state.recordRunParent("s", "s"))
+          yield* state.recordRunParent("cyc-b", "cyc-a")
+          const mutual = yield* Effect.exit(state.recordRunParent("cyc-a", "cyc-b"))
+          yield* state.recordRunParent("cyc-c", "cyc-b")
+          const transitive = yield* Effect.exit(state.recordRunParent("cyc-a", "cyc-c"))
+          return {
+            selfCycle,
+            mutual,
+            transitive,
+            // The rejected inserts rolled back: nothing durable remains.
+            edgesOfA: yield* state.runParents("cyc-a"),
+            edgesOfS: yield* state.runParents("s")
+          }
+        })
+      )
+
+      const cyclePath = (exit: Exit.Exit<unknown, unknown>) => {
+        expect(Exit.isFailure(exit)).toBe(true)
+        const error = Exit.isFailure(exit)
+          ? exit.cause.reasons.find(Cause.isFailReason)?.error
+          : undefined
+        expect(error).toBeInstanceOf(DurableEngineState.RunParentCycleError)
+        return (error as DurableEngineState.RunParentCycleError).path
+      }
+      expect(cyclePath(result.selfCycle)).toEqual(["s"])
+      expect(cyclePath(result.mutual)).toEqual(["cyc-a", "cyc-b"])
+      expect(cyclePath(result.transitive)).toEqual(["cyc-a", "cyc-b", "cyc-c"])
+      expect(result.edgesOfA).toEqual([])
+      expect(result.edgesOfS).toEqual([])
+    })
+
+    it("removeRunParentsForRun prunes edges in both directions (issue #66)", async () => {
+      const result = await harness.run((state) =>
+        Effect.gen(function*() {
+          yield* state.recordRunParent("gc-x", "gc-p")
+          yield* state.recordRunParent("gc-y", "gc-x")
+          yield* state.recordRunParent("gc-y", "gc-q")
+          yield* state.removeRunParentsForRun("gc-x")
+          return {
+            ofX: yield* state.runParents("gc-x"),
+            ofY: yield* state.runParents("gc-y")
+          }
+        })
+      )
+
+      // gc-x's own parent edge and the edge naming it as a parent are gone;
+      // the unrelated gc-y -> gc-q edge survives.
+      expect(result.ofX).toEqual([])
+      expect(result.ofY.map((edge) => edge.parentId)).toEqual(["gc-q"])
+    })
+
+    it("admits an edge whose ancestor walk revisits a shared diamond ancestor", async () => {
+      const result = await harness.run((state) =>
+        Effect.gen(function*() {
+          // dia-d reaches dia-g through two parents: the cycle walk must
+          // skip the already-seen ancestor instead of re-walking (or
+          // looping) and still admit the acyclic edge.
+          yield* state.recordRunParent("dia-d", "dia-p1")
+          yield* state.recordRunParent("dia-d", "dia-p2")
+          yield* state.recordRunParent("dia-p1", "dia-g")
+          yield* state.recordRunParent("dia-p2", "dia-g")
+          const admitted = yield* state.recordRunParent("dia-x", "dia-d")
+          return { admitted }
+        })
+      )
+
+      expect(result.admitted._tag).toBe("Recorded")
     })
   })
 }
@@ -154,5 +228,34 @@ describe("run parent edges (sql fault injection)", () => {
     expect((defect as Error).message).toBe(
       "run parent edge disappeared during first-writer transaction"
     )
+  })
+
+  it("dies (not a typed failure) when the write transaction itself fails", async () => {
+    const exit = await Effect.runPromise(
+      Effect.gen(function*() {
+        const database = yield* Database.Database
+        // Writes succeed during `make` (table/index bootstrap), then fail.
+        let breakWrites = false
+        const broken = yield* DurableEngineState.make.pipe(
+          Effect.provideService(
+            Database.Database,
+            Database.Database.of({
+              ...database,
+              write: (effect) =>
+                breakWrites
+                  ? Effect.fail(new Database.DatabaseError({ code: "busy" }))
+                  : database.write(effect)
+            })
+          )
+        )
+        breakWrites = true
+        // Only a cycle is a typed failure on this surface; a storage error
+        // must escape as a defect exactly like every other store mutation.
+        return yield* Effect.exit(broken.recordRunParent("child", "parent"))
+      }).pipe(Effect.provide(migratedDatabase))
+    )
+
+    expect(Exit.isFailure(exit)).toBe(true)
+    expect(Exit.isFailure(exit) && Exit.hasDies(exit)).toBe(true)
   })
 })

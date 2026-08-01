@@ -32,6 +32,8 @@ This page is the public API reference for typed flows, recorded activities, dura
 
 An activity is itself an `Effect`; `activity.execute` bypasses engine recording and should normally be used only by engine implementations.
 
+Sealed idempotency identity has two forms and one derivation path. A string `idempotencyKey` is namespaced by the activity name; an object-form `StepKey.ContentIdentity` stays caller-owned (rename-stable — the name never enters the digest). Both forms always fold the hermetic boundary descriptor derived from `metadata` (`readSet` digests, `writeSet`, `boundaryMode`) into the content key, overriding any caller-supplied `hermetic` field: the rename-stable escape hatch can never opt out of read-set invalidation (issues #25/#57).
+
 ## Durable primitives
 
 | Namespace | Public surface |

@@ -1,10 +1,31 @@
 import { StepKey } from "@smithers/keys"
-import { Effect, Exit, Layer, Result, Schedule, Schema } from "effect"
+import { Effect, Exit, Layer, Result, Schedule, Schema, Scope } from "effect"
 import { describe, expect, it } from "vitest"
 import { Activity, Flow, FlowEngine } from "../src/index.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, never>) =>
   it(name, () => Effect.runPromise(body()))
+
+const hostFlow = Flow.make("ActivityKeys/host", {
+  payload: { id: Schema.String },
+  success: Schema.Void
+})
+
+const provideHost = <A, E>(
+  self: Effect.Effect<
+    A,
+    E,
+    FlowEngine.FlowEngine | FlowEngine.FlowInstance | Scope.Scope
+  >
+): Effect.Effect<A, E> =>
+  self.pipe(
+    Effect.scoped,
+    Effect.provideService(
+      FlowEngine.FlowInstance,
+      FlowEngine.FlowInstance.initial(hostFlow, "host-run")
+    ),
+    Effect.provide(FlowEngine.layerMemory)
+  )
 
 describe("activity execution keys", () => {
   effect("namespaces string idempotency keys by activity name so distinct activities never collide", () => {
@@ -147,48 +168,51 @@ describe("activity execution keys", () => {
     }).pipe(Effect.provide(layer))
   })
 
-  effect("folds the boundary descriptor into object-form keys so the rename-stable escape hatch cannot bypass invalidation (issue #57)", () => {
-    // A caller-owned `ContentIdentity` that omits `hermetic`, on a sealed
-    // activity declaring a hard boundary descriptor, must still fold the
-    // read-set material into the key: otherwise a changed read-set digest
-    // replays the stale cross-run cache entry #25 was filed for.
-    let executions = 0
-    const identity = {
-      body: "sealed/boundary-escape-hatch",
-      inputs: {},
-      layers: [],
-      capabilities: {}
-    }
-    const build = (digest: string) =>
-      Activity.make({
-        name: "ActivityKeys/object-boundary",
-        success: Schema.Number,
-        idempotencyKey: identity,
-        metadata: {
-          readSet: [{ path: "src/input.ts", digest }],
-          writeSet: ["out/artifact"],
-          boundaryMode: "hard"
-        },
-        execute: Effect.sync(() => ++executions)
+  effect(
+    "folds the boundary descriptor into object-form keys so the rename-stable escape hatch cannot bypass invalidation (issue #57)",
+    () => {
+      // A caller-owned `ContentIdentity` that omits `hermetic`, on a sealed
+      // activity declaring a hard boundary descriptor, must still fold the
+      // read-set material into the key: otherwise a changed read-set digest
+      // replays the stale cross-run cache entry #25 was filed for.
+      let executions = 0
+      const identity = {
+        body: "sealed/boundary-escape-hatch",
+        inputs: {},
+        layers: [],
+        capabilities: {}
+      }
+      const build = (digest: string) =>
+        Activity.make({
+          name: "ActivityKeys/object-boundary",
+          success: Schema.Number,
+          idempotencyKey: identity,
+          metadata: {
+            readSet: [{ path: "src/input.ts", digest }],
+            writeSet: ["out/artifact"],
+            boundaryMode: "hard"
+          },
+          execute: Effect.sync(() => ++executions)
+        })
+      const flow = Flow.make("ActivityKeys/object-boundary-invalidation", {
+        payload: { run: Schema.String },
+        success: Schema.Number
       })
-    const flow = Flow.make("ActivityKeys/object-boundary-invalidation", {
-      payload: { run: Schema.String },
-      success: Schema.Number
-    })
-    const layer = flow.toLayer(() =>
-      Effect.gen(function*() {
-        // Same digest replays; the changed digest must re-execute.
-        yield* build("d1")
-        yield* build("d1")
-        return yield* build("d2")
-      })
-    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+      const layer = flow.toLayer(() =>
+        Effect.gen(function*() {
+          // Same digest replays; the changed digest must re-execute.
+          yield* build("d1")
+          yield* build("d1")
+          return yield* build("d2")
+        })
+      ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
 
-    return Effect.gen(function*() {
-      expect(yield* flow.execute({ run: "one" }, { executionId: "run-object-boundary" })).toBe(2)
-      expect(executions).toBe(2)
-    }).pipe(Effect.provide(layer))
-  })
+      return Effect.gen(function*() {
+        expect(yield* flow.execute({ run: "one" }, { executionId: "run-object-boundary" })).toBe(2)
+        expect(executions).toBe(2)
+      }).pipe(Effect.provide(layer))
+    }
+  )
 
   effect("changes sealed replay identity when its input, layer, or capability material changes", () => {
     const keyFor = (input: string, layer: string, capability: string) =>
@@ -230,6 +254,6 @@ describe("activity execution keys", () => {
       const exit = yield* activity.execute.pipe(Effect.exit)
       expect(Exit.isFailure(exit)).toBe(true)
       expect(Exit.isFailure(exit) && exit.cause.reasons.some((reason) => reason._tag === "Die")).toBe(true)
-    })
+    }).pipe(provideHost)
   })
 })

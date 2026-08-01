@@ -181,8 +181,9 @@ export type WakeOutcome =
  * diamond gives a run a second parent the row cannot express. Cycle
  * detection must see every edge from every owner process and across
  * restarts (issues #40/#41), so edges are persisted here. `seq` is a
- * store-global insertion order used to arbitrate concurrently recorded
- * edges that jointly close a cycle: the newest edge loses.
+ * store-global insertion order used only to list a run's parents oldest
+ * first (and to make the cycle walk deterministic); it no longer arbitrates
+ * anything, so duplicate values would be harmless (issues #54/#66).
  *
  * @since 0.1.0
  * @category models
@@ -192,6 +193,25 @@ export interface RunParentEdge {
   readonly parentId: string
   readonly seq: number
 }
+
+/**
+ * Recording a parent edge would close a cycle in the run DAG.
+ *
+ * Raised from inside the same transaction that inserted the edge, which is
+ * rolled back: a rejected edge leaves no durable trace anywhere (issues
+ * #54/#55/#56). `path` lists execution ids from the child back to itself
+ * through its would-be ancestors, matching the engine's
+ * `FlowCycleDetected.path` shape.
+ *
+ * @since 0.1.0
+ * @category errors
+ */
+export class RunParentCycleError extends Schema.TaggedErrorClass<RunParentCycleError>()(
+  "flows/engine-store/RunParentCycleError",
+  {
+    path: Schema.Array(Schema.String)
+  }
+) {}
 
 /**
  * Result of recording a durable parent edge (idempotent).
@@ -272,18 +292,28 @@ export interface Service {
   ) => Effect.Effect<ReadonlyArray<WaitingRow>>
   /**
    * Durably records a parent edge in the run DAG, first-writer-wins per
-   * `(child, parent)` pair. The assigned `seq` is a store-global insertion
-   * order used by cross-owner cycle arbitration (issue #40).
+   * `(child, parent)` pair.
+   *
+   * The cycle check happens inside the same transaction as the insert: the
+   * edge is inserted, the child's ancestor chain is walked over the durable
+   * edges, and on a hit the transaction rolls back and the call fails with
+   * `RunParentCycleError`. There is no window between insert and check, no
+   * arbitration, and no withdrawal protocol — concurrent writers that
+   * jointly close a cycle serialize on the write transaction and exactly
+   * one of them fails (issues #29/#40/#54/#55/#56).
    */
   readonly recordRunParent: (
     childId: string,
     parentId: string
-  ) => Effect.Effect<RecordRunParentOutcome>
+  ) => Effect.Effect<RecordRunParentOutcome, RunParentCycleError>
   /**
-   * Removes a previously recorded parent edge — the rollback half of the
-   * cross-owner cycle arbitration (the losing edge is withdrawn).
+   * Removes every parent edge touching a run — both the edges naming it as
+   * child and the edges naming it as parent. The cleanup half of run
+   * deletion (issue #66): a lane that deletes run rows (time-travel,
+   * retention) must call this so `runParents` and the cycle walk stop
+   * seeing edges of runs that no longer exist.
    */
-  readonly removeRunParent: (childId: string, parentId: string) => Effect.Effect<void>
+  readonly removeRunParentsForRun: (runId: string) => Effect.Effect<void>
   /**
    * Lists the durably recorded parent edges of a run, oldest first.
    */
@@ -363,6 +393,42 @@ type RunParentDatabaseRow = typeof RunParentDatabaseRow.Type
 
 const decodeRunParentEdge = (input: unknown): Effect.Effect<RunParentEdge> =>
   Schema.decodeUnknownEffect(RunParentDatabaseRow)(input).pipe(Effect.orDie)
+
+/**
+ * Walks the parent chain upward from `parentId` over the durable edges,
+ * looking for `childId`. Returns the cycle path the new `(childId,
+ * parentId)` edge would close — ids from the child back to itself, matching
+ * the engine's `FlowCycleDetected.path` shape — or `undefined` when the
+ * edge is safe. A repeated id (pre-existing corrupt cycle written outside
+ * this API) terminates that branch instead of looping forever.
+ */
+const findCyclePath = (
+  childId: string,
+  parentId: string,
+  parentsOf: (id: string) => Effect.Effect<ReadonlyArray<string>>
+): Effect.Effect<ReadonlyArray<string> | undefined> =>
+  Effect.suspend(() => {
+    if (parentId === childId) {
+      return Effect.succeed<ReadonlyArray<string> | undefined>([childId])
+    }
+    const seen = new Set<string>([parentId])
+    const walk = (
+      current: string,
+      chain: ReadonlyArray<string>
+    ): Effect.Effect<ReadonlyArray<string> | undefined> =>
+      Effect.gen(function*() {
+        const parents = yield* parentsOf(current)
+        for (const parent of parents) {
+          if (parent === childId) return [...chain, parent].reverse()
+          if (seen.has(parent)) continue
+          seen.add(parent)
+          const found = yield* walk(parent, [...chain, parent])
+          if (found !== undefined) return found
+        }
+        return undefined
+      })
+    return walk(parentId, [parentId])
+  })
 
 const DeferredAddressDatabaseRow = Schema.Struct({
   flowName: Schema.String,
@@ -885,6 +951,20 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
         AND parent_id = ${parentId}
     `
 
+  const parentIdsOf = (id: string): Effect.Effect<ReadonlyArray<string>> =>
+    sql<RunParentDatabaseRow>`
+      SELECT
+        child_id AS "childId",
+        parent_id AS "parentId",
+        seq AS "seq"
+      FROM flows_run_parents
+      WHERE child_id = ${id}
+      ORDER BY seq
+    `.pipe(
+      Effect.orDie,
+      Effect.map((rows) => rows.map((row) => String(row.parentId)))
+    )
+
   const recordRunParent: Service["recordRunParent"] = Effect.fn(
     "DurableEngineState.recordRunParent"
   )((childId, parentId) =>
@@ -904,6 +984,16 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
             seq AS "seq"
         `
         if (inserted[0] !== undefined) {
+          // The cycle check shares the insert's transaction: a hit fails the
+          // effect, rolling the insert back, so a rejected edge is never
+          // durable and there is no check-then-record window for another
+          // writer to slip through (issues #54/#55/#56). Writers serialize
+          // on the write transaction, so of two edges that jointly close a
+          // cycle, exactly the later one fails.
+          const cycle = yield* findCyclePath(childId, parentId, parentIdsOf)
+          if (cycle !== undefined) {
+            return yield* Effect.fail(new RunParentCycleError({ path: cycle }))
+          }
           return {
             _tag: "Recorded" as const,
             edge: yield* decodeRunParentEdge(inserted[0])
@@ -920,16 +1010,20 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
           edge: yield* decodeRunParentEdge(existing[0])
         }
       })
-    ).pipe(Effect.orDie)
+    ).pipe(
+      Effect.catch((error) =>
+        error instanceof RunParentCycleError ? Effect.fail(error) : Effect.die(error)
+      )
+    )
   )
 
-  const removeRunParent: Service["removeRunParent"] = Effect.fn(
-    "DurableEngineState.removeRunParent"
-  )((childId, parentId) =>
+  const removeRunParentsForRun: Service["removeRunParentsForRun"] = Effect.fn(
+    "DurableEngineState.removeRunParentsForRun"
+  )((runId) =>
     database.write(sql`
       DELETE FROM flows_run_parents
-      WHERE child_id = ${childId}
-        AND parent_id = ${parentId}
+      WHERE child_id = ${runId}
+        OR parent_id = ${runId}
     `).pipe(Effect.orDie, Effect.asVoid)
   )
 
@@ -962,7 +1056,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
     waiting,
     waitingRuns,
     recordRunParent,
-    removeRunParent,
+    removeRunParentsForRun,
     runParents
   })
 })
@@ -1027,6 +1121,29 @@ export const makeMemory = (options: MemoryOptions = {}): Service => {
   // childId -> (parentId -> seq); `parentSeq` mirrors the SQL MAX(seq)+1.
   const parentEdges = new Map<string, Map<string, number>>()
   let parentSeq = 0
+
+  /** The synchronous twin of `findCyclePath` over the in-memory edge map. */
+  const findCyclePathSync = (
+    childId: string,
+    parentId: string
+  ): ReadonlyArray<string> | undefined => {
+    if (parentId === childId) return [childId]
+    const seen = new Set<string>([parentId])
+    const walk = (
+      current: string,
+      chain: ReadonlyArray<string>
+    ): ReadonlyArray<string> | undefined => {
+      for (const parent of parentEdges.get(current)?.keys() ?? []) {
+        if (parent === childId) return [...chain, parent].reverse()
+        if (seen.has(parent)) continue
+        seen.add(parent)
+        const found = walk(parent, [...chain, parent])
+        if (found !== undefined) return found
+      }
+      return undefined
+    }
+    return walk(parentId, [parentId])
+  }
 
   const sameOwner = (left: OwnerId, right: OwnerId): boolean =>
     left.hostId === right.hostId && left.pid === right.pid && left.nonce === right.nonce
@@ -1205,30 +1322,38 @@ export const makeMemory = (options: MemoryOptions = {}): Service => {
       )
     ),
     recordRunParent: Effect.fn("DurableEngineState.recordRunParent")((childId, parentId) =>
-      Effect.sync(() => {
+      // A single synchronous step mirrors the SQL transaction: the cycle
+      // check and the insert are atomic — no fiber can interleave between
+      // them, and a rejected edge is never observable (issues #54/#55/#56).
+      Effect.suspend((): Effect.Effect<RecordRunParentOutcome, RunParentCycleError> => {
         const parents = parentEdges.get(childId) ?? new Map<string, number>()
         const existing = parents.get(parentId)
         if (existing !== undefined) {
-          return {
+          return Effect.succeed({
             _tag: "Existing" as const,
             edge: { childId, parentId, seq: existing }
-          }
+          })
+        }
+        const cycle = findCyclePathSync(childId, parentId)
+        if (cycle !== undefined) {
+          return Effect.fail(new RunParentCycleError({ path: cycle }))
         }
         parentSeq += 1
         parents.set(parentId, parentSeq)
         parentEdges.set(childId, parents)
-        return {
+        return Effect.succeed({
           _tag: "Recorded" as const,
           edge: { childId, parentId, seq: parentSeq }
-        }
+        })
       })
     ),
-    removeRunParent: Effect.fn("DurableEngineState.removeRunParent")((childId, parentId) =>
+    removeRunParentsForRun: Effect.fn("DurableEngineState.removeRunParentsForRun")((runId) =>
       Effect.sync(() => {
-        const parents = parentEdges.get(childId)
-        if (parents === undefined) return
-        parents.delete(parentId)
-        if (parents.size === 0) parentEdges.delete(childId)
+        parentEdges.delete(runId)
+        for (const [childId, parents] of parentEdges) {
+          parents.delete(runId)
+          if (parents.size === 0) parentEdges.delete(childId)
+        }
       })
     ),
     runParents: Effect.fn("DurableEngineState.runParents")((childId) =>

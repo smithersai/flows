@@ -61,6 +61,51 @@ export class EngineCompositionError extends Schema.TaggedErrorClass<EngineCompos
 
 const isBoundaryMetadata = Schema.is(StepBoundary.Descriptor)
 
+/**
+ * How many leading attempt numbers the survivor scan tolerates missing
+ * before concluding no attempt rows survive. A retention/prune job removes
+ * attempts oldest-first, so a surviving sequence is contiguous once its
+ * first row is found; the bound only caps the pruned prefix walk
+ * (issue #69). `AttemptStore` has no range query yet — when it grows one,
+ * this scan collapses into it.
+ */
+const prunedPrefixScanLimit = 32
+
+/**
+ * Finds the surviving attempt rows for an activity key: the earliest row —
+ * the durable retry origin when attempt 1 itself was pruned (issue #69) —
+ * and the highest contiguous attempt number, from which the engine resumes
+ * the attempt counter (issue #59). `Option.none()` means no attempt row
+ * survives within the scan bound.
+ */
+const probeAttempts = (
+  attemptStore: AttemptStore.Service,
+  runId: string,
+  key: string
+): Effect.Effect<
+  Option.Option<{ readonly earliest: AttemptStore.Attempt; readonly latest: number }>
+> =>
+  Effect.gen(function*() {
+    const stepKeyDigest = Digest.digest(key)
+    let earliest = Option.none<AttemptStore.Attempt>()
+    let attempt = 1
+    for (; attempt <= prunedPrefixScanLimit; attempt++) {
+      const row = yield* attemptStore.get({ runId, stepKeyDigest, attempt }).pipe(Effect.orDie)
+      if (Option.isSome(row)) {
+        earliest = row
+        break
+      }
+    }
+    if (Option.isNone(earliest)) return Option.none()
+    let latest = attempt
+    for (let next = attempt + 1;; next++) {
+      const row = yield* attemptStore.get({ runId, stepKeyDigest, attempt: next }).pipe(Effect.orDie)
+      if (Option.isNone(row)) break
+      latest = next
+    }
+    return Option.some({ earliest: earliest.value, latest })
+  })
+
 const ownerId = (hostId: string): Ownership.OwnerId => ({
   hostId,
   pid: process.pid,
@@ -171,12 +216,8 @@ export const make = (
         readonly key: string
       }) {
         const parent = yield* FlowEngine.FlowInstance
-        const first = yield* attemptStore.get({
-          runId: parent.executionId,
-          stepKeyDigest: Digest.digest(input.key),
-          attempt: 1
-        }).pipe(Effect.orDie)
-        return Option.map(first, (attempt) => attempt.startedAtMs)
+        const survivors = yield* probeAttempts(attemptStore, parent.executionId, input.key)
+        return Option.map(survivors, ({ earliest }) => earliest.startedAtMs)
       }),
       // The durable attempt counter (issue #59): the highest contiguous
       // persisted attempt for the key, so a resumed run replays failed
@@ -188,18 +229,8 @@ export const make = (
         readonly key: string
       }) {
         const parent = yield* FlowEngine.FlowInstance
-        const stepKeyDigest = Digest.digest(input.key)
-        let latest = Option.none<number>()
-        for (let attempt = 1;; attempt++) {
-          const row = yield* attemptStore.get({
-            runId: parent.executionId,
-            stepKeyDigest,
-            attempt
-          }).pipe(Effect.orDie)
-          if (Option.isNone(row)) break
-          latest = Option.some(attempt)
-        }
-        return latest
+        const survivors = yield* probeAttempts(attemptStore, parent.executionId, input.key)
+        return Option.map(survivors, ({ latest }) => latest)
       }),
       deferredResult: deferred.deferredResult,
       deferredDone: deferred.deferredDone,

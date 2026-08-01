@@ -137,7 +137,7 @@ export const describeContract = (harness: Harness): void => {
           // detector walks.
           const restarted = yield* context.restart
           const parents = yield* restarted.runParents("edge-child")
-          yield* restarted.removeRunParent("edge-child", "edge-parent-a")
+          yield* restarted.removeRunParentsForRun("edge-parent-a")
           const afterRemove = yield* restarted.runParents("edge-child")
           const none = yield* restarted.runParents("edge-none")
           return { first, duplicate, second, parents, afterRemove, none }
