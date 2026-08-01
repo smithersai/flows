@@ -294,21 +294,44 @@ export const make = (deps: Dependencies) => {
               }))
               return cached.value.result
             }
-            yield* emitLifecycle(JournalRecords.cacheProvenance(source(deps), {
-              keyDigest,
-              action: "stale_read_set",
-              recordedRunId: cached.value.recordedRunId,
-              recordedEventSeq: cached.value.recordedEventSeq
-            }))
-            // Skyframe invalidation, not just refusal (issue #99): a stale
-            // read set means the inputs changed, so the re-execution's
-            // result is *expected* to differ — left in place, the poisoned
-            // row turns the fresh `cache.put` into a Conflict, the strict
-            // verdict fails the run, and nothing ever removes the row, so
-            // every later run repeats the refuse → re-execute → conflict →
-            // fail cycle. The refusal is journalled above; evicting here
-            // lets the re-execution record cleanly under the same key.
-            yield* cache.evict(keyDigest)
+            // Only a *measured* mismatch is evidence the inputs changed
+            // (issue #110): a host that cannot measure right now — a
+            // transient EIO/EACCES on any declared read path — says nothing
+            // about the read set, so the hit is merely refused for this
+            // dispatch (the path below re-prepares and surfaces the host
+            // failure as an ordinary attempt failure) and the valid shared
+            // row survives for every run whose host is healthy.
+            if (Option.isSome(measured)) {
+              // The durable emit is also the fence: `emitDurable` fails with
+              // `fence_lost` for a zombie that lost the run, surfacing as
+              // self-interruption before the eviction below can run.
+              yield* emitLifecycle(JournalRecords.cacheProvenance(source(deps), {
+                keyDigest,
+                action: "stale_read_set",
+                recordedRunId: cached.value.recordedRunId,
+                recordedEventSeq: cached.value.recordedEventSeq
+              }))
+              // Skyframe invalidation, not just refusal (issue #99): a stale
+              // read set means the inputs changed, so the re-execution's
+              // result is *expected* to differ — left in place, the poisoned
+              // row turns the fresh `cache.put` into a Conflict, the strict
+              // verdict fails the run, and nothing ever removes the row, so
+              // every later run repeats the refuse → re-execute → conflict →
+              // fail cycle. The refusal is journalled above; evicting here
+              // lets the re-execution record cleanly under the same key.
+              // `evict` is a bare delete, so the row's provenance is
+              // re-read first: a fresh entry recorded by a concurrent run
+              // between this dispatch's `get` and its `evict` must not be
+              // deleted with the poison (issue #110).
+              const current = yield* cache.get(keyDigest)
+              if (
+                Option.isSome(current) &&
+                current.value.recordedRunId === cached.value.recordedRunId &&
+                current.value.recordedEventSeq === cached.value.recordedEventSeq
+              ) {
+                yield* cache.evict(keyDigest)
+              }
+            }
           }
         }
       }
