@@ -215,6 +215,18 @@ export interface RunParentEdge {
 }
 
 /**
+ * The surviving attempt rows of one activity key: the earliest surviving
+ * row's start time and the highest attempt number contiguous from it.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export interface AttemptSurvivors {
+  readonly earliestStartedAtMs: number
+  readonly latest: number
+}
+
+/**
  * Recording a parent edge would close a cycle in the run DAG.
  *
  * Raised from inside the same transaction that inserted the edge, which is
@@ -320,6 +332,23 @@ export interface Service {
    * analog of Temporal's task-timeout re-dispatch (issue #53).
    */
   readonly staleRunningRuns: (staleBeforeMs: number) => Effect.Effect<ReadonlyArray<string>>
+  /**
+   * The surviving attempt rows for an activity key, in one range read: the
+   * earliest surviving row's start time (the durable retry origin when
+   * attempt 1 itself was pruned, issue #69) and the highest attempt number
+   * contiguous from it (the resumed attempt counter, issue #59).
+   * `Option.none()` means no attempt row survives.
+   *
+   * Optional because only storage that can range-scan `flows_attempts`
+   * implements it; when absent the engine store falls back to per-attempt
+   * point reads against `AttemptStore` (issue #77).
+   */
+  readonly attemptSurvivors?:
+    | ((
+      runId: string,
+      stepKeyDigest: string
+    ) => Effect.Effect<Option.Option<AttemptSurvivors>>)
+    | undefined
   /**
    * Durably records a parent edge in the run DAG, first-writer-wins per
    * `(child, parent)` pair.
@@ -1007,6 +1036,39 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
     )
   )
 
+  /**
+   * One ordered range read replaces the engine store's per-attempt point
+   * probes (issue #77): a fresh key costs one empty SELECT instead of 32
+   * sequential gets, and a resumed key one SELECT instead of one per
+   * surviving attempt. Semantics match the point-probe fallback: the
+   * earliest surviving row is the durable retry origin (issue #69), the
+   * highest attempt contiguous from it the resumed counter (issue #59).
+   */
+  const attemptSurvivors: NonNullable<Service["attemptSurvivors"]> = Effect.fn(
+    "DurableEngineState.attemptSurvivors"
+  )((runId, stepKeyDigest) =>
+    sql<{ readonly attempt: number; readonly startedAtMs: number }>`
+      SELECT attempt AS "attempt", started_at_ms AS "startedAtMs"
+      FROM flows_attempts
+      WHERE run_id = ${runId}
+        AND step_key_digest = ${stepKeyDigest}
+      ORDER BY attempt
+    `.pipe(
+      Effect.orDie,
+      Effect.map((rows) => {
+        const first = rows[0]
+        if (first === undefined) return Option.none()
+        let latest = Number(first.attempt)
+        for (let index = 1; index < rows.length; index++) {
+          const next = Number(rows[index]!.attempt)
+          if (next !== latest + 1) break
+          latest = next
+        }
+        return Option.some({ earliestStartedAtMs: Number(first.startedAtMs), latest })
+      })
+    )
+  )
+
   const selectRunParent = (childId: string, parentId: string) =>
     sql<RunParentDatabaseRow>`
       SELECT
@@ -1121,6 +1183,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
     waiting,
     waitingRuns,
     staleRunningRuns,
+    attemptSurvivors,
     recordRunParent,
     removeRunParentsForRun,
     runParents

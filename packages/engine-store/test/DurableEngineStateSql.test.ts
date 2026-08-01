@@ -141,4 +141,38 @@ describe("SQL DurableEngineState", () => {
     expect([100, 101]).toContain(result.row.completedAtMs)
     expect(result.due).toEqual([])
   })
+
+  it("answers attempt survivors with one range read: none when fresh, earliest plus contiguous latest when pruned (issue #77)", async () => {
+    const insertAttempt = (attempt: number, startedAtMs: number) =>
+      Effect.gen(function*() {
+        const { sql } = yield* Database.Database
+        yield* sql`
+          INSERT INTO flows_attempts (
+            run_id, step_key_digest, attempt, state, started_at_ms, meta_json
+          ) VALUES (
+            'survivors-run', 'digest-a', ${attempt}, 'failed', ${startedAtMs}, '{}'
+          )
+        `
+      })
+    const result = await Effect.runPromise(
+      Effect.gen(function*() {
+        yield* insertOwnedRun("survivors-run")
+        const state = yield* DurableEngineState.make
+        const survivors = state.attemptSurvivors!
+        const fresh = yield* survivors("survivors-run", "digest-a")
+        // Retention pruned attempt 1; 2..3 survive contiguously, 5 is beyond
+        // a gap and must not extend the resumed counter.
+        yield* insertAttempt(2, 20)
+        yield* insertAttempt(3, 30)
+        yield* insertAttempt(5, 50)
+        const pruned = yield* survivors("survivors-run", "digest-a")
+        const otherKey = yield* survivors("survivors-run", "digest-b")
+        return { fresh, pruned, otherKey }
+      }).pipe(Effect.provide(migratedDatabase))
+    )
+
+    expect(Option.isNone(result.fresh)).toBe(true)
+    expect(Option.isNone(result.otherKey)).toBe(true)
+    expect(Option.getOrThrow(result.pruned)).toEqual({ earliestStartedAtMs: 20, latest: 3 })
+  })
 })

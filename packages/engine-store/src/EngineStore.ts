@@ -18,7 +18,7 @@ import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
 import { randomUUID } from "node:crypto"
-import type * as DurableEngineState from "./DurableEngineState.ts"
+import * as DurableEngineState from "./DurableEngineState.ts"
 import * as ActivityPersistence from "./internal/ActivityPersistence.ts"
 import * as DeferredPersistence from "./internal/DeferredPersistence.ts"
 import * as RunDriver from "./internal/RunDriver.ts"
@@ -66,27 +66,34 @@ const isBoundaryMetadata = Schema.is(StepBoundary.Descriptor)
  * before concluding no attempt rows survive. A retention/prune job removes
  * attempts oldest-first, so a surviving sequence is contiguous once its
  * first row is found; the bound only caps the pruned prefix walk
- * (issue #69). `AttemptStore` has no range query yet — when it grows one,
- * this scan collapses into it.
+ * (issue #69). Only the fallback path pays this: durable state that
+ * implements `attemptSurvivors` answers with one range read (issue #77).
  */
 const prunedPrefixScanLimit = 32
 
 /**
- * Finds the surviving attempt rows for an activity key: the earliest row —
- * the durable retry origin when attempt 1 itself was pruned (issue #69) —
- * and the highest contiguous attempt number, from which the engine resumes
- * the attempt counter (issue #59). `Option.none()` means no attempt row
- * survives within the scan bound.
+ * Finds the surviving attempt rows for an activity key: the earliest row's
+ * start time — the durable retry origin when attempt 1 itself was pruned
+ * (issue #69) — and the highest contiguous attempt number, from which the
+ * engine resumes the attempt counter (issue #59). `Option.none()` means no
+ * attempt row survives.
+ *
+ * When the durable state can range-scan attempts, one ordered SELECT
+ * answers both questions (issue #77); otherwise the point-read scan against
+ * `AttemptStore` remains as the fallback, paying up to
+ * `prunedPrefixScanLimit` sequential gets for a key that never ran.
  */
 const probeAttempts = (
   attemptStore: AttemptStore.Service,
+  survivors: DurableEngineState.Service["attemptSurvivors"],
   runId: string,
   key: string
-): Effect.Effect<
-  Option.Option<{ readonly earliest: AttemptStore.Attempt; readonly latest: number }>
-> =>
+): Effect.Effect<Option.Option<DurableEngineState.AttemptSurvivors>> =>
   Effect.gen(function*() {
     const stepKeyDigest = Digest.digest(key)
+    if (survivors !== undefined) {
+      return yield* survivors(runId, stepKeyDigest)
+    }
     let earliest = Option.none<AttemptStore.Attempt>()
     let attempt = 1
     for (; attempt <= prunedPrefixScanLimit; attempt++) {
@@ -103,7 +110,7 @@ const probeAttempts = (
       if (Option.isNone(row)) break
       latest = next
     }
-    return Option.some({ earliest: earliest.value, latest })
+    return Option.some({ earliestStartedAtMs: earliest.value.startedAtMs, latest })
   })
 
 const ownerId = (hostId: string): Ownership.OwnerId => ({
@@ -133,6 +140,8 @@ export const make = (
     const jj = yield* Jj.Jj
     const runStore = yield* RunStore.RunStore
     const stepBoundary = yield* StepBoundary.StepBoundary
+    const engineState = yield* DurableEngineState.DurableEngineState
+    const attemptSurvivors = engineState.attemptSurvivors
 
     const engine = yield* Deferred.make<FlowEngine.FlowEngine["Service"]>()
     const driver = yield* RunDriver.make({
@@ -216,8 +225,8 @@ export const make = (
         readonly key: string
       }) {
         const parent = yield* FlowEngine.FlowInstance
-        const survivors = yield* probeAttempts(attemptStore, parent.executionId, input.key)
-        return Option.map(survivors, ({ earliest }) => earliest.startedAtMs)
+        const survivors = yield* probeAttempts(attemptStore, attemptSurvivors, parent.executionId, input.key)
+        return Option.map(survivors, ({ earliestStartedAtMs }) => earliestStartedAtMs)
       }),
       // The durable attempt counter (issue #59): the highest contiguous
       // persisted attempt for the key, so a resumed run replays failed
@@ -229,7 +238,7 @@ export const make = (
         readonly key: string
       }) {
         const parent = yield* FlowEngine.FlowInstance
-        const survivors = yield* probeAttempts(attemptStore, parent.executionId, input.key)
+        const survivors = yield* probeAttempts(attemptStore, attemptSurvivors, parent.executionId, input.key)
         return Option.map(survivors, ({ latest }) => latest)
       }),
       deferredResult: deferred.deferredResult,
