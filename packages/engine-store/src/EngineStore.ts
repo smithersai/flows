@@ -10,9 +10,11 @@
 import { type Activity, Flow, FlowEngine } from "@smithers/engine"
 import { AttemptStore, CacheStore, Journal, type Ownership, RunStore } from "@smithers/journal"
 import { Jj } from "@smithers/kernel"
+import { Digest } from "@smithers/keys"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
 import { randomUUID } from "node:crypto"
@@ -159,6 +161,23 @@ export const make = (
       interruptUnsafe: driver.interruptUnsafe,
       resume: driver.resume,
       activityExecute,
+      // The durable schedule-to-close origin (issue #45): the first
+      // attempt's persisted `startedAtMs` for the activity key. It lives in
+      // the same `flows_attempts` rows that already restore the attempt
+      // sequence across park/resume and process death, so the engine's
+      // `expirationMs` budget is measured from the true first attempt
+      // instead of restarting on every process.
+      activityRetryOrigin: Effect.fnUntraced(function*(input: {
+        readonly key: string
+      }) {
+        const parent = yield* FlowEngine.FlowInstance
+        const first = yield* attemptStore.get({
+          runId: parent.executionId,
+          stepKeyDigest: Digest.digest(input.key),
+          attempt: 1
+        }).pipe(Effect.orDie)
+        return Option.map(first, (attempt) => attempt.startedAtMs)
+      }),
       deferredResult: deferred.deferredResult,
       deferredDone: deferred.deferredDone,
       scheduleClock: deferred.scheduleClock

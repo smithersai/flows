@@ -437,6 +437,19 @@ export interface Encoded {
     never,
     FlowInstance
   >
+  /**
+   * The durable wall-clock origin of an activity's retry sequence: the
+   * persisted start time of the first attempt for `key`, when one exists.
+   *
+   * Durable drivers implement it so a `RetryPolicy.expirationMs`
+   * (schedule-to-close) bound survives park/resume and process death
+   * (issue #45); when absent the engine falls back to an in-process origin.
+   */
+  readonly activityRetryOrigin?:
+    | ((options: {
+      readonly key: string
+    }) => Effect.Effect<Option.Option<number>, never, FlowInstance>)
+    | undefined
   readonly deferredResult: (
     deferred: DurableDeferred.Any
   ) => Effect.Effect<
@@ -681,6 +694,13 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
       }
 
       let resumeAttempt = 0
+      // The expiration origin for the resume loop is in-process by design:
+      // the loop itself only lives as long as this caller, and a restart
+      // re-enters `execute` with a fresh budget. What must not happen is the
+      // bound being silently inert (issue #45): `expirationMs` on the
+      // suspended retry policy caps the wall-clock time this caller keeps
+      // polling a suspended execution.
+      const resumeStartMs = yield* Clock.currentTimeMillis
       while (true) {
         const wrapped = yield* run
         result = Option.some(wrapped)
@@ -690,13 +710,21 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
         // The resume delay is derived from the attempt count (data policy) so
         // backoff survives a restart.
         resumeAttempt = resumeAttempt + 1
+        const elapsedMs = (yield* Clock.currentTimeMillis) - resumeStartMs
         const delay = yield* RetryPolicy.nextDelayEffect(
           suspendedRetryPolicy,
-          resumeAttempt
+          resumeAttempt,
+          { elapsedMs }
         )
         if (Option.isNone(delay)) {
+          // Distinguish the wall-clock give-up from attempt exhaustion: the
+          // delay is only elapsed-dependent when dropping `elapsedMs` would
+          // have allowed another attempt.
+          const expired = Option.isSome(
+            RetryPolicy.nextDelay(suspendedRetryPolicy, resumeAttempt)
+          )
           return yield* Effect.die(
-            `${self._tag}.execute: suspendedRetryPolicy exhausted`
+            `${self._tag}.execute: suspendedRetryPolicy ${expired ? "expired" : "exhausted"}`
           )
         }
         const sleep = Effect.sleep(delay.value)
@@ -723,11 +751,20 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
         currentOrdinal ?? instance.activityState.nextOrdinal()
       )
       const policy = activity.retryPolicy
-      // Elapsed retry time for the policy's expiration bound. The origin is
-      // this in-process sequence's start: a resume after process death
-      // restarts the elapsed measurement (the attempt count, not the start
-      // time, is what durable engines persist).
-      const retryStartMs = yield* Clock.currentTimeMillis
+      // Elapsed retry time for the policy's expiration bound. Durable
+      // drivers persist the first attempt's start time alongside the attempt
+      // row and expose it through `activityRetryOrigin`, so the
+      // schedule-to-close budget survives park/resume and process death
+      // (issue #45, mirroring Temporal's persisted expiration interval). The
+      // in-process clock is the fallback for engines without durable
+      // attempts.
+      const durableOrigin = policy?.expirationMs !== undefined &&
+          options.activityRetryOrigin !== undefined
+        ? yield* options.activityRetryOrigin({ key })
+        : Option.none<number>()
+      const retryStartMs = Option.isSome(durableOrigin)
+        ? durableOrigin.value
+        : yield* Clock.currentTimeMillis
       let currentAttempt = attempt
       while (true) {
         if (
@@ -820,7 +857,9 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
                   new RetryPolicy.RetryPolicyExpired({
                     activityName: activity.name,
                     attempt: currentAttempt,
-                    expirationMs: policy.expirationMs ?? 0,
+                    // `expired` is only ever produced by a policy that
+                    // declares `expirationMs`, so the bound is always present.
+                    expirationMs: policy.expirationMs as number,
                     lastError: failure.error
                   })
                 )
