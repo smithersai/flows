@@ -113,6 +113,67 @@ describe("transient prepare host errors on a cache hit (issue #110)", () => {
     expect(outcome.records.map((record) => record.action)).not.toContain("stale_read_set")
   })
 
+  it("a transient prepare failure refuses the hit, re-prepares, and runs the body (issue #126)", async () => {
+    const key = "prepare-failure/transient-recovery"
+    const keyDigest = Digest.digest(key)
+    // The transient cell: prepare dies on its FIRST invocation (the
+    // cache-hit gate's measurement) and returns a verified snapshot on
+    // every later one (the dispatch path's own re-prepare).
+    const transientBoundary = () => {
+      let prepares = 0
+      return Layer.succeed(
+        StepBoundary.StepBoundary,
+        StepBoundary.make({
+          prepare: (descriptor) =>
+            ++prepares === 1
+              ? Effect.fail(
+                new StepBoundary.UnsupportedBoundary({
+                  code: "unsupported_boundary",
+                  message: "transient EIO measuring the read set"
+                })
+              )
+              : Effect.succeed({ descriptor, readSnapshot: descriptor.readSet }),
+          settle: (prepared) =>
+            Effect.succeed({
+              declaredOutputs: { paths: prepared.descriptor.writeSet },
+              diffIdentity: "transient-recovery-diff"
+            }),
+          replayOutputs: () => Effect.void
+        })
+      )
+    }
+    const outcome = await Effect.runPromise(
+      Effect.gen(function*() {
+        const cache = yield* CacheStore.CacheStore
+        let executions = 0
+        const body = () =>
+          Effect.sync(() => {
+            executions++
+            return "recorded"
+          })
+        yield* activate("prepare-transient-recovery-first")
+        yield* dispatch("prepare-transient-recovery-first", key, body).pipe(
+          Effect.provide(StepBoundary.layerTest({ readSnapshot: declared.readSet }))
+        )
+        yield* activate("prepare-transient-recovery-second")
+        const result = yield* dispatch("prepare-transient-recovery-second", key, body).pipe(
+          Effect.provide(transientBoundary())
+        )
+        const entry = yield* cache.get(keyDigest)
+        const records = yield* provenance("prepare-transient-recovery-second")
+        return { result, executions, entry, records }
+      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+    )
+    // The dispatch succeeds on the re-prepared real execution…
+    expect(outcome.result).toBe("recorded")
+    // …the cache-hit gate refused (never replayed) and the body ran again…
+    expect(outcome.executions).toBe(2)
+    // …the valid shared row survives…
+    expect(Option.isSome(outcome.entry)).toBe(true)
+    // …and no factually wrong stale_read_set record was journalled.
+    expect(outcome.records.map((record) => record.action)).not.toContain("stale_read_set")
+  })
+
   it("a genuinely stale measurement still journals stale_read_set and evicts", async () => {
     const key = "prepare-failure/still-stale"
     const keyDigest = Digest.digest(key)
