@@ -122,6 +122,37 @@ describe("concurrent keyless same-declaration dispatches are refused (issue #111
     })
   })
 
+  effect("two overlapping same-key dispatches at an ordinal-keyed tier are refused (issue #130)", () => {
+    // A declared idempotencyKey is only the way out when the keys are
+    // DISTINCT: two concurrent dispatches of one irreversible declaration
+    // with the SAME key share one allocation scope, so their ordinals — and
+    // step keys — would again be assigned by fiber arrival order (and the
+    // #116 private cursor views would hand both dispatches the same pinned
+    // ordinal from a shared enclosing block). Same hazard, same refusal.
+    return Effect.gen(function*() {
+      const exit = yield* drive("keyed-same-key-overlap", (engine, gate) =>
+        Effect.all([
+          engine.activityExecute(keyedFetch("url-a") as never, 1),
+          engine.activityExecute(keyedFetch("url-a") as never, 1).pipe(
+            Effect.ensuring(Deferred.done(gate, Exit.void))
+          )
+        ], { concurrency: "unbounded" }))
+      expect(dies(exit)).toBe(true)
+    })
+  })
+
+  effect("sequential same-key dispatches at an ordinal-keyed tier stay allowed", () => {
+    return Effect.gen(function*() {
+      const exit = yield* drive("keyed-same-key-sequential", (engine, gate) =>
+        Effect.gen(function*() {
+          yield* Deferred.done(gate, Exit.void)
+          yield* engine.activityExecute(keyedFetch("url-a") as never, 1)
+          yield* engine.activityExecute(keyedFetch("url-a") as never, 1)
+        }))
+      expect(Exit.isSuccess(exit)).toBe(true)
+    })
+  })
+
   effect("sequential keyless dispatches of one declaration stay allowed", () => {
     return Effect.gen(function*() {
       const exit = yield* drive("keyless-sequential", (engine, gate) =>

@@ -1073,17 +1073,26 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
         return new Flow.Complete({ exit })
       }
     }, (body, activity) =>
-      // Keyless invocations of one declaration are allocation-ordered: with
-      // two in flight at once the ordinals — and so the step keys, attempt
-      // rows, and recorded outcomes — would be assigned by fiber arrival
-      // order, and a crash-resume replaying the fibers in the opposite order
-      // would silently hand one invocation the other's recorded outcome
-      // (issue #111). There is no engine-visible input material to order
-      // them by (inputs live in the execute closure), so the hazard is
-      // refused up front — Temporal's nondeterminism error, moved to the
-      // first run — and a declared idempotencyKey is the way out.
+      // Ordinal-keyed invocations of one allocation scope are
+      // allocation-ordered: with two in flight at once the ordinals — and so
+      // the step keys, attempt rows, and recorded outcomes — would be
+      // assigned by fiber arrival order, and a crash-resume replaying the
+      // fibers in the opposite order would silently hand one invocation the
+      // other's recorded outcome (issue #111). There is no engine-visible
+      // input material to order them by (inputs live in the execute
+      // closure), so the hazard is refused up front — Temporal's
+      // nondeterminism error, moved to the first run — and a declared
+      // idempotencyKey *distinguishing the invocations* is the way out.
+      // Only a sealed activity with a key escapes the refusal: it takes a
+      // pure content key with no ordinal at all. A keyed activity at any
+      // other tier still resolves to an ordinal key whose scope folds the
+      // key, so two concurrent SAME-key dispatches share one scope and have
+      // exactly the arrival-order hazard — and, nested in sibling retry
+      // blocks under a shared outer block, the #116 private cursor views
+      // would even hand both dispatches the same pinned ordinal (issue
+      // #130). Distinct keys are distinct scopes and overlap freely.
       Effect.gen(function*() {
-        if (activity.idempotencyKey !== undefined) return yield* body
+        if (activity.tier === "sealed" && activity.idempotencyKey !== undefined) return yield* body
         const instance = yield* FlowInstance
         const inFlight = instance.activityState.keylessInFlight
         const scope = ordinalScope(activity)

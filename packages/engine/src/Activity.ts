@@ -87,15 +87,17 @@ export class IrreversibleRetryRequiresIdempotencyKey
 {}
 
 /**
- * Two keyless invocations of one activity declaration were in flight
- * concurrently, so their ordinals — and with them their step keys, attempt
- * rows, and recorded outcomes — would be assigned by fiber arrival order. A
- * crash-resume that replays the fibers in the opposite order would silently
- * hand one invocation the other's recorded outcome (issue #111); Temporal
- * fails such replays with a nondeterminism error, and the engine refuses the
- * hazard up front instead of detecting it after the corruption. Declare an
- * `idempotencyKey` distinguishing the invocations to dispatch them
- * concurrently.
+ * Two ordinal-keyed invocations of one allocation scope were in flight
+ * concurrently — keyless invocations of one declaration, or same-key
+ * invocations at a non-sealed tier (issue #130) — so their ordinals, and
+ * with them their step keys, attempt rows, and recorded outcomes, would be
+ * assigned by fiber arrival order. A crash-resume that replays the fibers in
+ * the opposite order would silently hand one invocation the other's recorded
+ * outcome (issue #111); Temporal fails such replays with a nondeterminism
+ * error, and the engine refuses the hazard up front instead of detecting it
+ * after the corruption. Declare an `idempotencyKey` *distinguishing* the
+ * invocations to dispatch them concurrently; a sealed activity with a key
+ * takes a pure content key and is exempt.
  *
  * @category errors
  * @since 0.1.0
