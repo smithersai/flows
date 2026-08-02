@@ -17,4 +17,8 @@
  * @since 0.1.0
  */
 export { FlowCycleDetected } from "@smithers/engine/FlowEngine"
-export { AttemptAdmissionRejected, CacheConflictDetected, CacheCorruptionDetected } from "./internal/ActivityPersistence.ts"
+export {
+  AttemptAdmissionRejected,
+  CacheConflictDetected,
+  CacheCorruptionDetected
+} from "./internal/ActivityPersistence.ts"

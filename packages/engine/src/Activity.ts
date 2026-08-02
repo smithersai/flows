@@ -8,7 +8,7 @@
  *
  * @since 4.0.0
  */
-import * as StepKey from "@smithers/keys/StepKey"
+import type * as StepKey from "@smithers/keys/StepKey"
 import type { NonEmptyReadonlyArray } from "effect/Array"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"

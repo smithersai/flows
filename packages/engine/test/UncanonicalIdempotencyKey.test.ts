@@ -89,15 +89,18 @@ describe("rejected declaration material surfaces typed, not as fiber death (issu
       expect(outcome.executions).toBe(0)
     }))
 
-  effect("a rejected ContentIdentity on a non-sealed tier fails typed at the ordinal-scope site", () =>
-    Effect.gen(function*() {
-      const outcome = yield* runRejected("compensable", { when: new Date(0) })
-      const error = dieOf(outcome.exit) as Activity.UncanonicalIdempotencyKey
-      expect(error).toBeInstanceOf(Activity.UncanonicalIdempotencyKey)
-      expect(error.activityName).toBe("Uncanonical/compensable")
-      expect(error.reason).toBe("class_instance")
-      expect(outcome.executions).toBe(0)
-    }))
+  effect(
+    "a rejected ContentIdentity on a non-sealed tier fails typed at the ordinal-scope site",
+    () =>
+      Effect.gen(function*() {
+        const outcome = yield* runRejected("compensable", { when: new Date(0) })
+        const error = dieOf(outcome.exit) as Activity.UncanonicalIdempotencyKey
+        expect(error).toBeInstanceOf(Activity.UncanonicalIdempotencyKey)
+        expect(error.activityName).toBe("Uncanonical/compensable")
+        expect(error.reason).toBe("class_instance")
+        expect(outcome.executions).toBe(0)
+      })
+  )
 })
 
 describe("StepIdentity typed derivations (issue #151)", () => {
