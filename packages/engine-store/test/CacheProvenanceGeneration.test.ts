@@ -160,11 +160,22 @@ describe("identical-content re-records collapse into the original provenance", (
         const cache = yield* CacheStore.CacheStore
         const journal = yield* Journal.Journal
         yield* activate(runId)
+        // Counted body (issue #146): the convergence under test re-records
+        // from the PERSISTED succeeded row without re-running the body. A
+        // constant body cannot distinguish that from a plain re-execution —
+        // the sibling #141 cell proves an identical re-execution is
+        // byte-identical in provenance — so only the counter pins the
+        // `row.state === "succeeded"` replay branch itself.
+        let executions = 0
         const execute = ActivityPersistence.make({
           runId,
           owner,
           sourceId: `generation-${runId}`,
-          execute: () => Effect.succeed("recorded")
+          execute: () =>
+            Effect.sync(() => {
+              executions++
+              return "recorded"
+            })
         })
         const dispatch = execute({ activity: {}, attempt: 1, key, tier: "sealed", metadata: declared }).pipe(
           Effect.provide(StepBoundary.layerTest({ readSnapshot: declared.readSet }))
@@ -185,10 +196,13 @@ describe("identical-content re-records collapse into the original provenance", (
           entry.eventType === "flows.engine.cache-provenance" &&
           (entry.payload as { readonly action?: string }).action === "recorded"
         )
-        return { replayed, original: original.value, converged: converged.value, recorded }
+        return { replayed, executions, original: original.value, converged: converged.value, recorded }
       }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
     )
     expect(outcome.replayed).toBe("recorded")
+    // The convergence replayed the persisted attempt row — it did NOT
+    // re-execute the body (issue #146).
+    expect(outcome.executions).toBe(1)
     // The identical-content re-record collapsed into a Duplicate: exactly
     // one recorded row in the journal, and the converged cache row carries
     // the ORIGINAL emission's canonical provenance.
