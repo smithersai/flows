@@ -316,8 +316,12 @@ export const make = (deps: Dependencies) => {
       // row is visible and replays it instead of re-executing the body, and
       // the cache block's read-verify-materialize-evict span can never
       // interleave with another dispatch's execution. A verified hit returns
-      // from inside the permit.
-      return yield* admission.withPermit(`${deps.runId}|${keyDigest}|${input.attempt}`)(
+      // from inside the permit. The permit is keyed by (runId, keyDigest)
+      // alone (issue #133): the cache row is addressed by keyDigest with no
+      // attempt material, so folding the attempt counter in let sanctioned
+      // keyed dispatches at skewed attempt counters (#111/#116) acquire
+      // different permits and interleave the very span the permit serializes.
+      return yield* admission.withPermit(`${deps.runId}|${keyDigest}`)(
         Effect.gen(function*() {
           // Lifecycle announcements take a per-attempt producer identity
           // (issue #91): adoption — or a replay after a crash in the

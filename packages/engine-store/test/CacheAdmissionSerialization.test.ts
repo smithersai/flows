@@ -120,4 +120,42 @@ describe("the cache-hit block runs under the per-key admission permit (issue #11
     // point were two dispatches inside the boundary at once.
     expect(outcome.maxActive).toBe(1)
   })
+
+  it("serializes same-key dispatches whose enclosing retry blocks hold different attempt counters (issue #133)", async () => {
+    // The cache row is addressed by keyDigest alone, so the permit must be
+    // per (runId, keyDigest): folding the attempt counter into the permit key
+    // let two sanctioned keyed dispatches at skewed attempts (#111/#116)
+    // acquire different permits and interleave the read-verify-materialize
+    // span the permit exists to serialize.
+    const key = "cache-serial/attempt-skew"
+    const outcome = await Effect.runPromise(
+      Effect.gen(function*() {
+        yield* activate("cache-serial-skew-first")
+        yield* ActivityPersistence.make({
+          runId: "cache-serial-skew-first",
+          owner,
+          sourceId: "cache-serial-skew-first",
+          execute: () => Effect.succeed("recorded")
+        })({ activity: {}, attempt: 1, key, tier: "sealed", metadata: declared }).pipe(
+          Effect.provide(StepBoundary.layerTest({ readSnapshot: declared.readSet }))
+        )
+        yield* activate("cache-serial-skew-second")
+        const boundary = observableBoundary()
+        const execute = ActivityPersistence.make({
+          runId: "cache-serial-skew-second",
+          owner,
+          sourceId: "cache-serial-skew-second",
+          execute: () => Effect.die("must not execute: both dispatches are verified hits")
+        })
+        const dispatchAt = (attempt: number) =>
+          execute({ activity: {}, attempt, key, tier: "sealed", metadata: declared }).pipe(
+            Effect.provide(boundary.layer)
+          )
+        const results = yield* Effect.all([dispatchAt(1), dispatchAt(2)], { concurrency: 2 })
+        return { results, maxActive: boundary.maxActive() }
+      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+    )
+    expect(outcome.results).toEqual(["recorded", "recorded"])
+    expect(outcome.maxActive).toBe(1)
+  })
 })
