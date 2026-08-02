@@ -8,6 +8,7 @@
  */
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"
+import * as Schedule from "effect/Schedule"
 import { existsSync } from "node:fs"
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -23,7 +24,7 @@ case "$FLOWS_FAKE_JJ" in
   doesnt-exist) echo "Error: Path doesn't exist" 1>&2; exit 1 ;;
   stdout-only) echo "Error: reported on stdout"; exit 1 ;;
   signal) kill -9 $$ ;;
-  slow) /bin/sleep 1; : > "$FLOWS_FAKE_JJ_MARKER" ;;
+  slow) : > "$FLOWS_FAKE_JJ_MARKER.started"; /bin/sleep 1; : > "$FLOWS_FAKE_JJ_MARKER" ;;
   orphan) (/bin/sleep 1; : > "$FLOWS_FAKE_JJ_MARKER") & exit 0 ;;
   *) exit 0 ;;
 esac
@@ -93,14 +94,26 @@ describe.skipIf(process.platform === "win32")("NodeJj failure classification", (
 
   it("kills a still-running `jj` when the fiber is interrupted", async () => {
     const marker = join(directory, "escaped")
+    const started = `${marker}.started`
     process.env.FLOWS_FAKE_JJ = "slow"
     process.env.FLOWS_FAKE_JJ_MARKER = marker
 
+    // The absence of `marker` only proves the kill worked if the child was
+    // demonstrably alive when the interrupt was delivered. Without this
+    // positive control a spawn failure or a spawn delayed past the interrupt
+    // leaves `marker` trivially absent and the cell passes for the wrong
+    // reason (issue #162), so wait for the child's own started marker and
+    // assert it immediately before interrupting.
     await Effect.runPromise(
       Effect.gen(function*() {
         const jj = yield* Jj
         const fiber = yield* Effect.forkChild(jj.status(), { startImmediately: true })
-        yield* Effect.sleep(100)
+        yield* Effect.retry(
+          Effect.suspend(() => existsSync(started) ? Effect.void : Effect.fail("not started")),
+          { times: 200, schedule: Schedule.spaced(10) }
+        )
+        expect(existsSync(started)).toBe(true)
+        expect(existsSync(marker)).toBe(false)
         yield* Fiber.interrupt(fiber)
       }).pipe(Effect.provide(NodeJj.layer))
     )
