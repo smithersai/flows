@@ -10,7 +10,8 @@
  *
  * Depend on the individual `@smithers/*` packages instead when you want a
  * narrower dependency footprint — this barrel is a convenience, not a new
- * seam. It adds no API of its own.
+ * seam. The only API of its own is {@link namespaces}, the runtime list of
+ * the re-exported namespace names.
  *
  * ```ts
  * import { Engine, Host, Journal } from "@smithers/flows"
@@ -32,3 +33,30 @@ export * as Keys from "@smithers/keys"
 export * as Plugin from "@smithers/plugin"
 export * as Sync from "@smithers/sync"
 export * as TimeTravel from "@smithers/time-travel"
+
+/**
+ * The namespace names this barrel re-exports, in export order.
+ *
+ * Pure re-exports carry no executable statements, so before this constant
+ * the package's enforced 100% coverage gate evaluated an empty denominator
+ * (`100% (0/0)`) and could never go red while the conformance suite
+ * presented it as gated like every sibling (issue #169). This is the
+ * barrel's one runtime value: it gives the gate a real denominator, and the
+ * barrel test pins it against the derived `packages/*` universe so it can
+ * never drift from the re-exports above.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export const namespaces = [
+  "Database",
+  "Engine",
+  "EngineStore",
+  "Host",
+  "Journal",
+  "Kernel",
+  "Keys",
+  "Plugin",
+  "Sync",
+  "TimeTravel"
+] as const

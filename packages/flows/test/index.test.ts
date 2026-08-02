@@ -42,7 +42,14 @@ describe("barrel", () => {
   })
 
   it("re-exports every engine package as a namespace", () => {
-    expect(Object.keys(Flows).sort()).toEqual(expected)
+    // `namespaces` is the barrel's one runtime value (issue #169) — the
+    // executable statement that gives the coverage gate a non-empty
+    // denominator. Everything else is a namespace re-export.
+    expect(Object.keys(Flows).sort()).toEqual([...expected, "namespaces"].sort())
+  })
+
+  it("pins the runtime namespace list to the derived universe (issue #169)", () => {
+    expect([...Flows.namespaces].sort()).toEqual(expected)
   })
 
   it.each(expected.map((name) => ({ name })))("$name namespace is populated", ({ name }) => {
