@@ -11,7 +11,7 @@
  * generation with fresh provenance, while the #124 convergence re-record
  * (identical content) still collapses into a `Duplicate`.
  */
-import { CacheStore, type Ownership, RunStore } from "@smithers/journal"
+import { CacheStore, Journal, type Ownership, RunStore } from "@smithers/journal"
 import * as TestJournal from "@smithers/journal/test/TestJournal"
 import { Jj } from "@smithers/kernel"
 import { Digest } from "@smithers/keys"
@@ -140,5 +140,60 @@ describe("post-eviction re-records take fresh provenance (issue #129)", () => {
     // And so the laggard's pre-eviction fence no longer matches anything.
     expect(outcome.laggardDeleted).toBe(false)
     expect(outcome.survivorPresent).toBe(true)
+  })
+})
+
+describe("identical-content re-records collapse into the original provenance", () => {
+  it("re-drives the #124 convergence re-record into a journal Duplicate with no new row (issue #140)", async () => {
+    // The other half of the #129 contract: a crash between the provenance
+    // emit and `cache.put` converges on the next dispatch by re-recording
+    // the SAME content rebuilt from the persisted attempt row. That
+    // re-record must collapse into a journal `Duplicate` — the producer
+    // identity digest over `{ meta, result }` must be byte-stable across
+    // the DB round-trip of `row.meta` — or every convergence appends a
+    // fresh `cacheProvenance` row forever.
+    const runId = "generation-convergence"
+    const key = "generation/convergence-duplicate"
+    const keyDigest = Digest.digest(key)
+    const outcome = await Effect.runPromise(
+      Effect.gen(function*() {
+        const cache = yield* CacheStore.CacheStore
+        const journal = yield* Journal.Journal
+        yield* activate(runId)
+        const execute = ActivityPersistence.make({
+          runId,
+          owner,
+          sourceId: `generation-${runId}`,
+          execute: () => Effect.succeed("recorded")
+        })
+        const dispatch = execute({ activity: {}, attempt: 1, key, tier: "sealed", metadata: declared }).pipe(
+          Effect.provide(StepBoundary.layerTest({ readSnapshot: declared.readSet }))
+        )
+        yield* dispatch
+        const original = yield* cache.get(keyDigest)
+        if (Option.isNone(original)) return yield* Effect.die(new Error("original row missing"))
+        // Model the crash window: the provenance row is journalled but the
+        // cache row is gone, so the next dispatch of the same attempt takes
+        // the succeeded-row convergence branch and re-records.
+        yield* cache.evict(keyDigest)
+        const replayed = yield* dispatch
+        const converged = yield* cache.get(keyDigest)
+        if (Option.isNone(converged)) return yield* Effect.die(new Error("converged row missing"))
+        yield* journal.flush
+        const page = yield* journal.entries({ runId: runId as never, limit: 100 })
+        const recorded = page.entries.filter((entry) =>
+          entry.eventType === "flows.engine.cache-provenance" &&
+          (entry.payload as { readonly action?: string }).action === "recorded"
+        )
+        return { replayed, original: original.value, converged: converged.value, recorded }
+      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+    )
+    expect(outcome.replayed).toBe("recorded")
+    // The identical-content re-record collapsed into a Duplicate: exactly
+    // one recorded row in the journal, and the converged cache row carries
+    // the ORIGINAL emission's canonical provenance.
+    expect(outcome.recorded).toHaveLength(1)
+    expect(outcome.converged.recordedEventSeq).toBe(outcome.original.recordedEventSeq)
+    expect(outcome.converged.recordedRunId).toBe(outcome.original.recordedRunId)
   })
 })
