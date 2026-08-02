@@ -416,16 +416,39 @@ describe("replay-failed classification (issue #150)", () => {
         const cache = yield* CacheStore.CacheStore
         const poisoned = yield* cache.get(Digest.digest(key))
         if (Option.isNone(poisoned)) return yield* Effect.die(new Error("row missing"))
-        for (let observation = 0; observation < 2; observation++) {
-          yield* dispatch("corruption-dedupe-second", key, () => Effect.die("must not execute")).pipe(
+        for (let attempt = 1; attempt <= 2; attempt++) {
+          yield* ActivityPersistence.make({
+            runId: "corruption-dedupe-second",
+            owner,
+            sourceId: "corruption-corruption-dedupe-second",
+            execute: () => Effect.die("must not execute")
+          })({
+            activity: {},
+            // The attempt number varies across the two observations (issue
+            // #168): folding it into either durable identity would restore
+            // per-attempt journal growth while a constant-attempt cell
+            // stayed green.
+            attempt,
+            key,
+            tier: "sealed",
+            metadata: declared
+          }).pipe(
             Effect.provide(failingReplay(corruptionError)),
             Effect.flip
           )
           yield* cache.put(poisoned.value)
         }
-        return yield* records("corruption-dedupe-second", "flows.engine.cache-corruption")
+        return {
+          corruption: yield* records("corruption-dedupe-second", "flows.engine.cache-corruption"),
+          provenance: yield* records("corruption-dedupe-second", "flows.engine.cache-provenance")
+        }
       }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
     )
-    expect(outcome).toHaveLength(1)
+    expect(outcome.corruption).toHaveLength(1)
+    // Both per-attempt durable rows converge, not just the corruption record
+    // (issue #168): the replay-refusal provenance identity is
+    // per-(key, action, recorded-provenance), so the varying attempt above
+    // must not multiply `replay_failed` rows either.
+    expect(outcome.provenance.filter((payload) => payload.action === "replay_failed")).toHaveLength(1)
   })
 })
