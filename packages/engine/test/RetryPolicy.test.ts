@@ -364,6 +364,26 @@ describe("nextDelay numeric boundaries", () => {
     expect(RetryPolicy.errorTag(null)).toBe(undefined)
   })
 
+  it("cache corruption is non-retryable by type, with no per-policy opt-in", () => {
+    // Issue #156: a corrupt cache row is deterministic — every retry re-reads
+    // the same bytes — so the default classification refuses it even under a
+    // policy that declared no nonRetryable tags at all.
+    const policy = RetryPolicy.make({ initialMs: 100, factor: 2, maxMs: 1000, maxAttempts: 5 })
+    const corruption = { _tag: "flows/engine-store/CacheCorruptionDetected" }
+    expect(RetryPolicy.isNonRetryable(policy, corruption)).toBe(true)
+    expect(RetryPolicy.decide(policy, { attempt: 1, error: corruption })).toEqual(
+      RetryPolicy.giveUp("nonRetryable")
+    )
+    // an explicit caller list cannot opt corruption back into retrying
+    const optIn = RetryPolicy.make({
+      initialMs: 100,
+      factor: 2,
+      maxMs: 1000,
+      nonRetryable: ["SomethingElse"]
+    })
+    expect(RetryPolicy.isNonRetryable(optIn, corruption)).toBe(true)
+  })
+
   it("an empty nonRetryable list classifies nothing as non-retryable", () => {
     const policy = RetryPolicy.make({
       initialMs: 100,

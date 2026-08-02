@@ -153,7 +153,20 @@ export const make = (options: MakeOptions): Service => ({
     Effect.as(
       options.journal.emitDurable(
         JournalRecords.cacheCorruption(
-          { runId: event.runId, sourceId: "flows/engine-store/inconsistency" },
+          {
+            runId: event.runId,
+            // The producer identity is the corruption's content key (issue
+            // #156): a caller re-observing the identical corrupt row — a
+            // retry, or a converging replay — re-emits an exact producer
+            // duplicate the journal collapses, instead of appending one
+            // durable corruption record per attempt. A record already landed
+            // by another lineage under this identity surfaces as an
+            // idempotency conflict; either way the evidence exists exactly
+            // once, so the conflict converges below.
+            sourceId:
+              `flows/engine-store/inconsistency:corruption:${event.keyDigest}:${event.path}:${event.recordedDigest}:${event.measuredDigest}`,
+            sourceSeq: 0
+          },
           {
             keyDigest: event.keyDigest,
             verdict: options.verdict,
@@ -165,6 +178,8 @@ export const make = (options: MakeOptions): Service => ({
           }
         ),
         options.owner
+      ).pipe(
+        Effect.catch((error) => error.code === "idempotency_conflict" ? Effect.succeed(undefined) : Effect.fail(error))
       ),
       options.verdict
     )

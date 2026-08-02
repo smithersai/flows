@@ -279,17 +279,39 @@ export const errorTag = (error: unknown): string | undefined => {
 }
 
 /**
- * Whether an error is classified non-retryable by the policy.
+ * Error tags that are non-retryable by type, under every policy (issue #156).
+ *
+ * These failures are deterministic: retrying re-runs the identical decision
+ * against identical durable state, so every attempt re-fails the same way
+ * while re-journalling its evidence — cache corruption is the canonical
+ * case, where each retry re-reads the same corrupt row and appends another
+ * durable corruption record. No per-callsite or per-policy opt-out exists;
+ * the tags are matched by string so the classification does not invert the
+ * package dependency direction.
+ *
+ * @category Attempts
+ * @since 0.1.0
+ */
+export const defaultNonRetryable: ReadonlyArray<string> = [
+  "flows/engine-store/CacheCorruptionDetected"
+]
+
+/**
+ * Whether an error is classified non-retryable — by type (see
+ * {@link defaultNonRetryable}) or by the policy's declared tag list.
  *
  * @category Attempts
  * @since 0.1.0
  */
 export const isNonRetryable = (policy: RetryPolicy, error: unknown): boolean => {
-  if (policy.nonRetryable === undefined || policy.nonRetryable.length === 0) {
+  const tag = errorTag(error)
+  if (tag === undefined) {
     return false
   }
-  const tag = errorTag(error)
-  return tag !== undefined && policy.nonRetryable.includes(tag)
+  if (defaultNonRetryable.includes(tag)) {
+    return true
+  }
+  return policy.nonRetryable !== undefined && policy.nonRetryable.includes(tag)
 }
 
 /**

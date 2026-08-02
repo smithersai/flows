@@ -17,6 +17,7 @@ import { Jj } from "@smithers/kernel"
 import { Digest } from "@smithers/keys"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as Inconsistency from "../src/Inconsistency.ts"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
@@ -274,5 +275,80 @@ describe("replay-failed classification (issue #150)", () => {
     // The attempt durably succeeded: under a tolerant verdict its recorded
     // outcome remains the truth.
     expect(outcome).toBe("durable-outcome")
+  })
+
+  it("quarantines tolerated succeeded-row corruption instead of converging it into the shared cache (issue #160)", async () => {
+    const key = "corruption/succeeded-quarantined"
+    const outcome = await Effect.runPromise(
+      Effect.gen(function*() {
+        const cache = yield* CacheStore.CacheStore
+        yield* activate("corruption-quarantine")
+        yield* dispatch("corruption-quarantine", key, () => Effect.succeed("durable-outcome")).pipe(
+          Effect.provide(Layer.mergeAll(failingReplay(corruptionError), Inconsistency.layerTolerant))
+        )
+        // Route the re-dispatch to the succeeded-row branch, whose issue-#24
+        // convergence block would republish the row.
+        yield* cache.evict(Digest.digest(key))
+        const replayed = yield* dispatch("corruption-quarantine", key, () => Effect.die("must not re-execute")).pipe(
+          Effect.provide(Layer.mergeAll(failingReplay(corruptionError), Inconsistency.layerTolerant))
+        )
+        const cached = yield* cache.get(Digest.digest(key))
+        return { replayed, cached }
+      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+    )
+    // The durable outcome is still the truth for this run…
+    expect(outcome.replayed).toBe("durable-outcome")
+    // …but evidence just measured corrupt never converges into the shared
+    // cache for sibling runs: the row is quarantined, not recorded.
+    expect(Option.isNone(outcome.cached)).toBe(true)
+  })
+
+  it("converges an idempotency conflict on the corruption record but propagates other journal failures", async () => {
+    // The dedupe identity (issue #156) makes a cross-lineage duplicate an
+    // `idempotency_conflict` — the evidence already exists, so the receiver
+    // still returns its verdict. Any other journal failure is real.
+    const event = {
+      runId: "dedupe-conflict",
+      keyDigest: "k",
+      path: "dist/manifest.json",
+      recordedDigest: "aa".repeat(32),
+      measuredDigest: "bb".repeat(32)
+    }
+    const failing = (code: "idempotency_conflict" | "fence_lost") =>
+      Inconsistency.make({
+        journal: Journal.makeNoop({
+          emitDurable: () => Effect.fail(new Journal.JournalError({ code, message: code }))
+        }),
+        verdict: "fail"
+      })
+    const converged = await Effect.runPromise(failing("idempotency_conflict").noteCorruption(event))
+    expect(converged).toBe("fail")
+    const propagated = await Effect.runPromise(Effect.flip(failing("fence_lost").noteCorruption(event)))
+    expect(propagated).toMatchObject({ code: "fence_lost" })
+  })
+
+  it("journals a repeated identical corruption exactly once (issue #156)", async () => {
+    const key = "corruption/deduped-record"
+    const outcome = await Effect.runPromise(
+      Effect.gen(function*() {
+        yield* activate("corruption-dedupe-first")
+        yield* dispatch("corruption-dedupe-first", key, () => Effect.succeed("recorded")).pipe(
+          Effect.provide(failingReplay(corruptionError))
+        )
+        yield* activate("corruption-dedupe-second")
+        // The same corrupt evidence dispatched twice — a retrying caller
+        // re-hitting the identical corrupt row — must not append a second
+        // durable corruption record: the producer identity is the content
+        // key, so the re-emission collapses into a journal duplicate.
+        for (let attempt = 0; attempt < 2; attempt++) {
+          yield* dispatch("corruption-dedupe-second", key, () => Effect.die("must not execute")).pipe(
+            Effect.provide(failingReplay(corruptionError)),
+            Effect.flip
+          )
+        }
+        return yield* records("corruption-dedupe-second", "flows.engine.cache-corruption")
+      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+    )
+    expect(outcome).toHaveLength(1)
   })
 })
