@@ -20,6 +20,7 @@ import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
+import * as SchemaRepresentation from "effect/SchemaRepresentation"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
@@ -55,9 +56,18 @@ const provide = <A>(effect: Effect.Effect<A, any, any>, state: DurableEngineStat
 
 // The engine derives a sealed activity's string idempotency key through
 // `StepKey.content`; the test mirrors it to inspect the persisted rows.
+// Since issue #120 the body also folds the declared success/error schemas
+// (their stable `SchemaRepresentation` document form) — both activities
+// below share the same declaration.
+const declaration = {
+  success: SchemaRepresentation.toJson(SchemaRepresentation.toRepresentation(Schema.String.ast)),
+  error: SchemaRepresentation.toJson(SchemaRepresentation.toRepresentation(
+    Schema.Struct({ _tag: Schema.Literal("FatalBoom"), detail: Schema.String }).ast
+  ))
+}
 const activityKey = (name: string, idempotencyKey: string) =>
   Result.getOrThrow(StepKey.content({
-    body: { activity: name, idempotencyKey },
+    body: { activity: name, idempotencyKey, declaration },
     inputs: {},
     layers: [],
     capabilities: {}
