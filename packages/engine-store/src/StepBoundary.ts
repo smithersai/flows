@@ -247,11 +247,18 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
   const maxInlineBytes = options.maxInlineBytes ?? defaultMaxInlineBytes
   const maxTotalInlineBytes = options.maxTotalInlineBytes ?? defaultMaxTotalInlineBytes
   /**
-   * Distinguishes concurrent temp paths for the same digest within this
-   * service instance. No wall clock or randomness is needed: the digest
-   * already namespaces the content, and the counter separates in-flight
-   * writers of this process (issue #117).
+   * Distinguishes concurrent temp paths for the same digest across writers
+   * (issues #117, #131). The counter separates in-flight writers of this
+   * service instance; the random token separates instances — the default
+   * objects directory is workspace-shared, so two processes (or two
+   * instances) spilling the same digest would otherwise both write
+   * `<blob>.tmp-0`, clobber each other's completed temp file, and publish
+   * torn bytes at the canonical content address. The token never enters any
+   * persisted identity, so its randomness is invisible to replay, and it is
+   * plain `Math.random` rather than a host layer because it guards only
+   * filesystem scratch names, never durable state.
    */
+  const tempToken = Math.random().toString(36).slice(2, 12).padEnd(10, "0")
   let tempSequence = 0
   const measure = (path: string): Effect.Effect<string, UnsupportedBoundary> =>
     fs.exists(path).pipe(
@@ -291,7 +298,7 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
       // payload lands at a temp path and is renamed into place; an existing
       // blob is content-addressed and never rewritten.
       yield* fs.makeDirectory(objectsDirectory, { recursive: true }).pipe(Effect.mapError(hostFailure))
-      const tempPath = `${blobPath}.tmp-${tempSequence++}`
+      const tempPath = `${blobPath}.tmp-${tempToken}-${tempSequence++}`
       yield* fs.writeFile(tempPath, bytes).pipe(Effect.mapError(hostFailure))
       yield* fs.rename(tempPath, blobPath).pipe(Effect.mapError(hostFailure))
     }
