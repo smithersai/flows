@@ -16,6 +16,14 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Issue #163: the real-binary NodeJj suite requires jj on PATH; without
+      # it the suite fails loudly on CI (it no longer skips silently).
+      # install-action fetches the prebuilt jj-cli release binary — no cargo
+      # build. Keep the version pinned.
+      - name: Install jj
+        uses: taiki-e/install-action@v2
+        with:
+          tool: jj-cli@0.39.0
       - name: Typecheck all workspaces
         run: npm run check
       # Issue #38: lint (eslint --max-warnings=0 + dprint) and the

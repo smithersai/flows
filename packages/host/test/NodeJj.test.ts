@@ -17,6 +17,20 @@ const jjInstalled = (() => {
   }
 })()
 
+// On CI the real-binary suite is the only thing exercising the actual jj
+// contract — the scripted-fake suite already keeps coverage green — so a
+// silent skip would let a behavioural regression against real jj merge
+// unnoticed (issue #163). Locally the skip stays quiet; on CI it fails loud.
+describe.runIf(Boolean(process.env.CI) && !jjInstalled)("NodeJj (CI guard)", () => {
+  it("fails loudly when CI has no jj on PATH", () => {
+    throw new Error(
+      "jj is not installed on this CI runner, so the real-binary NodeJj suite "
+        + "silently skipped. Install jj in .github/workflows/ci.yml (see the "
+        + "'Install jj' step) — do not let this suite no-op on CI."
+    )
+  })
+})
+
 /**
  * `NodeJj` spawns `jj` in `process.cwd()`, so every case runs against a real
  * throwaway repository that this suite chdirs into.
