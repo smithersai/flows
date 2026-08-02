@@ -16,6 +16,7 @@
 import { FileSystem } from "@smithers/kernel"
 import { Digest } from "@smithers/keys"
 import * as Effect from "effect/Effect"
+import * as Encoding from "effect/Encoding"
 import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"
 import * as StepBoundary from "../src/StepBoundary.ts"
@@ -29,6 +30,8 @@ const memoryFs = (seed: Record<string, string>) => {
     Object.entries(seed).map(([path, content]) => [path, encoder.encode(content)])
   )
   const directories = new Set<string>()
+  const writes: Array<string> = []
+  const renames: Array<readonly [string, string]> = []
   const fs = FileSystem.makeNoop({
     exists: ((path: string) => Effect.succeed(files.has(path))) as never,
     readFile: ((path: string) =>
@@ -41,14 +44,23 @@ const memoryFs = (seed: Record<string, string>) => {
       })) as never,
     writeFile: ((path: string, bytes: Uint8Array) =>
       Effect.sync(() => {
+        writes.push(path)
         files.set(path, bytes)
+      })) as never,
+    rename: ((from: string, to: string) =>
+      Effect.sync(() => {
+        renames.push([from, to] as const)
+        const bytes = files.get(from)
+        if (bytes === undefined) throw new Error(`ENOENT: ${from}`)
+        files.set(to, bytes)
+        files.delete(from)
       })) as never,
     remove: ((path: string) =>
       Effect.sync(() => {
         files.delete(path)
       })) as never
   })
-  return { files, directories, fs }
+  return { files, directories, writes, renames, fs }
 }
 
 const boundaryLayer = (fs: FileSystem.FileSystem, options?: StepBoundary.FileSystemOptions) =>
@@ -158,5 +170,65 @@ describe("materialized outputs are digest-referenced and bounded (issue #113)", 
       }).pipe(Effect.provide(boundaryLayer(host.fs)))
     )
     expect(failure).toMatchObject({ code: "unsupported_boundary" })
+  })
+})
+
+describe("blob writes are atomic and materialization is digest-verified (issue #117)", () => {
+  const replay = (host: ReturnType<typeof memoryFs>, evidence: StepBoundary.BoundaryEvidence) =>
+    Effect.gen(function*() {
+      const boundary = yield* StepBoundary.StepBoundary
+      return yield* Effect.flip(boundary.replayOutputs(evidence))
+    }).pipe(Effect.provide(boundaryLayer(host.fs, { maxInlineBytes: 16, objectsDirectory: ".objects" })))
+
+  it("refuses a corrupted blob at the canonical address instead of writing garbage", async () => {
+    const host = memoryFs({ "input.txt": "original" })
+    const artifact = "c".repeat(64)
+    const evidence = await Effect.runPromise(settleWithArtifact(host, artifact, 16))
+    // The blob at the canonical content address was truncated after settle
+    // — a torn write, disk corruption, or a clobbered partial file.
+    host.files.set(`.objects/${Digest.digest(artifact)}`, encoder.encode("truncated"))
+    host.files.delete("artifact.bin")
+    const failure = await Effect.runPromise(replay(host, evidence))
+    expect(failure).toMatchObject({ code: "unsupported_boundary" })
+    expect(failure.message).toMatch(/digest/)
+    expect(host.files.has("artifact.bin")).toBe(false)
+  })
+
+  it("refuses inline content whose bytes do not match the recorded digest", async () => {
+    const host = memoryFs({})
+    const failure = await Effect.runPromise(replay(host, {
+      declaredOutputs: {
+        outputs: [{
+          path: "artifact.bin",
+          digest: Digest.digest("real"),
+          sizeBytes: 4,
+          content: Encoding.encodeBase64(encoder.encode("fake"))
+        }]
+      },
+      diffIdentity: "tampered"
+    }))
+    expect(failure).toMatchObject({ code: "unsupported_boundary" })
+    expect(failure.message).toMatch(/digest/)
+    expect(host.files.has("artifact.bin")).toBe(false)
+  })
+
+  it("writes blobs via temp+rename and never rewrites an existing valid blob", async () => {
+    const host = memoryFs({ "input.txt": "original" })
+    const artifact = "t".repeat(64)
+    const blobPath = `.objects/${Digest.digest(artifact)}`
+    await Effect.runPromise(settleWithArtifact(host, artifact, 16))
+    // The canonical address is never the direct write target: the payload
+    // lands at a temp path and is renamed into place, so a crash mid-write
+    // can never leave a partial file at the content address.
+    expect(host.writes).not.toContain(blobPath)
+    expect(host.renames).toHaveLength(1)
+    expect(host.renames[0]![0]).toMatch(new RegExp(`^${blobPath}\\.tmp-`))
+    expect(host.renames[0]![1]).toBe(blobPath)
+    // No temp file survives the settle.
+    expect([...host.files.keys()].filter((path) => path.includes(".tmp-"))).toHaveLength(0)
+    // Content-addressed: a second settle of the same payload skips the write.
+    await Effect.runPromise(settleWithArtifact(host, artifact, 16))
+    expect(host.writes.filter((path) => path.startsWith(`${blobPath}.tmp-`))).toHaveLength(1)
+    expect(host.renames).toHaveLength(1)
   })
 })

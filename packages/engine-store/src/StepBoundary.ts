@@ -197,6 +197,13 @@ type MaterializedOutput = typeof MaterializedOutputs.Type["outputs"][number]
 export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOptions = {}): Service => {
   const objectsDirectory = options.objectsDirectory ?? defaultObjectsDirectory
   const maxInlineBytes = options.maxInlineBytes ?? defaultMaxInlineBytes
+  /**
+   * Distinguishes concurrent temp paths for the same digest within this
+   * service instance. No wall clock or randomness is needed: the digest
+   * already namespaces the content, and the counter separates in-flight
+   * writers of this process (issue #117).
+   */
+  let tempSequence = 0
   const measure = (path: string): Effect.Effect<string, UnsupportedBoundary> =>
     fs.exists(path).pipe(
       Effect.flatMap((present) =>
@@ -221,8 +228,19 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
     }
     // Over the inline bound: the payload goes to the content-addressed
     // object directory and the persisted row carries only the reference.
-    yield* fs.makeDirectory(objectsDirectory, { recursive: true }).pipe(Effect.mapError(hostFailure))
-    yield* fs.writeFile(`${objectsDirectory}/${digest}`, bytes).pipe(Effect.mapError(hostFailure))
+    const blobPath = `${objectsDirectory}/${digest}`
+    const stored = yield* fs.exists(blobPath).pipe(Effect.mapError(hostFailure))
+    if (!stored) {
+      // Atomic publication (issue #117): a plain write to the canonical
+      // address could be observed — or survive a crash — as a partial file
+      // that every later materialization of this digest would trust. The
+      // payload lands at a temp path and is renamed into place; an existing
+      // blob is content-addressed and never rewritten.
+      yield* fs.makeDirectory(objectsDirectory, { recursive: true }).pipe(Effect.mapError(hostFailure))
+      const tempPath = `${blobPath}.tmp-${tempSequence++}`
+      yield* fs.writeFile(tempPath, bytes).pipe(Effect.mapError(hostFailure))
+      yield* fs.rename(tempPath, blobPath).pipe(Effect.mapError(hostFailure))
+    }
     return { path, digest, sizeBytes: bytes.length } satisfies MaterializedOutput
   })
   const materialize = Effect.fn("StepBoundary.materialize")(function*(output: MaterializedOutput) {
@@ -248,6 +266,19 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
         )
       }
       bytes = yield* fs.readFile(blobPath).pipe(Effect.mapError(hostFailure))
+    }
+    // Every materialization is digest-verified (issue #117): a corrupted or
+    // truncated blob at the canonical address — or tampered inline content —
+    // must never be written into the workspace as if it were the recorded
+    // output.
+    const measured = Digest.digest(bytes)
+    if (measured !== output.digest) {
+      return yield* Effect.fail(
+        new UnsupportedBoundary({
+          code: "unsupported_boundary",
+          message: `digest mismatch materializing ${output.path}: recorded ${output.digest}, measured ${measured}`
+        })
+      )
     }
     // The original body may have created the output's directory itself; a
     // fresh workspace replaying the evidence has no such directory and
