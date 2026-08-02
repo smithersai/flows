@@ -1096,15 +1096,25 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
         const instance = yield* FlowInstance
         const inFlight = instance.activityState.keylessInFlight
         const scope = ordinalScope(activity)
-        if (inFlight.has(scope)) {
-          return yield* Effect.die(
-            new Activity.ConcurrentKeylessDispatch({ activityName: activity.name })
-          )
-        }
-        inFlight.add(scope)
-        return yield* Effect.ensuring(
-          body,
-          Effect.sync(() => inFlight.delete(scope))
+        // The acquire and its release live in one uninterruptible region
+        // (issue #139): a bare `add` followed by `Effect.ensuring` left a
+        // one-op window — after the add, before the finalizer registered —
+        // where an interruption (a lost race, a timeout) leaked the scope
+        // into the Set forever, so every later fully sequential dispatch of
+        // the same scope falsely died `ConcurrentKeylessDispatch`.
+        return yield* Effect.acquireUseRelease(
+          Effect.sync(() => {
+            if (inFlight.has(scope)) return false
+            inFlight.add(scope)
+            return true
+          }),
+          (acquired) =>
+            acquired
+              ? body
+              : Effect.die(
+                new Activity.ConcurrentKeylessDispatch({ activityName: activity.name })
+              ),
+          (acquired) => acquired ? Effect.sync(() => inFlight.delete(scope)) : Effect.void
         )
       })),
     // Untraced because the explicit span below carries deferred attributes.

@@ -9,7 +9,7 @@
  * with `ConcurrentKeylessDispatch`, and declaring an `idempotencyKey` is the
  * sanctioned way to run distinguishable invocations concurrently.
  */
-import { Cause, Deferred, Effect, Exit, Fiber, Layer, Schema } from "effect"
+import { Cause, Deferred, Effect, Exit, Fiber, Layer, Scheduler, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { Activity, Flow, FlowEngine } from "../src/index.ts"
 
@@ -162,6 +162,47 @@ describe("concurrent keyless same-declaration dispatches are refused (issue #111
           yield* engine.activityExecute(keylessFetch as never, 1)
         }))
       expect(Exit.isSuccess(exit)).toBe(true)
+    })
+  })
+})
+
+describe("interruption cannot poison the in-flight guard (issue #139)", () => {
+  effect("a dispatch interrupted at any op boundary never leaks its scope", () => {
+    // The guard's acquire (`inFlight.add`) and its ensuring release used to
+    // be separated by a yield boundary: an interruption landing after the
+    // add but before the finalizer registered left the scope in the Set
+    // forever, so every later — fully sequential — dispatch of the same
+    // ordinal scope falsely died `ConcurrentKeylessDispatch`. The window is
+    // one runtime op wide, so the probe shrinks the scheduler's op budget
+    // (`MaxOpsBeforeYield`) and sweeps the interrupt across the early
+    // boundaries; before the acquire went uninterruptible, (budget 3,
+    // step 4) and (budget 7, step 0) both landed inside the window and
+    // leaked the scope. With the fix, no combination leaks.
+    return Effect.gen(function*() {
+      for (let budget = 3; budget <= 8; budget++) {
+        for (let steps = 0; steps < 12; steps++) {
+          const exit = yield* drive(`inflight-interrupt-${budget}-${steps}`, (engine, gate) =>
+            Effect.gen(function*() {
+              const probe = yield* Effect.forkChild(
+                engine.activityExecute(keylessFetch as never, 1).pipe(
+                  Effect.provideService(Scheduler.MaxOpsBeforeYield, budget)
+                )
+              )
+              for (let i = 0; i < steps; i++) yield* Effect.yieldNow
+              // Signal the interrupt, then open the gate: a probe already
+              // parked in the body would otherwise deadlock the join
+              // against the gate it is waiting on.
+              const interrupter = yield* Effect.forkChild(Fiber.interrupt(probe))
+              yield* Deferred.done(gate, Exit.void)
+              yield* Fiber.await(probe)
+              yield* Fiber.join(interrupter).pipe(Effect.exit)
+              // The guard released, the same scope must dispatch cleanly.
+              yield* engine.activityExecute(keylessFetch as never, 1)
+            }))
+          expect({ budget, steps, success: Exit.isSuccess(exit) })
+            .toEqual({ budget, steps, success: true })
+        }
+      }
     })
   })
 })
