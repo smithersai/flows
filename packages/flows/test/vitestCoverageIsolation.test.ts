@@ -59,4 +59,23 @@ describe("vitest coverage isolation conformance", () => {
       expect(source).toContain(`flows-${name}-coverage`)
     }
   )
+
+  it.each(configs)(
+    "$name enforces 100% coverage over src/** on every run (issue #137)",
+    ({ source }) => {
+      // The thresholds are the primary regression gate, so the gate itself
+      // is pinned cross-package: a sibling that drops `enabled: true`,
+      // lowers a threshold, or narrows `include` must fail HERE, not go
+      // silently un-enforced with its own suite green.
+      expect(source).toMatch(/coverage:\s*\{[^]*?enabled:\s*true/)
+      // Both shipped shapes cover every production module: `src/**` and the
+      // equivalent `src/**/*.ts`.
+      expect(source).toMatch(/include:\s*\[\s*"src\/\*\*(?:\/\*\.ts)?"\s*\]/)
+      const thresholds = source.match(/thresholds:\s*\{([^}]*)\}/)
+      expect(thresholds).not.toBeNull()
+      for (const category of ["branches", "functions", "lines", "statements"]) {
+        expect(thresholds![1]).toMatch(new RegExp(`${category}:\\s*100(?:\\s*,|\\s*\\})?`))
+      }
+    }
+  )
 })
