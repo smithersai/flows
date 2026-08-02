@@ -9,7 +9,7 @@
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"
 import * as Schedule from "effect/Schedule"
-import { existsSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -24,7 +24,7 @@ case "$FLOWS_FAKE_JJ" in
   doesnt-exist) echo "Error: Path doesn't exist" 1>&2; exit 1 ;;
   stdout-only) echo "Error: reported on stdout"; exit 1 ;;
   signal) kill -9 $$ ;;
-  slow) : > "$FLOWS_FAKE_JJ_MARKER.started"; /bin/sleep 1; : > "$FLOWS_FAKE_JJ_MARKER" ;;
+  slow) echo $$ > "$FLOWS_FAKE_JJ_MARKER.pid"; : > "$FLOWS_FAKE_JJ_MARKER.started"; /bin/sleep 1; : > "$FLOWS_FAKE_JJ_MARKER" ;;
   orphan) (: > "$FLOWS_FAKE_JJ_MARKER.started"; /bin/sleep 1; : > "$FLOWS_FAKE_JJ_MARKER") &
     : > "$FLOWS_FAKE_JJ_MARKER.exited"; exit 0 ;;
   *) exit 0 ;;
@@ -40,6 +40,29 @@ const waitFor = (path: string) =>
   Effect.retry(
     Effect.suspend(() => existsSync(path) ? Effect.void : Effect.fail("absent" as const)),
     { times: 300, schedule: Schedule.spaced(10) }
+  )
+
+/**
+ * Poll until `pid` is no longer a live process.
+ *
+ * The kill path uses `SIGKILL`, which no shell trap can observe, so the child
+ * cannot report its own death — process liveness is the only positive signal
+ * available. Because the scripted child writes its completion marker *before*
+ * exiting, "the process is gone" is a strictly later condition than "the marker
+ * was written": waiting for it turns the marker assertion into a condition
+ * rather than a fixed absence window (issue #175).
+ */
+const waitForExit = (pid: number) =>
+  Effect.retry(
+    Effect.suspend(() => {
+      try {
+        process.kill(pid, 0)
+        return Effect.fail("alive" as const)
+      } catch {
+        return Effect.void
+      }
+    }),
+    { times: 500, schedule: Schedule.spaced(10) }
   )
 
 const run = <A, E>(effect: Effect.Effect<A, E, Jj>) => Effect.runPromise(Effect.provide(effect, NodeJj.layer))
@@ -107,6 +130,7 @@ describe.skipIf(process.platform === "win32")("NodeJj failure classification", (
   it("kills a still-running `jj` when the fiber is interrupted", async () => {
     const marker = join(directory, "escaped")
     const started = `${marker}.started`
+    const pidFile = `${marker}.pid`
     process.env.FLOWS_FAKE_JJ = "slow"
     process.env.FLOWS_FAKE_JJ_MARKER = marker
 
@@ -126,7 +150,15 @@ describe.skipIf(process.platform === "win32")("NodeJj failure classification", (
         yield* Fiber.interrupt(fiber)
       }).pipe(Effect.provide(NodeJj.layer))
     )
-    await Effect.runPromise(Effect.sleep(1_400))
+    // A fixed sleep sized the absence window against an unloaded machine, so a
+    // delayed write from an unkilled child could land after the window closed
+    // and the cell would pass for the wrong reason (issue #175). Wait for the
+    // child process itself to disappear instead: the script writes `marker`
+    // before exiting, so once the pid is gone the marker has either been
+    // written or never will be, and the absence is a decided fact.
+    const pid = Number.parseInt(readFileSync(pidFile, "utf8").trim(), 10)
+    expect(Number.isInteger(pid)).toBe(true)
+    await Effect.runPromise(waitForExit(pid))
 
     expect(existsSync(marker)).toBe(false)
   })
