@@ -126,12 +126,21 @@ describe("orphaned temp blobs are reclaimed (issue #138)", () => {
       Object.entries(options.seed ?? {}).map(([path, content]) => [path, encoder.encode(content)])
     )
     let directoryReads = 0
+    // Per-path instrumentation: the healthy-blob-skip and repeat-capture
+    // cells below assert on IO counts, not just final state — final state is
+    // identical whether capture skips or rewrites through temp+rename
+    // (issue #143).
+    const writes: Array<string> = []
+    const reads: Array<string> = []
     const fs = FileSystem.makeNoop({
       exists: ((path: string) => Effect.succeed(files.has(path))) as never,
       readFile: ((path: string) =>
-        files.has(path) && path !== options.failReadOf
-          ? Effect.succeed(files.get(path)!)
-          : Effect.fail(new Error(`ENOENT: ${path}`))) as never,
+        Effect.suspend(() => {
+          reads.push(path)
+          return files.has(path) && path !== options.failReadOf
+            ? Effect.succeed(files.get(path)!)
+            : Effect.fail(new Error(`ENOENT: ${path}`))
+        })) as never,
       makeDirectory: (() => Effect.void) as never,
       readDirectory: ((directory: string) =>
         Effect.sync(() => {
@@ -149,6 +158,7 @@ describe("orphaned temp blobs are reclaimed (issue #138)", () => {
       }) as never,
       writeFile: ((path: string, bytes: Uint8Array) =>
         Effect.sync(() => {
+          writes.push(path)
           files.set(path, bytes)
         })) as never,
       rename: ((from: string, to: string) =>
@@ -165,7 +175,7 @@ describe("orphaned temp blobs are reclaimed (issue #138)", () => {
           files.delete(path)
         })) as never
     })
-    return { files, directoryReads: () => directoryReads, fs }
+    return { files, directoryReads: () => directoryReads, writes, reads, fs }
   }
 
   it("removes the temp file when the publishing rename fails", async () => {
@@ -225,6 +235,8 @@ describe("orphaned temp blobs are reclaimed (issue #138)", () => {
     await Effect.runPromise(boundary.replayOutputs({ declaredOutputs: { outputs: [output] } } as never))
     expect(decoder.decode(host.files.get("artifact.bin"))).toBe(artifact)
     expect([...host.files.keys()].filter((path) => path.includes(".tmp-"))).toEqual([])
+    // The heal went through the atomic temp+rename writer.
+    expect(host.writes.filter((path) => path.includes(".tmp-"))).toHaveLength(1)
   })
 
   it("rewrites an existing blob the host cannot read back", async () => {
@@ -235,6 +247,8 @@ describe("orphaned temp blobs are reclaimed (issue #138)", () => {
     const boundary = StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 4 })
     await Effect.runPromise(spill(boundary, host as never))
     expect(decoder.decode(host.files.get(blobPath))).toBe(artifact)
+    // The unreadable blob was actually rewritten, not silently trusted.
+    expect(host.writes.filter((path) => path.includes(".tmp-"))).toHaveLength(1)
   })
 
   it("leaves a healthy existing blob unwritten", async () => {
@@ -244,8 +258,11 @@ describe("orphaned temp blobs are reclaimed (issue #138)", () => {
     const boundary = StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 4 })
     await Effect.runPromise(spill(boundary, host as never))
     expect(decoder.decode(host.files.get(blobPath))).toBe(artifact)
-    // No temp write happened at all: existence plus a verified digest is
-    // still a skip.
+    // The skip itself is observed (issue #143): final state alone cannot
+    // distinguish a skip from an unconditional rewrite, because a
+    // successful temp+rename also leaves the right bytes and no `.tmp-*`
+    // key behind. A healthy verified blob must cause NO write at all.
+    expect(host.writes).toEqual([])
     expect([...host.files.keys()].filter((path) => path.includes(".tmp-"))).toEqual([])
   })
 
