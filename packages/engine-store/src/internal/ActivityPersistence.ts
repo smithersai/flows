@@ -267,11 +267,30 @@ export const make = (deps: Dependencies) => {
         readonly createdAtMs: number
       }) =>
         Effect.gen(function*() {
-          // The convergence re-record collapses into a `Duplicate`, whose
-          // receipt carries the original emission's canonical seq — so the
-          // rebuilt entry's provenance matches the first recording.
+          // The producer identity folds a digest of the recorded content
+          // (issue #129): a constant per-key identity made a post-eviction
+          // re-record collapse into a `Duplicate` carrying the EVICTED
+          // generation's seq, so the fresh row inherited the evicted row's
+          // exact provenance and a laggard's #119 `ifRecordedBy` fence could
+          // delete the valid new row. With the content folded in, the #124
+          // convergence re-record (identical content, rebuilt from the same
+          // persisted attempt row, so the serialization is byte-stable)
+          // still collapses into a `Duplicate` whose receipt carries the
+          // original emission's canonical seq, while a re-record with
+          // different content is a distinct producer that journals fresh
+          // provenance. A re-record whose content happens to equal the
+          // evicted generation's shares its provenance by design: the two
+          // rows are indistinguishable, so a fenced evict of one is exactly
+          // a fenced evict of the other.
+          const generation = Digest.digest(
+            JSON.stringify({ meta: options.meta, result: options.result })
+          )
           const receipt = yield* emitLifecycle(
-            JournalRecords.cacheProvenance(cacheSource("recorded"), { keyDigest, action: "recorded" })
+            JournalRecords.cacheProvenance({
+              runId: deps.runId,
+              sourceId: `${deps.sourceId}:cache:${keyDigest}:recorded:${generation}`,
+              sourceSeq: 0
+            }, { keyDigest, action: "recorded" })
           )
           const entry = {
             keyDigest,
