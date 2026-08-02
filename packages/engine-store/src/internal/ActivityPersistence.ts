@@ -285,95 +285,15 @@ export const make = (deps: Dependencies) => {
             }
           }
         })
-      if (cacheable && input.metadata !== undefined) {
-        const cached = yield* cache.get(keyDigest)
-        if (Option.isSome(cached)) {
-          const meta = decodeMeta(cached.value.meta)
-          if (meta?.tier === "sealed" && meta.boundary !== undefined && meta.boundary.deviation === undefined) {
-            const boundary = yield* StepBoundary.StepBoundary
-            // Skyframe's dirty check, not "the declaration changed" (issue
-            // #90): the read-set digests folded into the step key are caller
-            // metadata, so reuse is justified only once the host has
-            // measured them and agreed. A stale declaration falls through to
-            // a real execution instead of replaying a pre-edit result, and
-            // the refusal is journalled so it is visible rather than silent.
-            // A boundary the host cannot enforce is likewise not a hit; the
-            // dispatch path below re-prepares and fails the attempt properly.
-            const measured = yield* boundary.prepare(input.metadata).pipe(Effect.option)
-            const verified = Option.isSome(measured) && StepBoundary.readSetMatches(measured.value)
-            if (verified) {
-              const materialized = yield* boundary.replayOutputs(meta.boundary).pipe(Effect.exit)
-              if (Exit.isSuccess(materialized)) {
-                yield* emitLifecycle(JournalRecords.cacheProvenance(source(deps), {
-                  keyDigest,
-                  recordedRunId: cached.value.recordedRunId,
-                  recordedEventSeq: cached.value.recordedEventSeq
-                }))
-                return cached.value.result
-              }
-              // Evidence the host cannot re-materialize — a transient
-              // filesystem error, or a row recorded by a foreign boundary
-              // implementation — is not a hit and not a run failure
-              // (issue #107): failing here while the verified row survived
-              // repeated refuse→fail on every later run, the exact
-              // permanent-failure loop #99 closed one branch later. The
-              // refusal is journalled and the dispatch path below executes
-              // for real; the row survives for hosts that can replay it.
-              yield* emitLifecycle(JournalRecords.cacheProvenance(source(deps), {
-                keyDigest,
-                action: "replay_failed",
-                recordedRunId: cached.value.recordedRunId,
-                recordedEventSeq: cached.value.recordedEventSeq
-              }))
-            } else if (Option.isSome(measured)) {
-              // Only a *measured* mismatch is evidence the inputs changed
-              // (issue #110): a host that cannot measure right now — a
-              // transient EIO/EACCES on any declared read path — says
-              // nothing about the read set, so the hit is merely refused for
-              // this dispatch (the path below re-prepares and surfaces the
-              // host failure as an ordinary attempt failure) and the valid
-              // shared row survives for every run whose host is healthy.
-              //
-              // The durable emit is also the fence: `emitDurable` fails with
-              // `fence_lost` for a zombie that lost the run, surfacing as
-              // self-interruption before the eviction below can run.
-              yield* emitLifecycle(JournalRecords.cacheProvenance(source(deps), {
-                keyDigest,
-                action: "stale_read_set",
-                recordedRunId: cached.value.recordedRunId,
-                recordedEventSeq: cached.value.recordedEventSeq
-              }))
-              // Skyframe invalidation, not just refusal (issue #99): a stale
-              // read set means the inputs changed, so the re-execution's
-              // result is *expected* to differ — left in place, the poisoned
-              // row turns the fresh `cache.put` into a Conflict, the strict
-              // verdict fails the run, and nothing ever removes the row, so
-              // every later run repeats the refuse → re-execute → conflict →
-              // fail cycle. The refusal is journalled above; evicting here
-              // lets the re-execution record cleanly under the same key.
-              // `evict` is a bare delete, so the row's provenance is
-              // re-read first: a fresh entry recorded by a concurrent run
-              // between this dispatch's `get` and its `evict` must not be
-              // deleted with the poison (issue #110).
-              const current = yield* cache.get(keyDigest)
-              if (
-                Option.isSome(current) &&
-                current.value.recordedRunId === cached.value.recordedRunId &&
-                current.value.recordedEventSeq === cached.value.recordedEventSeq
-              ) {
-                yield* cache.evict(keyDigest)
-              }
-            }
-          }
-        }
-      }
-
-      // Everything from the durable-row read to the terminal transition runs
-      // under this process's exclusive permit for the attempt key (issues
-      // #102, #103): the adoption decision below is taken from a read no
-      // in-process racer can invalidate before the claim lands, and a
+      // Everything from the cache-hit verification to the terminal transition
+      // runs under this process's exclusive permit for the attempt key
+      // (issues #102, #103, #118): the adoption decision below is taken from
+      // a read no in-process racer can invalidate before the claim lands, a
       // concurrent same-key dispatch waits here until the winner's terminal
-      // row is visible and replays it instead of re-executing the body.
+      // row is visible and replays it instead of re-executing the body, and
+      // the cache block's read-verify-materialize-evict span can never
+      // interleave with another dispatch's execution. A verified hit returns
+      // from inside the permit.
       return yield* admission.withPermit(`${deps.runId}|${keyDigest}|${input.attempt}`)(
         Effect.gen(function*() {
           // Lifecycle announcements take a per-attempt producer identity
@@ -405,6 +325,96 @@ export const make = (deps: Dependencies) => {
                 error.code === "idempotency_conflict" ? Effect.succeed(undefined) : Effect.fail(error)
               )
             )
+          if (cacheable && input.metadata !== undefined) {
+            const cached = yield* cache.get(keyDigest)
+            if (Option.isSome(cached)) {
+              const meta = decodeMeta(cached.value.meta)
+              if (meta?.tier === "sealed" && meta.boundary !== undefined && meta.boundary.deviation === undefined) {
+                const boundary = yield* StepBoundary.StepBoundary
+                // Skyframe's dirty check, not "the declaration changed" (issue
+                // #90): the read-set digests folded into the step key are caller
+                // metadata, so reuse is justified only once the host has
+                // measured them and agreed. A stale declaration falls through to
+                // a real execution instead of replaying a pre-edit result, and
+                // the refusal is journalled so it is visible rather than silent.
+                // A boundary the host cannot enforce is likewise not a hit; the
+                // dispatch path below re-prepares and fails the attempt properly.
+                const measured = yield* boundary.prepare(input.metadata).pipe(Effect.option)
+                const verified = Option.isSome(measured) && StepBoundary.readSetMatches(measured.value)
+                if (verified) {
+                  const materialized = yield* boundary.replayOutputs(meta.boundary).pipe(Effect.exit)
+                  if (Exit.isSuccess(materialized)) {
+                    yield* emitLifecycle(JournalRecords.cacheProvenance(source(deps), {
+                      keyDigest,
+                      recordedRunId: cached.value.recordedRunId,
+                      recordedEventSeq: cached.value.recordedEventSeq
+                    }))
+                    return cached.value.result
+                  }
+                  // Evidence the host cannot re-materialize — a transient
+                  // filesystem error, or a row recorded by a foreign boundary
+                  // implementation — is not a hit and not a run failure
+                  // (issue #107): failing here while the verified row survived
+                  // repeated refuse→fail on every later run, the exact
+                  // permanent-failure loop #99 closed one branch later. The
+                  // refusal is journalled and the dispatch path below executes
+                  // for real; the row survives for hosts that can replay it.
+                  yield* emitLifecycle(JournalRecords.cacheProvenance(source(deps), {
+                    keyDigest,
+                    action: "replay_failed",
+                    recordedRunId: cached.value.recordedRunId,
+                    recordedEventSeq: cached.value.recordedEventSeq
+                  }))
+                } else if (Option.isSome(measured)) {
+                  // Only a *measured* mismatch is evidence the inputs changed
+                  // (issue #110): a host that cannot measure right now — a
+                  // transient EIO/EACCES on any declared read path — says
+                  // nothing about the read set, so the hit is merely refused for
+                  // this dispatch (the path below re-prepares and surfaces the
+                  // host failure as an ordinary attempt failure) and the valid
+                  // shared row survives for every run whose host is healthy.
+                  //
+                  // The durable emit is also the fence: `emitDurable` fails with
+                  // `fence_lost` for a zombie that lost the run, surfacing as
+                  // self-interruption before the eviction below can run.
+                  yield* emitLifecycle(JournalRecords.cacheProvenance(source(deps), {
+                    keyDigest,
+                    action: "stale_read_set",
+                    recordedRunId: cached.value.recordedRunId,
+                    recordedEventSeq: cached.value.recordedEventSeq
+                  }))
+                  // Skyframe invalidation, not just refusal (issue #99): a stale
+                  // read set means the inputs changed, so the re-execution's
+                  // result is *expected* to differ — left in place, the poisoned
+                  // row turns the fresh `cache.put` into a Conflict, the strict
+                  // verdict fails the run, and nothing ever removes the row, so
+                  // every later run repeats the refuse → re-execute → conflict →
+                  // fail cycle. The refusal is journalled above; evicting here
+                  // lets the re-execution record cleanly under the same key.
+                  // `evict` is a bare delete, so the row's provenance is
+                  // re-read first: a fresh entry recorded by a concurrent run
+                  // between this dispatch's `get` and its `evict` must not be
+                  // deleted with the poison (issue #110). Running this whole
+                  // block under the per-key admission permit (issue #118)
+                  // closes the *in-process* window, but the read-then-DELETE
+                  // remains unfenced against other processes (issue #119): a
+                  // foreign run can still land a fresh row between this re-read
+                  // and the delete. Closing that residual cross-process window
+                  // needs a provenance-predicated `CacheStore.evict(keyDigest,
+                  // provenance)` in the journal package's storage lane.
+                  const current = yield* cache.get(keyDigest)
+                  if (
+                    Option.isSome(current) &&
+                    current.value.recordedRunId === cached.value.recordedRunId &&
+                    current.value.recordedEventSeq === cached.value.recordedEventSeq
+                  ) {
+                    yield* cache.evict(keyDigest)
+                  }
+                }
+              }
+            }
+          }
+
           const existing = yield* attempts.get(attemptId)
           if (Option.isSome(existing)) {
             const row = existing.value
