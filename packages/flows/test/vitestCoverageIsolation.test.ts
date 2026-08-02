@@ -22,26 +22,39 @@ import { describe, expect, it } from "vitest"
  */
 describe("vitest coverage isolation conformance", () => {
   const packagesDir = resolve(import.meta.dirname, "..", "..")
-  const configs = readdirSync(packagesDir)
-    .filter((name) => {
-      const config = join(packagesDir, name, "vitest.config.ts")
-      try {
-        return statSync(config).isFile()
-      } catch {
-        return false
-      }
-    })
-    .map((name) => ({
+  // The universe is every directory under packages/ that ships a
+  // package.json — NOT the directories that already have a vitest config
+  // (issue #148): deriving the universe from found configs made a new
+  // config-less package invisible to every assertion below, shipping with
+  // zero coverage/isolation enforcement while this suite stayed green.
+  const isFile = (path: string) => {
+    try {
+      return statSync(path).isFile()
+    } catch {
+      return false
+    }
+  }
+  const packages = readdirSync(packagesDir).filter((name) => isFile(join(packagesDir, name, "package.json")))
+  const configs = packages.map((name) => {
+    const path = join(packagesDir, name, "vitest.config.ts")
+    return {
       name,
-      path: join(packagesDir, name, "vitest.config.ts"),
-      source: readFileSync(join(packagesDir, name, "vitest.config.ts"), "utf8")
-    }))
+      path,
+      source: isFile(path) ? readFileSync(path, "utf8") : ""
+    }
+  })
 
   it("finds every package's vitest config", () => {
     const names = configs.map((config) => config.name)
     expect(names).toContain("flows")
     expect(names).toContain("host")
     expect(names.length).toBeGreaterThanOrEqual(11)
+  })
+
+  it.each(configs)("$name ships a vitest config at all (issue #148)", ({ path, source }) => {
+    // An empty source means the package exists but has no config file —
+    // the exact omission the config-derived universe could never see.
+    expect(source, `${path} is missing`).not.toBe("")
   })
 
   it.each(configs)(
