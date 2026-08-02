@@ -166,6 +166,39 @@ describe("vitest coverage isolation conformance", () => {
     expect(root.workspaces).toEqual(["packages/*"])
   })
 
+  it("pins the root aggregator scripts CI invokes (issue #166)", () => {
+    // The per-package `scripts.test` pin (issue #158) covered the leaves but
+    // not the root: CI runs `npm test`, and the root aggregator is what fans
+    // that out across every workspace. Narrowing it — e.g. to
+    // `--workspace packages/flows` — silently dropped siblings from CI while
+    // every per-package cell and the workspaces-glob cell stayed green. The
+    // exact aggregator bodies are pinned here; changing how CI fans out
+    // means widening this assertion in review.
+    const root = JSON.parse(readFileSync(join(packagesDir, "..", "package.json"), "utf8")) as {
+      readonly scripts?: Record<string, string>
+    }
+    expect(root.scripts).toEqual({
+      check: "npm run check --workspaces --if-present",
+      circular: "npm run circular --workspaces --if-present",
+      lint: "npm run lint --workspaces --if-present",
+      test: "npm run test --workspaces --if-present"
+    })
+  })
+
+  it("pins the CI steps that reach the aggregators and the jj install (issue #166)", () => {
+    // The yml is the last unpinned hop: a step that stops calling `npm test`
+    // (or drops the jj install the real-binary host suite requires, issue
+    // #163) skips enforcement with every conformance cell green. Source-text
+    // pins, matching the config-source approach used across this suite.
+    const ci = readFileSync(join(packagesDir, "..", ".github", "workflows", "ci.yml"), "utf8")
+    expect(ci).toMatch(/^\s*- run: npm ci$/m)
+    expect(ci).toMatch(/^\s*run: npm run check$/m)
+    expect(ci).toMatch(/^\s*run: npm run lint$/m)
+    expect(ci).toMatch(/^\s*run: npm run circular$/m)
+    expect(ci).toMatch(/^\s*run: npm test$/m)
+    expect(ci).toMatch(/tool: jj-cli@\d+\.\d+\.\d+/)
+  })
+
   it("inventories every coverage-ignore directive against a pinned allowlist (issues #153/#157)", () => {
     // An ignore hint is subtracted from the denominator BEFORE the 100%
     // thresholds are evaluated, so a one-line comment is the cheapest way to
