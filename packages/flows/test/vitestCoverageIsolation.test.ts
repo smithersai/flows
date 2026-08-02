@@ -123,6 +123,16 @@ describe("vitest coverage isolation conformance", () => {
       // happen to load while every pinned assertion above stays green.
       expect(source).not.toMatch(/\ball\s*:/)
       expect(source).not.toMatch(/\bextension\s*:/)
+      // The provider itself must be pinned to "v8" (issue #157): the whole
+      // ignore-directive inventory below is written against the v8 provider's
+      // hint grammar, and a silent flip to `provider: "istanbul"` would
+      // activate `istanbul ignore` comments under a different parser while
+      // every assertion above stays green.
+      expect(source).toMatch(/provider:\s*"v8"/)
+      // `coverage.ignoreClassMethods` subtracts every method with a matching
+      // name from the denominator with no per-site comment to inventory —
+      // forbid it outright (issue #157).
+      expect(source).not.toMatch(/\bignoreClassMethods\s*:/)
     }
   )
 
@@ -139,13 +149,22 @@ describe("vitest coverage isolation conformance", () => {
     expect(root.workspaces).toEqual(["packages/*"])
   })
 
-  it("inventories every v8 coverage-ignore directive against a pinned allowlist (issue #153)", () => {
+  it("inventories every coverage-ignore directive against a pinned allowlist (issues #153/#157)", () => {
     // An ignore hint is subtracted from the denominator BEFORE the 100%
     // thresholds are evaluated, so a one-line comment is the cheapest way to
     // ship an uncovered branch with zero test failures. Every directive in
     // any package's src tree must appear here, with its count: adding one —
     // or moving one — means widening this allowlist in review, with the
     // justification the diff forces into the open.
+    //
+    // The inventory matches the provider's FULL hint grammar (issue #157):
+    // the v8 provider parses hints via ast-v8-to-istanbul, whose regex is
+    // /^\s*(?:istanbul|[cv]8|node:coverage)\s+ignore\s+(if|else|next|file)(?=\W|$)/
+    // plus a start/stop range variant — so `c8 ignore next`,
+    // `istanbul ignore else`, and `node:coverage ignore file` are all live
+    // directives that the earlier literal-`v8 ignore` grep never saw.
+    const directive =
+      /(?:istanbul|[cv]8|node:coverage)\s+ignore\s+(if|else|next|file|start|stop)(?=\W|$)/g
     const allowlist: Record<string, number> = {
       "engine/src/FlowEngine.ts": 1,
       "journal/src/AttemptStore.ts": 1,
@@ -172,9 +191,23 @@ describe("vitest coverage isolation conformance", () => {
     const found: Record<string, number> = {}
     for (const name of packages) {
       for (const path of sourceFiles(join(packagesDir, name, "src"))) {
-        const matches = readFileSync(path, "utf8").match(/v8 ignore/g)
-        if (matches !== null) {
-          found[relative(packagesDir, path)] = matches.length
+        const source = readFileSync(path, "utf8")
+        const file = relative(packagesDir, path)
+        let count = 0
+        for (const match of source.matchAll(directive)) {
+          const form = match[1]
+          // The `file` form drops the ENTIRE file out of the 100%
+          // denominator, and start/stop ranges hide arbitrarily large
+          // regions behind a single allowlist count — all three are
+          // forbidden outright, never allowlisted (issue #157).
+          expect(
+            form,
+            `${file} uses the forbidden "ignore ${form}" form: "${match[0]}"`
+          ).not.toMatch(/^(?:file|start|stop)$/)
+          count += 1
+        }
+        if (count > 0) {
+          found[file] = count
         }
       }
     }
