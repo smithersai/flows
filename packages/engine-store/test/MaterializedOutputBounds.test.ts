@@ -173,6 +173,57 @@ describe("materialized outputs are digest-referenced and bounded (issue #113)", 
   })
 })
 
+describe("the aggregate inline payload is bounded (issue #122)", () => {
+  it("spills outputs past maxTotalInlineBytes to the object store and still replays them", async () => {
+    // Ten-byte outputs each fit the 16-byte per-output bound, but the third
+    // would push the evidence's aggregate inline payload past the 24-byte
+    // total bound — so it is spilled to the object directory and recorded by
+    // digest reference only.
+    const host = memoryFs({ "input.txt": "original" })
+    const contents = ["a".repeat(10), "b".repeat(10), "c".repeat(10)]
+    const options: StepBoundary.FileSystemOptions = {
+      maxInlineBytes: 16,
+      maxTotalInlineBytes: 24,
+      objectsDirectory: ".objects"
+    }
+    const evidence = await Effect.runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        const prepared = yield* boundary.prepare({
+          ...descriptor,
+          writeSet: ["a.bin", "b.bin", "c.bin"]
+        })
+        host.files.set("a.bin", encoder.encode(contents[0]!))
+        host.files.set("b.bin", encoder.encode(contents[1]!))
+        host.files.set("c.bin", encoder.encode(contents[2]!))
+        return yield* boundary.settle(prepared)
+      }).pipe(Effect.provide(boundaryLayer(host.fs, options)))
+    )
+    const outputs = outputsOf(evidence)
+    expect(outputs[0]!.content).toBeDefined()
+    expect(outputs[1]!.content).toBeDefined()
+    // The later output carries a digest reference only, even though it
+    // individually fits the per-output bound.
+    expect(outputs[2]!.content).toBeUndefined()
+    expect(outputs[2]!.digest).toBe(Digest.digest(contents[2]!))
+    expect(JSON.stringify(evidence)).not.toContain(Encoding.encodeBase64(encoder.encode(contents[2]!)))
+    expect(host.files.has(`.objects/${Digest.digest(contents[2]!)}`)).toBe(true)
+    // Replay round-trips the mixed inline/reference evidence.
+    host.files.delete("a.bin")
+    host.files.delete("b.bin")
+    host.files.delete("c.bin")
+    await Effect.runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        yield* boundary.replayOutputs(evidence)
+      }).pipe(Effect.provide(boundaryLayer(host.fs, options)))
+    )
+    expect(decoder.decode(host.files.get("a.bin"))).toBe(contents[0])
+    expect(decoder.decode(host.files.get("b.bin"))).toBe(contents[1])
+    expect(decoder.decode(host.files.get("c.bin"))).toBe(contents[2])
+  })
+})
+
 describe("blob writes are atomic and materialization is digest-verified (issue #117)", () => {
   const replay = (host: ReturnType<typeof memoryFs>, evidence: StepBoundary.BoundaryEvidence) =>
     Effect.gen(function*() {

@@ -181,10 +181,21 @@ export interface FileSystemOptions {
    * recorded by digest reference only (issue #113). Defaults to 1 MiB.
    */
   readonly maxInlineBytes?: number | undefined
+  /**
+   * The largest *aggregate* inline payload (in bytes) a single settle may
+   * fold into its boundary evidence (issue #122). A per-output bound alone
+   * still let a wide write set multiply many individually-small payloads
+   * into an unbounded evidence row; once an output would push the running
+   * total past this bound it is spilled to {@link objectsDirectory} and
+   * recorded by digest reference only, even though it individually fits
+   * {@link maxInlineBytes}. Defaults to 8 MiB.
+   */
+  readonly maxTotalInlineBytes?: number | undefined
 }
 
 const defaultObjectsDirectory = ".flows/objects"
 const defaultMaxInlineBytes = 1024 * 1024
+const defaultMaxTotalInlineBytes = 8 * 1024 * 1024
 
 type MaterializedOutput = typeof MaterializedOutputs.Type["outputs"][number]
 
@@ -197,6 +208,7 @@ type MaterializedOutput = typeof MaterializedOutputs.Type["outputs"][number]
 export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOptions = {}): Service => {
   const objectsDirectory = options.objectsDirectory ?? defaultObjectsDirectory
   const maxInlineBytes = options.maxInlineBytes ?? defaultMaxInlineBytes
+  const maxTotalInlineBytes = options.maxTotalInlineBytes ?? defaultMaxTotalInlineBytes
   /**
    * Distinguishes concurrent temp paths for the same digest within this
    * service instance. No wall clock or randomness is needed: the digest
@@ -213,12 +225,14 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
       ),
       Effect.mapError(hostFailure)
     )
-  const capture = Effect.fn("StepBoundary.capture")(function*(path: string) {
+  const capture = Effect.fn("StepBoundary.capture")(function*(path: string, inlineBudget: number) {
     const present = yield* fs.exists(path).pipe(Effect.mapError(hostFailure))
     if (!present) return { path, digest: null } satisfies MaterializedOutput
     const bytes = yield* fs.readFile(path).pipe(Effect.mapError(hostFailure))
     const digest = Digest.digest(bytes)
-    if (bytes.length <= maxInlineBytes) {
+    // Inline only while both bounds hold (issue #122): the per-output bound
+    // and the settle-wide aggregate budget the caller threads through.
+    if (bytes.length <= maxInlineBytes && bytes.length <= inlineBudget) {
       return {
         path,
         digest,
@@ -316,8 +330,11 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
         if ((yield* measure(entry.path)) !== entry.digest) undeclared.push(entry.path)
       }
       const outputs: Array<MaterializedOutput> = []
+      let inlinedBytes = 0
       for (const path of prepared.descriptor.writeSet) {
-        outputs.push(yield* capture(path))
+        const output = yield* capture(path, maxTotalInlineBytes - inlinedBytes)
+        if (output.content !== undefined) inlinedBytes += output.sizeBytes ?? 0
+        outputs.push(output)
       }
       const diffIdentity = Digest.digest(JSON.stringify(
         outputs.map((output) => [output.path, output.digest])
