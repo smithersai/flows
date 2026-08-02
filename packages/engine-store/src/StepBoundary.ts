@@ -6,9 +6,11 @@
  */
 import { FileSystem } from "@smithers/kernel"
 import { Digest } from "@smithers/keys"
+import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Encoding from "effect/Encoding"
+import * as Option from "effect/Option"
 import * as Layer from "effect/Layer"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
@@ -233,6 +235,13 @@ export interface FileSystemOptions {
 const defaultObjectsDirectory = ".flows/objects"
 const defaultMaxInlineBytes = 1024 * 1024
 const defaultMaxTotalInlineBytes = 8 * 1024 * 1024
+/**
+ * How old a `.tmp-*` file must be before the issue-#138 sweep treats it as a
+ * crash orphan rather than a live writer's in-flight scratch file. A spill
+ * writes and renames within one capture, so an hour is far beyond any live
+ * writer's window.
+ */
+const staleTempMs = 60 * 60 * 1000
 
 type MaterializedOutput = typeof DigestReferencedOutput.Type
 
@@ -260,6 +269,35 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
    */
   const tempToken = Math.random().toString(36).slice(2, 12).padEnd(10, "0")
   let tempSequence = 0
+  /**
+   * Best-effort reclamation of temp files orphaned by a crash between the
+   * temp write and the rename (issue #138): nothing else ever observes them
+   * — `materialize` reads only canonical paths — so without a sweep the
+   * objects directory accumulates dead `.tmp-*` files unboundedly. The
+   * sweep runs once per store, on the first spill, and is conservative: a
+   * temp younger than the stale bound may belong to a live writer in
+   * another process, and one whose age cannot be measured says nothing
+   * about its writer, so both survive. Every step is best-effort — a
+   * missing directory or failing host never fails the capture.
+   */
+  let sweepDone = false
+  const sweepOrphanedTemps = Effect.gen(function*() {
+    if (sweepDone) return
+    sweepDone = true
+    const entries = yield* fs.readDirectory(objectsDirectory).pipe(
+      Effect.catch(() => Effect.succeed([] as ReadonlyArray<string>))
+    )
+    const now = yield* Clock.currentTimeMillis
+    for (const entry of entries) {
+      if (!entry.includes(".tmp-")) continue
+      const orphanPath = `${objectsDirectory}/${entry}`
+      const info = yield* fs.stat(orphanPath).pipe(Effect.option)
+      if (Option.isNone(info)) continue
+      const mtime = Option.getOrUndefined(info.value.mtime)
+      if (mtime === undefined || now - mtime.getTime() < staleTempMs) continue
+      yield* fs.remove(orphanPath).pipe(Effect.ignore)
+    }
+  })
   const measure = (path: string): Effect.Effect<string, UnsupportedBoundary> =>
     fs.exists(path).pipe(
       Effect.flatMap((present) =>
@@ -298,9 +336,15 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
       // payload lands at a temp path and is renamed into place; an existing
       // blob is content-addressed and never rewritten.
       yield* fs.makeDirectory(objectsDirectory, { recursive: true }).pipe(Effect.mapError(hostFailure))
+      yield* sweepOrphanedTemps
       const tempPath = `${blobPath}.tmp-${tempToken}-${tempSequence++}`
-      yield* fs.writeFile(tempPath, bytes).pipe(Effect.mapError(hostFailure))
-      yield* fs.rename(tempPath, blobPath).pipe(Effect.mapError(hostFailure))
+      // A failed publication removes its own scratch file (issue #138); a
+      // crash cannot, which is what the sweep above reclaims.
+      yield* fs.writeFile(tempPath, bytes).pipe(
+        Effect.andThen(fs.rename(tempPath, blobPath)),
+        Effect.mapError(hostFailure),
+        Effect.onError(() => fs.remove(tempPath).pipe(Effect.ignore))
+      )
     }
     return { output: { path, digest, sizeBytes: bytes.length } satisfies MaterializedOutput, inlinedBytes: 0 }
   })
