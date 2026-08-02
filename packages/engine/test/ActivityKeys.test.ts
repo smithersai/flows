@@ -269,6 +269,52 @@ describe("activity execution keys", () => {
     }
   )
 
+  effect("folds the declared schemas into string idempotency keys so a schema change misses (issue #120)", () => {
+    // The step-key spec requires the content body to be the *compiled
+    // declaration* — schemas and combinators applied. Folding only
+    // `{activity, idempotencyKey}` let an activity whose success schema
+    // changed keep its old key, replaying a stale cached row decoded under
+    // the new schema.
+    let executions = 0
+    const v1 = Activity.make({
+      name: "ActivityKeys/schema-change",
+      success: Schema.Struct({ a: Schema.Number }),
+      idempotencyKey: "row",
+      execute: Effect.sync(() => {
+        executions++
+        return { a: 1 }
+      })
+    })
+    const v2 = Activity.make({
+      name: "ActivityKeys/schema-change",
+      success: Schema.Struct({ a: Schema.Number, b: Schema.Number }),
+      idempotencyKey: "row",
+      execute: Effect.sync(() => {
+        executions++
+        return { a: 1, b: 2 }
+      })
+    })
+    const flow = Flow.make("ActivityKeys/schema-invalidation", {
+      payload: { run: Schema.String },
+      success: Schema.Number
+    })
+    const layer = flow.toLayer(() =>
+      Effect.gen(function*() {
+        // Same declaration replays; the changed success schema must miss and
+        // re-execute rather than decode v1's cached row as v2's shape.
+        yield* v1
+        yield* v1
+        const out = yield* v2
+        return out.b
+      })
+    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+
+    return Effect.gen(function*() {
+      expect(yield* flow.execute({ run: "one" }, { executionId: "run-schema-change" })).toBe(2)
+      expect(executions).toBe(2)
+    }).pipe(Effect.provide(layer))
+  })
+
   effect("changes sealed replay identity when its input, layer, or capability material changes", () => {
     const keyFor = (input: string, layer: string, capability: string) =>
       Result.getOrThrow(StepKey.content({

@@ -22,6 +22,7 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
+import * as SchemaRepresentation from "effect/SchemaRepresentation"
 import * as Scope from "effect/Scope"
 import * as Activity from "./Activity.ts"
 import type { DurableClock } from "./DurableClock.ts"
@@ -623,8 +624,20 @@ const ordinalScope = (activity: Activity.Any): string =>
     idempotency: activity.idempotencyKey
   })
 
+/**
+ * A deterministic JSON form of an activity's declared success and error
+ * schemas, derived from the schema ASTs through effect's stable
+ * `SchemaRepresentation` document form. Folded into string-form sealed keys
+ * so a changed declaration misses instead of decoding a stale cached row
+ * under the new schema (issue #120).
+ */
+const declarationDigest = (activity: Activity.AnyWithProps): unknown => ({
+  success: SchemaRepresentation.toJson(SchemaRepresentation.toRepresentation(activity.successSchema.ast)),
+  error: SchemaRepresentation.toJson(SchemaRepresentation.toRepresentation(activity.errorSchema.ast))
+})
+
 const activityKey = (
-  activity: Activity.Any,
+  activity: Activity.AnyWithProps,
   executionId: string,
   ordinal: number,
   environment: Activity.ContentEnvironment,
@@ -633,17 +646,23 @@ const activityKey = (
   if (activity.tier === "sealed" && activity.idempotencyKey !== undefined) {
     // Skyframe's SkyKey is (functionName, argument): a string idempotencyKey
     // is namespaced by the activity name so two distinct activities sharing an
-    // idempotency string can never collide and replay each other's outcomes.
-    // The object-form `ContentIdentity` stays caller-owned (no name folded in)
-    // as the explicit escape hatch for rename-stable identity. Note: this
-    // changes the digest of every persisted string-key row from before this
-    // fix; those keys were unsafe to replay (cross-activity aliasing), so the
-    // break is intentional.
+    // idempotency string can never collide and replay each other's outcomes,
+    // and the declared success/error schemas are folded in so the body is the
+    // *compiled declaration* the step-key spec requires — a schema change
+    // must miss rather than replay a stale row decoded under the new schema
+    // (issue #120). The object-form `ContentIdentity` stays caller-owned (no
+    // name and no schema material folded in) as the explicit, documented
+    // escape hatch for rename- and refactor-stable identity. Note: folding
+    // the declaration changes the digest of every persisted string-key row
+    // from before this fix; those keys were unsafe to replay across schema
+    // changes, so the break is intentional (same precedent as the
+    // name-namespacing fix).
     const identity: StepKey.ContentIdentity = typeof activity.idempotencyKey === "string"
       ? {
         body: {
           activity: activity.name,
-          idempotencyKey: activity.idempotencyKey
+          idempotencyKey: activity.idempotencyKey,
+          declaration: declarationDigest(activity)
         },
         inputs: {},
         layers: [],
@@ -896,7 +915,17 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
       // Ordinal keys are run-local, so the environment is not their key
       // material; `activityKey` folds it into content keys only (issue #75).
       const environment = yield* Activity.CurrentContentEnvironment
-      const key = activityKey(activity, instance.executionId, ordinal, environment, scope)
+      // `AnyWithProps` widening: `activityKey` needs the declared schemas so
+      // the string-form sealed identity folds the compiled declaration
+      // (issue #120); every activity built by `Activity.make` carries them,
+      // only the `Schema.Constraint` type parameters resist the assignment.
+      const key = activityKey(
+        activity as unknown as Activity.AnyWithProps,
+        instance.executionId,
+        ordinal,
+        environment,
+        scope
+      )
       const policy = activity.retryPolicy
       // Elapsed retry time for the policy's expiration bound. Durable
       // drivers persist the first attempt's start time alongside the attempt
