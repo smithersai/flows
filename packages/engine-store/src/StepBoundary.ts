@@ -242,6 +242,14 @@ const defaultMaxTotalInlineBytes = 8 * 1024 * 1024
  * writer's window.
  */
 const staleTempMs = 60 * 60 * 1000
+/**
+ * The fixed capacity of the issue-#155 verified-digest LRU. One 64-hex
+ * digest per distinct blob this store recently captured or verified;
+ * 4096 entries bound the memo near half a megabyte while still covering
+ * far more distinct in-flight blobs than any realistic settle working set,
+ * so eviction on a healthy host is rare and costs only a re-verification.
+ */
+const verifiedDigestCapacity = 4096
 
 type MaterializedOutput = typeof DigestReferencedOutput.Type
 
@@ -274,8 +282,37 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
    * published itself — this lifetime (issue #144). Membership lets a repeat
    * capture of a known digest skip the O(blob size) read+hash that the
    * issue #132 verification otherwise pays on every spill.
+   *
+   * FINAL SHAPE (issue #155, subsuming the #144/#145 lineage — do not
+   * iterate on this memo again): a bounded LRU over an insertion-ordered
+   * `Map`, capped at {@link verifiedDigestCapacity} entries so a long-lived
+   * server host spilling outputs across hundreds of thousands of steps
+   * cannot grow it monotonically for the process lifetime. A hit refreshes
+   * recency; inserting past capacity evicts the least-recently-used digest,
+   * whose next capture simply re-verifies (correctness never depends on
+   * membership — eviction only re-pays the #132 read+hash). Any
+   * materialization failure over a digest — blob missing, unreadable, or
+   * mismatching — drops its entry so the next capture re-verifies and heals
+   * instead of trusting stale proof (issue #145).
    */
-  const verifiedDigests = new Set<string>()
+  const verifiedDigests = new Map<string, true>()
+  const verifiedDigestSeen = (digest: string): boolean => {
+    if (!verifiedDigests.has(digest)) return false
+    // Refresh recency: re-insertion moves the digest to the newest end of
+    // the Map's insertion order.
+    verifiedDigests.delete(digest)
+    verifiedDigests.set(digest, true)
+    return true
+  }
+  const verifiedDigestRecord = (digest: string): void => {
+    verifiedDigests.delete(digest)
+    verifiedDigests.set(digest, true)
+    if (verifiedDigests.size > verifiedDigestCapacity) {
+      // The size guard guarantees a non-empty Map, so the iterator always
+      // yields the least-recently-used digest.
+      verifiedDigests.delete(verifiedDigests.keys().next().value!)
+    }
+  }
   /**
    * Best-effort reclamation of temp files orphaned by a crash between the
    * temp write and the rename (issue #138): nothing else ever observes them
@@ -353,7 +390,7 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
     // unreadable, or mismatching evicts the memo entry (issue #145), so the
     // next capture re-verifies and heals instead of trusting stale proof.
     const verified = stored &&
-      (verifiedDigests.has(digest) ||
+      (verifiedDigestSeen(digest) ||
         (yield* fs.readFile(blobPath).pipe(
           Effect.map((existing) => Digest.digest(existing) === digest),
           Effect.catch(() => Effect.succeed(false))
@@ -378,7 +415,7 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
     // Reaching here means the address holds verified bytes: either the
     // existing blob matched its digest, or this store just published them
     // atomically. Later captures of the digest trust that proof.
-    verifiedDigests.add(digest)
+    verifiedDigestRecord(digest)
     return { output: { path, digest, sizeBytes: bytes.length } satisfies MaterializedOutput, inlinedBytes: 0 }
   })
   const materialize = Effect.fn("StepBoundary.materialize")(function*(output: MaterializedOutput) {
