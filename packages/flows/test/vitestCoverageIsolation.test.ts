@@ -136,6 +136,23 @@ describe("vitest coverage isolation conformance", () => {
     }
   )
 
+  it.each(packages.map((name) => ({ name })))(
+    "$name pins the test script CI actually invokes (issue #158)",
+    ({ name }) => {
+      // CI runs the root `npm test`, which is `npm run test --workspaces
+      // --if-present`: a package that deletes or stubs its `scripts.test` is
+      // silently never run while every config-level assertion above stays
+      // green. The script CI invokes is therefore pinned here to the exact
+      // canonical value every package ships — plain `vitest`, whose default
+      // command in non-interactive CI is a single run with the package's own
+      // config (and its 100% coverage gate) applied.
+      const manifest = JSON.parse(readFileSync(join(packagesDir, name, "package.json"), "utf8")) as {
+        readonly scripts?: Record<string, string>
+      }
+      expect(manifest.scripts?.test, `packages/${name}/package.json scripts.test`).toBe("vitest")
+    }
+  )
+
   it("pins the root workspaces globs to the conformance universe (issue #154)", () => {
     // The universe above is derived from `packages/`; that is complete only
     // while `packages/*` is the WHOLE workspace. A second glob (`apps/*`)
