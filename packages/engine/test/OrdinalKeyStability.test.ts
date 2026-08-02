@@ -14,7 +14,7 @@
  * orders, which is exactly what a permuted interleaving produces. Each
  * activity must keep its own identity across both.
  */
-import { Effect, Exit, Layer, Schema } from "effect"
+import { Deferred, Effect, Exit, Layer, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { Activity, Flow, FlowEngine } from "../src/index.ts"
 
@@ -258,6 +258,93 @@ describe("nested Activity.retry keeps inner pins across outer attempts (issue #1
       expect(keys).toHaveLength(3)
       expect(keys[1]).toBe(keys[2])
       expect(keys[0]).not.toBe(keys[1])
+    })
+  })
+  effect("an inner block that leaves a copied scope untouched does not move the outer cursor", () => {
+    // The inner block's private cursor view copies the outer cursor for the
+    // scope dispatched before it; since the block never dispatches that
+    // scope, its exit propagation is a no-op and the outer block's later
+    // dispatch still takes the next position, not a replayed one.
+    return Effect.gen(function*() {
+      const entries = yield* driveProgram("ordinal-nested-untouched", (engine) =>
+        Activity.retry(
+          Effect.gen(function*() {
+            yield* engine.activityExecute(repeatedCharge as never, 1)
+            yield* Activity.retry(Effect.void, { times: 0 })
+            yield* engine.activityExecute(repeatedCharge as never, 1)
+          }),
+          { times: 0 }
+        ))
+      const keys = keyOf(entries, repeatedCharge.name)
+      expect(keys).toHaveLength(2)
+      expect(new Set(keys).size).toBe(2)
+    })
+  })
+})
+
+describe("concurrent sibling retry blocks inside one outer block (issue #116)", () => {
+  // Keyed overlap of one declaration is sanctioned (issue #111), so two
+  // sibling `Activity.retry` blocks may run concurrently inside one outer
+  // block. Sharing one mutable cursor map made a sibling's attempt boundary
+  // clear *every* scope's dispatch cursor: the victim's next dispatch then
+  // re-consumed its first pinned ordinal — a duplicate step key silently
+  // replaying another dispatch's recorded outcome.
+  const keyed = (idempotencyKey: string) =>
+    Activity.make({
+      name: "OrdinalKeyStability/sibling",
+      tier: "irreversible",
+      idempotencyKey,
+      success: Schema.Void,
+      execute: Effect.void
+    })
+  const siblingA = keyed("sibling-a")
+  const siblingB = keyed("sibling-b")
+
+  effect("a sibling's retry boundary never rewinds another block's mid-flight cursor", () => {
+    return Effect.gen(function*() {
+      const bFirstDone = yield* Deferred.make<void>()
+      const aRetried = yield* Deferred.make<void>()
+      const entries = yield* driveProgram("ordinal-concurrent-siblings", (engine) =>
+        Activity.retry(
+          Effect.all([
+            Activity.retry(
+              Effect.gen(function*() {
+                const attempt = yield* Activity.CurrentAttempt
+                yield* engine.activityExecute(siblingA as never, 1)
+                if (attempt === 1) {
+                  // Fail only after B's first dispatch is recorded, so A's
+                  // attempt boundary fires while B is mid-flight between its
+                  // two dispatches.
+                  yield* Deferred.await(bFirstDone)
+                  return yield* Effect.fail("boom")
+                }
+                yield* Deferred.done(aRetried, Exit.void)
+              }),
+              { times: 5 }
+            ),
+            Activity.retry(
+              Effect.gen(function*() {
+                yield* engine.activityExecute(siblingB as never, 1)
+                yield* Deferred.done(bFirstDone, Exit.void)
+                yield* Deferred.await(aRetried)
+                yield* engine.activityExecute(siblingB as never, 1)
+              }),
+              { times: 0 }
+            )
+          ], { concurrency: 2 }),
+          { times: 0 }
+        ))
+      // Deterministic interleaving under the latches: A attempt 1, B first
+      // dispatch, A attempt 2, B second dispatch.
+      expect(entries).toHaveLength(4)
+      const [a1, b1, a2, b2] = entries.map((entry) => entry.key)
+      // A's own replay still pins its dispatch across attempts (issue #108).
+      expect(a2).toBe(a1)
+      // B's second dispatch owns its own second ordinal: A's boundary must
+      // not have rewound B's cursor onto B's first pinned ordinal.
+      expect(b2).not.toBe(b1)
+      // And no cross-sibling collision either.
+      expect(new Set([a1, b1, b2]).size).toBe(3)
     })
   })
 })

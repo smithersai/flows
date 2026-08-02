@@ -434,11 +434,21 @@ export const retry: {
       // new step key — and re-executed instead of replaying. Sharing the
       // outermost slot keeps every pin alive for the whole outer sequence.
       const enclosing = yield* CurrentOrdinal
-      // One slot map for the whole retry sequence: the engine fills each
+      // One `values` map for the whole retry sequence: the engine fills each
       // activity's scope with the ordinal it allocates on the first attempt,
       // and every later attempt of the same sequence reuses those ordinals
-      // (issues #73, #84).
-      const slot: OrdinalSlot = enclosing ?? { values: new Map(), cursors: new Map() }
+      // (issues #73, #84). The `cursors` map, however, is *per block*
+      // (issue #116): #108 shared the enclosing block's mutable cursor map
+      // wholesale, so a sibling block's attempt boundary — sanctioned to run
+      // concurrently under keyed overlap (issue #111) — cleared every
+      // scope's cursor and rewound another block's mid-flight dispatch onto
+      // an already-consumed pinned ordinal, a duplicate step key. Each block
+      // now owns a private cursor view seeded from the enclosing block's
+      // cursors at entry, so its attempt boundaries reset only its own view.
+      const slot: OrdinalSlot = {
+        values: enclosing?.values ?? new Map(),
+        cursors: new Map(enclosing?.cursors)
+      }
       // Where each scope's dispatch cursor stood when this block was entered.
       // An inner attempt replays the block from its own first dispatch, not
       // from the outer attempt's start, so its cursors rewind to the block
@@ -458,7 +468,23 @@ export const retry: {
           Effect.provideService(CurrentAttempt, attempt++),
           Effect.provideService(CurrentOrdinal, slot)
         )
-      }).pipe(Effect.retry(options))
+      }).pipe(
+        Effect.retry(options),
+        // On exit, fold this block's final cursor positions back into the
+        // enclosing block's view (max-merge, so a concurrent sibling's later
+        // propagation never rewinds a scope): an enclosing dispatch of a
+        // scope this block consumed must take the next pinned position, not
+        // re-consume this block's ordinals.
+        Effect.onExit(() =>
+          Effect.sync(() => {
+            if (enclosing === undefined) return
+            for (const [scope, cursor] of slot.cursors) {
+              const current = enclosing.cursors.get(scope) ?? 0
+              if (cursor > current) enclosing.cursors.set(scope, cursor)
+            }
+          })
+        )
+      )
     })
 )
 
