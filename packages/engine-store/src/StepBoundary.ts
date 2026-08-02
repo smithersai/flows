@@ -264,18 +264,21 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
     )
   const capture = Effect.fn("StepBoundary.capture")(function*(path: string, inlineBudget: number) {
     const present = yield* fs.exists(path).pipe(Effect.mapError(hostFailure))
-    if (!present) return { path, digest: null } satisfies MaterializedOutput
+    if (!present) return { output: { path, digest: null } satisfies MaterializedOutput, inlinedBytes: 0 }
     const bytes = yield* fs.readFile(path).pipe(Effect.mapError(hostFailure))
     const digest = Digest.digest(bytes)
     // Inline only while both bounds hold (issue #122): the per-output bound
     // and the settle-wide aggregate budget the caller threads through.
     if (bytes.length <= maxInlineBytes && bytes.length <= inlineBudget) {
       return {
-        path,
-        digest,
-        sizeBytes: bytes.length,
-        content: Encoding.encodeBase64(bytes)
-      } satisfies MaterializedOutput
+        output: {
+          path,
+          digest,
+          sizeBytes: bytes.length,
+          content: Encoding.encodeBase64(bytes)
+        } satisfies MaterializedOutput,
+        inlinedBytes: bytes.length
+      }
     }
     // Over the inline bound: the payload goes to the content-addressed
     // object directory and the persisted row carries only the reference.
@@ -292,7 +295,7 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
       yield* fs.writeFile(tempPath, bytes).pipe(Effect.mapError(hostFailure))
       yield* fs.rename(tempPath, blobPath).pipe(Effect.mapError(hostFailure))
     }
-    return { path, digest, sizeBytes: bytes.length } satisfies MaterializedOutput
+    return { output: { path, digest, sizeBytes: bytes.length } satisfies MaterializedOutput, inlinedBytes: 0 }
   })
   const materialize = Effect.fn("StepBoundary.materialize")(function*(output: MaterializedOutput) {
     let bytes: Uint8Array
@@ -369,9 +372,12 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
       const outputs: Array<MaterializedOutput> = []
       let inlinedBytes = 0
       for (const path of prepared.descriptor.writeSet) {
-        const output = yield* capture(path, maxTotalInlineBytes - inlinedBytes)
-        if (output.content !== undefined) inlinedBytes += output.sizeBytes ?? 0
-        outputs.push(output)
+        const captured = yield* capture(path, maxTotalInlineBytes - inlinedBytes)
+        // `capture` reports the bytes it actually inlined (zero for a
+        // digest-only reference), so the aggregate budget never has to
+        // re-derive them from the row it just built.
+        inlinedBytes += captured.inlinedBytes
+        outputs.push(captured.output)
       }
       const diffIdentity = Digest.digest(JSON.stringify(
         outputs.map((output) => [output.path, output.digest])
