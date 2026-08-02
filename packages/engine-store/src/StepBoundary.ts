@@ -142,13 +142,28 @@ const absentDigest = "absent"
  * only the reference. Temporal's blob-size limits are the prior art — the
  * evidence is persisted into every attempt row and cache entry.
  */
+const DigestReferencedOutput = Schema.Struct({
+  path: Schema.String,
+  digest: Schema.NullOr(Schema.String),
+  sizeBytes: Schema.optional(Schema.Number),
+  content: Schema.optional(Schema.String)
+})
+
+/**
+ * The round-7 shape (commit c855553): every output inlined as
+ * `{path, content: string | null}`, no digest anywhere. Rows persisted by
+ * that layer must decode forever (issue #123): `content: null` records that
+ * the path was absent at settle time, and an inline payload's digest is
+ * derived lazily from the decoded bytes — there is no stored digest to
+ * verify against.
+ */
+const LegacyInlineOutput = Schema.Struct({
+  path: Schema.String,
+  content: Schema.NullOr(Schema.String)
+})
+
 const MaterializedOutputs = Schema.Struct({
-  outputs: Schema.Array(Schema.Struct({
-    path: Schema.String,
-    digest: Schema.NullOr(Schema.String),
-    sizeBytes: Schema.optional(Schema.Number),
-    content: Schema.optional(Schema.String)
-  }))
+  outputs: Schema.Array(Schema.Union([DigestReferencedOutput, LegacyInlineOutput]))
 })
 
 /**
@@ -161,6 +176,28 @@ const parentDirectory = (path: string): string | undefined => {
   const index = path.lastIndexOf("/")
   return index <= 0 ? undefined : path.slice(0, index)
 }
+
+/**
+ * Normalizes a legacy round-7 output row into the digest-referenced shape
+ * (issue #123): `content: null` meant the path was absent (the digest-null
+ * removal semantics), and an inline payload's digest is derived from the
+ * decoded bytes so the ordinary materialization path applies unchanged.
+ */
+const fromLegacyOutput = Effect.fn("StepBoundary.fromLegacyOutput")(function*(
+  output: typeof LegacyInlineOutput.Type
+) {
+  if (output.content === null) return { path: output.path, digest: null } satisfies MaterializedOutput
+  const decoded = Encoding.decodeBase64(output.content)
+  if (Result.isFailure(decoded)) {
+    return yield* Effect.fail(hostFailure(decoded.failure))
+  }
+  return {
+    path: output.path,
+    digest: Digest.digest(decoded.success),
+    sizeBytes: decoded.success.length,
+    content: output.content
+  } satisfies MaterializedOutput
+})
 
 const hostFailure = (cause: unknown): UnsupportedBoundary =>
   new UnsupportedBoundary({
@@ -197,7 +234,7 @@ const defaultObjectsDirectory = ".flows/objects"
 const defaultMaxInlineBytes = 1024 * 1024
 const defaultMaxTotalInlineBytes = 8 * 1024 * 1024
 
-type MaterializedOutput = typeof MaterializedOutputs.Type["outputs"][number]
+type MaterializedOutput = typeof DigestReferencedOutput.Type
 
 /**
  * Builds the filesystem-backed boundary service.
@@ -365,7 +402,8 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
           })
         )
       }
-      for (const output of decoded.success.outputs) {
+      for (const recorded of decoded.success.outputs) {
+        const output = "digest" in recorded ? recorded : yield* fromLegacyOutput(recorded)
         if (output.digest === null) {
           const present = yield* fs.exists(output.path).pipe(Effect.mapError(hostFailure))
           if (present) yield* fs.remove(output.path).pipe(Effect.mapError(hostFailure))

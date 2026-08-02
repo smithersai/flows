@@ -173,6 +173,53 @@ describe("materialized outputs are digest-referenced and bounded (issue #113)", 
   })
 })
 
+describe("legacy round-7 evidence rows still decode and replay (issue #123)", () => {
+  // The exact persisted shape of commit c855553's `declaredOutputs`:
+  // `{outputs: [{path, content: string | null}]}` — no digest anywhere.
+  const legacyEvidence = (outputs: ReadonlyArray<{ path: string; content: string | null }>) => ({
+    declaredOutputs: { outputs },
+    diffIdentity: "legacy-round-7"
+  })
+
+  it("materializes a legacy inline row, deriving its digest from the decoded bytes", async () => {
+    const host = memoryFs({})
+    await Effect.runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        yield* boundary.replayOutputs(legacyEvidence([
+          { path: "legacy.txt", content: Encoding.encodeBase64(encoder.encode("hello from round 7")) }
+        ]))
+      }).pipe(Effect.provide(boundaryLayer(host.fs)))
+    )
+    expect(decoder.decode(host.files.get("legacy.txt"))).toBe("hello from round 7")
+  })
+
+  it("treats legacy null content as path-absent and removes the stale file", async () => {
+    const host = memoryFs({ "legacy.txt": "stale" })
+    await Effect.runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        yield* boundary.replayOutputs(legacyEvidence([{ path: "legacy.txt", content: null }]))
+      }).pipe(Effect.provide(boundaryLayer(host.fs)))
+    )
+    expect(host.files.has("legacy.txt")).toBe(false)
+  })
+
+  it("refuses undecodable legacy content instead of materializing garbage", async () => {
+    const host = memoryFs({})
+    const failure = await Effect.runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        return yield* Effect.flip(
+          boundary.replayOutputs(legacyEvidence([{ path: "legacy.txt", content: "%%%not-base64%%%" }]))
+        )
+      }).pipe(Effect.provide(boundaryLayer(host.fs)))
+    )
+    expect(failure).toMatchObject({ code: "unsupported_boundary" })
+    expect(host.files.has("legacy.txt")).toBe(false)
+  })
+})
+
 describe("the aggregate inline payload is bounded (issue #122)", () => {
   it("spills outputs past maxTotalInlineBytes to the object store and still replays them", async () => {
     // Ten-byte outputs each fit the 16-byte per-output bound, but the third
