@@ -398,6 +398,47 @@ describe("replay-failed classification (issue #150)", () => {
     expect(Option.map(outcome, (entry) => entry.recordedRunId)).toEqual(Option.some("corruption-replace-second"))
   })
 
+  it("journals distinct corruptions of the same key as distinct records (issue #167)", async () => {
+    // The dedupe cell alone is satisfiable by a constant identity: a
+    // regression dropping the digest/path interpolation from the producer
+    // identity would still journal "exactly once" while silently swallowing
+    // genuinely different corruption evidence through the converging
+    // idempotency-conflict branch. Two observations of the SAME key whose
+    // measured evidence differs must each land durably.
+    const key = "corruption/distinct-records"
+    const secondCorruption = new StepBoundary.BoundaryCorruption({
+      code: "boundary_corruption",
+      path: "dist/manifest.json",
+      recordedDigest: "aa".repeat(32),
+      measuredDigest: "cc".repeat(32)
+    })
+    const outcome = await Effect.runPromise(
+      Effect.gen(function*() {
+        const cache = yield* CacheStore.CacheStore
+        yield* activate("corruption-distinct-first")
+        yield* dispatch("corruption-distinct-first", key, () => Effect.succeed("recorded")).pipe(
+          Effect.provide(failingReplay(corruptionError))
+        )
+        yield* activate("corruption-distinct-second")
+        const poisoned = yield* cache.get(Digest.digest(key))
+        if (Option.isNone(poisoned)) return yield* Effect.die(new Error("row missing"))
+        for (const error of [corruptionError, secondCorruption]) {
+          yield* dispatch("corruption-distinct-second", key, () => Effect.die("must not execute")).pipe(
+            Effect.provide(failingReplay(error)),
+            Effect.flip
+          )
+          yield* cache.put(poisoned.value)
+        }
+        return yield* records("corruption-distinct-second", "flows.engine.cache-corruption")
+      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+    )
+    expect(outcome).toHaveLength(2)
+    expect(outcome.map((payload) => payload.measuredDigest).sort()).toEqual([
+      "bb".repeat(32),
+      "cc".repeat(32)
+    ])
+  })
+
   it("journals a repeated identical corruption exactly once (issue #156)", async () => {
     const key = "corruption/deduped-record"
     const outcome = await Effect.runPromise(
