@@ -119,6 +119,24 @@ describe("CacheStore", () => {
     expect(Option.isNone(result.gone)).toBe(true)
   })
 
+  it("fences an eviction on the recording run, not the event seq alone", async () => {
+    const result = await migrated(Effect.gen(function*() {
+      const store = yield* CacheStore
+      yield* store.put(entry)
+      // Sequence numbers are per-run, so a foreign run's provenance collides
+      // on `eventSeq` routinely. Only the run half of the compare-and-swap
+      // tells the two recordings apart (issue #135).
+      const foreign = yield* store.evict(entry.keyDigest, {
+        ifRecordedBy: { runId: "foreign-run", eventSeq: entry.recordedEventSeq }
+      })
+      const survived = yield* store.get(entry.keyDigest)
+      return { foreign, survived }
+    }))
+
+    expect(result.foreign).toBe(false)
+    expect(Option.isSome(result.survived)).toBe(true)
+  })
+
   it("rejects empty keys and non-JSON values with invalid_cache", async () => {
     const failures = await migrated(Effect.gen(function*() {
       const store = yield* CacheStore
