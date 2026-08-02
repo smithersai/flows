@@ -92,14 +92,18 @@ describe("vitest coverage isolation conformance", () => {
       // all four pinned categories, so such an override slipped the gate.
       const thresholds = source.match(/thresholds:\s*\{([^{}]*)\}/)
       expect(thresholds).not.toBeNull()
+      // The capture group always exists when the match does; `?? ""` only
+      // satisfies `noUncheckedIndexedAccess`, and an empty body would fail
+      // every category assertion below anyway.
+      const pinned = thresholds?.[1] ?? ""
       for (const category of ["branches", "functions", "lines", "statements"]) {
-        expect(thresholds![1]).toMatch(new RegExp(`${category}:\\s*100(?:\\s*,|\\s*\\})?`))
+        expect(pinned).toMatch(new RegExp(`${category}:\\s*100(?:\\s*,|\\s*\\})?`))
       }
       // And it must contain NOTHING BUT the four pinned categories: any
       // leftover key — a glob override without a nested object, a fifth
       // category at another value — must be widened here in review, never
       // added silently.
-      const leftover = thresholds![1].replace(/\b(?:branches|functions|lines|statements):\s*100\s*,?/g, "").trim()
+      const leftover = pinned.replace(/\b(?:branches|functions|lines|statements):\s*100\s*,?/g, "").trim()
       expect(leftover).toBe("")
       // The gate can also be weakened without touching any pinned field
       // (issue #142): `coverage.exclude` is applied ON TOP of `include`, so
