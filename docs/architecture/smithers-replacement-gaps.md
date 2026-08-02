@@ -157,8 +157,12 @@ crash/restart invariants deterministically — the bazel `GraphTester` shape.
 Parity with smithers' `e2e/faults` enumeration is still far off, and not
 only where the underlying feature is missing (no pause, hijack, quota-wake,
 or continue-as-new lineage cases yet): holes remain where the feature
-already ships — journal payload redaction (smithers case 22, issue #46) and memory-budget /
-soak assertions (cases 16/28, issue #50) have no fault cases either, and
+already ships — journal payload redaction (smithers case 22, issue #46) has no
+fault case either, and of the memory-budget / soak assertions (cases 16/28,
+issue #50) only case 28 (the long-wall-clock RSS soak) remains uncovered:
+case 16's N-subscriber bounded-memory/consistency assertions ship in
+`packages/sync/test/ServerSoak.test.ts` (identical frames to every concurrent
+subscriber, per-subscriber stream release, bounded retained heap). And
 the sandbox health taxonomy (case 02, issue #49) now ships as a host
 primitive (`SandboxHealth` probe) but has no engine-level fault case yet. Cases
 accrete as §§4–7 and those issues land; the harness itself is no longer a
