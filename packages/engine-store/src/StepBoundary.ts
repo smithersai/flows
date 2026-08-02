@@ -349,7 +349,9 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
     // known digest, and one verified match — or this store's own atomic
     // publication — is proof enough; corruption introduced behind the
     // store's back afterwards is exactly what `materialize`'s digest check
-    // still refuses.
+    // still refuses — and a materialization that finds the blob missing,
+    // unreadable, or mismatching evicts the memo entry (issue #145), so the
+    // next capture re-verifies and heals instead of trusting stale proof.
     const verified = stored &&
       (verifiedDigests.has(digest) ||
         (yield* fs.readFile(blobPath).pipe(
@@ -391,6 +393,12 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
       const blobPath = `${objectsDirectory}/${output.digest}`
       const present = yield* fs.exists(blobPath).pipe(Effect.mapError(hostFailure))
       if (!present) {
+        // The blob vanished behind the store's back, so any cached
+        // verification of it is stale (issue #145): dropping the memo entry
+        // lets the next capture republish instead of trusting the proof.
+        // The memo key is interpolated exactly as `blobPath` is — a null
+        // digest never enters the set, so its eviction is a no-op.
+        verifiedDigests.delete(`${output.digest}`)
         // The reference cannot be resolved on this host — refusing routes
         // the issue-#107 call sites to a real execution instead of
         // materializing nothing silently.
@@ -401,7 +409,16 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
           })
         )
       }
-      bytes = yield* fs.readFile(blobPath).pipe(Effect.mapError(hostFailure))
+      bytes = yield* fs.readFile(blobPath).pipe(
+        // An unreadable blob invalidates its cached verification too
+        // (issue #145): the memo must never outlive the proof it caches.
+        Effect.tapError(() =>
+          Effect.sync(() => {
+            verifiedDigests.delete(`${output.digest}`)
+          })
+        ),
+        Effect.mapError(hostFailure)
+      )
     }
     // Every materialization is digest-verified (issue #117): a corrupted or
     // truncated blob at the canonical address — or tampered inline content —
@@ -409,6 +426,12 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
     // output.
     const measured = Digest.digest(bytes)
     if (measured !== output.digest) {
+      // Corruption observed at the canonical address disproves any cached
+      // verification of this digest (issue #145): without the eviction, the
+      // #144 memo lets every later capture skip the hash check AND the #132
+      // healing rewrite, so the mismatch would be permanent for the store's
+      // lifetime even though the capturing process holds the correct bytes.
+      verifiedDigests.delete(`${output.digest}`)
       return yield* Effect.fail(
         new UnsupportedBoundary({
           code: "unsupported_boundary",

@@ -298,6 +298,68 @@ describe("orphaned temp blobs are reclaimed (issue #138)", () => {
     expect(decoder.decode(host.files.get(blobPath))).toBe(artifact)
   })
 
+  it("evicts the verified-digest memo when materialization finds corruption, so capture heals (issue #145)", async () => {
+    // The #144 memo must never outlive the proof it caches: after this store
+    // verifies (or publishes) a digest, external corruption of the blob made
+    // every materialize fail with a digest mismatch, while every later
+    // capture of the same content hit the memo, skipped the hash check, and
+    // skipped the #132 healing rewrite — a permanent failure for the store's
+    // lifetime even though the process held the correct bytes. A failed or
+    // mismatching materialization now drops the memo entry so the next
+    // capture re-verifies and repairs the address.
+    const host = gcFs({})
+    const boundary = StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 4 })
+    const settled = await Effect.runPromise(spill(boundary, host as never))
+    const output = (settled as { declaredOutputs: { outputs: Array<never> } }).declaredOutputs.outputs[0]
+    // External corruption behind the store's back, after the memo is primed.
+    host.files.set(blobPath, encoder.encode("torn-partial-bytes"))
+    const refused = await Effect.runPromise(
+      boundary.replayOutputs({ declaredOutputs: { outputs: [output] } } as never).pipe(Effect.exit)
+    )
+    expect(Exit.isFailure(refused)).toBe(true)
+    // The next capture of the same content must NOT trust the stale memo:
+    // it re-verifies, catches the mismatch, and heals through temp+rename.
+    await Effect.runPromise(spill(boundary, host as never))
+    expect(decoder.decode(host.files.get(blobPath))).toBe(artifact)
+    expect(host.writes.filter((path) => path.includes(".tmp-"))).toHaveLength(2)
+    // And the healed address materializes again.
+    await Effect.runPromise(boundary.replayOutputs({ declaredOutputs: { outputs: [output] } } as never))
+    expect(decoder.decode(host.files.get("artifact.bin"))).toBe(artifact)
+  })
+
+  it("evicts the verified-digest memo when the blob cannot be read at materialize (issue #145)", async () => {
+    const host = gcFs({ failReadOf: blobPath })
+    const boundary = StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 4 })
+    const settled = await Effect.runPromise(spill(boundary, host as never))
+    const output = (settled as { declaredOutputs: { outputs: Array<never> } }).declaredOutputs.outputs[0]
+    // The blob exists but the host cannot read it back.
+    const refused = await Effect.runPromise(
+      boundary.replayOutputs({ declaredOutputs: { outputs: [output] } } as never).pipe(Effect.exit)
+    )
+    expect(Exit.isFailure(refused)).toBe(true)
+    // The stale memo is gone: the next capture re-verifies, cannot read the
+    // blob either, and heals through a second atomic rewrite.
+    await Effect.runPromise(spill(boundary, host as never))
+    expect(host.writes.filter((path) => path.includes(".tmp-"))).toHaveLength(2)
+  })
+
+  it("evicts the verified-digest memo when the blob vanishes at materialize (issue #145)", async () => {
+    const host = gcFs({})
+    const boundary = StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 4 })
+    const settled = await Effect.runPromise(spill(boundary, host as never))
+    const output = (settled as { declaredOutputs: { outputs: Array<never> } }).declaredOutputs.outputs[0]
+    // The blob is deleted behind the store's back.
+    host.files.delete(blobPath)
+    const refused = await Effect.runPromise(
+      boundary.replayOutputs({ declaredOutputs: { outputs: [output] } } as never).pipe(Effect.exit)
+    )
+    expect(Exit.isFailure(refused)).toBe(true)
+    // A later capture republishes instead of trusting the stale memo.
+    await Effect.runPromise(spill(boundary, host as never))
+    expect(decoder.decode(host.files.get(blobPath))).toBe(artifact)
+    expect(host.writes.filter((path) => path.includes(".tmp-"))).toHaveLength(2)
+  })
+
   it("keeps a temp file whose age cannot be measured", async () => {
     // `stat` unavailable (or failing) says nothing about the writer's
     // liveness, so the conservative sweep never deletes what it cannot age.
