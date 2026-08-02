@@ -229,6 +229,62 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
     expect(target.files.has("gone.txt")).toBe(false)
   })
 
+  it("classifies undecodable inline content as corruption, not a host failure (issue #159)", async () => {
+    // A tampered inline row that is no longer valid base64 is cache-origin
+    // corruption exactly like a digest mismatch: it must raise
+    // `BoundaryCorruption` so the caller routes it to the Inconsistency
+    // receiver instead of retrying it as a transient host refusal.
+    const host = memoryFs({})
+    const failure = await Effect.runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        return yield* Effect.flip(
+          boundary.replayOutputs({
+            declaredOutputs: {
+              outputs: [{
+                path: "output.txt",
+                digest: "aa".repeat(32),
+                sizeBytes: 3,
+                content: "%%%not-base64%%%"
+              }]
+            },
+            diffIdentity: "corrupt-inline"
+          })
+        )
+      }).pipe(Effect.provide(host.layer))
+    )
+    expect(failure).toMatchObject({
+      _tag: "flows/engine-store/BoundaryCorruption",
+      code: "boundary_corruption",
+      path: "output.txt",
+      recordedDigest: "aa".repeat(32),
+      measuredDigest: "invalid_base64"
+    })
+    expect(host.files.has("output.txt")).toBe(false)
+  })
+
+  it("classifies undecodable legacy inline content as corruption too (issue #159)", async () => {
+    const host = memoryFs({})
+    const failure = await Effect.runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        return yield* Effect.flip(
+          boundary.replayOutputs({
+            declaredOutputs: { outputs: [{ path: "legacy.txt", content: "%%%not-base64%%%" }] },
+            diffIdentity: "corrupt-legacy"
+          })
+        )
+      }).pipe(Effect.provide(host.layer))
+    )
+    expect(failure).toMatchObject({
+      _tag: "flows/engine-store/BoundaryCorruption",
+      code: "boundary_corruption",
+      path: "legacy.txt",
+      recordedDigest: "legacy_inline",
+      measuredDigest: "invalid_base64"
+    })
+  })
+
   it("refuses to replay evidence recorded without materializable outputs", async () => {
     const host = memoryFs({})
     const failure = await Effect.runPromise(

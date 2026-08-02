@@ -213,7 +213,10 @@ const fromLegacyOutput = Effect.fn("StepBoundary.fromLegacyOutput")(function*(
   if (output.content === null) return { path: output.path, digest: null } satisfies MaterializedOutput
   const decoded = Encoding.decodeBase64(output.content)
   if (Result.isFailure(decoded)) {
-    return yield* Effect.fail(hostFailure(decoded.failure))
+    // The bytes came from recorded evidence, so an undecodable payload is
+    // tampering of the durable row, not a host refusal (issue #159). A
+    // legacy row stores no digest to compare against; the sentinel says so.
+    return yield* Effect.fail(inlineCorruption(output.path, "legacy_inline"))
   }
   return {
     path: output.path,
@@ -227,6 +230,21 @@ const hostFailure = (cause: unknown): UnsupportedBoundary =>
   new UnsupportedBoundary({
     code: "unsupported_boundary",
     message: `the host filesystem could not enforce the step boundary: ${String(cause)}`
+  })
+
+/**
+ * Corruption of an *inline* evidence payload (issue #159): the recorded
+ * base64 no longer decodes, so there are no bytes to measure a digest of —
+ * the `invalid_base64` sentinel records that the measurement itself was
+ * impossible, which is still cache-origin corruption and never a transient
+ * host refusal.
+ */
+const inlineCorruption = (path: string, recordedDigest: string): BoundaryCorruption =>
+  new BoundaryCorruption({
+    code: "boundary_corruption",
+    path,
+    recordedDigest,
+    measuredDigest: "invalid_base64"
   })
 
 /** @since 0.1.0 @category models */
@@ -445,7 +463,11 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
     if (output.content !== undefined) {
       const decoded = Encoding.decodeBase64(output.content)
       if (Result.isFailure(decoded)) {
-        return yield* Effect.fail(hostFailure(decoded.failure))
+        // Inline content is cache-origin bytes: an undecodable payload is a
+        // tampered durable row, classified exactly like a digest mismatch so
+        // the caller routes it to the Inconsistency receiver instead of
+        // retrying it as a transient host refusal (issue #159).
+        return yield* Effect.fail(inlineCorruption(output.path, `${output.digest}`))
       }
       bytes = decoded.success
     } else {

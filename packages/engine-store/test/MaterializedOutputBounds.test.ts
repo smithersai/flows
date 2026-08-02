@@ -169,7 +169,9 @@ describe("materialized outputs are digest-referenced and bounded (issue #113)", 
         }))
       }).pipe(Effect.provide(boundaryLayer(host.fs)))
     )
-    expect(failure).toMatchObject({ code: "unsupported_boundary" })
+    // Undecodable cache-origin bytes are corruption, not a host refusal
+    // (issue #159): the caller routes this to the Inconsistency receiver.
+    expect(failure).toMatchObject({ code: "boundary_corruption" })
   })
 })
 
@@ -215,7 +217,8 @@ describe("legacy round-7 evidence rows still decode and replay (issue #123)", ()
         )
       }).pipe(Effect.provide(boundaryLayer(host.fs)))
     )
-    expect(failure).toMatchObject({ code: "unsupported_boundary" })
+    // Classified as corruption since issue #159 — see above.
+    expect(failure).toMatchObject({ code: "boundary_corruption" })
     expect(host.files.has("legacy.txt")).toBe(false)
   })
 })
