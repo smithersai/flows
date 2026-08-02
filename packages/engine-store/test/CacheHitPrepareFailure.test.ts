@@ -195,8 +195,11 @@ describe("transient prepare host errors on a cache hit (issue #110)", () => {
     )
     expect(outcome.records.map((record) => record.action)).toContain("stale_read_set")
     // The poisoned row was invalidated (the re-execution recorded nothing
-    // new here: its declaration still mismatches the measured set).
-    expect(Option.isNone(outcome.entry) || outcome.entry.value.result !== "recorded").toBe(true)
+    // new here: its declaration still mismatches the measured set). The
+    // strong form: the row is gone, not merely different — the old
+    // disjunction also passed if the evict silently failed and the row was
+    // replaced (issue #127).
+    expect(Option.isNone(outcome.entry)).toBe(true)
   })
 
   it("skips the evict when a concurrent run re-recorded the entry between get and evict", async () => {
