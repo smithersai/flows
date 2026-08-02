@@ -68,7 +68,7 @@ semantics) rather than being lost until process restart.
 interface Service {
   prepare(descriptor: Descriptor): Effect<PreparedBoundary, UnsupportedBoundary>
   settle(prepared: PreparedBoundary): Effect<BoundaryEvidence, UndeclaredWrite | UnsupportedBoundary>
-  replayOutputs(evidence: BoundaryEvidence): Effect<void, UnsupportedBoundary>
+  replayOutputs(evidence: BoundaryEvidence): Effect<void, UnsupportedBoundary | BoundaryCorruption>
 }
 ```
 
