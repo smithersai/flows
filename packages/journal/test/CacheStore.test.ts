@@ -40,6 +40,21 @@ const failingDatabase = (cause: unknown): Layer.Layer<Database.Database> => {
   )
 }
 
+/**
+ * A database whose `.raw` results carry node-postgres' `{rowCount}` shape
+ * instead of the SQLite drivers' `{changes}`, one result per statement.
+ */
+const postgresShapedDatabase = (
+  results: ReadonlyArray<unknown>
+): Layer.Layer<Database.Database> => {
+  let next = 0
+  const sql = (() => ({ raw: Effect.sync(() => results[next++]) })) as unknown as SqlClient.SqlClient
+  const write: Database.DatabaseService["write"] = (effect) => effect
+  return Layer.succeed(Database.Database)(
+    Database.Database.of({ sql, write })
+  )
+}
+
 describe("CacheStore", () => {
   it("returns none for a cache miss", async () => {
     const result = await migrated(Effect.gen(function*() {
@@ -135,6 +150,21 @@ describe("CacheStore", () => {
 
     expect(result.foreign).toBe(false)
     expect(Option.isSome(result.survived)).toBe(true)
+  })
+
+  it("counts affected rows on a driver that reports rowCount rather than changes", async () => {
+    // node-postgres hands `.raw` back a `{rowCount}` result; a bun:sqlite
+    // `{changes}` cast reads `undefined` there and reports every successful
+    // delete as a no-op (issue #134).
+    const evicted = await run(Effect.gen(function*() {
+      const store = yield* CacheStore
+      return yield* Effect.all([store.evict("digest-1"), store.evict("digest-2")])
+    }).pipe(
+      Effect.provide(CacheStoreLive.layer),
+      Effect.provide(postgresShapedDatabase([{ rowCount: 1, rows: [] }, { rowCount: 0, rows: [] }]))
+    ))
+
+    expect(evicted).toEqual([true, false])
   })
 
   it("rejects empty keys and non-JSON values with invalid_cache", async () => {

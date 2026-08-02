@@ -136,6 +136,35 @@ export const fromSqlError = (error: SqlError.SqlError): DatabaseError =>
     cause: error
   })
 
+const rowCountOf = (raw: unknown, field: string): number | undefined => {
+  if (typeof raw !== "object" || raw === null || !(field in raw)) {
+    return undefined
+  }
+  const count = (raw as Record<string, unknown>)[field]
+  return typeof count === "number" && Number.isInteger(count) && count >= 0 ? count : undefined
+}
+
+/**
+ * Reads how many rows a write statement affected from a driver's raw result.
+ *
+ * `SqlClient`'s `.raw` yields the driver's native result object, whose
+ * affected-row field is dialect-specific: SQLite drivers (bun:sqlite,
+ * better-sqlite3) report `changes`, node-postgres reports `rowCount`. A
+ * consumer that casts to one shape silently reads `undefined` on the other
+ * backend, turning a successful compare-and-swap delete into a reported
+ * no-op. Reading it here keeps the whole vocabulary dialect-agnostic, as
+ * `fromSqlError` already does for failure codes (issue #134).
+ *
+ * @category accessors
+ * @since 0.1.0
+ */
+export const affectedRows = (raw: unknown): Effect.Effect<number, DatabaseError> => {
+  const count = rowCountOf(raw, "changes") ?? rowCountOf(raw, "rowCount")
+  return count === undefined
+    ? Effect.fail(new DatabaseError({ code: "unsupported", cause: raw }))
+    : Effect.succeed(count)
+}
+
 /**
  * Builds the database service around an existing SQL client.
  *

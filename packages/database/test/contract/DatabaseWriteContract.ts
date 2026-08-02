@@ -22,6 +22,7 @@ import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import { describe, expect, it } from "vitest"
 import type * as Database from "../../src/Database.ts"
+import { affectedRows } from "../../src/Database.ts"
 
 /**
  * Two `Database` services over one shared store. They are separate connections
@@ -167,6 +168,28 @@ export const describeContract = (harness: Harness): void => {
 
       expect(result.failure).toBe("abandoned")
       expect(result.rows).toBe(0)
+    })
+
+    it("reports the affected-row count of a delete that matches a row and of one that matches none", async () => {
+      // The cache store's fenced eviction decides "did the compare-and-swap
+      // hit?" from this count alone, so it is a backend contract, not a
+      // driver detail: a shape whose affected count is unreadable must fail
+      // loudly rather than read as zero (issue #134).
+      const result = await harness.run((context) =>
+        Effect.gen(function*() {
+          yield* context.a.sql`CREATE TABLE rows_affected (id INTEGER PRIMARY KEY)`
+          yield* context.a.write(context.a.sql`INSERT INTO rows_affected (id) VALUES (1)`)
+          const matched = yield* context.a.write(
+            context.a.sql`DELETE FROM rows_affected WHERE id = 1`.raw.pipe(Effect.flatMap(affectedRows))
+          )
+          const unmatched = yield* context.a.write(
+            context.a.sql`DELETE FROM rows_affected WHERE id = 1`.raw.pipe(Effect.flatMap(affectedRows))
+          )
+          return { matched, unmatched }
+        })
+      )
+
+      expect(result).toEqual({ matched: 1, unmatched: 0 })
     })
   })
 }

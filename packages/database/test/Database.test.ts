@@ -36,6 +36,36 @@ describe("Database", () => {
     expect(result).toBe(42)
   })
 
+  it("reads the affected-row count from either dialect's raw result", async () => {
+    const counts = await Effect.runPromise(
+      Effect.all([
+        Database.affectedRows({ changes: 3 }),
+        Database.affectedRows({ rowCount: 0 }),
+        // A driver that reports both wins on the SQLite field it already used.
+        Database.affectedRows({ changes: 2, rowCount: 5 })
+      ])
+    )
+
+    expect(counts).toEqual([3, 0, 2])
+  })
+
+  it("fails with unsupported rather than guessing when no affected-row count is readable", async () => {
+    const shapes: ReadonlyArray<unknown> = [
+      undefined,
+      null,
+      "1 row",
+      {},
+      { changes: "3" },
+      { changes: -1 },
+      { rowCount: 1.5 }
+    ]
+    const failures = await Effect.runPromise(
+      Effect.forEach(shapes, (shape) => Effect.flip(Database.affectedRows(shape)))
+    )
+
+    expect(failures.map((failure) => failure.code)).toEqual(shapes.map(() => "unsupported"))
+  })
+
   it("normalizes SQLite errors into stable DatabaseError codes", () => {
     expect(Database.fromSqlError(sqliteError("SQLITE_BUSY"))).toMatchObject({ code: "busy" })
     expect(Database.fromSqlError(sqliteError("SQLITE_CONSTRAINT"))).toMatchObject({ code: "constraint" })

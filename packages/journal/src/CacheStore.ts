@@ -9,7 +9,7 @@
  *
  * @since 0.1.0
  */
-import { Database, DatabaseError } from "@smithers/database/Database"
+import { affectedRows, Database, DatabaseError } from "@smithers/database/Database"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -254,7 +254,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
               ${entry.keyDigest}, ${result}, ${meta}, ${entry.createdAtMs}, ${entry.recordedRunId}, ${entry.recordedEventSeq}
             ) ON CONFLICT (key_digest) DO NOTHING
           `.raw.pipe(Effect.mapError(mapPersistenceError))
-          if ((inserted as { readonly changes: number }).changes > 0) {
+          if ((yield* affectedRows(inserted)) > 0) {
             return { _tag: "Inserted" } as const
           }
           const rows = yield* sql<Pick<CacheRow, "result_json">>`
@@ -290,8 +290,11 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
               AND recorded_run_id = ${fenced.runId}
               AND recorded_event_seq = ${fenced.eventSeq}
           `.raw
-      ).pipe(Effect.mapError(mapPersistenceError))
-      return (deleted as { readonly changes: number }).changes > 0
+      ).pipe(
+        Effect.flatMap(affectedRows),
+        Effect.mapError(mapPersistenceError)
+      )
+      return deleted > 0
     })
   )
 
