@@ -106,13 +106,35 @@ export class UnsupportedBoundary extends Schema.TaggedErrorClass<UnsupportedBoun
   }
 ) {}
 
+/**
+ * Recorded boundary evidence whose bytes no longer match their recorded
+ * digest — an integrity violation of the store's strongest invariant, as
+ * opposed to a transient host failure (issue #150). The two classes were
+ * previously conflated under one `UnsupportedBoundary` tag, so a failing
+ * disk corrupting many blobs journalled identically to a one-off EIO.
+ *
+ * @since 0.1.0
+ * @category errors
+ */
+export class BoundaryCorruption extends Schema.TaggedErrorClass<BoundaryCorruption>()(
+  "flows/engine-store/BoundaryCorruption",
+  {
+    code: Schema.Literal("boundary_corruption"),
+    path: Schema.String,
+    recordedDigest: Schema.String,
+    measuredDigest: Schema.String
+  }
+) {}
+
 /** @since 0.1.0 @category models */
 export interface Service {
   readonly prepare: (descriptor: Descriptor) => Effect.Effect<PreparedBoundary, UnsupportedBoundary>
   readonly settle: (
     prepared: PreparedBoundary
   ) => Effect.Effect<BoundaryEvidence, UndeclaredWrite | UnsupportedBoundary>
-  readonly replayOutputs: (evidence: BoundaryEvidence) => Effect.Effect<void, UnsupportedBoundary>
+  readonly replayOutputs: (
+    evidence: BoundaryEvidence
+  ) => Effect.Effect<void, UnsupportedBoundary | BoundaryCorruption>
 }
 
 /** @since 0.1.0 @category services */
@@ -469,10 +491,15 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
       // healing rewrite, so the mismatch would be permanent for the store's
       // lifetime even though the capturing process holds the correct bytes.
       verifiedDigests.delete(`${output.digest}`)
+      // Corruption is a distinct typed failure from a transient host error
+      // (issue #150): the caller routes it to the Inconsistency receiver
+      // instead of treating it as an ordinary retryable refusal.
       return yield* Effect.fail(
-        new UnsupportedBoundary({
-          code: "unsupported_boundary",
-          message: `digest mismatch materializing ${output.path}: recorded ${output.digest}, measured ${measured}`
+        new BoundaryCorruption({
+          code: "boundary_corruption",
+          path: output.path,
+          recordedDigest: `${output.digest}`,
+          measuredDigest: measured
         })
       )
     }

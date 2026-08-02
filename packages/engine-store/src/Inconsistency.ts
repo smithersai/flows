@@ -48,6 +48,31 @@ export interface CacheConflict {
 }
 
 /**
+ * Recorded boundary evidence whose blob no longer hashes to its recorded
+ * digest — on-disk corruption of the content-addressed store, detected while
+ * replaying a verified cache hit or a succeeded attempt (issue #150).
+ * Distinct from a transient host failure, which merely refuses the replay
+ * and stays retryable.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface BlobCorruption {
+  /** The run that observed the corruption; the journaling target. */
+  readonly runId: string
+  readonly keyDigest: string
+  readonly path: string
+  readonly recordedDigest: string
+  readonly measuredDigest: string
+  /**
+   * Provenance of the corrupt evidence when it came from a shared cache row;
+   * absent when it came from this run's own succeeded attempt row.
+   */
+  readonly recordedRunId?: string | undefined
+  readonly recordedEventSeq?: number | undefined
+}
+
+/**
  * Inconsistency receiver operations.
  *
  * @category models
@@ -55,6 +80,12 @@ export interface CacheConflict {
  */
 export interface Service {
   readonly note: (event: CacheConflict) => Effect.Effect<InconsistencyVerdict, Journal.JournalError>
+  /**
+   * Observes on-disk corruption of recorded boundary evidence (issue #150).
+   * `"fail"` fails the dispatch; `"tolerate"` lets it fall back to a real
+   * execution (which re-captures and heals the corrupt address).
+   */
+  readonly noteCorruption: (event: BlobCorruption) => Effect.Effect<InconsistencyVerdict, Journal.JournalError>
 }
 
 /**
@@ -117,6 +148,26 @@ export const make = (options: MakeOptions): Service => ({
       ),
       options.verdict
     )
+  ),
+  noteCorruption: Effect.fn("Inconsistency.noteCorruption")((event) =>
+    Effect.as(
+      options.journal.emitDurable(
+        JournalRecords.cacheCorruption(
+          { runId: event.runId, sourceId: "flows/engine-store/inconsistency" },
+          {
+            keyDigest: event.keyDigest,
+            verdict: options.verdict,
+            path: event.path,
+            recordedDigest: event.recordedDigest,
+            measuredDigest: event.measuredDigest,
+            recordedRunId: event.recordedRunId ?? null,
+            recordedEventSeq: event.recordedEventSeq ?? null
+          }
+        ),
+        options.owner
+      ),
+      options.verdict
+    )
   )
 })
 
@@ -128,6 +179,7 @@ export const make = (options: MakeOptions): Service => ({
  */
 export const makeNoop = (overrides: Partial<Service> = {}): Service => ({
   note: Effect.fn("Inconsistency.note")(() => Effect.succeed("tolerate" as const)),
+  noteCorruption: Effect.fn("Inconsistency.noteCorruption")(() => Effect.succeed("tolerate" as const)),
   ...overrides
 })
 

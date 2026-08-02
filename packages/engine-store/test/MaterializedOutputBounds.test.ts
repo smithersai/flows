@@ -287,8 +287,14 @@ describe("blob writes are atomic and materialization is digest-verified (issue #
     host.files.set(`.objects/${Digest.digest(artifact)}`, encoder.encode("truncated"))
     host.files.delete("artifact.bin")
     const failure = await Effect.runPromise(replay(host, evidence))
-    expect(failure).toMatchObject({ code: "unsupported_boundary" })
-    expect(failure.message).toMatch(/digest/)
+    // A digest mismatch is corruption, not a transient host refusal
+    // (issue #150): the distinct code is what routes it to the
+    // Inconsistency receiver instead of the retryable fallback.
+    expect(failure).toMatchObject({
+      code: "boundary_corruption",
+      path: "artifact.bin",
+      recordedDigest: Digest.digest(artifact)
+    })
     expect(host.files.has("artifact.bin")).toBe(false)
   })
 
@@ -305,8 +311,14 @@ describe("blob writes are atomic and materialization is digest-verified (issue #
       },
       diffIdentity: "tampered"
     }))
-    expect(failure).toMatchObject({ code: "unsupported_boundary" })
-    expect(failure.message).toMatch(/digest/)
+    // Tampered inline content is the same integrity violation as a corrupt
+    // blob (issue #150).
+    expect(failure).toMatchObject({
+      code: "boundary_corruption",
+      path: "artifact.bin",
+      recordedDigest: Digest.digest("real"),
+      measuredDigest: Digest.digest("fake")
+    })
     expect(host.files.has("artifact.bin")).toBe(false)
   })
 

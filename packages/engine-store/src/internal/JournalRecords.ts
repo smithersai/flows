@@ -55,6 +55,9 @@ export const cacheProvenance = (options: EventOptions, payload: unknown) =>
 /** @since 0.1.0 @category events */
 export const cacheConflict = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.cache-conflict", payload)
+/** @since 0.1.0 @category events */
+export const cacheCorruption = (options: EventOptions, payload: unknown) =>
+  event(options, "flows.engine.cache-corruption", payload)
 
 /**
  * Reads a page of engine records without imposing an agent-shaped event union.

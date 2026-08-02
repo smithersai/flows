@@ -78,6 +78,37 @@ export class CacheConflictDetected extends Schema.TaggedErrorClass<CacheConflict
   }
 ) {}
 
+/** @since 0.1.0 @category errors */
+export class CacheCorruptionDetected extends Schema.TaggedErrorClass<CacheCorruptionDetected>()(
+  "flows/engine-store/CacheCorruptionDetected",
+  {
+    code: Schema.Literal("cache_corruption_detected"),
+    keyDigest: Schema.String,
+    path: Schema.String,
+    recordedDigest: Schema.String,
+    measuredDigest: Schema.String
+  }
+) {}
+
+/**
+ * The one classification of a `replayOutputs` failure (issue #150): a
+ * `BoundaryCorruption` in the cause is on-disk corruption of recorded
+ * evidence — the store's strongest invariant violated — while anything else
+ * is a transient host refusal that stays retryable. The two previously
+ * journalled identically, so a failing disk corrupting many blobs was
+ * indistinguishable from a one-off EIO.
+ */
+const replayCorruption = (
+  cause: Cause.Cause<unknown>
+): StepBoundary.BoundaryCorruption | undefined => {
+  for (const reason of cause.reasons) {
+    if (Cause.isFailReason(reason) && reason.error instanceof StepBoundary.BoundaryCorruption) {
+      return reason.error
+    }
+  }
+  return undefined
+}
+
 /** @since 0.1.0 @category models */
 export interface Dependencies {
   readonly runId: string
@@ -409,6 +440,12 @@ export const make = (deps: Dependencies) => {
                   // permanent-failure loop #99 closed one branch later. The
                   // refusal is journalled and the dispatch path below executes
                   // for real; the row survives for hosts that can replay it.
+                  // The refusal record carries its classification (issue
+                  // #150): `corruption` for a digest mismatch at the
+                  // content-addressed blob path, `host` for everything else —
+                  // a failing disk corrupting many blobs must never journal
+                  // identically to a one-off EIO.
+                  const corruption = replayCorruption(materialized.cause)
                   yield* emitConverging(
                     JournalRecords.cacheProvenance(
                       cacheSource("replay_failed", {
@@ -418,11 +455,44 @@ export const make = (deps: Dependencies) => {
                       {
                         keyDigest,
                         action: "replay_failed",
+                        reason: corruption === undefined ? "host" : "corruption",
                         recordedRunId: cached.value.recordedRunId,
                         recordedEventSeq: cached.value.recordedEventSeq
                       }
                     )
                   )
+                  if (corruption !== undefined) {
+                    // Corruption is an integrity violation, not a retryable
+                    // refusal: it routes to the Inconsistency receiver like
+                    // a cache-key conflict does. The core default is STRICT
+                    // (fail); `Inconsistency.layerTolerant` (or a plugin
+                    // verdict) lets the dispatch fall back to the real
+                    // execution below, whose re-capture heals the address.
+                    const receiverOption = yield* Effect.serviceOption(Inconsistency.Inconsistency)
+                    const receiver = Option.isSome(receiverOption)
+                      ? receiverOption.value
+                      : Inconsistency.make({ journal, verdict: "fail", owner: deps.owner })
+                    const verdict = yield* receiver.noteCorruption({
+                      runId: deps.runId,
+                      keyDigest,
+                      path: corruption.path,
+                      recordedDigest: corruption.recordedDigest,
+                      measuredDigest: corruption.measuredDigest,
+                      recordedRunId: cached.value.recordedRunId,
+                      recordedEventSeq: cached.value.recordedEventSeq
+                    })
+                    if (verdict === "fail") {
+                      return yield* Effect.fail(
+                        new CacheCorruptionDetected({
+                          code: "cache_corruption_detected",
+                          keyDigest,
+                          path: corruption.path,
+                          recordedDigest: corruption.recordedDigest,
+                          measuredDigest: corruption.measuredDigest
+                        })
+                      )
+                    }
+                  }
                 } else if (Option.isSome(measured)) {
                   // Only a *measured* mismatch is evidence the inputs changed
                   // (issue #110): a host that cannot measure right now — a
@@ -491,13 +561,42 @@ export const make = (deps: Dependencies) => {
                   // terminal row survived recreated the #99 permanent
                   // refuse→fail loop one branch earlier (issue #107). The
                   // refusal is journalled so a missing output is
-                  // explainable rather than silent.
+                  // explainable rather than silent, and it carries its
+                  // classification (issue #150): corruption of the recorded
+                  // evidence routes to the Inconsistency receiver instead of
+                  // passing as an ordinary transient host refusal.
+                  const corruption = replayCorruption(materialized.cause)
                   yield* emitConverging(
                     JournalRecords.cacheProvenance(cacheSource("replay_failed"), {
                       keyDigest,
-                      action: "replay_failed"
+                      action: "replay_failed",
+                      reason: corruption === undefined ? "host" : "corruption"
                     })
                   )
+                  if (corruption !== undefined) {
+                    const receiverOption = yield* Effect.serviceOption(Inconsistency.Inconsistency)
+                    const receiver = Option.isSome(receiverOption)
+                      ? receiverOption.value
+                      : Inconsistency.make({ journal, verdict: "fail", owner: deps.owner })
+                    const verdict = yield* receiver.noteCorruption({
+                      runId: deps.runId,
+                      keyDigest,
+                      path: corruption.path,
+                      recordedDigest: corruption.recordedDigest,
+                      measuredDigest: corruption.measuredDigest
+                    })
+                    if (verdict === "fail") {
+                      return yield* Effect.fail(
+                        new CacheCorruptionDetected({
+                          code: "cache_corruption_detected",
+                          keyDigest,
+                          path: corruption.path,
+                          recordedDigest: corruption.recordedDigest,
+                          measuredDigest: corruption.measuredDigest
+                        })
+                      )
+                    }
+                  }
                 }
               }
               // Converge the cache with the durable completion: a crash between
