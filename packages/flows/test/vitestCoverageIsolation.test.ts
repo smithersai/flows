@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from "node:fs"
-import { join, resolve } from "node:path"
+import { join, relative, resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 
 /**
@@ -115,6 +115,69 @@ describe("vitest coverage isolation conformance", () => {
       // silently.
       expect(source).not.toMatch(/\bexclude\s*:/)
       expect(source).not.toMatch(/\bautoUpdate\s*:/)
+      // `coverage.all: false` and a narrowed `coverage.extension` list are
+      // the same silent-denominator-shrinking mechanism (issue #152): the
+      // v8 provider defaults `all: true`, so every src file no test loads
+      // still counts against the 100% thresholds; `all: false` (or an
+      // extension list that drops files) restricts the check to files tests
+      // happen to load while every pinned assertion above stays green.
+      expect(source).not.toMatch(/\ball\s*:/)
+      expect(source).not.toMatch(/\bextension\s*:/)
     }
   )
+
+  it("pins the root workspaces globs to the conformance universe (issue #154)", () => {
+    // The universe above is derived from `packages/`; that is complete only
+    // while `packages/*` is the WHOLE workspace. A second glob (`apps/*`)
+    // would ship its packages with no coverage gate at all while every cell
+    // here stayed green — the #148 defect reinstated silently. Adding a
+    // workspace root means widening this assertion AND the universe
+    // derivation above, in review.
+    const root = JSON.parse(readFileSync(join(packagesDir, "..", "package.json"), "utf8")) as {
+      readonly workspaces?: ReadonlyArray<string>
+    }
+    expect(root.workspaces).toEqual(["packages/*"])
+  })
+
+  it("inventories every v8 coverage-ignore directive against a pinned allowlist (issue #153)", () => {
+    // An ignore hint is subtracted from the denominator BEFORE the 100%
+    // thresholds are evaluated, so a one-line comment is the cheapest way to
+    // ship an uncovered branch with zero test failures. Every directive in
+    // any package's src tree must appear here, with its count: adding one —
+    // or moving one — means widening this allowlist in review, with the
+    // justification the diff forces into the open.
+    const allowlist: Record<string, number> = {
+      "engine/src/FlowEngine.ts": 1,
+      "journal/src/AttemptStore.ts": 1,
+      "journal/src/CacheStore.ts": 1,
+      "journal/src/RunCoordinator.ts": 1,
+      "journal/src/RunStore.ts": 1,
+      "journal/src/SqlJournal.ts": 1
+    }
+    const sourceFiles = (directory: string): Array<string> => {
+      let entries
+      try {
+        entries = readdirSync(directory, { withFileTypes: true })
+      } catch {
+        return []
+      }
+      return entries.flatMap((entry) =>
+        entry.isDirectory()
+          ? sourceFiles(join(directory, entry.name))
+          : entry.name.endsWith(".ts")
+          ? [join(directory, entry.name)]
+          : []
+      )
+    }
+    const found: Record<string, number> = {}
+    for (const name of packages) {
+      for (const path of sourceFiles(join(packagesDir, name, "src"))) {
+        const matches = readFileSync(path, "utf8").match(/v8 ignore/g)
+        if (matches !== null) {
+          found[relative(packagesDir, path)] = matches.length
+        }
+      }
+    }
+    expect(found).toEqual(allowlist)
+  })
 })
