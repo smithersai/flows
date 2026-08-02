@@ -1,0 +1,248 @@
+/**
+ * Issue #171: corrupt recorded evidence on a SUCCEEDED attempt row under the
+ * strict verdict is an OPERATOR event, not a terminal run failure. The row
+ * cannot be evicted and re-executed like a corrupt cache row (#164) — its
+ * side effects already ran, so blind repair would break exactly-once — but
+ * settling the run `failed` made the corruption a permanent opaque terminal:
+ * every resume re-read the same row, re-detected the identical corruption,
+ * and re-failed forever. The driver now parks the run in the `quarantine`
+ * waiting state (no sweeper wakes it), with the corruption journalled, and
+ * an operator resumes it after restoring the evidence bytes or
+ * time-travelling past the attempt.
+ */
+import { Activity, Flow, RetryPolicy } from "@smithers/engine"
+import { AttemptStore, CacheStore, Journal, RunStore, TestJournal } from "@smithers/journal"
+import { Jj } from "@smithers/kernel"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as ManagedRuntime from "effect/ManagedRuntime"
+import * as Option from "effect/Option"
+import * as Schema from "effect/Schema"
+import { TestClock } from "effect/testing"
+import { describe, expect, it } from "vitest"
+import * as DurableEngineState from "../src/DurableEngineState.ts"
+import * as EngineStore from "../src/EngineStore.ts"
+import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as StepBoundary from "../src/StepBoundary.ts"
+
+const QuarantineFlow = Flow.make("AttemptQuarantine/Flow", {
+  payload: {},
+  success: Schema.String
+})
+
+const jj = Jj.make({
+  snapshot: () => Effect.succeed({ changeId: "quarantine-snapshot" as never }),
+  restore: () => Effect.void,
+  diff: () => Effect.succeed(""),
+  workspaceAdd: () => Effect.void,
+  workspaceForget: () => Effect.void,
+  status: () => Effect.succeed("")
+})
+
+const corruptionError = new StepBoundary.BoundaryCorruption({
+  code: "boundary_corruption",
+  path: "dist/manifest.json",
+  recordedDigest: "aa".repeat(32),
+  measuredDigest: "bb".repeat(32)
+})
+
+describe("succeeded-row corruption parks the run quarantined for an operator (issue #171)", () => {
+  it("classifies the real AttemptEvidenceQuarantined instance non-retryable under every policy", () => {
+    // Same cross-package seam pin as issue #165 for CacheCorruptionDetected:
+    // the engine matches by tag string, so nothing else stops a rename from
+    // silently making quarantine retryable — each retry would re-detect the
+    // identical corruption before the driver ever parks the run.
+    const quarantined = new ActivityPersistence.AttemptEvidenceQuarantined({
+      code: "attempt_evidence_quarantined",
+      keyDigest: "deadbeef",
+      attempt: 1,
+      path: "dist/manifest.json",
+      recordedDigest: "aa".repeat(32),
+      measuredDigest: "bb".repeat(32)
+    })
+    expect(RetryPolicy.errorTag(quarantined)).toBe("flows/engine-store/AttemptEvidenceQuarantined")
+    expect(RetryPolicy.defaultNonRetryable).toContain(RetryPolicy.errorTag(quarantined))
+    const policy = RetryPolicy.make({ initialMs: 1, factor: 2, maxMs: 10, maxAttempts: 10 })
+    expect(RetryPolicy.isNonRetryable(policy, quarantined)).toBe(true)
+  })
+
+  it("parks the run as reason 'quarantine' instead of failing it, and an operator wake over restored evidence completes it", async () => {
+    let dispatches = 0
+    const sealed = Activity.make({
+      name: "AttemptQuarantine/sealed",
+      success: Schema.String,
+      tier: "sealed",
+      idempotencyKey: "quarantine-v1",
+      metadata: { readSet: [], writeSet: ["dist/manifest.json"], boundaryMode: "hard" },
+      execute: Effect.suspend(() => {
+        dispatches++
+        return Effect.succeed("durable-outcome")
+      })
+    })
+    const state = DurableEngineState.makeMemory()
+    let evidenceCorrupt = false
+    const boundary = Layer.succeed(
+      StepBoundary.StepBoundary,
+      StepBoundary.make({
+        prepare: (descriptor) => Effect.succeed({ descriptor, readSnapshot: descriptor.readSet }),
+        settle: () => Effect.succeed({ declaredOutputs: { outputs: [] }, diffIdentity: "quarantine-diff" }),
+        replayOutputs: () => evidenceCorrupt ? Effect.fail(corruptionError) : Effect.succeed(undefined)
+      })
+    )
+    const runtime = ManagedRuntime.make(
+      Layer.mergeAll(
+        TestJournal.layer(),
+        TestClock.layer(),
+        Layer.succeed(DurableEngineState.DurableEngineState, state),
+        Layer.succeed(Jj.Jj, jj),
+        boundary
+      )
+    )
+    const run = <A, E>(effect: Effect.Effect<A, E, unknown>) =>
+      runtime.runPromise(
+        effect as Effect.Effect<A, E, ManagedRuntime.ManagedRuntime.Services<typeof runtime>>
+      )
+    const makeEngine = EngineStore.make({
+      owner: { hostId: "quarantine-host" },
+      journalSource: "quarantine-test",
+      isAlive: () => Effect.succeed(false)
+    })
+    // The sealed step key folds declaration and metadata material the test
+    // must not re-derive by hand: a probe run discovers the real digest from
+    // its own attempt-started journal record.
+    const keyDigest = await run(
+      Effect.gen(function*() {
+        const engine = yield* makeEngine
+        yield* engine.register(QuarantineFlow, () => sealed as never)
+        yield* engine.execute(QuarantineFlow, {
+          executionId: "quarantine-probe",
+          payload: {},
+          discard: true
+        })
+        const journal = yield* Journal.Journal
+        yield* journal.flush
+        const page = yield* journal.entries({ runId: "quarantine-probe" as never, limit: 50 })
+        const started = page.entries.find((entry) => entry.eventType === "flows.engine.attempt-started")
+        const digest = (started?.payload as { readonly stepKeyDigest: string }).stepKeyDigest
+        // The probe converged its result into the shared cache; the seam
+        // under test is the succeeded ATTEMPT row, so clear the cache.
+        const cache = yield* CacheStore.CacheStore
+        yield* cache.evict(digest)
+        return digest
+      }).pipe(Effect.scoped)
+    )
+    expect(dispatches).toBe(1)
+    const attemptId = {
+      runId: "quarantine-run",
+      stepKeyDigest: keyDigest,
+      attempt: 1
+    }
+
+    // Process 1 (modelled durably, like the rehydration cells): the attempt
+    // sealed — its side effects ran and `attempts.finish` recorded the
+    // outcome with its boundary evidence — but the process died before the
+    // run finished, releasing the run reclaimably. No cache row converged
+    // (the crash landed between `finish` and `cache.put`), so the next
+    // dispatch replays the succeeded ATTEMPT row — the seam under test.
+    const seedOwner = { hostId: "quarantine-seed", pid: 1, nonce: "quarantine-seed" }
+    await run(
+      Effect.gen(function*() {
+        const runs = yield* RunStore.RunStore
+        const attempts = yield* AttemptStore.AttemptStore
+        const stateJson = JSON.stringify({
+          version: 1,
+          flowName: "AttemptQuarantine/Flow",
+          payload: {}
+        })
+        yield* runs.create("quarantine-run", stateJson)
+        const row = yield* runs.get("quarantine-run")
+        yield* runs.claimAndOwn(
+          "quarantine-run",
+          { status: row.status, owner: row.owner, heartbeatAtMs: row.heartbeatAtMs },
+          seedOwner,
+          0
+        )
+        yield* attempts.put(
+          { ...attemptId, state: "running", startedAtMs: 0, meta: { tier: "sealed" } },
+          seedOwner
+        )
+        yield* attempts.finish({
+          ...attemptId,
+          state: "succeeded",
+          finishedAtMs: 0,
+          outcome: "durable-outcome",
+          meta: {
+            tier: "sealed",
+            boundary: { declaredOutputs: { outputs: [] }, diffIdentity: "quarantine-diff" },
+            readSetVerified: true
+          }
+        }, seedOwner)
+        // The dying process released the run reclaimably.
+        yield* runs.transitionOwned("quarantine-run", seedOwner, "suspended", stateJson)
+      })
+    )
+
+    // Process 2: a disk fault corrupted the recorded evidence. The resume
+    // must not fail the run terminally and must not re-execute the sealed
+    // body — it parks the run for an operator.
+    evidenceCorrupt = true
+    const parked = await run(
+      Effect.gen(function*() {
+        const engine = yield* makeEngine
+        yield* engine.register(QuarantineFlow, () => sealed as never)
+        yield* engine.execute(QuarantineFlow, {
+          executionId: "quarantine-run",
+          payload: {},
+          discard: true
+        })
+        const store = yield* RunStore.RunStore
+        const journal = yield* Journal.Journal
+        yield* journal.flush
+        const page = yield* journal.entries({ runId: "quarantine-run" as never, limit: 50 })
+        return {
+          row: yield* store.get("quarantine-run"),
+          waiting: yield* state.waiting("quarantine-run"),
+          sweep: yield* state.waitingRuns({ reason: "quarantine" }),
+          releasedSweep: yield* state.waitingRuns({ reason: "released" })
+        }
+      }).pipe(Effect.scoped)
+    )
+
+    // Parked, not failed: the run is suspended under the typed quarantine
+    // reason, keyed to the poisoned attempt for the operator.
+    expect(parked.row.status).toBe("suspended")
+    const waiting = Option.getOrThrow(parked.waiting)
+    expect(waiting.reason).toBe("quarantine")
+    expect(waiting.token).toBe(keyDigest)
+    expect(parked.sweep.map((row) => row.runId)).toEqual(["quarantine-run"])
+    // The reclaim sweep must never see it: quarantine is not `released`.
+    expect(parked.releasedSweep).toEqual([])
+    expect(dispatches).toBe(1)
+
+    // Operator action: the evidence bytes are restored (healthy boundary),
+    // and the run is explicitly re-driven. It completes from the durable
+    // outcome without ever re-executing the sealed body.
+    evidenceCorrupt = false
+    const resumed = await run(
+      Effect.gen(function*() {
+        const engine = yield* makeEngine
+        yield* engine.register(QuarantineFlow, () => sealed as never)
+        yield* engine.execute(QuarantineFlow, {
+          executionId: "quarantine-run",
+          payload: {},
+          discard: true
+        })
+        const store = yield* RunStore.RunStore
+        return {
+          row: yield* store.get("quarantine-run"),
+          waiting: yield* state.waiting("quarantine-run")
+        }
+      }).pipe(Effect.scoped)
+    )
+
+    expect(resumed.row.status).toBe("completed")
+    expect(Option.isNone(resumed.waiting)).toBe(true)
+    expect(dispatches).toBe(1)
+    await runtime.dispose()
+  })
+})

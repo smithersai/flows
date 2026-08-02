@@ -16,6 +16,7 @@ import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
 import * as DurableEngineState from "../DurableEngineState.ts"
+import * as ActivityPersistence from "./ActivityPersistence.ts"
 import * as JournalRecords from "./JournalRecords.ts"
 
 /**
@@ -492,6 +493,45 @@ export const make = (
         )
         if (result._tag === "CancelRequested") {
           return yield* cancelOwned(executionId, activeState)
+        }
+
+        // Corrupt evidence on a SUCCEEDED attempt row is an operator event,
+        // not a run failure (issue #171): the row cannot be evicted and
+        // re-executed like a corrupt cache row (#164) without breaking
+        // exactly-once, and settling the run `failed` made the corruption a
+        // permanent opaque terminal — every resume re-read the same row and
+        // re-failed forever. Park the run `quarantine` instead: the
+        // corruption is already journalled by the Inconsistency receiver, no
+        // sweeper wakes this reason, and an operator resumes the run after
+        // restoring the evidence (or time-travelling past the attempt) by
+        // re-driving it. A premature wake re-detects and re-parks — safe.
+        const quarantine = result._tag !== "Suspended" && Exit.isFailure(result.exit)
+          ? ActivityPersistence.evidenceQuarantined(result.exit.cause)
+          : undefined
+        if (quarantine !== undefined) {
+          yield* engineState.park(
+            executionId,
+            { reason: "quarantine", token: quarantine.keyDigest },
+            dependencies.owner
+          )
+          const parked = yield* store.transitionOwned(
+            executionId,
+            dependencies.owner,
+            "suspended",
+            yield* encodeState(withoutResult(activeState)),
+            { cancelRequested: "absent" }
+          ).pipe(Effect.orDie)
+          if (parked._tag === "GuardFailed") {
+            return yield* cancelOwned(executionId, activeState)
+          }
+          if (parked._tag !== "Transitioned") return
+          yield* emitDecision(executionId, {
+            decision: "quarantined",
+            status: "suspended",
+            keyDigest: quarantine.keyDigest,
+            owner: dependencies.owner
+          })
+          return
         }
 
         const encodedResult = yield* (Schema.encodeEffect(

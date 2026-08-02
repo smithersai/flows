@@ -113,6 +113,13 @@ export type CompleteClockOutcome =
  *   held lease and no `wakeAt`: any supervisor/sweeper MUST scan for this
  *   reason explicitly and re-drive the run through the claim path, or
  *   released runs are stranded forever (issue #67).
+ * - `quarantine` — parked because a SUCCEEDED attempt row's recorded
+ *   evidence measured corrupt under the strict verdict (issue #171). The
+ *   row cannot be evicted/re-executed like a cache row (its side effects
+ *   already ran), so the run waits for an OPERATOR: restore the evidence
+ *   bytes, time-travel past the attempt, or repair the attempt row, then
+ *   wake the run. No sweeper may auto-wake this reason — a premature wake
+ *   merely re-detects and re-parks, but it is never progress.
  *
  * Left open (`string & {}`) so a plugin can park on a reason the core
  * taxonomy has not named yet — the store persists whatever it is given
@@ -121,7 +128,14 @@ export type CompleteClockOutcome =
  * @since 0.1.0
  * @category models
  */
-export type WaitingReason = "approval" | "event" | "timer" | "quota" | "released" | (string & {})
+export type WaitingReason =
+  | "approval"
+  | "event"
+  | "timer"
+  | "quota"
+  | "released"
+  | "quarantine"
+  | (string & {})
 
 /**
  * The payload recorded when a run parks.

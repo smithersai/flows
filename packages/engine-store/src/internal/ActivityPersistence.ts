@@ -91,6 +91,60 @@ export class CacheCorruptionDetected extends Schema.TaggedErrorClass<CacheCorrup
 ) {}
 
 /**
+ * Corrupt recorded evidence on a SUCCEEDED durable attempt row under the
+ * strict verdict (issue #171).
+ *
+ * Distinct from {@link CacheCorruptionDetected} on purpose: a corrupt shared
+ * cache row is evictable — the next dispatch re-executes and re-captures
+ * cleanly (issue #164) — but a succeeded attempt row records that this run's
+ * side effects already ran, so eviction/re-execution would violate
+ * exactly-once for irreversible activities. The row is therefore never
+ * repaired automatically: the driver parks the run in the `quarantine`
+ * waiting state (never re-driven by any sweeper) and an operator resolves it
+ * — restore the evidence bytes, time-travel past the attempt, or repair the
+ * attempt row — before waking the run. See
+ * `docs/architecture/implementation-status.md`, "Quarantined runs".
+ *
+ * @since 0.1.0
+ * @category errors
+ */
+export class AttemptEvidenceQuarantined extends Schema.TaggedErrorClass<AttemptEvidenceQuarantined>()(
+  "flows/engine-store/AttemptEvidenceQuarantined",
+  {
+    code: Schema.Literal("attempt_evidence_quarantined"),
+    keyDigest: Schema.String,
+    attempt: Schema.Int,
+    path: Schema.String,
+    recordedDigest: Schema.String,
+    measuredDigest: Schema.String
+  }
+) {}
+
+/**
+ * Extracts an {@link AttemptEvidenceQuarantined} carried anywhere in a flow
+ * result's cause — as a typed failure or squashed into a defect — so the
+ * driver can park the run instead of settling it `failed` (issue #171).
+ *
+ * @since 0.1.0
+ * @category errors
+ */
+export const evidenceQuarantined = (
+  cause: Cause.Cause<unknown>
+): AttemptEvidenceQuarantined | undefined => {
+  for (const reason of cause.reasons) {
+    const carried = Cause.isFailReason(reason)
+      ? reason.error
+      : Cause.isDieReason(reason)
+      ? reason.defect
+      : undefined
+    if (carried instanceof AttemptEvidenceQuarantined) {
+      return carried
+    }
+  }
+  return undefined
+}
+
+/**
  * The one classification of a `replayOutputs` failure (issue #150): a
  * `BoundaryCorruption` in the cause is on-disk corruption of recorded
  * evidence — the store's strongest invariant violated — while anything else
@@ -609,10 +663,23 @@ export const make = (deps: Dependencies) => {
                       measuredDigest: corruption.measuredDigest
                     })
                     if (verdict === "fail") {
-                      return yield* Effect.fail(
-                        new CacheCorruptionDetected({
-                          code: "cache_corruption_detected",
+                      // NOT the #164 quarantine (issue #171): this row is the
+                      // durable record that the attempt's side effects already
+                      // ran, so it is never evicted or re-executed — blind
+                      // repair would break exactly-once for irreversible
+                      // work. The typed failure below routes the run into the
+                      // driver's `quarantine` park (an operator event, not a
+                      // terminal failure): the corruption is journalled above
+                      // and the run stays resumable once an operator restores
+                      // the evidence or time-travels past the attempt. This
+                      // is a defect, not a declared activity business error:
+                      // routing it through the failure channel would make the
+                      // activity's error schema replace it with a SchemaError.
+                      return yield* Effect.die(
+                        new AttemptEvidenceQuarantined({
+                          code: "attempt_evidence_quarantined",
                           keyDigest,
+                          attempt: input.attempt,
                           path: corruption.path,
                           recordedDigest: corruption.recordedDigest,
                           measuredDigest: corruption.measuredDigest

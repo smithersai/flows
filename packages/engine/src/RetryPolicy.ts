@@ -284,16 +284,23 @@ export const errorTag = (error: unknown): string | undefined => {
  * These failures are deterministic: retrying re-runs the identical decision
  * against identical durable state, so every attempt re-fails the same way
  * while re-journalling its evidence — cache corruption is the canonical
- * case, where each retry re-reads the same corrupt row and appends another
- * durable corruption record. No per-callsite or per-policy opt-out exists;
+ * case, where each retry re-reads the same corrupt row and re-detects the
+ * identical corruption. No per-callsite or per-policy opt-out exists;
  * the tags are matched by string so the classification does not invert the
  * package dependency direction.
+ *
+ * `AttemptEvidenceQuarantined` (issue #171) is the succeeded-attempt-row
+ * counterpart: the corrupt row is deliberately never repaired in-band, so
+ * retrying is deterministic re-detection. It must reach the driver
+ * unretried, which parks the run in the `quarantine` waiting state for an
+ * operator instead of failing it.
  *
  * @category Attempts
  * @since 0.1.0
  */
 export const defaultNonRetryable: ReadonlyArray<string> = [
-  "flows/engine-store/CacheCorruptionDetected"
+  "flows/engine-store/CacheCorruptionDetected",
+  "flows/engine-store/AttemptEvidenceQuarantined"
 ]
 
 /**

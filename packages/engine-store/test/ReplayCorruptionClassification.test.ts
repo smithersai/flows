@@ -11,11 +11,13 @@
  * transient host errors stay retryable and never reach the receiver. Both
  * classes journal their `reason` on the `replay_failed` provenance record.
  */
-import { CacheStore, Journal, type Ownership, RunStore } from "@smithers/journal"
+import { AttemptStore, CacheStore, Journal, type Ownership, RunStore } from "@smithers/journal"
 import * as TestJournal from "@smithers/journal/test/TestJournal"
 import { Jj } from "@smithers/kernel"
 import { Digest } from "@smithers/keys"
+import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
@@ -226,7 +228,7 @@ describe("replay-failed classification (issue #150)", () => {
     expect(refused?.reason).toBe("host")
   })
 
-  it("classifies corruption on a succeeded attempt's replay and fails strictly by default", async () => {
+  it("quarantines corruption on a succeeded attempt's replay under the strict verdict (issue #171)", async () => {
     const key = "corruption/succeeded-row"
     const outcome = await Effect.runPromise(
       Effect.gen(function*() {
@@ -238,16 +240,45 @@ describe("replay-failed classification (issue #150)", () => {
         // Evicting the cache row routes the re-dispatch to the succeeded
         // attempt row's replay branch rather than the cache-hit gate.
         yield* cache.evict(Digest.digest(key))
-        const failed = yield* dispatch("corruption-row", key, () => Effect.die("must not re-execute")).pipe(
-          Effect.provide(failingReplay(corruptionError)),
-          Effect.flip
+        const failed = yield* Effect.exit(
+          dispatch("corruption-row", key, () => Effect.die("must not re-execute")).pipe(
+            Effect.provide(failingReplay(corruptionError))
+          )
+        )
+        // A second dispatch of the same corrupt row must neither re-execute
+        // the body (exactly-once: the side effects already ran) nor repair
+        // the row in-band — it re-detects and re-fails with the SAME typed
+        // quarantine error, and the journal still holds exactly one
+        // corruption record.
+        const refailed = yield* Effect.exit(
+          dispatch("corruption-row", key, () => Effect.die("must not re-execute")).pipe(
+            Effect.provide(failingReplay(corruptionError))
+          )
         )
         const provenance = yield* records("corruption-row", "flows.engine.cache-provenance")
         const corruption = yield* records("corruption-row", "flows.engine.cache-corruption")
-        return { failed, provenance, corruption }
+        const attempts = yield* AttemptStore.AttemptStore
+        const row = yield* attempts.get({
+          runId: "corruption-row",
+          stepKeyDigest: Digest.digest(key),
+          attempt: 1
+        })
+        return { failed, refailed, provenance, corruption, row }
       }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
     )
-    expect(outcome.failed).toBeInstanceOf(ActivityPersistence.CacheCorruptionDetected)
+    // The failure is the TYPED quarantine error, not the evictable-cache
+    // corruption class: the driver keys the operator park off it.
+    expect(Exit.isFailure(outcome.failed) && Cause.squash(outcome.failed.cause))
+      .toBeInstanceOf(ActivityPersistence.AttemptEvidenceQuarantined)
+    const failure = Cause.squash((outcome.failed as Exit.Failure<never, never>).cause) as
+      ActivityPersistence.AttemptEvidenceQuarantined
+    expect(failure.code).toBe("attempt_evidence_quarantined")
+    expect(failure.keyDigest).toBe(Digest.digest(key))
+    expect(Exit.isFailure(outcome.refailed) && Cause.squash(outcome.refailed.cause))
+      .toBeInstanceOf(ActivityPersistence.AttemptEvidenceQuarantined)
+    // The succeeded row is never mutated, evicted, or downgraded: repair is
+    // an explicit operator action, never an in-band side effect.
+    expect(Option.getOrThrow(outcome.row).state).toBe("succeeded")
     const refused = outcome.provenance.find((payload) => payload.action === "replay_failed")
     expect(refused?.reason).toBe("corruption")
     // Attempt-row evidence carries no cache provenance; the record says so

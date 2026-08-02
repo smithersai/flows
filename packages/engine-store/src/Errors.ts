@@ -19,6 +19,7 @@
 export { FlowCycleDetected } from "@smithers/engine/FlowEngine"
 export {
   AttemptAdmissionRejected,
+  AttemptEvidenceQuarantined,
   CacheConflictDetected,
   CacheCorruptionDetected
 } from "./internal/ActivityPersistence.ts"
