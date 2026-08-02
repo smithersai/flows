@@ -9,6 +9,7 @@
  *
  * @since 4.0.0
  */
+import type * as Canonical from "@smithers/keys/Canonical"
 import * as StepKey from "@smithers/keys/StepKey"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
@@ -617,11 +618,35 @@ const withEnvironment = (
  * remain allocation-ordered — indistinguishable declarations have no
  * material to order them by.
  */
-const ordinalScope = (activity: Activity.Any): string =>
+const ordinalScope = (activity: Activity.Any): Result.Result<string, Canonical.CanonicalError> =>
   StepIdentity.allocationScope({
     kind: "activity",
     name: activity.name,
     idempotency: activity.idempotencyKey
+  })
+
+/**
+ * A caller-declared identity carried material canonicalization rejects
+ * (issue #151): the failure surfaces as a recorded typed completion — the
+ * same channel `RetryPolicy`'s terminal errors use — naming the offending
+ * path, instead of `Result.getOrThrow` killing the fiber with an untyped
+ * defect. It is non-retryable by construction: the same declaration derives
+ * the same rejection on every attempt, so no retry loop is entered and the
+ * body never runs.
+ */
+const uncanonicalKey = (
+  activityName: string,
+  error: Canonical.CanonicalError
+): Flow.Complete<never, never> =>
+  new Flow.Complete({
+    exit: Exit.die(
+      new Activity.UncanonicalIdempotencyKey({
+        activityName,
+        reason: error.code,
+        path: error.path,
+        message: error.message
+      })
+    )
   })
 
 /**
@@ -642,7 +667,7 @@ const activityKey = (
   ordinal: number,
   environment: Activity.ContentEnvironment,
   scope: string
-): string => {
+): Result.Result<string, Canonical.CanonicalError> => {
   if (activity.tier === "sealed" && activity.idempotencyKey !== undefined) {
     // Skyframe's SkyKey is (functionName, argument): a string idempotencyKey
     // is namespaced by the activity name so two distinct activities sharing an
@@ -679,9 +704,12 @@ const activityKey = (
     // any caller-supplied `hermetic` field.
     const hermetic = boundaryHermetic(activity.metadata)
     const scoped = withEnvironment(identity, environment)
-    return Result.getOrThrow(StepKey.content(
+    // The caller-owned `ContentIdentity` can carry material canonicalization
+    // rejects; the typed `CanonicalError` propagates to the dispatch site
+    // (issue #151) instead of being discarded through `Result.getOrThrow`.
+    return StepKey.content(
       hermetic === undefined ? scoped : { ...scoped, hermetic }
-    ))
+    )
   }
   // The ordinal is allocated from a counter scoped to this activity's
   // declaration identity and that scope is folded into the key as
@@ -694,12 +722,12 @@ const activityKey = (
   // declarations — distinct names, or one name with distinct declared
   // idempotency keys; the scope also keeps two identities from sharing the
   // number 1.
-  return Result.getOrThrow(StepKey.ordinal({
+  return StepKey.ordinal({
     runId: executionId,
     parentScope: scope,
     ordinal,
     tier: activity.tier === "sealed" ? "unsealed" : activity.tier
-  }))
+  })
 }
 
 /**
@@ -895,7 +923,11 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
       // declaration several times, and each dispatch owns its own identity —
       // allocated on the attempt that first reaches it, replayed by position
       // on every later attempt.
-      const scope = ordinalScope(activity)
+      const scopeResult = ordinalScope(activity)
+      if (Result.isFailure(scopeResult)) {
+        return uncanonicalKey(activity.name, scopeResult.failure)
+      }
+      const scope = scopeResult.success
       const slot = yield* Activity.CurrentOrdinal
       let ordinal: number
       if (slot === undefined) {
@@ -919,13 +951,21 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
       // the string-form sealed identity folds the compiled declaration
       // (issue #120); every activity built by `Activity.make` carries them,
       // only the `Schema.Constraint` type parameters resist the assignment.
-      const key = activityKey(
+      const keyResult = activityKey(
         activity as unknown as Activity.AnyWithProps,
         instance.executionId,
         ordinal,
         environment,
         scope
       )
+      /* v8 ignore next 3 -- defensive typed guard (issue #151): rejected
+         caller identity material always fails the ordinal-scope derivation
+         above first, so this branch is unreachable until the environment or
+         hermetic folding gains fallible material of its own. */
+      if (Result.isFailure(keyResult)) {
+        return uncanonicalKey(activity.name, keyResult.failure)
+      }
+      const key = keyResult.success
       const policy = activity.retryPolicy
       // Elapsed retry time for the policy's expiration bound. Durable
       // drivers persist the first attempt's start time alongside the attempt
@@ -1095,7 +1135,11 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
         if (activity.tier === "sealed" && activity.idempotencyKey !== undefined) return yield* body
         const instance = yield* FlowInstance
         const inFlight = instance.activityState.keylessInFlight
-        const scope = ordinalScope(activity)
+        const scopeResult = ordinalScope(activity)
+        if (Result.isFailure(scopeResult)) {
+          return uncanonicalKey(activity.name, scopeResult.failure)
+        }
+        const scope = scopeResult.success
         // The acquire and its release live in one uninterruptible region
         // (issue #139): a bare `add` followed by `Effect.ensuring` left a
         // one-op window — after the add, before the finalizer registered —

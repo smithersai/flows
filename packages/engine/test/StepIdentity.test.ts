@@ -9,8 +9,15 @@
  * derivation.
  */
 import type { StepKey } from "@smithers/keys"
+import { Result } from "effect"
 import { describe, expect, it } from "vitest"
 import { StepIdentity } from "../src/index.ts"
+
+// Total extraction for test material known to be canonical; the typed
+// failure surface of `allocationScope` is exercised in
+// UncanonicalIdempotencyKey.test.ts (issue #151).
+const allocationScope = (identity: StepIdentity.AllocationIdentity): string =>
+  Result.getOrThrow(StepIdentity.allocationScope(identity))
 
 const content = (body: unknown): StepKey.ContentIdentity => ({
   body,
@@ -51,8 +58,8 @@ describe("StepIdentity.allocationScope", () => {
           ? randomName(rand)
           : content({ n: Math.floor(rand() * 4) })
       }
-      expect(StepIdentity.allocationScope(identity)).toBe(
-        StepIdentity.allocationScope({ ...identity })
+      expect(allocationScope(identity)).toBe(
+        allocationScope({ ...identity })
       )
     }
   })
@@ -70,7 +77,7 @@ describe("StepIdentity.allocationScope", () => {
           ? null
           : ["c", identity.idempotency.body]
       ])
-      const scope = StepIdentity.allocationScope(identity)
+      const scope = allocationScope(identity)
       const prior = seen.get(scope)
       if (prior !== undefined) {
         // A repeated scope is only legal for a repeated declaration.
@@ -110,20 +117,20 @@ describe("StepIdentity.allocationScope", () => {
       ]
     ]
     for (const [left, right] of pairs) {
-      expect(StepIdentity.allocationScope(left)).not.toBe(StepIdentity.allocationScope(right))
+      expect(allocationScope(left)).not.toBe(allocationScope(right))
     }
   })
 
   it("keeps the string form and the object form disjoint even when the string spells the object's digest", () => {
     const object = content({ payload: "x" })
-    const objectScope = StepIdentity.allocationScope({
+    const objectScope = allocationScope({
       kind: "activity",
       name: "pay",
       idempotency: object
     })
     // Extract the object component's digest and replay it as a string key.
     const digest = objectScope.slice(objectScope.lastIndexOf("c:") + 2)
-    const stringScope = StepIdentity.allocationScope({
+    const stringScope = allocationScope({
       kind: "activity",
       name: "pay",
       idempotency: digest
@@ -133,9 +140,9 @@ describe("StepIdentity.allocationScope", () => {
 
   it("refines the scope for distinct object identities (issue #101)", () => {
     const scopes = [
-      StepIdentity.allocationScope({ kind: "activity", name: "notify", idempotency: content({ user: "a" }) }),
-      StepIdentity.allocationScope({ kind: "activity", name: "notify", idempotency: content({ user: "b" }) }),
-      StepIdentity.allocationScope({ kind: "activity", name: "notify" })
+      allocationScope({ kind: "activity", name: "notify", idempotency: content({ user: "a" }) }),
+      allocationScope({ kind: "activity", name: "notify", idempotency: content({ user: "b" }) }),
+      allocationScope({ kind: "activity", name: "notify" })
     ]
     expect(new Set(scopes).size).toBe(3)
   })

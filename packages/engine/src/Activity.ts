@@ -113,6 +113,31 @@ export class ConcurrentKeylessDispatch extends Schema.TaggedErrorClass<Concurren
 ) {}
 
 /**
+ * A caller-declared object-form `idempotencyKey` carried material canonical
+ * serialization rejects — a `Date`, `undefined`, a class instance, a
+ * `Redacted` value (issue #151). The error names the offending path so the
+ * declaration can be fixed, and it is non-retryable: the same declaration
+ * derives the same rejection on every attempt, so the body never runs.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
+export class UncanonicalIdempotencyKey extends Schema.TaggedErrorClass<UncanonicalIdempotencyKey>()(
+  "@smithers/engine/UncanonicalIdempotencyKey",
+  {
+    code: Schema.Literal("uncanonical_idempotency_key").pipe(
+      Schema.withConstructorDefault(Effect.succeed("uncanonical_idempotency_key"))
+    ),
+    activityName: Schema.String,
+    /** The `CanonicalError` code: `unsupported_type`, `class_instance`, … */
+    reason: Schema.String,
+    /** The path of the offending value inside the declared identity. */
+    path: Schema.String,
+    message: Schema.String
+  }
+) {}
+
+/**
  * Durable flow activity that behaves as an `Effect` and records its name,
  * result schemas, annotations, and encoded execution form for the flow
  * engine.
@@ -539,19 +564,24 @@ export const idempotencyKey: (
       : options?.includeAttempt
       ? `attempt:${attempt}`
       : undefined
-    const ordinal = instance.activityState.nextOrdinal(
-      StepIdentity.allocationScope({
-        kind: "internal",
-        name: "idempotency",
-        idempotency: parentScope
-      })
-    )
-    return Result.getOrThrow(StepKey.ordinal({
+    // String (or absent) idempotency material keeps the derivation total
+    // (issue #151): the `allocationScope` overload pins the failure type to
+    // `never`, so `Result.merge` extracts the scope with no error to
+    // discard, and `ordinalKey` preserves the typed `CanonicalError` for
+    // the impossible engine-generated-material failure instead of
+    // discarding it through `Result.getOrThrow`.
+    const scope = Result.merge(StepIdentity.allocationScope({
+      kind: "internal",
+      name: "idempotency",
+      idempotency: parentScope
+    }))
+    const ordinal = instance.activityState.nextOrdinal(scope)
+    return StepIdentity.ordinalKey({
       runId: instance.executionId,
       ordinal,
       tier: "unsealed",
       ...(parentScope !== undefined ? { parentScope } : {})
-    }))
+    })
   })
 
 /**

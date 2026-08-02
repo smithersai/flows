@@ -100,10 +100,10 @@ describe("expirationMs survives a restart mid-retry (issue #45)", () => {
       runId: "retry-expiration-run",
       stepKeyDigest: Digest.digest(Result.getOrThrow(StepKey.ordinal({
         runId: "retry-expiration-run",
-        parentScope: StepIdentity.allocationScope({
+        parentScope: Result.merge(StepIdentity.allocationScope({
           kind: "activity",
           name: "retry-expiration-flaky"
-        }),
+        })),
         ordinal: 1,
         tier: "unsealed"
       }))),
