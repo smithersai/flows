@@ -76,6 +76,16 @@ describe("vitest coverage isolation conformance", () => {
       for (const category of ["branches", "functions", "lines", "statements"]) {
         expect(thresholds![1]).toMatch(new RegExp(`${category}:\\s*100(?:\\s*,|\\s*\\})?`))
       }
+      // The gate can also be weakened without touching any pinned field
+      // (issue #142): `coverage.exclude` is applied ON TOP of `include`, so
+      // one entry removes arbitrary src files from the 100% denominator
+      // while every assertion above still passes, and
+      // `thresholds.autoUpdate` rewrites the pinned 100s downward on a red
+      // run. No shipped config carries either; a package that needs an
+      // exclusion must widen this conformance test in review, not add it
+      // silently.
+      expect(source).not.toMatch(/\bexclude\s*:/)
+      expect(source).not.toMatch(/\bautoUpdate\s*:/)
     }
   )
 })
