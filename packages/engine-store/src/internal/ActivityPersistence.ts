@@ -551,6 +551,7 @@ export const make = (deps: Dependencies) => {
             const row = existing.value
             if (row.state === "succeeded") {
               const meta = decodeMeta(row.meta)
+              let corruptEvidence = false
               if (meta?.boundary !== undefined) {
                 const boundary = yield* StepBoundary.StepBoundary
                 const materialized = yield* boundary.replayOutputs(meta.boundary).pipe(Effect.exit)
@@ -566,6 +567,7 @@ export const make = (deps: Dependencies) => {
                   // evidence routes to the Inconsistency receiver instead of
                   // passing as an ordinary transient host refusal.
                   const corruption = replayCorruption(materialized.cause)
+                  corruptEvidence = corruption !== undefined
                   yield* emitConverging(
                     JournalRecords.cacheProvenance(cacheSource("replay_failed"), {
                       keyDigest,
@@ -608,7 +610,14 @@ export const make = (deps: Dependencies) => {
               // time may converge into the shared cache (issue #106): an
               // unverified result was computed against content the key does
               // not describe.
+              // A row whose boundary evidence was just measured corrupt is
+              // quarantined, never converged (issue #160): a `tolerate`
+              // verdict keeps the durable outcome as this run's truth, but
+              // publishing the known-corrupt evidence into the shared cache
+              // would hand sibling runs a poisoned hit under this run's
+              // provenance.
               if (
+                !corruptEvidence &&
                 cacheable &&
                 meta?.tier === "sealed" &&
                 meta.boundary !== undefined &&
