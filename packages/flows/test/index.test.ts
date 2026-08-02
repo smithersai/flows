@@ -1,36 +1,53 @@
+import { readdirSync, statSync } from "node:fs"
+import { join, resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 import * as Flows from "../src/index.ts"
 
+/**
+ * The expected namespace list is DERIVED from the `packages/*` universe, never
+ * hardcoded (issue #161): a literal list reproduced the #148 un-gated-universe
+ * defect in the barrel dimension — a new `packages/scheduler` satisfied every
+ * coverage conformance cell while the barrel silently omitted it and
+ * `Flows.Scheduler` was undefined for every consumer. Deriving here means a
+ * new package fails THIS test until `src/index.ts` re-exports it.
+ */
+const packagesDir = resolve(import.meta.dirname, "..", "..")
+const isFile = (path: string) => {
+  try {
+    return statSync(path).isFile()
+  } catch {
+    return false
+  }
+}
+// Directory name → exported namespace name, the convention src/index.ts uses:
+// kebab-case to PascalCase (engine-store → EngineStore, time-travel →
+// TimeTravel). The barrel itself (`flows`) is the one package not re-exported.
+const namespaceName = (directory: string) =>
+  directory
+    .split("-")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join("")
+const expected = readdirSync(packagesDir)
+  .filter((name) => name !== "flows" && isFile(join(packagesDir, name, "package.json")))
+  .map(namespaceName)
+  .sort()
+
 describe("barrel", () => {
-  it("re-exports every engine package as a namespace", () => {
-    expect(Object.keys(Flows).sort()).toEqual([
-      "Database",
-      "Engine",
-      "EngineStore",
-      "Host",
-      "Journal",
-      "Kernel",
-      "Keys",
-      "Plugin",
-      "Sync",
-      "TimeTravel"
-    ])
+  it("derives a non-trivial universe from packages/*", () => {
+    // Guard the derivation itself: an empty or near-empty universe would make
+    // every assertion below vacuously green.
+    expect(expected.length).toBeGreaterThanOrEqual(10)
+    expect(expected).toContain("EngineStore")
+    expect(expected).toContain("TimeTravel")
   })
 
-  it.each(
-    [
-      ["Database", Flows.Database],
-      ["Engine", Flows.Engine],
-      ["EngineStore", Flows.EngineStore],
-      ["Host", Flows.Host],
-      ["Journal", Flows.Journal],
-      ["Kernel", Flows.Kernel],
-      ["Keys", Flows.Keys],
-      ["Plugin", Flows.Plugin],
-      ["Sync", Flows.Sync],
-      ["TimeTravel", Flows.TimeTravel]
-    ] as const
-  )("%s namespace is populated", (_name, namespace) => {
-    expect(Object.keys(namespace).length).toBeGreaterThan(0)
+  it("re-exports every engine package as a namespace", () => {
+    expect(Object.keys(Flows).sort()).toEqual(expected)
+  })
+
+  it.each(expected.map((name) => ({ name })))("$name namespace is populated", ({ name }) => {
+    const namespace = (Flows as Record<string, object>)[name]
+    expect(namespace).toBeDefined()
+    expect(Object.keys(namespace ?? {}).length).toBeGreaterThan(0)
   })
 })
