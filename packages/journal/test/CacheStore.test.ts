@@ -96,6 +96,29 @@ describe("CacheStore", () => {
     expect(Option.isNone(result)).toBe(true)
   })
 
+  it("fences an eviction on the row's recorded provenance", async () => {
+    const result = await migrated(Effect.gen(function*() {
+      const store = yield* CacheStore
+      yield* store.put(entry)
+      // A foreign process replaced the row between the poisoned read and the
+      // delete: the compare-and-swap must be a no-op, not drop the fresh row.
+      const stale = yield* store.evict(entry.keyDigest, {
+        ifRecordedBy: { runId: entry.recordedRunId, eventSeq: entry.recordedEventSeq + 1 }
+      })
+      const survived = yield* store.get(entry.keyDigest)
+      const matching = yield* store.evict(entry.keyDigest, {
+        ifRecordedBy: { runId: entry.recordedRunId, eventSeq: entry.recordedEventSeq }
+      })
+      const gone = yield* store.get(entry.keyDigest)
+      return { stale, survived, matching, gone }
+    }))
+
+    expect(result.stale).toBe(false)
+    expect(Option.isSome(result.survived)).toBe(true)
+    expect(result.matching).toBe(true)
+    expect(Option.isNone(result.gone)).toBe(true)
+  })
+
   it("rejects empty keys and non-JSON values with invalid_cache", async () => {
     const failures = await migrated(Effect.gen(function*() {
       const store = yield* CacheStore

@@ -213,31 +213,28 @@ describe("transient prepare host errors on a cache hit (issue #110)", () => {
           Effect.provide(StepBoundary.layerTest({ readSnapshot: declared.readSet }))
         )
         // A racing dispatch observes the first row, decides it is stale, and
-        // — between its `get` and its `evict` — a concurrent run replaces
-        // the entry. The provenance re-read must protect the fresh row: the
-        // interceptor performs the swap on the second `get`, which is
-        // exactly the re-read window.
+        // — between its `get` and its `evict` — a *foreign process* replaces
+        // the entry. The per-key admission permit cannot close that window
+        // (issue #119), so the fencing predicate inside the DELETE is what
+        // protects the fresh row: the interceptor lands the replacement
+        // immediately before the eviction reaches the store.
         yield* activate("prepare-race-second")
-        let reads = 0
         const swapping: typeof cache = {
           put: (entry) => cache.put(entry),
-          evict: (digest) => cache.evict(digest),
-          get: (digest) =>
+          get: (digest) => cache.get(digest),
+          evict: (digest, options) =>
             Effect.gen(function*() {
-              reads++
-              if (reads === 2) {
-                // The concurrent run's fresh entry lands before the re-read.
-                yield* cache.evict(digest)
-                yield* cache.put({
-                  keyDigest: digest,
-                  result: "fresh-from-concurrent-run",
-                  meta: { tier: "sealed" },
-                  createdAtMs: 99,
-                  recordedRunId: "concurrent-run",
-                  recordedEventSeq: 9
-                })
-              }
-              return yield* cache.get(digest)
+              // The concurrent run's fresh entry lands before the delete.
+              yield* cache.evict(digest)
+              yield* cache.put({
+                keyDigest: digest,
+                result: "fresh-from-concurrent-run",
+                meta: { tier: "sealed" },
+                createdAtMs: 99,
+                recordedRunId: "concurrent-run",
+                recordedEventSeq: 9
+              })
+              return yield* cache.evict(digest, options)
             })
         }
         const exit = yield* dispatch("prepare-race-second", key, () => Effect.succeed("fresh")).pipe(

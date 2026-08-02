@@ -434,25 +434,20 @@ export const make = (deps: Dependencies) => {
                   // every later run repeats the refuse → re-execute → conflict →
                   // fail cycle. The refusal is journalled above; evicting here
                   // lets the re-execution record cleanly under the same key.
-                  // `evict` is a bare delete, so the row's provenance is
-                  // re-read first: a fresh entry recorded by a concurrent run
-                  // between this dispatch's `get` and its `evict` must not be
-                  // deleted with the poison (issue #110). Running this whole
-                  // block under the per-key admission permit (issue #118)
-                  // closes the *in-process* window, but the read-then-DELETE
-                  // remains unfenced against other processes (issue #119): a
-                  // foreign run can still land a fresh row between this re-read
-                  // and the delete. Closing that residual cross-process window
-                  // needs a provenance-predicated `CacheStore.evict(keyDigest,
-                  // provenance)` in the journal package's storage lane.
-                  const current = yield* cache.get(keyDigest)
-                  if (
-                    Option.isSome(current) &&
-                    current.value.recordedRunId === cached.value.recordedRunId &&
-                    current.value.recordedEventSeq === cached.value.recordedEventSeq
-                  ) {
-                    yield* cache.evict(keyDigest)
-                  }
+                  // The eviction is fenced on the poisoned row's own
+                  // provenance (issue #119): a fresh entry recorded by a
+                  // concurrent run between this dispatch's `get` and its
+                  // `evict` must not be deleted with the poison (issue #110).
+                  // The permit (issue #118) only closes the *in-process*
+                  // window, so the guard rides inside the DELETE rather than
+                  // in a preceding read — a foreign process landing a fresh
+                  // row simply makes the compare-and-swap a no-op.
+                  yield* cache.evict(keyDigest, {
+                    ifRecordedBy: {
+                      runId: cached.value.recordedRunId,
+                      eventSeq: cached.value.recordedEventSeq
+                    }
+                  })
                 }
               }
             }

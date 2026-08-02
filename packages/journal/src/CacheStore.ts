@@ -70,6 +70,23 @@ export interface CacheEntry {
 }
 
 /**
+ * Fencing predicate for an eviction.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type EvictOptions = {
+  /**
+   * Deletes the row only while it is still the one recorded by this
+   * `(runId, eventSeq)` pair. Omitting the predicate deletes unconditionally.
+   */
+  readonly ifRecordedBy?: {
+    readonly runId: string
+    readonly eventSeq: number
+  }
+}
+
+/**
  * Result of recording an entry under a content digest.
  *
  * @category models
@@ -89,7 +106,16 @@ export type PutResult =
 export interface Service {
   readonly get: (keyDigest: string) => Effect.Effect<Option.Option<CacheEntry>, CacheStoreError>
   readonly put: (entry: CacheEntry) => Effect.Effect<PutResult, CacheStoreError>
-  readonly evict: (keyDigest: string) => Effect.Effect<void, CacheStoreError>
+  /**
+   * Removes the row for `keyDigest`, returning whether a row was deleted.
+   * With `ifRecordedBy` the delete is a single fenced compare-and-swap, so a
+   * fresher row landed by a foreign process is never deleted with the poison
+   * (issue #119).
+   */
+  readonly evict: (
+    keyDigest: string,
+    options?: EvictOptions
+  ) => Effect.Effect<boolean, CacheStoreError>
 }
 
 /**
@@ -246,12 +272,26 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
     })
   )
 
-  const evict: Service["evict"] = Effect.fn("CacheStore.evict")((keyDigest) =>
+  const evict: Service["evict"] = Effect.fn("CacheStore.evict")((keyDigest, options) =>
     Effect.gen(function*() {
       yield* validateKey(keyDigest)
-      yield* database.write(sql`DELETE FROM flows_step_cache WHERE key_digest = ${keyDigest}`).pipe(
-        Effect.mapError(mapPersistenceError)
-      )
+      // The provenance predicate rides in the DELETE itself (issue #119):
+      // a read-then-delete leaves a window in which another *process* records
+      // a fresh row under the same key, and the unconditional delete would
+      // drop it. Temporal fences its mutable-state writes the same way — the
+      // guard is part of the write, never a prior read.
+      const fenced = options?.ifRecordedBy
+      const deleted = yield* database.write(
+        fenced === undefined
+          ? sql`DELETE FROM flows_step_cache WHERE key_digest = ${keyDigest}`.raw
+          : sql`
+            DELETE FROM flows_step_cache
+            WHERE key_digest = ${keyDigest}
+              AND recorded_run_id = ${fenced.runId}
+              AND recorded_event_seq = ${fenced.eventSeq}
+          `.raw
+      ).pipe(Effect.mapError(mapPersistenceError))
+      return (deleted as { readonly changes: number }).changes > 0
     })
   )
 

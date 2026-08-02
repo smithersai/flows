@@ -42,7 +42,7 @@ describe("Notifying", () => {
     const layer = Notifying.layer(CacheStore, record(log)).pipe(
       Layer.provide(
         Layer.succeed(CacheStore)(CacheStoreLive.makeNoop({
-          evict: () => Effect.void
+          evict: () => Effect.succeed(true)
         }))
       )
     )
