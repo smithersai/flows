@@ -196,4 +196,66 @@ describe("identical-content re-records collapse into the original provenance", (
     expect(outcome.converged.recordedEventSeq).toBe(outcome.original.recordedEventSeq)
     expect(outcome.converged.recordedRunId).toBe(outcome.original.recordedRunId)
   })
+
+  it("pins the #129 by-design residual: an identical re-execution shares the evicted provenance (issue #141)", async () => {
+    // A post-eviction RE-EXECUTION whose fresh content happens to equal the
+    // evicted generation's collapses into the Duplicate and inherits the
+    // evicted `(recordedRunId, recordedEventSeq)` — by design, since the two
+    // rows are indistinguishable. The documented consequence is a lost hit,
+    // not corruption: a laggard still holding pre-eviction provenance CAN
+    // fence-delete the fresh row. This cell pins that residual so a change
+    // to the generation digest or Duplicate-receipt handling cannot flip it
+    // into different, unreviewed behaviour silently.
+    const runId = "generation-residual"
+    const key = "generation/evict-identical-re-record"
+    const keyDigest = Digest.digest(key)
+    const outcome = await Effect.runPromise(
+      Effect.gen(function*() {
+        const cache = yield* CacheStore.CacheStore
+        yield* activate(runId)
+        const execute = (attempt: number, boundary: Layer.Layer<StepBoundary.Service>) =>
+          ActivityPersistence.make({
+            runId,
+            owner,
+            sourceId: `generation-${runId}`,
+            execute: () => Effect.succeed("recorded")
+          })({ activity: {}, attempt, key, tier: "sealed", metadata: declared }).pipe(
+            Effect.provide(boundary)
+          )
+        yield* execute(1, flappingBoundary([declared.readSet as never]))
+        const generation0 = yield* cache.get(keyDigest)
+        if (Option.isNone(generation0)) return yield* Effect.die(new Error("generation 0 missing"))
+        // Fenced evict, then a re-execution recording the SAME result.
+        yield* execute(
+          2,
+          flappingBoundary([
+            [{ path: "config.json", digest: "D2" }],
+            declared.readSet as never
+          ])
+        )
+        const generation1 = yield* cache.get(keyDigest)
+        if (Option.isNone(generation1)) return yield* Effect.die(new Error("generation 1 missing"))
+        const laggardDeleted = yield* cache.evict(keyDigest, {
+          ifRecordedBy: {
+            runId: generation0.value.recordedRunId,
+            eventSeq: generation0.value.recordedEventSeq
+          }
+        })
+        const survivor = yield* cache.get(keyDigest)
+        return {
+          generation0: generation0.value,
+          generation1: generation1.value,
+          laggardDeleted,
+          survivorPresent: Option.isSome(survivor)
+        }
+      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+    )
+    // The indistinguishable re-record inherits the evicted provenance...
+    expect(outcome.generation1.recordedEventSeq).toBe(outcome.generation0.recordedEventSeq)
+    expect(outcome.generation1.recordedRunId).toBe(outcome.generation0.recordedRunId)
+    // ...so the laggard's pre-eviction fence deletes the fresh row: the
+    // documented lost-hit residual, pinned as a lost hit and nothing more.
+    expect(outcome.laggardDeleted).toBe(true)
+    expect(outcome.survivorPresent).toBe(false)
+  })
 })
