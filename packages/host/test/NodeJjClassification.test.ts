@@ -25,10 +25,22 @@ case "$FLOWS_FAKE_JJ" in
   stdout-only) echo "Error: reported on stdout"; exit 1 ;;
   signal) kill -9 $$ ;;
   slow) : > "$FLOWS_FAKE_JJ_MARKER.started"; /bin/sleep 1; : > "$FLOWS_FAKE_JJ_MARKER" ;;
-  orphan) (/bin/sleep 1; : > "$FLOWS_FAKE_JJ_MARKER") & exit 0 ;;
+  orphan) (: > "$FLOWS_FAKE_JJ_MARKER.started"; /bin/sleep 1; : > "$FLOWS_FAKE_JJ_MARKER") &
+    : > "$FLOWS_FAKE_JJ_MARKER.exited"; exit 0 ;;
   *) exit 0 ;;
 esac
 `
+
+/**
+ * Poll for a marker file rather than sleeping a fixed span: a fixed wait is
+ * sized against an unloaded machine and turns spawn latency into a red suite
+ * (issue #170).
+ */
+const waitFor = (path: string) =>
+  Effect.retry(
+    Effect.suspend(() => existsSync(path) ? Effect.void : Effect.fail("absent" as const)),
+    { times: 300, schedule: Schedule.spaced(10) }
+  )
 
 const run = <A, E>(effect: Effect.Effect<A, E, Jj>) => Effect.runPromise(Effect.provide(effect, NodeJj.layer))
 
@@ -108,10 +120,7 @@ describe.skipIf(process.platform === "win32")("NodeJj failure classification", (
       Effect.gen(function*() {
         const jj = yield* Jj
         const fiber = yield* Effect.forkChild(jj.status(), { startImmediately: true })
-        yield* Effect.retry(
-          Effect.suspend(() => existsSync(started) ? Effect.void : Effect.fail("not started")),
-          { times: 200, schedule: Schedule.spaced(10) }
-        )
+        yield* waitFor(started)
         expect(existsSync(started)).toBe(true)
         expect(existsSync(marker)).toBe(false)
         yield* Fiber.interrupt(fiber)
@@ -124,20 +133,34 @@ describe.skipIf(process.platform === "win32")("NodeJj failure classification", (
 
   it("does not signal a `jj` that already exited while its pipes are still held", async () => {
     const marker = join(directory, "orphan-finished")
+    const started = `${marker}.started`
+    const exited = `${marker}.exited`
     process.env.FLOWS_FAKE_JJ = "orphan"
     process.env.FLOWS_FAKE_JJ_MARKER = marker
 
     // `jj` exits immediately but a background descendant keeps stdout open, so
     // `close` never arrives and the call is still interruptible after the exit.
+    //
+    // A bare sleep before the interrupt proves nothing: under load the parent
+    // may still be alive, in which case an implementation that signals only the
+    // direct child leaves the descendant to write `marker` anyway and the cell
+    // passes without ever exercising the already-exited path (issue #170). The
+    // script arm therefore reports both facts — `exited` once the parent has
+    // reached its own exit, `started` once the descendant is running — and both
+    // are asserted immediately before the interrupt.
     await Effect.runPromise(
       Effect.gen(function*() {
         const jj = yield* Jj
         const fiber = yield* Effect.forkChild(jj.status(), { startImmediately: true })
-        yield* Effect.sleep(300)
+        yield* waitFor(exited)
+        yield* waitFor(started)
+        expect(existsSync(exited)).toBe(true)
+        expect(existsSync(started)).toBe(true)
+        expect(existsSync(marker)).toBe(false)
         yield* Fiber.interrupt(fiber)
       }).pipe(Effect.provide(NodeJj.layer))
     )
-    await Effect.runPromise(Effect.sleep(1_200))
+    await Effect.runPromise(waitFor(marker))
 
     // Nothing was signalled, so the descendant ran to completion.
     expect(existsSync(marker)).toBe(true)
