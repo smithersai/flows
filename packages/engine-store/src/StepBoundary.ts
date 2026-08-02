@@ -329,12 +329,25 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
     // object directory and the persisted row carries only the reference.
     const blobPath = `${objectsDirectory}/${digest}`
     const stored = yield* fs.exists(blobPath).pipe(Effect.mapError(hostFailure))
-    if (!stored) {
+    // Existence alone is not validity (issue #132): a truncated blob left by
+    // a pre-#117 non-atomic writer or by disk corruption would be trusted
+    // forever at capture time while `materialize` digest-verifies and
+    // refuses — a permanent failure with no repair path even though this
+    // process holds the correct bytes. The existing blob is digest-verified
+    // here (an unreadable blob counts as corrupt), and only a verified match
+    // skips the write; a mismatch falls through to the atomic rewrite below,
+    // healing the address.
+    const verified = stored &&
+      (yield* fs.readFile(blobPath).pipe(
+        Effect.map((existing) => Digest.digest(existing) === digest),
+        Effect.catch(() => Effect.succeed(false))
+      ))
+    if (!verified) {
       // Atomic publication (issue #117): a plain write to the canonical
       // address could be observed — or survive a crash — as a partial file
       // that every later materialization of this digest would trust. The
       // payload lands at a temp path and is renamed into place; an existing
-      // blob is content-addressed and never rewritten.
+      // blob is rewritten only when its bytes no longer match its address.
       yield* fs.makeDirectory(objectsDirectory, { recursive: true }).pipe(Effect.mapError(hostFailure))
       yield* sweepOrphanedTemps
       const tempPath = `${blobPath}.tmp-${tempToken}-${tempSequence++}`

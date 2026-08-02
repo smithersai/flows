@@ -120,6 +120,7 @@ describe("orphaned temp blobs are reclaimed (issue #138)", () => {
     readonly seed?: Record<string, string>
     readonly mtimes?: Record<string, number>
     readonly failRenameTo?: string
+    readonly failReadOf?: string
   }) => {
     const files = new Map<string, Uint8Array>(
       Object.entries(options.seed ?? {}).map(([path, content]) => [path, encoder.encode(content)])
@@ -128,7 +129,7 @@ describe("orphaned temp blobs are reclaimed (issue #138)", () => {
     const fs = FileSystem.makeNoop({
       exists: ((path: string) => Effect.succeed(files.has(path))) as never,
       readFile: ((path: string) =>
-        files.has(path)
+        files.has(path) && path !== options.failReadOf
           ? Effect.succeed(files.get(path)!)
           : Effect.fail(new Error(`ENOENT: ${path}`))) as never,
       makeDirectory: (() => Effect.void) as never,
@@ -205,6 +206,47 @@ describe("orphaned temp blobs are reclaimed (issue #138)", () => {
       })
     )
     expect(host.directoryReads()).toBe(1)
+  })
+
+  it("heals a corrupt existing blob at the canonical address (issue #132)", async () => {
+    // A truncated blob left by the pre-#117 non-atomic writer (or disk
+    // corruption) was trusted forever: capture skipped the write on bare
+    // existence while materialize digest-verifies and refuses, so every
+    // replay of the digest failed permanently even though the capturing
+    // process held the correct bytes. Capture now digest-verifies the
+    // existing blob and rewrites on mismatch.
+    const host = gcFs({ seed: { [blobPath]: "torn-partial-bytes" } })
+    const boundary = StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 4 })
+    const settled = await Effect.runPromise(spill(boundary, host as never))
+    // The canonical address now holds the true content...
+    expect(decoder.decode(host.files.get(blobPath))).toBe(artifact)
+    // ...so the recorded reference is materializable again.
+    const output = (settled as { declaredOutputs: { outputs: Array<never> } }).declaredOutputs.outputs[0]
+    await Effect.runPromise(boundary.replayOutputs({ declaredOutputs: { outputs: [output] } } as never))
+    expect(decoder.decode(host.files.get("artifact.bin"))).toBe(artifact)
+    expect([...host.files.keys()].filter((path) => path.includes(".tmp-"))).toEqual([])
+  })
+
+  it("rewrites an existing blob the host cannot read back", async () => {
+    // An unreadable blob is indistinguishable from a corrupt one at the
+    // canonical address; the capture holds the true bytes, so it heals
+    // rather than trusts.
+    const host = gcFs({ seed: { [blobPath]: artifact }, failReadOf: blobPath })
+    const boundary = StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 4 })
+    await Effect.runPromise(spill(boundary, host as never))
+    expect(decoder.decode(host.files.get(blobPath))).toBe(artifact)
+  })
+
+  it("leaves a healthy existing blob unwritten", async () => {
+    // The content-addressed dedupe survives the verification: a blob whose
+    // bytes match its digest is never rewritten.
+    const host = gcFs({ seed: { [blobPath]: artifact } })
+    const boundary = StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 4 })
+    await Effect.runPromise(spill(boundary, host as never))
+    expect(decoder.decode(host.files.get(blobPath))).toBe(artifact)
+    // No temp write happened at all: existence plus a verified digest is
+    // still a skip.
+    expect([...host.files.keys()].filter((path) => path.includes(".tmp-"))).toEqual([])
   })
 
   it("keeps a temp file whose age cannot be measured", async () => {
