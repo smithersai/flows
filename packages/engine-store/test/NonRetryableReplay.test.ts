@@ -73,6 +73,29 @@ const activityKey = (name: string, idempotencyKey: string) =>
     capabilities: {}
   }))
 
+describe("non-retryable classification against the real error class (issue #165)", () => {
+  it("classifies a real CacheCorruptionDetected instance non-retryable under every policy", () => {
+    // `defaultNonRetryable` matches by string so engine never depends on
+    // engine-store, and RetryPolicy's own test asserts against a synthetic
+    // `{ _tag }` object for the same reason — so nothing pinned the literal
+    // to the exported class. Renaming the tag in ActivityPersistence left
+    // every suite green while cache corruption silently became retryable
+    // again. This cross-package cell feeds the REAL instance through the
+    // classification, so either side of the seam moving alone fails here.
+    const corruption = new ActivityPersistence.CacheCorruptionDetected({
+      code: "cache_corruption_detected",
+      keyDigest: "deadbeef",
+      path: "dist/manifest.json",
+      recordedDigest: "aa".repeat(32),
+      measuredDigest: "bb".repeat(32)
+    })
+    expect(RetryPolicy.errorTag(corruption)).toBe("flows/engine-store/CacheCorruptionDetected")
+    expect(RetryPolicy.defaultNonRetryable).toContain(RetryPolicy.errorTag(corruption))
+    const policy = RetryPolicy.make({ initialMs: 1, factor: 2, maxMs: 10, maxAttempts: 10 })
+    expect(RetryPolicy.isNonRetryable(policy, corruption)).toBe(true)
+  })
+})
+
 describe("non-retryable verdict durability across resume", () => {
   it("does not re-dispatch a durably failed non-retryable activity and propagates the original error without backoff sleeps", async () => {
     let dispatches = 0
