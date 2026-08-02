@@ -481,6 +481,27 @@ export const make = (deps: Dependencies) => {
                       recordedRunId: cached.value.recordedRunId,
                       recordedEventSeq: cached.value.recordedEventSeq
                     })
+                    // Quarantine is journal AND evict (issue #164). The
+                    // receiver's durable record preserved the evidence, but
+                    // leaving the row in place made the poison permanent for
+                    // INLINE evidence: `CacheStore.put` is insert-or-nothing,
+                    // so a tolerant re-execution never replaced the corrupt
+                    // bytes and re-detected them on every later run, while
+                    // strict mode re-failed the key forever. Evicting under
+                    // both verdicts lets the next dispatch — the tolerant
+                    // fall-through below, or the run after a strict failure —
+                    // execute and record cleanly. The evict is fenced on the
+                    // poisoned row's own provenance like the stale-read-set
+                    // branch (issue #119): a fresh row landed by a concurrent
+                    // run between this dispatch's `get` and the `evict` makes
+                    // the compare-and-swap a no-op instead of deleting valid
+                    // evidence.
+                    yield* cache.evict(keyDigest, {
+                      ifRecordedBy: {
+                        runId: cached.value.recordedRunId,
+                        eventSeq: cached.value.recordedEventSeq
+                      }
+                    })
                     if (verdict === "fail") {
                       return yield* Effect.fail(
                         new CacheCorruptionDetected({
