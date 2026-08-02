@@ -131,8 +131,6 @@ const decodeMeta = (value: unknown): AttemptMeta | undefined => {
   return decoded._tag === "Success" ? decoded.success : undefined
 }
 
-const source = (deps: Dependencies) => ({ runId: deps.runId, sourceId: deps.sourceId })
-
 const CauseJson = Schema.Struct({
   reasons: Schema.Array(Schema.Union([
     Schema.Struct({ _tag: Schema.Literal("Fail"), error: Schema.Unknown }),
@@ -235,6 +233,28 @@ export const make = (deps: Dependencies) => {
       const cacheable = input.tier === "sealed" && input.metadata?.boundaryMode === "hard"
 
       /**
+       * Cache-provenance producer identity (issue #124): the plain
+       * `{runId, sourceId}` identity carried no `sourceSeq`, so every re-drive of
+       * the same observation — the same replay refusal against the same
+       * recorded row, on every later dispatch of the key — appended a fresh
+       * journal row forever. A per-(key, action, recorded-provenance)
+       * identity with `sourceSeq 0` collapses the identical re-observation
+       * into a `Duplicate`, while folding the recorded row's provenance into
+       * the identity keeps a genuinely new observation — the same action
+       * against a *different* recorded row — a distinct producer that still
+       * journals.
+       */
+      const cacheSource = (
+        action: string,
+        recorded?: { readonly runId: string; readonly eventSeq: number }
+      ): JournalRecords.EventOptions => ({
+        runId: deps.runId,
+        sourceId: `${deps.sourceId}:cache:${keyDigest}:${action}${
+          recorded === undefined ? "" : `:${recorded.runId}:${recorded.eventSeq}`
+        }`,
+        sourceSeq: 0
+      })
+      /**
        * Records the sealed completion into the shared cache with provenance,
        * failing (by default) on a divergent first-recorded row. Used by both
        * the fresh completion path and succeeded-attempt replay, so a crash
@@ -247,8 +267,11 @@ export const make = (deps: Dependencies) => {
         readonly createdAtMs: number
       }) =>
         Effect.gen(function*() {
+          // The convergence re-record collapses into a `Duplicate`, whose
+          // receipt carries the original emission's canonical seq — so the
+          // rebuilt entry's provenance matches the first recording.
           const receipt = yield* emitLifecycle(
-            JournalRecords.cacheProvenance(source(deps), { keyDigest, action: "recorded" })
+            JournalRecords.cacheProvenance(cacheSource("recorded"), { keyDigest, action: "recorded" })
           )
           const entry = {
             keyDigest,
@@ -344,7 +367,11 @@ export const make = (deps: Dependencies) => {
                 if (verified) {
                   const materialized = yield* boundary.replayOutputs(meta.boundary).pipe(Effect.exit)
                   if (Exit.isSuccess(materialized)) {
-                    yield* emitLifecycle(JournalRecords.cacheProvenance(source(deps), {
+                    const recorded = {
+                      runId: cached.value.recordedRunId,
+                      eventSeq: cached.value.recordedEventSeq
+                    }
+                    yield* emitConverging(JournalRecords.cacheProvenance(cacheSource("hit", recorded), {
                       keyDigest,
                       recordedRunId: cached.value.recordedRunId,
                       recordedEventSeq: cached.value.recordedEventSeq
@@ -359,12 +386,20 @@ export const make = (deps: Dependencies) => {
                   // permanent-failure loop #99 closed one branch later. The
                   // refusal is journalled and the dispatch path below executes
                   // for real; the row survives for hosts that can replay it.
-                  yield* emitLifecycle(JournalRecords.cacheProvenance(source(deps), {
-                    keyDigest,
-                    action: "replay_failed",
-                    recordedRunId: cached.value.recordedRunId,
-                    recordedEventSeq: cached.value.recordedEventSeq
-                  }))
+                  yield* emitConverging(
+                    JournalRecords.cacheProvenance(
+                      cacheSource("replay_failed", {
+                        runId: cached.value.recordedRunId,
+                        eventSeq: cached.value.recordedEventSeq
+                      }),
+                      {
+                        keyDigest,
+                        action: "replay_failed",
+                        recordedRunId: cached.value.recordedRunId,
+                        recordedEventSeq: cached.value.recordedEventSeq
+                      }
+                    )
+                  )
                 } else if (Option.isSome(measured)) {
                   // Only a *measured* mismatch is evidence the inputs changed
                   // (issue #110): a host that cannot measure right now — a
@@ -377,12 +412,20 @@ export const make = (deps: Dependencies) => {
                   // The durable emit is also the fence: `emitDurable` fails with
                   // `fence_lost` for a zombie that lost the run, surfacing as
                   // self-interruption before the eviction below can run.
-                  yield* emitLifecycle(JournalRecords.cacheProvenance(source(deps), {
-                    keyDigest,
-                    action: "stale_read_set",
-                    recordedRunId: cached.value.recordedRunId,
-                    recordedEventSeq: cached.value.recordedEventSeq
-                  }))
+                  yield* emitConverging(
+                    JournalRecords.cacheProvenance(
+                      cacheSource("stale_read_set", {
+                        runId: cached.value.recordedRunId,
+                        eventSeq: cached.value.recordedEventSeq
+                      }),
+                      {
+                        keyDigest,
+                        action: "stale_read_set",
+                        recordedRunId: cached.value.recordedRunId,
+                        recordedEventSeq: cached.value.recordedEventSeq
+                      }
+                    )
+                  )
                   // Skyframe invalidation, not just refusal (issue #99): a stale
                   // read set means the inputs changed, so the re-execution's
                   // result is *expected* to differ — left in place, the poisoned
@@ -431,8 +474,11 @@ export const make = (deps: Dependencies) => {
                   // refuse→fail loop one branch earlier (issue #107). The
                   // refusal is journalled so a missing output is
                   // explainable rather than silent.
-                  yield* emitLifecycle(
-                    JournalRecords.cacheProvenance(source(deps), { keyDigest, action: "replay_failed" })
+                  yield* emitConverging(
+                    JournalRecords.cacheProvenance(cacheSource("replay_failed"), {
+                      keyDigest,
+                      action: "replay_failed"
+                    })
                   )
                 }
               }
@@ -732,8 +778,11 @@ export const make = (deps: Dependencies) => {
               // Visible, not silent (issue #106): the run continues on its
               // own result, but the stale declaration is journalled so the
               // missing cache entry is explainable.
-              yield* emitLifecycle(
-                JournalRecords.cacheProvenance(source(deps), { keyDigest, action: "unverified_read_set" })
+              yield* emitConverging(
+                JournalRecords.cacheProvenance(cacheSource("unverified_read_set"), {
+                  keyDigest,
+                  action: "unverified_read_set"
+                })
               )
             }
           }
