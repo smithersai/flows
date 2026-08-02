@@ -180,8 +180,7 @@ describe("vitest coverage isolation conformance", () => {
     // plus a start/stop range variant — so `c8 ignore next`,
     // `istanbul ignore else`, and `node:coverage ignore file` are all live
     // directives that the earlier literal-`v8 ignore` grep never saw.
-    const directive =
-      /(?:istanbul|[cv]8|node:coverage)\s+ignore\s+(if|else|next|file|start|stop)(?=\W|$)/g
+    const directive = /(?:istanbul|[cv]8|node:coverage)\s+ignore\s+(if|else|next|file|start|stop)(?=\W|$)/g
     const allowlist: Record<string, number> = {
       "engine/src/FlowEngine.ts": 1,
       "journal/src/AttemptStore.ts": 1,

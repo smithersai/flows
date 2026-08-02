@@ -156,13 +156,15 @@ describe("CacheStore", () => {
     // node-postgres hands `.raw` back a `{rowCount}` result; a bun:sqlite
     // `{changes}` cast reads `undefined` there and reports every successful
     // delete as a no-op (issue #134).
-    const evicted = await run(Effect.gen(function*() {
-      const store = yield* CacheStore
-      return yield* Effect.all([store.evict("digest-1"), store.evict("digest-2")])
-    }).pipe(
-      Effect.provide(CacheStoreLive.layer),
-      Effect.provide(postgresShapedDatabase([{ rowCount: 1, rows: [] }, { rowCount: 0, rows: [] }]))
-    ))
+    const evicted = await run(
+      Effect.gen(function*() {
+        const store = yield* CacheStore
+        return yield* Effect.all([store.evict("digest-1"), store.evict("digest-2")])
+      }).pipe(
+        Effect.provide(CacheStoreLive.layer),
+        Effect.provide(postgresShapedDatabase([{ rowCount: 1, rows: [] }, { rowCount: 0, rows: [] }]))
+      )
+    )
 
     expect(evicted).toEqual([true, false])
   })
