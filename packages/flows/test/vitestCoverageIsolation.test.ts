@@ -71,11 +71,23 @@ describe("vitest coverage isolation conformance", () => {
       // Both shipped shapes cover every production module: `src/**` and the
       // equivalent `src/**/*.ts`.
       expect(source).toMatch(/include:\s*\[\s*"src\/\*\*(?:\/\*\.ts)?"\s*\]/)
-      const thresholds = source.match(/thresholds:\s*\{([^}]*)\}/)
+      // The thresholds object must be FLAT (issue #147): `[^{}]*` refuses a
+      // nested object, because vitest's v8 provider treats a glob key
+      // (`"src/risky.ts": { lines: 0 }`) as a per-file override that removes
+      // matching files from the global 100% check. The earlier `[^}]*`
+      // capture stopped at the nested object's first `}` yet still contained
+      // all four pinned categories, so such an override slipped the gate.
+      const thresholds = source.match(/thresholds:\s*\{([^{}]*)\}/)
       expect(thresholds).not.toBeNull()
       for (const category of ["branches", "functions", "lines", "statements"]) {
         expect(thresholds![1]).toMatch(new RegExp(`${category}:\\s*100(?:\\s*,|\\s*\\})?`))
       }
+      // And it must contain NOTHING BUT the four pinned categories: any
+      // leftover key — a glob override without a nested object, a fifth
+      // category at another value — must be widened here in review, never
+      // added silently.
+      const leftover = thresholds![1].replace(/\b(?:branches|functions|lines|statements):\s*100\s*,?/g, "").trim()
+      expect(leftover).toBe("")
       // The gate can also be weakened without touching any pinned field
       // (issue #142): `coverage.exclude` is applied ON TOP of `include`, so
       // one entry removes arbitrary src files from the 100% denominator
