@@ -18,6 +18,7 @@ import { Journal, type JournalEvent, type Ownership, RunStore } from "@smithers/
 import * as TestJournal from "@smithers/journal/test/TestJournal"
 import { Jj } from "@smithers/kernel"
 import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
@@ -171,7 +172,19 @@ describe("replay re-emission tolerates a foreign-lineage terminal record (issue 
       }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
     )
     expect(outcome.crashed._tag).toBe("Failure")
+    // The strong form (issue #128): not just any failure — the surfaced
+    // cause carries the journal's own error, so the convergence emit
+    // demonstrably propagated the queue_overflow instead of swallowing it
+    // into some other failure.
     expect(outcome.replayed._tag).toBe("Failure")
+    if (Exit.isFailure(outcome.replayed)) {
+      const reason = outcome.replayed.cause.reasons[0]
+      expect(reason?._tag).toBe("Fail")
+      expect((reason as { readonly error?: unknown }).error).toMatchObject({
+        _tag: "flows/journal/JournalError",
+        code: "queue_overflow"
+      })
+    }
   })
 })
 
