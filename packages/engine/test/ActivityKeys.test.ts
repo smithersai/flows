@@ -315,47 +315,52 @@ describe("activity execution keys", () => {
     }).pipe(Effect.provide(layer))
   })
 
-  effect("folds the declared error schema into string idempotency keys so an error-schema change misses (issue #136)", () => {
-    // `declarationDigest` folds BOTH declared schemas; the #120 regression
-    // test varied only the success schema, so dropping the error term kept
-    // the suite green while an activity whose error schema changed replayed
-    // a stale row decoded under the new error type. This cell pins the
-    // error-schema axis: identical success schema and idempotencyKey, only
-    // the error schema differs, and the second declaration must re-execute.
-    let executions = 0
-    const make = (error: Schema.Codec<any, any, never, never>) =>
-      Activity.make({
-        name: "ActivityKeys/error-schema-change",
-        success: Schema.Struct({ a: Schema.Number }),
-        error,
-        idempotencyKey: "row",
-        execute: Effect.sync(() => {
-          executions++
-          return { a: executions }
+  effect(
+    "folds the declared error schema into string idempotency keys so an error-schema change misses (issue #136)",
+    () => {
+      // `declarationDigest` folds BOTH declared schemas; the #120 regression
+      // test varied only the success schema, so dropping the error term kept
+      // the suite green while an activity whose error schema changed replayed
+      // a stale row decoded under the new error type. This cell pins the
+      // error-schema axis: identical success schema and idempotencyKey, only
+      // the error schema differs, and the second declaration must re-execute.
+      let executions = 0
+      const make = <Error extends Schema.Constraint>(error: Error) =>
+        Activity.make({
+          name: "ActivityKeys/error-schema-change",
+          success: Schema.Struct({ a: Schema.Number }),
+          error,
+          idempotencyKey: "row",
+          execute: Effect.sync(() => {
+            executions++
+            return { a: executions }
+          })
         })
+      const v1 = make(Schema.Struct({ reason: Schema.String }))
+      const v2 = make(Schema.Struct({ reason: Schema.String, retriable: Schema.Boolean }))
+      const flow = Flow.make("ActivityKeys/error-schema-invalidation", {
+        payload: { run: Schema.String },
+        success: Schema.Number
       })
-    const v1 = make(Schema.Struct({ reason: Schema.String }))
-    const v2 = make(Schema.Struct({ reason: Schema.String, retriable: Schema.Boolean }))
-    const flow = Flow.make("ActivityKeys/error-schema-invalidation", {
-      payload: { run: Schema.String },
-      success: Schema.Number
-    })
-    const layer = flow.toLayer(() =>
-      Effect.gen(function*() {
-        // Same declaration replays; the changed error schema must miss and
-        // re-execute rather than replay v1's cached row under v2's key.
-        yield* v1
-        yield* v1
-        const out = yield* v2
-        return out.a
-      })
-    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+      const layer = flow.toLayer(() =>
+        Effect.gen(function*() {
+          // Same declaration replays; the changed error schema must miss and
+          // re-execute rather than replay v1's cached row under v2's key.
+          // The declared errors are unreachable here — `execute` only succeeds —
+          // so die on them to keep the flow's declared error channel empty.
+          yield* Effect.orDie(v1)
+          yield* Effect.orDie(v1)
+          const out = yield* Effect.orDie(v2)
+          return out.a
+        })
+      ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
 
-    return Effect.gen(function*() {
-      expect(yield* flow.execute({ run: "one" }, { executionId: "run-error-schema-change" })).toBe(2)
-      expect(executions).toBe(2)
-    }).pipe(Effect.provide(layer))
-  })
+      return Effect.gen(function*() {
+        expect(yield* flow.execute({ run: "one" }, { executionId: "run-error-schema-change" })).toBe(2)
+        expect(executions).toBe(2)
+      }).pipe(Effect.provide(layer))
+    }
+  )
 
   effect("changes sealed replay identity when its input, layer, or capability material changes", () => {
     const keyFor = (input: string, layer: string, capability: string) =>
