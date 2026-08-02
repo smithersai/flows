@@ -199,6 +199,19 @@ describe("vitest coverage isolation conformance", () => {
     expect(ci).toMatch(/tool: jj-cli@\d+\.\d+\.\d+/)
   })
 
+  it("pins the CI triggers and forbids step conditions on enforcement (issue #176)", () => {
+    // The #166 pins cover the run commands but not the two cheapest silent
+    // disables: deleting `pull_request:` from the `on:` block (CI stops
+    // gating PRs while every run-line regex still matches), or adding an
+    // `if:` condition to a named step (its separate `run:` line matches
+    // verbatim regardless). Pin the trigger block exactly, and assert the
+    // workflow contains no `if:` key at all — any conditional execution of
+    // an enforcement step must widen this cell in review.
+    const ci = readFileSync(join(packagesDir, "..", ".github", "workflows", "ci.yml"), "utf8")
+    expect(ci).toMatch(/^on:\n {2}push:\n {4}branches: \[main\]\n {2}pull_request:$/m)
+    expect(ci).not.toMatch(/^\s*if:/m)
+  })
+
   it("inventories every coverage-ignore directive against a pinned allowlist (issues #153/#157)", () => {
     // An ignore hint is subtracted from the denominator BEFORE the 100%
     // thresholds are evaluated, so a one-line comment is the cheapest way to
