@@ -266,6 +266,38 @@ describe("orphaned temp blobs are reclaimed (issue #138)", () => {
     expect([...host.files.keys()].filter((path) => path.includes(".tmp-"))).toEqual([])
   })
 
+  it("verifies an existing blob once per store lifetime, not once per capture (issue #144)", async () => {
+    // The #132 verification is O(blob size): re-reading and re-hashing the
+    // whole existing blob on EVERY capture of a known digest makes the
+    // content-addressed dedupe fast path linear in blob size on every
+    // re-spill of a long run. One verified match (or one atomic publish by
+    // this store) is proof enough for the store's lifetime — the store is
+    // the only writer shape that publishes to the address, and a mismatch
+    // introduced behind its back is exactly the case `materialize`'s own
+    // digest check still refuses.
+    const host = gcFs({ seed: { [blobPath]: artifact } })
+    const boundary = StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 4 })
+    await Effect.runPromise(spill(boundary, host as never))
+    await Effect.runPromise(spill(boundary, host as never))
+    // The pre-existing blob was digest-verified exactly once; the second
+    // capture trusted the verified-digest set and skipped the re-read.
+    expect(host.reads.filter((path) => path === blobPath)).toHaveLength(1)
+    expect(host.writes).toEqual([])
+    expect(decoder.decode(host.files.get(blobPath))).toBe(artifact)
+  })
+
+  it("trusts its own atomic publication on the next capture of the digest", async () => {
+    // A blob this store just published through temp+rename needs no
+    // verification read at all on a later capture of the same digest.
+    const host = gcFs({})
+    const boundary = StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 4 })
+    await Effect.runPromise(spill(boundary, host as never))
+    await Effect.runPromise(spill(boundary, host as never))
+    expect(host.reads.filter((path) => path === blobPath)).toHaveLength(0)
+    expect(host.writes.filter((path) => path.includes(".tmp-"))).toHaveLength(1)
+    expect(decoder.decode(host.files.get(blobPath))).toBe(artifact)
+  })
+
   it("keeps a temp file whose age cannot be measured", async () => {
     // `stat` unavailable (or failing) says nothing about the writer's
     // liveness, so the conservative sweep never deletes what it cannot age.

@@ -270,6 +270,13 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
   const tempToken = Math.random().toString(36).slice(2, 12).padEnd(10, "0")
   let tempSequence = 0
   /**
+   * Digests whose canonical blob this store has already verified — or
+   * published itself — this lifetime (issue #144). Membership lets a repeat
+   * capture of a known digest skip the O(blob size) read+hash that the
+   * issue #132 verification otherwise pays on every spill.
+   */
+  const verifiedDigests = new Set<string>()
+  /**
    * Best-effort reclamation of temp files orphaned by a crash between the
    * temp write and the rename (issue #138): nothing else ever observes them
    * — `materialize` reads only canonical paths — so without a sweep the
@@ -336,12 +343,19 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
     // process holds the correct bytes. The existing blob is digest-verified
     // here (an unreadable blob counts as corrupt), and only a verified match
     // skips the write; a mismatch falls through to the atomic rewrite below,
-    // healing the address.
+    // healing the address. Verification runs ONCE per digest per store
+    // lifetime (issue #144): a full read+hash of the existing blob on every
+    // capture made the dedupe fast path O(blob size) on every re-spill of a
+    // known digest, and one verified match — or this store's own atomic
+    // publication — is proof enough; corruption introduced behind the
+    // store's back afterwards is exactly what `materialize`'s digest check
+    // still refuses.
     const verified = stored &&
-      (yield* fs.readFile(blobPath).pipe(
-        Effect.map((existing) => Digest.digest(existing) === digest),
-        Effect.catch(() => Effect.succeed(false))
-      ))
+      (verifiedDigests.has(digest) ||
+        (yield* fs.readFile(blobPath).pipe(
+          Effect.map((existing) => Digest.digest(existing) === digest),
+          Effect.catch(() => Effect.succeed(false))
+        )))
     if (!verified) {
       // Atomic publication (issue #117): a plain write to the canonical
       // address could be observed — or survive a crash — as a partial file
@@ -359,6 +373,10 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
         Effect.onError(() => fs.remove(tempPath).pipe(Effect.ignore))
       )
     }
+    // Reaching here means the address holds verified bytes: either the
+    // existing blob matched its digest, or this store just published them
+    // atomically. Later captures of the digest trust that proof.
+    verifiedDigests.add(digest)
     return { output: { path, digest, sizeBytes: bytes.length } satisfies MaterializedOutput, inlinedBytes: 0 }
   })
   const materialize = Effect.fn("StepBoundary.materialize")(function*(output: MaterializedOutput) {
