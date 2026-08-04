@@ -11,6 +11,7 @@ import * as Stream from "effect/Stream"
 import * as RpcClient from "effect/unstable/rpc/RpcClient"
 import type * as RpcClientError from "effect/unstable/rpc/RpcClientError"
 import type * as RpcGroup from "effect/unstable/rpc/RpcGroup"
+import type { ShareCapability } from "./BranchProtocol.ts"
 import { SyncError, SyncGapError } from "./SyncError.ts"
 import type { EntriesFrame, Scope, WorkspaceCursor } from "./SyncProtocol.ts"
 import { SyncRpcs } from "./SyncRpcs.ts"
@@ -18,12 +19,16 @@ import { SyncRpcs } from "./SyncRpcs.ts"
 /**
  * Input accepted by a sync subscription.
  *
+ * `capability` authorizes branch reads: following a shared branch's run
+ * requires a capability that verifies for that branch on the server.
+ *
  * @category models
  * @since 0.1.0
  */
 export interface SubscribeOptions {
   readonly scope: Scope
   readonly cursors: WorkspaceCursor
+  readonly capability?: ShareCapability
 }
 
 /**
@@ -147,7 +152,14 @@ export const make = ({ client }: { readonly client: Client }): Service => {
 
     const livePage = (): Stream.Stream<JournalEvent.Entry, SyncError | SyncGapError> =>
       Stream.unwrap(
-        Effect.sync(() => client["Sync.Subscribe"]({ scope: options.scope, cursors: snapshot(), credit: 1 }))
+        Effect.sync(() =>
+          client["Sync.Subscribe"]({
+            scope: options.scope,
+            cursors: snapshot(),
+            credit: 1,
+            ...(options.capability === undefined ? {} : { capability: options.capability })
+          })
+        )
       ).pipe(
         Stream.mapError(transportError),
         Stream.flatMap((frame) => {
@@ -174,7 +186,12 @@ export const make = ({ client }: { readonly client: Client }): Service => {
 
     const bootstrap = (): Stream.Stream<JournalEvent.Entry, SyncError | SyncGapError> =>
       Stream.unwrap(
-        client["Sync.Read"]({ scope: options.scope, cursors: snapshot(), limit: 256 }).pipe(
+        client["Sync.Read"]({
+          scope: options.scope,
+          cursors: snapshot(),
+          limit: 256,
+          ...(options.capability === undefined ? {} : { capability: options.capability })
+        }).pipe(
           Effect.mapError(transportError),
           Effect.map((response) => {
             const page = Stream.flatMap(

@@ -8,6 +8,7 @@
  */
 import * as JournalEvent from "@smithers/journal/JournalEvent"
 import * as Schema from "effect/Schema"
+import { ShareCapability } from "./BranchProtocol.ts"
 
 /**
  * Selects every run in the workspace.
@@ -79,13 +80,18 @@ export type WorkspaceCursor = typeof WorkspaceCursor.Type
 /**
  * A durable catch-up request.
  *
+ * `capability` authorizes branch runs: a run whose id maps to a shared branch
+ * is only read when the capability verifies for that branch. Non-branch runs
+ * ignore it.
+ *
  * @category models
  * @since 0.1.0
  */
 export const ReadRequest = Schema.Struct({
   scope: Scope,
   cursors: WorkspaceCursor,
-  limit: Schema.Int.check(Schema.isGreaterThanOrEqualTo(1))
+  limit: Schema.Int.check(Schema.isGreaterThanOrEqualTo(1)),
+  capability: Schema.optional(ShareCapability)
 })
 
 /**
@@ -122,13 +128,16 @@ export type ReadResponse = typeof ReadResponse.Type
 /**
  * A request to follow committed entries.
  *
+ * `capability` authorizes branch runs exactly as on {@link ReadRequest}.
+ *
  * @category models
  * @since 0.1.0
  */
 export const SubscribeRequest = Schema.Struct({
   scope: Scope,
   cursors: WorkspaceCursor,
-  credit: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
+  credit: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  capability: Schema.optional(ShareCapability)
 })
 
 /**

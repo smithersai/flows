@@ -9,6 +9,13 @@ import * as Sync from "../src/index.ts"
 describe("@smithers/sync barrel", () => {
   it("re-exports every module as its own namespace", () => {
     expect(Object.keys(Sync).sort()).toEqual([
+      "BranchCommands",
+      "BranchPresence",
+      "BranchProjection",
+      "BranchProtocol",
+      "BranchRpcs",
+      "BranchServer",
+      "BranchShare",
       "RunCatalog",
       "SyncClient",
       "SyncError",
@@ -25,6 +32,19 @@ describe("@smithers/sync barrel", () => {
     expect(Sync.RunCatalog).toBe(await import("../src/RunCatalog.ts"))
     expect(Sync.SyncServer).toBe(await import("../src/SyncServer.ts"))
     expect(Sync.SyncClient).toBe(await import("../src/SyncClient.ts"))
+    expect(Sync.BranchProtocol).toBe(await import("../src/BranchProtocol.ts"))
+    expect(Sync.BranchProjection).toBe(await import("../src/BranchProjection.ts"))
+    expect(Sync.BranchShare).toBe(await import("../src/BranchShare.ts"))
+    expect(Sync.BranchPresence).toBe(await import("../src/BranchPresence.ts"))
+    expect(Sync.BranchCommands).toBe(await import("../src/BranchCommands.ts"))
+    expect(Sync.BranchRpcs).toBe(await import("../src/BranchRpcs.ts"))
+    expect(Sync.BranchServer).toBe(await import("../src/BranchServer.ts"))
+  })
+
+  it("maps a branch onto exactly one journal run, reversibly", () => {
+    const branchId = "live-branch" as Sync.BranchProtocol.BranchId
+    expect(Sync.BranchProtocol.branchOfRunId(Sync.BranchProtocol.branchRunId(branchId))).toBe(branchId)
+    expect(Sync.BranchProtocol.branchOfRunId("flows/engine/run-1" as never)).toBeNull()
   })
 
   it("keeps the service namespaces' constructor conventions distinct", () => {

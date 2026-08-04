@@ -17,10 +17,28 @@ export * as SyncError from "./SyncError.ts"
 export * as SyncProtocol from "./SyncProtocol.ts"
 
 /**
+ * @category protocol
+ * @since 0.1.0
+ */
+export * as BranchProtocol from "./BranchProtocol.ts"
+
+/**
+ * @category projections
+ * @since 0.1.0
+ */
+export * as BranchProjection from "./BranchProjection.ts"
+
+/**
  * @category RPC
  * @since 0.1.0
  */
 export * as SyncRpcs from "./SyncRpcs.ts"
+
+/**
+ * @category RPC
+ * @since 0.1.0
+ */
+export * as BranchRpcs from "./BranchRpcs.ts"
 
 /**
  * @category services
@@ -39,3 +57,27 @@ export * as SyncServer from "./SyncServer.ts"
  * @since 0.1.0
  */
 export * as SyncClient from "./SyncClient.ts"
+
+/**
+ * @category services
+ * @since 0.1.0
+ */
+export * as BranchShare from "./BranchShare.ts"
+
+/**
+ * @category services
+ * @since 0.1.0
+ */
+export * as BranchPresence from "./BranchPresence.ts"
+
+/**
+ * @category services
+ * @since 0.1.0
+ */
+export * as BranchCommands from "./BranchCommands.ts"
+
+/**
+ * @category services
+ * @since 0.1.0
+ */
+export * as BranchServer from "./BranchServer.ts"
