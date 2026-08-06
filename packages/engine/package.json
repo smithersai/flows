@@ -43,6 +43,8 @@
     "dist/**/*.d.ts",
     "dist/**/*.d.ts.map",
     "dist/**/package.json",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
     "README.md",
     "CHANGELOG.md",
     "VENDOR.md"

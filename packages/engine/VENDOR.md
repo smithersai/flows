@@ -18,6 +18,19 @@ behavioral fork removes both imports and suppressions when identity moves to
 `@smithers/keys`. The behavioral fork is intentionally reviewable with
 `git show`.
 
+## Licensing
+
+Effect is distributed under the MIT License, `Copyright (c) 2023 Effectful
+Technologies Inc`. That license requires its copyright and permission notice to
+be preserved in all copies or substantial portions of the software, and the
+modules listed above are substantial portions.
+
+The notice is therefore reproduced verbatim in `THIRD_PARTY_NOTICES.md`, which
+sits beside this file, is listed in this package's `files` whitelist, and so
+ships inside the `@smithers/engine` tarball. The same notice is kept at the
+repository root. `@smithers/engine` itself remains MIT licensed under the
+project's own `LICENSE`; the two notices are additive, not alternatives.
+
 ## Behavioral differences
 
 ### 1. Execution identity is caller-selected, with opt-in derivation

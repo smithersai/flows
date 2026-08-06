@@ -45,6 +45,7 @@
     "dist/**/*.d.ts.map",
     "dist/**/package.json",
     "test/contract/HostContract.ts",
+    "LICENSE",
     "README.md",
     "CHANGELOG.md"
   ],
