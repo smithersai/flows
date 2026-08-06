@@ -10,8 +10,8 @@
  * an operator resumes it after restoring the evidence bytes or
  * time-travelling past the attempt.
  */
-import { Activity, Flow, RetryPolicy } from "@smithers/engine"
-import { AttemptStore, CacheStore, Journal, RunStore, TestJournal } from "@smithers/journal"
+import { Activity, Flow, type FlowEngine, RetryPolicy } from "@smithers/engine"
+import { AttemptStore, CacheStore, Journal, Notifying, RunStore, TestJournal } from "@smithers/journal"
 import { Jj } from "@smithers/kernel"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -23,6 +23,7 @@ import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as RunDriver from "../src/internal/RunDriver.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 
 const QuarantineFlow = Flow.make("AttemptQuarantine/Flow", {
@@ -244,5 +245,80 @@ describe("succeeded-row corruption parks the run quarantined for an operator (is
     expect(Option.isNone(resumed.waiting)).toBe(true)
     expect(dispatches).toBe(1)
     await runtime.dispose()
+  })
+})
+
+const CancelRaceFlow = Flow.make("AttemptQuarantine/CancelRace", {
+  payload: {},
+  success: Schema.String
+})
+
+const fakeEngine = {} as unknown as FlowEngine.FlowEngine["Service"]
+
+describe("a cancel that races the quarantine park", () => {
+  it("cancels the run instead of parking it, because the park's transition guard sees the request", async () => {
+    // The quarantine park and the transition that follows it are separated by
+    // exactly one instant, and `requestCancel` is unfenced — another process
+    // can land one there. The transition carries `cancelRequested: "absent"`,
+    // so it reports `GuardFailed` and the run cancels rather than parking for
+    // an operator who was already told to stop. Injecting the request in the
+    // park's `after` hook makes that instant deterministic; racing it against
+    // the cancel poll would not be.
+    const executionId = "quarantine-cancel-race"
+    const quarantined = new ActivityPersistence.AttemptEvidenceQuarantined({
+      code: "attempt_evidence_quarantined",
+      keyDigest: "cafebabe",
+      attempt: 1,
+      path: "dist/manifest.json",
+      recordedDigest: "aa".repeat(32),
+      measuredDigest: "bb".repeat(32)
+    })
+
+    const outcome = await Effect.runPromise(
+      Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const state = DurableEngineState.makeMemory()
+        const driver = yield* RunDriver.make({
+          owner: { hostId: "quarantine-race-host", pid: 1, nonce: "quarantine-race" },
+          journalSource: "quarantine-race",
+          isAlive: () => Effect.succeed(false),
+          engine: Effect.succeed(fakeEngine)
+        }).pipe(
+          Effect.provideService(
+            DurableEngineState.DurableEngineState,
+            Notifying.wrap(state, (op, order, args) =>
+              op === "park" && order === "after" &&
+                (args[1] as { readonly reason: string }).reason === "quarantine"
+                ? store.requestCancel(executionId, 1).pipe(Effect.asVoid, Effect.orDie)
+                : Effect.void)
+          )
+        )
+        yield* driver.register(CancelRaceFlow, () => Effect.die(quarantined))
+        yield* driver.execute(CancelRaceFlow, { executionId, payload: {}, discard: true })
+        const journal = yield* Journal.Journal
+        yield* journal.flush
+        const page = yield* journal.entries({ runId: executionId as never, limit: 50 })
+        return {
+          row: yield* store.get(executionId),
+          waiting: yield* state.waiting(executionId),
+          decisions: page.entries
+            .filter((entry) => entry.eventType === "flows.engine.run-decision")
+            .map((entry) => (entry.payload as { readonly decision: string }).decision),
+          interruptions: page.entries.filter((entry) => entry.eventType === "flows.engine.interrupted")
+        }
+      }).pipe(
+        Effect.provide(TestJournal.layer()),
+        Effect.provide(TestClock.layer()),
+        Effect.scoped,
+        Effect.orDie
+      )
+    )
+
+    expect(outcome.row.status).toBe("cancelled")
+    // No `quarantined` decision: the park never became durable state.
+    expect(outcome.decisions).not.toContain("quarantined")
+    expect(outcome.interruptions).toHaveLength(1)
+    // The cancel clears the waiting row it raced.
+    expect(Option.isNone(outcome.waiting)).toBe(true)
   })
 })
