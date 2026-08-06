@@ -63,3 +63,5 @@ packages/*/REVIEW-*.md
 packages/*/.smithers/
 .smithers/bug-reports/
 .smithers/executions/
+.smithers/claude-mirror-subscriptions.json
+.smithers/logs/
