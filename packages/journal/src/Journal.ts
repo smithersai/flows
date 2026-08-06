@@ -205,11 +205,11 @@ export interface EntriesPage {
  *
  * Caveat on scope: the stores above this log (`RunStore`, `AttemptStore`,
  * `CacheStore`, and engine-store's `DurableEngineState`) hold the executable
- * authoritative state, and no state is derived from these entries today. A
- * state transition also commits in a *different* transaction from the
- * lifecycle entry describing it, which leaves a crash-consistency gap for
- * audit, sync, and time travel — a known production blocker, not a settled
- * design.
+ * authoritative state, and no state is derived from these entries today.
+ * `transact` is what keeps the two halves consistent anyway: a state
+ * transition and the lifecycle entry describing it are appended in ONE write
+ * transaction, so a crash can never leave durable state the journal does not
+ * explain (or an entry for a transition that never landed).
  *
  * The surface is split into two channels:
  *
@@ -236,6 +236,36 @@ export interface Service {
   readonly emit: (input: Input, owner?: OwnerId) => Effect.Effect<EmitReceipt, JournalError>
   readonly emitLossy: (input: Input) => Effect.Effect<EmitReceipt, JournalError>
   readonly emitDurable: (input: Input, owner?: OwnerId) => Effect.Effect<DurableReceipt, JournalError>
+  /**
+   * Runs `effect` — a state projection plus the `emitDurable` calls describing
+   * it — inside ONE write transaction.
+   *
+   * This is the seam that makes the logical WAL crash-consistent with
+   * executable state. The stores above the journal (`RunStore`,
+   * `AttemptStore`, `CacheStore`, `DurableEngineState`) write through the same
+   * `Database`, so their writes join this transaction as savepoints: either
+   * the transition and its lifecycle entry both commit, or neither does. It is
+   * the local analogue of Temporal closing mutable state into a mutation plus
+   * event batches and submitting them as one persistence request
+   * (`reference/temporal/service/history/workflow/transaction_impl.go`).
+   *
+   * A `Duplicate` receipt is unaffected: an exact producer retry still
+   * collapses onto the already-committed sequence.
+   *
+   * Two consequences a caller must plan for:
+   *
+   * - Publication (`changes`, `stream`, and the in-process source-event index)
+   *   is deferred until the transaction commits, so a subscriber never
+   *   observes an entry that later rolls back, and a rolled-back producer
+   *   identity stays re-emittable rather than deduplicating against a
+   *   sequence that does not exist.
+   * - Everything inside runs while a write transaction is open. Keep it to
+   *   storage work: no flow bodies, no host calls, no waits.
+   *
+   * Nesting is safe — an inner `transact` becomes a savepoint of the outer
+   * one and defers its publication to the outermost commit.
+   */
+  readonly transact: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E | JournalError, R>
   readonly stream: (options: StreamOptions) => Stream.Stream<Entry, JournalError>
   readonly entries: (options: EntriesOptions) => Effect.Effect<EntriesPage, JournalError>
   readonly changes: Effect.Effect<PubSub.Subscription<Entry>, never, Scope.Scope>
@@ -279,6 +309,13 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service => {
     emit: Effect.fn("Journal.emit")(() => Effect.fail(unavailable("emit"))),
     emitLossy: Effect.fn("Journal.emitLossy")(() => Effect.fail(unavailable("emitLossy"))),
     emitDurable: Effect.fn("Journal.emitDurable")(() => Effect.fail(unavailable("emitDurable"))),
+    /**
+     * The closed stub has no sink and therefore no transaction to open, so it
+     * runs the effect directly — the same posture as
+     * `DurableEngineState`'s in-memory twin, whose `transaction` has no crash
+     * window to close. A test double that models rollback overrides it.
+     */
+    transact: <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E | JournalError, R> => effect,
     stream: (options) =>
       Stream.unwrap(
         Effect.fn("Journal.stream")((_options: StreamOptions) => Effect.succeed(Stream.fail(unavailable("stream"))))(

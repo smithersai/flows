@@ -16,13 +16,15 @@
  *
  * @since 0.1.0
  */
-import { Database } from "@smithers/database/Database"
+import { Database, DatabaseError } from "@smithers/database/Database"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
+import * as Context from "effect/Context"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
 import * as PubSub from "effect/PubSub"
 import * as Queue from "effect/Queue"
 import * as Result from "effect/Result"
@@ -180,6 +182,23 @@ const error = (code: JournalError["code"], message: string, cause?: unknown): Jo
     message,
     ...(cause === undefined ? {} : { cause })
   })
+
+/**
+ * Post-commit settlements accumulated while a `transact` transaction is open.
+ *
+ * `emitDurable` publishes an entry and records it in the in-process
+ * source-event index only once the entry is really committed. Inside a
+ * transaction the innermost `database.write` merely releases a savepoint, so
+ * those two effects are parked here as thunks and replayed by the outermost
+ * `transact` after COMMIT. The parked value is a closure, so several journal
+ * instances sharing one transaction each settle their own PubSub and index.
+ *
+ * This is fiber-scoped context, not module state: two fibers in two
+ * transactions never see each other's list.
+ */
+class Settlements extends Context.Service<Settlements, Array<Effect.Effect<void>>>()(
+  "flows/journal/SqlJournal/Settlements"
+) {}
 
 const sourceKey = (runId: RunId, sourceId: SourceId): string => `${runId.length}:${runId}${sourceId.length}:${sourceId}`
 
@@ -878,6 +897,59 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
           (rows) => Number(rows[0]?.next ?? 0)
         )
 
+      /**
+       * Records a committed entry in the in-process index and publishes it —
+       * immediately outside a transaction, parked on the enclosing
+       * {@link Settlements} list inside one.
+       */
+      const settleCommit = (queued: QueuedEntry, commit: Commit): Effect.Effect<void> =>
+        Effect.flatMap(Effect.serviceOption(Settlements), (enclosing) => {
+          const settlement = Effect.sync(() => rememberCommitted(queued, commit.entry.seq)).pipe(
+            Effect.andThen(publish([commit]))
+          )
+          return Option.isNone(enclosing)
+            ? settlement
+            : Effect.sync(() => {
+              enclosing.value.push(settlement)
+            })
+        })
+
+      /**
+       * Opens (or joins) the write transaction that keeps the logical WAL
+       * atomic with the executable state it describes.
+       *
+       * The transaction body is re-entered verbatim when `Database.write`
+       * replays a transient conflict, so the settlement list is reset on each
+       * attempt: an abandoned attempt's entries were rolled back with it and
+       * must never be published or indexed.
+       */
+      const transact: Service["transact"] = <A, E, R>(
+        effect: Effect.Effect<A, E, R>
+      ): Effect.Effect<A, E | JournalError, R> =>
+        Effect.flatMap(Effect.serviceOption(Settlements), (enclosing) => {
+          const write = <A2, E2, R2>(body: Effect.Effect<A2, E2, R2>) =>
+            database.write(body).pipe(
+              Effect.catchIf(
+                (cause): cause is DatabaseError => cause instanceof DatabaseError,
+                (cause) => Effect.fail(error("sink_failed", "journal transaction failed", cause))
+              )
+            )
+          // A nested transact is a savepoint of the enclosing one; the
+          // outermost owner of the list publishes for all of them.
+          if (Option.isSome(enclosing)) {
+            return write(effect)
+          }
+          const settlements: Array<Effect.Effect<void>> = []
+          return write(
+            Effect.suspend(() => {
+              settlements.length = 0
+              return Effect.provideService(effect, Settlements, settlements)
+            })
+          ).pipe(
+            Effect.tap(() => Effect.forEach(settlements, (settlement) => settlement, { discard: true }))
+          )
+        })
+
       const emitDurable: Service["emitDurable"] = Effect.fn("Journal.emitDurable")((
         input: Input,
         owner?: OwnerId
@@ -933,13 +1005,15 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
                * observe a rolled-back entry and a replayed body never publishes
                * twice. Mirrors the queued path, which publishes in a `.tap`
                * outside `persistBatch`.
+               *
+               * Under `transact` "after the transaction returns" is not yet
+               * "after COMMIT" — this write is a savepoint of the caller's
+               * transaction — so `settle` parks both effects until the
+               * outermost transaction commits.
                */
               Effect.tap(({ commit, queued }) =>
-                Effect.sync(() =>
-                  rememberCommitted(queued, commit.entry.seq)
-                )
+                settleCommit(queued, commit)
               ),
-              Effect.tap(({ commit }) => publish([commit])),
               Effect.map(({ commit, sourceSeq }) =>
                 commit.inserted
                   ? { _tag: "Accepted", seq: commit.entry.seq, sourceSeq } as const
@@ -1018,7 +1092,11 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
       const writeBatch = Queue.takeBetween(queue, 1, batchSize).pipe(
         Effect.flatMap((batch) =>
           persistBatch(batch).pipe(
-            Effect.tap((commits) => Effect.sync(() => recordCommits(batch, commits))),
+            Effect.tap((commits) =>
+              Effect.sync(() =>
+                recordCommits(batch, commits)
+              )
+            ),
             Effect.tap(publish),
             Effect.tap(() => Effect.sync(() => settle(batch.length))),
             Effect.catch((cause) => Effect.sync(() => failSink(cause, batch.length))),
@@ -1091,6 +1169,7 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
         emit,
         emitLossy,
         emitDurable,
+        transact,
         stream,
         entries: readPage,
         changes: PubSub.subscribe(changes),
