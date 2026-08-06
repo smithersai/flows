@@ -178,6 +178,7 @@ describe("vitest coverage isolation conformance", () => {
       readonly scripts?: Record<string, string>
     }
     expect(root.scripts).toEqual({
+      browser: "node scripts/browser-check.mjs",
       check: "npm run check --workspaces --if-present",
       circular: "npm run circular --workspaces --if-present",
       lint: "npm run lint --workspaces --if-present",
@@ -195,6 +196,10 @@ describe("vitest coverage isolation conformance", () => {
     expect(ci).toMatch(/^\s*run: npm run check$/m)
     expect(ci).toMatch(/^\s*run: npm run lint$/m)
     expect(ci).toMatch(/^\s*run: npm run circular$/m)
+    // Browser support is a hard requirement met through layers; `npm run
+    // browser` is the only thing that proves it, so CI has to call it
+    // (REVIEW.md blocker 7).
+    expect(ci).toMatch(/^\s*run: npm run browser$/m)
     expect(ci).toMatch(/^\s*run: npm test$/m)
     expect(ci).toMatch(/tool: jj-cli@\d+\.\d+\.\d+/)
   })
