@@ -35,8 +35,10 @@ describe.runIf(Boolean(process.env.CI) && !jjInstalled)("NodeJj (CI guard)", () 
  * `NodeJj` spawns `jj` in `process.cwd()`, so every case runs against a real
  * throwaway repository that this suite chdirs into.
  */
-// Every operation waits for the spawned process to close; elapsed time is not part of the contract.
-describe.skipIf(!jjInstalled)("NodeJj", { timeout: 0 }, () => {
+// Every operation waits for the spawned process to close; elapsed time is not
+// part of the contract, and the package-wide `testTimeout` budgets for the
+// jj-lock contention several of these suites create for each other.
+describe.skipIf(!jjInstalled)("NodeJj", () => {
   let repository: string
   let previousCwd: string
 

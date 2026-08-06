@@ -72,8 +72,9 @@ const spill = (boundary: StepBoundary.Service, host: ReturnType<typeof memoFs>, 
     yield* boundary.settle(prepared)
   })
 
-// These finite-capacity loops terminate by count; elapsed time depends only on machine load.
-describe("the verified-digest memo is a bounded LRU (issue #155)", { timeout: 0 }, () => {
+// These finite-capacity loops terminate by count; elapsed time depends only on
+// machine load, which the package-wide `testTimeout` budgets for.
+describe("the verified-digest memo is a bounded LRU (issue #155)", () => {
   it("evicts the least-recently-used digest past the fixed capacity, re-verifying only that one", async () => {
     const host = memoFs()
     const boundary = StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 4 })
