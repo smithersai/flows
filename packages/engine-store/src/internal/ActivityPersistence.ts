@@ -919,7 +919,6 @@ export const make = (deps: Dependencies) => {
               JournalRecords.snapshotIdentified(attemptSource("snapshot"), { ...attemptId, snapshotId })
             )
           let snapshotId: string | undefined
-          let snapshotAnnounced = false
           if (input.tier === "compensable") {
             const jj = yield* Jj.Jj
             if (adopted && runningMeta?.snapshotId !== undefined) {
@@ -929,6 +928,9 @@ export const make = (deps: Dependencies) => {
               // compensation baseline instead of snapshotting the dirty state.
               yield* jj.restore(runningMeta.snapshotId)
               snapshotId = runningMeta.snapshotId
+              // Re-announcing a pre-image the row already records durably:
+              // there is no state write to pair this announcement with.
+              yield* announceSnapshot(snapshotId)
             } else {
               if (input.attempt > 1) {
                 const previous = yield* attempts.get({ ...attemptId, attempt: input.attempt - 1 })
@@ -953,12 +955,6 @@ export const make = (deps: Dependencies) => {
                   meta: { tier: input.tier, admittedBy: deps.owner, snapshotId } satisfies AttemptMeta
                 }).pipe(Effect.andThen(announceSnapshot(snapshotId)))
               )
-              snapshotAnnounced = true
-            }
-            // The adopted branch re-announces a pre-image the row already
-            // records durably, so there is no state write to pair it with.
-            if (!snapshotAnnounced) {
-              yield* announceSnapshot(snapshotId)
             }
           }
 

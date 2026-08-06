@@ -218,11 +218,8 @@ export const make = (
       runId: string,
       toStatus: RunStore.RunStatus,
       stateJson: string,
-      options: {
-        readonly guard?: RunStore.TransitionGuard | undefined
-        readonly decision?: unknown
-        readonly onTransitioned?: Effect.Effect<void> | undefined
-      } = {}
+      decision: unknown,
+      guard?: RunStore.TransitionGuard | undefined
     ): Effect.Effect<RunStore.TransitionOutcome> =>
       journal.transact(
         Effect.gen(function*() {
@@ -231,11 +228,10 @@ export const make = (
             dependencies.owner,
             toStatus,
             stateJson,
-            options.guard
+            guard
           ).pipe(Effect.orDie)
           if (transitioned._tag !== "Transitioned") return transitioned
-          if (options.onTransitioned !== undefined) yield* options.onTransitioned
-          if (options.decision !== undefined) yield* emitDecision(runId, options.decision)
+          yield* emitDecision(runId, decision)
           return transitioned
         })
       ).pipe(Effect.orDie)
@@ -407,7 +403,7 @@ export const make = (
           runId,
           "suspended",
           yield* encodeState(withoutResult(state)),
-          { decision: { decision: "interrupt-released", owner: dependencies.owner } }
+          { decision: "interrupt-released", owner: dependencies.owner }
         )
         if (transitioned._tag !== "Transitioned") {
           // Fence lost between park and release: the run is someone else's
@@ -570,14 +566,12 @@ export const make = (
             "suspended",
             yield* encodeState(withoutResult(activeState)),
             {
-              guard: { cancelRequested: "absent" },
-              decision: {
-                decision: "quarantined",
-                status: "suspended",
-                keyDigest: quarantine.keyDigest,
-                owner: dependencies.owner
-              }
-            }
+              decision: "quarantined",
+              status: "suspended",
+              keyDigest: quarantine.keyDigest,
+              owner: dependencies.owner
+            },
+            { cancelRequested: "absent" }
           )
           if (parked._tag === "GuardFailed") {
             return yield* cancelOwned(executionId, activeState)
@@ -629,10 +623,8 @@ export const make = (
           executionId,
           status,
           yield* encodeState(nextState),
-          {
-            guard: { cancelRequested: "absent" },
-            decision: { decision: "transitioned", status, owner: dependencies.owner }
-          }
+          { decision: "transitioned", status, owner: dependencies.owner },
+          { cancelRequested: "absent" }
         )
         if (transitioned._tag === "GuardFailed") {
           return yield* cancelOwned(executionId, activeState)
