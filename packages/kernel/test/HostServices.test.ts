@@ -1,5 +1,6 @@
 import * as Host from "@smithers/host"
 import * as HostHttpTransport from "@smithers/host/HttpTransport"
+import * as TestHost from "@smithers/host/test/TestHost"
 import { Effect, FileSystem as EffectFileSystem, Option, Path as EffectPath } from "effect"
 import * as EffectHttpClient from "effect/unstable/http/HttpClient"
 import { describe, expect, it } from "vitest"
@@ -82,7 +83,7 @@ describe("HostServices", () => {
       Effect.provide(HostServices.layer),
       Effect.provideService(EffectFileSystem.FileSystem, fileSystem),
       Effect.provideService(HostHttpTransport.HttpTransport, HostHttpTransport.make(http.execute)),
-      Effect.provide(Host.TestHost.layer({
+      Effect.provide(TestHost.layer({
         files: { "/workspace/.keep": "" },
         commands: { fixture: { stdout: "protected\n" } }
       })),
@@ -133,7 +134,7 @@ describe("HostServices", () => {
       Effect.provide(HostServices.layer),
       Effect.provideService(EffectFileSystem.FileSystem, fileSystem),
       Effect.provideService(HostHttpTransport.HttpTransport, HostHttpTransport.make(http.execute)),
-      Effect.provide(Host.TestHost.layer({ files: { "/workspace/.keep": "" } })),
+      Effect.provide(TestHost.layer({ files: { "/workspace/.keep": "" } })),
       Effect.provide(Workspace.layer("/workspace")),
       Effect.provideService(GrantStore, deny),
       Effect.scoped

@@ -17,7 +17,8 @@
  * persistence request
  * (`reference/temporal/service/history/workflow/transaction_impl.go`).
  */
-import { Database, TestDatabase } from "@smithers/database"
+import { Database } from "@smithers/database"
+import * as TestDatabase from "@smithers/database/test/TestDatabase"
 import { DurableClock, Flow, type FlowEngine } from "@smithers/engine"
 import {
   AttemptStore,

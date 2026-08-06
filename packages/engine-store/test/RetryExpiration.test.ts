@@ -6,7 +6,8 @@
  * wall-clock budget is exhausted, without re-dispatching the activity body.
  */
 import { Activity, Flow, type FlowEngine, RetryPolicy, StepIdentity } from "@smithers/engine"
-import { AttemptStore, Journal, RunStore, TestJournal } from "@smithers/journal"
+import { AttemptStore, Journal, RunStore } from "@smithers/journal"
+import * as TestJournal from "@smithers/journal/test/TestJournal"
 import { Jj } from "@smithers/kernel"
 import { Digest, StepKey } from "@smithers/keys"
 import * as Effect from "effect/Effect"

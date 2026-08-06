@@ -1,6 +1,16 @@
 /**
  * Durable journal, ownership, attempt, and cache services.
  *
+ * This entry point is browser-bundleable: every store here is written against
+ * the driver-neutral `@smithers/database` contract. The test doubles, which
+ * bind a Node SQLite database, live under explicit subpaths:
+ *
+ * ```ts
+ * import { Journal, SqlJournal } from "@smithers/journal"
+ * import * as TestJournal from "@smithers/journal/test/TestJournal"
+ * import * as Notifying from "@smithers/journal/test/Notifying"
+ * ```
+ *
  * @since 0.1.0
  */
 
@@ -69,15 +79,3 @@ export * as CacheStore from "./CacheStore.ts"
  * @since 0.1.0
  */
 export * as RunCoordinator from "./RunCoordinator.ts"
-
-/**
- * @category testing
- * @since 0.1.0
- */
-export * as TestJournal from "./test/TestJournal.ts"
-
-/**
- * @category testing
- * @since 0.1.0
- */
-export * as Notifying from "./test/Notifying.ts"

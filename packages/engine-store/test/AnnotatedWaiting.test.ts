@@ -7,7 +7,8 @@
  * (`WHERE waiting_reason = 'approval'`) see it.
  */
 import { DurableClock, DurableDeferred, Flow, FlowEngine } from "@smithers/engine"
-import { RunStore, TestJournal } from "@smithers/journal"
+import { RunStore } from "@smithers/journal"
+import * as TestJournal from "@smithers/journal/test/TestJournal"
 import { Jj } from "@smithers/kernel"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"

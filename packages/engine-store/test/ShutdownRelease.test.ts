@@ -7,7 +7,8 @@
  * (`cancel_requested_at_ms`) may close the run terminally.
  */
 import { Flow, type FlowEngine } from "@smithers/engine"
-import { Journal, type Ownership, RunStore, TestJournal } from "@smithers/journal"
+import { Journal, type Ownership, RunStore } from "@smithers/journal"
+import * as TestJournal from "@smithers/journal/test/TestJournal"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Fiber from "effect/Fiber"

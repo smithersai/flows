@@ -5,7 +5,8 @@
  * written once and ignored forever.
  */
 import { Flow, type FlowEngine } from "@smithers/engine"
-import { Journal, Ownership, RunStore, TestJournal } from "@smithers/journal"
+import { Journal, Ownership, RunStore } from "@smithers/journal"
+import * as TestJournal from "@smithers/journal/test/TestJournal"
 import * as Clock from "effect/Clock"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"

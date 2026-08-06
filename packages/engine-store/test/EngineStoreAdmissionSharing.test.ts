@@ -17,7 +17,7 @@
  * loser waits out the winner's span and replays its terminal row.
  */
 import { Activity, Flow } from "@smithers/engine"
-import { TestJournal } from "@smithers/journal"
+import * as TestJournal from "@smithers/journal/test/TestJournal"
 import { Jj } from "@smithers/kernel"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"

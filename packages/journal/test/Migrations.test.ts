@@ -1,4 +1,5 @@
-import { Database, TestDatabase } from "@smithers/database"
+import { Database } from "@smithers/database"
+import * as TestDatabase from "@smithers/database/test/TestDatabase"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import { describe, expect, it } from "vitest"

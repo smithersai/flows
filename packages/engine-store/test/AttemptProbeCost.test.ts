@@ -6,7 +6,7 @@
  * counting store below sees only the executor's own row lookups — a scan
  * regression reappears as dozens of gets and fails the bound.
  */
-import { TestDatabase } from "@smithers/database"
+import * as TestDatabase from "@smithers/database/test/TestDatabase"
 import { Activity, Flow, RetryPolicy } from "@smithers/engine"
 import { AttemptStore, CacheStore, Migrations, RunStore, SqlJournal } from "@smithers/journal"
 import { Jj } from "@smithers/kernel"

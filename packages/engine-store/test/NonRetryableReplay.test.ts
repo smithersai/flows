@@ -12,7 +12,9 @@
  * just the fact that an attempt happened.
  */
 import { Activity, Flow, RetryPolicy } from "@smithers/engine"
-import { AttemptStore, Journal, Notifying, RunStore, TestJournal } from "@smithers/journal"
+import { AttemptStore, Journal, RunStore } from "@smithers/journal"
+import * as Notifying from "@smithers/journal/test/Notifying"
+import * as TestJournal from "@smithers/journal/test/TestJournal"
 import { Jj } from "@smithers/kernel"
 import { Digest, StepKey } from "@smithers/keys"
 import * as Effect from "effect/Effect"

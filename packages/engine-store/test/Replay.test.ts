@@ -1,5 +1,6 @@
 import { Activity, DurableDeferred, Flow } from "@smithers/engine"
-import { Journal, type Ownership, RunStore, TestJournal } from "@smithers/journal"
+import { Journal, type Ownership, RunStore } from "@smithers/journal"
+import * as TestJournal from "@smithers/journal/test/TestJournal"
 import { Jj } from "@smithers/kernel"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"

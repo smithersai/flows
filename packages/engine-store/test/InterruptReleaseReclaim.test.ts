@@ -8,8 +8,9 @@
  * the run is re-drivable and cancellable.
  */
 import { Flow, type FlowEngine } from "@smithers/engine"
-import { Ownership, RunStore, TestJournal } from "@smithers/journal"
+import { Ownership, RunStore } from "@smithers/journal"
 import type { Journal } from "@smithers/journal"
+import * as TestJournal from "@smithers/journal/test/TestJournal"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"

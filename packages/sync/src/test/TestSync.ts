@@ -3,7 +3,7 @@
  *
  * @since 0.1.0
  */
-import { TestJournal } from "@smithers/journal"
+import * as TestJournal from "@smithers/journal/test/TestJournal"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as RpcClient from "effect/unstable/rpc/RpcClient"

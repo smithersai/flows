@@ -6,7 +6,8 @@
  * persistent cached error reevaluation).
  */
 import { Activity, Flow } from "@smithers/engine"
-import { Journal, RunStore, TestJournal } from "@smithers/journal"
+import { Journal, RunStore } from "@smithers/journal"
+import * as TestJournal from "@smithers/journal/test/TestJournal"
 import { Jj } from "@smithers/kernel"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"

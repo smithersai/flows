@@ -1,5 +1,6 @@
 import { Activity, DurableDeferred, Flow, FlowEngine } from "@smithers/engine"
-import { Journal, RunStore, TestJournal } from "@smithers/journal"
+import { Journal, RunStore } from "@smithers/journal"
+import * as TestJournal from "@smithers/journal/test/TestJournal"
 import { Jj } from "@smithers/kernel"
 import * as Cause from "effect/Cause"
 import * as Deferred from "effect/Deferred"

@@ -10,7 +10,8 @@
  * Uses the SQL `DurableEngineState` over the same database as `RunStore`:
  * the filter's cancel predicate reads `flows_runs.cancel_requested_at_ms`.
  */
-import { Database, TestDatabase } from "@smithers/database"
+import { Database } from "@smithers/database"
+import * as TestDatabase from "@smithers/database/test/TestDatabase"
 import { Flow, type FlowEngine } from "@smithers/engine"
 import { Migrations, Ownership, RunStore, SqlJournal } from "@smithers/journal"
 import * as Duration from "effect/Duration"

@@ -1,4 +1,5 @@
-import { Database, NodeDatabase } from "@smithers/database"
+import { Database } from "@smithers/database"
+import * as NodeDatabase from "@smithers/database/node/NodeDatabase"
 import { Activity, Flow } from "@smithers/engine"
 import { DurableEngineState, EngineStore, StepBoundary } from "@smithers/engine-store"
 import { AttemptStore, CacheStore, Journal, Migrations, RunStore, SqlJournal } from "@smithers/journal"

@@ -3,9 +3,11 @@
  * the durably recorded first attempt, so it survives park/resume and process
  * death instead of restarting on every process.
  */
-import { Database, TestDatabase } from "@smithers/database"
+import { Database } from "@smithers/database"
+import * as TestDatabase from "@smithers/database/test/TestDatabase"
 import { Activity, Flow, RetryPolicy } from "@smithers/engine"
-import { AttemptStore, CacheStore, Migrations, RunStore, SqlJournal, TestJournal } from "@smithers/journal"
+import { AttemptStore, CacheStore, Migrations, RunStore, SqlJournal } from "@smithers/journal"
+import * as TestJournal from "@smithers/journal/test/TestJournal"
 import { Jj } from "@smithers/kernel"
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"

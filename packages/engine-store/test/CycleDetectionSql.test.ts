@@ -1,4 +1,5 @@
-import { NodeDatabase, TestDatabase } from "@smithers/database"
+import * as NodeDatabase from "@smithers/database/node/NodeDatabase"
+import * as TestDatabase from "@smithers/database/test/TestDatabase"
 import { Migrations } from "@smithers/journal"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"

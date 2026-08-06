@@ -11,7 +11,9 @@
  * time-travelling past the attempt.
  */
 import { Activity, Flow, type FlowEngine, RetryPolicy } from "@smithers/engine"
-import { AttemptStore, CacheStore, Journal, Notifying, RunStore, TestJournal } from "@smithers/journal"
+import { AttemptStore, CacheStore, Journal, RunStore } from "@smithers/journal"
+import * as Notifying from "@smithers/journal/test/Notifying"
+import * as TestJournal from "@smithers/journal/test/TestJournal"
 import { Jj } from "@smithers/kernel"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"

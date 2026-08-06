@@ -7,7 +7,8 @@
  * of re-executing flow side effects.
  */
 import { DurableDeferred, Flow, type FlowEngine } from "@smithers/engine"
-import { Ownership, RunStore, TestJournal } from "@smithers/journal"
+import { Ownership, RunStore } from "@smithers/journal"
+import * as TestJournal from "@smithers/journal/test/TestJournal"
 import { Jj } from "@smithers/kernel"
 import * as Clock from "effect/Clock"
 import * as Duration from "effect/Duration"
