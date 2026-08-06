@@ -411,14 +411,6 @@ export const make = (deps: Dependencies) => {
           // The provenance record and the row it describes commit together:
           // the row carries the record's canonical seq as its provenance, so a
           // crash between them left either a row pointing at a sequence that
-          // does not exist or a `recorded` entry for a row nobody wrote. On a
-          // lost first-writer race the whole transaction rolls back, which is
-          // what keeps "a `recorded` entry exists iff this run wrote the row"
-          // true; the conflict itself is journalled below, outside the
-          // transaction, so failing the run cannot erase the evidence.
-          // The provenance record and the row it describes commit together:
-          // the row carries the record's canonical seq as its provenance, so a
-          // crash between them left either a row pointing at a sequence that
           // does not exist or a `recorded` entry for a row nobody wrote.
           // Losing the first-writer race is not that crash — it is a decision,
           // and it stays journalled: the `recorded` entry says what this run
