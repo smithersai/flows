@@ -174,12 +174,15 @@ describe("FaultMatrix", () => {
       const result = await run(Effect.gen(function*() {
         yield* activate("crash-after-finish", ownerA)
         const attempts = yield* AttemptStore.AttemptStore
+        const cache = yield* CacheStore.CacheStore
         const first = makeExecutor({ runId: "crash-after-finish", owner: ownerA, key, result: "v1" })
+        // The crash lands after the attempt's terminal transaction committed
+        // and before the cache row is written. Injecting it *inside* that
+        // transaction instead — between `attempts.finish` and its lifecycle
+        // append — is the WalAtomicity matrix's job: both halves roll back,
+        // so there is no durable completion left to replay.
         const crashed = yield* first.execute(1).pipe(
-          Effect.provideService(
-            AttemptStore.AttemptStore,
-            Notifying.wrap(attempts, crashAt("finish", "after", succeededFinish))
-          ),
+          Effect.provideService(CacheStore.CacheStore, Notifying.wrap(cache, crashAt("put", "before"))),
           Effect.exit
         )
 
@@ -192,7 +195,6 @@ describe("FaultMatrix", () => {
           stepKeyDigest: Digest.digest(key),
           attempt: 1
         })
-        const cache = yield* CacheStore.CacheStore
         const cached = yield* cache.get(Digest.digest(key))
         const journal = yield* Journal.Journal
         yield* journal.flush
@@ -343,15 +345,23 @@ describe("FaultMatrix", () => {
       expect(Option.getOrThrow(result.row).state).toBe("succeeded")
     })
 
-    it("fence lost at attempts.put: no attempt row or journal record leaks from the fenced owner", async () => {
+    it("fence lost before attempts.put: no attempt row or journal record leaks from the fenced owner", async () => {
       const key = "fault/fence-put"
       const result = await run(Effect.gen(function*() {
         yield* activate("fence-put", ownerA)
         const runs = yield* RunStore.RunStore
         const attempts = yield* AttemptStore.AttemptStore
         const journal = yield* Journal.Journal
+        // The steal lands on the attempt probe that immediately precedes the
+        // admission transaction, not inside it: `attempts.put` and its
+        // `attemptStarted` append now share one transaction, and this test
+        // database is a single SQLite connection, so a thief injected inside
+        // that transaction would be rolled back with the victim rather than
+        // racing it. Production thieves hold their own connection and simply
+        // serialize against the victim's write. The fence check itself is
+        // unchanged: `put` is owner-fenced and reports `FenceLost`.
         const steal: Notifying.Hook = (op, order) =>
-          op === "put" && order === "before"
+          op === "get" && order === "after"
             ? takeover(runs, "fence-put", ownerB).pipe(Effect.orDie)
             : Effect.void
 

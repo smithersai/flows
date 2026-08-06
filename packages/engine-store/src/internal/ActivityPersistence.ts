@@ -302,6 +302,44 @@ export const make = (deps: Dependencies) => {
         journal.emitDurable(record, deps.owner).pipe(
           Effect.catch((error) => error.code === "fence_lost" ? Effect.interrupt : Effect.fail(error))
         )
+      /**
+       * Commits an attempt/cache state transition and the lifecycle records
+       * describing it in ONE write transaction.
+       *
+       * The store writes below (`attempts.put`/`patch`/`finish`, `cache.put`)
+       * and `emitLifecycle` all go through the same `Database`, so the inner
+       * writes become savepoints of this transaction: either the row and its
+       * journal entry are both durable, or neither is. Before this, a crash in
+       * the interstitial left an attempt row the journal could not explain —
+       * `attemptStarted` with no `attemptFinished`, forever. Temporal's
+       * mutable state and history events commit as one persistence request
+       * (`reference/temporal/service/history/workflow/transaction_impl.go`);
+       * this is that unit of work, scoped to one attempt.
+       *
+       * Nothing that is not storage work belongs inside: the activity body,
+       * the Jj snapshot, and the boundary prepare/settle all stay outside so
+       * the write transaction is never held across a host call.
+       */
+      const atomically = <A, E, R>(effect: Effect.Effect<A, E, R>) => journal.transact(effect)
+      /**
+       * Commits an attempt's terminal row and the lifecycle records describing
+       * it as one unit, reporting whether the fenced write landed.
+       *
+       * Returning a boolean rather than interrupting inside keeps the
+       * transaction's failure paths to genuine storage failures: a lost fence
+       * is an ordinary "someone else owns this attempt now" outcome, and its
+       * self-interruption belongs to the caller, outside the transaction.
+       */
+      const settleAttempt = (
+        row: AttemptStore.FinishAttempt,
+        records: ReadonlyArray<JournalEvent.Input>
+      ) =>
+        atomically(Effect.gen(function*() {
+          const finished = yield* attempts.finish(row, deps.owner)
+          if (finished._tag !== "Finished") return false
+          yield* Effect.forEach(records, (record) => emitLifecycle(record), { discard: true })
+          return true
+        }))
       const fencedAtMs = yield* Clock.currentTimeMillis
       const heartbeat = yield* runs.heartbeat(deps.runId, deps.owner, fencedAtMs)
       if (heartbeat._tag !== "Updated") return yield* Effect.interrupt
@@ -370,23 +408,44 @@ export const make = (deps: Dependencies) => {
           const generation = Digest.digest(
             JSON.stringify({ meta: options.meta, result: options.result })
           )
-          const receipt = yield* emitLifecycle(
-            JournalRecords.cacheProvenance({
-              runId: deps.runId,
-              sourceId: `${deps.sourceId}:cache:${keyDigest}:recorded:${generation}`,
-              sourceSeq: 0
-            }, { keyDigest, action: "recorded" })
+          // The provenance record and the row it describes commit together:
+          // the row carries the record's canonical seq as its provenance, so a
+          // crash between them left either a row pointing at a sequence that
+          // does not exist or a `recorded` entry for a row nobody wrote. On a
+          // lost first-writer race the whole transaction rolls back, which is
+          // what keeps "a `recorded` entry exists iff this run wrote the row"
+          // true; the conflict itself is journalled below, outside the
+          // transaction, so failing the run cannot erase the evidence.
+          // The provenance record and the row it describes commit together:
+          // the row carries the record's canonical seq as its provenance, so a
+          // crash between them left either a row pointing at a sequence that
+          // does not exist or a `recorded` entry for a row nobody wrote.
+          // Losing the first-writer race is not that crash — it is a decision,
+          // and it stays journalled: the `recorded` entry says what this run
+          // tried to record and the `cache-conflict` entry below says how it
+          // resolved.
+          const recording = yield* atomically(
+            Effect.gen(function*() {
+              const receipt = yield* emitLifecycle(
+                JournalRecords.cacheProvenance({
+                  runId: deps.runId,
+                  sourceId: `${deps.sourceId}:cache:${keyDigest}:recorded:${generation}`,
+                  sourceSeq: 0
+                }, { keyDigest, action: "recorded" })
+              )
+              const entry = {
+                keyDigest,
+                result: options.result,
+                meta: options.meta,
+                createdAtMs: options.createdAtMs,
+                recordedRunId: deps.runId,
+                recordedEventSeq: receipt.seq
+              }
+              const outcome = yield* cache.put(entry)
+              return { entry, outcome }
+            })
           )
-          const entry = {
-            keyDigest,
-            result: options.result,
-            meta: options.meta,
-            createdAtMs: options.createdAtMs,
-            recordedRunId: deps.runId,
-            recordedEventSeq: receipt.seq
-          }
-          const cachePut = yield* cache.put(entry)
-          if (cachePut._tag === "Conflict") {
+          if (recording.outcome._tag === "Conflict") {
             const conflicting = yield* cache.get(keyDigest)
             const receiverOption = yield* Effect.serviceOption(Inconsistency.Inconsistency)
             // Core default is STRICT: journal the conflict and fail the run
@@ -399,7 +458,7 @@ export const make = (deps: Dependencies) => {
             const verdict = yield* receiver.note({
               key: keyDigest,
               existing: Option.getOrUndefined(conflicting),
-              attempted: entry
+              attempted: recording.entry
             })
             if (verdict === "fail") {
               return yield* Effect.fail(
@@ -807,50 +866,60 @@ export const make = (deps: Dependencies) => {
             : undefined
           const runningMeta = runningRow === undefined ? undefined : decodeMeta(runningRow.meta)
           const adopted = runningRow !== undefined
-          if (!adopted) {
-            const now = yield* Clock.currentTimeMillis
-            const initialMeta: AttemptMeta = { tier: input.tier, admittedBy: deps.owner }
-            const put = yield* attempts.put(
-              { ...attemptId, state: "running", startedAtMs: now, meta: initialMeta },
-              deps.owner
-            )
-            if (put._tag === "FenceLost" || put._tag === "RunNotFound") {
-              return yield* Effect.interrupt
-            }
-            if (put._tag !== "Inserted") {
-              return yield* Effect.fail(
-                new AttemptAdmissionRejected({
-                  code: "attempt_admission_rejected",
-                  keyDigest,
-                  outcome: put._tag
-                })
+          // The admission row and its announcement commit as one unit: an
+          // `attemptStarted` never describes a row that rolled back, and an
+          // admitted attempt is never invisible to the journal.
+          yield* atomically(Effect.gen(function*() {
+            if (!adopted) {
+              const now = yield* Clock.currentTimeMillis
+              const initialMeta: AttemptMeta = { tier: input.tier, admittedBy: deps.owner }
+              const put = yield* attempts.put(
+                { ...attemptId, state: "running", startedAtMs: now, meta: initialMeta },
+                deps.owner
               )
+              if (put._tag === "FenceLost" || put._tag === "RunNotFound") {
+                return yield* Effect.interrupt
+              }
+              if (put._tag !== "Inserted") {
+                return yield* Effect.fail(
+                  new AttemptAdmissionRejected({
+                    code: "attempt_admission_rejected",
+                    keyDigest,
+                    outcome: put._tag
+                  })
+                )
+              }
+            } else {
+              // The claim is fenced at the moment it lands (issue #102): re-verify
+              // run ownership immediately before re-homing the row, so a process
+              // that lost the fence while waiting on the permit parks instead of
+              // patching a run it no longer owns. With the permit excluding
+              // in-process racers and the fence excluding every other process's
+              // writers (`put`/`finish` are owner-fenced), the patch below is
+              // exclusive even though `AttemptStore` has no conditional update.
+              const claimAtMs = yield* Clock.currentTimeMillis
+              const claimFence = yield* runs.heartbeat(deps.runId, deps.owner, claimAtMs)
+              if (claimFence._tag !== "Updated") return yield* Effect.interrupt
+              // Re-home the adopted row to the current incarnation; the patch
+              // keeps the dead incarnation's other meta (tier, pre-image
+              // snapshot) intact. A vanished row means the durable state moved
+              // under us — surface it as self-interruption like the fence losses.
+              const rehomed = yield* attempts.patch(attemptId, {
+                meta: { ...runningMeta, tier: input.tier, admittedBy: deps.owner } satisfies AttemptMeta
+              })
+              if (rehomed._tag !== "Patched") return yield* Effect.interrupt
             }
-          } else {
-            // The claim is fenced at the moment it lands (issue #102): re-verify
-            // run ownership immediately before re-homing the row, so a process
-            // that lost the fence while waiting on the permit parks instead of
-            // patching a run it no longer owns. With the permit excluding
-            // in-process racers and the fence excluding every other process's
-            // writers (`put`/`finish` are owner-fenced), the patch below is
-            // exclusive even though `AttemptStore` has no conditional update.
-            const claimAtMs = yield* Clock.currentTimeMillis
-            const claimFence = yield* runs.heartbeat(deps.runId, deps.owner, claimAtMs)
-            if (claimFence._tag !== "Updated") return yield* Effect.interrupt
-            // Re-home the adopted row to the current incarnation; the patch
-            // keeps the dead incarnation's other meta (tier, pre-image
-            // snapshot) intact. A vanished row means the durable state moved
-            // under us — surface it as self-interruption like the fence losses.
-            const rehomed = yield* attempts.patch(attemptId, {
-              meta: { ...runningMeta, tier: input.tier, admittedBy: deps.owner } satisfies AttemptMeta
-            })
-            if (rehomed._tag !== "Patched") return yield* Effect.interrupt
-          }
-          yield* emitLifecycle(
-            JournalRecords.attemptStarted(attemptSource("started"), { ...attemptId, tier: input.tier })
-          )
+            yield* emitLifecycle(
+              JournalRecords.attemptStarted(attemptSource("started"), { ...attemptId, tier: input.tier })
+            )
+          }))
 
+          const announceSnapshot = (snapshotId: string) =>
+            emitLifecycle(
+              JournalRecords.snapshotIdentified(attemptSource("snapshot"), { ...attemptId, snapshotId })
+            )
           let snapshotId: string | undefined
+          let snapshotAnnounced = false
           if (input.tier === "compensable") {
             const jj = yield* Jj.Jj
             if (adopted && runningMeta?.snapshotId !== undefined) {
@@ -875,14 +944,22 @@ export const make = (deps: Dependencies) => {
               // Persist the pre-image into the running row before announcing it
               // (issue #87): a SIGKILL mid-attempt must not lose the only
               // reference to the clean tree, or adoption re-executes on top of
-              // the dead incarnation's partial mutations.
-              yield* attempts.patch(attemptId, {
-                meta: { tier: input.tier, admittedBy: deps.owner, snapshotId } satisfies AttemptMeta
-              })
+              // the dead incarnation's partial mutations. The announcement
+              // shares the patch's transaction, so the journal never names a
+              // pre-image the row does not carry. The Jj snapshot itself stays
+              // outside: a host call must never run inside a write transaction.
+              yield* atomically(
+                attempts.patch(attemptId, {
+                  meta: { tier: input.tier, admittedBy: deps.owner, snapshotId } satisfies AttemptMeta
+                }).pipe(Effect.andThen(announceSnapshot(snapshotId)))
+              )
+              snapshotAnnounced = true
             }
-            yield* emitLifecycle(
-              JournalRecords.snapshotIdentified(attemptSource("snapshot"), { ...attemptId, snapshotId })
-            )
+            // The adopted branch re-announces a pre-image the row already
+            // records durably, so there is no state write to pair it with.
+            if (!snapshotAnnounced) {
+              yield* announceSnapshot(snapshotId)
+            }
           }
 
           const boundary = input.tier === "sealed" && input.metadata !== undefined
@@ -893,7 +970,7 @@ export const make = (deps: Dependencies) => {
             : yield* boundary.prepare(input.metadata).pipe(Effect.exit)
           if (preparedResult !== undefined && Exit.isFailure(preparedResult)) {
             const finishedAtMs = yield* Clock.currentTimeMillis
-            const finished = yield* attempts.finish({
+            const finished = yield* settleAttempt({
               ...attemptId,
               state: "failed",
               finishedAtMs,
@@ -902,17 +979,14 @@ export const make = (deps: Dependencies) => {
               // created only for compensable work. The two capabilities are
               // disjoint, so a preparation failure can never carry a snapshot.
               meta: { tier: input.tier, hardViolation: true }
-            }, deps.owner)
-            if (finished._tag !== "Finished") return yield* Effect.interrupt
-            yield* emitLifecycle(
+            }, [
               JournalRecords.hardViolation(attemptSource("hard-violation"), {
                 ...attemptId,
                 error: preparedResult.cause
-              })
-            )
-            yield* emitLifecycle(
+              }),
               JournalRecords.attemptFinished(attemptSource("finished"), { ...attemptId, state: "failed" })
-            )
+            ])
+            if (!finished) return yield* Effect.interrupt
             return yield* Effect.failCause(preparedResult.cause)
           }
           const prepared = preparedResult === undefined ? undefined : preparedResult.value
@@ -920,17 +994,16 @@ export const make = (deps: Dependencies) => {
           const outcome = yield* deps.execute(input).pipe(Effect.exit)
           if (Exit.isFailure(outcome)) {
             const finishedAtMs = yield* Clock.currentTimeMillis
-            const finished = yield* attempts.finish({
+            const finished = yield* settleAttempt({
               ...attemptId,
               state: "failed",
               finishedAtMs,
               error: persistCause(outcome.cause),
               meta: { tier: input.tier, ...(snapshotId === undefined ? {} : { snapshotId }) }
-            }, deps.owner)
-            if (finished._tag !== "Finished") return yield* Effect.interrupt
-            yield* emitLifecycle(
+            }, [
               JournalRecords.attemptFinished(attemptSource("finished"), { ...attemptId, state: "failed" })
-            )
+            ])
+            if (!finished) return yield* Effect.interrupt
             return yield* Effect.failCause(outcome.cause)
           }
 
@@ -939,7 +1012,7 @@ export const make = (deps: Dependencies) => {
             : yield* boundary.settle(prepared).pipe(Effect.exit)
           if (settled !== undefined && Exit.isFailure(settled)) {
             const failedAtMs = yield* Clock.currentTimeMillis
-            const finished = yield* attempts.finish({
+            const finished = yield* settleAttempt({
               ...attemptId,
               state: "failed",
               finishedAtMs: failedAtMs,
@@ -947,14 +1020,11 @@ export const make = (deps: Dependencies) => {
               // Settlement, like preparation, runs only for sealed work; a
               // compensable snapshot is therefore unreachable on this path.
               meta: { tier: input.tier, hardViolation: true }
-            }, deps.owner)
-            if (finished._tag !== "Finished") return yield* Effect.interrupt
-            yield* emitLifecycle(
-              JournalRecords.hardViolation(attemptSource("hard-violation"), { ...attemptId, error: settled.cause })
-            )
-            yield* emitLifecycle(
+            }, [
+              JournalRecords.hardViolation(attemptSource("hard-violation"), { ...attemptId, error: settled.cause }),
               JournalRecords.attemptFinished(attemptSource("finished"), { ...attemptId, state: "failed" })
-            )
+            ])
+            if (!finished) return yield* Effect.interrupt
             return yield* Effect.failCause(settled.cause)
           }
           const evidence = settled === undefined ? undefined : settled.value
@@ -971,19 +1041,19 @@ export const make = (deps: Dependencies) => {
             ...(evidence === undefined ? {} : { boundary: evidence }),
             ...(readSetVerified ? { readSetVerified: true as const } : {})
           }
-          const finished = yield* attempts.finish(
+          const finished = yield* settleAttempt(
             { ...attemptId, state: "succeeded", finishedAtMs, outcome: outcome.value, meta },
-            deps.owner
+            [
+              ...(evidence?.deviation === undefined ? [] : [
+                JournalRecords.expectedSetDeviation(attemptSource("deviation"), {
+                  ...attemptId,
+                  ...evidence.deviation
+                })
+              ]),
+              JournalRecords.attemptFinished(attemptSource("finished"), { ...attemptId, state: "succeeded" })
+            ]
           )
-          if (finished._tag !== "Finished") return yield* Effect.interrupt
-          if (evidence?.deviation !== undefined) {
-            yield* emitLifecycle(
-              JournalRecords.expectedSetDeviation(attemptSource("deviation"), { ...attemptId, ...evidence.deviation })
-            )
-          }
-          yield* emitLifecycle(
-            JournalRecords.attemptFinished(attemptSource("finished"), { ...attemptId, state: "succeeded" })
-          )
+          if (!finished) return yield* Effect.interrupt
 
           if (cacheable && evidence?.deviation === undefined) {
             if (readSetVerified) {

@@ -12,7 +12,7 @@
  * just the fact that an attempt happened.
  */
 import { Activity, Flow, RetryPolicy } from "@smithers/engine"
-import { AttemptStore, Notifying, RunStore, TestJournal } from "@smithers/journal"
+import { AttemptStore, Journal, Notifying, RunStore, TestJournal } from "@smithers/journal"
 import { Jj } from "@smithers/kernel"
 import { Digest, StepKey } from "@smithers/keys"
 import * as Effect from "effect/Effect"
@@ -133,23 +133,43 @@ describe("non-retryable verdict durability across resume", () => {
     const result = await provide(
       Effect.gen(function*() {
         const attempts = yield* AttemptStore.AttemptStore
+        const journal = yield* Journal.Journal
         // First process: the attempt fails and `attempts.finish` durably
         // records the non-retryable failure, then the process dies before
         // the failure propagates to the engine's retry decision — the hook
         // parks the fiber right after the failed finish and the scope close
         // interrupts it there, releasing the run.
         yield* Effect.scoped(Effect.gen(function*() {
+          // The park sits on the journal transaction that commits the failed
+          // attempt: its `after` firing is the first instant at which the
+          // failure is durable — the row and its `attemptFinished` entry land
+          // together — and it is still before the engine sees the failure and
+          // takes a retry decision. Parking inside `attempts.finish` instead
+          // would hold an open write transaction on this suite's single
+          // SQLite connection, deadlocking the assertion below against it.
+          let terminal = false
+          let parked = false
           const blocked = Notifying.wrap(
-            attempts,
-            (op, order, args) =>
-              op === "finish" && order === "after" &&
-                (args[0] as { readonly state: string }).state === "failed"
-                ? Effect.never
-                : Effect.void
+            journal,
+            (op, order, args) => {
+              if (
+                op === "emitDurable" && order === "after" &&
+                (args[0] as { readonly eventType: string }).eventType === "flows.engine.attempt-finished"
+              ) {
+                terminal = true
+                return Effect.void
+              }
+              if (op !== "transact" || order !== "after" || !terminal || parked) return Effect.void
+              // Park exactly once. The scope close below interrupts the fiber
+              // here, and the driver's interrupt finalizer releases the run
+              // through another transaction — which must not park again.
+              parked = true
+              return Effect.never
+            }
           )
           const engine = yield* Effect.provideService(
             makeEngine,
-            AttemptStore.AttemptStore,
+            Journal.Journal,
             blocked
           )
           yield* engine.register(ReplayFlow, () => fatal as never)

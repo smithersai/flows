@@ -143,35 +143,46 @@ export const make = (
     ): Effect.Effect<void> =>
       Effect.gen(function*() {
         const completedAtMs = yield* Clock.currentTimeMillis
-        const completion = yield* state.completeDeferred({
-          flowName: options.flowName,
-          executionId: options.executionId,
-          deferredName: options.deferredName,
-          exit: options.exit,
-          ...(options.metadata === undefined ? {} : { metadata: options.metadata }),
-          completedAtMs
-        })
-        const row = completion.row
+        // The completion row and the record describing it commit as one unit:
+        // a crash between them left a resumable deferred the journal never
+        // announced. The lossy flush below stays outside — it waits on the
+        // journal's writer fiber, which would deadlock against the write
+        // transaction this holds.
+        const completion = yield* journal.transact(
+          Effect.gen(function*() {
+            const completion = yield* state.completeDeferred({
+              flowName: options.flowName,
+              executionId: options.executionId,
+              deferredName: options.deferredName,
+              exit: options.exit,
+              ...(options.metadata === undefined ? {} : { metadata: options.metadata }),
+              completedAtMs
+            })
+            const row = completion.row
 
-        // Durable channel: a deferred completion is a lifecycle record and
-        // must never take the droppable lossy queue. It stays ownerless by
-        // design — external-trigger admissions are first-writer-wins
-        // regardless of who owns the run (issue #10).
-        yield* journal.emitDurable(
-          JournalRecords.deferredCompleted({
-            runId: options.executionId,
-            sourceId: `${dependencies.journalSource}:deferred:${
-              JSON.stringify([options.flowName, options.executionId, options.deferredName])
-            }`,
-            sourceSeq: 0
-          }, {
-            flowName: row.flowName,
-            executionId: row.executionId,
-            deferredName: row.deferredName,
-            exit: row.exit,
-            ...(row.metadata === undefined ? {} : { metadata: row.metadata })
+            // Durable channel: a deferred completion is a lifecycle record and
+            // must never take the droppable lossy queue. It stays ownerless by
+            // design — external-trigger admissions are first-writer-wins
+            // regardless of who owns the run (issue #10).
+            yield* journal.emitDurable(
+              JournalRecords.deferredCompleted({
+                runId: options.executionId,
+                sourceId: `${dependencies.journalSource}:deferred:${
+                  JSON.stringify([options.flowName, options.executionId, options.deferredName])
+                }`,
+                sourceSeq: 0
+              }, {
+                flowName: row.flowName,
+                executionId: row.executionId,
+                deferredName: row.deferredName,
+                exit: row.exit,
+                ...(row.metadata === undefined ? {} : { metadata: row.metadata })
+              })
+            ).pipe(Effect.orDie)
+            return completion
           })
         ).pipe(Effect.orDie)
+        const row = completion.row
         yield* flushLossy
         yield* dependencies.scheduleResume(
           row.flowName,
@@ -217,30 +228,34 @@ export const make = (
         Effect.asVoid
       )
 
-    const recordClockScheduled = (
+    /**
+     * Durable channel: clock schedule records are lifecycle evidence and must
+     * never be droppable (issue #10). Ownerless: registration-time sweeps
+     * re-record clocks the current process does not own.
+     */
+    const emitClockScheduled = (
       row: DurableEngineState.ClockRow
     ): Effect.Effect<void> =>
-      Effect.gen(function*() {
-        // Durable channel: clock schedule records are lifecycle evidence and
-        // must never be droppable (issue #10). Ownerless: registration-time
-        // sweeps re-record clocks the current process does not own.
-        yield* journal.emitDurable(
-          JournalRecords.clockScheduled({
-            runId: row.executionId,
-            sourceId: `${dependencies.journalSource}:clock:${
-              JSON.stringify([row.flowName, row.executionId, row.clockName])
-            }`,
-            sourceSeq: 0
-          }, {
-            flowName: row.flowName,
-            executionId: row.executionId,
-            clockName: row.clockName,
-            deferredName: row.deferredName,
-            dueAtMs: row.dueAtMs
-          })
-        ).pipe(Effect.orDie)
-        yield* flushLossy
-      })
+      journal.emitDurable(
+        JournalRecords.clockScheduled({
+          runId: row.executionId,
+          sourceId: `${dependencies.journalSource}:clock:${
+            JSON.stringify([row.flowName, row.executionId, row.clockName])
+          }`,
+          sourceSeq: 0
+        }, {
+          flowName: row.flowName,
+          executionId: row.executionId,
+          clockName: row.clockName,
+          deferredName: row.deferredName,
+          dueAtMs: row.dueAtMs
+        })
+      ).pipe(Effect.asVoid, Effect.orDie)
+
+    /** Re-announces an already persisted clock row (the sweep path). */
+    const recordClockScheduled = (
+      row: DurableEngineState.ClockRow
+    ): Effect.Effect<void> => emitClockScheduled(row).pipe(Effect.andThen(flushLossy))
 
     const scheduleClock: Service["scheduleClock"] = Effect.fn("DeferredPersistence.scheduleClock")((
       flow,
@@ -248,15 +263,24 @@ export const make = (
     ) =>
       Effect.gen(function*() {
         const nowMs = yield* Clock.currentTimeMillis
-        const scheduled = yield* state.scheduleClock({
-          flowName: flow._tag,
-          executionId: options.executionId,
-          clockName: options.clock.name,
-          deferredName: options.clock.deferred.name,
-          dueAtMs: nowMs + Duration.toMillis(options.clock.duration),
-          completedAtMs: null
-        }, dependencies.owner)
-        yield* recordClockScheduled(scheduled.row)
+        // The clock row and its schedule record commit as one unit, so a
+        // crash between them can no longer arm a durable timer the journal
+        // never announced (or announce one that was rolled back).
+        const scheduled = yield* journal.transact(
+          Effect.gen(function*() {
+            const scheduled = yield* state.scheduleClock({
+              flowName: flow._tag,
+              executionId: options.executionId,
+              clockName: options.clock.name,
+              deferredName: options.clock.deferred.name,
+              dueAtMs: nowMs + Duration.toMillis(options.clock.duration),
+              completedAtMs: null
+            }, dependencies.owner)
+            yield* emitClockScheduled(scheduled.row)
+            return scheduled
+          })
+        ).pipe(Effect.orDie)
+        yield* flushLossy
         yield* armClock(scheduled.row)
       })
     )

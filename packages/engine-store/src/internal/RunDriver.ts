@@ -198,6 +198,48 @@ export const make = (
         }, payload)
       ).pipe(Effect.asVoid, Effect.orDie)
 
+    /**
+     * Commits a run-row transition and the decision describing it in ONE write
+     * transaction, reporting the store outcome.
+     *
+     * `RunStore` and the journal write through the same `Database`, so the CAS
+     * becomes a savepoint of this transaction: a crash can no longer leave a
+     * terminal run row whose `transitioned` decision never reached the
+     * journal, nor a decision for a CAS that lost. Temporal commits mutable
+     * state and its history events as one persistence request
+     * (`reference/temporal/service/history/workflow/transaction_impl.go`);
+     * this is the same unit of work for a run transition.
+     *
+     * The decision is emitted only for a `Transitioned` outcome — a lost CAS
+     * changed nothing, and its `claim-lost`/`activation-lost` records are
+     * emitted by the caller, outside the transaction, so they survive.
+     */
+    const transitionAndRecord = (
+      runId: string,
+      toStatus: RunStore.RunStatus,
+      stateJson: string,
+      options: {
+        readonly guard?: RunStore.TransitionGuard | undefined
+        readonly decision?: unknown
+        readonly onTransitioned?: Effect.Effect<void> | undefined
+      } = {}
+    ): Effect.Effect<RunStore.TransitionOutcome> =>
+      journal.transact(
+        Effect.gen(function*() {
+          const transitioned = yield* store.transitionOwned(
+            runId,
+            dependencies.owner,
+            toStatus,
+            stateJson,
+            options.guard
+          ).pipe(Effect.orDie)
+          if (transitioned._tag !== "Transitioned") return transitioned
+          if (options.onTransitioned !== undefined) yield* options.onTransitioned
+          if (options.decision !== undefined) yield* emitDecision(runId, options.decision)
+          return transitioned
+        })
+      ).pipe(Effect.orDie)
+
     const abandon = (runId: string, claimedAtMs: number): Effect.Effect<void> =>
       store.abandonClaim(runId, dependencies.owner, claimedAtMs).pipe(
         Effect.asVoid,
@@ -263,11 +305,25 @@ export const make = (
           return false
         }
 
-        const activation = yield* store.activate(
-          row.runId,
-          dependencies.owner,
-          claim.claimedAtMs,
-          expected
+        // The activation CAS and the decision recording it commit together:
+        // a crash between them left a run durably running under this owner
+        // with no journal entry saying who took it.
+        const activation = yield* journal.transact(
+          Effect.gen(function*() {
+            const activation = yield* store.activate(
+              row.runId,
+              dependencies.owner,
+              claim.claimedAtMs,
+              expected
+            ).pipe(Effect.orDie)
+            if (activation._tag !== "Activated") return activation
+            yield* emitDecision(row.runId, {
+              decision: row.status === "running" ? "stolen-and-activated" : "claimed-and-activated",
+              previousStatus: row.status,
+              owner: dependencies.owner
+            })
+            return activation
+          })
         ).pipe(Effect.orDie)
         if (activation._tag !== "Activated") {
           yield* abandon(row.runId, claim.claimedAtMs)
@@ -278,12 +334,6 @@ export const make = (
           })
           return false
         }
-
-        yield* emitDecision(row.runId, {
-          decision: row.status === "running" ? "stolen-and-activated" : "claimed-and-activated",
-          previousStatus: row.status,
-          owner: dependencies.owner
-        })
         return true
       })
 
@@ -297,31 +347,36 @@ export const make = (
           ...withoutResult(state),
           cancellation: { interruptedAtMs }
         })
-        const transitioned = yield* store.transitionOwned(
-          runId,
-          dependencies.owner,
-          "cancelled",
-          stateJson
-        ).pipe(Effect.orDie)
-        if (transitioned._tag !== "Transitioned") return
-        // A cancel can race the final poll after the run already parked
-        // (park precedes the guarded terminal CAS). Clear the waiting row so
-        // the terminally cancelled run never surfaces to a sweeper again
-        // (issue #28); `waitingRuns`' status filter covers a crash landing
-        // between the transition above and this wake.
-        yield* engineState.wake(runId).pipe(Effect.asVoid)
-        // Durable channel (issue #10): the interruption record must survive
-        // the process exiting right after cancellation. Ownerless because the
-        // `cancelled` transition above has already released ownership; the
-        // fence is the transition CAS itself.
-        yield* journal.emitDurable(
-          JournalRecords.interrupted({
-            runId,
-            sourceId: dependencies.journalSource
-          }, {
-            outcome: "cancelled",
-            interruptedAtMs,
-            owner: dependencies.owner
+        yield* journal.transact(
+          Effect.gen(function*() {
+            const transitioned = yield* store.transitionOwned(
+              runId,
+              dependencies.owner,
+              "cancelled",
+              stateJson
+            ).pipe(Effect.orDie)
+            if (transitioned._tag !== "Transitioned") return
+            // A cancel can race the final poll after the run already parked
+            // (park precedes the guarded terminal CAS). Clear the waiting row so
+            // the terminally cancelled run never surfaces to a sweeper again
+            // (issue #28). It shares the transition's transaction, so a crash
+            // can no longer land between them.
+            yield* engineState.wake(runId).pipe(Effect.asVoid)
+            // Durable channel (issue #10): the interruption record must survive
+            // the process exiting right after cancellation. Ownerless because the
+            // `cancelled` transition above has already released ownership; the
+            // fence is the transition CAS itself, which now commits with this
+            // record rather than before it.
+            yield* journal.emitDurable(
+              JournalRecords.interrupted({
+                runId,
+                sourceId: dependencies.journalSource
+              }, {
+                outcome: "cancelled",
+                interruptedAtMs,
+                owner: dependencies.owner
+              })
+            ).pipe(Effect.orDie)
           })
         ).pipe(Effect.orDie)
       })
@@ -348,12 +403,12 @@ export const make = (
         // (issue #39). On genuine fence loss the park reports NotFound
         // harmlessly, exactly like the transition below.
         const parked = yield* engineState.park(runId, { reason: "released" }, dependencies.owner)
-        const transitioned = yield* store.transitionOwned(
+        const transitioned = yield* transitionAndRecord(
           runId,
-          dependencies.owner,
           "suspended",
-          yield* encodeState(withoutResult(state))
-        ).pipe(Effect.orDie)
+          yield* encodeState(withoutResult(state)),
+          { decision: { decision: "interrupt-released", owner: dependencies.owner } }
+        )
         if (transitioned._tag !== "Transitioned") {
           // Fence lost between park and release: the run is someone else's
           // (or already settled), so our reclaim marker is bogus. Clear it
@@ -367,10 +422,6 @@ export const make = (
           }
           return
         }
-        yield* emitDecision(runId, {
-          decision: "interrupt-released",
-          owner: dependencies.owner
-        })
       })
 
     /**
@@ -514,23 +565,23 @@ export const make = (
             { reason: "quarantine", token: quarantine.keyDigest },
             dependencies.owner
           )
-          const parked = yield* store.transitionOwned(
+          const parked = yield* transitionAndRecord(
             executionId,
-            dependencies.owner,
             "suspended",
             yield* encodeState(withoutResult(activeState)),
-            { cancelRequested: "absent" }
-          ).pipe(Effect.orDie)
+            {
+              guard: { cancelRequested: "absent" },
+              decision: {
+                decision: "quarantined",
+                status: "suspended",
+                keyDigest: quarantine.keyDigest,
+                owner: dependencies.owner
+              }
+            }
+          )
           if (parked._tag === "GuardFailed") {
             return yield* cancelOwned(executionId, activeState)
           }
-          if (parked._tag !== "Transitioned") return
-          yield* emitDecision(executionId, {
-            decision: "quarantined",
-            status: "suspended",
-            keyDigest: quarantine.keyDigest,
-            owner: dependencies.owner
-          })
           return
         }
 
@@ -574,23 +625,19 @@ export const make = (
         // CAS: a cancellation request that raced past the last poll turns
         // the terminal transition into GuardFailed, and the run cancels
         // instead of finalizing (issue #11).
-        const transitioned = yield* store.transitionOwned(
+        const transitioned = yield* transitionAndRecord(
           executionId,
-          dependencies.owner,
           status,
           yield* encodeState(nextState),
-          { cancelRequested: "absent" }
-        ).pipe(Effect.orDie)
+          {
+            guard: { cancelRequested: "absent" },
+            decision: { decision: "transitioned", status, owner: dependencies.owner }
+          }
+        )
         if (transitioned._tag === "GuardFailed") {
           return yield* cancelOwned(executionId, activeState)
         }
         if (transitioned._tag !== "Transitioned") return
-
-        yield* emitDecision(executionId, {
-          decision: "transitioned",
-          status,
-          owner: dependencies.owner
-        })
         if (
           status !== "suspended" &&
           activeState.parentExecutionId !== undefined

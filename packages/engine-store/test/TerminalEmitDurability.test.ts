@@ -1,22 +1,26 @@
 /**
  * Issue #109: the terminal lifecycle records — `attemptFinished`,
- * `hardViolation`, `expectedSetDeviation` — were journalled only *after* the
- * attempt row's terminal transition committed, with the plain `source(deps)`
- * identity, and the replay branches never re-emitted them. A crash in the
- * finish→emit window therefore left the journal permanently missing the
- * attempt's terminal event: `attemptStarted` with no `attemptFinished`,
- * forever, the journal diverged from the attempt table. (Temporal writes
- * history events and mutable state in one transaction.)
+ * `hardViolation`, `expectedSetDeviation` — must never be permanently absent
+ * for an attempt row that is durably terminal, or the journal diverges from
+ * the attempt table forever.
  *
- * The terminal records now carry the same per-attempt producer identity
- * issue #91 gave `attemptStarted` — `(sourceId, sourceSeq 0)` — so the
- * replay branches re-emit them idempotently: after a crash the re-drive
- * fills the hole, and on an ordinary replay the journal collapses the
- * re-emission into a `Duplicate`.
+ * The crash window that used to create that divergence is now closed at the
+ * source: `attempts.finish` and its terminal records commit in ONE
+ * transaction (see `WalAtomicity.test.ts`), so a crash between them rolls
+ * both back. What remains is the *repair* path, and it still matters for the
+ * holes atomicity cannot prevent — a database written before the invariant
+ * landed, and a time-travel fork that copies attempt rows and journal rows
+ * separately.
+ *
+ * These tests therefore create the hole directly — a durably terminal attempt
+ * row with no terminal record — and pin that a replay fills it, idempotently:
+ * the per-attempt producer identity `(sourceId, sourceSeq 0)` collapses the
+ * re-emission into a `Duplicate` on every ordinary replay.
  */
-import { Journal, type JournalEvent, type Ownership, RunStore } from "@smithers/journal"
+import { AttemptStore, Journal, type JournalEvent, type Ownership, RunStore } from "@smithers/journal"
 import * as TestJournal from "@smithers/journal/test/TestJournal"
 import { Jj } from "@smithers/kernel"
+import { Digest } from "@smithers/keys"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
@@ -71,24 +75,28 @@ const dispatch = (
   })
 
 /**
- * A journal that crashes the process (dies) the first time the given event
- * type is emitted — after the attempt row's terminal transition committed,
- * before the journal saw the record: the exact SIGKILL window.
+ * Writes a durably terminal attempt row WITHOUT its terminal journal records
+ * — the divergence a pre-atomicity crash used to leave behind, and the shape
+ * a time-travel fork's row copy still produces.
  */
-const crashOnce = (journal: Journal.Journal["Service"], eventType: string): Journal.Journal["Service"] => {
-  let crashed = false
-  return {
-    ...journal,
-    emitDurable: (input: JournalEvent.Input, journalOwner?: Ownership.OwnerId) =>
-      Effect.gen(function*() {
-        if (!crashed && input.eventType === eventType) {
-          crashed = true
-          return yield* Effect.die(new Error(`simulated crash before ${eventType}`))
-        }
-        return yield* journal.emitDurable(input, journalOwner)
-      })
+const terminalRowWithoutRecords = (
+  runId: string,
+  key: string,
+  row: {
+    readonly state: "succeeded" | "failed"
+    readonly outcome?: unknown
+    readonly error?: unknown
+    readonly meta: unknown
   }
-}
+) =>
+  Effect.gen(function*() {
+    const attempts = yield* AttemptStore.AttemptStore
+    const id = { runId, stepKeyDigest: Digest.digest(key), attempt: 1 }
+    const admitted = yield* attempts.put({ ...id, state: "running", startedAtMs: 0, meta: row.meta }, owner)
+    if (admitted._tag !== "Inserted") return yield* Effect.die(new Error(`admission lost: ${admitted._tag}`))
+    const finished = yield* attempts.finish({ ...id, ...row, finishedAtMs: 1 }, owner)
+    if (finished._tag !== "Finished") return yield* Effect.die(new Error(`finish lost: ${finished._tag}`))
+  })
 
 const eventsOf = (runId: string, eventType: string) =>
   Effect.gen(function*() {
@@ -99,6 +107,11 @@ const eventsOf = (runId: string, eventType: string) =>
   })
 
 const boundary = StepBoundary.layerTest({ readSnapshot: declared.readSet })
+
+const evidence = {
+  declaredOutputs: [],
+  diffIdentity: "terminal-emit-diff"
+}
 
 describe("replay re-emission tolerates a foreign-lineage terminal record (issue #109)", () => {
   it("continues when the journal already holds the record under another lineage's payload", async () => {
@@ -114,13 +127,12 @@ describe("replay re-emission tolerates a foreign-lineage terminal record (issue 
       Effect.gen(function*() {
         const journal = yield* Journal.Journal
         yield* activate(runId)
-        const crashed = yield* dispatch(runId, key, () => Effect.succeed("done"), { metadata: declared }).pipe(
-          Effect.provideService(Journal.Journal, crashOnce(journal, "flows.engine.attempt-finished")),
-          Effect.provide(boundary),
-          Effect.exit
-        )
+        yield* terminalRowWithoutRecords(runId, key, {
+          state: "succeeded",
+          outcome: "done",
+          meta: { tier: "sealed", boundary: evidence, readSetVerified: true }
+        })
         // The copied record: same producer identity, foreign payload.
-        const { Digest } = yield* Effect.promise(() => import("@smithers/keys"))
         yield* journal.emitDurable({
           runId: runId as never,
           sourceId: `terminal-emit-${runId}:attempt:${Digest.digest(key)}:1:finished` as never,
@@ -131,10 +143,9 @@ describe("replay re-emission tolerates a foreign-lineage terminal record (issue 
         const replayed = yield* dispatch(runId, key, () => Effect.die("must not re-execute"), {
           metadata: declared
         }).pipe(Effect.provide(boundary))
-        return { crashed, replayed }
+        return { replayed }
       }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
     )
-    expect(outcome.crashed._tag).toBe("Failure")
     expect(outcome.replayed).toBe("done")
   })
 
@@ -145,13 +156,13 @@ describe("replay re-emission tolerates a foreign-lineage terminal record (issue 
       Effect.gen(function*() {
         const journal = yield* Journal.Journal
         yield* activate(runId)
-        const crashed = yield* dispatch(runId, key, () => Effect.succeed("done"), { metadata: declared }).pipe(
-          Effect.provideService(Journal.Journal, crashOnce(journal, "flows.engine.attempt-finished")),
-          Effect.provide(boundary),
-          Effect.exit
-        )
-        // The re-drive's journal is genuinely broken: the convergence emit
-        // must not swallow that.
+        yield* terminalRowWithoutRecords(runId, key, {
+          state: "succeeded",
+          outcome: "done",
+          meta: { tier: "sealed", boundary: evidence, readSetVerified: true }
+        })
+        // The replaying process's journal is genuinely broken: the
+        // convergence emit must not swallow that.
         const broken: typeof journal = {
           ...journal,
           emitDurable: (input, journalOwner) =>
@@ -168,10 +179,9 @@ describe("replay re-emission tolerates a foreign-lineage terminal record (issue 
           Effect.provide(boundary),
           Effect.exit
         )
-        return { crashed, replayed }
+        return { replayed }
       }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
     )
-    expect(outcome.crashed._tag).toBe("Failure")
     // The strong form (issue #128): not just any failure — the surfaced
     // cause carries the journal's own error, so the convergence emit
     // demonstrably propagated the queue_overflow instead of swallowing it
@@ -188,23 +198,20 @@ describe("replay re-emission tolerates a foreign-lineage terminal record (issue 
   })
 })
 
-describe("terminal lifecycle emits survive the finish→emit crash window (issue #109)", () => {
-  it("re-emits attemptFinished on the succeeded replay branch after a crash", async () => {
-    const runId = "terminal-crash-succeeded"
+describe("replay converges a terminal record the journal is missing (issue #109)", () => {
+  it("re-emits attemptFinished on the succeeded replay branch", async () => {
+    const runId = "terminal-converge-succeeded"
     const key = "terminal-emit/succeeded"
     const outcome = await Effect.runPromise(
       Effect.gen(function*() {
-        const journal = yield* Journal.Journal
         yield* activate(runId)
-        // First drive dies between attempts.finish and the terminal emit.
-        const crashed = yield* dispatch(runId, key, () => Effect.succeed("done"), { metadata: declared }).pipe(
-          Effect.provideService(Journal.Journal, crashOnce(journal, "flows.engine.attempt-finished")),
-          Effect.provide(boundary),
-          Effect.exit
-        )
+        yield* terminalRowWithoutRecords(runId, key, {
+          state: "succeeded",
+          outcome: "done",
+          meta: { tier: "sealed", boundary: evidence, readSetVerified: true }
+        })
         const missing = yield* eventsOf(runId, "flows.engine.attempt-finished")
-        // Re-drive: the succeeded attempt row replays — and must fill the
-        // journal hole.
+        // The re-drive replays the succeeded row — and must fill the hole.
         const replayed = yield* dispatch(runId, key, () => Effect.die("must not re-execute"), {
           metadata: declared
         }).pipe(Effect.provide(boundary))
@@ -214,10 +221,9 @@ describe("terminal lifecycle emits survive the finish→emit crash window (issue
           Effect.provide(boundary)
         )
         const after = yield* eventsOf(runId, "flows.engine.attempt-finished")
-        return { crashed, missing, replayed, events, after }
+        return { missing, replayed, events, after }
       }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
     )
-    expect(outcome.crashed._tag).toBe("Failure")
     expect(outcome.missing).toHaveLength(0)
     expect(outcome.replayed).toBe("done")
     expect(outcome.events).toHaveLength(1)
@@ -226,33 +232,27 @@ describe("terminal lifecycle emits survive the finish→emit crash window (issue
   })
 
   it("re-emits hardViolation and attemptFinished on the failed replay branch", async () => {
-    const runId = "terminal-crash-violation"
+    const runId = "terminal-converge-violation"
     const key = "terminal-emit/violation"
-    const violating = StepBoundary.layerTest({ changedPaths: ["config.json"], readSnapshot: declared.readSet })
     const outcome = await Effect.runPromise(
       Effect.gen(function*() {
-        const journal = yield* Journal.Journal
         yield* activate(runId)
-        // The settle fails hard; the crash lands before hardViolation.
-        const crashed = yield* dispatch(runId, key, () => Effect.succeed("wrote outside"), {
-          metadata: declared
-        }).pipe(
-          Effect.provideService(Journal.Journal, crashOnce(journal, "flows.engine.hard-violation")),
-          Effect.provide(violating),
-          Effect.exit
-        )
+        yield* terminalRowWithoutRecords(runId, key, {
+          state: "failed",
+          error: { reasons: [{ _tag: "Fail", error: { _tag: "BoundaryViolation" } }] },
+          meta: { tier: "sealed", hardViolation: true }
+        })
         const missing = yield* eventsOf(runId, "flows.engine.hard-violation")
-        // Re-drive replays the durably failed attempt by rethrowing — and
-        // must fill both journal holes first.
+        // The re-drive replays the durably failed attempt by rethrowing —
+        // and must fill both journal holes first.
         const replayed = yield* dispatch(runId, key, () => Effect.die("must not re-execute"), {
           metadata: declared
-        }).pipe(Effect.provide(violating), Effect.exit)
+        }).pipe(Effect.provide(boundary), Effect.exit)
         const violations = yield* eventsOf(runId, "flows.engine.hard-violation")
         const finished = yield* eventsOf(runId, "flows.engine.attempt-finished")
-        return { crashed, missing, replayed, violations, finished }
+        return { missing, replayed, violations, finished }
       }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
     )
-    expect(outcome.crashed._tag).toBe("Failure")
     expect(outcome.missing).toHaveLength(0)
     expect(outcome.replayed._tag).toBe("Failure")
     expect(outcome.violations).toHaveLength(1)
@@ -261,35 +261,80 @@ describe("terminal lifecycle emits survive the finish→emit crash window (issue
   })
 
   it("re-emits expectedSetDeviation alongside the finish on succeeded replays", async () => {
-    const runId = "terminal-crash-deviation"
+    const runId = "terminal-converge-deviation"
     const key = "terminal-emit/deviation"
-    const deviating = StepBoundary.layerTest({
-      changedPaths: ["config.json"],
-      readSnapshot: declared.readSet
-    })
     const expectedMode = { ...declared, boundaryMode: "expected" as const }
     const outcome = await Effect.runPromise(
       Effect.gen(function*() {
-        const journal = yield* Journal.Journal
         yield* activate(runId)
-        const crashed = yield* dispatch(runId, key, () => Effect.succeed("deviated"), {
-          metadata: expectedMode
-        }).pipe(
-          Effect.provideService(Journal.Journal, crashOnce(journal, "flows.engine.expected-set-deviation")),
-          Effect.provide(deviating),
-          Effect.exit
-        )
+        yield* terminalRowWithoutRecords(runId, key, {
+          state: "succeeded",
+          outcome: "deviated",
+          meta: {
+            tier: "sealed",
+            boundary: {
+              ...evidence,
+              deviation: {
+                _tag: "ExpectedSetDeviation",
+                paths: ["surprise.txt"],
+                diffIdentity: "terminal-emit-diff"
+              }
+            }
+          }
+        })
         const replayed = yield* dispatch(runId, key, () => Effect.die("must not re-execute"), {
           metadata: expectedMode
-        }).pipe(Effect.provide(deviating))
+        }).pipe(Effect.provide(boundary))
         const deviations = yield* eventsOf(runId, "flows.engine.expected-set-deviation")
         const finished = yield* eventsOf(runId, "flows.engine.attempt-finished")
-        return { crashed, replayed, deviations, finished }
+        return { replayed, deviations, finished }
       }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
     )
-    expect(outcome.crashed._tag).toBe("Failure")
     expect(outcome.replayed).toBe("deviated")
     expect(outcome.deviations).toHaveLength(1)
     expect(outcome.finished).toHaveLength(1)
+  })
+})
+
+describe("the crash window itself is closed", () => {
+  it("a crash at the terminal emit leaves neither the terminal row nor its record", async () => {
+    // The complement of the repairs above: with the pair atomic, the crash
+    // that used to create the hole now leaves the attempt mid-flight, which
+    // the ordinary adoption path re-executes. Journal and state still agree.
+    const runId = "terminal-crash-window"
+    const key = "terminal-emit/window"
+    const crashOnce = (journal: Journal.Journal["Service"]): Journal.Journal["Service"] => {
+      let crashed = false
+      return {
+        ...journal,
+        emitDurable: (input: JournalEvent.Input, journalOwner?: Ownership.OwnerId) =>
+          Effect.suspend(() => {
+            if (!crashed && input.eventType === "flows.engine.attempt-finished") {
+              crashed = true
+              return Effect.die(new Error("simulated crash at the terminal emit"))
+            }
+            return journal.emitDurable(input, journalOwner)
+          })
+      }
+    }
+    const outcome = await Effect.runPromise(
+      Effect.gen(function*() {
+        const journal = yield* Journal.Journal
+        const attempts = yield* AttemptStore.AttemptStore
+        yield* activate(runId)
+        const crashed = yield* dispatch(runId, key, () => Effect.succeed("done"), { metadata: declared }).pipe(
+          Effect.provideService(Journal.Journal, crashOnce(journal)),
+          Effect.provide(boundary),
+          Effect.exit
+        )
+        const row = yield* attempts.get({ runId, stepKeyDigest: Digest.digest(key), attempt: 1 })
+        const finished = yield* eventsOf(runId, "flows.engine.attempt-finished")
+        return { crashed, row, finished }
+      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+    )
+    expect(outcome.crashed._tag).toBe("Failure")
+    // The row never reached its terminal state, so no terminal record exists.
+    expect(outcome.row._tag === "Some" && outcome.row.value.state).toBe("running")
+    expect(outcome.finished).toHaveLength(0)
   })
 })
