@@ -40,7 +40,7 @@ Lifecycle evidence takes the durable channel: `emitDurable` (and `emit` with an 
 
 Consequence: a lossy `Accepted` receipt is not a durability guarantee — process failure can lose accepted but unflushed telemetry, and dropping overflow policies create valid sequence holes. Nothing may be reconstructed from telemetry alone. Local commit is also not remote atomicity: external effects still need idempotency keys, fencing tokens, or compensation.
 
-Open production blocker: executable authority still lives in `RunStore`, `AttemptStore`, `CacheStore`, and `DurableEngineState`; a state transition and its lifecycle entry are two separate transactions. See [implementation status](implementation-status.md).
+Executable authority stays in `RunStore`, `AttemptStore`, `CacheStore`, and `DurableEngineState` rather than being derived from the log — but a state transition and its lifecycle entry commit in ONE transaction, opened by `Journal.transact`, so the log can be read as the account of record. See [implementation status](implementation-status.md).
 
 ## D7. One owner drives a run
 

@@ -103,18 +103,15 @@ Attempt heartbeats may include a JSON checkpoint up to 1 MiB. Omitting a checkpo
 
 Time-travel tables use a separate migration in `@smithers/time-travel`.
 
-## State authority today, and the open gap
+## State authority, and how the log stays consistent with it
 
-`RunStore`, `AttemptStore`, `CacheStore`, and `DurableEngineState` hold the **executable authoritative state**. No engine state is derived from journal entries today; the entries explain what happened, the rows decide what happens next.
+`RunStore`, `AttemptStore`, `CacheStore`, and `DurableEngineState` hold the **executable authoritative state**. No engine state is derived from journal entries; the entries explain what happened, the rows decide what happens next.
 
-Engine-store lifecycle events do use `emitDurable`, so they block until committed and cannot be dropped. But the state transition and its lifecycle entry commit in **separate database transactions** — the run-row compare-and-swap, then the decision emit; the attempt write, then the attempt event. A crash between the two leaves durable state that the journal does not explain.
+The two are nevertheless committed together. Engine-store writes every lifecycle event with `emitDurable` **inside `Journal.transact`**, the write transaction that also carries the state transition it describes — the run-row compare-and-swap with its decision, the attempt write with its attempt event. Those stores use the same `Database`, so their writes join that transaction as savepoints: either both halves are durable, or neither is. A crash can no longer leave durable state the journal does not explain, which is what lets audit, sync, and time travel treat the log as the account of record.
 
-This is a **production blocker**, not a settled design. Execution stays correct across it, because the store rows are authoritative and self-consistent, but audit, sync, and time travel all read the journal as the account of record and can therefore see a hole. Do not read this page as a claim that transitions and entries are atomic, or that state is journal-derived.
+Of the two shapes this could have taken — deriving the store rows from the log, or committing the state projection and its entry in one transaction — flows took the second. It is the smaller change: the executable rows keep their fenced CAS semantics, and no read path has to be rebuilt on projection.
 
-The intended resolution is to make the logical WAL authoritative, in one of two shapes:
-
-1. derive the store rows from the log, so there is a single commit; or
-2. commit the state projection and its journal entry in one transaction.
+Two consequences to plan for. Publication follows the commit, so an entry becomes visible on `changes`/`stream` only after the outermost transaction commits. And the unit is all-or-nothing: a crash before COMMIT loses the whole unit, so work that had already run — an activity body, for instance — re-executes on the next drive. Local commit is still not remote atomicity: external effects need idempotency keys, fencing tokens, or compensation.
 
 ## Operational rule
 
