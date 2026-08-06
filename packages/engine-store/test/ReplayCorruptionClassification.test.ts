@@ -270,8 +270,9 @@ describe("replay-failed classification (issue #150)", () => {
     // corruption class: the driver keys the operator park off it.
     expect(Exit.isFailure(outcome.failed) && Cause.squash(outcome.failed.cause))
       .toBeInstanceOf(ActivityPersistence.AttemptEvidenceQuarantined)
-    const failure = Cause.squash((outcome.failed as Exit.Failure<never, never>).cause) as
-      ActivityPersistence.AttemptEvidenceQuarantined
+    const failure = Cause.squash(
+      (outcome.failed as Exit.Failure<never, never>).cause
+    ) as ActivityPersistence.AttemptEvidenceQuarantined
     expect(failure.code).toBe("attempt_evidence_quarantined")
     expect(failure.keyDigest).toBe(Digest.digest(key))
     expect(Exit.isFailure(outcome.refailed) && Cause.squash(outcome.refailed.cause))

@@ -11,7 +11,7 @@
  */
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
-import * as Layer from "effect/Layer"
+import type * as Layer from "effect/Layer"
 import * as Stream from "effect/Stream"
 import type * as Rpc from "effect/unstable/rpc/Rpc"
 import type * as RpcGroup from "effect/unstable/rpc/RpcGroup"
