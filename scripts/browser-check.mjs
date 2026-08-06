@@ -107,7 +107,7 @@ const detail = (errors) => {
 
 /** Whatever esbuild rejected with, as an error list. */
 const errorsOf = (rejection) =>
-  Array.isArray(rejection.errors) && rejection.errors.length > 0
+  Array.isArray(rejection?.errors) && rejection.errors.length > 0
     ? rejection.errors
     : [{ text: String(rejection?.message ?? rejection) }]
 

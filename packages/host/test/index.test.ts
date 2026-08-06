@@ -32,7 +32,7 @@ describe("@smithers/host barrel", () => {
    */
   it("keeps platform and test bundles out of the browser-safe root", () => {
     const source = readFileSync(new URL("../src/index.ts", import.meta.url), "utf8")
-    const reexported = [...source.matchAll(/^export \* as \w+ from "(.+)"$/gm)].map((match) => match[1])
+    const reexported = [...source.matchAll(/^export \* as \w+ from "(.+)"$/gm)].flatMap((match) => match[1] ?? [])
     expect(reexported.filter((module) => /^\.\/(node|bun|browser|test)\//.test(module))).toEqual([])
     for (const name of ["NodeHost", "BunHost", "BrowserHost", "TestHost"]) {
       expect(Host).not.toHaveProperty(name)
