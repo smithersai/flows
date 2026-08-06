@@ -31,7 +31,8 @@ These are Node-only, deliberately. The gate asserts each one *still* fails to bu
 | --- | --- |
 | `@smithers/engine-store` | `EngineStore` reads `process.pid` and imports `randomUUID` from `node:crypto`. These two are the complete browser-gap inventory for a browser composition (issue #114). |
 | `@smithers/flows` | The barrel re-exports `@smithers/engine-store`. **Browser consumers import the per-package roots above rather than the barrel.** |
-| `@smithers/host/node/NodeHost`, `@smithers/host/bun/BunHost` | Child processes, Node/Bun filesystem, PTY, and Jujutsu |
+| `@smithers/host/node/NodeHost`, `@smithers/host/bun/BunHost` | Child processes, Node/Bun filesystem, PTY, and Jujutsu; the Bun bundle falls back to the `@effect/platform-node` adapters off Bun |
+| `@smithers/host/test/TestHost` | `effect/testing`'s `TestClock` imports `node:assert`, so the deterministic host is Node-only even though its own adapters are pure |
 | `@smithers/database/node/NodeDatabase`, `@smithers/database/test/TestDatabase` | `node:sqlite` through `@effect/sql-sqlite-node` |
 | `@smithers/journal/test/TestJournal` | Composes `TestDatabase` |
 

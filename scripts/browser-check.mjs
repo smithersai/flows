@@ -61,6 +61,18 @@ const NODE_ONLY = [
     reason: "the Node host bundle spawns child processes"
   },
   {
+    name: "@smithers/host/bun/BunHost",
+    entry: "packages/host/src/bun/BunHost.ts",
+    expect: "node:fs",
+    reason: "the Bun bundle falls back to the @effect/platform-node adapters off Bun"
+  },
+  {
+    name: "@smithers/host/test/TestHost",
+    entry: "packages/host/src/test/TestHost.ts",
+    expect: "node:assert",
+    reason: "effect/testing's TestClock pulls node:assert"
+  },
+  {
     name: "@smithers/database/node/NodeDatabase",
     entry: "packages/database/src/node/NodeDatabase.ts",
     expect: "node:sqlite",

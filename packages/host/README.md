@@ -21,10 +21,11 @@ contract never resolves a `node:` built-in.
 | `@smithers/host/browser/BrowserHost` | browser                                              |
 | `@smithers/host/node/NodeHost`       | Node (`node:child_process`, `@effect/platform-node`) |
 | `@smithers/host/bun/BunHost`         | Bun, falling back to the Node adapters off Bun       |
-| `@smithers/host/test/TestHost`       | any — deterministic in-memory adapters               |
+| `@smithers/host/test/TestHost`       | Node — `effect/testing` pulls `node:assert`          |
 
 `npm run browser` at the repository root bundles the first two with
 `platform: "browser"` and fails the build if either stops being browser-safe.
+It asserts the other three still do not bundle, so this table cannot go stale.
 
 ## Public API
 

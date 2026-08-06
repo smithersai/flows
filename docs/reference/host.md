@@ -56,6 +56,6 @@ Package exports allow public module imports such as `@smithers/host/node/NodeShe
 
 ## Browser support
 
-`@smithers/host` and `@smithers/host/browser/BrowserHost` are gated as browser entry points by `scripts/browser-check.mjs` (`npm run browser`, and one CI step): both are bundled with esbuild's `platform: "browser"` and any resolution error fails the build. The same gate asserts that `@smithers/host/node/NodeHost` still does *not* bundle for the browser, so the split cannot silently erode in either direction. See [browser support](../architecture/browser-support.md) for the repository-wide matrix.
+`@smithers/host` and `@smithers/host/browser/BrowserHost` are gated as browser entry points by `scripts/browser-check.mjs` (`npm run browser`, and one CI step): both are bundled with esbuild's `platform: "browser"` and any resolution error fails the build. The same gate asserts that the Node, Bun, and test bundles still do *not* bundle for the browser (`node:child_process`, `node:fs`, and — through `effect/testing`'s `TestClock` — `node:assert`), so the split cannot silently erode in either direction. See [browser support](../architecture/browser-support.md) for the repository-wide matrix.
 
 See [Hosts and capabilities](../concepts/hosts-and-capabilities.md), the [`@smithers/kernel` reference](kernel.md), and the hosted adapters for [Cloudflare](https://github.com/smithersai/plugins/blob/main/docs/reference/host-cloudflare.md) and [Vercel](https://github.com/smithersai/plugins/blob/main/docs/reference/host-vercel.md).
