@@ -37,3 +37,7 @@ jobs:
       # enforce their coverage thresholds on every run — a red gate fails CI.
       - name: Test all workspaces
         run: npm test
+      - name: Build all workspaces from clean artifacts
+        run: |
+          find packages -type d -name dist -prune -exec rm -rf {} +
+          npm run build --workspaces --if-present

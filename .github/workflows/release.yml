@@ -1,0 +1,93 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: validate, build, and publish
+    runs-on: ubuntu-latest
+    environment: npm-publish
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.19.0
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - run: npm ci --ignore-scripts
+      - name: Install jj
+        uses: taiki-e/install-action@v2
+        with:
+          tool: jj-cli@0.39.0
+      - name: Typecheck all workspaces
+        run: npm run check
+      - name: Test all workspaces
+        run: npm test
+      - name: Lint all workspaces
+        run: npm run lint
+      - name: Circular-dependency guard
+        run: npm run circular
+      - name: Build all workspaces from clean artifacts
+        run: |
+          find packages -type d -name dist -prune -exec rm -rf {} +
+          npm run build --workspaces --if-present
+      - name: Validate release tag
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          case "$RELEASE_TAG" in
+            v[0-9]*) ;;
+            *) echo "Release tags must use the v<version> format." >&2; exit 1 ;;
+          esac
+          RELEASE_VERSION="${RELEASE_TAG#v}"
+          for manifest in packages/*/package.json; do
+            package_version="$(node -p "require('./' + process.argv[1]).version" "$manifest")"
+            if [ "$package_version" != "$RELEASE_VERSION" ]; then
+              echo "$manifest has version $package_version; expected $RELEASE_VERSION." >&2
+              exit 1
+            fi
+          done
+      - name: Publish packages in dependency order
+        run: |
+          npm publish --workspace=@smithers/database --provenance --access public
+          npm publish --workspace=@smithers/keys --provenance --access public
+          npm publish --workspace=@smithers/host --provenance --access public
+          npm publish --workspace=@smithers/journal --provenance --access public
+          npm publish --workspace=@smithers/engine --provenance --access public
+          npm publish --workspace=@smithers/kernel --provenance --access public
+          npm publish --workspace=@smithers/plugin --provenance --access public
+          npm publish --workspace=@smithers/sync --provenance --access public
+          npm publish --workspace=@smithers/engine-store --provenance --access public
+          npm publish --workspace=@smithers/time-travel --provenance --access public
+          npm publish --workspace=@smithers/flows --provenance --access public
+
+  smoke:
+    name: install and import published barrel
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.19.0
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - name: Install and load the published barrel
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          release_version="${RELEASE_TAG#v}"
+          smoke_dir="$(mktemp -d)"
+          cd "$smoke_dir"
+          npm init --yes
+          npm install "@smithers/flows@$release_version"
+          node --input-type=module -e "await import('@smithers/flows')"
+          node -e "require('@smithers/flows')"
