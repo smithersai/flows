@@ -12,6 +12,10 @@ describe("built artifacts", () => {
       execFileSync(process.execPath, ["test/fixtures/artifact-esm.mjs"], { cwd: packageRoot })
       execFileSync(process.execPath, ["test/fixtures/artifact-cjs.cjs"], { cwd: packageRoot })
     },
-    30_000
+    // This case runs a real build and two cold Node processes. It is 2.8 s on
+    // an idle machine but was measured at 33.8 s when the other workspaces
+    // built concurrently — the same ~12x load multiplier the package
+    // `testTimeout` budgets for. Still finite so a wedged build fails.
+    180_000
   )
 })

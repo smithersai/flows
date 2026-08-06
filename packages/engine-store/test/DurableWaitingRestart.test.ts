@@ -75,6 +75,18 @@ const startChild = (
     cwd: repositoryRoot
   })
 
+/**
+ * Wall-clock budget for every case here, and for the in-test guard below.
+ *
+ * These cases spawn real Node processes and wait for them to boot an engine,
+ * which is most of the suite's 2.7-3.8 s idle runtime. The in-test guard is a
+ * timer the package `testTimeout` cannot cover, so at its old 10 s it fired
+ * first and reported a merely-booting child as a silent one once the other
+ * workspaces ran concurrently. Budget for that same ~12x load multiplier —
+ * finite, so a child that genuinely never speaks still fails the gate.
+ */
+const restartBudget = 120_000
+
 const firstJsonLine = (
   child: ChildProcessWithoutNullStreams
 ): Promise<Record<string, unknown>> =>
@@ -83,7 +95,7 @@ const firstJsonLine = (
     let stderr = ""
     const timeout = setTimeout(() => {
       reject(new Error(`child did not produce a JSON line\n${stderr}\n${stdout}`))
-    }, 10_000)
+    }, restartBudget)
     child.stdout.setEncoding("utf8")
     child.stderr.setEncoding("utf8")
     child.stdout.on("data", (chunk: string) => {
@@ -146,7 +158,7 @@ describe("durable waiting across process loss", () => {
       }
       await rm(directory, { recursive: true, force: true })
     }
-  }, 20_000)
+  }, restartBudget)
 
   it("re-arms a future timer after restart and fires at its stored deadline", async () => {
     const directory = await mkdtemp(join(tmpdir(), "flows-durable-timer-"))
@@ -170,7 +182,7 @@ describe("durable waiting across process loss", () => {
       }
       await rm(directory, { recursive: true, force: true })
     }
-  }, 20_000)
+  }, restartBudget)
 
   it("allows only one deferred completion winner across two processes", async () => {
     const directory = await mkdtemp(join(tmpdir(), "flows-durable-race-"))
@@ -196,5 +208,5 @@ describe("durable waiting across process loss", () => {
     } finally {
       await rm(directory, { recursive: true, force: true })
     }
-  }, 20_000)
+  }, restartBudget)
 })

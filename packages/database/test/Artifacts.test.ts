@@ -12,6 +12,11 @@ describe("built artifacts", () => {
       execFileSync(process.execPath, ["test/fixtures/artifact-esm.mjs"], { cwd: packageRoot })
       execFileSync(process.execPath, ["test/fixtures/artifact-cjs.cjs"], { cwd: packageRoot })
     },
-    30_000
+    // This case runs a real build and two cold Node processes, so it is the
+    // slowest in the repo: 13.5 s here even on an idle machine. The old 30 s
+    // left barely 2x headroom and blew past it whenever the other workspaces
+    // built concurrently. Sized against that measurement, not guessed, and
+    // still finite so a wedged build fails rather than hanging the gate.
+    180_000
   )
 })
