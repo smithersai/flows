@@ -24,12 +24,19 @@ A PTY output stream ends when the child's stdio pipes close, not when the child 
 
 ## Platform bundles
 
-| Namespace | Layer |
+Platform bundles are **not** root exports. The root is the portable contract surface and bundles for the browser; each implementation is imported from its own subpath, the way `effect` keeps `@effect/platform-node` out of `effect`.
+
+| Import | Layer |
 | --- | --- |
-| `NodeHost` | `layer` using Node filesystem/path, child processes, PTY, Jujutsu, and HTTP |
-| `BunHost` | `layer` using Bun adapters with compatible fallbacks |
-| `BrowserHost` | `layer(options)` over injected browser filesystem and bash-like bindings; PTY/Jujutsu unavailable |
-| `TestHost` | `layer(options?)` with memory files, scripted commands, test clock, and seeded Random |
+| `@smithers/host/node/NodeHost` | `layer` using Node filesystem/path, child processes, PTY, Jujutsu, and HTTP |
+| `@smithers/host/bun/BunHost` | `layer` using Bun adapters with compatible fallbacks |
+| `@smithers/host/browser/BrowserHost` | `layer(options)` over injected browser filesystem and bash-like bindings; PTY/Jujutsu unavailable |
+| `@smithers/host/test/TestHost` | `layer(options?)` with memory files, scripted commands, test clock, and seeded Random |
+
+```ts
+import { Shell } from "@smithers/host"
+import * as NodeHost from "@smithers/host/node/NodeHost"
+```
 
 `BunShell` also exports `make(runtime)`, which builds the `Shell` over an explicit `BunRuntime` (`{ spawn }`) instead of the `Bun` global. `layer` is `Layer.suspend`ed: on Bun it binds `make` to `Bun.spawn` (resolved per spawn, so a `Bun` global without `spawn` fails with `shell_unavailable` rather than dying at layer construction), and off Bun it is `NodeShell.layer`. Because host tests and CI run on Node, the `BunHost` contract suite exercises the fallback only; the `Bun.spawn` paths — stdin, timeout kill, interrupt finalizer, streaming — are covered by driving `make` with a fake runtime in `packages/host/test/BunShell.test.ts`.
 
@@ -45,6 +52,10 @@ const HostLayer = TestHost.layer({
 
 ## Deep imports
 
-Package exports allow public module imports such as `@smithers/host/node/NodeShell` and `@smithers/host/browser/BrowserFileSystem`; `internal/*` is blocked. Prefer the root namespaces unless constructing a custom bundle.
+Package exports allow public module imports such as `@smithers/host/node/NodeShell` and `@smithers/host/browser/BrowserFileSystem`; `internal/*` is blocked. Prefer the root namespaces for contracts, and the platform subpaths above for implementations.
+
+## Browser support
+
+`@smithers/host` and `@smithers/host/browser/BrowserHost` are gated as browser entry points by `scripts/browser-check.mjs` (`npm run browser`, and one CI step): both are bundled with esbuild's `platform: "browser"` and any resolution error fails the build. The same gate asserts that `@smithers/host/node/NodeHost` still does *not* bundle for the browser, so the split cannot silently erode in either direction. See [browser support](../architecture/browser-support.md) for the repository-wide matrix.
 
 See [Hosts and capabilities](../concepts/hosts-and-capabilities.md), the [`@smithers/kernel` reference](kernel.md), and the hosted adapters for [Cloudflare](https://github.com/smithersai/plugins/blob/main/docs/reference/host-cloudflare.md) and [Vercel](https://github.com/smithersai/plugins/blob/main/docs/reference/host-vercel.md).

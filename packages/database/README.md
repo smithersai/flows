@@ -10,17 +10,23 @@ npm install @smithers/database
 
 ## Public API
 
-The root exports these namespaces; each is also available from its matching
-subpath, such as `@smithers/database/Database`.
+The root is the driver-neutral contract and bundles for the browser. The drivers
+are Node-only — `node:sqlite` through `@effect/sql-sqlite-node` — so they live
+under explicit subpaths.
 
-| Namespace      | Public exports                                                                                                                                                                                                                                                |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Database`     | `Database` and `DatabaseService` expose `sql` plus transaction-scoped `write(effect)`. `DatabaseErrorCode`, `DatabaseError`, and `fromSqlError` normalize driver failures. `make` wraps a SQL client; `makeNoop` and `layerNoop` provide an unsupported stub. |
-| `NodeDatabase` | `NodeDatabaseOptions` configures SQLite and write retries; `layer(options)` provides `Database`.                                                                                                                                                              |
-| `TestDatabase` | `layer` provides the production Node adapter over a fresh `:memory:` database.                                                                                                                                                                                |
+| Import                                 | Public exports                                                                                                                                                                                                                                                |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@smithers/database`                   | `Database` and `DatabaseService` expose `sql` plus transaction-scoped `write(effect)`. `DatabaseErrorCode`, `DatabaseError`, and `fromSqlError` normalize driver failures. `make` wraps a SQL client; `makeNoop` and `layerNoop` provide an unsupported stub. |
+| `@smithers/database/node/NodeDatabase` | **Node only.** `NodeDatabaseOptions` configures SQLite and write retries; `layer(options)` provides `Database`.                                                                                                                                               |
+| `@smithers/database/test/TestDatabase` | **Node only.** `layer` provides the production Node adapter over a fresh `:memory:` database.                                                                                                                                                                 |
+
+Any Effect `SqlClient` can be wrapped with `Database.make`, so a browser or
+Postgres client gets the same normalized errors and write retry — see
+[browser support](../../docs/architecture/browser-support.md).
 
 ```ts
-import { Database, NodeDatabase } from "@smithers/database"
+import { Database } from "@smithers/database"
+import * as NodeDatabase from "@smithers/database/node/NodeDatabase"
 import { Effect } from "effect"
 
 const program = Effect.gen(function*() {

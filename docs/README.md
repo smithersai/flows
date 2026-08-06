@@ -59,6 +59,7 @@ documented in the [plugins repository](https://github.com/smithersai/plugins).
 ## Architecture
 
 - [Package map](architecture/package-map.md)
+- [Browser support](architecture/browser-support.md) — which entry points bundle for a browser, which are Node-only, and the gate that proves it.
 - [Execution and data flow](architecture/execution-data-flow.md)
 - [Design decisions](architecture/design-decisions.md)
 - [Implementation status](architecture/implementation-status.md)

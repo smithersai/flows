@@ -38,8 +38,15 @@ The root exports these namespaces, also available from matching
 | `AttemptStore`   | `AttemptStoreErrorCode`, `AttemptStoreError`, `AttemptId`, `Attempt`, `FinishAttempt`, `AttemptPatch`, `Options`, and result types `PutResult`, `PatchResult`, `HeartbeatResult`, `FinishResult`; `Service` / `AttemptStore` operations `put`, `get`, `heartbeat`, `finish`, and `patch`; `makeWith`, `make`, `makeNoop`, `layerNoop`, `layer`, and `layerWith`.                                                                                                              |
 | `CacheStore`     | `CacheStoreErrorCode`, `CacheStoreError`, `CacheEntry`, and `PutResult`; `Service` / `CacheStore` operations `get`, `put`, and `evict`; `make`, `makeNoop`, `layerNoop`, and SQL `layer`.                                                                                                                                                                                                                                                                                     |
 | `RunCoordinator` | Scoped keyed-drain `RunCoordinator` (`active`, `run`, `wake`, `interrupt`) and `make`.                                                                                                                                                                                                                                                                                                                                                                                        |
-| `TestJournal`    | `TestJournalOptions` and `layer(options?)`, providing migrated in-memory Journal, RunStore, AttemptStore, and CacheStore services.                                                                                                                                                                                                                                                                                                                                            |
-| `Notifying`      | `Order`, `Hook`, `wrap`, and `layer` inject before/after notifications around Effect-valued service operations.                                                                                                                                                                                                                                                                                                                                                               |
+
+The root is written against the driver-neutral `@smithers/database` contract
+and bundles for the browser. The test doubles bind a Node SQLite database, so
+they live under explicit subpaths:
+
+| Import                               | Public exports                                                                                                                                    |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@smithers/journal/test/TestJournal` | **Node only.** `TestJournalOptions` and `layer(options?)`, providing migrated in-memory Journal, RunStore, AttemptStore, and CacheStore services. |
+| `@smithers/journal/test/Notifying`   | `Order`, `Hook`, `wrap`, and `layer` inject before/after notifications around Effect-valued service operations.                                   |
 
 The public `migrations/0001_initial`, `0002_durable_engine_state`,
 `0003_run_metadata`, and `0004_waiting_reason` subpaths each default-export
@@ -47,7 +54,7 @@ their migration Effect; normal callers should use `Migrations.run` or
 `Migrations.layer`.
 
 ```ts
-import { NodeDatabase } from "@smithers/database"
+import * as NodeDatabase from "@smithers/database/node/NodeDatabase"
 import { Journal, JournalEvent, Migrations, SqlJournal } from "@smithers/journal"
 import { Effect, Layer } from "effect"
 

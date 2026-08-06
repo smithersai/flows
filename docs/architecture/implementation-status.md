@@ -57,7 +57,7 @@ This page distinguishes usable source-backed behavior from contracts and planned
 
 ## Important integration cautions
 
-- `EngineStore` is currently Node-specific because it uses `process.pid` and `node:crypto` (`randomUUID`). These are the package's only `node:` imports — the browser-gap inventory for a browser composition (issue #114). `StepBoundary` briefly added a module-scope `node:buffer` import for its base64 codec; it now uses the platform-neutral `effect/Encoding`, and a regression test pins the module `node:`-free since its contract schemas and `layerTest` must be importable from a browser bundle.
+- `EngineStore` is currently Node-specific because it uses `process.pid` and `node:crypto` (`randomUUID`). These are the package's only `node:` imports — the browser-gap inventory for a browser composition (issue #114). `@smithers/engine-store` and the `@smithers/flows` barrel that re-exports it are therefore Node entry points; the ten browser-bundleable entry points, and the `npm run browser` gate that executes both halves of the claim, are listed in [browser support](browser-support.md). `StepBoundary` briefly added a module-scope `node:buffer` import for its base64 codec; it now uses the platform-neutral `effect/Encoding`, and a regression test pins the module `node:`-free since its contract schemas and `layerTest` must be importable from a browser bundle.
 - `SqlTimeTravelStore.createFork` materializes executable state from the
   parent's current persisted snapshot and attempts, and records the lineage
   edge on `flows_runs.parent_run_id`. Those records are not historical per

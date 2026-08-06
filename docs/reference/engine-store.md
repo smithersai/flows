@@ -2,6 +2,10 @@
 
 This page is the public API reference for the journal-backed `FlowEngine` composition, deferred/clock state contract, and hermetic boundary contract. The current composition is Node-oriented.
 
+## Node only
+
+`@smithers/engine-store` is a **Node entry point**, and the repository's browser gate treats it as one. `EngineStore` reads `process.pid` and imports `randomUUID` from `node:crypto` (`packages/engine-store/src/EngineStore.ts:20`); those two are the package's entire browser-gap inventory (issue #114). Everything it composes above — `@smithers/journal`, `@smithers/database`, `@smithers/keys`, `@smithers/engine` — is browser-bundleable, so the gap is an owner-identity and UUID-source decision, not a rewrite. Until it closes, do not describe the durable engine as browser-capable; `npm run browser` asserts this entry point still fails to bundle for the browser, so the claim cannot drift. See [browser support](../architecture/browser-support.md).
+
 ## `EngineStore`
 
 ```ts

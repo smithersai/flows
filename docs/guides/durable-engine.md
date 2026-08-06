@@ -16,7 +16,7 @@ This guide describes the services required by `@smithers/engine-store` and gives
 
 ```ts
 import { DurableEngineState, EngineStore, StepBoundary } from "@smithers/engine-store"
-import { TestJournal } from "@smithers/journal"
+import * as TestJournal from "@smithers/journal/test/TestJournal"
 import { Jj } from "@smithers/kernel"
 import { Effect, Layer } from "effect"
 

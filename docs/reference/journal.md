@@ -146,6 +146,10 @@ Both stores export SQL `make`/`layer` plus no-op test seams.
 
 `RunCoordinator.make({ drain })` deduplicates in-process work by key and exposes `active`, `run`, `wake`, and `interrupt` around scoped fibers. It is not distributed ownership; use `RunStore` for that.
 
-`Projection.make` is an identity constructor for `{ name, initial, reduce }`. `TestJournal.layer(options?)` composes migrations and all SQL stores over in-memory SQLite.
+`Projection.make` is an identity constructor for `{ name, initial, reduce }`. `TestJournal.layer(options?)` — imported from `@smithers/journal/test/TestJournal`, not the root — composes migrations and all SQL stores over in-memory SQLite.
+
+## Entry points
+
+The root holds the stores and their contracts, all written against the driver-neutral `@smithers/database` service, and it bundles for the browser (`npm run browser`). The test doubles bind a Node SQLite database and are therefore imported from `@smithers/journal/test/TestJournal` and `@smithers/journal/test/Notifying`. See [browser support](../architecture/browser-support.md).
 
 See [Journal semantics](../concepts/journal.md), [Concurrency](../concepts/concurrency.md), and the [`@smithers/engine-store` reference](engine-store.md).

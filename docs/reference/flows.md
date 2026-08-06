@@ -33,6 +33,15 @@ Depend on the individual `@smithers/*` packages when you want a narrower
 dependency footprint, or when a runtime target cannot carry every engine
 package. The barrel pulls in all ten.
 
+**A browser is one of those targets.** The barrel re-exports
+`@smithers/engine-store`, which is Node-only, so `@smithers/flows` is a Node
+entry point and does not bundle for a browser; `npm run browser` asserts that
+rather than hiding it. Browser consumers import the per-package roots listed in
+[browser support](../architecture/browser-support.md). The namespaces here also
+carry contracts only — `Host.NodeHost` and `Journal.TestJournal` do not exist;
+those live at `@smithers/host/node/NodeHost` and
+`@smithers/journal/test/TestJournal`.
+
 The barrel deliberately excludes the agent-layer packages, which sit above the
 engine, and the platform host adapters `@smithers/host-cloudflare` and
 `@smithers/host-vercel`, which are vendor integrations living in the

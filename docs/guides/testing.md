@@ -28,7 +28,7 @@ Select explicit execution IDs so failures are reproducible.
 `TestHost.layer` supplies an in-memory filesystem, stub shell, seeded Random, HTTP transport, PTY, and Jujutsu service. Configure only the seams a test exercises:
 
 ```ts
-import { TestHost } from "@smithers/host"
+import * as TestHost from "@smithers/host/test/TestHost"
 
 const HostLayer = TestHost.layer({
   files: { "/workspace/input.txt": "hello" },
@@ -39,7 +39,7 @@ const HostLayer = TestHost.layer({
 })
 ```
 
-Consult the actual `TestHost.layer` option types when extending a fixture; filesystem and shell helpers deliberately implement only the host contracts used by tests.
+`TestHost`, like every other platform bundle, is imported from its subpath rather than the `@smithers/host` root, which stays browser-safe ([browser support](../architecture/browser-support.md)). Consult the actual `TestHost.layer` option types when extending a fixture; filesystem and shell helpers deliberately implement only the host contracts used by tests.
 
 For kernel tests, `TestGrantStore.layerAllow`, `layerDeny`, and `layerScripted` provide explicit authorization behavior.
 
@@ -47,7 +47,7 @@ For kernel tests, `TestGrantStore.layerAllow`, `layerDeny`, and `layerScripted` 
 
 Combine:
 
-- `TestJournal.layer()` for migrated in-memory SQLite stores,
+- `TestJournal.layer()` (from `@smithers/journal/test/TestJournal`) for migrated in-memory SQLite stores,
 - `DurableEngineState.makeMemory()` for deferred/clock state,
 - `StepBoundary.layerTest()` for deterministic boundary evidence,
 - a stub `Jj`.

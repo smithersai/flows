@@ -8,6 +8,22 @@ snapshot boundaries into a `FlowEngine` layer.
 npm install @smithers/engine-store
 ```
 
+## Node only
+
+**This package does not run in a browser, and its entry point does not bundle
+for one.** `EngineStore` reads `process.pid` and imports `randomUUID` from
+`node:crypto` to identify an owner and stamp attempt nonces; those are the
+package's only `node:` imports, and they are the complete browser-gap
+inventory for a future browser composition (issue #114). The SQL it drives is
+driver-neutral — `@smithers/journal` and `@smithers/database` both bundle for
+the browser — but the shipped `Database` layer beneath it is `node:sqlite`
+through `@effect/sql-sqlite-node`.
+
+`scripts/browser-check.mjs` at the repository root pins that boundary in both
+directions: it asserts this entry point still fails to bundle for the browser,
+and fails the build if it stops failing without the docs being corrected. See
+[browser support](../../docs/architecture/browser-support.md).
+
 ## Public API
 
 The root exports these namespaces; each is also available from its matching
