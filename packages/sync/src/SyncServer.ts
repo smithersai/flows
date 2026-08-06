@@ -99,10 +99,7 @@ export const makeLive = Effect.gen(function*() {
   const catalog = yield* RunCatalog.RunCatalog
   const share = yield* Effect.serviceOption(BranchShare.BranchShare)
 
-  const covered = (scope: SyncProtocol.Scope): Effect.Effect<ReadonlyArray<JournalEvent.RunId>> =>
-    scope._tag === "Run"
-      ? Effect.succeed([scope.runId])
-      : Effect.map(catalog.list, (ids) => [...ids].sort())
+  const covered = Effect.map(catalog.list, (ids) => [...ids].sort())
 
   /** A branch read is granted only by a capability that verifies for it. */
   const canReadBranch = (
@@ -146,7 +143,7 @@ export const makeLive = Effect.gen(function*() {
         return [scope.runId]
       })
       : Effect.gen(function*() {
-        const runIds = yield* covered(scope)
+        const runIds = yield* covered
         const visible: Array<JournalEvent.RunId> = []
         for (const runId of runIds) {
           if (yield* canFollow(runId, capability)) visible.push(runId)

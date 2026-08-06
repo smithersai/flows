@@ -6,6 +6,7 @@
 import { JournalEvent } from "@smithers/journal"
 import { Effect, Stream } from "effect"
 import { describe, expect, it } from "vitest"
+import * as BranchProtocol from "../src/BranchProtocol.ts"
 import * as SyncClient from "../src/SyncClient.ts"
 import type * as SyncProtocol from "../src/SyncProtocol.ts"
 
@@ -51,5 +52,45 @@ describe("SyncClient covered-frame boundaries", () => {
 
     expect(Array.from(entries).map((value) => value.seq)).toEqual([3])
     expect(await Effect.runPromise(client.cursors)).toEqual([{ runId: "boundary", afterSeq: 3 }])
+  })
+
+  it("forwards a share capability when the durable bootstrap enters live follow", async () => {
+    const capability = new BranchProtocol.ShareCapability({
+      claims: new BranchProtocol.ShareClaims({
+        branchId: "boundary" as BranchProtocol.BranchId,
+        capabilityId: "cap-boundary",
+        access: "read",
+        issuedAtMs: 0,
+        expiresAtMs: 1
+      }),
+      signature: "signed"
+    })
+    let received: BranchProtocol.ShareCapability | undefined
+    const client = SyncClient.make({
+      client: {
+        "Sync.Read": () => Effect.succeed({ entries: [], cursors: [], done: true }),
+        "Sync.Subscribe": (request: { readonly capability?: BranchProtocol.ShareCapability }) => {
+          received = request.capability
+          return Stream.succeed<SyncProtocol.Frame>({
+            _tag: "Entries",
+            runId: runId("boundary"),
+            fromSeq: seq(0),
+            toSeq: seq(0),
+            entries: [entry(0)]
+          })
+        }
+      } as unknown as Parameters<typeof SyncClient.make>[0]["client"]
+    })
+
+    const entries = await Effect.runPromise(
+      client.subscribe({
+        scope: { _tag: "Run", runId: runId("boundary") },
+        cursors: [],
+        capability
+      }).pipe(Stream.take(1), Stream.runCollect)
+    )
+
+    expect(Array.from(entries).map((value) => value.seq)).toEqual([0])
+    expect(received).toBe(capability)
   })
 })
