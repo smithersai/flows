@@ -11,10 +11,11 @@ substrate and is never consumed as the application event API. Lifecycle
 evidence takes `emitDurable`, which commits before it returns, and a durable
 boundary must not advance a run or expose its result before that commit.
 `emitLossy` is the telemetry channel: bounded, optimistic, lossy by
-construction, and never a basis for reconstructing what happened. Today the
-state/entry transaction gap described below prevents the WAL from being the
-sole state authority. Committing locally is not remote atomicity — external
-effects still need idempotency keys, fencing tokens, or compensation.
+construction, and never a basis for reconstructing what happened. The
+executable state is not derived from the log (see below), but `transact`
+commits a transition and its entry together, so the two can never disagree.
+Committing locally is not remote atomicity — external effects still need
+idempotency keys, fencing tokens, or compensation.
 
 ```sh
 npm install @smithers/journal
