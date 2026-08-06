@@ -33,6 +33,11 @@ jobs:
         run: npm run lint
       - name: Circular-dependency guard
         run: npm run circular
+      # Browser support is a hard requirement met through layers: the contract
+      # entry points must bundle for the browser, and the documented Node-only
+      # ones must still be Node-only. scripts/browser-check.mjs gates both.
+      - name: Browser bundle guard
+        run: npm run browser
       # Package vitest configs with `coverage.enabled: true` compute and
       # enforce their coverage thresholds on every run — a red gate fails CI.
       - name: Test all workspaces
