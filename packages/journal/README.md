@@ -72,9 +72,12 @@ are valid.
 
 `RunStore`, `AttemptStore`, and `CacheStore` (with `DurableEngineState` in
 `@smithers/engine-store`) hold the executable authoritative state today; it is
-not derived from journal entries, and a state transition commits in a separate
-transaction from the lifecycle entry describing it. That crash-consistency
-window is a known production blocker for audit, sync, and time travel — see
+not derived from journal entries. `transact` is what keeps the two halves
+consistent anyway: it runs a state projection and the `emitDurable` calls
+describing it in ONE write transaction — the stores write through the same
+`Database`, so their writes join it as savepoints — and defers publication
+until that transaction commits. Either a transition and its lifecycle entry
+are both durable, or neither is. See
 [implementation status](../../docs/architecture/implementation-status.md).
 
 See the [journal reference](../../docs/reference/journal.md),

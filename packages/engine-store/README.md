@@ -41,13 +41,17 @@ const program = Effect.gen(function*() {
 using the SQL-backed durable state.
 
 `RunStore`, `AttemptStore`, `CacheStore`, and `DurableEngineState` are the
-executable authorities today. Lifecycle events use `emitDurable` and block
-until committed, but the state transition and event insert are separate
-transactions. A crash between them can leave audit, sync, and time-travel
-history incomplete; closing that gap by deriving state from the logical WAL or
-committing each projection with its entry is a production blocker. No local WAL
-makes a remote effect atomic, so external effects still need idempotency keys,
-fencing, or compensation.
+executable authorities today. Every lifecycle event is written with
+`emitDurable` **inside `Journal.transact`**, the write transaction that also
+carries the state transition it describes: the attempt row and its
+`attemptStarted`/`attemptFinished`, the run-row CAS and its decision, the
+deferred/clock row and its record, the cache provenance entry and the cache
+row. The stores share one `Database`, so their writes join that transaction as
+savepoints — either both halves are durable or neither is, and audit, sync, and
+time travel can no longer read a hole. A crash before the commit loses the
+whole unit, so an activity that had already executed re-executes on adoption.
+No local WAL makes a remote effect atomic, so external effects still need
+idempotency keys, fencing, or compensation.
 
 See the [engine-store reference](../../docs/reference/engine-store.md),
 [Run Ownership](../../../docs/specs/Concepts/Run%20Ownership.md),

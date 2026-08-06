@@ -44,7 +44,28 @@ The journal is flows' logical write-ahead log and is intended to become the auth
 
 `emitDurable` allocates both sequences inside the writer's transaction (`MAX(seq) + 1`, taking the in-memory clock as a floor) and inserts the row before returning, so the returned `seq` is already committed. `(run_id, source_id, source_seq)` deduplication is unchanged: an exact producer retry returns `Duplicate` with `status: "committed"`, and a reused producer sequence carrying different content fails with `idempotency_conflict`. Use it wherever a caller acts on the returned sequence — lifecycle finalization, cross-process supervisors, or any deployment where a second writer may open the same run. A durable boundary must not advance the run or expose its result until this commit returns.
 
-Committing here makes the entry durable but does not yet make flows' whole view crash-consistent: a store transition (`RunStore`, `AttemptStore`, `CacheStore`, `DurableEngineState`) and its lifecycle entry are currently **two separate transactions**. Closing that window is an open production blocker, tracked in [implementation status](../architecture/implementation-status.md). No local transaction makes a remote effect atomic either, so external effects still need idempotency keys, fencing tokens, or compensation.
+### `transact` — one transaction for the entry and the state it describes
+
+Committing an entry makes that entry durable; it does not by itself make flows' whole view crash-consistent, because the executable state lives in `RunStore`, `AttemptStore`, `CacheStore`, and `DurableEngineState`. `transact` closes that seam:
+
+```ts
+yield* journal.transact(Effect.gen(function*() {
+  const finished = yield* attempts.finish(row, owner)
+  if (finished._tag !== "Finished") return false
+  yield* journal.emitDurable(attemptFinished, owner)
+  return true
+}))
+```
+
+Those stores write through the same `Database`, so their writes join this transaction as savepoints: the row and its lifecycle entry either both commit or both roll back. Engine-store uses it for every lifecycle pair it writes, which is what makes the journal an account of record rather than a best-effort echo. The prior art is Temporal, which closes mutable state into a mutation plus event batches and submits them as one persistence request (`reference/temporal/service/history/workflow/transaction_impl.go`).
+
+Three properties matter to callers:
+
+- **Publication follows COMMIT.** Inside a transaction, `emitDurable` returning means a savepoint was released. The `changes`/`stream` publish and the in-process producer index update are parked until the outermost transaction commits, so a subscriber never sees an entry that later rolls back, and a rolled-back producer identity stays re-emittable instead of deduplicating against a sequence that does not exist.
+- **Only storage work belongs inside.** The transaction is held for its whole body: no flow bodies, host calls, or `flush` (which waits on the lossy writer and would deadlock against the open transaction).
+- **Nesting is a savepoint.** An inner `transact` defers its settlements to the outermost commit.
+
+A crash before COMMIT still loses the whole unit, so work that had already run — an activity body, for instance — re-executes on the next drive. And no local transaction makes a remote effect atomic, so external effects still need idempotency keys, fencing tokens, or compensation.
 
 Stated deviation from smithers (`packages/db/src/adapter.js`), which allocates under `BEGIN IMMEDIATE`: the SQLite backends we ship give Effect's SQL client no `beginTransaction` hook, so `Database.write` opens the default DEFERRED transaction. The floor read holds a shared lock and the INSERT upgrades it; under WAL a concurrent writer makes that upgrade fail `SQLITE_BUSY_SNAPSHOT`, which the database package classifies as retryable and replays the whole transaction — floor read included — against the committed snapshot. Allocation is therefore conflict-free by retry, not by lock escalation, and `packages/journal/test/JournalDurable.test.ts` proves it with two connections writing one run concurrently and with a cold-restart floor case.
 
