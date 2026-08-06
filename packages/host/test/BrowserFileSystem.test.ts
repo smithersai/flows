@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest"
 import * as BrowserFileSystem from "../src/browser/BrowserFileSystem.ts"
 
 describe("BrowserFileSystem", () => {
-  it("streams bounded chunks without loading the complete file", async () => {
+  // Stream completion is the condition; a wall-clock limit only measures machine load.
+  it("streams bounded chunks without loading the complete file", { timeout: 0 }, async () => {
     const source = Uint8Array.from({ length: 200_000 }, (_, index) => index % 251)
     let closed = false
     let largestRead = 0

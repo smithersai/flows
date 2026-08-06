@@ -25,8 +25,8 @@ case "$FLOWS_FAKE_JJ" in
   stdout-only) echo "Error: reported on stdout"; exit 1 ;;
   signal) kill -9 $$ ;;
   slow) echo $$ > "$FLOWS_FAKE_JJ_MARKER.pid"; : > "$FLOWS_FAKE_JJ_MARKER.started"; /bin/sleep 1; : > "$FLOWS_FAKE_JJ_MARKER" ;;
-  orphan) (: > "$FLOWS_FAKE_JJ_MARKER.started"; /bin/sleep 1; : > "$FLOWS_FAKE_JJ_MARKER") &
-    : > "$FLOWS_FAKE_JJ_MARKER.exited"; exit 0 ;;
+  orphan) echo $$ > "$FLOWS_FAKE_JJ_MARKER.pid"
+    (: > "$FLOWS_FAKE_JJ_MARKER.started"; /bin/sleep 1; : > "$FLOWS_FAKE_JJ_MARKER") & exit 0 ;;
   *) exit 0 ;;
 esac
 `
@@ -45,12 +45,9 @@ const waitFor = (path: string) =>
 /**
  * Poll until `pid` is no longer a live process.
  *
- * The kill path uses `SIGKILL`, which no shell trap can observe, so the child
- * cannot report its own death — process liveness is the only positive signal
- * available. Because the scripted child writes its completion marker *before*
- * exiting, "the process is gone" is a strictly later condition than "the marker
- * was written": waiting for it turns the marker assertion into a condition
- * rather than a fixed absence window (issue #175).
+ * Process liveness is the positive signal that Node has reaped the direct child
+ * and populated its exit state. It works for both an interrupted process and a
+ * process whose descendant keeps the pipes open after the direct child exits.
  */
 const waitForExit = (pid: number) =>
   Effect.retry(
@@ -166,27 +163,26 @@ describe.skipIf(process.platform === "win32")("NodeJj failure classification", (
   it("does not signal a `jj` that already exited while its pipes are still held", async () => {
     const marker = join(directory, "orphan-finished")
     const started = `${marker}.started`
-    const exited = `${marker}.exited`
+    const pidFile = `${marker}.pid`
     process.env.FLOWS_FAKE_JJ = "orphan"
     process.env.FLOWS_FAKE_JJ_MARKER = marker
 
     // `jj` exits immediately but a background descendant keeps stdout open, so
     // `close` never arrives and the call is still interruptible after the exit.
     //
-    // A bare sleep before the interrupt proves nothing: under load the parent
-    // may still be alive, in which case an implementation that signals only the
-    // direct child leaves the descendant to write `marker` anyway and the cell
-    // passes without ever exercising the already-exited path (issue #170). The
-    // script arm therefore reports both facts — `exited` once the parent has
-    // reached its own exit, `started` once the descendant is running — and both
-    // are asserted immediately before the interrupt.
+    // A marker written immediately before shell exit still races Node's exit
+    // observation. Wait for the recorded PID to disappear instead: once the
+    // direct child has been reaped, `child.exitCode` is populated while the
+    // descendant deliberately keeps the callback's pipes open (issue #170).
     await Effect.runPromise(
       Effect.gen(function*() {
         const jj = yield* Jj
         const fiber = yield* Effect.forkChild(jj.status(), { startImmediately: true })
-        yield* waitFor(exited)
         yield* waitFor(started)
-        expect(existsSync(exited)).toBe(true)
+        yield* waitFor(pidFile)
+        const pid = Number.parseInt(readFileSync(pidFile, "utf8").trim(), 10)
+        expect(Number.isInteger(pid)).toBe(true)
+        yield* waitForExit(pid)
         expect(existsSync(started)).toBe(true)
         expect(existsSync(marker)).toBe(false)
         yield* Fiber.interrupt(fiber)
