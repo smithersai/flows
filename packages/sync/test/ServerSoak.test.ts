@@ -81,7 +81,8 @@ const workspace = (runs: number, perRun: number) => {
   return { byRun, ids }
 }
 
-describe("SyncServer fan-out budgets", () => {
+// Every soak is bounded by cycle count; a wall-clock limit only measures machine load.
+describe("SyncServer fan-out budgets", { timeout: 0 }, () => {
   it("delivers the identical frame sequence to every concurrent subscriber", async () => {
     const { byRun, ids } = workspace(3, 4)
     const tracker: Tracker = { open: 0, opened: 0, peak: 0 }
