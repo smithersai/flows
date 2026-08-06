@@ -1,7 +1,7 @@
 {
   "name": "@smithers/database",
   "type": "module",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "license": "MIT",
   "description": "Thin Effect SQL client and SQLite write-retry service for flows",
   "homepage": "https://github.com/smithersai/flows",

@@ -1,7 +1,7 @@
 {
   "name": "@smithers/time-travel",
   "type": "module",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "license": "MIT",
   "description": "Durable replay, fork, and rewind primitives for flows",
   "homepage": "https://github.com/smithersai/flows",
@@ -76,11 +76,11 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@smithers/database": "0.0.0",
-    "@smithers/engine-store": "0.0.0",
-    "@smithers/host": "0.0.0",
-    "@smithers/journal": "0.0.0",
-    "@smithers/keys": "0.0.0",
+    "@smithers/database": "0.1.0",
+    "@smithers/engine-store": "0.1.0",
+    "@smithers/host": "0.1.0",
+    "@smithers/journal": "0.1.0",
+    "@smithers/keys": "0.1.0",
     "effect": "4.0.0-beta.102"
   },
   "devDependencies": {

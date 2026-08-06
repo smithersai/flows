@@ -1,7 +1,7 @@
 {
   "name": "@smithers/journal",
   "type": "module",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "license": "MIT",
   "description": "Effect services for flows journals, run ownership, attempts, and content-addressed results",
   "homepage": "https://github.com/smithersai/flows",
@@ -76,7 +76,7 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@smithers/database": "*",
+    "@smithers/database": "0.1.0",
     "effect": "4.0.0-beta.102"
   },
   "devDependencies": {

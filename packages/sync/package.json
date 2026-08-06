@@ -1,7 +1,7 @@
 {
   "name": "@smithers/sync",
   "type": "module",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "license": "MIT",
   "description": "Workspace read-path sync protocol, server, and client for flows",
   "homepage": "https://github.com/smithersai/flows",
@@ -76,7 +76,7 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@smithers/journal": "*",
+    "@smithers/journal": "0.1.0",
     "effect": "4.0.0-beta.102"
   },
   "devDependencies": {

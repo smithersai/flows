@@ -1,7 +1,7 @@
 {
   "name": "@smithers/keys",
   "type": "module",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "license": "MIT",
   "description": "Pure canonical serialization and synchronous content-addressed step keys for flows",
   "homepage": "https://github.com/smithersai/flows",

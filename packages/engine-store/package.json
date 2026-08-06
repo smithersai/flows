@@ -1,7 +1,7 @@
 {
   "name": "@smithers/engine-store",
   "type": "module",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "license": "MIT",
   "description": "Effect services for durable engine activity persistence and replay boundaries",
   "homepage": "https://github.com/smithersai/flows",
@@ -76,11 +76,11 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@smithers/database": "*",
-    "@smithers/keys": "*",
-    "@smithers/engine": "*",
-    "@smithers/journal": "*",
-    "@smithers/kernel": "*",
+    "@smithers/database": "0.1.0",
+    "@smithers/keys": "0.1.0",
+    "@smithers/engine": "0.1.0",
+    "@smithers/journal": "0.1.0",
+    "@smithers/kernel": "0.1.0",
     "effect": "4.0.0-beta.102"
   },
   "devDependencies": {

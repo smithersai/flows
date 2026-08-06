@@ -1,7 +1,7 @@
 {
   "name": "@smithers/plugin",
   "type": "module",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "license": "MIT",
   "description": "Vite-style typed plugin kernel for flows: hooks, resolution, and config execution",
   "homepage": "https://github.com/smithersai/flows",
@@ -76,7 +76,7 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@smithers/engine": "*",
+    "@smithers/engine": "0.1.0",
     "effect": "4.0.0-beta.102"
   },
   "devDependencies": {

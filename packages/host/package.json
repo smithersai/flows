@@ -1,7 +1,7 @@
 {
   "name": "@smithers/host",
   "type": "module",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "license": "MIT",
   "description": "Portable Effect host contracts and Node, browser, and test implementations for flows",
   "homepage": "https://github.com/smithersai/flows",

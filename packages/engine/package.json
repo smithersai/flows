@@ -1,7 +1,7 @@
 {
   "name": "@smithers/engine",
   "type": "module",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "license": "MIT",
   "description": "Vendored Effect flow engine with flows execution and activity identity semantics",
   "homepage": "https://github.com/smithersai/flows",
@@ -78,7 +78,7 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@smithers/keys": "*",
+    "@smithers/keys": "0.1.0",
     "effect": "4.0.0-beta.102"
   },
   "devDependencies": {
