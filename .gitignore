@@ -1,6 +1,7 @@
 node_modules/
 dist/
 /flows
+.smithers/
 .artifacts/
 *.log
 .DS_Store
