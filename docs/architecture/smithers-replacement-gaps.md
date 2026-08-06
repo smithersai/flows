@@ -148,7 +148,8 @@ task, not a subsystem.
 
 ### 9. Fault-suite harness — closed as harness
 
-The P0 harness the audit demanded exists: `Journal.Notifying.wrap`/`layer`
+The P0 harness the audit demanded exists: `Notifying.wrap`/`layer`
+(`@smithers/journal/test/Notifying`)
 injects interstitial crashes and fence loss around any Effect service, and
 `FaultMatrix.test.ts` (9 it-blocks: 7 fault injections — 3 interstitial
 crashes, 4 fence losses — plus 2 tests of the `Notifying` wrapper itself)

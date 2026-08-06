@@ -4,8 +4,12 @@ This page is the public API reference for the thin SQL transaction service. `@sm
 
 ## Import
 
+The root is the driver-neutral contract and bundles for the browser; the SQLite drivers are Node-only and live under their own subpaths (see [browser support](../architecture/browser-support.md)).
+
 ```ts
-import { Database, NodeDatabase, TestDatabase } from "@smithers/database"
+import { Database } from "@smithers/database"
+import * as NodeDatabase from "@smithers/database/node/NodeDatabase"
+import * as TestDatabase from "@smithers/database/test/TestDatabase"
 ```
 
 ## `Database`
@@ -39,6 +43,8 @@ const save = Effect.gen(function*() {
 
 ## `NodeDatabase`
 
+**Node only** — `@smithers/database/node/NodeDatabase`, not a root export.
+
 `NodeDatabase.layer({ filename, sqlite?, ...retryOptions })` provides the database over `@effect/sql-sqlite-node`. The underlying client enables WAL by default unless its configuration overrides that behavior.
 
 Opening the connection is retried while SQLite reports the database as locked. The client opens the file and issues `PRAGMA journal_mode = WAL` inside its constructor with no busy timeout, so two processes opening one file concurrently can collide there — either on the WAL conversion itself (SQLite refuses a mode change while another connection holds the file, and refuses immediately, without consulting the busy handler) or with `SQLITE_BUSY_RECOVERY` while a peer recovers the log. Both arrive as construction-time defects rather than the `SqlError` values `WriteRetry` classifies, so they are handled at the layer instead. Both clear once the peer finishes; a defect that is not a lock is raised on the first attempt.
@@ -51,7 +57,7 @@ const DatabaseLayer = NodeDatabase.layer({
 
 ## `TestDatabase`
 
-`TestDatabase.layer` is `NodeDatabase.layer({ filename: ":memory:" })`. It is deterministic within one layer scope and has no restart durability.
+**Node only** — `@smithers/database/test/TestDatabase`, not a root export. `TestDatabase.layer` is `NodeDatabase.layer({ filename: ":memory:" })`. It is deterministic within one layer scope and has no restart durability.
 
 ## Runtime notes
 
