@@ -178,6 +178,65 @@ describe("FlowWire", () => {
     }).pipe(Effect.provide(interpreter), Effect.provide(handlers))
   })
 
+  effect("a flow that requires an envelope refuses an unenveloped request", () => {
+    const handler = FlowWire.serve(flows, { requireEnvelope: ["Wire/Observe"] })
+    return Effect.gen(function*() {
+      const refused = yield* handler({
+        flow: "Wire/Observe",
+        payload: { probe: "fs" },
+        executionId: "must-state-authority"
+      })
+      expect(refused._tag).toBe("Rejected")
+      if (refused._tag === "Rejected") {
+        expect(refused.reason._tag).toBe("@smithers/engine/FlowWire/EnvelopeRejected")
+        expect((refused.reason as FlowWire.EnvelopeRejected).code).toBe("missing")
+      }
+
+      // The refusal precedes payload decoding: a caller cannot learn whether
+      // its payload was well-formed without first stating its authority.
+      const refusedBadPayload = yield* handler({
+        flow: "Wire/Observe",
+        payload: { probe: 42 },
+        executionId: "must-state-authority-bad-payload"
+      })
+      expect(refusedBadPayload._tag).toBe("Rejected")
+      if (refusedBadPayload._tag === "Rejected") {
+        expect(refusedBadPayload.reason._tag).toBe("@smithers/engine/FlowWire/EnvelopeRejected")
+      }
+
+      // The same request with an envelope runs, narrowed by it.
+      const enveloped = yield* handler({
+        flow: "Wire/Observe",
+        payload: { probe: "fs" },
+        executionId: "stated-authority",
+        envelope: { allow: ["net"] }
+      })
+      expect(enveloped._tag).toBe("Completed")
+      expect(JSON.stringify(enveloped)).toContain("false")
+
+      // A flow the host did not name keeps the ambient-authority default.
+      const unlisted = yield* handler({
+        flow: "Wire/Echo",
+        payload: { value: 41 },
+        executionId: "ambient-still-allowed"
+      })
+      expect(unlisted._tag).toBe("Completed")
+    }).pipe(Effect.provide(interpreter), Effect.provide(handlers))
+  })
+
+  effect("the HTTP projection refuses a required-envelope omission as 403", () => {
+    const handler = FlowWire.serveHttp(flows, { requireEnvelope: ["Wire/Observe"] })
+    return Effect.gen(function*() {
+      const refused = yield* handler(JSON.stringify({
+        flow: "Wire/Observe",
+        payload: { probe: "fs" },
+        executionId: "http-must-state-authority"
+      }))
+      expect(refused.status).toBe(403)
+      expect(refused.body).toContain("requires a capability envelope")
+    }).pipe(Effect.provide(interpreter), Effect.provide(handlers))
+  })
+
   effect("a client call for an unregistered flow surfaces the flow name", () => {
     const call = FlowWire.client(overTheWire(FlowWire.serve([Echo] as const)))
     return Effect.gen(function*() {

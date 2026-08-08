@@ -15,6 +15,12 @@
  * request that names an envelope is refused, not run wide, when no
  * interpreter is installed.
  *
+ * Omitting the envelope means "run with whatever authority this host holds",
+ * which is only safe while the host's own ceiling is the real bound. A host
+ * that serves effectful flows to callers it does not already trust with its
+ * full ceiling names those flows in {@link ServeOptions.requireEnvelope}, and
+ * an unenveloped request for one is refused as `missing` before the flow runs.
+ *
  * @since 0.1.0
  */
 import * as Cause from "effect/Cause"
@@ -62,7 +68,10 @@ export class FlowNotFound extends Schema.TaggedErrorClass<FlowNotFound>()(
  *
  * `unsupported` — the serving runtime has no {@link EnvelopeInterpreter}.
  * `uninterpretable` — the interpreter rejected the envelope value.
- * Both refuse execution; an envelope is never silently ignored.
+ * `missing` — the flow requires an envelope and the request named none, so
+ * the host refuses rather than lending the caller its own ceiling.
+ * All three refuse execution; an envelope is never silently ignored, and its
+ * absence is never silently upgraded to ambient authority.
  *
  * @category errors
  * @since 0.1.0
@@ -70,7 +79,7 @@ export class FlowNotFound extends Schema.TaggedErrorClass<FlowNotFound>()(
 export class EnvelopeRejected extends Schema.TaggedErrorClass<EnvelopeRejected>()(
   "@smithers/engine/FlowWire/EnvelopeRejected",
   {
-    code: Schema.Literals(["unsupported", "uninterpretable"]),
+    code: Schema.Literals(["unsupported", "uninterpretable", "missing"]),
     message: Schema.String
   }
 ) {}
@@ -186,6 +195,27 @@ const exitSchema = (flow: Flow.AnyWithProps) =>
 const decodeRequest = Schema.decodeUnknownEffect(Request)
 
 /**
+ * How a placement serves its flows.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface ServeOptions {
+  /**
+   * The flows that refuse a request carrying no envelope.
+   *
+   * An omitted envelope means "run under this host's own ceiling", which is
+   * the right default only when every caller of the transport is already
+   * trusted with that ceiling. Naming an effectful flow here makes the
+   * envelope load-bearing instead of implicit: the caller must state the
+   * authority it is exercising, and the host's ceiling then narrows it
+   * further. Flows not named here keep the ambient-authority default, which is
+   * what a pure flow wants.
+   */
+  readonly requireEnvelope?: ReadonlyArray<string> | undefined
+}
+
+/**
  * Builds the one serving function every placement shares.
  *
  * A Service Worker calls it from a message listener, an edge worker from its
@@ -201,8 +231,10 @@ const decodeRequest = Schema.decodeUnknownEffect(Request)
  * @since 0.1.0
  */
 export const serve = <const Flows extends ReadonlyArray<Flow.Any>>(
-  flows: Flows
+  flows: Flows,
+  options?: ServeOptions
 ): (input: unknown) => Effect.Effect<Response, never, FlowEngine | Flow.RequirementsClient<Flows[number]>> => {
+  const mustCarryEnvelope = new Set(options?.requireEnvelope ?? [])
   const byTag = new Map<string, Flow.AnyWithProps>()
   for (const flow of flows) {
     byTag.set(flow._tag, flow as Flow.AnyWithProps)
@@ -221,6 +253,18 @@ export const serve = <const Flows extends ReadonlyArray<Flow.Any>>(
       const flow = byTag.get(request.flow)
       if (flow === undefined) {
         return new Rejected({ reason: new FlowNotFound({ flow: request.flow }) })
+      }
+
+      // Asked before the payload is even decoded: whether the caller stated
+      // its authority is a property of the request, not of what it carries.
+      if (request.envelope === undefined && mustCarryEnvelope.has(request.flow)) {
+        return new Rejected({
+          reason: new EnvelopeRejected({
+            code: "missing",
+            message:
+              `The flow ${request.flow} requires a capability envelope; refusing to run it with this host's ambient authority`
+          })
+        })
       }
 
       const payload = yield* Effect.result(
@@ -298,9 +342,10 @@ const statusOf = (response: Response): HttpResponse["status"] =>
  * @since 0.1.0
  */
 export const serveHttp = <const Flows extends ReadonlyArray<Flow.Any>>(
-  flows: Flows
+  flows: Flows,
+  options?: ServeOptions
 ): (body: string) => Effect.Effect<HttpResponse, never, FlowEngine | Flow.RequirementsClient<Flows[number]>> => {
-  const handler = serve(flows)
+  const handler = serve(flows, options)
   return (body) =>
     Effect.gen(function*() {
       const parsed = yield* Effect.result(Effect.try({
