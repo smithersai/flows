@@ -13,6 +13,14 @@
 export * as Capability from "./Capability.ts"
 
 /**
+ * The serializable capability envelope carried by flow execution requests.
+ *
+ * @category namespace exports
+ * @since 0.1.0
+ */
+export * as CapabilityEnvelope from "./CapabilityEnvelope.ts"
+
+/**
  * Monotone ambient authority and intersection.
  *
  * @category namespace exports

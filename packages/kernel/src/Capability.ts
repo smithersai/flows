@@ -148,6 +148,16 @@ const PatternAction = Schema.Literals(
   ] as const
 )
 
+const patternActions: ReadonlySet<string> = new Set([
+  ...actions,
+  "fs:*",
+  "net:*",
+  "model:*",
+  "proc:*",
+  "jj:*",
+  "*"
+])
+
 /**
  * An action and resource glob used to grant or deny a family of capabilities.
  * Resource globs are slash-normalized and matched against the whole resource.
@@ -159,6 +169,34 @@ export class CapabilityPattern extends Schema.Class<CapabilityPattern>("@smither
   action: PatternAction,
   resource: Schema.String
 }) {}
+
+/**
+ * Parses a declared capability requirement as a pattern. The conservative
+ * registry shorthand `*` means every action over every resource.
+ *
+ * @since 0.1.0
+ * @category parsing
+ */
+export const parsePattern = (input: string): Option.Option<CapabilityPattern> => {
+  if (input === "*") {
+    return Option.some(new CapabilityPattern({ action: "*", resource: "**" }))
+  }
+  const components = input.split(":")
+  const namespace = components[0]
+  const operation = components[1]
+  if (namespace === undefined || operation === undefined || components.length < 3) {
+    return Option.none()
+  }
+  const action = `${namespace}:${operation}`
+  return patternActions.has(action)
+    ? Option.some(
+      new CapabilityPattern({
+        action: action as PatternAction,
+        resource: components.slice(2).join(":")
+      })
+    )
+    : Option.none()
+}
 
 const normalizeSlashes = (value: string): string => value.replaceAll("\\", "/")
 
@@ -198,7 +236,7 @@ const actionSubsumes = (left: PatternAction, right: PatternAction): boolean => {
 const resourceSubsumes = (left: string, right: string): boolean => {
   const normalizedLeft = normalizeSlashes(left)
   const normalizedRight = normalizeSlashes(right)
-  if (normalizedLeft === normalizedRight || normalizedLeft === "**") {
+  if (normalizedLeft === normalizedRight || normalizedLeft === "*" || normalizedLeft === "**") {
     return true
   }
   if (!normalizedLeft.endsWith("/**")) {
