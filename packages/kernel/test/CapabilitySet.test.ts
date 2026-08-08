@@ -123,6 +123,22 @@ describe("CapabilitySet", () => {
     )).toBe(false)
   })
 
+  it("proves a declared requirement is contained by every intersected group", () => {
+    const set = CapabilitySets.intersect(
+      CapabilitySets.fromPatterns([new CapabilityPattern({ action: "fs:*", resource: "/workspace/**" })]),
+      CapabilitySets.fromPatterns([new CapabilityPattern({ action: "fs:read", resource: "/workspace/src/**" })])
+    )
+
+    expect(CapabilitySets.allowsPattern(
+      set,
+      new CapabilityPattern({ action: "fs:read", resource: "/workspace/src/a.ts" })
+    )).toBe(true)
+    expect(CapabilitySets.allowsPattern(
+      set,
+      new CapabilityPattern({ action: "fs:read", resource: "/workspace/**" })
+    )).toBe(false)
+  })
+
   it("intersect is commutative", () => {
     check([setArbitrary, setArbitrary], (left, right) =>
       CapabilitySets.equals(
@@ -235,6 +251,7 @@ describe("CapabilitySet", () => {
   it("exports no authority-widening API", () => {
     expect(Object.keys(CapabilitySets).sort()).toEqual([
       "allows",
+      "allowsPattern",
       "attenuate",
       "current",
       "equals",

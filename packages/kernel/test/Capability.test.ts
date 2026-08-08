@@ -18,6 +18,15 @@ describe("Capability", () => {
     expect(Option.isNone(Capability.parse("fs:read"))).toBe(true)
   })
 
+  it("parses declared requirement patterns and the conservative wildcard", () => {
+    expect(Option.getOrNull(Capability.parsePattern("fs:read:src/**"))).toEqual(
+      pattern("fs:read", "src/**")
+    )
+    expect(Option.getOrNull(Capability.parsePattern("*"))).toEqual(pattern("*", "**"))
+    expect(Option.isNone(Capability.parsePattern("unknown:action:**"))).toBe(true)
+    expect(Option.isNone(Capability.parsePattern("fs:read"))).toBe(true)
+  })
+
   it("round trips formatted capabilities", () => {
     const action = FastCheck.constantFrom<Capability.Action>(
       "fs:read",
@@ -62,6 +71,7 @@ describe("Capability", () => {
     [pattern("fs:read", "src/a.ts"), pattern("fs:read", "src/a.ts"), true],
     [pattern("fs:*", "src/**"), pattern("fs:read", "src/nested/a.ts"), true],
     [pattern("*", "**"), pattern("jj:*", "repository"), true],
+    [pattern("*", "*"), pattern("fs:read", "/workspace/**"), true],
     [pattern("jj:*", "repository/**"), pattern("jj:diff", "repository/one"), true],
     [pattern("fs:read", "src/**"), pattern("fs:write", "src/a.ts"), false],
     [pattern("fs:read", "src/*"), pattern("fs:read", "src/a.ts"), false],
