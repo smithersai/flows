@@ -5,6 +5,7 @@ describe("kernel package barrel", () => {
   it("exports every public namespace", () => {
     expect(Object.keys(Kernel).sort()).toEqual([
       "Capability",
+      "CapabilityEnvelope",
       "CapabilitySet",
       "FileSystem",
       "GrantEvent",
