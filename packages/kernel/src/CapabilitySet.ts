@@ -9,7 +9,7 @@
  * @since 0.1.0
  */
 import { Context, Effect } from "effect"
-import { type Capability, type CapabilityPattern, matches } from "./Capability.ts"
+import { type Capability, type CapabilityPattern, matches, subsumes } from "./Capability.ts"
 
 const CapabilitySetTypeId: unique symbol = Symbol.for("@smithers/kernel/CapabilitySet")
 
@@ -124,6 +124,18 @@ export const allows = (
   set: CapabilitySet,
   capability: Capability
 ): boolean => set.groups.every((group) => group.some((pattern) => matches(pattern, capability)))
+
+/**
+ * Tests whether the set provably contains every capability selected by one
+ * declared requirement pattern.
+ *
+ * @category predicates
+ * @since 0.1.0
+ */
+export const allowsPattern = (
+  set: CapabilitySet,
+  required: CapabilityPattern
+): boolean => set.groups.every((group) => group.some((pattern) => subsumes(pattern, required)))
 
 /**
  * Intersects two authorities without synthesizing or simplifying globs.
