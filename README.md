@@ -1,6 +1,6 @@
 # Smithers Flows
 
-Smithers Flows is an unreleased, standalone Effect-based durable-execution engine. It provides typed flows,
+Smithers Flows is a standalone Effect-based durable-execution engine. It provides typed flows,
 journal-backed execution state, content-addressed activities, capability-checked host effects, synchronization, and
 time-travel protocols.
 
@@ -11,32 +11,33 @@ deployment limitations, and one reference page for every package.
 
 ## Packages
 
-- `@smithers/flows` — barrel package re-exporting everything below
-- `@smithers/host`
-- `@smithers/journal`
-- `@smithers/database`
-- `@smithers/kernel`
-- `@smithers/keys`
-- `@smithers/engine`
-- `@smithers/engine-store`
-- `@smithers/sync`
-- `@smithers/time-travel`
+- `@smthrs/flows` — barrel package re-exporting everything below
+- `@smthrs/host`
+- `@smthrs/journal`
+- `@smthrs/database`
+- `@smthrs/kernel`
+- `@smthrs/keys`
+- `@smthrs/engine`
+- `@smthrs/engine-store`
+- `@smthrs/plugin`
+- `@smthrs/sync`
+- `@smthrs/time-travel`
 
-Platform host adapters (`@smithers/host-cloudflare`, `@smithers/host-vercel`) live in
+Platform host adapters (`@smthrs/host-cloudflare`, `@smthrs/host-vercel`) live in
 [smithersai/plugins](https://github.com/smithersai/plugins).
 
-The `@smithers/*` package names are retained. These packages form a closed workspace dependency set.
+The `@smthrs/*` package names are retained. These packages form a closed workspace dependency set.
 
 ## Browser support
 
 Browser support is a hard requirement, met through layers: a package root exports contracts, and every
 platform implementation lives under a `/node`, `/bun`, `/browser`, or `/test` subpath. Ten entry points
-bundle for the browser — `@smithers/host`, `@smithers/host/browser/BrowserHost`, `@smithers/kernel`,
-`@smithers/keys`, `@smithers/database`, `@smithers/journal`, `@smithers/engine`, `@smithers/plugin`,
-`@smithers/sync`, and `@smithers/time-travel`.
+bundle for the browser — `@smthrs/host`, `@smthrs/host/browser/BrowserHost`, `@smthrs/kernel`,
+`@smthrs/keys`, `@smthrs/database`, `@smthrs/journal`, `@smthrs/engine`, `@smthrs/plugin`,
+`@smthrs/sync`, and `@smthrs/time-travel`.
 
-Two are Node-only and say so: `@smithers/engine-store` (it reads `process.pid` and `node:crypto`,
-issue #114) and therefore the `@smithers/flows` barrel that re-exports it. **Browser consumers import the
+Two are Node-only and say so: `@smthrs/engine-store` (it reads `process.pid` and `node:crypto`,
+issue #114) and therefore the `@smthrs/flows` barrel that re-exports it. **Browser consumers import the
 per-package roots, not the barrel.**
 
 `npm run browser` proves both halves — it bundles every browser entry point with

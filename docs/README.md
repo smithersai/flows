@@ -1,6 +1,6 @@
 # Smithers Flows documentation
 
-This documentation covers the unreleased `flows` durable-execution library: its implemented Effect APIs, durability model, host boundaries, and known gaps. Its scope is limited to the packages in this workspace.
+This documentation covers the `flows` durable-execution library: its implemented Effect APIs, durability model, host boundaries, and known gaps. Its scope is limited to the packages in this workspace.
 
 ## Reading order
 
@@ -37,23 +37,22 @@ Read [implementation status](architecture/implementation-status.md) before choos
 - [Writing a flow](guides/writing-a-flow.md)
 - [Using the durable engine](guides/durable-engine.md)
 - [Testing](guides/testing.md)
-- [Cloudflare](guides/cloudflare.md)
-- [Vercel](guides/vercel.md)
 
 ## Package reference
 
-- [`@smithers/flows`](reference/flows.md) — barrel package re-exporting everything below
-- [`@smithers/database`](reference/database.md)
-- [`@smithers/host`](reference/host.md)
-- [`@smithers/journal`](reference/journal.md)
-- [`@smithers/kernel`](reference/kernel.md)
-- [`@smithers/keys`](reference/keys.md)
-- [`@smithers/engine`](reference/engine.md)
-- [`@smithers/engine-store`](reference/engine-store.md)
-- [`@smithers/sync`](reference/sync.md)
-- [`@smithers/time-travel`](reference/time-travel.md)
+- [`@smthrs/flows`](reference/flows.md) — barrel package re-exporting everything below
+- [`@smthrs/database`](reference/database.md)
+- [`@smthrs/host`](reference/host.md)
+- [`@smthrs/journal`](reference/journal.md)
+- [`@smthrs/kernel`](reference/kernel.md)
+- [`@smthrs/keys`](reference/keys.md)
+- [`@smthrs/engine`](reference/engine.md)
+- [`@smthrs/engine-store`](reference/engine-store.md)
+- [`@smthrs/plugin`](architecture/plugin-system.md)
+- [`@smthrs/sync`](reference/sync.md)
+- [`@smthrs/time-travel`](reference/time-travel.md)
 
-Platform host adapters (`@smithers/host-cloudflare`, `@smithers/host-vercel`) are
+Platform host adapters (`@smthrs/host-cloudflare`, `@smthrs/host-vercel`) are
 documented in the [plugins repository](https://github.com/smithersai/plugins).
 
 ## Architecture
@@ -67,4 +66,4 @@ documented in the [plugins repository](https://github.com/smithersai/plugins).
 
 ## Documentation conventions
 
-“Implemented” means the behavior exists in `packages/*/src` and is exercised by the repository’s package tests. “Planned” means the source contains only a contract, test double, TODO, or no API at all. Examples use the repository’s current `effect@4.0.0-beta.102` APIs and the public `@smithers/*` package exports.
+“Implemented” means the behavior exists in `packages/*/src` and is exercised by the repository’s package tests. “Planned” means the source contains only a contract, test double, TODO, or no API at all. Examples use the repository’s current `effect@4.0.0-beta.102` APIs and the public `@smthrs/*` package exports.

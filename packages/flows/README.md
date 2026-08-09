@@ -1,31 +1,32 @@
-# @smithers/flows
+# @smthrs/flows
 
-Convenience barrel for the complete durable flows architecture. It adds no
-runtime API; each package is re-exported as a namespace so consumers can opt
-into one dependency without flattening neighboring service constructors.
+Convenience barrel for the complete durable flows architecture. Each package
+is re-exported as a namespace so consumers can opt into one dependency
+without flattening neighboring service constructors; `namespaces` lists those
+runtime namespace names.
 
 ```sh
-npm install @smithers/flows
+npm install @smthrs/flows
 ```
 
 ```ts
-import { Engine, EngineStore, Host, Journal } from "@smithers/flows"
+import { Engine, EngineStore, Host, Journal } from "@smthrs/flows"
 ```
 
 ## Public API
 
-| Namespace     | Re-exported package      |
-| ------------- | ------------------------ |
-| `Database`    | `@smithers/database`     |
-| `Engine`      | `@smithers/engine`       |
-| `EngineStore` | `@smithers/engine-store` |
-| `Host`        | `@smithers/host`         |
-| `Journal`     | `@smithers/journal`      |
-| `Kernel`      | `@smithers/kernel`       |
-| `Keys`        | `@smithers/keys`         |
-| `Plugin`      | `@smithers/plugin`       |
-| `Sync`        | `@smithers/sync`         |
-| `TimeTravel`  | `@smithers/time-travel`  |
+| Namespace     | Re-exported package    |
+| ------------- | ---------------------- |
+| `Database`    | `@smthrs/database`     |
+| `Engine`      | `@smthrs/engine`       |
+| `EngineStore` | `@smthrs/engine-store` |
+| `Host`        | `@smthrs/host`         |
+| `Journal`     | `@smthrs/journal`      |
+| `Kernel`      | `@smthrs/kernel`       |
+| `Keys`        | `@smthrs/keys`         |
+| `Plugin`      | `@smthrs/plugin`       |
+| `Sync`        | `@smthrs/sync`         |
+| `TimeTravel`  | `@smthrs/time-travel`  |
 
 Namespacing preserves APIs such as `Host.Shell.layerNoop` and
 `Journal.RunStore.layer`. Depend on an individual package when a narrower
@@ -33,22 +34,22 @@ dependency surface is preferable.
 
 ## The barrel is a Node entry point
 
-`@smithers/flows` re-exports `@smithers/engine-store`, which is Node-only
+`@smthrs/flows` re-exports `@smthrs/engine-store`, which is Node-only
 (`process.pid` and `node:crypto`, issue #114), so **the barrel does not bundle
 for a browser**. Browser consumers import the per-package roots, each of which
-is gated by `npm run browser`: `@smithers/host`, `@smithers/host/browser/BrowserHost`,
-`@smithers/kernel`, `@smithers/keys`, `@smithers/database`, `@smithers/journal`,
-`@smithers/engine`, `@smithers/plugin`, `@smithers/sync`, and
-`@smithers/time-travel`.
+is gated by `npm run browser`: `@smthrs/host`, `@smthrs/host/browser/BrowserHost`,
+`@smthrs/kernel`, `@smthrs/keys`, `@smthrs/database`, `@smthrs/journal`,
+`@smthrs/engine`, `@smthrs/plugin`, `@smthrs/sync`, and
+`@smthrs/time-travel`.
 
 Platform implementations are never re-exported through the namespaces here
 either — `Host.NodeHost` does not exist. Import
-`@smithers/host/node/NodeHost`, `@smithers/host/test/TestHost`,
-`@smithers/database/node/NodeDatabase`, or `@smithers/journal/test/TestJournal`
+`@smthrs/host/node/NodeHost`, `@smthrs/host/test/TestHost`,
+`@smthrs/database/node/NodeDatabase`, or `@smthrs/journal/test/TestJournal`
 directly. See [browser support](../../docs/architecture/browser-support.md).
 
 Declaration merging for `Plugin.FlowsHooks` must target its owning module,
-`declare module "@smithers/plugin"`; the barrel is not an augmentation target.
+`declare module "@smthrs/plugin"`; the barrel is not an augmentation target.
 
 See the [documentation index](../../docs/README.md) and
 [flows reference](../../docs/reference/flows.md).

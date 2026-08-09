@@ -1,22 +1,22 @@
 # Getting started
 
-This guide runs a typed flow with the in-memory engine. It is the shortest executable path through `@smithers/engine`; it does not provide process-crash durability.
+This guide runs a typed flow with the in-memory engine. It is the shortest executable path through `@smthrs/engine`; it does not provide process-crash durability.
 
 ## Prerequisites
 
-The repository is unreleased. Use the workspace checkout and Node.js 22.19 or newer:
+Install Node.js 22.19 or newer, then install the engine and Effect:
 
 ```sh
-npm install
-npm run check
+npm install @smthrs/engine effect
 ```
 
-When consuming the packages from another workspace, add the packages you use as workspace or file dependencies until releases exist.
+For source development in this repository, run `npm install` followed by
+`npm run check` from the workspace root.
 
 ## Define and run a flow
 
 ```ts
-import { Flow, FlowEngine } from "@smithers/engine"
+import { Flow, FlowEngine } from "@smthrs/engine"
 import { Effect, Layer, Schema } from "effect"
 
 const Greeting = Flow.make("example/Greeting", {

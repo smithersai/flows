@@ -4,7 +4,7 @@ This page describes the portable host surface and the permission kernel that med
 
 ## The closed host surface
 
-`@smithers/host` defines these protected services:
+`@smthrs/host` defines these protected services:
 
 - Effect `FileSystem`
 - Effect `Path`
@@ -13,7 +13,12 @@ This page describes the portable host surface and the permission kernel that med
 - `Jj`
 - one-hop `HttpTransport`
 
-Clock and Random are tracked as host built-ins. Node, Bun, browser, test, Cloudflare, and Vercel packages supply different layers for the same service tags. Unsupported operations fail through their service contract; they should not disappear from the environment type.
+Clock and Random are tracked as host built-ins. This workspace ships Node,
+Bun, browser, and deterministic test layers for the same service tags.
+Cloudflare and Vercel adapters live in the separate
+[plugins repository](https://github.com/smithersai/plugins). Unsupported
+operations fail through their service contract; they should not disappear
+from the environment type.
 
 `HttpTransport` intentionally performs one request without automatic redirect following. Redirect policy belongs above the raw adapter so every network hop can be authorized.
 
@@ -26,7 +31,7 @@ The kernel exports parallel services such as `FileSystem`, `Shell`, `Pty`, `Jj`,
 3. calls the raw host service only when allowed.
 
 ```ts
-import { Capability, Permission } from "@smithers/kernel"
+import { Capability, Permission } from "@smthrs/kernel"
 
 const rule = new Permission.Rule({
   effect: "allow",
@@ -54,8 +59,9 @@ The kernel is a capability check, not an operating-system sandbox. Hermetic exec
 ## Adapter limitations
 
 - The browser layer wraps an injected ZenFS-like promises API.
-- Cloudflare and Vercel filesystems use object or key/value storage rather than full POSIX semantics.
-- Default Cloudflare and Vercel `Shell`, `Pty`, and `Jj` layers are unsupported/no-op adapters; sandbox-backed shell variants are available.
-- The Node-flavored Vercel host uses ephemeral `/tmp` storage.
+- Browser `Pty` and `Jj` operations are explicitly unsupported.
+- Hosted-adapter behavior and limitations are documented with those adapters
+  in the external plugins repository.
 
-See the [`@smithers/host` reference](../reference/host.md), [`@smithers/kernel` reference](../reference/kernel.md), and deployment guides for [Cloudflare](../guides/cloudflare.md) and [Vercel](../guides/vercel.md).
+See the [`@smthrs/host` reference](../reference/host.md) and
+[`@smthrs/kernel` reference](../reference/kernel.md).
