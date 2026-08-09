@@ -1,10 +1,10 @@
-# `@smithers/engine-store`
+# `@smthrs/engine-store`
 
 This page is the public API reference for the journal-backed `FlowEngine` composition, deferred/clock state contract, and hermetic boundary contract. The current composition is Node-oriented.
 
 ## Node only
 
-`@smithers/engine-store` is a **Node entry point**, and the repository's browser gate treats it as one. `EngineStore` reads `process.pid` and imports `randomUUID` from `node:crypto` (`packages/engine-store/src/EngineStore.ts:20`); those two are the package's entire browser-gap inventory (issue #114). Everything it composes above — `@smithers/journal`, `@smithers/database`, `@smithers/keys`, `@smithers/engine` — is browser-bundleable, so the gap is an owner-identity and UUID-source decision, not a rewrite. Until it closes, do not describe the durable engine as browser-capable; `npm run browser` asserts this entry point still fails to bundle for the browser, so the claim cannot drift. See [browser support](../architecture/browser-support.md).
+`@smthrs/engine-store` is a **Node entry point**, and the repository's browser gate treats it as one. `EngineStore` reads `process.pid` and imports `randomUUID` from `node:crypto` (`packages/engine-store/src/EngineStore.ts:20`); those two are the package's entire browser-gap inventory (issue #114). Everything it composes above — `@smthrs/journal`, `@smthrs/database`, `@smthrs/keys`, `@smthrs/engine` — is browser-bundleable, so the gap is an owner-identity and UUID-source decision, not a rewrite. Until it closes, do not describe the durable engine as browser-capable; `npm run browser` asserts this entry point still fails to bundle for the browser, so the claim cannot drift. See [browser support](../architecture/browser-support.md).
 
 ## `EngineStore`
 
@@ -16,7 +16,7 @@ const layer = EngineStore.layer({
 })
 ```
 
-`Options` contains `owner.hostId`, `journalSource`, and optional `isAlive`. `make(options)` returns a `FlowEngine` service; `layer(options)` provides both `FlowEngine` and `FlowEngine.SnapshotBoundary`.
+`Options` contains `owner.hostId`, `journalSource`, and required `isAlive`. `make(options)` returns a `FlowEngine` service; `layer(options)` provides both `FlowEngine` and `FlowEngine.SnapshotBoundary`. The liveness probe is mandatory because silently treating an unknown owner as alive can strand recovery forever.
 
 Required services are `Journal`, `RunStore`, `AttemptStore`, `CacheStore`, `DurableEngineState`, kernel `Jj`, `StepBoundary`, and `Scope`. `EngineCompositionError` represents an engine that was invoked without a complete composition.
 
@@ -76,13 +76,13 @@ interface Service {
 }
 ```
 
-`BoundaryEvidence` contains declared outputs, a diff identity, and an optional expected-set deviation. A hard undeclared write fails with `UndeclaredWrite`; expected mode records a deviation.
+`BoundaryEvidence` contains declared outputs, a diff identity, optional expected-set deviation, and optional `wholeTreeWritesVerified: true`. A hard undeclared write fails with `UndeclaredWrite`; expected mode records a deviation. Cross-run cache admission requires the explicit whole-tree proof.
 
-`make(service)` wraps an implementation. `layer` is the filesystem-backed production boundary over the kernel `FileSystem` seam: `prepare` measures the declared read set's real digests, `settle` detects declared reads mutated outside the declared write set and captures the write set's post-state as materializable outputs, and `replayOutputs` re-materializes them on cache-hit replay. Whole-tree undeclared-write detection (paths outside the declared sets) still needs the jj diff surface. `layerTest(options?)` is deterministic and supports changed-path/deviation/replay/`readSnapshot` assertions, but it does not enforce a real sandbox.
+`make(service)` wraps an implementation. `layer` is the filesystem-backed production boundary over the kernel `FileSystem` seam: `prepare` measures the declared read set's real digests, `settle` detects declared reads mutated outside the declared write set and captures the write set's post-state as materializable outputs, and `replayOutputs` re-materializes them. It cannot detect writes elsewhere in the tree, so it omits the whole-tree proof and its results remain run-local rather than entering the shared cache. Whole-tree undeclared-write detection still needs a stronger jj-diff-backed boundary. `layerTest(options?)` is deterministic and supports changed-path/deviation/replay/`readSnapshot` assertions, but it does not enforce a real sandbox.
 
 ## Cache admission
 
-EngineStore admits a cache record only when the activity is sealed, the boundary is hard, and no deviation occurred. Only a content-key record has an address another run can reproduce; an ordinal-key record remains run-local. A cache hit is verified before it is served (issue #90): the store calls `prepare` and compares the descriptor's declared `readSet` against the `readSnapshot` the host measured. Reuse happens only when every declared read still matches — reads the host reports but the declaration never claimed are ignored, while a declared path that is missing or has a different digest refuses the hit, journals a `cache-provenance` record with `action: "stale_read_set"`, and falls through to a real execution. That is Skyframe's dirty-check invariant; the key alone only detects a *changed declaration*, not a stale one. A verified hit calls `replayOutputs` before returning the stored result.
+EngineStore admits a cache record only when the activity is sealed, the boundary is hard, no deviation occurred, and the evidence explicitly carries `wholeTreeWritesVerified: true`. Older evidence and boundaries that observe declared paths only are conservatively refused. Only a content-key record has an address another run can reproduce; an ordinal-key record remains run-local. A cache hit is verified before it is served (issue #90): the store calls `prepare` and compares the descriptor's declared `readSet` against the `readSnapshot` the host measured. Reuse happens only when every declared read still matches — reads the host reports but the declaration never claimed are ignored, while a declared path that is missing or has a different digest refuses the hit, journals a `cache-provenance` record with `action: "stale_read_set"`, and falls through to a real execution. That is Skyframe's dirty-check invariant; the key alone only detects a *changed declaration*, not a stale one. A verified hit calls `replayOutputs` before returning the stored result.
 
 Replaying a succeeded attempt row also converges the cache: if a crash landed between `attempts.finish` and `cache.put`, the restarted executor re-records the sealed completion (with fresh cache-provenance) instead of leaving the cache permanently behind the journal. A divergent first-recorded row still surfaces through the `Inconsistency` receiver, strict by default.
 

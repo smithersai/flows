@@ -7,9 +7,9 @@
  *
  * @since 0.1.0
  */
-import { AttemptStore, CacheStore, Journal, type JournalEvent, Ownership, RunStore } from "@smithers/journal"
-import { Jj } from "@smithers/kernel"
-import { Digest } from "@smithers/keys"
+import { AttemptStore, CacheStore, Journal, type JournalEvent, Ownership, RunStore } from "@smthrs/journal"
+import { Jj } from "@smthrs/kernel"
+import { Digest } from "@smthrs/keys"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
@@ -511,7 +511,12 @@ export const make = (deps: Dependencies) => {
             const cached = yield* cache.get(keyDigest)
             if (Option.isSome(cached)) {
               const meta = decodeMeta(cached.value.meta)
-              if (meta?.tier === "sealed" && meta.boundary !== undefined && meta.boundary.deviation === undefined) {
+              if (
+                meta?.tier === "sealed" &&
+                meta.boundary !== undefined &&
+                meta.boundary.deviation === undefined &&
+                meta.boundary.wholeTreeWritesVerified === true
+              ) {
                 const boundary = yield* StepBoundary.StepBoundary
                 // Skyframe's dirty check, not "the declaration changed" (issue
                 // #90): the read-set digests folded into the step key are caller
@@ -761,6 +766,7 @@ export const make = (deps: Dependencies) => {
                 meta?.tier === "sealed" &&
                 meta.boundary !== undefined &&
                 meta.boundary.deviation === undefined &&
+                meta.boundary.wholeTreeWritesVerified === true &&
                 meta.readSetVerified === true
               ) {
                 yield* recordCache({
@@ -1043,7 +1049,11 @@ export const make = (deps: Dependencies) => {
           )
           if (!finished) return yield* Effect.interrupt
 
-          if (cacheable && evidence?.deviation === undefined) {
+          if (
+            cacheable &&
+            evidence?.deviation === undefined &&
+            evidence?.wholeTreeWritesVerified === true
+          ) {
             if (readSetVerified) {
               yield* recordCache({ result: outcome.value, meta, createdAtMs: finishedAtMs })
             } else {

@@ -1,7 +1,7 @@
-import { AttemptStore, CacheStore, Journal, type Ownership, RunStore } from "@smithers/journal"
-import * as TestJournal from "@smithers/journal/test/TestJournal"
-import { Jj } from "@smithers/kernel"
-import { Digest } from "@smithers/keys"
+import { AttemptStore, CacheStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Jj } from "@smthrs/kernel"
+import { Digest } from "@smthrs/keys"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -383,7 +383,11 @@ describe("cache convergence from a succeeded attempt row", () => {
               outcome: "recorded-outcome",
               meta: {
                 tier: "sealed",
-                boundary: { declaredOutputs: {}, diffIdentity: "identity" },
+                boundary: {
+                  declaredOutputs: {},
+                  diffIdentity: "identity",
+                  wholeTreeWritesVerified: true
+                },
                 // Convergence re-records only completions whose read set was
                 // verified at prepare time (issue #106).
                 readSetVerified: true

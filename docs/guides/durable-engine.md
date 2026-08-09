@@ -1,6 +1,6 @@
 # Assembling a durable engine
 
-This guide describes the services required by `@smithers/engine-store` and gives a local SQL-backed composition pattern. It also identifies which services must be replaced before a multi-process deployment is durable.
+This guide describes the services required by `@smthrs/engine-store` and gives a local SQL-backed composition pattern. It also identifies which services must be replaced before a multi-process deployment is durable.
 
 ## Required services
 
@@ -15,9 +15,9 @@ This guide describes the services required by `@smithers/engine-store` and gives
 `TestJournal.layer()` supplies the four SQL services over an in-memory SQLite database. It is useful for integration tests, not restart durability:
 
 ```ts
-import { DurableEngineState, EngineStore, StepBoundary } from "@smithers/engine-store"
-import * as TestJournal from "@smithers/journal/test/TestJournal"
-import { Jj } from "@smithers/kernel"
+import { DurableEngineState, EngineStore, StepBoundary } from "@smthrs/engine-store"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Jj } from "@smthrs/kernel"
 import { Effect, Layer } from "effect"
 
 const jj = Jj.make({
@@ -66,7 +66,11 @@ registration, the SQL implementation re-arms every pending future or overdue
 clock and re-delivers wakes for stored completions through the normal run
 claim path.
 
-`StepBoundary.layerTest` does not create a sandbox. Supply a boundary that enforces declared writes and returns observed read/write evidence before admitting cross-run cache entries.
+`StepBoundary.layerTest` does not create a sandbox. `StepBoundary.layer` can
+measure declared paths and materialize outputs, but cannot observe writes
+elsewhere in the tree, so its results are not admitted to the shared cache.
+Supply a stronger boundary that enforces declared writes and returns
+`wholeTreeWritesVerified: true` before admitting cross-run cache entries.
 
 `EngineStore` currently uses `node:crypto.randomUUID` and `process.pid`. The composition is therefore Node-oriented even when the database and host have edge adapters. An edge-safe engine owner identity is **Planned**.
 
@@ -78,4 +82,4 @@ Give each worker a stable `hostId`; the engine adds process identity and a rando
 
 Deferred and clock completion schedule a resume. A committed journal-driven `resumeSignal` is not implemented, so suspended execution can also rely on the flow engine’s polling schedule.
 
-See the [`@smithers/engine-store` reference](../reference/engine-store.md), [Journal](../concepts/journal.md), and [Implementation status](../architecture/implementation-status.md).
+See the [`@smthrs/engine-store` reference](../reference/engine-store.md), [Journal](../concepts/journal.md), and [Implementation status](../architecture/implementation-status.md).

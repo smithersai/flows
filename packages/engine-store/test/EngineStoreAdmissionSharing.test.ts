@@ -16,9 +16,9 @@
  * (double execution or an AttemptAdmissionRejected conflict); with it the
  * loser waits out the winner's span and replays its terminal row.
  */
-import { Activity, Flow } from "@smithers/engine"
-import * as TestJournal from "@smithers/journal/test/TestJournal"
-import { Jj } from "@smithers/kernel"
+import { Activity, Flow } from "@smthrs/engine"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Jj } from "@smthrs/kernel"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
@@ -72,7 +72,8 @@ describe("EngineStore shares one admission mutex across dispatches (issue #112)"
       Effect.scoped(Effect.gen(function*() {
         const engine = yield* EngineStore.make({
           owner: { hostId: "admission-host" },
-          journalSource: "admission-test"
+          journalSource: "admission-test",
+          isAlive: () => Effect.succeed(true)
         })
         yield* engine.register(AdmissionFlow, () =>
           Effect.map(

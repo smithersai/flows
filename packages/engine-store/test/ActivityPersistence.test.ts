@@ -1,7 +1,7 @@
-import { AttemptStore, CacheStore, Journal, type Ownership, RunStore } from "@smithers/journal"
-import * as TestJournal from "@smithers/journal/test/TestJournal"
-import { Jj } from "@smithers/kernel"
-import { Digest } from "@smithers/keys"
+import { AttemptStore, CacheStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Jj } from "@smthrs/kernel"
+import { Digest } from "@smthrs/keys"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -211,6 +211,11 @@ describe("ActivityPersistence", () => {
           { tier: "sealed", boundary: { declaredOutputs: {}, diffIdentity: "" } },
           {
             tier: "sealed",
+            boundary: { declaredOutputs: {}, diffIdentity: "legacy-without-whole-tree-proof" },
+            readSetVerified: true
+          },
+          {
+            tier: "sealed",
             boundary: {
               declaredOutputs: {},
               diffIdentity: "d",
@@ -252,7 +257,37 @@ describe("ActivityPersistence", () => {
       }).pipe(Effect.provide(tolerantLayer), Effect.scoped)
     )
 
-    expect(values).toEqual(["fresh-0", "fresh-1", "fresh-2"])
-    expect(dispatches).toBe(3)
+    expect(values).toEqual(["fresh-0", "fresh-1", "fresh-2", "fresh-3"])
+    expect(dispatches).toBe(4)
+  })
+
+  it("does not publish a hard-boundary result without whole-tree write proof", async () => {
+    const key = "cache/no-whole-tree-proof"
+    const keyDigest = Digest.digest(key)
+    const result = await Effect.runPromise(
+      Effect.gen(function*() {
+        yield* activate("no-whole-tree-proof")
+        const value = yield* ActivityPersistence.make({
+          runId: "no-whole-tree-proof",
+          owner,
+          sourceId: "activity-test",
+          execute: () => Effect.succeed("run-local")
+        })({ activity: {}, attempt: 1, key, tier: "sealed", metadata: boundary })
+        const cache = yield* CacheStore.CacheStore
+        return { value, cached: yield* cache.get(keyDigest) }
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            TestJournal.layer(),
+            StepBoundary.layerTest({ wholeTreeWriteDetection: false }),
+            jj
+          )
+        ),
+        Effect.scoped
+      )
+    )
+
+    expect(result.value).toBe("run-local")
+    expect(Option.isNone(result.cached)).toBe(true)
   })
 })

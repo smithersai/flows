@@ -1,11 +1,11 @@
-# @smithers/engine-store
+# @smthrs/engine-store
 
-Durable persistence adapter for `@smithers/engine`. It composes journal-backed
+Durable persistence adapter for `@smthrs/engine`. It composes journal-backed
 run ownership, attempts, cache provenance, deferreds, clocks, and workspace
 snapshot boundaries into a `FlowEngine` layer.
 
 ```sh
-npm install @smithers/engine-store
+npm install @smthrs/engine-store
 ```
 
 ## Node only
@@ -15,7 +15,7 @@ for one.** `EngineStore` reads `process.pid` and imports `randomUUID` from
 `node:crypto` to identify an owner and stamp attempt nonces; those are the
 package's only `node:` imports, and they are the complete browser-gap
 inventory for a future browser composition (issue #114). The SQL it drives is
-driver-neutral — `@smithers/journal` and `@smithers/database` both bundle for
+driver-neutral — `@smthrs/journal` and `@smthrs/database` both bundle for
 the browser — but the shipped `Database` layer beneath it is `node:sqlite`
 through `@effect/sql-sqlite-node`.
 
@@ -27,7 +27,7 @@ and fails the build if it stops failing without the docs being corrected. See
 ## Public API
 
 The root exports these namespaces; each is also available from its matching
-`@smithers/engine-store/*` subpath.
+`@smthrs/engine-store/*` subpath.
 
 | Namespace            | Public exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -38,13 +38,14 @@ The root exports these namespaces; each is also available from its matching
 | `Errors`             | Stable `FlowCycleDetected`, `AttemptAdmissionRejected`, and `CacheConflictDetected` errors.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 ```ts
-import { FlowEngine } from "@smithers/engine"
-import { EngineStore } from "@smithers/engine-store"
+import { FlowEngine } from "@smthrs/engine"
+import { EngineStore } from "@smthrs/engine-store"
 import { Effect } from "effect"
 
 const engineLayer = EngineStore.layer({
   owner: { hostId: "worker-a" },
-  journalSource: "engine-store"
+  journalSource: "engine-store",
+  isAlive: (owner) => checkOwner(owner)
 })
 
 const program = Effect.gen(function*() {
@@ -70,6 +71,5 @@ No local WAL makes a remote effect atomic, so external effects still need
 idempotency keys, fencing, or compensation.
 
 See the [engine-store reference](../../docs/reference/engine-store.md),
-[Run Ownership](../../../docs/specs/Concepts/Run%20Ownership.md),
-[Step Keys](../../../docs/specs/Concepts/Step%20Keys.md), and
-[Engine Hardening Round 1](../../../docs/specs/Concepts/Engine%20Hardening%20Round%201.md).
+[durable execution model](../../docs/concepts/durable-execution-model.md), and
+[step keys](../../docs/concepts/step-keys.md).

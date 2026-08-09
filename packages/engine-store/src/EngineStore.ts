@@ -1,5 +1,5 @@
 /**
- * Durable `FlowEngine.Encoded` composition over `@smithers/journal`.
+ * Durable `FlowEngine.Encoded` composition over `@smthrs/journal`.
  *
  * Governing designs: `docs/specs/Concepts/Run Ownership.md`,
  * `docs/specs/Concepts/Step Keys.md`, and
@@ -7,10 +7,10 @@
  *
  * @since 0.1.0
  */
-import { type Activity, Flow, FlowEngine } from "@smithers/engine"
-import { AttemptStore, CacheStore, Journal, type Ownership, RunStore } from "@smithers/journal"
-import { Jj } from "@smithers/kernel"
-import { Digest } from "@smithers/keys"
+import { type Activity, Flow, FlowEngine } from "@smthrs/engine"
+import { AttemptStore, CacheStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
+import { Jj } from "@smthrs/kernel"
+import { Digest } from "@smthrs/keys"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -37,7 +37,7 @@ export interface Options {
     readonly hostId: string
   }
   readonly journalSource: string
-  readonly isAlive?: (
+  readonly isAlive: (
     owner: Ownership.OwnerId
   ) => Effect.Effect<boolean>
 }
@@ -102,7 +102,7 @@ export const make = (
     const driver = yield* RunDriver.make({
       owner,
       journalSource: options.journalSource,
-      isAlive: options.isAlive ?? (() => Effect.succeed(true)),
+      isAlive: options.isAlive,
       engine: Deferred.await(engine)
     })
     const deferred = yield* DeferredPersistence.make({

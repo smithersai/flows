@@ -10,11 +10,11 @@
  * an operator resumes it after restoring the evidence bytes or
  * time-travelling past the attempt.
  */
-import { Activity, Flow, type FlowEngine, RetryPolicy } from "@smithers/engine"
-import { AttemptStore, CacheStore, Journal, RunStore } from "@smithers/journal"
-import * as Notifying from "@smithers/journal/test/Notifying"
-import * as TestJournal from "@smithers/journal/test/TestJournal"
-import { Jj } from "@smithers/kernel"
+import { Activity, Flow, type FlowEngine, RetryPolicy } from "@smthrs/engine"
+import { AttemptStore, CacheStore, Journal, RunStore } from "@smthrs/journal"
+import * as Notifying from "@smthrs/journal/test/Notifying"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Jj } from "@smthrs/kernel"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as ManagedRuntime from "effect/ManagedRuntime"
@@ -88,7 +88,12 @@ describe("succeeded-row corruption parks the run quarantined for an operator (is
       StepBoundary.StepBoundary,
       StepBoundary.make({
         prepare: (descriptor) => Effect.succeed({ descriptor, readSnapshot: descriptor.readSet }),
-        settle: () => Effect.succeed({ declaredOutputs: { outputs: [] }, diffIdentity: "quarantine-diff" }),
+        settle: () =>
+          Effect.succeed({
+            declaredOutputs: { outputs: [] },
+            diffIdentity: "quarantine-diff",
+            wholeTreeWritesVerified: true
+          }),
         replayOutputs: () => evidenceCorrupt ? Effect.fail(corruptionError) : Effect.succeed(undefined)
       })
     )
@@ -98,6 +103,7 @@ describe("succeeded-row corruption parks the run quarantined for an operator (is
         TestClock.layer(),
         Layer.succeed(DurableEngineState.DurableEngineState, state),
         Layer.succeed(Jj.Jj, jj),
+        Activity.layerContentEnvironment({ layers: [], capabilities: {} }),
         boundary
       )
     )
@@ -176,7 +182,11 @@ describe("succeeded-row corruption parks the run quarantined for an operator (is
           outcome: "durable-outcome",
           meta: {
             tier: "sealed",
-            boundary: { declaredOutputs: { outputs: [] }, diffIdentity: "quarantine-diff" },
+            boundary: {
+              declaredOutputs: { outputs: [] },
+              diffIdentity: "quarantine-diff",
+              wholeTreeWritesVerified: true
+            },
             readSetVerified: true
           }
         }, seedOwner)

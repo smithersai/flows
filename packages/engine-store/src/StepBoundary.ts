@@ -4,8 +4,8 @@
  *
  * @since 0.1.0
  */
-import { FileSystem } from "@smithers/kernel"
-import { Digest } from "@smithers/keys"
+import { FileSystem } from "@smthrs/kernel"
+import { Digest } from "@smthrs/keys"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
@@ -81,6 +81,13 @@ export type BoundaryDeviation = typeof BoundaryDeviation.Type
 export const BoundaryEvidence = Schema.Struct({
   declaredOutputs: Schema.Unknown,
   diffIdentity: Schema.NonEmptyString,
+  /**
+   * The boundary observed the whole execution tree and proved that every
+   * write was covered by the descriptor's write set. Only evidence carrying
+   * this explicit proof may enter the cross-run cache. Older evidence and
+   * boundaries that can inspect declared paths only omit it.
+   */
+  wholeTreeWritesVerified: Schema.optional(Schema.Literal(true)),
   deviation: Schema.optional(BoundaryDeviation)
 })
 
@@ -581,6 +588,9 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
       return {
         declaredOutputs: { outputs },
         diffIdentity,
+        // This filesystem-only boundary cannot observe writes elsewhere in
+        // the tree. Omission is deliberate: ActivityPersistence treats the
+        // result as run-local and will not publish it to the shared cache.
         ...(undeclared.length === 0
           ? {}
           : { deviation: { _tag: "ExpectedSetDeviation" as const, paths: undeclared, diffIdentity } })
@@ -642,6 +652,8 @@ export interface TestOptions {
   readonly declaredOutputs?: unknown
   readonly diffIdentity?: string | undefined
   readonly supported?: boolean | undefined
+  /** Whether `changedPaths` represents a whole-tree observation. Defaults to true. */
+  readonly wholeTreeWriteDetection?: boolean | undefined
   readonly onReplay?: (evidence: BoundaryEvidence) => void
 }
 
@@ -680,6 +692,7 @@ export const layerTest = (options: TestOptions = {}): Layer.Layer<Service> => {
       return {
         declaredOutputs: options.declaredOutputs ?? { paths: prepared.descriptor.writeSet },
         diffIdentity,
+        ...(options.wholeTreeWriteDetection === false ? {} : { wholeTreeWritesVerified: true as const }),
         ...(undeclared.length === 0
           ? {}
           : { deviation: { _tag: "ExpectedSetDeviation" as const, paths: undeclared, diffIdentity } })

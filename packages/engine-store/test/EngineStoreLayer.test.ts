@@ -1,7 +1,7 @@
-import { Activity, DurableDeferred, Flow, FlowEngine } from "@smithers/engine"
-import { Journal, type Ownership, RunStore } from "@smithers/journal"
-import * as TestJournal from "@smithers/journal/test/TestJournal"
-import { Jj } from "@smithers/kernel"
+import { Activity, DurableDeferred, Flow, FlowEngine } from "@smthrs/engine"
+import { Journal, type Ownership, RunStore } from "@smthrs/journal"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Jj } from "@smthrs/kernel"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -80,7 +80,11 @@ describe("EngineStore.layer", () => {
         return { snapshot, diff }
       })).pipe(
         Effect.provide(
-          EngineStore.layer({ owner: { hostId: "layer-host" }, journalSource: "layer-test" }).pipe(
+          EngineStore.layer({
+            owner: { hostId: "layer-host" },
+            journalSource: "layer-test",
+            isAlive: () => Effect.succeed(true)
+          }).pipe(
             Layer.provideMerge(baseLayers(recordingJj(calls), DurableEngineState.makeMemory()))
           )
         ),
@@ -120,7 +124,11 @@ describe("EngineStore.layer", () => {
         )
       ).pipe(
         Effect.provide(
-          EngineStore.layer({ owner: { hostId: "layer-host" }, journalSource: "layer-test" }).pipe(
+          EngineStore.layer({
+            owner: { hostId: "layer-host" },
+            journalSource: "layer-test",
+            isAlive: () => Effect.succeed(true)
+          }).pipe(
             Layer.provideMerge(baseLayers(failing, DurableEngineState.makeMemory()))
           )
         ),
@@ -147,7 +155,11 @@ describe("EngineStore.layer", () => {
         return { value, row: yield* store.get("layered-run") }
       })).pipe(
         Effect.provide(
-          EngineStore.layer({ owner: { hostId: "layer-host" }, journalSource: "layer-test" }).pipe(
+          EngineStore.layer({
+            owner: { hostId: "layer-host" },
+            journalSource: "layer-test",
+            isAlive: () => Effect.succeed(true)
+          }).pipe(
             Layer.provideMerge(baseLayers(recordingJj([]), state))
           )
         ),
@@ -160,8 +172,8 @@ describe("EngineStore.layer", () => {
   })
 })
 
-describe("EngineStore.make defaults", () => {
-  it("defaults liveness to `alive`, so a stale foreign owner is never stolen from", async () => {
+describe("EngineStore.make liveness", () => {
+  it("uses the required liveness probe, so a live foreign owner is never stolen from", async () => {
     let executions = 0
     const result = await Effect.runPromise(
       Effect.scoped(Effect.gen(function*() {
@@ -183,7 +195,8 @@ describe("EngineStore.make defaults", () => {
 
         const engine = yield* EngineStore.make({
           owner: { hostId: "layer-host" },
-          journalSource: "layer-test"
+          journalSource: "layer-test",
+          isAlive: () => Effect.succeed(true)
         })
         yield* engine.register(
           LayerFlow,
@@ -311,13 +324,70 @@ describe("EngineStore boundary metadata", () => {
           discard: false
         })
         return { first, second }
-      })).pipe(Effect.provide(baseLayers(recordingJj([]), state)))
+      })).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            baseLayers(recordingJj([]), state),
+            // Cross-run reuse is only offered once the composition states the
+            // environment its sealed keys were computed under: an undeclared
+            // environment pins the key to its own execution, so the two runs
+            // would address distinct rows and never share.
+            Activity.layerContentEnvironment({ layers: [], capabilities: {} })
+          )
+        )
+      )
     )
 
     expect(result.first).toBe("hermetic-result")
     expect(result.second).toBe("hermetic-result")
-    // The declared hard boundary makes the sealed result cacheable, so the
-    // second run replays it instead of dispatching again.
+    // The declared hard boundary with whole-tree write proof makes the sealed
+    // result cacheable, so the second run replays it instead of dispatching.
     expect(dispatches).toBe(1)
+  })
+
+  it("keeps a sealed result run-local while the content environment is undeclared", async () => {
+    // The admission half of the same invariant: identical declarations, an
+    // identical hard boundary, and no declared environment must still execute
+    // twice, because nothing proves the second run resolves the same layers
+    // and capabilities as the first.
+    const state = DurableEngineState.makeMemory()
+    let dispatches = 0
+    const hermetic = Activity.make({
+      name: "hermetic-undeclared",
+      success: Schema.String,
+      tier: "sealed",
+      idempotencyKey: "engine-store-hermetic-undeclared-v1",
+      metadata: { readSet: [], writeSet: ["output.txt"], boundaryMode: "hard" },
+      execute: Effect.sync(() => {
+        dispatches++
+        return `hermetic-result-${dispatches}`
+      })
+    })
+
+    const result = await Effect.runPromise(
+      Effect.scoped(Effect.gen(function*() {
+        const engine = yield* EngineStore.make({
+          owner: { hostId: "layer-host" },
+          journalSource: "layer-test",
+          isAlive: () => Effect.succeed(false)
+        })
+        yield* engine.register(LayerFlow, () => hermetic as unknown as Effect.Effect<string, never, never>)
+        const first = yield* engine.execute(LayerFlow, {
+          executionId: "undeclared-a",
+          payload: {},
+          discard: false
+        })
+        const second = yield* engine.execute(LayerFlow, {
+          executionId: "undeclared-b",
+          payload: {},
+          discard: false
+        })
+        return { first, second }
+      })).pipe(Effect.provide(baseLayers(recordingJj([]), state)))
+    )
+
+    expect(result.first).toBe("hermetic-result-1")
+    expect(result.second).toBe("hermetic-result-2")
+    expect(dispatches).toBe(2)
   })
 })

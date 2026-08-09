@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- Required an owner-liveness probe when constructing the durable engine.
+
+### Fixed
+
+- Required explicit whole-tree write verification before admitting a sealed
+  result to the cross-run cache.
+
 ## [0.1.0] - 2026-08-05
 
 ### Fixed

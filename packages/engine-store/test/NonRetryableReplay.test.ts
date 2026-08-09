@@ -11,12 +11,12 @@
  * persisted failure after a restart — the failure itself is durable, not
  * just the fact that an attempt happened.
  */
-import { Activity, Flow, RetryPolicy } from "@smithers/engine"
-import { AttemptStore, Journal, RunStore } from "@smithers/journal"
-import * as Notifying from "@smithers/journal/test/Notifying"
-import * as TestJournal from "@smithers/journal/test/TestJournal"
-import { Jj } from "@smithers/kernel"
-import { Digest, StepKey } from "@smithers/keys"
+import { Activity, Flow, RetryPolicy } from "@smthrs/engine"
+import { AttemptStore, Journal, RunStore } from "@smthrs/journal"
+import * as Notifying from "@smthrs/journal/test/Notifying"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Jj } from "@smthrs/kernel"
+import { Digest, StepKey } from "@smthrs/keys"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
@@ -52,7 +52,13 @@ const provide = <A>(effect: Effect.Effect<A, any, any>, state: DurableEngineStat
       Effect.provideService(Jj.Jj, jj),
       Effect.provide(StepBoundary.layerTest()),
       Effect.provide(TestJournal.layer()),
-      Effect.provide(TestClock.layer())
+      Effect.provide(TestClock.layer()),
+      // Sealed content keys hash the resolved environment. Declaring an empty
+      // one — what a hand-wired composition does through
+      // `Activity.layerContentEnvironment` — keeps the key run-independent so
+      // the mirror below can reproduce it; leaving it undeclared would pin
+      // each key to its own execution.
+      Effect.provide(Activity.layerContentEnvironment(environment))
     ) as Effect.Effect<A>
   )
 
@@ -67,12 +73,14 @@ const declaration = {
     Schema.Struct({ _tag: Schema.Literal("FatalBoom"), detail: Schema.String }).ast
   ))
 }
+const environment = { layers: [], capabilities: {} } satisfies Activity.ContentEnvironment
 const activityKey = (name: string, idempotencyKey: string) =>
   Result.getOrThrow(StepKey.content({
     body: { activity: name, idempotencyKey, declaration },
     inputs: {},
     layers: [],
-    capabilities: {}
+    capabilities: {},
+    environment: { declared: true, ...environment }
   }))
 
 describe("non-retryable classification against the real error class (issue #165)", () => {

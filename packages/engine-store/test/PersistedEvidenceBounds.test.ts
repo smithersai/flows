@@ -2,13 +2,14 @@
  * Issue #125: an end-to-end guard on the issue-#113 bound — a dispatch
  * through `ActivityPersistence.make` under the REAL filesystem-backed
  * `StepBoundary` with an over-bound output must persist the digest
- * reference, never the payload, into both the shared cache entry and the
- * attempt row meta, keeping their JSON sizes bounded.
+ * reference, never the payload, into the attempt row meta. The filesystem
+ * boundary cannot observe the whole tree, so its evidence must not enter the
+ * shared cache even when the declared output capture succeeds.
  */
-import { AttemptStore, CacheStore, type Ownership, RunStore } from "@smithers/journal"
-import * as TestJournal from "@smithers/journal/test/TestJournal"
-import { FileSystem, Jj } from "@smithers/kernel"
-import { Digest } from "@smithers/keys"
+import { AttemptStore, CacheStore, type Ownership, RunStore } from "@smthrs/journal"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { FileSystem, Jj } from "@smthrs/kernel"
+import { Digest } from "@smthrs/keys"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
@@ -73,7 +74,7 @@ const memoryFs = (seed: Record<string, string>) => {
 }
 
 describe("persisted evidence stays bounded through the real boundary (issue #125)", () => {
-  it("records digest references, not payloads, into the cache entry and attempt row", async () => {
+  it("records bounded digest references without admitting the unverified boundary to cache", async () => {
     const runId = "evidence-bounds-run"
     const key = "evidence-bounds/over-inline"
     const keyDigest = Digest.digest(key)
@@ -112,7 +113,7 @@ describe("persisted evidence stays bounded through the real boundary (issue #125
       }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
     )
     expect(outcome.result).toBe("done")
-    expect(Option.isSome(outcome.entry)).toBe(true)
+    expect(Option.isNone(outcome.entry)).toBe(true)
     expect(Option.isSome(outcome.row)).toBe(true)
     const outputsOf = (meta: unknown) =>
       (meta as {
@@ -126,16 +127,15 @@ describe("persisted evidence stays bounded through the real boundary (issue #125
           }
         }
       }).boundary.declaredOutputs.outputs
-    for (const meta of [Option.getOrThrow(outcome.entry).meta, Option.getOrThrow(outcome.row).meta]) {
-      const [output] = outputsOf(meta)
-      // The digest reference is persisted; the payload is not.
-      expect(output!.digest).toBe(artifactDigest)
-      expect(output!.content).toBeUndefined()
-      expect(JSON.stringify(meta)).not.toContain("xxxxxxxx")
-      // The stated bound: a persisted meta row stays under 2 KiB even though
-      // the output was 4 KiB.
-      expect(JSON.stringify(meta).length).toBeLessThan(2048)
-    }
+    const meta = Option.getOrThrow(outcome.row).meta
+    const [output] = outputsOf(meta)
+    // The digest reference is persisted; the payload is not.
+    expect(output!.digest).toBe(artifactDigest)
+    expect(output!.content).toBeUndefined()
+    expect(JSON.stringify(meta)).not.toContain("xxxxxxxx")
+    // The stated bound: a persisted meta row stays under 2 KiB even though
+    // the output was 4 KiB.
+    expect(JSON.stringify(meta).length).toBeLessThan(2048)
     // The payload itself lives in the content-addressed object directory.
     expect(host.files.has(`.objects/${artifactDigest}`)).toBe(true)
   })

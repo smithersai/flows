@@ -16,15 +16,17 @@ Consequence: local computation between boundaries must be deterministic, while a
 
 ## D3. Key computation sits above storage
 
-`@smithers/engine` computes content or ordinal step keys before calling `FlowEngine.Encoded.activityExecute`. Memory and durable engines therefore receive the same identity instead of implementing key policy independently.
+`@smthrs/engine` computes content or ordinal step keys before calling `FlowEngine.Encoded.activityExecute`. Memory and durable engines therefore receive the same identity instead of implementing key policy independently.
 
-Consequence: activity names are diagnostic. A sealed content identity, not the name, controls reuse.
+Consequence: object-form sealed content identities are caller-owned and
+rename-stable. String idempotency keys are intentionally namespaced by the
+activity name and schema declaration, so those changes invalidate reuse.
 
 ## D4. Cache admission requires evidence
 
-A content key alone does not prove hermetic execution. `@smithers/engine-store` caches only sealed activities that carry a hard `StepBoundary` descriptor and settle without a deviation.
+A content key alone does not prove hermetic execution. `@smthrs/engine-store` caches only sealed activities that carry a hard `StepBoundary` descriptor, settle without a deviation, and explicitly attest whole-tree write verification.
 
-Consequence: cross-run cache admission requires the filesystem-backed `StepBoundary.layer` (or a stronger host boundary). It measures declared read sets and materializes declared outputs; writes outside the declared sets are only detected within the read set until a jj-diff-backed boundary lands.
+Consequence: the filesystem-backed `StepBoundary.layer` measures declared read sets and materializes declared outputs, but cannot detect writes elsewhere and therefore does not admit shared cache rows. Cross-run admission requires a stronger whole-tree boundary, such as a future jj-diff-backed implementation.
 
 ## D5. Host access is closed and decorated
 
@@ -62,6 +64,6 @@ Consequence: time travel depends on explicit effect-boundary records, lineage ed
 
 ## D10. Remote sync is read-only
 
-`@smithers/sync` exports catch-up and follow RPCs over journal entries. Mutation, resume, and permission decisions are deliberately outside this protocol.
+`@smthrs/sync` exports catch-up and follow RPCs over journal entries. Mutation, resume, and permission decisions are deliberately outside this protocol.
 
 Consequence: consumers can rebuild read models without acquiring run ownership or receiving write authority.

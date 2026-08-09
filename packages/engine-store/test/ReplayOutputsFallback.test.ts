@@ -13,10 +13,10 @@
  * succeeded-attempt path returns the durable outcome with the refusal
  * journalled, and the production layer mkdirs parents before materializing.
  */
-import { CacheStore, Journal, type Ownership, RunStore } from "@smithers/journal"
-import * as TestJournal from "@smithers/journal/test/TestJournal"
-import { FileSystem, Jj } from "@smithers/kernel"
-import { Digest } from "@smithers/keys"
+import { CacheStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { FileSystem, Jj } from "@smthrs/kernel"
+import { Digest } from "@smthrs/keys"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
@@ -75,7 +75,12 @@ const unreplayable = (options: { readonly onPrepare?: () => void } = {}) =>
           options.onPrepare?.()
           return { descriptor, readSnapshot: descriptor.readSet }
         }),
-      settle: () => Effect.succeed({ declaredOutputs: { outputs: [] }, diffIdentity: "replay-fallback-diff" }),
+      settle: () =>
+        Effect.succeed({
+          declaredOutputs: { outputs: [] },
+          diffIdentity: "replay-fallback-diff",
+          wholeTreeWritesVerified: true
+        }),
       replayOutputs: () =>
         Effect.fail(
           new StepBoundary.UnsupportedBoundary({

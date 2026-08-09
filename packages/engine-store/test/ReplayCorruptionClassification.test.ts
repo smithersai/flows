@@ -11,10 +11,10 @@
  * transient host errors stay retryable and never reach the receiver. Both
  * classes journal their `reason` on the `replay_failed` provenance record.
  */
-import { AttemptStore, CacheStore, Journal, type Ownership, RunStore } from "@smithers/journal"
-import * as TestJournal from "@smithers/journal/test/TestJournal"
-import { Jj } from "@smithers/kernel"
-import { Digest } from "@smithers/keys"
+import { AttemptStore, CacheStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Jj } from "@smthrs/kernel"
+import { Digest } from "@smthrs/keys"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -79,7 +79,12 @@ const failingReplay = (error: StepBoundary.UnsupportedBoundary | StepBoundary.Bo
     StepBoundary.StepBoundary,
     StepBoundary.make({
       prepare: (descriptor) => Effect.succeed({ descriptor, readSnapshot: descriptor.readSet }),
-      settle: () => Effect.succeed({ declaredOutputs: { outputs: [] }, diffIdentity: "corruption-diff" }),
+      settle: () =>
+        Effect.succeed({
+          declaredOutputs: { outputs: [] },
+          diffIdentity: "corruption-diff",
+          wholeTreeWritesVerified: true
+        }),
       replayOutputs: () => Effect.fail(error)
     })
   )
@@ -370,7 +375,12 @@ describe("replay-failed classification (issue #150)", () => {
       StepBoundary.StepBoundary,
       StepBoundary.make({
         prepare: (descriptor) => Effect.succeed({ descriptor, readSnapshot: descriptor.readSet }),
-        settle: () => Effect.succeed({ declaredOutputs: { outputs: [] }, diffIdentity: "corruption-diff" }),
+        settle: () =>
+          Effect.succeed({
+            declaredOutputs: { outputs: [] },
+            diffIdentity: "corruption-diff",
+            wholeTreeWritesVerified: true
+          }),
         replayOutputs: () => Effect.void
       })
     )
