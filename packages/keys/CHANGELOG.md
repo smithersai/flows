@@ -1,4 +1,12 @@
-# @smithers/keys
+# @smthrs/keys
+
+## [Unreleased]
+
+### Fixed
+
+- Separated engine-resolved environment identity from caller-owned content
+  declarations and preserved environment layer order to prevent
+  cross-namespace and reordered-composition key collisions.
 
 ## [0.1.0] - 2026-08-05
 

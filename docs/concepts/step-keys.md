@@ -1,6 +1,6 @@
 # Step keys and content addressing
 
-This page defines how `@smithers/keys` creates deterministic activity identities and how those identities control replay and cache reuse. It also states the limits of what a key proves.
+This page defines how `@smthrs/keys` creates deterministic activity identities and how those identities control replay and cache reuse. It also states the limits of what a key proves.
 
 ## Two key classes
 
@@ -11,7 +11,7 @@ Every step key is `sk1_` followed by a lowercase SHA-256 digest.
 A content key can be reused across executions:
 
 ```ts
-import { StepKey } from "@smithers/keys"
+import { StepKey } from "@smthrs/keys"
 import { Result } from "effect"
 
 const key = Result.getOrThrow(
@@ -77,7 +77,7 @@ The repository does not currently ship the planner that produces a whole depende
 
 ## Activity key selection
 
-`@smithers/engine` chooses:
+`@smthrs/engine` chooses:
 
 ```text
 sealed + idempotencyKey → StepKey.content
@@ -86,11 +86,19 @@ compensable             → StepKey.ordinal(tier = compensable)
 irreversible            → StepKey.ordinal(tier = irreversible)
 ```
 
-The computed key is passed into the encoded engine. `@smithers/engine-store` then uses `Digest.digest(key)` as the attempt and cache database address.
+The computed key is passed into the encoded engine. `@smthrs/engine-store` then uses `Digest.digest(key)` as the attempt and cache database address.
 
 ## What changes a content key
 
-A key changes when canonicalized body, inputs, layers, capabilities, or hermetic declaration changes. It does not change merely because an activity’s display name changes.
+A key changes when canonicalized body, inputs, layers, capabilities, environment identity, or hermetic declaration changes. String activity idempotency keys also fold the activity name and declared success/error schemas, so renaming that activity changes its key. Object-form `StepKey.ContentIdentity` remains caller-owned and rename-stable.
+
+The engine hashes its resolved layer/capability environment in a namespace
+separate from caller-owned fields, preventing the two sources from aliasing.
+Environment layer order is preserved because changing plugin or service
+composition order can change behavior even when the same identities appear.
+If no environment is declared, or layers are known but the complete capability
+identity is omitted, the engine adds the execution ID as a run scope. The
+result then cannot be reused across runs under unknown authority.
 
 Use a semantic body version rather than function source text. The library does not fingerprint closures or modules for you.
 
@@ -99,9 +107,9 @@ Use a semantic body version rather than function source text. The library does n
 A content key says “this output is a function of these declarations.” It cannot detect a hidden file read or undeclared network call. Honest cross-run reuse additionally requires:
 
 - Host access through guarded services;
-- a production `StepBoundary`;
+- a `StepBoundary` that observes the whole execution tree;
 - hard boundary enforcement;
 - output capture and replay;
-- no detected deviation.
+- no detected deviation and explicit `wholeTreeWritesVerified: true` evidence.
 
 Those enforcement pieces are why `EngineStore` refuses cache admission without boundary evidence. See [flows and the action graph](action-graph.md) and [host adapters and capabilities](hosts-and-capabilities.md).

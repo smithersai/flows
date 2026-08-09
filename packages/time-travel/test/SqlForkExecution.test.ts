@@ -1,9 +1,9 @@
-import { Database } from "@smithers/database"
-import * as NodeDatabase from "@smithers/database/node/NodeDatabase"
-import { Activity, Flow } from "@smithers/engine"
-import { DurableEngineState, EngineStore, StepBoundary } from "@smithers/engine-store"
-import { AttemptStore, CacheStore, Journal, Migrations, RunStore, SqlJournal } from "@smithers/journal"
-import { Jj } from "@smithers/kernel"
+import { Database } from "@smthrs/database"
+import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
+import { Activity, Flow } from "@smthrs/engine"
+import { DurableEngineState, EngineStore, StepBoundary } from "@smthrs/engine-store"
+import { AttemptStore, CacheStore, Journal, Migrations, RunStore, SqlJournal } from "@smthrs/journal"
+import { Jj } from "@smthrs/kernel"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
@@ -43,7 +43,12 @@ const requirements = (filename: string) => {
   return Layer.mergeAll(
     sqlServices,
     StepBoundary.layerTest(),
-    Layer.succeed(Jj.Jj, jj)
+    Layer.succeed(Jj.Jj, jj),
+    // A fork replays attempt rows copied from its parent, and those rows are
+    // addressed by sealed content key. An undeclared environment pins that key
+    // to one execution, so the fork would re-dispatch instead of replaying;
+    // declaring the environment is what lets identity cross the fork boundary.
+    Activity.layerContentEnvironment({ layers: [], capabilities: {} })
   )
 }
 

@@ -8,7 +8,7 @@
  *
  * @since 4.0.0
  */
-import type * as StepKey from "@smithers/keys/StepKey"
+import type * as StepKey from "@smthrs/keys/StepKey"
 import type { NonEmptyReadonlyArray } from "effect/Array"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
@@ -57,7 +57,7 @@ export type IdempotencyKey = string | StepKey.ContentIdentity
  * @since 0.1.0
  */
 export class InfraInterrupt extends Schema.TaggedErrorClass<InfraInterrupt>()(
-  "@smithers/engine/InfraInterrupt",
+  "@smthrs/engine/InfraInterrupt",
   {
     code: Schema.Literal("infra_interrupt").pipe(
       Schema.withConstructorDefault(Effect.succeed("infra_interrupt"))
@@ -75,7 +75,7 @@ export class InfraInterrupt extends Schema.TaggedErrorClass<InfraInterrupt>()(
  */
 export class IrreversibleRetryRequiresIdempotencyKey
   extends Schema.TaggedErrorClass<IrreversibleRetryRequiresIdempotencyKey>()(
-    "@smithers/engine/IrreversibleRetryRequiresIdempotencyKey",
+    "@smthrs/engine/IrreversibleRetryRequiresIdempotencyKey",
     {
       code: Schema.Literal("irreversible_retry_requires_idempotency_key").pipe(
         Schema.withConstructorDefault(Effect.succeed("irreversible_retry_requires_idempotency_key"))
@@ -103,7 +103,7 @@ export class IrreversibleRetryRequiresIdempotencyKey
  * @since 0.1.0
  */
 export class ConcurrentKeylessDispatch extends Schema.TaggedErrorClass<ConcurrentKeylessDispatch>()(
-  "@smithers/engine/ConcurrentKeylessDispatch",
+  "@smthrs/engine/ConcurrentKeylessDispatch",
   {
     code: Schema.Literal("concurrent_keyless_dispatch").pipe(
       Schema.withConstructorDefault(Effect.succeed("concurrent_keyless_dispatch"))
@@ -123,7 +123,7 @@ export class ConcurrentKeylessDispatch extends Schema.TaggedErrorClass<Concurren
  * @since 0.1.0
  */
 export class UncanonicalIdempotencyKey extends Schema.TaggedErrorClass<UncanonicalIdempotencyKey>()(
-  "@smithers/engine/UncanonicalIdempotencyKey",
+  "@smthrs/engine/UncanonicalIdempotencyKey",
   {
     code: Schema.Literal("uncanonical_idempotency_key").pipe(
       Schema.withConstructorDefault(Effect.succeed("uncanonical_idempotency_key"))
@@ -314,7 +314,7 @@ export const make = <
   return self
 }
 
-const isInfraInterrupt = Predicate.isTagged("@smithers/engine/InfraInterrupt")
+const isInfraInterrupt = Predicate.isTagged("@smthrs/engine/InfraInterrupt")
 
 const retryInfraInterrupt = (
   name: string,
@@ -340,19 +340,25 @@ const retryInfraInterrupt = (
  *
  * `layers` names the service implementations the activity body actually runs
  * against (a model, a host, a sandbox) and `capabilities` the permission set
- * it was granted. Both are mandatory content-key material — the Step Keys
- * spec calls layers "the easiest part to forget and the most painful to
- * discover" — because a sealed hard-boundary activity is cached across runs:
- * without them, swapping `Model=sonnet` for `Model=opus` or attenuating a
- * capability leaves the digest byte-identical and serves the stale result
- * (issue #75).
+ * it was granted. Both are mandatory for cross-run reuse — the Step Keys spec
+ * calls layers "the easiest part to forget and the most painful to discover"
+ * — because swapping `Model=sonnet` for `Model=opus` or attenuating a
+ * capability must change the key. Layer order is significant because plugin
+ * and service composition order may change behavior. A composition may omit
+ * capabilities only to declare that its authority is unknown; the engine
+ * then scopes the key to the current run (issue #75).
  *
  * @category Idempotency
  * @since 0.1.0
  */
 export interface ContentEnvironment {
   readonly layers: ReadonlyArray<string>
-  readonly capabilities: Readonly<Record<string, ReadonlyArray<string>>>
+  /**
+   * The complete capability identity. Omission means the composition knows
+   * its layers but not its effective authority; the engine then keeps sealed
+   * keys run-local instead of treating unknown authority as an empty set.
+   */
+  readonly capabilities?: Readonly<Record<string, ReadonlyArray<string>>> | undefined
 }
 
 /**
@@ -361,18 +367,21 @@ export interface ContentEnvironment {
  *
  * The composition that wires the model, host, and permission layers declares
  * it; the engine cannot resolve layer identity on its own. The plugin kernel
- * (`@smithers/plugin`) provides it from the resolved plugin list, so every
- * kernel-built composition carries layer material (issue #88); a composition
- * wired without the kernel declares its own through
- * {@link layerContentEnvironment}. The default is the empty environment,
- * which is the honest statement that nothing has been declared.
+ * (`@smthrs/plugin`) provides it from the resolved plugin list, so every
+ * kernel-built composition carries layer material (issue #88); applications
+ * pass the complete layer and capability identity to the kernel, or a
+ * composition wired without it declares its own through
+ * {@link layerContentEnvironment}. When no composition declares an
+ * environment — or it declares layers without a complete capability
+ * identity — the engine scopes sealed content identities to the current
+ * execution instead of admitting a key reusable under unknown authority.
  *
  * @category Idempotency
  * @since 0.1.0
  */
-export const CurrentContentEnvironment = Context.Reference<ContentEnvironment>(
+export const CurrentContentEnvironment = Context.Reference<ContentEnvironment | undefined>(
   "flows/engine/Activity/CurrentContentEnvironment",
-  { defaultValue: (): ContentEnvironment => ({ layers: [], capabilities: {} }) }
+  { defaultValue: () => undefined }
 )
 
 /**

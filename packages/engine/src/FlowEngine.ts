@@ -9,8 +9,8 @@
  *
  * @since 4.0.0
  */
-import type * as Canonical from "@smithers/keys/Canonical"
-import * as StepKey from "@smithers/keys/StepKey"
+import type * as Canonical from "@smthrs/keys/Canonical"
+import * as StepKey from "@smthrs/keys/StepKey"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
@@ -64,7 +64,7 @@ export interface SnapshotBoundaryOptions {
 /**
  * Minimal host snapshot boundary required by compensable activities.
  *
- * TODO(piece-6): bind to @smithers/kernel Jj in @smithers/engine-store.
+ * TODO(piece-6): bind to @smthrs/kernel Jj in @smthrs/engine-store.
  *
  * @category services
  * @since 0.1.0
@@ -92,7 +92,7 @@ export class SnapshotBoundary extends Context.Service<
  * This is a **typed failure**, never a defect: the caller is expected to be
  * able to recover from it (see `docs/specs/Concepts/Run Ownership.md` and
  * `docs/architecture/implementation-status.md`). Detection itself lives in
- * `@smithers/engine-store`'s `DurableEngineState.recordRunParent`, which
+ * `@smthrs/engine-store`'s `DurableEngineState.recordRunParent`, which
  * inserts the durable parent edge and walks the parent chain in O(depth)
  * inside one storage transaction, rolling back on a hit; the error is
  * declared here because it is part of the `execute` contract this package
@@ -568,38 +568,44 @@ const boundaryHermetic = (
 }
 
 /**
- * Folds the resolved environment into a content identity (issue #75).
+ * Seals the resolved environment into a content identity (issue #75).
  *
  * Layers and capabilities are engine-resolved material a caller must not be
  * able to opt out of — the same argument the boundary descriptor rests on
- * (issue #57) — so the caller's own declarations are kept and the
- * environment's are added on top. The empty environment is a no-op, so an
- * undeclared composition keeps the identity it had.
+ * (issue #57) — so the environment is written into its own
+ * `StepKey.EnvironmentIdentity` slot, overwriting whatever the caller-owned
+ * identity put there. Two properties the previous merge-into-the-caller
+ * shape could not give:
+ *
+ * - **Non-aliasing.** Concatenating the environment's layers and capability
+ *   patterns onto the caller's made `caller{fs:["a"]} + env{fs:["b"]}` hash
+ *   identically to a caller that declared `{fs:["a","b"]}` under an empty
+ *   environment. Distinct environments therefore shared a cross-run cache
+ *   address — the exact collision class issue #75 exists to close. Hashing
+ *   the environment in its own namespace makes the two structurally
+ *   different.
+ * - **Undeclared is not "proven pure".** An absent
+ *   `Activity.CurrentContentEnvironment` used to resolve to the empty
+ *   environment and hash exactly like a composition that had declared it was
+ *   running with no layers and no capabilities. A sealed hard-boundary
+ *   result is cross-run cacheable, so swapping the model or host under an
+ *   undeclared composition left the digest byte-identical and served the
+ *   stale result. An undeclared environment — including one whose layers are
+ *   known but whose capability identity is not — now pins the key to this
+ *   run (`runScope`), so its rows can never be reused by another run.
+ *   Declaring the complete environment removes the pin and restores
+ *   cross-run reuse.
  */
 const withEnvironment = (
   identity: StepKey.ContentIdentity,
-  environment: Activity.ContentEnvironment
-): StepKey.ContentIdentity => {
-  if (environment.layers.length === 0 && Object.keys(environment.capabilities).length === 0) {
-    return identity
-  }
-  // A capability group declared by both sides unions rather than replaces
-  // (issue #89): an object spread let the environment's patterns overwrite
-  // the caller's, so two activities declaring distinct patterns under a
-  // shared group name hashed identically — a cross-run cache-key collision
-  // in the code path whose purpose is preventing them. `StepKey.content`
-  // sorts and dedupes within each group, so concatenation is canonical.
-  const capabilities: Record<string, ReadonlyArray<string>> = { ...identity.capabilities }
-  for (const [group, patterns] of Object.entries(environment.capabilities)) {
-    const declared = capabilities[group]
-    capabilities[group] = declared === undefined ? patterns : [...declared, ...patterns]
-  }
-  return {
-    ...identity,
-    layers: [...identity.layers, ...environment.layers],
-    capabilities
-  }
-}
+  environment: Activity.ContentEnvironment | undefined,
+  executionId: string
+): StepKey.ContentIdentity => ({
+  ...identity,
+  environment: environment?.capabilities === undefined
+    ? { declared: false, layers: environment?.layers ?? [], capabilities: {}, runScope: executionId }
+    : { declared: true, layers: environment.layers, capabilities: environment.capabilities }
+})
 
 /**
  * The ordinal allocation scope of an activity dispatch — its stable
@@ -665,7 +671,7 @@ const activityKey = (
   activity: Activity.AnyWithProps,
   executionId: string,
   ordinal: number,
-  environment: Activity.ContentEnvironment,
+  environment: Activity.ContentEnvironment | undefined,
   scope: string
 ): Result.Result<string, Canonical.CanonicalError> => {
   if (activity.tier === "sealed" && activity.idempotencyKey !== undefined) {
@@ -703,7 +709,7 @@ const activityKey = (
     // (issue #57): the descriptor derived from `activity.metadata` overrides
     // any caller-supplied `hermetic` field.
     const hermetic = boundaryHermetic(activity.metadata)
-    const scoped = withEnvironment(identity, environment)
+    const scoped = withEnvironment(identity, environment, executionId)
     // The caller-owned `ContentIdentity` can carry material canonicalization
     // rejects; the typed `CanonicalError` propagates to the dispatch site
     // (issue #151) instead of being discarded through `Result.getOrThrow`.

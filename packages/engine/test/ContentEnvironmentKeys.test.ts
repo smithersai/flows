@@ -14,7 +14,7 @@
  * descriptor of issue #57 — it is folded into BOTH key forms and a caller
  * cannot opt out of it.
  */
-import type { StepKey } from "@smithers/keys"
+import type { StepKey } from "@smthrs/keys"
 import { Effect, Exit, Layer, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { Activity, Flow, FlowEngine } from "../src/index.ts"
@@ -45,7 +45,8 @@ const sealed = (idempotencyKey: string | StepKey.ContentIdentity) =>
 /** Dispatches `activity` under `environment` and returns the step key. */
 const keyUnder = (
   activity: Activity.Any,
-  environment?: Activity.ContentEnvironment
+  environment?: Activity.ContentEnvironment,
+  executionId = "content-environment-run"
 ): Effect.Effect<string> => {
   let captured: string | undefined
   const engine = FlowEngine.makeUnsafe({
@@ -74,7 +75,7 @@ const keyUnder = (
       : Effect.provideService(Activity.CurrentContentEnvironment, environment),
     Effect.provideService(
       FlowEngine.FlowInstance,
-      FlowEngine.FlowInstance.initial(flow, "content-environment-run")
+      FlowEngine.FlowInstance.initial(flow, executionId)
     ),
     Effect.provide(Layer.succeed(FlowEngine.FlowEngine)(engine))
   ) as Effect.Effect<string>
@@ -95,6 +96,21 @@ describe("sealed content keys fold the resolved environment (issue #75)", () => 
       // Same environment, same digest: the key stays reusable across runs.
       expect(yield* keyUnder(activity, { layers: ["Model=sonnet"], capabilities: { net: ["api.anthropic.com"] } }))
         .toBe(underSonnet)
+    })
+  })
+
+  effect("reordering environment layers changes the digest", () => {
+    return Effect.gen(function*() {
+      const activity = sealed("order-123")
+      const modelThenHost = yield* keyUnder(activity, {
+        layers: ["Model=sonnet", "Host=node"],
+        capabilities: {}
+      })
+      const hostThenModel = yield* keyUnder(activity, {
+        layers: ["Host=node", "Model=sonnet"],
+        capabilities: {}
+      })
+      expect(modelThenHost).not.toBe(hostThenModel)
     })
   })
 
@@ -125,20 +141,32 @@ describe("sealed content keys fold the resolved environment (issue #75)", () => 
     })
   })
 
-  effect("an undeclared environment is the empty one", () => {
+  effect("an undeclared environment is scoped to the current execution", () => {
     return Effect.gen(function*() {
       const activity = sealed("order-123")
-      expect(yield* keyUnder(activity)).toBe(
+      expect(yield* keyUnder(activity)).not.toBe(
         yield* keyUnder(activity, { layers: [], capabilities: {} })
+      )
+      expect(yield* keyUnder(activity, undefined, "other-run")).not.toBe(
+        yield* keyUnder(activity, undefined, "first-run")
       )
     })
   })
 
-  effect("a shared capability group unions with the caller's patterns instead of replacing them", () => {
-    // Issue #89: `withEnvironment` merged capabilities with an object spread,
-    // so a group declared by both the caller and the environment collapsed to
-    // the environment's patterns alone — two activities declaring distinct
-    // patterns under a shared group name hashed identically.
+  effect("known layers without a capability identity stay scoped to the current execution", () => {
+    return Effect.gen(function*() {
+      const activity = sealed("order-123")
+      const incomplete: Activity.ContentEnvironment = { layers: ["Model=sonnet"] }
+      expect(yield* keyUnder(activity, incomplete, "first-run")).not.toBe(
+        yield* keyUnder(activity, incomplete, "other-run")
+      )
+      expect(yield* keyUnder(activity, incomplete, "first-run")).not.toBe(
+        yield* keyUnder(activity, { ...incomplete, capabilities: {} }, "first-run")
+      )
+    })
+  })
+
+  effect("caller and environment capability identities cannot alias through concatenation", () => {
     return Effect.gen(function*() {
       const identity = (patterns: ReadonlyArray<string>): StepKey.ContentIdentity => ({
         body: "ContentEnvironmentKeys/union",
@@ -153,10 +181,10 @@ describe("sealed content keys fold the resolved environment (issue #75)", () => 
       const readsA = yield* keyUnder(sealed(identity(["/data/a"])), environment)
       const readsB = yield* keyUnder(sealed(identity(["/data/b"])), environment)
       expect(readsA).not.toBe(readsB)
-      // The union is order-insensitive: caller + environment patterns hash the
-      // same as a caller that declared both itself.
+      // Caller-owned and engine-resolved authority occupy distinct namespaces:
+      // moving one pattern across that boundary must re-key.
       expect(yield* keyUnder(sealed(identity(["/workspace", "/data/a"])), { layers: [], capabilities: {} }))
-        .toBe(readsA)
+        .not.toBe(readsA)
     })
   })
 

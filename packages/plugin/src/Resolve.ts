@@ -12,7 +12,7 @@
  *
  * @since 0.1.0
  */
-import { Activity } from "@smithers/engine"
+import { Activity } from "@smthrs/engine"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import type { FlowsConfig } from "./Config.ts"
@@ -59,6 +59,18 @@ export interface Options {
   readonly target?: "engine" | "harness" | undefined
   /** Hook names recognized by this host. Defaults to the engine catalog. */
   readonly hooks?: Readonly<Record<string, HookKind>> | undefined
+  /**
+   * Complete composition identity for sealed activity keys.
+   *
+   * Resolved plugin names are prepended to `layers`. The caller still includes
+   * semantic versions and configuration identities when those affect plugin
+   * behavior. Omitting this value leaves capabilities unknown and therefore
+   * keeps sealed keys run-local.
+   */
+  readonly contentEnvironment?: {
+    readonly layers?: ReadonlyArray<string> | undefined
+    readonly capabilities: Readonly<Record<string, ReadonlyArray<string>>>
+  } | undefined
 }
 
 const flatten = <H>(input: PluginInput<H>, into: Array<FlowsPlugin<H>>): Array<FlowsPlugin<H>> => {
@@ -157,24 +169,30 @@ export const resolve = <H = FlowsHooks>(
  * `Layer.provideMerge`, so a `pre` plugin's services are visible to the layers
  * that follow it.
  *
- * Returns `Layer.empty` when no plugin contributes a layer.
+ * The returned layer always declares `Activity.CurrentContentEnvironment`.
+ * When no plugin contributes services, it consists only of that declaration.
  *
  * @category combinators
  * @since 0.1.0
  */
-export const layer = <H>(resolved: Resolved<H>): Layer.Layer<any, PluginError, any> => {
+export const layer = <H>(
+  resolved: Resolved<H>,
+  contentEnvironment?: Options["contentEnvironment"]
+): Layer.Layer<any, PluginError, any> => {
   // The kernel is the composition that wires model/host/permission layers, so
   // it is the component that declares `Activity.CurrentContentEnvironment`
   // (issue #88): the resolved plugin identities, in resolution order, are the
-  // layer material folded into every sealed content key. Without this, the
-  // reference's empty default left sealed digests blind to a plugin swap and
-  // a stale cross-run cache entry was served. A plugin whose identity is
-  // config-sensitive must reflect that in its `name`; capability material
-  // stays empty until the deferred capability enforcement lands
-  // (`docs/architecture/plugin-system.md`, "Not a sandbox").
+  // layer material folded into every sealed content key. Without this, a
+  // plugin swap left sealed digests byte-identical. Capabilities cannot be
+  // inferred from a Layer, so omission remains explicit: the engine keeps
+  // the resulting keys run-local until the application supplies the complete
+  // environment through Kernel.make's options.
   const environment = Activity.layerContentEnvironment({
-    layers: resolved.plugins.map((plugin) => plugin.name),
-    capabilities: {}
+    layers: [
+      ...resolved.plugins.map((plugin) => plugin.name),
+      ...(contentEnvironment?.layers ?? [])
+    ],
+    ...(contentEnvironment === undefined ? {} : { capabilities: contentEnvironment.capabilities })
   }) as unknown as Layer.Layer<any, PluginError, any>
   const layers = resolved.plugins.flatMap((plugin) =>
     plugin.layer

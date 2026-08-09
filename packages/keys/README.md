@@ -1,27 +1,27 @@
-# @smithers/keys
+# @smthrs/keys
 
 Pure, synchronous identity primitives for flows. The package canonicalizes safe
 data and derives versioned content-addressed or run-local step keys without any
 host service requirements.
 
 ```sh
-npm install @smithers/keys
+npm install @smthrs/keys
 ```
 
 ## Public API
 
 The root exports four namespaces, also available from matching
-`@smithers/keys/*` subpaths.
+`@smthrs/keys/*` subpaths.
 
-| Namespace     | Public exports                                                                                                                                                                                                                                     |
-| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Canonical`   | `format` identifies the canonical format. `serialize(value)` returns a `Result`; `CanonicalError` and `CanonicalErrorCode` describe rejected values.                                                                                               |
-| `Digest`      | `digest(string \| Uint8Array)` returns a synchronous lowercase SHA-256 digest.                                                                                                                                                                     |
-| `KeyMaterial` | Shared `KeyMaterial` and `InputRef` planner contracts.                                                                                                                                                                                             |
-| `StepKey`     | Branded `StepKey` schema/type; `content`, `fromKeyMaterial`, and `ordinal` constructors; nominal `DigestInput`, `digestInput`, and `isDigestInput`; `ContentIdentity`, `OrdinalIdentity`, `InputRef`, and `KeyMaterial` types; `KeyMaterialError`. |
+| Namespace     | Public exports                                                                                                                                                                                                                                                            |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Canonical`   | `format` identifies the canonical format. `serialize(value)` returns a `Result`; `CanonicalError` and `CanonicalErrorCode` describe rejected values.                                                                                                                      |
+| `Digest`      | `digest(string \| Uint8Array)` returns a synchronous lowercase SHA-256 digest.                                                                                                                                                                                            |
+| `KeyMaterial` | Shared `KeyMaterial` and `InputRef` planner contracts.                                                                                                                                                                                                                    |
+| `StepKey`     | Branded `StepKey` schema/type; `content`, `fromKeyMaterial`, and `ordinal` constructors; nominal `DigestInput`, `digestInput`, and `isDigestInput`; `ContentIdentity`, `EnvironmentIdentity`, `OrdinalIdentity`, `InputRef`, and `KeyMaterial` types; `KeyMaterialError`. |
 
 ```ts
-import { StepKey } from "@smithers/keys"
+import { StepKey } from "@smthrs/keys"
 import { Result } from "effect"
 
 const key = Result.getOrThrow(StepKey.content({
@@ -37,4 +37,4 @@ irreversible, and otherwise unsealed work. Constructors return `Result` so
 non-canonical values remain typed failures.
 
 See the [keys reference](../../docs/reference/keys.md) and
-[Step Keys](../../../docs/specs/Concepts/Step%20Keys.md).
+[step keys](../../docs/concepts/step-keys.md).

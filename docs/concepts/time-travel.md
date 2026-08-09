@@ -1,13 +1,13 @@
 # Time travel
 
-This page explains the snapshot, fork, replay, compensation, recovery, and rewind primitives in `@smithers/time-travel`. It also identifies the integration work the durable engine does not yet perform automatically.
+This page explains the snapshot, fork, replay, compensation, recovery, and rewind primitives in `@smthrs/time-travel`. It also identifies the integration work the durable engine does not yet perform automatically.
 
 ## Frames and snapshots
 
 A `Frame` identifies a durable point by lineage and journal sequence:
 
 ```ts
-import { Frame } from "@smithers/time-travel"
+import { Frame } from "@smthrs/time-travel"
 
 const frame: Frame.Frame = {
   lineageId: "build-42/root",
@@ -47,6 +47,17 @@ Run state and attempts are not currently versioned by journal frame. A fork
 uses the parent's current persisted snapshot and attempts; automatic
 frame-addressed engine snapshots remain planned integration.
 
+A cloned attempt row is addressed by its sealed content key, and a content key
+computed under an undeclared `Activity.CurrentContentEnvironment` is scoped to
+the execution that produced it (see [step keys](step-keys.md)). A fork
+therefore replays its parent's sealed attempts only when the composition
+declares its environment — through the plugin kernel or
+`Activity.layerContentEnvironment`. Without a declaration the fork re-executes
+those activities rather than reusing rows it cannot prove were produced under
+the same layers and capabilities. A plugin composition becomes complete only
+when `Kernel.make` receives `options.contentEnvironment`; plugin identities
+alone deliberately remain run-local.
+
 ## Effect boundaries and compensation
 
 `EffectBoundary.guard` records intent and outcome around an external effect. Records classify the effect as `sealed`, `compensable`, or `irreversible`, and track `intended`, `succeeded`, or `unknown` status.
@@ -72,4 +83,4 @@ Detached child policy is either `block` or `cancel`. Terminal descendants are di
 
 The time-travel package is implemented and tested as a protocol library, but `EngineStore` does not automatically create every snapshot, lineage edge, or effect-boundary record it consumes. Applications must wire those records and migrations explicitly. Automatic end-to-end integration is **Planned**.
 
-See [Determinism and replay](determinism-and-replay.md), [Subflows](subflows.md), and the [`@smithers/time-travel` reference](../reference/time-travel.md).
+See [Determinism and replay](determinism-and-replay.md), [Subflows](subflows.md), and the [`@smthrs/time-travel` reference](../reference/time-travel.md).

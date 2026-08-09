@@ -1,6 +1,6 @@
-# Plugin system (`@smithers/plugin`)
+# Plugin system (`@smthrs/plugin`)
 
-Status: **kernel implemented, seams not yet dispatched**. This document is the contract. `packages/plugin` implements the plugin object, resolution and ordering, the config waterfall, and the four hook dispatch kinds; the engine call sites listed below still use their built-in defaults and will dispatch through the kernel in a later round. The package name is `@smithers/plugin` — no reason was found to deviate: it sits beside `@smithers/kernel` and `@smithers/host` in the existing namespace, and the harness above the engine will depend on it under the same name.
+Status: **kernel implemented, seams not yet dispatched**. This document is the contract. `packages/plugin` implements the plugin object, resolution and ordering, the config waterfall, and the four hook dispatch kinds; the engine call sites listed below still use their built-in defaults and will dispatch through the kernel in a later round. The package name is `@smthrs/plugin` — no reason was found to deviate: it sits beside `@smthrs/kernel` and `@smthrs/host` in the existing namespace, and the harness above the engine will depend on it under the same name.
 
 ## Motivation
 
@@ -30,7 +30,7 @@ Reference basis (per the corpus rule): `reference/effect` Layer idioms and `unst
 
 ```ts
 import type { Layer } from "effect"
-import type { FlowsHooks, ResolvedConfig, FlowsConfig } from "@smithers/plugin"
+import type { FlowsHooks, ResolvedConfig, FlowsConfig } from "@smthrs/plugin"
 
 export interface FlowsPlugin {
   /** Required, unique. Convention: "flows-plugin-<thing>" or "@scope/flows-plugin-<thing>". */
@@ -80,7 +80,7 @@ Mirrors Vite exactly, with Effect types:
 2. **`config` hook (waterfall, sequential)**: each plugin may return a partial config to be deep-merged, or mutate-and-return. Runs before any Layer is built. Namespaces outside the known option groups (`retry`/`engine`/`store`) are carried through resolution verbatim and deep-frozen — a plugin's own namespace (e.g. `myPlugin: { endpoint }`) is readable from the resolved config; the plugin validates it itself.
 3. The core resolves defaults, producing a frozen `ResolvedConfig`.
 4. **`configResolved` hook (parallel)**: plugins capture the final config. After this point config is immutable for the process lifetime.
-5. All plugin `layer`s are merged (in resolved order, `Layer.provideMerge` left-to-right so `pre` plugins' services are visible to later ones) into the engine's environment. This composed layer is the single place plugins meet DI — the same shape opencode uses for its app layer. The merged layer also declares `Activity.CurrentContentEnvironment` from the resolved plugin identities (in order), so sealed content keys computed under a kernel-built composition fold the wired layer set into their digests and a plugin swap misses the cross-run cache instead of serving a stale result (issue #88); a plugin whose identity is config-sensitive must reflect that in its `name`, and capability material stays empty until capability enforcement lands.
+5. All plugin `layer`s are merged (in resolved order, `Layer.provideMerge` left-to-right so `pre` plugins' services are visible to later ones) into the engine's environment. This composed layer is the single place plugins meet DI — the same shape opencode uses for its app layer. The merged layer declares `Activity.CurrentContentEnvironment` from the resolved plugin identities (in order), so a plugin swap changes the sealed content key (issue #88). Layer composition cannot infer effective authority: without `options.contentEnvironment`, capabilities remain unknown and the engine scopes those keys to the current run. Supplying the complete capability identity and every additional semantic layer/configuration identity enables safe cross-run reuse; a configured plugin whose behavior changes without changing its name must put that versioned configuration identity in `contentEnvironment.layers`.
 
 ## Resolution and ordering rules
 
@@ -144,7 +144,7 @@ The harness (agent loop, sessions, permissions, tools) is built *on top of* the 
 
 ```ts
 // in the harness repo
-declare module "@smithers/plugin" {
+declare module "@smthrs/plugin" {
   interface FlowsHooks {
     toolCall: SequentialHook<(ctx: ToolCallContext) => Effect<Option<ToolOverride>>>
     agentTurnStart: ParallelHook<(turn: TurnContext) => Effect<void>>
@@ -154,9 +154,9 @@ declare module "@smithers/plugin" {
 
 Rules that make this sound:
 
-- `FlowsHooks` is declared **open for augmentation, closed for dispatch**: the engine dispatches only the hooks it declared; the harness's dispatcher (same `@smithers/plugin` runtime, instantiated over the augmented interface) dispatches the harness hooks. One plugin object can carry both engine and harness hooks and be passed to both — the engine ignores keys it never dispatches (they are still type-checked, because augmentation added them to the interface).
+- `FlowsHooks` is declared **open for augmentation, closed for dispatch**: the engine dispatches only the hooks it declared; the harness's dispatcher (same `@smthrs/plugin` runtime, instantiated over the augmented interface) dispatches the harness hooks. One plugin object can carry both engine and harness hooks and be passed to both — the engine ignores keys it never dispatches (they are still type-checked, because augmentation added them to the interface).
 - `apply: "harness"` lets a harness-only plugin be excluded when only the bare engine runs.
-- The dispatcher (`Plugins.make(order-resolved list)`) is a plain service exported by `@smithers/plugin`, generic over the hook interface — the engine and the harness each hold their own instance over the same plugin array. No inheritance machinery, no re-export dance.
+- The dispatcher (`Plugins.make(order-resolved list)`) is a plain service exported by `@smthrs/plugin`, generic over the hook interface — the engine and the harness each hold their own instance over the same plugin array. No inheritance machinery, no re-export dance.
 
 ## Typed error codes
 
@@ -178,7 +178,7 @@ The quota-park plugin from the Smithers audit, end to end — it parks a run whe
 
 ```ts
 import { Effect, Option, Schedule } from "effect"
-import type { FlowsPlugin } from "@smithers/plugin"
+import type { FlowsPlugin } from "@smthrs/plugin"
 
 export const quotaPark = (opts: { readonly wakeSlackMs?: number } = {}): FlowsPlugin => ({
   name: "flows-plugin-quota-park",
@@ -221,6 +221,6 @@ If a future feature seems to need one of these as a hook, the answer is a new *n
 - `packages/engine-store` `ActivityPersistence` gains exactly three call sites (`resolveShareability`, `cacheInconsistency`, `classifyError`/`resolveRetry` at its failure path) and loses its inline predicates.
 - `packages/engine` `FlowEngine` gains `runStart`/`runEnd`/`runControl`/`waitStart`/`wake` dispatch around transitions it already performs.
 - `packages/journal` is untouched except that the telemetry channel feeds `journalEvent`.
-- `packages/flows` (the barrel) re-exports `@smithers/plugin`.
+- `packages/flows` (the barrel) re-exports `@smthrs/plugin`.
 
 See [implementation status](implementation-status.md) for what is landed; this spec is listed there under planned work until the implementation plan closes it.

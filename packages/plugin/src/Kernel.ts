@@ -84,7 +84,7 @@ export const make = <H = FlowsHooks>(
     return {
       plugins: dispatcher,
       config: frozen,
-      layer: Resolve.layer(resolved),
+      layer: Resolve.layer(resolved, options.contentEnvironment),
       observerErrors
     }
   })

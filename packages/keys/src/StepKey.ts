@@ -41,7 +41,7 @@ export const StepKey = Schema.String.check(Schema.isPattern(/^sk1_[0-9a-f]{64}$/
  * @since 0.1.0
  * @category symbols
  */
-const DigestInputTypeId: unique symbol = Symbol.for("@smithers/keys/StepKey/DigestInput")
+const DigestInputTypeId: unique symbol = Symbol.for("@smthrs/keys/StepKey/DigestInput")
 
 /**
  * A precomputed digest supplied as a step input rather than a literal value.
@@ -79,6 +79,42 @@ export const isDigestInput = (value: unknown): value is DigestInput =>
   (value as Record<PropertyKey, unknown>)[DigestInputTypeId] === DigestInputTypeId
 
 /**
+ * The engine-resolved execution environment a content key is computed under,
+ * hashed in its OWN namespace rather than merged into the caller's `layers`
+ * and `capabilities`.
+ *
+ * Two properties matter and neither survives a merge:
+ *
+ * 1. **Non-aliasing.** Concatenating environment material onto the caller's
+ *    made `caller{fs:["a"]} + env{fs:["b"]}` hash identically to
+ *    `caller{fs:["a","b"]} + env{}` — a cross-run cache-key collision in the
+ *    very material whose purpose is preventing one. A separate namespace
+ *    makes the two structurally distinguishable.
+ * 2. **Declared vs undeclared.** `declared: false` is not the same value as
+ *    `declared: true` with empty sets, so a composition that starts declaring
+ *    its environment re-keys instead of inheriting rows recorded while
+ *    nothing was declared.
+ * 3. **Composition order.** Environment layers retain declaration order
+ *    because plugin and service composition order can change behavior. The
+ *    caller-owned `ContentIdentity.layers` field remains set-normalized; the
+ *    engine-owned namespace is deliberately order-sensitive.
+ *
+ * `runScope` is set only when `declared` is `false`: it pins the key to one
+ * run, so a step whose environment identity is unknown can never serve a
+ * cross-run cache hit. Declaring an environment removes it and restores
+ * cross-run reuse.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export interface EnvironmentIdentity {
+  readonly declared: boolean
+  readonly layers: ReadonlyArray<string>
+  readonly capabilities: Readonly<Record<string, ReadonlyArray<string>>>
+  readonly runScope?: string | undefined
+}
+
+/**
  * Material describing a sealed or hermetic content-addressed step.
  *
  * Plain input values are literals. Wrap a precomputed digest with
@@ -93,6 +129,7 @@ export interface ContentIdentity {
   readonly inputs: Readonly<Record<string, unknown | DigestInput>>
   readonly layers: ReadonlyArray<string>
   readonly capabilities: Readonly<Record<string, ReadonlyArray<string>>>
+  readonly environment?: EnvironmentIdentity | undefined
   readonly hermetic?: {
     readonly readSet: ReadonlyArray<{ readonly path: string; readonly digest: string }>
     readonly writeSet: ReadonlyArray<string>
@@ -122,7 +159,7 @@ export interface OrdinalIdentity {
 export type InputRef = CoreInputRef
 
 /**
- * Digest-free planner material produced by `@smithers/core`.
+ * Digest-free planner material produced by `@smthrs/core`.
  *
  * @since 0.1.0
  * @category models
@@ -135,7 +172,7 @@ export type KeyMaterial = CoreKeyMaterial
  * @since 0.1.0
  * @category errors
  */
-export class KeyMaterialError extends Schema.TaggedErrorClass<KeyMaterialError>()("@smithers/keys/KeyMaterialError", {
+export class KeyMaterialError extends Schema.TaggedErrorClass<KeyMaterialError>()("@smthrs/keys/KeyMaterialError", {
   code: Schema.Literals(["missing_dependency", "non_content_material"]),
   message: Schema.String
 }) {}
@@ -155,6 +192,13 @@ const normalizeInputs = (inputs: ContentIdentity["inputs"]): Record<string, unkn
 
 const normalizeCapabilities = (capabilities: ContentIdentity["capabilities"]): Record<string, Array<string>> =>
   Object.fromEntries(Object.entries(capabilities).map(([group, patterns]) => [group, sortStrings(patterns)]))
+
+const normalizeEnvironment = (environment: EnvironmentIdentity) => ({
+  declared: environment.declared,
+  layers: environment.layers.map((layer) => layer.normalize("NFC")),
+  capabilities: normalizeCapabilities(environment.capabilities),
+  ...(environment.runScope === undefined ? {} : { runScope: environment.runScope })
+})
 
 const normalizeHermetic = (hermetic: NonNullable<ContentIdentity["hermetic"]>) => {
   const readSet = [...hermetic.readSet]
@@ -193,6 +237,7 @@ export const content = (identity: ContentIdentity): Result.Result<StepKey, Canon
     inputs: normalizeInputs(identity.inputs),
     layers: sortStrings(identity.layers),
     capabilities: normalizeCapabilities(identity.capabilities),
+    ...(identity.environment === undefined ? {} : { environment: normalizeEnvironment(identity.environment) }),
     ...(identity.hermetic === undefined ? {} : { hermetic: normalizeHermetic(identity.hermetic) })
   })
 

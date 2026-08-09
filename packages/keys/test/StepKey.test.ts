@@ -68,6 +68,49 @@ describe("StepKey", () => {
     )
   })
 
+  it("keeps engine environment material distinct from caller declarations", () => {
+    const base: StepKey.ContentIdentity = {
+      body: "x",
+      inputs: {},
+      layers: [],
+      capabilities: {}
+    }
+    const callerOwned = get(StepKey.content({
+      ...base,
+      layers: ["model"],
+      capabilities: { fs: ["/workspace"] },
+      environment: { declared: true, layers: [], capabilities: {} }
+    }))
+    const engineOwned = get(StepKey.content({
+      ...base,
+      environment: {
+        declared: true,
+        layers: ["model"],
+        capabilities: { fs: ["/workspace"] }
+      }
+    }))
+    const undeclared = get(StepKey.content({
+      ...base,
+      environment: { declared: false, layers: [], capabilities: {}, runScope: "run-a" }
+    }))
+    const otherRun = get(StepKey.content({
+      ...base,
+      environment: { declared: false, layers: [], capabilities: {}, runScope: "run-b" }
+    }))
+    const ordered = get(StepKey.content({
+      ...base,
+      environment: { declared: true, layers: ["model", "host"], capabilities: {} }
+    }))
+    const reordered = get(StepKey.content({
+      ...base,
+      environment: { declared: true, layers: ["host", "model"], capabilities: {} }
+    }))
+
+    expect(callerOwned).not.toBe(engineOwned)
+    expect(undeclared).not.toBe(otherRun)
+    expect(ordered).not.toBe(reordered)
+  })
+
   it("resolves dependency ids before hashing and includes resolved layers", () => {
     const material = (from: string, layers: ReadonlyArray<string>): CoreKeyMaterial.KeyMaterial => ({
       version: "flows/key-material/v1",
