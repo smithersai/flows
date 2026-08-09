@@ -23,23 +23,17 @@ jobs:
           node-version: 22.19.0
           cache: npm
           registry-url: https://registry.npmjs.org
+      # Node 22.19.0 bundles npm 10.9.3; npm trusted publishing requires
+      # npm 11.5.1 or newer.
+      - name: Install npm with trusted publishing support
+        run: npm install --global npm@11.5.1 --ignore-scripts
       - run: npm ci --ignore-scripts
       - name: Install jj
         uses: taiki-e/install-action@v2
         with:
           tool: jj-cli@0.39.0
-      - name: Typecheck all workspaces
-        run: npm run check
-      - name: Test all workspaces
-        run: npm test
-      - name: Lint all workspaces
-        run: npm run lint
-      - name: Circular-dependency guard
-        run: npm run circular
-      - name: Build all workspaces from clean artifacts
-        run: |
-          find packages -type d -name dist -prune -exec rm -rf {} +
-          npm run build --workspaces --if-present
+      - name: Initialize colocated jj repository
+        run: jj git init --colocate
       - name: Validate release tag
         env:
           RELEASE_TAG: ${{ github.ref_name }}
@@ -56,38 +50,53 @@ jobs:
               exit 1
             fi
           done
-      - name: Publish packages in dependency order
+      - name: Typecheck all workspaces
+        run: npm run check
+      - name: Test all workspaces
+        run: npm test
+      - name: Lint all workspaces
+        run: npm run lint
+      - name: Circular-dependency guard
+        run: npm run circular
+      - name: Build all workspaces from clean artifacts
         run: |
-          npm publish --workspace=@smithers/database --provenance --access public
-          npm publish --workspace=@smithers/keys --provenance --access public
-          npm publish --workspace=@smithers/host --provenance --access public
-          npm publish --workspace=@smithers/journal --provenance --access public
-          npm publish --workspace=@smithers/engine --provenance --access public
-          npm publish --workspace=@smithers/kernel --provenance --access public
-          npm publish --workspace=@smithers/plugin --provenance --access public
-          npm publish --workspace=@smithers/sync --provenance --access public
-          npm publish --workspace=@smithers/engine-store --provenance --access public
-          npm publish --workspace=@smithers/time-travel --provenance --access public
-          npm publish --workspace=@smithers/flows --provenance --access public
-
-  smoke:
-    name: install and import published barrel
-    needs: publish
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22.19.0
-          cache: npm
-          registry-url: https://registry.npmjs.org
-      - name: Install and load the published barrel
+          find packages -type d -name dist -prune -exec rm -rf {} +
+          npm run build --workspaces --if-present
+      # Pack from staging manifests whose exports point at built artifacts.
+      # Repository manifests retain Effect's source-first export shape.
+      - name: Pack and smoke-test release artifacts
         env:
+          PACK_DIR: ${{ runner.temp }}/release-packs
+        run: |
+          node scripts/pack-release.mjs "$PACK_DIR"
+          node scripts/smoke-release.mjs "$PACK_DIR"
+      - name: Publish packages in dependency order
+        env:
+          PACK_DIR: ${{ runner.temp }}/release-packs
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           release_version="${RELEASE_TAG#v}"
-          smoke_dir="$(mktemp -d)"
-          cd "$smoke_dir"
-          npm init --yes
-          npm install "@smithers/flows@$release_version"
-          node --input-type=module -e "await import('@smithers/flows')"
-          node -e "require('@smithers/flows')"
+          publish_tag="latest"
+          case "$release_version" in *-*) publish_tag="next" ;; esac
+          publish_if_missing() {
+            workspace="$1"
+            spec="$workspace@$release_version"
+            if npm view "$spec" version --json >/dev/null 2>&1; then
+              echo "$spec is already published; leaving the immutable version in place."
+              return
+            fi
+            tarball="${workspace#@}"
+            tarball="${tarball/\//-}-$release_version.tgz"
+            npm publish "$PACK_DIR/$tarball" --provenance --access public --tag "$publish_tag"
+          }
+          publish_if_missing @smthrs/database
+          publish_if_missing @smthrs/keys
+          publish_if_missing @smthrs/host
+          publish_if_missing @smthrs/journal
+          publish_if_missing @smthrs/engine
+          publish_if_missing @smthrs/kernel
+          publish_if_missing @smthrs/plugin
+          publish_if_missing @smthrs/sync
+          publish_if_missing @smthrs/engine-store
+          publish_if_missing @smthrs/time-travel
+          publish_if_missing @smthrs/flows

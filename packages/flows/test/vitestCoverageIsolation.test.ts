@@ -57,6 +57,28 @@ describe("vitest coverage isolation conformance", () => {
     expect(source, `${path} is missing`).not.toBe("")
   })
 
+  it.each(packages.map((name) => ({ name })))(
+    "$name retains Effect-style source exports and declares built publication exports",
+    ({ name }) => {
+      const manifest = JSON.parse(readFileSync(join(packagesDir, name, "package.json"), "utf8")) as {
+        readonly exports?: Record<string, string>
+        readonly publishConfig?: {
+          readonly exports?: Record<string, string | Record<string, string>>
+        }
+      }
+      expect(manifest.exports?.["."]).toBe("./src/index.ts")
+      expect(manifest.exports?.["./*"]).toBe("./src/*.ts")
+      for (const subpath of [".", "./*"] as const) {
+        const target = manifest.publishConfig?.exports?.[subpath]
+        expect(target).toEqual({
+          types: subpath === "." ? "./dist/esm/index.d.ts" : "./dist/esm/*.d.ts",
+          import: subpath === "." ? "./dist/esm/index.js" : "./dist/esm/*.js",
+          require: subpath === "." ? "./dist/cjs/index.js" : "./dist/cjs/*.js"
+        })
+      }
+    }
+  )
+
   it.each(configs)(
     "$name scopes its coverage report directory to tmpdir() and process.pid",
     ({ name, source }) => {
@@ -192,7 +214,8 @@ describe("vitest coverage isolation conformance", () => {
     // #163) skips enforcement with every conformance cell green. Source-text
     // pins, matching the config-source approach used across this suite.
     const ci = readFileSync(join(packagesDir, "..", ".github", "workflows", "ci.yml"), "utf8")
-    expect(ci).toMatch(/^\s*- run: npm ci$/m)
+    expect(ci).toContain("npm install --global npm@11.5.1 --ignore-scripts")
+    expect(ci).toMatch(/^\s*- run: npm ci --ignore-scripts$/m)
     expect(ci).toMatch(/^\s*run: npm run check$/m)
     expect(ci).toMatch(/^\s*run: npm run lint$/m)
     expect(ci).toMatch(/^\s*run: npm run circular$/m)
@@ -202,6 +225,31 @@ describe("vitest coverage isolation conformance", () => {
     expect(ci).toMatch(/^\s*run: npm run browser$/m)
     expect(ci).toMatch(/^\s*run: npm test$/m)
     expect(ci).toMatch(/tool: jj-cli@\d+\.\d+\.\d+/)
+    expect(ci).toMatch(/^\s*run: jj git init --colocate$/m)
+  })
+
+  it("smoke-validates packed artifacts before rerunnable publication", () => {
+    const release = readFileSync(join(packagesDir, "..", ".github", "workflows", "release.yml"), "utf8")
+    const smoke = release.indexOf("Pack and smoke-test release artifacts")
+    const publish = release.indexOf("Publish packages in dependency order")
+    expect(smoke).toBeGreaterThan(-1)
+    expect(publish).toBeGreaterThan(smoke)
+    expect(release).toContain("node scripts/pack-release.mjs \"$PACK_DIR\"")
+    expect(release).toContain("node scripts/smoke-release.mjs \"$PACK_DIR\"")
+    expect(release).toContain("npm install --global npm@11.5.1 --ignore-scripts")
+    expect(release).toContain("npm publish \"$PACK_DIR/$tarball\"")
+    expect(release).toContain("npm view \"$spec\" version")
+    expect(release).toContain("publish_if_missing")
+    const packScript = readFileSync(join(packagesDir, "..", "scripts", "pack-release.mjs"), "utf8")
+    const smokeScript = readFileSync(join(packagesDir, "..", "scripts", "smoke-release.mjs"), "utf8")
+    expect(packScript).toContain("publicationManifest(manifest)")
+    expect(packScript).toContain("\"npm\",")
+    expect(packScript).toContain("\"pack\"")
+    expect(smokeScript).toContain("await import('@smthrs/flows')")
+    expect(smokeScript).toContain("require('@smthrs/flows')")
+    // Validation after publish cannot protect the release that was just
+    // exposed. The smoke check and publication live in the same gated job.
+    expect(release).not.toMatch(/^\s+smoke:\s*$/m)
   })
 
   it("pins the CI triggers and forbids step conditions on enforcement (issue #176)", () => {

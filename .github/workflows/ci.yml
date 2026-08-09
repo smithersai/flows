@@ -13,9 +13,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 22.19.0
           cache: npm
-      - run: npm ci
+      # Node 22.19.0 bundles npm 10.9.3, while trusted publishing requires
+      # npm 11.5.1 or newer. Pin the same CLI used by the release workflow.
+      - name: Install npm with trusted publishing support
+        run: npm install --global npm@11.5.1 --ignore-scripts
+      - run: npm ci --ignore-scripts
       # Issue #163: the real-binary NodeJj suite requires jj on PATH; without
       # it the suite fails loudly on CI (it no longer skips silently).
       # install-action fetches the prebuilt jj-cli release binary — no cargo
@@ -24,6 +28,11 @@ jobs:
         uses: taiki-e/install-action@v2
         with:
           tool: jj-cli@0.39.0
+      # The Node/Bun host contracts exercise a successful `jj status` when
+      # the binary is present. A GitHub checkout is not itself a jj repo, so
+      # initialize the colocated metadata before those contracts run.
+      - name: Initialize colocated jj repository
+        run: jj git init --colocate
       - name: Typecheck all workspaces
         run: npm run check
       # Issue #38: lint (eslint --max-warnings=0 + dprint) and the
@@ -38,6 +47,8 @@ jobs:
       # ones must still be Node-only. scripts/browser-check.mjs gates both.
       - name: Browser bundle guard
         run: npm run browser
+      - name: Release manifest unit test
+        run: node --test scripts/pack-release.test.mjs
       # Package vitest configs with `coverage.enabled: true` compute and
       # enforce their coverage thresholds on every run — a red gate fails CI.
       - name: Test all workspaces
@@ -46,3 +57,9 @@ jobs:
         run: |
           find packages -type d -name dist -prune -exec rm -rf {} +
           npm run build --workspaces --if-present
+      - name: Pack and smoke-test release artifacts
+        env:
+          PACK_DIR: ${{ runner.temp }}/release-packs
+        run: |
+          node scripts/pack-release.mjs "$PACK_DIR"
+          node scripts/smoke-release.mjs "$PACK_DIR"
