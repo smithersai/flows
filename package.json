@@ -4,16 +4,25 @@
   "type": "module",
   "version": "0.0.0",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "examples"
   ],
   "scripts": {
     "browser": "node scripts/browser-check.mjs",
     "check": "npm run check --workspaces --if-present",
     "circular": "npm run circular --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present"
+    "test": "npm run test --workspaces --if-present",
+    "test:examples": "npm run test --workspace @smthrs/examples"
   },
   "engines": {
     "node": ">=22.19.0"
+  },
+  "devDependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "vite": "^8.2.1",
+    "vocs": "^2.8.5",
+    "waku": "^1.0.0-beta.9"
   }
 }

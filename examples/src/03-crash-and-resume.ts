@@ -1,0 +1,84 @@
+/**
+ * Suspend a run, drop the engine, and resume from durable state.
+ *
+ * Each phase builds its own engine over the same SQLite file, which is what a
+ * process restart looks like from the database's point of view. Phase one runs
+ * until `DurableDeferred.await` finds no recorded completion, suspends, and
+ * releases ownership. Phase two registers the same handler, completes the
+ * deferred, and drives the run to a result.
+ *
+ * The counter proves the replay contract: the handler body runs twice, and the
+ * activity in front of the suspension dispatches once.
+ */
+import { Activity, DurableDeferred, Flow, FlowEngine } from "@smthrs/engine"
+import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
+import * as Layer from "effect/Layer"
+import * as Schema from "effect/Schema"
+import { durableEngine } from "./durable-layer.ts"
+
+export const Review = Flow.make("examples/Review", {
+  payload: { document: Schema.String },
+  success: Schema.String
+})
+
+export const Approval = DurableDeferred.make("examples/approval", {
+  success: Schema.String
+})
+
+export interface Summary {
+  readonly result: string
+  readonly readDispatches: number
+  readonly handlerEntries: number
+}
+
+export const main = (filename: string): Effect.Effect<Summary> =>
+  Effect.gen(function*() {
+    let readDispatches = 0
+    let handlerEntries = 0
+
+    const ReadDocument = Activity.make({
+      name: "examples/ReadDocument",
+      success: Schema.String,
+      tier: "sealed",
+      idempotencyKey: "examples/read-document/v1",
+      execute: Effect.sync(() => {
+        readDispatches += 1
+        return "draft body"
+      })
+    })
+
+    const handler = ({ document }: { readonly document: string }) =>
+      Effect.gen(function*() {
+        handlerEntries += 1
+        const body = yield* ReadDocument
+        const verdict = yield* DurableDeferred.await(Approval)
+        return `${document}:${body}:${verdict}`
+      })
+
+    const engine = (hostId: string) =>
+      Review.toLayer(handler).pipe(Layer.provideMerge(durableEngine(filename, hostId)))
+
+    // Phase one: the run suspends at the deferred and releases its claim.
+    yield* Effect.scoped(
+      Review.execute({ document: "rfc" }, { executionId: "review-1", discard: true }).pipe(
+        Effect.provide(engine("worker-a"))
+      )
+    )
+
+    // Phase two: a fresh engine completes the deferred and finishes the run.
+    const result = yield* Effect.scoped(
+      Effect.gen(function*() {
+        const flowEngine = yield* FlowEngine.FlowEngine
+        yield* flowEngine.deferredDone(Approval, {
+          flowName: Review._tag,
+          executionId: "review-1",
+          deferredName: Approval.name,
+          exit: Exit.succeed("approved")
+        })
+        return yield* Review.execute({ document: "rfc" }, { executionId: "review-1" })
+      }).pipe(Effect.provide(engine("worker-b")))
+    )
+
+    return { result, readDispatches, handlerEntries }
+  }).pipe(Effect.orDie)

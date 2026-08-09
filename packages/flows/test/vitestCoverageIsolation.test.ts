@@ -182,10 +182,17 @@ describe("vitest coverage isolation conformance", () => {
     // here stayed green — the #148 defect reinstated silently. Adding a
     // workspace root means widening this assertion AND the universe
     // derivation above, in review.
+    //
+    // Widened once, deliberately: `examples` is a private, unpublished
+    // workspace of runnable documentation programs. It ships no `src` tree
+    // and no coverage gate, and the universe derivation above still reads
+    // `packages/` only, so it adds no ungated publishable surface. It is a
+    // workspace so its end-to-end suite resolves the real `@smthrs/*`
+    // packages and runs under the root `npm test` fan-out.
     const root = JSON.parse(readFileSync(join(packagesDir, "..", "package.json"), "utf8")) as {
       readonly workspaces?: ReadonlyArray<string>
     }
-    expect(root.workspaces).toEqual(["packages/*"])
+    expect(root.workspaces).toEqual(["packages/*", "examples"])
   })
 
   it("pins the root aggregator scripts CI invokes (issue #166)", () => {
@@ -196,6 +203,10 @@ describe("vitest coverage isolation conformance", () => {
     // every per-package cell and the workspaces-glob cell stayed green. The
     // exact aggregator bodies are pinned here; changing how CI fans out
     // means widening this assertion in review.
+    //
+    // `test:examples` is a named alias for the examples workspace only. The
+    // root `test` fan-out already reaches it, so the alias is a documentation
+    // entry point rather than a second enforcement path.
     const root = JSON.parse(readFileSync(join(packagesDir, "..", "package.json"), "utf8")) as {
       readonly scripts?: Record<string, string>
     }
@@ -204,7 +215,8 @@ describe("vitest coverage isolation conformance", () => {
       check: "npm run check --workspaces --if-present",
       circular: "npm run circular --workspaces --if-present",
       lint: "npm run lint --workspaces --if-present",
-      test: "npm run test --workspaces --if-present"
+      test: "npm run test --workspaces --if-present",
+      "test:examples": "npm run test --workspace @smthrs/examples"
     })
   })
 

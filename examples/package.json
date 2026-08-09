@@ -1,0 +1,28 @@
+{
+  "name": "@smthrs/examples",
+  "private": true,
+  "type": "module",
+  "version": "0.0.0",
+  "description": "Runnable end-to-end examples for the Smithers Flows documentation",
+  "scripts": {
+    "check": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@smthrs/database": "0.1.0",
+    "@smthrs/engine": "0.1.0",
+    "@smthrs/engine-store": "0.1.0",
+    "@smthrs/host": "0.1.0",
+    "@smthrs/journal": "0.1.0",
+    "@smthrs/kernel": "0.1.0",
+    "@smthrs/keys": "0.1.0",
+    "@smthrs/sync": "0.1.0",
+    "@smthrs/time-travel": "0.1.0",
+    "effect": "4.0.0-beta.102"
+  },
+  "devDependencies": {
+    "@types/node": "25.9.5",
+    "typescript": "6.0.3",
+    "vitest": "4.1.9"
+  }
+}
