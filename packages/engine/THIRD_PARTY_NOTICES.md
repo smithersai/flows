@@ -7,7 +7,7 @@ own `LICENSE`.
 
 ## Effect (`Effect-TS/effect`)
 
-`@smithers/engine` is a fork of Effect's unstable durable-flow runtime and
+`@smthrs/engine` is a fork of Effect's unstable durable-flow runtime and
 contains substantial portions of that source. The fork point, upstream package
 version, and a module-by-module record of what was vendored and how it was
 changed are documented in `packages/engine/VENDOR.md`:
@@ -47,5 +47,5 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-Every `@smithers/*` package also depends on Effect at runtime, so the notice
+Every `@smthrs/*` package also depends on Effect at runtime, so the notice
 above applies to those dependencies as well as to the vendored engine source.

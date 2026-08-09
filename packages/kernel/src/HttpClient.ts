@@ -8,7 +8,7 @@
  *
  * @since 0.1.0
  */
-import * as HostHttpTransport from "@smithers/host/HttpTransport"
+import * as HostHttpTransport from "@smthrs/host/HttpTransport"
 import { Context, Effect, Layer } from "effect"
 import * as EffectHttpClient from "effect/unstable/http/HttpClient"
 import type * as EffectHttpClientError from "effect/unstable/http/HttpClientError"
@@ -51,7 +51,7 @@ export type HttpClient =
  * @category services
  * @since 0.1.0
  */
-export const HttpClient: Context.Service<HttpClient, HttpClient> = Context.Service("@smithers/kernel/HttpClient")
+export const HttpClient: Context.Service<HttpClient, HttpClient> = Context.Service("@smthrs/kernel/HttpClient")
 
 /**
  * Constructs a permission-aware HTTP client from an implementation.

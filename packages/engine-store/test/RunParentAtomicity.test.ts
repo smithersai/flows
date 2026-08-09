@@ -14,10 +14,10 @@
  * `flows_runs` now prunes a deleted run's edges at the database level, so a
  * future retention/GC lane cannot silently leave ghosts in the cycle walk.
  */
-import { Database } from "@smithers/database"
-import * as TestDatabase from "@smithers/database/test/TestDatabase"
-import { Flow, type FlowEngine } from "@smithers/engine"
-import { Migrations, RunStore, SqlJournal } from "@smithers/journal"
+import { Database } from "@smthrs/database"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import { Flow, type FlowEngine } from "@smthrs/engine"
+import { Migrations, RunStore, SqlJournal } from "@smthrs/journal"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"

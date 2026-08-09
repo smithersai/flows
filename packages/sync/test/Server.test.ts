@@ -1,4 +1,4 @@
-import { Journal, JournalEvent } from "@smithers/journal"
+import { Journal, JournalEvent } from "@smthrs/journal"
 import { Effect, Layer, Stream } from "effect"
 import { describe, expect, it } from "vitest"
 import * as RunCatalog from "../src/RunCatalog.ts"

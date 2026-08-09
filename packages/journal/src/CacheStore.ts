@@ -9,7 +9,7 @@
  *
  * @since 0.1.0
  */
-import { affectedRows, Database, DatabaseError } from "@smithers/database/Database"
+import { affectedRows, Database, DatabaseError } from "@smthrs/database/Database"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"

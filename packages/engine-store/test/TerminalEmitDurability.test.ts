@@ -17,10 +17,10 @@
  * the per-attempt producer identity `(sourceId, sourceSeq 0)` collapses the
  * re-emission into a `Duplicate` on every ordinary replay.
  */
-import { AttemptStore, Journal, type JournalEvent, type Ownership, RunStore } from "@smithers/journal"
-import * as TestJournal from "@smithers/journal/test/TestJournal"
-import { Jj } from "@smithers/kernel"
-import { Digest } from "@smithers/keys"
+import { AttemptStore, Journal, type JournalEvent, type Ownership, RunStore } from "@smthrs/journal"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Jj } from "@smthrs/kernel"
+import { Digest } from "@smthrs/keys"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"

@@ -1,4 +1,4 @@
-import type { JjError } from "@smithers/host/HostError"
+import type { JjError } from "@smthrs/host/HostError"
 import { Effect, Stream } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Jj from "../src/Jj.ts"

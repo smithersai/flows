@@ -1,5 +1,5 @@
-import * as Jj from "@smithers/host/Jj"
-import { CacheStore } from "@smithers/journal"
+import * as Jj from "@smthrs/host/Jj"
+import { CacheStore } from "@smthrs/journal"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"

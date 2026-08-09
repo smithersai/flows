@@ -39,7 +39,7 @@ A sealed activity is reusable only when it has a content identity. A non-sealed 
 
 ## Hermeticity is an evidence gate
 
-`StepKey.content` can describe a hermetic action, but it does not enforce one. Cache admission in `@smithers/engine-store` additionally requires:
+`StepKey.content` can describe a hermetic action, but it does not enforce one. Cache admission in `@smthrs/engine-store` additionally requires:
 
 1. activity tier `sealed`;
 2. metadata that decodes as a `StepBoundary.Descriptor`;
@@ -53,7 +53,7 @@ Without that host layer, the durable engine can still replay an attempt within o
 
 ## Graph-local key material
 
-`@smithers/keys` exports a low-level `KeyMaterial` shape with three input forms:
+`@smthrs/keys` exports a low-level `KeyMaterial` shape with three input forms:
 
 - `Literal` — hash the value inline;
 - `Ref` — replace a graph-local node ID with its dependency digest and retain a value path;

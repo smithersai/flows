@@ -8,8 +8,8 @@
  * submits the mutable-state mutation and its event batches as one persistence
  * request.
  */
-import { Database } from "@smithers/database/Database"
-import * as TestDatabase from "@smithers/database/test/TestDatabase"
+import { Database } from "@smthrs/database/Database"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Effect, Layer, PubSub } from "effect"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"

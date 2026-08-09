@@ -8,8 +8,8 @@
  *
  * @since 0.1.0
  */
-import type { JjError } from "@smithers/host/HostError"
-import * as HostJj from "@smithers/host/Jj"
+import type { JjError } from "@smthrs/host/HostError"
+import * as HostJj from "@smthrs/host/Jj"
 import { Context, Effect, FileSystem as EffectFileSystem, Layer, Path as EffectPath, type PlatformError } from "effect"
 import { make as makeCapability } from "./Capability.ts"
 import { canonicalResource } from "./FileSystem.ts"
@@ -57,7 +57,7 @@ export interface Jj {
  * @category services
  * @since 0.1.0
  */
-export const Jj: Context.Service<Jj, Jj> = Context.Service("@smithers/kernel/Jj")
+export const Jj: Context.Service<Jj, Jj> = Context.Service("@smthrs/kernel/Jj")
 
 /**
  * Constructs a permission-aware Jujutsu service from an implementation.

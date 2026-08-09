@@ -3,12 +3,12 @@
  * the durably recorded first attempt, so it survives park/resume and process
  * death instead of restarting on every process.
  */
-import { Database } from "@smithers/database"
-import * as TestDatabase from "@smithers/database/test/TestDatabase"
-import { Activity, Flow, RetryPolicy } from "@smithers/engine"
-import { AttemptStore, CacheStore, Migrations, RunStore, SqlJournal } from "@smithers/journal"
-import * as TestJournal from "@smithers/journal/test/TestJournal"
-import { Jj } from "@smithers/kernel"
+import { Database } from "@smthrs/database"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import { Activity, Flow, RetryPolicy } from "@smthrs/engine"
+import { AttemptStore, CacheStore, Migrations, RunStore, SqlJournal } from "@smthrs/journal"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Jj } from "@smthrs/kernel"
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"
 import * as Layer from "effect/Layer"

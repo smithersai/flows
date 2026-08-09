@@ -1,4 +1,4 @@
-import * as HostHttpTransport from "@smithers/host/HttpTransport"
+import * as HostHttpTransport from "@smthrs/host/HttpTransport"
 import { Effect } from "effect"
 import * as EffectHttpClient from "effect/unstable/http/HttpClient"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"

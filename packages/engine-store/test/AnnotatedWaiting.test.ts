@@ -6,10 +6,10 @@
  * parks the run with exactly that payload so reason-specific sweeps
  * (`WHERE waiting_reason = 'approval'`) see it.
  */
-import { DurableClock, DurableDeferred, Flow, FlowEngine } from "@smithers/engine"
-import { RunStore } from "@smithers/journal"
-import * as TestJournal from "@smithers/journal/test/TestJournal"
-import { Jj } from "@smithers/kernel"
+import { DurableClock, DurableDeferred, Flow, FlowEngine } from "@smthrs/engine"
+import { RunStore } from "@smthrs/journal"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Jj } from "@smthrs/kernel"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"

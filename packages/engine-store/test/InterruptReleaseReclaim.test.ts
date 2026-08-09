@@ -7,10 +7,10 @@
  * durable `requestCancel`. The release must park with a durable reason so
  * the run is re-drivable and cancellable.
  */
-import { Flow, type FlowEngine } from "@smithers/engine"
-import { Ownership, RunStore } from "@smithers/journal"
-import type { Journal } from "@smithers/journal"
-import * as TestJournal from "@smithers/journal/test/TestJournal"
+import { Flow, type FlowEngine } from "@smthrs/engine"
+import { Ownership, RunStore } from "@smthrs/journal"
+import type { Journal } from "@smthrs/journal"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"

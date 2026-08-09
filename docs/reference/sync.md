@@ -1,4 +1,4 @@
-# `@smithers/sync`
+# `@smthrs/sync`
 
 This page is the public API reference for read-only journal synchronization over Effect RPC. The protocol currently supports catch-up and credit-bounded follow, not remote journal writes.
 

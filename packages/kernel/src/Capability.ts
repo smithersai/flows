@@ -68,7 +68,7 @@ const actions: ReadonlySet<string> = new Set([
  * @since 0.1.0
  * @category models
  */
-export class Capability extends Schema.Class<Capability>("@smithers/kernel/Capability")({
+export class Capability extends Schema.Class<Capability>("@smthrs/kernel/Capability")({
   action: Action,
   resource: Schema.String
 }) {}
@@ -155,7 +155,7 @@ const PatternAction = Schema.Literals(
  * @since 0.1.0
  * @category models
  */
-export class CapabilityPattern extends Schema.Class<CapabilityPattern>("@smithers/kernel/CapabilityPattern")({
+export class CapabilityPattern extends Schema.Class<CapabilityPattern>("@smthrs/kernel/CapabilityPattern")({
   action: PatternAction,
   resource: Schema.String
 }) {}

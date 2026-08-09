@@ -1,5 +1,5 @@
-import { Database } from "@smithers/database/Database"
-import * as TestDatabase from "@smithers/database/test/TestDatabase"
+import { Database } from "@smthrs/database/Database"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Effect, Layer, Option } from "effect"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"

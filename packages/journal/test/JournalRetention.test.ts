@@ -1,5 +1,5 @@
-import { Database } from "@smithers/database/Database"
-import * as TestDatabase from "@smithers/database/test/TestDatabase"
+import { Database } from "@smthrs/database/Database"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Deferred, Effect, Layer } from "effect"
 import { TestClock } from "effect/testing"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"

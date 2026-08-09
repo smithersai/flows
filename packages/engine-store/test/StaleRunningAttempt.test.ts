@@ -11,10 +11,10 @@
  * attempt is gone and the work must re-execute under its original attempt
  * number, then finish through the ordinary fenced transition.
  */
-import { AttemptStore, type Ownership, RunStore } from "@smithers/journal"
-import * as TestJournal from "@smithers/journal/test/TestJournal"
-import { Jj } from "@smithers/kernel"
-import { Digest } from "@smithers/keys"
+import { AttemptStore, type Ownership, RunStore } from "@smthrs/journal"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Jj } from "@smthrs/kernel"
+import { Digest } from "@smthrs/keys"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"

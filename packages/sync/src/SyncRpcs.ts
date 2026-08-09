@@ -17,7 +17,7 @@ import { Frame, ReadRequest, ReadResponse, SubscribeRequest } from "./SyncProtoc
  * @category middleware
  * @since 0.1.0
  */
-export class SyncAuth extends RpcMiddleware.Service<SyncAuth>()("@smithers/sync/SyncAuth", { error: SyncError }) {}
+export class SyncAuth extends RpcMiddleware.Service<SyncAuth>()("@smthrs/sync/SyncAuth", { error: SyncError }) {}
 
 /**
  * The two remote procedures of the sync read path.

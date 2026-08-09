@@ -40,7 +40,7 @@ const executePayload = <Payload extends Flow.AnyStructSchema>(
  * ```ts
  * import { Layer, Schema } from "effect"
  * import { RpcServer } from "effect/unstable/rpc"
- * import { Flow, FlowProxy, FlowProxyServer } from "@smithers/engine"
+ * import { Flow, FlowProxy, FlowProxyServer } from "@smthrs/engine"
  *
  * const EmailFlow = Flow.make("EmailFlow", {
  *   payload: {
@@ -121,7 +121,7 @@ export type ConvertRpcs<Flows extends Flow.Any, Prefix extends string> = Flows e
  * ```ts
  * import { Layer, Schema } from "effect"
  * import { HttpApi, HttpApiBuilder } from "effect/unstable/httpapi"
- * import { Flow, FlowProxy, FlowProxyServer } from "@smithers/engine"
+ * import { Flow, FlowProxy, FlowProxyServer } from "@smthrs/engine"
  *
  * const EmailFlow = Flow.make("EmailFlow", {
  *   payload: {

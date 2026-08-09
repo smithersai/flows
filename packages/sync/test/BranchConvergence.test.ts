@@ -5,8 +5,8 @@
  *
  * @since 0.1.0
  */
-import { Journal } from "@smithers/journal"
-import * as TestJournal from "@smithers/journal/test/TestJournal"
+import { Journal } from "@smthrs/journal"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Effect, Layer, Stream } from "effect"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"

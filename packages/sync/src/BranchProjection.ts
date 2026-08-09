@@ -18,7 +18,7 @@
  *
  * @since 0.1.0
  */
-import type * as JournalEvent from "@smithers/journal/JournalEvent"
+import type * as JournalEvent from "@smthrs/journal/JournalEvent"
 import {
   type BranchId,
   branchRunId,

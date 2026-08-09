@@ -1,5 +1,5 @@
 /**
- * @smithers/database public API.
+ * @smthrs/database public API.
  *
  * This entry point is the driver-neutral SQL contract, so it stays
  * browser-bundleable. The drivers themselves are Node-only — `node:sqlite`
@@ -7,9 +7,9 @@
  * way `effect` keeps platform packages out of its own root:
  *
  * ```ts
- * import { Database } from "@smithers/database"
- * import * as NodeDatabase from "@smithers/database/node/NodeDatabase"
- * import * as TestDatabase from "@smithers/database/test/TestDatabase"
+ * import { Database } from "@smthrs/database"
+ * import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
+ * import * as TestDatabase from "@smthrs/database/test/TestDatabase"
  * ```
  *
  * @since 0.1.0

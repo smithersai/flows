@@ -6,7 +6,7 @@
 import { describe, expect, it } from "vitest"
 import * as Sync from "../src/index.ts"
 
-describe("@smithers/sync barrel", () => {
+describe("@smthrs/sync barrel", () => {
   it("re-exports every module as its own namespace", () => {
     expect(Object.keys(Sync).sort()).toEqual([
       "BranchCommands",

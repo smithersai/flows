@@ -1,5 +1,5 @@
 {
-  "name": "@smithers/kernel",
+  "name": "@smthrs/kernel",
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
@@ -76,8 +76,8 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@smithers/host": "0.1.0",
-    "@smithers/journal": "0.1.0",
+    "@smthrs/host": "0.1.0",
+    "@smthrs/journal": "0.1.0",
     "effect": "4.0.0-beta.102"
   },
   "devDependencies": {

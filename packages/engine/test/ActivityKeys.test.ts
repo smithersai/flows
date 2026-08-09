@@ -1,4 +1,4 @@
-import { StepKey } from "@smithers/keys"
+import { StepKey } from "@smthrs/keys"
 import { Effect, Exit, Layer, Result, Schedule, Schema, Scope } from "effect"
 import { describe, expect, it } from "vitest"
 import { Activity, Flow, FlowEngine } from "../src/index.ts"

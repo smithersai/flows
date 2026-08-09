@@ -1,5 +1,5 @@
-import { Database, type DatabaseService } from "@smithers/database/Database"
-import * as TestDatabase from "@smithers/database/test/TestDatabase"
+import { Database, type DatabaseService } from "@smthrs/database/Database"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Deferred, Effect, Layer } from "effect"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"

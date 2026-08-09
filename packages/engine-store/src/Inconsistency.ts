@@ -20,7 +20,7 @@
  *
  * @since 0.1.0
  */
-import { type CacheStore, Journal, type Ownership } from "@smithers/journal"
+import { type CacheStore, Journal, type Ownership } from "@smthrs/journal"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"

@@ -5,8 +5,8 @@
  *
  * @since 0.1.0
  */
-import { Flow, FlowEngine } from "@smithers/engine"
-import { Journal, Ownership, RunCoordinator, RunStore } from "@smithers/journal"
+import { Flow, FlowEngine } from "@smthrs/engine"
+import { Journal, Ownership, RunCoordinator, RunStore } from "@smthrs/journal"
 import * as Clock from "effect/Clock"
 import * as Deferred from "effect/Deferred"
 import * as Duration from "effect/Duration"
@@ -58,7 +58,7 @@ const PersistedStateJson = Schema.fromJsonString(PersistedStateSchema)
  * parent upward — an O(depth) check, not a dependency-graph DFS — because
  * `parentExecutionId` is the only edge our runtime model can express.
  *
- * The class is declared by `@smithers/engine` (it is part of the `execute`
+ * The class is declared by `@smthrs/engine` (it is part of the `execute`
  * contract) and re-exported here for the detector's callers. See
  * `docs/specs/Concepts/Run Ownership.md`.
  *

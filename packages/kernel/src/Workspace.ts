@@ -1,7 +1,7 @@
 /**
  * The workspace root used to make filesystem capability resources stable.
  *
- * This local service should migrate to `@smithers/host` once that package owns a
+ * This local service should migrate to `@smthrs/host` once that package owns a
  * workspace-root contract.
  *
  * Governing design:
@@ -28,7 +28,7 @@ export interface Service {
  * @category services
  * @since 0.1.0
  */
-export class Workspace extends Context.Service<Workspace, Service>()("@smithers/kernel/Workspace") {}
+export class Workspace extends Context.Service<Workspace, Service>()("@smthrs/kernel/Workspace") {}
 
 /**
  * Constructs workspace-root configuration.

@@ -1,9 +1,9 @@
 {
-  "name": "@smithers/flows",
+  "name": "@smthrs/flows",
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
-  "description": "Barrel package re-exporting the whole @smithers durable flow engine",
+  "description": "Barrel package re-exporting the whole @smthrs durable flow engine",
   "homepage": "https://github.com/smithersai/flows",
   "repository": {
     "type": "git",
@@ -76,16 +76,16 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@smithers/database": "0.1.0",
-    "@smithers/engine": "0.1.0",
-    "@smithers/engine-store": "0.1.0",
-    "@smithers/host": "0.1.0",
-    "@smithers/journal": "0.1.0",
-    "@smithers/kernel": "0.1.0",
-    "@smithers/keys": "0.1.0",
-    "@smithers/plugin": "0.1.0",
-    "@smithers/sync": "0.1.0",
-    "@smithers/time-travel": "0.1.0",
+    "@smthrs/database": "0.1.0",
+    "@smthrs/engine": "0.1.0",
+    "@smthrs/engine-store": "0.1.0",
+    "@smthrs/host": "0.1.0",
+    "@smthrs/journal": "0.1.0",
+    "@smthrs/kernel": "0.1.0",
+    "@smthrs/keys": "0.1.0",
+    "@smthrs/plugin": "0.1.0",
+    "@smthrs/sync": "0.1.0",
+    "@smthrs/time-travel": "0.1.0",
     "effect": "4.0.0-beta.102"
   },
   "devDependencies": {

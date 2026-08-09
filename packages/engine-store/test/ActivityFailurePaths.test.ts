@@ -3,11 +3,11 @@
  * (issue #21): failed execute, prepare/settle boundary failures, suspended
  * attempt rows, and the fence guard on the failed-attempt finish path.
  */
-import { AttemptStore, CacheStore, Journal, type JournalEvent, Ownership, RunStore } from "@smithers/journal"
-import * as Notifying from "@smithers/journal/test/Notifying"
-import * as TestJournal from "@smithers/journal/test/TestJournal"
-import { Jj } from "@smithers/kernel"
-import { Digest } from "@smithers/keys"
+import { AttemptStore, CacheStore, Journal, type JournalEvent, Ownership, RunStore } from "@smthrs/journal"
+import * as Notifying from "@smthrs/journal/test/Notifying"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Jj } from "@smthrs/kernel"
+import { Digest } from "@smthrs/keys"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Duration from "effect/Duration"

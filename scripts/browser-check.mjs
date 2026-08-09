@@ -24,16 +24,16 @@ const repoRoot = resolve(fileURLToPath(import.meta.url), "..", "..")
  * browser; any resolution or syntax error fails the gate.
  */
 const BROWSER_SAFE = [
-  { name: "@smithers/host", entry: "packages/host/src/index.ts" },
-  { name: "@smithers/host/browser/BrowserHost", entry: "packages/host/src/browser/BrowserHost.ts" },
-  { name: "@smithers/kernel", entry: "packages/kernel/src/index.ts" },
-  { name: "@smithers/keys", entry: "packages/keys/src/index.ts" },
-  { name: "@smithers/database", entry: "packages/database/src/index.ts" },
-  { name: "@smithers/journal", entry: "packages/journal/src/index.ts" },
-  { name: "@smithers/engine", entry: "packages/engine/src/index.ts" },
-  { name: "@smithers/plugin", entry: "packages/plugin/src/index.ts" },
-  { name: "@smithers/sync", entry: "packages/sync/src/index.ts" },
-  { name: "@smithers/time-travel", entry: "packages/time-travel/src/index.ts" }
+  { name: "@smthrs/host", entry: "packages/host/src/index.ts" },
+  { name: "@smthrs/host/browser/BrowserHost", entry: "packages/host/src/browser/BrowserHost.ts" },
+  { name: "@smthrs/kernel", entry: "packages/kernel/src/index.ts" },
+  { name: "@smthrs/keys", entry: "packages/keys/src/index.ts" },
+  { name: "@smthrs/database", entry: "packages/database/src/index.ts" },
+  { name: "@smthrs/journal", entry: "packages/journal/src/index.ts" },
+  { name: "@smthrs/engine", entry: "packages/engine/src/index.ts" },
+  { name: "@smthrs/plugin", entry: "packages/plugin/src/index.ts" },
+  { name: "@smthrs/sync", entry: "packages/sync/src/index.ts" },
+  { name: "@smthrs/time-travel", entry: "packages/time-travel/src/index.ts" }
 ]
 
 /**
@@ -43,37 +43,37 @@ const BROWSER_SAFE = [
  */
 const NODE_ONLY = [
   {
-    name: "@smithers/engine-store",
+    name: "@smthrs/engine-store",
     entry: "packages/engine-store/src/index.ts",
     expect: "node:crypto",
     reason: "EngineStore uses process.pid and node:crypto randomUUID (issue #114)"
   },
   {
-    name: "@smithers/flows",
+    name: "@smthrs/flows",
     entry: "packages/flows/src/index.ts",
     expect: "node:crypto",
-    reason: "the barrel re-exports @smithers/engine-store; browser consumers import per-package roots"
+    reason: "the barrel re-exports @smthrs/engine-store; browser consumers import per-package roots"
   },
   {
-    name: "@smithers/host/node/NodeHost",
+    name: "@smthrs/host/node/NodeHost",
     entry: "packages/host/src/node/NodeHost.ts",
     expect: "node:child_process",
     reason: "the Node host bundle spawns child processes"
   },
   {
-    name: "@smithers/host/bun/BunHost",
+    name: "@smthrs/host/bun/BunHost",
     entry: "packages/host/src/bun/BunHost.ts",
     expect: "node:fs",
     reason: "the Bun bundle falls back to the @effect/platform-node adapters off Bun"
   },
   {
-    name: "@smithers/host/test/TestHost",
+    name: "@smthrs/host/test/TestHost",
     entry: "packages/host/src/test/TestHost.ts",
     expect: "node:assert",
     reason: "effect/testing's TestClock pulls node:assert"
   },
   {
-    name: "@smithers/database/node/NodeDatabase",
+    name: "@smthrs/database/node/NodeDatabase",
     entry: "packages/database/src/node/NodeDatabase.ts",
     expect: "node:sqlite",
     reason: "the Node database layer is node:sqlite through @effect/sql-sqlite-node"

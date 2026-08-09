@@ -9,8 +9,8 @@
  * writer material (pid + random token), so concurrent writers — in-process
  * or cross-process — never share a temp path.
  */
-import { FileSystem } from "@smithers/kernel"
-import { Digest } from "@smithers/keys"
+import { FileSystem } from "@smthrs/kernel"
+import { Digest } from "@smthrs/keys"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"

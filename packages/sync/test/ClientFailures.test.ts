@@ -3,7 +3,7 @@
  *
  * @since 0.1.0
  */
-import { JournalEvent } from "@smithers/journal"
+import { JournalEvent } from "@smthrs/journal"
 import { Effect, Exit, Stream } from "effect"
 import { describe, expect, it } from "vitest"
 import * as SyncClient from "../src/SyncClient.ts"

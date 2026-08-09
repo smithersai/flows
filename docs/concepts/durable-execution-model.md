@@ -1,6 +1,6 @@
 # Durable execution model
 
-This page defines the runtime model implemented by `@smithers/engine`, `@smithers/engine-store`, and `@smithers/journal`. It explains what survives process loss, what is replayed, and where the current durability boundary stops.
+This page defines the runtime model implemented by `@smthrs/engine`, `@smthrs/engine-store`, and `@smthrs/journal`. It explains what survives process loss, what is replayed, and where the current durability boundary stops.
 
 ## Core terms
 
@@ -98,4 +98,4 @@ A separate discovery phase, pure static planning phase, and serializable action-
 - [Journal](journal.md)
 - [Failure and retry policy](failure-and-retry.md)
 - [Subflows](subflows.md)
-- [`@smithers/engine-store` reference](../reference/engine-store.md)
+- [`@smthrs/engine-store` reference](../reference/engine-store.md)

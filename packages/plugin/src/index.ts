@@ -44,7 +44,7 @@ import type {
  * module that declares it:
  *
  * ```ts
- * declare module "@smithers/plugin" {
+ * declare module "@smthrs/plugin" {
  *   interface FlowsHooks {
  *     toolCall: SequentialHook<(ctx: ToolCallContext) => Effect.Effect<Option.Option<ToolOverride>>>
  *   }

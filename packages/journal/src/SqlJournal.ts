@@ -12,11 +12,11 @@
  * `packages/core/src/event.ts`. The bounded send queue deliberately deviates
  * from their synchronous durable writes by allocating the canonical per-run
  * sequence before admission. SQLite retry and transaction behavior comes
- * through `@smithers/database`.
+ * through `@smthrs/database`.
  *
  * @since 0.1.0
  */
-import { Database, DatabaseError } from "@smithers/database/Database"
+import { Database, DatabaseError } from "@smthrs/database/Database"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"

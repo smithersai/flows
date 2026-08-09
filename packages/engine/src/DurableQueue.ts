@@ -63,7 +63,7 @@ export interface DurableQueue<
  *
  * ```ts
  * import { Effect, Schema } from "effect"
- * import { DurableQueue, Flow } from "@smithers/engine"
+ * import { DurableQueue, Flow } from "@smthrs/engine"
  *
  * // Define a DurableQueue that can be used to derive workers and offer items for
  * // processing.

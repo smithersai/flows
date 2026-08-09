@@ -1,10 +1,10 @@
-# @smithers/flows
+# @smthrs/flows
 
 ## [0.1.0] - 2026-08-05
 
 ### Added
 
-- Added the barrel package that re-exports every `@smithers/*` engine package
+- Added the barrel package that re-exports every `@smthrs/*` engine package
   as a namespace — `Database`, `Engine`, `EngineStore`, `Host`, `Journal`,
   `Kernel`, `Keys`, `Plugin`, `Sync`, and `TimeTravel` — so one dependency
   gives you the whole engine surface without collapsing each package's

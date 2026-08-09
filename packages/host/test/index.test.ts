@@ -7,7 +7,7 @@ import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 import * as Host from "../src/index.ts"
 
-describe("@smithers/host barrel", () => {
+describe("@smthrs/host barrel", () => {
   it("re-exports every service module as its own namespace", () => {
     expect(Object.keys(Host).sort()).toEqual([
       "HostBuiltinNames",

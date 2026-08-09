@@ -1,11 +1,11 @@
-# `@smithers/keys`
+# `@smthrs/keys`
 
 This page is the public API reference for canonical serialization, SHA-256 digests, and versioned step-key construction. The package is pure and does not access storage or execute flows.
 
 ## Import
 
 ```ts
-import { Canonical, Digest, KeyMaterial, StepKey } from "@smithers/keys"
+import { Canonical, Digest, KeyMaterial, StepKey } from "@smthrs/keys"
 ```
 
 ## `Canonical`

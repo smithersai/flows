@@ -6,7 +6,7 @@
  * `docs/specs/Concepts/Run Ownership.md`.
  *
  * The client/layer seam follows Effect SQL's SQLite node, Bun, and WASM
- * packages. Domain schema and operations remain in `@smithers/journal`.
+ * packages. Domain schema and operations remain in `@smthrs/journal`.
  *
  * @since 0.1.0
  */

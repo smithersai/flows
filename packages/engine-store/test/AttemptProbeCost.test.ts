@@ -6,10 +6,10 @@
  * counting store below sees only the executor's own row lookups — a scan
  * regression reappears as dozens of gets and fails the bound.
  */
-import * as TestDatabase from "@smithers/database/test/TestDatabase"
-import { Activity, Flow, RetryPolicy } from "@smithers/engine"
-import { AttemptStore, CacheStore, Migrations, RunStore, SqlJournal } from "@smithers/journal"
-import { Jj } from "@smithers/kernel"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import { Activity, Flow, RetryPolicy } from "@smthrs/engine"
+import { AttemptStore, CacheStore, Migrations, RunStore, SqlJournal } from "@smthrs/journal"
+import { Jj } from "@smthrs/kernel"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"

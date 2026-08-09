@@ -9,7 +9,7 @@
  * (`docs/specs/Specs/Plugin API.md`).
  *
  * `FlowsHooks` is **open for augmentation, closed for dispatch**: a harness
- * declares its own hooks with `declare module "@smithers/plugin"` and holds its
+ * declares its own hooks with `declare module "@smthrs/plugin"` and holds its
  * own dispatcher over the augmented interface, while the engine dispatches only
  * the hooks it declared here.
  *
@@ -267,7 +267,7 @@ export interface WaitContext {
 }
 
 /**
- * Cache row placeholder; the real row type lives in `@smithers/journal`.
+ * Cache row placeholder; the real row type lives in `@smthrs/journal`.
  *
  * @category models
  * @since 0.1.0

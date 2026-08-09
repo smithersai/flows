@@ -23,10 +23,10 @@
  * now take a dedicated per-attempt producer identity, so a re-emission is an
  * exact retry the journal collapses into a `Duplicate`.
  */
-import { AttemptStore, Journal, type Ownership, RunStore } from "@smithers/journal"
-import * as TestJournal from "@smithers/journal/test/TestJournal"
-import { Jj } from "@smithers/kernel"
-import { Digest } from "@smithers/keys"
+import { AttemptStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Jj } from "@smthrs/kernel"
+import { Digest } from "@smthrs/keys"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"

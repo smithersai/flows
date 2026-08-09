@@ -10,7 +10,7 @@
  * through `StepIdentity.ordinalKey`, which preserves the typed error for the
  * impossible invariant violation instead of discarding it.
  */
-import { StepKey } from "@smithers/keys"
+import { StepKey } from "@smthrs/keys"
 import { Cause, Effect, Exit, Layer, Redacted, Result, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { Activity, Flow, FlowEngine } from "../src/index.ts"

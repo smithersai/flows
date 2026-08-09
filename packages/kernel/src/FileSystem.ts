@@ -105,7 +105,7 @@ export interface FileSystem {
  * @category services
  * @since 0.1.0
  */
-export const FileSystem: Context.Service<FileSystem, FileSystem> = Context.Service("@smithers/kernel/FileSystem")
+export const FileSystem: Context.Service<FileSystem, FileSystem> = Context.Service("@smthrs/kernel/FileSystem")
 
 /**
  * Constructs a permission-aware filesystem service.

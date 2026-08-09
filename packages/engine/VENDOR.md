@@ -15,7 +15,7 @@ Effect repository to published `effect/*` package subpaths. Because Effect
 strips its internal crypto helper from published declarations, that baseline
 also carried temporary typecheck suppressions at the two helper imports; the
 behavioral fork removes both imports and suppressions when identity moves to
-`@smithers/keys`. The behavioral fork is intentionally reviewable with
+`@smthrs/keys`. The behavioral fork is intentionally reviewable with
 `git show`.
 
 ## Licensing
@@ -27,8 +27,8 @@ modules listed above are substantial portions.
 
 The notice is therefore reproduced verbatim in `THIRD_PARTY_NOTICES.md`, which
 sits beside this file, is listed in this package's `files` whitelist, and so
-ships inside the `@smithers/engine` tarball. The same notice is kept at the
-repository root. `@smithers/engine` itself remains MIT licensed under the
+ships inside the `@smthrs/engine` tarball. The same notice is kept at the
+repository root. `@smthrs/engine` itself remains MIT licensed under the
 project's own `LICENSE`; the two notices are additive, not alternatives.
 
 ## Behavioral differences
@@ -43,7 +43,7 @@ and discard requests contain the flow payload directly.
 Flows makes `Flow.make({ idempotencyKey })` optional and adds
 `executionId?: string` to `Flow.execute`. An explicit value always wins. If
 it is absent, an opt-in idempotency key is digested synchronously with
-`@smithers/keys/Digest`. If neither exists, the flow dies with the structured
+`@smthrs/keys/Digest`. If neither exists, the flow dies with the structured
 `ExecutionIdRequired` defect before reading `FlowEngine`. The
 `Flow.executionId` helper has the same opt-in precondition. RPC and HTTP
 execute/discard schemas carry `{ payload, executionId? }`, and both server
@@ -106,7 +106,7 @@ Upstream reruns a suspended root execution after sleeping on
 
 Flows preserves that schedule verbatim. `FlowEngine.Encoded` additionally
 accepts optional `resumeSignal(flow, executionId)`, and each fallback sleep
-races that signal when supplied. `@smithers/engine-store` leaves the optional
+races that signal when supplied. `@smthrs/engine-store` leaves the optional
 member unimplemented in v1.
 
 This permits prompt journal-backed wakeups without making the first durable
@@ -126,7 +126,7 @@ attempt, and activity name.
 
 Flows passes `{ activity, attempt, key, tier, metadata }` through the encoded
 seam. `FlowEngine.makeUnsafe` computes `key` before dispatch with
-`@smithers/keys`: declared sealed identities use `StepKey.content`, while
+`@smthrs/keys`: declared sealed identities use `StepKey.content`, while
 compensable, irreversible, and identity-free sealed activities use stable
 per-run ordinals. `metadata` carries an optional read/write-set descriptor
 without interpretation below this package boundary. The memory implementation
@@ -138,8 +138,8 @@ activity name.
 and opaque `metadata`. Compensable dispatch requires the local
 `SnapshotBoundary` hook (`snapshot`, `restore`, `diff`) and restores before a
 retry. The interface carries
-`// TODO(piece-6): bind to @smithers/kernel Jj in @smithers/engine-store`; this package
-does not import `@smithers/kernel`. An irreversible retry without a declared
+`// TODO(piece-6): bind to @smthrs/kernel Jj in @smthrs/engine-store`; this package
+does not import `@smthrs/kernel`. An irreversible retry without a declared
 idempotency key dies with structured
 `IrreversibleRetryRequiresIdempotencyKey` before redispatch.
 

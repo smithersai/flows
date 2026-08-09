@@ -41,4 +41,4 @@ The public flow API does not currently expose a first-class detached-child optio
 
 First-class detached execution, automatic durable lineage, and structured parent cancellation policy are **Planned**.
 
-See [Durable execution model](durable-execution-model.md), [Time travel](time-travel.md), and the [`@smithers/engine` reference](../reference/engine.md).
+See [Durable execution model](durable-execution-model.md), [Time travel](time-travel.md), and the [`@smthrs/engine` reference](../reference/engine.md).

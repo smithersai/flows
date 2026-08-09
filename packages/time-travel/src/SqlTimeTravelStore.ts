@@ -1,4 +1,4 @@
-import { Database } from "@smithers/database/Database"
+import { Database } from "@smthrs/database/Database"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"

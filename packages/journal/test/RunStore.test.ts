@@ -1,5 +1,5 @@
-import { Database } from "@smithers/database"
-import * as TestDatabase from "@smithers/database/test/TestDatabase"
+import { Database } from "@smthrs/database"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Cause, Clock, Deferred, Duration, Effect, Exit, Fiber } from "effect"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"

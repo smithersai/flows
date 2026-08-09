@@ -1,15 +1,15 @@
-# `@smithers/database`
+# `@smthrs/database`
 
-This page is the public API reference for the thin SQL transaction service. `@smithers/database` owns driver composition and normalized database failures; journal tables and queries belong to `@smithers/journal`.
+This page is the public API reference for the thin SQL transaction service. `@smthrs/database` owns driver composition and normalized database failures; journal tables and queries belong to `@smthrs/journal`.
 
 ## Import
 
 The root is the driver-neutral contract and bundles for the browser; the SQLite drivers are Node-only and live under their own subpaths (see [browser support](../architecture/browser-support.md)).
 
 ```ts
-import { Database } from "@smithers/database"
-import * as NodeDatabase from "@smithers/database/node/NodeDatabase"
-import * as TestDatabase from "@smithers/database/test/TestDatabase"
+import { Database } from "@smthrs/database"
+import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 ```
 
 ## `Database`
@@ -43,7 +43,7 @@ const save = Effect.gen(function*() {
 
 ## `NodeDatabase`
 
-**Node only** — `@smithers/database/node/NodeDatabase`, not a root export.
+**Node only** — `@smthrs/database/node/NodeDatabase`, not a root export.
 
 `NodeDatabase.layer({ filename, sqlite?, ...retryOptions })` provides the database over `@effect/sql-sqlite-node`. The underlying client enables WAL by default unless its configuration overrides that behavior.
 
@@ -57,7 +57,7 @@ const DatabaseLayer = NodeDatabase.layer({
 
 ## `TestDatabase`
 
-**Node only** — `@smithers/database/test/TestDatabase`, not a root export. `TestDatabase.layer` is `NodeDatabase.layer({ filename: ":memory:" })`. It is deterministic within one layer scope and has no restart durability.
+**Node only** — `@smthrs/database/test/TestDatabase`, not a root export. `TestDatabase.layer` is `NodeDatabase.layer({ filename: ":memory:" })`. It is deterministic within one layer scope and has no restart durability.
 
 ## Runtime notes
 
@@ -65,4 +65,4 @@ The database service does not run domain migrations. Compose [`Journal.Migration
 
 **Shipped backends are SQLite only.** `NodeDatabase` wraps `@effect/sql-sqlite-node`; the browser counterpart wraps Effect's sqlite-wasm OPFS worker. There is no `PgDatabase`/`PGliteDatabase` layer, and the journal migration ladder is SQLite-flavoured DDL, so a Postgres client wrapped by `Database.make` gets correct retry classification but not a runnable schema. This is an accepted, documented gap with a plan — see new gap 4 in [`../architecture/smithers-replacement-gaps.md`](../architecture/smithers-replacement-gaps.md).
 
-See [Assembling a durable engine](../guides/durable-engine.md) and the [`@smithers/journal` reference](journal.md).
+See [Assembling a durable engine](../guides/durable-engine.md) and the [`@smthrs/journal` reference](journal.md).

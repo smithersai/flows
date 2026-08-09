@@ -5,11 +5,11 @@
  * the same stores must give up with `retry_policy_expired` once the
  * wall-clock budget is exhausted, without re-dispatching the activity body.
  */
-import { Activity, Flow, type FlowEngine, RetryPolicy, StepIdentity } from "@smithers/engine"
-import { AttemptStore, Journal, RunStore } from "@smithers/journal"
-import * as TestJournal from "@smithers/journal/test/TestJournal"
-import { Jj } from "@smithers/kernel"
-import { Digest, StepKey } from "@smithers/keys"
+import { Activity, Flow, type FlowEngine, RetryPolicy, StepIdentity } from "@smthrs/engine"
+import { AttemptStore, Journal, RunStore } from "@smthrs/journal"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Jj } from "@smthrs/kernel"
+import { Digest, StepKey } from "@smthrs/keys"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Fiber from "effect/Fiber"
@@ -190,7 +190,7 @@ describe("expirationMs survives a restart mid-retry (issue #45)", () => {
     }
     expect(persisted.result.exit.cause.some((cause) =>
       cause._tag === "Die" &&
-      cause.defect.name === "@smithers/engine/RetryPolicyExpired"
+      cause.defect.name === "@smthrs/engine/RetryPolicyExpired"
     )).toBe(true)
     // The rebuilt engine never re-dispatched the activity body: the budget
     // was already spent according to the durable origin.

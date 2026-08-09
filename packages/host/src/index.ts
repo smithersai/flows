@@ -1,7 +1,7 @@
 /**
  * @since 0.1.0
  *
- * `@smithers/host` — the Host layer.
+ * `@smthrs/host` — the Host layer.
  *
  * Service modules are re-exported as namespaces, the way `effect`'s own index
  * does it, so each module keeps its `make` / `makeNoop` / `layerNoop` trio
@@ -13,11 +13,11 @@
  * `effect`, so importing the contracts never resolves `node:` built-ins:
  *
  * ```ts
- * import { Shell } from "@smithers/host"
- * import * as NodeHost from "@smithers/host/node/NodeHost"
- * import * as BunHost from "@smithers/host/bun/BunHost"
- * import * as BrowserHost from "@smithers/host/browser/BrowserHost"
- * import * as TestHost from "@smithers/host/test/TestHost"
+ * import { Shell } from "@smthrs/host"
+ * import * as NodeHost from "@smthrs/host/node/NodeHost"
+ * import * as BunHost from "@smthrs/host/bun/BunHost"
+ * import * as BrowserHost from "@smthrs/host/browser/BrowserHost"
+ * import * as TestHost from "@smthrs/host/test/TestHost"
  * ```
  *
  * `scripts/browser-check.mjs` at the repository root pins that property.

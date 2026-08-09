@@ -46,12 +46,12 @@ export type BunHost = FileSystem | Path.Path | Shell | Pty | Jj | HttpTransport
  * @since 0.1.0
  */
 export const implementationIds: Readonly<Record<(typeof HostServiceIds)[number], string>> = {
-  [HostServiceIds[0]]: "@smithers/host/bun/BunFileSystem",
+  [HostServiceIds[0]]: "@smthrs/host/bun/BunFileSystem",
   [HostServiceIds[1]]: "effect/Path",
-  [HostServiceIds[2]]: "@smithers/host/bun/BunShell",
-  [HostServiceIds[3]]: "@smithers/host/bun/BunPty",
-  [HostServiceIds[4]]: "@smithers/host/bun/BunJj",
-  [HostServiceIds[5]]: "@smithers/host/bun/BunHttpTransport"
+  [HostServiceIds[2]]: "@smthrs/host/bun/BunShell",
+  [HostServiceIds[3]]: "@smthrs/host/bun/BunPty",
+  [HostServiceIds[4]]: "@smthrs/host/bun/BunJj",
+  [HostServiceIds[5]]: "@smthrs/host/bun/BunHttpTransport"
 }
 
 /**

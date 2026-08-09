@@ -1,5 +1,5 @@
-import * as Journal from "@smithers/journal/Journal"
-import type * as JournalEvent from "@smithers/journal/JournalEvent"
+import * as Journal from "@smthrs/journal/Journal"
+import type * as JournalEvent from "@smthrs/journal/JournalEvent"
 import * as Cause from "effect/Cause"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"

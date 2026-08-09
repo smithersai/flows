@@ -1,4 +1,4 @@
-import { StepKey } from "@smithers/keys"
+import { StepKey } from "@smthrs/keys"
 import { Cause, Effect, Exit, Layer, Result, Schedule, Schema, Scope } from "effect"
 import { describe, expect, it } from "vitest"
 import { Activity, Flow, FlowEngine } from "../src/index.ts"
@@ -244,7 +244,7 @@ describe("infrastructure interrupt retry", () => {
       expect(Exit.isFailure(exit) && Cause.hasFails(exit.cause)).toBe(true)
       expect(
         Exit.isFailure(exit) && (Cause.squash(exit.cause) as Activity.InfraInterrupt)._tag
-      ).toBe("@smithers/engine/InfraInterrupt")
+      ).toBe("@smthrs/engine/InfraInterrupt")
     }).pipe(provideHost)
   })
 })

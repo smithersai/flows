@@ -19,7 +19,7 @@ Each durable attempt is addressed by:
 `Activity.retry` increments `Activity.CurrentAttempt` and delegates scheduling to Effect:
 
 ```ts
-import { Activity } from "@smithers/engine"
+import { Activity } from "@smthrs/engine"
 const result = yield* Activity.retry(
   WriteArtifact,
   { times: 4 }
@@ -46,7 +46,7 @@ The default heartbeat interval is one second and the stale threshold is 30 secon
 
 ## Recovery utilities
 
-`@smithers/time-travel` includes:
+`@smthrs/time-travel` includes:
 
 - `Retry.retry`, which reattempts an operation while blocking unsafe irreversible retries.
 - `Recovery.recover`, which completes or rolls back interrupted rewind audits during startup.

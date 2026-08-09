@@ -11,9 +11,9 @@
  * truth, and this test diffs the database's schema objects across `make` to
  * prove nothing is created that the inventory does not declare.
  */
-import { Database } from "@smithers/database"
-import * as TestDatabase from "@smithers/database/test/TestDatabase"
-import { Migrations } from "@smithers/journal"
+import { Database } from "@smthrs/database"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import { Migrations } from "@smthrs/journal"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"

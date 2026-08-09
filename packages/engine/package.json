@@ -1,5 +1,5 @@
 {
-  "name": "@smithers/engine",
+  "name": "@smthrs/engine",
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
@@ -78,7 +78,7 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@smithers/keys": "0.1.0",
+    "@smthrs/keys": "0.1.0",
     "effect": "4.0.0-beta.102"
   },
   "devDependencies": {

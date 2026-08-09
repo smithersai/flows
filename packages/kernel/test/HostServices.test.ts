@@ -1,6 +1,6 @@
-import * as Host from "@smithers/host"
-import * as HostHttpTransport from "@smithers/host/HttpTransport"
-import * as TestHost from "@smithers/host/test/TestHost"
+import * as Host from "@smthrs/host"
+import * as HostHttpTransport from "@smthrs/host/HttpTransport"
+import * as TestHost from "@smthrs/host/test/TestHost"
 import { Effect, FileSystem as EffectFileSystem, Option, Path as EffectPath } from "effect"
 import * as EffectHttpClient from "effect/unstable/http/HttpClient"
 import { describe, expect, it } from "vitest"
@@ -93,7 +93,7 @@ describe("HostServices", () => {
     await Effect.runPromise(program)
   })
 
-  it("intercepts the underlying @smithers/host and effect FileSystem tags, not just the kernel decorators", async () => {
+  it("intercepts the underlying @smthrs/host and effect FileSystem tags, not just the kernel decorators", async () => {
     const checks: Array<Capability.Capability> = []
     const deny = GrantStore.of({
       check: (capability) => {

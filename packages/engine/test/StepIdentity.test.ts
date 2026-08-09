@@ -8,7 +8,7 @@
  * never alias, and identical declarations are stable across repeated
  * derivation.
  */
-import type { StepKey } from "@smithers/keys"
+import type { StepKey } from "@smthrs/keys"
 import { Result } from "effect"
 import { describe, expect, it } from "vitest"
 import { StepIdentity } from "../src/index.ts"

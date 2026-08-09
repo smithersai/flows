@@ -17,9 +17,9 @@
  * persistence request
  * (`reference/temporal/service/history/workflow/transaction_impl.go`).
  */
-import { Database } from "@smithers/database"
-import * as TestDatabase from "@smithers/database/test/TestDatabase"
-import { DurableClock, Flow, type FlowEngine } from "@smithers/engine"
+import { Database } from "@smthrs/database"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import { DurableClock, Flow, type FlowEngine } from "@smthrs/engine"
 import {
   AttemptStore,
   CacheStore,
@@ -29,10 +29,10 @@ import {
   Ownership,
   RunStore,
   SqlJournal
-} from "@smithers/journal"
-import * as Notifying from "@smithers/journal/test/Notifying"
-import { Jj } from "@smithers/kernel"
-import { Digest } from "@smithers/keys"
+} from "@smthrs/journal"
+import * as Notifying from "@smthrs/journal/test/Notifying"
+import { Jj } from "@smthrs/kernel"
+import { Digest } from "@smthrs/keys"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Duration from "effect/Duration"

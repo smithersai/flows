@@ -7,7 +7,7 @@ This page explains how Smithers Flows uses Effect services, layers, schemas, typ
 Flow handlers and activities are ordinary `Effect` programs. Required services remain visible in the environment type, and `Layer` values select implementations at the application boundary:
 
 ```ts
-import { Activity } from "@smithers/engine"
+import { Activity } from "@smthrs/engine"
 import { Context, Effect, Schema } from "effect"
 
 interface SourceFiles {
@@ -48,7 +48,7 @@ The runtime distinguishes these cases:
 `Activity.InfraInterrupt` is deliberately narrower than cancellation. An exhausted infrastructure retry schedule becomes a defect:
 
 ```ts
-import { Activity } from "@smithers/engine"
+import { Activity } from "@smthrs/engine"
 import { Effect, Schedule, Schema } from "effect"
 
 const FetchInput = Activity.make({
@@ -67,6 +67,6 @@ const FetchInput = Activity.make({
 
 ## Host effects and permission effects
 
-`@smithers/host` contains raw platform capabilities. `@smithers/kernel` provides decorated services that check an exact capability through `GrantStore` before delegating to the host. Applications should expose the kernel service to untrusted flow code and keep the raw service at the composition boundary.
+`@smthrs/host` contains raw platform capabilities. `@smthrs/kernel` provides decorated services that check an exact capability through `GrantStore` before delegating to the host. Applications should expose the kernel service to untrusted flow code and keep the raw service at the composition boundary.
 
-See [Hosts and capabilities](hosts-and-capabilities.md), [Failure and retry](failure-and-retry.md), and the [`@smithers/engine` reference](../reference/engine.md).
+See [Hosts and capabilities](hosts-and-capabilities.md), [Failure and retry](failure-and-retry.md), and the [`@smthrs/engine` reference](../reference/engine.md).

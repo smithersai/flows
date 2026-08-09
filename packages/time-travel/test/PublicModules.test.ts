@@ -1,5 +1,5 @@
-import * as Jj from "@smithers/host/Jj"
-import * as RunStore from "@smithers/journal/RunStore"
+import * as Jj from "@smthrs/host/Jj"
+import * as RunStore from "@smthrs/journal/RunStore"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"

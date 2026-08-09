@@ -10,8 +10,8 @@
  *
  * @since 0.1.0
  */
-import { Database, DatabaseError } from "@smithers/database/Database"
-import type { OwnerId } from "@smithers/journal/Ownership"
+import { Database, DatabaseError } from "@smthrs/database/Database"
+import type { OwnerId } from "@smthrs/journal/Ownership"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -277,7 +277,7 @@ export type RecordRunParentOutcome =
   | { readonly _tag: "Existing"; readonly edge: RunParentEdge }
 
 /**
- * Minimal durable state missing from the current `@smithers/journal` contract.
+ * Minimal durable state missing from the current `@smthrs/journal` contract.
  *
  * A successful mutation means the row is durable. Callers may therefore
  * journal and schedule a wake only after the mutation returns.
@@ -286,20 +286,20 @@ export type RecordRunParentOutcome =
  * @category models
  */
 export interface Service {
-  // TODO(piece-6): fold into @smithers/journal — needs DeferredStore.get(flowName, executionId, deferredName).
+  // TODO(piece-6): fold into @smthrs/journal — needs DeferredStore.get(flowName, executionId, deferredName).
   readonly deferred: (address: DeferredAddress) => Effect.Effect<Option.Option<DeferredRow>>
-  // TODO(piece-6): fold into @smithers/journal — needs DeferredStore.completeFirstWriterWins(row).
+  // TODO(piece-6): fold into @smthrs/journal — needs DeferredStore.completeFirstWriterWins(row).
   readonly completeDeferred: (row: DeferredRow) => Effect.Effect<CompleteDeferredOutcome>
-  // TODO(piece-6): fold into @smithers/journal — needs ClockStore.get(flowName, executionId, clockName).
+  // TODO(piece-6): fold into @smthrs/journal — needs ClockStore.get(flowName, executionId, clockName).
   readonly clock: (address: ClockAddress) => Effect.Effect<Option.Option<ClockRow>>
-  // TODO(piece-6): fold into @smithers/journal — needs ClockStore.scheduleFirstWriterWins(rowWithAbsoluteDueAtMs).
+  // TODO(piece-6): fold into @smthrs/journal — needs ClockStore.scheduleFirstWriterWins(rowWithAbsoluteDueAtMs).
   readonly scheduleClock: (row: ClockRow, owner?: OwnerId) => Effect.Effect<ScheduleClockOutcome>
-  // TODO(piece-6): fold into @smithers/journal — needs ClockStore.completeOnce(address, completedAtMs).
+  // TODO(piece-6): fold into @smthrs/journal — needs ClockStore.completeOnce(address, completedAtMs).
   readonly completeClock: (
     address: ClockAddress,
     completedAtMs: number
   ) => Effect.Effect<CompleteClockOutcome>
-  // TODO(piece-6): fold into @smithers/journal — needs ClockStore.due(nowMs).
+  // TODO(piece-6): fold into @smthrs/journal — needs ClockStore.due(nowMs).
   readonly dueClocks: (nowMs: number) => Effect.Effect<ReadonlyArray<ClockRow>>
   /**
    * Lists uncompleted clock rows scoped to an execution or flow, with no

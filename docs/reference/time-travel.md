@@ -1,4 +1,4 @@
-# `@smithers/time-travel`
+# `@smthrs/time-travel`
 
 This page is the public API reference for journal projection replay, time-travel stores, forks, compensating recovery, and audited rewind. The package is a protocol library and is not automatically wired into every engine execution.
 

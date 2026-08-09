@@ -35,7 +35,7 @@ export type CanonicalErrorCode =
  * @since 0.1.0
  * @category errors
  */
-export class CanonicalError extends Schema.TaggedErrorClass<CanonicalError>()("@smithers/keys/CanonicalError", {
+export class CanonicalError extends Schema.TaggedErrorClass<CanonicalError>()("@smthrs/keys/CanonicalError", {
   code: Schema.Literals([
     "unsupported_type",
     "non_finite_number",

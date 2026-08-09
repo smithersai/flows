@@ -6,9 +6,9 @@
  * leading attempts, so the same run restored its retry origin under SQL
  * state and silently restarted its expiration budget under the fallback.
  */
-import { Database } from "@smithers/database"
-import * as TestDatabase from "@smithers/database/test/TestDatabase"
-import { AttemptStore, Migrations, type Ownership } from "@smithers/journal"
+import { Database } from "@smthrs/database"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import { AttemptStore, Migrations, type Ownership } from "@smthrs/journal"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"

@@ -2,13 +2,13 @@
  * Durable journal, ownership, attempt, and cache services.
  *
  * This entry point is browser-bundleable: every store here is written against
- * the driver-neutral `@smithers/database` contract. The test doubles, which
+ * the driver-neutral `@smthrs/database` contract. The test doubles, which
  * bind a Node SQLite database, live under explicit subpaths:
  *
  * ```ts
- * import { Journal, SqlJournal } from "@smithers/journal"
- * import * as TestJournal from "@smithers/journal/test/TestJournal"
- * import * as Notifying from "@smithers/journal/test/Notifying"
+ * import { Journal, SqlJournal } from "@smthrs/journal"
+ * import * as TestJournal from "@smthrs/journal/test/TestJournal"
+ * import * as Notifying from "@smthrs/journal/test/Notifying"
  * ```
  *
  * @since 0.1.0

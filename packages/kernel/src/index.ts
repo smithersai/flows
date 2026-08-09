@@ -1,7 +1,7 @@
 /**
  * @since 0.1.0
  *
- * `@smithers/kernel` — capability enforcement at the Host boundary.
+ * `@smthrs/kernel` — capability enforcement at the Host boundary.
  */
 
 /**

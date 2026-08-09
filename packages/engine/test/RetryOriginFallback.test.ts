@@ -85,7 +85,7 @@ describe("retry origin fallback when the durable hook yields none", () => {
         expect(Exit.isFailure(result.exit)).toBe(true)
         if (Exit.isFailure(result.exit)) {
           expect(Cause.squash(result.exit.cause)).toMatchObject({
-            _tag: "@smithers/engine/RetryPolicyExpired",
+            _tag: "@smthrs/engine/RetryPolicyExpired",
             activityName: "RetryOriginFallback/pruned",
             expirationMs: 1,
             lastError: "still-failing"

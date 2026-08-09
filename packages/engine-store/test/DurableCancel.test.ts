@@ -4,9 +4,9 @@
  * the owning driver — polled during execution and guarded at finalize — not
  * written once and ignored forever.
  */
-import { Flow, type FlowEngine } from "@smithers/engine"
-import { Journal, Ownership, RunStore } from "@smithers/journal"
-import * as TestJournal from "@smithers/journal/test/TestJournal"
+import { Flow, type FlowEngine } from "@smthrs/engine"
+import { Journal, Ownership, RunStore } from "@smthrs/journal"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import * as Clock from "effect/Clock"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"

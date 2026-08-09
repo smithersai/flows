@@ -149,7 +149,7 @@ task, not a subsystem.
 ### 9. Fault-suite harness — closed as harness
 
 The P0 harness the audit demanded exists: `Notifying.wrap`/`layer`
-(`@smithers/journal/test/Notifying`)
+(`@smthrs/journal/test/Notifying`)
 injects interstitial crashes and fence loss around any Effect service, and
 `FaultMatrix.test.ts` (9 it-blocks: 7 fault injections — 3 interstitial
 crashes, 4 fence losses — plus 2 tests of the `Notifying` wrapper itself)
@@ -171,7 +171,7 @@ gap.
 
 ## New gaps the audit did not list
 
-1. **Plugin dispatch is unwired.** The `@smithers/plugin` kernel ships
+1. **Plugin dispatch is unwired.** The `@smthrs/plugin` kernel ships
    (`985adb5`) with the full catalog, but the engine call sites still use
    built-in defaults. Since pause attribution, hijack, quota, and checkpoints
    are all specified *as plugins*, wiring dispatch at the seams is the

@@ -3,8 +3,8 @@
  *
  * @since 0.1.0
  */
-import { Jj } from "@smithers/host/Jj"
-import * as CacheStore from "@smithers/journal/CacheStore"
+import { Jj } from "@smthrs/host/Jj"
+import * as CacheStore from "@smthrs/journal/CacheStore"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"

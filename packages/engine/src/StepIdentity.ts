@@ -23,9 +23,9 @@
  *
  * @since 0.1.0
  */
-import type * as Canonical from "@smithers/keys/Canonical"
-import * as Digest from "@smithers/keys/Digest"
-import * as StepKey from "@smithers/keys/StepKey"
+import type * as Canonical from "@smthrs/keys/Canonical"
+import * as Digest from "@smthrs/keys/Digest"
+import * as StepKey from "@smthrs/keys/StepKey"
 import * as Result from "effect/Result"
 
 /**

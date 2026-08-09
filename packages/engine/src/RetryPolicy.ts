@@ -152,7 +152,7 @@ export const giveUp = (reason: GiveUp["reason"]): RetryDecision => ({
  * @since 0.1.0
  */
 export class RetryPolicyExpired extends Schema.TaggedErrorClass<RetryPolicyExpired>()(
-  "@smithers/engine/RetryPolicyExpired",
+  "@smthrs/engine/RetryPolicyExpired",
   {
     code: Schema.Literal("retry_policy_expired").pipe(
       Schema.withConstructorDefault(Effect.succeed("retry_policy_expired"))
@@ -171,7 +171,7 @@ export class RetryPolicyExpired extends Schema.TaggedErrorClass<RetryPolicyExpir
  * @since 0.1.0
  */
 export class RetryAttemptsExhausted extends Schema.TaggedErrorClass<RetryAttemptsExhausted>()(
-  "@smithers/engine/RetryAttemptsExhausted",
+  "@smthrs/engine/RetryAttemptsExhausted",
   {
     code: Schema.Literal("retry_attempts_exhausted").pipe(
       Schema.withConstructorDefault(Effect.succeed("retry_attempts_exhausted"))

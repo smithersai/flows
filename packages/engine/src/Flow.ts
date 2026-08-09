@@ -10,7 +10,7 @@
  *
  * @since 4.0.0
  */
-import * as Digest from "@smithers/keys/Digest"
+import * as Digest from "@smthrs/keys/Digest"
 import * as Arr from "effect/Array"
 import * as Cause from "effect/Cause"
 import * as Context from "effect/Context"
@@ -42,7 +42,7 @@ const TypeId = "~effect/flow/Flow"
  * @since 0.1.0
  */
 export class ExecutionIdRequired extends Schema.TaggedErrorClass<ExecutionIdRequired>()(
-  "@smithers/engine/ExecutionIdRequired",
+  "@smthrs/engine/ExecutionIdRequired",
   {
     code: Schema.Literal("execution_id_required").pipe(
       Schema.withConstructorDefault(Effect.succeed("execution_id_required"))

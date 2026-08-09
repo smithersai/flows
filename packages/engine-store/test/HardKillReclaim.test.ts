@@ -12,10 +12,10 @@
  * because the hard-kill evidence (a `running` row with a stale
  * `heartbeat_at_ms`) lives in `flows_runs` itself.
  */
-import { Database } from "@smithers/database"
-import * as TestDatabase from "@smithers/database/test/TestDatabase"
-import { Flow, type FlowEngine } from "@smithers/engine"
-import { Migrations, Ownership, RunStore, SqlJournal } from "@smithers/journal"
+import { Database } from "@smthrs/database"
+import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import { Flow, type FlowEngine } from "@smthrs/engine"
+import { Migrations, Ownership, RunStore, SqlJournal } from "@smthrs/journal"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"

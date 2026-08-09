@@ -5,10 +5,10 @@
  * Parity: Bazel Skyframe `MemoizingEvaluatorTest.java:3542` (transient versus
  * persistent cached error reevaluation).
  */
-import { Activity, Flow } from "@smithers/engine"
-import { Journal, RunStore } from "@smithers/journal"
-import * as TestJournal from "@smithers/journal/test/TestJournal"
-import { Jj } from "@smithers/kernel"
+import { Activity, Flow } from "@smthrs/engine"
+import { Journal, RunStore } from "@smthrs/journal"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Jj } from "@smthrs/kernel"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import { describe, expect, it } from "vitest"

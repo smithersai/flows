@@ -81,7 +81,7 @@ export interface Service {
  * @category services
  * @since 0.1.0
  */
-export class BranchPresence extends Context.Service<BranchPresence, Service>()("@smithers/sync/BranchPresence") {}
+export class BranchPresence extends Context.Service<BranchPresence, Service>()("@smthrs/sync/BranchPresence") {}
 
 /**
  * Constructs a presence registry from an implementation.

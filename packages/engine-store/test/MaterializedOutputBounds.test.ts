@@ -13,8 +13,8 @@
  * blob refuses with `UnsupportedBoundary`, which the issue-#107 call sites
  * turn into a real execution instead of a failure.
  */
-import { FileSystem } from "@smithers/kernel"
-import { Digest } from "@smithers/keys"
+import { FileSystem } from "@smthrs/kernel"
+import { Digest } from "@smthrs/keys"
 import * as Effect from "effect/Effect"
 import * as Encoding from "effect/Encoding"
 import * as Layer from "effect/Layer"

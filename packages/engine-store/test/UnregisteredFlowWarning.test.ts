@@ -7,10 +7,10 @@
  * The driver must emit a structured warning (once per run) and leave the row
  * parked so a later registration still reclaims it.
  */
-import { Flow, type FlowEngine } from "@smithers/engine"
-import type { Journal } from "@smithers/journal"
-import { Ownership, RunStore } from "@smithers/journal"
-import * as TestJournal from "@smithers/journal/test/TestJournal"
+import { Flow, type FlowEngine } from "@smthrs/engine"
+import type { Journal } from "@smthrs/journal"
+import { Ownership, RunStore } from "@smthrs/journal"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"

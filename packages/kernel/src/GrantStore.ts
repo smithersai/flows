@@ -81,7 +81,7 @@ export interface Service {
  * @category services
  * @since 0.1.0
  */
-export class GrantStore extends Context.Service<GrantStore, Service>()("@smithers/kernel/GrantStore") {}
+export class GrantStore extends Context.Service<GrantStore, Service>()("@smthrs/kernel/GrantStore") {}
 
 /**
  * A hook that durably records a grant decision before it becomes active.

@@ -1,38 +1,38 @@
 /**
  * @since 0.1.0
  *
- * `@smithers/flows` — the barrel package for the durable flow engine.
+ * `@smthrs/flows` — the barrel package for the durable flow engine.
  *
  * Every engine package is re-exported here as a namespace, the way `effect`'s
  * own index does it, so one dependency gives you the whole engine surface
  * without collapsing each package's `make` / `makeNoop` / `layerNoop` trio into
  * a shared namespace: `Host.Shell.layerNoop`, `Journal.Store.layer`.
  *
- * Depend on the individual `@smithers/*` packages instead when you want a
+ * Depend on the individual `@smthrs/*` packages instead when you want a
  * narrower dependency footprint — this barrel is a convenience, not a new
  * seam. The only API of its own is {@link namespaces}, the runtime list of
  * the re-exported namespace names.
  *
  * ```ts
- * import { Engine, Host, Journal } from "@smithers/flows"
+ * import { Engine, Host, Journal } from "@smthrs/flows"
  * ```
  *
  * One caveat: `Plugin` is re-exported as a namespace, but declaration merging
  * into `FlowsHooks` must target the owning module — `declare module
- * "@smithers/plugin"`, never `"@smithers/flows"`. A re-export is not an
+ * "@smthrs/plugin"`, never `"@smthrs/flows"`. A re-export is not an
  * augmentation target.
  */
 
-export * as Database from "@smithers/database"
-export * as Engine from "@smithers/engine"
-export * as EngineStore from "@smithers/engine-store"
-export * as Host from "@smithers/host"
-export * as Journal from "@smithers/journal"
-export * as Kernel from "@smithers/kernel"
-export * as Keys from "@smithers/keys"
-export * as Plugin from "@smithers/plugin"
-export * as Sync from "@smithers/sync"
-export * as TimeTravel from "@smithers/time-travel"
+export * as Database from "@smthrs/database"
+export * as Engine from "@smthrs/engine"
+export * as EngineStore from "@smthrs/engine-store"
+export * as Host from "@smthrs/host"
+export * as Journal from "@smthrs/journal"
+export * as Kernel from "@smthrs/kernel"
+export * as Keys from "@smthrs/keys"
+export * as Plugin from "@smthrs/plugin"
+export * as Sync from "@smthrs/sync"
+export * as TimeTravel from "@smthrs/time-travel"
 
 /**
  * The namespace names this barrel re-exports, in export order.

@@ -6,9 +6,9 @@
  * `cancelled`. Only an interruption backed by a durable cancel request
  * (`cancel_requested_at_ms`) may close the run terminally.
  */
-import { Flow, type FlowEngine } from "@smithers/engine"
-import { Journal, type Ownership, RunStore } from "@smithers/journal"
-import * as TestJournal from "@smithers/journal/test/TestJournal"
+import { Flow, type FlowEngine } from "@smthrs/engine"
+import { Journal, type Ownership, RunStore } from "@smthrs/journal"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Fiber from "effect/Fiber"

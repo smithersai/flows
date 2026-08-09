@@ -12,7 +12,7 @@ import {
   type HostService as SharedHostService,
   HostServiceIds as SharedHostServiceIds,
   HostServiceTags as SharedHostServiceTags
-} from "@smithers/host/HostServices"
+} from "@smthrs/host/HostServices"
 import { Layer } from "effect"
 import * as FileSystem from "./FileSystem.ts"
 import * as HttpClient from "./HttpClient.ts"
@@ -95,7 +95,7 @@ export const ProtectedHostServiceTags = [
  *
  * The layer exposes permission-aware kernel tags whose TypeScript error
  * channels include permission failures. Raw HTTP tags are never republished;
- * consumers must use `@smithers/kernel/HttpClient`.
+ * consumers must use `@smthrs/kernel/HttpClient`.
  *
  * @category layers
  * @since 0.1.0

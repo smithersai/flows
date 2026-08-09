@@ -6,10 +6,10 @@
  * re-activation transition so a resumed cancel-requested run cancels instead
  * of re-executing flow side effects.
  */
-import { DurableDeferred, Flow, type FlowEngine } from "@smithers/engine"
-import { Ownership, RunStore } from "@smithers/journal"
-import * as TestJournal from "@smithers/journal/test/TestJournal"
-import { Jj } from "@smithers/kernel"
+import { DurableDeferred, Flow, type FlowEngine } from "@smthrs/engine"
+import { Ownership, RunStore } from "@smthrs/journal"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Jj } from "@smthrs/kernel"
 import * as Clock from "effect/Clock"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"

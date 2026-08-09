@@ -1,4 +1,4 @@
-import * as Host from "@smithers/host"
+import * as Host from "@smthrs/host"
 import { Effect, FileSystem as EffectFileSystem, Path } from "effect"
 import { describe, expect, it } from "vitest"
 import type * as Capability from "../src/Capability.ts"

@@ -1,4 +1,4 @@
-# `@smithers/kernel`
+# `@smthrs/kernel`
 
 This page is the public API reference for capability matching, permission decisions, durable grant handling, and permission-decorated host services. It does not provide an operating-system sandbox.
 
@@ -40,7 +40,7 @@ const decision = Permission.evaluate(
 `HostServices` composes the protected layer for the closed host service set. Use it at the application composition boundary:
 
 ```text
-raw @smithers/host service
+raw @smthrs/host service
         ↓
 kernel decorator → GrantStore
         ↓
@@ -49,6 +49,6 @@ flow-visible service
 
 ## Testing
 
-`@smithers/kernel/test/TestGrantStore` exports `layerAllow`, `layerDeny`, and `layerScripted`. The test module is a public deep import; internal modules are not.
+`@smthrs/kernel/test/TestGrantStore` exports `layerAllow`, `layerDeny`, and `layerScripted`. The test module is a public deep import; internal modules are not.
 
-See [Hosts and capabilities](../concepts/hosts-and-capabilities.md) and the [`@smithers/host` reference](host.md).
+See [Hosts and capabilities](../concepts/hosts-and-capabilities.md) and the [`@smthrs/host` reference](host.md).

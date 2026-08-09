@@ -1,5 +1,5 @@
-import { Jj } from "@smithers/host/Jj"
-import * as RunStore from "@smithers/journal/RunStore"
+import { Jj } from "@smthrs/host/Jj"
+import * as RunStore from "@smthrs/journal/RunStore"
 import * as Effect from "effect/Effect"
 import type * as Scope from "effect/Scope"
 import type { Frame } from "./Frame.ts"

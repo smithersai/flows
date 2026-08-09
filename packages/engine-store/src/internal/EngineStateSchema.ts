@@ -3,7 +3,7 @@
  * migration ladder, and the inventory of what porting them to another
  * dialect costs.
  *
- * The canonical `flows_*` migrations live in `@smithers/journal`; these
+ * The canonical `flows_*` migrations live in `@smthrs/journal`; these
  * statements are engine-store-owned storage created idempotently at
  * construction instead (issues #40/#41/#79/#81). That is a deliberate lane
  * boundary, not an oversight — but it left the statements invisible to the
@@ -15,7 +15,7 @@
  *
  * @since 0.1.0
  */
-import type { DatabaseService } from "@smithers/database/Database"
+import type { DatabaseService } from "@smthrs/database/Database"
 import * as Effect from "effect/Effect"
 
 /**

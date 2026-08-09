@@ -1,5 +1,5 @@
-import { FileSystem } from "@smithers/kernel"
-import { Digest } from "@smithers/keys"
+import { FileSystem } from "@smthrs/kernel"
+import { Digest } from "@smthrs/keys"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"

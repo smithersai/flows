@@ -5,10 +5,10 @@
  * silently for the rest of the process lifetime. The sweep gets the same
  * sandbox-and-log hardening `armClock` received.
  */
-import { DurableDeferred, Flow, type FlowEngine } from "@smithers/engine"
-import { Ownership, RunStore } from "@smithers/journal"
-import * as TestJournal from "@smithers/journal/test/TestJournal"
-import { Jj } from "@smithers/kernel"
+import { DurableDeferred, Flow, type FlowEngine } from "@smthrs/engine"
+import { Ownership, RunStore } from "@smthrs/journal"
+import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Jj } from "@smthrs/kernel"
 import * as Clock from "effect/Clock"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
@@ -25,8 +25,8 @@ import { describe, expect, it, vi } from "vitest"
  */
 const wakeFailures = vi.hoisted(() => ({ budget: 0 }))
 
-vi.mock("@smithers/journal", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@smithers/journal")>()
+vi.mock("@smthrs/journal", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@smthrs/journal")>()
   return {
     ...actual,
     RunCoordinator: {
