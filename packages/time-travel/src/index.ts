@@ -1,26 +1,78 @@
-/** @since 0.1.0 */
+/**
+ * Execution-history frame models.
+ *
+ * @since 0.1.0
+ */
 export * as Frame from "./Frame.ts"
-/** @since 0.1.0 */
+/**
+ * Time-travel error types.
+ *
+ * @since 0.1.0
+ */
 export * as TimeTravelError from "./TimeTravelError.ts"
-/** @since 0.1.0 */
+/**
+ * Time-travel persistence contracts.
+ *
+ * @since 0.1.0
+ */
 export * as TimeTravelStore from "./TimeTravelStore.ts"
-/** @since 0.1.0 */
+/**
+ * In-memory time-travel persistence.
+ *
+ * @since 0.1.0
+ */
 export * as MemoryTimeTravelStore from "./MemoryTimeTravelStore.ts"
-/** @since 0.1.0 */
+/**
+ * SQL-backed time-travel persistence.
+ *
+ * @since 0.1.0
+ */
 export * as SqlTimeTravelStore from "./SqlTimeTravelStore.ts"
-/** @since 0.1.0 */
+/**
+ * History replay operations.
+ *
+ * @since 0.1.0
+ */
 export * as Replay from "./Replay.ts"
-/** @since 0.1.0 */
+/**
+ * History fork operations.
+ *
+ * @since 0.1.0
+ */
 export * as Fork from "./Fork.ts"
-/** @since 0.1.0 */
+/**
+ * History rewind operations.
+ *
+ * @since 0.1.0
+ */
 export * as Rewind from "./Rewind.ts"
-/** @since 0.1.0 */
+/**
+ * Effect compensation operations.
+ *
+ * @since 0.1.0
+ */
 export * as Compensation from "./Compensation.ts"
-/** @since 0.1.0 */
+/**
+ * Effect-handler registration.
+ *
+ * @since 0.1.0
+ */
 export * as EffectHandlerRegistry from "./EffectHandlerRegistry.ts"
-/** @since 0.1.0 */
+/**
+ * Durable effect-boundary contracts.
+ *
+ * @since 0.1.0
+ */
 export * as EffectBoundary from "./EffectBoundary.ts"
-/** @since 0.1.0 */
+/**
+ * Interrupted-execution recovery operations.
+ *
+ * @since 0.1.0
+ */
 export * as Recovery from "./Recovery.ts"
-/** @since 0.1.0 */
+/**
+ * Historical-attempt retry operations.
+ *
+ * @since 0.1.0
+ */
 export * as Retry from "./Retry.ts"

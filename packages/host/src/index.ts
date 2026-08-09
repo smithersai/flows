@@ -22,11 +22,27 @@
  *
  * `scripts/browser-check.mjs` at the repository root pins that property.
  */
+
+/** Host-layer error types. */
 export * as HostError from "./HostError.ts"
+
+/** Host service contracts and their combined service type. */
 export * from "./HostServices.ts"
+
+/** HTTP transport contracts. */
 export * as HttpTransport from "./HttpTransport.ts"
+
+/** Jujutsu operation contracts. */
 export * as Jj from "./Jj.ts"
+
+/** Pseudo-terminal operation contracts. */
 export * as Pty from "./Pty.ts"
+
+/** Remote sandbox operation contracts. */
 export * as RemoteSandbox from "./RemoteSandbox.ts"
+
+/** Sandbox health-check contracts. */
 export * as SandboxHealth from "./SandboxHealth.ts"
+
+/** Shell operation contracts. */
 export * as Shell from "./Shell.ts"
