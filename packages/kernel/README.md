@@ -1,17 +1,17 @@
-# @smithers/kernel
+# @smthrs/kernel
 
-Capability-enforcement layer between flows and `@smithers/host`. It owns
+Capability-enforcement layer between flows and `@smthrs/host`. It owns
 monotone authority, typed permission/grant decisions, journal-backed grants,
 and permission-aware replacements for every protected Host service.
 
 ```sh
-npm install @smithers/kernel
+npm install @smthrs/kernel
 ```
 
 ## Public API
 
 The root exports these namespaces, also available from matching
-`@smithers/kernel/*` subpaths.
+`@smthrs/kernel/*` subpaths.
 
 | Namespace           | Public exports                                                                                                                                                                                                                                                                    |
 | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -30,11 +30,11 @@ The root exports these namespaces, also available from matching
 | `Path`              | Effect `Path` type/tag and explicit pass-through `layer`.                                                                                                                                                                                                                         |
 | `Workspace`         | `Service` / `Workspace` root configuration; `make`, `layer`, relative test value `makeNoop`, and `layerNoop`.                                                                                                                                                                     |
 
-The public `@smithers/kernel/test/TestGrantStore` subpath exports `layerAllow`,
+The public `@smthrs/kernel/test/TestGrantStore` subpath exports `layerAllow`,
 `layerDeny(reason?)`, and `layerScripted(replies)`.
 
 ```ts
-import { Capability, GrantStore } from "@smithers/kernel"
+import { Capability, GrantStore } from "@smthrs/kernel"
 import { Effect } from "effect"
 
 const program = Effect.gen(function*() {
@@ -52,7 +52,5 @@ their error channels; HTTP consumers must use the kernel `HttpClient`, not the
 raw Host transport.
 
 See the [kernel reference](../../docs/reference/kernel.md),
-[Permission Kernel](../../../docs/specs/Concepts/Permission%20Kernel.md),
-[Trust Granularity](../../../docs/specs/Concepts/Trust%20Granularity.md),
-[Effect Taxonomy](../../../docs/specs/Concepts/Effect%20Taxonomy.md), and
-[Step Keys](../../../docs/specs/Concepts/Step%20Keys.md).
+[host and capability concepts](../../docs/concepts/hosts-and-capabilities.md), and
+[step keys](../../docs/concepts/step-keys.md).

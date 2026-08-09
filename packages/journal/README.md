@@ -1,7 +1,7 @@
-# @smithers/journal
+# @smthrs/journal
 
 Durable event, run-ownership, attempt, and content-cache services for flows.
-It owns the SQL schema above `@smithers/database`, bounded journal admission,
+It owns the SQL schema above `@smthrs/database`, bounded journal admission,
 fenced run transitions, and the records consumed by engine-store and sync.
 
 The journal is flows' own **logical (domain) write-ahead log**, intended to
@@ -18,13 +18,13 @@ Committing locally is not remote atomicity — external effects still need
 idempotency keys, fencing tokens, or compensation.
 
 ```sh
-npm install @smithers/journal
+npm install @smthrs/journal
 ```
 
 ## Public API
 
 The root exports these namespaces, also available from matching
-`@smithers/journal/*` subpaths.
+`@smthrs/journal/*` subpaths.
 
 | Namespace        | Public exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -39,14 +39,14 @@ The root exports these namespaces, also available from matching
 | `CacheStore`     | `CacheStoreErrorCode`, `CacheStoreError`, `CacheEntry`, and `PutResult`; `Service` / `CacheStore` operations `get`, `put`, and `evict`; `make`, `makeNoop`, `layerNoop`, and SQL `layer`.                                                                                                                                                                                                                                                                                     |
 | `RunCoordinator` | Scoped keyed-drain `RunCoordinator` (`active`, `run`, `wake`, `interrupt`) and `make`.                                                                                                                                                                                                                                                                                                                                                                                        |
 
-The root is written against the driver-neutral `@smithers/database` contract
+The root is written against the driver-neutral `@smthrs/database` contract
 and bundles for the browser. The test doubles bind a Node SQLite database, so
 they live under explicit subpaths:
 
-| Import                               | Public exports                                                                                                                                    |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@smithers/journal/test/TestJournal` | **Node only.** `TestJournalOptions` and `layer(options?)`, providing migrated in-memory Journal, RunStore, AttemptStore, and CacheStore services. |
-| `@smithers/journal/test/Notifying`   | `Order`, `Hook`, `wrap`, and `layer` inject before/after notifications around Effect-valued service operations.                                   |
+| Import                             | Public exports                                                                                                                                    |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@smthrs/journal/test/TestJournal` | **Node only.** `TestJournalOptions` and `layer(options?)`, providing migrated in-memory Journal, RunStore, AttemptStore, and CacheStore services. |
+| `@smthrs/journal/test/Notifying`   | `Order`, `Hook`, `wrap`, and `layer` inject before/after notifications around Effect-valued service operations.                                   |
 
 The public `migrations/0001_initial`, `0002_durable_engine_state`,
 `0003_run_metadata`, and `0004_waiting_reason` subpaths each default-export
@@ -54,8 +54,8 @@ their migration Effect; normal callers should use `Migrations.run` or
 `Migrations.layer`.
 
 ```ts
-import * as NodeDatabase from "@smithers/database/node/NodeDatabase"
-import { Journal, JournalEvent, Migrations, SqlJournal } from "@smithers/journal"
+import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
+import { Journal, JournalEvent, Migrations, SqlJournal } from "@smthrs/journal"
 import { Effect, Layer } from "effect"
 
 const database = NodeDatabase.layer({ filename: "flows.db" })
@@ -79,7 +79,7 @@ retries. Rejected and dropped admissions may consume either sequence, so gaps
 are valid.
 
 `RunStore`, `AttemptStore`, and `CacheStore` (with `DurableEngineState` in
-`@smithers/engine-store`) hold the executable authoritative state today; it is
+`@smthrs/engine-store`) hold the executable authoritative state today; it is
 not derived from journal entries. `transact` is what keeps the two halves
 consistent anyway: it runs a state projection and the `emitDurable` calls
 describing it in ONE write transaction — the stores write through the same
@@ -88,6 +88,5 @@ until that transaction commits. Either a transition and its lifecycle entry
 are both durable, or neither is. See
 [implementation status](../../docs/architecture/implementation-status.md).
 
-See the [journal reference](../../docs/reference/journal.md),
-[Journal Queue](../../../docs/specs/Concepts/Journal%20Queue.md), and
-[Run Ownership](../../../docs/specs/Concepts/Run%20Ownership.md).
+See the [journal reference](../../docs/reference/journal.md) and
+[journal concepts](../../docs/concepts/journal.md).

@@ -1,17 +1,17 @@
-# @smithers/time-travel
+# @smthrs/time-travel
 
 Durable replay, fork, rewind, recovery, and compensation primitives over the
 journal and engine-store contracts. It owns both in-memory and SQL state stores
 and records effect-boundary evidence used to make time-travel decisions.
 
 ```sh
-npm install @smithers/time-travel
+npm install @smthrs/time-travel
 ```
 
 ## Public API
 
 The root exports these namespaces, also available from matching
-`@smithers/time-travel/*` subpaths.
+`@smthrs/time-travel/*` subpaths.
 
 | Namespace               | Public exports                                                                                                                                                                                                                                                                                       |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -30,7 +30,7 @@ The root exports these namespaces, also available from matching
 | `Retry`                 | `AttemptContext`, `BlockedReason`, `Outcome`, `Options`, and bounded `retry(options)`.                                                                                                                                                                                                               |
 
 ```ts
-import { MemoryTimeTravelStore, TimeTravelStore } from "@smithers/time-travel"
+import { MemoryTimeTravelStore, TimeTravelStore } from "@smthrs/time-travel"
 import { Effect } from "effect"
 
 const program = Effect.gen(function*() {
@@ -39,6 +39,5 @@ const program = Effect.gen(function*() {
 }).pipe(Effect.provide(MemoryTimeTravelStore.layer()))
 ```
 
-See the [time-travel reference](../../docs/reference/time-travel.md),
-[Time Travel](../../../docs/specs/Concepts/Time%20Travel.md), and
-[Time Travel Compensation](../../../docs/specs/Concepts/Time%20Travel%20Compensation.md).
+See the [time-travel reference](../../docs/reference/time-travel.md) and
+[time-travel concepts](../../docs/concepts/time-travel.md).

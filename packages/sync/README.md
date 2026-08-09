@@ -1,6 +1,6 @@
-# @smithers/sync
+# @smthrs/sync
 
-Browser-safe, read-only replication of canonical `@smithers/journal` entries.
+Browser-safe, read-only replication of canonical `@smthrs/journal` entries.
 It defines the wire protocol, RPC group, server, and replay-then-follow client;
 journal mutation remains outside this package.
 
@@ -13,13 +13,13 @@ key; every operation authorizes through a signed, expiring, branch-scoped share
 capability.
 
 ```sh
-npm install @smithers/sync
+npm install @smthrs/sync
 ```
 
 ## Public API
 
 The root exports these namespaces, also available from matching
-`@smithers/sync/*` subpaths.
+`@smthrs/sync/*` subpaths.
 
 | Namespace          | Public exports                                                                                                                                                                                                                                                |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -35,12 +35,12 @@ The root exports these namespaces, also available from matching
 | `BranchCommands`   | `BranchCommands` / `Service` with `submit`; `SubmitRequest`, `submission`, `make`, `makeNoop`, `layerNoop`, `makeLive`, `layer`.                                                                                                                              |
 | `BranchProjection` | `State`, `Message`, `AppliedCommand`, `Field`; `empty`, `apply`, `project`, and the explicit `resolveField` conflict policy.                                                                                                                                  |
 
-Public test subpaths are `@smithers/sync/test/TestSocket` (`FrameFilter`,
-`TestFaults`, `Pair`, `makePair`) and `@smithers/sync/test/TestSync`
+Public test subpaths are `@smthrs/sync/test/TestSocket` (`FrameFilter`,
+`TestFaults`, `Pair`, `makePair`) and `@smthrs/sync/test/TestSync`
 (`layerTest`, `layerNoop`, `connect`).
 
 ```ts
-import { RunCatalog, SyncServer } from "@smithers/sync"
+import { RunCatalog, SyncServer } from "@smthrs/sync"
 import { Effect, Layer } from "effect"
 
 const serverLayer = SyncServer.layer.pipe(
@@ -57,4 +57,4 @@ per-run cursors. A non-contiguous journal sequence is valid; `SyncGapError`
 means the server skipped beyond the interval covered by the client's cursor.
 
 See the [sync reference](../../docs/reference/sync.md) and
-[Sync Decision](../../../docs/specs/Research/Sync%20Decision%202026-07-28.md).
+[sync concepts](../../docs/concepts/sync.md).

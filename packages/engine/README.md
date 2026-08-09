@@ -1,17 +1,17 @@
-# @smithers/engine
+# @smthrs/engine
 
 Flows fork of Effect's unstable workflow API. It defines typed flows,
 activities, durable waits/queues, transport projections, and the low-level
-engine contract; `@smithers/engine-store` supplies durable persistence.
+engine contract; `@smthrs/engine-store` supplies durable persistence.
 
 ```sh
-npm install @smithers/engine
+npm install @smthrs/engine
 ```
 
 ## Public API
 
 The root exports these namespaces, also available from matching
-`@smithers/engine/*` subpaths.
+`@smthrs/engine/*` subpaths.
 
 | Namespace         | Public exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -33,7 +33,7 @@ namespace.
 ### Flow — define, handle, run, observe
 
 ```ts
-import { Activity, Flow, FlowEngine } from "@smithers/engine"
+import { Activity, Flow, FlowEngine } from "@smthrs/engine"
 import { Effect, Option, Schema } from "effect"
 
 class ReviewFailed extends Schema.TaggedErrorClass<ReviewFailed>()(
@@ -99,7 +99,7 @@ Executing without an execution ID or idempotency key fails with
 ### Activity — durable steps, tiers, retries, races
 
 ```ts
-import { Activity, RetryPolicy } from "@smithers/engine"
+import { Activity, RetryPolicy } from "@smthrs/engine"
 import { Effect, Schema } from "effect"
 
 // Tiers: "sealed" (default), "compensable" (requires a
@@ -132,7 +132,7 @@ const fastest = Activity.raceAll("fastest-charge", [charge, resilient])
 ### DurableClock — durable sleep
 
 ```ts
-import { DurableClock } from "@smithers/engine"
+import { DurableClock } from "@smthrs/engine"
 
 // Short sleeps run in memory; anything past inMemoryThreshold (default
 // 60s) schedules a durable clock and suspends the flow.
@@ -149,7 +149,7 @@ const clock = DurableClock.make({ name: "cooldown", duration: "2 days" })
 ### DurableDeferred — external completion
 
 ```ts
-import { DurableDeferred } from "@smithers/engine"
+import { DurableDeferred } from "@smthrs/engine"
 import { Effect, Exit, Schema } from "effect"
 
 const Approval = DurableDeferred.make("Approval", {
@@ -172,7 +172,7 @@ const winner = DurableDeferred.raceAll({
 // Tokens identify a deferred from outside the flow. Inside a flow:
 const tokenInFlow = DurableDeferred.token(Approval)
 // Outside, derive it from the flow + executionId or payload:
-declare const Review: import("@smithers/engine").Flow.Any
+declare const Review: import("@smthrs/engine").Flow.Any
 const token = DurableDeferred.tokenFromExecutionId(Approval, {
   flow: Review,
   executionId: "run-17"
@@ -194,7 +194,7 @@ const settle = DurableDeferred.done(Approval, { token, exit: Exit.succeed(true) 
 ### DurableQueue — durable work queues
 
 ```ts
-import { DurableQueue } from "@smithers/engine"
+import { DurableQueue } from "@smthrs/engine"
 import { Effect, Schema } from "effect"
 
 const Renders = DurableQueue.make({
@@ -219,12 +219,12 @@ const RendersWorker = DurableQueue.worker(
 ### FlowEngine — the engine contract
 
 ```ts
-import { FlowEngine } from "@smithers/engine"
+import { FlowEngine } from "@smthrs/engine"
 import { Effect } from "effect"
 
 // FlowEngine is the service the flow/activity/deferred/clock/queue APIs
 // talk to. layerMemory is the in-memory implementation;
-// @smithers/engine-store provides the durable one. makeUnsafe builds a
+// @smthrs/engine-store provides the durable one. makeUnsafe builds a
 // FlowEngine from an Encoded implementation (the persistence boundary).
 const program = Effect.gen(function*() {
   const engine = yield* FlowEngine
@@ -242,12 +242,12 @@ const program = Effect.gen(function*() {
 ### FlowProxy / FlowProxyServer — derived transports
 
 ```ts
-import { FlowProxy, FlowProxyServer } from "@smithers/engine"
+import { FlowProxy, FlowProxyServer } from "@smthrs/engine"
 import { Layer } from "effect"
 import { HttpApi } from "effect/unstable/http"
 import { RpcServer } from "effect/unstable/rpc"
 
-declare const Review: import("@smithers/engine").Flow.Any
+declare const Review: import("@smthrs/engine").Flow.Any
 
 // Each flow derives Execute / Discard / Resume endpoints
 // (ConvertRpcs / ConvertHttpApi describe the derived types).
@@ -267,7 +267,7 @@ const HttpLayer = FlowProxyServer.layerHttpApi(ReviewApi, "flows", [Review])
 ### RetryPolicy — declarative retry decisions
 
 ```ts
-import { RetryPolicy } from "@smithers/engine"
+import { RetryPolicy } from "@smthrs/engine"
 
 const policy = RetryPolicy.make({
   initialMs: 100,
@@ -290,6 +290,5 @@ RetryPolicy.isNonRetryable(policy, new Error("x"))
 ```
 
 See the [engine reference](../../docs/reference/engine.md),
-[Vendored Workflow Engine](../../../docs/specs/Concepts/Vendored%20Workflow%20Engine.md),
-[Failure Policy](../../../docs/specs/Concepts/Failure%20Policy.md), and
-[Step Keys](../../../docs/specs/Concepts/Step%20Keys.md).
+[failure and retry](../../docs/concepts/failure-and-retry.md), and
+[step keys](../../docs/concepts/step-keys.md).
