@@ -44,6 +44,7 @@ runHostContract(
       options: { cwd: "/", env: { HOST_CONTRACT_ENV: "browser" } },
       expectedOptionsStdout: "browser-options",
       timeoutCommand: "host-contract-timeout",
+      timeoutMs: 1,
       interruptCommand: "host-contract-interrupt"
     },
     pty: { expected: "failure", code: "unsupported" },

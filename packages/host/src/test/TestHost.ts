@@ -135,12 +135,22 @@ export const makeMemoryFs = (
  * depend on a host tool being installed.
  */
 export const makeStubBash = (
-  responses?: Readonly<Record<string, { stdout?: string; stderr?: string; exitCode?: number }>>
+  responses?: Readonly<
+    Record<string, {
+      stdout?: string
+      stderr?: string
+      exitCode?: number
+      delayMs?: number
+    }>
+  >
 ): JustBashShell.JustBashLike => ({
   run: async (command) => {
     const scripted = responses?.[command]
     if (scripted === undefined) {
       return { stdout: "", stderr: `command not found: ${command}\n`, exitCode: 127 }
+    }
+    if (scripted.delayMs !== undefined) {
+      await new Promise((resolve) => setTimeout(resolve, scripted.delayMs))
     }
     return {
       stdout: scripted.stdout ?? "",
@@ -185,7 +195,14 @@ export const layerSeededRandom = (seed = 42): Layer.Layer<never> =>
  */
 export const layer = (options?: {
   readonly files?: Readonly<Record<string, string>>
-  readonly commands?: Readonly<Record<string, { stdout?: string; stderr?: string; exitCode?: number }>>
+  readonly commands?: Readonly<
+    Record<string, {
+      stdout?: string
+      stderr?: string
+      exitCode?: number
+      delayMs?: number
+    }>
+  >
   readonly seed?: number
 }): Layer.Layer<FileSystem.FileSystem | Path.Path | Shell | Pty | Jj | HttpTransport.HttpTransport> =>
   Layer.mergeAll(

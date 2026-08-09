@@ -1,11 +1,11 @@
-# @smithers/host
+# @smthrs/host
 
 Closed host-capability boundary for flows. It defines portable Shell, Pty, Jj,
 and single-hop HTTP contracts alongside Effect FileSystem and Path, then
 provides Node, Bun, browser, remote-sandbox, and deterministic test adapters.
 
 ```sh
-npm install @smithers/host
+npm install @smthrs/host
 ```
 
 ## Entry points
@@ -15,13 +15,13 @@ no-op layers only. Every platform bundle lives under an explicit subpath, the
 way `effect` keeps `@effect/platform-node` out of `effect`, so importing a
 contract never resolves a `node:` built-in.
 
-| Import                               | Platform                                             |
-| ------------------------------------ | ---------------------------------------------------- |
-| `@smithers/host`                     | any — contracts only; bundles for the browser        |
-| `@smithers/host/browser/BrowserHost` | browser                                              |
-| `@smithers/host/node/NodeHost`       | Node (`node:child_process`, `@effect/platform-node`) |
-| `@smithers/host/bun/BunHost`         | Bun, falling back to the Node adapters off Bun       |
-| `@smithers/host/test/TestHost`       | Node — `effect/testing` pulls `node:assert`          |
+| Import                             | Platform                                             |
+| ---------------------------------- | ---------------------------------------------------- |
+| `@smthrs/host`                     | any — contracts only; bundles for the browser        |
+| `@smthrs/host/browser/BrowserHost` | browser                                              |
+| `@smthrs/host/node/NodeHost`       | Node (`node:child_process`, `@effect/platform-node`) |
+| `@smthrs/host/bun/BunHost`         | Bun, falling back to the Node adapters off Bun       |
+| `@smthrs/host/test/TestHost`       | Node — `effect/testing` pulls `node:assert`          |
 
 `npm run browser` at the repository root bundles the first two with
 `platform: "browser"` and fails the build if either stops being browser-safe.
@@ -30,7 +30,7 @@ It asserts the other three still do not bundle, so this table cannot go stale.
 ## Public API
 
 Root service modules are namespaced and can also be imported from matching
-subpaths such as `@smithers/host/Shell`.
+subpaths such as `@smthrs/host/Shell`.
 
 | Export               | Public exports                                                                                                                                                                                     |
 | -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -45,22 +45,22 @@ subpaths such as `@smithers/host/Shell`.
 
 The platform bundles and their adapters are public subpaths:
 
-| Subpath modules                                                                        | Public exports                                                                                                                                                                                      |
-| -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `browser/BrowserHost`                                                                  | `layer({ bash, fs })` plus `layerPtyUnsupported` and `layerJjUnsupported`.                                                                                                                          |
-| `bun/BunHost`                                                                          | `BunHost`, `implementationIds`, and complete `layer`; re-exported adapter namespaces `BunFileSystem`, `BunHttpTransport`, `BunJj`, `BunPty`, and `BunShell`.                                        |
-| `node/NodeHost`                                                                        | `NodeHost` and complete `layer`; re-exported adapter namespaces `NodeHttpTransport`, `NodeJj`, `NodePty`, and `NodeShell`.                                                                          |
-| `test/TestHost`                                                                        | `makeMemoryFs`, `makeStubBash`, `layerSeededRandom`, configurable `layer`, and zero-config `TestHost` layer.                                                                                        |
-| `browser/BrowserFileSystem`                                                            | `ZenFsPromisesLike`, `ZenFsFileHandleLike`, `ZenFsStatsLike`, `make`, `layer`.                                                                                                                      |
-| `browser/BrowserHttpTransport`                                                         | `layer`.                                                                                                                                                                                            |
-| `browser/JustBashShell`                                                                | `JustBashLike`, `layer`.                                                                                                                                                                            |
-| `bun/BunFileSystem`, `bun/BunHttpTransport`, `bun/BunJj`, `bun/BunPty`, `bun/BunShell` | Each exports its service `layer`.                                                                                                                                                                   |
-| `node/NodeHttpTransport`, `node/NodeJj`, `node/NodePty`, `node/NodeShell`              | Each exports its service `layer`.                                                                                                                                                                   |
-| `test/contract`                                                                        | `FailureCapability`, `FileSystemSuccess`, `PathSuccess`, `ShellSuccess`, `PtySuccess`, `JjSuccess`, `HttpTransportSuccess`, `HostContractCapabilities`, `HostContractLayer`, and `runHostContract`. |
+| Subpath modules                                                                        | Public exports                                                                                                                                               |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `browser/BrowserHost`                                                                  | `layer({ bash, fs })` plus `layerPtyUnsupported` and `layerJjUnsupported`.                                                                                   |
+| `bun/BunHost`                                                                          | `BunHost`, `implementationIds`, and complete `layer`; re-exported adapter namespaces `BunFileSystem`, `BunHttpTransport`, `BunJj`, `BunPty`, and `BunShell`. |
+| `node/NodeHost`                                                                        | `NodeHost` and complete `layer`; re-exported adapter namespaces `NodeHttpTransport`, `NodeJj`, `NodePty`, and `NodeShell`.                                   |
+| `test/TestHost`                                                                        | `makeMemoryFs`, `makeStubBash`, `layerSeededRandom`, configurable `layer`, and zero-config `TestHost` layer.                                                 |
+| `test/contract`                                                                        | Reusable Vitest contract suite for complete third-party Host bundles; emitted as ESM, CJS, and declarations.                                                 |
+| `browser/BrowserFileSystem`                                                            | `ZenFsPromisesLike`, `ZenFsFileHandleLike`, `ZenFsStatsLike`, `make`, `layer`.                                                                               |
+| `browser/BrowserHttpTransport`                                                         | `layer`.                                                                                                                                                     |
+| `browser/JustBashShell`                                                                | `JustBashLike`, `layer`.                                                                                                                                     |
+| `bun/BunFileSystem`, `bun/BunHttpTransport`, `bun/BunJj`, `bun/BunPty`, `bun/BunShell` | Each exports its service `layer`.                                                                                                                            |
+| `node/NodeHttpTransport`, `node/NodeJj`, `node/NodePty`, `node/NodeShell`              | Each exports its service `layer`.                                                                                                                            |
 
 ```ts
-import { Shell } from "@smithers/host"
-import * as NodeHost from "@smithers/host/node/NodeHost"
+import { Shell } from "@smthrs/host"
+import * as NodeHost from "@smthrs/host/node/NodeHost"
 import { Effect } from "effect"
 
 const program = Effect.gen(function*() {
@@ -74,6 +74,5 @@ Effect.runPromise(program)
 Closing an Effect scope or interrupting its owning fiber controls process and
 remote-session cancellation; these contracts do not use `AbortSignal`.
 
-See the [host reference](../../docs/reference/host.md),
-[Host Adapters](../../../docs/specs/Concepts/Host%20Adapters.md), and
-[Effect Taxonomy](../../../docs/specs/Concepts/Effect%20Taxonomy.md).
+See the [host reference](../../docs/reference/host.md) and
+[effect taxonomy](../../docs/concepts/effect-integration.md).

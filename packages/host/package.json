@@ -1,5 +1,5 @@
 {
-  "name": "@smithers/host",
+  "name": "@smthrs/host",
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
@@ -32,7 +32,7 @@
   "exports": {
     "./package.json": "./package.json",
     ".": "./src/index.ts",
-    "./test/contract": "./test/contract/HostContract.ts",
+    "./test/contract": "./src/test/HostContract.ts",
     "./*": "./src/*.ts",
     "./internal/*": null,
     "./*/index": null
@@ -44,7 +44,6 @@
     "dist/**/*.d.ts",
     "dist/**/*.d.ts.map",
     "dist/**/package.json",
-    "test/contract/HostContract.ts",
     "LICENSE",
     "README.md",
     "CHANGELOG.md"
@@ -59,7 +58,11 @@
         "import": "./dist/esm/index.js",
         "require": "./dist/cjs/index.js"
       },
-      "./test/contract": "./test/contract/HostContract.ts",
+      "./test/contract": {
+        "types": "./dist/esm/test/HostContract.d.ts",
+        "import": "./dist/esm/test/HostContract.js",
+        "require": "./dist/cjs/test/HostContract.js"
+      },
       "./*": {
         "types": "./dist/esm/*.d.ts",
         "import": "./dist/esm/*.js",
@@ -83,10 +86,14 @@
     "effect": "4.0.0-beta.102"
   },
   "peerDependencies": {
-    "@effect/platform-bun": "4.0.0-beta.102"
+    "@effect/platform-bun": "4.0.0-beta.102",
+    "vitest": "4.1.9"
   },
   "peerDependenciesMeta": {
     "@effect/platform-bun": {
+      "optional": true
+    },
+    "vitest": {
       "optional": true
     }
   },

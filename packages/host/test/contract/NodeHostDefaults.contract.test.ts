@@ -9,7 +9,7 @@ import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
 import { spawnSync } from "node:child_process"
 import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
-import { expect } from "vitest"
+import { afterAll, expect } from "vitest"
 import * as NodeHost from "../../src/node/NodeHost.ts"
 import { runHostContract } from "./HostContract.ts"
 
@@ -23,6 +23,11 @@ server.unref()
 const port = await new Promise<number>((resolve) => {
   server.listen(0, "127.0.0.1", () => resolve((server.address() as AddressInfo).port))
 })
+afterAll(() =>
+  new Promise<void>((resolve, reject) => {
+    server.close((error) => error === undefined ? resolve() : reject(error))
+  })
+)
 
 runHostContract("NodeHost defaults", NodeHost.layer, {
   fileSystem: { expected: "success" },

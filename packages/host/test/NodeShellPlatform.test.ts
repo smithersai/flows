@@ -32,29 +32,24 @@ const restorePlatform = (): void => {
 
 /**
  * Runs `command`, lets it live for `aliveMs`, then interrupts it — optionally
- * while `process.platform` reports something else. Resolves with how long the
- * interruption itself took, which is how "waits for the child to close" is
- * observed. The fiber is forked inside the same runtime that interrupts it, so
- * the child is guaranteed to be running by then.
+ * while `process.platform` reports something else. The fiber is forked inside
+ * the same runtime that interrupts it, so the child is guaranteed to be
+ * running by then.
  */
-const interruptAfter = async (command: string, aliveMs: number, platform?: string): Promise<number> => {
-  let elapsed = 0
+const interruptAfter = async (command: string, aliveMs: number, platform?: string): Promise<void> => {
   await Effect.runPromise(
     Effect.gen(function*() {
       const shell = yield* Shell
       const fiber = yield* Effect.forkChild(shell.exec(command), { startImmediately: true })
       yield* Effect.sleep(aliveMs)
-      const started = Date.now()
       if (platform !== undefined) setPlatform(platform)
       try {
         yield* Fiber.interrupt(fiber)
       } finally {
         if (platform !== undefined) restorePlatform()
       }
-      elapsed = Date.now() - started
     }).pipe(Effect.provide(NodeShell.layer))
   )
-  return elapsed
 }
 
 describe.skipIf(process.platform === "win32")("NodeShell spawn failure", () => {
@@ -94,11 +89,10 @@ describe.skipIf(process.platform === "win32")("NodeShell on Windows", () => {
   })
 
   it("falls back to SIGKILL when taskkill cannot reach the process tree", async () => {
-    const started = await interruptAfter("sleep 5", 50, "win32")
-
-    // `taskkill` is absent here, so the branch's SIGKILL fallback is what closes
-    // the child — and interruption must not return before that close arrives.
-    expect(started).toBeLessThan(4_000)
+    // `exec` replaces the POSIX test shell with the long-lived child, matching
+    // the single process handle the Windows fallback owns. Without SIGKILL,
+    // Fiber.interrupt cannot observe `close` and the finite test timeout fails.
+    await interruptAfter("exec /bin/sleep 30", 50, "win32")
   })
 
   describe("with a taskkill that outlives the child", () => {
@@ -148,9 +142,8 @@ describe.skipIf(process.platform === "win32")("NodeShell process-group terminati
       throw Object.assign(new Error("kill ESRCH"), { code: "ESRCH" })
     })
     let groupSignals: number
-    let elapsed: number
     try {
-      elapsed = await interruptAfter(`/bin/sleep 0.4; : > ${JSON.stringify(marker)}`, 50)
+      await interruptAfter(`/bin/sleep 0.4; : > ${JSON.stringify(marker)}`, 50)
       groupSignals = kill.mock.calls.length
     } finally {
       kill.mockRestore()
@@ -161,7 +154,5 @@ describe.skipIf(process.platform === "win32")("NodeShell process-group terminati
     // `child.kill` can have stopped the child before it wrote its marker.
     expect(groupSignals).toBe(1)
     expect(existsSync(marker)).toBe(false)
-    // Interruption still waits for the child's `close`.
-    expect(elapsed).toBeLessThan(4_000)
   })
 })

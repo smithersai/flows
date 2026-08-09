@@ -9,7 +9,7 @@ runHostContract(
       "host-contract-exec": { stdout: "test-exec" },
       "host-contract-stream": { stdout: "test-stream" },
       "host-contract-options": { stdout: "test-options" },
-      "host-contract-timeout": { stdout: "too-late" },
+      "host-contract-timeout": { stdout: "too-late", delayMs: 25 },
       "host-contract-interrupt": { stdout: "" }
     }
   }),
@@ -26,6 +26,8 @@ runHostContract(
       options: { cwd: "/", env: { HOST_CONTRACT_ENV: "test" } },
       expectedOptionsStdout: "test-options",
       timeoutCommand: "host-contract-timeout",
+      timeoutMs: 1,
+      timeoutAdvanceMs: 2,
       interruptCommand: "host-contract-interrupt"
     },
     pty: { expected: "failure", code: "unsupported" },
