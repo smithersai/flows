@@ -58,14 +58,19 @@ export default tseslint.config(
     }
   },
   {
-    files: ["src/Activity.ts"],
+    files: ["src/Activity/Activity.ts"],
     rules: {
-      "@typescript-eslint/no-empty-object-type": "off",
+      "@typescript-eslint/no-empty-object-type": "off"
+    }
+  },
+  {
+    files: ["src/Activity/make.ts"],
+    rules: {
       "prefer-const": "off"
     }
   },
   {
-    files: ["src/Flow.ts"],
+    files: ["src/Flow/Flow.ts"],
     rules: {
       "@typescript-eslint/no-empty-object-type": "off"
     }

@@ -1,3 +1,5 @@
+// Deep reviewed and polished by a human on 2026-08-10.
+
 /**
  * Defines named wait points for durable flow executions.
  *
@@ -22,8 +24,8 @@ import { dual } from "effect/Function"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as SchemaGetter from "effect/SchemaGetter"
-import type * as Activity from "./Activity.ts"
-import * as Flow from "./Flow.ts"
+import type * as Activity from "./Activity/index.ts"
+import * as Flow from "./Flow/index.ts"
 import type { FlowEngine, FlowInstance } from "./FlowEngine.ts"
 
 const TypeId = "~effect/flow/DurableDeferred"

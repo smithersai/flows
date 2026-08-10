@@ -1,3 +1,5 @@
+// Deep reviewed and polished by a human on 2026-08-10.
+
 /**
  * Issues #98/#100/#101: the canonical allocation-scope derivation.
  *

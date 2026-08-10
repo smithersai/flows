@@ -1,3 +1,5 @@
+// Deep reviewed and polished by a human on 2026-08-10.
+
 /**
  * Issue #69: pins the ternary's `Option.none()` arm when the durable retry
  * origin hook is present and the policy declares `expirationMs`. A missing

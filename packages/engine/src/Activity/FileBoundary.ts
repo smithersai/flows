@@ -1,3 +1,5 @@
+// Deep reviewed and polished by a human on 2026-08-10.
+
 import * as Schema from "effect/Schema"
 import { BoundaryMode } from "./BoundaryMode.ts"
 import { FileInput } from "./FileInput.ts"

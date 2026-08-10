@@ -1,3 +1,5 @@
+// Deep reviewed and polished by a human on 2026-08-10.
+
 /**
  * @since 4.0.0
  */
@@ -9,7 +11,7 @@
  *
  * @since 4.0.0
  */
-export * as Activity from "./Activity.ts"
+export * as Activity from "./Activity/index.ts"
 
 /**
  * Durable clock and timer services.
@@ -37,7 +39,7 @@ export * as DurableQueue from "./DurableQueue.ts"
  *
  * @since 4.0.0
  */
-export * as Flow from "./Flow.ts"
+export * as Flow from "./Flow/index.ts"
 
 /**
  * Flow execution services.
@@ -72,4 +74,4 @@ export * as RetryPolicy from "./RetryPolicy.ts"
  *
  * @since 4.0.0
  */
-export * as StepIdentity from "./StepIdentity.ts"
+export * as StepIdentity from "./Activity/StepIdentity.ts"

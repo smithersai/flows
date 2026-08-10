@@ -1,3 +1,5 @@
+// Deep reviewed and polished by a human on 2026-08-10.
+
 /**
  * Durable flow queues delegate work to persisted background workers and
  * resume the waiting flow with the worker result.
@@ -16,7 +18,7 @@ import * as Schedule from "effect/Schedule"
 import * as Schema from "effect/Schema"
 import * as Tracer from "effect/Tracer"
 import * as PersistedQueue from "effect/unstable/persistence/PersistedQueue"
-import * as Activity from "./Activity.ts"
+import * as Activity from "./Activity/index.ts"
 import * as DurableDeferred from "./DurableDeferred.ts"
 import type { FlowEngine, FlowInstance } from "./FlowEngine.ts"
 

@@ -1,3 +1,5 @@
+// Deep reviewed and polished by a human on 2026-08-10.
+
 /**
  * RPC and HTTP API definitions for flows.
  *
@@ -15,7 +17,7 @@ import * as HttpApiEndpoint from "effect/unstable/httpapi/HttpApiEndpoint"
 import * as HttpApiGroup from "effect/unstable/httpapi/HttpApiGroup"
 import * as Rpc from "effect/unstable/rpc/Rpc"
 import * as RpcGroup from "effect/unstable/rpc/RpcGroup"
-import type * as Flow from "./Flow.ts"
+import type * as Flow from "./Flow/index.ts"
 
 const OptionalExecutionId = Schema.optional(Schema.String)
 

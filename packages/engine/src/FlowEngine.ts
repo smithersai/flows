@@ -1,3 +1,5 @@
+// Deep reviewed and polished by a human on 2026-08-10.
+
 /**
  * Defines flow engine services and an in-memory implementation.
  *
@@ -25,13 +27,13 @@ import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 import * as SchemaRepresentation from "effect/SchemaRepresentation"
 import * as Scope from "effect/Scope"
-import * as Activity from "./Activity.ts"
+import { FileBoundary } from "./Activity/FileBoundary.ts"
+import * as Activity from "./Activity/index.ts"
+import * as StepIdentity from "./Activity/StepIdentity.ts"
 import type { DurableClock } from "./DurableClock.ts"
 import type * as DurableDeferred from "./DurableDeferred.ts"
-import { FileBoundary } from "./FileBoundary.ts"
-import * as Flow from "./Flow.ts"
+import * as Flow from "./Flow/index.ts"
 import * as RetryPolicy from "./RetryPolicy.ts"
-import * as StepIdentity from "./StepIdentity.ts"
 
 /**
  * The identity and boundary information supplied to an encoded activity
@@ -202,7 +204,9 @@ export class FlowEngine extends Context.Service<
     >
 
     /**
-     * Interrupt a registered flow.
+     * Requests cancellation of a registered execution while preserving normal
+     * cleanup, compensation, and child-flow handling. This is not a pause, and
+     * a later `resume` does not undo the cancellation request.
      */
     readonly interrupt: (
       flow: Flow.Any,
@@ -210,8 +214,9 @@ export class FlowEngine extends Context.Service<
     ) => Effect.Effect<void>
 
     /**
-     * Interrupts a registered flow unsafely, potentially ignoring
-     * compensation finalizers and orphaning child flows.
+     * Immediately cancels a registered execution, potentially ignoring
+     * compensation finalizers and orphaning child flows. This unsafe operation
+     * is intended for forced shutdown, not ordinary cancellation or pausing.
      */
     readonly interruptUnsafe: (
       flow: Flow.Any,
@@ -219,7 +224,9 @@ export class FlowEngine extends Context.Service<
     ) => Effect.Effect<void>
 
     /**
-     * Resume a registered flow.
+     * Re-drives a registered execution that returned `Suspended`, allowing it
+     * to replay durable history and continue after an awaited condition becomes
+     * ready. It does not undo `interrupt` and is not a general unpause operation.
      */
     readonly resume: (
       flow: Flow.Any,
@@ -436,14 +443,24 @@ export interface Encoded {
     flow: Flow.Any,
     executionId: string
   ) => Effect.Effect<Option.Option<Flow.Result<unknown, unknown>>>
+  /**
+   * Requests cancellation with normal cleanup and compensation semantics.
+   * This is not a pause operation.
+   */
   readonly interrupt: (
     flow: Flow.Any,
     executionId: string
   ) => Effect.Effect<void>
+  /**
+   * Forces cancellation without guaranteeing cleanup or compensation.
+   */
   readonly interruptUnsafe: (
     flow: Flow.Any,
     executionId: string
   ) => Effect.Effect<void>
+  /**
+   * Re-drives a durably suspended execution; it does not undo cancellation.
+   */
   readonly resume: (
     flow: Flow.Any,
     executionId: string

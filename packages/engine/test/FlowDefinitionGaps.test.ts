@@ -1,3 +1,5 @@
+// Deep reviewed and polished by a human on 2026-08-10.
+
 import { Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
@@ -80,18 +82,18 @@ describe("Flow.make payload and schema defaults", () => {
 })
 
 describe("Flow definition combinators", () => {
-  effect("withCompensation is reachable from the definition as well as the module", () => {
-    const compensated: Array<string> = []
-    const flow = Flow.make("Definition/compensation", {
+  effect("withRollback is reachable from the definition as well as the module", () => {
+    const rolledBack: Array<string> = []
+    const flow = Flow.make("Definition/rollback", {
       payload: { id: Schema.String },
       success: Schema.Void,
       error: Schema.String
     })
     const layer = flow.toLayer(() =>
       Effect.gen(function*() {
-        yield* flow.withCompensation(
+        yield* flow.withRollback(
           Effect.succeed("resource"),
-          (value: string) => Effect.sync(() => void compensated.push(`undo:${value}`))
+          (value: string) => Effect.sync(() => void rolledBack.push(`undo:${value}`))
         )
         return yield* Effect.fail("boom")
       })
@@ -99,25 +101,25 @@ describe("Flow definition combinators", () => {
     return Effect.gen(function*() {
       const exit = yield* flow.execute({ id: "x" }, { executionId: "run" }).pipe(Effect.exit)
       expect(Exit.isFailure(exit)).toBe(true)
-      expect(compensated).toEqual(["undo:resource"])
+      expect(rolledBack).toEqual(["undo:resource"])
     }).pipe(Effect.provide(layer))
   })
 
-  effect("the definition-level combinator leaves a successful flow uncompensated", () => {
-    const compensated: Array<string> = []
-    const flow = Flow.make("Definition/compensation-ok", {
+  effect("the definition-level combinator does not roll back a successful flow", () => {
+    const rolledBack: Array<string> = []
+    const flow = Flow.make("Definition/rollback-ok", {
       payload: { id: Schema.String },
       success: Schema.String
     })
     const layer = flow.toLayer(() =>
-      flow.withCompensation(
+      flow.withRollback(
         Effect.succeed("kept"),
-        (value: string) => Effect.sync(() => void compensated.push(`undo:${value}`))
+        (value: string) => Effect.sync(() => void rolledBack.push(`undo:${value}`))
       )
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
     return Effect.gen(function*() {
       expect(yield* flow.execute({ id: "x" }, { executionId: "run" })).toBe("kept")
-      expect(compensated).toEqual([])
+      expect(rolledBack).toEqual([])
     }).pipe(Effect.provide(layer))
   })
 })

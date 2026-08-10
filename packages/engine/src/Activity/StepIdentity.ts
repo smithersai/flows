@@ -1,3 +1,5 @@
+// Deep reviewed and polished by a human on 2026-08-10.
+
 /**
  * Derives allocation scopes and run-local invocation keys.
  *

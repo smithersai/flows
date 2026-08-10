@@ -1,3 +1,5 @@
+// Deep reviewed and polished by a human on 2026-08-10.
+
 import type * as Crypto from "effect/Crypto"
 /**
  * Issue #111: keyless same-declaration activities dispatched concurrently

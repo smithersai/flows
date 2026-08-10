@@ -1,3 +1,5 @@
+// Deep reviewed and polished by a human on 2026-08-10.
+
 import { Effect, Exit, FileSystem, Layer, Option, Path, Schema, Scope } from "effect"
 import { Etag, HttpPlatform } from "effect/unstable/http"
 import { HttpApi, HttpApiTest } from "effect/unstable/httpapi"

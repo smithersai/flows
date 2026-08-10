@@ -1,3 +1,5 @@
+// Deep reviewed and polished by a human on 2026-08-10.
+
 import { Cause, Context, Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
@@ -176,31 +178,31 @@ describe("flow definition surface", () => {
     })
   })
 
-  effect("runs compensations only on failure exits", () => {
-    const compensated: Array<string> = []
-    const flowFail = Flow.make("Memory/compensation-fail", {
+  effect("runs rollbacks only on failure exits", () => {
+    const rolledBack: Array<string> = []
+    const flowFail = Flow.make("Memory/rollback-fail", {
       payload: { id: Schema.String },
       success: Schema.Void,
       error: Schema.String
     })
-    const flowOk = Flow.make("Memory/compensation-ok", {
+    const flowOk = Flow.make("Memory/rollback-ok", {
       payload: { id: Schema.String },
       success: Schema.String
     })
     const layer = Layer.mergeAll(
       flowFail.toLayer(() =>
         Effect.gen(function*() {
-          yield* Flow.withCompensation(
+          yield* Flow.withRollback(
             Effect.succeed("resource"),
-            (value) => Effect.sync(() => void compensated.push(`undo:${value}`))
+            (value) => Effect.sync(() => void rolledBack.push(`undo:${value}`))
           )
           return yield* Effect.fail("boom")
         })
       ),
       flowOk.toLayer(() =>
-        Flow.withCompensation(
+        Flow.withRollback(
           Effect.succeed("kept"),
-          (value) => Effect.sync(() => void compensated.push(`undo:${value}`))
+          (value) => Effect.sync(() => void rolledBack.push(`undo:${value}`))
         )
       )
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
@@ -208,7 +210,7 @@ describe("flow definition surface", () => {
       const exit = yield* flowFail.execute({ id: "x" }, { executionId: "run-f" }).pipe(Effect.exit)
       expect(Exit.isFailure(exit)).toBe(true)
       expect(yield* flowOk.execute({ id: "x" }, { executionId: "run-o" })).toBe("kept")
-      expect(compensated).toEqual(["undo:resource"])
+      expect(rolledBack).toEqual(["undo:resource"])
     }).pipe(Effect.provide(layer))
   })
 

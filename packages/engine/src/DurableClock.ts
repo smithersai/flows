@@ -1,3 +1,5 @@
+// Deep reviewed and polished by a human on 2026-08-10.
+
 /**
  * Durable timers for flow sleeps.
  *
@@ -12,7 +14,7 @@ import * as Context from "effect/Context"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import type * as Schema from "effect/Schema"
-import * as Activity from "./Activity.ts"
+import * as Activity from "./Activity/index.ts"
 import * as DurableDeferred from "./DurableDeferred.ts"
 import type { FlowEngine, FlowInstance } from "./FlowEngine.ts"
 

@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Renamed `Flow.withCompensation` to the clearer `Flow.withRollback`.
+- Moved `BoundaryMode` beside the `Activity` model it configures.
+- Split the `Flow` module into focused definition, result, runtime, annotation,
+  constructor, and error files without changing the `@smthrs/engine/Flow`
+  import.
+- Split `Activity` and its identity, boundary, retry, context, constructor, and
+  error code into focused files without changing its public import paths.
+
 ### Fixed
 
 - Scoped sealed activity keys to one run until the composition declares its

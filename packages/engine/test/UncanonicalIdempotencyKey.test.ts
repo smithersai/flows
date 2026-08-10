@@ -1,3 +1,5 @@
+// Deep reviewed and polished by a human on 2026-08-10.
+
 import type * as Crypto from "effect/Crypto"
 /**
  * Issue #151: forcing key-schema decoders at the four derivation sites turned
@@ -11,8 +13,8 @@ import type * as Crypto from "effect/Crypto"
  */
 import { Cause, Effect, Exit, Layer, Schema } from "effect"
 import { describe, expect, it } from "vitest"
+import * as StepIdentity from "../src/Activity/StepIdentity.ts"
 import { Activity, Flow, FlowEngine } from "../src/index.ts"
-import * as StepIdentity from "../src/StepIdentity.ts"
 import { invocationKey, runPromise, runSync } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>

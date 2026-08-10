@@ -1,0 +1,191 @@
+// Deep reviewed and polished by a human on 2026-08-10.
+
+/**
+ * Constructs executable flow declarations from schema and policy data.
+ *
+ * @since 4.0.0
+ */
+import { Sha256 } from "@smthrs/crypto"
+import * as Context from "effect/Context"
+import type * as Crypto from "effect/Crypto"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as Schema from "effect/Schema"
+import type { FlowEngine } from "../FlowEngine.ts"
+import type * as RetryPolicy from "../RetryPolicy.ts"
+import { ExecutionIdRequired } from "./ExecutionIdRequired.ts"
+import type { AnyStructSchema, AnyWithProps, Flow } from "./Flow.ts"
+import { withRollback } from "./Runtime.ts"
+import { TypeId } from "./TypeId.ts"
+
+const EngineTag = Context.Service<FlowEngine, FlowEngine["Service"]>(
+  "effect/flow/FlowEngine" satisfies typeof FlowEngine.key
+)
+
+const makeExecutionIdFromPayload = (
+  self: AnyWithProps,
+  payload: unknown
+): Effect.Effect<string, never, Crypto.Crypto> => {
+  const idempotencyKey = self.idempotencyKey
+  return idempotencyKey === undefined
+    ? Effect.die(new ExecutionIdRequired({ flowName: self._tag }))
+    : Schema.decodeUnknownEffect(Sha256)(`${self._tag}-${idempotencyKey(payload)}`).pipe(Effect.orDie)
+}
+
+const resolveExecutionId = (
+  self: AnyWithProps,
+  payload: unknown,
+  executionId: string | undefined
+): Effect.Effect<string, never, Crypto.Crypto> =>
+  executionId === undefined
+    ? makeExecutionIdFromPayload(self, payload)
+    : Effect.succeed(executionId)
+
+const Proto = {
+  [TypeId]: TypeId,
+  annotate(this: AnyWithProps, tag: Context.Key<any, any>, value: any) {
+    return makeProto({
+      _tag: this._tag,
+      payloadSchema: this.payloadSchema,
+      successSchema: this.successSchema,
+      errorSchema: this.errorSchema,
+      annotations: Context.add(this.annotations, tag, value),
+      idempotencyKey: this.idempotencyKey,
+      suspendedRetryPolicy: this.suspendedRetryPolicy
+    })
+  },
+  annotateMerge(this: AnyWithProps, context: Context.Context<any>) {
+    return makeProto({
+      _tag: this._tag,
+      payloadSchema: this.payloadSchema,
+      successSchema: this.successSchema,
+      errorSchema: this.errorSchema,
+      annotations: Context.merge(this.annotations, context),
+      idempotencyKey: this.idempotencyKey,
+      suspendedRetryPolicy: this.suspendedRetryPolicy
+    })
+  },
+  execute<const Discard extends boolean = false>(
+    this: AnyWithProps,
+    fields: any,
+    opts?: {
+      readonly discard?: Discard
+      readonly executionId?: string | undefined
+    } | undefined
+  ) {
+    return Effect.suspend(() => {
+      const payload = this.payloadSchema.make(fields)
+      return Effect.flatMap(
+        resolveExecutionId(this, payload, opts?.executionId),
+        (executionId) =>
+          Effect.flatMap(EngineTag, (engine) =>
+            Effect.andThen(
+              Effect.annotateCurrentSpan({ executionId }),
+              engine.execute(this as any, {
+                executionId,
+                payload,
+                discard: opts?.discard,
+                suspendedRetryPolicy: this.suspendedRetryPolicy
+              })
+            ))
+      )
+    }).pipe(
+      Effect.withSpan(
+        `${this._tag}.execute`,
+        {},
+        { captureStackTrace: false }
+      )
+    ) as any
+  },
+  poll(this: Flow<string, AnyStructSchema, Schema.Top, Schema.Top>, executionId: string) {
+    return Effect.flatMap(EngineTag, (engine) => engine.poll(this, executionId)).pipe(
+      Effect.withSpan(`${this._tag}.poll`, { attributes: { executionId } }, { captureStackTrace: false })
+    )
+  },
+  interrupt(this: AnyWithProps, executionId: string) {
+    return Effect.flatMap(EngineTag, (engine) => engine.interrupt(this, executionId)).pipe(
+      Effect.withSpan(`${this._tag}.interrupt`, { attributes: { executionId } }, { captureStackTrace: false })
+    )
+  },
+  resume(this: Flow<string, AnyStructSchema, Schema.Top, Schema.Top>, executionId: string) {
+    return Effect.flatMap(EngineTag, (engine) => engine.resume(this, executionId)).pipe(
+      Effect.withSpan(`${this._tag}.resume`, { attributes: { executionId } }, { captureStackTrace: false })
+    )
+  },
+  toLayer(this: Flow<string, AnyStructSchema, Schema.Top, Schema.Top>, execute: any) {
+    return Layer.effectDiscard(
+      Effect.flatMap(EngineTag, (engine) => engine.register(this, execute))
+    )
+  },
+  executionId(this: AnyWithProps, payload: any) {
+    return Effect.flatMap(
+      Effect.orDie(this.payloadSchema.makeEffect(payload)),
+      (payload) => makeExecutionIdFromPayload(this, payload)
+    )
+  },
+  withRollback: ((...args: ReadonlyArray<any>) => (withRollback as any)(...args))
+}
+
+const makeProto = <
+  const Tag extends string,
+  Payload extends AnyStructSchema,
+  Success extends Schema.Top,
+  Error extends Schema.Top
+>(options: {
+  readonly _tag: Tag
+  readonly payloadSchema: Payload
+  readonly successSchema: Success
+  readonly errorSchema: Error
+  readonly annotations: Context.Context<never>
+  readonly idempotencyKey?: ((payload: Payload["Type"]) => string) | undefined
+  readonly suspendedRetryPolicy?: RetryPolicy.RetryPolicy | undefined
+}): Flow<Tag, Payload, Success, Error> => {
+  function Flow() {}
+  Object.setPrototypeOf(Flow, Proto)
+  Object.assign(Flow, options)
+  return Flow as any
+}
+
+/**
+ * Creates a durable flow definition with schemas, annotations, and either
+ * caller-selected execution IDs or opt-in deterministic IDs derived from the
+ * flow tag and idempotency key.
+ *
+ * @category constructors
+ * @since 4.0.0
+ */
+export const make = <
+  const Tag extends string,
+  Payload extends Schema.Struct.Fields | AnyStructSchema,
+  Success extends Schema.Top = Schema.Void,
+  Error extends Schema.Top = Schema.Never
+>(tag: Tag, options: {
+  readonly payload: Payload
+  readonly idempotencyKey?:
+    | ((
+      payload: Payload extends Schema.Struct.Fields ? Schema.Struct.Type<Payload>
+        : Payload["Type"]
+    ) => string)
+    | undefined
+  readonly success?: Success
+  readonly error?: Error
+  readonly suspendedRetryPolicy?: RetryPolicy.RetryPolicy | undefined
+  readonly annotations?: Context.Context<never>
+}): Flow<
+  Tag,
+  Payload extends Schema.Struct.Fields ? Schema.Struct<Payload> : Payload,
+  Success,
+  Error
+> =>
+  makeProto<Tag, Payload extends Schema.Struct.Fields ? Schema.Struct<Payload> : Payload, Success, Error>({
+    _tag: tag,
+    payloadSchema: (Schema.isSchema(options.payload)
+      ? options.payload
+      : Schema.Struct(options.payload as any)) as Payload extends Schema.Struct.Fields ? Schema.Struct<Payload>
+        : Payload,
+    successSchema: options.success ?? (Schema.Void as any),
+    errorSchema: options.error ?? (Schema.Never as any),
+    annotations: options.annotations ?? Context.empty(),
+    idempotencyKey: options.idempotencyKey as any,
+    suspendedRetryPolicy: options.suspendedRetryPolicy
+  })

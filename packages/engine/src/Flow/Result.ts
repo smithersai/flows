@@ -1,0 +1,205 @@
+// Deep reviewed and polished by a human on 2026-08-10.
+
+/**
+ * Serializable completion and suspension states returned by flow executions.
+ *
+ * @since 4.0.0
+ */
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import type * as Exit from "effect/Exit"
+import * as Option from "effect/Option"
+import * as Predicate from "effect/Predicate"
+import * as Schema from "effect/Schema"
+import * as SchemaIssue from "effect/SchemaIssue"
+import * as SchemaParser from "effect/SchemaParser"
+import * as Tranformation from "effect/SchemaTransformation"
+import type { ExitEncoded } from "effect/unstable/rpc/RpcMessage"
+
+const ResultTypeId = "~effect/flow/Flow/Result"
+
+/**
+ * Returns `true` when a value is a flow `Result`.
+ *
+ * @category results
+ * @since 4.0.0
+ */
+export const isResult = <A = unknown, E = unknown>(
+  u: unknown
+): u is Result<A, E> => Predicate.hasProperty(u, ResultTypeId)
+
+/**
+ * Result of a flow execution, either a completed exit or a suspended
+ * flow state.
+ *
+ * @category results
+ * @since 4.0.0
+ */
+export type Result<A, E> = Complete<A, E> | Suspended
+
+/**
+ * Encoded representation of a flow `Result`.
+ *
+ * @category results
+ * @since 4.0.0
+ */
+export type ResultEncoded<A, E> =
+  | CompleteEncoded<A, E>
+  | typeof Suspended.Encoded
+
+/**
+ * Encoded representation of a completed flow result containing an encoded
+ * `Exit`.
+ *
+ * @category results
+ * @since 4.0.0
+ */
+export interface CompleteEncoded<A, E> {
+  readonly _tag: "Complete"
+  readonly exit: ExitEncoded<A, E>
+}
+
+/**
+ * Schema constructor for `Complete` flow results using the supplied
+ * success and error schemas.
+ *
+ * @category schemas
+ * @since 4.0.0
+ */
+export interface CompleteSchema<
+  Success extends Schema.Constraint,
+  Error extends Schema.Constraint
+> extends
+  Schema.declareConstructor<
+    Complete<Success["Type"], Error["Type"]>,
+    Complete<Success["Encoded"], Error["Encoded"]>,
+    readonly [Schema.Exit<Success, Error, Schema.Defect>]
+  >
+{
+  readonly success: Success
+  readonly error: Error
+}
+
+/**
+ * Represents a completed flow execution with its success or failure `Exit`.
+ *
+ * @category results
+ * @since 4.0.0
+ */
+export class Complete<A, E> extends Data.TaggedClass("Complete")<{
+  readonly exit: Exit.Exit<A, E>
+}> {
+  /**
+   * Marks this value as a flow result for runtime guards.
+   *
+   * @since 4.0.0
+   */
+  readonly [ResultTypeId] = ResultTypeId
+
+  /**
+   * Builds the schema for completed flow results from success and error schemas.
+   *
+   * @since 4.0.0
+   */
+  static Schema<Success extends Schema.Constraint, Error extends Schema.Constraint>(options: {
+    readonly success: Success
+    readonly error: Error
+  }): CompleteSchema<Success, Error> {
+    // TODO: extract to a helper function
+    const schema = Schema.declareConstructor<
+      Complete<Success["Type"], Error["Type"]>,
+      Complete<Success["Encoded"], Error["Encoded"]>
+    >()(
+      [Schema.Exit(options.success, options.error, Schema.Defect())],
+      ([exit]) => (input, ast, options) => {
+        if (!(isResult(input) && input._tag === "Complete")) {
+          return Effect.fail(new SchemaIssue.InvalidType(ast, Option.some(input)))
+        }
+        return Effect.mapBothEager(
+          SchemaParser.decodeEffect(exit)(input.exit, options),
+          {
+            onSuccess: (exit) => new Complete({ exit }),
+            onFailure: (issue) =>
+              new SchemaIssue.Composite(ast, Option.some(input), [
+                new SchemaIssue.Pointer(["exit"], issue)
+              ])
+          }
+        )
+      },
+      {
+        expected: "Flow.Complete",
+        toCodecJson: ([exit]) =>
+          Schema.link<Complete<Success["Encoded"], Error["Encoded"]>>()(
+            Schema.Struct({
+              _tag: Schema.tag("Complete"),
+              exit
+            }),
+            Tranformation.transform({
+              decode: (encoded) => new Complete({ exit: encoded.exit }),
+              encode: (result) => (({
+                _tag: "Complete",
+                exit: result.exit
+              }) as const)
+            })
+          )
+      }
+    )
+    return Schema.make(schema.ast, {
+      success: options.success,
+      error: options.error
+    })
+  }
+}
+
+/**
+ * Represents a suspended flow execution, optionally carrying the cause that
+ * triggered suspension.
+ *
+ * @category results
+ * @since 4.0.0
+ */
+export class Suspended extends Schema.Class<Suspended>(
+  "effect/flow/Flow/Suspended"
+)({
+  _tag: Schema.tag("Suspended"),
+  cause: Schema.optional(Schema.Cause(Schema.Never, Schema.Defect()))
+}) {
+  /**
+   * Marks this value as a flow result for runtime guards.
+   *
+   * @since 4.0.0
+   */
+  readonly [ResultTypeId] = ResultTypeId
+}
+
+/**
+ * Creates a schema for flow results using the supplied success and error
+ * schemas.
+ *
+ * @category results
+ * @since 4.0.0
+ */
+export const Result = <
+  Success extends Schema.Constraint,
+  Error extends Schema.Constraint
+>(options: {
+  readonly success: Success
+  readonly error: Error
+}) => Schema.Union([Complete.Schema(options), Suspended])
+
+const AnyOrVoid = Schema.Union([Schema.Any, Schema.Void])
+
+/**
+ * Schema for encoded flow results with generic success and error payloads.
+ *
+ * @category results
+ * @since 4.0.0
+ */
+export const ResultEncoded: Schema.Codec<ResultEncoded<any, any>> = Schema.toEncoded(
+  Schema.toCodecJson(
+    Result({
+      success: AnyOrVoid,
+      error: AnyOrVoid
+    })
+  )
+) as any

@@ -1,3 +1,5 @@
+// Deep reviewed and polished by a human on 2026-08-10.
+
 /**
  * Server-side layers for flow proxy APIs.
  *
@@ -17,7 +19,7 @@ import type * as HttpApi from "effect/unstable/httpapi/HttpApi"
 import * as HttpApiBuilder from "effect/unstable/httpapi/HttpApiBuilder"
 import type * as HttpApiGroup from "effect/unstable/httpapi/HttpApiGroup"
 import type * as Rpc from "effect/unstable/rpc/Rpc"
-import type * as Flow from "./Flow.ts"
+import type * as Flow from "./Flow/index.ts"
 import type { FlowEngine } from "./FlowEngine.ts"
 
 /**

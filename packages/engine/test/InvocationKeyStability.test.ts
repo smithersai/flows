@@ -1,3 +1,5 @@
+// Deep reviewed and polished by a human on 2026-08-10.
+
 import type * as Crypto from "effect/Crypto"
 /**
  * Issue #73: invocation keys must not depend on fiber scheduling order.
