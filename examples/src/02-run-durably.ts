@@ -19,9 +19,9 @@ export const Build = Flow.make("examples/Build", {
 })
 
 /**
- * A sealed activity with a content identity. The identity is what makes the
+ * A sealed activity with a cache key input. The identity is what makes the
  * recorded result addressable across runs; without it the activity would fall
- * back to a run-local ordinal key.
+ * back to a run-local invocation key.
  */
 export const Compile = Activity.make({
   name: "examples/Compile",

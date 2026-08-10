@@ -3,11 +3,11 @@
  *
  * `SqlTimeTravelStore.createFork` copies the parent's executable state and its
  * attempt rows into a new run id, then records the lineage edge. Because the
- * copied attempts are addressed by sealed content key, the fork replays them
+ * copied attempts are addressed by sealed cache key, the fork replays them
  * instead of dispatching again, which is why the counter below stays at one.
  *
- * The environment declaration matters. A sealed content key is computed under
- * `Activity.CurrentContentEnvironment`; with no declaration the engine scopes
+ * The environment declaration matters. A sealed cache key is computed under
+ * `Activity.CurrentCacheEnvironment`; with no declaration the engine scopes
  * the key to the execution that produced it, and the fork would re-execute.
  */
 import { Database } from "@smthrs/database"
@@ -44,7 +44,7 @@ const engineLayer = (filename: string, hostId: string) =>
         requirements(filename),
         // Declaring the environment is what lets a sealed identity cross the
         // fork boundary.
-        Activity.layerContentEnvironment({ layers: [], capabilities: {} })
+        Activity.layerCacheEnvironment({ layers: [], capabilities: {} })
       )
     )
   )

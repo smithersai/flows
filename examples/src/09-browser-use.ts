@@ -13,11 +13,11 @@
  * Node-only import ever sneaks in.
  */
 import { Flow, FlowEngine } from "@smthrs/engine"
-import { StepKey } from "@smthrs/keys"
+import { Key } from "@smthrs/keys"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
-import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
+import type * as Crypto from "effect/Crypto"
 
 export const Compile = Flow.make("examples/Compile", {
   payload: { target: Schema.String },
@@ -34,16 +34,13 @@ export interface Summary {
   readonly stepKey: string
 }
 
-export const main: Effect.Effect<Summary> = Effect.gen(function*() {
+export const main: Effect.Effect<Summary, never, Crypto.Crypto> = Effect.gen(function*() {
   const result = yield* Compile.execute({ target: "web" })
 
-  // Keys are pure: canonical serialization and SHA-256, no platform services.
-  const key = Result.getOrThrow(StepKey.content({
+  const key = yield* Schema.decodeUnknownEffect(Key)({
     body: "examples/compile/v1",
-    inputs: { target: "web" },
-    layers: [],
-    capabilities: {}
-  }))
+    target: "web"
+  })
 
   return { result, stepKey: key }
 }).pipe(Effect.provide(CompileLayer), Effect.orDie)

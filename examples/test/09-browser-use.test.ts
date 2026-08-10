@@ -8,9 +8,9 @@ import { main } from "../src/09-browser-use.ts"
 const here = dirname(fileURLToPath(import.meta.url))
 
 it("runs on the in-memory engine", async () => {
-  const summary = await Effect.runPromise(main)
+    const summary = await Effect.runPromise(Effect.provide(main, NodeCrypto.layer))
   expect(summary.result).toBe("built web")
-  expect(summary.stepKey).toMatch(/^sk1_[0-9a-f]{64}$/)
+  expect(summary.stepKey).toMatch(/^key1_[0-9a-f]{64}$/)
 })
 
 it("bundles for the browser with no node: imports", async () => {
@@ -27,3 +27,4 @@ it("bundles for the browser with no node: imports", async () => {
   expect(result.outputFiles).toHaveLength(1)
   expect(result.outputFiles[0]!.text).toContain("examples/Compile")
 })
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto"

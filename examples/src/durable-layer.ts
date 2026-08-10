@@ -6,6 +6,7 @@
  * `StepBoundary`. This module wires them over one SQLite file so a restart in
  * a later example reads the same rows a previous one wrote.
  */
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
 import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
 import { DurableEngineState, EngineStore, StepBoundary } from "@smthrs/engine-store"
 import { AttemptStore, CacheStore, Migrations, RunStore, SqlJournal } from "@smthrs/journal"
@@ -50,7 +51,8 @@ export const storesLayer = (filename: string) => {
  * run", which is correct for a single-process example and unsafe in a real
  * deployment.
  */
-export const requirements = (filename: string) => Layer.mergeAll(storesLayer(filename), StepBoundary.layerTest(), stubJj)
+export const requirements = (filename: string) =>
+  Layer.mergeAll(storesLayer(filename), StepBoundary.layerTest(), stubJj, NodeCrypto.layer)
 
 /**
  * A durable `FlowEngine` over the SQLite file at `filename`.
