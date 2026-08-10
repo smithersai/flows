@@ -1,17 +1,17 @@
 /**
  * `NodeHost` again, but taking every default the contract offers: the default
- * scratch path, the default shell option set, and — unlike the other bundles —
+ * scratch path, the default command set, and — unlike the other bundles —
  * an HTTP transport that is expected to *succeed*, against a loopback server
  * started for the run. A transport that only ever refuses a connection never
  * proves the response actually comes back.
  */
+import { runHostContract } from "@smthrs/kernel/test/contract"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
 import { spawnSync } from "node:child_process"
 import { createServer } from "node:http"
 import type { AddressInfo } from "node:net"
 import { afterAll, expect } from "vitest"
-import * as NodeHost from "../../src/node/NodeHost.ts"
-import { runHostContract } from "./HostContract.ts"
+import * as NodeHost from "../../src/NodeHost.ts"
 
 const jjAvailable = spawnSync("jj", ["--version"], { stdio: "ignore" }).status === 0
 
@@ -32,7 +32,7 @@ afterAll(() =>
 runHostContract("NodeHost defaults", NodeHost.layer, {
   fileSystem: { expected: "success" },
   path: { expected: "success" },
-  shell: { expected: "success" },
+  childProcess: { expected: "success" },
   pty: { expected: "success" },
   jj: jjAvailable
     ? { expected: "success" }
