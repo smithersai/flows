@@ -295,7 +295,7 @@ export const runHostContract = (
               yield* fs.writeFile(path, bytes)
               expect(new TextDecoder().decode(yield* fs.readFile(path))).toBe("host-contract")
             }).pipe(
-              Effect.ensuring(fs.remove(path, { force: true }).pipe(Effect.catch(() => Effect.void)))
+              Effect.ensuring(fs.remove(path, { force: true }).pipe(Effect.ignore))
             )
           }),
         layer

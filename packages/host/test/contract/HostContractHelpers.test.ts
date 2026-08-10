@@ -88,4 +88,9 @@ describe("defaultScratchPath", () => {
     expect(path).toContain("nodehost-defaults")
     expect(path).not.toContain("..")
   })
+
+  it("falls back to a stable slug when the suite name leaves nothing path-safe", () => {
+    expect(defaultScratchPath("/../")).toMatch(/-host$/)
+    expect(defaultScratchPath("")).toMatch(/-host$/)
+  })
 })
