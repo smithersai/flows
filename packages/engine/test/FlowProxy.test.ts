@@ -1,10 +1,12 @@
 import { Effect, Fiber, Layer, Option, Schema } from "effect"
+import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import { DurableDeferred, Flow, FlowEngine, FlowProxy } from "../src/index.ts"
+import { runPromise } from "./Crypto.ts"
 
-const effect = (name: string, body: () => Effect.Effect<void, unknown, never>) =>
-  it(name, () => Effect.runPromise(body().pipe(Effect.provide(TestClock.layer()))))
+const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
+  it(name, () => runPromise(body().pipe(Effect.provide(TestClock.layer()))))
 
 describe("FlowProxy", () => {
   const flow = Flow.make("FlowProxy/round-trip", {

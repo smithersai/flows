@@ -4,9 +4,10 @@ import { HttpApi, HttpApiTest } from "effect/unstable/httpapi"
 import { RpcTest } from "effect/unstable/rpc"
 import { describe, expect, it } from "vitest"
 import { DurableDeferred, Flow, FlowEngine, FlowProxy, FlowProxyServer } from "../src/index.ts"
+import { runPromise } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Scope.Scope>) =>
-  it(name, () => Effect.runPromise(Effect.scoped(body())))
+  it(name, () => runPromise(Effect.scoped(body())))
 
 const Echo = Flow.make("Proxy/Echo", {
   payload: { value: Schema.Number },

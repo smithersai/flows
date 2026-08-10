@@ -1,3 +1,4 @@
+import type * as Crypto from "effect/Crypto"
 /**
  * Issue #59: the attempt counter resumes from the persisted sequence. A
  * durable driver exposes `activityLatestAttempt`, and the engine starts the
@@ -8,9 +9,10 @@
 import { Cause, Effect, Exit, Layer, Option, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { Activity, Flow, FlowEngine, RetryPolicy } from "../src/index.ts"
+import { runPromise } from "./Crypto.ts"
 
-const effect = (name: string, body: () => Effect.Effect<void, unknown, never>) =>
-  it(name, () => Effect.runPromise(body()))
+const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
+  it(name, () => runPromise(body()))
 
 const flow = Flow.make("AttemptResume/flow", {
   payload: { id: Schema.String },

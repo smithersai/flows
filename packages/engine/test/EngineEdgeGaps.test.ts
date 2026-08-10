@@ -1,9 +1,11 @@
 import { Cause, Effect, Exit, Layer, Option, Result, Schema } from "effect"
+import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
 import { Activity, DurableDeferred, Flow, FlowEngine, RetryPolicy, StepIdentity } from "../src/index.ts"
+import { runPromise, runSync } from "./Crypto.ts"
 
-const effect = (name: string, body: () => Effect.Effect<void, unknown, never>) =>
-  it(name, () => Effect.runPromise(body()))
+const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
+  it(name, () => runPromise(body()))
 
 describe("Activity.retry outside a flow", () => {
   effect("still advances CurrentAttempt when no engine dispatch fills the ordinal slot", () => {
@@ -40,10 +42,12 @@ describe("Activity.retry outside a flow", () => {
         return attempts < 3 ? yield* Effect.fail("again") : attempts
       })
     })
-    const scope = Result.merge(StepIdentity.allocationScope({
-      kind: "activity",
-      name: "Edge/retry-ordinal-activity"
-    }))
+    const scope = runSync(
+      StepIdentity.allocationScope({
+        kind: "activity",
+        name: "Edge/retry-ordinal-activity"
+      }).pipe(Effect.orDie)
+    )
     const body = Effect.gen(function*() {
       const result = yield* activity
       ordinals.push(...(yield* Activity.CurrentOrdinal)?.values.get(scope) ?? [undefined])

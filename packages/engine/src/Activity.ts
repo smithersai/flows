@@ -8,19 +8,19 @@
  *
  * @since 4.0.0
  */
-import type * as StepKey from "@smthrs/keys/StepKey"
 import type { NonEmptyReadonlyArray } from "effect/Array"
 import * as Context from "effect/Context"
+import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Effectable from "effect/Effectable"
 import { dual } from "effect/Function"
 import * as Layer from "effect/Layer"
 import * as Predicate from "effect/Predicate"
-import * as Result from "effect/Result"
 import type * as Schedule from "effect/Schedule"
 import * as Schema from "effect/Schema"
 import type { Scope } from "effect/Scope"
 import type * as Types from "effect/Types"
+import { CacheEnvironment } from "./CacheEnvironment.ts"
 import * as DurableDeferred from "./DurableDeferred.ts"
 import * as Flow from "./Flow.ts"
 import type { FlowEngine, FlowInstance } from "./FlowEngine.ts"
@@ -35,19 +35,35 @@ const TypeId = "~effect/flow/Activity"
  * @category models
  * @since 0.1.0
  */
-export type Tier = "sealed" | "compensable" | "irreversible"
+export const Tier = Schema.Literals(["sealed", "compensable", "irreversible"])
+
+/** The durability and retry semantics of an activity. @category models @since 0.1.0 */
+export type Tier = typeof Tier.Type
 
 /**
- * Caller-declared material for a content-addressed sealed activity.
- *
- * A string is treated as the activity body identity with empty input, layer,
- * and capability declarations. Callers that need the complete key material can
- * supply a `StepKey.ContentIdentity`.
+ * Schema for caller-declared sealed activity identity.
  *
  * @category models
  * @since 0.1.0
  */
-export type IdempotencyKey = string | StepKey.ContentIdentity
+export const IdempotencyKey = Schema.Union([
+  Schema.String,
+  Schema.Record(Schema.String, Schema.Json)
+])
+
+/**
+ * Caller-declared sealed activity identity.
+ *
+ * A string is namespaced by the activity declaration. A JSON object is
+ * caller-owned and remains stable across activity renames. Runtime
+ * environment and filesystem facts are always added by the engine.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type IdempotencyKey = typeof IdempotencyKey.Type
+
+export { CacheEnvironment }
 
 /**
  * Marker raised by an engine when an activity is interrupted by host loss or
@@ -97,7 +113,7 @@ export class IrreversibleRetryRequiresIdempotencyKey
  * error, and the engine refuses the hazard up front instead of detecting it
  * after the corruption. Declare an `idempotencyKey` *distinguishing* the
  * invocations to dispatch them concurrently; a sealed activity with a key
- * takes a pure content key and is exempt.
+ * takes a pure cache key and is exempt.
  *
  * @category errors
  * @since 0.1.0
@@ -335,70 +351,35 @@ const retryInfraInterrupt = (
     )
 
 /**
- * The resolved environment a sealed activity's content key is computed under.
+ * Context reference carrying the complete environment folded into reusable
+ * activity keys.
  *
- * `layers` names the service implementations the activity body actually runs
- * against (a model, a host, a sandbox) and `capabilities` the permission set
- * it was granted. Both are mandatory for cross-run reuse — the Step Keys spec
- * calls layers "the easiest part to forget and the most painful to discover"
- * — because swapping `Model=sonnet` for `Model=opus` or attenuating a
- * capability must change the key. Layer order is significant because plugin
- * and service composition order may change behavior. A composition may omit
- * capabilities only to declare that its authority is unknown; the engine
- * then scopes the key to the current run (issue #75).
+ * A composition either provides a complete {@link CacheEnvironment} or leaves
+ * it absent. When absent, the engine scopes activity keys to the current run
+ * instead of presenting incomplete environment data as reusable identity.
  *
  * @category Idempotency
  * @since 0.1.0
  */
-export interface ContentEnvironment {
-  readonly layers: ReadonlyArray<string>
-  /**
-   * The complete capability identity. Omission means the composition knows
-   * its layers but not its effective authority; the engine then keeps sealed
-   * keys run-local instead of treating unknown authority as an empty set.
-   */
-  readonly capabilities?: Readonly<Record<string, ReadonlyArray<string>>> | undefined
-}
-
-/**
- * Context reference carrying the environment folded into every sealed
- * content key.
- *
- * The composition that wires the model, host, and permission layers declares
- * it; the engine cannot resolve layer identity on its own. The plugin kernel
- * (`@smthrs/plugin`) provides it from the resolved plugin list, so every
- * kernel-built composition carries layer material (issue #88); applications
- * pass the complete layer and capability identity to the kernel, or a
- * composition wired without it declares its own through
- * {@link layerContentEnvironment}. When no composition declares an
- * environment — or it declares layers without a complete capability
- * identity — the engine scopes sealed content identities to the current
- * execution instead of admitting a key reusable under unknown authority.
- *
- * @category Idempotency
- * @since 0.1.0
- */
-export const CurrentContentEnvironment = Context.Reference<ContentEnvironment | undefined>(
-  "flows/engine/Activity/CurrentContentEnvironment",
+export const CurrentCacheEnvironment = Context.Reference<CacheEnvironment | undefined>(
+  "flows/engine/Activity/CurrentCacheEnvironment",
   { defaultValue: () => undefined }
 )
 
 /**
- * Declares the content environment of a composition as a layer.
+ * Declares the complete cache environment of a composition as a layer.
  *
  * **When to use**
  *
- * Use in the composition that wires the model, host, and permission layers a
- * flow runs against, so every sealed content key folds those identities into
- * its digest. The plugin kernel calls this for kernel-built compositions
- * (issue #88); hand-wired compositions call it themselves.
+ * Use this only when the composition can identify every semantic runtime
+ * layer and its complete capability set. Otherwise leave the context absent.
  *
  * @category Idempotency
  * @since 0.1.0
  */
-export const layerContentEnvironment = (
-  environment: ContentEnvironment
-): Layer.Layer<never> => Layer.succeed(CurrentContentEnvironment)(environment)
+export const layerCacheEnvironment = (
+  environment: CacheEnvironment
+): Layer.Layer<never> => Layer.succeed(CurrentCacheEnvironment)(environment)
 
 /**
  * The ordinal slots a retry sequence shares across its attempts, keyed by
@@ -536,7 +517,7 @@ export const CurrentAttempt = Context.Reference<number>(
 )
 
 /**
- * Computes a run-local ordinal key for an internal durable operation.
+ * Computes a run-local invocation key for an internal durable operation.
  *
  * The `name` remains diagnostic only and never contributes to identity.
  *
@@ -549,7 +530,7 @@ export const idempotencyKey: (
     readonly includeAttempt?: boolean | undefined
     readonly parentScope?: string | undefined
   } | undefined
-) => Effect.Effect<string, never, FlowInstance> =
+) => Effect.Effect<string, never, FlowInstance | Crypto.Crypto> =
   // Untraced because activity-key allocation is on every activity attempt.
   Effect.fnUntraced(function*(_name: string, options?: {
     readonly includeAttempt?: boolean | undefined
@@ -565,31 +546,28 @@ export const idempotencyKey: (
     // ordinal to another and its await watched a deferred nothing resolves.
     // With the counter scoped per declared parent, each scope numbers its
     // own allocations deterministically; only allocations *within* one
-    // scope remain arrival-ordered — they carry no material to order them
+    // scope remain arrival-ordered — they carry no input that orders them
     // by.
     const parentScope = options?.parentScope !== undefined
       ? options.parentScope
       : options?.includeAttempt
       ? `attempt:${attempt}`
       : undefined
-    // String (or absent) idempotency material keeps the derivation total
-    // (issue #151): the `allocationScope` overload pins the failure type to
-    // `never`, so `Result.merge` extracts the scope with no error to
-    // discard, and `ordinalKey` preserves the typed `CanonicalizeError` for
-    // the impossible engine-generated-material failure instead of
-    // discarding it through `Result.getOrThrow`.
-    const scope = Result.merge(StepIdentity.allocationScope({
+    // String (or absent) idempotency input keeps the derivation total
+    // (issue #151): schema decoding preserves typed identity failures while
+    // injected cryptography keeps key construction platform-independent.
+    const scope = yield* StepIdentity.allocationScope({
       kind: "internal",
       name: "idempotency",
       idempotency: parentScope
-    }))
+    }).pipe(Effect.orDie)
     const ordinal = instance.activityState.nextOrdinal(scope)
-    return StepIdentity.ordinalKey({
+    return yield* StepIdentity.invocationKey({
       runId: instance.executionId,
       ordinal,
       tier: "unsealed",
       ...(parentScope !== undefined ? { parentScope } : {})
-    })
+    }).pipe(Effect.orDie)
   })
 
 /**

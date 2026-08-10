@@ -9,11 +9,11 @@
  *
  * @since 4.0.0
  */
-import type * as Canonical from "@smthrs/canonical/Canonical"
-import * as StepKey from "@smthrs/keys/StepKey"
+import { Key, type Key as KeyType } from "@smthrs/keys"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
+import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Fiber from "effect/Fiber"
@@ -28,6 +28,7 @@ import * as Scope from "effect/Scope"
 import * as Activity from "./Activity.ts"
 import type { DurableClock } from "./DurableClock.ts"
 import type * as DurableDeferred from "./DurableDeferred.ts"
+import { FileBoundary } from "./FileBoundary.ts"
 import * as Flow from "./Flow.ts"
 import * as RetryPolicy from "./RetryPolicy.ts"
 import * as StepIdentity from "./StepIdentity.ts"
@@ -241,6 +242,7 @@ export class FlowEngine extends Context.Service<
       | Success["DecodingServices"]
       | Error["DecodingServices"]
       | R
+      | Crypto.Crypto
       | FlowInstance
     >
 
@@ -457,7 +459,7 @@ export interface Encoded {
   ) => Effect.Effect<
     Flow.Result<unknown, unknown>,
     never,
-    FlowInstance
+    FlowInstance | Crypto.Crypto
   >
   /**
    * The durable wall-clock origin of an activity's retry sequence: the
@@ -479,7 +481,7 @@ export interface Encoded {
   readonly activityRetryOrigin?:
     | ((options: {
       readonly key: string
-    }) => Effect.Effect<Option.Option<number>, never, FlowInstance>)
+    }) => Effect.Effect<Option.Option<number>, never, FlowInstance | Crypto.Crypto>)
     | undefined
   /**
    * The highest persisted attempt number for `key`, when attempts survive.
@@ -493,7 +495,7 @@ export interface Encoded {
   readonly activityLatestAttempt?:
     | ((options: {
       readonly key: string
-    }) => Effect.Effect<Option.Option<number>, never, FlowInstance>)
+    }) => Effect.Effect<Option.Option<number>, never, FlowInstance | Crypto.Crypto>)
     | undefined
   readonly deferredResult: (
     deferred: DurableDeferred.Any
@@ -522,7 +524,7 @@ export interface Encoded {
  * it is shaped like one (`readSet` digests, `writeSet`, `boundaryMode`).
  *
  * The descriptor is what gates cross-run cacheability, so it must be part of
- * the content key (issue #25): a changed read-set digest, write set, or
+ * the cache key (issue #25): a changed read-set digest, write set, or
  * boundary mode yields a different key and therefore a cache miss. The key
  * is only half of Skyframe's dirty→recheck→rebuild model, though: these
  * digests are caller-declared, so before a sealed hit is served the store
@@ -530,82 +532,9 @@ export interface Encoded {
  * declaration no longer matches the host (issue #90). Metadata of any other
  * shape stays out of the key.
  */
-const boundaryHermetic = (
+const fileBoundary = (
   metadata: unknown
-): NonNullable<StepKey.ContentIdentity["hermetic"]> | undefined => {
-  if (typeof metadata !== "object" || metadata === null) return undefined
-  const candidate = metadata as {
-    readonly readSet?: unknown
-    readonly writeSet?: unknown
-    readonly boundaryMode?: unknown
-  }
-  if (
-    !Array.isArray(candidate.readSet) ||
-    !Array.isArray(candidate.writeSet) ||
-    (candidate.boundaryMode !== "hard" && candidate.boundaryMode !== "expected")
-  ) {
-    return undefined
-  }
-  const readSet: Array<{ readonly path: string; readonly digest: string }> = []
-  for (const entry of candidate.readSet) {
-    if (
-      typeof entry !== "object" || entry === null ||
-      typeof (entry as { path?: unknown }).path !== "string" ||
-      typeof (entry as { digest?: unknown }).digest !== "string"
-    ) {
-      return undefined
-    }
-    readSet.push(entry as { readonly path: string; readonly digest: string })
-  }
-  if (!candidate.writeSet.every((path) => typeof path === "string")) {
-    return undefined
-  }
-  return {
-    readSet,
-    writeSet: candidate.writeSet,
-    boundaryMode: candidate.boundaryMode
-  }
-}
-
-/**
- * Seals the resolved environment into a content identity (issue #75).
- *
- * Layers and capabilities are engine-resolved material a caller must not be
- * able to opt out of — the same argument the boundary descriptor rests on
- * (issue #57) — so the environment is written into its own
- * `StepKey.EnvironmentIdentity` slot, overwriting whatever the caller-owned
- * identity put there. Two properties the previous merge-into-the-caller
- * shape could not give:
- *
- * - **Non-aliasing.** Concatenating the environment's layers and capability
- *   patterns onto the caller's made `caller{fs:["a"]} + env{fs:["b"]}` hash
- *   identically to a caller that declared `{fs:["a","b"]}` under an empty
- *   environment. Distinct environments therefore shared a cross-run cache
- *   address — the exact collision class issue #75 exists to close. Hashing
- *   the environment in its own namespace makes the two structurally
- *   different.
- * - **Undeclared is not "proven pure".** An absent
- *   `Activity.CurrentContentEnvironment` used to resolve to the empty
- *   environment and hash exactly like a composition that had declared it was
- *   running with no layers and no capabilities. A sealed hard-boundary
- *   result is cross-run cacheable, so swapping the model or host under an
- *   undeclared composition left the digest byte-identical and served the
- *   stale result. An undeclared environment — including one whose layers are
- *   known but whose capability identity is not — now pins the key to this
- *   run (`runScope`), so its rows can never be reused by another run.
- *   Declaring the complete environment removes the pin and restores
- *   cross-run reuse.
- */
-const withEnvironment = (
-  identity: StepKey.ContentIdentity,
-  environment: Activity.ContentEnvironment | undefined,
-  executionId: string
-): StepKey.ContentIdentity => ({
-  ...identity,
-  environment: environment?.capabilities === undefined
-    ? { declared: false, layers: environment?.layers ?? [], capabilities: {}, runScope: executionId }
-    : { declared: true, layers: environment.layers, capabilities: environment.capabilities }
-})
+): FileBoundary | undefined => Option.getOrUndefined(Schema.decodeUnknownOption(FileBoundary)(metadata))
 
 /**
  * The ordinal allocation scope of an activity dispatch — its stable
@@ -614,7 +543,7 @@ const withEnvironment = (
  *
  * The activity name always contributes (issue #73), and a declared
  * `idempotencyKey` refines the scope further — the string form and the
- * object `ContentIdentity` form both, through the same canonicalization:
+ * object form both, through the same canonicalization:
  * two concurrent invocations of one activity name with distinguishable
  * inputs declare distinct keys, so each owns its own counter and a replay
  * that reverses fiber-arrival order can never hand one invocation the
@@ -624,7 +553,7 @@ const withEnvironment = (
  * remain allocation-ordered — indistinguishable declarations have no
  * material to order them by.
  */
-const ordinalScope = (activity: Activity.Any): Result.Result<string, Canonical.CanonicalizeError> =>
+const ordinalScope = (activity: Activity.Any): Effect.Effect<string, Schema.SchemaError, Crypto.Crypto> =>
   StepIdentity.allocationScope({
     kind: "activity",
     name: activity.name,
@@ -642,7 +571,7 @@ const ordinalScope = (activity: Activity.Any): Result.Result<string, Canonical.C
  */
 const uncanonicalKey = (
   activityName: string,
-  error: Canonical.CanonicalizeError
+  error: Schema.SchemaError
 ): Flow.Complete<never, never> =>
   new Flow.Complete({
     exit: Exit.die(
@@ -662,18 +591,18 @@ const uncanonicalKey = (
  * so a changed declaration misses instead of decoding a stale cached row
  * under the new schema (issue #120).
  */
-const declarationDigest = (activity: Activity.AnyWithProps): unknown => ({
+const declarationDigest = (activity: Activity.AnyWithProps): Schema.JsonObject => ({
   success: SchemaRepresentation.toJson(SchemaRepresentation.toRepresentation(activity.successSchema.ast)),
   error: SchemaRepresentation.toJson(SchemaRepresentation.toRepresentation(activity.errorSchema.ast))
 })
 
-const activityKey = (
+const activityKey = Effect.fn("FlowEngine.activityKey")(function*(
   activity: Activity.AnyWithProps,
   executionId: string,
   ordinal: number,
-  environment: Activity.ContentEnvironment | undefined,
+  environment: Activity.CacheEnvironment | undefined,
   scope: string
-): Result.Result<string, Canonical.CanonicalizeError> => {
+): Effect.fn.Return<KeyType, Schema.SchemaError, Crypto.Crypto> {
   if (activity.tier === "sealed" && activity.idempotencyKey !== undefined) {
     // Skyframe's SkyKey is (functionName, argument): a string idempotencyKey
     // is namespaced by the activity name so two distinct activities sharing an
@@ -681,41 +610,38 @@ const activityKey = (
     // and the declared success/error schemas are folded in so the body is the
     // *compiled declaration* the step-key spec requires — a schema change
     // must miss rather than replay a stale row decoded under the new schema
-    // (issue #120). The object-form `ContentIdentity` stays caller-owned (no
+    // (issue #120). The object form stays caller-owned (no
     // name and no schema material folded in) as the explicit, documented
     // escape hatch for rename- and refactor-stable identity. Note: folding
     // the declaration changes the digest of every persisted string-key row
     // from before this fix; those keys were unsafe to replay across schema
     // changes, so the break is intentional (same precedent as the
     // name-namespacing fix).
-    const identity: StepKey.ContentIdentity = typeof activity.idempotencyKey === "string"
+    const input: Schema.JsonObject = typeof activity.idempotencyKey === "string"
       ? {
-        body: {
-          activity: activity.name,
-          idempotencyKey: activity.idempotencyKey,
-          declaration: declarationDigest(activity)
-        },
-        inputs: {},
-        layers: [],
-        capabilities: {}
+        activity: activity.name,
+        idempotencyKey: activity.idempotencyKey,
+        declaration: declarationDigest(activity)
       }
       : activity.idempotencyKey
-    // The cacheability-gating boundary descriptor is content identity
+    // The cacheability-gating boundary descriptor is cache key input
     // (issue #25): a changed read set, write set, or boundary mode must miss
     // rather than replay a stale cross-run cache entry. Both key forms fold
-    // it through this one path — the caller-owned `ContentIdentity` keeps
+    // it through this one path — the caller-owned object keeps
     // rename-stability (no name enters the digest) but can never opt out of
     // the read-set material `ActivityPersistence` gates cacheability on
     // (issue #57): the descriptor derived from `activity.metadata` overrides
-    // any caller-supplied `hermetic` field.
-    const hermetic = boundaryHermetic(activity.metadata)
-    const scoped = withEnvironment(identity, environment, executionId)
-    // The caller-owned `ContentIdentity` can carry material canonicalization
-    // rejects; the typed `CanonicalizeError` propagates to the dispatch site
+    // any caller-supplied `boundary` field.
+    const boundary = fileBoundary(activity.metadata)
+    // The caller-owned object can carry material canonicalization
+    // rejects; the typed `SchemaError` propagates to the dispatch site
     // (issue #151) instead of being discarded through `Result.getOrThrow`.
-    return StepKey.content(
-      hermetic === undefined ? scoped : { ...scoped, hermetic }
-    )
+    return yield* Schema.decodeUnknownEffect(Key)({
+      kind: environment === undefined ? "run" : "cache",
+      input,
+      ...(environment === undefined ? { runId: executionId } : { environment }),
+      ...(boundary === undefined ? {} : { boundary })
+    })
   }
   // The ordinal is allocated from a counter scoped to this activity's
   // declaration identity and that scope is folded into the key as
@@ -728,13 +654,13 @@ const activityKey = (
   // declarations — distinct names, or one name with distinct declared
   // idempotency keys; the scope also keeps two identities from sharing the
   // number 1.
-  return StepKey.ordinal({
+  return yield* StepIdentity.invocationKey({
     runId: executionId,
     parentScope: scope,
     ordinal,
     tier: activity.tier === "sealed" ? "unsealed" : activity.tier
   })
-}
+})
 
 /**
  * The waiting classification a flow can declare before suspending.
@@ -929,7 +855,7 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
       // declaration several times, and each dispatch owns its own identity —
       // allocated on the attempt that first reaches it, replayed by position
       // on every later attempt.
-      const scopeResult = ordinalScope(activity)
+      const scopeResult = yield* Effect.result(ordinalScope(activity))
       if (Result.isFailure(scopeResult)) {
         return uncanonicalKey(activity.name, scopeResult.failure)
       }
@@ -950,20 +876,20 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
           slot.values.set(scope, pinned)
         }
       }
-      // Ordinal keys are run-local, so the environment is not their key
-      // material; `activityKey` folds it into content keys only (issue #75).
-      const environment = yield* Activity.CurrentContentEnvironment
+      // Invocation keys are run-local, so the environment is not their key
+      // material; `activityKey` folds it into cache keys only (issue #75).
+      const environment = yield* Activity.CurrentCacheEnvironment
       // `AnyWithProps` widening: `activityKey` needs the declared schemas so
       // the string-form sealed identity folds the compiled declaration
       // (issue #120); every activity built by `Activity.make` carries them,
       // only the `Schema.Constraint` type parameters resist the assignment.
-      const keyResult = activityKey(
+      const keyResult = yield* Effect.result(activityKey(
         activity as unknown as Activity.AnyWithProps,
         instance.executionId,
         ordinal,
         environment,
         scope
-      )
+      ))
       /* v8 ignore next 3 -- defensive typed guard (issue #151): rejected
          caller identity material always fails the ordinal-scope derivation
          above first, so this branch is unreachable until the environment or
@@ -1130,8 +1056,8 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
       // nondeterminism error, moved to the first run — and a declared
       // idempotencyKey *distinguishing the invocations* is the way out.
       // Only a sealed activity with a key escapes the refusal: it takes a
-      // pure content key with no ordinal at all. A keyed activity at any
-      // other tier still resolves to an ordinal key whose scope folds the
+      // pure cache key with no ordinal at all. A keyed activity at any
+      // other tier still resolves to an invocation key whose scope folds the
       // key, so two concurrent SAME-key dispatches share one scope and have
       // exactly the arrival-order hazard — and, nested in sibling retry
       // blocks under a shared outer block, the #116 private cursor views
@@ -1141,11 +1067,7 @@ export const makeUnsafe = (options: Encoded): FlowEngine["Service"] =>
         if (activity.tier === "sealed" && activity.idempotencyKey !== undefined) return yield* body
         const instance = yield* FlowInstance
         const inFlight = instance.activityState.keylessInFlight
-        const scopeResult = ordinalScope(activity)
-        if (Result.isFailure(scopeResult)) {
-          return uncanonicalKey(activity.name, scopeResult.failure)
-        }
-        const scope = scopeResult.success
+        const scope = yield* ordinalScope(activity).pipe(Effect.orDie)
         // The acquire and its release live in one uninterruptible region
         // (issue #139): a bare `add` followed by `Effect.ensuring` left a
         // one-op window — after the add, before the finalizer registered —

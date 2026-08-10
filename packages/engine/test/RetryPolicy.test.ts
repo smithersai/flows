@@ -3,6 +3,7 @@ import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import { Activity, Flow, FlowEngine, RetryPolicy } from "../src/index.ts"
+import { runPromise } from "./Crypto.ts"
 
 const some = (value: number) => Option.some(value)
 const none = Option.none()
@@ -69,7 +70,7 @@ describe("nextDelay", () => {
       jitterRatio: 0.5
     })
     const sample = () =>
-      Effect.runPromise(
+      runPromise(
         RetryPolicy.nextDelayEffect(jittered, 2).pipe(Random.withSeed(42))
       )
     const first = await sample()
@@ -176,7 +177,7 @@ describe("expiration (issue #36)", () => {
       error: Schema.String
     })
 
-    const exit = await Effect.runPromise(
+    const exit = await runPromise(
       Effect.gen(function*() {
         const engine = yield* FlowEngine.FlowEngine
         const fiber = yield* engine.activityExecute(activity, 1).pipe(Effect.forkChild)
@@ -406,11 +407,11 @@ describe("nextDelay numeric boundaries", () => {
       jitterRatio: 0
     })
     for (const policy of [noJitter, zeroJitter]) {
-      const decision = await Effect.runPromise(
+      const decision = await runPromise(
         RetryPolicy.decideEffect(policy, { attempt: 1, error: "e" })
       )
       expect(decision).toEqual(RetryPolicy.retryAfter(100))
-      const delay = await Effect.runPromise(RetryPolicy.nextDelayEffect(policy, 1))
+      const delay = await runPromise(RetryPolicy.nextDelayEffect(policy, 1))
       expect(delay).toEqual(some(100))
     }
   })
@@ -422,7 +423,7 @@ describe("nextDelay numeric boundaries", () => {
       maxMs: 1000,
       jitterRatio: 0.5
     })
-    const decision = await Effect.runPromise(
+    const decision = await runPromise(
       RetryPolicy.decideEffect(policy, { attempt: 2, error: "e" }).pipe(Random.withSeed(42))
     )
     expect(decision._tag).toBe("RetryAfter")
@@ -431,7 +432,7 @@ describe("nextDelay numeric boundaries", () => {
     expect(delayMs).toBeGreaterThanOrEqual(100)
     expect(delayMs).toBeLessThanOrEqual(200)
     // deterministic under a fixed seed
-    const again = await Effect.runPromise(
+    const again = await runPromise(
       RetryPolicy.decideEffect(policy, { attempt: 2, error: "e" }).pipe(Random.withSeed(42))
     )
     expect(again).toEqual(decision)
@@ -445,7 +446,7 @@ describe("nextDelay numeric boundaries", () => {
       jitterRatio: 0.5,
       nonRetryable: ["Fatal"]
     })
-    const decision = await Effect.runPromise(
+    const decision = await runPromise(
       RetryPolicy.decideEffect(policy, { attempt: 1, error: { _tag: "Fatal" } }).pipe(
         Random.withSeed(1)
       )
@@ -519,7 +520,7 @@ const effect = (
   executionId = "retry-policy"
 ) =>
   it(name, () =>
-    Effect.runPromise(
+    runPromise(
       body().pipe(
         Effect.provide(FlowEngine.layerMemory),
         Effect.provideService(
@@ -699,10 +700,10 @@ describe("restart resume", () => {
       body: Effect.Effect<
         A,
         E,
-        Scope.Scope | FlowEngine.FlowEngine | FlowEngine.FlowInstance
+        Scope.Scope | FlowEngine.FlowEngine | FlowEngine.FlowInstance | Crypto.Crypto
       >
     ) =>
-      Effect.runPromise(
+      runPromise(
         body.pipe(
           Effect.provide(FlowEngine.layerMemory),
           Effect.provideService(
@@ -747,3 +748,4 @@ describe("restart resume", () => {
     expect(attemptLog[3]!.at - attemptLog[2]!.at).toBe(400)
   })
 })
+import type * as Crypto from "effect/Crypto"

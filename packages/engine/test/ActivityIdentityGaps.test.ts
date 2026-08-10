@@ -1,10 +1,11 @@
-import { StepKey } from "@smthrs/keys"
 import { Cause, Effect, Exit, Layer, Result, Schedule, Schema, Scope } from "effect"
+import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
 import { Activity, Flow, FlowEngine } from "../src/index.ts"
+import { invocationKey as decodeInvocationKey, runPromise } from "./Crypto.ts"
 
-const effect = (name: string, body: () => Effect.Effect<void, unknown, never>) =>
-  it(name, () => Effect.runPromise(body()))
+const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
+  it(name, () => runPromise(body()))
 
 const hostFlow = Flow.make("IdentityGaps/host", {
   payload: { id: Schema.String },
@@ -27,13 +28,13 @@ const provideHost = <A, E>(
     Effect.provide(FlowEngine.layerMemory)
   )
 
-const ordinalKey = (runId: string, ordinal: number, parentScope?: string) =>
-  Result.getOrThrow(StepKey.ordinal({
+const invocationKey = (runId: string, ordinal: number, parentScope?: string) =>
+  decodeInvocationKey({
     runId,
     ordinal,
     tier: "unsealed",
     ...(parentScope === undefined ? {} : { parentScope })
-  }))
+  })
 
 describe("Activity.idempotencyKey scoping", () => {
   effect("allocates run-local ordinals and never folds the diagnostic name into identity", () => {
@@ -53,8 +54,8 @@ describe("Activity.idempotencyKey scoping", () => {
       const [first, second] = yield* flow.execute({ id: "x" }, { executionId: "run-ordinals" })
       expect(first).not.toBe(second)
       // the name is diagnostic only: identity is (runId, ordinal, tier)
-      expect(first).toBe(ordinalKey("run-ordinals", 1))
-      expect(second).toBe(ordinalKey("run-ordinals", 2))
+      expect(first).toBe(invocationKey("run-ordinals", 1))
+      expect(second).toBe(invocationKey("run-ordinals", 2))
     }).pipe(Effect.provide(layer))
   })
 
@@ -74,13 +75,13 @@ describe("Activity.idempotencyKey scoping", () => {
 
     return Effect.gen(function*() {
       const [plain, scoped, off] = yield* flow.execute({ id: "x" }, { executionId: "run-attempt" })
-      expect(plain).toBe(ordinalKey("run-attempt", 1))
+      expect(plain).toBe(invocationKey("run-attempt", 1))
       // Each parent scope owns its own counter (issue #98), so the
       // attempt-scoped allocation numbers from 1 within `attempt:7`.
-      expect(scoped).toBe(ordinalKey("run-attempt", 1, "attempt:7"))
+      expect(scoped).toBe(invocationKey("run-attempt", 1, "attempt:7"))
       // includeAttempt: false is identical in shape to omitting the option
       // and draws from the same unscoped counter as `plain`.
-      expect(off).toBe(ordinalKey("run-attempt", 2))
+      expect(off).toBe(invocationKey("run-attempt", 2))
     }).pipe(Effect.provide(layer))
   })
 
@@ -97,8 +98,8 @@ describe("Activity.idempotencyKey scoping", () => {
 
     return Effect.gen(function*() {
       const key = yield* flow.execute({ id: "x" }, { executionId: "run-scope" })
-      expect(key).toBe(ordinalKey("run-scope", 1, "queue:orders"))
-      expect(key).not.toBe(ordinalKey("run-scope", 1, "attempt:4"))
+      expect(key).toBe(invocationKey("run-scope", 1, "queue:orders"))
+      expect(key).not.toBe(invocationKey("run-scope", 1, "attempt:4"))
     }).pipe(Effect.provide(layer))
   })
 
@@ -119,8 +120,8 @@ describe("Activity.idempotencyKey scoping", () => {
       const [a, b] = yield* flow.execute({ id: "x" }, { executionId: "run-same" })
       expect(a).not.toBe(b)
       // CurrentAttempt defaults to 1 when nothing provides it
-      expect(a).toBe(ordinalKey("run-same", 1, "attempt:1"))
-      expect(b).toBe(ordinalKey("run-same", 2, "attempt:1"))
+      expect(a).toBe(invocationKey("run-same", 1, "attempt:1"))
+      expect(b).toBe(invocationKey("run-same", 2, "attempt:1"))
     }).pipe(Effect.provide(layer))
   })
 
@@ -155,12 +156,12 @@ describe("Activity.idempotencyKey scoping", () => {
         { order: ["payload:b", "payload:a"] },
         { executionId: "run-arrival-2" }
       )
-      expect(first["payload:a"]).toBe(ordinalKey("run-arrival-1", 1, "payload:a"))
-      expect(first["payload:b"]).toBe(ordinalKey("run-arrival-1", 1, "payload:b"))
+      expect(first["payload:a"]).toBe(invocationKey("run-arrival-1", 1, "payload:a"))
+      expect(first["payload:b"]).toBe(invocationKey("run-arrival-1", 1, "payload:b"))
       // Identity is a function of the declared parent alone, never of which
       // fiber happened to allocate first.
-      expect(replay["payload:a"]).toBe(ordinalKey("run-arrival-2", 1, "payload:a"))
-      expect(replay["payload:b"]).toBe(ordinalKey("run-arrival-2", 1, "payload:b"))
+      expect(replay["payload:a"]).toBe(invocationKey("run-arrival-2", 1, "payload:a"))
+      expect(replay["payload:b"]).toBe(invocationKey("run-arrival-2", 1, "payload:b"))
     }).pipe(Effect.provide(layer))
   })
 })

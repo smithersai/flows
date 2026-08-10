@@ -1,28 +1,24 @@
+import type * as Crypto from "effect/Crypto"
 /**
- * Issue #151: `Result.getOrThrow(StepKey.content|ordinal(...))` at the four
- * key-derivation sites turned a typed canonicalization error into an untyped defect that
+ * Issue #151: forcing key-schema decoders at the four derivation sites turned
+ * a typed canonicalization error into an untyped defect that
  * killed the fiber. The caller-owned sites now surface a typed, non-retryable
  * `Activity.UncanonicalIdempotencyKey` naming the offending path (delivered
  * through the recorded completion exit, the same channel RetryPolicy's
  * typed terminal errors use), and the engine-generated ordinal sites go
- * through `StepIdentity.ordinalKey`, which preserves the typed error for the
+ * through `StepIdentity.invocationKey`, which preserves the typed error for the
  * impossible invariant violation instead of discarding it.
  */
-import { StepKey } from "@smthrs/keys"
-import { Cause, Effect, Exit, Layer, Result, Schema } from "effect"
+import { Cause, Effect, Exit, Layer, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { Activity, Flow, FlowEngine } from "../src/index.ts"
 import * as StepIdentity from "../src/StepIdentity.ts"
+import { invocationKey, runPromise, runSync } from "./Crypto.ts"
 
-const effect = (name: string, body: () => Effect.Effect<void, unknown, never>) =>
-  it(name, () => Effect.runPromise(body()))
+const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
+  it(name, () => runPromise(body()))
 
-const identityWith = (body: unknown): StepKey.ContentIdentity => ({
-  body,
-  inputs: {},
-  layers: [],
-  capabilities: {}
-})
+const identityWith = (body: unknown): Activity.IdempotencyKey => ({ body } as Activity.IdempotencyKey)
 
 const dieOf = (exit: Exit.Exit<unknown, unknown>): unknown => {
   if (!Exit.isFailure(exit)) return undefined
@@ -54,7 +50,7 @@ const runRejected = (tier: "sealed" | "compensable", body: unknown) => {
 }
 
 describe("rejected declaration material surfaces typed, not as fiber death (issue #151)", () => {
-  effect("non-JSON material in a sealed ContentIdentity fails typed", () =>
+  effect("non-JSON object identity fails typed", () =>
     Effect.gen(function*() {
       const outcome = yield* runRejected("sealed", { count: 1n })
       const defect = dieOf(outcome.exit)
@@ -69,35 +65,34 @@ describe("rejected declaration material surfaces typed, not as fiber death (issu
 })
 
 describe("StepIdentity typed derivations (issue #151)", () => {
-  it("allocationScope returns the typed CanonicalizeError for rejected JSON material", () => {
-    const scope = StepIdentity.allocationScope({
+  it("allocationScope returns a typed SchemaError for rejected JSON material", () => {
+    const error = runSync(Effect.flip(StepIdentity.allocationScope({
       kind: "activity",
       name: "op",
       idempotency: identityWith({ count: 1n })
-    })
-    expect(Result.isFailure(scope)).toBe(true)
-    if (Result.isFailure(scope)) {
-      expect(scope.failure._tag).toBe("@smthrs/canonical/CanonicalizeError")
-    }
+    })))
+    expect(error._tag).toBe("SchemaError")
   })
 
   it("allocationScope stays total for string and absent idempotency material", () => {
-    const keyless = StepIdentity.allocationScope({ kind: "internal", name: "op" })
-    const keyed = StepIdentity.allocationScope({ kind: "internal", name: "op", idempotency: "queue:orders" })
-    expect(Result.getOrThrow(keyless)).toBe("internal/2:op")
-    expect(Result.getOrThrow(keyed)).toMatch(/^internal\/2:op\/s:/)
+    const keyless = runSync(StepIdentity.allocationScope({ kind: "internal", name: "op" }))
+    const keyed = runSync(StepIdentity.allocationScope({
+      kind: "internal",
+      name: "op",
+      idempotency: "queue:orders"
+    }))
+    expect(keyless).toBe("internal/2:op")
+    expect(keyed).toMatch(/^internal\/2:op\/s:/)
   })
 
-  it("ordinalKey preserves the typed CanonicalizeError on the impossible invariant violation", () => {
-    expect(() =>
-      StepIdentity.ordinalKey({
-        runId: "run",
-        ordinal: Number.POSITIVE_INFINITY,
-        tier: "unsealed"
-      })
-    ).toThrowError(expect.objectContaining({ _tag: "@smthrs/canonical/CanonicalizeError" }))
-    expect(StepIdentity.ordinalKey({ runId: "run", ordinal: 1, tier: "unsealed" })).toBe(
-      Result.getOrThrow(StepKey.ordinal({ runId: "run", ordinal: 1, tier: "unsealed" }))
+  it("invocationKey preserves the typed CanonicalizeError on the impossible invariant violation", () => {
+    expect(runSync(Effect.flip(StepIdentity.invocationKey({
+      runId: "run",
+      ordinal: Number.POSITIVE_INFINITY,
+      tier: "unsealed"
+    })))).toEqual(expect.objectContaining({ _tag: "SchemaError" }))
+    expect(runSync(StepIdentity.invocationKey({ runId: "run", ordinal: 1, tier: "unsealed" }))).toBe(
+      invocationKey({ runId: "run", ordinal: 1, tier: "unsealed" })
     )
   })
 })

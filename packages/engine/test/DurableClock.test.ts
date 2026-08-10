@@ -1,10 +1,12 @@
 import { Duration, Effect, Exit, Layer, Option, Schema } from "effect"
+import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import { Activity, DurableClock, DurableDeferred, Flow, FlowEngine } from "../src/index.ts"
+import { runPromise } from "./Crypto.ts"
 
-const effect = (name: string, body: () => Effect.Effect<void, unknown, never>) =>
-  it(name, () => Effect.runPromise(body().pipe(Effect.provide(TestClock.layer()))))
+const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
+  it(name, () => runPromise(body().pipe(Effect.provide(TestClock.layer()))))
 
 const pollComplete = <A, E, R>(
   poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>

@@ -1,10 +1,11 @@
-import { StepKey } from "@smthrs/keys"
 import { Effect, Exit, Layer, Result, Schedule, Schema, Scope } from "effect"
+import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
 import { Activity, Flow, FlowEngine } from "../src/index.ts"
+import { key, runPromise } from "./Crypto.ts"
 
-const effect = (name: string, body: () => Effect.Effect<void, unknown, never>) =>
-  it(name, () => Effect.runPromise(body()))
+const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
+  it(name, () => runPromise(body()))
 
 const hostFlow = Flow.make("ActivityKeys/host", {
   payload: { id: Schema.String },
@@ -97,7 +98,7 @@ describe("activity execution keys", () => {
   effect("folds the boundary descriptor into string idempotency keys so a changed read set misses (issue #25)", () => {
     // Skyframe's dirty→recheck→rebuild collapses to key-based invalidation
     // here: the hermetic descriptor (readSet digests, writeSet,
-    // boundaryMode) is part of the content key, so an activity whose
+    // boundaryMode) is part of the cache key, so an activity whose
     // declared inputs changed can never replay the stale cached result.
     let executions = 0
     const build = (digest: string) =>
@@ -131,16 +132,13 @@ describe("activity execution keys", () => {
     }).pipe(Effect.provide(layer))
   })
 
-  effect("keeps an explicit ContentIdentity caller-owned so replay survives an activity rename", () => {
+  effect("keeps object identity caller-owned so replay survives an activity rename", () => {
     // The object-form idempotencyKey is the escape hatch for rename-stable
-    // identity: the caller owns the full key material, so the activity name
+    // identity: the caller owns the full key input, so the activity name
     // intentionally does not enter the digest.
     let executions = 0
     const identity = {
-      body: "sealed/caller-owned",
-      inputs: {},
-      layers: [],
-      capabilities: {}
+      operation: "sealed/caller-owned"
     }
     const first = Activity.make({
       name: "ActivityKeys/first-name",
@@ -171,16 +169,13 @@ describe("activity execution keys", () => {
   effect(
     "folds the boundary descriptor into object-form keys so the rename-stable escape hatch cannot bypass invalidation (issue #57)",
     () => {
-      // A caller-owned `ContentIdentity` that omits `hermetic`, on a sealed
+      // A caller-owned object, on a sealed
       // activity declaring a hard boundary descriptor, must still fold the
       // read-set material into the key: otherwise a changed read-set digest
       // replays the stale cross-run cache entry #25 was filed for.
       let executions = 0
       const identity = {
-        body: "sealed/boundary-escape-hatch",
-        inputs: {},
-        layers: [],
-        capabilities: {}
+        operation: "sealed/boundary-escape-hatch"
       }
       const build = (digest: string) =>
         Activity.make({
@@ -218,24 +213,14 @@ describe("activity execution keys", () => {
     "overrides a caller-pinned stale hermetic with the metadata descriptor so the read-set change still misses (issue #83)",
     () => {
       // Issue #57's mechanism is spread order alone: the descriptor derived
-      // from `activity.metadata` must win over a `hermetic` the caller
-      // pinned inside the object-form `ContentIdentity`. This is the
+      // from `activity.metadata` must win over a `boundary` the caller
+      // pinned inside the object-form identity. This is the
       // caller-supplies case the #57 test never covered — a refactor that
-      // spread the caller's field last (`{ hermetic, ...identity }`) would
+      // spread the caller's field last (`{ boundary, ...identity }`) would
       // freeze the key on the pinned digest and restore the #25 stale-replay
       // bypass.
       let executions = 0
-      const identity: StepKey.ContentIdentity = {
-        body: "sealed/pinned-hermetic",
-        inputs: {},
-        layers: [],
-        capabilities: {},
-        hermetic: {
-          readSet: [{ path: "src/input.ts", digest: "frozen" }],
-          writeSet: ["out/artifact"],
-          boundaryMode: "hard"
-        }
-      }
+      const identity = { operation: "sealed/pinned-hermetic" }
       const build = (digest: string) =>
         Activity.make({
           name: "ActivityKeys/pinned-hermetic",
@@ -364,12 +349,17 @@ describe("activity execution keys", () => {
 
   effect("changes sealed replay identity when its input, layer, or capability material changes", () => {
     const keyFor = (input: string, layer: string, capability: string) =>
-      Result.getOrThrow(StepKey.content({
-        body: "activity",
-        inputs: { input },
-        layers: [layer],
-        capabilities: { declared: [capability] }
-      }))
+      key({
+        kind: "cache",
+        input: {
+          body: "activity",
+          dependencies: { input: { kind: "literal", value: input } }
+        },
+        environment: {
+          layers: [layer],
+          capabilities: { declared: [capability] }
+        }
+      })
     const first = keyFor("input-a", "layer-a", "capability-a")
     const changedInput = keyFor("input-b", "layer-a", "capability-a")
     const changedLayer = keyFor("input-a", "layer-b", "capability-a")

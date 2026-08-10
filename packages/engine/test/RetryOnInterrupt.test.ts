@@ -3,6 +3,7 @@ import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import { Activity, Flow, FlowEngine } from "../src/index.ts"
+import { runPromise } from "./Crypto.ts"
 
 const flow = Flow.make("RetryOnInterrupt/test", {
   payload: {},
@@ -19,7 +20,7 @@ const effect = (
   >
 ) =>
   it(name, () =>
-    Effect.runPromise(
+    runPromise(
       body().pipe(
         Effect.provide(FlowEngine.layerMemory),
         Effect.provideService(FlowEngine.FlowInstance, instance),

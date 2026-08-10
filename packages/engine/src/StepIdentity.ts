@@ -1,11 +1,11 @@
 /**
- * The one canonical derivation of an ordinal allocation scope.
+ * Derives allocation scopes and run-local invocation keys.
  *
  * Ordinal step identity has three components: the kind of durable operation
  * (an activity dispatch or an internal engine operation), the stable
  * declaration identity (the activity name, or a fixed internal label), and an
- * optional explicit idempotency component — a caller-declared string or a
- * {@link StepKey.ContentIdentity} object. Every ordinal counter in the engine
+ * optional explicit idempotency component — a caller-declared string or
+ * object. Every ordinal counter in the engine
  * is keyed by the scope this module derives, and the scope is also folded
  * into the persisted key as `parentScope`, so two dispatches with distinct
  * declarations can never swap ordinals under a permuted fiber interleaving
@@ -15,18 +15,31 @@
  * always produce distinct scopes. The name is length-prefixed so a name that
  * happens to contain the component separator cannot alias another
  * declaration, and both idempotency forms are canonicalized to a fixed-width
- * digest through one path — a string hashes directly, an object hashes via
- * `StepKey.content` — under distinct tags so a string can never alias the
- * object identity whose digest it happens to spell.
+ * digest under distinct tags so a string can never alias the object identity
+ * whose digest it happens to spell.
  *
  * Governing contract: `docs/specs/Concepts/Step Keys.md`.
  *
  * @since 0.1.0
  */
-import type * as Canonical from "@smthrs/canonical/Canonical"
-import * as Digest from "@smthrs/keys/Digest"
-import * as StepKey from "@smthrs/keys/StepKey"
-import * as Result from "effect/Result"
+import { Sha256 } from "@smthrs/crypto"
+import { Key, type Key as KeyType } from "@smthrs/keys"
+import type * as Crypto from "effect/Crypto"
+import * as Effect from "effect/Effect"
+import * as Schema from "effect/Schema"
+
+/**
+ * Validates the engine-owned coordinates of a run-local invocation.
+ *
+ * @private
+ * @since 0.1.0
+ */
+const Invocation = Schema.Struct({
+  runId: Schema.NonEmptyString,
+  parentScope: Schema.optionalKey(Schema.NonEmptyString),
+  ordinal: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  tier: Schema.Literals(["compensable", "irreversible", "unsealed"])
+})
 
 /**
  * The declaration material an allocation scope is derived from.
@@ -49,76 +62,71 @@ export interface AllocationIdentity {
   readonly name: string
   /**
    * The explicit idempotency component. A declared string and a declared
-   * content identity both refine the scope — two concurrent invocations of
+   * cache key input both refine the scope — two concurrent invocations of
    * one name with distinguishable inputs each own their own counter, so a
    * replay that reverses fiber-arrival order can never hand one invocation
    * the other's recorded outcome. Absent, invocations of one name share a
    * counter and remain allocation-ordered — indistinguishable declarations
    * have no material to order them by.
    */
-  readonly idempotency?: string | StepKey.ContentIdentity | undefined
+  readonly idempotency?: string | Schema.JsonObject | undefined
 }
 
 /**
  * Derives the ordinal allocation scope of a durable operation.
  *
  * The scope keys the operation's ordinal counter and is folded into its
- * persisted `StepKey.ordinal` key as `parentScope`, so identity is stable
+ * persisted invocation key as `parentScope`, so identity is stable
  * under any interleaving of distinct declarations.
  *
  * Injectivity: the name is length-prefixed (`<kind>/<length>:<name>`), so a
  * name containing `/s:` or `/c:` material cannot collide with a keyed form
  * of a shorter name, and the idempotency component is a fixed-shape tagged
- * digest appended after the name. Both idempotency forms canonicalize
- * through one path — strings hash directly, objects via `StepKey.content` —
- * under distinct one-character tags so a string can never alias the object
- * identity whose digest it happens to spell.
+ * digest appended after the name. Both idempotency forms canonicalize under
+ * distinct one-character tags so a string can never alias the object identity
+ * whose digest it happens to spell.
  *
  * The object form is caller-owned material, so it can carry values canonical
  * serialization rejects (`Date`, `undefined`, class instances, `Redacted`);
- * the failure surfaces as the typed `CanonicalizeError` (issue #151), never
+ * the failure surfaces as the typed `SchemaError` (issue #151), never
  * as a thrown defect. The string and absent forms
  * are total — the first overload keeps their error channel `never`.
  *
  * @since 0.1.0
  * @category derivations
  */
-export function allocationScope(
-  identity: AllocationIdentity & { readonly idempotency?: string | undefined }
-): Result.Result<string, never>
-export function allocationScope(
+export const allocationScope = (
   identity: AllocationIdentity
-): Result.Result<string, Canonical.CanonicalizeError>
-export function allocationScope(
-  identity: AllocationIdentity
-): Result.Result<string, Canonical.CanonicalizeError> {
-  const base = `${identity.kind}/${identity.name.length}:${identity.name}`
-  if (identity.idempotency === undefined) return Result.succeed(base)
-  if (typeof identity.idempotency === "string") {
-    return Result.succeed(`${base}/s:${Digest.digest(identity.idempotency)}`)
-  }
-  return Result.map(StepKey.content(identity.idempotency), (key) => `${base}/c:${key}`)
-}
+): Effect.Effect<string, Schema.SchemaError, Crypto.Crypto> =>
+  Effect.gen(function*() {
+    const base = `${identity.kind}/${identity.name.length}:${identity.name}`
+    if (identity.idempotency === undefined) return base
+    if (typeof identity.idempotency === "string") {
+      const digest = yield* Schema.decodeUnknownEffect(Sha256)(identity.idempotency)
+      return `${base}/s:${digest}`
+    }
+    const key = yield* Schema.decodeUnknownEffect(Key)({ kind: "declaration", input: identity.idempotency })
+    return `${base}/c:${key}`
+  })
 
 /**
- * Derives an ordinal step key from engine-generated material.
+ * Derives an invocation key from engine-generated input.
  *
- * The material is engine-generated by construction — a finite counter
+ * The input is engine-generated by construction — a finite counter
  * ordinal, a literal tier, and plain string scopes — so canonical
  * serialization cannot reject it. A failure here is an engine defect, and it
- * surfaces as the typed `CanonicalizeError` itself (issue #151) rather than
+ * surfaces as the typed `SchemaError` itself (issue #151) rather than
  * being discarded through `Result.getOrThrow`.
  *
  * @since 0.1.0
  * @category derivations
  */
-export const ordinalKey = (material: {
+export const invocationKey = (input: {
   readonly runId: string
   readonly parentScope?: string | undefined
   readonly ordinal: number
   readonly tier: "unsealed" | "compensable" | "irreversible"
-}): string => {
-  const result = StepKey.ordinal(material)
-  if (Result.isFailure(result)) throw result.failure
-  return result.success
-}
+}): Effect.Effect<KeyType, Schema.SchemaError, Crypto.Crypto> =>
+  Schema.decodeUnknownEffect(Invocation)(input).pipe(
+    Effect.flatMap((validated) => Schema.decodeUnknownEffect(Key)({ kind: "invocation", ...validated }))
+  )

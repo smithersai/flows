@@ -1,9 +1,11 @@
 import { Cause, Effect, Exit, Layer, Option, Schema, Scope } from "effect"
+import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
 import { Activity, DurableDeferred, Flow, FlowEngine } from "../src/index.ts"
+import { runPromise } from "./Crypto.ts"
 
-const effect = (name: string, body: () => Effect.Effect<void, unknown, never>) =>
-  it(name, () => Effect.runPromise(body()))
+const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
+  it(name, () => runPromise(body()))
 
 const pollSuspended = <A, E, R>(
   poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>

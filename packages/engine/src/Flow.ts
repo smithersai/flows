@@ -10,10 +10,11 @@
  *
  * @since 4.0.0
  */
-import * as Digest from "@smthrs/keys/Digest"
+import { Sha256 } from "@smthrs/crypto"
 import * as Arr from "effect/Array"
 import * as Cause from "effect/Cause"
 import * as Context from "effect/Context"
+import type * as Crypto from "effect/Crypto"
 import * as Data from "effect/Data"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -337,18 +338,21 @@ const InstanceTag = Context.Service<
   "effect/flow/FlowEngine/FlowInstance" satisfies typeof FlowInstance.key
 )
 
-const makeExecutionIdFromPayload = (self: AnyWithProps, payload: unknown): Effect.Effect<string> => {
+const makeExecutionIdFromPayload = (
+  self: AnyWithProps,
+  payload: unknown
+): Effect.Effect<string, never, Crypto.Crypto> => {
   const idempotencyKey = self.idempotencyKey
   return idempotencyKey === undefined
     ? Effect.die(new ExecutionIdRequired({ flowName: self._tag }))
-    : Effect.sync(() => Digest.digest(`${self._tag}-${idempotencyKey(payload)}`))
+    : Schema.decodeUnknownEffect(Sha256)(`${self._tag}-${idempotencyKey(payload)}`).pipe(Effect.orDie)
 }
 
 const resolveExecutionId = (
   self: AnyWithProps,
   payload: unknown,
   executionId: string | undefined
-): Effect.Effect<string> =>
+): Effect.Effect<string, never, Crypto.Crypto> =>
   executionId === undefined
     ? makeExecutionIdFromPayload(self, payload)
     : Effect.succeed(executionId)

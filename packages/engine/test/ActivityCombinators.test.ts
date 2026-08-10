@@ -1,9 +1,11 @@
 import { Context, Effect, Layer, Schema } from "effect"
+import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
 import { Activity, Flow, FlowEngine } from "../src/index.ts"
+import { runPromise } from "./Crypto.ts"
 
-const effect = (name: string, body: () => Effect.Effect<void, unknown, never>) =>
-  it(name, () => Effect.runPromise(body()))
+const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
+  it(name, () => runPromise(body()))
 
 const Label = Context.Reference<string>("test/Label", { defaultValue: () => "none" })
 const Owner = Context.Reference<string>("test/Owner", { defaultValue: () => "none" })

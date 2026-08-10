@@ -110,12 +110,12 @@ const charge = Activity.make({
   success: Schema.String,
   error: Schema.String,
   tier: "irreversible",
-  idempotencyKey: "charge:pr-42", // string | StepKey.ContentIdentity
+  idempotencyKey: "charge:pr-42", // string | object
   retryPolicy: RetryPolicy.defaultRetryPolicy,
   execute: Effect.gen(function*() {
     const attempt = yield* Activity.CurrentAttempt // 1-based retry attempt
     const ordinal = yield* Activity.CurrentOrdinal // run-local step ordinal
-    // Activity.idempotencyKey derives a run-local ordinal key effectfully:
+    // Activity.idempotencyKey derives a run-local invocation key effectfully:
     const key = yield* Activity.idempotencyKey("charge", { includeAttempt: true })
     return `charged on attempt ${attempt} (step ${ordinal}, key ${key})`
   })

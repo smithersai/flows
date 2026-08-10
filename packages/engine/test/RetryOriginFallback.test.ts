@@ -6,12 +6,14 @@
  * the #45 fix cannot silently regress into an untested branch.
  */
 import { Cause, Effect, Exit, Fiber, Layer, Logger, Option, Schema } from "effect"
+import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import { Activity, Flow, FlowEngine, RetryPolicy } from "../src/index.ts"
+import { runPromise } from "./Crypto.ts"
 
-const effect = (name: string, body: () => Effect.Effect<void, unknown, never>) =>
-  it(name, () => Effect.runPromise(body()))
+const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
+  it(name, () => runPromise(body()))
 
 const flow = Flow.make("RetryOriginFallback/flow", {
   payload: { id: Schema.String },

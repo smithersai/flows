@@ -1,5 +1,6 @@
+import type * as Crypto from "effect/Crypto"
 /**
- * Issue #73: ordinal step keys must not depend on fiber scheduling order.
+ * Issue #73: invocation keys must not depend on fiber scheduling order.
  *
  * Compensable, irreversible, and unsealed activities are keyed by
  * `(runId, ordinal, tier)`, and the ordinal used to come from one per-run
@@ -17,31 +18,32 @@
 import { Deferred, Effect, Exit, Layer, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { Activity, Flow, FlowEngine } from "../src/index.ts"
+import { runPromise } from "./Crypto.ts"
 
-const effect = (name: string, body: () => Effect.Effect<void, unknown, never>) =>
-  it(name, () => Effect.runPromise(body()))
+const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
+  it(name, () => runPromise(body()))
 
-const flow = Flow.make("OrdinalKeyStability/flow", {
+const flow = Flow.make("InvocationKeyStability/flow", {
   payload: { id: Schema.String },
   success: Schema.Void
 })
 
 const chargeCard = Activity.make({
-  name: "OrdinalKeyStability/chargeCard",
+  name: "InvocationKeyStability/chargeCard",
   tier: "irreversible",
   success: Schema.Void,
   execute: Effect.void
 })
 
 const sendEmail = Activity.make({
-  name: "OrdinalKeyStability/sendEmail",
+  name: "InvocationKeyStability/sendEmail",
   tier: "irreversible",
   success: Schema.Void,
   execute: Effect.void
 })
 
 const repeatedCharge = Activity.make({
-  name: "OrdinalKeyStability/repeated",
+  name: "InvocationKeyStability/repeated",
   tier: "irreversible",
   success: Schema.Void,
   execute: Effect.void
@@ -92,7 +94,7 @@ const keyOf = (
   name: string
 ) => entries.filter((entry) => entry.name === name).map((entry) => entry.key)
 
-describe("ordinal step key stability under permuted scheduling (issue #73)", () => {
+describe("invocation key stability under permuted scheduling (issue #73)", () => {
   effect("keeps each activity's key when a replay dispatches the pair in the opposite order", () => {
     return Effect.gen(function*() {
       const first = yield* drive("ordinal-stability-run", [chargeCard, sendEmail])
@@ -291,7 +293,7 @@ describe("concurrent sibling retry blocks inside one outer block (issue #116)", 
   // replaying another dispatch's recorded outcome.
   const keyed = (idempotencyKey: string) =>
     Activity.make({
-      name: "OrdinalKeyStability/sibling",
+      name: "InvocationKeyStability/sibling",
       tier: "irreversible",
       idempotencyKey,
       success: Schema.Void,
@@ -352,7 +354,7 @@ describe("concurrent sibling retry blocks inside one outer block (issue #116)", 
 describe("same-name invocation identity (issue #85)", () => {
   const notify = (idempotencyKey: string) =>
     Activity.make({
-      name: "OrdinalKeyStability/notify",
+      name: "InvocationKeyStability/notify",
       tier: "irreversible",
       idempotencyKey,
       success: Schema.Void,
@@ -388,9 +390,9 @@ describe("same-name invocation identity (issue #85)", () => {
 
   const notifyContent = (user: string) =>
     Activity.make({
-      name: "OrdinalKeyStability/notifyContent",
+      name: "InvocationKeyStability/notifyContent",
       tier: "irreversible",
-      idempotencyKey: { body: { user }, inputs: {}, layers: [], capabilities: {} },
+      idempotencyKey: { user },
       success: Schema.Void,
       execute: Effect.void
     })
@@ -398,7 +400,7 @@ describe("same-name invocation identity (issue #85)", () => {
   const notifyContentB = notifyContent("user-b")
 
   effect("an object-form idempotencyKey pins each invocation's key under swapped arrival order (issue #101)", () => {
-    // The idempotency component is a union: a `ContentIdentity` object must
+    // The idempotency component is a union: an object must
     // refine the allocation scope exactly as a string does. Refining only
     // the string form left object-keyed activities on the name-only counter,
     // so a replay with reversed fiber arrival swapped their ordinals — and

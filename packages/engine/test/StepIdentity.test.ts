@@ -8,23 +8,18 @@
  * never alias, and identical declarations are stable across repeated
  * derivation.
  */
-import type { StepKey } from "@smthrs/keys"
-import { Result } from "effect"
+import { Effect, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { StepIdentity } from "../src/index.ts"
+import { runSync } from "./Crypto.ts"
 
 // Total extraction for test material known to be canonical; the typed
 // failure surface of `allocationScope` is exercised in
 // UncanonicalIdempotencyKey.test.ts (issue #151).
 const allocationScope = (identity: StepIdentity.AllocationIdentity): string =>
-  Result.getOrThrow(StepIdentity.allocationScope(identity))
+  runSync(StepIdentity.allocationScope(identity).pipe(Effect.orDie))
 
-const content = (body: unknown): StepKey.ContentIdentity => ({
-  body,
-  inputs: {},
-  layers: [],
-  capabilities: {}
-})
+const content = (body: Schema.Json): Schema.JsonObject => ({ body })
 
 /** Deterministic PRNG so the generated corpus is reproducible. */
 const mulberry32 = (seed: number) => () => {
@@ -75,7 +70,7 @@ describe("StepIdentity.allocationScope", () => {
           ? ["s", identity.idempotency]
           : identity.idempotency === undefined
           ? null
-          : ["c", identity.idempotency.body]
+          : ["c", identity.idempotency]
       ])
       const scope = allocationScope(identity)
       const prior = seen.get(scope)

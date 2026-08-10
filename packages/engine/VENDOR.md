@@ -42,8 +42,8 @@ and discard requests contain the flow payload directly.
 
 Flows makes `Flow.make({ idempotencyKey })` optional and adds
 `executionId?: string` to `Flow.execute`. An explicit value always wins. If
-it is absent, an opt-in idempotency key is digested synchronously with
-`@smthrs/keys/Digest`. If neither exists, the flow dies with the structured
+it is absent, an opt-in idempotency key is decoded through the injected
+`@smthrs/crypto` `Sha256` transformation. If neither exists, the flow dies with the structured
 `ExecutionIdRequired` defect before reading `FlowEngine`. The
 `Flow.executionId` helper has the same opt-in precondition. RPC and HTTP
 execute/discard schemas carry `{ payload, executionId? }`, and both server
@@ -126,7 +126,7 @@ attempt, and activity name.
 
 Flows passes `{ activity, attempt, key, tier, metadata }` through the encoded
 seam. `FlowEngine.makeUnsafe` computes `key` before dispatch with
-`@smthrs/keys`: declared sealed identities use `StepKey.content`, while
+`@smthrs/keys`: the engine builds sealed identity input and decodes it through `Key`, while
 compensable, irreversible, and identity-free sealed activities use stable
 per-run ordinals. `metadata` carries an optional read/write-set descriptor
 without interpretation below this package boundary. The memory implementation

@@ -1,3 +1,4 @@
+import type * as Crypto from "effect/Crypto"
 /**
  * Issue #111: keyless same-declaration activities dispatched concurrently
  * take their ordinals from fiber arrival order, so a crash-resume that
@@ -12,9 +13,10 @@
 import { Cause, Deferred, Effect, Exit, Fiber, Layer, Scheduler, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { Activity, Flow, FlowEngine } from "../src/index.ts"
+import { runPromise } from "./Crypto.ts"
 
-const effect = (name: string, body: () => Effect.Effect<void, unknown, never>) =>
-  it(name, () => Effect.runPromise(body()))
+const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
+  it(name, () => runPromise(body()))
 
 const flow = Flow.make("KeylessConcurrency/flow", {
   payload: { id: Schema.String },

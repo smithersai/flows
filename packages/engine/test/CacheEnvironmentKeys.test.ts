@@ -1,5 +1,6 @@
+import type * as Crypto from "effect/Crypto"
 /**
- * Issue #75: a sealed activity's content key omitted the two pieces of key
+ * Issue #75: a sealed activity's cache key omitted the two pieces of key
  * material the Step Keys spec calls mandatory — the resolved layers and the
  * capability set — by hard-coding `layers: []` and `capabilities: {}` for the
  * string form and passing the object form through verbatim.
@@ -14,15 +15,15 @@
  * descriptor of issue #57 — it is folded into BOTH key forms and a caller
  * cannot opt out of it.
  */
-import type { StepKey } from "@smthrs/keys"
 import { Effect, Exit, Layer, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { Activity, Flow, FlowEngine } from "../src/index.ts"
+import { runPromise } from "./Crypto.ts"
 
-const effect = (name: string, body: () => Effect.Effect<void, unknown, never>) =>
-  it(name, () => Effect.runPromise(body()))
+const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
+  it(name, () => runPromise(body()))
 
-const flow = Flow.make("ContentEnvironmentKeys/flow", {
+const flow = Flow.make("CacheEnvironmentKeys/flow", {
   payload: { id: Schema.String },
   success: Schema.Void
 })
@@ -33,9 +34,9 @@ const hermeticMetadata = {
   boundaryMode: "hard"
 } as const
 
-const sealed = (idempotencyKey: string | StepKey.ContentIdentity) =>
+const sealed = (idempotencyKey: Activity.IdempotencyKey) =>
   Activity.make({
-    name: "ContentEnvironmentKeys/summarize",
+    name: "CacheEnvironmentKeys/summarize",
     success: Schema.Void,
     idempotencyKey,
     metadata: hermeticMetadata,
@@ -45,7 +46,7 @@ const sealed = (idempotencyKey: string | StepKey.ContentIdentity) =>
 /** Dispatches `activity` under `environment` and returns the step key. */
 const keyUnder = (
   activity: Activity.Any,
-  environment?: Activity.ContentEnvironment,
+  environment?: Activity.CacheEnvironment,
   executionId = "content-environment-run"
 ): Effect.Effect<string> => {
   let captured: string | undefined
@@ -72,7 +73,7 @@ const keyUnder = (
   }).pipe(
     environment === undefined
       ? (self) => self
-      : Effect.provideService(Activity.CurrentContentEnvironment, environment),
+      : Effect.provideService(Activity.CurrentCacheEnvironment, environment),
     Effect.provideService(
       FlowEngine.FlowInstance,
       FlowEngine.FlowInstance.initial(flow, executionId)
@@ -81,12 +82,22 @@ const keyUnder = (
   ) as Effect.Effect<string>
 }
 
-const sonnet: Activity.ContentEnvironment = {
+const sonnet: Activity.CacheEnvironment = {
   layers: ["Model=sonnet"],
   capabilities: { net: ["api.anthropic.com"] }
 }
 
-describe("sealed content keys fold the resolved environment (issue #75)", () => {
+describe("sealed cache keys fold the resolved environment (issue #75)", () => {
+  it("validates complete cache environments", () => {
+    expect(Schema.decodeUnknownSync(Activity.CacheEnvironment)(sonnet)).toEqual(sonnet)
+    expect(() =>
+      Schema.decodeUnknownSync(Activity.CacheEnvironment)({
+        layers: [],
+        capabilities: { "": ["read"] }
+      })
+    ).toThrow("Capability names must not be empty")
+  })
+
   effect("a swapped layer changes the digest of a string-form key", () => {
     return Effect.gen(function*() {
       const activity = sealed("order-123")
@@ -123,20 +134,15 @@ describe("sealed content keys fold the resolved environment (issue #75)", () => 
     })
   })
 
-  effect("a caller-supplied content identity cannot opt out of the environment", () => {
+  effect("a caller-supplied cache key input cannot opt out of the environment", () => {
     return Effect.gen(function*() {
-      const identity: StepKey.ContentIdentity = {
-        body: "ContentEnvironmentKeys/rename-stable",
-        inputs: {},
-        layers: [],
-        capabilities: {}
-      }
+      const identity = { operation: "CacheEnvironmentKeys/rename-stable" }
       const activity = sealed(identity)
       const underSonnet = yield* keyUnder(activity, sonnet)
       const underOpus = yield* keyUnder(activity, { ...sonnet, layers: ["Model=opus"] })
       expect(underSonnet).not.toBe(underOpus)
       // The caller's own declared material still counts.
-      const richer = sealed({ ...identity, layers: ["Caller=declared"] })
+      const richer = sealed({ ...identity, input: "changed" })
       expect(yield* keyUnder(richer, sonnet)).not.toBe(underSonnet)
     })
   })
@@ -153,28 +159,13 @@ describe("sealed content keys fold the resolved environment (issue #75)", () => 
     })
   })
 
-  effect("known layers without a capability identity stay scoped to the current execution", () => {
-    return Effect.gen(function*() {
-      const activity = sealed("order-123")
-      const incomplete: Activity.ContentEnvironment = { layers: ["Model=sonnet"] }
-      expect(yield* keyUnder(activity, incomplete, "first-run")).not.toBe(
-        yield* keyUnder(activity, incomplete, "other-run")
-      )
-      expect(yield* keyUnder(activity, incomplete, "first-run")).not.toBe(
-        yield* keyUnder(activity, { ...incomplete, capabilities: {} }, "first-run")
-      )
-    })
-  })
-
   effect("caller and environment capability identities cannot alias through concatenation", () => {
     return Effect.gen(function*() {
-      const identity = (patterns: ReadonlyArray<string>): StepKey.ContentIdentity => ({
-        body: "ContentEnvironmentKeys/union",
-        inputs: {},
-        layers: [],
-        capabilities: { fs: patterns }
+      const identity = (patterns: ReadonlyArray<string>): Schema.JsonObject => ({
+        operation: "CacheEnvironmentKeys/union",
+        authority: patterns
       })
-      const environment: Activity.ContentEnvironment = {
+      const environment: Activity.CacheEnvironment = {
         layers: [],
         capabilities: { fs: ["/workspace"] }
       }
@@ -188,23 +179,23 @@ describe("sealed content keys fold the resolved environment (issue #75)", () => 
     })
   })
 
-  effect("layerContentEnvironment declares the environment for a composition", () => {
+  effect("layerCacheEnvironment declares the environment for a composition", () => {
     // Issue #88: the declaration must be wireable as a layer so shipped
     // compositions (the plugin kernel, hand-wired stacks) provide it.
     return Effect.gen(function*() {
-      const environment = yield* Activity.CurrentContentEnvironment.pipe(
-        Effect.provide(Activity.layerContentEnvironment(sonnet))
+      const environment = yield* Activity.CurrentCacheEnvironment.pipe(
+        Effect.provide(Activity.layerCacheEnvironment(sonnet))
       )
       expect(environment).toEqual(sonnet)
     })
   })
 
-  effect("the environment does not enter ordinal keys", () => {
+  effect("the environment does not enter invocation keys", () => {
     return Effect.gen(function*() {
-      // Ordinal keys are run-local and never reused across runs, so the
-      // environment is not key material for them.
+      // Invocation keys are run-local and never reused across runs, so the
+      // environment is not key input for them.
       const ordinalActivity = Activity.make({
-        name: "ContentEnvironmentKeys/ordinal",
+        name: "CacheEnvironmentKeys/ordinal",
         tier: "irreversible",
         success: Schema.Void,
         execute: Effect.void
