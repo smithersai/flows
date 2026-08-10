@@ -151,8 +151,14 @@ describe("StepKey", () => {
     const missing = StepKey.fromKeyMaterial(base, {})
     const nonContent = StepKey.fromKeyMaterial({ ...base, kind: "compensable" }, {})
 
-    expect(Result.isFailure(missing) && missing.failure.code).toBe("missing_dependency")
-    expect(Result.isFailure(nonContent) && nonContent.failure.code).toBe("non_content_material")
+    expect(
+      Result.isFailure(missing) && missing.failure._tag === "@smthrs/keys/KeyMaterialError" && missing.failure.code
+    )
+      .toBe("missing_dependency")
+    expect(
+      Result.isFailure(nonContent) && nonContent.failure._tag === "@smthrs/keys/KeyMaterialError" &&
+        nonContent.failure.code
+    ).toBe("non_content_material")
   })
 
   it("distinguishes literal, pending, and projected dependency inputs", () => {

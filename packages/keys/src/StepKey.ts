@@ -6,9 +6,10 @@
  *
  * @since 0.1.0
  */
+import * as Canonical from "@smthrs/canonical/Canonical"
+import * as Effect from "effect/Effect"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
-import * as Canonical from "./Canonical.ts"
 import * as Digest from "./Digest.ts"
 import type { InputRef as CoreInputRef, KeyMaterial as CoreKeyMaterial } from "./KeyMaterial.ts"
 
@@ -219,8 +220,11 @@ const normalizeHermetic = (hermetic: NonNullable<ContentIdentity["hermetic"]>) =
   }
 }
 
-const key = (material: unknown): Result.Result<StepKey, Canonical.CanonicalError> =>
-  Result.map(Canonical.serialize(material), (serialized) => `sk1_${Digest.digest(serialized)}` as StepKey)
+const key = (material: unknown): Result.Result<StepKey, Canonical.CanonicalizeError> =>
+  Result.map(
+    Effect.runSync(Effect.result(Canonical.serialize(material))),
+    (serialized) => `sk1_${Digest.digest(serialized)}` as StepKey
+  )
 
 /**
  * Produces a cross-run reusable key for a sealed or hermetic step. Set-like
@@ -230,7 +234,7 @@ const key = (material: unknown): Result.Result<StepKey, Canonical.CanonicalError
  * @since 0.1.0
  * @category constructors
  */
-export const content = (identity: ContentIdentity): Result.Result<StepKey, Canonical.CanonicalError> =>
+export const content = (identity: ContentIdentity): Result.Result<StepKey, Canonical.CanonicalizeError> =>
   key({
     kind: "content",
     body: identity.body,
@@ -260,7 +264,7 @@ export const content = (identity: ContentIdentity): Result.Result<StepKey, Canon
 export const fromKeyMaterial = (
   material: KeyMaterial,
   dependencyDigests: Readonly<Record<string, string>>
-): Result.Result<StepKey, KeyMaterialError | Canonical.CanonicalError> => {
+): Result.Result<StepKey, KeyMaterialError | Canonical.CanonicalizeError> => {
   if (material.kind !== "sealed") {
     return Result.fail(
       new KeyMaterialError({
@@ -311,5 +315,5 @@ export const fromKeyMaterial = (
  * @since 0.1.0
  * @category constructors
  */
-export const ordinal = (identity: OrdinalIdentity): Result.Result<StepKey, Canonical.CanonicalError> =>
+export const ordinal = (identity: OrdinalIdentity): Result.Result<StepKey, Canonical.CanonicalizeError> =>
   key({ kind: "ordinal", ...identity })

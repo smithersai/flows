@@ -3,7 +3,8 @@
  *
  * @since 0.1.0
  */
-import { sha256 } from "./internal/sha256.ts"
+import { sha256 } from "@noble/hashes/sha2.js"
+import { bytesToHex } from "@noble/hashes/utils.js"
 
 const encoder = new TextEncoder()
 
@@ -14,6 +15,7 @@ const encoder = new TextEncoder()
  * @category hashing
  */
 export const digest = (input: Uint8Array | string): string => {
-  const bytes = typeof input === "string" ? encoder.encode(input) : input
-  return Array.from(sha256(bytes), (byte) => byte.toString(16).padStart(2, "0")).join("")
+  return bytesToHex(
+    sha256(typeof input === "string" ? encoder.encode(input) : input)
+  )
 }

@@ -1,16 +1,8 @@
 /**
- * Pure canonical serialization and step-key construction.
+ * Synchronous digest and step-key construction.
  *
  * @since 0.1.0
  */
-
-/**
- * Canonical serialization contracts.
- *
- * @since 0.1.0
- * @category serialization
- */
-export * as Canonical from "./Canonical.ts"
 
 /**
  * Cryptographic digest contracts.
