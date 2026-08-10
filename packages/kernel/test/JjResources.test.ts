@@ -1,4 +1,4 @@
-import * as Host from "@smthrs/host"
+import * as HostJj from "@smthrs/jj"
 import { Effect, FileSystem as EffectFileSystem, Path } from "effect"
 import { describe, expect, it } from "vitest"
 import type * as Capability from "../src/Capability.ts"
@@ -33,12 +33,12 @@ const fileSystem = EffectFileSystem.makeNoop({
 
 const provide = <A, E>(
   effect: Effect.Effect<A, E, Jj.Jj>,
-  host: Host.Jj.Jj,
+  host: HostJj.Jj,
   checks: Array<Capability.Capability>
 ) =>
   effect.pipe(
     Effect.provide(Jj.layer),
-    Effect.provideService(Host.Jj.Jj, host),
+    Effect.provideService(HostJj.Jj, host),
     Effect.provideService(EffectFileSystem.FileSystem, fileSystem),
     Effect.provide(Path.layer),
     Effect.provide(Workspace.layer("/workspace")),
@@ -49,11 +49,11 @@ describe("Jj capability resources", () => {
   itEffect("labels an unnamed snapshot with an empty resource", () => {
     const messages: Array<string | undefined> = []
     const checks: Array<Capability.Capability> = []
-    const host = Host.Jj.makeNoop({
+    const host = HostJj.makeNoop({
       snapshot: (message) =>
         Effect.sync(() => {
           messages.push(message)
-          return { changeId: "change" as Host.Jj.ChangeId }
+          return { changeId: "change" as HostJj.ChangeId }
         })
     })
 
@@ -73,7 +73,7 @@ describe("Jj capability resources", () => {
   itEffect("canonicalizes a workspace-relative workspace-add destination", () => {
     const calls: Array<readonly [string, string]> = []
     const checks: Array<Capability.Capability> = []
-    const host = Host.Jj.makeNoop({
+    const host = HostJj.makeNoop({
       workspaceAdd: (name, destination) =>
         Effect.sync(() => {
           calls.push([name, destination])
@@ -98,7 +98,7 @@ describe("Jj capability resources", () => {
   itEffect("keeps an absolute workspace-add destination outside the workspace", () => {
     const calls: Array<readonly [string, string]> = []
     const checks: Array<Capability.Capability> = []
-    const host = Host.Jj.makeNoop({
+    const host = HostJj.makeNoop({
       workspaceAdd: (name, destination) =>
         Effect.sync(() => {
           calls.push([name, destination])

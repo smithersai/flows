@@ -77,7 +77,9 @@
   },
   "dependencies": {
     "@smthrs/host": "0.1.0",
+    "@smthrs/jj": "0.1.0",
     "@smthrs/journal": "0.1.0",
+    "@smthrs/pty": "0.1.0",
     "effect": "4.0.0-beta.102"
   },
   "devDependencies": {

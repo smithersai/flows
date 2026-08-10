@@ -7,8 +7,8 @@
  *
  * @since 0.1.0
  */
-import type { PtyError } from "@smthrs/host/HostError"
-import * as HostPty from "@smthrs/host/Pty"
+import * as HostPty from "@smthrs/pty"
+import type { PtyError } from "@smthrs/pty"
 import { Context, Effect, Layer } from "effect"
 import type * as Scope from "effect/Scope"
 import { make as makeCapability } from "./Capability.ts"

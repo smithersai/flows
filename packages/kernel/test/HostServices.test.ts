@@ -1,6 +1,8 @@
 import * as Host from "@smthrs/host"
 import * as HostHttpTransport from "@smthrs/host/HttpTransport"
 import * as TestHost from "@smthrs/host/test/TestHost"
+import * as HostJj from "@smthrs/jj"
+import * as HostPty from "@smthrs/pty"
 import { Effect, FileSystem as EffectFileSystem, Option, Path as EffectPath } from "effect"
 import * as EffectHttpClient from "effect/unstable/http/HttpClient"
 import { describe, expect, it } from "vitest"
@@ -63,13 +65,13 @@ describe("HostServices", () => {
       expect(yield* protectedShell.exec("fixture")).toEqual({ stdout: "protected\n", stderr: "", exitCode: 0 })
 
       const protectedPty = yield* Pty.Pty
-      const rawPty = yield* Host.Pty.Pty
+      const rawPty = yield* HostPty.Pty
       expect(rawPty).toBe(protectedPty)
       expect(yield* Effect.flip(Effect.scoped(protectedPty.spawn("fixture", { cols: 80, rows: 24 }))))
         .toMatchObject({ code: "unsupported", message: "no pty in the browser (requested: fixture)" })
 
       const protectedJj = yield* Jj.Jj
-      const rawJj = yield* Host.Jj.Jj
+      const rawJj = yield* HostJj.Jj
       expect(rawJj).toBe(protectedJj)
       expect(yield* Effect.flip(protectedJj.status())).toMatchObject({
         code: "not_installed",
@@ -112,13 +114,13 @@ describe("HostServices", () => {
         capability: { action: "proc:spawn", resource: "blocked" },
         reason: "denied by integration test"
       })
-      const pty = yield* Host.Pty.Pty
+      const pty = yield* HostPty.Pty
       expect(yield* Effect.flip(pty.spawn("blocked-pty", { cols: 80, rows: 24 }))).toMatchObject({
         code: "permission_denied",
         capability: { action: "proc:spawn", resource: "blocked-pty" },
         reason: "denied by integration test"
       })
-      const jj = yield* Host.Jj.Jj
+      const jj = yield* HostJj.Jj
       expect(yield* Effect.flip(jj.status())).toMatchObject({
         code: "permission_denied",
         capability: { action: "jj:status", resource: "." },

@@ -8,8 +8,8 @@
  *
  * @since 0.1.0
  */
-import type { JjError } from "@smthrs/host/HostError"
-import * as HostJj from "@smthrs/host/Jj"
+import * as HostJj from "@smthrs/jj"
+import type { JjError } from "@smthrs/jj"
 import { Context, Effect, FileSystem as EffectFileSystem, Layer, Path as EffectPath, type PlatformError } from "effect"
 import { make as makeCapability } from "./Capability.ts"
 import { canonicalResource } from "./FileSystem.ts"

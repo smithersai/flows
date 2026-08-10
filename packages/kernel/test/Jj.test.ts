@@ -1,4 +1,4 @@
-import * as Host from "@smthrs/host"
+import * as HostJj from "@smthrs/jj"
 import { Effect, FileSystem as EffectFileSystem, Path } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Capability from "../src/Capability.ts"
@@ -29,7 +29,7 @@ describe("Jj", () => {
   itEffect("checks every host operation before delegating it", () => {
     const calls: Array<string> = []
     const checks: Array<Capability.Capability> = []
-    const host = Host.Jj.makeNoop({
+    const host = HostJj.makeNoop({
       status: () =>
         Effect.sync(() => {
           calls.push("status")
@@ -79,7 +79,7 @@ describe("Jj", () => {
       ])
     }).pipe(
       Effect.provide(Jj.layer),
-      Effect.provideService(Host.Jj.Jj, host),
+      Effect.provideService(HostJj.Jj, host),
       Effect.provideService(EffectFileSystem.FileSystem, fileSystem),
       Effect.provide(Path.layer),
       Effect.provide(Workspace.layer("/workspace")),
@@ -99,7 +99,7 @@ describe("Jj", () => {
       list: Effect.succeed([]),
       grantEnvelope: () => Effect.void
     })
-    const host = Host.Jj.makeNoop({
+    const host = HostJj.makeNoop({
       status: () =>
         Effect.sync(() => {
           invoked = true
@@ -118,7 +118,7 @@ describe("Jj", () => {
       expect(checks).toEqual([{ action: "jj:status", resource: "." }])
     }).pipe(
       Effect.provide(Jj.layer),
-      Effect.provideService(Host.Jj.Jj, host),
+      Effect.provideService(HostJj.Jj, host),
       Effect.provideService(EffectFileSystem.FileSystem, fileSystem),
       Effect.provide(Path.layer),
       Effect.provide(Workspace.layer("/workspace")),

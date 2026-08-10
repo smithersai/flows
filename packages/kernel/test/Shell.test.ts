@@ -1,4 +1,5 @@
 import * as Host from "@smthrs/host"
+import * as HostPty from "@smthrs/pty"
 import { Effect, Stream } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Capability from "../src/Capability.ts"
@@ -102,14 +103,14 @@ describe("Pty", () => {
   itEffect("checks once before spawn and returns the host handle unchanged", () => {
     let invoked = false
     const checks: Array<Capability.Capability> = []
-    const handle: Host.Pty.PtyHandle = {
+    const handle: HostPty.PtyHandle = {
       write: () => Effect.void,
       resize: () => Effect.void,
       output: Stream.empty,
       attach: () => Stream.empty,
       exitCode: Effect.succeed(0)
     }
-    const host = Host.Pty.makeNoop({
+    const host = HostPty.makeNoop({
       spawn: () =>
         Effect.sync(() => {
           invoked = true
@@ -124,7 +125,7 @@ describe("Pty", () => {
       expect(checks).toEqual([{ action: "proc:spawn", resource: "tool" }])
     }).pipe(
       Effect.provide(Pty.layer),
-      Effect.provideService(Host.Pty.Pty, host),
+      Effect.provideService(HostPty.Pty, host),
       Effect.provideService(GrantStore, scriptedStore(new Set(["proc:spawn:tool"]), checks)),
       Effect.scoped
     )
@@ -133,7 +134,7 @@ describe("Pty", () => {
   itEffect("does not spawn a denied terminal", () => {
     let invoked = false
     const checks: Array<Capability.Capability> = []
-    const host = Host.Pty.makeNoop({
+    const host = HostPty.makeNoop({
       spawn: () =>
         Effect.sync(() => {
           invoked = true
@@ -152,7 +153,7 @@ describe("Pty", () => {
       expect(checks).toEqual([{ action: "proc:spawn", resource: "blocked" }])
     }).pipe(
       Effect.provide(Pty.layer),
-      Effect.provideService(Host.Pty.Pty, host),
+      Effect.provideService(HostPty.Pty, host),
       Effect.provideService(GrantStore, scriptedStore(new Set(), checks)),
       Effect.scoped
     )
