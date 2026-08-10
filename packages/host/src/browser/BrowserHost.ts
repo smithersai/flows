@@ -9,13 +9,13 @@
  */
 import type { Jj } from "@smthrs/jj"
 import * as BrowserJj from "@smthrs/jj/browser/BrowserJj"
+import * as BrowserFileSystem from "@smthrs/platform-browser/BrowserFileSystem"
 import type { Pty } from "@smthrs/pty"
 import * as BrowserPty from "@smthrs/pty/browser/BrowserPty"
 import { Layer, Path } from "effect"
 import type { FileSystem } from "effect"
 import type { HttpTransport } from "../HttpTransport.ts"
 import type { Shell } from "../Shell.ts"
-import * as BrowserFileSystem from "./BrowserFileSystem.ts"
 import * as BrowserHttpTransport from "./BrowserHttpTransport.ts"
 import * as JustBashShell from "./JustBashShell.ts"
 

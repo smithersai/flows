@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Removed
+
+- Moved `browser/BrowserFileSystem` out of this package and into
+  `@smthrs/platform-browser`, where it sits beside the browser
+  `ChildProcessSpawner` as an implementation of an `effect` platform service.
+  `BrowserHost` and `TestHost` now import it from there; import
+  `@smthrs/platform-browser/BrowserFileSystem` instead of
+  `@smthrs/host/browser/BrowserFileSystem`.
+
 ### Changed
 
 - Emitted the reusable Host contract as ESM, CJS, and declarations from the

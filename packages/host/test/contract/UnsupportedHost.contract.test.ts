@@ -8,9 +8,9 @@
  * unasserted. A serverless or locked-down bundle looks exactly like this.
  */
 import * as BrowserJj from "@smthrs/jj/browser/BrowserJj"
+import * as BrowserFileSystem from "@smthrs/platform-browser/BrowserFileSystem"
 import * as BrowserPty from "@smthrs/pty/browser/BrowserPty"
 import { Effect, Layer, Path } from "effect"
-import * as BrowserFileSystem from "../../src/browser/BrowserFileSystem.ts"
 import * as HttpTransport from "../../src/HttpTransport.ts"
 import * as ShellService from "../../src/Shell.ts"
 import { runHostContract } from "./HostContract.ts"
