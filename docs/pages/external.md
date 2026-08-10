@@ -1,0 +1,109 @@
+# External
+
+What exists elsewhere, what this engine borrows from it, and what a deployment cannot do here yet. Everything below is stated against `packages/*/src`. Behavior with a test in source is Implemented; contract and TODO behavior is Planned.
+
+## Prior art
+
+| System | What it is | What was taken |
+| --- | --- | --- |
+| [Effect](https://effect.website) | the runtime this library is written in | `unstable/workflow` is vendored into `@smthrs/engine`; `unstable/ai`, `unstable/rpc`, and `unstable/sql` shape the service, layer, and schema conventions everywhere else |
+| [Temporal](https://docs.temporal.io/) | a mature durable-execution service and cloud platform | shard and rangeID fencing became the run claim expressed as a `WHERE` clause; mutable state plus event batches in one persistence request became `Journal.transact`; reset and rebuild informed the rewind protocol; persisted attempt counts informed the retry origin |
+| [Restate](https://docs.restate.dev/foundations/services) | a lightweight runtime with durable services, state, promises, and exactly-once-per-ID workflows | the shape of an idempotency-derived execution id |
+| [Inngest](https://www.inngest.com/docs/learn/how-functions-are-executed) | managed coordination with memoized steps, queues, and flow control | the memoized-step model that `Activity` implements |
+| [Bazel](https://bazel.build) Skyframe | keyed, memoizing, parallel, incremental evaluation | content-addressed step keys, the cache-admission gate, and the `GraphTester`-shaped deterministic test harness |
+| [BAML](https://github.com/BoundaryML/baml) | schema-first prompting and evals as a language feature | the discipline of declaring a typed contract before the effect that satisfies it |
+
+The honest positioning is an embeddable, Effect-native durable-execution toolkit for applications that want durability as layers and typed services rather than a separate hosted control plane. Its differentiated combination is Effect schemas, errors and fibers; capability-checked host layers; declaration-aware and environment-aware cross-run content addressing; and explicit time-travel and compensation protocols. It does not have a multi-node service, an operational control plane, an ecosystem, production history, or an end-to-end deployment story.
+
+## Implementation status
+
+### Implemented
+
+| Area | Behavior |
+| --- | --- |
+| Flow definitions | `Flow.make`, registration layers, explicit or idempotency-derived execution ids |
+| Recorded steps | `Activity.make` with success and error schemas, tiers, metadata, annotations, and encoded exits |
+| In-memory runtime | execution, polling, suspension, resume, interruption, deferreds, clocks, activity memoization |
+| Durable run state | SQL run rows, exact claims, activation fences, heartbeats, stale-owner steal, terminal transitions, `parent_run_id` lineage, durable cancel requests observed inside both the re-activation and terminal compare-and-swaps |
+| Sweeps | a sandboxed periodic sweep over actionable parked rows and over stale-running rows, so a hard-killed owner does not strand its run |
+| Attempt state | fenced admission, a configurable in-progress vocabulary and checkpoint cap, optional upsert admission, first terminal result, an unfenced patch surface, opaque metadata |
+| Journal | bounded lossy telemetry queue, batching, idempotent producer events, paging, replay-then-follow streams, projections, and `emitDurable` and `transact` for the durable channel |
+| Journal redaction | one rule set at the single `payload` and `meta` encode chokepoint, with an opt-out; executable state is deliberately outside it |
+| Content addressing | canonical serialization, SHA-256 content keys, graph-reference resolution, run-local ordinal keys, and a content environment hashed in a namespace separate from caller-owned identity |
+| Cache rows | first-writer-wins content-addressed results with run and sequence provenance |
+| Capability kernel | monotone capability sets, rules, attended and unattended grants, journal-backed decisions, guarded host layers |
+| Host bundles | Node, Bun, browser, and deterministic test adapters |
+| Durable primitives | SQL deferred completions and absolute clock rows, restart re-arming, wake recovery, the durable queue API, attached child flow wake-up |
+| Sync | read-only catch-up and credit-bounded follow over schema-backed Effect RPC |
+| Plugin kernel | typed hook catalog, `resolve` and `Kernel.make`, `enforce` and `order` resolution, `apply` filtering, the config waterfall, and sequential, parallel, first, and waterfall dispatch |
+| Cache-conflict receiver | `Inconsistency` with strict, tolerant, and noop layers; the unwired core default is strict |
+| Run cycle detection | the parent edge and the child-to-parent walk inside one write transaction, rolling back with `RunParentCycleError`, surfaced as the typed `FlowCycleDetected` |
+| Waiting taxonomy | `park`, `wake`, `waiting`, and `waitingRuns` with reason, wake time, and token columns, driven by `FlowEngine.annotateWaiting` or derived from clock state |
+| Retry policy | data-shaped policy, pure `nextDelay`, a `decideEffect` decision point driven by the persisted attempt count, and an `expirationMs` bound measured from the durably persisted first-attempt start |
+| WAL atomicity | every lifecycle entry commits in the same write transaction as the state transition it describes |
+| Fault harness | `Notifying.wrap` and `layer` for interstitial crash and fence-loss injection, driven at every closed interstitial by `WalAtomicity.test.ts` |
+| Public error contract | `EngineStore.Errors` with stable `code` literals |
+| Time travel | replay projections, memory and SQL stores, fork, rewind, compensation, recovery, tier-aware retry |
+
+### Implemented contracts with no production implementation
+
+| Contract | What is missing |
+| --- | --- |
+| `StepBoundary` whole-tree detection | the shipped layer measures read sets and materializes declared outputs but cannot detect writes outside them, so its evidence is refused by the cache |
+| Cross-host liveness | `EngineStore.Options.isAlive` is application-supplied |
+| `RunCatalog` | a durable workspace run list and watch; static and memory implementations ship |
+| Browser Jujutsu and PTY | typed unavailable implementations ship |
+| Edge shell | typed unavailable by default, with optional remote sandbox adapters |
+
+### Planned
+
+- A public static planner and action-graph API that computes keys and cache hits before execution.
+- Production hermetic action execution and output materialization for cross-run caching.
+- A packaged production layer composing database, migrations, journal stores, durable deferred and clock state, kernel, host, and engine. Nothing composes them today, so assembly is application work.
+- Event-driven `resumeSignal`. Suspension wake-up is polling and sweeps.
+- Journal checkpointing and compaction for unbounded histories.
+- Plugin dispatch at the engine seams: `resolveRetry`, `classifyError`, `cacheInconsistency`, `resolveShareability`, `waitStart`, `wake`. The kernel ships, the call sites use built-in defaults.
+- Graph-level failure policies such as quarantine or continue-on-failure.
+- Detached child flow construction and lifecycle policy.
+- Automatic creation of time-travel snapshots, lineage edges, and boundary records from ordinary execution.
+- A `Continued` terminal status closing a parent run for continue-as-new lineage.
+- A `Supervisor.layer` that scans expired leases, due wakes, and `released` rows. Every primitive it needs already ships.
+- A `RunControl` service journalling attributed pause, cancel, and hijack verbs with actor and reason.
+- A `Checkpoint` host capability invoked through the `checkpoint` hook, plus worktree-lane lifecycle.
+
+## Deployment limits
+
+| Limit | Detail |
+| --- | --- |
+| SQLite only | both shipped `Database` backends are SQLite, `@effect/sql-sqlite-node` on Node and sqlite-wasm OPFS in the browser, and the journal migration ladder is SQLite-flavoured DDL. Postgres and PGlite parity is an accepted gap, issue #78 |
+| No browser SQL layer | the journal bundles for the browser against the `Database` contract, and no browser SQL client layer ships here |
+| Node-only durable engine | `@smthrs/engine-store` reads `process.pid` and `node:crypto`, so it and the `@smthrs/flows` barrel are Node entry points, issue #114 |
+| Registration before resume | flow registrations and active fibers are in-memory, so a restarted process must re-register handlers before driving stored runs |
+| Single-writer serialization | `Database.write` requires serialized write transactions, and a Postgres backend must run them `SERIALIZABLE` |
+| No hosted deployment | a fully runnable engine-store on Cloudflare Workers and fully durable serverless deferreds and clocks on Vercel do not exist. Platform host adapters live in [smithersai/plugins](https://github.com/smithersai/plugins) |
+| Cache address convention | the time-travel package reads cache keys out of effect-boundary metadata, so a caller recording those boundaries must use the same address convention as the cache producer |
+| Fork records are not per-frame | `SqlTimeTravelStore.createFork` materializes from the parent's current persisted snapshot and attempts, not from a historical reconstruction at the frame |
+
+Packages are pre-1.0. Treat every boundary above as an evolving compatibility contract.
+
+## What Postgres parity would take
+
+The write-retry seam is already dialect-blind: `Database.make` accepts any `SqlClient`, and classification covers the Postgres transient SQLSTATEs `40001`, `40P01`, and `55P03` plus PGlite's text forms alongside the SQLite codes, normalized onto the same `busy` category. A hand-supplied `PgClient` is therefore degraded rather than unprotected.
+
+What remains, in order:
+
+1. `packages/database/src/pg/` and `packages/database/src/pglite/` layers over `@effect/sql-pg` and `@effect/sql-pglite`. Thin, because the retry seam is already neutral.
+2. A dialect parameter on `Migrations.run` splitting the SQLite-specific DDL, `INTEGER PRIMARY KEY`, `INSERT OR IGNORE`, and `AUTOINCREMENT`, plus a port of the statements that live outside the ladder. `flows_run_parents_gc` is the blocker there: its inline `BEGIN...END` trigger body is SQLite-exclusive and needs `CREATE FUNCTION ... RETURNS trigger` with `CREATE TRIGGER ... FOR EACH ROW EXECUTE FUNCTION` on Postgres. Everything in `DurableEngineState.make` is piped through `Effect.orDie`, so an unported statement is a layer-construction defect.
+3. The existing journal and engine-store suites run against PGlite as a second backend in CI, which is the only honest proof of parity. Any new backend must also pass `packages/database/test/contract/DatabaseWriteContract.ts`.
+
+## Open owner decisions
+
+Three things stand between this tree and a publish, and none of them is code.
+
+1. Control of the `@smthrs` npm organization with all eleven names reserved. Availability was checked; ownership was not.
+2. The `LICENSE` copyright holder. It currently reads `William Cory and the Smithers Flows contributors`, chosen without owner confirmation.
+3. One rehearsal of `.github/workflows/release.yml` against a prerelease tag. The workflow is complete and has never executed, and npm-side trusted-publishing configuration is not observable from this repository.
+
+## Reading next
+
+[Design decisions](/design-decisions) explains why the limits above are the shape they are. [Contributor plan](/contributing) lists the epics that would close them.
