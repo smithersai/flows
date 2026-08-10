@@ -30,12 +30,14 @@ import { PluginError } from "./PluginError.ts"
  * @category models
  * @since 0.1.0
  */
-export interface RetryConfig {
-  readonly maxAttempts?: number | undefined
-  readonly initialDelayMs?: number | undefined
-  readonly backoffCoefficient?: number | undefined
-  readonly maxDelayMs?: number | undefined
-}
+export const RetryConfig = Schema.Struct({
+  maxAttempts: Schema.optionalKey(Schema.Int.check(Schema.isGreaterThan(0))),
+  initialDelayMs: Schema.optionalKey(Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0))),
+  backoffCoefficient: Schema.optionalKey(Schema.Finite.check(Schema.isGreaterThan(0))),
+  maxDelayMs: Schema.optionalKey(Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0)))
+})
+/** @category models @since 0.1.0 */
+export type RetryConfig = typeof RetryConfig.Type
 
 /**
  * Engine-level knobs.
@@ -43,9 +45,11 @@ export interface RetryConfig {
  * @category models
  * @since 0.1.0
  */
-export interface EngineConfig {
-  readonly maxConcurrency?: number | undefined
-}
+export const EngineConfig = Schema.Struct({
+  maxConcurrency: Schema.optionalKey(Schema.Int.check(Schema.isGreaterThan(0)))
+})
+/** @category models @since 0.1.0 */
+export type EngineConfig = typeof EngineConfig.Type
 
 /**
  * The pre-resolution configuration an application assembles.
@@ -53,18 +57,17 @@ export interface EngineConfig {
  * @category models
  * @since 0.1.0
  */
-export interface FlowsConfig {
-  readonly plugins?: unknown
-  readonly retry?: RetryConfig | undefined
-  readonly engine?: EngineConfig | undefined
-  readonly store?: { readonly url?: string | undefined } | undefined
-  /**
-   * Plugin-contributed namespaces. The kernel is open for augmentation: any
-   * key a plugin adds through the `config` waterfall survives resolution
-   * verbatim (it is not decoded, only frozen).
-   */
-  readonly [namespace: string]: unknown
-}
+export const FlowsConfig = Schema.StructWithRest(
+  Schema.Struct({
+    plugins: Schema.optionalKey(Schema.Unknown),
+    retry: Schema.optionalKey(RetryConfig),
+    engine: Schema.optionalKey(EngineConfig),
+    store: Schema.optionalKey(Schema.Struct({ url: Schema.optionalKey(Schema.String) }))
+  }),
+  [Schema.Record(Schema.String, Schema.Unknown)]
+)
+/** @category models @since 0.1.0 */
+export type FlowsConfig = typeof FlowsConfig.Type
 
 /**
  * The frozen configuration handed to `configResolved` and to the engine.
@@ -72,42 +75,21 @@ export interface FlowsConfig {
  * @category models
  * @since 0.1.0
  */
-export interface ResolvedConfig {
-  readonly retry: {
-    readonly maxAttempts: number
-    readonly initialDelayMs: number
-    readonly backoffCoefficient: number
-    readonly maxDelayMs: number
-  }
-  readonly engine: { readonly maxConcurrency: number }
-  readonly store: { readonly url?: string | undefined }
-  /**
-   * Plugin-contributed namespaces carried through the waterfall, deep-frozen
-   * but otherwise untouched. Read them back with an index access and validate
-   * in the owning plugin.
-   */
-  readonly [namespace: string]: unknown
-}
-
-/**
- * Schema used to decode the post-waterfall configuration.
- *
- * A decode failure is the `config_invalid` error code.
- *
- * @category schemas
- * @since 0.1.0
- */
-export const FlowsConfigSchema = Schema.Struct({
-  plugins: Schema.optional(Schema.Unknown),
-  retry: Schema.optional(Schema.Struct({
-    maxAttempts: Schema.optional(Schema.Finite),
-    initialDelayMs: Schema.optional(Schema.Finite),
-    backoffCoefficient: Schema.optional(Schema.Finite),
-    maxDelayMs: Schema.optional(Schema.Finite)
-  })),
-  engine: Schema.optional(Schema.Struct({ maxConcurrency: Schema.optional(Schema.Finite) })),
-  store: Schema.optional(Schema.Struct({ url: Schema.optional(Schema.String) }))
-})
+export const ResolvedConfig = Schema.StructWithRest(
+  Schema.Struct({
+    retry: Schema.Struct({
+      maxAttempts: Schema.Int.check(Schema.isGreaterThan(0)),
+      initialDelayMs: Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0)),
+      backoffCoefficient: Schema.Finite.check(Schema.isGreaterThan(0)),
+      maxDelayMs: Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0))
+    }),
+    engine: Schema.Struct({ maxConcurrency: Schema.Int.check(Schema.isGreaterThan(0)) }),
+    store: Schema.Struct({ url: Schema.optionalKey(Schema.String) })
+  }),
+  [Schema.Record(Schema.String, Schema.Unknown)]
+)
+/** @category models @since 0.1.0 */
+export type ResolvedConfig = typeof ResolvedConfig.Type
 
 /**
  * Defaults applied after the `config` waterfall and before freezing.
@@ -126,6 +108,7 @@ export const defaults: ResolvedConfig = Object.freeze({
   store: Object.freeze({})
 })
 
+/** @private */
 const isPlainObject = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
@@ -158,23 +141,15 @@ export const merge = <A>(base: A, patch: unknown): A => {
  * @since 0.1.0
  */
 export const resolve = (config: FlowsConfig): Effect.Effect<ResolvedConfig, PluginError> =>
-  Schema.decodeUnknownEffect(FlowsConfigSchema)(config).pipe(
+  Schema.decodeUnknownEffect(FlowsConfig)(config).pipe(
     Effect.mapError((cause) =>
       new PluginError({ code: "config_invalid", message: "post-waterfall config failed decoding", cause })
     ),
     Effect.map((decoded) => {
-      // Schema decoding strips excess properties; the kernel is open for
-      // augmentation, so every namespace outside the known option groups
-      // (plugin-contributed config) is carried through resolution verbatim.
-      const extras: Record<string, unknown> = {}
-      for (const key of Object.keys(config)) {
-        if (!knownNamespaces.has(key)) extras[key] = config[key]
-      }
-      return deepFreeze(merge(merge(defaults, extras), { ...decoded, plugins: undefined }))
+      const { plugins: _, ...resolved } = decoded
+      return deepFreeze(merge(defaults, resolved))
     })
   )
-
-const knownNamespaces: ReadonlySet<string> = new Set([...Object.keys(FlowsConfigSchema.fields)])
 
 /**
  * Recursively freezes a value's own enumerable object properties.

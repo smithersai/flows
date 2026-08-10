@@ -67,10 +67,7 @@ export interface Options {
    * behavior. Omitting this value leaves capabilities unknown and therefore
    * keeps sealed keys run-local.
    */
-  readonly contentEnvironment?: {
-    readonly layers?: ReadonlyArray<string> | undefined
-    readonly capabilities: Readonly<Record<string, ReadonlyArray<string>>>
-  } | undefined
+  readonly cacheEnvironment?: Activity.CacheEnvironment | undefined
 }
 
 const flatten = <H>(input: PluginInput<H>, into: Array<FlowsPlugin<H>>): Array<FlowsPlugin<H>> => {
@@ -169,31 +166,17 @@ export const resolve = <H = FlowsHooks>(
  * `Layer.provideMerge`, so a `pre` plugin's services are visible to the layers
  * that follow it.
  *
- * The returned layer always declares `Activity.CurrentContentEnvironment`.
- * When no plugin contributes services, it consists only of that declaration.
+ * A complete `cacheEnvironment` declares
+ * `Activity.CurrentCacheEnvironment`. When omitted, that context remains
+ * absent and sealed keys stay local to their run.
  *
  * @category combinators
  * @since 0.1.0
  */
 export const layer = <H>(
   resolved: Resolved<H>,
-  contentEnvironment?: Options["contentEnvironment"]
+  cacheEnvironment?: Options["cacheEnvironment"]
 ): Layer.Layer<any, PluginError, any> => {
-  // The kernel is the composition that wires model/host/permission layers, so
-  // it is the component that declares `Activity.CurrentContentEnvironment`
-  // (issue #88): the resolved plugin identities, in resolution order, are the
-  // layer material folded into every sealed content key. Without this, a
-  // plugin swap left sealed digests byte-identical. Capabilities cannot be
-  // inferred from a Layer, so omission remains explicit: the engine keeps
-  // the resulting keys run-local until the application supplies the complete
-  // environment through Kernel.make's options.
-  const environment = Activity.layerContentEnvironment({
-    layers: [
-      ...resolved.plugins.map((plugin) => plugin.name),
-      ...(contentEnvironment?.layers ?? [])
-    ],
-    ...(contentEnvironment === undefined ? {} : { capabilities: contentEnvironment.capabilities })
-  }) as unknown as Layer.Layer<any, PluginError, any>
   const layers = resolved.plugins.flatMap((plugin) =>
     plugin.layer
       ? [
@@ -211,9 +194,16 @@ export const layer = <H>(
       ]
       : []
   )
-  if (layers.length === 0) return environment
-  return Layer.provideMerge(
-    layers.reduce((accumulated, next) => Layer.provideMerge(next, accumulated)),
-    environment
-  )
+  const plugins = (layers.length === 0
+    ? Layer.empty
+    : layers.reduce((accumulated, next) => Layer.provideMerge(next, accumulated))) as Layer.Layer<any, PluginError, any>
+  if (cacheEnvironment === undefined) return plugins
+  const environment = Activity.layerCacheEnvironment({
+    layers: [
+      ...resolved.plugins.map((plugin) => plugin.name),
+      ...cacheEnvironment.layers
+    ],
+    capabilities: cacheEnvironment.capabilities
+  }) as unknown as Layer.Layer<any, PluginError, any>
+  return Layer.provideMerge(plugins, environment)
 }

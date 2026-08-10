@@ -4,7 +4,7 @@
 
 ### Added
 
-- Added `contentEnvironment` startup options for complete layer,
+- Added `cacheEnvironment` startup options for complete layer,
   configuration, and capability identity in sealed activity keys.
 
 ### Fixed
