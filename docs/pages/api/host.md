@@ -1,6 +1,8 @@
 # @smthrs/host
 
-Closed machine-facing service contracts, their errors, and the Node, Bun, browser, and test bundles that implement them.
+The closed machine-facing service list, the `Shell` and `HttpTransport` contracts, and the Node, Bun, browser, and test bundles that implement all six tags.
+
+`Pty`, `Jj`, and the sandbox modules are their own packages — [@smthrs/pty](pty.md), [@smthrs/jj](jj.md), [@smthrs/sandbox](sandbox.md). This package depends on the first two so the closed list can name them, but nothing here re-exports them: import each service from its own package.
 
 ```ts
 import { HostServiceTags, Shell } from "@smthrs/host"
@@ -56,31 +58,6 @@ The package root holds contracts and no-op layers only, so it bundles for the br
 | `makeNoop` | constructor | every method fails `shell_unavailable` until overridden |
 | `layerNoop` | layer | `makeNoop` as a `Layer` |
 
-### Pty
-
-[src/Pty.ts](https://github.com/smithersai/flows/blob/main/packages/host/src/Pty.ts)
-
-| Export | Kind | Notes |
-| --- | --- | --- |
-| `PtySpawnOptions` | interface | spawn arguments |
-| `PtyHandle` | interface | live terminal handle |
-| `Pty` | interface | pseudo-terminal operations |
-| `Pty` | service tag | `flows/host/Pty` |
-| `make`, `makeNoop` | constructors | |
-| `layerNoop` | layer | |
-
-### Jj
-
-[src/Jj.ts](https://github.com/smithersai/flows/blob/main/packages/host/src/Jj.ts)
-
-| Export | Kind | Notes |
-| --- | --- | --- |
-| `ChangeId` | type | string handle for workspace state |
-| `Jj` | interface | `snapshot`, `restore`, `diff`, `workspaceAdd`, `workspaceForget`, `status` |
-| `Jj` | service tag | `flows/host/Jj` |
-| `make`, `makeNoop` | constructors | `makeNoop` fails `not_installed` |
-| `layerNoop` | layer | |
-
 ### HttpTransport
 
 [src/HttpTransport.ts](https://github.com/smithersai/flows/blob/main/packages/host/src/HttpTransport.ts)
@@ -98,48 +75,20 @@ The package root holds contracts and no-op layers only, so it bundles for the br
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `ShellError`, `PtyError`, `JjError` | classes | tagged errors with a `code` |
-| `ShellErrorCode`, `PtyErrorCode`, `JjErrorCode` | const + type | code literals |
-| `HostError` | type | union of the three |
-| `shellError`, `ptyError`, `jjError` | constructors | build an error from a code plus context |
-
-### RemoteSandbox
-
-[src/RemoteSandbox.ts](https://github.com/smithersai/flows/blob/main/packages/host/src/RemoteSandbox.ts)
-
-| Export | Kind | Notes |
-| --- | --- | --- |
-| `ProviderError` | class | sandbox provider failure |
-| `Provider` | interface + service tag | remote sandbox provider |
-| `layerShell` | layer | a `Shell` backed by a provider |
-| `TestScript`, `TestSandboxState`, `TestSandboxProvider` | interfaces | scripted provider fixtures |
-| `TestSandbox` | const | scripted provider |
-
-### SandboxHealth
-
-[src/SandboxHealth.ts](https://github.com/smithersai/flows/blob/main/packages/host/src/SandboxHealth.ts)
-
-| Export | Kind | Notes |
-| --- | --- | --- |
-| `Healthy`, `Unhealthy` | classes | health states |
-| `HealthState` | const + type | union schema |
-| `UnhealthyReason` | const + type | reason literals |
-| `PingProvider`, `ProbeOptions`, `Service` | interfaces | probe inputs |
-| `probe` | function | runs a bounded liveness probe |
-| `SandboxHealth` | service tag | |
-| `make`, `makeNoop` | constructors | |
-| `layer`, `layerNoop` | layers | |
+| `ShellError` | class | tagged error with a `code` |
+| `ShellErrorCode` | const + type | code literals |
+| `HostError` | type | union of `ShellError`, `PtyError`, and `JjError` — the last two are types imported from their own packages, not re-exports |
+| `shellError` | constructor | builds an error from a code plus context |
 
 ## Platform bundles
 
 | Export | Source | Notes |
 | --- | --- | --- |
 | `NodeHost.layer`, `NodeHost.NodeHost` | [node/NodeHost.ts](https://github.com/smithersai/flows/blob/main/packages/host/src/node/NodeHost.ts) | child processes, `node:fs`, PTY, jj |
-| `NodeShell.layer`, `NodePty.layer`, `NodeJj.layer`, `NodeHttpTransport.layer` | `src/node/` | individual Node adapters |
-| `BunHost.layer`, `BunHost.implementationIds` | [bun/BunHost.ts](https://github.com/smithersai/flows/blob/main/packages/host/src/bun/BunHost.ts) | falls back to the Node adapters off Bun |
-| `BunShell.make`, `BunShell.layer`, `BunFileSystem.layer`, `BunJj.layer`, `BunPty.layer`, `BunHttpTransport.layer` | `src/bun/` | individual Bun adapters |
-| `BrowserHost.layer` | [browser/BrowserHost.ts](https://github.com/smithersai/flows/blob/main/packages/host/src/browser/BrowserHost.ts) | takes `{ bash, fs }`; PTY and jj report unsupported |
-| `BrowserHost.layerPtyUnsupported`, `BrowserHost.layerJjUnsupported` | same | typed unavailable layers |
+| `NodeShell.layer`, `NodeHttpTransport.layer` | `src/node/` | individual Node adapters owned by this package |
+| `BunHost.layer`, `BunHost.implementationIds` | [bun/BunHost.ts](https://github.com/smithersai/flows/blob/main/packages/host/src/bun/BunHost.ts) | falls back to the Node adapters off Bun; `implementationIds` are frozen identity tokens, not import specifiers |
+| `BunShell.make`, `BunShell.layer`, `BunFileSystem.layer`, `BunHttpTransport.layer` | `src/bun/` | individual Bun adapters owned by this package |
+| `BrowserHost.layer` | [browser/BrowserHost.ts](https://github.com/smithersai/flows/blob/main/packages/host/src/browser/BrowserHost.ts) | takes `{ bash, fs }`; installs the pty and jj packages' `layerUnsupported` |
 | `BrowserFileSystem.make`, `BrowserFileSystem.layer` | [browser/BrowserFileSystem.ts](https://github.com/smithersai/flows/blob/main/packages/host/src/browser/BrowserFileSystem.ts) | over a ZenFS-like promises API |
 | `JustBashShell.layer` | [browser/JustBashShell.ts](https://github.com/smithersai/flows/blob/main/packages/host/src/browser/JustBashShell.ts) | browser shell over a `JustBashLike` runtime |
 | `TestHost.layer`, `TestHost.TestHost`, `TestHost.makeMemoryFs`, `TestHost.makeStubBash`, `TestHost.layerSeededRandom` | [test/TestHost.ts](https://github.com/smithersai/flows/blob/main/packages/host/src/test/TestHost.ts) | deterministic in-memory host |
@@ -158,4 +107,4 @@ The package root holds contracts and no-op layers only, so it bundles for the br
 
 ## Reading next
 
-`@smthrs/kernel` decorates these same tags with capability checks. `@smthrs/time-travel` uses `Jj` for workspace snapshot and restore.
+`@smthrs/kernel` decorates these same tags with capability checks. The `Pty` and `Jj` contracts are documented in [@smthrs/pty](pty.md) and [@smthrs/jj](jj.md), remote execution in [@smthrs/sandbox](sandbox.md), and `@smthrs/time-travel` uses `Jj` for workspace snapshot and restore.

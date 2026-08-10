@@ -1,6 +1,6 @@
 # @smthrs/flows
 
-The umbrella barrel. It re-exports the twelve engine packages as namespaces, so one dependency gives you the whole surface without collapsing each package's `make` / `makeNoop` / `layerNoop` trio into a shared namespace.
+The umbrella barrel. It re-exports the fifteen engine packages as namespaces, so one dependency gives you the whole surface without collapsing each package's `make` / `makeNoop` / `layerNoop` trio into a shared namespace.
 
 ```ts
 import { Engine, Host, Journal } from "@smthrs/flows"
@@ -32,10 +32,13 @@ This entry point is Node-only, because it re-exports `@smthrs/engine-store`. Bro
 | `Engine` | `@smthrs/engine` | [Engine](/api/engine) |
 | `EngineStore` | `@smthrs/engine-store` | [EngineStore](/api/engine-store) |
 | `Host` | `@smthrs/host` | [Host](/api/host) |
+| `Jj` | `@smthrs/jj` | [Jj](/api/jj) |
 | `Journal` | `@smthrs/journal` | [Journal](/api/journal) |
 | `Kernel` | `@smthrs/kernel` | [Kernel](/api/kernel) |
 | `Keys` | `@smthrs/keys` | [Keys](/api/keys) |
 | `Plugin` | `@smthrs/plugin` | [Plugin](/api/plugin) |
+| `Pty` | `@smthrs/pty` | [Pty](/api/pty) |
+| `Sandbox` | `@smthrs/sandbox` | [Sandbox](/api/sandbox) |
 | `Sync` | `@smthrs/sync` | [Sync](/api/sync) |
 | `TimeTravel` | `@smthrs/time-travel` | [TimeTravel](/api/time-travel) |
 

@@ -4,14 +4,16 @@ This page describes the portable host surface and the permission kernel that med
 
 ## The closed host surface
 
-`@smthrs/host` defines these protected services:
+`@smthrs/host` owns the closed list — `HostServiceTags` and `HostServiceIds` — of these protected services:
 
 - Effect `FileSystem`
 - Effect `Path`
 - `Shell`
-- `Pty`
-- `Jj`
+- `Pty` (contract in [`@smthrs/pty`](../reference/pty.md))
+- `Jj` (contract in [`@smthrs/jj`](../reference/jj.md))
 - one-hop `HttpTransport`
+
+The list is closed, not the package: `Pty` and `Jj` ship as their own packages so a consumer that only needs one does not take the whole host surface. `@smthrs/host` depends on both — a dependency, not a re-export — and the composite bundles (`NodeHost`, `BunHost`, `BrowserHost`, `TestHost`) provide all six tags.
 
 Clock and Random are tracked as host built-ins. This workspace ships Node,
 Bun, browser, and deterministic test layers for the same service tags.
@@ -59,9 +61,11 @@ The kernel is a capability check, not an operating-system sandbox. Hermetic exec
 ## Adapter limitations
 
 - The browser layer wraps an injected ZenFS-like promises API.
-- Browser `Pty` and `Jj` operations are explicitly unsupported.
+- Browser `Pty` and `Jj` operations are explicitly unsupported: `@smthrs/pty/browser/BrowserPty` and `@smthrs/jj/browser/BrowserJj` each export a `layerUnsupported` that fails in the error channel rather than omitting the tag.
 - Hosted-adapter behavior and limitations are documented with those adapters
   in the external plugins repository.
 
-See the [`@smthrs/host` reference](../reference/host.md) and
+See the [`@smthrs/host` reference](../reference/host.md), the
+[`@smthrs/jj`](../reference/jj.md), [`@smthrs/pty`](../reference/pty.md), and
+[`@smthrs/sandbox`](../reference/sandbox.md) references, and the
 [`@smthrs/kernel` reference](../reference/kernel.md).

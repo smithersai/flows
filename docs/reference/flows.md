@@ -18,10 +18,13 @@ import { Engine, Host, Journal } from "@smthrs/flows"
 | `Engine`      | `@smthrs/engine`       | [engine](engine.md)                    |
 | `EngineStore` | `@smthrs/engine-store` | [engine-store](engine-store.md)        |
 | `Host`        | `@smthrs/host`         | [host](host.md)                        |
+| `Jj`          | `@smthrs/jj`           | [jj](jj.md)                            |
 | `Journal`     | `@smthrs/journal`      | [journal](journal.md)                  |
 | `Kernel`      | `@smthrs/kernel`       | [kernel](kernel.md)                    |
 | `Keys`        | `@smthrs/keys`         | [keys](keys.md)                        |
 | `Plugin`      | `@smthrs/plugin`       | [plugin-system](../architecture/plugin-system.md) |
+| `Pty`         | `@smthrs/pty`          | [pty](pty.md)                          |
+| `Sandbox`     | `@smthrs/sandbox`      | [sandbox](sandbox.md)                  |
 | `Sync`        | `@smthrs/sync`         | [sync](sync.md)                        |
 | `TimeTravel`  | `@smthrs/time-travel`  | [time-travel](time-travel.md)          |
 
@@ -33,7 +36,7 @@ with its neighbours: `Host.Shell.layerNoop`, `Journal.Store.layer`.
 
 Depend on the individual `@smthrs/*` packages when you want a narrower
 dependency footprint, or when a runtime target cannot carry every engine
-package. The barrel pulls in all twelve.
+package. The barrel pulls in all fifteen.
 
 **A browser is one of those targets.** The barrel re-exports
 `@smthrs/engine-store`, which is Node-only, so `@smthrs/flows` is a Node

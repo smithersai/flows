@@ -113,7 +113,7 @@ The largest remaining functional gap versus smithers' Tier-1 durability
 snapshots (`snapshot-hook`), restore/revert/rewind, and `smithers worktree`
 lanes. What exists on our side: the `checkpoint` hook (sequential) in the
 catalog, the time-travel package's fork/rewind/replay over stored state, and
-`Jj` in host. What is missing: a `Checkpoint` host capability (layer-gated,
+`Jj` in `@smthrs/jj`. What is missing: a `Checkpoint` host capability (layer-gated,
 `makeNoop` for browser) that actually snapshots agent-session/worktree state at
 step boundaries, and any worktree-lane lifecycle. `StepBoundary` now ships a
 filesystem-backed production layer (read-set measurement, output
@@ -164,7 +164,7 @@ case 16's N-subscriber bounded-memory/consistency assertions ship in
 `packages/sync/test/ServerSoak.test.ts` (identical frames to every concurrent
 subscriber, per-subscriber stream release, bounded retained heap). And
 the sandbox health taxonomy (case 02, issue #49) now ships as a host
-primitive (`SandboxHealth` probe) but has no engine-level fault case yet. Cases
+primitive (`@smthrs/sandbox`'s `SandboxHealth` probe) but has no engine-level fault case yet. Cases
 accrete as §§4–7 and those issues land; the harness itself is no longer a
 gap.
 

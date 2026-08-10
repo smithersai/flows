@@ -55,9 +55,12 @@ That engine keeps its state in the process. To survive a crash, drive the same f
 
 | Package | Role |
 | --- | --- |
-| `@smthrs/flows` | umbrella barrel re-exporting the twelve packages below as namespaces |
+| `@smthrs/flows` | umbrella barrel re-exporting the fifteen packages below as namespaces |
 | `@smthrs/canonical` | RFC 8785 canonical JSON as an Effect Schema |
-| `@smthrs/host` | closed host service contracts plus Node, Bun, browser, and test adapters |
+| `@smthrs/host` | the closed host service list, the Shell and HTTP contracts, and the Node, Bun, browser, and test bundles |
+| `@smthrs/jj` | jujutsu snapshot, restore, diff, and workspace operations as a host service |
+| `@smthrs/pty` | pseudo-terminal spawn with cursor-replay attach as a host service |
+| `@smthrs/sandbox` | remote-sandbox provider adaptation and the sandbox liveness probe |
 | `@smthrs/journal` | logical WAL, run, attempt, and cache stores, migrations, projections |
 | `@smthrs/database` | driver-neutral SQL contract with transactional write retry |
 | `@smthrs/kernel` | capability sets, grants, and permission-decorated host services |

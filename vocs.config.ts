@@ -16,6 +16,9 @@ export default defineConfig({
       items: [
         { text: "@smthrs/flows", link: "/api/flows" },
         { text: "@smthrs/host", link: "/api/host" },
+        { text: "@smthrs/jj", link: "/api/jj" },
+        { text: "@smthrs/pty", link: "/api/pty" },
+        { text: "@smthrs/sandbox", link: "/api/sandbox" },
         { text: "@smthrs/journal", link: "/api/journal" },
         { text: "@smthrs/database", link: "/api/database" },
         { text: "@smthrs/kernel", link: "/api/kernel" },

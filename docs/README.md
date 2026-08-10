@@ -43,6 +43,9 @@ Read [implementation status](architecture/implementation-status.md) before choos
 - [`@smthrs/flows`](reference/flows.md) — barrel package re-exporting everything below
 - [`@smthrs/database`](reference/database.md)
 - [`@smthrs/host`](reference/host.md)
+- [`@smthrs/jj`](reference/jj.md)
+- [`@smthrs/pty`](reference/pty.md)
+- [`@smthrs/sandbox`](reference/sandbox.md)
 - [`@smthrs/journal`](reference/journal.md)
 - [`@smthrs/kernel`](reference/kernel.md)
 - [`@smthrs/canonical`](reference/canonical.md)
