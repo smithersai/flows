@@ -86,6 +86,7 @@
     "@smthrs/journal": "0.1.0",
     "@smthrs/kernel": "0.1.0",
     "@smthrs/keys": "0.1.0",
+    "@smthrs/platform-browser": "0.1.0",
     "@smthrs/plugin": "0.1.0",
     "@smthrs/pty": "0.1.0",
     "@smthrs/sandbox": "0.1.0",

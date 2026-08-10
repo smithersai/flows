@@ -33,6 +33,7 @@ export * as Jj from "@smthrs/jj"
 export * as Journal from "@smthrs/journal"
 export * as Kernel from "@smthrs/kernel"
 export * as Keys from "@smthrs/keys"
+export * as PlatformBrowser from "@smthrs/platform-browser"
 export * as Plugin from "@smthrs/plugin"
 export * as Pty from "@smthrs/pty"
 export * as Sandbox from "@smthrs/sandbox"
@@ -64,6 +65,7 @@ export const namespaces = [
   "Journal",
   "Kernel",
   "Keys",
+  "PlatformBrowser",
   "Plugin",
   "Pty",
   "Sandbox",
