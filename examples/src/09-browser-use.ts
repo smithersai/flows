@@ -3,9 +3,10 @@
  *
  * Every import in this file comes from an entry point that the repository's
  * browser gate (`npm run browser`) bundles with esbuild `platform: "browser"`:
- * the `@smthrs/engine`, `@smthrs/keys`, `@smthrs/journal`, and `@smthrs/host`
- * roots never statically resolve a `node:` built-in, because platform access
- * lives in layers under `/node`, `/bun`, `/browser`, and `/test` subpaths.
+ * the `@smthrs/engine`, `@smthrs/keys`, `@smthrs/journal`, and
+ * `@smthrs/platform-browser` roots never statically resolve a `node:`
+ * built-in, because platform access lives in layers, and the Node and Bun
+ * bundles are their own packages.
  *
  * The barrel `@smthrs/flows` and `@smthrs/engine-store` are Node entry points,
  * so a browser app imports the per-package roots, as this file does. The test
