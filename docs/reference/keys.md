@@ -1,23 +1,12 @@
 # `@smthrs/keys`
 
-This page is the public API reference for canonical serialization, SHA-256 digests, and versioned step-key construction. The package is pure and does not access storage or execute flows.
+This page is the public API reference for SHA-256 digests and versioned step-key construction. The package is pure and does not access storage or execute flows. It delegates serialization to `@smthrs/canonical`.
 
 ## Import
 
 ```ts
-import { Canonical, Digest, KeyMaterial, StepKey } from "@smthrs/keys"
+import { Digest, KeyMaterial, StepKey } from "@smthrs/keys"
 ```
-
-## `Canonical`
-
-| Export | Purpose |
-| --- | --- |
-| `format` | Canonical format identifier, `flows-step-key-v1` |
-| `serialize(value)` | Return `Result<string, CanonicalError>` |
-| `CanonicalError` | Tagged error with stable canonicalization code |
-| `CanonicalErrorCode` | Error-code type |
-
-The serializer sorts object keys, normalizes strings to NFC, preserves array order, normalizes negative zero to zero, rejects non-finite numbers, rejects cycles, and rejects unsupported values.
 
 ## `Digest`
 

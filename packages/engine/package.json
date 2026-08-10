@@ -78,6 +78,7 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
+    "@smthrs/canonical": "0.1.0",
     "@smthrs/keys": "0.1.0",
     "effect": "4.0.0-beta.102"
   },

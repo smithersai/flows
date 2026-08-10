@@ -1,6 +1,6 @@
 # @smthrs/keys
 
-Pure canonical serialization, SHA-256 digests, and step-key construction. No Effect services, no workspace dependencies, no platform access.
+SHA-256 digests and step-key construction. Canonical serialization comes from `@smthrs/canonical`.
 
 ```ts
 import { StepKey } from "@smthrs/keys"
@@ -20,19 +20,6 @@ const key = Result.getOrThrow(StepKey.content({
 | Import | Source | Platform |
 | --- | --- | --- |
 | `@smthrs/keys` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/keys/src/index.ts) | any |
-
-## Canonical
-
-[src/Canonical.ts](https://github.com/smithersai/flows/blob/main/packages/keys/src/Canonical.ts)
-
-| Export | Kind | Notes |
-| --- | --- | --- |
-| `format` | const | the canonical format version tag |
-| `serialize` | function | versioned, type-tagged string; sorts object keys, preserves array order, NFC-normalizes strings |
-| `CanonicalError` | class | carries a `CanonicalErrorCode` |
-| `CanonicalErrorCode` | type | rejection reasons |
-
-`serialize` rejects `undefined`, bigint, symbol, function, non-finite numbers, sparse arrays, class instances, accessor properties, cycles, symbol-keyed properties, and Effect `Redacted` values.
 
 ## Digest
 

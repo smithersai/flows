@@ -9,7 +9,7 @@
  *
  * @since 4.0.0
  */
-import type * as Canonical from "@smthrs/keys/Canonical"
+import type * as Canonical from "@smthrs/canonical/Canonical"
 import * as StepKey from "@smthrs/keys/StepKey"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
@@ -624,7 +624,7 @@ const withEnvironment = (
  * remain allocation-ordered — indistinguishable declarations have no
  * material to order them by.
  */
-const ordinalScope = (activity: Activity.Any): Result.Result<string, Canonical.CanonicalError> =>
+const ordinalScope = (activity: Activity.Any): Result.Result<string, Canonical.CanonicalizeError> =>
   StepIdentity.allocationScope({
     kind: "activity",
     name: activity.name,
@@ -642,14 +642,14 @@ const ordinalScope = (activity: Activity.Any): Result.Result<string, Canonical.C
  */
 const uncanonicalKey = (
   activityName: string,
-  error: Canonical.CanonicalError
+  error: Canonical.CanonicalizeError
 ): Flow.Complete<never, never> =>
   new Flow.Complete({
     exit: Exit.die(
       new Activity.UncanonicalIdempotencyKey({
         activityName,
-        reason: error.code,
-        path: error.path,
+        reason: "canonicalize_failed",
+        path: "$",
         message: error.message
       })
     )
@@ -673,7 +673,7 @@ const activityKey = (
   ordinal: number,
   environment: Activity.ContentEnvironment | undefined,
   scope: string
-): Result.Result<string, Canonical.CanonicalError> => {
+): Result.Result<string, Canonical.CanonicalizeError> => {
   if (activity.tier === "sealed" && activity.idempotencyKey !== undefined) {
     // Skyframe's SkyKey is (functionName, argument): a string idempotencyKey
     // is namespaced by the activity name so two distinct activities sharing an
@@ -711,7 +711,7 @@ const activityKey = (
     const hermetic = boundaryHermetic(activity.metadata)
     const scoped = withEnvironment(identity, environment, executionId)
     // The caller-owned `ContentIdentity` can carry material canonicalization
-    // rejects; the typed `CanonicalError` propagates to the dispatch site
+    // rejects; the typed `CanonicalizeError` propagates to the dispatch site
     // (issue #151) instead of being discarded through `Result.getOrThrow`.
     return StepKey.content(
       hermetic === undefined ? scoped : { ...scoped, hermetic }

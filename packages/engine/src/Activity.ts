@@ -114,9 +114,8 @@ export class ConcurrentKeylessDispatch extends Schema.TaggedErrorClass<Concurren
 
 /**
  * A caller-declared object-form `idempotencyKey` carried material canonical
- * serialization rejects — a `Date`, `undefined`, a class instance, a
- * `Redacted` value (issue #151). The error names the offending path so the
- * declaration can be fixed, and it is non-retryable: the same declaration
+ * serialization rejects. The declaration can be fixed, and the error is
+ * non-retryable: the same declaration
  * derives the same rejection on every attempt, so the body never runs.
  *
  * @category errors
@@ -129,7 +128,7 @@ export class UncanonicalIdempotencyKey extends Schema.TaggedErrorClass<Uncanonic
       Schema.withConstructorDefault(Effect.succeed("uncanonical_idempotency_key"))
     ),
     activityName: Schema.String,
-    /** The `CanonicalError` code: `unsupported_type`, `class_instance`, … */
+    /** Stable reason identifying an RFC 8785 canonicalization failure. */
     reason: Schema.String,
     /** The path of the offending value inside the declared identity. */
     path: Schema.String,
@@ -576,7 +575,7 @@ export const idempotencyKey: (
     // String (or absent) idempotency material keeps the derivation total
     // (issue #151): the `allocationScope` overload pins the failure type to
     // `never`, so `Result.merge` extracts the scope with no error to
-    // discard, and `ordinalKey` preserves the typed `CanonicalError` for
+    // discard, and `ordinalKey` preserves the typed `CanonicalizeError` for
     // the impossible engine-generated-material failure instead of
     // discarding it through `Result.getOrThrow`.
     const scope = Result.merge(StepIdentity.allocationScope({
