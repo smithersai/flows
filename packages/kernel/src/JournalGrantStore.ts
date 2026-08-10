@@ -210,9 +210,9 @@ const replayRunRules = (
  * Makes a grant store that replays remembered policy from, and writes decisions
  * to, the supplied journal.
  *
- * `emit` admission and `flush` both complete before `GrantStore` activates a
- * remembered or run-scoped rule (or resolves a denial). Any journal failure is
- * mapped to `journal_failed`, so permission decisions fail closed.
+ * `emitDurable` commits before `GrantStore` activates a remembered or
+ * run-scoped rule (or resolves a denial). Any journal failure is mapped to
+ * `journal_failed`, so permission decisions fail closed.
  *
  * @category constructors
  * @since 0.1.0
@@ -251,7 +251,7 @@ export const make = (options: JournalGrantStoreOptions) =>
     const persist = (event: GrantEvent): Effect.Effect<void, GrantStoreError> => {
       const payload = encodeGrantEvent(event)
       return Effect.gen(function*() {
-        const receipt = yield* journal.emit(
+        yield* journal.emitDurable(
           new JournalEvent.Input({
             runId: (
               event.eventType === "flows.kernel.grant.remembered.v1"
@@ -264,14 +264,8 @@ export const make = (options: JournalGrantStoreOptions) =>
             payload
           })
         )
-        if (receipt._tag === "Dropped") {
-          return yield* Effect.fail(journalFailed("journal dropped an authoritative grant event", receipt))
-        }
-        yield* journal.flush
       }).pipe(
-        Effect.mapError((cause) =>
-          cause instanceof GrantStoreError ? cause : journalFailed("could not persist grant event", cause)
-        ),
+        Effect.mapError((cause) => journalFailed("could not persist grant event", cause)),
         Effect.asVoid
       )
     }

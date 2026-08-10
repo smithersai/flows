@@ -90,7 +90,7 @@ export const make = (action: Action, resource: string): Capability => new Capabi
 export const format = (capability: Capability): string => `${capability.action}:${capability.resource}`
 
 /**
- * Formats a capability pattern for durable key material.
+ * Formats a capability pattern for durable key input.
  *
  * @since 0.1.0
  * @category formatting

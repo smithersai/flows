@@ -65,7 +65,7 @@ const emit = (
 ) =>
   Effect.gen(function*() {
     const journal = yield* Journal
-    yield* journal.emit(
+    yield* journal.emitDurable(
       new Input({
         runId: runId(target),
         sourceId: sourceId(options.sourceId),
@@ -121,7 +121,7 @@ describe("JournalGrantStore replay rejection", () => {
     run(
       Effect.gen(function*() {
         const journal = yield* Journal
-        yield* journal.emit(
+        yield* journal.emitDurable(
           new Input({
             runId: runId(options.policyRunId),
             sourceId: sourceId(options.sourceId),
@@ -284,7 +284,7 @@ describe("JournalGrantStore replay filtering", () => {
     run(
       Effect.gen(function*() {
         const journal = yield* Journal
-        yield* journal.emit(
+        yield* journal.emitDurable(
           new Input({
             runId: runId(options.policyRunId),
             sourceId: sourceId(options.sourceId),
@@ -302,7 +302,7 @@ describe("JournalGrantStore replay filtering", () => {
     run(
       Effect.gen(function*() {
         const journal = yield* Journal
-        yield* journal.emit(
+        yield* journal.emitDurable(
           new Input({
             runId: runId(options.runId),
             sourceId: sourceId("other-source"),
@@ -575,60 +575,6 @@ describe("JournalGrantStore paging and journal failures", () => {
       const failure = yield* Effect.flip(JournalGrantStore.make(options))
       expect(failure.code).toBe("journal_failed")
       expect(failure.message).toBe("could not replay run grants")
-    }).pipe(
-      Effect.provide(journal),
-      Effect.provide(Workspace.layer(workspaceRoot)),
-      Effect.scoped
-    )
-  })
-
-  itEffect("refuses to treat a dropped admission as a persisted grant", () => {
-    const journal = JournalModule.layerNoop({
-      entries: () => Effect.succeed({ entries: [], hasMore: false }),
-      emit: () =>
-        Effect.succeed({
-          _tag: "Dropped" as const,
-          seq: 1 as Seq,
-          sourceSeq: 1 as JournalEvent.SourceSeq,
-          policy: "drop-newest" as const
-        }),
-      flush: Effect.void
-    })
-    return Effect.gen(function*() {
-      const store = yield* JournalGrantStore.make(options)
-      const failure = yield* Effect.flip(
-        store.grantEnvelope({ planDigest: options.planDigest, patterns: [insidePattern] })
-      )
-      expect(failure.code).toBe("journal_failed")
-      expect(failure.message).toBe("journal dropped an authoritative grant event")
-      // The dropped envelope never became authority.
-      expect(yield* Effect.flip(store.check(insideWrite))).toBeInstanceOf(PermissionRequired)
-    }).pipe(
-      Effect.provide(journal),
-      Effect.provide(Workspace.layer(workspaceRoot)),
-      Effect.scoped
-    )
-  })
-
-  itEffect("fails closed when the journal accepts but cannot flush a grant", () => {
-    const journal = JournalModule.layerNoop({
-      entries: () => Effect.succeed({ entries: [], hasMore: false }),
-      emit: () =>
-        Effect.succeed({
-          _tag: "Accepted" as const,
-          seq: 1 as Seq,
-          sourceSeq: 1 as JournalEvent.SourceSeq
-        }),
-      flush: Effect.fail(new JournalModule.JournalError({ code: "journal_closed", message: "gone" }))
-    })
-    return Effect.gen(function*() {
-      const store = yield* JournalGrantStore.make(options)
-      const failure = yield* Effect.flip(
-        store.grantEnvelope({ planDigest: options.planDigest, patterns: [insidePattern] })
-      )
-      expect(failure.code).toBe("journal_failed")
-      expect(failure.message).toBe("could not persist grant event")
-      expect(yield* Effect.flip(store.check(insideWrite))).toBeInstanceOf(PermissionRequired)
     }).pipe(
       Effect.provide(journal),
       Effect.provide(Workspace.layer(workspaceRoot)),

@@ -68,7 +68,7 @@ describe("Capability.tierOf containment boundaries", () => {
 })
 
 describe("Capability.formatPattern", () => {
-  it("renders a pattern as durable `action:resource` key material", () => {
+  it("renders a pattern as durable `action:resource` key input", () => {
     expect(
       Capability.formatPattern(new Capability.CapabilityPattern({ action: "fs:*", resource: "/workspace/**" }))
     ).toBe("fs:*:/workspace/**")
