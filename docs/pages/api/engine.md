@@ -1,0 +1,133 @@
+# @smthrs/engine
+
+The flow runtime: typed flow and activity definitions, durable primitives, step identity, and retry policy. The package root bundles for the browser; durability comes from whichever `FlowEngine` you provide.
+
+```ts
+import { Activity, Flow, FlowEngine } from "@smthrs/engine"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as Schema from "effect/Schema"
+
+const Build = Flow.make("example/Build", {
+  payload: { target: Schema.String },
+  success: Schema.String
+})
+
+const Compile = Activity.make({
+  name: "example/Compile",
+  success: Schema.String,
+  tier: "sealed",
+  idempotencyKey: { body: "compile/v1", inputs: {}, layers: [], capabilities: {} },
+  execute: Effect.succeed("out.js")
+})
+
+const layer = Build.toLayer(() => Compile).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+```
+
+## Entry point
+
+| Import | Source | Platform |
+| --- | --- | --- |
+| `@smthrs/engine` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/engine/src/index.ts) | any |
+
+## Flow
+
+[src/Flow.ts](https://github.com/smithersai/flows/blob/main/packages/engine/src/Flow.ts)
+
+| Export | Kind | Notes |
+| --- | --- | --- |
+| `make` | constructor | `Flow.make(tag, { payload, success, error?, idempotencyKey? })` |
+| `Flow` | interface | carries `execute`, `executionId`, `toLayer`, `poll`, `interrupt`, `resume` |
+| `Execution` | interface | one invocation identified by `executionId` |
+| `Any`, `AnyWithProps`, `AnyStructSchema` | interfaces | variance helpers |
+| `PayloadSchema`, `RequirementsClient`, `RequirementsHandler` | types | derived schema and requirement types |
+| `Complete`, `Suspended` | classes | the two result shapes |
+| `CompleteSchema`, `CompleteEncoded` | interfaces | encoded completion |
+| `Result`, `ResultEncoded` | type + schema | the result union and its codec |
+| `isResult` | guard | |
+| `intoResult` | combinator | turns a suspension interrupt into `Suspended` |
+| `wrapActivityResult` | combinator | encodes an activity exit for storage |
+| `suspend` | effect | suspends the current flow |
+| `scope`, `provideScope`, `addFinalizer` | scope helpers | flow-scoped finalizers |
+| `withCompensation` | combinator | attaches a rollback to a step |
+| `CaptureDefects`, `SuspendOnFailure` | references | engine policy switches |
+| `ExecutionIdRequired` | class | fails when neither an id nor an idempotency key is supplied |
+
+## Activity
+
+[src/Activity.ts](https://github.com/smithersai/flows/blob/main/packages/engine/src/Activity.ts)
+
+| Export | Kind | Notes |
+| --- | --- | --- |
+| `make` | constructor | `name`, `success`, `error?`, `tier`, `idempotencyKey?`, `execute`, `metadata?`, `interruptRetryPolicy?` |
+| `Activity`, `Any`, `AnyWithProps` | interfaces | |
+| `Tier` | type | `sealed`, `compensable`, `irreversible` |
+| `IdempotencyKey` | type | a string, or a `StepKey.ContentIdentity` |
+| `idempotencyKey` | function | resolves the declared key for a payload |
+| `retry` | combinator | increments `CurrentAttempt` and delegates scheduling to Effect |
+| `raceAll` | combinator | races activities, persisting one winner |
+| `CurrentAttempt` | reference | the one-based durable attempt |
+| `CurrentOrdinal`, `OrdinalSlot` | reference + interface | the per-scope ordinal used for ordinal keys |
+| `ContentEnvironment`, `CurrentContentEnvironment`, `layerContentEnvironment` | interface + reference + layer | declared layers and capability identity folded into content keys |
+| `InfraInterrupt` | class | infrastructure interruption, retried only under `interruptRetryPolicy` |
+| `IrreversibleRetryRequiresIdempotencyKey` | class | irreversible retry without a key |
+| `ConcurrentKeylessDispatch` | class | two live dispatches of one keyless activity |
+| `UncanonicalIdempotencyKey` | class | a key that canonical serialization rejects |
+
+## FlowEngine
+
+[src/FlowEngine.ts](https://github.com/smithersai/flows/blob/main/packages/engine/src/FlowEngine.ts)
+
+| Export | Kind | Notes |
+| --- | --- | --- |
+| `FlowEngine` | service class | registration, execution, poll, interrupt, resume |
+| `Encoded` | interface | the storage-facing seam, including `activityExecute` |
+| `FlowInstance` | class | one registered flow |
+| `ActivityExecuteOptions` | interface | activity, attempt, step key, tier |
+| `SnapshotBoundary`, `SnapshotBoundaryOptions` | class + interface | compensable snapshot hooks |
+| `WaitingAnnotation`, `annotateWaiting` | interface + function | declares a park reason such as approval or quota |
+| `FlowCycleDetected` | class | typed failure, `code: "flow_cycle_detected"` |
+| `makeUnsafe` | constructor | builds an engine from an `Encoded` implementation |
+| `layerMemory` | layer | in-process engine with no durability |
+
+## Durable primitives
+
+| Export | Source | Notes |
+| --- | --- | --- |
+| `DurableDeferred.make`, `into`, `raceAll`, `done`, `succeed`, `fail`, `failCause` | [src/DurableDeferred.ts](https://github.com/smithersai/flows/blob/main/packages/engine/src/DurableDeferred.ts) | await suspends the flow until a first exit is stored |
+| `DurableDeferred.Token`, `TokenParsed`, `TokenTypeId`, `token`, `tokenFromExecutionId`, `tokenFromPayload` | same | addressable completion tokens |
+| `DurableDeferred.DurableDeferred`, `Any`, `AnyWithProps` | same | |
+| `DurableClock.make`, `sleep`, `DurableClock` | [src/DurableClock.ts](https://github.com/smithersai/flows/blob/main/packages/engine/src/DurableClock.ts) | absolute deadlines that re-arm on restart |
+| `DurableQueue.make`, `process`, `worker`, `makeWorker`, `DurableQueue`, `TypeId` | [src/DurableQueue.ts](https://github.com/smithersai/flows/blob/main/packages/engine/src/DurableQueue.ts) | persisted queue plus a concurrency-limited worker layer |
+
+## RetryPolicy
+
+[src/RetryPolicy.ts](https://github.com/smithersai/flows/blob/main/packages/engine/src/RetryPolicy.ts)
+
+| Export | Kind | Notes |
+| --- | --- | --- |
+| `RetryPolicy` | schema + type | data-shaped policy with `expirationMs` |
+| `make`, `defaultRetryPolicy` | constructors | |
+| `nextDelay`, `nextDelayEffect` | functions | pure and effectful backoff |
+| `decide`, `decideEffect` | functions | the decision point, driven by the persisted attempt count |
+| `RetryDecision`, `RetryAfter`, `GiveUp` | type + interfaces | |
+| `retryAfter`, `giveUp` | constructors | |
+| `errorTag`, `isNonRetryable`, `defaultNonRetryable` | helpers | error classification |
+| `RetryPolicyExpired`, `RetryAttemptsExhausted` | classes | terminal retry failures |
+
+## StepIdentity
+
+[src/StepIdentity.ts](https://github.com/smithersai/flows/blob/main/packages/engine/src/StepIdentity.ts)
+
+| Export | Kind | Notes |
+| --- | --- | --- |
+| `AllocationIdentity` | interface | activity name refined by a declared string key |
+| `allocationScope` | function | the scope an ordinal is allocated from |
+| `ordinalKey` | function | builds the run-local ordinal step key |
+
+## Flow proxies
+
+| Export | Source | Notes |
+| --- | --- | --- |
+| `FlowProxy.toRpcGroup`, `toHttpApiGroup`, `ConvertRpcs`, `ConvertHttpApi` | [src/FlowProxy.ts](https://github.com/smithersai/flows/blob/main/packages/engine/src/FlowProxy.ts) | derives a client surface from flow definitions |
+| `FlowProxyServer.layerRpcHandlers`, `layerHttpApi`, `RpcHandlers` | [src/FlowProxyServer.ts](https://github.com/smithersai/flows/blob/main/packages/engine/src/FlowProxyServer.ts) | serves those definitions |
