@@ -11,16 +11,17 @@
  * generation with fresh provenance, while the #124 convergence re-record
  * (identical content) still collapses into a `Duplicate`.
  */
+import type { FileInput } from "@smthrs/engine/FileInput"
 import { CacheStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
 import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Jj } from "@smthrs/kernel"
-import { Digest } from "@smthrs/keys"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "generation-host", pid: 29, nonce: "generation-process" }
 
@@ -62,7 +63,7 @@ const activate = (runId: string) =>
  * evict), the re-execution measures content matching the declaration again,
  * so its fresh completion is recorded under the same key.
  */
-const flappingBoundary = (measurements: Array<ReadonlyArray<StepBoundary.ReadSetEntry>>) =>
+const flappingBoundary = (measurements: Array<ReadonlyArray<FileInput>>) =>
   Layer.succeed(
     StepBoundary.StepBoundary,
     StepBoundary.make({
@@ -85,8 +86,8 @@ describe("post-eviction re-records take fresh provenance (issue #129)", () => {
   it("stamps a re-recorded generation with its own event seq so the evicted fence cannot delete it", async () => {
     const runId = "generation-run"
     const key = "generation/evict-re-record"
-    const keyDigest = Digest.digest(key)
-    const outcome = await Effect.runPromise(
+    const keyDigest = sha256(key)
+    const outcome = await runPromise(
       Effect.gen(function*() {
         const cache = yield* CacheStore.CacheStore
         yield* activate(runId)
@@ -155,8 +156,8 @@ describe("identical-content re-records collapse into the original provenance", (
     // fresh `cacheProvenance` row forever.
     const runId = "generation-convergence"
     const key = "generation/convergence-duplicate"
-    const keyDigest = Digest.digest(key)
-    const outcome = await Effect.runPromise(
+    const keyDigest = sha256(key)
+    const outcome = await runPromise(
       Effect.gen(function*() {
         const cache = yield* CacheStore.CacheStore
         const journal = yield* Journal.Journal
@@ -223,8 +224,8 @@ describe("identical-content re-records collapse into the original provenance", (
     // into different, unreviewed behaviour silently.
     const runId = "generation-residual"
     const key = "generation/evict-identical-re-record"
-    const keyDigest = Digest.digest(key)
-    const outcome = await Effect.runPromise(
+    const keyDigest = sha256(key)
+    const outcome = await runPromise(
       Effect.gen(function*() {
         const cache = yield* CacheStore.CacheStore
         yield* activate(runId)

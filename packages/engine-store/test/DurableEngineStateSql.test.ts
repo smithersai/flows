@@ -8,6 +8,7 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
+import { runPromise } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = {
   hostId: "durable-state",
@@ -45,7 +46,7 @@ const insertOwnedRun = (runId: string) =>
 
 describe("SQL DurableEngineState", () => {
   it("preserves the first deferred completion across competing services", async () => {
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.gen(function*() {
         yield* insertOwnedRun("deferred-race")
         const first = yield* DurableEngineState.make
@@ -92,7 +93,7 @@ describe("SQL DurableEngineState", () => {
   })
 
   it("fences clock creation and completes a deadline with one compare-and-set winner", async () => {
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.gen(function*() {
         yield* insertOwnedRun("clock-race")
         const first = yield* DurableEngineState.make
@@ -155,7 +156,7 @@ describe("SQL DurableEngineState", () => {
           )
         `
       })
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.gen(function*() {
         yield* insertOwnedRun("survivors-run")
         const state = yield* DurableEngineState.make
@@ -178,7 +179,7 @@ describe("SQL DurableEngineState", () => {
   })
 
   it("creates the partial index the stale-running sweep's per-tick query needs (issue #79)", async () => {
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.gen(function*() {
         yield* DurableEngineState.make
         const { sql } = yield* Database.Database

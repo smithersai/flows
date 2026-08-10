@@ -6,13 +6,14 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import { describeContract, type Harness, type HarnessContext } from "./contract/DurableEngineStateContract.ts"
+import { runPromise } from "./Sha256.ts"
 
 const migratedDatabase = Layer.provideMerge(Migrations.layer, TestDatabase.layer)
 
 const sqlHarness: Harness = {
   label: "sql",
   run: (body) =>
-    Effect.runPromise(
+    runPromise(
       Effect.gen(function*() {
         const database = yield* Database.Database
         const state = yield* DurableEngineState.make
@@ -96,7 +97,7 @@ const memoryHarness: Harness = {
           runs.set(runId, { status, owner: null })
         })
     }
-    return Effect.runPromise(body(context) as Effect.Effect<never>)
+    return runPromise(body(context) as Effect.Effect<never>)
   }
 }
 

@@ -2,9 +2,9 @@ import { AttemptStore, CacheStore, Journal, type JournalEvent, Ownership, RunSto
 import * as Notifying from "@smthrs/journal/test/Notifying"
 import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Jj } from "@smthrs/kernel"
-import { Digest } from "@smthrs/keys"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
+import type * as Crypto from "effect/Crypto"
 import * as Deferred from "effect/Deferred"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
@@ -18,6 +18,7 @@ import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise, sha256 } from "./Sha256.ts"
 
 const ownerA: Ownership.OwnerId = { hostId: "fault-host-a", pid: 1, nonce: "fault-owner-a" }
 const ownerB: Ownership.OwnerId = { hostId: "fault-host-b", pid: 2, nonce: "fault-owner-b" }
@@ -53,10 +54,15 @@ const run = <A, E>(
     | StepBoundary.Service
     | Jj.Jj
     | Scope.Scope
+    | Crypto.Crypto
   >
 ) =>
-  Effect.runPromise(
-    effect.pipe(Effect.provide(layer), Effect.provide(TestClock.layer()), Effect.scoped) as Effect.Effect<A, E>
+  runPromise(
+    effect.pipe(Effect.provide(layer), Effect.provide(TestClock.layer()), Effect.scoped) as Effect.Effect<
+      A,
+      E,
+      Crypto.Crypto
+    >
   )
 
 /** Activates a fresh run under `owner`, mirroring the RunDriver claim path. */
@@ -102,6 +108,7 @@ interface Executor {
     | RunStore.RunStore
     | StepBoundary.Service
     | Jj.Jj
+    | Crypto.Crypto
   >
 }
 
@@ -192,10 +199,10 @@ describe("FaultMatrix", () => {
         const recovered = yield* second.execute(1)
         const row = yield* attempts.get({
           runId: "crash-after-finish",
-          stepKeyDigest: Digest.digest(key),
+          stepKeyDigest: sha256(key),
           attempt: 1
         })
-        const cached = yield* cache.get(Digest.digest(key))
+        const cached = yield* cache.get(sha256(key))
         const journal = yield* Journal.Journal
         yield* journal.flush
         const entries = yield* journal.entries({ runId: "crash-after-finish" as never, limit: 50 })
@@ -253,7 +260,7 @@ describe("FaultMatrix", () => {
         yield* takeover(runs, "crash-before-finish", ownerARestarted)
         const second = makeExecutor({ runId: "crash-before-finish", owner: ownerARestarted, key, result: "v2" })
         const readmitted = yield* second.execute(1)
-        const digest = Digest.digest(key)
+        const digest = sha256(key)
         const rowOne = yield* attempts.get({ runId: "crash-before-finish", stepKeyDigest: digest, attempt: 1 })
         return { crashed, readmitted, rowOne, dispatches: first.dispatches() + second.dispatches() }
       }))
@@ -282,7 +289,7 @@ describe("FaultMatrix", () => {
         const second = makeExecutor({ runId: "crash-after-emit", owner: ownerA, key, result: "v3-again" })
         const recovered = yield* second.execute(1)
         const cache = yield* CacheStore.CacheStore
-        const cached = yield* cache.get(Digest.digest(key))
+        const cached = yield* cache.get(sha256(key))
         yield* journal.flush
         const entries = yield* journal.entries({ runId: "crash-after-emit" as never, limit: 50 })
         return {
@@ -334,7 +341,7 @@ describe("FaultMatrix", () => {
 
         const winner = makeExecutor({ runId: "fence-heartbeat", owner: ownerB, key, result: "right" })
         const value = yield* winner.execute(1)
-        const row = yield* attempts.get({ runId: "fence-heartbeat", stepKeyDigest: Digest.digest(key), attempt: 1 })
+        const row = yield* attempts.get({ runId: "fence-heartbeat", stepKeyDigest: sha256(key), attempt: 1 })
         return { exit, value, row, fencedDispatches: fencedOut.dispatches(), winnerDispatches: winner.dispatches() }
       }))
 
@@ -371,7 +378,7 @@ describe("FaultMatrix", () => {
             Effect.provideService(AttemptStore.AttemptStore, Notifying.wrap(attempts, steal))
           )
         )
-        const row = yield* attempts.get({ runId: "fence-put", stepKeyDigest: Digest.digest(key), attempt: 1 })
+        const row = yield* attempts.get({ runId: "fence-put", stepKeyDigest: sha256(key), attempt: 1 })
         yield* journal.flush
         const entries = yield* journal.entries({ runId: "fence-put" as never, limit: 20 })
 
@@ -413,7 +420,7 @@ describe("FaultMatrix", () => {
 
         const winner = makeExecutor({ runId: "fence-finish", owner: ownerB, key, result: "right" })
         const value = yield* winner.execute(2)
-        const digest = Digest.digest(key)
+        const digest = sha256(key)
         const rowOne = yield* attempts.get({ runId: "fence-finish", stepKeyDigest: digest, attempt: 1 })
         const rowTwo = yield* attempts.get({ runId: "fence-finish", stepKeyDigest: digest, attempt: 2 })
         const cache = yield* CacheStore.CacheStore
@@ -462,7 +469,7 @@ describe("FaultMatrix", () => {
         yield* gate.open
         const exit = yield* Fiber.await(fiber)
 
-        const digest = Digest.digest(key)
+        const digest = sha256(key)
         const rowOne = yield* attempts.get({ runId: "claim-takeover", stepKeyDigest: digest, attempt: 1 })
         const rowTwo = yield* attempts.get({ runId: "claim-takeover", stepKeyDigest: digest, attempt: 2 })
         const cached = yield* cache.get(digest)
@@ -499,8 +506,8 @@ describe("FaultMatrix", () => {
 
       expect(wrapped.label).toBe("constant")
       expect(wrapped.raw(3)).toBe(6)
-      const added = await Effect.runPromise(wrapped.add(1))
-      const pinged = await Effect.runPromise(wrapped.ping)
+      const added = await runPromise(wrapped.add(1))
+      const pinged = await runPromise(wrapped.ping)
 
       expect(added).toBe(2)
       expect(pinged).toBe("pong")

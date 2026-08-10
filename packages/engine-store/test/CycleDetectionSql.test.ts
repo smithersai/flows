@@ -10,6 +10,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
+import { runPromise } from "./Sha256.ts"
 
 const migratedDatabase = Layer.provideMerge(Migrations.layer, TestDatabase.layer)
 
@@ -27,7 +28,7 @@ const run = <A>(
     services: readonly [DurableEngineState.Service, DurableEngineState.Service]
   ) => Effect.Effect<A, any, never>
 ): Promise<A> =>
-  Effect.runPromise(
+  runPromise(
     Effect.gen(function*() {
       const first = yield* DurableEngineState.make
       const second = yield* DurableEngineState.make
@@ -172,7 +173,7 @@ describe("cross-connection cycle rejection (issue #74)", () => {
       ) as Effect.Effect<DurableEngineState.Service>)
     })
 
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.scoped(Effect.gen(function*() {
         const first = yield* owner
         const second = yield* owner

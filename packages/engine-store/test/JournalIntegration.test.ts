@@ -5,6 +5,7 @@ import { Effect, Layer } from "effect"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "journal", pid: 1, nonce: "owner" }
 
@@ -48,7 +49,7 @@ describe("engine-store journal integration", () => {
       yield* journal.flush
       return yield* journal.entries({ runId: "journal-run" as never, limit: 20 })
     }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), StepBoundary.layerTest(), jj)), Effect.scoped)
-    const entries = await Effect.runPromise(program)
+    const entries = await runPromise(program)
     expect(entries.entries.map((entry) => entry.eventType)).toEqual([
       "flows.engine.attempt-started",
       "flows.engine.attempt-finished",
@@ -111,7 +112,7 @@ describe("engine-store journal integration", () => {
       })
       return { claims, dispatches, second }
     }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), StepBoundary.layerTest(), jj)), Effect.scoped)
-    const result = await Effect.runPromise(program)
+    const result = await runPromise(program)
     expect(result.claims.filter((claim) => claim._tag === "Claimed")).toHaveLength(1)
     expect(result).toMatchObject({ dispatches: 1, second: 1 })
   })

@@ -9,14 +9,15 @@
  * writer material (pid + random token), so concurrent writers — in-process
  * or cross-process — never share a temp path.
  */
+import type { FileBoundary } from "@smthrs/engine/FileBoundary"
 import { FileSystem } from "@smthrs/kernel"
-import { Digest } from "@smthrs/keys"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise, sha256 } from "./Sha256.ts"
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -69,14 +70,14 @@ const sharedFs = (options: { readonly parkTempWritesUntil: number }) => {
   return { files, tempWrites, fs }
 }
 
-const descriptor: StepBoundary.Descriptor = {
+const descriptor: FileBoundary = {
   readSet: [],
   writeSet: ["artifact.bin"],
   boundaryMode: "hard"
 }
 
 const artifact = "shared-oversized-artifact-content"
-const digest = Digest.digest(encoder.encode(artifact))
+const digest = sha256(encoder.encode(artifact))
 const blobPath = `.flows/objects/${digest}`
 
 const spill = (boundary: StepBoundary.Service, host: ReturnType<typeof sharedFs>) =>
@@ -94,7 +95,7 @@ describe("temp blob paths are unique across boundary instances (issue #131)", ()
     // counters both start at 0.
     const first = StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 4 })
     const second = StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 4 })
-    const results = await Effect.runPromise(
+    const results = await runPromise(
       Effect.all([spill(first, host), spill(second, host)], { concurrency: 2 }).pipe(Effect.exit)
     )
     // Both captures survive: neither writer's temp file was clobbered and
@@ -181,7 +182,7 @@ describe("orphaned temp blobs are reclaimed (issue #138)", () => {
   it("removes the temp file when the publishing rename fails", async () => {
     const host = gcFs({ failRenameTo: blobPath })
     const boundary = StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 4 })
-    const exit = await Effect.runPromise(spill(boundary, host as never).pipe(Effect.exit))
+    const exit = await runPromise(spill(boundary, host as never).pipe(Effect.exit))
     expect(Exit.isFailure(exit)).toBe(true)
     // The failed publication does not strand its scratch file.
     expect([...host.files.keys()].filter((path) => path.includes(".tmp-"))).toEqual([])
@@ -200,7 +201,7 @@ describe("orphaned temp blobs are reclaimed (issue #138)", () => {
       }
     })
     const boundary = StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 4 })
-    await Effect.runPromise(spill(boundary, host as never))
+    await runPromise(spill(boundary, host as never))
     // The crash orphan is reclaimed; a live writer's fresh temp and the
     // canonical content-addressed blobs survive.
     expect(host.files.has(stale)).toBe(false)
@@ -209,7 +210,7 @@ describe("orphaned temp blobs are reclaimed (issue #138)", () => {
     expect(decoder.decode(host.files.get(blobPath))).toBe(artifact)
     // The sweep runs once per store, not once per capture.
     host.files.set("artifact.bin", encoder.encode("second-artifact-body"))
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function*() {
         const prepared = yield* boundary.prepare(descriptor)
         return yield* boundary.settle(prepared)
@@ -227,12 +228,12 @@ describe("orphaned temp blobs are reclaimed (issue #138)", () => {
     // existing blob and rewrites on mismatch.
     const host = gcFs({ seed: { [blobPath]: "torn-partial-bytes" } })
     const boundary = StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 4 })
-    const settled = await Effect.runPromise(spill(boundary, host as never))
+    const settled = await runPromise(spill(boundary, host as never))
     // The canonical address now holds the true content...
     expect(decoder.decode(host.files.get(blobPath))).toBe(artifact)
     // ...so the recorded reference is materializable again.
     const output = (settled as { declaredOutputs: { outputs: Array<never> } }).declaredOutputs.outputs[0]
-    await Effect.runPromise(boundary.replayOutputs({ declaredOutputs: { outputs: [output] } } as never))
+    await runPromise(boundary.replayOutputs({ declaredOutputs: { outputs: [output] } } as never))
     expect(decoder.decode(host.files.get("artifact.bin"))).toBe(artifact)
     expect([...host.files.keys()].filter((path) => path.includes(".tmp-"))).toEqual([])
     // The heal went through the atomic temp+rename writer.
@@ -245,7 +246,7 @@ describe("orphaned temp blobs are reclaimed (issue #138)", () => {
     // rather than trusts.
     const host = gcFs({ seed: { [blobPath]: artifact }, failReadOf: blobPath })
     const boundary = StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 4 })
-    await Effect.runPromise(spill(boundary, host as never))
+    await runPromise(spill(boundary, host as never))
     expect(decoder.decode(host.files.get(blobPath))).toBe(artifact)
     // The unreadable blob was actually rewritten, not silently trusted.
     expect(host.writes.filter((path) => path.includes(".tmp-"))).toHaveLength(1)
@@ -256,7 +257,7 @@ describe("orphaned temp blobs are reclaimed (issue #138)", () => {
     // bytes match its digest is never rewritten.
     const host = gcFs({ seed: { [blobPath]: artifact } })
     const boundary = StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 4 })
-    await Effect.runPromise(spill(boundary, host as never))
+    await runPromise(spill(boundary, host as never))
     expect(decoder.decode(host.files.get(blobPath))).toBe(artifact)
     // The skip itself is observed (issue #143): final state alone cannot
     // distinguish a skip from an unconditional rewrite, because a
@@ -277,8 +278,8 @@ describe("orphaned temp blobs are reclaimed (issue #138)", () => {
     // digest check still refuses.
     const host = gcFs({ seed: { [blobPath]: artifact } })
     const boundary = StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 4 })
-    await Effect.runPromise(spill(boundary, host as never))
-    await Effect.runPromise(spill(boundary, host as never))
+    await runPromise(spill(boundary, host as never))
+    await runPromise(spill(boundary, host as never))
     // The pre-existing blob was digest-verified exactly once; the second
     // capture trusted the verified-digest set and skipped the re-read.
     expect(host.reads.filter((path) => path === blobPath)).toHaveLength(1)
@@ -291,8 +292,8 @@ describe("orphaned temp blobs are reclaimed (issue #138)", () => {
     // verification read at all on a later capture of the same digest.
     const host = gcFs({})
     const boundary = StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 4 })
-    await Effect.runPromise(spill(boundary, host as never))
-    await Effect.runPromise(spill(boundary, host as never))
+    await runPromise(spill(boundary, host as never))
+    await runPromise(spill(boundary, host as never))
     expect(host.reads.filter((path) => path === blobPath)).toHaveLength(0)
     expect(host.writes.filter((path) => path.includes(".tmp-"))).toHaveLength(1)
     expect(decoder.decode(host.files.get(blobPath))).toBe(artifact)
@@ -309,53 +310,53 @@ describe("orphaned temp blobs are reclaimed (issue #138)", () => {
     // capture re-verifies and repairs the address.
     const host = gcFs({})
     const boundary = StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 4 })
-    const settled = await Effect.runPromise(spill(boundary, host as never))
+    const settled = await runPromise(spill(boundary, host as never))
     const output = (settled as { declaredOutputs: { outputs: Array<never> } }).declaredOutputs.outputs[0]
     // External corruption behind the store's back, after the memo is primed.
     host.files.set(blobPath, encoder.encode("torn-partial-bytes"))
-    const refused = await Effect.runPromise(
+    const refused = await runPromise(
       boundary.replayOutputs({ declaredOutputs: { outputs: [output] } } as never).pipe(Effect.exit)
     )
     expect(Exit.isFailure(refused)).toBe(true)
     // The next capture of the same content must NOT trust the stale memo:
     // it re-verifies, catches the mismatch, and heals through temp+rename.
-    await Effect.runPromise(spill(boundary, host as never))
+    await runPromise(spill(boundary, host as never))
     expect(decoder.decode(host.files.get(blobPath))).toBe(artifact)
     expect(host.writes.filter((path) => path.includes(".tmp-"))).toHaveLength(2)
     // And the healed address materializes again.
-    await Effect.runPromise(boundary.replayOutputs({ declaredOutputs: { outputs: [output] } } as never))
+    await runPromise(boundary.replayOutputs({ declaredOutputs: { outputs: [output] } } as never))
     expect(decoder.decode(host.files.get("artifact.bin"))).toBe(artifact)
   })
 
   it("evicts the verified-digest memo when the blob cannot be read at materialize (issue #145)", async () => {
     const host = gcFs({ failReadOf: blobPath })
     const boundary = StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 4 })
-    const settled = await Effect.runPromise(spill(boundary, host as never))
+    const settled = await runPromise(spill(boundary, host as never))
     const output = (settled as { declaredOutputs: { outputs: Array<never> } }).declaredOutputs.outputs[0]
     // The blob exists but the host cannot read it back.
-    const refused = await Effect.runPromise(
+    const refused = await runPromise(
       boundary.replayOutputs({ declaredOutputs: { outputs: [output] } } as never).pipe(Effect.exit)
     )
     expect(Exit.isFailure(refused)).toBe(true)
     // The stale memo is gone: the next capture re-verifies, cannot read the
     // blob either, and heals through a second atomic rewrite.
-    await Effect.runPromise(spill(boundary, host as never))
+    await runPromise(spill(boundary, host as never))
     expect(host.writes.filter((path) => path.includes(".tmp-"))).toHaveLength(2)
   })
 
   it("evicts the verified-digest memo when the blob vanishes at materialize (issue #145)", async () => {
     const host = gcFs({})
     const boundary = StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 4 })
-    const settled = await Effect.runPromise(spill(boundary, host as never))
+    const settled = await runPromise(spill(boundary, host as never))
     const output = (settled as { declaredOutputs: { outputs: Array<never> } }).declaredOutputs.outputs[0]
     // The blob is deleted behind the store's back.
     host.files.delete(blobPath)
-    const refused = await Effect.runPromise(
+    const refused = await runPromise(
       boundary.replayOutputs({ declaredOutputs: { outputs: [output] } } as never).pipe(Effect.exit)
     )
     expect(Exit.isFailure(refused)).toBe(true)
     // A later capture republishes instead of trusting the stale memo.
-    await Effect.runPromise(spill(boundary, host as never))
+    await runPromise(spill(boundary, host as never))
     expect(decoder.decode(host.files.get(blobPath))).toBe(artifact)
     expect(host.writes.filter((path) => path.includes(".tmp-"))).toHaveLength(2)
   })
@@ -366,7 +367,7 @@ describe("orphaned temp blobs are reclaimed (issue #138)", () => {
     const unaged = `.flows/objects/unknown.tmp-mystery-0`
     const host = gcFs({ seed: { [unaged]: "unknown-age" } })
     const boundary = StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 4 })
-    await Effect.runPromise(spill(boundary, host as never))
+    await runPromise(spill(boundary, host as never))
     expect(host.files.has(unaged)).toBe(true)
     expect(decoder.decode(host.files.get(blobPath))).toBe(artifact)
   })

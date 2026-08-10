@@ -155,7 +155,7 @@ export const make = (options: MakeOptions): Service => ({
         JournalRecords.cacheCorruption(
           {
             runId: event.runId,
-            // The producer identity is the corruption's content key (issue
+            // The producer identity is the corruption's cache key (issue
             // #156): a caller re-observing the identical corrupt row — a
             // retry, or a converging replay — re-emits an exact producer
             // duplicate the journal collapses, instead of appending one

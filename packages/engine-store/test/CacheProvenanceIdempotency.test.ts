@@ -16,6 +16,7 @@ import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "provenance-idem-host", pid: 53, nonce: "provenance-idem-process" }
 
@@ -79,7 +80,7 @@ const provenance = (runId: string) =>
 describe("cacheProvenance emissions are idempotent per observation (issue #124)", () => {
   it("re-driving the same replay refusal journals exactly one replay_failed row", async () => {
     const key = "provenance-idem/replay-refused"
-    const outcome = await Effect.runPromise(
+    const outcome = await runPromise(
       Effect.gen(function*() {
         // First run records the shared row under a healthy boundary.
         yield* activate("provenance-idem-first")

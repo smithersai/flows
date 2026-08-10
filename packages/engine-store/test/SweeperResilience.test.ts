@@ -16,6 +16,7 @@ import * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
 import { describe, expect, it, vi } from "vitest"
+import { runPromise } from "./Sha256.ts"
 
 /**
  * Arms the coordinator-wake failure injection for issue #70: while positive,
@@ -83,7 +84,7 @@ describe("the cancel sweeper survives transient defects (issue #44)", () => {
     })
     const gate = DurableDeferred.make("sweeper-resilience-gate", { success: Schema.String })
 
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.scoped(
         Effect.gen(function*() {
           const store = yield* RunStore.RunStore
@@ -149,7 +150,7 @@ describe("the cancel sweeper survives transient defects (issue #44)", () => {
     })
     const gate = DurableDeferred.make("sweeper-wake-defect-gate", { success: Schema.String })
 
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.scoped(
         Effect.gen(function*() {
           const store = yield* RunStore.RunStore

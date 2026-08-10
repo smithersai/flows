@@ -17,16 +17,17 @@
  * the per-attempt producer identity `(sourceId, sourceSeq 0)` collapses the
  * re-emission into a `Duplicate` on every ordinary replay.
  */
+import type { Activity } from "@smthrs/engine"
 import { AttemptStore, Journal, type JournalEvent, type Ownership, RunStore } from "@smthrs/journal"
 import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Jj } from "@smthrs/kernel"
-import { Digest } from "@smthrs/keys"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "terminal-emit-host", pid: 61, nonce: "terminal-emit-process" }
 
@@ -64,7 +65,7 @@ const dispatch = (
   runId: string,
   key: string,
   execute: () => Effect.Effect<unknown, unknown>,
-  options: { readonly tier?: ActivityPersistence.Tier; readonly metadata?: ActivityPersistence.BoundaryMetadata } = {}
+  options: { readonly tier?: Activity.Tier; readonly metadata?: ActivityPersistence.BoundaryMetadata } = {}
 ) =>
   ActivityPersistence.make({ runId, owner, sourceId: `terminal-emit-${runId}`, execute })({
     activity: {},
@@ -91,7 +92,7 @@ const terminalRowWithoutRecords = (
 ) =>
   Effect.gen(function*() {
     const attempts = yield* AttemptStore.AttemptStore
-    const id = { runId, stepKeyDigest: Digest.digest(key), attempt: 1 }
+    const id = { runId, stepKeyDigest: sha256(key), attempt: 1 }
     const admitted = yield* attempts.put({ ...id, state: "running", startedAtMs: 0, meta: row.meta }, owner)
     if (admitted._tag !== "Inserted") return yield* Effect.die(new Error(`admission lost: ${admitted._tag}`))
     const finished = yield* attempts.finish({ ...id, ...row, finishedAtMs: 1 }, owner)
@@ -123,7 +124,7 @@ describe("replay re-emission tolerates a foreign-lineage terminal record (issue 
     // replay must proceed.
     const runId = "terminal-foreign-lineage"
     const key = "terminal-emit/foreign"
-    const outcome = await Effect.runPromise(
+    const outcome = await runPromise(
       Effect.gen(function*() {
         const journal = yield* Journal.Journal
         yield* activate(runId)
@@ -135,7 +136,7 @@ describe("replay re-emission tolerates a foreign-lineage terminal record (issue 
         // The copied record: same producer identity, foreign payload.
         yield* journal.emitDurable({
           runId: runId as never,
-          sourceId: `terminal-emit-${runId}:attempt:${Digest.digest(key)}:1:finished` as never,
+          sourceId: `terminal-emit-${runId}:attempt:${sha256(key)}:1:finished` as never,
           sourceSeq: 0 as never,
           eventType: "flows.engine.attempt-finished",
           payload: { runId: "the-fork-parent", state: "succeeded" }
@@ -152,7 +153,7 @@ describe("replay re-emission tolerates a foreign-lineage terminal record (issue 
   it("still surfaces journal failures that are not idempotency conflicts", async () => {
     const runId = "terminal-journal-broken"
     const key = "terminal-emit/broken"
-    const outcome = await Effect.runPromise(
+    const outcome = await runPromise(
       Effect.gen(function*() {
         const journal = yield* Journal.Journal
         yield* activate(runId)
@@ -202,7 +203,7 @@ describe("replay converges a terminal record the journal is missing (issue #109)
   it("re-emits attemptFinished on the succeeded replay branch", async () => {
     const runId = "terminal-converge-succeeded"
     const key = "terminal-emit/succeeded"
-    const outcome = await Effect.runPromise(
+    const outcome = await runPromise(
       Effect.gen(function*() {
         yield* activate(runId)
         yield* terminalRowWithoutRecords(runId, key, {
@@ -234,7 +235,7 @@ describe("replay converges a terminal record the journal is missing (issue #109)
   it("re-emits hardViolation and attemptFinished on the failed replay branch", async () => {
     const runId = "terminal-converge-violation"
     const key = "terminal-emit/violation"
-    const outcome = await Effect.runPromise(
+    const outcome = await runPromise(
       Effect.gen(function*() {
         yield* activate(runId)
         yield* terminalRowWithoutRecords(runId, key, {
@@ -264,7 +265,7 @@ describe("replay converges a terminal record the journal is missing (issue #109)
     const runId = "terminal-converge-deviation"
     const key = "terminal-emit/deviation"
     const expectedMode = { ...declared, boundaryMode: "expected" as const }
-    const outcome = await Effect.runPromise(
+    const outcome = await runPromise(
       Effect.gen(function*() {
         yield* activate(runId)
         yield* terminalRowWithoutRecords(runId, key, {
@@ -317,7 +318,7 @@ describe("the crash window itself is closed", () => {
           })
       }
     }
-    const outcome = await Effect.runPromise(
+    const outcome = await runPromise(
       Effect.gen(function*() {
         const journal = yield* Journal.Journal
         const attempts = yield* AttemptStore.AttemptStore
@@ -327,7 +328,7 @@ describe("the crash window itself is closed", () => {
           Effect.provide(boundary),
           Effect.exit
         )
-        const row = yield* attempts.get({ runId, stepKeyDigest: Digest.digest(key), attempt: 1 })
+        const row = yield* attempts.get({ runId, stepKeyDigest: sha256(key), attempt: 1 })
         const finished = yield* eventsOf(runId, "flows.engine.attempt-finished")
         return { crashed, row, finished }
       }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)

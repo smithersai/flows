@@ -1,6 +1,6 @@
 /**
  * The schema objects `DurableEngineState` creates outside the journal
- * migration ladder, and the inventory of what porting them to another
+ * migration, and the inventory of what porting them to another
  * dialect costs.
  *
  * The canonical `flows_*` migrations live in `@smthrs/journal`; these
@@ -8,9 +8,9 @@
  * construction instead (issues #40/#41/#79/#81). That is a deliberate lane
  * boundary, not an oversight — but it left the statements invisible to the
  * pg-porting plan in `docs/architecture/smithers-replacement-gaps.md`, which
- * scoped only the ladder's own SQLite-specific DDL. Declaring them here
+ * scoped only the journal migration's SQLite-specific DDL. Declaring them here
  * makes the inventory machine-readable: a test diffs the database's schema
- * objects across `make` against this list, so no out-of-ladder statement can
+ * objects across `make` against this list, so no engine-owned statement can
  * be added without appearing in the porting inventory (issue #92).
  *
  * @since 0.1.0
@@ -27,7 +27,7 @@ import * as Effect from "effect/Effect"
 export type Dialect = "sqlite" | "postgres"
 
 /**
- * One schema object created outside the migration ladder.
+ * One engine-store-owned schema object.
  *
  * @since 0.1.0
  * @category models
@@ -49,12 +49,12 @@ export interface Statement {
 }
 
 /**
- * The porting inventory: every out-of-ladder statement, in creation order.
+ * The porting inventory: every engine-store-owned statement, in creation order.
  *
  * @since 0.1.0
  * @category constants
  */
-export const outOfLadder: ReadonlyArray<Statement> = [
+export const statements: ReadonlyArray<Statement> = [
   {
     name: "flows_run_parents",
     reason:
@@ -62,9 +62,11 @@ export const outOfLadder: ReadonlyArray<Statement> = [
     dialects: ["sqlite", "postgres"],
     ddl: `
       CREATE TABLE IF NOT EXISTS flows_run_parents (
-        child_id TEXT NOT NULL,
-        parent_id TEXT NOT NULL,
-        seq BIGINT NOT NULL,
+        child_id TEXT NOT NULL CHECK (length(child_id) > 0),
+        parent_id TEXT NOT NULL CHECK (length(parent_id) > 0),
+        seq BIGINT NOT NULL CHECK (
+          typeof(seq) = 'integer' AND seq >= 0 AND seq <= 9007199254740991
+        ),
         PRIMARY KEY (child_id, parent_id)
       )
     `
@@ -112,7 +114,7 @@ export const outOfLadder: ReadonlyArray<Statement> = [
 ]
 
 /**
- * Creates the out-of-ladder objects, idempotently, in inventory order.
+ * Creates the engine-store-owned objects, idempotently, in inventory order.
  *
  * `flows_runs` must already exist — every query in this service assumes a
  * migrated database, so `make` composes over one by construction.
@@ -122,7 +124,7 @@ export const outOfLadder: ReadonlyArray<Statement> = [
  */
 export const apply = (database: DatabaseService): Effect.Effect<void> =>
   Effect.forEach(
-    outOfLadder,
+    statements,
     (statement) => database.write(database.sql.unsafe(statement.ddl)).pipe(Effect.orDie),
     { discard: true }
   )

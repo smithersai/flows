@@ -1,7 +1,6 @@
 import { AttemptStore, CacheStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
 import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Jj } from "@smthrs/kernel"
-import { Digest } from "@smthrs/keys"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -11,6 +10,7 @@ import { describe, expect, it } from "vitest"
 import * as Inconsistency from "../src/Inconsistency.ts"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "activity-host", pid: 11, nonce: "activity-process" }
 
@@ -61,7 +61,7 @@ const tolerantLayer = Layer.provideMerge(Inconsistency.layerTolerant, layer)
 describe("ActivityPersistence", () => {
   it("does not dispatch when attempt admission reports an existing or conflicting row", async () => {
     let dispatches = 0
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.gen(function*() {
         yield* activate("admission-rejected")
         const base = yield* AttemptStore.AttemptStore
@@ -106,7 +106,7 @@ describe("ActivityPersistence", () => {
       { _tag: "StateChanged" }
     ]
     let dispatches = 0
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.gen(function*() {
         yield* activate("finish-rejected")
         const base = yield* AttemptStore.AttemptStore
@@ -160,8 +160,8 @@ describe("ActivityPersistence", () => {
 
   it("preserves the first global cache writer when a concurrent miss loses the put race", async () => {
     const key = "cache-conflict"
-    const keyDigest = Digest.digest(key)
-    const result = await Effect.runPromise(
+    const keyDigest = sha256(key)
+    const result = await runPromise(
       Effect.gen(function*() {
         yield* activate("cache-conflict-run")
         const cache = yield* CacheStore.CacheStore
@@ -202,7 +202,7 @@ describe("ActivityPersistence", () => {
 
   it("ignores cache rows without schema-valid hard-boundary evidence", async () => {
     let dispatches = 0
-    const values = await Effect.runPromise(
+    const values = await runPromise(
       Effect.gen(function*() {
         yield* activate("malformed-cache-run")
         const cache = yield* CacheStore.CacheStore
@@ -229,7 +229,7 @@ describe("ActivityPersistence", () => {
         ]
         for (const [index, meta] of malformed.entries()) {
           yield* cache.put({
-            keyDigest: Digest.digest(`malformed-cache/${index}`),
+            keyDigest: sha256(`malformed-cache/${index}`),
             result: "untrusted",
             meta,
             createdAtMs: 1,
@@ -263,8 +263,8 @@ describe("ActivityPersistence", () => {
 
   it("does not publish a hard-boundary result without whole-tree write proof", async () => {
     const key = "cache/no-whole-tree-proof"
-    const keyDigest = Digest.digest(key)
-    const result = await Effect.runPromise(
+    const keyDigest = sha256(key)
+    const result = await runPromise(
       Effect.gen(function*() {
         yield* activate("no-whole-tree-proof")
         const value = yield* ActivityPersistence.make({

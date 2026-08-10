@@ -18,6 +18,7 @@ import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
+import { runPromise } from "./Sha256.ts"
 
 const TestFlow = Flow.make("DurableCancel/Test", {
   payload: {},
@@ -56,7 +57,7 @@ const provideJournal = <A, E, R>(
 
 describe("durable cancellation", () => {
   it("finalize refuses to complete a run whose cancel was durably requested", async () => {
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const store = yield* RunStore.RunStore
       const journal = yield* Journal.Journal
       const driver = yield* makeDriver(ownerA)
@@ -86,7 +87,7 @@ describe("durable cancellation", () => {
   })
 
   it("a cross-process cancel request interrupts a running flow within a poll interval", async () => {
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const store = yield* RunStore.RunStore
       const driver = yield* makeDriver(ownerA)
       const started = yield* Latch.make(false)

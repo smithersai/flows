@@ -18,6 +18,7 @@ import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise } from "./Sha256.ts"
 
 const OriginFlow = Flow.make("RetryOrigin/Flow", {
   payload: {},
@@ -34,7 +35,7 @@ const jj = Jj.make({
 })
 
 const provide = <A>(effect: Effect.Effect<A, any, any>, state: DurableEngineState.Service) =>
-  Effect.runPromise(
+  runPromise(
     effect.pipe(
       Effect.provideService(DurableEngineState.DurableEngineState, state),
       Effect.provideService(Jj.Jj, jj),
@@ -165,7 +166,7 @@ describe("durable schedule-to-close origin", () => {
       Layer.provideMerge(Migrations.layer, TestDatabase.layer)
     )
 
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.gen(function*() {
         yield* Effect.scoped(Effect.gen(function*() {
           const engine = yield* makeEngine

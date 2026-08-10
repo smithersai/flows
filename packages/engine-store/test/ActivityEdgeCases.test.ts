@@ -1,7 +1,7 @@
+import type { Activity } from "@smthrs/engine"
 import { AttemptStore, CacheStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
 import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Jj } from "@smthrs/kernel"
-import { Digest } from "@smthrs/keys"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest"
 import * as Inconsistency from "../src/Inconsistency.ts"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "edge-host", pid: 11, nonce: "edge-process" }
 
@@ -59,7 +60,7 @@ const activate = (runId: string) =>
 const dispatch = (options: {
   readonly runId: string
   readonly key: string
-  readonly tier: ActivityPersistence.Tier
+  readonly tier: Activity.Tier
   readonly attempt?: number
   readonly metadata?: ActivityPersistence.BoundaryMetadata
   readonly idempotencyKey?: string
@@ -101,8 +102,8 @@ const conflictEvents = (runId: string) =>
 describe("cache conflict with no Inconsistency receiver provided", () => {
   it("defaults to the strict receiver: journals the conflict and fails the run", async () => {
     const key = "edge/default-strict"
-    const keyDigest = Digest.digest(key)
-    const result = await Effect.runPromise(
+    const keyDigest = sha256(key)
+    const result = await runPromise(
       Effect.gen(function*() {
         yield* activate("default-strict")
         yield* seedConflictingRow(keyDigest, "original")
@@ -125,7 +126,7 @@ describe("cache conflict with no Inconsistency receiver provided", () => {
 
   it("reports an unknown recorded run when the conflicting row cannot be read back", async () => {
     const key = "edge/vanished-conflict"
-    const keyDigest = Digest.digest(key)
+    const keyDigest = sha256(key)
     const vanishing = Layer.effect(
       CacheStore.CacheStore,
       Effect.map(CacheStore.CacheStore, (store) =>
@@ -138,7 +139,7 @@ describe("cache conflict with no Inconsistency receiver provided", () => {
           get: () => Effect.succeedNone
         }))
     )
-    const error = await Effect.runPromise(
+    const error = await runPromise(
       Effect.gen(function*() {
         yield* activate("vanished-conflict")
         return yield* Effect.flip(dispatch({
@@ -163,8 +164,8 @@ describe("cache conflict with no Inconsistency receiver provided", () => {
 
   it("tolerates the conflict silently under the default noop receiver", async () => {
     const key = "edge/noop-receiver"
-    const keyDigest = Digest.digest(key)
-    const result = await Effect.runPromise(
+    const keyDigest = sha256(key)
+    const result = await runPromise(
       Effect.gen(function*() {
         yield* activate("noop-receiver")
         yield* seedConflictingRow(keyDigest, "original")
@@ -211,7 +212,7 @@ describe("attempt lifecycle journal failures", () => {
             )
         }))
     )
-    const exit = await Effect.runPromise(
+    const exit = await runPromise(
       Effect.gen(function*() {
         yield* activate("journal-broken")
         return yield* Effect.exit(dispatch({
@@ -234,7 +235,7 @@ describe("compensable attempts that fail after snapshotting", () => {
   it("records the snapshot on the failed attempt and restores it before the retry", async () => {
     const restores: Array<string> = []
     const snapshots: Array<string> = []
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.gen(function*() {
         yield* activate("compensable-failure")
         const first = yield* Effect.exit(dispatch({
@@ -247,7 +248,7 @@ describe("compensable attempts that fail after snapshotting", () => {
         const attempts = yield* AttemptStore.AttemptStore
         const failed = yield* attempts.get({
           runId: "compensable-failure",
-          stepKeyDigest: Digest.digest("edge/compensable"),
+          stepKeyDigest: sha256("edge/compensable"),
           attempt: 1
         })
         const second = yield* dispatch({
@@ -279,7 +280,7 @@ describe("compensable attempts that fail after snapshotting", () => {
           finish: () => Effect.succeed({ _tag: "FenceLost" as const })
         }))
     )
-    const exit = await Effect.runPromise(
+    const exit = await runPromise(
       Effect.gen(function*() {
         yield* activate("finish-fence-lost")
         return yield* Effect.exit(dispatch({
@@ -306,7 +307,7 @@ describe("boundary violations on a compensable-snapshotted attempt", () => {
   )
 
   it("journals a hard violation and fails when the settle check rejects the attempt", async () => {
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.gen(function*() {
         yield* activate("settle-violation")
         const exit = yield* Effect.exit(dispatch({
@@ -340,7 +341,7 @@ describe("boundary violations on a compensable-snapshotted attempt", () => {
           finish: () => Effect.succeed({ _tag: "StateChanged" as const })
         }))
     )
-    const exit = await Effect.runPromise(
+    const exit = await runPromise(
       Effect.gen(function*() {
         yield* activate("settle-fence-lost")
         return yield* Effect.exit(dispatch({
@@ -363,8 +364,8 @@ describe("boundary violations on a compensable-snapshotted attempt", () => {
 describe("cache convergence from a succeeded attempt row", () => {
   it("stamps the cache entry with the current time when the attempt records no finish time", async () => {
     const key = "edge/no-finish-time"
-    const keyDigest = Digest.digest(key)
-    const result = await Effect.runPromise(
+    const keyDigest = sha256(key)
+    const result = await runPromise(
       Effect.gen(function*() {
         yield* activate("no-finish-time")
         const attempts = yield* AttemptStore.AttemptStore
@@ -417,7 +418,7 @@ describe("compensable retries with no recorded predecessor", () => {
   it("does not restore anything when the previous attempt left no snapshot", async () => {
     const restores: Array<string> = []
     const snapshots: Array<string> = []
-    const value = await Effect.runPromise(
+    const value = await runPromise(
       Effect.gen(function*() {
         yield* activate("no-previous")
         // Attempt 2 with no attempt-1 row at all (the first attempt died
@@ -450,7 +451,7 @@ describe("boundary preparation failures", () => {
 
   it("journals a hard violation and never dispatches when preparation is rejected", async () => {
     let dispatches = 0
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.gen(function*() {
         yield* activate("prepare-violation")
         const exit = yield* Effect.exit(dispatch({
@@ -485,7 +486,7 @@ describe("boundary preparation failures", () => {
           finish: () => Effect.succeed({ _tag: "NotFound" as const })
         }))
     )
-    const exit = await Effect.runPromise(
+    const exit = await runPromise(
       Effect.gen(function*() {
         yield* activate("prepare-fence-lost")
         return yield* Effect.exit(dispatch({

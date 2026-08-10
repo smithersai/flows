@@ -1,11 +1,12 @@
+import type { FileBoundary } from "@smthrs/engine/FileBoundary"
 import { FileSystem } from "@smthrs/kernel"
-import { Digest } from "@smthrs/keys"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise, sha256 } from "./Sha256.ts"
 
-const descriptor: StepBoundary.Descriptor = {
+const descriptor: FileBoundary = {
   readSet: [{ path: "input.txt", digest: "a" }],
   writeSet: ["output.txt"],
   boundaryMode: "hard"
@@ -18,7 +19,7 @@ describe("StepBoundary", () => {
       const prepared = yield* boundary.prepare(descriptor)
       return yield* Effect.flip(boundary.settle(prepared))
     }).pipe(Effect.provide(StepBoundary.layerTest({ changedPaths: ["surprise.txt"], diffIdentity: "d1" })))
-    await expect(Effect.runPromise(program)).resolves.toMatchObject({
+    await expect(runPromise(program)).resolves.toMatchObject({
       _tag: "flows/engine-store/UndeclaredWrite",
       code: "undeclared_write",
       paths: ["surprise.txt"],
@@ -32,7 +33,7 @@ describe("StepBoundary", () => {
       const prepared = yield* boundary.prepare({ ...descriptor, boundaryMode: "expected" })
       return yield* boundary.settle(prepared)
     }).pipe(Effect.provide(StepBoundary.layerTest({ changedPaths: ["surprise.txt"], diffIdentity: "d2" })))
-    await expect(Effect.runPromise(program)).resolves.toMatchObject({
+    await expect(runPromise(program)).resolves.toMatchObject({
       declaredOutputs: { paths: ["output.txt"] },
       deviation: { _tag: "ExpectedSetDeviation", paths: ["surprise.txt"], diffIdentity: "d2" }
     })
@@ -51,7 +52,7 @@ describe("StepBoundary", () => {
       yield* boundary.replayOutputs(evidence)
       return evidence
     }).pipe(Effect.provide(layer))
-    await expect(Effect.runPromise(program)).resolves.toMatchObject({ declaredOutputs: { output: "value" } })
+    await expect(runPromise(program)).resolves.toMatchObject({ declaredOutputs: { output: "value" } })
     expect(replayed).toHaveLength(1)
   })
 
@@ -60,7 +61,7 @@ describe("StepBoundary", () => {
       const boundary = yield* StepBoundary.StepBoundary
       return yield* Effect.flip(boundary.prepare(descriptor))
     }).pipe(Effect.provide(StepBoundary.layerTest({ supported: false })))
-    await expect(Effect.runPromise(program)).resolves.toMatchObject({
+    await expect(runPromise(program)).resolves.toMatchObject({
       _tag: "flows/engine-store/UnsupportedBoundary",
       code: "unsupported_boundary"
     })
@@ -74,7 +75,7 @@ describe("StepBoundary", () => {
       const replay = yield* Effect.flip(boundary.replayOutputs({ declaredOutputs: {}, diffIdentity: "d3" }))
       return [settle, replay]
     }).pipe(Effect.provide(StepBoundary.layerTest({ supported: false })))
-    await expect(Effect.runPromise(program)).resolves.toHaveLength(2)
+    await expect(runPromise(program)).resolves.toHaveLength(2)
   })
 })
 
@@ -112,15 +113,15 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
     return { files, layer: StepBoundary.layer.pipe(Layer.provide(Layer.succeed(FileSystem.FileSystem)(fs))) }
   }
 
-  const declared = (content: string): StepBoundary.Descriptor => ({
-    readSet: [{ path: "input.txt", digest: Digest.digest(content) }],
+  const declared = (content: string): FileBoundary => ({
+    readSet: [{ path: "input.txt", digest: sha256(content) }],
     writeSet: ["output.txt"],
     boundaryMode: "hard"
   })
 
   it("measures the declared read set for real instead of echoing the declaration", async () => {
     const host = memoryFs({ "input.txt": "post-edit content" })
-    const prepared = await Effect.runPromise(
+    const prepared = await runPromise(
       Effect.gen(function*() {
         const boundary = yield* StepBoundary.StepBoundary
         return yield* boundary.prepare(declared("pre-edit content"))
@@ -128,12 +129,12 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
     )
     // The stale declaration must be refused: the measured digest differs.
     expect(StepBoundary.readSetMatches(prepared)).toBe(false)
-    expect(prepared.readSnapshot[0]!.digest).toBe(Digest.digest("post-edit content"))
+    expect(prepared.readSnapshot[0]!.digest).toBe(sha256("post-edit content"))
   })
 
   it("accepts a declaration that still matches the measured files", async () => {
     const host = memoryFs({ "input.txt": "stable content" })
-    const prepared = await Effect.runPromise(
+    const prepared = await runPromise(
       Effect.gen(function*() {
         const boundary = yield* StepBoundary.StepBoundary
         return yield* boundary.prepare(declared("stable content"))
@@ -144,7 +145,7 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
 
   it("reports a vanished declared read as a mismatch", async () => {
     const host = memoryFs({})
-    const prepared = await Effect.runPromise(
+    const prepared = await runPromise(
       Effect.gen(function*() {
         const boundary = yield* StepBoundary.StepBoundary
         return yield* boundary.prepare(declared("was here"))
@@ -155,7 +156,7 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
 
   it("fails a hard boundary whose declared read was mutated outside the write set", async () => {
     const host = memoryFs({ "input.txt": "original" })
-    const failure = await Effect.runPromise(
+    const failure = await runPromise(
       Effect.gen(function*() {
         const boundary = yield* StepBoundary.StepBoundary
         const prepared = yield* boundary.prepare(declared("original"))
@@ -173,7 +174,7 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
 
   it("records the mutation as a deviation under an expected boundary", async () => {
     const host = memoryFs({ "input.txt": "original" })
-    const evidence = await Effect.runPromise(
+    const evidence = await runPromise(
       Effect.gen(function*() {
         const boundary = yield* StepBoundary.StepBoundary
         const prepared = yield* boundary.prepare({ ...declared("original"), boundaryMode: "expected" })
@@ -186,7 +187,7 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
 
   it("captures write-set outputs and re-materializes them on a fresh workspace", async () => {
     const producer = memoryFs({ "input.txt": "original" })
-    const evidence = await Effect.runPromise(
+    const evidence = await runPromise(
       Effect.gen(function*() {
         const boundary = yield* StepBoundary.StepBoundary
         const prepared = yield* boundary.prepare(declared("original"))
@@ -199,13 +200,13 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
     // A different workspace that never ran the step, plus stale garbage at a
     // path the evidence records as absent.
     const replayer = memoryFs({ "stale.txt": "left over" })
-    const staleEvidence = await Effect.runPromise(
+    const staleEvidence = await runPromise(
       Effect.gen(function*() {
         const boundary = yield* StepBoundary.StepBoundary
         const prepared = yield* boundary.prepare({
           // A declared read that is also a declared write is exempt from the
           // undeclared-mutation check: mutating it is the declared contract.
-          readSet: [{ path: "output.txt", digest: Digest.digest("pre-state") }],
+          readSet: [{ path: "output.txt", digest: sha256("pre-state") }],
           writeSet: ["output.txt", "stale.txt", "gone.txt"],
           boundaryMode: "hard"
         })
@@ -217,7 +218,7 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
     // "gone.txt" was recorded absent and is already absent on the target:
     // replay leaves it absent without attempting a remove.
     const target = memoryFs({ "stale.txt": "left over" })
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function*() {
         const boundary = yield* StepBoundary.StepBoundary
         yield* boundary.replayOutputs(staleEvidence)
@@ -235,7 +236,7 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
     // `BoundaryCorruption` so the caller routes it to the Inconsistency
     // receiver instead of retrying it as a transient host refusal.
     const host = memoryFs({})
-    const failure = await Effect.runPromise(
+    const failure = await runPromise(
       Effect.gen(function*() {
         const boundary = yield* StepBoundary.StepBoundary
         return yield* Effect.flip(
@@ -265,7 +266,7 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
 
   it("classifies undecodable legacy inline content as corruption too (issue #159)", async () => {
     const host = memoryFs({})
-    const failure = await Effect.runPromise(
+    const failure = await runPromise(
       Effect.gen(function*() {
         const boundary = yield* StepBoundary.StepBoundary
         return yield* Effect.flip(
@@ -287,7 +288,7 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
 
   it("refuses to replay evidence recorded without materializable outputs", async () => {
     const host = memoryFs({})
-    const failure = await Effect.runPromise(
+    const failure = await runPromise(
       Effect.gen(function*() {
         const boundary = yield* StepBoundary.StepBoundary
         return yield* Effect.flip(
@@ -305,7 +306,7 @@ describe("StepBoundary.layer host failures", () => {
       exists: (() => Effect.succeed(true)) as never
       // readFile keeps the noop default and fails: the host cannot measure.
     })
-    const failure = await Effect.runPromise(
+    const failure = await runPromise(
       Effect.gen(function*() {
         const boundary = yield* StepBoundary.StepBoundary
         return yield* Effect.flip(

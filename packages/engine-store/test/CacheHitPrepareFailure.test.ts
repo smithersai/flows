@@ -14,13 +14,13 @@
 import { CacheStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
 import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Jj } from "@smthrs/kernel"
-import { Digest } from "@smthrs/keys"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "prepare-failure-host", pid: 31, nonce: "prepare-failure-process" }
 
@@ -76,8 +76,8 @@ const provenance = (runId: string) =>
 describe("transient prepare host errors on a cache hit (issue #110)", () => {
   it("keeps the valid row, journals no stale_read_set, and fails the attempt retryably", async () => {
     const key = "prepare-failure/transient"
-    const keyDigest = Digest.digest(key)
-    const outcome = await Effect.runPromise(
+    const keyDigest = sha256(key)
+    const outcome = await runPromise(
       Effect.gen(function*() {
         const cache = yield* CacheStore.CacheStore
         let executions = 0
@@ -115,7 +115,7 @@ describe("transient prepare host errors on a cache hit (issue #110)", () => {
 
   it("a transient prepare failure refuses the hit, re-prepares, and runs the body (issue #126)", async () => {
     const key = "prepare-failure/transient-recovery"
-    const keyDigest = Digest.digest(key)
+    const keyDigest = sha256(key)
     // The transient cell: prepare dies on its FIRST invocation (the
     // cache-hit gate's measurement) and returns a verified snapshot on
     // every later one (the dispatch path's own re-prepare).
@@ -142,7 +142,7 @@ describe("transient prepare host errors on a cache hit (issue #110)", () => {
         })
       )
     }
-    const outcome = await Effect.runPromise(
+    const outcome = await runPromise(
       Effect.gen(function*() {
         const cache = yield* CacheStore.CacheStore
         let executions = 0
@@ -176,8 +176,8 @@ describe("transient prepare host errors on a cache hit (issue #110)", () => {
 
   it("a genuinely stale measurement still journals stale_read_set and evicts", async () => {
     const key = "prepare-failure/still-stale"
-    const keyDigest = Digest.digest(key)
-    const outcome = await Effect.runPromise(
+    const keyDigest = sha256(key)
+    const outcome = await runPromise(
       Effect.gen(function*() {
         const cache = yield* CacheStore.CacheStore
         yield* activate("prepare-stale-first")
@@ -204,8 +204,8 @@ describe("transient prepare host errors on a cache hit (issue #110)", () => {
 
   it("skips the evict when a concurrent run re-recorded the entry between get and evict", async () => {
     const key = "prepare-failure/concurrent-put"
-    const keyDigest = Digest.digest(key)
-    const outcome = await Effect.runPromise(
+    const keyDigest = sha256(key)
+    const outcome = await runPromise(
       Effect.gen(function*() {
         const cache = yield* CacheStore.CacheStore
         yield* activate("prepare-race-first")

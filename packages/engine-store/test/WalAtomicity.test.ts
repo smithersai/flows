@@ -32,7 +32,6 @@ import {
 } from "@smthrs/journal"
 import * as Notifying from "@smthrs/journal/test/Notifying"
 import { Jj } from "@smthrs/kernel"
-import { Digest } from "@smthrs/keys"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Duration from "effect/Duration"
@@ -50,6 +49,7 @@ import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as DeferredPersistence from "../src/internal/DeferredPersistence.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "wal-host", pid: 1, nonce: "wal-owner" }
 
@@ -88,7 +88,7 @@ const services = Layer.mergeAll(
 ).pipe(Layer.provideMerge(migratedDatabase), Layer.merge(StepBoundary.layerTest()), Layer.merge(jj))
 
 const run = <A, E, R>(effect: Effect.Effect<A, E, R>): Promise<A> =>
-  Effect.runPromise(
+  runPromise(
     Effect.scoped(effect as Effect.Effect<A, E, Scope.Scope>).pipe(
       Effect.provide(services),
       Effect.provide(TestClock.layer())
@@ -181,7 +181,7 @@ describe("lifecycle history is atomic with executable state", () => {
         ),
         Effect.exit
       )
-      const rowAfterCrash = yield* attempts.get({ runId, stepKeyDigest: Digest.digest(key), attempt: 1 })
+      const rowAfterCrash = yield* attempts.get({ runId, stepKeyDigest: sha256(key), attempt: 1 })
       const startedAfterCrash = yield* eventsOf(runId, "flows.engine.attempt-started")
 
       const recovered = yield* dispatch({ runId, owner, key, result: "v1", counter })
@@ -190,7 +190,7 @@ describe("lifecycle history is atomic with executable state", () => {
         rowAfterCrash,
         startedAfterCrash,
         recovered,
-        row: yield* attempts.get({ runId, stepKeyDigest: Digest.digest(key), attempt: 1 }),
+        row: yield* attempts.get({ runId, stepKeyDigest: sha256(key), attempt: 1 }),
         started: yield* eventsOf(runId, "flows.engine.attempt-started"),
         dispatches: counter.count
       }
@@ -222,7 +222,7 @@ describe("lifecycle history is atomic with executable state", () => {
         ),
         Effect.exit
       )
-      const rowAfterCrash = yield* attempts.get({ runId, stepKeyDigest: Digest.digest(key), attempt: 1 })
+      const rowAfterCrash = yield* attempts.get({ runId, stepKeyDigest: sha256(key), attempt: 1 })
       const finishedAfterCrash = yield* eventsOf(runId, "flows.engine.attempt-finished")
 
       // Restart: a new incarnation steals the run, adopts the still-running
@@ -235,7 +235,7 @@ describe("lifecycle history is atomic with executable state", () => {
         rowAfterCrash,
         finishedAfterCrash,
         recovered,
-        row: yield* attempts.get({ runId, stepKeyDigest: Digest.digest(key), attempt: 1 }),
+        row: yield* attempts.get({ runId, stepKeyDigest: sha256(key), attempt: 1 }),
         finished: yield* eventsOf(runId, "flows.engine.attempt-finished"),
         dispatches: counter.count
       }
@@ -263,9 +263,9 @@ describe("lifecycle history is atomic with executable state", () => {
         Effect.provideService(CacheStore.CacheStore, Notifying.wrap(cache, crashAt("put", "after"))),
         Effect.exit
       )
-      const cachedAfterCrash = yield* cache.get(Digest.digest(key))
+      const cachedAfterCrash = yield* cache.get(sha256(key))
       const provenanceAfterCrash = yield* eventsOf(runId, "flows.engine.cache-provenance")
-      const rowAfterCrash = yield* attempts.get({ runId, stepKeyDigest: Digest.digest(key), attempt: 1 })
+      const rowAfterCrash = yield* attempts.get({ runId, stepKeyDigest: sha256(key), attempt: 1 })
 
       // The attempt itself committed, so the re-drive replays it and
       // converges the cache — without re-executing the body.
@@ -276,7 +276,7 @@ describe("lifecycle history is atomic with executable state", () => {
         provenanceAfterCrash,
         rowAfterCrash,
         recovered,
-        cached: yield* cache.get(Digest.digest(key)),
+        cached: yield* cache.get(sha256(key)),
         provenance: yield* eventsOf(runId, "flows.engine.cache-provenance"),
         dispatches: counter.count
       }

@@ -7,10 +7,11 @@
  *
  * @since 0.1.0
  */
+import { Sha256 } from "@smthrs/crypto"
 import { type Activity, Flow, FlowEngine } from "@smthrs/engine"
+import { FileBoundary } from "@smthrs/engine/FileBoundary"
 import { AttemptStore, CacheStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
-import { Digest } from "@smthrs/keys"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -61,7 +62,7 @@ export class EngineCompositionError extends Schema.TaggedErrorClass<EngineCompos
   }
 ) {}
 
-const isBoundaryMetadata = Schema.is(StepBoundary.Descriptor)
+const isBoundaryMetadata = Schema.is(FileBoundary)
 
 const ownerId = (hostId: string): Ownership.OwnerId => ({
   hostId,
@@ -115,7 +116,7 @@ export const make = (
       readonly activity: Activity.Any
       readonly attempt: number
       readonly key: string
-      readonly tier: ActivityPersistence.Tier
+      readonly tier: Activity.Tier
       readonly metadata: unknown
     }) {
       const parent = yield* FlowEngine.FlowInstance
@@ -185,7 +186,7 @@ export const make = (
           attemptStore,
           attemptSurvivors,
           parent.executionId,
-          Digest.digest(input.key)
+          yield* Schema.decodeUnknownEffect(Sha256)(input.key).pipe(Effect.orDie)
         )
         return Option.map(survivors, ({ earliestStartedAtMs }) => earliestStartedAtMs)
       }),
@@ -203,7 +204,7 @@ export const make = (
           attemptStore,
           attemptSurvivors,
           parent.executionId,
-          Digest.digest(input.key)
+          yield* Schema.decodeUnknownEffect(Sha256)(input.key).pipe(Effect.orDie)
         )
         return Option.map(survivors, ({ latest }) => latest)
       }),

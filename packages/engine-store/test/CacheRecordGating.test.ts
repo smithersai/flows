@@ -12,13 +12,13 @@
 import { CacheStore, type Ownership, RunStore } from "@smthrs/journal"
 import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Jj } from "@smthrs/kernel"
-import { Digest } from "@smthrs/keys"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "record-gating-host", pid: 41, nonce: "record-gating-process" }
 
@@ -64,8 +64,8 @@ const dispatch = (runId: string, key: string, execute: () => Effect.Effect<unkno
 describe("cache recording requires a verified read set (issue #106)", () => {
   it("a stale declaration's execution is never recorded under the declaration's key", async () => {
     const key = "record-gating/poison"
-    const keyDigest = Digest.digest(key)
-    const outcome = await Effect.runPromise(
+    const keyDigest = sha256(key)
+    const outcome = await runPromise(
       Effect.gen(function*() {
         const cache = yield* CacheStore.CacheStore
         let executions = 0
@@ -114,8 +114,8 @@ describe("cache recording requires a verified read set (issue #106)", () => {
 
   it("the succeeded-attempt convergence replay does not re-record an unverified row", async () => {
     const key = "record-gating/replay-convergence"
-    const keyDigest = Digest.digest(key)
-    const outcome = await Effect.runPromise(
+    const keyDigest = sha256(key)
+    const outcome = await runPromise(
       Effect.gen(function*() {
         const cache = yield* CacheStore.CacheStore
         // The attempt succeeds under a stale declaration, so nothing is

@@ -16,13 +16,13 @@
 import { CacheStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
 import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { FileSystem, Jj } from "@smthrs/kernel"
-import { Digest } from "@smthrs/keys"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "replay-fallback-host", pid: 51, nonce: "replay-fallback-process" }
 
@@ -104,7 +104,7 @@ const provenance = (runId: string) =>
 describe("unreplayable evidence on a verified cache hit (issue #107)", () => {
   it("falls back to a real execution instead of failing every run forever", async () => {
     const key = "replay-fallback/cache-hit"
-    const outcome = await Effect.runPromise(
+    const outcome = await runPromise(
       Effect.gen(function*() {
         let executions = 0
         const body = () =>
@@ -133,7 +133,7 @@ describe("unreplayable evidence on a verified cache hit (issue #107)", () => {
 
   it("returns the durable outcome when a succeeded attempt's evidence cannot re-materialize", async () => {
     const key = "replay-fallback/succeeded-row"
-    const outcome = await Effect.runPromise(
+    const outcome = await runPromise(
       Effect.gen(function*() {
         const cache = yield* CacheStore.CacheStore
         yield* activate("replay-fallback-row")
@@ -142,7 +142,7 @@ describe("unreplayable evidence on a verified cache hit (issue #107)", () => {
         )
         // The cache row is evicted so the re-dispatch reaches the succeeded
         // attempt row's replay branch rather than the cache-hit gate.
-        yield* cache.evict(Digest.digest(key))
+        yield* cache.evict(sha256(key))
         const replayed = yield* dispatch("replay-fallback-row", key, () => Effect.die("must not re-execute")).pipe(
           Effect.provide(unreplayable())
         )
@@ -204,11 +204,11 @@ describe("the production replayOutputs creates parent directories (issue #107)",
     // The producer's body mkdirs dist/ itself; the evidence must replay on
     // a fresh clone that has no dist/ directory.
     const producer = nodeLikeFs({ "input.txt": "original" })
-    const evidence = await Effect.runPromise(
+    const evidence = await runPromise(
       Effect.gen(function*() {
         const boundary = yield* StepBoundary.StepBoundary
         const prepared = yield* boundary.prepare({
-          readSet: [{ path: "input.txt", digest: Digest.digest("original") }],
+          readSet: [{ path: "input.txt", digest: sha256("original") }],
           writeSet: ["dist/manifest.json"],
           boundaryMode: "hard"
         })
@@ -218,7 +218,7 @@ describe("the production replayOutputs creates parent directories (issue #107)",
     )
 
     const fresh = nodeLikeFs({})
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function*() {
         const boundary = yield* StepBoundary.StepBoundary
         yield* boundary.replayOutputs(evidence)

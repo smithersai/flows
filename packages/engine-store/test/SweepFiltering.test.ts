@@ -23,6 +23,7 @@ import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
+import { runPromise } from "./Sha256.ts"
 
 const TestFlow = Flow.make("SweepFiltering/Test", {
   payload: {},
@@ -73,7 +74,7 @@ const insertParkedRun = (
 
 describe("the parked-run sweep fetches only actionable rows (issue #68)", () => {
   it("never issues store.get for rows that are neither released nor cancel-requested", async () => {
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.scoped(
         Effect.gen(function*() {
           // A quota-parked fleet the sweep must not touch, plus the two

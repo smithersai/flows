@@ -11,16 +11,17 @@
  * reports, which is Skyframe's dirty-check invariant (re-verify a node
  * against its dependencies' current values before reuse).
  */
+import type { FileInput } from "@smthrs/engine/FileInput"
 import { CacheStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
 import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Jj } from "@smthrs/kernel"
-import { Digest } from "@smthrs/keys"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "read-set-host", pid: 21, nonce: "read-set-process" }
 
@@ -69,7 +70,7 @@ const dispatch = (runId: string, key: string, execute: () => Effect.Effect<unkno
  */
 const replayWithMeasurement = (
   label: string,
-  measured: ReadonlyArray<StepBoundary.ReadSetEntry>
+  measured: ReadonlyArray<FileInput>
 ) =>
   Effect.gen(function*() {
     const key = `read-set/${label}`
@@ -105,7 +106,7 @@ const replayWithMeasurement = (
 
 describe("sealed cache hits verify the measured read set (issue #90)", () => {
   it("serves the recorded result when every declared read still matches the host", async () => {
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       replayWithMeasurement("unchanged", [{ path: "config.json", digest: "D1" }])
     )
     expect(result.second).toBe("recorded")
@@ -114,7 +115,7 @@ describe("sealed cache hits verify the measured read set (issue #90)", () => {
   })
 
   it("ignores measured reads the declaration never claimed", async () => {
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       replayWithMeasurement("extra-reads", [
         { path: "config.json", digest: "D1" },
         { path: "incidental.txt", digest: "X" }
@@ -125,7 +126,7 @@ describe("sealed cache hits verify the measured read set (issue #90)", () => {
   })
 
   it("re-executes when a declared read's digest has gone stale", async () => {
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       replayWithMeasurement("stale-digest", [{ path: "config.json", digest: "D2" }])
     )
     expect(result.second).toBe("recorded")
@@ -136,7 +137,7 @@ describe("sealed cache hits verify the measured read set (issue #90)", () => {
   })
 
   it("re-executes when a declared read is missing from the measured set", async () => {
-    const result = await Effect.runPromise(replayWithMeasurement("vanished-read", []))
+    const result = await runPromise(replayWithMeasurement("vanished-read", []))
     expect(result.executions).toBe(2)
     expect(result.replays).toBe(0)
   })
@@ -151,13 +152,13 @@ describe("a refused stale hit invalidates the poisoned entry (issue #99)", () =>
     // removed — every later run repeated the same refuse → re-execute →
     // conflict → fail cycle forever.
     const key = "read-set/stale-differing-result"
-    const keyDigest = Digest.digest(key)
+    const keyDigest = sha256(key)
     const results = ["recorded", "fresh-1", "fresh-2"]
     let executions = 0
-    const outcome = await Effect.runPromise(
+    const outcome = await runPromise(
       Effect.gen(function*() {
         const cache = yield* CacheStore.CacheStore
-        const run = (runId: string, measured: ReadonlyArray<StepBoundary.ReadSetEntry>) =>
+        const run = (runId: string, measured: ReadonlyArray<FileInput>) =>
           Effect.gen(function*() {
             yield* activate(runId)
             return yield* dispatch(runId, key, () => Effect.sync(() => results[executions++]))
@@ -187,8 +188,8 @@ describe("a refused stale hit invalidates the poisoned entry (issue #99)", () =>
 describe("cache provenance records a refused hit (issue #90)", () => {
   it("emits a stale-read-set provenance record instead of a reuse record", async () => {
     const key = "read-set/provenance"
-    const keyDigest = Digest.digest(key)
-    const records = await Effect.runPromise(
+    const keyDigest = sha256(key)
+    const records = await runPromise(
       Effect.gen(function*() {
         const cache = yield* CacheStore.CacheStore
         yield* cache.put({

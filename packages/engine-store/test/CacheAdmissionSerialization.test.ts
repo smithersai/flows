@@ -15,6 +15,7 @@ import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "cache-serial-host", pid: 47, nonce: "cache-serial-process" }
 
@@ -85,7 +86,7 @@ const observableBoundary = () => {
 describe("the cache-hit block runs under the per-key admission permit (issue #118)", () => {
   it("serializes concurrent same-key cache verification and materialization", async () => {
     const key = "cache-serial/concurrent-hit"
-    const outcome = await Effect.runPromise(
+    const outcome = await runPromise(
       Effect.gen(function*() {
         // First run records the shared row under a healthy boundary.
         yield* activate("cache-serial-first")
@@ -128,7 +129,7 @@ describe("the cache-hit block runs under the per-key admission permit (issue #11
     // acquire different permits and interleave the read-verify-materialize
     // span the permit exists to serialize.
     const key = "cache-serial/attempt-skew"
-    const outcome = await Effect.runPromise(
+    const outcome = await runPromise(
       Effect.gen(function*() {
         yield* activate("cache-serial-skew-first")
         yield* ActivityPersistence.make({

@@ -12,6 +12,7 @@ import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
+import { runPromise } from "./Sha256.ts"
 
 const TestFlow = Flow.make("Ownership/Test", {
   payload: {},
@@ -90,7 +91,7 @@ const provideJournal = <A, E, R>(
 describe("RunDriver ownership", () => {
   it("allows one concurrent claimant to drive an execution", async () => {
     let executions = 0
-    const row = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const row = await runPromise(provideJournal(Effect.gen(function*() {
       const first = yield* makeDriver(ownerA)
       const second = yield* makeDriver(ownerB)
       const handler = () =>
@@ -122,7 +123,7 @@ describe("RunDriver ownership", () => {
 
   it("refuses to steal from a fresh owner without probing liveness", async () => {
     let probes = 0
-    const row = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const row = await runPromise(provideJournal(Effect.gen(function*() {
       const store = yield* RunStore.RunStore
       yield* activate(store, "fresh", ownerA)
       const driver = yield* makeDriver(ownerB, () =>
@@ -142,7 +143,7 @@ describe("RunDriver ownership", () => {
 
   it("steals a stale owner only after the liveness probe supplies evidence", async () => {
     let probes = 0
-    const row = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const row = await runPromise(provideJournal(Effect.gen(function*() {
       const store = yield* RunStore.RunStore
       yield* activate(store, "stale", ownerA)
       yield* TestClock.adjust("31 seconds")
@@ -166,7 +167,7 @@ describe("RunDriver ownership", () => {
 
   it("abandons an activation race without starting a handler", async () => {
     let executions = 0
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const base = yield* RunStore.RunStore
       yield* activate(base, "activation-race", ownerA)
       yield* TestClock.adjust("31 seconds")
@@ -211,7 +212,7 @@ describe("RunDriver ownership", () => {
   })
 
   it("suspension atomically clears owner and heartbeat", async () => {
-    const row = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const row = await runPromise(provideJournal(Effect.gen(function*() {
       const driver = yield* makeDriver(ownerA)
       yield* driver.register(TestFlow, () =>
         Effect.flatMap(
@@ -232,7 +233,7 @@ describe("RunDriver ownership", () => {
   })
 
   it("interrupts the driver when its heartbeat fence is lost", async () => {
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const store = yield* RunStore.RunStore
       const driver = yield* makeDriver(ownerA)
       const started = yield* Deferred.make<void>()

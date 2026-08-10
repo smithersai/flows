@@ -9,6 +9,7 @@ import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
+import { runPromise } from "../Sha256.ts"
 
 const mode = process.argv[2]
 const filename = process.argv[3]
@@ -187,7 +188,7 @@ const engineProgram = Effect.scoped(
   }).pipe(Effect.provide(requirements))
 )
 
-await Effect.runPromise(
+await runPromise(
   mode === "state-complete"
     ? stateCompletion
     : mode === "state-init"

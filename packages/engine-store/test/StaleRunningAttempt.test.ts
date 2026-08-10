@@ -14,13 +14,13 @@
 import { AttemptStore, type Ownership, RunStore } from "@smthrs/journal"
 import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Jj } from "@smthrs/kernel"
-import { Digest } from "@smthrs/keys"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "stale-host", pid: 21, nonce: "reclaimer" }
 
@@ -58,7 +58,7 @@ describe("stale running attempt rows (issue #71)", () => {
   it("re-executes an in-flight attempt row left by a hard-killed incarnation instead of rejecting admission", async () => {
     let dispatches = 0
     const key = "stale-running/redrive"
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.gen(function*() {
         yield* activate("stale-running")
         const attempts = yield* AttemptStore.AttemptStore
@@ -67,7 +67,7 @@ describe("stale running attempt rows (issue #71)", () => {
         const seeded = yield* attempts.put(
           {
             runId: "stale-running",
-            stepKeyDigest: Digest.digest(key),
+            stepKeyDigest: sha256(key),
             attempt: 1,
             state: "running",
             startedAtMs: 0,
@@ -95,7 +95,7 @@ describe("stale running attempt rows (issue #71)", () => {
 
         const row = yield* attempts.get({
           runId: "stale-running",
-          stepKeyDigest: Digest.digest(key),
+          stepKeyDigest: sha256(key),
           attempt: 1
         })
         return { outcome, row }
@@ -113,14 +113,14 @@ describe("stale running attempt rows (issue #71)", () => {
 
   it("records the re-executed attempt's failure durably through the ordinary finish path", async () => {
     const key = "stale-running/fails"
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.gen(function*() {
         yield* activate("stale-running-fails")
         const attempts = yield* AttemptStore.AttemptStore
         yield* attempts.put(
           {
             runId: "stale-running-fails",
-            stepKeyDigest: Digest.digest(key),
+            stepKeyDigest: sha256(key),
             attempt: 1,
             state: "running",
             startedAtMs: 0,
@@ -143,7 +143,7 @@ describe("stale running attempt rows (issue #71)", () => {
         )
         const row = yield* attempts.get({
           runId: "stale-running-fails",
-          stepKeyDigest: Digest.digest(key),
+          stepKeyDigest: sha256(key),
           attempt: 1
         })
         return { exit, row }

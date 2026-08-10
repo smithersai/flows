@@ -10,6 +10,7 @@ import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
+import { runPromise } from "./Sha256.ts"
 
 const TestFlow = Flow.make("CycleDetection/Test", {
   payload: {},
@@ -75,7 +76,7 @@ const createRun = (id: string, parent?: string) =>
 
 describe("RunDriver cycle detection", () => {
   it("fails a direct self-execute with a 1-element cycle path", async () => {
-    const exit = await Effect.runPromise(Effect.exit(provideJournal(Effect.gen(function*() {
+    const exit = await runPromise(Effect.exit(provideJournal(Effect.gen(function*() {
       const driver = yield* makeDriver()
       yield* driver.register(TestFlow, () => Effect.succeed("never runs"))
       return yield* driver.execute(TestFlow, {
@@ -96,7 +97,7 @@ describe("RunDriver cycle detection", () => {
   })
 
   it("executes a legitimate deep parent chain with no cycle", async () => {
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const driver = yield* makeDriver()
       yield* driver.register(TestFlow, () => Effect.succeed("ok"))
 
@@ -116,7 +117,7 @@ describe("RunDriver cycle detection", () => {
   })
 
   it("catches a mutual A -> B -> A cycle from the B -> A entry point", async () => {
-    const exit = await Effect.runPromise(Effect.exit(provideJournal(Effect.gen(function*() {
+    const exit = await runPromise(Effect.exit(provideJournal(Effect.gen(function*() {
       const driver = yield* makeDriver()
       yield* driver.register(TestFlow, () => Effect.succeed("never runs"))
 
@@ -143,7 +144,7 @@ describe("RunDriver cycle detection", () => {
   })
 
   it("catches the same mutual cycle from the other entry point", async () => {
-    const exit = await Effect.runPromise(Effect.exit(provideJournal(Effect.gen(function*() {
+    const exit = await runPromise(Effect.exit(provideJournal(Effect.gen(function*() {
       const driver = yield* makeDriver()
       yield* driver.register(TestFlow, () => Effect.succeed("never runs"))
 
@@ -170,7 +171,7 @@ describe("RunDriver cycle detection", () => {
   })
 
   it("catches a diamond cycle reachable only through the second parent edge", async () => {
-    const exit = await Effect.runPromise(Effect.exit(provideJournal(Effect.gen(function*() {
+    const exit = await runPromise(Effect.exit(provideJournal(Effect.gen(function*() {
       const driver = yield* makeDriver()
       yield* driver.register(TestFlow, () => Effect.succeed("ok"))
 
@@ -205,7 +206,7 @@ describe("RunDriver cycle detection", () => {
   })
 
   it("admits a legitimate cycle-free fan-in diamond (issue #37)", async () => {
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const driver = yield* makeDriver()
       yield* driver.register(TestFlow, () => Effect.succeed("ok"))
       const store = yield* RunStore.RunStore
@@ -240,7 +241,7 @@ describe("RunDriver cycle detection", () => {
   })
 
   it("rejects a concurrently formed mutual cycle instead of admitting both edges (issue #29)", async () => {
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const store = yield* RunStore.RunStore
       // Force an async boundary inside every parent-chain read so the two
       // fibers' cycle checks provably interleave: without serialization both
@@ -285,7 +286,7 @@ describe("RunDriver cycle detection", () => {
   it(
     "rejects a mutual cycle formed across two driver instances over one shared store (issue #40)",
     async () => {
-      const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+      const result = await runPromise(provideJournal(Effect.gen(function*() {
         const store = yield* RunStore.RunStore
         // Force an async boundary inside every parent-chain read so the two
         // drivers' cycle checks provably interleave: each driver has its own
@@ -338,7 +339,7 @@ describe("RunDriver cycle detection", () => {
   it(
     "keeps a diamond's second-parent edge across a restart so the cycle it closes is still detected (issue #41)",
     async () => {
-      const exit = await Effect.runPromise(Effect.exit(provideJournal(Effect.gen(function*() {
+      const exit = await runPromise(Effect.exit(provideJournal(Effect.gen(function*() {
         yield* createRun("restart-a")
         yield* createRun("restart-b")
         yield* createRun("restart-c", "restart-a")
@@ -377,7 +378,7 @@ describe("RunDriver cycle detection", () => {
   )
 
   it("terminates on a pre-existing corrupt store cycle instead of hanging", async () => {
-    const exit = await Effect.runPromise(Effect.exit(provideJournal(Effect.gen(function*() {
+    const exit = await runPromise(Effect.exit(provideJournal(Effect.gen(function*() {
       const driver = yield* makeDriver()
       yield* driver.register(TestFlow, () => Effect.succeed("ok"))
       const store = yield* RunStore.RunStore
@@ -408,7 +409,7 @@ describe("RunDriver cycle detection", () => {
   it(
     "refuses the closing writer, never a legitimate chord, when both race (issue #54)",
     async () => {
-      const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+      const result = await runPromise(provideJournal(Effect.gen(function*() {
         // Lineage chord-a -> chord-b -> chord-c (child -> parent edges).
         yield* createRun("chord-c")
         yield* createRun("chord-b", "chord-c")
@@ -452,7 +453,7 @@ describe("RunDriver cycle detection", () => {
   it(
     "leaves no durable trace of a rejected fresh-run edge: the winner replays and both nodes stay usable (issues #55/#56)",
     async () => {
-      const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+      const result = await runPromise(provideJournal(Effect.gen(function*() {
         const store = yield* RunStore.RunStore
         const driverOne = yield* makeDriver()
         const driverTwo = yield* makeDriver()
@@ -507,7 +508,7 @@ describe("RunDriver cycle detection", () => {
   )
 
   it("a sequentially rejected edge leaves the graph exactly as it was (issue #56)", async () => {
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const state = yield* DurableEngineState.DurableEngineState
       const driver = yield* makeDriver()
       yield* driver.register(TestFlow, () => Effect.succeed("ok"))

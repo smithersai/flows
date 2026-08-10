@@ -8,11 +8,12 @@
  * evicts the least-recently-used digest, and eviction costs only the #132
  * re-verification on that digest's next capture — never correctness.
  */
+import type { FileBoundary } from "@smthrs/engine/FileBoundary"
 import { FileSystem } from "@smthrs/kernel"
-import { Digest } from "@smthrs/keys"
 import * as Effect from "effect/Effect"
 import { describe, expect, it } from "vitest"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise, sha256 } from "./Sha256.ts"
 
 const encoder = new TextEncoder()
 
@@ -56,13 +57,13 @@ const memoFs = () => {
   return { files, reads, writes, fs }
 }
 
-const descriptor: StepBoundary.Descriptor = {
+const descriptor: FileBoundary = {
   readSet: [],
   writeSet: ["artifact.bin"],
   boundaryMode: "hard"
 }
 
-const blobPathOf = (content: string) => `.flows/objects/${Digest.digest(encoder.encode(content))}`
+const blobPathOf = (content: string) => `.flows/objects/${sha256(encoder.encode(content))}`
 
 /** Spills `content` (always over the 4-byte inline bound) through `boundary`. */
 const spill = (boundary: StepBoundary.Service, host: ReturnType<typeof memoFs>, content: string) =>
@@ -79,7 +80,7 @@ describe("the verified-digest memo is a bounded LRU (issue #155)", () => {
     const host = memoFs()
     const boundary = StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 4 })
     const first = "memo-bound-first-content"
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function*() {
         yield* spill(boundary, host, first)
         // The store published `first` itself, so a repeat capture needs no
@@ -97,7 +98,7 @@ describe("the verified-digest memo is a bounded LRU (issue #155)", () => {
     // The evicted digest's next capture re-verifies the existing blob — one
     // read+hash — and, on the verified match, skips the rewrite.
     const temps = host.writes.filter((path) => path.startsWith(`${blobPathOf(first)}.tmp-`)).length
-    await Effect.runPromise(spill(boundary, host, first))
+    await runPromise(spill(boundary, host, first))
     expect(host.reads.filter((path) => path === blobPathOf(first))).toHaveLength(1)
     expect(host.writes.filter((path) => path.startsWith(`${blobPathOf(first)}.tmp-`))).toHaveLength(temps)
   })
@@ -107,7 +108,7 @@ describe("the verified-digest memo is a bounded LRU (issue #155)", () => {
     const boundary = StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 4 })
     const hot = "memo-lru-hot-content"
     const cold = "memo-lru-cold-content"
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function*() {
         yield* spill(boundary, host, hot)
         yield* spill(boundary, host, cold)

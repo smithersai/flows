@@ -15,6 +15,7 @@ import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise } from "./Sha256.ts"
 
 const jj = Jj.make({
   snapshot: () => Effect.succeed({ changeId: "parking-snapshot" as never }),
@@ -36,7 +37,7 @@ const withEngine = <A>(
     store: RunStore.Service
   ) => Effect.Effect<A, any, any>
 ) =>
-  Effect.runPromise(
+  runPromise(
     Effect.scoped(
       Effect.gen(function*() {
         const store = yield* RunStore.RunStore

@@ -22,6 +22,7 @@ import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
+import { runPromise } from "./Sha256.ts"
 
 const TestFlow = Flow.make("UnregisteredFlowWarning/Test", {
   payload: {},
@@ -75,7 +76,7 @@ describe("unregistered-flow reclaim is loud, not silent (issue #62)", () => {
       logs.push({ message: options.message, logLevel: options.logLevel })
     })
 
-    const result = await Effect.runPromise(provideJournal(
+    const result = await runPromise(provideJournal(
       Effect.gen(function*() {
         const store = yield* RunStore.RunStore
         const state = yield* DurableEngineState.DurableEngineState

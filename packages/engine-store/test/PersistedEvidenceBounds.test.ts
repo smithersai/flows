@@ -9,13 +9,13 @@
 import { AttemptStore, CacheStore, type Ownership, RunStore } from "@smthrs/journal"
 import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { FileSystem, Jj } from "@smthrs/kernel"
-import { Digest } from "@smthrs/keys"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "evidence-bounds-host", pid: 59, nonce: "evidence-bounds-process" }
 const encoder = new TextEncoder()
@@ -77,14 +77,14 @@ describe("persisted evidence stays bounded through the real boundary (issue #125
   it("records bounded digest references without admitting the unverified boundary to cache", async () => {
     const runId = "evidence-bounds-run"
     const key = "evidence-bounds/over-inline"
-    const keyDigest = Digest.digest(key)
+    const keyDigest = sha256(key)
     // 4 KiB output against a 16-byte inline bound: the payload must never
     // reach a persisted row.
     const artifact = "x".repeat(4096)
-    const artifactDigest = Digest.digest(artifact)
+    const artifactDigest = sha256(artifact)
     const host = memoryFs({ "input.txt": "original" })
     const metadata: ActivityPersistence.BoundaryMetadata = {
-      readSet: [{ path: "input.txt", digest: Digest.digest("original") }],
+      readSet: [{ path: "input.txt", digest: sha256("original") }],
       writeSet: ["artifact.bin"],
       boundaryMode: "hard"
     }
@@ -92,7 +92,7 @@ describe("persisted evidence stays bounded through the real boundary (issue #125
       StepBoundary.StepBoundary,
       StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 16, objectsDirectory: ".objects" })
     )
-    const outcome = await Effect.runPromise(
+    const outcome = await runPromise(
       Effect.gen(function*() {
         const attempts = yield* AttemptStore.AttemptStore
         const cache = yield* CacheStore.CacheStore

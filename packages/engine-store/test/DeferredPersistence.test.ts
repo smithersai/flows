@@ -8,6 +8,7 @@ import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as DeferredPersistence from "../src/internal/DeferredPersistence.ts"
+import { runPromise } from "./Sha256.ts"
 
 const owner = {
   hostId: "deferred-test",
@@ -50,7 +51,6 @@ const makeJournal = (events: Array<string>) =>
         }
       })
     return Journal.makeNoop({
-      emit: (input) => record(input, "emit"),
       emitDurable: (input) => record(input, "emit"),
       flush: Effect.sync(() => {
         events.push("flush")
@@ -79,7 +79,7 @@ const build = (
 
 describe("DeferredPersistence", () => {
   it("keeps the first duplicate or divergent completion", async () => {
-    const result = await Effect.runPromise(Effect.scoped(Effect.gen(function*() {
+    const result = await runPromise(Effect.scoped(Effect.gen(function*() {
       const state = DurableEngineState.makeMemory()
       const events: Array<string> = []
       const resumes: Array<string> = []
@@ -125,7 +125,7 @@ describe("DeferredPersistence", () => {
       deferredName: "answer"
     }
 
-    await Effect.runPromise(Effect.scoped(Effect.gen(function*() {
+    await runPromise(Effect.scoped(Effect.gen(function*() {
       const service = yield* build(state, makeJournal(events), resumes, () => {
         durableAtResume = events.at(-1) === "flush"
       })
@@ -137,13 +137,13 @@ describe("DeferredPersistence", () => {
     })))
 
     expect(durableAtResume).toBe(true)
-    expect(Option.getOrThrow(await Effect.runPromise(state.deferred(address))).metadata).toEqual({
+    expect(Option.getOrThrow(await runPromise(state.deferred(address))).metadata).toEqual({
       correlationId: "opaque"
     })
   })
 
   it("reads a completion from a fresh persistence instance", async () => {
-    const result = await Effect.runPromise(Effect.scoped(Effect.gen(function*() {
+    const result = await runPromise(Effect.scoped(Effect.gen(function*() {
       const state = DurableEngineState.makeMemory()
       const journal = makeJournal([])
       const first = yield* build(state, journal, [])
@@ -172,7 +172,7 @@ describe("DeferredPersistence", () => {
   })
 
   it("re-arms a future clock after restart and fires its original deadline", async () => {
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.scoped(Effect.gen(function*() {
         const state = DurableEngineState.makeMemory()
         const events: Array<string> = []
@@ -218,7 +218,7 @@ describe("DeferredPersistence", () => {
   })
 
   it("redispatches a clock fire with backoff after a transient journal failure instead of losing the timer", async () => {
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.scoped(Effect.gen(function*() {
         const state = DurableEngineState.makeMemory()
         const events: Array<string> = []
@@ -276,7 +276,7 @@ describe("DeferredPersistence", () => {
     // Issue #43: SqlJournal latches `sinkFailure` forever after one lossy
     // writer error, so `flush` fails on every subsequent call while
     // `emitDurable` keeps committing. Durable delivery must survive that.
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.scoped(Effect.gen(function*() {
         const state = DurableEngineState.makeMemory()
         const events: Array<string> = []
@@ -335,7 +335,7 @@ describe("DeferredPersistence", () => {
 
   it("re-delivers a wake for a completion recorded before registration", async () => {
     const resumes: Array<string> = []
-    await Effect.runPromise(Effect.scoped(Effect.gen(function*() {
+    await runPromise(Effect.scoped(Effect.gen(function*() {
       const state = DurableEngineState.makeMemory()
       yield* state.completeDeferred({
         flowName: TestFlow._tag,

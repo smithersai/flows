@@ -19,6 +19,7 @@ import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
+import { runPromise } from "./Sha256.ts"
 
 const TestFlow = Flow.make("ShutdownRelease/Test", {
   payload: {},
@@ -57,7 +58,7 @@ const provideJournal = <A, E, R>(
 
 describe("shutdown releases instead of cancelling (issue #26)", () => {
   it("an external drive-fiber interruption parks the run reclaimably", async () => {
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const store = yield* RunStore.RunStore
       const journal = yield* Journal.Journal
       // The driver lives in its own scope so the test can close it while a
@@ -91,7 +92,7 @@ describe("shutdown releases instead of cancelling (issue #26)", () => {
   })
 
   it("operator interrupt still durably cancels the run", async () => {
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const store = yield* RunStore.RunStore
       const driver = yield* makeDriver()
       const started = yield* Latch.make(false)

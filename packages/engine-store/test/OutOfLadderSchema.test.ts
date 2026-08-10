@@ -19,6 +19,7 @@ import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStateSchema from "../src/internal/EngineStateSchema.ts"
+import { runPromise } from "./Sha256.ts"
 
 const migratedDatabase = Layer.provideMerge(Migrations.layer, TestDatabase.layer)
 
@@ -32,7 +33,7 @@ const schemaObjects = Effect.gen(function*() {
 
 describe("out-of-ladder engine-store schema (issue #92)", () => {
   it("creates exactly the objects the porting inventory declares", async () => {
-    const created = await Effect.runPromise(
+    const created = await runPromise(
       Effect.gen(function*() {
         const before = yield* schemaObjects
         yield* DurableEngineState.make
@@ -42,25 +43,25 @@ describe("out-of-ladder engine-store schema (issue #92)", () => {
     )
 
     expect(created).toEqual(
-      EngineStateSchema.outOfLadder.map((statement) => statement.name).sort()
+      EngineStateSchema.statements.map((statement) => statement.name).sort()
     )
   })
 
   it("declares which dialects each out-of-ladder statement is known to accept", () => {
-    expect(EngineStateSchema.outOfLadder.length).toBeGreaterThan(0)
-    for (const statement of EngineStateSchema.outOfLadder) {
+    expect(EngineStateSchema.statements.length).toBeGreaterThan(0)
+    for (const statement of EngineStateSchema.statements) {
       expect(statement.dialects.length).toBeGreaterThan(0)
       expect(statement.dialects).toContain("sqlite")
     }
     // The GC trigger's inline BEGIN...END body is SQLite-exclusive; the
     // inventory must say so, because that is the statement a pg backend
     // dies on first.
-    const trigger = EngineStateSchema.outOfLadder.find((statement) => statement.name === "flows_run_parents_gc")
+    const trigger = EngineStateSchema.statements.find((statement) => statement.name === "flows_run_parents_gc")
     expect(trigger?.dialects).toEqual(["sqlite"])
   })
 
   it("is idempotent: a second construction over the same database adds nothing", async () => {
-    const created = await Effect.runPromise(
+    const created = await runPromise(
       Effect.gen(function*() {
         yield* DurableEngineState.make
         const before = yield* schemaObjects

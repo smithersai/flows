@@ -1,11 +1,11 @@
 import { AttemptStore, CacheStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
 import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Jj } from "@smthrs/kernel"
-import { Digest } from "@smthrs/keys"
 import { Effect, Layer, Option } from "effect"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "tiers", pid: 1, nonce: "owner" }
 
@@ -80,7 +80,7 @@ describe("engine-store activity tiers", () => {
       Effect.scoped
     )
 
-    expect(await Effect.runPromise(program)).toBe(1)
+    expect(await runPromise(program)).toBe(1)
     expect(executions).toBe(1)
   })
 
@@ -99,17 +99,17 @@ describe("engine-store activity tiers", () => {
       return {
         retry: yield* attempts.get({
           runId: "compensable",
-          stepKeyDigest: Digest.digest("caller-key/compensable"),
+          stepKeyDigest: sha256("caller-key/compensable"),
           attempt: 2
         }),
-        cached: yield* cache.get(Digest.digest("caller-key/compensable"))
+        cached: yield* cache.get(sha256("caller-key/compensable"))
       }
     }).pipe(
       Effect.provide(Layer.mergeAll(TestJournal.layer(), StepBoundary.layerTest(), jjLayer(snapshots, restores))),
       Effect.scoped
     )
 
-    const result = await Effect.runPromise(program)
+    const result = await runPromise(program)
     expect(executions).toBe(2)
     expect(snapshots).toEqual(["snapshot-0", "snapshot-1"])
     expect(restores).toEqual(["snapshot-0"])
@@ -139,7 +139,7 @@ describe("engine-store activity tiers", () => {
       Effect.scoped
     )
 
-    const result = await Effect.runPromise(program)
+    const result = await runPromise(program)
     expect(result.withoutKey).toMatchObject({
       _tag: "Failure",
       failure: { _tag: "flows/engine-store/IrreversibleRetryRequiresIdempotencyKey" }
@@ -168,7 +168,7 @@ describe("engine-store activity tiers", () => {
       ),
       Effect.scoped
     )
-    expect(await Effect.runPromise(hard)).toMatchObject({
+    expect(await runPromise(hard)).toMatchObject({
       _tag: "Failure",
       failure: { _tag: "flows/engine-store/UndeclaredWrite" }
     })
@@ -192,7 +192,7 @@ describe("engine-store activity tiers", () => {
       yield* journal.flush
       return {
         events: yield* journal.entries({ runId: "expected" as never, limit: 20 }),
-        cached: yield* cache.get(Digest.digest("supplier-key/expected"))
+        cached: yield* cache.get(sha256("supplier-key/expected"))
       }
     }).pipe(
       Effect.provide(
@@ -200,7 +200,7 @@ describe("engine-store activity tiers", () => {
       ),
       Effect.scoped
     )
-    const result = await Effect.runPromise(expected)
+    const result = await runPromise(expected)
     expect(result.events.entries.map((entry) => entry.eventType)).toContain("flows.engine.expected-set-deviation")
     expect(Option.isNone(result.cached)).toBe(true)
   })

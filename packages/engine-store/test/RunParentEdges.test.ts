@@ -7,6 +7,7 @@ import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
+import { runPromise } from "./Sha256.ts"
 
 const migratedDatabase = Layer.provideMerge(Migrations.layer, TestDatabase.layer)
 
@@ -26,7 +27,7 @@ interface Harness {
 const sqlHarness: Harness = {
   label: "sql",
   run: <A>(body: (state: DurableEngineState.Service) => Effect.Effect<A, any, never>) =>
-    Effect.runPromise(
+    runPromise(
       Effect.flatMap(DurableEngineState.make, body).pipe(
         Effect.provide(migratedDatabase)
       ) as Effect.Effect<A>
@@ -35,7 +36,7 @@ const sqlHarness: Harness = {
 
 const memoryHarness: Harness = {
   run: <A>(body: (state: DurableEngineState.Service) => Effect.Effect<A, any, never>) =>
-    Effect.runPromise(body(DurableEngineState.makeMemory()) as Effect.Effect<A>),
+    runPromise(body(DurableEngineState.makeMemory()) as Effect.Effect<A>),
   label: "memory"
 }
 
@@ -196,7 +197,7 @@ describeContract(memoryHarness)
 
 describe("run parent edges (sql fault injection)", () => {
   it("dies rather than inventing an edge when the conflicting row cannot be re-read", async () => {
-    const exit = await Effect.runPromise(
+    const exit = await runPromise(
       Effect.gen(function*() {
         const database = yield* Database.Database
         const first = yield* DurableEngineState.make
@@ -232,7 +233,7 @@ describe("run parent edges (sql fault injection)", () => {
   })
 
   it("dies (not a typed failure) when the write transaction itself fails", async () => {
-    const exit = await Effect.runPromise(
+    const exit = await runPromise(
       Effect.gen(function*() {
         const database = yield* Database.Database
         // Writes succeed during `make` (table/index bootstrap), then fail.

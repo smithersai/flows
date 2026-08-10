@@ -16,38 +16,11 @@ import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
 import * as DurableEngineState from "../DurableEngineState.ts"
+import { RunState } from "../RunState.ts"
 import * as ActivityPersistence from "./ActivityPersistence.ts"
 import * as JournalRecords from "./JournalRecords.ts"
 
-/**
- * The persisted, versioned state carried by a durable run row.
- *
- * @since 0.1.0
- * @category models
- */
-export interface PersistedState {
-  readonly version: 1
-  readonly flowName: string
-  readonly payload: unknown
-  readonly parentExecutionId?: string | undefined
-  readonly result?: unknown
-  readonly cancellation?: {
-    readonly interruptedAtMs: number
-  } | undefined
-}
-
-const PersistedStateSchema = Schema.Struct({
-  version: Schema.Literal(1),
-  flowName: Schema.String,
-  payload: Schema.Unknown,
-  parentExecutionId: Schema.optional(Schema.String),
-  result: Schema.optional(Schema.Unknown),
-  cancellation: Schema.optional(Schema.Struct({
-    interruptedAtMs: Schema.Number
-  }))
-})
-
-const PersistedStateJson = Schema.fromJsonString(PersistedStateSchema)
+const RunStateJson = Schema.fromJsonString(RunState)
 
 /**
  * Raised when a flow (directly or through mutual ancestry) attempts to
@@ -138,7 +111,7 @@ const cancelRequested = { _tag: "CancelRequested" } as const
 const staleRunningSweepBatch = 64
 type CancelRequested = typeof cancelRequested
 
-const withoutResult = (state: PersistedState): PersistedState => {
+const withoutResult = (state: RunState): RunState => {
   const { cancellation: _, result: __, ...rest } = state
   return rest
 }
@@ -172,11 +145,11 @@ export const make = (
      */
     const warnedUnregistered = new Set<string>()
     const liveInstances = new Map<string, FlowEngine.FlowInstance["Service"]>()
-    const encodeState = (state: PersistedState): Effect.Effect<string> =>
-      Schema.encodeEffect(PersistedStateJson)(state).pipe(Effect.orDie)
+    const encodeState = (state: RunState): Effect.Effect<string> =>
+      Schema.encodeEffect(RunStateJson)(state).pipe(Effect.orDie)
 
-    const decodeState = (stateJson: string): Effect.Effect<PersistedState> =>
-      Schema.decodeUnknownEffect(PersistedStateJson)(stateJson).pipe(Effect.orDie)
+    const decodeState = (stateJson: string): Effect.Effect<RunState> =>
+      Schema.decodeUnknownEffect(RunStateJson)(stateJson).pipe(Effect.orDie)
 
     /**
      * Run decisions are lifecycle records: they take the journal's durable
@@ -335,7 +308,7 @@ export const make = (
 
     const cancelOwned = (
       runId: string,
-      state: PersistedState
+      state: RunState
     ): Effect.Effect<void> =>
       Effect.gen(function*() {
         const interruptedAtMs = yield* Clock.currentTimeMillis
@@ -389,7 +362,7 @@ export const make = (
      */
     const releaseOwned = (
       runId: string,
-      state: PersistedState
+      state: RunState
     ): Effect.Effect<void> =>
       Effect.gen(function*() {
         // Park before releasing ownership (`park` is owner-fenced). The
@@ -427,7 +400,7 @@ export const make = (
      */
     const settleInterrupted = (
       runId: string,
-      state: PersistedState
+      state: RunState
     ): Effect.Effect<void> =>
       store.get(runId).pipe(
         Effect.map((row) => row.cancelRequestedAtMs !== null),
@@ -585,7 +558,7 @@ export const make = (
             error: registration.flow.errorSchema
           }))
         )(result).pipe(Effect.orDie) as Effect.Effect<unknown>)
-        const nextState: PersistedState = { ...activeState, result: encodedResult }
+        const nextState: RunState = { ...activeState, result: encodedResult }
         const status: RunStore.RunStatus = result._tag === "Suspended"
           ? "suspended"
           : Exit.isSuccess(result.exit)
@@ -780,7 +753,7 @@ export const make = (
               )
             )
           }
-          const state: PersistedState = {
+          const state: RunState = {
             version: 1,
             flowName: flow._tag,
             payload,

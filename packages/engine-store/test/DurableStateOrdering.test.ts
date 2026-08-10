@@ -8,6 +8,7 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
+import { runPromise } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = {
   hostId: "ordering",
@@ -45,7 +46,7 @@ describe("in-memory durable state ordering", () => {
 
   it("orders due clocks by deadline, then execution id, then clock name", async () => {
     const state = DurableEngineState.makeMemory()
-    const listed = await Effect.runPromise(Effect.gen(function*() {
+    const listed = await runPromise(Effect.gen(function*() {
       // Inserted in deliberately reverse-sorted order so a stable-but-unsorted
       // implementation would fail every assertion below.
       yield* state.scheduleClock({ ...clockBase, executionId: "b", clockName: "z", dueAtMs: 50 }, owner)
@@ -65,7 +66,7 @@ describe("in-memory durable state ordering", () => {
 
   it("excludes clocks due after the boundary and includes the exact boundary", async () => {
     const state = DurableEngineState.makeMemory()
-    const result = await Effect.runPromise(Effect.gen(function*() {
+    const result = await runPromise(Effect.gen(function*() {
       yield* state.scheduleClock({ ...clockBase, executionId: "x", clockName: "exact", dueAtMs: 100 }, owner)
       yield* state.scheduleClock({ ...clockBase, executionId: "x", clockName: "after", dueAtMs: 101 }, owner)
       return {
@@ -82,7 +83,7 @@ describe("in-memory durable state ordering", () => {
 
   it("orders completed deferreds by execution id, then deferred name", async () => {
     const state = DurableEngineState.makeMemory()
-    const listed = await Effect.runPromise(Effect.gen(function*() {
+    const listed = await runPromise(Effect.gen(function*() {
       const base = { flowName: "Ordering/Flow", exit: Exit.succeed(1), completedAtMs: 0 }
       yield* state.completeDeferred({ ...base, executionId: "b", deferredName: "a" })
       yield* state.completeDeferred({ ...base, executionId: "a", deferredName: "z" })
@@ -101,7 +102,7 @@ describe("in-memory durable state ordering", () => {
 
   it("orders waiting runs by wake time, sinks unbounded waits last, and breaks ties by run id", async () => {
     const state = DurableEngineState.makeMemory()
-    const result = await Effect.runPromise(Effect.gen(function*() {
+    const result = await runPromise(Effect.gen(function*() {
       yield* state.park("late", { reason: "timer", wakeAt: 900 }, owner)
       yield* state.park("event", { reason: "event" }, owner)
       yield* state.park("tie-b", { reason: "timer", wakeAt: 100 }, owner)
@@ -122,7 +123,7 @@ describe("in-memory durable state ordering", () => {
 
 describe("SQL durable state encoding failures", () => {
   it("dies with a field-named defect when a deferred exit is not JSON-serializable", async () => {
-    const exit = await Effect.runPromise(
+    const exit = await runPromise(
       Effect.gen(function*() {
         yield* insertOwnedRun("bad-exit")
         const state = yield* DurableEngineState.make
@@ -144,7 +145,7 @@ describe("SQL durable state encoding failures", () => {
   })
 
   it("dies when deferred metadata encodes to `undefined` rather than persisting a null row", async () => {
-    const exit = await Effect.runPromise(
+    const exit = await runPromise(
       Effect.gen(function*() {
         yield* insertOwnedRun("bad-metadata")
         const state = yield* DurableEngineState.make
@@ -172,12 +173,13 @@ describe("SQL durable state encoding failures", () => {
       executionId: "corrupt",
       deferredName: "answer"
     }
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.gen(function*() {
         yield* insertOwnedRun("corrupt")
         const { sql } = yield* Database.Database
         const state = yield* DurableEngineState.make
         const missing = yield* state.deferred(address)
+        yield* sql`PRAGMA ignore_check_constraints = ON`
         yield* sql`
           INSERT INTO flows_deferred_completions (
             flow_name, execution_id, deferred_name, exit_json, metadata_json, completed_at_ms
@@ -203,7 +205,7 @@ describe("SQL first-writer transaction integrity", () => {
       executionId: "torn",
       deferredName: "answer"
     }
-    const exit = await Effect.runPromise(
+    const exit = await runPromise(
       Effect.gen(function*() {
         yield* insertOwnedRun("torn")
         const database = yield* Database.Database

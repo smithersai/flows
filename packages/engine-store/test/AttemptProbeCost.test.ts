@@ -20,6 +20,7 @@ import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise } from "./Sha256.ts"
 
 const ProbeFlow = Flow.make("AttemptProbeCost/Flow", {
   payload: {},
@@ -65,7 +66,7 @@ describe("attempt probe cost over SQL durable state (issue #77)", () => {
     ).pipe(Layer.provideMerge(Layer.provideMerge(Migrations.layer, TestDatabase.layer)))
 
     let gets = 0
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.gen(function*() {
         // Decorate the real store so every point read the engine issues for
         // this run is counted — the probe scan used to issue up to 64 here.

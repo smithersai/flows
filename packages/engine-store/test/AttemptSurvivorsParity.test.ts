@@ -15,6 +15,7 @@ import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as AttemptProbe from "../src/internal/AttemptProbe.ts"
+import { runPromise } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "survivor-parity", pid: 1, nonce: "owner" }
 
@@ -64,7 +65,7 @@ describe("attempt survivor discovery agrees across both paths (issue #96)", () =
   it.each(shapes)("$name", async ({ attempts, name }) => {
     const digest = `digest-${name.replace(/\s/g, "-")}`
     const runId = `parity-${digest}`
-    const probed = await Effect.runPromise(
+    const probed = await runPromise(
       Effect.gen(function*() {
         yield* insertOwnedRun(runId)
         for (const attempt of attempts) yield* insertAttempt(runId, digest, attempt)

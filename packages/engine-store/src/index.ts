@@ -30,6 +30,12 @@ export * as Inconsistency from "./Inconsistency.ts"
 
 /**
  * @since 0.1.0
+ * @category schemas
+ */
+export * as RunState from "./RunState.ts"
+
+/**
+ * @since 0.1.0
  * @category errors
  */
 export * as Errors from "./Errors.ts"

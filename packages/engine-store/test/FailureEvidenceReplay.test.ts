@@ -15,6 +15,7 @@ import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise } from "./Sha256.ts"
 
 const FailFlow = Flow.make("FailureEvidence/Flow", {
   payload: {},
@@ -67,7 +68,7 @@ describe("failure evidence across restarts", () => {
         return `${first}/${second}`
       })
 
-    const outcome = await Effect.runPromise(
+    const outcome = await runPromise(
       Effect.scoped(
         Effect.gen(function*() {
           const runs = yield* RunStore.RunStore

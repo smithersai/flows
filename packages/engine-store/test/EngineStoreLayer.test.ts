@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise } from "./Sha256.ts"
 
 const LayerFlow = Flow.make("EngineStoreLayer/Flow", {
   payload: {},
@@ -64,7 +65,7 @@ const baseLayers = (jj: Jj.Jj, state: DurableEngineState.Service) =>
 describe("EngineStore.layer", () => {
   it("exposes a snapshot boundary that delegates to Jj with key- and attempt-labelled messages", async () => {
     const calls: Array<JjCall> = []
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.scoped(Effect.gen(function*() {
         const boundary = yield* FlowEngine.SnapshotBoundary
         const options: FlowEngine.SnapshotBoundaryOptions = {
@@ -107,7 +108,7 @@ describe("EngineStore.layer", () => {
     const failing = recordingJj(calls, {
       snapshot: () => Effect.fail({ _tag: "JjError", message: "worktree busy" } as never)
     })
-    const exit = await Effect.runPromise(
+    const exit = await runPromise(
       Effect.scoped(
         Effect.exit(
           Effect.flatMap(
@@ -142,7 +143,7 @@ describe("EngineStore.layer", () => {
 
   it("provides a flow engine from the same layer that drives a registered flow to completion", async () => {
     const state = DurableEngineState.makeMemory()
-    const row = await Effect.runPromise(
+    const row = await runPromise(
       Effect.scoped(Effect.gen(function*() {
         const engine = yield* FlowEngine.FlowEngine
         yield* engine.register(LayerFlow, () => Effect.succeed("layered"))
@@ -175,7 +176,7 @@ describe("EngineStore.layer", () => {
 describe("EngineStore.make liveness", () => {
   it("uses the required liveness probe, so a live foreign owner is never stolen from", async () => {
     let executions = 0
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.scoped(Effect.gen(function*() {
         const store = yield* RunStore.RunStore
         // Seed a `running` row owned by another host whose heartbeat is
@@ -245,7 +246,7 @@ describe("EngineStore.make liveness", () => {
         return `${value}/${released}`
       })
 
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.scoped(Effect.gen(function*() {
         const makeEngine = EngineStore.make({
           owner: { hostId: "layer-host" },
@@ -305,7 +306,7 @@ describe("EngineStore boundary metadata", () => {
       })
     })
 
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.scoped(Effect.gen(function*() {
         const engine = yield* EngineStore.make({
           owner: { hostId: "layer-host" },
@@ -332,7 +333,7 @@ describe("EngineStore boundary metadata", () => {
             // environment its sealed keys were computed under: an undeclared
             // environment pins the key to its own execution, so the two runs
             // would address distinct rows and never share.
-            Activity.layerContentEnvironment({ layers: [], capabilities: {} })
+            Activity.layerCacheEnvironment({ layers: [], capabilities: {} })
           )
         )
       )
@@ -345,7 +346,7 @@ describe("EngineStore boundary metadata", () => {
     expect(dispatches).toBe(1)
   })
 
-  it("keeps a sealed result run-local while the content environment is undeclared", async () => {
+  it("keeps a sealed result run-local while the cache environment is absent", async () => {
     // The admission half of the same invariant: identical declarations, an
     // identical hard boundary, and no declared environment must still execute
     // twice, because nothing proves the second run resolves the same layers
@@ -364,7 +365,7 @@ describe("EngineStore boundary metadata", () => {
       })
     })
 
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.scoped(Effect.gen(function*() {
         const engine = yield* EngineStore.make({
           owner: { hostId: "layer-host" },

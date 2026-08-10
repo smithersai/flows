@@ -13,13 +13,14 @@
  * blob refuses with `UnsupportedBoundary`, which the issue-#107 call sites
  * turn into a real execution instead of a failure.
  */
+import type { FileBoundary } from "@smthrs/engine/FileBoundary"
 import { FileSystem } from "@smthrs/kernel"
-import { Digest } from "@smthrs/keys"
 import * as Effect from "effect/Effect"
 import * as Encoding from "effect/Encoding"
 import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise, sha256 } from "./Sha256.ts"
 
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
@@ -66,8 +67,8 @@ const memoryFs = (seed: Record<string, string>) => {
 const boundaryLayer = (fs: FileSystem.FileSystem, options?: StepBoundary.FileSystemOptions) =>
   Layer.succeed(StepBoundary.StepBoundary, StepBoundary.makeFileSystem(fs, options))
 
-const descriptor: StepBoundary.Descriptor = {
-  readSet: [{ path: "input.txt", digest: Digest.digest("original") }],
+const descriptor: FileBoundary = {
+  readSet: [{ path: "input.txt", digest: sha256("original") }],
   writeSet: ["artifact.bin"],
   boundaryMode: "hard"
 }
@@ -96,26 +97,26 @@ describe("materialized outputs are digest-referenced and bounded (issue #113)", 
   it("an output over the inline bound is stored as a content-addressed blob, not inlined", async () => {
     const host = memoryFs({ "input.txt": "original" })
     const artifact = "x".repeat(64)
-    const evidence = await Effect.runPromise(settleWithArtifact(host, artifact, 16))
+    const evidence = await runPromise(settleWithArtifact(host, artifact, 16))
     const [output] = outputsOf(evidence)
-    expect(output!.digest).toBe(Digest.digest(artifact))
+    expect(output!.digest).toBe(sha256(artifact))
     expect(output!.sizeBytes).toBe(64)
     // The row carries a reference, never the 64-byte payload.
     expect(output!.content).toBeUndefined()
     expect(JSON.stringify(evidence)).not.toContain("xxxxxxxx")
     // The payload lives in the host's content-addressed object directory.
-    expect(decoder.decode(host.files.get(`.objects/${Digest.digest(artifact)}`))).toBe(artifact)
+    expect(decoder.decode(host.files.get(`.objects/${sha256(artifact)}`))).toBe(artifact)
   })
 
   it("a small output stays inline under the bound and replays without the object store", async () => {
     const host = memoryFs({ "input.txt": "original" })
-    const evidence = await Effect.runPromise(settleWithArtifact(host, "small", 16))
+    const evidence = await runPromise(settleWithArtifact(host, "small", 16))
     const [output] = outputsOf(evidence)
     expect(output!.content).toBeDefined()
     // Inline evidence is self-contained: a fresh workspace with no object
     // directory still materializes it.
     const fresh = memoryFs({})
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function*() {
         const boundary = yield* StepBoundary.StepBoundary
         yield* boundary.replayOutputs(evidence)
@@ -127,10 +128,10 @@ describe("materialized outputs are digest-referenced and bounded (issue #113)", 
   it("replays a blob-referenced output from the object store on the same host", async () => {
     const host = memoryFs({ "input.txt": "original" })
     const artifact = "y".repeat(64)
-    const evidence = await Effect.runPromise(settleWithArtifact(host, artifact, 16))
+    const evidence = await runPromise(settleWithArtifact(host, artifact, 16))
     // Wipe the workspace output; the object store survives.
     host.files.delete("artifact.bin")
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function*() {
         const boundary = yield* StepBoundary.StepBoundary
         yield* boundary.replayOutputs(evidence)
@@ -142,11 +143,11 @@ describe("materialized outputs are digest-referenced and bounded (issue #113)", 
   it("refuses the replay when a referenced blob is missing, instead of writing garbage", async () => {
     const host = memoryFs({ "input.txt": "original" })
     const artifact = "z".repeat(64)
-    const evidence = await Effect.runPromise(settleWithArtifact(host, artifact, 16))
+    const evidence = await runPromise(settleWithArtifact(host, artifact, 16))
     // A different host that never ran the step has no object store: the
     // refusal routes the #107 call sites to a real execution.
     const fresh = memoryFs({})
-    const failure = await Effect.runPromise(
+    const failure = await runPromise(
       Effect.gen(function*() {
         const boundary = yield* StepBoundary.StepBoundary
         return yield* Effect.flip(boundary.replayOutputs(evidence))
@@ -158,7 +159,7 @@ describe("materialized outputs are digest-referenced and bounded (issue #113)", 
 
   it("undecodable inline content refuses rather than materializing garbage", async () => {
     const host = memoryFs({})
-    const failure = await Effect.runPromise(
+    const failure = await runPromise(
       Effect.gen(function*() {
         const boundary = yield* StepBoundary.StepBoundary
         return yield* Effect.flip(boundary.replayOutputs({
@@ -185,7 +186,7 @@ describe("legacy round-7 evidence rows still decode and replay (issue #123)", ()
 
   it("materializes a legacy inline row, deriving its digest from the decoded bytes", async () => {
     const host = memoryFs({})
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function*() {
         const boundary = yield* StepBoundary.StepBoundary
         yield* boundary.replayOutputs(legacyEvidence([
@@ -198,7 +199,7 @@ describe("legacy round-7 evidence rows still decode and replay (issue #123)", ()
 
   it("treats legacy null content as path-absent and removes the stale file", async () => {
     const host = memoryFs({ "legacy.txt": "stale" })
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function*() {
         const boundary = yield* StepBoundary.StepBoundary
         yield* boundary.replayOutputs(legacyEvidence([{ path: "legacy.txt", content: null }]))
@@ -209,7 +210,7 @@ describe("legacy round-7 evidence rows still decode and replay (issue #123)", ()
 
   it("refuses undecodable legacy content instead of materializing garbage", async () => {
     const host = memoryFs({})
-    const failure = await Effect.runPromise(
+    const failure = await runPromise(
       Effect.gen(function*() {
         const boundary = yield* StepBoundary.StepBoundary
         return yield* Effect.flip(
@@ -236,7 +237,7 @@ describe("the aggregate inline payload is bounded (issue #122)", () => {
       maxTotalInlineBytes: 24,
       objectsDirectory: ".objects"
     }
-    const evidence = await Effect.runPromise(
+    const evidence = await runPromise(
       Effect.gen(function*() {
         const boundary = yield* StepBoundary.StepBoundary
         const prepared = yield* boundary.prepare({
@@ -255,14 +256,14 @@ describe("the aggregate inline payload is bounded (issue #122)", () => {
     // The later output carries a digest reference only, even though it
     // individually fits the per-output bound.
     expect(outputs[2]!.content).toBeUndefined()
-    expect(outputs[2]!.digest).toBe(Digest.digest(contents[2]!))
+    expect(outputs[2]!.digest).toBe(sha256(contents[2]!))
     expect(JSON.stringify(evidence)).not.toContain(Encoding.encodeBase64(encoder.encode(contents[2]!)))
-    expect(host.files.has(`.objects/${Digest.digest(contents[2]!)}`)).toBe(true)
+    expect(host.files.has(`.objects/${sha256(contents[2]!)}`)).toBe(true)
     // Replay round-trips the mixed inline/reference evidence.
     host.files.delete("a.bin")
     host.files.delete("b.bin")
     host.files.delete("c.bin")
-    await Effect.runPromise(
+    await runPromise(
       Effect.gen(function*() {
         const boundary = yield* StepBoundary.StepBoundary
         yield* boundary.replayOutputs(evidence)
@@ -284,30 +285,30 @@ describe("blob writes are atomic and materialization is digest-verified (issue #
   it("refuses a corrupted blob at the canonical address instead of writing garbage", async () => {
     const host = memoryFs({ "input.txt": "original" })
     const artifact = "c".repeat(64)
-    const evidence = await Effect.runPromise(settleWithArtifact(host, artifact, 16))
+    const evidence = await runPromise(settleWithArtifact(host, artifact, 16))
     // The blob at the canonical content address was truncated after settle
     // — a torn write, disk corruption, or a clobbered partial file.
-    host.files.set(`.objects/${Digest.digest(artifact)}`, encoder.encode("truncated"))
+    host.files.set(`.objects/${sha256(artifact)}`, encoder.encode("truncated"))
     host.files.delete("artifact.bin")
-    const failure = await Effect.runPromise(replay(host, evidence))
+    const failure = await runPromise(replay(host, evidence))
     // A digest mismatch is corruption, not a transient host refusal
     // (issue #150): the distinct code is what routes it to the
     // Inconsistency receiver instead of the retryable fallback.
     expect(failure).toMatchObject({
       code: "boundary_corruption",
       path: "artifact.bin",
-      recordedDigest: Digest.digest(artifact)
+      recordedDigest: sha256(artifact)
     })
     expect(host.files.has("artifact.bin")).toBe(false)
   })
 
   it("refuses inline content whose bytes do not match the recorded digest", async () => {
     const host = memoryFs({})
-    const failure = await Effect.runPromise(replay(host, {
+    const failure = await runPromise(replay(host, {
       declaredOutputs: {
         outputs: [{
           path: "artifact.bin",
-          digest: Digest.digest("real"),
+          digest: sha256("real"),
           sizeBytes: 4,
           content: Encoding.encodeBase64(encoder.encode("fake"))
         }]
@@ -319,8 +320,8 @@ describe("blob writes are atomic and materialization is digest-verified (issue #
     expect(failure).toMatchObject({
       code: "boundary_corruption",
       path: "artifact.bin",
-      recordedDigest: Digest.digest("real"),
-      measuredDigest: Digest.digest("fake")
+      recordedDigest: sha256("real"),
+      measuredDigest: sha256("fake")
     })
     expect(host.files.has("artifact.bin")).toBe(false)
   })
@@ -328,8 +329,8 @@ describe("blob writes are atomic and materialization is digest-verified (issue #
   it("writes blobs via temp+rename and never rewrites an existing valid blob", async () => {
     const host = memoryFs({ "input.txt": "original" })
     const artifact = "t".repeat(64)
-    const blobPath = `.objects/${Digest.digest(artifact)}`
-    await Effect.runPromise(settleWithArtifact(host, artifact, 16))
+    const blobPath = `.objects/${sha256(artifact)}`
+    await runPromise(settleWithArtifact(host, artifact, 16))
     // The canonical address is never the direct write target: the payload
     // lands at a temp path and is renamed into place, so a crash mid-write
     // can never leave a partial file at the content address.
@@ -340,7 +341,7 @@ describe("blob writes are atomic and materialization is digest-verified (issue #
     // No temp file survives the settle.
     expect([...host.files.keys()].filter((path) => path.includes(".tmp-"))).toHaveLength(0)
     // Content-addressed: a second settle of the same payload skips the write.
-    await Effect.runPromise(settleWithArtifact(host, artifact, 16))
+    await runPromise(settleWithArtifact(host, artifact, 16))
     expect(host.writes.filter((path) => path.startsWith(`${blobPath}.tmp-`))).toHaveLength(1)
     expect(host.renames).toHaveLength(1)
   })

@@ -9,7 +9,7 @@
  * left the suite fully green while restoring the double-execution TOCTOU.
  *
  * This test drives the store itself: one engine built by `EngineStore.make`,
- * one run whose body dispatches the same sealed content key twice at
+ * one run whose body dispatches the same sealed cache key twice at
  * concurrency 2 — two separate per-dispatch persistence closures that only
  * exclude each other through the store-threaded mutex. Without the shared
  * admission the loser races the winner's running row and the dispatch breaks
@@ -26,6 +26,7 @@ import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise } from "./Sha256.ts"
 
 const AdmissionFlow = Flow.make("EngineStoreAdmission/Flow", {
   payload: {},
@@ -68,7 +69,7 @@ describe("EngineStore shares one admission mutex across dispatches (issue #112)"
       })
     })
 
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.scoped(Effect.gen(function*() {
         const engine = yield* EngineStore.make({
           owner: { hostId: "admission-host" },

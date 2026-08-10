@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as JournalRecords from "../src/internal/JournalRecords.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
+import { runPromise } from "./Sha256.ts"
 
 const EdgeFlow = Flow.make("RunDriverEdges/Flow", {
   payload: {},
@@ -75,7 +76,7 @@ const decisionsFor = (runId: string) =>
 describe("RunDriver missing and foreign rows", () => {
   it("drives nothing for an execution whose row does not exist", async () => {
     let executions = 0
-    const active = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const active = await runPromise(provideJournal(Effect.gen(function*() {
       const driver = yield* makeDriver()
       yield* driver.register(
         EdgeFlow,
@@ -96,7 +97,7 @@ describe("RunDriver missing and foreign rows", () => {
   })
 
   it("dies when the run store fails for a reason other than a missing row", async () => {
-    const exit = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const exit = await runPromise(provideJournal(Effect.gen(function*() {
       const base = yield* RunStore.RunStore
       const broken = RunStore.makeNoop({
         ...base,
@@ -113,7 +114,7 @@ describe("RunDriver missing and foreign rows", () => {
   })
 
   it("leaves an existing row untouched when no handler is registered for its flow", async () => {
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const store = yield* RunStore.RunStore
       yield* store.create("unregistered", stateJson(UnregisteredFlow._tag))
       const driver = yield* makeDriver()
@@ -134,7 +135,7 @@ describe("RunDriver missing and foreign rows", () => {
 
   it("records claim-lost and skips execution when the row moves under the claim", async () => {
     let executions = 0
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const base = yield* RunStore.RunStore
       const racing = RunStore.makeNoop({
         ...base,
@@ -169,7 +170,7 @@ describe("RunDriver missing and foreign rows", () => {
 
   it("stops before executing when the post-activation running transition loses its fence", async () => {
     let executions = 0
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const base = yield* RunStore.RunStore
       const fenceLost = RunStore.makeNoop({
         ...base,
@@ -201,7 +202,7 @@ describe("RunDriver missing and foreign rows", () => {
   })
 
   it("keeps a result unpublished when the terminal transition loses its fence", async () => {
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const base = yield* RunStore.RunStore
       const fenceLost = RunStore.makeNoop({
         ...base,
@@ -230,7 +231,7 @@ describe("RunDriver missing and foreign rows", () => {
 
 describe("RunDriver poll", () => {
   it("reports None for a missing row, a foreign flow tag, and an unfinished run", async () => {
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const store = yield* RunStore.RunStore
       const driver = yield* makeDriver()
       yield* store.create("other-flow", stateJson(OtherFlow._tag))
@@ -252,7 +253,7 @@ describe("RunDriver poll", () => {
   })
 
   it("dies when polling hits a store failure that is not a missing row", async () => {
-    const exit = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const exit = await runPromise(provideJournal(Effect.gen(function*() {
       const base = yield* RunStore.RunStore
       const broken = RunStore.makeNoop({
         ...base,
@@ -266,7 +267,7 @@ describe("RunDriver poll", () => {
   })
 
   it("reports Suspended to a caller whose execution parked without a result", async () => {
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const driver = yield* makeDriver()
       yield* driver.register(
         EdgeFlow,
@@ -285,7 +286,7 @@ describe("RunDriver poll", () => {
 
 describe("RunDriver execute preconditions", () => {
   it("dies when asked to execute an unregistered flow", async () => {
-    const exit = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const exit = await runPromise(provideJournal(Effect.gen(function*() {
       const driver = yield* makeDriver()
       return yield* Effect.exit(driver.execute(UnregisteredFlow, {
         executionId: "unregistered-execute",
@@ -300,7 +301,7 @@ describe("RunDriver execute preconditions", () => {
   })
 
   it("dies when an execution id already belongs to a different flow", async () => {
-    const exit = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const exit = await runPromise(provideJournal(Effect.gen(function*() {
       const store = yield* RunStore.RunStore
       yield* store.create("shared-id", stateJson(OtherFlow._tag))
       const driver = yield* makeDriver()
@@ -318,7 +319,7 @@ describe("RunDriver execute preconditions", () => {
   })
 
   it("dies when run creation fails for a reason other than the row already existing", async () => {
-    const exit = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const exit = await runPromise(provideJournal(Effect.gen(function*() {
       const base = yield* RunStore.RunStore
       const broken = RunStore.makeNoop({
         ...base,
@@ -340,7 +341,7 @@ describe("RunDriver execute preconditions", () => {
 
 describe("RunDriver scheduleResume", () => {
   it("ignores a wake for a missing row and for a flow-name mismatch", async () => {
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const store = yield* RunStore.RunStore
       const driver = yield* makeDriver()
       yield* store.create("mismatched", stateJson(OtherFlow._tag))
@@ -357,7 +358,7 @@ describe("RunDriver scheduleResume", () => {
   })
 
   it("records the wake reason for a matching row", async () => {
-    const decisions = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const decisions = await runPromise(provideJournal(Effect.gen(function*() {
       const store = yield* RunStore.RunStore
       const driver = yield* makeDriver()
       yield* store.create("wakeable", stateJson(EdgeFlow._tag))
@@ -369,7 +370,7 @@ describe("RunDriver scheduleResume", () => {
   })
 
   it("dies when the wake lookup hits a store failure that is not a missing row", async () => {
-    const exit = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const exit = await runPromise(provideJournal(Effect.gen(function*() {
       const base = yield* RunStore.RunStore
       const broken = RunStore.makeNoop({
         ...base,
@@ -385,7 +386,7 @@ describe("RunDriver scheduleResume", () => {
 
 describe("RunDriver interruption settlement", () => {
   it("releases an interrupted run for reclaim when the cancel lookup fails", async () => {
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const base = yield* RunStore.RunStore
       let started = false
       const brokenAfterStart = RunStore.makeNoop({
@@ -437,7 +438,7 @@ describe("RunDriver interruption settlement", () => {
 
 describe("JournalRecords.entries", () => {
   it("pages engine records from the beginning and after a sequence number", async () => {
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const driver = yield* makeDriver()
       const store = yield* RunStore.RunStore
       yield* store.create("paged", stateJson(EdgeFlow._tag))
@@ -462,7 +463,7 @@ describe("JournalRecords.entries", () => {
 describe("RunDriver stale-owner recovery", () => {
   it("labels a same-host steal as a dead pid and runs the flow itself", async () => {
     const evidence: Array<unknown> = []
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const base = yield* RunStore.RunStore
       const recording = RunStore.makeNoop({
         ...base,
@@ -498,7 +499,7 @@ describe("RunDriver stale-owner recovery", () => {
   })
 
   it("dies when the drive-time row read fails for a reason other than a missing row", async () => {
-    const exit = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const exit = await runPromise(provideJournal(Effect.gen(function*() {
       const base = yield* RunStore.RunStore
       yield* base.create("drive-broken", stateJson(EdgeFlow._tag))
       let reads = 0
@@ -520,7 +521,7 @@ describe("RunDriver stale-owner recovery", () => {
 
 describe("RunDriver parent-chain traversal", () => {
   it("treats a parent whose row is missing as having no ancestors", async () => {
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const driver = yield* makeDriver()
       yield* driver.register(EdgeFlow, () => Effect.succeed("child-ran"))
       // The parent execution has no persisted row at all: the walk ends
@@ -538,7 +539,7 @@ describe("RunDriver parent-chain traversal", () => {
   })
 
   it("dies when the parent-chain read fails for a reason other than a missing row", async () => {
-    const exit = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const exit = await runPromise(provideJournal(Effect.gen(function*() {
       const base = yield* RunStore.RunStore
       const broken = RunStore.makeNoop({
         ...base,
@@ -560,7 +561,7 @@ describe("RunDriver parent-chain traversal", () => {
 
 describe("RunDriver registration lifecycle", () => {
   it("removes a flow entirely when overlapping registrations for it are released", async () => {
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const driver = yield* makeDriver()
       yield* Effect.scoped(Effect.gen(function*() {
         yield* driver.register(EdgeFlow, () => Effect.succeed("old"))
@@ -592,7 +593,7 @@ describe("RunDriver registration lifecycle", () => {
 
 describe("RunDriver cancellation paths", () => {
   it("skips the interruption record when the cancel transition loses its fence", async () => {
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const base = yield* RunStore.RunStore
       const fenceLost = RunStore.makeNoop({
         ...base,
@@ -631,7 +632,7 @@ describe("RunDriver cancellation paths", () => {
   })
 
   it("records a cancel request for a run that has no live instance", async () => {
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const store = yield* RunStore.RunStore
       const driver = yield* makeDriver()
       yield* store.create("not-running", stateJson(EdgeFlow._tag))
@@ -644,7 +645,7 @@ describe("RunDriver cancellation paths", () => {
   })
 
   it("reports Suspended to the caller when the run settles without a persisted result", async () => {
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const base = yield* RunStore.RunStore
       const fenceLost = RunStore.makeNoop({
         ...base,
@@ -682,7 +683,7 @@ const provideJournalWithTestClock = <A, E, R>(
 
 describe("RunDriver parked-cancel sweep", () => {
   it("ignores parked entries whose run row can no longer be read", async () => {
-    const result = await Effect.runPromise(provideJournalWithTestClock(Effect.gen(function*() {
+    const result = await runPromise(provideJournalWithTestClock(Effect.gen(function*() {
       const state = yield* DurableEngineState.DurableEngineState
       const store = yield* RunStore.RunStore
       const driver = yield* makeDriver()
@@ -708,7 +709,7 @@ describe("RunDriver parked-cancel sweep", () => {
   })
 
   it("wakes a parked run whose cancellation was requested by another process", async () => {
-    const result = await Effect.runPromise(provideJournalWithTestClock(Effect.gen(function*() {
+    const result = await runPromise(provideJournalWithTestClock(Effect.gen(function*() {
       const state = yield* DurableEngineState.DurableEngineState
       const store = yield* RunStore.RunStore
       const driver = yield* makeDriver()
@@ -796,14 +797,14 @@ describe("RunDriver released-marker cleanup", () => {
     }))
 
   it("clears its own released marker when the release transition loses the fence", async () => {
-    const result = await Effect.runPromise(interruptDuringRelease(() => ({})))
+    const result = await runPromise(interruptDuringRelease(() => ({})))
 
     expect(Option.isNone(result.waiting)).toBe(true)
     expect(result.row.status).toBe("running")
   })
 
   it("keeps a waiting row a new owner parked in the meantime", async () => {
-    const result = await Effect.runPromise(interruptDuringRelease((state) => ({
+    const result = await runPromise(interruptDuringRelease((state) => ({
       waiting: (runId) =>
         // A new owner re-parked the run on a real waiting reason between our
         // park and our failed transition.
@@ -817,7 +818,7 @@ describe("RunDriver released-marker cleanup", () => {
   })
 
   it("does not touch the waiting row when its own park was refused", async () => {
-    const result = await Effect.runPromise(interruptDuringRelease((state) => ({
+    const result = await runPromise(interruptDuringRelease((state) => ({
       park: (runId, waiting, owner) =>
         waiting.reason === "released"
           // The park was fenced out, so there is no marker of ours to clear.

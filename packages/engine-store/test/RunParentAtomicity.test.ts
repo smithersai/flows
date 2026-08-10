@@ -28,6 +28,7 @@ import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
+import { runPromise } from "./Sha256.ts"
 
 const AtomicFlow = Flow.make("RunParentAtomicity/Test", {
   payload: {},
@@ -47,7 +48,7 @@ const services = Layer.mergeAll(
 const parentInstance = (executionId: string) => ({ executionId } as FlowEngine.FlowInstance["Service"])
 
 const run = <A, E, R>(effect: Effect.Effect<A, E, R>): Promise<A> =>
-  Effect.runPromise(
+  runPromise(
     Effect.scoped(effect as Effect.Effect<A, E, Scope.Scope>).pipe(
       Effect.provide(services),
       Effect.provide(TestClock.layer())

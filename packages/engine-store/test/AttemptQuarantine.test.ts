@@ -27,6 +27,7 @@ import * as EngineStore from "../src/EngineStore.ts"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise } from "./Sha256.ts"
 
 const QuarantineFlow = Flow.make("AttemptQuarantine/Flow", {
   payload: {},
@@ -103,7 +104,8 @@ describe("succeeded-row corruption parks the run quarantined for an operator (is
         TestClock.layer(),
         Layer.succeed(DurableEngineState.DurableEngineState, state),
         Layer.succeed(Jj.Jj, jj),
-        Activity.layerContentEnvironment({ layers: [], capabilities: {} }),
+        Activity.layerCacheEnvironment({ layers: [], capabilities: {} }),
+        NodeCrypto.layer,
         boundary
       )
     )
@@ -286,7 +288,7 @@ describe("a cancel that races the quarantine park", () => {
       measuredDigest: "bb".repeat(32)
     })
 
-    const outcome = await Effect.runPromise(
+    const outcome = await runPromise(
       Effect.gen(function*() {
         const store = yield* RunStore.RunStore
         const state = DurableEngineState.makeMemory()
@@ -334,3 +336,4 @@ describe("a cancel that races the quarantine park", () => {
     expect(Option.isNone(outcome.waiting)).toBe(true)
   })
 })
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto"

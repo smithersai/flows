@@ -9,7 +9,6 @@ import { Activity, Flow, type FlowEngine, RetryPolicy, StepIdentity } from "@smt
 import { AttemptStore, Journal, RunStore } from "@smthrs/journal"
 import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Jj } from "@smthrs/kernel"
-import { Digest, StepKey } from "@smthrs/keys"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Fiber from "effect/Fiber"
@@ -22,6 +21,7 @@ import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { invocationKey, runPromise, runSync, sha256 } from "./Sha256.ts"
 
 const jj = Jj.make({
   snapshot: () => Effect.succeed({ changeId: "retry-expiration-snapshot" as never }),
@@ -39,7 +39,7 @@ const withRestart = <A>(
     attempts: AttemptStore.Service
   ) => Effect.Effect<A, any, any>
 ) =>
-  Effect.runPromise(
+  runPromise(
     Effect.scoped(
       Effect.gen(function*() {
         const store = yield* RunStore.RunStore
@@ -95,19 +95,19 @@ describe("expirationMs survives a restart mid-retry (issue #45)", () => {
       })
 
     // The activity carries no idempotency key, so its step key is the first
-    // ordinal key allocated in the activity's own name scope (issue #73) —
+    // invocation key allocated in the activity's own name scope (issue #73) —
     // recomputable here to observe the persisted attempt row directly.
     const attemptId = {
       runId: "retry-expiration-run",
-      stepKeyDigest: Digest.digest(Result.getOrThrow(StepKey.ordinal({
+      stepKeyDigest: sha256(invocationKey({
         runId: "retry-expiration-run",
-        parentScope: Result.merge(StepIdentity.allocationScope({
+        parentScope: runSync(StepIdentity.allocationScope({
           kind: "activity",
           name: "retry-expiration-flaky"
         })),
         ordinal: 1,
         tier: "unsealed"
-      }))),
+      })),
       attempt: 1
     }
 

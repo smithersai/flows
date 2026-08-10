@@ -16,7 +16,6 @@ import { AttemptStore, Journal, RunStore } from "@smthrs/journal"
 import * as Notifying from "@smthrs/journal/test/Notifying"
 import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Jj } from "@smthrs/kernel"
-import { Digest, StepKey } from "@smthrs/keys"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
@@ -29,6 +28,7 @@ import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { key, runPromise, sha256 } from "./Sha256.ts"
 
 const ReplayFlow = Flow.make("NonRetryableReplay/Flow", {
   payload: {},
@@ -46,24 +46,24 @@ const jj = Jj.make({
 })
 
 const provide = <A>(effect: Effect.Effect<A, any, any>, state: DurableEngineState.Service) =>
-  Effect.runPromise(
+  runPromise(
     effect.pipe(
       Effect.provideService(DurableEngineState.DurableEngineState, state),
       Effect.provideService(Jj.Jj, jj),
       Effect.provide(StepBoundary.layerTest()),
       Effect.provide(TestJournal.layer()),
       Effect.provide(TestClock.layer()),
-      // Sealed content keys hash the resolved environment. Declaring an empty
+      // Sealed cache keys hash the resolved environment. Declaring an empty
       // one — what a hand-wired composition does through
-      // `Activity.layerContentEnvironment` — keeps the key run-independent so
+      // `Activity.layerCacheEnvironment` — keeps the key run-independent so
       // the mirror below can reproduce it; leaving it undeclared would pin
       // each key to its own execution.
-      Effect.provide(Activity.layerContentEnvironment(environment))
+      Effect.provide(Activity.layerCacheEnvironment(environment))
     ) as Effect.Effect<A>
   )
 
-// The engine derives a sealed activity's string idempotency key through
-// `StepKey.content`; the test mirrors it to inspect the persisted rows.
+// The engine derives a sealed activity's string idempotency key through the
+// generic `Key` schema; the test mirrors the engine-owned input to inspect the persisted rows.
 // Since issue #120 the body also folds the declared success/error schemas
 // (their stable `SchemaRepresentation` document form) — both activities
 // below share the same declaration.
@@ -73,15 +73,13 @@ const declaration = {
     Schema.Struct({ _tag: Schema.Literal("FatalBoom"), detail: Schema.String }).ast
   ))
 }
-const environment = { layers: [], capabilities: {} } satisfies Activity.ContentEnvironment
+const environment = { layers: [], capabilities: {} } satisfies Activity.CacheEnvironment
 const activityKey = (name: string, idempotencyKey: string) =>
-  Result.getOrThrow(StepKey.content({
-    body: { activity: name, idempotencyKey, declaration },
-    inputs: {},
-    layers: [],
-    capabilities: {},
-    environment: { declared: true, ...environment }
-  }))
+  key({
+    kind: "cache",
+    input: { activity: name, idempotencyKey, declaration },
+    environment
+  })
 
 describe("non-retryable classification against the real error class (issue #165)", () => {
   it("classifies a real CacheCorruptionDetected instance non-retryable under every policy", () => {
@@ -136,7 +134,7 @@ describe("non-retryable verdict durability across resume", () => {
     const key = activityKey("NonRetryableReplay/fatal", "non-retryable-v1")
     const attemptId = {
       runId: "non-retryable-run",
-      stepKeyDigest: Digest.digest(key),
+      stepKeyDigest: sha256(key),
       attempt: 1
     }
 
@@ -269,7 +267,7 @@ describe("non-retryable verdict durability across resume", () => {
         const attempts = yield* AttemptStore.AttemptStore
         const row = yield* attempts.get({
           runId: "failed-row-run",
-          stepKeyDigest: Digest.digest(activityKey("NonRetryableReplay/tagged", "tagged-v1")),
+          stepKeyDigest: sha256(activityKey("NonRetryableReplay/tagged", "tagged-v1")),
           attempt: 1
         })
         return { row, dispatches }
@@ -297,7 +295,7 @@ describe("non-retryable verdict durability across resume", () => {
       Effect.gen(function*() {
         const attempts = yield* AttemptStore.AttemptStore
         const runs = yield* RunStore.RunStore
-        const runId = `rehydrate-${Digest.digest(key).slice(0, 8)}`
+        const runId = `rehydrate-${sha256(key).slice(0, 8)}`
         yield* runs.create(runId, "{}")
         const row = yield* runs.get(runId)
         yield* runs.claimAndOwn(
@@ -306,7 +304,7 @@ describe("non-retryable verdict durability across resume", () => {
           owner,
           0
         )
-        const attemptId = { runId, stepKeyDigest: Digest.digest(key), attempt: 1 }
+        const attemptId = { runId, stepKeyDigest: sha256(key), attempt: 1 }
         yield* attempts.put({ ...attemptId, state: "running", startedAtMs: 0, meta: { tier: "sealed" } }, owner)
         yield* attempts.finish(
           { ...attemptId, state: "failed", finishedAtMs: 0, error, meta: { tier: "sealed" } },

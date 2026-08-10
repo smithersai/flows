@@ -4,10 +4,13 @@
  *
  * @since 0.1.0
  */
+import { Sha256 } from "@smthrs/crypto"
+import { FileBoundary } from "@smthrs/engine/FileBoundary"
+import { FileInput } from "@smthrs/engine/FileInput"
 import { FileSystem } from "@smthrs/kernel"
-import { Digest } from "@smthrs/keys"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
+import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Encoding from "effect/Encoding"
 import * as Layer from "effect/Layer"
@@ -16,41 +19,19 @@ import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 
 /** @since 0.1.0 @category models */
-export const BoundaryMode = Schema.Literals(["hard", "expected"])
-
-/** @since 0.1.0 @category models */
-export type BoundaryMode = typeof BoundaryMode.Type
-
-/** @since 0.1.0 @category models */
-export const ReadSetEntry = Schema.Struct({
-  path: Schema.String,
-  digest: Schema.String
-})
-
-/** @since 0.1.0 @category models */
-export type ReadSetEntry = typeof ReadSetEntry.Type
-
-/** @since 0.1.0 @category models */
-export const Descriptor = Schema.Struct({
-  readSet: Schema.Array(ReadSetEntry),
-  writeSet: Schema.Array(Schema.String),
-  boundaryMode: BoundaryMode
-})
-
-/** @since 0.1.0 @category models */
-export type Descriptor = typeof Descriptor.Type
-
-/** @since 0.1.0 @category models */
-export interface PreparedBoundary {
-  readonly descriptor: Descriptor
+export const PreparedBoundary = Schema.Struct({
+  descriptor: FileBoundary,
   /**
    * What the host actually measured for the declared read set at prepare
    * time. The declared digests are caller metadata folded into the step key;
    * this is the evidence that they still describe reality, and a sealed
    * cache hit is refused when the two disagree (issue #90).
    */
-  readonly readSnapshot: ReadonlyArray<ReadSetEntry>
-}
+  readSnapshot: Schema.Array(FileInput)
+})
+
+/** @since 0.1.0 @category models */
+export type PreparedBoundary = typeof PreparedBoundary.Type
 
 /**
  * Whether every declared read still matches what the host measured.
@@ -135,13 +116,15 @@ export class BoundaryCorruption extends Schema.TaggedErrorClass<BoundaryCorrupti
 
 /** @since 0.1.0 @category models */
 export interface Service {
-  readonly prepare: (descriptor: Descriptor) => Effect.Effect<PreparedBoundary, UnsupportedBoundary>
+  readonly prepare: (
+    descriptor: FileBoundary
+  ) => Effect.Effect<PreparedBoundary, UnsupportedBoundary, Crypto.Crypto>
   readonly settle: (
     prepared: PreparedBoundary
-  ) => Effect.Effect<BoundaryEvidence, UndeclaredWrite | UnsupportedBoundary>
+  ) => Effect.Effect<BoundaryEvidence, UndeclaredWrite | UnsupportedBoundary, Crypto.Crypto>
   readonly replayOutputs: (
     evidence: BoundaryEvidence
-  ) => Effect.Effect<void, UnsupportedBoundary | BoundaryCorruption>
+  ) => Effect.Effect<void, UnsupportedBoundary | BoundaryCorruption, Crypto.Crypto>
 }
 
 /** @since 0.1.0 @category services */
@@ -227,7 +210,7 @@ const fromLegacyOutput = Effect.fn("StepBoundary.fromLegacyOutput")(function*(
   }
   return {
     path: output.path,
-    digest: Digest.digest(decoded.success),
+    digest: yield* Schema.decodeUnknownEffect(Sha256)(decoded.success).pipe(Effect.orDie),
     sizeBytes: decoded.success.length,
     content: output.content
   } satisfies MaterializedOutput
@@ -389,11 +372,11 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
       yield* fs.remove(orphanPath).pipe(Effect.ignore)
     }
   })
-  const measure = (path: string): Effect.Effect<string, UnsupportedBoundary> =>
+  const measure = (path: string): Effect.Effect<string, UnsupportedBoundary, Crypto.Crypto> =>
     fs.exists(path).pipe(
       Effect.flatMap((present) =>
         present
-          ? Effect.map(fs.readFile(path), (bytes) => Digest.digest(bytes))
+          ? Effect.flatMap(fs.readFile(path), (bytes) => Schema.decodeUnknownEffect(Sha256)(bytes).pipe(Effect.orDie))
           : Effect.succeed(absentDigest)
       ),
       Effect.mapError(hostFailure)
@@ -402,7 +385,7 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
     const present = yield* fs.exists(path).pipe(Effect.mapError(hostFailure))
     if (!present) return { output: { path, digest: null } satisfies MaterializedOutput, inlinedBytes: 0 }
     const bytes = yield* fs.readFile(path).pipe(Effect.mapError(hostFailure))
-    const digest = Digest.digest(bytes)
+    const digest = yield* Schema.decodeUnknownEffect(Sha256)(bytes).pipe(Effect.orDie)
     // Inline only while both bounds hold (issue #122): the per-output bound
     // and the settle-wide aggregate budget the caller threads through.
     if (bytes.length <= maxInlineBytes && bytes.length <= inlineBudget) {
@@ -439,7 +422,12 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
     const verified = stored &&
       (verifiedDigestSeen(digest) ||
         (yield* fs.readFile(blobPath).pipe(
-          Effect.map((existing) => Digest.digest(existing) === digest),
+          Effect.flatMap((existing) =>
+            Schema.decodeUnknownEffect(Sha256)(existing).pipe(
+              Effect.orDie,
+              Effect.map((measured) => measured === digest)
+            )
+          ),
           Effect.catch(() => Effect.succeed(false))
         )))
     if (!verified) {
@@ -512,7 +500,7 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
     // truncated blob at the canonical address — or tampered inline content —
     // must never be written into the workspace as if it were the recorded
     // output.
-    const measured = Digest.digest(bytes)
+    const measured = yield* Schema.decodeUnknownEffect(Sha256)(bytes).pipe(Effect.orDie)
     if (measured !== output.digest) {
       // Corruption observed at the canonical address disproves any cached
       // verification of this digest (issue #145): without the eviction, the
@@ -548,7 +536,7 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
       // defaulting the snapshot to the declaration made `readSetMatches`
       // compare the declaration against itself and pass unconditionally
       // (issue #104).
-      const readSnapshot: Array<ReadSetEntry> = []
+      const readSnapshot: Array<FileInput> = []
       for (const entry of descriptor.readSet) {
         readSnapshot.push({ path: entry.path, digest: yield* measure(entry.path) })
       }
@@ -577,9 +565,9 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
         inlinedBytes += captured.inlinedBytes
         outputs.push(captured.output)
       }
-      const diffIdentity = Digest.digest(JSON.stringify(
+      const diffIdentity = yield* Schema.decodeUnknownEffect(Sha256)(JSON.stringify(
         outputs.map((output) => [output.path, output.digest])
-      ))
+      )).pipe(Effect.orDie)
       if (undeclared.length > 0 && prepared.descriptor.boundaryMode === "hard") {
         return yield* Effect.fail(
           new UndeclaredWrite({ code: "undeclared_write", paths: undeclared, diffIdentity })
@@ -648,7 +636,7 @@ export interface TestOptions {
    * for a file whose content moved out from under a stale declaration
    * (issue #90).
    */
-  readonly readSnapshot?: ReadonlyArray<ReadSetEntry> | undefined
+  readonly readSnapshot?: ReadonlyArray<FileInput> | undefined
   readonly declaredOutputs?: unknown
   readonly diffIdentity?: string | undefined
   readonly supported?: boolean | undefined

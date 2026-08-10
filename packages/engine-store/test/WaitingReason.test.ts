@@ -6,6 +6,7 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
+import { runPromise } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = {
   hostId: "waiting-reason",
@@ -50,7 +51,7 @@ const insertRunningRun = (runId: string, forOwner: Ownership.OwnerId = owner) =>
 describe("waiting-reason taxonomy", () => {
   for (const reason of ["approval", "event", "timer", "quota"] as const) {
     it(`round-trips a ${reason} park across a fresh engine-state instance`, async () => {
-      const result = await Effect.runPromise(
+      const result = await runPromise(
         Effect.gen(function*() {
           const runId = `park-${reason}`
           yield* insertRunningRun(runId)
@@ -89,7 +90,7 @@ describe("waiting-reason taxonomy", () => {
   }
 
   it("decodes a NULL-reason row (a running, unparked run) as not waiting", async () => {
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.gen(function*() {
         const runId = "null-reason"
         yield* insertRunningRun(runId)
@@ -108,7 +109,7 @@ describe("waiting-reason taxonomy", () => {
   })
 
   it("rejects a park attempt from a non-owning process", async () => {
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.gen(function*() {
         const runId = "owner-fenced"
         yield* insertRunningRun(runId, owner)
@@ -124,7 +125,7 @@ describe("waiting-reason taxonomy", () => {
   })
 
   it("reports NotFound when waking a run that does not exist", async () => {
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       DurableEngineState.make.pipe(
         Effect.flatMap((state) => state.wake("does-not-exist")),
         Effect.provide(migratedDatabase)
@@ -135,7 +136,7 @@ describe("waiting-reason taxonomy", () => {
   })
 
   it("omits wakeAt/token when a park does not provide them", async () => {
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.gen(function*() {
         const runId = "event-no-wake-at"
         yield* insertRunningRun(runId)
@@ -149,7 +150,7 @@ describe("waiting-reason taxonomy", () => {
   })
 
   it("returns exactly the due quota-parked run and not others via waitingRuns", async () => {
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.gen(function*() {
         const dueQuota = "due-quota"
         const futureQuota = "future-quota"

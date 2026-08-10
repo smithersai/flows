@@ -14,7 +14,6 @@
 import { AttemptStore, CacheStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
 import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Jj } from "@smthrs/kernel"
-import { Digest } from "@smthrs/keys"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -24,6 +23,7 @@ import { describe, expect, it } from "vitest"
 import * as Inconsistency from "../src/Inconsistency.ts"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "corruption-host", pid: 91, nonce: "corruption-process" }
 
@@ -101,7 +101,7 @@ const records = (runId: string, eventType: string) =>
 
 describe("replay-failed classification (issue #150)", () => {
   it("the noop receiver tolerates corruption by default", async () => {
-    const verdict = await Effect.runPromise(
+    const verdict = await runPromise(
       Inconsistency.makeNoop().noteCorruption({
         runId: "noop-run",
         keyDigest: "noop-key",
@@ -115,7 +115,7 @@ describe("replay-failed classification (issue #150)", () => {
 
   it("routes blob corruption on a verified hit to the Inconsistency receiver and fails strictly by default", async () => {
     const key = "corruption/strict-hit"
-    const outcome = await Effect.runPromise(
+    const outcome = await runPromise(
       Effect.gen(function*() {
         yield* activate("corruption-strict-first")
         yield* dispatch("corruption-strict-first", key, () => Effect.succeed("recorded")).pipe(
@@ -141,7 +141,7 @@ describe("replay-failed classification (issue #150)", () => {
     // The corruption reached the receiver's durable journal channel.
     expect(outcome.corruption).toHaveLength(1)
     expect(outcome.corruption[0]).toMatchObject({
-      keyDigest: Digest.digest(key),
+      keyDigest: sha256(key),
       verdict: "fail",
       path: "dist/manifest.json",
       recordedDigest: "aa".repeat(32),
@@ -161,7 +161,7 @@ describe("replay-failed classification (issue #150)", () => {
           })
       })
     )
-    const outcome = await Effect.runPromise(
+    const outcome = await runPromise(
       Effect.gen(function*() {
         let executions = 0
         const body = () =>
@@ -184,7 +184,7 @@ describe("replay-failed classification (issue #150)", () => {
     expect(outcome.second).toBe("recorded")
     expect(outcome.executions).toBe(2)
     expect(noted).toHaveLength(1)
-    expect(noted[0]).toMatchObject({ keyDigest: Digest.digest(key), path: "dist/manifest.json" })
+    expect(noted[0]).toMatchObject({ keyDigest: sha256(key), path: "dist/manifest.json" })
   })
 
   it("keeps transient host errors retryable and never routes them to the receiver", async () => {
@@ -203,7 +203,7 @@ describe("replay-failed classification (issue #150)", () => {
           })
       })
     )
-    const outcome = await Effect.runPromise(
+    const outcome = await runPromise(
       Effect.gen(function*() {
         let executions = 0
         const body = () =>
@@ -235,7 +235,7 @@ describe("replay-failed classification (issue #150)", () => {
 
   it("quarantines corruption on a succeeded attempt's replay under the strict verdict (issue #171)", async () => {
     const key = "corruption/succeeded-row"
-    const outcome = await Effect.runPromise(
+    const outcome = await runPromise(
       Effect.gen(function*() {
         const cache = yield* CacheStore.CacheStore
         yield* activate("corruption-row")
@@ -244,7 +244,7 @@ describe("replay-failed classification (issue #150)", () => {
         )
         // Evicting the cache row routes the re-dispatch to the succeeded
         // attempt row's replay branch rather than the cache-hit gate.
-        yield* cache.evict(Digest.digest(key))
+        yield* cache.evict(sha256(key))
         const failed = yield* Effect.exit(
           dispatch("corruption-row", key, () => Effect.die("must not re-execute")).pipe(
             Effect.provide(failingReplay(corruptionError))
@@ -265,7 +265,7 @@ describe("replay-failed classification (issue #150)", () => {
         const attempts = yield* AttemptStore.AttemptStore
         const row = yield* attempts.get({
           runId: "corruption-row",
-          stepKeyDigest: Digest.digest(key),
+          stepKeyDigest: sha256(key),
           attempt: 1
         })
         return { failed, refailed, provenance, corruption, row }
@@ -279,7 +279,7 @@ describe("replay-failed classification (issue #150)", () => {
       (outcome.failed as Exit.Failure<never, never>).cause
     ) as ActivityPersistence.AttemptEvidenceQuarantined
     expect(failure.code).toBe("attempt_evidence_quarantined")
-    expect(failure.keyDigest).toBe(Digest.digest(key))
+    expect(failure.keyDigest).toBe(sha256(key))
     expect(Exit.isFailure(outcome.refailed) && Cause.squash(outcome.refailed.cause))
       .toBeInstanceOf(ActivityPersistence.AttemptEvidenceQuarantined)
     // The succeeded row is never mutated, evicted, or downgraded: repair is
@@ -296,14 +296,14 @@ describe("replay-failed classification (issue #150)", () => {
   it("returns the durable outcome when a tolerant receiver accepts succeeded-row corruption", async () => {
     const key = "corruption/succeeded-tolerated"
     const tolerant = Inconsistency.layerTolerant
-    const outcome = await Effect.runPromise(
+    const outcome = await runPromise(
       Effect.gen(function*() {
         const cache = yield* CacheStore.CacheStore
         yield* activate("corruption-row-tolerated")
         yield* dispatch("corruption-row-tolerated", key, () => Effect.succeed("durable-outcome")).pipe(
           Effect.provide(Layer.mergeAll(failingReplay(corruptionError), tolerant))
         )
-        yield* cache.evict(Digest.digest(key))
+        yield* cache.evict(sha256(key))
         return yield* dispatch("corruption-row-tolerated", key, () => Effect.die("must not re-execute")).pipe(
           Effect.provide(Layer.mergeAll(failingReplay(corruptionError), tolerant))
         )
@@ -316,7 +316,7 @@ describe("replay-failed classification (issue #150)", () => {
 
   it("quarantines tolerated succeeded-row corruption instead of converging it into the shared cache (issue #160)", async () => {
     const key = "corruption/succeeded-quarantined"
-    const outcome = await Effect.runPromise(
+    const outcome = await runPromise(
       Effect.gen(function*() {
         const cache = yield* CacheStore.CacheStore
         yield* activate("corruption-quarantine")
@@ -325,11 +325,11 @@ describe("replay-failed classification (issue #150)", () => {
         )
         // Route the re-dispatch to the succeeded-row branch, whose issue-#24
         // convergence block would republish the row.
-        yield* cache.evict(Digest.digest(key))
+        yield* cache.evict(sha256(key))
         const replayed = yield* dispatch("corruption-quarantine", key, () => Effect.die("must not re-execute")).pipe(
           Effect.provide(Layer.mergeAll(failingReplay(corruptionError), Inconsistency.layerTolerant))
         )
-        const cached = yield* cache.get(Digest.digest(key))
+        const cached = yield* cache.get(sha256(key))
         return { replayed, cached }
       }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
     )
@@ -358,9 +358,9 @@ describe("replay-failed classification (issue #150)", () => {
         }),
         verdict: "fail"
       })
-    const converged = await Effect.runPromise(failing("idempotency_conflict").noteCorruption(event))
+    const converged = await runPromise(failing("idempotency_conflict").noteCorruption(event))
     expect(converged).toBe("fail")
-    const propagated = await Effect.runPromise(Effect.flip(failing("fence_lost").noteCorruption(event)))
+    const propagated = await runPromise(Effect.flip(failing("fence_lost").noteCorruption(event)))
     expect(propagated).toMatchObject({ code: "fence_lost" })
   })
 
@@ -384,7 +384,7 @@ describe("replay-failed classification (issue #150)", () => {
         replayOutputs: () => Effect.void
       })
     )
-    const outcome = await Effect.runPromise(
+    const outcome = await runPromise(
       Effect.gen(function*() {
         const cache = yield* CacheStore.CacheStore
         yield* activate("corruption-evict-first")
@@ -396,7 +396,7 @@ describe("replay-failed classification (issue #150)", () => {
           Effect.provide(failingReplay(corruptionError)),
           Effect.flip
         )
-        const evicted = yield* cache.get(Digest.digest(key))
+        const evicted = yield* cache.get(sha256(key))
         // The same key dispatched again — with a healthy boundary — must be
         // an ordinary miss that re-executes and re-records cleanly, not a
         // re-detection of the quarantined row.
@@ -407,7 +407,7 @@ describe("replay-failed classification (issue #150)", () => {
             executions++
             return "healed"
           })).pipe(Effect.provide(healthyReplay))
-        const recorded = yield* cache.get(Digest.digest(key))
+        const recorded = yield* cache.get(sha256(key))
         return { failed, evicted, healed, executions, recorded }
       }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
     )
@@ -420,7 +420,7 @@ describe("replay-failed classification (issue #150)", () => {
 
   it("replaces the poisoned row when a tolerant receiver falls back to re-execution (issue #164)", async () => {
     const key = "corruption/quarantine-replaces"
-    const outcome = await Effect.runPromise(
+    const outcome = await runPromise(
       Effect.gen(function*() {
         const cache = yield* CacheStore.CacheStore
         yield* activate("corruption-replace-first")
@@ -431,7 +431,7 @@ describe("replay-failed classification (issue #150)", () => {
         yield* dispatch("corruption-replace-second", key, () => Effect.succeed("recorded")).pipe(
           Effect.provide(Layer.mergeAll(failingReplay(corruptionError), Inconsistency.layerTolerant))
         )
-        return yield* cache.get(Digest.digest(key))
+        return yield* cache.get(sha256(key))
       }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
     )
     // Without the evict, `CacheStore.put`'s insert-or-nothing left the first
@@ -454,7 +454,7 @@ describe("replay-failed classification (issue #150)", () => {
       recordedDigest: "aa".repeat(32),
       measuredDigest: "cc".repeat(32)
     })
-    const outcome = await Effect.runPromise(
+    const outcome = await runPromise(
       Effect.gen(function*() {
         const cache = yield* CacheStore.CacheStore
         yield* activate("corruption-distinct-first")
@@ -462,7 +462,7 @@ describe("replay-failed classification (issue #150)", () => {
           Effect.provide(failingReplay(corruptionError))
         )
         yield* activate("corruption-distinct-second")
-        const poisoned = yield* cache.get(Digest.digest(key))
+        const poisoned = yield* cache.get(sha256(key))
         if (Option.isNone(poisoned)) return yield* Effect.die(new Error("row missing"))
         for (const error of [corruptionError, secondCorruption]) {
           yield* dispatch("corruption-distinct-second", key, () => Effect.die("must not execute")).pipe(
@@ -483,7 +483,7 @@ describe("replay-failed classification (issue #150)", () => {
 
   it("journals a repeated identical corruption exactly once (issue #156)", async () => {
     const key = "corruption/deduped-record"
-    const outcome = await Effect.runPromise(
+    const outcome = await runPromise(
       Effect.gen(function*() {
         yield* activate("corruption-dedupe-first")
         yield* dispatch("corruption-dedupe-first", key, () => Effect.succeed("recorded")).pipe(
@@ -495,9 +495,9 @@ describe("replay-failed classification (issue #150)", () => {
         // cross-process race in which a sibling re-records the identical
         // corrupt row between detections. Neither observation may append a
         // second durable corruption record: the producer identity is the
-        // content key, so the re-emission collapses into a journal duplicate.
+        // cache key, so the re-emission collapses into a journal duplicate.
         const cache = yield* CacheStore.CacheStore
-        const poisoned = yield* cache.get(Digest.digest(key))
+        const poisoned = yield* cache.get(sha256(key))
         if (Option.isNone(poisoned)) return yield* Effect.die(new Error("row missing"))
         for (let attempt = 1; attempt <= 2; attempt++) {
           yield* ActivityPersistence.make({

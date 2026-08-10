@@ -1,7 +1,6 @@
 import { CacheStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
 import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Jj } from "@smthrs/kernel"
-import { Digest } from "@smthrs/keys"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
@@ -10,6 +9,7 @@ import { describe, expect, it } from "vitest"
 import * as Inconsistency from "../src/Inconsistency.ts"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "inconsistency-host", pid: 7, nonce: "inconsistency-process" }
 
@@ -89,8 +89,8 @@ const conflictEvents = (runId: string) =>
 describe("Inconsistency", () => {
   it("journals the conflict and fails the run under layerStrict", async () => {
     const key = "inconsistency/strict"
-    const keyDigest = Digest.digest(key)
-    const result = await Effect.runPromise(
+    const keyDigest = sha256(key)
+    const result = await runPromise(
       Effect.gen(function*() {
         yield* activate("strict-run")
         yield* seedConflictingRow(keyDigest, "original")
@@ -117,8 +117,8 @@ describe("Inconsistency", () => {
 
   it("journals the conflict and keeps serving the original row under layerTolerant", async () => {
     const key = "inconsistency/tolerant"
-    const keyDigest = Digest.digest(key)
-    const result = await Effect.runPromise(
+    const keyDigest = sha256(key)
+    const result = await runPromise(
       Effect.gen(function*() {
         yield* activate("tolerant-run")
         yield* seedConflictingRow(keyDigest, "original")
@@ -147,10 +147,10 @@ describe("Inconsistency", () => {
           return "tolerate" as const
         })
     })
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.gen(function*() {
         yield* activate("clean-run")
-        yield* seedConflictingRow(Digest.digest("inconsistency/existing-same"), "same")
+        yield* seedConflictingRow(sha256("inconsistency/existing-same"), "same")
         const inserted = yield* dispatch("clean-run", "inconsistency/inserted", "fresh")
         const existingSame = yield* dispatch("clean-run", "inconsistency/existing-same", "same")
         return { inserted, existingSame, conflicts: yield* conflictEvents("clean-run") }

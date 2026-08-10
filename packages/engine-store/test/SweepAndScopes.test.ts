@@ -8,6 +8,7 @@ import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as DeferredPersistence from "../src/internal/DeferredPersistence.ts"
+import { runPromise } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "sweep-test", pid: 3, nonce: "sweep" }
 
@@ -26,7 +27,6 @@ const makeJournal = (events: Array<string>, options: { readonly flushFails?: boo
       }
     })
   return Journal.makeNoop({
-    emit: record,
     emitDurable: record,
     flush: options.flushFails
       ? Effect.fail(
@@ -59,7 +59,7 @@ const build = (
 
 describe("DeferredPersistence.sweepDue", () => {
   it("re-arms every flow's pending clocks when no flow name scopes the sweep", async () => {
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.scoped(Effect.gen(function*() {
         const state = DurableEngineState.makeMemory()
         const events: Array<string> = []
@@ -107,7 +107,7 @@ describe("DeferredPersistence.sweepDue", () => {
   })
 
   it("continues after a committed durable write when the lossy flush fails", async () => {
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.scoped(Effect.gen(function*() {
         const state = DurableEngineState.makeMemory()
         const events: Array<string> = []
@@ -144,7 +144,7 @@ describe("in-memory pendingClocks scoping", () => {
 
   it("intersects the execution and flow scopes and excludes non-matching rows", async () => {
     const state = DurableEngineState.makeMemory()
-    const result = await Effect.runPromise(Effect.gen(function*() {
+    const result = await runPromise(Effect.gen(function*() {
       yield* state.scheduleClock(
         { ...clockBase, flowName: FlowA._tag, executionId: "run-1", clockName: "a1", dueAtMs: 10 },
         owner
@@ -175,7 +175,7 @@ describe("in-memory pendingClocks scoping", () => {
 
   it("orders scoped results by deadline, then execution id, then clock name", async () => {
     const state = DurableEngineState.makeMemory()
-    const listed = await Effect.runPromise(Effect.gen(function*() {
+    const listed = await runPromise(Effect.gen(function*() {
       yield* state.scheduleClock(
         { ...clockBase, flowName: FlowA._tag, executionId: "run-2", clockName: "z", dueAtMs: 100 },
         owner

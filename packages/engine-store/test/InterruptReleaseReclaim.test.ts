@@ -22,6 +22,7 @@ import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
+import { runPromise } from "./Sha256.ts"
 
 const TestFlow = Flow.make("InterruptReleaseReclaim/Test", {
   payload: {},
@@ -71,7 +72,7 @@ const releaseMidActivity = (executionId: string) =>
 
 describe("interrupt-released runs are reclaimable (issue #39)", () => {
   it("parks the released run with a durable waiting reason", async () => {
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const store = yield* RunStore.RunStore
       const state = yield* DurableEngineState.DurableEngineState
       yield* releaseMidActivity("release-parked")
@@ -89,7 +90,7 @@ describe("interrupt-released runs are reclaimable (issue #39)", () => {
   })
 
   it("a later worker's sweep re-drives the released run to completion", async () => {
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const store = yield* RunStore.RunStore
       yield* releaseMidActivity("release-redrive")
 
@@ -110,7 +111,7 @@ describe("interrupt-released runs are reclaimable (issue #39)", () => {
   })
 
   it("requestCancel against a released run is eventually delivered", async () => {
-    const result = await Effect.runPromise(provideJournal(Effect.gen(function*() {
+    const result = await runPromise(provideJournal(Effect.gen(function*() {
       const store = yield* RunStore.RunStore
       yield* releaseMidActivity("release-cancel")
 

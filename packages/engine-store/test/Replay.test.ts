@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise } from "./Sha256.ts"
 
 const ReplayFlow = Flow.make("Replay/Flow", {
   payload: {},
@@ -67,7 +68,7 @@ describe("deterministic replay", () => {
         return `${first}/${winner}/${frontier}`
       })
 
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.scoped(
         Effect.gen(function*() {
           const baseStore = yield* RunStore.RunStore

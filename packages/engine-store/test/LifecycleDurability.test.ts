@@ -7,8 +7,8 @@ import { AttemptStore, CacheStore, Journal, type JournalEvent, Ownership, RunSto
 import * as Notifying from "@smthrs/journal/test/Notifying"
 import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Jj } from "@smthrs/kernel"
-import { Digest } from "@smthrs/keys"
 import * as Clock from "effect/Clock"
+import type * as Crypto from "effect/Crypto"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -21,6 +21,7 @@ import { describe, expect, it } from "vitest"
 import * as Inconsistency from "../src/Inconsistency.ts"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise, sha256 } from "./Sha256.ts"
 
 const ownerA: Ownership.OwnerId = { hostId: "lifecycle-host-a", pid: 1, nonce: "lifecycle-owner-a" }
 const ownerB: Ownership.OwnerId = { hostId: "lifecycle-host-b", pid: 2, nonce: "lifecycle-owner-b" }
@@ -56,10 +57,15 @@ const run = <A, E>(
     | StepBoundary.Service
     | Jj.Jj
     | Scope.Scope
+    | Crypto.Crypto
   >
 ) =>
-  Effect.runPromise(
-    effect.pipe(Effect.provide(layer), Effect.provide(TestClock.layer()), Effect.scoped) as Effect.Effect<A, E>
+  runPromise(
+    effect.pipe(Effect.provide(layer), Effect.provide(TestClock.layer()), Effect.scoped) as Effect.Effect<
+      A,
+      E,
+      Crypto.Crypto
+    >
   )
 
 /**
@@ -71,17 +77,6 @@ const run = <A, E>(
 const droppingLossy = (real: Journal.Service): Journal.Service =>
   Journal.make({
     ...real,
-    emit: (input, owner) =>
-      owner !== undefined
-        ? real.emit(input, owner)
-        : Effect.succeed(
-          {
-            _tag: "Dropped",
-            seq: 0 as JournalEvent.Seq,
-            sourceSeq: 0 as JournalEvent.SourceSeq,
-            policy: "drop-newest"
-          } as const
-        ),
     emitLossy: () =>
       Effect.succeed(
         {
@@ -149,7 +144,7 @@ describe("lifecycle journal durability", () => {
       }).pipe(Effect.provideService(Journal.Journal, droppingLossy(journal)))
       yield* journal.flush
       const entries = yield* journal.entries({ runId: "drop-proof" as never, limit: 100 })
-      const cached = yield* cache.get(Digest.digest(key))
+      const cached = yield* cache.get(sha256(key))
       return { value, entries: entries.entries, cached }
     }))
 
@@ -212,7 +207,7 @@ describe("lifecycle journal durability", () => {
       const cache = yield* CacheStore.CacheStore
       // A pre-existing divergent cache row forces cache.put into Conflict.
       yield* cache.put({
-        keyDigest: Digest.digest(key),
+        keyDigest: sha256(key),
         result: "other-value",
         meta: { tier: "sealed" },
         createdAtMs: 0,

@@ -26,7 +26,6 @@
 import { AttemptStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
 import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Jj } from "@smthrs/kernel"
-import { Digest } from "@smthrs/keys"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
@@ -34,6 +33,7 @@ import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as JournalRecords from "../src/internal/JournalRecords.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "adoption-host", pid: 7, nonce: "live" }
 const deadOwner: Ownership.OwnerId = { hostId: "adoption-host", pid: 7, nonce: "dead" }
@@ -89,14 +89,14 @@ describe("adoption liveness evidence is the admission permit (issues #86, #102, 
     // is crash evidence and must re-execute.
     let dispatches = 0
     const key = "adoption/same-incarnation-redrive"
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.gen(function*() {
         yield* activate("adoption-redrive")
         const attempts = yield* AttemptStore.AttemptStore
         yield* attempts.put(
           {
             runId: "adoption-redrive",
-            stepKeyDigest: Digest.digest(key),
+            stepKeyDigest: sha256(key),
             attempt: 1,
             state: "running",
             startedAtMs: 5,
@@ -128,7 +128,7 @@ describe("adoption liveness evidence is the admission permit (issues #86, #102, 
     // waits out the winner's whole span and replays its terminal row.
     let dispatches = 0
     const key = "adoption/concurrent-claim"
-    const results = await Effect.runPromise(
+    const results = await runPromise(
       Effect.gen(function*() {
         yield* activate("adoption-concurrent")
         const attempts = yield* AttemptStore.AttemptStore
@@ -137,7 +137,7 @@ describe("adoption liveness evidence is the admission permit (issues #86, #102, 
         yield* attempts.put(
           {
             runId: "adoption-concurrent",
-            stepKeyDigest: Digest.digest(key),
+            stepKeyDigest: sha256(key),
             attempt: 1,
             state: "running",
             startedAtMs: 0,
@@ -172,14 +172,14 @@ describe("adoption liveness evidence is the admission permit (issues #86, #102, 
   it("still adopts a running row admitted by a superseded incarnation", async () => {
     let dispatches = 0
     const key = "adoption/dead-owner"
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.gen(function*() {
         yield* activate("adoption-dead")
         const attempts = yield* AttemptStore.AttemptStore
         yield* attempts.put(
           {
             runId: "adoption-dead",
-            stepKeyDigest: Digest.digest(key),
+            stepKeyDigest: sha256(key),
             attempt: 1,
             state: "running",
             startedAtMs: 0,
@@ -209,7 +209,7 @@ describe("adopted compensable attempts restore their own pre-image (issue #87)",
   it("restores the crashed attempt's persisted pre-image instead of snapshotting the dirty tree", async () => {
     const calls: Array<{ readonly op: string; readonly id?: string }> = []
     const key = "adoption/compensable"
-    const result = await Effect.runPromise(
+    const result = await runPromise(
       Effect.gen(function*() {
         yield* activate("adoption-compensable")
         const attempts = yield* AttemptStore.AttemptStore
@@ -218,7 +218,7 @@ describe("adopted compensable attempts restore their own pre-image (issue #87)",
         yield* attempts.put(
           {
             runId: "adoption-compensable",
-            stepKeyDigest: Digest.digest(key),
+            stepKeyDigest: sha256(key),
             attempt: 1,
             state: "running",
             startedAtMs: 0,
@@ -234,7 +234,7 @@ describe("adopted compensable attempts restore their own pre-image (issue #87)",
         })({ activity: {}, attempt: 1, key, tier: "compensable" })
         const row = yield* attempts.get({
           runId: "adoption-compensable",
-          stepKeyDigest: Digest.digest(key),
+          stepKeyDigest: sha256(key),
           attempt: 1
         })
         return { outcome, row }
@@ -253,7 +253,7 @@ describe("adopted compensable attempts restore their own pre-image (issue #87)",
   it("persists the pre-image into the running row before executing the body", async () => {
     const calls: Array<{ readonly op: string; readonly id?: string }> = []
     const key = "adoption/pre-image-persisted"
-    const observed = await Effect.runPromise(
+    const observed = await runPromise(
       Effect.gen(function*() {
         yield* activate("adoption-preimage")
         const attempts = yield* AttemptStore.AttemptStore
@@ -266,7 +266,7 @@ describe("adopted compensable attempts restore their own pre-image (issue #87)",
             Effect.gen(function*() {
               const row = yield* attempts.get({
                 runId: "adoption-preimage",
-                stepKeyDigest: Digest.digest(key),
+                stepKeyDigest: sha256(key),
                 attempt: 1
               })
               runningMeta = Option.isSome(row) ? row.value.meta : undefined
@@ -286,8 +286,8 @@ describe("adoption re-emissions are producer-idempotent (issue #91)", () => {
   it("collapses the re-executed attempt's announcements into the dead incarnation's rows", async () => {
     const calls: Array<{ readonly op: string; readonly id?: string }> = []
     const key = "adoption/dedupe"
-    const digest = Digest.digest(key)
-    const events = await Effect.runPromise(
+    const digest = sha256(key)
+    const events = await runPromise(
       Effect.gen(function*() {
         yield* activate("adoption-dedupe")
         const attempts = yield* AttemptStore.AttemptStore
@@ -345,7 +345,7 @@ describe("the adoption claim is fenced at the moment it lands (issue #102)", () 
       yield* attempts.put(
         {
           runId,
-          stepKeyDigest: Digest.digest(key),
+          stepKeyDigest: sha256(key),
           attempt: 1,
           state: "running",
           startedAtMs: 0,
@@ -376,7 +376,7 @@ describe("the adoption claim is fenced at the moment it lands (issue #102)", () 
       })
     )
     const key = "adoption/claim-fence-lost"
-    const exit = await Effect.runPromise(
+    const exit = await runPromise(
       Effect.gen(function*() {
         yield* seedAdoptable("adoption-fence", key)
         return yield* Effect.exit(
@@ -413,7 +413,7 @@ describe("the adoption claim is fenced at the moment it lands (issue #102)", () 
       })
     )
     const key = "adoption/claim-row-vanished"
-    const exit = await Effect.runPromise(
+    const exit = await runPromise(
       Effect.gen(function*() {
         yield* seedAdoptable("adoption-vanish", key)
         return yield* Effect.exit(

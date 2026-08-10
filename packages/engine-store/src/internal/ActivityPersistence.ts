@@ -7,9 +7,11 @@
  *
  * @since 0.1.0
  */
+import { Sha256 } from "@smthrs/crypto"
+import type { Activity } from "@smthrs/engine"
+import type { FileBoundary } from "@smthrs/engine/FileBoundary"
 import { AttemptStore, CacheStore, Journal, type JournalEvent, Ownership, RunStore } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
-import { Digest } from "@smthrs/keys"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
@@ -22,17 +24,15 @@ import * as AttemptAdmission from "./AttemptAdmission.ts"
 import * as JournalRecords from "./JournalRecords.ts"
 
 /** @since 0.1.0 @category models */
-export type Tier = "sealed" | "compensable" | "irreversible"
-
 /** @since 0.1.0 @category models */
-export type BoundaryMetadata = StepBoundary.Descriptor
+export type BoundaryMetadata = FileBoundary
 
 /** @since 0.1.0 @category models */
 export interface ActivityInput {
   readonly activity: unknown
   readonly attempt: number
   readonly key: string
-  readonly tier: Tier
+  readonly tier: Activity.Tier
   readonly metadata?: BoundaryMetadata | undefined
 }
 
@@ -288,7 +288,7 @@ export const make = (deps: Dependencies) => {
       const cache = yield* CacheStore.CacheStore
       const journal = yield* Journal.Journal
       const runs = yield* RunStore.RunStore
-      const keyDigest = Digest.digest(input.key)
+      const keyDigest = yield* Schema.decodeUnknownEffect(Sha256)(input.key).pipe(Effect.orDie)
       const attemptId = { runId: deps.runId, stepKeyDigest: keyDigest, attempt: input.attempt }
       /**
        * Lifecycle events take the journal's durable channel, fenced to the
@@ -405,9 +405,9 @@ export const make = (deps: Dependencies) => {
           // evicted generation's shares its provenance by design: the two
           // rows are indistinguishable, so a fenced evict of one is exactly
           // a fenced evict of the other.
-          const generation = Digest.digest(
+          const generation = yield* Schema.decodeUnknownEffect(Sha256)(
             JSON.stringify({ meta: options.meta, result: options.result })
-          )
+          ).pipe(Effect.orDie)
           // The provenance record and the row it describes commit together:
           // the row carries the record's canonical seq as its provenance, so a
           // crash between them left either a row pointing at a sequence that
@@ -1023,7 +1023,7 @@ export const make = (deps: Dependencies) => {
           }
           const evidence = settled === undefined ? undefined : settled.value
           const finishedAtMs = yield* Clock.currentTimeMillis
-          // The declared read set is the key material; the prepare-time
+          // The declared read set is the key input; the prepare-time
           // measurement is the evidence it described reality when the body
           // ran (issue #106). A mismatch means the result was computed from
           // different inputs than the key claims — the attempt itself is

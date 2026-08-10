@@ -3,7 +3,7 @@
  * engine adapter.
  *
  * The waiting-reason taxonomy (one `waiting` status plus
- * `reason`/`wakeAt`/`token`, migration 0004) is specified by
+ * `reason`/`wakeAt`/`token` columns) is specified by
  * [[Run Ownership]] (`docs/specs/Concepts/Run Ownership.md`) and recorded in
  * [[Engine Hardening Round 1]]
  * (`docs/specs/Concepts/Engine Hardening Round 1.md`), section 5.
@@ -19,17 +19,23 @@ import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as EngineStateSchema from "./internal/EngineStateSchema.ts"
 
+/** @private */
+const NonNegativeSafeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
+
 /**
  * The durable address of a deferred result.
  *
  * @since 0.1.0
  * @category models
  */
-export interface DeferredAddress {
-  readonly flowName: string
-  readonly executionId: string
-  readonly deferredName: string
-}
+export const DeferredAddress = Schema.Struct({
+  flowName: Schema.NonEmptyString,
+  executionId: Schema.NonEmptyString,
+  deferredName: Schema.NonEmptyString
+})
+
+/** The durable address of a deferred result. @category models @since 0.1.0 */
+export type DeferredAddress = typeof DeferredAddress.Type
 
 /**
  * The first durable completion recorded for a deferred.
@@ -40,11 +46,15 @@ export interface DeferredAddress {
  * @since 0.1.0
  * @category models
  */
-export interface DeferredRow extends DeferredAddress {
-  readonly exit: unknown
-  readonly metadata?: unknown
-  readonly completedAtMs: number
-}
+export const DeferredRow = Schema.Struct({
+  ...DeferredAddress.fields,
+  exit: Schema.Unknown,
+  metadata: Schema.optionalKey(Schema.Unknown),
+  completedAtMs: NonNegativeSafeInt
+})
+
+/** The first durable completion recorded for a deferred. @category models @since 0.1.0 */
+export type DeferredRow = typeof DeferredRow.Type
 
 /**
  * Result of a first-writer-wins deferred completion.
@@ -62,11 +72,14 @@ export type CompleteDeferredOutcome =
  * @since 0.1.0
  * @category models
  */
-export interface ClockAddress {
-  readonly flowName: string
-  readonly executionId: string
-  readonly clockName: string
-}
+export const ClockAddress = Schema.Struct({
+  flowName: Schema.NonEmptyString,
+  executionId: Schema.NonEmptyString,
+  clockName: Schema.NonEmptyString
+})
+
+/** The durable address of a clock. @category models @since 0.1.0 */
+export type ClockAddress = typeof ClockAddress.Type
 
 /**
  * A durable absolute clock deadline.
@@ -74,11 +87,15 @@ export interface ClockAddress {
  * @since 0.1.0
  * @category models
  */
-export interface ClockRow extends ClockAddress {
-  readonly deferredName: string
-  readonly dueAtMs: number
-  readonly completedAtMs: number | null
-}
+export const ClockRow = Schema.Struct({
+  ...ClockAddress.fields,
+  deferredName: Schema.NonEmptyString,
+  dueAtMs: NonNegativeSafeInt,
+  completedAtMs: Schema.NullOr(NonNegativeSafeInt)
+})
+
+/** A durable absolute clock deadline. @category models @since 0.1.0 */
+export type ClockRow = typeof ClockRow.Type
 
 /**
  * Result of scheduling a durable clock.
@@ -128,14 +145,10 @@ export type CompleteClockOutcome =
  * @since 0.1.0
  * @category models
  */
-export type WaitingReason =
-  | "approval"
-  | "event"
-  | "timer"
-  | "quota"
-  | "released"
-  | "quarantine"
-  | (string & {})
+export const WaitingReason = Schema.NonEmptyString
+
+/** The open wait-reason vocabulary. @category models @since 0.1.0 */
+export type WaitingReason = typeof WaitingReason.Type
 
 /**
  * The payload recorded when a run parks.
@@ -148,11 +161,14 @@ export type WaitingReason =
  * @since 0.1.0
  * @category models
  */
-export interface Waiting {
-  readonly reason: WaitingReason
-  readonly wakeAt?: number | undefined
-  readonly token?: string | undefined
-}
+export const Waiting = Schema.Struct({
+  reason: WaitingReason,
+  wakeAt: Schema.optional(NonNegativeSafeInt),
+  token: Schema.optional(Schema.NonEmptyString)
+})
+
+/** The payload recorded when a run parks. @category models @since 0.1.0 */
+export type Waiting = typeof Waiting.Type
 
 /**
  * A decoded waiting row for a parked run.
@@ -160,12 +176,15 @@ export interface Waiting {
  * @since 0.1.0
  * @category models
  */
-export interface WaitingRow {
-  readonly runId: string
-  readonly reason: WaitingReason
-  readonly wakeAt: number | null
-  readonly token: string | null
-}
+export const WaitingRow = Schema.Struct({
+  runId: Schema.NonEmptyString,
+  reason: WaitingReason,
+  wakeAt: Schema.NullOr(NonNegativeSafeInt),
+  token: Schema.NullOr(Schema.NonEmptyString)
+})
+
+/** A decoded waiting row for a parked run. @category models @since 0.1.0 */
+export type WaitingRow = typeof WaitingRow.Type
 
 /**
  * A predicate over `waitingRuns` — omitted fields are unconstrained.
@@ -223,11 +242,14 @@ export type WakeOutcome =
  * @since 0.1.0
  * @category models
  */
-export interface RunParentEdge {
-  readonly childId: string
-  readonly parentId: string
-  readonly seq: number
-}
+export const RunParentEdge = Schema.Struct({
+  childId: Schema.NonEmptyString,
+  parentId: Schema.NonEmptyString,
+  seq: NonNegativeSafeInt
+})
+
+/** A durable parent edge in the run DAG. @category models @since 0.1.0 */
+export type RunParentEdge = typeof RunParentEdge.Type
 
 /**
  * The surviving attempt rows of one activity key: the earliest surviving
@@ -236,16 +258,19 @@ export interface RunParentEdge {
  * @since 0.1.0
  * @category models
  */
-export interface AttemptSurvivors {
+export const AttemptSurvivors = Schema.Struct({
   /**
    * The lowest surviving attempt number. Anything above 1 means the prune
    * job removed a leading run of attempts; the engine store applies the
    * pruned-prefix tolerance to it so both survivor paths agree (issue #96).
    */
-  readonly earliestAttempt: number
-  readonly earliestStartedAtMs: number
-  readonly latest: number
-}
+  earliestAttempt: NonNegativeSafeInt,
+  earliestStartedAtMs: NonNegativeSafeInt,
+  latest: NonNegativeSafeInt
+})
+
+/** The surviving attempt range of one activity key. @category models @since 0.1.0 */
+export type AttemptSurvivors = typeof AttemptSurvivors.Type
 
 /**
  * Recording a parent edge would close a cycle in the run DAG.
@@ -429,21 +454,17 @@ export class DurableEngineState extends Context.Service<DurableEngineState, Serv
   "flows/engine-store/DurableEngineState"
 ) {}
 
+/** @private */
 const deferredKey = (address: DeferredAddress): string =>
   JSON.stringify([address.flowName, address.executionId, address.deferredName])
 
+/** @private */
 const clockKey = (address: ClockAddress): string =>
   JSON.stringify([address.flowName, address.executionId, address.clockName])
 
-const NonNegativeSafeInt = Schema.Int.check(
-  Schema.isGreaterThanOrEqualTo(0),
-  Schema.isLessThanOrEqualTo(Number.MAX_SAFE_INTEGER)
-)
-
+/** @private */
 const DeferredDatabaseRow = Schema.Struct({
-  flowName: Schema.String,
-  executionId: Schema.String,
-  deferredName: Schema.String,
+  ...DeferredAddress.fields,
   exitJson: Schema.String,
   metadataJson: Schema.NullOr(Schema.String),
   completedAtMs: NonNegativeSafeInt
@@ -451,22 +472,22 @@ const DeferredDatabaseRow = Schema.Struct({
 
 type DeferredDatabaseRow = typeof DeferredDatabaseRow.Type
 
+/** @private */
 const ClockDatabaseRow = Schema.Struct({
-  flowName: Schema.String,
-  executionId: Schema.String,
-  clockName: Schema.String,
-  deferredName: Schema.String,
+  ...ClockAddress.fields,
+  deferredName: Schema.NonEmptyString,
   dueAtMs: NonNegativeSafeInt,
   completedAtMs: Schema.NullOr(NonNegativeSafeInt)
 })
 
 type ClockDatabaseRow = typeof ClockDatabaseRow.Type
 
+/** @private */
 const WaitingDatabaseRow = Schema.Struct({
-  runId: Schema.String,
-  waitingReason: Schema.String,
+  runId: Schema.NonEmptyString,
+  waitingReason: WaitingReason,
   waitingWakeAtMs: Schema.NullOr(NonNegativeSafeInt),
-  waitingToken: Schema.NullOr(Schema.String)
+  waitingToken: Schema.NullOr(Schema.NonEmptyString)
 })
 
 type WaitingDatabaseRow = typeof WaitingDatabaseRow.Type
@@ -482,9 +503,10 @@ const decodeWaitingRow = (input: unknown): Effect.Effect<WaitingRow> =>
     }))
   )
 
+/** @private */
 const RunParentDatabaseRow = Schema.Struct({
-  childId: Schema.String,
-  parentId: Schema.String,
+  childId: Schema.NonEmptyString,
+  parentId: Schema.NonEmptyString,
   seq: NonNegativeSafeInt
 })
 
@@ -529,30 +551,20 @@ const findCyclePath = (
     return walk(parentId, [parentId])
   })
 
-const DeferredAddressDatabaseRow = Schema.Struct({
-  flowName: Schema.String,
-  executionId: Schema.String,
-  deferredName: Schema.String
-})
+/** @private */
+const DeferredAddressDatabaseRow = DeferredAddress
 
 const encodeJson = (value: unknown, field: string): Effect.Effect<string> =>
-  Effect.try({
-    try: () => JSON.stringify(value),
-    catch: (cause) => new Error(`${field} must be JSON-serializable`, { cause })
-  }).pipe(
-    Effect.orDie,
-    Effect.flatMap((encoded) =>
-      encoded === undefined
-        ? Effect.die(new Error(`${field} must be JSON-serializable`))
-        : Effect.succeed(encoded)
-    )
+  Schema.encodeEffect(Schema.UnknownFromJsonString)(value).pipe(
+    Effect.mapError((cause) => new Error(`${field} must be JSON-serializable`, { cause })),
+    Effect.orDie
   )
 
 const decodeJson = (value: string, field: string): Effect.Effect<unknown> =>
-  Effect.try({
-    try: () => JSON.parse(value) as unknown,
-    catch: (cause) => new Error(`could not decode ${field}`, { cause })
-  }).pipe(Effect.orDie)
+  Schema.decodeUnknownEffect(Schema.UnknownFromJsonString)(value).pipe(
+    Effect.mapError((cause) => new Error(`could not decode ${field}`, { cause })),
+    Effect.orDie
+  )
 
 const decodeDeferredRow = (input: unknown): Effect.Effect<DeferredRow> =>
   Schema.decodeUnknownEffect(DeferredDatabaseRow)(input).pipe(
@@ -604,7 +616,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
   const { sql } = database
 
   // Engine-store-owned storage created outside the journal migration
-  // ladder (issues #40/#41/#79/#81). The statements, their rationale, and
+  // (issues #40/#41/#79/#81). The statements, their rationale, and
   // the dialects each is known to accept live in one machine-readable
   // inventory so the pg-porting plan cannot omit them (issue #92).
   yield* EngineStateSchema.apply(database)

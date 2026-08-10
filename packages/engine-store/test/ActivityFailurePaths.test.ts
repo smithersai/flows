@@ -7,9 +7,9 @@ import { AttemptStore, CacheStore, Journal, type JournalEvent, Ownership, RunSto
 import * as Notifying from "@smthrs/journal/test/Notifying"
 import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Jj } from "@smthrs/kernel"
-import { Digest } from "@smthrs/keys"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
+import type * as Crypto from "effect/Crypto"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -20,6 +20,7 @@ import type * as Scope from "effect/Scope"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import { runPromise, sha256 } from "./Sha256.ts"
 
 const ownerA: Ownership.OwnerId = { hostId: "failure-host-a", pid: 1, nonce: "failure-owner-a" }
 const ownerB: Ownership.OwnerId = { hostId: "failure-host-b", pid: 2, nonce: "failure-owner-b" }
@@ -49,16 +50,17 @@ type Services =
   | RunStore.RunStore
   | StepBoundary.Service
   | Jj.Jj
+  | Crypto.Crypto
 
 const run = <A, E>(
   effect: Effect.Effect<A, E, Services | Scope.Scope>,
   boundary: Layer.Layer<StepBoundary.Service> = StepBoundary.layerTest()
 ) =>
-  Effect.runPromise(
+  runPromise(
     effect.pipe(
       Effect.provide(Layer.mergeAll(TestJournal.layer(), boundary, jj)),
       Effect.scoped
-    ) as Effect.Effect<A, E>
+    ) as Effect.Effect<A, E, Crypto.Crypto>
   )
 
 const activate = (runId: string, owner: Ownership.OwnerId) =>
@@ -125,11 +127,11 @@ describe("activity executor failure paths", () => {
       const attempts = yield* AttemptStore.AttemptStore
       const row = yield* attempts.get({
         runId: "execute-fails",
-        stepKeyDigest: Digest.digest(key),
+        stepKeyDigest: sha256(key),
         attempt: 1
       })
       const cache = yield* CacheStore.CacheStore
-      const cached = yield* cache.get(Digest.digest(key))
+      const cached = yield* cache.get(sha256(key))
       const events = yield* journalState("execute-fails")
       return { exit, row, cached, events }
     }))
@@ -162,7 +164,7 @@ describe("activity executor failure paths", () => {
         const attempts = yield* AttemptStore.AttemptStore
         const row = yield* attempts.get({
           runId: "prepare-fails",
-          stepKeyDigest: Digest.digest(key),
+          stepKeyDigest: sha256(key),
           attempt: 1
         })
         const events = yield* journalState("prepare-fails")
@@ -195,11 +197,11 @@ describe("activity executor failure paths", () => {
         const attempts = yield* AttemptStore.AttemptStore
         const row = yield* attempts.get({
           runId: "settle-fails",
-          stepKeyDigest: Digest.digest(key),
+          stepKeyDigest: sha256(key),
           attempt: 1
         })
         const cache = yield* CacheStore.CacheStore
-        const cached = yield* cache.get(Digest.digest(key))
+        const cached = yield* cache.get(sha256(key))
         const events = yield* journalState("settle-fails")
         return { exit, row, cached, events }
       }),
@@ -227,7 +229,7 @@ describe("activity executor failure paths", () => {
       const now = yield* Clock.currentTimeMillis
       const seeded = yield* attempts.put({
         runId: "suspended-row",
-        stepKeyDigest: Digest.digest(key),
+        stepKeyDigest: sha256(key),
         attempt: 1,
         state: "suspended",
         startedAtMs: now,
@@ -265,7 +267,7 @@ describe("activity executor failure paths", () => {
       )
       const row = yield* attempts.get({
         runId: "fence-failed-finish",
-        stepKeyDigest: Digest.digest(key),
+        stepKeyDigest: sha256(key),
         attempt: 1
       })
       const events = yield* journalState("fence-failed-finish")
@@ -302,7 +304,7 @@ describe("activity executor failure paths", () => {
       })(input("cause/tagged")).pipe(Effect.exit)
       const row = yield* attempts.get({
         runId: "tagged-cause",
-        stepKeyDigest: Digest.digest("cause/tagged"),
+        stepKeyDigest: sha256("cause/tagged"),
         attempt: 1
       })
       return { exit, row }

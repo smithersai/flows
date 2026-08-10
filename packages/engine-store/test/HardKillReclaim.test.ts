@@ -25,6 +25,7 @@ import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
+import { runPromise } from "./Sha256.ts"
 
 const TestFlow = Flow.make("HardKillReclaim/Test", {
   payload: {},
@@ -91,7 +92,7 @@ const insertHardKilledRun = (runId: string) =>
 const run = <A, E, R>(
   effect: Effect.Effect<A, E, R>
 ): Promise<A> =>
-  Effect.runPromise(
+  runPromise(
     Effect.scoped(effect as Effect.Effect<A, E, Scope.Scope>).pipe(
       Effect.provide(services),
       Effect.provide(TestClock.layer())
