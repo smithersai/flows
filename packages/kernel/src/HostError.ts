@@ -1,0 +1,36 @@
+/**
+ * @since 0.1.0
+ *
+ * Host domain errors, shaped after `effect/PlatformError`.
+ *
+ * Effect's platform errors carry normalized operation data — a stable `_tag`
+ * reason, the `module` and `method` that failed, a human `description`, and the
+ * original `cause` — and are constructed through small helpers rather than
+ * `new`. We mirror that exactly, with two deliberate deviations:
+ *
+ *  - the normalized reason lives in a `code` field rather than a nested
+ *    `reason._tag`, because ours is a small closed set per service; and
+ *  - the classes are `Schema.TaggedErrorClass`, not `Data.TaggedError`, because
+ *    Host failures cross the durability boundary and must round-trip.
+ *
+ * Codes are a STABLE public contract: callers branch on them, step keys digest
+ * them, UIs map them to remediation. Never repurpose a code — add one.
+ */
+import type { JjError } from "@smthrs/jj"
+import type { PtyError } from "@smthrs/pty"
+
+/**
+ * Every failure the Host surface is allowed to surface.
+ *
+ * `PtyError` and `JjError` are declared by `@smthrs/pty` and `@smthrs/jj`
+ * beside their contracts; they are named here because those services are still
+ * part of the closed Host surface (`HostServices.ts`). This is a type
+ * union, not a re-export — import the errors themselves from their packages.
+ *
+ * Running a command is absent on purpose: process execution is Effect's
+ * `ChildProcessSpawner`, so it fails with `PlatformError` like the rest of
+ * `effect`'s platform surface.
+ *
+ * @category models
+ */
+export type HostError = PtyError | JjError

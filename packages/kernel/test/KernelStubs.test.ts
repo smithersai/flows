@@ -1,9 +1,10 @@
 import type { JjError } from "@smthrs/jj"
-import { Effect, Stream } from "effect"
+import { Effect, PlatformError, Stream } from "effect"
+import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import { describe, expect, it } from "vitest"
+import * as ChildProcessSpawner from "../src/ChildProcessSpawner.ts"
 import * as Jj from "../src/Jj.ts"
 import * as Pty from "../src/Pty.ts"
-import * as Shell from "../src/Shell.ts"
 
 /**
  * The kernel stubs exist so a program can be wired without a host at all: an
@@ -12,18 +13,24 @@ import * as Shell from "../src/Shell.ts"
  * capability here" error rather than a permission decision.
  */
 describe("kernel stubs without any host", () => {
-  it("denies shell exec and stream with `shell_unavailable`", async () => {
+  it("denies every derived spawner helper with a `NotFound` PlatformError naming the command", async () => {
+    const command = ChildProcess.make("ls", ["-al"])
     const result = await Effect.runPromise(
       Effect.gen(function*() {
-        const shell = yield* Shell.Shell
-        const exec = yield* Effect.flip(shell.exec("ls"))
-        const streamed = yield* Effect.flip(Stream.runCollect(shell.stream("ls")))
-        return { exec, streamed }
-      }).pipe(Effect.provide(Shell.layerNoop()))
+        const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+        return {
+          string: yield* Effect.flip(spawner.string(command)),
+          exitCode: yield* Effect.flip(spawner.exitCode(command)),
+          streamed: yield* Effect.flip(Stream.runDrain(spawner.streamLines(command)))
+        }
+      }).pipe(Effect.provide(ChildProcessSpawner.layerNoop()))
     )
 
-    expect(result.exec).toMatchObject({ code: "shell_unavailable", method: "exec", command: "ls" })
-    expect(result.streamed).toMatchObject({ code: "shell_unavailable", method: "stream", command: "ls" })
+    for (const error of Object.values(result)) {
+      expect(error).toBeInstanceOf(PlatformError.PlatformError)
+      expect((error as PlatformError.PlatformError).reason._tag).toBe("NotFound")
+      expect(error.message).toContain("no process host for `ls -al`")
+    }
   })
 
   it("denies pty spawn with `unsupported`", async () => {
@@ -62,22 +69,22 @@ describe("kernel stubs without any host", () => {
   })
 
   it("lets overrides replace individual methods while the rest stay denied", async () => {
-    const shell = await Effect.runPromise(
+    const command = ChildProcess.make("echo", ["hi"])
+    const spawner = await Effect.runPromise(
       Effect.gen(function*() {
-        const shell = yield* Shell.Shell
-        const ok = yield* shell.exec("echo hi")
-        const denied = yield* Effect.flip(Stream.runCollect(shell.stream("echo hi")))
-        return { ok, denied }
+        const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+        return {
+          ok: yield* spawner.string(command),
+          denied: yield* Effect.flip(spawner.exitCode(command))
+        }
       }).pipe(
-        Effect.provide(
-          Shell.layerNoop({ exec: () => Effect.succeed({ stdout: "hi", stderr: "", exitCode: 0 }) })
-        )
+        Effect.provide(ChildProcessSpawner.layerNoop({ string: () => Effect.succeed("hi") }))
       )
     )
     const jj = Jj.make(Jj.makeNoop({ status: () => Effect.succeed("clean") }))
 
-    expect(shell.ok).toEqual({ stdout: "hi", stderr: "", exitCode: 0 })
-    expect(shell.denied).toMatchObject({ code: "shell_unavailable" })
+    expect(spawner.ok).toBe("hi")
+    expect((spawner.denied as PlatformError.PlatformError).reason._tag).toBe("NotFound")
     await expect(Effect.runPromise(jj.status())).resolves.toBe("clean")
     await expect(Effect.runPromise(Effect.flip(jj.snapshot()))).resolves.toMatchObject({ code: "not_installed" })
   })
@@ -85,7 +92,7 @@ describe("kernel stubs without any host", () => {
   it("returns the implementation unchanged from `make`", () => {
     const pty = Pty.makeNoop()
     expect(Pty.make(pty)).toStrictEqual(pty)
-    const shell = Shell.makeNoop()
-    expect(Shell.make(shell)).toStrictEqual(shell)
+    const spawner = ChildProcessSpawner.makeNoop()
+    expect(ChildProcessSpawner.make(spawner)).toStrictEqual(spawner)
   })
 })

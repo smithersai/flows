@@ -8,7 +8,7 @@
  *
  * @since 0.1.0
  */
-import * as HostHttpTransport from "@smthrs/host/HttpTransport"
+
 import { Context, Effect, Layer } from "effect"
 import * as EffectHttpClient from "effect/unstable/http/HttpClient"
 import type * as EffectHttpClientError from "effect/unstable/http/HttpClientError"
@@ -16,6 +16,7 @@ import type * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
 import type * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"
 import { make as makeCapability } from "./Capability.ts"
 import { GrantStore } from "./GrantStore.ts"
+import * as HostHttpTransport from "./HttpTransport.ts"
 import { type GrantStoreError, PermissionDenied, type PermissionRequired } from "./Permission.ts"
 
 /**

@@ -1,4 +1,3 @@
-import * as HostHttpTransport from "@smthrs/host/HttpTransport"
 import { Effect } from "effect"
 import type * as EffectHttpClientError from "effect/unstable/http/HttpClientError"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
@@ -6,6 +5,7 @@ import { describe, expect, it } from "vitest"
 import type * as Capability from "../src/Capability.ts"
 import { GrantStore } from "../src/GrantStore.ts"
 import * as HttpClient from "../src/HttpClient.ts"
+import * as HostHttpTransport from "../src/HttpTransport.ts"
 import { PermissionDenied } from "../src/Permission.ts"
 
 /**

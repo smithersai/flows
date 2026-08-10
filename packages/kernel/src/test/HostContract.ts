@@ -2,7 +2,7 @@
  * Shared contract suite for complete Host bundles.
  *
  * This module is emitted as ESM, CJS, and declarations and exported from
- * `@smthrs/host/test/contract`. It intentionally has a Vitest peer because
+ * `@smthrs/kernel/test/contract`. It intentionally has a Vitest peer because
  * it registers a reusable behavioral contract for third-party Host bundles.
  *
  * @since 0.1.0
@@ -12,17 +12,15 @@ import type { Jj, JjErrorCode } from "@smthrs/jj"
 import * as PtyService from "@smthrs/pty"
 import type { Pty, PtyErrorCode } from "@smthrs/pty"
 import { Effect, Fiber, FileSystem, type Layer, Path, Stream } from "effect"
-import { TestClock } from "effect/testing"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
 import type * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"
+import * as ChildProcess from "effect/unstable/process/ChildProcess"
+import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
-import type { ShellErrorCode } from "../HostError.ts"
 import type { HttpTransport } from "../HttpTransport.ts"
 import * as HttpTransportService from "../HttpTransport.ts"
-import type { Shell, ShellOptions } from "../Shell.ts"
-import * as ShellService from "../Shell.ts"
 
 /**
  * A capability that must fail with a stable typed code.
@@ -62,28 +60,36 @@ export interface PathSuccess {
 }
 
 /**
- * Successful Shell contract options.
+ * Successful `ChildProcessSpawner` contract options.
  *
  * Defaults are POSIX commands suitable for Node and Bun. In-process browser
- * doubles can provide their own scripted command names and expected output.
+ * doubles can provide their own scripted commands and expected output.
+ *
+ * There is no timeout case: a wall-clock budget is `Effect.timeout` around any
+ * effect, not a per-spawn option, so there is nothing host-specific left to
+ * assert.
  *
  * @category models
  * @since 0.1.0
  */
-export interface ShellSuccess {
+export interface ChildProcessSuccess {
   readonly expected: "success"
-  readonly execCommand?: string | undefined
+  readonly execCommand?: ChildProcess.Command | undefined
   readonly expectedStdout?: string | undefined
-  readonly streamCommand?: string | undefined
+  readonly streamCommand?: ChildProcess.Command | undefined
   readonly expectedStreamText?: string | undefined
-  readonly optionsCommand?: string | undefined
-  readonly options?: ShellOptions | undefined
+  /** A command carrying `cwd` and `env` options through to the child. */
+  readonly optionsCommand?: ChildProcess.Command | undefined
   readonly expectedOptionsStdout?: string | undefined
-  readonly timeoutCommand?: string | undefined
-  readonly timeoutMs?: number | undefined
-  /** Advance a deterministic TestClock after starting the timeout probe. */
-  readonly timeoutAdvanceMs?: number | undefined
-  readonly interruptCommand?: string | undefined
+  /**
+   * How the host handles a command fed from a `stdin` stream: the expected
+   * stdout when it supports one, or the typed code when it does not.
+   */
+  readonly stdin?:
+    | { readonly command: ChildProcess.Command; readonly expectedStdout: string }
+    | FailureCapability<string>
+    | undefined
+  readonly interruptCommand?: ChildProcess.Command | undefined
 }
 
 /**
@@ -132,7 +138,7 @@ export interface HttpTransportSuccess {
 export interface HostContractCapabilities {
   readonly fileSystem: FileSystemSuccess | FailureCapability<string>
   readonly path: PathSuccess | FailureCapability<string>
-  readonly shell: ShellSuccess | FailureCapability<ShellErrorCode>
+  readonly childProcess: ChildProcessSuccess | FailureCapability<string>
   readonly pty: PtySuccess | FailureCapability<PtyErrorCode>
   readonly jj: JjSuccess | FailureCapability<JjErrorCode>
   readonly httpTransport: HttpTransportSuccess | FailureCapability<string>
@@ -145,13 +151,13 @@ export interface HostContractCapabilities {
  * @since 0.1.0
  */
 export type HostContractLayer = Layer.Layer<
-  FileSystem.FileSystem | Path.Path | Shell | Pty | Jj | HttpTransport,
+  FileSystem.FileSystem | Path.Path | ChildProcessSpawner | Pty | Jj | HttpTransport,
   unknown
 >
 
 /**
  * Normalizes the code a Host failure is identified by, across the three shapes
- * the closed surface produces: a `code` field (`ShellError`, `PtyError`,
+ * the closed surface produces: a `code` field (`PtyError`,
  * `JjError`), a nested `reason._tag` (`PlatformError`, `HttpClientError`), and a
  * bare `_tag`. Anything else is uncoded.
  *
@@ -225,28 +231,29 @@ const provide = <A, E, R>(
 const run = <A, E, R>(effect: Effect.Effect<A, E, R>, layer: HostContractLayer): Promise<A> =>
   Effect.runPromise(provide(effect, layer))
 
-const unsupportedShell = (
-  operation: "exec" | "stream" | "timeout" | "interruption",
-  code: ShellErrorCode
-) =>
+const unsupported = ChildProcess.make("host-contract-unsupported")
+
+const unsupportedChildProcess = (operation: "string" | "stream", code: string) =>
   Effect.gen(function*() {
-    const shell = yield* ShellService.Shell
-    if (operation === "stream") {
-      yield* assertFailure(shell.stream("host-contract-unsupported").pipe(Stream.runDrain), code)
-      return
-    }
-    yield* assertFailure(
-      shell.exec("host-contract-unsupported", operation === "timeout" ? { timeoutMs: 0 } : undefined),
-      code
-    )
+    const spawner = yield* ChildProcessSpawner
+    yield* operation === "stream"
+      ? assertFailure(Stream.runDrain(spawner.streamString(unsupported)), code)
+      : assertFailure(spawner.string(unsupported), code)
   })
+
+/** The default stdin probe: echo back one line read from the child's stdin. */
+const defaultStdinCommand = ChildProcess.make(
+  "/bin/sh",
+  ["-c", `read host_contract_input; printf '%s' "$host_contract_input"`],
+  { stdin: Stream.fromArray([new TextEncoder().encode("stdin\n")]) }
+)
 
 /**
  * Registers the shared Host contract with Vitest.
  *
  * Every invocation creates eleven cases: complete service presence,
- * FileSystem, Path, four Shell lifecycle cases, Pty cursor replay, Jj, and
- * HttpTransport.
+ * FileSystem, Path, five child-process lifecycle cases, Pty cursor replay, Jj,
+ * and HttpTransport.
  *
  * @category testing
  * @since 0.1.0
@@ -258,7 +265,7 @@ export const runHostContract = (
 ): void => {
   const fileSystemCap = caps.fileSystem
   const pathCap = caps.path
-  const shellCap = caps.shell
+  const childProcessCap = caps.childProcess
   const ptyCap = caps.pty
   const jjCap = caps.jj
   const httpTransportCap = caps.httpTransport
@@ -272,7 +279,7 @@ export const runHostContract = (
         Effect.gen(function*() {
           yield* FileSystem.FileSystem
           yield* Path.Path
-          yield* ShellService.Shell
+          yield* ChildProcessSpawner
           yield* PtyService.Pty
           yield* JjService.Jj
           yield* HttpTransportService.HttpTransport
@@ -321,84 +328,78 @@ export const runHostContract = (
         layer
       ))
 
-    it("declares Shell exec behavior", () =>
+    it("declares buffered child-process behavior", () =>
       run(
-        shellCap.expected === "failure"
-          ? unsupportedShell("exec", shellCap.code)
+        childProcessCap.expected === "failure"
+          ? unsupportedChildProcess("string", childProcessCap.code)
           : Effect.gen(function*() {
-            const shell = yield* ShellService.Shell
-            const result = yield* shell.exec(shellCap.execCommand ?? "printf host-contract")
-            expect(result.exitCode).toBe(0)
-            expect(result.stdout).toBe(shellCap.expectedStdout ?? "host-contract")
+            const spawner = yield* ChildProcessSpawner
+            const command = childProcessCap.execCommand ?? ChildProcess.make("printf", ["host-contract"])
+            expect(yield* spawner.string(command)).toBe(childProcessCap.expectedStdout ?? "host-contract")
+            expect(yield* spawner.exitCode(command)).toBe(0)
           }),
         layer
       ))
 
-    it("declares Shell streaming behavior", () =>
+    it("declares child-process streaming behavior", () =>
       run(
-        shellCap.expected === "failure"
-          ? unsupportedShell("stream", shellCap.code)
+        childProcessCap.expected === "failure"
+          ? unsupportedChildProcess("stream", childProcessCap.code)
           : Effect.gen(function*() {
-            const shell = yield* ShellService.Shell
-            const chunks = yield* shell.stream(
-              shellCap.streamCommand ?? "printf host-contract-stream"
-            ).pipe(Stream.runCollect)
-            const output = Array.from(chunks, (chunk) => new TextDecoder().decode(chunk.chunk)).join("")
-            expect(output).toContain(shellCap.expectedStreamText ?? "host-contract-stream")
-          }),
-        layer
-      ))
-
-    it("declares Shell cwd, env, and stdin option behavior", () =>
-      run(
-        shellCap.expected === "failure"
-          ? unsupportedShell("exec", shellCap.code)
-          : Effect.gen(function*() {
-            const shell = yield* ShellService.Shell
-            const result = yield* shell.exec(
-              shellCap.optionsCommand ??
-                "read host_contract_input; printf '%s:%s' \"$host_contract_input\" \"$HOST_CONTRACT_ENV\"",
-              shellCap.options ?? {
-                env: { HOST_CONTRACT_ENV: "env" },
-                stdin: "stdin\n"
-              }
+            const spawner = yield* ChildProcessSpawner
+            const output = yield* Stream.mkString(
+              spawner.streamString(
+                childProcessCap.streamCommand ?? ChildProcess.make("printf", ["host-contract-stream"])
+              )
             )
-            expect(result.exitCode).toBe(0)
-            expect(result.stdout).toBe(shellCap.expectedOptionsStdout ?? "stdin:env")
+            expect(output).toContain(childProcessCap.expectedStreamText ?? "host-contract-stream")
           }),
         layer
       ))
 
-    it("declares Shell timeout behavior", () =>
+    it("declares child-process cwd and env option behavior", () =>
       run(
-        shellCap.expected === "failure"
-          ? unsupportedShell("timeout", shellCap.code)
+        childProcessCap.expected === "failure"
+          ? unsupportedChildProcess("string", childProcessCap.code)
           : Effect.gen(function*() {
-            const shell = yield* ShellService.Shell
-            const assertion = assertFailure(
-              shell.exec(shellCap.timeoutCommand ?? "sleep 1", { timeoutMs: shellCap.timeoutMs ?? 10 }),
-              "timeout"
+            const spawner = yield* ChildProcessSpawner
+            const output = yield* spawner.string(
+              childProcessCap.optionsCommand ??
+                ChildProcess.make("/bin/sh", ["-c", `printf '%s' "$HOST_CONTRACT_ENV"`], {
+                  cwd: tmpdir(),
+                  env: { HOST_CONTRACT_ENV: "env" },
+                  extendEnv: true
+                })
             )
-            if (shellCap.timeoutAdvanceMs === undefined) {
-              yield* assertion
-            } else {
-              const fiber = yield* Effect.forkChild(assertion, { startImmediately: true })
-              yield* Effect.yieldNow
-              yield* TestClock.adjust(shellCap.timeoutAdvanceMs)
-              yield* Fiber.join(fiber)
-            }
+            expect(output).toBe(childProcessCap.expectedOptionsStdout ?? "env")
           }),
         layer
       ))
 
-    it("declares Shell interruption behavior", () =>
+    it("declares child-process stdin behavior", () =>
       run(
-        shellCap.expected === "failure"
-          ? unsupportedShell("interruption", shellCap.code)
+        Effect.gen(function*() {
+          const spawner = yield* ChildProcessSpawner
+          const stdinCap = childProcessCap.expected === "failure"
+            ? childProcessCap
+            : childProcessCap.stdin ?? { command: defaultStdinCommand, expectedStdout: "stdin" }
+          if ("expected" in stdinCap) {
+            yield* assertFailure(spawner.string(defaultStdinCommand), stdinCap.code)
+            return
+          }
+          expect(yield* spawner.string(stdinCap.command)).toBe(stdinCap.expectedStdout)
+        }),
+        layer
+      ))
+
+    it("declares child-process interruption behavior", () =>
+      run(
+        childProcessCap.expected === "failure"
+          ? unsupportedChildProcess("stream", childProcessCap.code)
           : Effect.gen(function*() {
-            const shell = yield* ShellService.Shell
-            const fiber = yield* shell.stream(
-              shellCap.interruptCommand ?? "sleep 10"
+            const spawner = yield* ChildProcessSpawner
+            const fiber = yield* spawner.streamString(
+              childProcessCap.interruptCommand ?? ChildProcess.make("sleep", ["10"])
             ).pipe(
               Stream.concat(Stream.never),
               Stream.runDrain,

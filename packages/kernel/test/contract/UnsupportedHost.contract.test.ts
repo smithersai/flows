@@ -10,10 +10,29 @@
 import * as BrowserJj from "@smthrs/jj/browser/BrowserJj"
 import * as BrowserFileSystem from "@smthrs/platform-browser/BrowserFileSystem"
 import * as BrowserPty from "@smthrs/pty/browser/BrowserPty"
-import { Effect, Layer, Path } from "effect"
+import { Effect, Layer, Path, PlatformError } from "effect"
+import { ChildProcessSpawner, make as makeSpawner } from "effect/unstable/process/ChildProcessSpawner"
+import * as CommandLine from "../../src/CommandLine.ts"
 import * as HttpTransport from "../../src/HttpTransport.ts"
-import * as ShellService from "../../src/Shell.ts"
 import { runHostContract } from "./HostContract.ts"
+
+/**
+ * A bundle with no way to start a process still provides the tag; it just
+ * fails every spawn in the error channel, the way a `flows` service reports an
+ * unsupported capability.
+ */
+const layerSpawnerUnsupported: Layer.Layer<ChildProcessSpawner> = Layer.succeed(ChildProcessSpawner)(
+  makeSpawner((command) =>
+    Effect.fail(
+      PlatformError.systemError({
+        _tag: "NotFound",
+        module: "UnsupportedHost",
+        method: "spawn",
+        description: `no process host for \`${CommandLine.render(command)}\``
+      })
+    )
+  )
+)
 
 const rejecting = (): BrowserFileSystem.ZenFsPromisesLike => {
   const denied = () => Promise.reject(new Error("filesystem is unavailable on this host"))
@@ -43,7 +62,7 @@ runHostContract(
   Layer.mergeAll(
     BrowserFileSystem.layer(rejecting()),
     layerPathUnsupported,
-    ShellService.layerNoop({}),
+    layerSpawnerUnsupported,
     BrowserPty.layerUnsupported,
     BrowserJj.layerUnsupported,
     HttpTransport.layerNoop()
@@ -53,8 +72,7 @@ runHostContract(
     fileSystem: { expected: "failure", code: "Unknown" },
     // A thrown tagged value carries it as a bare `_tag`.
     path: { expected: "failure", code: "NoFileUrls" },
-    // Host errors carry it as `code`.
-    shell: { expected: "failure", code: "shell_unavailable" },
+    childProcess: { expected: "failure", code: "NotFound" },
     pty: { expected: "failure", code: "unsupported" },
     jj: { expected: "failure", code: "not_installed" },
     httpTransport: { expected: "failure", code: "TransportError" }

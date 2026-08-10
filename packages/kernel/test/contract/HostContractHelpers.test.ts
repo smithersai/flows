@@ -4,16 +4,16 @@
  * normalizer must not invent a code, and the failure assertion must not let a
  * capability declared unsupported quietly succeed.
  */
+import { PtyError } from "@smthrs/pty"
 import { Effect } from "effect"
 import { tmpdir } from "node:os"
 import { isAbsolute, relative, sep } from "node:path"
 import { describe, expect, it } from "vitest"
-import { ShellError } from "../../src/HostError.ts"
 import { assertFailure, defaultScratchPath, errorCode } from "./HostContract.ts"
 
 describe("errorCode", () => {
   it("prefers a string `code` field", () => {
-    expect(errorCode(new ShellError({ code: "timeout", message: "slow" }))).toBe("timeout")
+    expect(errorCode(new PtyError({ code: "exited", message: "slow" }))).toBe("exited")
   })
 
   it("falls back to a nested `reason._tag`", () => {
@@ -27,7 +27,7 @@ describe("errorCode", () => {
   it("reports no code for values that carry none", () => {
     expect(errorCode(undefined)).toBeUndefined()
     expect(errorCode(null)).toBeUndefined()
-    expect(errorCode("shell_unavailable")).toBeUndefined()
+    expect(errorCode("not_found")).toBeUndefined()
     expect(errorCode({})).toBeUndefined()
     expect(errorCode({ code: 500 })).toBeUndefined()
     expect(errorCode({ reason: "TransportError" })).toBeUndefined()
@@ -39,7 +39,7 @@ describe("errorCode", () => {
 describe("assertFailure", () => {
   it("passes when the effect fails with the declared code", async () => {
     await expect(
-      Effect.runPromise(assertFailure(Effect.fail(new ShellError({ code: "timeout", message: "slow" })), "timeout"))
+      Effect.runPromise(assertFailure(Effect.fail(new PtyError({ code: "exited", message: "slow" })), "exited"))
     ).resolves.toBeUndefined()
   })
 
@@ -51,7 +51,7 @@ describe("assertFailure", () => {
   it("rejects a failure carrying a different code", async () => {
     await expect(
       Effect.runPromise(
-        assertFailure(Effect.fail(new ShellError({ code: "spawn_error", message: "no" })), "shell_unavailable")
+        assertFailure(Effect.fail(new PtyError({ code: "not_found", message: "no" })), "unsupported")
       )
     ).rejects.toThrow()
   })

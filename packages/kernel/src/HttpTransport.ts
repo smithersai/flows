@@ -1,5 +1,11 @@
 /**
- * Single-hop HTTP transport at the Host boundary.
+ * The raw single-hop HTTP transport **port** at the Host boundary.
+ *
+ * This is the unguarded platform port. Its protected projection is
+ * `./HttpClient.ts`; this tag is deliberately never republished as a guarded
+ * kernel tag, because doing so would erase permission failures from its error
+ * channel. The tag id `flows/host/HttpTransport` is FROZEN — it is digested
+ * into step keys.
  *
  * Governing designs:
  * [Host Adapters](../../../docs/specs/Concepts/Host%20Adapters.md),

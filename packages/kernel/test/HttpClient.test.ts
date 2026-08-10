@@ -1,4 +1,3 @@
-import * as HostHttpTransport from "@smthrs/host/HttpTransport"
 import { Effect } from "effect"
 import * as EffectHttpClient from "effect/unstable/http/HttpClient"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
@@ -7,6 +6,7 @@ import { describe, expect, it } from "vitest"
 import * as Capability from "../src/Capability.ts"
 import { GrantStore, type Service } from "../src/GrantStore.ts"
 import * as HttpClient from "../src/HttpClient.ts"
+import * as HostHttpTransport from "../src/HttpTransport.ts"
 import { PermissionDenied } from "../src/Permission.ts"
 
 const itEffect = <E>(name: string, effect: () => Effect.Effect<void, E>) => it(name, () => Effect.runPromise(effect()))

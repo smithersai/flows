@@ -3,10 +3,10 @@ import * as BrowserFileSystem from "@smthrs/platform-browser/BrowserFileSystem"
 import { Pty } from "@smthrs/pty"
 import { Clock, Effect, FileSystem, Random, Stream } from "effect"
 import { TestClock } from "effect/testing"
+import * as ChildProcess from "effect/unstable/process/ChildProcess"
+import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
 import { describe, expect, it } from "vitest"
-import * as JustBashShell from "../src/browser/JustBashShell.ts"
 import * as HttpTransport from "../src/HttpTransport.ts"
-import { Shell } from "../src/Shell.ts"
 import * as TestHost from "../src/test/TestHost.ts"
 
 const decoder = new TextDecoder()
@@ -73,16 +73,22 @@ describe("TestHost memory filesystem", () => {
   })
 })
 
-describe("TestHost scripted shell", () => {
+describe("TestHost scripted commands", () => {
   const run = <A, E>(
-    effect: Effect.Effect<A, E, Shell>,
+    effect: Effect.Effect<A, E, ChildProcessSpawner>,
     commands?: Readonly<Record<string, { stdout?: string; stderr?: string; exitCode?: number }>>
   ) => Effect.runPromise(Effect.provide(effect, TestHost.layer(commands === undefined ? {} : { commands })))
 
+  const outcome = (command: ChildProcess.Command) =>
+    Effect.flatMap(ChildProcessSpawner, (spawner) =>
+      Effect.all({
+        stdout: spawner.string(command),
+        stderr: Stream.mkString(spawner.streamString(command, { includeStderr: true })),
+        exitCode: spawner.exitCode(command)
+      }))
+
   it("reports an unlisted command the way a shell reports a missing binary", async () => {
-    const result = await run(
-      Effect.flatMap(Shell, (shell) => shell.exec("curl https://example.com"))
-    )
+    const result = await run(outcome(ChildProcess.make("curl", ["https://example.com"])))
 
     expect(result).toEqual({
       stdout: "",
@@ -92,16 +98,21 @@ describe("TestHost scripted shell", () => {
   })
 
   it("defaults every unscripted field of a declared command", async () => {
-    const result = await run(Effect.flatMap(Shell, (shell) => shell.exec("noop")), { noop: {} })
+    const result = await run(outcome(ChildProcess.make("noop")), { noop: {} })
 
     expect(result).toEqual({ stdout: "", stderr: "", exitCode: 0 })
   })
 
-  it("streams stdout then stderr as one chunk each and omits empty ones", async () => {
-    const collect = (command: string) =>
-      Effect.flatMap(Shell, (shell) =>
-        Stream.runCollect(shell.stream(command)).pipe(
-          Effect.map((chunks) => Array.from(chunks).map((c) => ({ kind: c.kind, text: decoder.decode(c.chunk) })))
+  it("emits stdout and stderr as one chunk each and omits empty ones", async () => {
+    const collect = (name: string) =>
+      Effect.flatMap(ChildProcessSpawner, (spawner) =>
+        Effect.scoped(
+          Effect.gen(function*() {
+            const handle = yield* spawner.spawn(ChildProcess.make(name))
+            const chunks = <E>(stream: Stream.Stream<Uint8Array, E>) =>
+              Effect.map(Stream.runCollect(stream), (values) => Array.from(values, (v) => decoder.decode(v)))
+            return { stdout: yield* chunks(handle.stdout), stderr: yield* chunks(handle.stderr) }
+          })
         ))
 
     const [both, onlyErr, silent] = await run(
@@ -113,102 +124,9 @@ describe("TestHost scripted shell", () => {
       }
     )
 
-    expect(both).toEqual([{ kind: "stdout", text: "out" }, { kind: "stderr", text: "err" }])
-    expect(onlyErr).toEqual([{ kind: "stderr", text: "bad" }])
-    expect(silent).toEqual([])
-  })
-
-  it("fails with `shell_unavailable` when a caller supplies stdin", async () => {
-    const error = await run(
-      Effect.flatMap(Shell, (shell) => Effect.flip(shell.exec("cat", { stdin: "hello" })))
-    )
-
-    expect(error).toMatchObject({
-      code: "shell_unavailable",
-      command: "cat",
-      message: "just-bash cannot supply stdin to a command"
-    })
-  })
-
-  it("maps a thrown interpreter error onto `spawn_error`", async () => {
-    const bash: JustBashShell.JustBashLike = {
-      run: async () => {
-        throw new Error("interpreter exploded")
-      }
-    }
-
-    const error = await Effect.runPromise(
-      Effect.flatMap(Shell, (shell) => Effect.flip(shell.exec("boom"))).pipe(
-        Effect.provide(JustBashShell.layer(bash))
-      )
-    )
-
-    expect(error).toMatchObject({ code: "spawn_error", message: "interpreter exploded", command: "boom" })
-  })
-
-  it("stringifies a non-Error interpreter rejection", async () => {
-    const bash: JustBashShell.JustBashLike = {
-      run: async () => {
-        throw "not an error"
-      }
-    }
-
-    const error = await Effect.runPromise(
-      Effect.flatMap(Shell, (shell) => Effect.flip(shell.exec("boom"))).pipe(
-        Effect.provide(JustBashShell.layer(bash))
-      )
-    )
-
-    expect(error.message).toBe("not an error")
-  })
-
-  it("fails with `timeout` once the budget elapses, after the uninterruptible call settles", async () => {
-    let settled = false
-    const bash: JustBashShell.JustBashLike = {
-      run: () =>
-        new Promise((resolve) =>
-          setTimeout(() => {
-            settled = true
-            resolve({ stdout: "late", stderr: "", exitCode: 0 })
-          }, 20)
-        )
-    }
-
-    const error = await Effect.runPromise(
-      Effect.flatMap(Shell, (shell) => Effect.flip(shell.exec("slow", { timeoutMs: 1 }))).pipe(
-        Effect.provide(JustBashShell.layer(bash))
-      )
-    )
-
-    expect(error).toMatchObject({ code: "timeout", command: "slow" })
-    expect(error.message).toBe("command exceeded 1ms")
-    expect(settled).toBe(true)
-  })
-
-  it("serializes concurrent commands through the single-permit gate", async () => {
-    let inFlight = 0
-    let maxInFlight = 0
-    const bash: JustBashShell.JustBashLike = {
-      run: async (command) => {
-        inFlight += 1
-        maxInFlight = Math.max(maxInFlight, inFlight)
-        await new Promise((resolve) => setTimeout(resolve, 1))
-        inFlight -= 1
-        return { stdout: command, stderr: "", exitCode: 0 }
-      }
-    }
-
-    const results = await Effect.runPromise(
-      Effect.flatMap(
-        Shell,
-        (shell) => Effect.all([shell.exec("a"), shell.exec("b"), shell.exec("c")], { concurrency: "unbounded" })
-      ).pipe(
-        Effect.provide(JustBashShell.layer(bash))
-      )
-    )
-
-    expect(results.map((result) => result.stdout).sort()).toEqual(["a", "b", "c"])
-    expect(maxInFlight).toBe(1)
+    expect(both).toEqual({ stdout: ["out"], stderr: ["err"] })
+    expect(onlyErr).toEqual({ stdout: [], stderr: ["bad"] })
+    expect(silent).toEqual({ stdout: [], stderr: [] })
   })
 })
 
@@ -250,10 +168,10 @@ describe("TestHost determinism", () => {
     const state = await Effect.runPromise(
       Effect.gen(function*() {
         const fs = yield* FileSystem.FileSystem
-        const shell = yield* Shell
+        const spawner = yield* ChildProcessSpawner
         return {
           root: yield* fs.readDirectory("/"),
-          exit: (yield* shell.exec("ls")).exitCode
+          exit: yield* spawner.exitCode(ChildProcess.make("ls"))
         }
       }).pipe(Effect.provide(TestHost.TestHost))
     )
@@ -332,11 +250,5 @@ describe("TestHost memory filesystem edges", () => {
     const memory = TestHost.makeMemoryFs({ "/a/b/c.txt": "x", "/a/b/d.txt": "y", "/a/top.txt": "z" })
 
     expect(await memory.readdir("/a")).toEqual(["b", "top.txt"])
-  })
-})
-
-describe("TestHost scripted shell defaults", () => {
-  it("reports the interpreter root as the working directory", () => {
-    expect(TestHost.makeStubBash().getCwd?.()).toBe("/")
   })
 })

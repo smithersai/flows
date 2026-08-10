@@ -21,6 +21,22 @@ export * as Capability from "./Capability.ts"
 export * as CapabilitySet from "./CapabilitySet.ts"
 
 /**
+ * Permission-decorated process spawning.
+ *
+ * @category namespace exports
+ * @since 0.1.0
+ */
+export * as ChildProcessSpawner from "./ChildProcessSpawner.ts"
+
+/**
+ * Rendering `ChildProcess` commands back to command lines.
+ *
+ * @category namespace exports
+ * @since 0.1.0
+ */
+export * as CommandLine from "./CommandLine.ts"
+
+/**
  * Permission-decorated filesystem services.
  *
  * @category namespace exports
@@ -43,6 +59,17 @@ export * as GrantEvent from "./GrantEvent.ts"
  * @since 0.1.0
  */
 export * as GrantStore from "./GrantStore.ts"
+
+/**
+ * The union of failures the closed Host surface is allowed to produce.
+ *
+ * A type, not a namespace: process execution now fails with Effect's own
+ * `PlatformError`, so nothing is left here to construct.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type { HostError } from "./HostError.ts"
 
 /**
  * The closed protected Host service layer.
@@ -99,14 +126,6 @@ export * as Permission from "./Permission.ts"
  * @since 0.1.0
  */
 export * as Pty from "./Pty.ts"
-
-/**
- * Permission-decorated shell services.
- *
- * @category namespace exports
- * @since 0.1.0
- */
-export * as Shell from "./Shell.ts"
 
 /**
  * The shared workspace-root service.

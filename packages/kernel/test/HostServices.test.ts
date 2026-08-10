@@ -1,20 +1,21 @@
-import * as Host from "@smthrs/host"
-import * as HostHttpTransport from "@smthrs/host/HttpTransport"
-import * as TestHost from "@smthrs/host/test/TestHost"
 import * as HostJj from "@smthrs/jj"
 import * as HostPty from "@smthrs/pty"
 import { Effect, FileSystem as EffectFileSystem, Option, Path as EffectPath } from "effect"
 import * as EffectHttpClient from "effect/unstable/http/HttpClient"
+import * as ChildProcess from "effect/unstable/process/ChildProcess"
+import { ChildProcessSpawner as EffectChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
 import { describe, expect, it } from "vitest"
 import * as Capability from "../src/Capability.ts"
+import * as ChildProcessSpawner from "../src/ChildProcessSpawner.ts"
 import * as FileSystem from "../src/FileSystem.ts"
 import { GrantStore } from "../src/GrantStore.ts"
 import * as HostServices from "../src/HostServices.ts"
 import * as HttpClient from "../src/HttpClient.ts"
+import * as HostHttpTransport from "../src/HttpTransport.ts"
 import * as Jj from "../src/Jj.ts"
 import { permissionDenied } from "../src/Permission.ts"
 import * as Pty from "../src/Pty.ts"
-import * as Shell from "../src/Shell.ts"
+import * as TestHost from "../src/test/TestHost.ts"
 import * as Workspace from "../src/Workspace.ts"
 
 const allowAll = GrantStore.of({
@@ -36,12 +37,26 @@ const fileSystem = EffectFileSystem.makeNoop({
 
 describe("HostServices", () => {
   it("shares the complete platform-port list and maps every slot to one protected tag", () => {
-    expect(HostServices.HostServiceTags).toEqual(Host.HostServiceTags)
-    expect(HostServices.HostServiceIds).toEqual(Host.HostServiceIds)
+    expect(HostServices.HostServiceTags).toEqual([
+      EffectFileSystem.FileSystem,
+      EffectPath.Path,
+      EffectChildProcessSpawner,
+      HostPty.Pty,
+      HostJj.Jj,
+      HostHttpTransport.HttpTransport
+    ])
+    expect(HostServices.HostServiceIds).toEqual([
+      "effect/FileSystem",
+      "effect/Path",
+      "effect/process/ChildProcessSpawner",
+      "flows/host/Pty",
+      "flows/host/Jj",
+      "flows/host/HttpTransport"
+    ])
     expect(HostServices.ProtectedHostServiceTags).toEqual([
       FileSystem.FileSystem,
       EffectPath.Path,
-      Shell.Shell,
+      ChildProcessSpawner.ChildProcessSpawner,
       Pty.Pty,
       Jj.Jj,
       HttpClient.HttpClient
@@ -59,10 +74,10 @@ describe("HostServices", () => {
       const path = yield* EffectPath.Path
       expect(path.normalize("/workspace/src/../src")).toBe("/workspace/src")
 
-      const protectedShell = yield* Shell.Shell
-      const rawShell = yield* Host.Shell.Shell
-      expect(rawShell).toBe(protectedShell)
-      expect(yield* protectedShell.exec("fixture")).toEqual({ stdout: "protected\n", stderr: "", exitCode: 0 })
+      const protectedSpawner = yield* ChildProcessSpawner.ChildProcessSpawner
+      const rawSpawner = yield* EffectChildProcessSpawner
+      expect(rawSpawner).toBe(protectedSpawner)
+      expect(yield* protectedSpawner.string(ChildProcess.make("fixture"))).toBe("protected\n")
 
       const protectedPty = yield* Pty.Pty
       const rawPty = yield* HostPty.Pty
@@ -95,7 +110,7 @@ describe("HostServices", () => {
     await Effect.runPromise(program)
   })
 
-  it("intercepts the underlying @smthrs/host and effect FileSystem tags, not just the kernel decorators", async () => {
+  it("intercepts the underlying platform tags, not just the kernel decorators", async () => {
     const checks: Array<Capability.Capability> = []
     const deny = GrantStore.of({
       check: (capability) => {
@@ -108,8 +123,8 @@ describe("HostServices", () => {
     })
     const http = EffectHttpClient.make((request) => Effect.succeed({ status: 200, headers: {}, request } as never))
     const program = Effect.gen(function*() {
-      const shell = yield* Host.Shell.Shell
-      expect(yield* Effect.flip(shell.exec("blocked"))).toMatchObject({
+      const spawner = yield* EffectChildProcessSpawner
+      expect(yield* Effect.flip(spawner.string(ChildProcess.make("blocked")))).toMatchObject({
         code: "permission_denied",
         capability: { action: "proc:spawn", resource: "blocked" },
         reason: "denied by integration test"

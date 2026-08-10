@@ -1,3 +1,4 @@
+import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import * as TestHost from "../../src/test/TestHost.ts"
 import { runHostContract } from "./HostContract.ts"
 
@@ -9,26 +10,27 @@ runHostContract(
       "host-contract-exec": { stdout: "test-exec" },
       "host-contract-stream": { stdout: "test-stream" },
       "host-contract-options": { stdout: "test-options" },
-      "host-contract-timeout": { stdout: "too-late", delayMs: 25 },
       "host-contract-interrupt": { stdout: "" }
     }
   }),
   {
     fileSystem: { expected: "success", scratchPath: "/test-host-contract" },
     path: { expected: "success" },
-    shell: {
+    childProcess: {
       expected: "success",
-      execCommand: "host-contract-exec",
+      execCommand: ChildProcess.make("host-contract-exec"),
       expectedStdout: "test-exec",
-      streamCommand: "host-contract-stream",
+      streamCommand: ChildProcess.make("host-contract-stream"),
       expectedStreamText: "test-stream",
-      optionsCommand: "host-contract-options",
-      options: { cwd: "/", env: { HOST_CONTRACT_ENV: "test" } },
+      optionsCommand: ChildProcess.make("host-contract-options", [], {
+        cwd: "/",
+        env: { HOST_CONTRACT_ENV: "test" }
+      }),
       expectedOptionsStdout: "test-options",
-      timeoutCommand: "host-contract-timeout",
-      timeoutMs: 1,
-      timeoutAdvanceMs: 2,
-      interruptCommand: "host-contract-interrupt"
+      // The scripted interpreter runs a command line to completion; it has no
+      // stdin to feed.
+      stdin: { expected: "failure", code: "BadArgument" },
+      interruptCommand: ChildProcess.make("host-contract-interrupt")
     },
     pty: { expected: "failure", code: "unsupported" },
     jj: { expected: "failure", code: "not_installed" },

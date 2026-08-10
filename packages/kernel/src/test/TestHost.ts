@@ -1,14 +1,27 @@
+/**
+ * The deterministic Host bundle.
+ *
+ * It lives beside the contract suite because the two are one pair: the bundle
+ * every `flows` test runs against, and the suite that proves it satisfies the
+ * same closed Host list a real platform bundle does.
+ *
+ * **Node-only.** `effect/testing`'s `TestClock` reaches for `node:assert`, so
+ * `scripts/browser-check.mjs` documents this module as a Node-only entry point
+ * even though every service it composes is itself browser-safe.
+ *
+ * @since 0.1.0
+ */
 import type { Jj } from "@smthrs/jj"
 import * as BrowserJj from "@smthrs/jj/browser/BrowserJj"
+import * as BrowserChildProcessSpawner from "@smthrs/platform-browser/BrowserChildProcessSpawner"
 import * as BrowserFileSystem from "@smthrs/platform-browser/BrowserFileSystem"
 import type { Pty } from "@smthrs/pty"
 import * as BrowserPty from "@smthrs/pty/browser/BrowserPty"
 import { Layer, Path, Random } from "effect"
 import type { FileSystem } from "effect"
 import { TestClock } from "effect/testing"
-import * as JustBashShell from "../browser/JustBashShell.ts"
+import type { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
 import * as HttpTransport from "../HttpTransport.ts"
-import type { Shell } from "../Shell.ts"
 
 /** POSIX-normalize so `/a/b`, `/a/b/`, and `/a/./b` are one key in the store. */
 const normalize = (path: string): string => {
@@ -144,7 +157,7 @@ export const makeStubBash = (
       delayMs?: number
     }>
   >
-): JustBashShell.JustBashLike => ({
+): BrowserChildProcessSpawner.JustBashLike => ({
   run: async (command) => {
     const scripted = responses?.[command]
     if (scripted === undefined) {
@@ -158,8 +171,7 @@ export const makeStubBash = (
       stderr: scripted.stderr ?? "",
       exitCode: scripted.exitCode ?? 0
     }
-  },
-  getCwd: () => "/"
+  }
 })
 
 /**
@@ -187,12 +199,31 @@ export const layerSeededRandom = (seed = 42): Layer.Layer<never> =>
   )
 
 /**
+ * The complete deterministic Host surface.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type TestHost =
+  | FileSystem.FileSystem
+  | Path.Path
+  | ChildProcessSpawner
+  | Pty
+  | Jj
+  | HttpTransport.HttpTransport
+
+/**
  * The deterministic Host bundle.
  *
  * Every source of nondeterminism is pinned: an in-memory filesystem, a scripted
- * shell, `TestClock` (time only moves when a test calls `TestClock.adjust`), and
- * a seeded PRNG. `Pty` and `Jj` reuse their packages' ticket-failing browser layers so a
- * test that reaches for them fails loudly instead of touching the real machine.
+ * interpreter, `TestClock` (time only moves when a test calls
+ * `TestClock.adjust`), and a seeded PRNG. `Pty` and `Jj` reuse their packages'
+ * ticket-failing browser layers so a test that reaches for them fails loudly
+ * instead of touching the real machine.
+ *
+ * The spawner is provided *over* the filesystem and path layers, exactly the
+ * way `NodeChildProcessSpawner` is, so the interpreter and the `FileSystem`
+ * service agree about what exists rather than each holding its own store.
  */
 export const layer = (options?: {
   readonly files?: Readonly<Record<string, string>>
@@ -205,18 +236,21 @@ export const layer = (options?: {
     }>
   >
   readonly seed?: number
-}): Layer.Layer<FileSystem.FileSystem | Path.Path | Shell | Pty | Jj | HttpTransport.HttpTransport> =>
-  Layer.mergeAll(
+}): Layer.Layer<TestHost> => {
+  const platform = Layer.mergeAll(
     BrowserFileSystem.layer(makeMemoryFs(options?.files)),
-    Path.layer,
-    JustBashShell.layer(makeStubBash(options?.commands)),
+    Path.layer
+  )
+  return Layer.mergeAll(
+    platform,
+    Layer.provide(BrowserChildProcessSpawner.layer(makeStubBash(options?.commands)), platform),
     HttpTransport.layerNoop(),
     BrowserPty.layerUnsupported,
     BrowserJj.layerUnsupported,
     TestClock.layer(),
     layerSeededRandom(options?.seed)
   )
+}
 
 /** The zero-config bundle: empty filesystem, no scripted commands, seed 42. */
-export const TestHost: Layer.Layer<FileSystem.FileSystem | Path.Path | Shell | Pty | Jj | HttpTransport.HttpTransport> =
-  layer()
+export const TestHost: Layer.Layer<TestHost> = layer()

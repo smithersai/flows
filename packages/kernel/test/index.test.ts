@@ -6,6 +6,8 @@ describe("kernel package barrel", () => {
     expect(Object.keys(Kernel).sort()).toEqual([
       "Capability",
       "CapabilitySet",
+      "ChildProcessSpawner",
+      "CommandLine",
       "FileSystem",
       "GrantEvent",
       "GrantStore",
@@ -16,7 +18,6 @@ describe("kernel package barrel", () => {
       "Path",
       "Permission",
       "Pty",
-      "Shell",
       "Workspace"
     ])
   })
