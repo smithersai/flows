@@ -21,14 +21,24 @@ const isFile = (path: string) => {
 }
 // Directory name → exported namespace name, the convention src/index.ts uses:
 // kebab-case to PascalCase (engine-store → EngineStore, time-travel →
-// TimeTravel). The barrel itself (`flows`) is the one package not re-exported.
+// TimeTravel).
+//
+// Two kinds of package are NOT re-exported and so are excluded here: the
+// barrel itself (`flows`), and the `platform-*` bundles. A platform bundle is
+// chosen by the program that runs, not by the library it depends on — the same
+// reason `effect`'s index does not re-export `@effect/platform-node` — and
+// re-exporting all three would make one import resolve `node:child_process`,
+// ZenFS, and Bun at once.
 const namespaceName = (directory: string) =>
   directory
     .split("-")
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join("")
-const expected = readdirSync(packagesDir)
-  .filter((name) => name !== "flows" && isFile(join(packagesDir, name, "package.json")))
+const isPlatformBundle = (name: string) => name.startsWith("platform-")
+const packageNames = readdirSync(packagesDir)
+  .filter((name) => isFile(join(packagesDir, name, "package.json")))
+const expected = packageNames
+  .filter((name) => name !== "flows" && !isPlatformBundle(name))
   .map(namespaceName)
   .sort()
 
@@ -39,6 +49,13 @@ describe("barrel", () => {
     expect(expected.length).toBeGreaterThanOrEqual(10)
     expect(expected).toContain("EngineStore")
     expect(expected).toContain("TimeTravel")
+  })
+
+  it("excludes the platform bundles, and there are some to exclude", () => {
+    // Guard the exclusion the same way: if `platform-*` ever stopped matching,
+    // the filter would silently become a no-op instead of a decision.
+    expect(packageNames.filter(isPlatformBundle).length).toBeGreaterThanOrEqual(3)
+    expect(expected.filter((name) => name.startsWith("Platform"))).toEqual([])
   })
 
   it("re-exports every engine package as a namespace", () => {

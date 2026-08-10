@@ -6,7 +6,16 @@
  * Every engine package is re-exported here as a namespace, the way `effect`'s
  * own index does it, so one dependency gives you the whole engine surface
  * without collapsing each package's `make` / `makeNoop` / `layerNoop` trio into
- * a shared namespace: `Host.Shell.layerNoop`, `Journal.Store.layer`.
+ * a shared namespace: `Kernel.ChildProcessSpawner.layerNoop`,
+ * `Journal.Store.layer`.
+ *
+ * The `@smthrs/platform-*` packages are deliberately NOT re-exported, for the
+ * same reason `effect`'s index does not re-export `@effect/platform-node`: a
+ * platform bundle is chosen by the program that runs, not by the library it
+ * depends on, and pulling all three in here would make one import resolve
+ * `node:child_process`, ZenFS, and Bun at once. Import
+ * `@smthrs/platform-node`, `@smthrs/platform-bun`, or
+ * `@smthrs/platform-browser` directly.
  *
  * Depend on the individual `@smthrs/*` packages instead when you want a
  * narrower dependency footprint — this barrel is a convenience, not a new
@@ -14,7 +23,7 @@
  * the re-exported namespace names.
  *
  * ```ts
- * import { Engine, Host, Journal } from "@smthrs/flows"
+ * import { Engine, Kernel, Journal } from "@smthrs/flows"
  * ```
  *
  * One caveat: `Plugin` is re-exported as a namespace, but declaration merging
@@ -28,12 +37,10 @@ export * as Crypto from "@smthrs/crypto"
 export * as Database from "@smthrs/database"
 export * as Engine from "@smthrs/engine"
 export * as EngineStore from "@smthrs/engine-store"
-export * as Host from "@smthrs/host"
 export * as Jj from "@smthrs/jj"
 export * as Journal from "@smthrs/journal"
 export * as Kernel from "@smthrs/kernel"
 export * as Keys from "@smthrs/keys"
-export * as PlatformBrowser from "@smthrs/platform-browser"
 export * as Plugin from "@smthrs/plugin"
 export * as Pty from "@smthrs/pty"
 export * as Sandbox from "@smthrs/sandbox"
@@ -60,12 +67,10 @@ export const namespaces = [
   "Database",
   "Engine",
   "EngineStore",
-  "Host",
   "Jj",
   "Journal",
   "Kernel",
   "Keys",
-  "PlatformBrowser",
   "Plugin",
   "Pty",
   "Sandbox",
