@@ -17,8 +17,13 @@ const unknownSqlError = (cause: unknown): SqlError.SqlError =>
     reason: new SqlError.UnknownError({ cause })
   })
 
+// Mimics the real client's transaction shape: `withTransaction` provides the
+// client's transaction service, which is how `write` detects nesting.
+const retryTransaction = SqlClient.TransactionConnection(-1)
 const retrySql = {
-  withTransaction: <A, E, R>(effect: Effect.Effect<A, E, R>) => effect
+  transactionService: retryTransaction,
+  withTransaction: <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+    Effect.provideService(effect, retryTransaction, [undefined as never, 0])
 } as SqlClient.SqlClient
 
 describe("Database", () => {
