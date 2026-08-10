@@ -18,7 +18,7 @@
  */
 
 /** Provider-neutral remote process execution. */
-export * as RemoteSandbox from "./RemoteSandbox.ts"
+export * as RemoteSandbox from "./RemoteSandbox/index.ts"
 
 /** Sandbox health-check contracts. */
-export * as SandboxHealth from "./SandboxHealth.ts"
+export * as SandboxHealth from "./SandboxHealth/index.ts"

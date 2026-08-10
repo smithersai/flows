@@ -1,7 +1,7 @@
 import { Effect } from "effect"
 import { describe, expect, it } from "vitest"
-import { ProviderError } from "../src/RemoteSandbox.ts"
-import * as SandboxHealth from "../src/SandboxHealth.ts"
+import { ProviderError } from "../src/RemoteSandbox/index.ts"
+import * as SandboxHealth from "../src/SandboxHealth/index.ts"
 
 const healthyProvider: SandboxHealth.PingProvider = {
   ping: Effect.void

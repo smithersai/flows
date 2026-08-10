@@ -2,7 +2,7 @@ import { ShellError } from "@smthrs/host/HostError"
 import { Shell } from "@smthrs/host/Shell"
 import { Effect, Fiber, Stream } from "effect"
 import { describe, expect, it } from "vitest"
-import * as RemoteSandbox from "../src/RemoteSandbox.ts"
+import * as RemoteSandbox from "../src/RemoteSandbox/index.ts"
 
 const encoder = new TextEncoder()
 
