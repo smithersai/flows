@@ -13,6 +13,7 @@
  * @since 0.1.0
  */
 import * as JournalEvent from "@smthrs/journal/JournalEvent"
+import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
 /**
@@ -21,7 +22,7 @@ import * as Schema from "effect/Schema"
  * @category schemas
  * @since 0.1.0
  */
-export const BranchId = Schema.String.pipe(Schema.brand("flows/sync/BranchId"))
+export const BranchId = Schema.NonEmptyString.pipe(Schema.brand("flows/sync/BranchId"))
 
 /**
  * Identifier of one collaboratively edited branch.
@@ -37,7 +38,7 @@ export type BranchId = typeof BranchId.Type
  * @category schemas
  * @since 0.1.0
  */
-export const ParticipantId = Schema.String.pipe(Schema.brand("flows/sync/ParticipantId"))
+export const ParticipantId = Schema.NonEmptyString.pipe(Schema.brand("flows/sync/ParticipantId"))
 
 /**
  * Identifier of one connected client.
@@ -57,7 +58,7 @@ export type ParticipantId = typeof ParticipantId.Type
  * @category schemas
  * @since 0.1.0
  */
-export const CommandId = Schema.String.pipe(Schema.brand("flows/sync/CommandId"))
+export const CommandId = Schema.NonEmptyString.pipe(Schema.brand("flows/sync/CommandId"))
 
 /**
  * Client-minted command identifier used as the idempotency key.
@@ -135,7 +136,7 @@ export const CommandEvent = "flows/branch/command"
  */
 export class ShareClaims extends Schema.Class<ShareClaims>("flows/sync/BranchProtocol/ShareClaims")({
   branchId: BranchId,
-  capabilityId: Schema.String,
+  capabilityId: Schema.NonEmptyString,
   access: Access,
   issuedAtMs: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   expiresAtMs: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
@@ -159,7 +160,7 @@ export class ShareCapability extends Schema.Class<ShareCapability>("flows/sync/B
  * @since 0.1.0
  */
 export class Cursor extends Schema.Class<Cursor>("flows/sync/BranchProtocol/Cursor")({
-  cardId: Schema.String,
+  cardId: Schema.NonEmptyString,
   offset: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 }) {}
 
@@ -175,7 +176,7 @@ export class Cursor extends Schema.Class<Cursor>("flows/sync/BranchProtocol/Curs
 export class Participant extends Schema.Class<Participant>("flows/sync/BranchProtocol/Participant")({
   branchId: BranchId,
   participantId: ParticipantId,
-  displayName: Schema.String,
+  displayName: Schema.NonEmptyString,
   cursor: Schema.NullOr(Cursor),
   leaseExpiresAtMs: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 }) {}
@@ -197,9 +198,27 @@ export class CommandSubmission extends Schema.Class<CommandSubmission>(
   branchId: BranchId,
   commandId: CommandId,
   participantId: ParticipantId,
-  name: Schema.String,
+  name: Schema.NonEmptyString,
   args: Schema.String,
   target: Schema.String
+}) {}
+
+/** Schema for the durable payload stored for an admitted command. */
+export class CommandEventPayload extends Schema.Class<CommandEventPayload>(
+  "flows/sync/BranchProtocol/CommandEventPayload"
+)({
+  commandId: CommandId,
+  participantId: ParticipantId,
+  name: Schema.NonEmptyString,
+  args: Schema.String.pipe(Schema.withDecodingDefaultKey(Effect.succeed(""))),
+  target: Schema.String.pipe(Schema.withDecodingDefaultKey(Effect.succeed("")))
+}) {}
+
+/** Schema for the command identity needed when rebuilding the idempotency ledger. */
+export class CommandIdentity extends Schema.Class<CommandIdentity>(
+  "flows/sync/BranchProtocol/CommandIdentity"
+)({
+  commandId: CommandId
 }) {}
 
 /**

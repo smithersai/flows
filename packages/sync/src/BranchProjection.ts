@@ -18,13 +18,16 @@
  *
  * @since 0.1.0
  */
-import type * as JournalEvent from "@smthrs/journal/JournalEvent"
+import * as JournalEvent from "@smthrs/journal/JournalEvent"
+import * as Option from "effect/Option"
+import * as Schema from "effect/Schema"
 import {
-  type BranchId,
+  BranchId,
   branchRunId,
   CommandEvent,
-  type CommandId,
-  type ParticipantId,
+  CommandEventPayload,
+  CommandId,
+  ParticipantId,
   SayCommand
 } from "./BranchProtocol.ts"
 
@@ -34,12 +37,14 @@ import {
  * @category models
  * @since 0.1.0
  */
-export interface Message {
-  readonly seq: JournalEvent.Seq
-  readonly commandId: CommandId
-  readonly participantId: ParticipantId
-  readonly text: string
-}
+export const Message = Schema.Struct({
+  seq: JournalEvent.Seq,
+  commandId: CommandId,
+  participantId: ParticipantId,
+  text: Schema.String
+})
+/** @category models @since 0.1.0 */
+export type Message = typeof Message.Type
 
 /**
  * One command applied to the branch document.
@@ -47,14 +52,16 @@ export interface Message {
  * @category models
  * @since 0.1.0
  */
-export interface AppliedCommand {
-  readonly seq: JournalEvent.Seq
-  readonly commandId: CommandId
-  readonly participantId: ParticipantId
-  readonly name: string
-  readonly args: string
-  readonly target: string
-}
+export const AppliedCommand = Schema.Struct({
+  seq: JournalEvent.Seq,
+  commandId: CommandId,
+  participantId: ParticipantId,
+  name: Schema.NonEmptyString,
+  args: Schema.String,
+  target: Schema.String
+})
+/** @category models @since 0.1.0 */
+export type AppliedCommand = typeof AppliedCommand.Type
 
 /**
  * The current winning value of one durably edited shared field.
@@ -62,12 +69,14 @@ export interface AppliedCommand {
  * @category models
  * @since 0.1.0
  */
-export interface Field {
-  readonly target: string
-  readonly value: string
-  readonly seq: JournalEvent.Seq
-  readonly participantId: ParticipantId
-}
+export const Field = Schema.Struct({
+  target: Schema.NonEmptyString,
+  value: Schema.String,
+  seq: JournalEvent.Seq,
+  participantId: ParticipantId
+})
+/** @category models @since 0.1.0 */
+export type Field = typeof Field.Type
 
 /**
  * The projected state of one branch document.
@@ -78,13 +87,15 @@ export interface Field {
  * @category models
  * @since 0.1.0
  */
-export interface State {
-  readonly branchId: BranchId
-  readonly seq: number
-  readonly messages: ReadonlyArray<Message>
-  readonly commands: ReadonlyArray<AppliedCommand>
-  readonly fields: ReadonlyArray<Field>
-}
+export const State = Schema.Struct({
+  branchId: BranchId,
+  seq: Schema.Int.check(Schema.isGreaterThanOrEqualTo(-1)),
+  messages: Schema.Array(Message),
+  commands: Schema.Array(AppliedCommand),
+  fields: Schema.Array(Field)
+})
+/** @category models @since 0.1.0 */
+export type State = typeof State.Type
 
 /**
  * The empty projection of a branch, whose cursor is "nothing applied".
@@ -119,36 +130,6 @@ export const resolveField = (existing: Field | undefined, candidate: Field): Fie
   return candidate.participantId > existing.participantId ? candidate : existing
 }
 
-interface Decoded {
-  readonly commandId: CommandId
-  readonly participantId: ParticipantId
-  readonly name: string
-  readonly args: string
-  readonly target: string
-}
-
-const string = (source: Record<string, unknown>, field: string): string | null => {
-  const value = source[field]
-  return typeof value === "string" ? value : null
-}
-
-/** A payload the branch never wrote is not a command; the fold skips it. */
-const decode = (payload: unknown): Decoded | null => {
-  if (typeof payload !== "object" || payload === null) return null
-  const source = payload as Record<string, unknown>
-  const commandId = string(source, "commandId")
-  const participantId = string(source, "participantId")
-  const name = string(source, "name")
-  if (commandId === null || participantId === null || name === null) return null
-  return {
-    commandId: commandId as CommandId,
-    participantId: participantId as ParticipantId,
-    name,
-    args: string(source, "args") ?? "",
-    target: string(source, "target") ?? ""
-  }
-}
-
 /**
  * Folds one journal entry into a branch projection.
  *
@@ -159,29 +140,33 @@ export const apply = (state: State, entry: JournalEvent.Entry): State => {
   if (entry.runId !== branchRunId(state.branchId) || entry.seq <= state.seq) return state
   const advanced = { ...state, seq: entry.seq }
   if (entry.eventType !== CommandEvent) return advanced
-  const decoded = decode(entry.payload)
-  if (decoded === null) return advanced
-  if (state.commands.some((command) => command.commandId === decoded.commandId)) return advanced
-  const command: AppliedCommand = { ...decoded, seq: entry.seq }
-  const messages = decoded.name === SayCommand
+  const decoded = Schema.decodeUnknownOption(CommandEventPayload)(entry.payload)
+  if (Option.isNone(decoded)) return advanced
+  const commandSubmission = decoded.value
+  if (state.commands.some((command) => command.commandId === commandSubmission.commandId)) return advanced
+  const command: AppliedCommand = { ...commandSubmission, seq: entry.seq }
+  const messages = commandSubmission.name === SayCommand
     ? [...state.messages, {
       seq: entry.seq,
-      commandId: decoded.commandId,
-      participantId: decoded.participantId,
-      text: decoded.args
+      commandId: commandSubmission.commandId,
+      participantId: commandSubmission.participantId,
+      text: commandSubmission.args
     }]
     : state.messages
-  const fields = decoded.target === ""
+  const fields = commandSubmission.target === ""
     ? state.fields
     : (() => {
       const candidate: Field = {
-        target: decoded.target,
-        value: decoded.args,
+        target: commandSubmission.target,
+        value: commandSubmission.args,
         seq: entry.seq,
-        participantId: decoded.participantId
+        participantId: commandSubmission.participantId
       }
-      const winner = resolveField(state.fields.find((field) => field.target === decoded.target), candidate)
-      return [...state.fields.filter((field) => field.target !== decoded.target), winner]
+      const winner = resolveField(
+        state.fields.find((field) => field.target === commandSubmission.target),
+        candidate
+      )
+      return [...state.fields.filter((field) => field.target !== commandSubmission.target), winner]
         .sort((left, right) => left.target < right.target ? -1 : 1)
     })()
   return { ...advanced, messages, commands: [...state.commands, command], fields }

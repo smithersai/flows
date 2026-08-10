@@ -49,14 +49,24 @@ describe("SyncClient", () => {
         const client = yield* TestSync.connect(pair)
         const id = runId("client-round-trip")
 
-        yield* journal.emit({ runId: id, sourceId: sourceId("source"), eventType: "before", payload: { value: 1 } })
+        yield* journal.emitDurable({
+          runId: id,
+          sourceId: sourceId("source"),
+          eventType: "before",
+          payload: { value: 1 }
+        })
         yield* journal.flush
 
         const fiber = yield* Stream.runCollect(
           client.subscribe({ scope: { _tag: "Run", runId: id }, cursors: [] }).pipe(Stream.take(2))
         ).pipe(Effect.forkChild({ startImmediately: true }))
 
-        yield* journal.emit({ runId: id, sourceId: sourceId("source"), eventType: "after", payload: { value: 2 } })
+        yield* journal.emitDurable({
+          runId: id,
+          sourceId: sourceId("source"),
+          eventType: "after",
+          payload: { value: 2 }
+        })
         yield* journal.flush
         return yield* Fiber.join(fiber)
       })

@@ -16,16 +16,19 @@ import * as JournalEvent from "@smthrs/journal/JournalEvent"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
+import * as Schema from "effect/Schema"
 import * as Semaphore from "effect/Semaphore"
 import {
   type BranchId,
   branchRunId,
   CommandEvent,
   type CommandId,
+  CommandIdentity,
   CommandReceipt,
   CommandSubmission,
   participantSourceId,
-  type ShareCapability
+  ShareCapability
 } from "./BranchProtocol.ts"
 import * as BranchShare from "./BranchShare.ts"
 import { SyncError } from "./SyncError.ts"
@@ -36,10 +39,9 @@ import { SyncError } from "./SyncError.ts"
  * @category models
  * @since 0.1.0
  */
-export interface SubmitRequest {
-  readonly capability: ShareCapability
-  readonly submission: CommandSubmission
-}
+export const SubmitRequest = Schema.Struct({ capability: ShareCapability, submission: CommandSubmission })
+/** @category models @since 0.1.0 */
+export type SubmitRequest = typeof SubmitRequest.Type
 
 /**
  * Branch command admission operations.
@@ -87,13 +89,6 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service =>
  */
 export const layerNoop: Layer.Layer<BranchCommands> = Layer.succeed(BranchCommands, makeNoop())
 
-/** Entries are decoded structurally: an unrecognised payload is not a command. */
-const commandIdOf = (payload: unknown): CommandId | null => {
-  if (typeof payload !== "object" || payload === null) return null
-  const candidate = (payload as { readonly commandId?: unknown }).commandId
-  return typeof candidate === "string" ? candidate as CommandId : null
-}
-
 const journalFailure = (cause: unknown): SyncError =>
   new SyncError({
     code: "unknown",
@@ -139,11 +134,18 @@ export const makeLive: Effect.Effect<Service, never, Journal.Journal | BranchSha
           }).pipe(Effect.mapError(journalFailure))
           for (const entry of page.entries) {
             after = entry.seq
-            const commandId = entry.eventType === CommandEvent ? commandIdOf(entry.payload) : null
-            if (commandId !== null) {
+            const submission = entry.eventType === CommandEvent
+              ? Schema.decodeUnknownOption(CommandIdentity)(entry.payload)
+              : Option.none()
+            if (Option.isSome(submission)) {
               ledger.set(
-                ledgerKey(branchId, commandId),
-                new CommandReceipt({ branchId, commandId, status: "admitted", seq: entry.seq })
+                ledgerKey(branchId, submission.value.commandId),
+                new CommandReceipt({
+                  branchId,
+                  commandId: submission.value.commandId,
+                  status: "admitted",
+                  seq: entry.seq
+                })
               )
             }
           }

@@ -4,7 +4,7 @@
  * @since 0.1.0
  */
 import { Journal, JournalEvent } from "@smthrs/journal"
-import { Effect, Fiber, type Scope, Stream } from "effect"
+import { Deferred, Effect, Fiber, type Scope, Stream } from "effect"
 import { describe, expect, it } from "vitest"
 import type * as SyncRpcs from "../src/SyncRpcs.ts"
 import type * as SyncServer from "../src/SyncServer.ts"
@@ -27,13 +27,21 @@ describe("sync over a faulty transport", () => {
         const pair = yield* TestSocket.makePair()
         pair.faults.dropRange(id, 1, 1)
         const client = yield* TestSync.connect(pair)
+        const initialRead = yield* Deferred.make<void>()
+
+        yield* journal.emitDurable({ runId: id, sourceId, eventType: "event-0", payload: { value: 0 } })
+        yield* journal.flush
 
         const fiber = yield* Stream.runCollect(
-          client.subscribe({ scope: { _tag: "Run", runId: id }, cursors: [] }).pipe(Stream.take(3))
+          client.subscribe({ scope: { _tag: "Run", runId: id }, cursors: [] }).pipe(
+            Stream.tap((entry) => entry.seq === 0 ? Deferred.succeed(initialRead, undefined) : Effect.void),
+            Stream.take(3)
+          )
         ).pipe(Effect.forkChild({ startImmediately: true }))
 
-        for (const value of [0, 1, 2]) {
-          yield* journal.emit({ runId: id, sourceId, eventType: `event-${value}`, payload: { value } })
+        yield* Deferred.await(initialRead)
+        for (const value of [1, 2]) {
+          yield* journal.emitDurable({ runId: id, sourceId, eventType: `event-${value}`, payload: { value } })
           yield* journal.flush
         }
         const settled = yield* Fiber.join(fiber).pipe(Effect.timeoutOption("200 millis"))
@@ -42,7 +50,8 @@ describe("sync over a faulty transport", () => {
       })
     )
 
-    expect(exit).toMatchObject({ _tag: "Success", value: { _tag: "None" } })
+    expect(exit._tag).toBe("Success")
+    if (exit._tag === "Success") expect(exit.value._tag).toBe("None")
   })
 
   it("delivers stalled traffic once the transport resumes", async () => {
@@ -53,7 +62,7 @@ describe("sync over a faulty transport", () => {
         const pair = yield* TestSocket.makePair()
         const client = yield* TestSync.connect(pair)
 
-        yield* journal.emit({ runId: id, sourceId, eventType: "before-stall", payload: { value: 0 } })
+        yield* journal.emitDurable({ runId: id, sourceId, eventType: "before-stall", payload: { value: 0 } })
         yield* journal.flush
 
         pair.faults.stall()
@@ -85,7 +94,7 @@ describe("sync over a faulty transport", () => {
         const pair = yield* TestSocket.makePair()
         const client = yield* TestSync.connect(pair)
 
-        yield* journal.emit({ runId: id, sourceId, eventType: "first", payload: { value: 0 } })
+        yield* journal.emitDurable({ runId: id, sourceId, eventType: "first", payload: { value: 0 } })
         yield* journal.flush
 
         const fiber = yield* Stream.runCollect(

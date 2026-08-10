@@ -19,8 +19,9 @@ import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as PubSub from "effect/PubSub"
+import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
-import { type BranchId, Cursor, Participant, type ParticipantId, type ShareCapability } from "./BranchProtocol.ts"
+import { BranchId, Cursor, Participant, ParticipantId, ShareCapability } from "./BranchProtocol.ts"
 import * as BranchShare from "./BranchShare.ts"
 import { SyncError } from "./SyncError.ts"
 
@@ -33,13 +34,15 @@ import { SyncError } from "./SyncError.ts"
  * @category models
  * @since 0.1.0
  */
-export interface Announcement {
-  readonly capability: ShareCapability
-  readonly branchId: BranchId
-  readonly participantId: ParticipantId
-  readonly displayName: string
-  readonly cursor: Cursor | null
-}
+export const Announcement = Schema.Struct({
+  capability: ShareCapability,
+  branchId: BranchId,
+  participantId: ParticipantId,
+  displayName: Schema.NonEmptyString,
+  cursor: Schema.NullOr(Cursor)
+})
+/** @category models @since 0.1.0 */
+export type Announcement = typeof Announcement.Type
 
 /**
  * A capability-bearing request for one branch's roster.
@@ -47,10 +50,9 @@ export interface Announcement {
  * @category models
  * @since 0.1.0
  */
-export interface RosterRequest {
-  readonly capability: ShareCapability
-  readonly branchId: BranchId
-}
+export const RosterRequest = Schema.Struct({ capability: ShareCapability, branchId: BranchId })
+/** @category models @since 0.1.0 */
+export type RosterRequest = typeof RosterRequest.Type
 
 /**
  * A capability-bearing request to drop one participant.
@@ -58,9 +60,9 @@ export interface RosterRequest {
  * @category models
  * @since 0.1.0
  */
-export interface LeaveRequest extends RosterRequest {
-  readonly participantId: ParticipantId
-}
+export const LeaveRequest = Schema.Struct({ ...RosterRequest.fields, participantId: ParticipantId })
+/** @category models @since 0.1.0 */
+export type LeaveRequest = typeof LeaveRequest.Type
 
 /**
  * Ephemeral branch presence operations.
@@ -122,9 +124,11 @@ export const layerNoop: Layer.Layer<BranchPresence> = Layer.succeed(BranchPresen
  * @category models
  * @since 0.1.0
  */
-export interface PresenceOptions {
-  readonly leaseMs: number
-}
+export const PresenceOptions = Schema.Struct({
+  leaseMs: Schema.Int.check(Schema.isGreaterThan(0))
+})
+/** @category models @since 0.1.0 */
+export type PresenceOptions = typeof PresenceOptions.Type
 
 const key = (branchId: BranchId, participantId: ParticipantId): string => `${branchId}\u0000${participantId}`
 

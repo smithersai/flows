@@ -18,8 +18,8 @@ import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
-import type * as BranchProtocol from "./BranchProtocol.ts"
-import { ShareCapability, ShareClaims } from "./BranchProtocol.ts"
+import * as Schema from "effect/Schema"
+import { Access, BranchId, ShareCapability, ShareClaims } from "./BranchProtocol.ts"
 import { SyncError } from "./SyncError.ts"
 
 /**
@@ -28,10 +28,10 @@ import { SyncError } from "./SyncError.ts"
  * @category models
  * @since 0.1.0
  */
-export interface AuthorizeRequest {
-  readonly branchId: BranchProtocol.BranchId
-  readonly access: BranchProtocol.Access
-}
+export const AuthorizeRequest = Schema.Struct({ branchId: BranchId, access: Access })
+
+/** The branch and access one authorization request needs. @category models @since 0.1.0 */
+export type AuthorizeRequest = typeof AuthorizeRequest.Type
 
 /**
  * What a freshly minted capability grants.
@@ -39,12 +39,15 @@ export interface AuthorizeRequest {
  * @category models
  * @since 0.1.0
  */
-export interface MintRequest {
-  readonly branchId: BranchProtocol.BranchId
-  readonly capabilityId: string
-  readonly access: BranchProtocol.Access
-  readonly ttlMs: number
-}
+export const MintRequest = Schema.Struct({
+  branchId: BranchId,
+  capabilityId: Schema.NonEmptyString,
+  access: Access,
+  ttlMs: Schema.Int.check(Schema.isGreaterThan(0))
+})
+
+/** What a freshly minted capability grants. @category models @since 0.1.0 */
+export type MintRequest = typeof MintRequest.Type
 
 /**
  * Share capability operations.
