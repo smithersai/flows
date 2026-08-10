@@ -24,8 +24,8 @@ The package depends on `@smthrs/host` and nothing else in the workspace: a sandb
 | Import | Source |
 | --- | --- |
 | `@smthrs/sandbox` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/sandbox/src/index.ts) |
-| `@smthrs/sandbox/RemoteSandbox` | [src/RemoteSandbox.ts](https://github.com/smithersai/flows/blob/main/packages/sandbox/src/RemoteSandbox.ts) |
-| `@smthrs/sandbox/SandboxHealth` | [src/SandboxHealth.ts](https://github.com/smithersai/flows/blob/main/packages/sandbox/src/SandboxHealth.ts) |
+| `@smthrs/sandbox/RemoteSandbox` | [src/RemoteSandbox/](https://github.com/smithersai/flows/tree/main/packages/sandbox/src/RemoteSandbox) |
+| `@smthrs/sandbox/SandboxHealth` | [src/SandboxHealth/](https://github.com/smithersai/flows/tree/main/packages/sandbox/src/SandboxHealth) |
 
 ## RemoteSandbox
 
