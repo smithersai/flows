@@ -31,8 +31,6 @@ const BROWSER_SAFE = [
   { name: "@smthrs/jj", entry: "packages/jj/src/index.ts" },
   { name: "@smthrs/jj/browser/BrowserJj", entry: "packages/jj/src/browser/BrowserJj.ts" },
   { name: "@smthrs/platform-browser", entry: "packages/platform-browser/src/index.ts" },
-  { name: "@smthrs/pty", entry: "packages/pty/src/index.ts" },
-  { name: "@smthrs/pty/browser/BrowserPty", entry: "packages/pty/src/browser/BrowserPty.ts" },
   { name: "@smthrs/sandbox", entry: "packages/sandbox/src/index.ts" },
   { name: "@smthrs/kernel", entry: "packages/kernel/src/index.ts" },
   { name: "@smthrs/keys", entry: "packages/keys/src/index.ts" },
@@ -91,18 +89,6 @@ const NODE_ONLY = [
     entry: "packages/jj/src/bun/BunJj.ts",
     expect: "node:child_process",
     reason: "the Bun jj adapter reuses the Node child-process implementation"
-  },
-  {
-    name: "@smthrs/pty/node/NodePty",
-    entry: "packages/pty/src/node/NodePty.ts",
-    expect: "node:child_process",
-    reason: "the Node pty adapter spawns child processes with piped stdio"
-  },
-  {
-    name: "@smthrs/pty/bun/BunPty",
-    entry: "packages/pty/src/bun/BunPty.ts",
-    expect: "node:child_process",
-    reason: "the Bun pty adapter reuses the Node child-process implementation"
   },
   {
     name: "@smthrs/database/node/NodeDatabase",
