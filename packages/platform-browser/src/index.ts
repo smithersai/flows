@@ -27,5 +27,11 @@ export * as BrowserChildProcessSpawner from "./BrowserChildProcessSpawner.ts"
 /** `FileSystem` over a ZenFS-shaped promises API. */
 export * as BrowserFileSystem from "./BrowserFileSystem.ts"
 
+/** The complete closed Host bundle for a browser tab. */
+export * as BrowserHost from "./BrowserHost.ts"
+
+/** Single-hop `HttpTransport` over `fetch`, with redirects disabled. */
+export * as BrowserHttpTransport from "./BrowserHttpTransport.ts"
+
 /** The aggregate browser platform services layer. */
 export * as BrowserServices from "./BrowserServices.ts"

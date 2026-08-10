@@ -10,6 +10,8 @@ import * as NodeFsPromises from "node:fs/promises"
 import { describe, expect, it } from "vitest"
 import * as BrowserChildProcessSpawner from "../src/BrowserChildProcessSpawner.ts"
 import * as BrowserFileSystem from "../src/BrowserFileSystem.ts"
+import * as BrowserHost from "../src/BrowserHost.ts"
+import * as BrowserHttpTransport from "../src/BrowserHttpTransport.ts"
 import * as BrowserServices from "../src/BrowserServices.ts"
 import * as Index from "../src/index.ts"
 
@@ -20,10 +22,18 @@ const bash: BrowserChildProcessSpawner.JustBashLike = {
 describe("@smthrs/platform-browser barrel", () => {
   it("re-exports every module as a namespace", () => {
     expect(Object.keys(Index).sort()).toEqual(
-      ["BrowserChildProcessSpawner", "BrowserFileSystem", "BrowserServices"].sort()
+      [
+        "BrowserChildProcessSpawner",
+        "BrowserFileSystem",
+        "BrowserHost",
+        "BrowserHttpTransport",
+        "BrowserServices"
+      ].sort()
     )
     expect(Index.BrowserChildProcessSpawner.layer).toBe(BrowserChildProcessSpawner.layer)
     expect(Index.BrowserFileSystem.layer).toBe(BrowserFileSystem.layer)
+    expect(Index.BrowserHost.layer).toBe(BrowserHost.layer)
+    expect(Index.BrowserHttpTransport.layer).toBe(BrowserHttpTransport.layer)
     expect(Index.BrowserServices.layer).toBe(BrowserServices.layer)
   })
 })
