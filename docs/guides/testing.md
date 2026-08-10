@@ -25,7 +25,7 @@ Select explicit execution IDs so failures are reproducible.
 
 ## Test host operations
 
-`TestHost.layer` supplies an in-memory filesystem, stub shell, seeded Random, HTTP transport, PTY, and Jujutsu service. Configure only the seams a test exercises:
+`TestHost.layer` supplies an in-memory filesystem, stub shell, seeded Random, HTTP transport, and Jujutsu service. Configure only the seams a test exercises:
 
 ```ts
 import * as TestHost from "@smthrs/host/test/TestHost"

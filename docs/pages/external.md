@@ -52,7 +52,7 @@ The honest positioning is an embeddable, Effect-native durable-execution toolkit
 | `StepBoundary` whole-tree detection | the shipped layer measures read sets and materializes declared outputs but cannot detect writes outside them, so its evidence is refused by the cache |
 | Cross-host liveness | `EngineStore.Options.isAlive` is application-supplied |
 | `RunCatalog` | a durable workspace run list and watch; static and memory implementations ship |
-| Browser Jujutsu and PTY | typed unavailable implementations ship |
+| Browser Jujutsu | a typed unavailable implementation ships |
 | Edge shell | typed unavailable by default, with optional remote sandbox adapters |
 
 ### Planned

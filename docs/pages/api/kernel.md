@@ -83,7 +83,6 @@ Each module below exports the service interface, its tag, `make`, `makeNoop`, `l
 | --- | --- | --- |
 | `FileSystem` | [src/FileSystem.ts](https://github.com/smithersai/flows/blob/main/packages/kernel/src/FileSystem.ts) | `fs:read`, `fs:write`; also exports `File` and `canonicalResource` |
 | `Shell` | [src/Shell.ts](https://github.com/smithersai/flows/blob/main/packages/kernel/src/Shell.ts) | `proc:spawn` |
-| `Pty` | [src/Pty.ts](https://github.com/smithersai/flows/blob/main/packages/kernel/src/Pty.ts) | `proc:spawn` |
 | `Jj` | [src/Jj.ts](https://github.com/smithersai/flows/blob/main/packages/kernel/src/Jj.ts) | the six `jj:*` actions |
 | `HttpClient` | [src/HttpClient.ts](https://github.com/smithersai/flows/blob/main/packages/kernel/src/HttpClient.ts) | `net:get`, `net:post`; also exports `HttpClientError` |
 | `Path` | [src/Path.ts](https://github.com/smithersai/flows/blob/main/packages/kernel/src/Path.ts) | none; pure path manipulation is not checked |

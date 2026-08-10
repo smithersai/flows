@@ -8,7 +8,6 @@ An arrow means “depends on.”
 flowchart TD
   H["@smthrs/host"]
   JJ["@smthrs/jj"]
-  PTY["@smthrs/pty"]
   SB["@smthrs/sandbox"]
   PB["@smthrs/platform-browser"]
   D["@smthrs/database"]
@@ -17,12 +16,10 @@ flowchart TD
 
   J["@smthrs/journal"] --> D
   H --> JJ
-  H --> PTY
   H --> PB
   SB --> H
   K["@smthrs/kernel"] --> H
   K --> JJ
-  K --> PTY
   K --> J
   W["@smthrs/engine"] --> Keys["@smthrs/keys"]
   W --> Crypto
@@ -47,7 +44,6 @@ flowchart TD
 | [`@smthrs/database`](../reference/database.md) | `SqlClient` access plus transactional SQLite write retry | Owns no domain tables |
 | [`@smthrs/host`](../reference/host.md) | The closed machine-facing service list, the Shell and HttpTransport contracts, and the Node, Bun, browser, and test bundles | Raw effects; no permission decisions |
 | [`@smthrs/jj`](../reference/jj.md) | Jujutsu snapshot, restore, diff, and workspace operations | Depends on `effect` alone; the closed Host list still names it |
-| [`@smthrs/pty`](../reference/pty.md) | Pseudo-terminal spawn with cursor-replay attach | Depends on `effect` alone; the closed Host list still names it |
 | [`@smthrs/sandbox`](../reference/sandbox.md) | Remote-sandbox provider adaptation and sandbox liveness | Adapts a caller's provider onto `host`'s `Shell`; owns no host access |
 | [`@smthrs/platform-browser`](../reference/platform-browser.md) | Browser implementations of effect's `FileSystem` and `ChildProcessSpawner` | Depends on `effect` alone; the ZenFS and just-bash backends are arguments, not dependencies |
 | [`@smthrs/journal`](../reference/journal.md) | Journal, run ownership, attempts, and cache rows | Open event envelope; SQL-backed state |

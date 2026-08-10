@@ -2,7 +2,7 @@
 
 This page is the public API reference for the `Jj` host service: version control as a capability. Permission enforcement is provided separately by `@smthrs/kernel`, whose `Jj` decorator wraps this contract.
 
-The package depends on `effect` alone. `Jj` is still one of the six services in the closed host list `@smthrs/host` owns; the contract lives here so a consumer that only snapshots a working copy does not take a shell, a pty, and an HTTP transport with it.
+The package depends on `effect` alone. `Jj` is still one of the five services in the closed host list `@smthrs/host` owns; the contract lives here so a consumer that only snapshots a working copy does not take a shell and an HTTP transport with it.
 
 ## Contract
 

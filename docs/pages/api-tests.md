@@ -32,7 +32,7 @@ These are the behaviors that have to be exercised against real implementations, 
 | Retry budget across process death | needs persisted attempt rows | `engine-store/test/RetryOrigin.test.ts`, `RetryExpiration.test.ts` |
 | Cache admission gating | needs real boundary evidence | `engine-store/test/CacheRecordGating.test.ts`, `CacheAdmissionSerialization.test.ts`, `CacheHitReadSetVerification.test.ts` |
 | Replay from persisted attempts | the point is that nothing is in memory | `engine-store/test/Replay.test.ts`, `engine/test/DurableAttemptResume.test.ts` |
-| Host adapters against the real machine | a stubbed shell proves nothing about spawning | `host/test/contract/NodeHost.contract.test.ts`, `host/test/NodeShell.test.ts`, `pty/test/NodePty.test.ts`, `jj/test/NodeJj.test.ts` |
+| Host adapters against the real machine | a stubbed shell proves nothing about spawning | `host/test/contract/NodeHost.contract.test.ts`, `host/test/NodeShell.test.ts`, `jj/test/NodeJj.test.ts` |
 | Sync catch-up and follow | needs a real server, client, and journal | `sync/test/Server.test.ts`, `Client.test.ts`, `TransportFaults.test.ts` |
 | Rewind archive and truncate | atomicity again | `time-travel/test/Truncation.test.ts`, `Rewind.test.ts`, `RewindRollback.test.ts` |
 | Browser entry resolution | only a bundler can answer it | `scripts/browser-check.mjs`, `kernel/test/BrowserBundle.test.ts`, `time-travel/test/BrowserBundle.test.ts` |
@@ -44,7 +44,6 @@ These are the behaviors that have to be exercised against real implementations, 
 | --- | --- | --- |
 | `@smthrs/host` | 16 | one shared contract suite (`test/contract/`) run against the Node, Bun, browser, test, and unsupported bundles; real shell behavior |
 | `@smthrs/jj` | 4 | the contract and its no-op, the jj CLI against a real repository, error classification against a scripted binary, and the Bun and browser layers |
-| `@smthrs/pty` | 4 | the contract and its no-op, spawn failure modes, cursor replay and interruption, and the Bun and browser layers |
 | `@smthrs/sandbox` | 3 | provider adaptation and cancellation, the scripted test provider, and the deadline-bounded health probe |
 | `@smthrs/platform-browser` | 4 | the filesystem adapter's operations and bounded streaming against a real directory, the spawner's command rendering, rejected inputs, handle capabilities, and its serialized uninterruptible boundary, and the aggregate layer |
 | `@smthrs/journal` | 18 | durable and lossy admission, fencing, transactions, retention, redaction, projections, run store, run coordinator, migrations |

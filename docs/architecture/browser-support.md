@@ -12,11 +12,9 @@ These bundle for the browser. A resolution error in any of them fails the build.
 | --- | --- |
 | `@smthrs/canonical` | RFC 8785 canonical JSON as an Effect Schema |
 | `@smthrs/host` | The closed service list, the Shell and HttpTransport contracts, `HostError`, and the no-op layers |
-| `@smthrs/host/browser/BrowserHost` | `layer({ bash, fs })` over an injected browser filesystem and bash-like shell; PTY and Jujutsu report `unsupported` |
+| `@smthrs/host/browser/BrowserHost` | `layer({ bash, fs })` over an injected browser filesystem and bash-like shell; Jujutsu reports `unsupported` |
 | `@smthrs/jj` | The `Jj` contract, `JjError`, and the no-op layer |
 | `@smthrs/jj/browser/BrowserJj` | `layerUnsupported` — every jj operation reports `not_installed` |
-| `@smthrs/pty` | The `Pty` contract, `PtyError`, and the no-op layer |
-| `@smthrs/pty/browser/BrowserPty` | `layerUnsupported` — `spawn` reports `unsupported` |
 | `@smthrs/sandbox` | `RemoteSandbox` provider adaptation and the `SandboxHealth` probe; it owns no host access of its own |
 | `@smthrs/platform-browser` | effect's `FileSystem` over a ZenFS-shaped promises API and effect's `ChildProcessSpawner` over an in-page bash interpreter, plus the `BrowserServices` aggregate |
 | `@smthrs/kernel` | Capabilities, grants, and the permission-decorated host services |
@@ -39,16 +37,15 @@ These are Node-only, deliberately. The gate asserts each one *still* fails to bu
 | --- | --- |
 | `@smthrs/engine-store` | `EngineStore` reads `process.pid` and imports `randomUUID` from `node:crypto`. These two are the complete browser-gap inventory for a browser composition (issue #114). |
 | `@smthrs/flows` | The barrel re-exports `@smthrs/engine-store`. **Browser consumers import the per-package roots above rather than the barrel.** |
-| `@smthrs/host/node/NodeHost`, `@smthrs/host/bun/BunHost` | Child processes, Node/Bun filesystem, PTY, and Jujutsu; the Bun bundle falls back to the `@effect/platform-node` adapters off Bun |
+| `@smthrs/host/node/NodeHost`, `@smthrs/host/bun/BunHost` | Child processes, Node/Bun filesystem, and Jujutsu; the Bun bundle falls back to the `@effect/platform-node` adapters off Bun |
 | `@smthrs/jj/node/NodeJj`, `@smthrs/jj/bun/BunJj` | `node:child_process`; the jj CLI is spawned with argv and never a shell string |
-| `@smthrs/pty/node/NodePty`, `@smthrs/pty/bun/BunPty` | `node:child_process`; piped-stdio children behind the bounded replay ring |
 | `@smthrs/host/test/TestHost` | `effect/testing`'s `TestClock` imports `node:assert`, so the deterministic host is Node-only even though its own adapters are pure |
 | `@smthrs/database/node/NodeDatabase`, `@smthrs/database/test/TestDatabase` | `node:sqlite` through `@effect/sql-sqlite-node` |
 | `@smthrs/journal/test/TestJournal` | Composes `TestDatabase` |
 
 ## The rule this encodes
 
-A package root exports **contracts**; a platform implementation lives under a subpath named for its platform — `/node`, `/bun`, `/browser`, `/test` — the way `effect` keeps `@effect/platform-node` out of `effect`. A root that re-exports an implementation resolves that implementation's imports for every consumer, including browser ones, before any bundler can tree-shake it. `packages/host/test/index.test.ts` pins that rule for the host root as a unit test — including the constraint that `Jj`, `Pty`, `RemoteSandbox`, and `SandboxHealth`, now their own packages, are not re-exported from it, and the browser gate pins it for every entry point in this table.
+A package root exports **contracts**; a platform implementation lives under a subpath named for its platform — `/node`, `/bun`, `/browser`, `/test` — the way `effect` keeps `@effect/platform-node` out of `effect`. A root that re-exports an implementation resolves that implementation's imports for every consumer, including browser ones, before any bundler can tree-shake it. `packages/host/test/index.test.ts` pins that rule for the host root as a unit test — including the constraint that `Jj`, `RemoteSandbox`, and `SandboxHealth`, now their own packages, are not re-exported from it, and the browser gate pins it for every entry point in this table.
 
 ## The honest claim
 

@@ -36,7 +36,7 @@ Cost: nothing is admitted today. The filesystem-backed `StepBoundary.layer` meas
 
 ## D5. Host access is closed and decorated
 
-The host surface is exactly `FileSystem`, `Path`, `Shell`, `Pty`, `Jj`, and a one-hop `HttpTransport`, with Effect's `Clock` and `Random` treated as swappable built-ins. `@smthrs/kernel` decorates those services with grant checks instead of asking every flow to remember to check permissions.
+The host surface is exactly `FileSystem`, `Path`, `Shell`, `Jj`, and a one-hop `HttpTransport`, with Effect's `Clock` and `Random` treated as swappable built-ins. `@smthrs/kernel` decorates those services with grant checks instead of asking every flow to remember to check permissions.
 
 The alternative was an open host surface with per-call permission arguments. An open surface cannot be audited, and per-call arguments are forgotten.
 
@@ -95,6 +95,14 @@ Cost: an attribution obligation, discharged by `packages/engine/THIRD_PARTY_NOTI
 The runtime is `effect@4.0.0-beta.*`. Most of the former `@effect/*` ecosystem now lives at `effect/unstable/*`, and the AI, RPC, cluster, persistence, and workflow surfaces are imported from there. `@effect/sql-sqlite-node` is a dependency because it is a driver, not a rewritten core module.
 
 Cost: a beta pin, exact at `4.0.0-beta.102` across every manifest, and Effect 3 documentation does not apply.
+
+## D13. No pseudo-terminal service in core
+
+The host surface has no `Pty` service and the engine has no interactive-session hijack. Smithers needs both because its underlying agents are the Claude Code and Codex CLIs — interactive terminal programs a human may take over mid-run, which requires a real pseudo-terminal between the gateway and the CLI. `flows` does not depend on those agent CLIs, so nothing in the core engine ever drives an interactive terminal.
+
+If a harness extension later wraps agent CLIs into workflows the way smithers does, the PTY adapter and the hijack handshake belong in that higher-level extension package, injected as a capability beside its gateway — not in the closed host list, where every platform bundle would have to carry or explicitly refuse it forever. Non-interactive process execution is already covered by Effect's `ChildProcessSpawner` behind the kernel's `proc:spawn` check.
+
+The alternative was keeping the `@smthrs/pty` package that once shipped here. It was removed: its contract had no production consumer, and its Node implementation was piped stdio rather than a pseudo-terminal, so it could not honestly back the contract it named.
 
 ## Decisions the review contested and their outcome
 

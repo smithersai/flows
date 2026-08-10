@@ -9,11 +9,10 @@ This page describes the portable host surface and the permission kernel that med
 - Effect `FileSystem`
 - Effect `Path`
 - `Shell`
-- `Pty` (contract in [`@smthrs/pty`](../reference/pty.md))
 - `Jj` (contract in [`@smthrs/jj`](../reference/jj.md))
 - one-hop `HttpTransport`
 
-The list is closed, not the package: `Pty` and `Jj` ship as their own packages so a consumer that only needs one does not take the whole host surface. `@smthrs/host` depends on both — a dependency, not a re-export — and the composite bundles (`NodeHost`, `BunHost`, `BrowserHost`, `TestHost`) provide all six tags.
+The list is closed, not the package: `Jj` ships as its own package so a consumer that only needs that capability does not take the whole host surface. `@smthrs/host` depends on it — a dependency, not a re-export — and the composite bundles (`NodeHost`, `BunHost`, `BrowserHost`, `TestHost`) provide all five tags. There is no pseudo-terminal service: interactive-terminal support is out of core by design (see [design decisions](../pages/design-decisions.md)).
 
 Clock and Random are tracked as host built-ins. This workspace ships Node,
 Bun, browser, and deterministic test layers for the same service tags.
@@ -26,7 +25,7 @@ from the environment type.
 
 ## Kernel decoration
 
-The kernel exports parallel services such as `FileSystem`, `Shell`, `Pty`, `Jj`, and `HttpClient`. Each decorator:
+The kernel exports parallel services such as `FileSystem`, `Shell`, `Jj`, and `HttpClient`. Each decorator:
 
 1. derives an exact `Capability`,
 2. asks `GrantStore` to authorize it,
@@ -61,11 +60,11 @@ The kernel is a capability check, not an operating-system sandbox. Hermetic exec
 ## Adapter limitations
 
 - The browser layer wraps an injected ZenFS-like promises API.
-- Browser `Pty` and `Jj` operations are explicitly unsupported: `@smthrs/pty/browser/BrowserPty` and `@smthrs/jj/browser/BrowserJj` each export a `layerUnsupported` that fails in the error channel rather than omitting the tag.
+- Browser `Jj` operations are explicitly unsupported: `@smthrs/jj/browser/BrowserJj` exports a `layerUnsupported` that fails in the error channel rather than omitting the tag.
 - Hosted-adapter behavior and limitations are documented with those adapters
   in the external plugins repository.
 
 See the [`@smthrs/host` reference](../reference/host.md), the
-[`@smthrs/jj`](../reference/jj.md), [`@smthrs/pty`](../reference/pty.md), and
+[`@smthrs/jj`](../reference/jj.md) and
 [`@smthrs/sandbox`](../reference/sandbox.md) references, and the
 [`@smthrs/kernel` reference](../reference/kernel.md).

@@ -38,7 +38,6 @@ This entry point is Node-only, because it re-exports `@smthrs/engine-store`. Bro
 | `Keys` | `@smthrs/keys` | [Keys](/api/keys) |
 | `PlatformBrowser` | `@smthrs/platform-browser` | [PlatformBrowser](/api/platform-browser) |
 | `Plugin` | `@smthrs/plugin` | [Plugin](/api/plugin) |
-| `Pty` | `@smthrs/pty` | [Pty](/api/pty) |
 | `Sandbox` | `@smthrs/sandbox` | [Sandbox](/api/sandbox) |
 | `Sync` | `@smthrs/sync` | [Sync](/api/sync) |
 | `TimeTravel` | `@smthrs/time-travel` | [TimeTravel](/api/time-travel) |

@@ -37,7 +37,7 @@ This page distinguishes usable source-backed behavior from contracts and planned
 | `StepBoundary` (whole-tree detection) | `StepBoundary.layer` measures read sets, detects mutated declared reads, and captures/replays write-set outputs over the kernel `FileSystem`; it cannot detect writes outside the declared sets, so its evidence is deliberately not admitted to the cross-run cache. A stronger boundary must explicitly attest whole-tree write verification |
 | Cross-host liveness | `EngineStore.Options.isAlive` is application-supplied |
 | `RunCatalog` | A durable workspace run list/watch; static and memory implementations ship |
-| Browser Jujutsu and PTY | Typed unavailable implementations ship |
+| Browser Jujutsu | A typed unavailable implementation ships |
 | Edge Shell | Typed unavailable by default; optional remote sandbox adapters ship |
 
 ## Planned or incomplete integration

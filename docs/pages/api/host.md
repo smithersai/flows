@@ -1,8 +1,8 @@
 # @smthrs/host
 
-The closed machine-facing service list, the `Shell` and `HttpTransport` contracts, and the Node, Bun, browser, and test bundles that implement all six tags.
+The closed machine-facing service list, the `Shell` and `HttpTransport` contracts, and the Node, Bun, browser, and test bundles that implement all five tags.
 
-`Pty`, `Jj`, and the sandbox modules are their own packages — [@smthrs/pty](pty.md), [@smthrs/jj](jj.md), [@smthrs/sandbox](sandbox.md). This package depends on the first two so the closed list can name them, but nothing here re-exports them: import each service from its own package. The browser filesystem left too, for a different reason: it implements `effect`'s own `FileSystem`, not anything this package declares, so it lives in [@smthrs/platform-browser](platform-browser.md) beside the browser `ChildProcessSpawner`.
+`Jj` and the sandbox modules are their own packages — [@smthrs/jj](jj.md), [@smthrs/sandbox](sandbox.md). This package depends on the former so the closed list can name it, but nothing here re-exports it: import each service from its own package. There is no `Pty` service — interactive-terminal support is out of core, see [design decisions](/design-decisions). The browser filesystem left too, for a different reason: it implements `effect`'s own `FileSystem`, not anything this package declares, so it lives in [@smthrs/platform-browser](platform-browser.md) beside the browser `ChildProcessSpawner`.
 
 ```ts
 import { HostServiceTags, Shell } from "@smthrs/host"
@@ -38,9 +38,9 @@ The package root holds contracts and no-op layers only, so it bundles for the br
 
 | Export | Kind | Value or shape |
 | --- | --- | --- |
-| `HostService` | type | `FileSystem \| Path \| Shell \| Pty \| Jj \| HttpTransport` |
-| `HostServiceTags` | const | the six service tags at runtime |
-| `HostServiceIds` | const | `effect/FileSystem`, `effect/Path`, `flows/host/Shell`, `flows/host/Pty`, `flows/host/Jj`, `flows/host/HttpTransport` |
+| `HostService` | type | `FileSystem \| Path \| Shell \| Jj \| HttpTransport` |
+| `HostServiceTags` | const | the five service tags at runtime |
+| `HostServiceIds` | const | `effect/FileSystem`, `effect/Path`, `flows/host/Shell`, `flows/host/Jj`, `flows/host/HttpTransport` |
 | `HostBuiltinNames` | const | `effect/Clock`, `effect/Random` |
 
 ### Shell
@@ -77,18 +77,18 @@ The package root holds contracts and no-op layers only, so it bundles for the br
 | --- | --- | --- |
 | `ShellError` | class | tagged error with a `code` |
 | `ShellErrorCode` | const + type | code literals |
-| `HostError` | type | union of `ShellError`, `PtyError`, and `JjError` — the last two are types imported from their own packages, not re-exports |
+| `HostError` | type | union of `ShellError` and `JjError` — the latter is a type imported from its own package, not a re-export |
 | `shellError` | constructor | builds an error from a code plus context |
 
 ## Platform bundles
 
 | Export | Source | Notes |
 | --- | --- | --- |
-| `NodeHost.layer`, `NodeHost.NodeHost` | [node/NodeHost.ts](https://github.com/smithersai/flows/blob/main/packages/host/src/node/NodeHost.ts) | child processes, `node:fs`, PTY, jj |
+| `NodeHost.layer`, `NodeHost.NodeHost` | [node/NodeHost.ts](https://github.com/smithersai/flows/blob/main/packages/host/src/node/NodeHost.ts) | child processes, `node:fs`, jj |
 | `NodeShell.layer`, `NodeHttpTransport.layer` | `src/node/` | individual Node adapters owned by this package |
 | `BunHost.layer`, `BunHost.implementationIds` | [bun/BunHost.ts](https://github.com/smithersai/flows/blob/main/packages/host/src/bun/BunHost.ts) | falls back to the Node adapters off Bun; `implementationIds` are frozen identity tokens, not import specifiers |
 | `BunShell.make`, `BunShell.layer`, `BunFileSystem.layer`, `BunHttpTransport.layer` | `src/bun/` | individual Bun adapters owned by this package |
-| `BrowserHost.layer` | [browser/BrowserHost.ts](https://github.com/smithersai/flows/blob/main/packages/host/src/browser/BrowserHost.ts) | takes `{ bash, fs }`; installs the pty and jj packages' `layerUnsupported` and `@smthrs/platform-browser`'s `BrowserFileSystem` |
+| `BrowserHost.layer` | [browser/BrowserHost.ts](https://github.com/smithersai/flows/blob/main/packages/host/src/browser/BrowserHost.ts) | takes `{ bash, fs }`; installs the jj package's `layerUnsupported` and `@smthrs/platform-browser`'s `BrowserFileSystem` |
 | `JustBashShell.layer` | [browser/JustBashShell.ts](https://github.com/smithersai/flows/blob/main/packages/host/src/browser/JustBashShell.ts) | browser shell over a `JustBashLike` runtime |
 | `TestHost.layer`, `TestHost.TestHost`, `TestHost.makeMemoryFs`, `TestHost.makeStubBash`, `TestHost.layerSeededRandom` | [test/TestHost.ts](https://github.com/smithersai/flows/blob/main/packages/host/src/test/TestHost.ts) | deterministic in-memory host |
 
@@ -106,4 +106,4 @@ The package root holds contracts and no-op layers only, so it bundles for the br
 
 ## Reading next
 
-`@smthrs/kernel` decorates these same tags with capability checks. The `Pty` and `Jj` contracts are documented in [@smthrs/pty](pty.md) and [@smthrs/jj](jj.md), remote execution in [@smthrs/sandbox](sandbox.md), and `@smthrs/time-travel` uses `Jj` for workspace snapshot and restore.
+`@smthrs/kernel` decorates these same tags with capability checks. The `Jj` contract is documented in [@smthrs/jj](jj.md), remote execution in [@smthrs/sandbox](sandbox.md), and `@smthrs/time-travel` uses `Jj` for workspace snapshot and restore.
