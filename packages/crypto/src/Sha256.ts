@@ -1,3 +1,5 @@
+// Deep reviewed and polished by a human.
+
 import * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Encoding from "effect/Encoding"

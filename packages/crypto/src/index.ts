@@ -1,3 +1,5 @@
+// Deep reviewed and polished by a human.
+
 /**
  * Schema transformations for injected cryptographic operations.
  *

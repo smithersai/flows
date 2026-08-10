@@ -1,3 +1,5 @@
+// Deep reviewed and polished by a human.
+
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
 import { Crypto, Effect, Layer, PlatformError, Schema } from "effect"
 import { describe, expect, it } from "vitest"

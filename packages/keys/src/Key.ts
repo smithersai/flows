@@ -1,3 +1,5 @@
+// Deep reviewed and polished by a human.
+
 import { Canonical } from "@smthrs/canonical/Canonical"
 import { Sha256 } from "@smthrs/crypto"
 import * as Effect from "effect/Effect"

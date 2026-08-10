@@ -1,3 +1,5 @@
+// Deep reviewed and polished by a human.
+
 /**
  * Canonical workflow-key transformation.
  *
