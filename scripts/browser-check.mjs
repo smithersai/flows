@@ -28,6 +28,11 @@ const BROWSER_SAFE = [
   { name: "@smthrs/crypto", entry: "packages/crypto/src/index.ts" },
   { name: "@smthrs/host", entry: "packages/host/src/index.ts" },
   { name: "@smthrs/host/browser/BrowserHost", entry: "packages/host/src/browser/BrowserHost.ts" },
+  { name: "@smthrs/jj", entry: "packages/jj/src/index.ts" },
+  { name: "@smthrs/jj/browser/BrowserJj", entry: "packages/jj/src/browser/BrowserJj.ts" },
+  { name: "@smthrs/pty", entry: "packages/pty/src/index.ts" },
+  { name: "@smthrs/pty/browser/BrowserPty", entry: "packages/pty/src/browser/BrowserPty.ts" },
+  { name: "@smthrs/sandbox", entry: "packages/sandbox/src/index.ts" },
   { name: "@smthrs/kernel", entry: "packages/kernel/src/index.ts" },
   { name: "@smthrs/keys", entry: "packages/keys/src/index.ts" },
   { name: "@smthrs/database", entry: "packages/database/src/index.ts" },
@@ -73,6 +78,30 @@ const NODE_ONLY = [
     entry: "packages/host/src/test/TestHost.ts",
     expect: "node:assert",
     reason: "effect/testing's TestClock pulls node:assert"
+  },
+  {
+    name: "@smthrs/jj/node/NodeJj",
+    entry: "packages/jj/src/node/NodeJj.ts",
+    expect: "node:child_process",
+    reason: "the Node jj adapter spawns the jj CLI"
+  },
+  {
+    name: "@smthrs/jj/bun/BunJj",
+    entry: "packages/jj/src/bun/BunJj.ts",
+    expect: "node:child_process",
+    reason: "the Bun jj adapter reuses the Node child-process implementation"
+  },
+  {
+    name: "@smthrs/pty/node/NodePty",
+    entry: "packages/pty/src/node/NodePty.ts",
+    expect: "node:child_process",
+    reason: "the Node pty adapter spawns child processes with piped stdio"
+  },
+  {
+    name: "@smthrs/pty/bun/BunPty",
+    entry: "packages/pty/src/bun/BunPty.ts",
+    expect: "node:child_process",
+    reason: "the Bun pty adapter reuses the Node child-process implementation"
   },
   {
     name: "@smthrs/database/node/NodeDatabase",
