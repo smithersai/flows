@@ -10,7 +10,7 @@
  *
  * @since 0.1.0
  */
-import { Context, Effect, Layer, Schema } from "effect"
+import { Context, Effect, Layer, Option, Schema } from "effect"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as SqlError from "effect/unstable/sql/SqlError"
 import * as WriteRetry from "./internal/WriteRetry.ts"
@@ -57,6 +57,15 @@ export class DatabaseError extends Schema.TaggedErrorClass<DatabaseError>()("flo
  * contract with its single-writer transaction lock; a PostgreSQL-backed
  * implementation must run write transactions at `SERIALIZABLE` (and retry
  * `40001`) — plain READ COMMITTED does not satisfy this contract.
+ *
+ * **Nesting.** A `write` inside another `write` joins the enclosing
+ * transaction as a savepoint and does not retry: a transient conflict dooms
+ * the enclosing transaction's snapshot, so replaying the savepoint alone can
+ * never resolve it. Only the outermost `write` retries, replaying the whole
+ * transaction body verbatim against the committed state. Its retry
+ * classification follows `cause` chains, so a transient failure keeps
+ * replaying the outermost transaction even after a nested store has wrapped
+ * it in a domain error that preserves `cause`.
  *
  * @category services
  * @since 0.1.0
@@ -165,6 +174,9 @@ export const affectedRows = (raw: unknown): Effect.Effect<number, DatabaseError>
     : Effect.succeed(count)
 }
 
+/** Marks a fiber as running inside an enclosing `write` transaction. */
+class EnclosingWrite extends Context.Service<EnclosingWrite, true>()("flows/database/Database/EnclosingWrite") {}
+
 /**
  * Builds the database service around an existing SQL client.
  *
@@ -177,9 +189,19 @@ export const make = (sql: SqlClient.SqlClient, options?: WriteRetry.WriteRetryOp
     write: Effect.fn("Database.write")(<A, E, R>(
       effect: Effect.Effect<A, E, R>
     ): Effect.Effect<A, E | DatabaseError, R> =>
-      WriteRetry.withWriteRetry(sql.withTransaction(effect), options).pipe(
-        Effect.catchIf(SqlError.isSqlError, (error) => Effect.fail(fromSqlError(error)))
-      )
+      Effect.flatMap(Effect.serviceOption(EnclosingWrite), (enclosing) =>
+        (Option.isSome(enclosing)
+          // A nested write is a savepoint of the enclosing transaction, and a
+          // transient conflict dooms that transaction's snapshot: replaying
+          // the savepoint alone can never resolve it, so the retry belongs to
+          // the outermost write only.
+          ? sql.withTransaction(effect)
+          : WriteRetry.withWriteRetry(
+            Effect.provideService(sql.withTransaction(effect), EnclosingWrite, true),
+            options
+          )).pipe(
+            Effect.catchIf(SqlError.isSqlError, (error) => Effect.fail(fromSqlError(error)))
+          ))
     )
   })
 

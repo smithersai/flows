@@ -173,6 +173,66 @@ describe("Database", () => {
     expect(attempts).toBe(3)
   })
 
+  it("classifies a transient failure through a wrapping domain error's cause chain", () => {
+    expect(WriteRetry.isRetryableWriteError({ _tag: "StoreError", cause: sqliteError("SQLITE_BUSY") })).toBe(true)
+    expect(WriteRetry.isRetryableWriteError({ _tag: "StoreError", cause: sqliteError("SQLITE_CONSTRAINT") }))
+      .toBe(false)
+    expect(
+      WriteRetry.isRetryableWriteError(
+        Database.fromSqlError(sqliteError("SQLITE_BUSY"))
+      )
+    ).toBe(true)
+  })
+
+  it("does not retry a nested write; only the outermost transaction replays", async () => {
+    let outerBodies = 0
+    let innerBodies = 0
+    const database = Database.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
+    const program = Effect.gen(function*() {
+      const fiber = yield* database.write(
+        Effect.suspend(() => {
+          outerBodies += 1
+          return database.write(
+            Effect.suspend(() => {
+              innerBodies += 1
+              return innerBodies < 3 ? Effect.fail(sqliteError("SQLITE_BUSY")) : Effect.succeed("written")
+            })
+          )
+        })
+      ).pipe(Effect.forkChild({ startImmediately: true }))
+      yield* Effect.yieldNow
+      yield* TestClock.adjust("1 second")
+      return yield* Fiber.join(fiber)
+    }).pipe(Effect.provide(TestClock.layer()))
+
+    await expect(Effect.runPromise(program)).resolves.toBe("written")
+    // Each transient conflict replays the whole outer transaction; the nested
+    // write never replays its savepoint alone.
+    expect(outerBodies).toBe(3)
+    expect(innerBodies).toBe(3)
+  })
+
+  it("replays the outermost transaction when a domain error wraps the transient failure", async () => {
+    let attempts = 0
+    const database = Database.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
+    const program = Effect.gen(function*() {
+      const fiber = yield* database.write(
+        Effect.suspend(() => {
+          attempts += 1
+          return attempts < 3
+            ? Effect.fail({ _tag: "StoreError", cause: sqliteError("SQLITE_BUSY") } as const)
+            : Effect.succeed("written")
+        })
+      ).pipe(Effect.forkChild({ startImmediately: true }))
+      yield* Effect.yieldNow
+      yield* TestClock.adjust("1 second")
+      return yield* Fiber.join(fiber)
+    }).pipe(Effect.provide(TestClock.layer()))
+
+    await expect(Effect.runPromise(program)).resolves.toBe("written")
+    expect(attempts).toBe(3)
+  })
+
   it("does not retry constraint failures", async () => {
     let attempts = 0
     const database = Database.make(retrySql, { maxAttempts: 3 })

@@ -73,11 +73,29 @@ const isRetryableMessage = (message: string): boolean =>
   message.includes("could not serialize access") ||
   message.includes("deadlock detected")
 
-const hasRetryableCause = (cause: unknown): boolean => {
+/**
+ * Returns whether a failure represents a transient write conflict or I/O
+ * error, in either the SQLite or the Postgres vocabulary. The failure may be
+ * the structured SQL error itself or a domain error wrapping one — the walk
+ * follows `cause` chains (and a `SqlError`'s reason cause) either way, so the
+ * outermost `Database.write` still replays a transaction whose failing
+ * savepoint a nested store already normalized into its own error type.
+ * Constraint, syntax, and arbitrary application errors are deliberately never
+ * retried.
+ *
+ * @category guards
+ * @since 0.1.0
+ */
+export const isRetryableWriteError = (error: unknown): boolean => {
   const seen = new Set<unknown>()
-  let current = cause
+  let current = error
   while (typeof current === "object" && current !== null && !seen.has(current)) {
     seen.add(current)
+    if (SqlError.isSqlError(current)) {
+      if (current.reason._tag === "LockTimeoutError") return true
+      current = current.reason.cause
+      continue
+    }
     const message = "message" in current && typeof current.message === "string" ? current.message.toLowerCase() : ""
     if (isRetryableCode(causeCode(current)) || isRetryableMessage(message)) {
       return true
@@ -86,19 +104,6 @@ const hasRetryableCause = (cause: unknown): boolean => {
   }
   return false
 }
-
-/**
- * Returns whether a structured SQL failure represents a transient write
- * conflict or I/O error, in either the SQLite or the Postgres vocabulary.
- * Constraint, syntax, and arbitrary application errors are deliberately never
- * retried.
- *
- * @category guards
- * @since 0.1.0
- */
-export const isRetryableWriteError = (error: unknown): error is SqlError.SqlError =>
-  SqlError.isSqlError(error) &&
-  (error.reason._tag === "LockTimeoutError" || hasRetryableCause(error.reason.cause))
 
 /**
  * Retries recognized transient write errors using exponential backoff and
