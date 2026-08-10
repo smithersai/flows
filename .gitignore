@@ -50,6 +50,9 @@ collect.sh
 reference/*
 !reference/electrobun-shell/
 
+# Cargo build output (crates/flows-jj and friends)
+/target
+
 # Smithers run store (ephemeral — never commit)
 smithers.db
 smithers.db-shm
