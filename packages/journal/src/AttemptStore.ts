@@ -65,11 +65,17 @@ export class AttemptStoreError extends Schema.TaggedErrorClass<AttemptStoreError
  * @category models
  * @since 0.1.0
  */
-export interface AttemptId {
-  readonly runId: string
-  readonly stepKeyDigest: string
-  readonly attempt: number
-}
+export const AttemptId = Schema.Struct({
+  runId: Schema.NonEmptyString,
+  stepKeyDigest: Schema.NonEmptyString,
+  attempt: Schema.Int.check(
+    Schema.isGreaterThanOrEqualTo(0),
+    Schema.isLessThanOrEqualTo(Number.MAX_SAFE_INTEGER)
+  )
+})
+
+/** Identifies one execution of a content-addressed step within a run. @category models @since 0.1.0 */
+export type AttemptId = typeof AttemptId.Type
 
 /**
  * A durable attempt row.
@@ -77,16 +83,20 @@ export interface AttemptId {
  * @category models
  * @since 0.1.0
  */
-export interface Attempt extends AttemptId {
-  readonly state: string
-  readonly startedAtMs: number
-  readonly finishedAtMs?: number | undefined
-  readonly heartbeatAtMs?: number | undefined
-  readonly checkpoint?: unknown
-  readonly error?: unknown
-  readonly outcome?: unknown
-  readonly meta: unknown
-}
+export const Attempt = Schema.Struct({
+  ...AttemptId.fields,
+  state: Schema.NonEmptyString,
+  startedAtMs: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  finishedAtMs: Schema.optionalKey(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
+  heartbeatAtMs: Schema.optionalKey(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
+  checkpoint: Schema.optionalKey(Schema.Unknown),
+  error: Schema.optionalKey(Schema.Unknown),
+  outcome: Schema.optionalKey(Schema.Unknown),
+  meta: Schema.Unknown
+})
+
+/** A durable attempt row. @category models @since 0.1.0 */
+export type Attempt = typeof Attempt.Type
 
 /**
  * Input used to finish an existing attempt. `error`, `outcome`, and `meta`
@@ -99,13 +109,17 @@ export interface Attempt extends AttemptId {
  * @category models
  * @since 0.1.0
  */
-export interface FinishAttempt extends AttemptId {
-  readonly state: string
-  readonly finishedAtMs: number
-  readonly error?: unknown
-  readonly outcome?: unknown
-  readonly meta?: unknown
-}
+export const FinishAttempt = Schema.Struct({
+  ...AttemptId.fields,
+  state: Schema.NonEmptyString,
+  finishedAtMs: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  error: Schema.optionalKey(Schema.Unknown),
+  outcome: Schema.optionalKey(Schema.Unknown),
+  meta: Schema.optionalKey(Schema.Unknown)
+})
+
+/** Input used to finish an existing attempt. @category models @since 0.1.0 */
+export type FinishAttempt = typeof FinishAttempt.Type
 
 /**
  * Result of starting an owner-fenced attempt.
@@ -131,12 +145,15 @@ export type PutResult =
  * @category models
  * @since 0.1.0
  */
-export interface AttemptPatch {
-  readonly checkpoint?: unknown
-  readonly error?: unknown
-  readonly outcome?: unknown
-  readonly meta?: unknown
-}
+export const AttemptPatch = Schema.Struct({
+  checkpoint: Schema.optionalKey(Schema.Unknown),
+  error: Schema.optionalKey(Schema.Unknown),
+  outcome: Schema.optionalKey(Schema.Unknown),
+  meta: Schema.optionalKey(Schema.Unknown)
+})
+
+/** Fields an unfenced patch may rewrite. @category models @since 0.1.0 */
+export type AttemptPatch = typeof AttemptPatch.Type
 
 /**
  * Result of an unfenced attempt patch.
@@ -268,15 +285,8 @@ const error = (code: AttemptStoreErrorCode, message: string, cause?: unknown): A
 // verbatim as the replayed result, so nothing rewrites them on the way
 // through (issue #72).
 const encode = (value: unknown, field: string): Effect.Effect<string, AttemptStoreError> =>
-  Effect.try({
-    try: () => JSON.stringify(value),
-    catch: (cause) => error("invalid_attempt", `${field} must be JSON-serializable`, cause)
-  }).pipe(
-    Effect.flatMap((encoded) =>
-      encoded === undefined
-        ? Effect.fail(error("invalid_attempt", `${field} must be JSON-serializable`))
-        : Effect.succeed(encoded)
-    )
+  Schema.encodeEffect(Schema.UnknownFromJsonString)(value).pipe(
+    Effect.mapError((cause) => error("invalid_attempt", `${field} must be JSON-serializable`, cause))
   )
 
 const encodeOptionalWith = (
@@ -305,10 +315,9 @@ const encodeCheckpointWith = (
 const decode = (value: string | null, field: string): Effect.Effect<unknown | undefined, AttemptStoreError> =>
   value === null
     ? Effect.succeed(undefined)
-    : Effect.try({
-      try: () => JSON.parse(value) as unknown,
-      catch: (cause) => error("decode_failed", `could not decode ${field}`, cause)
-    })
+    : Schema.decodeUnknownEffect(Schema.UnknownFromJsonString)(value).pipe(
+      Effect.mapError((cause) => error("decode_failed", `could not decode ${field}`, cause))
+    )
 
 const validateId = (id: AttemptId): Effect.Effect<void, AttemptStoreError> =>
   id.runId.length > 0 &&

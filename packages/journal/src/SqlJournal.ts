@@ -57,18 +57,8 @@ export interface SqlJournalOptions {
   readonly overflow: OverflowPolicy
   readonly batchSize?: number | undefined
   /**
-   * Where the canonical per-run sequence is allocated.
-   *
-   * `"memory"` (the default) allocates in process memory and admits the event
-   * to the writer queue, which is the lowest-latency path but assumes a single
-   * writer process per run. `"sql"` routes `emit` through `emitDurable`, so the
-   * sequence is allocated inside the writer's transaction and any number of
-   * writers may share a run.
-   */
-  readonly allocation?: "memory" | "sql" | undefined
-  /**
    * Upper bound on the in-process source-event index — the map that answers
-   * `emit` idempotency from memory.
+   * producer idempotency from memory.
    *
    * The index is a cache, never the authority: the writer's `insertOne` always
    * re-checks `flows_journal_events` under the `(run_id, source_id,
@@ -206,23 +196,19 @@ const sourceEventKey = (runId: RunId, sourceId: SourceId, sourceSeq: SourceSeq):
   `${sourceKey(runId, sourceId)}:${sourceSeq}`
 
 const encodeJson = (value: unknown, field: string): Result.Result<string, JournalError> =>
-  Result.try({
-    try: () => JSON.stringify(value),
-    catch: (cause) => error("invalid_event", `${field} must be JSON-serializable`, cause)
-  }).pipe(
-    Result.flatMap((encoded) =>
-      encoded === undefined
-        ? Result.fail(error("invalid_event", `${field} must be JSON-serializable`))
-        : Result.succeed(encoded)
-    )
+  Schema.encodeUnknownResult(Schema.UnknownFromJsonString)(value).pipe(
+    Result.mapError((cause) => error("invalid_event", `${field} must be JSON-serializable`, cause))
   )
 
 const decodeInput = Schema.decodeUnknownResult(Input)
 const decodeEntry = Schema.decodeUnknownEffect(Entry)
 
 const decodeRow = (row: JournalRow): Effect.Effect<Entry, JournalError> =>
-  Effect.try({
-    try: () => ({
+  Effect.all({
+    payload: Schema.decodeUnknownEffect(Schema.UnknownFromJsonString)(row.payload_json),
+    meta: Schema.decodeUnknownEffect(Schema.UnknownFromJsonString)(row.meta_json)
+  }).pipe(
+    Effect.map(({ meta, payload }) => ({
       runId: row.run_id as RunId,
       seq: Number(row.seq),
       eventId: row.event_id,
@@ -230,17 +216,11 @@ const decodeRow = (row: JournalRow): Effect.Effect<Entry, JournalError> =>
       sourceSeq: Number(row.source_seq),
       emittedAtMs: Number(row.emitted_at_ms),
       eventType: row.event_type,
-      payload: JSON.parse(row.payload_json) as unknown,
-      meta: JSON.parse(row.meta_json) as unknown
-    }),
-    catch: (cause) => error("decode_failed", "could not decode a durable journal row", cause)
-  }).pipe(
+      payload,
+      meta
+    })),
     Effect.flatMap(decodeEntry),
-    Effect.mapError((cause) =>
-      cause instanceof JournalError
-        ? cause
-        : error("decode_failed", "could not decode a durable journal row", cause)
-    )
+    Effect.mapError((cause) => error("decode_failed", "could not decode a durable journal row", cause))
   )
 
 interface ValidatedOptions {
@@ -270,10 +250,8 @@ const isJournalError = Schema.is(JournalError)
 /**
  * Provides the SQLite-backed journal.
  *
- * Under the default in-memory allocation, ownerless `emit` performs validation,
- * sequence allocation, and unsafe non-blocking queue admission in one
- * synchronous section. `emitLossy` always uses that telemetry path.
- * `emitDurable`, fenced `emit`, and `emit` under SQL allocation commit inline.
+ * `emitLossy` validates and admits telemetry to the non-blocking queue;
+ * `emitDurable` allocates and commits inside the database transaction.
  *
  * @category layers
  * @since 0.1.0
@@ -470,7 +448,7 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
           }
         })
 
-      const queuedEmit: Service["emitLossy"] = Effect.fn("Journal.emit")((input: Input) =>
+      const queuedEmit: Service["emitLossy"] = Effect.fn("Journal.emitLossy")((input: Input) =>
         Effect.flatMap(Clock.currentTimeMillis, (emittedAtMs) =>
           Effect.suspend(() =>
             Effect.fromResult(
@@ -1025,16 +1003,6 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
             )))
       )
 
-      /**
-       * A fenced `emit` always takes the durable path: fencing is a property of
-       * the SQL sink, and the optimistic queue would decouple the receipt from
-       * the fence check. Ownerless emits keep their configured allocation.
-       */
-      const emit: Service["emit"] = (input, owner) =>
-        owner !== undefined || options.allocation === "sql"
-          ? emitDurable(input, owner)
-          : queuedEmit(input)
-
       const emitLossy: Service["emitLossy"] = queuedEmit
 
       const recordCommits = (
@@ -1166,7 +1134,6 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
         )
 
       return makeJournal({
-        emit,
         emitLossy,
         emitDurable,
         transact,

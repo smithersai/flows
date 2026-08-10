@@ -25,7 +25,7 @@ const input = (run: RunId, source: SourceId, eventType: string, payload: unknown
   }, { disableChecks: true })
 
 const journalLayer = (options?: SqlJournal.SqlJournalOptions) =>
-  SqlJournal.layer(options ?? { capacity: 8, overflow: "reject", allocation: "sql" }).pipe(
+  SqlJournal.layer(options ?? { capacity: 8, overflow: "reject" }).pipe(
     Layer.provideMerge(Layer.provideMerge(Migrations.layer, TestDatabase.layer))
   ) as Layer.Layer<Journal | Database>
 
@@ -253,7 +253,7 @@ describe("Redaction", () => {
       expect(page.entries[0]!.payload).toEqual({ token: "hunter2" })
     }).pipe(
       Effect.provide(
-        journalLayer({ capacity: 8, overflow: "reject", allocation: "sql", redact: Redaction.makeNoop() })
+        journalLayer({ capacity: 8, overflow: "reject", redact: Redaction.makeNoop() })
       ),
       Effect.scoped
     ))

@@ -112,24 +112,12 @@ describe("SqlJournal durable emission", () => {
       })
     ))
 
-  effect("allocation: sql routes emit through the durable path", () =>
-    withJournal(
-      Effect.gen(function*() {
-        const journal = yield* Journal
-        const database = yield* Database
-        const receipt = yield* journal.emit(input(runId("run"), sourceId("s"), "created", 1))
-        const rows = yield* seqsOf(database, runId("run"))
-        expect(rows.map((row) => row.seq)).toEqual([receipt.seq])
-      }),
-      { allocation: "sql" }
-    ))
-
   effect("durable entries are readable and continue the in-memory clock", () =>
     withJournal(
       Effect.gen(function*() {
         const journal = yield* Journal
         yield* journal.emitDurable(input(runId("run"), sourceId("s"), "created", 1))
-        const queued = yield* journal.emit(input(runId("run"), sourceId("s"), "queued", 2))
+        const queued = yield* journal.emitLossy(input(runId("run"), sourceId("s"), "queued", 2))
         expect(queued.seq).toBe(1)
         yield* journal.flush
         const page = yield* journal.entries({ runId: runId("run"), limit: 10 })

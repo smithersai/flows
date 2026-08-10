@@ -96,12 +96,12 @@ describe("RunStore", () => {
       const duplicate = yield* Effect.flip(store.create("duplicate", "{}"))
       const missing = yield* Effect.flip(store.get("missing"))
 
+      yield* database.sql`PRAGMA ignore_check_constraints = ON`
       yield* store.create("corrupt-schema", "{}")
       yield* database.sql`UPDATE flows_runs SET created_at_ms = 'bad' WHERE run_id = 'corrupt-schema'`
       const corruptSchema = yield* Effect.flip(store.get("corrupt-schema"))
 
       yield* store.create("corrupt-owner", "{}")
-      yield* database.sql`PRAGMA ignore_check_constraints = ON`
       yield* database.sql`
         UPDATE flows_runs
         SET owner_host_id = 'host', owner_pid = 1, owner_nonce = NULL

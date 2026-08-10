@@ -3,7 +3,7 @@
  *
  * Governing design: `docs/specs/Concepts/Journal Queue.md`.
  *
- * The ownership fence and the lossless `emit` / lossy `emitLossy` split are
+ * The ownership fence and the lossless `emitDurable` / lossy `emitLossy` split are
  * recorded in [[Engine Hardening Round 1]]
  * (`docs/specs/Concepts/Engine Hardening Round 1.md`), section 1.
  *
@@ -16,7 +16,8 @@ import * as PubSub from "effect/PubSub"
 import * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
 import * as Stream from "effect/Stream"
-import type { Entry, Input, RunId, Seq, SourceSeq } from "./JournalEvent.ts"
+import { Entry, RunId, Seq, SourceSeq } from "./JournalEvent.ts"
+import type { Input } from "./JournalEvent.ts"
 import type { OwnerId } from "./Ownership.ts"
 import type { Projection } from "./Projection.ts"
 
@@ -65,7 +66,10 @@ export class JournalError extends Schema.TaggedErrorClass<JournalError>()("flows
  * @category models
  * @since 0.1.0
  */
-export type OverflowPolicy = "reject" | "drop-newest" | "drop-oldest"
+export const OverflowPolicy = Schema.Literals(["reject", "drop-newest", "drop-oldest"])
+
+/** Policy applied when the non-blocking admission queue is full. @category models @since 0.1.0 */
+export type OverflowPolicy = typeof OverflowPolicy.Type
 
 /**
  * Receipt for a newly admitted event.
@@ -78,15 +82,17 @@ export type OverflowPolicy = "reject" | "drop-newest" | "drop-oldest"
  * @category models
  * @since 0.1.0
  */
-export interface Accepted {
-  readonly _tag: "Accepted"
-  readonly seq: Seq
-  readonly sourceSeq: SourceSeq
-  readonly evicted?: {
-    readonly policy: "drop-oldest"
-    readonly count: number
-  } | undefined
-}
+export const Accepted = Schema.TaggedStruct("Accepted", {
+  seq: Seq,
+  sourceSeq: SourceSeq,
+  evicted: Schema.optionalKey(Schema.Struct({
+    policy: Schema.Literal("drop-oldest"),
+    count: Schema.Int.check(Schema.isGreaterThan(0))
+  }))
+})
+
+/** Receipt for a newly admitted event. @category models @since 0.1.0 */
+export type Accepted = typeof Accepted.Type
 
 /**
  * Receipt for an exact retry of an already pending or committed source event.
@@ -98,12 +104,14 @@ export interface Accepted {
  * @category models
  * @since 0.1.0
  */
-export interface Duplicate {
-  readonly _tag: "Duplicate"
-  readonly seq: Seq
-  readonly sourceSeq: SourceSeq
-  readonly status: "pending" | "committed"
-}
+export const Duplicate = Schema.TaggedStruct("Duplicate", {
+  seq: Seq,
+  sourceSeq: SourceSeq,
+  status: Schema.Literals(["pending", "committed"])
+})
+
+/** Receipt for an exact producer retry. @category models @since 0.1.0 */
+export type Duplicate = typeof Duplicate.Type
 
 /**
  * Receipt for an event discarded by an explicit dropping policy.
@@ -114,12 +122,14 @@ export interface Duplicate {
  * @category models
  * @since 0.1.0
  */
-export interface Dropped {
-  readonly _tag: "Dropped"
-  readonly seq: Seq
-  readonly sourceSeq: SourceSeq
-  readonly policy: "drop-newest"
-}
+export const Dropped = Schema.TaggedStruct("Dropped", {
+  seq: Seq,
+  sourceSeq: SourceSeq,
+  policy: Schema.Literal("drop-newest")
+})
+
+/** Receipt for an event discarded by policy. @category models @since 0.1.0 */
+export type Dropped = typeof Dropped.Type
 
 /**
  * Receipt union for admission that may use the lossy queue.
@@ -127,7 +137,10 @@ export interface Dropped {
  * @category models
  * @since 0.1.0
  */
-export type EmitReceipt = Accepted | Duplicate | Dropped
+export const EmitReceipt = Schema.Union([Accepted, Duplicate, Dropped])
+
+/** Receipt union for the lossy channel. @category models @since 0.1.0 */
+export type EmitReceipt = typeof EmitReceipt.Type
 
 /**
  * Result of a synchronously durable journal admission.
@@ -138,7 +151,10 @@ export type EmitReceipt = Accepted | Duplicate | Dropped
  * @category models
  * @since 0.1.0
  */
-export type DurableReceipt = Accepted | Duplicate
+export const DurableReceipt = Schema.Union([Accepted, Duplicate])
+
+/** Receipt union for the durable channel. @category models @since 0.1.0 */
+export type DurableReceipt = typeof DurableReceipt.Type
 
 /**
  * Cursor used to replay a run and then follow its committed tail.
@@ -146,10 +162,13 @@ export type DurableReceipt = Accepted | Duplicate
  * @category models
  * @since 0.1.0
  */
-export interface StreamOptions {
-  readonly runId: RunId
-  readonly afterSequence?: Seq | undefined
-}
+export const StreamOptions = Schema.Struct({
+  runId: RunId,
+  afterSequence: Schema.optionalKey(Seq)
+})
+
+/** Cursor used to replay a run and follow its committed tail. @category models @since 0.1.0 */
+export type StreamOptions = typeof StreamOptions.Type
 
 /**
  * Cursor and page size for durable journal reads.
@@ -157,11 +176,14 @@ export interface StreamOptions {
  * @category models
  * @since 0.1.0
  */
-export interface EntriesOptions {
-  readonly runId: RunId
-  readonly after?: Seq | undefined
-  readonly limit: number
-}
+export const EntriesOptions = Schema.Struct({
+  runId: RunId,
+  after: Schema.optionalKey(Seq),
+  limit: Schema.Int.check(Schema.isGreaterThan(0))
+})
+
+/** Cursor and page size for durable journal reads. @category models @since 0.1.0 */
+export type EntriesOptions = typeof EntriesOptions.Type
 
 /**
  * One page of canonical durable journal entries.
@@ -169,18 +191,21 @@ export interface EntriesOptions {
  * @category models
  * @since 0.1.0
  */
-export interface EntriesPage {
-  readonly entries: ReadonlyArray<Entry>
-  readonly hasMore: boolean
-}
+export const EntriesPage = Schema.Struct({
+  entries: Schema.Array(Entry),
+  hasMore: Schema.Boolean
+})
+
+/** One page of durable journal entries. @category models @since 0.1.0 */
+export type EntriesPage = typeof EntriesPage.Type
 
 /**
  * Journal operations.
  *
  * There are two sequence domains:
  *
- * - `seq` is assigned synchronously inside `emit` per run. It is the canonical
- *   durable order used by replay, paging, streams, and projections.
+ * - `seq` is assigned synchronously by the selected channel per run. It is the
+ *   canonical durable order used by replay, paging, streams, and projections.
  * - `sourceSeq` is assigned synchronously per `(runId, sourceId)` and is the
  *   idempotency key for producer retries.
  *
@@ -196,9 +221,7 @@ export interface EntriesPage {
  * remote effect atomic, so external effects still need idempotency keys,
  * fencing tokens, or compensation.
  *
- * Ownerless `emit` under the default in-memory allocation trades durability for
- * latency: its receipt is optimistic. `emitDurable` is the synchronous
- * counterpart — it allocates `seq` inside the writer's SQL transaction, so the
+ * `emitDurable` allocates `seq` inside the writer's SQL transaction, so the
  * returned sequence is already committed and independent writers never fork
  * the per-run clock
  * (`docs/specs/Concepts/Journal Queue.md`, "The durable path").
@@ -213,15 +236,12 @@ export interface EntriesPage {
  *
  * The surface is split into two channels:
  *
- * - The lifecycle channel — `emitDurable`, and `emit` whenever an `owner` is
- *   passed or the journal allocates in SQL — returns `DurableReceipt`, so a
+ * - The lifecycle channel — `emitDurable` — returns `DurableReceipt`, so a
  *   dropped lifecycle event is unrepresentable: the write commits, dedupes, or
  *   fails with a typed error.
  * - The lossy channel — `emitLossy` — keeps the optimistic queue and its
  *   overflow policies for telemetry, where `Dropped` receipts and
- *   `drop-oldest` evictions are acceptable. Telemetry callers still on `emit`
- *   should move to `emitLossy`; `emit` remains only so existing call sites
- *   keep compiling while that sweep lands.
+ *   `drop-oldest` evictions are acceptable.
  *
  * Passing an `owner` fences the write on the run's persisted ownership: the
  * durable insert only commits while `flows_runs` still records that owner, and
@@ -233,7 +253,6 @@ export interface EntriesPage {
  * @since 0.1.0
  */
 export interface Service {
-  readonly emit: (input: Input, owner?: OwnerId) => Effect.Effect<EmitReceipt, JournalError>
   readonly emitLossy: (input: Input) => Effect.Effect<EmitReceipt, JournalError>
   readonly emitDurable: (input: Input, owner?: OwnerId) => Effect.Effect<DurableReceipt, JournalError>
   /**
@@ -306,7 +325,6 @@ const unavailable = (method: string): JournalError =>
  */
 export const makeNoop = (overrides: Partial<Service> = {}): Service => {
   const service: Service = {
-    emit: Effect.fn("Journal.emit")(() => Effect.fail(unavailable("emit"))),
     emitLossy: Effect.fn("Journal.emitLossy")(() => Effect.fail(unavailable("emitLossy"))),
     emitDurable: Effect.fn("Journal.emitDurable")(() => Effect.fail(unavailable("emitDurable"))),
     /**

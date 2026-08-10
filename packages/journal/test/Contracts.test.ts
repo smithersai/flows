@@ -21,7 +21,8 @@ describe("service contracts", () => {
 
     await Effect.runPromise(Effect.scoped(Effect.gen(function*() {
       const input = {} as Input
-      expect((yield* Effect.flip(implementation.emit(input))).code).toBe("journal_closed")
+      expect((yield* Effect.flip(implementation.emitLossy(input))).code).toBe("journal_closed")
+      expect((yield* Effect.flip(implementation.emitDurable(input))).code).toBe("journal_closed")
       expect(
         (yield* Effect.flip(implementation.entries({
           runId: "run" as RunId,

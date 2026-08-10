@@ -54,20 +54,23 @@ export class CacheStoreError extends Schema.TaggedErrorClass<CacheStoreError>()(
   }
 ) {}
 
-/**
- * The durable data recorded for a cache key.
- *
- * @category models
- * @since 0.1.0
- */
-export interface CacheEntry {
-  readonly keyDigest: string
-  readonly result: unknown
-  readonly meta: unknown
-  readonly createdAtMs: number
-  readonly recordedRunId: string
-  readonly recordedEventSeq: number
-}
+const NonNegativeSafeInt = Schema.Int.check(
+  Schema.isGreaterThanOrEqualTo(0),
+  Schema.isLessThanOrEqualTo(Number.MAX_SAFE_INTEGER)
+)
+
+/** The durable data recorded for a cache key. @category schemas @since 0.1.0 */
+export const CacheEntry = Schema.Struct({
+  keyDigest: Schema.NonEmptyString,
+  result: Schema.Unknown,
+  meta: Schema.Unknown,
+  createdAtMs: NonNegativeSafeInt,
+  recordedRunId: Schema.NonEmptyString,
+  recordedEventSeq: NonNegativeSafeInt
+})
+
+/** The durable data recorded for a cache key. @category models @since 0.1.0 */
+export type CacheEntry = typeof CacheEntry.Type
 
 /**
  * Fencing predicate for an eviction.
@@ -126,11 +129,6 @@ export interface Service {
  */
 export class CacheStore extends Context.Service<CacheStore, Service>()("flows/journal/CacheStore") {}
 
-const NonNegativeSafeInt = Schema.Int.check(
-  Schema.isGreaterThanOrEqualTo(0),
-  Schema.isLessThanOrEqualTo(Number.MAX_SAFE_INTEGER)
-)
-
 const CacheRow = Schema.Struct({
   key_digest: Schema.NonEmptyString,
   result_json: Schema.String,
@@ -142,35 +140,18 @@ const CacheRow = Schema.Struct({
 
 type CacheRow = typeof CacheRow.Type
 
-const CacheEntryInput = Schema.Struct({
-  keyDigest: Schema.NonEmptyString,
-  result: Schema.Unknown,
-  meta: Schema.Unknown,
-  createdAtMs: NonNegativeSafeInt,
-  recordedRunId: Schema.NonEmptyString,
-  recordedEventSeq: NonNegativeSafeInt
-})
-
 const error = (code: CacheStoreErrorCode, message: string, cause?: unknown): CacheStoreError =>
   new CacheStoreError({ code, message, ...(cause === undefined ? {} : { cause }) })
 
 const encode = (value: unknown, field: string): Effect.Effect<string, CacheStoreError> =>
-  Effect.try({
-    try: () => JSON.stringify(value),
-    catch: (cause) => error("invalid_cache", `${field} must be JSON-serializable`, cause)
-  }).pipe(
-    Effect.flatMap((encoded) =>
-      encoded === undefined
-        ? Effect.fail(error("invalid_cache", `${field} must be JSON-serializable`))
-        : Effect.succeed(encoded)
-    )
+  Schema.encodeEffect(Schema.UnknownFromJsonString)(value).pipe(
+    Effect.mapError((cause) => error("invalid_cache", `${field} must be JSON-serializable`, cause))
   )
 
 const decode = (value: string, field: string): Effect.Effect<unknown, CacheStoreError> =>
-  Effect.try({
-    try: () => JSON.parse(value) as unknown,
-    catch: (cause) => error("decode_failed", `could not decode ${field}`, cause)
-  })
+  Schema.decodeUnknownEffect(Schema.UnknownFromJsonString)(value).pipe(
+    Effect.mapError((cause) => error("decode_failed", `could not decode ${field}`, cause))
+  )
 
 const validateKey = (keyDigest: string): Effect.Effect<void, CacheStoreError> =>
   keyDigest.length > 0
@@ -178,7 +159,7 @@ const validateKey = (keyDigest: string): Effect.Effect<void, CacheStoreError> =>
     : Effect.fail(error("invalid_cache", "keyDigest must not be empty"))
 
 const validateEntry = (entry: CacheEntry): Effect.Effect<void, CacheStoreError> =>
-  Schema.decodeUnknownEffect(CacheEntryInput)(entry).pipe(
+  Schema.decodeUnknownEffect(CacheEntry)(entry).pipe(
     Effect.asVoid,
     Effect.mapError((cause) => error("invalid_cache", "cache entry violates the persistence contract", cause))
   )

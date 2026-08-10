@@ -57,7 +57,7 @@ describe("Projection", () => {
         yield* Effect.forEach(
           [1, 2, 3],
           (value) =>
-            journal.emit(
+            journal.emitLossy(
               input(run, sourceId("producer"), "number", { value })
             ),
           { discard: true }
@@ -89,10 +89,10 @@ describe("Projection", () => {
           Effect.forkChild({ startImmediately: true })
         )
         yield* Effect.yieldNow
-        yield* journal.emit(
+        yield* journal.emitLossy(
           input(run, sourceId("producer"), "number", { value: 2 })
         )
-        yield* journal.emit(
+        yield* journal.emitLossy(
           input(run, sourceId("producer"), "number", { value: 5 })
         )
         yield* journal.flush
@@ -113,7 +113,7 @@ describe("Projection", () => {
     return runJournal(
       Effect.gen(function*() {
         const journal = yield* Journal
-        yield* journal.emit(
+        yield* journal.emitLossy(
           input(run, sourceId("producer"), "number", { value: 1 })
         )
         yield* journal.flush
@@ -124,7 +124,7 @@ describe("Projection", () => {
         )
         expect(failure.code).toBe("projection_failed")
 
-        const later = yield* journal.emit(
+        const later = yield* journal.emitLossy(
           input(run, sourceId("producer"), "number", { value: 2 })
         )
         expect(later).toMatchObject({ _tag: "Accepted", sourceSeq: 1 })
@@ -168,7 +168,7 @@ describe("Projection", () => {
     return runJournal(
       Effect.gen(function*() {
         const journal = yield* Journal
-        yield* journal.emit(
+        yield* journal.emitLossy(
           input(run, sourceId("producer"), "number", { value: 1 })
         )
         yield* journal.flush
@@ -195,7 +195,7 @@ describe("Projection", () => {
     return runJournal(
       Effect.gen(function*() {
         const journal = yield* Journal
-        yield* journal.emit(
+        yield* journal.emitLossy(
           input(run, sourceId("producer"), "number", { value: 1 })
         )
         yield* journal.flush

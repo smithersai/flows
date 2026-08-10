@@ -23,6 +23,8 @@
  *
  * @since 0.1.0
  */
+import * as Result from "effect/Result"
+import * as Schema from "effect/Schema"
 
 /**
  * A textual redaction rule.
@@ -173,12 +175,10 @@ export const make = (options?: Options): Redactor => (value) => redact(value, op
  * @category redaction
  */
 export const redactJsonString = (json: string, redactor: Redactor): string => {
-  try {
-    const encoded = JSON.stringify(redactor(JSON.parse(json) as unknown))
-    return encoded === undefined ? json : encoded
-  } catch {
-    return json
-  }
+  const decoded = Schema.decodeUnknownResult(Schema.UnknownFromJsonString)(json)
+  if (Result.isFailure(decoded)) return json
+  const encoded = Schema.encodeUnknownResult(Schema.UnknownFromJsonString)(redactor(decoded.success))
+  return Result.isSuccess(encoded) ? encoded.success : json
 }
 
 /**

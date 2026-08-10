@@ -137,24 +137,24 @@ describe("SqlJournal ownership fencing", () => {
       })
     ))
 
-  effect("emit with an owner routes through the durable fenced path under memory allocation", () =>
+  effect("emitDurable fences writes when an owner is supplied", () =>
     withJournal(
       Effect.gen(function*() {
         const journal = yield* Journal
         const database = yield* Database
         const run = runId("routed")
         yield* activateRun(database, run, ownerA)
-        const receipt = yield* journal.emit(input(run, sourceId("s"), "created", 1), ownerA)
+        const receipt = yield* journal.emitDurable(input(run, sourceId("s"), "created", 1), ownerA)
         // Committed synchronously, without a flush: the fenced path is durable.
         expect(yield* seqsOf(database, run)).toEqual([receipt.seq])
         yield* reclaimRun(database, run, ownerB)
-        const failure = yield* Effect.flip(journal.emit(input(run, sourceId("s"), "zombie", 2), ownerA))
+        const failure = yield* Effect.flip(journal.emitDurable(input(run, sourceId("s"), "zombie", 2), ownerA))
         expect((failure as JournalError).code).toBe("fence_lost")
         expect(yield* seqsOf(database, run)).toEqual([receipt.seq])
       })
     ))
 
-  effect("an ownerless emit stays unfenced for external-trigger admissions", () =>
+  effect("ownerless durable writes stay unfenced for external-trigger admissions", () =>
     withJournal(
       Effect.gen(function*() {
         const journal = yield* Journal
@@ -164,8 +164,7 @@ describe("SqlJournal ownership fencing", () => {
         yield* reclaimRun(database, run, ownerB)
         // Deferred completions and other first-writer-wins admissions carry no
         // owner and must land regardless of who owns the run.
-        yield* journal.emit(input(run, sourceId("trigger"), "queued", 1))
-        yield* journal.flush
+        yield* journal.emitDurable(input(run, sourceId("trigger"), "first", 1))
         const durable = yield* journal.emitDurable(input(run, sourceId("trigger"), "durable", 2))
         expect(durable._tag).toBe("Accepted")
         expect(yield* seqsOf(database, run)).toEqual([0, 1])
@@ -270,7 +269,7 @@ describe("SqlJournal lossy and lifecycle channels", () => {
     )
   })
 
-  effect("emitLossy stays on the optimistic queue even under sql allocation", () =>
+  effect("emitLossy stays on the optimistic queue", () =>
     withJournal(
       Effect.gen(function*() {
         const journal = yield* Journal
@@ -280,8 +279,7 @@ describe("SqlJournal lossy and lifecycle channels", () => {
         expect(receipt._tag).toBe("Accepted")
         yield* journal.flush
         expect(yield* seqsOf(database, run)).toEqual([0])
-      }),
-      { allocation: "sql" }
+      })
     ))
 
   it("the lifecycle receipt type cannot represent Dropped", () => {

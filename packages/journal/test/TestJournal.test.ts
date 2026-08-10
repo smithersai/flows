@@ -11,7 +11,7 @@ describe("TestJournal", () => {
   it("provides defaults when no options are supplied", async () => {
     const receipt = await Effect.runPromise(
       Effect.gen(function*() {
-        return yield* (yield* Journal).emit({
+        return yield* (yield* Journal).emitDurable({
           runId: "default-run" as RunId,
           sourceId: "default-source" as SourceId,
           eventType: "default",
@@ -63,7 +63,7 @@ describe("TestJournal", () => {
           finishedAtMs: 2,
           outcome: { value: "ok" }
         }, owner)
-        yield* journal.emit({
+        yield* journal.emitDurable({
           runId: "bundle-run" as RunId,
           sourceId: "bundle" as SourceId,
           eventType: "step.completed",

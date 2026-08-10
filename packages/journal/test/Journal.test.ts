@@ -458,7 +458,7 @@ describe("Journal", () => {
     Effect.scoped(
       Effect.gen(function*() {
         const journal = yield* Journal
-        const receipt = yield* journal.emit(
+        const receipt = yield* journal.emitLossy(
           input(runId("continued"), sourceId("source"), "event", {})
         )
         expect(receipt).toMatchObject({ seq: 4, sourceSeq: 7 })
@@ -480,7 +480,7 @@ describe("Journal", () => {
     Effect.scoped(
       Effect.gen(function*() {
         const journal = yield* Journal
-        const receipt = yield* journal.emit(
+        const receipt = yield* journal.emitLossy(
           input(runId("restored"), sourceId("source"), "event", { value: 1 }, sourceSeq(5))
         )
         expect(receipt).toEqual({
@@ -519,7 +519,7 @@ describe("Journal", () => {
       Effect.gen(function*() {
         const journal = yield* Journal
         const failure = yield* Effect.flip(
-          journal.emit(input(runId("exhausted"), sourceId("source"), "event", {}))
+          journal.emitLossy(input(runId("exhausted"), sourceId("source"), "event", {}))
         )
         expect(failure.code).toBe("invalid_event")
       }).pipe(
@@ -562,12 +562,12 @@ describe("Journal", () => {
         ]
         const failures = yield* Effect.forEach(
           invalidInputs,
-          (invalid) => Effect.flip(journal.emit(invalid))
+          (invalid) => Effect.flip(journal.emitLossy(invalid))
         )
         yield* TestClock.setTime(-1)
         failures.push(
           yield* Effect.flip(
-            journal.emit(input(validRun, validSource, "event", {}))
+            journal.emitLossy(input(validRun, validSource, "event", {}))
           )
         )
         expect(failures.every((failure) => failure.code === "invalid_event")).toBe(true)
@@ -605,7 +605,7 @@ describe("Journal", () => {
     return Effect.gen(function*() {
       yield* TestClock.setTime(1_000)
       const journal = yield* Journal
-      const receipt = yield* journal.emit(input(run, source, "read.completed", { path: "a" }))
+      const receipt = yield* journal.emitLossy(input(run, source, "read.completed", { path: "a" }))
       expect(receipt).toMatchObject({ _tag: "Accepted", seq: 0, sourceSeq: 0 })
 
       const before = yield* journal.entries({ runId: run, limit: 10 })
@@ -639,7 +639,7 @@ describe("Journal", () => {
           [firstRun, sourceId("producer-b"), "two", 2] as const,
           [firstRun, sourceId("producer-a"), "three", 3] as const,
           [secondRun, sourceId("producer-a"), "one", 1] as const
-        ], ([run, source, eventType, payload]) => journal.emit(input(run, source, eventType, payload)))
+        ], ([run, source, eventType, payload]) => journal.emitLossy(input(run, source, eventType, payload)))
         expect(receipts).toMatchObject([
           { _tag: "Accepted", seq: 0, sourceSeq: 0 },
           { _tag: "Accepted", seq: 1, sourceSeq: 0 },
@@ -665,7 +665,7 @@ describe("Journal", () => {
         yield* Effect.forEach(
           work,
           (index) =>
-            journal.emit(
+            journal.emitLossy(
               input(
                 run,
                 sourceId(index % 2 === 0 ? "producer-a" : "producer-b"),
@@ -694,17 +694,17 @@ describe("Journal", () => {
         const source = sourceId("producer")
         return Effect.gen(function*() {
           const journal = yield* Journal
-          yield* journal.emit(input(run, source, "event", { value: 1 }))
+          yield* journal.emitLossy(input(run, source, "event", { value: 1 }))
           yield* Effect.yieldNow
-          yield* journal.emit(input(run, source, "event", { value: 2 }))
+          yield* journal.emitLossy(input(run, source, "event", { value: 2 }))
 
           if (policy === "reject") {
             const failure = yield* Effect.flip(
-              journal.emit(input(run, source, "event", { value: 3 }))
+              journal.emitLossy(input(run, source, "event", { value: 3 }))
             )
             expect(failure.code).toBe("queue_overflow")
           } else {
-            const receipt = yield* journal.emit(input(run, source, "event", { value: 3 }))
+            const receipt = yield* journal.emitLossy(input(run, source, "event", { value: 3 }))
             expect(receipt).toMatchObject(
               policy === "drop-newest"
                 ? { _tag: "Dropped", seq: 2, sourceSeq: 2, policy: "drop-newest" }
@@ -750,7 +750,7 @@ describe("Journal", () => {
         const changed = yield* Effect.forkChild(PubSub.take(subscription), {
           startImmediately: true
         })
-        yield* journal.emit(
+        yield* journal.emitLossy(
           input(run, sourceId("telemetry"), "telemetry.span", {
             durationMs: 4
           })
@@ -780,7 +780,7 @@ describe("Journal", () => {
 
     return Effect.gen(function*() {
       const journal = yield* Journal
-      yield* journal.emit(input(run, source, "historical", { value: 1 }))
+      yield* journal.emitLossy(input(run, source, "historical", { value: 1 }))
       yield* journal.flush
 
       yield* Effect.sync(() => {
@@ -792,7 +792,7 @@ describe("Journal", () => {
         Effect.forkChild({ startImmediately: true })
       )
       yield* Deferred.await(gate.started)
-      yield* journal.emit(input(run, source, "live", { value: 2 }))
+      yield* journal.emitLossy(input(run, source, "live", { value: 2 }))
       yield* journal.flush
       yield* Deferred.succeed(gate.release, undefined)
 
@@ -818,7 +818,7 @@ describe("Journal", () => {
         const journal = yield* Journal
         yield* Effect.forEach(
           [0, 1, 2],
-          (value) => journal.emit(input(run, sourceId("producer"), "event", { value })),
+          (value) => journal.emitLossy(input(run, sourceId("producer"), "event", { value })),
           { discard: true }
         )
         yield* journal.flush
@@ -859,7 +859,7 @@ describe("Journal", () => {
         const journal = yield* Journal
         yield* Effect.forEach(
           [0, 1, 2, 3, 4],
-          (value) => journal.emit(input(run, source, "paged", { value })),
+          (value) => journal.emitLossy(input(run, source, "paged", { value })),
           { discard: true }
         )
         yield* journal.flush
@@ -891,7 +891,7 @@ describe("Journal", () => {
 
     return Effect.gen(function*() {
       const journal = yield* Journal
-      const receipt = yield* journal.emit(input(run, source, "event", {}))
+      const receipt = yield* journal.emitLossy(input(run, source, "event", {}))
       expect(receipt._tag).toBe("Accepted")
 
       const flushFailure = yield* Effect.flip(journal.flush)
@@ -901,7 +901,7 @@ describe("Journal", () => {
       yield* journal.flush
       // The writer survived, so the channel still admits work — and the next
       // lost batch is reported on its own flush.
-      const later = yield* journal.emit(input(run, source, "later", {}))
+      const later = yield* journal.emitLossy(input(run, source, "later", {}))
       expect(later._tag).toBe("Accepted")
       expect((yield* Effect.flip(journal.flush)).code).toBe("sink_failed")
     }).pipe(
@@ -919,7 +919,7 @@ describe("Journal", () => {
 
     return Effect.gen(function*() {
       const journal = yield* Journal
-      yield* journal.emit(input(run, source, "queued", {}))
+      yield* journal.emitLossy(input(run, source, "queued", {}))
       // The queued writer loses the batch on the transient outage.
       expect((yield* Effect.flip(journal.flush)).code).toBe("sink_failed")
 
@@ -931,7 +931,7 @@ describe("Journal", () => {
       expect(page.entries.map((entry) => entry.eventType)).toEqual(["lifecycle"])
     }).pipe(
       Effect.provide(
-        journalLayer({ capacity: 4, overflow: "reject", allocation: "memory" }, database.layer)
+        journalLayer({ capacity: 4, overflow: "reject" }, database.layer)
       ),
       Effect.scoped
     )
@@ -947,7 +947,7 @@ describe("Journal", () => {
         Effect.forkChild({ startImmediately: true })
       )
       yield* Deferred.await(readStarted)
-      yield* journal.emit(input(run, sourceId("producer"), "event", {}))
+      yield* journal.emitLossy(input(run, sourceId("producer"), "event", {}))
       expect((yield* Effect.flip(journal.flush)).code).toBe("sink_failed")
       expect((yield* Effect.flip(Fiber.join(consumer))).code).toBe("sink_failed")
     }).pipe(
@@ -988,7 +988,7 @@ describe("Journal", () => {
       expect(page.entries.map((entry) => entry.eventType)).toEqual(["written"])
     }).pipe(
       Effect.provide(
-        journalLayer({ capacity: 4, overflow: "reject", allocation: "memory" }, database.layer)
+        journalLayer({ capacity: 4, overflow: "reject" }, database.layer)
       ),
       Effect.scoped
     )
@@ -1049,7 +1049,7 @@ describe("Journal", () => {
       expect(after.entries.map((entry) => entry.eventType)).toEqual(["queued", "after"])
     }).pipe(
       Effect.provide(
-        journalLayer({ capacity: 8, overflow: "reject", allocation: "memory", batchSize: 1 }, database)
+        journalLayer({ capacity: 8, overflow: "reject", batchSize: 1 }, database)
       ),
       Effect.scoped
     )
@@ -1059,7 +1059,7 @@ describe("Journal", () => {
     const run = runId("sink-defect")
     return Effect.gen(function*() {
       const journal = yield* Journal
-      yield* journal.emit(input(run, sourceId("producer"), "event", {}))
+      yield* journal.emitLossy(input(run, sourceId("producer"), "event", {}))
       expect((yield* Effect.flip(journal.flush)).code).toBe("sink_failed")
     }).pipe(
       Effect.provide(
@@ -1079,7 +1079,7 @@ describe("Journal", () => {
       expect((yield* Effect.flip(closed.flush)).code).toBe("journal_closed")
       expect(
         (yield* Effect.flip(
-          closed.emit(input(runId("closed"), sourceId("source"), "event", {}))
+          closed.emitLossy(input(runId("closed"), sourceId("source"), "event", {}))
         )).code
       ).toBe("journal_closed")
     }))
@@ -1094,7 +1094,7 @@ describe("Journal", () => {
       const closing = yield* Effect.scoped(
         Effect.gen(function*() {
           const journal = yield* Journal
-          yield* journal.emit(
+          yield* journal.emitLossy(
             input(run, sourceId("producer"), "before-close", { ok: true })
           )
           yield* Deferred.succeed(emitted, undefined)
@@ -1131,10 +1131,10 @@ describe("Journal", () => {
       Effect.gen(function*() {
         const journal = yield* Journal
         const retried = input(run, source, "retried", { value: 1 }, sourceSeq(5))
-        const accepted = yield* journal.emit(retried)
-        const pendingDuplicate = yield* journal.emit(retried)
+        const accepted = yield* journal.emitLossy(retried)
+        const pendingDuplicate = yield* journal.emitLossy(retried)
         yield* journal.flush
-        const committedDuplicate = yield* journal.emit(retried)
+        const committedDuplicate = yield* journal.emitLossy(retried)
 
         const page = yield* journal.entries({ runId: run, limit: 10 })
         expect(accepted).toMatchObject({
@@ -1169,7 +1169,7 @@ describe("Journal", () => {
     const duplicateSourceSeq = sourceSeq(5)
     return Effect.gen(function*() {
       const journal = yield* Journal
-      yield* journal.emit(
+      yield* journal.emitLossy(
         input(duplicateRunId, duplicateSourceId, "event", { value: 1 }, duplicateSourceSeq)
       )
       yield* journal.flush
@@ -1205,9 +1205,9 @@ describe("Journal", () => {
         { value: 1 },
         duplicateSourceSeq
       )
-      yield* journal.emit(event)
+      yield* journal.emitLossy(event)
       yield* journal.flush
-      expect(yield* journal.emit(event)).toEqual({
+      expect(yield* journal.emitLossy(event)).toEqual({
         _tag: "Duplicate",
         seq: 0,
         sourceSeq: 5,
@@ -1236,7 +1236,7 @@ describe("Journal", () => {
     const duplicateSourceSeq = sourceSeq(5)
     return Effect.gen(function*() {
       const journal = yield* Journal
-      yield* journal.emit(
+      yield* journal.emitLossy(
         input(
           duplicateRunId,
           duplicateSourceId,
@@ -1270,10 +1270,10 @@ describe("Journal", () => {
     return runJournal(
       Effect.gen(function*() {
         const journal = yield* Journal
-        yield* journal.emit(input(run, source, "retried", { value: 1 }, sourceSeq(5)))
+        yield* journal.emitLossy(input(run, source, "retried", { value: 1 }, sourceSeq(5)))
         yield* journal.flush
         const failure = yield* Effect.flip(
-          journal.emit(input(run, source, "retried", { value: 2 }, sourceSeq(5)))
+          journal.emitLossy(input(run, source, "retried", { value: 2 }, sourceSeq(5)))
         )
         expect(failure.code).toBe("idempotency_conflict")
         const page = yield* journal.entries({ runId: run, limit: 10 })
@@ -1296,7 +1296,7 @@ describe("Journal", () => {
             'external', '{}', 'null'
           )
         `
-        yield* journal.emit(
+        yield* journal.emitLossy(
           input(runId("sequence-conflict"), sourceId("producer"), "event", {})
         )
         expect((yield* Effect.flip(journal.flush)).code).toBe("sequence_conflict")
@@ -1311,6 +1311,7 @@ describe("Journal", () => {
       Effect.gen(function*() {
         const database = yield* Database
         const journal = yield* Journal
+        yield* database.sql`PRAGMA ignore_check_constraints = ON`
         yield* database.sql`
           INSERT INTO flows_journal_events (
             run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
