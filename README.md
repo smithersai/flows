@@ -1,55 +1,81 @@
 # Smithers Flows
 
-Smithers Flows is a standalone Effect-based durable-execution engine. It provides typed flows,
-journal-backed execution state, content-addressed activities, capability-checked host effects, synchronization, and
-time-travel protocols.
+Smithers Flows is an Effect-based durable-execution engine: typed flows that record every side effect to a journal, so a crashed process resumes from its recorded steps instead of starting over.
 
-## Documentation
+You define a flow once with Schema-typed payload, success, and error, and register its handler as a layer. The engine persists run state in SQLite through the journal, computes a content-addressed key for each activity, and stores each attempt's encoded result. When a process restarts, it claims the run, re-invokes your handler from the top, and replays every recorded step; the first step without a record is where new work happens. A capability kernel bounds what flow code can reach on the host, read-only sync streams journal entries to followers, and time travel forks and rewinds run history.
 
-Start with the [documentation index](docs/README.md). It includes a recommended reading order, concept guides,
-deployment limitations, and one reference page for every package.
+## Quick start
+
+Requires Node.js 22.19 or later.
+
+```sh
+npm install @smthrs/engine effect
+```
+
+```ts
+import { Flow, FlowEngine } from "@smthrs/engine"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as Schema from "effect/Schema"
+
+export const Greeting = Flow.make("example/Greeting", {
+  payload: { name: Schema.String },
+  success: Schema.String
+})
+
+const GreetingLayer = Greeting.toLayer(({ name }) =>
+  Effect.succeed(`Hello, ${name}.`)
+).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+
+const program = Greeting.execute(
+  { name: "Ada" },
+  { executionId: "greeting-ada-1" }
+).pipe(Effect.provide(GreetingLayer))
+
+Effect.runPromise(program).then(console.log)
+// "Hello, Ada."
+```
+
+The in-memory engine above keeps state in the process. For a run that survives a crash, drive the same flow with `EngineStore.layer` over SQLite; `examples/src/02-run-durably.ts` and `examples/src/03-crash-and-resume.ts` show the full wiring, and `npm run test:examples` executes every example against the real packages.
+
+## Features
+
+- Typed flows and activities with Schema-encoded payloads, successes, and expected errors (`Flow.make`, `Activity.make`).
+- Journal-backed durability: run rows, attempt rows, cache rows, and their lifecycle events commit in one transaction.
+- Fenced run ownership with heartbeats, liveness-gated takeover, and self-interrupting zombie owners.
+- Durable deferreds, clocks, and queues that re-arm across restarts.
+- Retry policies whose schedule-to-close origin persists across park, resume, and process death.
+- Content-addressed step keys over canonical serialization, with ordinal keys for run-local work.
+- A capability kernel that decorates host services with grant-checked permissions.
+- Host adapters for Node, Bun, browser, and tests behind one closed service surface.
+- Read-only catch-up and follow sync of journal entries over Effect RPC.
+- Time travel over run history: frame-addressed replay, fork, rewind, compensation, recovery.
+- A Vite-style plugin kernel with typed hooks at engine seams.
 
 ## Packages
 
-- `@smthrs/flows` — barrel package re-exporting everything below
-- `@smthrs/host`
-- `@smthrs/journal`
-- `@smthrs/database`
-- `@smthrs/kernel`
-- `@smthrs/keys`
-- `@smthrs/engine`
-- `@smthrs/engine-store`
-- `@smthrs/plugin`
-- `@smthrs/sync`
-- `@smthrs/time-travel`
+| Package | Role |
+| --- | --- |
+| `@smthrs/flows` | Umbrella barrel re-exporting the ten packages below as namespaces |
+| `@smthrs/host` | Closed host service contracts plus Node, Bun, browser, and test adapters |
+| `@smthrs/journal` | Logical WAL, run/attempt/cache stores, migrations, projections |
+| `@smthrs/database` | Driver-neutral SQL contract with transactional write retry |
+| `@smthrs/kernel` | Capability sets, grants, and permission-decorated host services |
+| `@smthrs/keys` | Canonical serialization, SHA-256 digests, step keys |
+| `@smthrs/engine` | Flow definitions, activities, durable primitives, retry policy |
+| `@smthrs/engine-store` | The durable engine: claims, fences, and persists runs over the journal |
+| `@smthrs/plugin` | Typed plugin kernel with a closed hook catalog |
+| `@smthrs/sync` | Read-only journal replication for followers |
+| `@smthrs/time-travel` | Replay, fork, rewind, compensation, and recovery protocols |
 
-Platform host adapters (`@smthrs/host-cloudflare`, `@smthrs/host-vercel`) live in
-[smithersai/plugins](https://github.com/smithersai/plugins).
+## Documentation
 
-The `@smthrs/*` package names are retained. These packages form a closed workspace dependency set.
+Serve the docs site locally with `npx vocs dev`. Start with [Architecture](docs/pages/architecture.md) and [Data structures](docs/pages/data-structures.md), then the per-package API pages under [docs/pages/api](docs/pages/api). [Design decisions](docs/pages/design-decisions.md) records why the engine looks this way, and [External](docs/pages/external.md) lists deployment limits and implementation status.
 
-## Browser support
+## Status and compatibility
 
-Browser support is a hard requirement, met through layers: a package root exports contracts, and every
-platform implementation lives under a `/node`, `/bun`, `/browser`, or `/test` subpath. Ten entry points
-bundle for the browser — `@smthrs/host`, `@smthrs/host/browser/BrowserHost`, `@smthrs/kernel`,
-`@smthrs/keys`, `@smthrs/database`, `@smthrs/journal`, `@smthrs/engine`, `@smthrs/plugin`,
-`@smthrs/sync`, and `@smthrs/time-travel`.
+Packages are pre-1.0 at 0.1.0 in lockstep. The shipped database backends are SQLite (Node and in-memory); Postgres and PGlite parity is an accepted, documented gap. The browser promise covers the contract packages; `@smthrs/engine-store` and the barrel are Node entry points.
 
-Two are Node-only and say so: `@smthrs/engine-store` (it reads `process.pid` and `node:crypto`,
-issue #114) and therefore the `@smthrs/flows` barrel that re-exports it. **Browser consumers import the
-per-package roots, not the barrel.**
+## Contributing
 
-`npm run browser` proves both halves — it bundles every browser entry point with
-`platform: "browser"` and fails if one breaks, and it fails just as loudly if a Node-only entry point
-starts bundling while the docs still call it Node-only. It runs as a CI step. The full matrix is
-[docs/architecture/browser-support.md](docs/architecture/browser-support.md).
-
-## Development
-
-Install dependencies and typecheck every package:
-
-```sh
-npm install
-npm run check
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md). Before opening a pull request, run `npm run check`, `npm test`, `npm run lint`, `npm run circular`, and `npm run browser`.
