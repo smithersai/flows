@@ -1,6 +1,6 @@
 # Architecture
 
-Smithers Flows is one durable-execution engine assembled from fifteen packages. This page shows how they fit together, which direction data moves, and where the boundaries you can substitute are. Read it before anything else; the pages after it assume the picture below.
+Smithers Flows is one durable-execution engine assembled from sixteen packages. This page shows how they fit together, which direction data moves, and where the boundaries you can substitute are. Read it before anything else; the pages after it assume the picture below.
 
 ## The whole system
 
@@ -34,6 +34,7 @@ flowchart TB
     HOST["@smthrs/host<br/>closed list: FileSystem, Path,<br/>Shell, Pty, Jj, HttpTransport"]
     JJPTY["@smthrs/jj · @smthrs/pty<br/>contracts + adapters"]
     SANDBOX["@smthrs/sandbox<br/>remote exec, liveness probe"]
+    PB["@smthrs/platform-browser<br/>effect FileSystem +<br/>ChildProcessSpawner for a tab"]
     ADAPTERS["node / bun / browser / test<br/>adapters"]
   end
 
@@ -60,6 +61,7 @@ flowchart TB
   DB --> SQL
   KERNEL --> HOST
   HOST --> ADAPTERS
+  HOST --> PB
   JOURNAL --> SYNC
   JOURNAL --> TT
   TT --> STORE
@@ -72,7 +74,7 @@ Solid arrows are workspace dependencies that execute. Dotted arrows are re-expor
 
 Ask what would break if a boundary were removed, and its purpose becomes clear.
 
-The **host boundary** exists so flow code can run in a browser. `@smthrs/host` declares a closed set of service tags and nothing else; every platform implementation lives under a `/node`, `/bun`, `/browser`, or `/test` subpath. Two of those tags — `Pty` and `Jj` — are contracts of `@smthrs/pty` and `@smthrs/jj`, which host depends on rather than re-exports, so a consumer that needs one capability does not take all six. A module that depends only on the root never statically resolves a `node:` built-in, which is what makes browser bundling possible at all. `@smthrs/kernel` sits in front of that surface and decorates each service with a grant check, so a flow that asks for a file it was never granted fails in the error channel rather than reading the file.
+The **host boundary** exists so flow code can run in a browser. `@smthrs/host` declares a closed set of service tags and nothing else; every platform implementation lives under a `/node`, `/bun`, `/browser`, or `/test` subpath. Two of those tags — `Pty` and `Jj` — are contracts of `@smthrs/pty` and `@smthrs/jj`, which host depends on rather than re-exports, so a consumer that needs one capability does not take all six. A module that depends only on the root never statically resolves a `node:` built-in, which is what makes browser bundling possible at all. The browser bundle's own `FileSystem` and `ChildProcessSpawner` are not host contracts at all — they implement `effect`'s, so they live in `@smthrs/platform-browser` over an injected virtual filesystem and in-page bash interpreter. `@smthrs/kernel` sits in front of that surface and decorates each service with a grant check, so a flow that asks for a file it was never granted fails in the error channel rather than reading the file.
 
 The **database and journal** split separates the storage driver from the shapes stored in it. `@smthrs/database` owns no domain tables; it wraps any Effect `SqlClient` and adds the transactional write retry that the rest of the system assumes. `@smthrs/journal` owns the tables and the authoritative schema that creates them. Swap the driver and every shape survives.
 
@@ -84,7 +86,7 @@ The **plugin** package is the extension seam. Its hook catalog is typed and its 
 
 The **read-only protocols** consume the journal without acquiring ownership. `@smthrs/sync` streams committed entries to a follower over Effect RPC and can neither mutate a run nor resume one. `@smthrs/time-travel` reads frames out of the same history and adds its own tables for snapshots, lineage edges, audits, receipts, and archived entries.
 
-The **barrel**, `@smthrs/flows`, re-exports the fifteen packages as namespaces for a single-import Node application. It re-exports `@smthrs/engine-store`, which reads `process.pid` and `node:crypto`, so the barrel is a Node entry point. A browser application imports the per-package roots.
+The **barrel**, `@smthrs/flows`, re-exports the sixteen packages as namespaces for a single-import Node application. It re-exports `@smthrs/engine-store`, which reads `process.pid` and `node:crypto`, so the barrel is a Node entry point. A browser application imports the per-package roots.
 
 ## One execution, end to end
 

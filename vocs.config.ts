@@ -19,6 +19,7 @@ export default defineConfig({
         { text: "@smthrs/jj", link: "/api/jj" },
         { text: "@smthrs/pty", link: "/api/pty" },
         { text: "@smthrs/sandbox", link: "/api/sandbox" },
+        { text: "@smthrs/platform-browser", link: "/api/platform-browser" },
         { text: "@smthrs/journal", link: "/api/journal" },
         { text: "@smthrs/database", link: "/api/database" },
         { text: "@smthrs/kernel", link: "/api/kernel" },

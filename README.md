@@ -56,12 +56,13 @@ The in-memory engine above keeps state in the process. For a run that survives a
 
 | Package | Role |
 | --- | --- |
-| `@smthrs/flows` | Umbrella barrel re-exporting the fifteen packages below as namespaces |
+| `@smthrs/flows` | Umbrella barrel re-exporting the sixteen packages below as namespaces |
 | `@smthrs/canonical` | RFC 8785 canonical JSON as an Effect Schema |
 | `@smthrs/host` | The closed host service list, the Shell and HTTP contracts, and the Node, Bun, browser, and test bundles |
 | `@smthrs/jj` | Jujutsu snapshot, restore, diff, and workspace operations as a host service |
 | `@smthrs/pty` | Pseudo-terminal spawn with cursor-replay attach as a host service |
 | `@smthrs/sandbox` | Remote-sandbox provider adaptation and the sandbox liveness probe |
+| `@smthrs/platform-browser` | Browser `FileSystem` and `ChildProcessSpawner` over ZenFS and just-bash |
 | `@smthrs/journal` | Logical WAL, run/attempt/cache stores, migrations, projections |
 | `@smthrs/database` | Driver-neutral SQL contract with transactional write retry |
 | `@smthrs/kernel` | Capability sets, grants, and permission-decorated host services |

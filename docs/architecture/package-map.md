@@ -10,6 +10,7 @@ flowchart TD
   JJ["@smthrs/jj"]
   PTY["@smthrs/pty"]
   SB["@smthrs/sandbox"]
+  PB["@smthrs/platform-browser"]
   D["@smthrs/database"]
   C["@smthrs/canonical"]
   Crypto["@smthrs/crypto"]
@@ -17,6 +18,7 @@ flowchart TD
   J["@smthrs/journal"] --> D
   H --> JJ
   H --> PTY
+  H --> PB
   SB --> H
   K["@smthrs/kernel"] --> H
   K --> JJ
@@ -47,6 +49,7 @@ flowchart TD
 | [`@smthrs/jj`](../reference/jj.md) | Jujutsu snapshot, restore, diff, and workspace operations | Depends on `effect` alone; the closed Host list still names it |
 | [`@smthrs/pty`](../reference/pty.md) | Pseudo-terminal spawn with cursor-replay attach | Depends on `effect` alone; the closed Host list still names it |
 | [`@smthrs/sandbox`](../reference/sandbox.md) | Remote-sandbox provider adaptation and sandbox liveness | Adapts a caller's provider onto `host`'s `Shell`; owns no host access |
+| [`@smthrs/platform-browser`](../reference/platform-browser.md) | Browser implementations of effect's `FileSystem` and `ChildProcessSpawner` | Depends on `effect` alone; the ZenFS and just-bash backends are arguments, not dependencies |
 | [`@smthrs/journal`](../reference/journal.md) | Journal, run ownership, attempts, and cache rows | Open event envelope; SQL-backed state |
 | [`@smthrs/engine`](../reference/engine.md) | Vendored Effect flow runtime with flows identity and retry semantics | Computes activity keys above the encoded engine seam |
 | [`@smthrs/kernel`](../reference/kernel.md) | Capability sets, grants, and guarded Host decorators | Permission checks occur immediately before Host delegation |

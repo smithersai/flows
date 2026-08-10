@@ -46,6 +46,7 @@ Read [implementation status](architecture/implementation-status.md) before choos
 - [`@smthrs/jj`](reference/jj.md)
 - [`@smthrs/pty`](reference/pty.md)
 - [`@smthrs/sandbox`](reference/sandbox.md)
+- [`@smthrs/platform-browser`](reference/platform-browser.md)
 - [`@smthrs/journal`](reference/journal.md)
 - [`@smthrs/kernel`](reference/kernel.md)
 - [`@smthrs/canonical`](reference/canonical.md)

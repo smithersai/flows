@@ -42,10 +42,11 @@ These are the behaviors that have to be exercised against real implementations, 
 
 | Package | Suites | Notable coverage |
 | --- | --- | --- |
-| `@smthrs/host` | 17 | one shared contract suite (`test/contract/`) run against the Node, Bun, browser, test, and unsupported bundles; real shell behavior |
+| `@smthrs/host` | 16 | one shared contract suite (`test/contract/`) run against the Node, Bun, browser, test, and unsupported bundles; real shell behavior |
 | `@smthrs/jj` | 4 | the contract and its no-op, the jj CLI against a real repository, error classification against a scripted binary, and the Bun and browser layers |
 | `@smthrs/pty` | 4 | the contract and its no-op, spawn failure modes, cursor replay and interruption, and the Bun and browser layers |
 | `@smthrs/sandbox` | 3 | provider adaptation and cancellation, the scripted test provider, and the deadline-bounded health probe |
+| `@smthrs/platform-browser` | 4 | the filesystem adapter's operations and bounded streaming against a real directory, the spawner's command rendering, rejected inputs, handle capabilities, and its serialized uninterruptible boundary, and the aggregate layer |
 | `@smthrs/journal` | 18 | durable and lossy admission, fencing, transactions, retention, redaction, projections, run store, run coordinator, migrations |
 | `@smthrs/database` | 4 | the write-serialization contract, concurrent open, artifact shape |
 | `@smthrs/kernel` | 23 | capability parsing, matching, subsumption, tiers, ambient sets, grants and their journal persistence, every decorated service |

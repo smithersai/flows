@@ -48,7 +48,7 @@ const HostLayer = TestHost.layer({
 
 ## Deep imports
 
-Package exports allow public module imports such as `@smthrs/host/node/NodeShell` and `@smthrs/host/browser/BrowserFileSystem`; `internal/*` is blocked. Prefer the root namespaces for contracts, and the platform subpaths above for implementations. The pty and jj adapters are **not** here: they are `@smthrs/pty/node/NodePty`, `@smthrs/pty/bun/BunPty`, `@smthrs/jj/node/NodeJj`, and `@smthrs/jj/bun/BunJj`.
+Package exports allow public module imports such as `@smthrs/host/node/NodeShell` and `@smthrs/host/browser/JustBashShell`; `internal/*` is blocked. Prefer the root namespaces for contracts, and the platform subpaths above for implementations. The pty and jj adapters are **not** here: they are `@smthrs/pty/node/NodePty`, `@smthrs/pty/bun/BunPty`, `@smthrs/jj/node/NodeJj`, and `@smthrs/jj/bun/BunJj`. Neither is the browser filesystem: `BrowserHost` composes `@smthrs/platform-browser/BrowserFileSystem`, an implementation of effect's own `FileSystem` rather than of anything this package declares.
 
 ## Browser support
 

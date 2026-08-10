@@ -6,11 +6,12 @@ Sixteen npm workspaces under `packages/`, one closed dependency set. This page i
 
 | Workspace | Directory | Published | Owns |
 | --- | --- | --- | --- |
-| `@smthrs/flows` | `packages/flows` | yes | nothing; re-exports the fifteen below as namespaces |
+| `@smthrs/flows` | `packages/flows` | yes | nothing; re-exports the sixteen below as namespaces |
 | `@smthrs/host` | `packages/host` | yes | the closed host service list, the `Shell` and `HttpTransport` contracts, and the platform bundles |
 | `@smthrs/jj` | `packages/jj` | yes | no tables; the `Jj` contract, `JjError`, and its adapters |
 | `@smthrs/pty` | `packages/pty` | yes | no tables; the `Pty` contract, `PtyError`, and its adapters |
 | `@smthrs/sandbox` | `packages/sandbox` | yes | no tables; remote-sandbox execution and the health probe |
+| `@smthrs/platform-browser` | `packages/platform-browser` | yes | no tables; browser `FileSystem` and `ChildProcessSpawner` implementations |
 | `@smthrs/journal` | `packages/journal` | yes | journal, run, attempt, cache, deferred, and clock tables |
 | `@smthrs/database` | `packages/database` | yes | no tables; the `SqlClient` contract and write retry |
 | `@smthrs/kernel` | `packages/kernel` | yes | capability sets, grants, and their journal records |
@@ -56,6 +57,7 @@ flowchart LR
   JJ["@smthrs/jj"]
   PTY["@smthrs/pty"]
   SANDBOX["@smthrs/sandbox"]
+  PB["@smthrs/platform-browser"]
   KEYS["@smthrs/keys"]
   CRYPTO["@smthrs/crypto"]
   CANONICAL["@smthrs/canonical"]
@@ -65,6 +67,7 @@ flowchart LR
   FLOWS --> JJ
   FLOWS --> PTY
   FLOWS --> SANDBOX
+  FLOWS --> PB
   FLOWS --> DB
   FLOWS --> JOURNAL
   FLOWS --> KERNEL
@@ -79,6 +82,7 @@ flowchart LR
   JOURNAL --> DB
   HOST --> JJ
   HOST --> PTY
+  HOST --> PB
   SANDBOX --> HOST
   KERNEL --> HOST
   KERNEL --> JJ
@@ -106,7 +110,8 @@ flowchart LR
 | `@smthrs/keys` | `canonical`, `crypto` | `engine`, `flows` |
 | `@smthrs/jj` | nothing in the workspace | `host`, `kernel`, `time-travel`, `flows` |
 | `@smthrs/pty` | nothing in the workspace | `host`, `kernel`, `flows` |
-| `@smthrs/host` | `jj`, `pty` | `kernel`, `sandbox`, `flows` |
+| `@smthrs/platform-browser` | nothing in the workspace | `host`, `flows` |
+| `@smthrs/host` | `jj`, `pty`, `platform-browser` | `kernel`, `sandbox`, `flows` |
 | `@smthrs/sandbox` | `host` | `flows` |
 | `@smthrs/database` | nothing in the workspace | `journal`, `time-travel`, `flows` |
 | `@smthrs/plugin` | nothing in the workspace | `flows` |
@@ -116,7 +121,7 @@ flowchart LR
 | `@smthrs/engine-store` | `crypto`, `engine`, `journal`, `kernel` | `time-travel`, `flows` |
 | `@smthrs/sync` | `journal` | `flows` |
 | `@smthrs/time-travel` | `database`, `engine-store`, `jj`, `journal` | `flows` |
-| `@smthrs/flows` | all fifteen | nothing |
+| `@smthrs/flows` | all sixteen | nothing |
 
 `npm run circular` fails the build on an import cycle, within a package or across them.
 

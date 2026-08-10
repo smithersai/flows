@@ -18,6 +18,7 @@ These bundle for the browser. A resolution error in any of them fails the build.
 | `@smthrs/pty` | The `Pty` contract, `PtyError`, and the no-op layer |
 | `@smthrs/pty/browser/BrowserPty` | `layerUnsupported` — `spawn` reports `unsupported` |
 | `@smthrs/sandbox` | `RemoteSandbox` provider adaptation and the `SandboxHealth` probe; it owns no host access of its own |
+| `@smthrs/platform-browser` | effect's `FileSystem` over a ZenFS-shaped promises API and effect's `ChildProcessSpawner` over an in-page bash interpreter, plus the `BrowserServices` aggregate |
 | `@smthrs/kernel` | Capabilities, grants, and the permission-decorated host services |
 | `@smthrs/crypto` | Injected cryptographic schemas |
 | `@smthrs/keys` | Canonical workflow keys |

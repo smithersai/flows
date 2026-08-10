@@ -2,7 +2,7 @@
 
 The closed machine-facing service list, the `Shell` and `HttpTransport` contracts, and the Node, Bun, browser, and test bundles that implement all six tags.
 
-`Pty`, `Jj`, and the sandbox modules are their own packages — [@smthrs/pty](pty.md), [@smthrs/jj](jj.md), [@smthrs/sandbox](sandbox.md). This package depends on the first two so the closed list can name them, but nothing here re-exports them: import each service from its own package.
+`Pty`, `Jj`, and the sandbox modules are their own packages — [@smthrs/pty](pty.md), [@smthrs/jj](jj.md), [@smthrs/sandbox](sandbox.md). This package depends on the first two so the closed list can name them, but nothing here re-exports them: import each service from its own package. The browser filesystem left too, for a different reason: it implements `effect`'s own `FileSystem`, not anything this package declares, so it lives in [@smthrs/platform-browser](platform-browser.md) beside the browser `ChildProcessSpawner`.
 
 ```ts
 import { HostServiceTags, Shell } from "@smthrs/host"
@@ -88,8 +88,7 @@ The package root holds contracts and no-op layers only, so it bundles for the br
 | `NodeShell.layer`, `NodeHttpTransport.layer` | `src/node/` | individual Node adapters owned by this package |
 | `BunHost.layer`, `BunHost.implementationIds` | [bun/BunHost.ts](https://github.com/smithersai/flows/blob/main/packages/host/src/bun/BunHost.ts) | falls back to the Node adapters off Bun; `implementationIds` are frozen identity tokens, not import specifiers |
 | `BunShell.make`, `BunShell.layer`, `BunFileSystem.layer`, `BunHttpTransport.layer` | `src/bun/` | individual Bun adapters owned by this package |
-| `BrowserHost.layer` | [browser/BrowserHost.ts](https://github.com/smithersai/flows/blob/main/packages/host/src/browser/BrowserHost.ts) | takes `{ bash, fs }`; installs the pty and jj packages' `layerUnsupported` |
-| `BrowserFileSystem.make`, `BrowserFileSystem.layer` | [browser/BrowserFileSystem.ts](https://github.com/smithersai/flows/blob/main/packages/host/src/browser/BrowserFileSystem.ts) | over a ZenFS-like promises API |
+| `BrowserHost.layer` | [browser/BrowserHost.ts](https://github.com/smithersai/flows/blob/main/packages/host/src/browser/BrowserHost.ts) | takes `{ bash, fs }`; installs the pty and jj packages' `layerUnsupported` and `@smthrs/platform-browser`'s `BrowserFileSystem` |
 | `JustBashShell.layer` | [browser/JustBashShell.ts](https://github.com/smithersai/flows/blob/main/packages/host/src/browser/JustBashShell.ts) | browser shell over a `JustBashLike` runtime |
 | `TestHost.layer`, `TestHost.TestHost`, `TestHost.makeMemoryFs`, `TestHost.makeStubBash`, `TestHost.layerSeededRandom` | [test/TestHost.ts](https://github.com/smithersai/flows/blob/main/packages/host/src/test/TestHost.ts) | deterministic in-memory host |
 
