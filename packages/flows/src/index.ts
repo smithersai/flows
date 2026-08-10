@@ -23,6 +23,8 @@
  * augmentation target.
  */
 
+export * as Canonical from "@smthrs/canonical"
+export * as Crypto from "@smthrs/crypto"
 export * as Database from "@smthrs/database"
 export * as Engine from "@smthrs/engine"
 export * as EngineStore from "@smthrs/engine-store"
@@ -49,6 +51,8 @@ export * as TimeTravel from "@smthrs/time-travel"
  * @category models
  */
 export const namespaces = [
+  "Canonical",
+  "Crypto",
   "Database",
   "Engine",
   "EngineStore",

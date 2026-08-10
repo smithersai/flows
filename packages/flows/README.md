@@ -17,6 +17,8 @@ import { Engine, EngineStore, Host, Journal } from "@smthrs/flows"
 
 | Namespace     | Re-exported package    |
 | ------------- | ---------------------- |
+| `Canonical`   | `@smthrs/canonical`    |
+| `Crypto`      | `@smthrs/crypto`       |
 | `Database`    | `@smthrs/database`     |
 | `Engine`      | `@smthrs/engine`       |
 | `EngineStore` | `@smthrs/engine-store` |
@@ -37,8 +39,8 @@ dependency surface is preferable.
 `@smthrs/flows` re-exports `@smthrs/engine-store`, which is Node-only
 (`process.pid` and `node:crypto`, issue #114), so **the barrel does not bundle
 for a browser**. Browser consumers import the per-package roots, each of which
-is gated by `npm run browser`: `@smthrs/host`, `@smthrs/host/browser/BrowserHost`,
-`@smthrs/kernel`, `@smthrs/keys`, `@smthrs/database`, `@smthrs/journal`,
+is gated by `npm run browser`: `@smthrs/canonical`, `@smthrs/crypto`, `@smthrs/host`,
+`@smthrs/host/browser/BrowserHost`, `@smthrs/kernel`, `@smthrs/keys`, `@smthrs/database`, `@smthrs/journal`,
 `@smthrs/engine`, `@smthrs/plugin`, `@smthrs/sync`, and
 `@smthrs/time-travel`.
 
