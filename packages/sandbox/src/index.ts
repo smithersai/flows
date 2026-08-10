@@ -8,9 +8,9 @@
  * with its neighbour.
  *
  * The package is **platform-neutral and browser-bundleable**: it adapts a
- * provider a caller hands it onto `@smthrs/host`'s `Shell` contract and owns no
- * host access of its own. `scripts/browser-check.mjs` at the repository root
- * pins that property.
+ * provider a caller hands it onto Effect's `ChildProcessSpawner` contract and
+ * owns no host access of its own. `scripts/browser-check.mjs` at the repository
+ * root pins that property.
  *
  * ```ts
  * import { RemoteSandbox, SandboxHealth } from "@smthrs/sandbox"

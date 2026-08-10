@@ -3,7 +3,6 @@
  *
  * @since 0.1.0
  */
-import type { ShellChunk, ShellResult } from "@smthrs/host/Shell"
 import type { ProviderError } from "./ProviderError.ts"
 
 /**
@@ -15,8 +14,9 @@ import type { ProviderError } from "./ProviderError.ts"
  * @since 0.1.0
  */
 export interface TestScript {
-  readonly result?: ShellResult | undefined
-  readonly chunks?: ReadonlyArray<ShellChunk> | undefined
+  readonly stdout?: string | undefined
+  readonly stderr?: string | undefined
+  readonly exitCode?: number | undefined
   readonly failure?: ProviderError | undefined
   readonly pending?: boolean | undefined
 }

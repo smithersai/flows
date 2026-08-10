@@ -13,7 +13,7 @@ describe("@smthrs/sandbox barrel", () => {
 
   /**
    * The schema `_tag`s round-trip through the journal, so moving these modules
-   * out of `@smthrs/host` must not rename them.
+   * out of the dissolved `@smthrs/host` must not rename them.
    */
   it("keeps the `flows/host/…` identity strings the durable record depends on", () => {
     expect(Sandbox.SandboxHealth.SandboxHealth.key).toBe("flows/host/SandboxHealth")

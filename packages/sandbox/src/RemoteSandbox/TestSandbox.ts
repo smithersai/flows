@@ -3,7 +3,6 @@
  *
  * @since 0.1.0
  */
-import type { ShellResult } from "@smthrs/host/Shell"
 import * as Effect from "effect/Effect"
 import * as Stream from "effect/Stream"
 import { Provider } from "./Provider.ts"
@@ -11,6 +10,11 @@ import type { ProviderError } from "./ProviderError.ts"
 import type { TestSandboxProvider } from "./TestSandboxProvider.ts"
 import type { TestSandboxState } from "./TestSandboxState.ts"
 import type { TestScript } from "./TestScript.ts"
+
+const encoder = new TextEncoder()
+
+const scriptedOutput = (text: string | undefined): Stream.Stream<Uint8Array, ProviderError> =>
+  text === undefined || text === "" ? Stream.empty : Stream.fromArray([encoder.encode(text)])
 
 /**
  * Constructs a deterministic scripted provider.
@@ -30,27 +34,10 @@ const makeTestSandbox = (options: {
   }
 
   const script = (command: string): TestScript =>
-    options.scripts?.[command] ?? {
-      result: { stdout: "", stderr: `command not found: ${command}\n`, exitCode: 127 }
-    }
-
-  const exec = Effect.fn("RemoteSandbox.TestSandbox.exec")((command: string) => {
-    state.commands.push(command)
-    const current = script(command)
-    if (current.failure !== undefined) return Effect.fail(current.failure)
-    if (current.pending === true) {
-      return Effect.never as Effect.Effect<ShellResult, ProviderError>
-    }
-    return Effect.succeed(
-      current.result ?? {
-        stdout: "",
-        stderr: "",
-        exitCode: 0
-      }
-    )
-  })
+    options.scripts?.[command] ?? { stderr: `command not found: ${command}\n`, exitCode: 127 }
 
   const provider: TestSandboxProvider = {
+    state,
     session: options.session ?? "test-session",
     open: (session) =>
       options.openFailure === undefined
@@ -64,23 +51,18 @@ const makeTestSandbox = (options: {
             })
         )
         : Effect.fail(options.openFailure),
-    exec,
-    execStream: (command) => {
+    spawn: Effect.fnUntraced(function*(command: string) {
       state.commands.push(command)
       const current = script(command)
-      return current.failure !== undefined
-        ? Stream.fail(current.failure)
-        : current.pending === true
-        ? Stream.never
-        : Stream.fromArray(
-          current.chunks ??
-            [{
-              kind: "stdout",
-              chunk: new TextEncoder().encode(current.result?.stdout ?? "")
-            }]
-        )
-    },
-    state
+      if (current.failure !== undefined) return yield* Effect.fail(current.failure)
+      return current.pending === true
+        ? { stdout: Stream.never, stderr: Stream.never, exitCode: Effect.never }
+        : {
+          stdout: scriptedOutput(current.stdout),
+          stderr: scriptedOutput(current.stderr),
+          exitCode: Effect.succeed(current.exitCode ?? 0)
+        }
+    })
   }
   return Provider.of(provider) as TestSandboxProvider
 }

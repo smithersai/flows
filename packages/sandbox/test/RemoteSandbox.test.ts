@@ -1,239 +1,79 @@
-import { ShellError } from "@smthrs/host/HostError"
-import { Shell } from "@smthrs/host/Shell"
-import { Effect, Fiber, Stream } from "effect"
+import { Effect, Fiber, PlatformError, Stream } from "effect"
+import { ChildProcess } from "effect/unstable/process"
+import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
 import { describe, expect, it } from "vitest"
 import * as RemoteSandbox from "../src/RemoteSandbox/index.ts"
 
-const encoder = new TextEncoder()
+const reason = (error: unknown): string =>
+  error instanceof PlatformError.PlatformError ? error.reason._tag : `not a PlatformError: ${String(error)}`
 
 describe("RemoteSandbox", () => {
-  it("adapts scripted exec through Shell", async () => {
+  it("adapts a scripted command through the spawner's buffered helper", async () => {
     const provider = RemoteSandbox.TestSandbox.make({
       session: "exec-session",
-      scripts: {
-        greet: {
-          result: { stdout: "hello", stderr: "", exitCode: 0 }
-        }
-      }
+      scripts: { greet: { stdout: "hello" } }
     })
 
     const result = await Effect.runPromise(
       Effect.gen(function*() {
-        const shell = yield* Shell
-        return yield* shell.exec("greet")
-      }).pipe(Effect.provide(RemoteSandbox.layerShell(provider)))
+        const spawner = yield* ChildProcessSpawner
+        const command = ChildProcess.make("greet")
+        return {
+          stdout: yield* spawner.string(command),
+          exitCode: yield* spawner.exitCode(command)
+        }
+      }).pipe(Effect.provide(RemoteSandbox.layer(provider)))
     )
 
-    expect(result).toEqual({ stdout: "hello", stderr: "", exitCode: 0 })
+    expect(result).toEqual({ stdout: "hello", exitCode: 0 })
     expect(provider.state.openedSessions).toEqual(["exec-session"])
-    expect(provider.state.commands).toEqual(["greet"])
+    expect(provider.state.commands).toEqual(["greet", "greet"])
   })
 
-  it("adapts tagged output chunks through Shell streaming", async () => {
+  it("renders arguments and a pipeline into the command the provider receives", async () => {
     const provider = RemoteSandbox.TestSandbox.make({
-      scripts: {
-        stream: {
-          chunks: [
-            { kind: "stdout", chunk: encoder.encode("out") },
-            { kind: "stderr", chunk: encoder.encode("err") }
-          ]
-        }
-      }
+      scripts: { "printf 'a b' | grep a": { stdout: "a b" } }
     })
 
-    const chunks = await Effect.runPromise(
-      Effect.gen(function*() {
-        const shell = yield* Shell
-        return yield* shell.stream("stream").pipe(Stream.runCollect)
-      }).pipe(Effect.provide(RemoteSandbox.layerShell(provider)))
+    const output = await Effect.runPromise(
+      Effect.flatMap(
+        ChildProcessSpawner,
+        (spawner) =>
+          spawner.string(
+            ChildProcess.make("printf", ["a b"]).pipe(ChildProcess.pipeTo(ChildProcess.make("grep", ["a"])))
+          )
+      ).pipe(Effect.provide(RemoteSandbox.layer(provider)))
     )
 
-    expect(Array.from(chunks, (chunk) => chunk.kind)).toEqual(["stdout", "stderr"])
-    expect(Array.from(chunks, (chunk) => new TextDecoder().decode(chunk.chunk))).toEqual(["out", "err"])
+    expect(output).toBe("a b")
+    expect(provider.state.commands).toEqual(["printf 'a b' | grep a"])
+  })
+
+  it("interleaves stdout and stderr through the handle's `all` stream", async () => {
+    const provider = RemoteSandbox.TestSandbox.make({
+      scripts: { noisy: { stdout: "out", stderr: "err" } }
+    })
+
+    const output = await Effect.runPromise(
+      Effect.flatMap(
+        ChildProcessSpawner,
+        (spawner) => Stream.runCollect(spawner.streamString(ChildProcess.make("noisy"), { includeStderr: true }))
+      ).pipe(Effect.provide(RemoteSandbox.layer(provider)))
+    )
+
+    expect(Array.from(output).sort()).toEqual(["err", "out"])
   })
 
   it("runs the provider cancellation finalizer on interruption", async () => {
-    const provider = RemoteSandbox.TestSandbox.make({
-      scripts: {
-        pending: { pending: true }
-      }
-    })
-
-    await Effect.runPromise(
-      Effect.gen(function*() {
-        const fiber = yield* Effect.gen(function*() {
-          const shell = yield* Shell
-          yield* shell.exec("pending")
-        }).pipe(
-          Effect.provide(RemoteSandbox.layerShell(provider)),
-          Effect.forkChild({ startImmediately: true })
-        )
-        yield* Effect.yieldNow
-        yield* Fiber.interrupt(fiber)
-      })
-    )
-
-    expect(provider.state.cancellations).toBe(1)
-  })
-
-  it("maps typed provider failures onto the closed ShellError codes", async () => {
-    const provider = RemoteSandbox.TestSandbox.make({
-      scripts: {
-        fail: {
-          failure: new RemoteSandbox.ProviderError({
-            code: "spawn_error",
-            message: "provider rejected command"
-          })
-        }
-      }
-    })
-
-    const result = await Effect.runPromise(
-      Effect.gen(function*() {
-        const shell = yield* Shell
-        return yield* Effect.result(shell.exec("fail"))
-      }).pipe(Effect.provide(RemoteSandbox.layerShell(provider)))
-    )
-
-    expect("failure" in result).toBe(true)
-    if ("failure" in result) {
-      expect(result.failure).toBeInstanceOf(ShellError)
-      expect(result.failure.code).toBe("spawn_error")
-      expect(result.failure.method).toBe("exec")
-      expect(result.failure.command).toBe("fail")
-    }
-  })
-
-  it("provides a failing Shell when opening the remote session fails", async () => {
-    const provider = RemoteSandbox.TestSandbox.make({
-      openFailure: new RemoteSandbox.ProviderError({
-        code: "shell_unavailable",
-        message: "provider session is unavailable"
-      })
-    })
-
-    const result = await Effect.runPromise(
-      Effect.gen(function*() {
-        const shell = yield* Shell
-        return yield* Effect.result(shell.exec("never-opened"))
-      }).pipe(Effect.provide(RemoteSandbox.layerShell(provider)))
-    )
-
-    expect("failure" in result).toBe(true)
-    if ("failure" in result) {
-      expect(result.failure).toBeInstanceOf(ShellError)
-      expect(result.failure.code).toBe("shell_unavailable")
-      expect(result.failure.method).toBe("open")
-    }
-  })
-})
-
-describe("RemoteSandbox open failure", () => {
-  const provider = () =>
-    RemoteSandbox.TestSandbox.make({
-      openFailure: new RemoteSandbox.ProviderError({
-        code: "shell_unavailable",
-        message: "provider session is unavailable"
-      })
-    })
-
-  it("fails the stream with the open failure instead of hanging on an empty queue", async () => {
-    const error = await Effect.runPromise(
-      Effect.gen(function*() {
-        const shell = yield* Shell
-        return yield* Effect.flip(Stream.runCollect(shell.stream("never-opened")))
-      }).pipe(Effect.provide(RemoteSandbox.layerShell(provider())))
-    )
-
-    expect(error).toBeInstanceOf(ShellError)
-    expect(error.code).toBe("shell_unavailable")
-    expect(error.method).toBe("open")
-    expect(error.command).toBe("never-opened")
-  })
-})
-
-describe("RemoteSandbox test double scripting", () => {
-  it("answers an unscripted exec the way a shell reports a missing binary", async () => {
-    const provider = RemoteSandbox.TestSandbox.make({ scripts: { other: {} } })
-
-    const result = await Effect.runPromise(
-      Effect.flatMap(Shell, (shell) => shell.exec("nope")).pipe(
-        Effect.provide(RemoteSandbox.layerShell(provider))
-      )
-    )
-
-    expect(result).toEqual({ stdout: "", stderr: "command not found: nope\n", exitCode: 127 })
-    expect(provider.state.commands).toEqual(["nope"])
-  })
-
-  it("answers a scripted command with no declared result as an empty success", async () => {
-    const provider = RemoteSandbox.TestSandbox.make({ scripts: { quiet: {} } })
-
-    const result = await Effect.runPromise(
-      Effect.flatMap(Shell, (shell) => shell.exec("quiet")).pipe(
-        Effect.provide(RemoteSandbox.layerShell(provider))
-      )
-    )
-
-    expect(result).toEqual({ stdout: "", stderr: "", exitCode: 0 })
-  })
-
-  it("fails a streamed command whose script declares a provider failure", async () => {
-    const provider = RemoteSandbox.TestSandbox.make({
-      scripts: {
-        broken: {
-          failure: new RemoteSandbox.ProviderError({ code: "spawn_error", message: "provider rejected stream" })
-        }
-      }
-    })
-
-    const error = await Effect.runPromise(
-      Effect.flip(Stream.runCollect(Stream.unwrap(Effect.map(Shell, (shell) => shell.stream("broken"))))).pipe(
-        Effect.provide(RemoteSandbox.layerShell(provider))
-      )
-    )
-
-    expect(error).toBeInstanceOf(ShellError)
-    expect(error.method).toBe("execStream")
-    expect(error.message).toBe("provider rejected stream")
-  })
-
-  it("derives one stdout chunk from a script that only declares a buffered result", async () => {
-    const provider = RemoteSandbox.TestSandbox.make({
-      scripts: { echo: { result: { stdout: "derived", stderr: "", exitCode: 0 } } }
-    })
-
-    const chunks = await Effect.runPromise(
-      Stream.runCollect(Stream.unwrap(Effect.map(Shell, (shell) => shell.stream("echo")))).pipe(
-        Effect.provide(RemoteSandbox.layerShell(provider))
-      )
-    )
-
-    expect(Array.from(chunks, (chunk) => [chunk.kind, new TextDecoder().decode(chunk.chunk)]))
-      .toEqual([["stdout", "derived"]])
-  })
-
-  it("streams an empty stdout chunk for a script with neither chunks nor a result", async () => {
-    const provider = RemoteSandbox.TestSandbox.make({ scripts: { silent: {} } })
-
-    const chunks = await Effect.runPromise(
-      Stream.runCollect(Stream.unwrap(Effect.map(Shell, (shell) => shell.stream("silent")))).pipe(
-        Effect.provide(RemoteSandbox.layerShell(provider))
-      )
-    )
-
-    expect(Array.from(chunks, (chunk) => new TextDecoder().decode(chunk.chunk))).toEqual([""])
-  })
-
-  it("runs the cancellation finalizer when a pending stream consumer is interrupted", async () => {
     const provider = RemoteSandbox.TestSandbox.make({ scripts: { pending: { pending: true } } })
 
     await Effect.runPromise(
       Effect.gen(function*() {
-        const fiber = yield* Stream.runDrain(
-          Stream.unwrap(Effect.map(Shell, (shell) => shell.stream("pending")))
+        const fiber = yield* Effect.flatMap(
+          ChildProcessSpawner,
+          (spawner) => spawner.exitCode(ChildProcess.make("pending"))
         ).pipe(
-          Effect.provide(RemoteSandbox.layerShell(provider)),
+          Effect.provide(RemoteSandbox.layer(provider)),
           Effect.forkChild({ startImmediately: true })
         )
         yield* Effect.yieldNow
@@ -243,5 +83,123 @@ describe("RemoteSandbox test double scripting", () => {
 
     expect(provider.state.commands).toEqual(["pending"])
     expect(provider.state.cancellations).toBe(1)
+  })
+
+  it("maps typed provider failures onto normalized PlatformError reasons", async () => {
+    const provider = RemoteSandbox.TestSandbox.make({
+      scripts: {
+        fail: {
+          failure: new RemoteSandbox.ProviderError({ code: "spawn_error", message: "provider rejected command" })
+        },
+        slow: {
+          failure: new RemoteSandbox.ProviderError({ code: "timeout", message: "provider gave up" })
+        }
+      }
+    })
+
+    const errors = await Effect.runPromise(
+      Effect.gen(function*() {
+        const spawner = yield* ChildProcessSpawner
+        return [
+          yield* Effect.flip(spawner.string(ChildProcess.make("fail"))),
+          yield* Effect.flip(spawner.string(ChildProcess.make("slow")))
+        ]
+      }).pipe(Effect.provide(RemoteSandbox.layer(provider)))
+    )
+
+    expect(errors.map(reason)).toEqual(["Unknown", "TimedOut"])
+    expect(errors[0]?.message).toContain("`fail`: provider rejected command")
+  })
+
+  it("provides a spawner that fails every command when opening the session fails", async () => {
+    const provider = RemoteSandbox.TestSandbox.make({
+      openFailure: new RemoteSandbox.ProviderError({
+        code: "unavailable",
+        message: "provider session is unavailable"
+      })
+    })
+
+    const errors = await Effect.runPromise(
+      Effect.gen(function*() {
+        const spawner = yield* ChildProcessSpawner
+        return [
+          yield* Effect.flip(spawner.string(ChildProcess.make("never-opened"))),
+          // A stream must fail too, not hang on a queue nothing will ever end.
+          yield* Effect.flip(Stream.runDrain(spawner.streamString(ChildProcess.make("never-opened"))))
+        ]
+      }).pipe(Effect.provide(RemoteSandbox.layer(provider)))
+    )
+
+    expect(errors.map(reason)).toEqual(["NotFound", "NotFound"])
+    expect(errors[0]?.message).toContain("`never-opened`: provider session is unavailable")
+  })
+
+  it("rejects stdin and kill instead of dropping them silently", async () => {
+    const provider = RemoteSandbox.TestSandbox.make({ scripts: { quiet: {} } })
+
+    const errors = await Effect.runPromise(
+      Effect.gen(function*() {
+        const spawner = yield* ChildProcessSpawner
+        const handle = yield* spawner.spawn(ChildProcess.make("quiet"))
+        return [
+          yield* Effect.flip(Stream.run(Stream.fromArray([new Uint8Array([1])]), handle.stdin)),
+          yield* Effect.flip(handle.kill())
+        ]
+      }).pipe(Effect.scoped, Effect.provide(RemoteSandbox.layer(provider)))
+    )
+
+    expect(errors.map(reason)).toEqual(["BadArgument", "BadArgument"])
+  })
+})
+
+describe("RemoteSandbox test double scripting", () => {
+  it("answers an unscripted command the way a shell reports a missing binary", async () => {
+    const provider = RemoteSandbox.TestSandbox.make({ scripts: { other: {} } })
+
+    const result = await Effect.runPromise(
+      Effect.gen(function*() {
+        const spawner = yield* ChildProcessSpawner
+        const command = ChildProcess.make("nope")
+        return {
+          stderr: yield* Stream.mkString(spawner.streamString(command, { includeStderr: true })),
+          exitCode: yield* spawner.exitCode(command)
+        }
+      }).pipe(Effect.provide(RemoteSandbox.layer(provider)))
+    )
+
+    expect(result).toEqual({ stderr: "command not found: nope\n", exitCode: 127 })
+  })
+
+  it("answers a scripted command with no declared output as an empty success", async () => {
+    const provider = RemoteSandbox.TestSandbox.make({ scripts: { quiet: {} } })
+
+    const result = await Effect.runPromise(
+      Effect.gen(function*() {
+        const spawner = yield* ChildProcessSpawner
+        const command = ChildProcess.make("quiet")
+        return {
+          stdout: yield* spawner.string(command),
+          exitCode: yield* spawner.exitCode(command)
+        }
+      }).pipe(Effect.provide(RemoteSandbox.layer(provider)))
+    )
+
+    expect(result).toEqual({ stdout: "", exitCode: 0 })
+  })
+
+  it("reports the process as running until its exit code arrives", async () => {
+    const provider = RemoteSandbox.TestSandbox.make({ scripts: { quiet: { exitCode: 3 } } })
+
+    const observed = await Effect.runPromise(
+      Effect.gen(function*() {
+        const spawner = yield* ChildProcessSpawner
+        const handle = yield* spawner.spawn(ChildProcess.make("quiet"))
+        const before = yield* handle.isRunning
+        const exitCode = yield* handle.exitCode
+        return { before, exitCode, after: yield* handle.isRunning }
+      }).pipe(Effect.scoped, Effect.provide(RemoteSandbox.layer(provider)))
+    )
+
+    expect(observed).toEqual({ before: true, exitCode: 3, after: false })
   })
 })

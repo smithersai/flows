@@ -14,7 +14,7 @@ const deadProvider: SandboxHealth.PingProvider = {
 
 const refusingProvider: SandboxHealth.PingProvider = {
   ping: Effect.fail(
-    new ProviderError({ code: "shell_unavailable", message: "session is gone" })
+    new ProviderError({ code: "unavailable", message: "session is gone" })
   )
 }
 
