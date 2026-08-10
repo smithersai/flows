@@ -15,11 +15,11 @@ export default defineConfig({
       text: "Public API",
       items: [
         { text: "@smthrs/flows", link: "/api/flows" },
-        { text: "@smthrs/keys", link: "/api/keys" },
-        { text: "@smthrs/database", link: "/api/database" },
         { text: "@smthrs/host", link: "/api/host" },
         { text: "@smthrs/journal", link: "/api/journal" },
+        { text: "@smthrs/database", link: "/api/database" },
         { text: "@smthrs/kernel", link: "/api/kernel" },
+        { text: "@smthrs/keys", link: "/api/keys" },
         { text: "@smthrs/engine", link: "/api/engine" },
         { text: "@smthrs/engine-store", link: "/api/engine-store" },
         { text: "@smthrs/plugin", link: "/api/plugin" },
@@ -33,7 +33,7 @@ export default defineConfig({
     { text: "Examples", link: "/examples" },
     { text: "Design decisions", link: "/design-decisions" },
     { text: "External", link: "/external" },
-    { text: "Epics and commit plan", link: "/epics" }
+    { text: "Contributor plan", link: "/contributing" }
   ],
   topNav: [
     { text: "GitHub", link: "https://github.com/smithersai/flows" }
