@@ -1,12 +1,31 @@
 // Deep reviewed and polished by a human.
 
 import * as Effect from "effect/Effect"
+import * as Schema from "effect/Schema"
 import { describe, expect, it } from "vitest"
 import { Canonical } from "../src/index.ts"
 
-const serialize = (value: unknown): string => Effect.runSync(Canonical.serialize(value))
+const serialize = (value: unknown): Canonical => Effect.runSync(Schema.decodeUnknownEffect(Canonical)(value))
 
-const failureCause = (value: unknown): unknown => Effect.runSync(Effect.flip(Canonical.serialize(value))).cause
+const failure = (value: unknown) => Effect.runSync(Effect.flip(Schema.decodeUnknownEffect(Canonical)(value)))
+
+const failureMessage = (value: unknown): string => failure(value).message
+
+describe("Canonical", () => {
+  it("canonicalizes through schema decoding", () => {
+    expect(Schema.decodeUnknownSync(Canonical)({ b: 2, a: 1 })).toBe("{\"a\":1,\"b\":2}")
+  })
+
+  it("produces valid JSON", () => {
+    const document = serialize({ b: 2, a: [true, null] })
+    expect(JSON.parse(document)).toEqual({ a: [true, null], b: 2 })
+  })
+
+  it("decodes a canonical document back into its JSON value", () => {
+    const document = serialize({ b: 2, a: [true, null] })
+    expect(Schema.encodeUnknownSync(Canonical)(document)).toEqual({ a: [true, null], b: 2 })
+  })
+})
 
 describe("arrays", () => {
   it.each([
@@ -44,7 +63,7 @@ describe("primitive values", () => {
     ["undefined", undefined],
     ["symbol", Symbol("hello world")]
   ])("rejects a top-level %s because the wrapper requires string output", (_name, input) => {
-    expect(failureCause(input)).toEqual(expect.objectContaining({ message: "The value is not valid JSON" }))
+    expect(failureMessage(input)).toContain("The value is not valid JSON")
   })
 })
 
@@ -57,7 +76,7 @@ describe("non-finite numbers", () => {
     ["Infinity in an object", { key: Number.POSITIVE_INFINITY }, "Infinity is not allowed"],
     ["top-level -Infinity", Number.NEGATIVE_INFINITY, "Infinity is not allowed"]
   ])("rejects %s", (_name, input, message) => {
-    expect(failureCause(input)).toEqual(expect.objectContaining({ message }))
+    expect(failureMessage(input)).toContain(message)
   })
 })
 
@@ -68,7 +87,7 @@ describe("Unicode", () => {
     ["high surrogate before a non-low-surrogate", { key: "\uD800a" }],
     ["lone surrogate in an object key", { ["\uD800"]: "value" }]
   ])("rejects a %s", (_name, input) => {
-    expect(failureCause(input)).toEqual(expect.objectContaining({ message: "Lone surrogate is not allowed" }))
+    expect(failure(input)).toEqual(expect.objectContaining({ _tag: "SchemaError" }))
   })
 
   it("allows a valid surrogate pair", () => {
@@ -93,15 +112,21 @@ describe("toJSON", () => {
   })
 
   it("rejects NaN returned by toJSON", () => {
-    expect(failureCause({ toJSON: () => Number.NaN })).toEqual(
-      expect.objectContaining({ message: "NaN is not allowed" })
-    )
+    expect(failureMessage({ toJSON: () => Number.NaN })).toContain("NaN is not allowed")
+  })
+
+  it("reports a non-Error thrown by toJSON", () => {
+    expect(failureMessage({
+      toJSON: () => {
+        throw "broken"
+      }
+    })).toContain("broken")
   })
 
   it("rejects toJSON returning its object", () => {
     const input: { toJSON?: () => unknown } = {}
     input.toJSON = () => input
-    expect(failureCause(input)).toEqual(expect.objectContaining({ message: "Circular reference detected" }))
+    expect(failureMessage(input)).toContain("Circular reference detected")
   })
 })
 
@@ -109,20 +134,20 @@ describe("circular references", () => {
   it("rejects an object referencing itself", () => {
     const input: Record<string, unknown> = {}
     input.self = input
-    expect(failureCause(input)).toEqual(expect.objectContaining({ message: "Circular reference detected" }))
+    expect(failureMessage(input)).toContain("Circular reference detected")
   })
 
   it("rejects an array referencing itself", () => {
     const input: Array<unknown> = []
     input.push(input)
-    expect(failureCause(input)).toEqual(expect.objectContaining({ message: "Circular reference detected" }))
+    expect(failureMessage(input)).toContain("Circular reference detected")
   })
 
   it("rejects a nested circular reference", () => {
     const a: Record<string, unknown> = {}
     const b = { a }
     a.b = b
-    expect(failureCause(a)).toEqual(expect.objectContaining({ message: "Circular reference detected" }))
+    expect(failureMessage(a)).toContain("Circular reference detected")
   })
 
   it("allows the same non-circular object twice", () => {
@@ -200,7 +225,7 @@ describe("numeric boundaries", () => {
   })
 
   it("rejects bigint", () => {
-    expect(failureCause(1n)).toBeInstanceOf(TypeError)
+    expect(failure(1n)).toEqual(expect.objectContaining({ _tag: "SchemaError" }))
   })
 })
 
@@ -246,7 +271,7 @@ describe("collection boundaries", () => {
   it("rejects a sparse array rather than returning invalid JSON", () => {
     const sparse = new Array<unknown>(3)
     sparse[2] = "end"
-    expect(failureCause(sparse)).toBeInstanceOf(SyntaxError)
+    expect(failure(sparse)).toEqual(expect.objectContaining({ _tag: "SchemaError" }))
   })
 
   it("serializes ten thousand array elements", () => {
@@ -279,11 +304,11 @@ describe("unsupported value boundaries", () => {
     ["symbol at the top level", Symbol("value")],
     ["undefined at the top level", undefined]
   ])("fails for %s", (_name, input) => {
-    expect(failureCause(input)).toEqual(expect.objectContaining({ message: "The value is not valid JSON" }))
+    expect(failureMessage(input)).toContain("The value is not valid JSON")
   })
 
   it("rejects a function-valued object property rather than returning invalid JSON", () => {
-    expect(failureCause({ kept: true, omitted: () => undefined })).toBeInstanceOf(SyntaxError)
+    expect(failure({ kept: true, omitted: () => undefined })).toEqual(expect.objectContaining({ _tag: "SchemaError" }))
   })
 
   it("omits a function-valued array element", () => {

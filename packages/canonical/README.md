@@ -6,6 +6,8 @@ Wraps [`canonicalize`](https://www.npmjs.com/package/canonicalize) in Effect, fo
 
 ```typescript
 import { Canonical } from "@smthrs/canonical"
+import { Schema } from "effect"
 
-const result = Canonical.serialize({ b: 2, a: 1 })
+const document = Schema.decodeUnknownSync(Canonical)({ b: 2, a: 1 })
+// '{"a":1,"b":2}'
 ```
