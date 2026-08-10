@@ -44,7 +44,6 @@ Read [implementation status](architecture/implementation-status.md) before choos
 - [`@smthrs/database`](reference/database.md)
 - [`@smthrs/host`](reference/host.md)
 - [`@smthrs/jj`](reference/jj.md)
-- [`@smthrs/pty`](reference/pty.md)
 - [`@smthrs/sandbox`](reference/sandbox.md)
 - [`@smthrs/platform-browser`](reference/platform-browser.md)
 - [`@smthrs/journal`](reference/journal.md)

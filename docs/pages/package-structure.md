@@ -1,15 +1,14 @@
 # Package structure
 
-Sixteen npm workspaces under `packages/`, one closed dependency set. This page is the map: who owns which data, which package may import which, and which entry points bundle for a browser.
+Fifteen npm workspaces under `packages/`, one closed dependency set. This page is the map: who owns which data, which package may import which, and which entry points bundle for a browser.
 
 ## Workspaces
 
 | Workspace | Directory | Published | Owns |
 | --- | --- | --- | --- |
-| `@smthrs/flows` | `packages/flows` | yes | nothing; re-exports the sixteen below as namespaces |
+| `@smthrs/flows` | `packages/flows` | yes | nothing; re-exports the fifteen below as namespaces |
 | `@smthrs/host` | `packages/host` | yes | the closed host service list, the `Shell` and `HttpTransport` contracts, and the platform bundles |
 | `@smthrs/jj` | `packages/jj` | yes | no tables; the `Jj` contract, `JjError`, and its adapters |
-| `@smthrs/pty` | `packages/pty` | yes | no tables; the `Pty` contract, `PtyError`, and its adapters |
 | `@smthrs/sandbox` | `packages/sandbox` | yes | no tables; remote-sandbox execution and the health probe |
 | `@smthrs/platform-browser` | `packages/platform-browser` | yes | no tables; browser `FileSystem` and `ChildProcessSpawner` implementations |
 | `@smthrs/journal` | `packages/journal` | yes | journal, run, attempt, cache, deferred, and clock tables |
@@ -55,7 +54,6 @@ flowchart LR
   DB["@smthrs/database"]
   HOST["@smthrs/host"]
   JJ["@smthrs/jj"]
-  PTY["@smthrs/pty"]
   SANDBOX["@smthrs/sandbox"]
   PB["@smthrs/platform-browser"]
   KEYS["@smthrs/keys"]
@@ -65,7 +63,6 @@ flowchart LR
 
   FLOWS --> HOST
   FLOWS --> JJ
-  FLOWS --> PTY
   FLOWS --> SANDBOX
   FLOWS --> PB
   FLOWS --> DB
@@ -81,12 +78,10 @@ flowchart LR
   FLOWS --> TT
   JOURNAL --> DB
   HOST --> JJ
-  HOST --> PTY
   HOST --> PB
   SANDBOX --> HOST
   KERNEL --> HOST
   KERNEL --> JJ
-  KERNEL --> PTY
   KERNEL --> JOURNAL
   ENGINE --> KEYS
   ENGINE --> CRYPTO
@@ -109,19 +104,18 @@ flowchart LR
 | `@smthrs/crypto` | nothing in the workspace | `keys`, `engine`, `engine-store`, `flows` |
 | `@smthrs/keys` | `canonical`, `crypto` | `engine`, `flows` |
 | `@smthrs/jj` | nothing in the workspace | `host`, `kernel`, `time-travel`, `flows` |
-| `@smthrs/pty` | nothing in the workspace | `host`, `kernel`, `flows` |
 | `@smthrs/platform-browser` | nothing in the workspace | `host`, `flows` |
-| `@smthrs/host` | `jj`, `pty`, `platform-browser` | `kernel`, `sandbox`, `flows` |
+| `@smthrs/host` | `jj`, `platform-browser` | `kernel`, `sandbox`, `flows` |
 | `@smthrs/sandbox` | `host` | `flows` |
 | `@smthrs/database` | nothing in the workspace | `journal`, `time-travel`, `flows` |
 | `@smthrs/plugin` | nothing in the workspace | `flows` |
 | `@smthrs/journal` | `database` | `kernel`, `engine-store`, `sync`, `time-travel`, `flows` |
-| `@smthrs/kernel` | `host`, `jj`, `pty`, `journal` | `engine-store`, `time-travel`, `flows` |
+| `@smthrs/kernel` | `host`, `jj`, `journal` | `engine-store`, `time-travel`, `flows` |
 | `@smthrs/engine` | `crypto`, `keys` | `engine-store`, `flows` |
 | `@smthrs/engine-store` | `crypto`, `engine`, `journal`, `kernel` | `time-travel`, `flows` |
 | `@smthrs/sync` | `journal` | `flows` |
 | `@smthrs/time-travel` | `database`, `engine-store`, `jj`, `journal` | `flows` |
-| `@smthrs/flows` | all sixteen | nothing |
+| `@smthrs/flows` | all fifteen | nothing |
 
 `npm run circular` fails the build on an import cycle, within a package or across them.
 
@@ -134,16 +128,13 @@ A package root exports contracts. A platform implementation lives under a subpat
 | Entry point | Browser | Node | Why |
 | --- | --- | --- | --- |
 | `@smthrs/host` | yes | yes | the closed service list, `Shell` and `HttpTransport` contracts, `HostError`, no-op layers |
-| `@smthrs/host/browser/BrowserHost` | yes | yes | `layer({ bash, fs })` over an injected browser filesystem; PTY and Jujutsu report unsupported |
-| `@smthrs/host/node/NodeHost` | no | yes | child processes, Node filesystem, PTY, Jujutsu |
+| `@smthrs/host/browser/BrowserHost` | yes | yes | `layer({ bash, fs })` over an injected browser filesystem; Jujutsu reports unsupported |
+| `@smthrs/host/node/NodeHost` | no | yes | child processes, Node filesystem, Jujutsu |
 | `@smthrs/host/bun/BunHost` | no | yes | the Bun adapters, falling back to `@effect/platform-node` off Bun |
 | `@smthrs/host/test/TestHost` | no | yes | `effect/testing`'s `TestClock` imports `node:assert` |
 | `@smthrs/jj` | yes | yes | the `Jj` contract, `JjError`, and the no-op layer |
 | `@smthrs/jj/browser/BrowserJj` | yes | yes | every operation reports `not_installed` |
 | `@smthrs/jj/node/NodeJj`, `@smthrs/jj/bun/BunJj` | no | yes | spawn the jj CLI through `node:child_process` |
-| `@smthrs/pty` | yes | yes | the `Pty` contract, `PtyError`, and the no-op layer |
-| `@smthrs/pty/browser/BrowserPty` | yes | yes | `spawn` reports `unsupported` |
-| `@smthrs/pty/node/NodePty`, `@smthrs/pty/bun/BunPty` | no | yes | piped-stdio child processes plus the replay ring |
 | `@smthrs/sandbox` | yes | yes | provider adaptation and the liveness probe; no host access of its own |
 | `@smthrs/kernel` | yes | yes | capabilities, grants, decorated services |
 | `@smthrs/canonical` | yes | yes | RFC 8785 canonical JSON schema |

@@ -35,7 +35,7 @@ const decision = Permission.evaluate(
 
 ## Decorated host namespaces
 
-`FileSystem`, `Shell`, `Pty`, `Jj`, and `HttpClient` export kernel service tags and layers that depend on the corresponding raw host service plus `GrantStore` and related context. `Path` explicitly re-exports the pure path-service decision without a permission check.
+`FileSystem`, `Shell`, `Jj`, and `HttpClient` export kernel service tags and layers that depend on the corresponding raw host service plus `GrantStore` and related context. `Path` explicitly re-exports the pure path-service decision without a permission check.
 
 `HostServices` composes the protected layer for the closed host service set. Use it at the application composition boundary:
 
