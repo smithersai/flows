@@ -1,4 +1,4 @@
-// Deep reviewed and polished by a human.
+// Deep reviewed and polished by a human on 2026-08-10.
 
 import { Canonical } from "@smthrs/canonical/Canonical"
 import { Sha256 } from "@smthrs/crypto"
