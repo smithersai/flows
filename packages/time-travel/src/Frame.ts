@@ -11,11 +11,13 @@ export type Frame = typeof Frame.Type
 export const LineageEdgeKind = Schema.Literals(["child", "fork", "continuation"])
 /** @since 0.1.0 @category models */
 export type LineageEdgeKind = typeof LineageEdgeKind.Type
+/** @since 0.1.0 @category schemas */
+export const LineageEdge = Schema.Struct({
+  parentRunId: Schema.NonEmptyString,
+  parentSeq: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  childRunId: Schema.NonEmptyString,
+  kind: LineageEdgeKind,
+  attached: Schema.Boolean
+})
 /** @since 0.1.0 @category models */
-export interface LineageEdge {
-  readonly parentRunId: string
-  readonly parentSeq: number
-  readonly childRunId: string
-  readonly kind: LineageEdgeKind
-  readonly attached: boolean
-}
+export type LineageEdge = typeof LineageEdge.Type

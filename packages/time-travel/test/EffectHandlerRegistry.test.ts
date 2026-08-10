@@ -51,7 +51,7 @@ const handler = (
 describe("EffectHandlerRegistry", () => {
   it("preserves the original activity failure when recording its intended boundary fails", async () => {
     const journal = Journal.makeNoop({
-      emit: () => Effect.fail(new Journal.JournalError({ code: "unknown", message: "journal offline" }))
+      emitDurable: () => Effect.fail(new Journal.JournalError({ code: "unknown", message: "journal offline" }))
     })
     const failure = await Effect.runPromise(
       Effect.flip(
@@ -239,9 +239,8 @@ describe("EffectHandlerRegistry", () => {
 
   it("falls back to a generic residue when the effect recorded none", () => {
     const registry = EffectHandlerRegistry.makeNoop()
-    const assessment = Effect.runSync(
-      registry.assess({ ...crossed(), residue: undefined })
-    )
+    const { residue: _, ...effect } = crossed()
+    const assessment = Effect.runSync(registry.assess(effect))
 
     expect(assessment.residue).toBe("The mail.send effect remains outside the journal.")
   })
@@ -379,7 +378,7 @@ describe("EffectHandlerRegistry", () => {
   it("records intended and succeeded boundary states with additive metadata", async () => {
     const emitted: Array<JournalEvent.Input> = []
     const journal = Journal.makeNoop({
-      emit: (input) =>
+      emitDurable: (input) =>
         Effect.sync(() => {
           emitted.push(input)
           return {
@@ -398,7 +397,15 @@ describe("EffectHandlerRegistry", () => {
         lineageId: "run/root",
         sourceId: "adapter",
         sourceSeq: 10,
+        input: { recipient: "person@example.com" },
         cacheKey: "mail-cache-key",
+        changeId: "change-1",
+        idempotencyKey: "send-1",
+        residue: "message sent",
+        durableBoundary: false,
+        providerStream: true,
+        attempt: 1,
+        nonce: "nonce-1",
         metadata: { adapter: "mail" }
       }, Effect.succeed("sent")).pipe(
         Effect.provide(Layer.succeed(Journal.Journal, journal))
@@ -416,8 +423,8 @@ describe("EffectHandlerRegistry", () => {
       effect: {
         id: "effect-boundary",
         output: "sent",
-        durableBoundary: true,
-        providerStream: false
+        durableBoundary: false,
+        providerStream: true
       }
     })
     expect(emitted[1]?.meta).toMatchObject({
@@ -435,7 +442,7 @@ describe("EffectHandlerRegistry", () => {
     let activityRuns = 0
     let emits = 0
     const journal = Journal.makeNoop({
-      emit: () =>
+      emitDurable: () =>
         Effect.suspend(() => {
           emits += 1
           return emits === 1
@@ -474,7 +481,7 @@ describe("EffectHandlerRegistry", () => {
   it("records unknown and preserves the original activity failure", async () => {
     const emitted: Array<JournalEvent.Input> = []
     const journal = Journal.makeNoop({
-      emit: (input) =>
+      emitDurable: (input) =>
         Effect.sync(() => {
           emitted.push(input)
           return {
@@ -510,7 +517,7 @@ describe("EffectHandlerRegistry", () => {
   it("records unknown and preserves an activity defect as a defect", async () => {
     const emitted: Array<string> = []
     const journal = Journal.makeNoop({
-      emit: (input) =>
+      emitDurable: (input) =>
         Effect.sync(() => {
           emitted.push((input.payload as { readonly effect: { readonly status: string } }).effect.status)
           return {
@@ -547,7 +554,7 @@ describe("EffectHandlerRegistry", () => {
   it("preserves an activity failure when recording its unknown boundary also fails", async () => {
     let emits = 0
     const journal = Journal.makeNoop({
-      emit: () =>
+      emitDurable: () =>
         Effect.suspend(() => {
           emits += 1
           return emits === 2
@@ -581,7 +588,7 @@ describe("EffectHandlerRegistry", () => {
     const emitted: Array<string> = []
     const entered = Effect.runSync(Deferred.make<void>())
     const journal = Journal.makeNoop({
-      emit: (input) =>
+      emitDurable: (input) =>
         Effect.sync(() => {
           emitted.push((input.payload as { readonly effect: { readonly status: string } }).effect.status)
           return {

@@ -1,45 +1,48 @@
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
-import type { Frame, LineageEdge } from "./Frame.ts"
+import * as Schema from "effect/Schema"
+import { Frame, LineageEdge } from "./Frame.ts"
 import { error, type TimeTravelError } from "./TimeTravelError.ts"
 /** @since 0.1.0 @category models */
-export interface Snapshot {
-  readonly runId: string
-  readonly frame: Frame
-  readonly changeId: string
-}
+export const Snapshot = Schema.Struct({ runId: Schema.NonEmptyString, frame: Frame, changeId: Schema.NonEmptyString })
 /** @since 0.1.0 @category models */
-export interface Descendants {
-  readonly attached: ReadonlyArray<LineageEdge>
-  readonly detached: ReadonlyArray<LineageEdge>
-}
+export type Snapshot = typeof Snapshot.Type
 /** @since 0.1.0 @category models */
-export interface Audit {
-  readonly id: string
-  readonly runId: string
-  readonly frame: Frame
-  readonly status: "in_progress" | "completed" | "failed"
-  readonly rateLimit?: unknown
-  readonly detail?: unknown
-}
+export const Descendants = Schema.Struct({ attached: Schema.Array(LineageEdge), detached: Schema.Array(LineageEdge) })
 /** @since 0.1.0 @category models */
-export interface Receipt {
-  readonly id: string
-  readonly auditId: string
-  readonly effectId: string
-  readonly receipt: unknown
-}
+export type Descendants = typeof Descendants.Type
 /** @since 0.1.0 @category models */
-export interface ArchiveResult {
-  readonly archived: number
-  readonly orphaned: ReadonlyArray<LineageEdge>
-}
+export const Audit = Schema.Struct({
+  id: Schema.NonEmptyString,
+  runId: Schema.NonEmptyString,
+  frame: Frame,
+  status: Schema.Literals(["in_progress", "completed", "failed"]),
+  rateLimit: Schema.optionalKey(Schema.Unknown),
+  detail: Schema.optionalKey(Schema.Unknown)
+})
 /** @since 0.1.0 @category models */
-export interface Fork {
-  readonly runId: string
-  readonly edge: LineageEdge
-}
+export type Audit = typeof Audit.Type
+/** @since 0.1.0 @category models */
+export const Receipt = Schema.Struct({
+  id: Schema.NonEmptyString,
+  auditId: Schema.NonEmptyString,
+  effectId: Schema.NonEmptyString,
+  receipt: Schema.Unknown
+})
+/** @since 0.1.0 @category models */
+export type Receipt = typeof Receipt.Type
+/** @since 0.1.0 @category models */
+export const ArchiveResult = Schema.Struct({
+  archived: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  orphaned: Schema.Array(LineageEdge)
+})
+/** @since 0.1.0 @category models */
+export type ArchiveResult = typeof ArchiveResult.Type
+/** @since 0.1.0 @category models */
+export const Fork = Schema.Struct({ runId: Schema.NonEmptyString, edge: LineageEdge })
+/** @since 0.1.0 @category models */
+export type Fork = typeof Fork.Type
 /** @since 0.1.0 @category services */
 export interface Service {
   readonly snapshotAt: (runId: string, frame: Frame) => Effect.Effect<Snapshot | undefined, TimeTravelError>

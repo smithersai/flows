@@ -8,7 +8,8 @@ import * as Effect from "effect/Effect"
 import * as HashMap from "effect/HashMap"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
-import type { EffectRecord, EffectTier } from "./EffectBoundary.ts"
+import * as Schema from "effect/Schema"
+import { EffectRecord, type EffectTier } from "./EffectBoundary.ts"
 import { error, type TimeTravelError } from "./TimeTravelError.ts"
 
 /**
@@ -18,7 +19,9 @@ import { error, type TimeTravelError } from "./TimeTravelError.ts"
  * @since 0.1.0
  * @category models
  */
-export type Classification = "revertible" | "warning" | "blocking"
+export const Classification = Schema.Literals(["revertible", "warning", "blocking"])
+/** @since 0.1.0 @category models */
+export type Classification = typeof Classification.Type
 
 /**
  * A handler's immutable preflight result.
@@ -29,11 +32,13 @@ export type Classification = "revertible" | "warning" | "blocking"
  * @since 0.1.0
  * @category models
  */
-export interface Assessment {
-  readonly classification: Classification
-  readonly reason: string
-  readonly residue: string
-}
+export const Assessment = Schema.Struct({
+  classification: Classification,
+  reason: Schema.String,
+  residue: Schema.String
+})
+/** @since 0.1.0 @category models */
+export type Assessment = typeof Assessment.Type
 
 /**
  * Durable evidence produced after one handler reverses an effect.
@@ -44,11 +49,13 @@ export interface Assessment {
  * @since 0.1.0
  * @category models
  */
-export interface RollbackReceipt {
-  readonly id: string
-  readonly effect: EffectRecord
-  readonly data: unknown
-}
+export const RollbackReceipt = Schema.Struct({
+  id: Schema.NonEmptyString,
+  effect: EffectRecord,
+  data: Schema.Unknown
+})
+/** @since 0.1.0 @category models */
+export type RollbackReceipt = typeof RollbackReceipt.Type
 
 /**
  * A compensation handler registered under a stable effect kind.

@@ -7,6 +7,8 @@ import * as Journal from "@smthrs/journal/Journal"
 import type * as JournalEvent from "@smthrs/journal/JournalEvent"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
+import * as Option from "effect/Option"
+import * as Schema from "effect/Schema"
 import { error, type TimeTravelError } from "./TimeTravelError.ts"
 
 /**
@@ -15,7 +17,9 @@ import { error, type TimeTravelError } from "./TimeTravelError.ts"
  * @since 0.1.0
  * @category models
  */
-export type EffectTier = "sealed" | "compensable" | "irreversible"
+export const EffectTier = Schema.Literals(["sealed", "compensable", "irreversible"])
+/** @since 0.1.0 @category models */
+export type EffectTier = typeof EffectTier.Type
 
 /**
  * Monotonic completion evidence recorded around an effect.
@@ -23,7 +27,9 @@ export type EffectTier = "sealed" | "compensable" | "irreversible"
  * @since 0.1.0
  * @category models
  */
-export type EffectStatus = "intended" | "succeeded" | "unknown"
+export const EffectStatus = Schema.Literals(["intended", "succeeded", "unknown"])
+/** @since 0.1.0 @category models */
+export type EffectStatus = typeof EffectStatus.Type
 
 /**
  * Stable event type emitted for effect-boundary evidence.
@@ -39,25 +45,27 @@ export const eventType = "flows.time-travel.effect-boundary"
  * @since 0.1.0
  * @category models
  */
-export interface EffectRecord {
-  readonly id: string
-  readonly kind: string
-  readonly tier: EffectTier
-  readonly status: EffectStatus
-  readonly runId: string
-  readonly lineageId: string
-  readonly seq: number
-  readonly input?: unknown
-  readonly output?: unknown
-  readonly cacheKey?: string | undefined
-  readonly changeId?: string | undefined
-  readonly idempotencyKey?: string | undefined
-  readonly residue?: string | undefined
-  readonly durableBoundary: boolean
-  readonly providerStream: boolean
-  readonly attempt?: number | undefined
-  readonly nonce?: string | undefined
-}
+export const EffectRecord = Schema.Struct({
+  id: Schema.NonEmptyString,
+  kind: Schema.NonEmptyString,
+  tier: EffectTier,
+  status: EffectStatus,
+  runId: Schema.NonEmptyString,
+  lineageId: Schema.NonEmptyString,
+  seq: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  input: Schema.optionalKey(Schema.Unknown),
+  output: Schema.optionalKey(Schema.Unknown),
+  cacheKey: Schema.optionalKey(Schema.NonEmptyString),
+  changeId: Schema.optionalKey(Schema.NonEmptyString),
+  idempotencyKey: Schema.optionalKey(Schema.NonEmptyString),
+  residue: Schema.optionalKey(Schema.String),
+  durableBoundary: Schema.Boolean,
+  providerStream: Schema.Boolean,
+  attempt: Schema.optionalKey(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
+  nonce: Schema.optionalKey(Schema.NonEmptyString)
+})
+/** @since 0.1.0 @category models */
+export type EffectRecord = typeof EffectRecord.Type
 
 /**
  * Description supplied before an activity crosses its effect boundary.
@@ -65,34 +73,36 @@ export interface EffectRecord {
  * @since 0.1.0
  * @category models
  */
-export interface Description {
-  readonly id: string
-  readonly kind: string
-  readonly tier: EffectTier
-  readonly runId: string
-  readonly lineageId: string
-  readonly sourceId: string
-  readonly sourceSeq?: number | undefined
-  readonly input?: unknown
-  readonly cacheKey?: string | undefined
-  readonly changeId?: string | undefined
-  readonly idempotencyKey?: string | undefined
-  readonly residue?: string | undefined
-  readonly durableBoundary?: boolean | undefined
-  readonly providerStream?: boolean | undefined
-  readonly attempt?: number | undefined
-  readonly nonce?: string | undefined
-  readonly metadata?: unknown
-}
+export const Description = Schema.Struct({
+  id: Schema.NonEmptyString,
+  kind: Schema.NonEmptyString,
+  tier: EffectTier,
+  runId: Schema.NonEmptyString,
+  lineageId: Schema.NonEmptyString,
+  sourceId: Schema.NonEmptyString,
+  sourceSeq: Schema.optionalKey(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
+  input: Schema.optionalKey(Schema.Unknown),
+  cacheKey: Schema.optionalKey(Schema.NonEmptyString),
+  changeId: Schema.optionalKey(Schema.NonEmptyString),
+  idempotencyKey: Schema.optionalKey(Schema.NonEmptyString),
+  residue: Schema.optionalKey(Schema.String),
+  durableBoundary: Schema.optionalKey(Schema.Boolean),
+  providerStream: Schema.optionalKey(Schema.Boolean),
+  attempt: Schema.optionalKey(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
+  nonce: Schema.optionalKey(Schema.NonEmptyString),
+  metadata: Schema.optionalKey(Schema.Unknown)
+})
+/** @since 0.1.0 @category models */
+export type Description = typeof Description.Type
 
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value)
+const Metadata = Schema.Record(Schema.String, Schema.Unknown)
+const isMetadata = Schema.is(Metadata)
 
 const metadata = (
   description: Description,
   status: EffectStatus
 ): Readonly<Record<string, unknown>> => ({
-  ...(isRecord(description.metadata) ? description.metadata : { upstream: description.metadata }),
+  ...(isMetadata(description.metadata) ? description.metadata : { upstream: description.metadata }),
   lineageId: description.lineageId,
   ...(description.cacheKey === undefined ? {} : { cacheKey: description.cacheKey }),
   timeTravel: {
@@ -114,16 +124,16 @@ const record = (
   status,
   runId: description.runId,
   lineageId: description.lineageId,
-  input: description.input,
+  ...(description.input === undefined ? {} : { input: description.input }),
   ...(output === undefined ? {} : { output }),
-  cacheKey: description.cacheKey,
-  changeId: description.changeId,
-  idempotencyKey: description.idempotencyKey,
-  residue: description.residue,
+  ...(description.cacheKey === undefined ? {} : { cacheKey: description.cacheKey }),
+  ...(description.changeId === undefined ? {} : { changeId: description.changeId }),
+  ...(description.idempotencyKey === undefined ? {} : { idempotencyKey: description.idempotencyKey }),
+  ...(description.residue === undefined ? {} : { residue: description.residue }),
   durableBoundary: description.durableBoundary ?? true,
   providerStream: description.providerStream ?? false,
-  attempt: description.attempt,
-  nonce: description.nonce
+  ...(description.attempt === undefined ? {} : { attempt: description.attempt }),
+  ...(description.nonce === undefined ? {} : { nonce: description.nonce })
 })
 
 const emit = (
@@ -143,7 +153,7 @@ const emit = (
     payload: { effect: record(description, status, output) },
     meta: metadata(description, status)
   }
-  return journal.emit(input).pipe(
+  return journal.emitDurable(input).pipe(
     Effect.asVoid,
     Effect.mapError((cause) =>
       error("unknown", `could not record ${status} boundary for effect ${description.id}`, cause)
@@ -182,11 +192,25 @@ export const guard = <A, E, R>(
     )
   })
 
-const isEffectTier = (value: unknown): value is EffectTier =>
-  value === "sealed" || value === "compensable" || value === "irreversible"
-
-const isEffectStatus = (value: unknown): value is EffectStatus =>
-  value === "intended" || value === "succeeded" || value === "unknown"
+const BoundaryRecord = Schema.Struct({
+  id: Schema.NonEmptyString,
+  kind: Schema.NonEmptyString,
+  tier: EffectTier,
+  status: EffectStatus,
+  runId: Schema.NonEmptyString,
+  lineageId: Schema.NonEmptyString,
+  input: Schema.optionalKey(Schema.Unknown),
+  output: Schema.optionalKey(Schema.Unknown),
+  cacheKey: Schema.optionalKey(Schema.NonEmptyString),
+  changeId: Schema.optionalKey(Schema.NonEmptyString),
+  idempotencyKey: Schema.optionalKey(Schema.NonEmptyString),
+  residue: Schema.optionalKey(Schema.String),
+  durableBoundary: Schema.optionalKey(Schema.Boolean),
+  providerStream: Schema.optionalKey(Schema.Boolean),
+  attempt: Schema.optionalKey(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
+  nonce: Schema.optionalKey(Schema.NonEmptyString)
+})
+const BoundaryPayload = Schema.Struct({ effect: BoundaryRecord })
 
 /**
  * Decodes one boundary record from a journal entry.
@@ -200,37 +224,15 @@ const isEffectStatus = (value: unknown): value is EffectStatus =>
 export const fromEntry = (
   entry: JournalEvent.Entry
 ): EffectRecord | undefined => {
-  if (entry.eventType !== eventType || !isRecord(entry.payload)) return undefined
-  const effect = entry.payload.effect
-  if (!isRecord(effect)) return undefined
-  if (
-    typeof effect.id !== "string" ||
-    typeof effect.kind !== "string" ||
-    !isEffectTier(effect.tier) ||
-    !isEffectStatus(effect.status) ||
-    typeof effect.runId !== "string" ||
-    typeof effect.lineageId !== "string"
-  ) {
-    return undefined
-  }
+  if (entry.eventType !== eventType) return undefined
+  const payload = Option.getOrUndefined(Schema.decodeUnknownOption(BoundaryPayload)(entry.payload))
+  if (payload === undefined) return undefined
+  const effect = payload.effect
   return {
-    id: effect.id,
-    kind: effect.kind,
-    tier: effect.tier,
-    status: effect.status,
-    runId: effect.runId,
-    lineageId: effect.lineageId,
+    ...effect,
     seq: entry.seq,
-    ...("input" in effect ? { input: effect.input } : {}),
-    ...("output" in effect ? { output: effect.output } : {}),
-    ...(typeof effect.cacheKey === "string" ? { cacheKey: effect.cacheKey } : {}),
-    ...(typeof effect.changeId === "string" ? { changeId: effect.changeId } : {}),
-    ...(typeof effect.idempotencyKey === "string" ? { idempotencyKey: effect.idempotencyKey } : {}),
-    ...(typeof effect.residue === "string" ? { residue: effect.residue } : {}),
     durableBoundary: effect.durableBoundary !== false,
-    providerStream: effect.providerStream === true,
-    ...(typeof effect.attempt === "number" ? { attempt: effect.attempt } : {}),
-    ...(typeof effect.nonce === "string" ? { nonce: effect.nonce } : {})
+    providerStream: effect.providerStream === true
   }
 }
 

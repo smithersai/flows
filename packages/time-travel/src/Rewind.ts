@@ -13,12 +13,13 @@ import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
+import * as Schema from "effect/Schema"
 import * as Compensation from "./Compensation.ts"
 import * as EffectBoundary from "./EffectBoundary.ts"
 import type { EffectHandlerRegistry } from "./EffectHandlerRegistry.ts"
-import type { Frame, LineageEdge } from "./Frame.ts"
+import { Frame, type LineageEdge } from "./Frame.ts"
 import { error, TimeTravelError, type TimeTravelError as TimeTravelFailure } from "./TimeTravelError.ts"
-import { type ArchiveResult, type Audit, TimeTravelStore } from "./TimeTravelStore.ts"
+import { ArchiveResult, type Audit, TimeTravelStore } from "./TimeTravelStore.ts"
 
 /**
  * The eight fault-injection points pinned by the rewind parity suite.
@@ -29,15 +30,18 @@ import { type ArchiveResult, type Audit, TimeTravelStore } from "./TimeTravelSto
  * @since 0.1.0
  * @category models
  */
-export type RewindStep =
-  | "claim-run"
-  | "rate-limit"
-  | "write-audit"
-  | "load-suffix"
-  | "assess-boundary"
-  | "compensate-effects"
-  | "restore-workspace"
-  | "archive-and-truncate"
+export const RewindStep = Schema.Literals([
+  "claim-run",
+  "rate-limit",
+  "write-audit",
+  "load-suffix",
+  "assess-boundary",
+  "compensate-effects",
+  "restore-workspace",
+  "archive-and-truncate"
+])
+/** @since 0.1.0 @category models */
+export type RewindStep = typeof RewindStep.Type
 
 /**
  * A deterministic rate-limit decision recorded on the audit row.
@@ -45,10 +49,12 @@ export type RewindStep =
  * @since 0.1.0
  * @category models
  */
-export interface RateLimitDecision {
-  readonly allowed: boolean
-  readonly detail?: unknown
-}
+export const RateLimitDecision = Schema.Struct({
+  allowed: Schema.Boolean,
+  detail: Schema.optionalKey(Schema.Unknown)
+})
+/** @since 0.1.0 @category models */
+export type RateLimitDecision = typeof RateLimitDecision.Type
 
 /**
  * Child handling policy for detached runs crossed by the rewind.
@@ -56,7 +62,9 @@ export interface RateLimitDecision {
  * @since 0.1.0
  * @category models
  */
-export type DetachedChildPolicy = "block" | "cancel"
+export const DetachedChildPolicy = Schema.Literals(["block", "cancel"])
+/** @since 0.1.0 @category models */
+export type DetachedChildPolicy = typeof DetachedChildPolicy.Type
 
 /**
  * A warning disclosed for a terminal detached child that survives truncation.
@@ -64,11 +72,13 @@ export type DetachedChildPolicy = "block" | "cancel"
  * @since 0.1.0
  * @category models
  */
-export interface DetachedChildWarning {
-  readonly childRunId: string
-  readonly parentSeq: number
-  readonly reason: string
-}
+export const DetachedChildWarning = Schema.Struct({
+  childRunId: Schema.NonEmptyString,
+  parentSeq: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  reason: Schema.String
+})
+/** @since 0.1.0 @category models */
+export type DetachedChildWarning = typeof DetachedChildWarning.Type
 
 /**
  * Crash-recovery detail persisted on the audit row.
@@ -76,25 +86,28 @@ export interface DetachedChildWarning {
  * @since 0.1.0
  * @category models
  */
-export interface AuditDetail {
-  readonly version: 1
-  readonly phase:
-    | "audit_written"
-    | "preflight_complete"
-    | "compensated"
-    | "archive_committed"
-    | "completed"
-    | "rolled_back"
-    | "terminal_failure"
-  readonly originalStatus: "pending" | "suspended"
-  readonly suffixCount: number
-  readonly suffixTailSeq?: number | undefined
-  readonly targetChangeId?: string | undefined
-  readonly compensation?: Compensation.Result | undefined
-  readonly warnings: ReadonlyArray<DetachedChildWarning>
-  readonly cancelledChildren: ReadonlyArray<string>
-  readonly failure?: string | undefined
-}
+export const AuditDetail = Schema.Struct({
+  version: Schema.Literal(1),
+  phase: Schema.Literals([
+    "audit_written",
+    "preflight_complete",
+    "compensated",
+    "archive_committed",
+    "completed",
+    "rolled_back",
+    "terminal_failure"
+  ]),
+  originalStatus: Schema.Literals(["pending", "suspended"]),
+  suffixCount: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  suffixTailSeq: Schema.optionalKey(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
+  targetChangeId: Schema.optionalKey(Schema.NonEmptyString),
+  compensation: Schema.optionalKey(Compensation.Result),
+  warnings: Schema.Array(DetachedChildWarning),
+  cancelledChildren: Schema.Array(Schema.NonEmptyString),
+  failure: Schema.optionalKey(Schema.String)
+})
+/** @since 0.1.0 @category models */
+export type AuditDetail = typeof AuditDetail.Type
 
 /**
  * Rewind construction options.
@@ -133,14 +146,16 @@ export interface Options {
  * @since 0.1.0
  * @category models
  */
-export interface Result {
-  readonly auditId: string
-  readonly frame: Frame
-  readonly archive: ArchiveResult
-  readonly assessments: ReadonlyArray<Compensation.Assessment>
-  readonly warnings: ReadonlyArray<DetachedChildWarning>
-  readonly cancelledChildren: ReadonlyArray<string>
-}
+export const Result = Schema.Struct({
+  auditId: Schema.NonEmptyString,
+  frame: Frame,
+  archive: ArchiveResult,
+  assessments: Schema.Array(Compensation.Assessment),
+  warnings: Schema.Array(DetachedChildWarning),
+  cancelledChildren: Schema.Array(Schema.NonEmptyString)
+})
+/** @since 0.1.0 @category models */
+export type Result = typeof Result.Type
 
 interface ClaimedRun {
   readonly row: RunStore.RunRow & { readonly status: "pending" | "suspended" }
@@ -590,10 +605,10 @@ export const rewind = (
               const failureMessage = (rollbackFailure === undefined
                 ? failure.message
                 : `${failure.message}; rollback failed: ${String(rollbackFailure)}`) + residue
+              const { compensation: _, ...rolledBack } = currentDetail
               detail = {
-                ...currentDetail,
+                ...rolledBack,
                 phase: rollbackFailure === undefined ? "rolled_back" : "terminal_failure",
-                compensation: undefined,
                 cancelledChildren: [...cancelledChildren],
                 failure: failureMessage
               }

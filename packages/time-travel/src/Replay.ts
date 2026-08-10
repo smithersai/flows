@@ -2,6 +2,8 @@ import * as CacheStore from "@smthrs/journal/CacheStore"
 import * as Journal from "@smthrs/journal/Journal"
 import type { Entry, RunId, Seq } from "@smthrs/journal/JournalEvent"
 import * as Effect from "effect/Effect"
+import * as Option from "effect/Option"
+import * as Schema from "effect/Schema"
 import type { Frame } from "./Frame.ts"
 import { error, type TimeTravelError } from "./TimeTravelError.ts"
 
@@ -15,16 +17,10 @@ export interface ReplayOptions {
   readonly runId: string
   readonly pageSize?: number
 }
-const lineageOf = (entry: Entry): string | undefined =>
-  typeof entry.meta === "object" && entry.meta !== null && "lineageId" in entry.meta &&
-    typeof entry.meta.lineageId === "string"
-    ? entry.meta.lineageId
-    : undefined
-const cacheKeyOf = (entry: Entry): string | undefined =>
-  typeof entry.meta === "object" && entry.meta !== null && "cacheKey" in entry.meta &&
-    typeof entry.meta.cacheKey === "string"
-    ? entry.meta.cacheKey
-    : undefined
+/** @private */
+const LineageMetadata = Schema.Struct({ lineageId: Schema.NonEmptyString })
+/** @private */
+const CacheMetadata = Schema.Struct({ cacheKey: Schema.NonEmptyString })
 /**
  * Re-derives a projection from committed evidence only. This deliberately has
  * no dispatcher dependency: model and child results can only be cache reads.
@@ -50,10 +46,14 @@ export const rederive = <S>(
         }).pipe(Effect.mapError((cause) => error("unknown", "could not read journal", cause)))
         for (const entry of page.entries) {
           if (entry.seq > frame.seq) continue
-          const lineageId = lineageOf(entry)
+          const lineageId = Option.getOrUndefined(
+            Schema.decodeUnknownOption(LineageMetadata)(entry.meta)
+          )?.lineageId
           if (lineageId !== undefined && lineageId !== frame.lineageId) continue
           if (lineageId === frame.lineageId) foundLineage = true
-          const cacheKey = cacheKeyOf(entry)
+          const cacheKey = Option.getOrUndefined(
+            Schema.decodeUnknownOption(CacheMetadata)(entry.meta)
+          )?.cacheKey
           const sealed = cacheKey === undefined
             ? undefined
             : yield* cache.get(cacheKey).pipe(

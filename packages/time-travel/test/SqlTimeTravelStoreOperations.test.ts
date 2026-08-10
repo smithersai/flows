@@ -56,28 +56,6 @@ const insertRunningRun = (sql: DatabaseModule.DatabaseService["sql"], runId: str
             'host-a', 1234, 'nonce', 0)
   `
 
-/**
- * `database.write` wraps the inner failure once per boundary, so the typed code
- * a caller branches on sits at the bottom of the `cause` chain.
- */
-const rootCause = (error: unknown): { readonly code?: string; readonly message?: string } => {
-  let current = error as { readonly code?: string; readonly message?: string; readonly cause?: unknown }
-  while (current.code === "unknown" && current.cause !== undefined) {
-    current = current.cause as typeof current
-  }
-  return current
-}
-
-const causeMessages = (error: unknown): ReadonlyArray<string> => {
-  const messages: Array<string> = []
-  let current: unknown = error
-  while (typeof current === "object" && current !== null) {
-    if ("message" in current && typeof current.message === "string") messages.push(current.message)
-    current = "cause" in current ? current.cause : undefined
-  }
-  return messages
-}
-
 describe("SqlTimeTravelStore.snapshotAt", () => {
   it("returns the newest snapshot at or before the frame, scoped to one lineage", async () => {
     const result = await run((store, sql) =>
@@ -234,8 +212,7 @@ describe("SqlTimeTravelStore audits", () => {
   it("fails updateAudit for an unknown id", async () => {
     const error = await run((store) => Effect.flip(store.updateAudit("nope", { status: "completed" })))
 
-    expect(error).toMatchObject({ code: "unknown", message: "time-travel persistence failed" })
-    expect(rootCause(error)).toMatchObject({ code: "not_found", message: "audit nope was not found" })
+    expect(error).toMatchObject({ code: "not_found", message: "audit nope was not found" })
   })
 
   it("keeps absent optional fields absent when an audit is updated", async () => {
@@ -265,6 +242,7 @@ describe("SqlTimeTravelStore audits", () => {
   it("returns a typed persistence failure for malformed persisted audit JSON", async () => {
     const failure = await run((store, sql) =>
       Effect.gen(function*() {
+        yield* sql`PRAGMA ignore_check_constraints = ON`
         yield* sql`
           INSERT INTO flows_time_travel_audits
             (id, run_id, lineage_id, seq, status, rate_limit_json, detail_json)
@@ -279,6 +257,46 @@ describe("SqlTimeTravelStore audits", () => {
       message: "time-travel persistence failed",
       cause: expect.anything()
     })
+  })
+
+  it("rejects rows outside every durable time-travel boundary", async () => {
+    const outcomes = await run((_store, sql) => {
+      const invalidStatements = [
+        `INSERT INTO flows_time_travel_audits VALUES ('', 'run', 'main', 0, 'in_progress', NULL, NULL)`,
+        `INSERT INTO flows_time_travel_audits VALUES ('audit-negative', 'run', 'main', -1, 'in_progress', NULL, NULL)`,
+        `INSERT INTO flows_time_travel_audits VALUES ('audit-fractional', 'run', 'main', 0.5, 'in_progress', NULL, NULL)`,
+        `INSERT INTO flows_time_travel_audits VALUES ('audit-unsafe', 'run', 'main', 9007199254740992, 'in_progress', NULL, NULL)`,
+        `INSERT INTO flows_time_travel_audits VALUES ('audit-status', 'run', 'main', 0, 'unknown', NULL, NULL)`,
+        `INSERT INTO flows_time_travel_audits VALUES ('audit-json', 'run', 'main', 0, 'in_progress', '{', NULL)`,
+        `INSERT INTO flows_time_travel_receipts VALUES ('', 'audit', 'effect', '{}')`,
+        `INSERT INTO flows_time_travel_receipts VALUES ('receipt-audit', '', 'effect', '{}')`,
+        `INSERT INTO flows_time_travel_receipts VALUES ('receipt-effect', 'audit', '', '{}')`,
+        `INSERT INTO flows_time_travel_receipts VALUES ('receipt-json', 'audit', 'effect', '{')`,
+        `INSERT INTO flows_time_travel_snapshots VALUES ('', 'main', 0, 'change')`,
+        `INSERT INTO flows_time_travel_snapshots VALUES ('run', '', 0, 'change')`,
+        `INSERT INTO flows_time_travel_snapshots VALUES ('run', 'main', -1, 'change')`,
+        `INSERT INTO flows_time_travel_snapshots VALUES ('run', 'main', 0, '')`,
+        `INSERT INTO flows_time_travel_edges VALUES ('', 0, 'child', 'child', 1)`,
+        `INSERT INTO flows_time_travel_edges VALUES ('parent', -1, 'child', 'child', 1)`,
+        `INSERT INTO flows_time_travel_edges VALUES ('parent', 0, '', 'child', 1)`,
+        `INSERT INTO flows_time_travel_edges VALUES ('parent', 0, 'child-kind', 'unknown', 1)`,
+        `INSERT INTO flows_time_travel_edges VALUES ('parent', 0, 'child-attached', 'child', 2)`,
+        `INSERT INTO flows_time_travel_edges VALUES ('same', 0, 'same', 'child', 1)`,
+        `INSERT INTO flows_time_travel_archive VALUES ('', 0, 'event', 'source', 0, 0, 'type', '{}', '{}', 0)`,
+        `INSERT INTO flows_time_travel_archive VALUES ('run', -1, 'event', 'source', 0, 0, 'type', '{}', '{}', 0)`,
+        `INSERT INTO flows_time_travel_archive VALUES ('run', 0, '', 'source', 0, 0, 'type', '{}', '{}', 0)`,
+        `INSERT INTO flows_time_travel_archive VALUES ('run', 0, 'event-source', '', 0, 0, 'type', '{}', '{}', 0)`,
+        `INSERT INTO flows_time_travel_archive VALUES ('run', 0, 'event-seq', 'source', -1, 0, 'type', '{}', '{}', 0)`,
+        `INSERT INTO flows_time_travel_archive VALUES ('run', 0, 'event-emitted', 'source', 0, -1, 'type', '{}', '{}', 0)`,
+        `INSERT INTO flows_time_travel_archive VALUES ('run', 0, 'event-type', 'source', 0, 0, '', '{}', '{}', 0)`,
+        `INSERT INTO flows_time_travel_archive VALUES ('run', 0, 'event-payload', 'source', 0, 0, 'type', '{', '{}', 0)`,
+        `INSERT INTO flows_time_travel_archive VALUES ('run', 0, 'event-meta', 'source', 0, 0, 'type', '{}', '{', 0)`,
+        `INSERT INTO flows_time_travel_archive VALUES ('run', 0, 'event-archived', 'source', 0, 0, 'type', '{}', '{}', -1)`
+      ] as const
+      return Effect.forEach(invalidStatements, (statement) => Effect.exit(sql.unsafe(statement)))
+    })
+
+    expect(outcomes.every((outcome) => outcome._tag === "Failure")).toBe(true)
   })
 })
 
@@ -440,7 +458,7 @@ describe("SqlTimeTravelStore.createFork", () => {
             flowName: "Demo",
             payload: { seed: 1 },
             result: { _tag: "Success" },
-            cancellation: { requested: true }
+            cancellation: { interruptedAtMs: 1 }
           })
         })
         for (const seq of [0, 1, 2]) {
@@ -492,12 +510,10 @@ describe("SqlTimeTravelStore.createFork", () => {
     expect(result.forkAttempts).toEqual([{ step_key_digest: "digest" }])
   })
 
-  it("surfaces a missing parent as a persistence failure carrying the `not_found` cause", async () => {
+  it("surfaces a missing parent as a typed `not_found` failure", async () => {
     const error = await run((store) => Effect.flip(store.createFork("ghost", { lineageId: "main", seq: 0 })))
 
-    // `database.write` re-wraps the typed failure, so the precise code lives in `cause`.
-    expect(error).toMatchObject({ code: "unknown" })
-    expect(rootCause(error)).toMatchObject({ code: "not_found", message: "parent ghost was not found" })
+    expect(error).toMatchObject({ code: "not_found", message: "parent ghost was not found" })
   })
 
   for (
@@ -516,7 +532,7 @@ describe("SqlTimeTravelStore.createFork", () => {
         })
       )
 
-      expect(rootCause(error)).toMatchObject({ code: "live_parent", message: "parent parent is live" })
+      expect(error).toMatchObject({ code: "live_parent", message: "parent parent is live" })
     })
   }
 
@@ -533,7 +549,7 @@ describe("SqlTimeTravelStore.createFork", () => {
       })
     )
 
-    expect(rootCause(error)).toMatchObject({ code: "live_parent", message: "parent grandparent is live" })
+    expect(error).toMatchObject({ code: "live_parent", message: "parent grandparent is live" })
   })
 
   for (
@@ -550,13 +566,13 @@ describe("SqlTimeTravelStore.createFork", () => {
     it(`rejects ${name} as a restartable parent state`, async () => {
       const failure = await run((store, sql) =>
         Effect.gen(function*() {
+          yield* sql`PRAGMA ignore_check_constraints = ON`
           yield* insertRun(sql, "parent", { stateJson })
           return yield* Effect.flip(store.createFork("parent", { lineageId: "main", seq: 0 }))
         })
       )
 
-      expect(failure).toMatchObject({ code: "unknown", message: "time-travel persistence failed" })
-      expect(causeMessages(failure)).toContain("could not materialize executable fork state")
+      expect(failure).toMatchObject({ code: "unknown", message: "could not materialize executable fork state" })
     })
   }
 })

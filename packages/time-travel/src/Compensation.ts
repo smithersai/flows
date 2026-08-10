@@ -9,12 +9,9 @@ import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
-import type { EffectRecord } from "./EffectBoundary.ts"
-import {
-  type Assessment as HandlerAssessment,
-  EffectHandlerRegistry,
-  type RollbackReceipt
-} from "./EffectHandlerRegistry.ts"
+import * as Schema from "effect/Schema"
+import { EffectRecord } from "./EffectBoundary.ts"
+import { Assessment as HandlerAssessment, EffectHandlerRegistry, RollbackReceipt } from "./EffectHandlerRegistry.ts"
 import { error, type TimeTravelError } from "./TimeTravelError.ts"
 import type { Receipt } from "./TimeTravelStore.ts"
 
@@ -24,9 +21,9 @@ import type { Receipt } from "./TimeTravelStore.ts"
  * @since 0.1.0
  * @category models
  */
-export interface Assessment extends HandlerAssessment {
-  readonly effect: EffectRecord
-}
+export const Assessment = Schema.Struct({ ...HandlerAssessment.fields, effect: EffectRecord })
+/** @since 0.1.0 @category models */
+export type Assessment = typeof Assessment.Type
 
 /**
  * Immutable compensation plan. All cache reads and handler resolution have
@@ -35,11 +32,13 @@ export interface Assessment extends HandlerAssessment {
  * @since 0.1.0
  * @category models
  */
-export interface Plan {
-  readonly effects: ReadonlyArray<EffectRecord>
-  readonly assessments: ReadonlyArray<Assessment>
-  readonly targetChangeId?: string | undefined
-}
+export const Plan = Schema.Struct({
+  effects: Schema.Array(EffectRecord),
+  assessments: Schema.Array(Assessment),
+  targetChangeId: Schema.optionalKey(Schema.NonEmptyString)
+})
+/** @since 0.1.0 @category models */
+export type Plan = typeof Plan.Type
 
 /**
  * Receipt for restoring the workspace to the target frame.
@@ -47,10 +46,12 @@ export interface Plan {
  * @since 0.1.0
  * @category models
  */
-export interface WorkspaceReceipt {
-  readonly currentChangeId: string
-  readonly targetChangeId: string
-}
+export const WorkspaceReceipt = Schema.Struct({
+  currentChangeId: Schema.NonEmptyString,
+  targetChangeId: Schema.NonEmptyString
+})
+/** @since 0.1.0 @category models */
+export type WorkspaceReceipt = typeof WorkspaceReceipt.Type
 
 /**
  * All reversible mutations performed before journal truncation.
@@ -58,10 +59,12 @@ export interface WorkspaceReceipt {
  * @since 0.1.0
  * @category models
  */
-export interface Result {
-  readonly handlerReceipts: ReadonlyArray<RollbackReceipt>
-  readonly workspace?: WorkspaceReceipt | undefined
-}
+export const Result = Schema.Struct({
+  handlerReceipts: Schema.Array(RollbackReceipt),
+  workspace: Schema.optionalKey(WorkspaceReceipt)
+})
+/** @since 0.1.0 @category models */
+export type Result = typeof Result.Type
 
 const sealedAssessment = (
   effect: EffectRecord,

@@ -12,9 +12,10 @@ import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
+import * as Schema from "effect/Schema"
 import * as Compensation from "./Compensation.ts"
 import type { EffectHandlerRegistry } from "./EffectHandlerRegistry.ts"
-import type { AuditDetail } from "./Rewind.ts"
+import { AuditDetail } from "./Rewind.ts"
 import { error, TimeTravelError, type TimeTravelError as TimeTravelFailure } from "./TimeTravelError.ts"
 import { type Audit, TimeTravelStore } from "./TimeTravelStore.ts"
 
@@ -50,17 +51,7 @@ interface Ownership {
   readonly owned: boolean
 }
 
-const isObject = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value)
-
-const isAuditDetail = (value: unknown): value is AuditDetail =>
-  isObject(value) &&
-  value.version === 1 &&
-  typeof value.phase === "string" &&
-  (value.originalStatus === "pending" || value.originalStatus === "suspended") &&
-  typeof value.suffixCount === "number" &&
-  Array.isArray(value.warnings) &&
-  Array.isArray(value.cancelledChildren)
+const isAuditDetail = Schema.is(AuditDetail)
 
 const runFailure = (operation: string, cause: RunStore.RunStoreError): TimeTravelFailure =>
   error(
@@ -248,12 +239,12 @@ const recoverOne = (
               )
             }
           }
+          const { compensation: _, ...rolledBack } = detail
           yield* store.updateAudit(audit.id, {
             status: "failed",
             detail: {
-              ...detail,
+              ...rolledBack,
               phase: "rolled_back",
-              compensation: undefined,
               failure: "startup recovery rolled back an uncommitted rewind"
             }
           })

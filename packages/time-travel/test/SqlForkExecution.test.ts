@@ -1,3 +1,4 @@
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
 import { Database } from "@smthrs/database"
 import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
 import { Activity, Flow } from "@smthrs/engine"
@@ -42,13 +43,14 @@ const requirements = (filename: string) => {
   )
   return Layer.mergeAll(
     sqlServices,
+    NodeCrypto.layer,
     StepBoundary.layerTest(),
     Layer.succeed(Jj.Jj, jj),
     // A fork replays attempt rows copied from its parent, and those rows are
-    // addressed by sealed content key. An undeclared environment pins that key
+    // addressed by sealed cache key. An undeclared environment pins that key
     // to one execution, so the fork would re-dispatch instead of replaying;
     // declaring the environment is what lets identity cross the fork boundary.
-    Activity.layerContentEnvironment({ layers: [], capabilities: {} })
+    Activity.layerCacheEnvironment({ layers: [], capabilities: {} })
   )
 }
 
