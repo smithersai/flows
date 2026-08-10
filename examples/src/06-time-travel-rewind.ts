@@ -16,7 +16,7 @@
  */
 import { Database } from "@smthrs/database"
 import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
-import { Jj } from "@smthrs/host"
+import * as Jj from "@smthrs/jj"
 import { CacheStore, Journal, JournalEvent, Migrations, type Ownership, RunStore, SqlJournal } from "@smthrs/journal"
 import { EffectHandlerRegistry, Replay, Rewind, SqlTimeTravelStore } from "@smthrs/time-travel"
 import * as Effect from "effect/Effect"
