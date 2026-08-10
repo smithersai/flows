@@ -7,9 +7,10 @@
  * and the three error shapes `errorCode` has to normalize — would otherwise go
  * unasserted. A serverless or locked-down bundle looks exactly like this.
  */
+import * as BrowserJj from "@smthrs/jj/browser/BrowserJj"
+import * as BrowserPty from "@smthrs/pty/browser/BrowserPty"
 import { Effect, Layer, Path } from "effect"
 import * as BrowserFileSystem from "../../src/browser/BrowserFileSystem.ts"
-import { layerJjUnsupported, layerPtyUnsupported } from "../../src/browser/BrowserHost.ts"
 import * as HttpTransport from "../../src/HttpTransport.ts"
 import * as ShellService from "../../src/Shell.ts"
 import { runHostContract } from "./HostContract.ts"
@@ -43,8 +44,8 @@ runHostContract(
     BrowserFileSystem.layer(rejecting()),
     layerPathUnsupported,
     ShellService.layerNoop({}),
-    layerPtyUnsupported,
-    layerJjUnsupported,
+    BrowserPty.layerUnsupported,
+    BrowserJj.layerUnsupported,
     HttpTransport.layerNoop()
   ),
   {

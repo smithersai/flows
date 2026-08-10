@@ -7,6 +7,10 @@
  *
  * @since 0.1.0
  */
+import * as JjService from "@smthrs/jj"
+import type { Jj, JjErrorCode } from "@smthrs/jj"
+import * as PtyService from "@smthrs/pty"
+import type { Pty, PtyErrorCode } from "@smthrs/pty"
 import { Effect, Fiber, FileSystem, type Layer, Path, Stream } from "effect"
 import { TestClock } from "effect/testing"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
@@ -14,13 +18,9 @@ import type * as HttpClientResponse from "effect/unstable/http/HttpClientRespons
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
-import type { JjErrorCode, PtyErrorCode, ShellErrorCode } from "../HostError.ts"
+import type { ShellErrorCode } from "../HostError.ts"
 import type { HttpTransport } from "../HttpTransport.ts"
 import * as HttpTransportService from "../HttpTransport.ts"
-import type { Jj } from "../Jj.ts"
-import * as JjService from "../Jj.ts"
-import type { Pty } from "../Pty.ts"
-import * as PtyService from "../Pty.ts"
 import type { Shell, ShellOptions } from "../Shell.ts"
 import * as ShellService from "../Shell.ts"
 

@@ -1,12 +1,13 @@
+import type { Jj } from "@smthrs/jj"
+import * as BrowserJj from "@smthrs/jj/browser/BrowserJj"
+import type { Pty } from "@smthrs/pty"
+import * as BrowserPty from "@smthrs/pty/browser/BrowserPty"
 import { Layer, Path, Random } from "effect"
 import type { FileSystem } from "effect"
 import { TestClock } from "effect/testing"
 import * as BrowserFileSystem from "../browser/BrowserFileSystem.ts"
-import { layerJjUnsupported, layerPtyUnsupported } from "../browser/BrowserHost.ts"
 import * as JustBashShell from "../browser/JustBashShell.ts"
 import * as HttpTransport from "../HttpTransport.ts"
-import type { Jj } from "../Jj.ts"
-import type { Pty } from "../Pty.ts"
 import type { Shell } from "../Shell.ts"
 
 /** POSIX-normalize so `/a/b`, `/a/b/`, and `/a/./b` are one key in the store. */
@@ -190,7 +191,7 @@ export const layerSeededRandom = (seed = 42): Layer.Layer<never> =>
  *
  * Every source of nondeterminism is pinned: an in-memory filesystem, a scripted
  * shell, `TestClock` (time only moves when a test calls `TestClock.adjust`), and
- * a seeded PRNG. `Pty` and `Jj` reuse the browser's ticket-failing layers so a
+ * a seeded PRNG. `Pty` and `Jj` reuse their packages' ticket-failing browser layers so a
  * test that reaches for them fails loudly instead of touching the real machine.
  */
 export const layer = (options?: {
@@ -210,8 +211,8 @@ export const layer = (options?: {
     Path.layer,
     JustBashShell.layer(makeStubBash(options?.commands)),
     HttpTransport.layerNoop(),
-    layerPtyUnsupported,
-    layerJjUnsupported,
+    BrowserPty.layerUnsupported,
+    BrowserJj.layerUnsupported,
     TestClock.layer(),
     layerSeededRandom(options?.seed)
   )

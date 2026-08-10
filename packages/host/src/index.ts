@@ -5,7 +5,14 @@
  *
  * Service modules are re-exported as namespaces, the way `effect`'s own index
  * does it, so each module keeps its `make` / `makeNoop` / `layerNoop` trio
- * without colliding with its neighbours: `Shell.layerNoop`, `Pty.layerNoop`.
+ * without colliding with its neighbours: `Shell.layerNoop`,
+ * `HttpTransport.layerNoop`.
+ *
+ * `Jj`, `Pty`, and the sandbox modules used to live here. They are their own
+ * packages now — `@smthrs/jj`, `@smthrs/pty`, `@smthrs/sandbox` — and are NOT
+ * re-exported: `HostServices.ts` depends on the first two because they remain
+ * part of the closed Host surface, but every consumer imports them from their
+ * own package.
  *
  * This entry point is **platform-neutral and browser-bundleable**: it holds
  * contracts, errors, and no-op layers only. Platform bundles live under
@@ -31,18 +38,6 @@ export * from "./HostServices.ts"
 
 /** HTTP transport contracts. */
 export * as HttpTransport from "./HttpTransport.ts"
-
-/** Jujutsu operation contracts. */
-export * as Jj from "./Jj.ts"
-
-/** Pseudo-terminal operation contracts. */
-export * as Pty from "./Pty.ts"
-
-/** Remote sandbox operation contracts. */
-export * as RemoteSandbox from "./RemoteSandbox.ts"
-
-/** Sandbox health-check contracts. */
-export * as SandboxHealth from "./SandboxHealth.ts"
 
 /** Shell operation contracts. */
 export * as Shell from "./Shell.ts"

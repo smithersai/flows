@@ -1,8 +1,6 @@
 import { Effect, Stream } from "effect"
 import { describe, expect, it } from "vitest"
 import * as HostError from "../src/HostError.ts"
-import * as Jj from "../src/Jj.ts"
-import * as Pty from "../src/Pty.ts"
 import * as Shell from "../src/Shell.ts"
 
 describe("HostError constructors", () => {
@@ -30,38 +28,6 @@ describe("HostError constructors", () => {
     expect(error.message).toBe("spawn_error: BunShell.stream")
     expect(error.command).toBeUndefined()
     expect(error.exitCode).toBeUndefined()
-  })
-
-  it("builds pty errors with the Pty module default", () => {
-    const error = HostError.ptyError({
-      code: "exited",
-      method: "spawn",
-      description: "child died",
-      exitCode: 3
-    })
-
-    expect(error._tag).toBe("flows/host/PtyError")
-    expect(error.module).toBe("Pty")
-    expect(error.message).toBe("exited: Pty.spawn: child died")
-    expect(error.exitCode).toBe(3)
-    expect(HostError.ptyError({ code: "not_found", module: "NodePty", method: "resize" }).message)
-      .toBe("not_found: NodePty.resize")
-  })
-
-  it("builds jj errors with the Jj module default and carries the command", () => {
-    const error = HostError.jjError({
-      code: "conflict",
-      method: "restore",
-      description: "working copy conflicted",
-      command: "jj restore --from abc"
-    })
-
-    expect(error._tag).toBe("flows/host/JjError")
-    expect(error.module).toBe("Jj")
-    expect(error.message).toBe("conflict: Jj.restore: working copy conflicted")
-    expect(error.command).toBe("jj restore --from abc")
-    expect(HostError.jjError({ code: "invalid_ref", module: "NodeJj", method: "diff" }).command)
-      .toBeUndefined()
   })
 })
 
@@ -133,79 +99,5 @@ describe("Shell facade", () => {
 
     expect(result.ok.stdout).toBe("ok")
     expect(result.failed).toMatchObject({ code: "shell_unavailable" })
-  })
-})
-
-describe("Pty facade", () => {
-  it("fails `spawn` with `unsupported` on platforms without a terminal", async () => {
-    const error = await Effect.runPromise(
-      Effect.gen(function*() {
-        const pty = yield* Pty.Pty
-        return yield* Effect.flip(Effect.scoped(pty.spawn("bash", { cols: 80, rows: 24 })))
-      }).pipe(Effect.provide(Pty.layerNoop({})))
-    )
-
-    expect(error).toMatchObject({
-      code: "unsupported",
-      module: "Pty",
-      method: "spawn",
-      message: "unsupported: Pty.spawn: no pseudo-terminal in this environment"
-    })
-  })
-
-  it("uses an override when the platform does supply a terminal", async () => {
-    const handle = { write: () => Effect.void } as unknown as Pty.PtyHandle
-    const pty = Pty.make(Pty.makeNoop({ spawn: () => Effect.succeed(handle) }))
-
-    await expect(Effect.runPromise(Effect.scoped(pty.spawn("bash", { cols: 1, rows: 1 }))))
-      .resolves.toBe(handle)
-  })
-})
-
-describe("Jj facade", () => {
-  it("fails every method with `not_installed` naming the method that was called", async () => {
-    const jj = Jj.makeNoop({})
-    const calls: ReadonlyArray<readonly [string, Effect.Effect<unknown, HostError.JjError>]> = [
-      ["snapshot", jj.snapshot("msg")],
-      ["restore", jj.restore("abc")],
-      ["diff", jj.diff("a", "b")],
-      ["workspaceAdd", jj.workspaceAdd("lane", "/tmp/lane")],
-      ["workspaceForget", jj.workspaceForget("lane")],
-      ["status", jj.status()]
-    ]
-
-    for (const [method, effect] of calls) {
-      const error = await Effect.runPromise(Effect.flip(effect))
-      expect(error).toMatchObject({
-        code: "not_installed",
-        module: "Jj",
-        method,
-        message: `not_installed: Jj.${method}: jj is not available on this host`
-      })
-    }
-  })
-
-  it("provides overrides through `layerNoop` while other methods stay unavailable", async () => {
-    const result = await Effect.runPromise(
-      Effect.gen(function*() {
-        const jj = yield* Jj.Jj
-        const snapshot = yield* jj.snapshot()
-        const failed = yield* Effect.flip(jj.status())
-        return { snapshot, failed }
-      }).pipe(Effect.provide(Jj.layerNoop({ snapshot: () => Effect.succeed({ changeId: "zzz" }) })))
-    )
-
-    expect(result.snapshot.changeId).toBe("zzz")
-    expect(result.failed).toMatchObject({ code: "not_installed", method: "status" })
-  })
-})
-
-describe("Jj constructor", () => {
-  it("passes a complete implementation through `make` unchanged", async () => {
-    const jj = Jj.make(Jj.makeNoop({ status: () => Effect.succeed("clean") }))
-
-    await expect(Effect.runPromise(jj.status())).resolves.toBe("clean")
-    await expect(Effect.runPromise(Effect.flip(jj.diff("a", "b"))))
-      .resolves.toMatchObject({ code: "not_installed", method: "diff" })
   })
 })

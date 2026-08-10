@@ -1,11 +1,11 @@
+import { Jj } from "@smthrs/jj"
+import { Pty } from "@smthrs/pty"
 import { Clock, Effect, FileSystem, Random, Stream } from "effect"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as BrowserFileSystem from "../src/browser/BrowserFileSystem.ts"
 import * as JustBashShell from "../src/browser/JustBashShell.ts"
 import * as HttpTransport from "../src/HttpTransport.ts"
-import { Jj } from "../src/Jj.ts"
-import { Pty } from "../src/Pty.ts"
 import { Shell } from "../src/Shell.ts"
 import * as TestHost from "../src/test/TestHost.ts"
 

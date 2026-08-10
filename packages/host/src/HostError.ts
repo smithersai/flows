@@ -16,6 +16,8 @@
  * Codes are a STABLE public contract: callers branch on them, step keys digest
  * them, UIs map them to remediation. Never repurpose a code — add one.
  */
+import type { JjError } from "@smthrs/jj"
+import type { PtyError } from "@smthrs/pty"
 import { Schema } from "effect"
 
 /** @category models */
@@ -40,38 +42,16 @@ export class ShellError extends Schema.TaggedErrorClass<ShellError>()("flows/hos
   exitCode: Schema.optional(Schema.Number)
 }) {}
 
-/** @category models */
-export const PtyErrorCode = Schema.Literals(["unsupported", "exited", "not_found", "unknown"])
-
-/** @category models */
-export type PtyErrorCode = typeof PtyErrorCode.Type
-
-/** @category models */
-export class PtyError extends Schema.TaggedErrorClass<PtyError>()("flows/host/PtyError", {
-  code: PtyErrorCode,
-  module: Schema.optional(Schema.String),
-  method: Schema.optional(Schema.String),
-  message: Schema.String,
-  exitCode: Schema.optional(Schema.Number)
-}) {}
-
-/** @category models */
-export const JjErrorCode = Schema.Literals(["not_installed", "conflict", "invalid_ref", "unknown"])
-
-/** @category models */
-export type JjErrorCode = typeof JjErrorCode.Type
-
-/** @category models */
-export class JjError extends Schema.TaggedErrorClass<JjError>()("flows/host/JjError", {
-  code: JjErrorCode,
-  module: Schema.optional(Schema.String),
-  method: Schema.optional(Schema.String),
-  message: Schema.String,
-  /** The jj command that produced the failure, when one was run. */
-  command: Schema.optional(Schema.String)
-}) {}
-
-/** Every failure the Host layer is allowed to surface. @category models */
+/**
+ * Every failure the Host layer is allowed to surface.
+ *
+ * `PtyError` and `JjError` are declared by `@smthrs/pty` and `@smthrs/jj`
+ * beside their contracts; they are named here because those services are still
+ * part of the closed Host surface (`HostServices.ts`). This is a type
+ * union, not a re-export — import the errors themselves from their packages.
+ *
+ * @category models
+ */
 export type HostError = ShellError | PtyError | JjError
 
 /** Formats operation data the way `PlatformError` does. */
@@ -98,47 +78,5 @@ export const shellError = (options: {
     message: format(options.code, module, options.method, options.description),
     command: options.command,
     exitCode: options.exitCode
-  })
-}
-
-/**
- * Creates a `PtyError` from a failed pseudo-terminal operation.
- * @category constructors
- */
-export const ptyError = (options: {
-  readonly code: PtyErrorCode
-  readonly module?: string | undefined
-  readonly method: string
-  readonly description?: string | undefined
-  readonly exitCode?: number | undefined
-}): PtyError => {
-  const module = options.module ?? "Pty"
-  return new PtyError({
-    code: options.code,
-    module,
-    method: options.method,
-    message: format(options.code, module, options.method, options.description),
-    exitCode: options.exitCode
-  })
-}
-
-/**
- * Creates a `JjError` from a failed jj operation.
- * @category constructors
- */
-export const jjError = (options: {
-  readonly code: JjErrorCode
-  readonly module?: string | undefined
-  readonly method: string
-  readonly description?: string | undefined
-  readonly command?: string | undefined
-}): JjError => {
-  const module = options.module ?? "Jj"
-  return new JjError({
-    code: options.code,
-    module,
-    method: options.method,
-    message: format(options.code, module, options.method, options.description),
-    command: options.command
   })
 }

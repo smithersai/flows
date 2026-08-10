@@ -6,27 +6,31 @@
  *
  * @since 0.1.0
  */
+import type { Jj } from "@smthrs/jj"
+import * as BunJj from "@smthrs/jj/bun/BunJj"
+import type { Pty } from "@smthrs/pty"
+import * as BunPty from "@smthrs/pty/bun/BunPty"
 import type { FileSystem } from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Path from "effect/Path"
 import { HostServiceIds } from "../HostServices.ts"
 import type { HttpTransport } from "../HttpTransport.ts"
-import type { Jj } from "../Jj.ts"
-import type { Pty } from "../Pty.ts"
 import type { Shell } from "../Shell.ts"
 import * as BunFileSystem from "./BunFileSystem.ts"
 import * as BunHttpTransport from "./BunHttpTransport.ts"
-import * as BunJj from "./BunJj.ts"
-import * as BunPty from "./BunPty.ts"
 import * as BunShell from "./BunShell.ts"
 
 /**
- * Bun platform modules for selectively providing individual services.
+ * Bun platform modules owned by this package, for selectively providing
+ * individual services.
+ *
+ * `BunJj` and `BunPty` are deliberately absent: they belong to `@smthrs/jj`
+ * and `@smthrs/pty` and are imported from there, never re-exported here.
  *
  * @category re-exports
  * @since 0.1.0
  */
-export { BunFileSystem, BunHttpTransport, BunJj, BunPty, BunShell }
+export { BunFileSystem, BunHttpTransport, BunShell }
 
 /**
  * The complete closed Host service union provided by Bun.
@@ -41,6 +45,11 @@ export type BunHost = FileSystem | Path.Path | Shell | Pty | Jj | HttpTransport
  *
  * Planners can digest these values in `HostServiceIds` order without learning
  * about Bun implementation modules.
+ *
+ * These strings are FROZEN opaque identity tokens, not import specifiers. The
+ * Bun pty and jj adapters moved to `@smthrs/pty` and `@smthrs/jj` byte for
+ * byte; a step run against them is the same step, so the digest must not
+ * change ([[Step Keys]], `docs/concepts/step-keys.md`).
  *
  * @category models
  * @since 0.1.0

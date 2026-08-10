@@ -20,10 +20,10 @@
  * swappable via `Effect.provideService`, so they are named here for
  * completeness but are not ours to define.
  */
+import { Jj } from "@smthrs/jj"
+import { Pty } from "@smthrs/pty"
 import { FileSystem, Path } from "effect"
 import { HttpTransport } from "./HttpTransport.ts"
-import { Jj } from "./Jj.ts"
-import { Pty } from "./Pty.ts"
 import { Shell } from "./Shell.ts"
 
 /** @category models */
@@ -38,6 +38,11 @@ export const HostServiceTags = [FileSystem.FileSystem, Path.Path, Shell, Pty, Jj
 /**
  * Stable identifiers for the closed Host surface. Planners include the
  * resolved implementation identities for these services in step-key layers.
+ *
+ * These strings are FROZEN. They are digested into step keys, so they name a
+ * service's identity, not the package its module happens to live in: `Pty` and
+ * `Jj` moved to `@smthrs/pty` and `@smthrs/jj` without changing behaviour, and
+ * renaming them here would invalidate every cached step for no reason.
  *
  * @category models
  * @since 0.1.0
