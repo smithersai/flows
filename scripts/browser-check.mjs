@@ -30,6 +30,7 @@ const BROWSER_SAFE = [
   { name: "@smthrs/host/browser/BrowserHost", entry: "packages/host/src/browser/BrowserHost.ts" },
   { name: "@smthrs/jj", entry: "packages/jj/src/index.ts" },
   { name: "@smthrs/jj/browser/BrowserJj", entry: "packages/jj/src/browser/BrowserJj.ts" },
+  { name: "@smthrs/platform-browser", entry: "packages/platform-browser/src/index.ts" },
   { name: "@smthrs/pty", entry: "packages/pty/src/index.ts" },
   { name: "@smthrs/pty/browser/BrowserPty", entry: "packages/pty/src/browser/BrowserPty.ts" },
   { name: "@smthrs/sandbox", entry: "packages/sandbox/src/index.ts" },

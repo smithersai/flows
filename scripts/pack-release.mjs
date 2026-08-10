@@ -21,6 +21,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 export const workspaces = [
   "database",
   "keys",
+  "platform-browser",
   "host",
   "journal",
   "engine",
