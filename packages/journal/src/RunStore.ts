@@ -9,9 +9,10 @@
  *
  * @since 0.1.0
  */
-import { Database } from "@smthrs/database/Database"
+import { Database, fromSqlError } from "@smthrs/database/Database"
 import { Clock, Context, Effect, Layer, Schema } from "effect"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"
+import type * as SqlError from "effect/unstable/sql/SqlError"
 import type { LivenessEvidence, OwnerId } from "./Ownership.ts"
 
 /**
@@ -519,6 +520,14 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
   ): Effect.Effect<A, RunStoreError, R> =>
     database.write(effect).pipe(Effect.mapError((cause) => persistenceError(method, cause)))
 
+  // A bare SELECT needs no write transaction and no replay; only the error
+  // vocabulary stays shared with `write`.
+  const read = <A, R>(
+    method: string,
+    effect: Effect.Effect<A, SqlError.SqlError, R>
+  ): Effect.Effect<A, RunStoreError, R> =>
+    effect.pipe(Effect.mapError((cause) => persistenceError(method, fromSqlError(cause))))
+
   const create = Effect.fn("flows/journal/RunStore.create")(
     (runId: string, stateJson: string, options?: CreateOptions | undefined): Effect.Effect<void, RunStoreError> => {
       const parentRunId = options?.parentRunId ?? null
@@ -571,7 +580,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
   )
 
   const get = Effect.fn("flows/journal/RunStore.get")((runId: string): Effect.Effect<RunRow, RunStoreError> =>
-    write("get", selectRun(sql, runId)).pipe(
+    read("get", selectRun(sql, runId)).pipe(
       Effect.flatMap((rows) =>
         rows[0] === undefined
           ? Effect.fail(runStoreError("get", "not_found_row", `run ${runId} was not found`, runId))
@@ -664,7 +673,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
       (evidence !== undefined && evidenceMatches(expected, owner, nowMs, evidence))
 
     if (!canReplaceExpectedOwner) {
-      return write("claimAndOwn", selectRun(sql, runId)).pipe(
+      return read("claimAndOwn", selectRun(sql, runId)).pipe(
         Effect.map((current) => classifyClaimLoss(current[0], nowMs))
       )
     }

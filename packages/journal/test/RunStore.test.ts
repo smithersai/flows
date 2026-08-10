@@ -151,6 +151,7 @@ describe("RunStore", () => {
       yield* database.sql`PRAGMA ignore_check_constraints = OFF`
       yield* database.sql`DROP TABLE flows_runs`
       const persistence = yield* Effect.flip(store.create("missing-table", "{}"))
+      const readPersistence = yield* Effect.flip(store.get("missing-table"))
 
       return [
         empty,
@@ -165,7 +166,8 @@ describe("RunStore", () => {
         corruptClaimTime,
         corruptCompleteClaim,
         corruptJson,
-        persistence
+        persistence,
+        readPersistence
       ].map((failure) => failure.code)
     }))
 
@@ -182,6 +184,7 @@ describe("RunStore", () => {
       "decode_failed",
       "decode_failed",
       "decode_failed",
+      "persistence_failed",
       "persistence_failed"
     ])
   })

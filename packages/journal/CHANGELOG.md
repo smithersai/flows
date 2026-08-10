@@ -1,5 +1,12 @@
 # @smthrs/journal
 
+## [Unreleased]
+
+### Changed
+
+- `RunStore.get` and the `claimAndOwn` snapshot-loss check run as plain reads
+  instead of write transactions.
+
 ## [0.1.0] - 2026-08-05
 
 ### Fixed
