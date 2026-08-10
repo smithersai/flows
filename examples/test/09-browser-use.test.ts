@@ -1,0 +1,29 @@
+import { build } from "esbuild"
+import * as Effect from "effect/Effect"
+import { dirname, join } from "node:path"
+import { fileURLToPath } from "node:url"
+import { expect, it } from "vitest"
+import { main } from "../src/09-browser-use.ts"
+
+const here = dirname(fileURLToPath(import.meta.url))
+
+it("runs on the in-memory engine", async () => {
+  const summary = await Effect.runPromise(main)
+  expect(summary.result).toBe("built web")
+  expect(summary.stepKey).toMatch(/^sk1_[0-9a-f]{64}$/)
+})
+
+it("bundles for the browser with no node: imports", async () => {
+  const result = await build({
+    entryPoints: [join(here, "../src/09-browser-use.ts")],
+    absWorkingDir: join(here, ".."),
+    bundle: true,
+    write: false,
+    platform: "browser",
+    format: "esm",
+    target: "es2022",
+    logLevel: "silent"
+  })
+  expect(result.outputFiles).toHaveLength(1)
+  expect(result.outputFiles[0]!.text).toContain("examples/Compile")
+})
