@@ -34,15 +34,15 @@ There is no global order across runs.
 
 The journal is flows' own logical (domain) write-ahead log: run decisions, attempt lifecycle, deferred completions, clock schedules, permission decisions, and cache provenance. It is intended to become the authoritative state history. The SQLite or PostgreSQL WAL underneath it is only the storage durability substrate; it is never read as the application event API.
 
-The rule that follows is that **a durable boundary may not advance the run or expose its result until the corresponding logical WAL entry is committed**. That is what the lifecycle channel is for: `emitDurable` — and `emit` when an owner is passed or the journal is configured with `allocation: "sql"` — allocates inside the write transaction and returns a receipt that is already committed.
+The rule that follows is that **a durable boundary may not advance the run or expose its result until the corresponding logical WAL entry is committed**. `emitDurable` allocates inside the write transaction and returns a receipt that is already committed.
 
 A local commit is not remote atomicity. No journal write makes an external effect atomic with it, so effects outside the database still carry idempotency keys, fencing tokens, or a declared compensation.
 
 ## Optimistic admission (only telemetry may accept loss)
 
-`SqlJournal.emitLossy`, and `emit` on the default in-memory allocation path with no owner, perform validation, allocate both sequences, and attempt a non-blocking bounded queue offer. They return before SQL commits.
+`SqlJournal.emitLossy` validates, allocates both sequences, and attempts a non-blocking bounded queue offer. It returns before SQL commits.
 
-An `Accepted` receipt from that queue means only that the event entered the writer queue. It does not mean the row is durable, and a crash can lose it. `emitLossy` is **lossy by construction and off the critical path**; nothing may be reconstructed from it and no correctness argument may cite it. Transitional authoritative callers using queued `emit`, such as `JournalGrantStore`, call `journal.flush` and fail closed before activating a decision. New lifecycle callers use `emitDurable`.
+An `Accepted` receipt from that queue means only that the event entered the writer queue. It does not mean the row is durable, and a crash can lose it. `emitLossy` is **lossy by construction and off the critical path**; nothing may be reconstructed from it and no correctness argument may cite it. Lifecycle callers use `emitDurable`.
 
 Overflow policy is explicit:
 
@@ -89,7 +89,7 @@ Attempt heartbeats may include a JSON checkpoint up to 1 MiB. Omitting a checkpo
 - different content → `Conflict`;
 - no row → `Inserted`.
 
-`@smthrs/engine-store` uses `Digest.digest(stepKey)` as the cache address. It admits only hard, deviation-free sealed boundaries.
+`@smthrs/engine-store` decodes the step key through the injected `Sha256` transformation to obtain the cache address. It admits only hard, deviation-free sealed boundaries.
 
 ## Migrations
 
@@ -99,6 +99,8 @@ Attempt heartbeats may include a JSON checkpoint up to 1 MiB. Omitting a checkpo
 - `flows_runs`;
 - `flows_attempts`;
 - `flows_step_cache`;
+- `flows_deferred_completions`;
+- `flows_clock_deadlines`;
 - migration bookkeeping.
 
 Time-travel tables use a separate migration in `@smthrs/time-travel`.
@@ -115,4 +117,4 @@ Two consequences to plan for. Publication follows the commit, so an entry become
 
 ## Operational rule
 
-Use `emitLossy` only for telemetry where a drop is acceptable. Put anything that authorizes work or is required for recovery on the durable channel; a transitional queued caller must use `overflow: "reject"`, `flush`, and fail closed before acting. A dropping queue cannot serve as the durable source of permission grants, deferred completion ordering, or time-travel audit.
+Use `emitLossy` only for telemetry where a drop is acceptable. Put anything that authorizes work or is required for recovery on `emitDurable`. A dropping queue cannot serve as the durable source of permission grants, deferred completion ordering, or time-travel audit.

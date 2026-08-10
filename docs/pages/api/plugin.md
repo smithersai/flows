@@ -75,7 +75,7 @@ Declared in [src/index.ts](https://github.com/smithersai/flows/blob/main/package
 | --- | --- | --- |
 | `Resolve.resolve`, `Options`, `Resolved`, `HandlerRecord` | [src/Resolve.ts](https://github.com/smithersai/flows/blob/main/packages/plugin/src/Resolve.ts) | flattens input, applies `apply` filtering, orders by `enforce` then `order` |
 | `Resolve.layer` | same | provides the resolved catalog |
-| `Kernel.make`, `Kernel.runConfig`, `Kernel.Kernel` | [src/Kernel.ts](https://github.com/smithersai/flows/blob/main/packages/plugin/src/Kernel.ts) | startup: config waterfall, then `configResolved`; accepts `options.contentEnvironment` |
+| `Kernel.make`, `Kernel.runConfig`, `Kernel.Kernel` | [src/Kernel.ts](https://github.com/smithersai/flows/blob/main/packages/plugin/src/Kernel.ts) | startup: config waterfall, then `configResolved`; accepts `options.cacheEnvironment` |
 | `Plugins.Plugins`, `Service`, `make`, `makeNoop`, `layer`, `layerNoop` | [src/Plugins.ts](https://github.com/smithersai/flows/blob/main/packages/plugin/src/Plugins.ts) | the dispatcher |
 
 ## Config
@@ -84,8 +84,7 @@ Declared in [src/index.ts](https://github.com/smithersai/flows/blob/main/package
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `FlowsConfig`, `ResolvedConfig`, `EngineConfig`, `RetryConfig` | interfaces | |
-| `FlowsConfigSchema` | schema | |
+| `FlowsConfig`, `ResolvedConfig`, `EngineConfig`, `RetryConfig` | schemas + types | decode and validate configuration shapes |
 | `defaults` | const | the resolved defaults |
 | `merge`, `resolve`, `deepFreeze` | functions | the waterfall pipeline |
 
@@ -100,4 +99,4 @@ Declared in [src/index.ts](https://github.com/smithersai/flows/blob/main/package
 
 ## Content environment
 
-`Kernel.make` always provides resolved plugin identities. A composition declares complete identity only when it also passes `options.contentEnvironment`. Without that, sealed content keys stay run-local, so a cache row cannot cross runs under unknown authority.
+When `options.cacheEnvironment` is supplied, `Kernel.make` prepends resolved plugin identities to its layers and declares the complete result. Without it, sealed keys stay run-local.

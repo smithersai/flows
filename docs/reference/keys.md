@@ -1,42 +1,17 @@
 # `@smthrs/keys`
 
-This page is the public API reference for SHA-256 digests and versioned step-key construction. The package is pure and does not access storage or execute flows. It delegates serialization to `@smthrs/canonical`.
+The package turns canonical JSON into a validated workflow key.
 
-## Import
+```typescript
+/** A versioned SHA-256 key derived from canonical JSON. */
+export type Key = string & Brand<"flows/keys/Key">
 
-```ts
-import { Digest, KeyMaterial, StepKey } from "@smthrs/keys"
+/** Converts any RFC 8785-compatible JSON value to `Key`. */
+export const Key: Schema<
+  Key,
+  unknown,
+  Crypto.Crypto
+>
 ```
 
-## `Digest`
-
-`Digest.digest(input)` computes a lowercase SHA-256 hex string from a string or `Uint8Array`.
-
-## `StepKey`
-
-| Export | Purpose |
-| --- | --- |
-| `StepKey` | Branded schema/type matching `sk1_` plus 64 lowercase hex characters |
-| `ContentIdentity` | Full body/input/layer/capability/hermetic key material |
-| `OrdinalIdentity` | Run-local `{ runId, parentScope?, ordinal, tier }` material |
-| `content(identity)` | Produce a cross-run content key |
-| `ordinal(identity)` | Produce a run-local ordinal key |
-| `fromKeyMaterial(material, dependencyDigests)` | Resolve graph-local dependency references and produce a content key |
-| `KeyMaterialError` | Missing dependency or non-content-material failure |
-
-```ts
-const key = StepKey.content({
-  body: "compile-v3",
-  inputs: { source: { digest: "sha256:source" } },
-  layers: ["linux-amd64"],
-  capabilities: { fs: ["fs:read:/workspace/src/**"] }
-})
-```
-
-All constructors return Effect `Result`; use `Result.getOrThrow` only when the input is already trusted.
-
-## `KeyMaterial`
-
-`KeyMaterial.InputRef` represents a graph-local dependency by `nodeId`. `KeyMaterial.KeyMaterial` is either sealed content material or ordinal material. The package can resolve this structure, but no public planner in this repository produces it automatically.
-
-See [Step keys and content addressing](../concepts/step-keys.md) and [The action graph](../concepts/action-graph.md).
+`Key` serializes through [RFC 8785 canonical JSON](https://www.rfc-editor.org/rfc/rfc8785.html), then delegates hashing to `@smthrs/crypto`. It is irreversible and returns invalid input or crypto failures as `SchemaError`.

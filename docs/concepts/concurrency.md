@@ -15,7 +15,7 @@ const [checked, tested] = yield* Effect.all(
 
 The enclosing flow handler does not complete until both effects complete. Error and interruption behavior follows `Effect.all`; Smithers Flows does not add an implicit “continue unrelated nodes” policy.
 
-Activities receive ordinals from a counter scoped to the activity's **name**, not from one per-run counter bumped in fiber-arrival order (issue #73), and the name is folded into the ordinal step key. Two distinct activities running concurrently — `Effect.all([chargeCard, sendEmail], { concurrency: "unbounded" })` — therefore keep their identities no matter how a replay interleaves them. What remains order-sensitive: repeated invocations of the *same* activity in one run are numbered in allocation order, and changing branch structure before an activity can still change which invocation occupies which number. For cross-run cache reuse, or to pin identity across concurrent invocations of one activity, declare a content identity instead of relying on an ordinal.
+Activities receive ordinals from a counter scoped to the activity's **name**, not from one per-run counter bumped in fiber-arrival order (issue #73), and the name is folded into the ordinal step key. Two distinct activities running concurrently — `Effect.all([chargeCard, sendEmail], { concurrency: "unbounded" })` — therefore keep their identities no matter how a replay interleaves them. What remains order-sensitive: repeated invocations of the *same* activity in one run are numbered in allocation order, and changing branch structure before an activity can still change which invocation occupies which number. For cross-run cache reuse, or to pin identity across concurrent invocations of one activity, declare a cache key input instead of relying on an ordinal.
 
 ## Durable races
 
@@ -46,7 +46,7 @@ The protocols reject mismatched owners and stale snapshots. They do not provide 
 
 ## Journal admission
 
-The SQL journal queue provides optimistic, non-blocking admission. `emitLossy` uses it for telemetry, where loss is acceptable; transitional ownerless `emit` under default in-memory allocation also uses it, but an authoritative caller must `flush` and fail closed before acting. Capacity limits bound queued events and bytes; excess input is rejected instead of waiting indefinitely. Engine-store lifecycle events use `emitDurable`, which commits inline and blocks until it does.
+The SQL journal queue provides optimistic, non-blocking admission through `emitLossy` for telemetry, where loss is acceptable. Capacity limits bound queued events and bytes; excess input is rejected instead of waiting indefinitely. Lifecycle events use `emitDurable`, which commits inline and blocks until it does.
 
 Sequence allocation may produce holes when a reserved event is rejected or a transaction fails. Consumers must treat sequence numbers as ordered cursors, not contiguous counters.
 

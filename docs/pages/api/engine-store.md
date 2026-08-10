@@ -62,7 +62,7 @@ Required services: `Journal`, `RunStore`, `AttemptStore`, `CacheStore`, `Durable
 | --- | --- | --- |
 | `StepBoundary` | service tag | prepare and settle around an activity |
 | `Service`, `PreparedBoundary` | interfaces | |
-| `Descriptor`, `BoundaryMode`, `ReadSetEntry` | schemas + types | the declared boundary, `hard` or `soft` |
+| `FileBoundary`, `BoundaryMode`, `FileInput` | schemas + types from `@smthrs/engine` subpaths | the declared boundary, `hard` or `expected` |
 | `BoundaryEvidence`, `BoundaryDeviation`, `readSetMatches` | schemas + predicate | settle evidence |
 | `make` | constructor | from an implementation |
 | `makeFileSystem`, `FileSystemOptions`, `layer` | filesystem implementation | measures declared read sets, materializes declared outputs |

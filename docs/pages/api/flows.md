@@ -1,6 +1,6 @@
 # @smthrs/flows
 
-The umbrella barrel. It re-exports the ten engine packages as namespaces, so one dependency gives you the whole surface without collapsing each package's `make` / `makeNoop` / `layerNoop` trio into a shared namespace.
+The umbrella barrel. It re-exports the twelve engine packages as namespaces, so one dependency gives you the whole surface without collapsing each package's `make` / `makeNoop` / `layerNoop` trio into a shared namespace.
 
 ```ts
 import { Engine, Host, Journal } from "@smthrs/flows"
@@ -26,6 +26,8 @@ This entry point is Node-only, because it re-exports `@smthrs/engine-store`. Bro
 
 | Namespace | Package | Reference |
 | --- | --- | --- |
+| `Canonical` | `@smthrs/canonical` | [Canonical](/api/canonical) |
+| `Crypto` | `@smthrs/crypto` | [Crypto](/api/crypto) |
 | `Database` | `@smthrs/database` | [Database](/api/database) |
 | `Engine` | `@smthrs/engine` | [Engine](/api/engine) |
 | `EngineStore` | `@smthrs/engine-store` | [EngineStore](/api/engine-store) |

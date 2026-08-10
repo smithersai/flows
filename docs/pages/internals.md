@@ -76,10 +76,10 @@ The verdict is durable too. A persisted `failed` attempt row replays by rethrowi
 
 ## Cache admission
 
-A content key says an output is a function of some declarations. It cannot see a hidden file read or an undeclared network call. So the key alone never admits a row to the shared cache. Admission requires all of:
+A cache key says an output is a function of some declarations. It cannot see a hidden file read or an undeclared network call. So the key alone never admits a row to the shared cache. Admission requires all of:
 
 1. activity tier `sealed`;
-2. `metadata` that decodes as a `StepBoundary.Descriptor`;
+2. `metadata` that decodes as `FileBoundary`;
 3. `boundaryMode: "hard"`;
 4. `prepare` and `settle` both succeeding;
 5. no expected-set deviation in the settle evidence;
@@ -101,7 +101,7 @@ Durability attaches at boundaries: `Activity`, `DurableDeferred`, durable clocks
 
 Two APIs use the word replay differently. `EngineStore` replay re-runs a registered handler. `TimeTravel.Replay.rederive` is read-only and folds committed entries into a projection, never invoking a handler or dispatcher.
 
-There is no flow-source digest. What decides reuse after a code edit is activity identity: a changed content identity produces a new result, an unchanged one reuses the old, changed control flow around ordinal activities can remap ordinals, and changed schemas can make stored payloads or results fail to decode as a defect.
+There is no flow-source digest. What decides reuse after a code edit is activity identity: a changed cache key input produces a new result, an unchanged one reuses the old, changed control flow around ordinal activities can remap ordinals, and changed schemas can make stored payloads or results fail to decode as a defect.
 
 ## Run cycle detection
 

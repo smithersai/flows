@@ -14,7 +14,6 @@ This page is the public API reference for durable events, run ownership, activit
 
 | Operation | Result |
 | --- | --- |
-| `emit(input)` | `Accepted`, `Duplicate`, or `Dropped` receipt |
 | `emitLossy(input)` | Optimistic telemetry receipt; `Dropped` and eviction are accepted outcomes |
 | `emitDurable(input)` | `Accepted` or `Duplicate` receipt whose `seq` is already committed |
 | `entries({ runId, after?, limit })` | Durable page and `hasMore` |
@@ -27,20 +26,13 @@ This page is the public API reference for durable events, run ownership, activit
 
 ## SQL journal
 
-`SqlJournal.layer(options)` provides the bounded batching implementation over `Database`. Options are `capacity`, `overflow`, optional `batchSize`, optional `allocation`, and optional `sourceEventCache`.
+`SqlJournal.layer(options)` provides the bounded telemetry writer and inline durable writer over `Database`. Options are `capacity`, `overflow`, and optional `batchSize`, `sourceEventCache`, and `redact`.
 
 ### Source-event index bound
 
-`sourceEventCache` (default `4096`) bounds the in-process index that answers `emit` idempotency from memory. Startup loads only the most recent `sourceEventCache` events (`ORDER BY emitted_at_ms DESC … LIMIT`), and admission evicts the least-recently-added *committed* entry once the bound is exceeded; uncommitted entries are never evicted, because the database does not hold them yet. The index is a cache, not the authority: the writer re-checks `(run_id, source_id, source_seq)` under its unique constraint on every insert, so an evicted event that is re-emitted is still deduplicated durably (no second row) and still fails with `idempotency_conflict` on changed content. The only degradation past the window is a memory-path receipt reported as `Accepted` rather than `Duplicate`, the same behaviour the `drop-oldest` eviction path already had. Resident memory and startup decode are therefore O(`sourceEventCache`), not O(total events ever written).
+`sourceEventCache` (default `4096`) bounds the in-process producer-idempotency index. The database unique constraint remains authoritative, so eviction changes only whether a retry is recognized before the write transaction. Resident memory and startup decode are O(`sourceEventCache`), not O(total events).
 
 ### Sequence allocation
-
-The journal is flows' logical write-ahead log and is intended to become the authoritative state history; the storage engine's own WAL sits underneath it as a durability substrate and is never an event API. `allocation` selects where the canonical per-run `seq` is assigned, and therefore which of the two channels `emit` lands on.
-
-| Mode | `emit` behaviour | Writers per run |
-| --- | --- | --- |
-| `"memory"` (default) | Allocates in process memory and queues the write. The receipt alone is suitable only for telemetry; an authoritative caller must `flush` and fail closed before acting. Prefer `emitDurable` for lifecycle evidence. | One process |
-| `"sql"` | `emit` is `emitDurable`. | Any number |
 
 `emitDurable` allocates both sequences inside the writer's transaction (`MAX(seq) + 1`, taking the in-memory clock as a floor) and inserts the row before returning, so the returned `seq` is already committed. `(run_id, source_id, source_seq)` deduplication is unchanged: an exact producer retry returns `Duplicate` with `status: "committed"`, and a reused producer sequence carrying different content fails with `idempotency_conflict`. Use it wherever a caller acts on the returned sequence — lifecycle finalization, cross-process supervisors, or any deployment where a second writer may open the same run. A durable boundary must not advance the run or expose its result until this commit returns.
 
@@ -81,9 +73,7 @@ The two channels also fail independently, and neither failure is permanent. A ba
 
 ### Migrations
 
-`Migrations.run` creates the journal, sequence, run, attempt, cache, and supporting tables. `Migrations.layer` runs it as a layer dependency. Apply it before store construction.
-
-`Migrations.runThrough(name)` applies the ladder only up to and including `name` (`Migrations.names` lists them in order). A database in the field is always some prefix of the ladder *with rows in it*, so that is the state schema evolution has to survive: migrate to a prefix, populate, then run the rest. `packages/journal/test/Migrations.test.ts` does exactly that across `0003`/`0004`, which `Migrations.run` alone could only ever apply to an empty table — the one case SQLite never rejects.
+`Migrations.run` creates the complete journal, run, attempt, cache, deferred, and clock schema. `Migrations.layer` runs it as a layer dependency. The repository is unreleased, so there is one authoritative initial schema rather than compatibility migrations for obsolete internal versions.
 
 ## Run ownership
 

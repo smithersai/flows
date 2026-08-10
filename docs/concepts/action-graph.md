@@ -27,22 +27,21 @@ An activity has the pieces of an action:
 
 | Action property | Current representation |
 | --- | --- |
-| implementation identity | `Activity.idempotencyKey`, usually `StepKey.ContentIdentity.body` |
-| declared inputs | `ContentIdentity.inputs` |
-| implementation layers | `ContentIdentity.layers` |
-| authority | `ContentIdentity.capabilities` |
-| declared reads/writes | optional `ContentIdentity.hermetic` and `StepBoundary.Descriptor` |
+| caller identity | string or canonical JSON object in `Activity.idempotencyKey` |
+| runtime layers | `Activity.CacheEnvironment.layers` |
+| authority | `Activity.CacheEnvironment.capabilities` |
+| declared reads/writes | activity `metadata` decoded as `FileBoundary` |
 | output | schema-encoded activity exit and optional `BoundaryEvidence.declaredOutputs` |
-| cache address | content-derived `StepKey`, then its SHA-256 digest in `CacheStore` |
+| cache address | content-derived `Key`, then its SHA-256 digest in `CacheStore` |
 
-A sealed activity is reusable only when it has a content identity. A non-sealed activity receives a run-local ordinal key and cannot share results across runs.
+A sealed activity is reusable only when it has an idempotency key, a complete cache environment, and sufficient boundary evidence. Other work receives a run-local key and cannot share results across runs.
 
 ## Hermeticity is an evidence gate
 
-`StepKey.content` can describe a hermetic action, but it does not enforce one. Cache admission in `@smthrs/engine-store` additionally requires:
+The derived `Key` identifies an action but does not enforce hermeticity. Cache admission in `@smthrs/engine-store` additionally requires:
 
 1. activity tier `sealed`;
-2. metadata that decodes as a `StepBoundary.Descriptor`;
+2. metadata that decodes as `FileBoundary`;
 3. boundary mode `hard`;
 4. successful `prepare` and `settle`;
 5. no expected-set deviation.
@@ -51,17 +50,9 @@ The repository ships the contract and a deterministic test layer. A production h
 
 Without that host layer, the durable engine can still replay an attempt within one run, but it cannot honestly populate the cross-run action cache.
 
-## Graph-local key material
+## Graph planning
 
-`@smthrs/keys` exports a low-level `KeyMaterial` shape with three input forms:
-
-- `Literal` — hash the value inline;
-- `Ref` — replace a graph-local node ID with its dependency digest and retain a value path;
-- `Pending` — replace a graph-local node ID with its dependency digest.
-
-`StepKey.fromKeyMaterial` removes structural node IDs from the hash. This permits a future planner to rename or reorder nodes without invalidating equivalent work.
-
-No package in this repository currently produces a full `KeyMaterial` graph. That producer and the pre-execution cache-status planner are **Planned**.
+Resolving graph-local dependency references into digests belongs to the future graph planner. The repository does not publish placeholder graph schemas before that planner exists; when implemented, its declarations and references will live with the planner rather than in `@smthrs/keys`.
 
 ## Current scheduling
 
@@ -81,7 +72,7 @@ The existing contracts constrain a future planner:
 
 - key computation must remain above the encoded storage seam;
 - graph-local IDs must remain lookup addresses, not hash material;
-- Host implementation identities and capabilities must enter content identity;
+- Host implementation identities and capabilities must enter cache key input;
 - cache hits must still replay declared outputs through `StepBoundary`;
 - planning must not execute Host effects;
 - ordinal work must remain run-local.

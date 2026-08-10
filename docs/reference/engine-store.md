@@ -4,7 +4,7 @@ This page is the public API reference for the journal-backed `FlowEngine` compos
 
 ## Node only
 
-`@smthrs/engine-store` is a **Node entry point**, and the repository's browser gate treats it as one. `EngineStore` reads `process.pid` and imports `randomUUID` from `node:crypto` (`packages/engine-store/src/EngineStore.ts:20`); those two are the package's entire browser-gap inventory (issue #114). Everything it composes above — `@smthrs/journal`, `@smthrs/database`, `@smthrs/keys`, `@smthrs/engine` — is browser-bundleable, so the gap is an owner-identity and UUID-source decision, not a rewrite. Until it closes, do not describe the durable engine as browser-capable; `npm run browser` asserts this entry point still fails to bundle for the browser, so the claim cannot drift. See [browser support](../architecture/browser-support.md).
+`@smthrs/engine-store` is a **Node entry point**, and the repository's browser gate treats it as one. `EngineStore` reads `process.pid` and imports `randomUUID` from `node:crypto` (`packages/engine-store/src/EngineStore.ts:20`); those two are the package's entire browser-gap inventory (issue #114). Everything it composes above — `@smthrs/crypto`, `@smthrs/journal`, `@smthrs/database`, and `@smthrs/engine` — is browser-bundleable, so the gap is an owner-identity and UUID-source decision, not a rewrite. Until it closes, do not describe the durable engine as browser-capable; `npm run browser` asserts this entry point still fails to bundle for the browser, so the claim cannot drift. See [browser support](../architecture/browser-support.md).
 
 ## `EngineStore`
 
@@ -20,7 +20,7 @@ const layer = EngineStore.layer({
 
 Required services are `Journal`, `RunStore`, `AttemptStore`, `CacheStore`, `DurableEngineState`, kernel `Jj`, `StepBoundary`, and `Scope`. `EngineCompositionError` represents an engine that was invoked without a complete composition.
 
-The engine stores a versioned state envelope in each run row, fences run and attempt ownership, replays encoded exits, and writes engine decisions to the journal. Cache addresses are `Digest.digest(stepKey)`, not the raw `sk1_…` value.
+The engine stores a versioned state envelope in each run row, fences run and attempt ownership, replays encoded exits, and writes engine decisions to the journal. Cache addresses are the injected `Sha256` transformation of the step key, not the raw `key1_…` value.
 
 Durable cancellation is observed, not just recorded: while a run executes, the driver polls `cancel_requested_at_ms` on the heartbeat cadence and cancels the run (interrupting the flow fiber) when another process has called `RunStore.requestCancel`. Terminal transitions are additionally guarded with `{ cancelRequested: "absent" }` inside the ownership CAS, so a request that races past the last poll turns finalize into a cancellation instead of a `completed`/`failed` write.
 
@@ -46,7 +46,7 @@ that suspends parks before its `suspended` transition — reason `timer` with
 the earliest pending clock deadline as `wakeAt` when a durable clock is
 outstanding, reason `event` otherwise — and every resume wakes (clears) the
 waiting payload when the run re-enters `running`. `waitingRuns` and the
-migration `0004` partial index therefore match real suspensions, not only
+waiting-row partial index therefore match real suspensions, not only
 rows written through the store API directly.
 
 Outcome unions distinguish newly written, existing, completed, and missing
@@ -66,11 +66,11 @@ semantics) rather than being lost until process restart.
 
 <a id="stepboundary"></a>
 
-`Descriptor` contains `readSet`, `writeSet`, and `boundaryMode` (`hard` or `expected`). A service implements:
+`FileBoundary` from `@smthrs/engine/FileBoundary` contains `readSet`, `writeSet`, and `boundaryMode` (`hard` or `expected`). A service implements:
 
 ```ts
 interface Service {
-  prepare(descriptor: Descriptor): Effect<PreparedBoundary, UnsupportedBoundary>
+  prepare(descriptor: FileBoundary): Effect<PreparedBoundary, UnsupportedBoundary, Crypto>
   settle(prepared: PreparedBoundary): Effect<BoundaryEvidence, UndeclaredWrite | UnsupportedBoundary>
   replayOutputs(evidence: BoundaryEvidence): Effect<void, UnsupportedBoundary | BoundaryCorruption>
 }

@@ -7,11 +7,11 @@ Everything durable in Smithers Flows is one of a small number of shapes. This pa
 | Shape | Table | Migration | Package |
 | --- | --- | --- | --- |
 | Journal entry | `flows_journal_events` | `0001_initial` | `@smthrs/journal` |
-| Run row | `flows_runs` | `0001`, extended by `0003`, `0004` | `@smthrs/journal` |
+| Run row | `flows_runs` | `0001_initial` | `@smthrs/journal` |
 | Attempt row | `flows_attempts` | `0001_initial` | `@smthrs/journal` |
 | Cache row | `flows_step_cache` | `0001_initial` | `@smthrs/journal` |
-| Deferred completion | `flows_deferred_completions` | `0002_durable_engine_state` | `@smthrs/engine-store` |
-| Clock deadline | `flows_clock_deadlines` | `0002_durable_engine_state` | `@smthrs/engine-store` |
+| Deferred completion | `flows_deferred_completions` | `0001_initial` | `@smthrs/engine-store` |
+| Clock deadline | `flows_clock_deadlines` | `0001_initial` | `@smthrs/engine-store` |
 | Run-parent edge | `flows_run_parents` | created by `DurableEngineState.make` | `@smthrs/engine-store` |
 | Frame snapshot | `flows_time_travel_snapshots` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel` |
 | Lineage edge | `flows_time_travel_edges` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel` |
@@ -60,8 +60,8 @@ Invariants:
 
 | Channel | Entry point | Durability | Use it for |
 | --- | --- | --- | --- |
-| durable | `emitDurable`, or `emit` with an owner, or `emit` under `allocation: "sql"` | allocates and commits inside the write transaction; returns after COMMIT | lifecycle evidence, anything a recovery argument cites |
-| lossy | `emitLossy`, or ownerless `emit` under the default in-memory allocation | bounded non-blocking queue; returns before COMMIT | telemetry where a drop is acceptable |
+| durable | `emitDurable` | allocates and commits inside the write transaction; returns after COMMIT | lifecycle evidence, anything a recovery argument cites |
+| lossy | `emitLossy` | bounded non-blocking queue; returns before COMMIT | telemetry where a drop is acceptable |
 
 An `Accepted` receipt from the lossy queue means the event entered the writer queue. A crash can still lose it. Overflow behavior is explicit:
 
@@ -103,8 +103,8 @@ Readers: `Journal.entries` pages history, `Journal.stream` replays then follows,
 | `owner_host_id`, `owner_pid`, `owner_nonce`, `heartbeat_at_ms` | the ownership fence |
 | `claim_host_id`, `claim_pid`, `claim_nonce`, `claimed_at_ms` | the claim generation |
 | `state_json` | encoded payload and, once terminal, the encoded `Flow.Result` |
-| `parent_run_id`, `cancel_requested_at_ms` | added by `0003_run_metadata` |
-| `waiting_reason`, `waiting_wake_at_ms`, `waiting_token` | added by `0004_waiting_reason` |
+| `parent_run_id`, `cancel_requested_at_ms` | lineage and cancellation guards |
+| `waiting_reason`, `waiting_wake_at_ms`, `waiting_token` | parked-run query and wake data |
 
 Invariants, enforced by table `CHECK` constraints rather than by convention:
 
@@ -128,7 +128,7 @@ An annotation is consumed once its awaited deferred resolves, so a later suspens
 
 ## Attempt rows
 
-An attempt is addressed by `(runId, stepKeyDigest, attempt)`, where `stepKeyDigest` is `Digest.digest(stepKey)`.
+An attempt is addressed by `(runId, stepKeyDigest, attempt)`, where `stepKeyDigest` is the result of decoding the step key through `Sha256`.
 
 | Column | Meaning |
 | --- | --- |
@@ -136,7 +136,7 @@ An attempt is addressed by `(runId, stepKeyDigest, attempt)`, where `stepKeyDige
 | `started_at_ms`, `finished_at_ms`, `heartbeat_at_ms` | lifecycle stamps |
 | `checkpoint_json` | up to 1 MiB; omitting one preserves the previous checkpoint |
 | `error_json`, `outcome_json` | the encoded exit |
-| `meta_json` | opaque, and where the `StepBoundary.Descriptor` is carried |
+| `meta_json` | opaque, and where the `FileBoundary` is carried |
 
 Invariants: mutations are fenced by the current run owner, and the first fenced terminal transition wins. A later `finish` observes `StateChanged`. A persisted `failed` row replays by rethrowing the persisted domain failure, so a non-retryable failure matches on resume without another dispatch.
 
@@ -146,7 +146,7 @@ Invariants: mutations are fenced by the current run owner, and the first fenced 
 
 | Column | Meaning |
 | --- | --- |
-| `key_digest` | primary key, `Digest.digest(stepKey)` |
+| `key_digest` | primary key, the `Sha256` transformation of the step key |
 | `result_json` | the encoded activity success |
 | `meta_json` | opaque metadata |
 | `created_at_ms` | creation stamp |
@@ -162,39 +162,31 @@ A `Conflict` is journalled as `flows.engine.cache-conflict` and handed to `Incon
 
 ## Step keys
 
-A step key is `sk1_` followed by a lowercase SHA-256 digest. It is computed in `@smthrs/engine` above the encoded storage seam, so the memory and durable engines receive the same identity.
+A step key is `key1_` followed by a lowercase SHA-256 digest. It is computed in `@smthrs/engine` above the encoded storage seam, so the memory and durable engines receive the same identity.
 
 ### Canonical serialization
 
-`Canonical.serialize` produces a versioned, type-tagged string. It sorts object keys, preserves array order, and NFC-normalizes strings. Set-like fields are normalized, deduplicated, and sorted. Literal inputs and digest inputs carry different canonical tags, so `"abc"` and `{ digest: "abc" }` never collide.
+Decoding through `Canonical` produces RFC 8785 JSON. The wrapped `canonicalize` library sorts object keys, preserves array order, uses deterministic number formatting, and rejects inputs that cannot produce valid canonical JSON. The wrapper additionally rejects lone Unicode surrogates. `Key` hashes that canonical document through Effect Crypto.
 
-It rejects, rather than coercing, anything that cannot produce a stable key: `undefined`, bigint, symbol, function, non-finite numbers, sparse arrays, class instances, accessor properties, cycles, symbol-keyed properties, and Effect `Redacted` values. The last one is both a correctness guard and a confidentiality guard; a secret should never be unwrapped into key material.
-
-### Content keys
+### Cache keys
 
 ```ts
-StepKey.content({
-  body: "compile-typescript/v3",
-  inputs: { tsconfig: { digest: "sha256-of-tsconfig" }, mode: "production" },
-  layers: ["node-22", "typescript-6.0.3"],
-  capabilities: { declared: ["fs:read:/workspace/**"] },
-  hermetic: { readSet: [...], writeSet: ["/workspace/dist/**"], boundaryMode: "hard" }
-})
+yield* Schema.decodeUnknownEffect(Key)({ operation: "compile", version: 3 })
 ```
 
-A content key changes when the canonicalized body, inputs, layers, capabilities, environment identity, or hermetic declaration changes. The resolved environment is hashed in a namespace separate from caller-owned fields, so the two sources cannot alias, and a cache hit cannot survive a host or capability swap.
+A sealed activity key changes when its caller identity, complete cache environment, or filesystem boundary changes. The engine owns that combined input; `@smthrs/keys` only hashes it.
 
-A string `idempotencyKey` folds in the activity name and the declared success and error schemas, so renaming that activity changes its key. An object-form `ContentIdentity` is caller-owned and rename-stable.
+A string `idempotencyKey` folds in the activity name and declared schemas. An object identity is caller-owned and rename-stable.
 
-If no environment is declared, or layers are known but the complete capability identity is missing, the key is scoped to the current execution and cannot be reused across runs.
+If no complete environment is declared, the key includes the current execution ID and cannot be reused across runs.
 
-### Ordinal keys
+### Invocation keys
 
 ```ts
-StepKey.ordinal({ runId: "run-42", parentScope: "checkout", ordinal: 3, tier: "compensable" })
+{ runId: "run-42", parentScope: "checkout", ordinal: 3, tier: "compensable" }
 ```
 
-Ordinals are allocated per declaration identity, meaning the activity name refined by any declared string key, and that scope is folded into the key as `parentScope`. Two different activities running concurrently keep their identities under any interleaving. Repeated invocations of one declaration are numbered in allocation order, so changing control flow before such a boundary can still change which invocation gets which number.
+The engine hashes this private shape through `Key`. Ordinals are allocated per declaration identity, meaning the activity name refined by any declared key, and that scope is folded into the key as `parentScope`.
 
 ## Frames and time-travel shapes
 

@@ -80,7 +80,7 @@ Mirrors Vite exactly, with Effect types:
 2. **`config` hook (waterfall, sequential)**: each plugin may return a partial config to be deep-merged, or mutate-and-return. Runs before any Layer is built. Namespaces outside the known option groups (`retry`/`engine`/`store`) are carried through resolution verbatim and deep-frozen — a plugin's own namespace (e.g. `myPlugin: { endpoint }`) is readable from the resolved config; the plugin validates it itself.
 3. The core resolves defaults, producing a frozen `ResolvedConfig`.
 4. **`configResolved` hook (parallel)**: plugins capture the final config. After this point config is immutable for the process lifetime.
-5. All plugin `layer`s are merged (in resolved order, `Layer.provideMerge` left-to-right so `pre` plugins' services are visible to later ones) into the engine's environment. This composed layer is the single place plugins meet DI — the same shape opencode uses for its app layer. The merged layer declares `Activity.CurrentContentEnvironment` from the resolved plugin identities (in order), so a plugin swap changes the sealed content key (issue #88). Layer composition cannot infer effective authority: without `options.contentEnvironment`, capabilities remain unknown and the engine scopes those keys to the current run. Supplying the complete capability identity and every additional semantic layer/configuration identity enables safe cross-run reuse; a configured plugin whose behavior changes without changing its name must put that versioned configuration identity in `contentEnvironment.layers`.
+5. All plugin `layer`s are merged (in resolved order, `Layer.provideMerge` left-to-right so `pre` plugins' services are visible to later ones) into the engine's environment. This composed layer is the single place plugins meet DI — the same shape opencode uses for its app layer. The merged layer declares `Activity.CurrentCacheEnvironment` from the resolved plugin identities (in order), so a plugin swap changes the sealed cache key (issue #88). Layer composition cannot infer effective authority: without `options.cacheEnvironment`, capabilities remain unknown and the engine scopes those keys to the current run. Supplying the complete capability identity and every additional semantic layer/configuration identity enables safe cross-run reuse; a configured plugin whose behavior changes without changing its name must put that versioned configuration identity in `cacheEnvironment.layers`.
 
 ## Resolution and ordering rules
 
@@ -132,7 +132,7 @@ Selected signatures and the plugin each was designed for:
 
 **`checkpoint`** — `(ctx: { runId: RunId; stepKey: string; seq: number }) => Effect<void>` requiring a `Checkpoint` host capability from the plugin's own `layer`. Fires only when such a layer is present (browser hosts omit it via `makeNoop`); the engine core never snapshots inline.
 
-**`journalEvent`** — observer over the lossy telemetry channel only. It cannot see, delay, or veto the lifecycle `emit` path — history durability is core, full stop.
+**`journalEvent`** — observer over the lossy telemetry channel only. It cannot see, delay, or veto `emitDurable` — history durability is core, full stop.
 
 ### Services, not hooks
 

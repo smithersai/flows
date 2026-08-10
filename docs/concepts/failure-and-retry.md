@@ -13,7 +13,7 @@ A handler completes with an encoded success or expected failure, or returns `Flo
 Each durable attempt is addressed by:
 
 ```text
-(runId, Digest.digest(stepKey), attempt)
+(runId, Sha256(stepKey), attempt)
 ```
 
 `Activity.retry` increments `Activity.CurrentAttempt` and delegates scheduling to Effect:
@@ -36,7 +36,7 @@ The engine claims an attempt row before execution. A previously completed attemp
 | `compensable` | External state may be restored | Engine records snapshot/diff metadata around the attempt |
 | `irreversible` | External state cannot be rolled back safely | Any attempt after attempt one requires an idempotency key |
 
-An irreversible retry without an idempotency key fails with `IrreversibleRetryRequiresIdempotencyKey`. A string idempotency key is accepted; a full `StepKey.ContentIdentity` gives callers control over the complete content address.
+An irreversible retry without an idempotency key fails with `IrreversibleRetryRequiresIdempotencyKey`. The key may be a string or a caller-owned canonical JSON object.
 
 ## Ownership recovery
 

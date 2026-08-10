@@ -47,15 +47,15 @@ Run state and attempts are not currently versioned by journal frame. A fork
 uses the parent's current persisted snapshot and attempts; automatic
 frame-addressed engine snapshots remain planned integration.
 
-A cloned attempt row is addressed by its sealed content key, and a content key
-computed under an undeclared `Activity.CurrentContentEnvironment` is scoped to
+A cloned attempt row is addressed by its sealed cache key, and a cache key
+computed under an undeclared `Activity.CurrentCacheEnvironment` is scoped to
 the execution that produced it (see [step keys](step-keys.md)). A fork
 therefore replays its parent's sealed attempts only when the composition
 declares its environment — through the plugin kernel or
-`Activity.layerContentEnvironment`. Without a declaration the fork re-executes
+`Activity.layerCacheEnvironment`. Without a declaration the fork re-executes
 those activities rather than reusing rows it cannot prove were produced under
 the same layers and capabilities. A plugin composition becomes complete only
-when `Kernel.make` receives `options.contentEnvironment`; plugin identities
+when `Kernel.make` receives `options.cacheEnvironment`; plugin identities
 alone deliberately remain run-local.
 
 ## Effect boundaries and compensation

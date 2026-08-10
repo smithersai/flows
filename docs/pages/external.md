@@ -29,7 +29,7 @@ The honest positioning is an embeddable, Effect-native durable-execution toolkit
 | Attempt state | fenced admission, a configurable in-progress vocabulary and checkpoint cap, optional upsert admission, first terminal result, an unfenced patch surface, opaque metadata |
 | Journal | bounded lossy telemetry queue, batching, idempotent producer events, paging, replay-then-follow streams, projections, and `emitDurable` and `transact` for the durable channel |
 | Journal redaction | one rule set at the single `payload` and `meta` encode chokepoint, with an opt-out; executable state is deliberately outside it |
-| Content addressing | canonical serialization, SHA-256 content keys, graph-reference resolution, run-local ordinal keys, and a content environment hashed in a namespace separate from caller-owned identity |
+| Content addressing | canonical serialization, SHA-256 keys, engine-owned cache inputs, and run-local invocation keys |
 | Cache rows | first-writer-wins content-addressed results with run and sequence provenance |
 | Capability kernel | monotone capability sets, rules, attended and unattended grants, journal-backed decisions, guarded host layers |
 | Host bundles | Node, Bun, browser, and deterministic test adapters |
@@ -100,7 +100,7 @@ What remains, in order:
 
 Three things stand between this tree and a publish, and none of them is code.
 
-1. Control of the `@smthrs` npm organization with all eleven names reserved. Availability was checked; ownership was not.
+1. Control of the `@smthrs` npm organization with all thirteen package names reserved. Availability was checked; ownership was not.
 2. The `LICENSE` copyright holder. It currently reads `William Cory and the Smithers Flows contributors`, chosen without owner confirmation.
 3. One rehearsal of `.github/workflows/release.yml` against a prerelease tag. The workflow is complete and has never executed, and npm-side trusted-publishing configuration is not observable from this repository.
 

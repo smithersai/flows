@@ -12,6 +12,8 @@ import { Engine, Host, Journal } from "@smthrs/flows"
 
 | Namespace     | Package                  | Reference                              |
 | ------------- | ------------------------ | -------------------------------------- |
+| `Canonical`   | `@smthrs/canonical`     | [canonical](canonical.md)              |
+| `Crypto`      | `@smthrs/crypto`        | [crypto](crypto.md)                    |
 | `Database`    | `@smthrs/database`     | [database](database.md)                |
 | `Engine`      | `@smthrs/engine`       | [engine](engine.md)                    |
 | `EngineStore` | `@smthrs/engine-store` | [engine-store](engine-store.md)        |
@@ -31,7 +33,7 @@ with its neighbours: `Host.Shell.layerNoop`, `Journal.Store.layer`.
 
 Depend on the individual `@smthrs/*` packages when you want a narrower
 dependency footprint, or when a runtime target cannot carry every engine
-package. The barrel pulls in all ten.
+package. The barrel pulls in all twelve.
 
 **A browser is one of those targets.** The barrel re-exports
 `@smthrs/engine-store`, which is Node-only, so `@smthrs/flows` is a Node

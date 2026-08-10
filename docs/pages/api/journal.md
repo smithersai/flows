@@ -50,7 +50,6 @@ const layer = Layer.mergeAll(
 
 | Method | Returns | Behavior |
 | --- | --- | --- |
-| `emit(input, owner?)` | `EmitReceipt` | queued admission without an owner, transactional with one |
 | `emitLossy(input)` | `EmitReceipt` | bounded non-blocking queue; may return `Dropped` |
 | `emitDurable(input, owner?)` | `DurableReceipt` | allocates and commits inside the write transaction |
 | `transact(effect)` | `A` | runs a state projection and its `emitDurable` calls in one transaction |
@@ -66,7 +65,7 @@ const layer = Layer.mergeAll(
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `SqlJournalOptions` | interface | `capacity`, `overflow`, `allocation`, `redact` |
+| `SqlJournalOptions` | interface | `capacity`, `overflow`, `batchSize`, `sourceEventCache`, `redact` |
 | `layer` | layer | scoped writer over `Database` |
 
 ## RunStore
@@ -144,10 +143,8 @@ const layer = Layer.mergeAll(
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `MigrationName` | type | ladder step names |
-| `names` | const | `0001_initial`, `0002_durable_engine_state`, `0003_run_metadata`, `0004_waiting_reason` |
-| `run`, `runThrough` | effects | apply the whole ladder or a prefix |
-| `layer` | layer | applies the ladder at construction |
+| `run` | effect | apply the authoritative schema |
+| `layer` | layer | applies the schema at construction |
 
 ## Projection, Redaction, RunCoordinator
 

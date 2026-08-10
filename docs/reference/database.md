@@ -63,6 +63,6 @@ const DatabaseLayer = NodeDatabase.layer({
 
 The database service does not run domain migrations. Compose [`Journal.Migrations.layer`](journal.md#migrations) before exposing journal stores.
 
-**Shipped backends are SQLite only.** `NodeDatabase` wraps `@effect/sql-sqlite-node`; the browser counterpart wraps Effect's sqlite-wasm OPFS worker. There is no `PgDatabase`/`PGliteDatabase` layer, and the journal migration ladder is SQLite-flavoured DDL, so a Postgres client wrapped by `Database.make` gets correct retry classification but not a runnable schema. This is an accepted, documented gap with a plan — see new gap 4 in [`../architecture/smithers-replacement-gaps.md`](../architecture/smithers-replacement-gaps.md).
+**Shipped backends are SQLite only.** `NodeDatabase` wraps `@effect/sql-sqlite-node`; the browser counterpart wraps Effect's sqlite-wasm OPFS worker. There is no `PgDatabase`/`PGliteDatabase` layer, and the journal schema is SQLite-flavoured DDL, so a Postgres client wrapped by `Database.make` gets correct retry classification but not a runnable schema. This is an accepted, documented gap with a plan — see gap 4 in [`../architecture/smithers-replacement-gaps.md`](../architecture/smithers-replacement-gaps.md).
 
 See [Assembling a durable engine](../guides/durable-engine.md) and the [`@smthrs/journal` reference](journal.md).

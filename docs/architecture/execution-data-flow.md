@@ -53,10 +53,10 @@ Flow-local JavaScript or Effect code between those boundaries runs again. It mus
 
 ## 5. Activity persistence
 
-The flow runtime computes a `StepKey` before calling the encoded engine:
+The flow runtime computes a `Key` before calling the encoded engine:
 
-- sealed activity plus declared content identity → content key;
-- otherwise → run-local ordinal key.
+- sealed activity plus declared cache key input → cache key;
+- otherwise → run-local invocation key.
 
 The engine store hashes that key again for its database address, confirms the run fence, admits an attempt, executes it, and persists the first terminal transition. Only a sealed activity with a hard `StepBoundary` descriptor and deviation-free evidence is admitted to the global cache.
 

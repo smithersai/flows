@@ -18,13 +18,13 @@ Consequence: local computation between boundaries must be deterministic, while a
 
 `@smthrs/engine` computes content or ordinal step keys before calling `FlowEngine.Encoded.activityExecute`. Memory and durable engines therefore receive the same identity instead of implementing key policy independently.
 
-Consequence: object-form sealed content identities are caller-owned and
+Consequence: object-form sealed cache key inputs are caller-owned and
 rename-stable. String idempotency keys are intentionally namespaced by the
 activity name and schema declaration, so those changes invalidate reuse.
 
 ## D4. Cache admission requires evidence
 
-A content key alone does not prove hermetic execution. `@smthrs/engine-store` caches only sealed activities that carry a hard `StepBoundary` descriptor, settle without a deviation, and explicitly attest whole-tree write verification.
+A cache key alone does not prove hermetic execution. `@smthrs/engine-store` caches only sealed activities that carry a hard `StepBoundary` descriptor, settle without a deviation, and explicitly attest whole-tree write verification.
 
 Consequence: the filesystem-backed `StepBoundary.layer` measures declared read sets and materializes declared outputs, but cannot detect writes elsewhere and therefore does not admit shared cache rows. Cross-run admission requires a stronger whole-tree boundary, such as a future jj-diff-backed implementation.
 
@@ -38,7 +38,7 @@ Consequence: ambient authority can only shrink through `CapabilitySet.attenuate`
 
 The target architecture makes the journal flows' own authoritative logical (domain) write-ahead log. The SQLite or PostgreSQL WAL beneath it is the storage durability substrate only, and is never consumed as the application event API.
 
-Lifecycle evidence takes the durable channel: `emitDurable` (and `emit` with an owner, or under `allocation: "sql"`) allocates inside the write transaction and returns only once the row is committed. A durable boundary must not advance the run or expose its result before that commit. Telemetry takes `emitLossy`, a bounded non-blocking queue whose `Dropped` receipts and evictions are accepted outcomes; `flush` is the explicit barrier for that channel.
+Lifecycle evidence takes `emitDurable`, which allocates inside the write transaction and returns only once the row is committed. A durable boundary must not advance the run or expose its result before that commit. Telemetry takes `emitLossy`, a bounded non-blocking queue whose `Dropped` receipts and evictions are accepted outcomes; `flush` is the explicit barrier for that channel.
 
 Consequence: a lossy `Accepted` receipt is not a durability guarantee — process failure can lose accepted but unflushed telemetry, and dropping overflow policies create valid sequence holes. Nothing may be reconstructed from telemetry alone. Local commit is also not remote atomicity: external effects still need idempotency keys, fencing tokens, or compensation.
 

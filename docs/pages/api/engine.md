@@ -17,7 +17,7 @@ const Compile = Activity.make({
   name: "example/Compile",
   success: Schema.String,
   tier: "sealed",
-  idempotencyKey: { body: "compile/v1", inputs: {}, layers: [], capabilities: {} },
+  idempotencyKey: { operation: "compile/v1" },
   execute: Effect.succeed("out.js")
 })
 
@@ -62,13 +62,13 @@ const layer = Build.toLayer(() => Compile).pipe(Layer.provideMerge(FlowEngine.la
 | `make` | constructor | `name`, `success`, `error?`, `tier`, `idempotencyKey?`, `execute`, `metadata?`, `interruptRetryPolicy?` |
 | `Activity`, `Any`, `AnyWithProps` | interfaces | |
 | `Tier` | type | `sealed`, `compensable`, `irreversible` |
-| `IdempotencyKey` | type | a string, or a `StepKey.ContentIdentity` |
+| `IdempotencyKey` | schema + type | a string, or a caller-owned JSON object |
 | `idempotencyKey` | function | resolves the declared key for a payload |
 | `retry` | combinator | increments `CurrentAttempt` and delegates scheduling to Effect |
 | `raceAll` | combinator | races activities, persisting one winner |
 | `CurrentAttempt` | reference | the one-based durable attempt |
-| `CurrentOrdinal`, `OrdinalSlot` | reference + interface | the per-scope ordinal used for ordinal keys |
-| `ContentEnvironment`, `CurrentContentEnvironment`, `layerContentEnvironment` | interface + reference + layer | declared layers and capability identity folded into content keys |
+| `CurrentOrdinal`, `OrdinalSlot` | reference + interface | the per-scope ordinal used for invocation keys |
+| `CacheEnvironment`, `CurrentCacheEnvironment`, `layerCacheEnvironment` | interface + reference + layer | declared layers and capability identity folded into cache keys |
 | `InfraInterrupt` | class | infrastructure interruption, retried only under `interruptRetryPolicy` |
 | `IrreversibleRetryRequiresIdempotencyKey` | class | irreversible retry without a key |
 | `ConcurrentKeylessDispatch` | class | two live dispatches of one keyless activity |
@@ -123,7 +123,7 @@ const layer = Build.toLayer(() => Compile).pipe(Layer.provideMerge(FlowEngine.la
 | --- | --- | --- |
 | `AllocationIdentity` | interface | activity name refined by a declared string key |
 | `allocationScope` | function | the scope an ordinal is allocated from |
-| `ordinalKey` | function | builds the run-local ordinal step key |
+| `invocationKey` | function | builds the run-local ordinal step key |
 
 ## Flow proxies
 

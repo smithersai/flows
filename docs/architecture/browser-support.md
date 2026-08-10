@@ -10,10 +10,12 @@ These bundle for the browser. A resolution error in any of them fails the build.
 
 | Entry point | Notes |
 | --- | --- |
+| `@smthrs/canonical` | RFC 8785 canonical JSON as an Effect Schema |
 | `@smthrs/host` | Shell, Pty, Jj, and HttpTransport contracts, `HostError`, `RemoteSandbox`, `SandboxHealth`, and the no-op layers |
 | `@smthrs/host/browser/BrowserHost` | `layer({ bash, fs })` over an injected browser filesystem and bash-like shell; PTY and Jujutsu report `unsupported` |
 | `@smthrs/kernel` | Capabilities, grants, and the permission-decorated host services |
-| `@smthrs/keys` | Canonical serialization, digests, and step keys |
+| `@smthrs/crypto` | Injected cryptographic schemas |
+| `@smthrs/keys` | Canonical workflow keys |
 | `@smthrs/database` | The driver-neutral `Database` contract; wrap any Effect `SqlClient` with `Database.make` |
 | `@smthrs/journal` | Journal, run/attempt/cache stores, migrations, and projections, all over the `Database` contract |
 | `@smthrs/engine` | Flow, activity, durable clock/deferred/queue, retry policy, and step identity |
@@ -42,4 +44,4 @@ A package root exports **contracts**; a platform implementation lives under a su
 
 ## The honest claim
 
-“`flows` has browser-safe host contracts and a working `BrowserHost`, and its journal, keys, kernel, engine, sync, and time-travel surfaces bundle for the browser. Its durable engine composition is Node/SQLite-first.” Do not shorten that to “the library is browser compatible” while `@smthrs/engine-store` and the barrel are in this page's second table.
+“`flows` has browser-safe canonical JSON, crypto, and host contracts with a working `BrowserHost`, and its journal, keys, kernel, engine, sync, and time-travel surfaces bundle for the browser. Its durable engine composition is Node/SQLite-first.” Do not shorten that to “the library is browser compatible” while `@smthrs/engine-store` and the barrel are in this page's second table.

@@ -20,15 +20,15 @@ Cost: local computation between boundaries must be deterministic. `Date.now()`, 
 
 ## D3. Key computation sits above storage
 
-`@smthrs/engine` computes a content key or an ordinal key before it calls `FlowEngine.Encoded.activityExecute`. The memory engine and the durable engine receive the same identity.
+`@smthrs/engine` computes a cache key or an invocation key before it calls `FlowEngine.Encoded.activityExecute`. The memory engine and the durable engine receive the same identity.
 
 The alternative was letting each engine derive identity from its own storage addresses, which produces two key policies that drift.
 
-Cost: the key material is a caller declaration, and a declaration can be wrong. Object-form sealed content identities are caller-owned and rename-stable; string idempotency keys are namespaced by the activity name and its schema declaration, so renaming an activity or changing its schemas invalidates reuse. The review flagged the related default: a missing content environment is currently indistinguishable from a proven-pure one, and the key is scoped to the current execution in that case rather than refused.
+Cost: caller-owned object identities can be wrong. String identities are namespaced by the activity name and schemas, so renaming an activity or changing its schemas invalidates reuse. A missing complete cache environment scopes the key to the current execution.
 
 ## D4. Cache admission requires evidence, not just a key
 
-A content key says an output is a function of some declarations. It cannot see an undeclared file read or a network call. So the key alone never admits a row to the shared cache. Admission needs a sealed tier, a `StepBoundary.Descriptor` in `metadata`, `boundaryMode: "hard"`, a successful prepare and settle, no expected-set deviation, and an explicit `wholeTreeWritesVerified: true`.
+A cache key says an output is a function of some declarations. It cannot see an undeclared file read or a network call. So the key alone never admits a row to the shared cache. Admission needs a sealed tier, a `FileBoundary` in `metadata`, `boundaryMode: "hard"`, a successful prepare and settle, no expected-set deviation, and an explicit `wholeTreeWritesVerified: true`.
 
 The alternative, admitting on the key, is what most build caches do and it is why they need hermetic sandboxes to be trustworthy.
 

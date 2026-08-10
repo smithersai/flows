@@ -45,7 +45,7 @@ The in-memory engine above keeps state in the process. For a run that survives a
 - Fenced run ownership with heartbeats, liveness-gated takeover, and self-interrupting zombie owners.
 - Durable deferreds, clocks, and queues that re-arm across restarts.
 - Retry policies whose schedule-to-close origin persists across park, resume, and process death.
-- Content-addressed step keys over canonical serialization, with ordinal keys for run-local work.
+- Content-addressed step keys over canonical serialization, with invocation keys for run-local work.
 - A capability kernel that decorates host services with grant-checked permissions.
 - Host adapters for Node, Bun, browser, and tests behind one closed service surface.
 - Read-only catch-up and follow sync of journal entries over Effect RPC.
@@ -56,12 +56,14 @@ The in-memory engine above keeps state in the process. For a run that survives a
 
 | Package | Role |
 | --- | --- |
-| `@smthrs/flows` | Umbrella barrel re-exporting the ten packages below as namespaces |
+| `@smthrs/flows` | Umbrella barrel re-exporting the twelve packages below as namespaces |
+| `@smthrs/canonical` | RFC 8785 canonical JSON as an Effect Schema |
 | `@smthrs/host` | Closed host service contracts plus Node, Bun, browser, and test adapters |
 | `@smthrs/journal` | Logical WAL, run/attempt/cache stores, migrations, projections |
 | `@smthrs/database` | Driver-neutral SQL contract with transactional write retry |
 | `@smthrs/kernel` | Capability sets, grants, and permission-decorated host services |
-| `@smthrs/keys` | Canonical serialization, SHA-256 digests, step keys |
+| `@smthrs/crypto` | Injected cryptographic schema transformations |
+| `@smthrs/keys` | Canonical workflow keys |
 | `@smthrs/engine` | Flow definitions, activities, durable primitives, retry policy |
 | `@smthrs/engine-store` | The durable engine: claims, fences, and persists runs over the journal |
 | `@smthrs/plugin` | Typed plugin kernel with a closed hook catalog |

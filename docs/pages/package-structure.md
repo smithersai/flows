@@ -1,17 +1,19 @@
 # Package structure
 
-Eleven npm workspaces under `packages/`, one closed dependency set, no runtime dependency outside `effect` and the SQL client packages. This page is the map: who owns which data, which package may import which, and which entry points bundle for a browser.
+Thirteen npm workspaces under `packages/`, one closed dependency set. This page is the map: who owns which data, which package may import which, and which entry points bundle for a browser.
 
 ## Workspaces
 
 | Workspace | Directory | Published | Owns |
 | --- | --- | --- | --- |
-| `@smthrs/flows` | `packages/flows` | yes | nothing; re-exports the ten below as namespaces |
+| `@smthrs/flows` | `packages/flows` | yes | nothing; re-exports the twelve below as namespaces |
 | `@smthrs/host` | `packages/host` | yes | the closed host service contracts and their adapters |
-| `@smthrs/journal` | `packages/journal` | yes | `flows_journal_events`, `flows_runs`, `flows_attempts`, `flows_step_cache`, the migration ladder |
+| `@smthrs/journal` | `packages/journal` | yes | journal, run, attempt, cache, deferred, and clock tables |
 | `@smthrs/database` | `packages/database` | yes | no tables; the `SqlClient` contract and write retry |
 | `@smthrs/kernel` | `packages/kernel` | yes | capability sets, grants, and their journal records |
-| `@smthrs/keys` | `packages/keys` | yes | no tables; canonical serialization and step keys |
+| `@smthrs/canonical` | `packages/canonical` | yes | no tables; RFC 8785 canonical JSON |
+| `@smthrs/crypto` | `packages/crypto` | yes | no tables; injected cryptographic operations |
+| `@smthrs/keys` | `packages/keys` | yes | no tables; canonical workflow keys |
 | `@smthrs/engine` | `packages/engine` | yes | no tables; flow, activity, and durable-primitive definitions |
 | `@smthrs/engine-store` | `packages/engine-store` | yes | `flows_deferred_completions`, `flows_clock_deadlines`, `flows_run_parents` |
 | `@smthrs/plugin` | `packages/plugin` | yes | no tables; the hook catalog and kernel |
@@ -23,15 +25,15 @@ Every published manifest is `0.1.0`, every internal production range is an exact
 
 ## Who owns which data
 
-Three packages create schema, and they create it in three different ways. Knowing which is which is what keeps a migration from landing in the wrong ladder.
+Three packages create schema, and they create it in three different ways. Knowing which is which keeps a table in its owning package.
 
 | Owner | Mechanism | Tables |
 | --- | --- | --- |
-| `@smthrs/journal` | the numbered ladder in `src/migrations/`, run by `Migrations.layer` | events, runs, attempts, cache, plus the `0002` deferred and clock tables and the `0003` and `0004` run-row columns |
+| `@smthrs/journal` | `0001_initial`, run by `Migrations.layer` | events, runs, attempts, cache, deferred completions, and clock deadlines |
 | `@smthrs/engine-store` | statements issued by `DurableEngineState.make` at construction | `flows_run_parents`, its index, the `flows_run_parents_gc` trigger, the stale-running partial index |
 | `@smthrs/time-travel` | `SqlTimeTravelStore.migrate` | snapshots, lineage edges, audits, receipts, archive |
 
-The engine-store statements sit outside the ladder deliberately, because the package creates them when its layer is built rather than as part of a versioned upgrade. They are inventoried in `packages/engine-store/src/internal/EngineStateSchema.ts` with the dialects each one is known to accept, and a catalog-diff test fails when new out-of-ladder DDL appears without an inventory entry.
+The engine-store statements sit outside the journal migration deliberately, because the package creates them when its layer is built. They are inventoried in `packages/engine-store/src/internal/EngineStateSchema.ts` with the dialects each one is known to accept, and a catalog-diff test fails when new DDL appears without an inventory entry.
 
 ## Dependency graph
 
@@ -49,6 +51,8 @@ flowchart LR
   DB["@smthrs/database"]
   HOST["@smthrs/host"]
   KEYS["@smthrs/keys"]
+  CRYPTO["@smthrs/crypto"]
+  CANONICAL["@smthrs/canonical"]
   PLUGIN["@smthrs/plugin"]
 
   FLOWS --> HOST
@@ -56,6 +60,8 @@ flowchart LR
   FLOWS --> JOURNAL
   FLOWS --> KERNEL
   FLOWS --> KEYS
+  FLOWS --> CRYPTO
+  FLOWS --> CANONICAL
   FLOWS --> ENGINE
   FLOWS --> ES
   FLOWS --> PLUGIN
@@ -65,8 +71,11 @@ flowchart LR
   KERNEL --> HOST
   KERNEL --> JOURNAL
   ENGINE --> KEYS
+  ENGINE --> CRYPTO
+  KEYS --> CANONICAL
+  KEYS --> CRYPTO
   ES --> ENGINE
-  ES --> KEYS
+  ES --> CRYPTO
   ES --> JOURNAL
   ES --> KERNEL
   SYNC --> JOURNAL
@@ -74,22 +83,23 @@ flowchart LR
   TT --> ES
   TT --> HOST
   TT --> JOURNAL
-  TT --> KEYS
 ```
 
 | Package | Depends on | Depended on by |
 | --- | --- | --- |
-| `@smthrs/keys` | nothing in the workspace | `engine`, `engine-store`, `time-travel`, `flows` |
+| `@smthrs/canonical` | nothing in the workspace | `keys`, `flows` |
+| `@smthrs/crypto` | nothing in the workspace | `keys`, `engine`, `engine-store`, `flows` |
+| `@smthrs/keys` | `canonical`, `crypto` | `engine`, `flows` |
 | `@smthrs/host` | nothing in the workspace | `kernel`, `time-travel`, `flows` |
 | `@smthrs/database` | nothing in the workspace | `journal`, `time-travel`, `flows` |
 | `@smthrs/plugin` | nothing in the workspace | `flows` |
 | `@smthrs/journal` | `database` | `kernel`, `engine-store`, `sync`, `time-travel`, `flows` |
 | `@smthrs/kernel` | `host`, `journal` | `engine-store`, `time-travel`, `flows` |
-| `@smthrs/engine` | `keys` | `engine-store`, `flows` |
-| `@smthrs/engine-store` | `engine`, `keys`, `journal`, `kernel` | `time-travel`, `flows` |
+| `@smthrs/engine` | `crypto`, `keys` | `engine-store`, `flows` |
+| `@smthrs/engine-store` | `crypto`, `engine`, `journal`, `kernel` | `time-travel`, `flows` |
 | `@smthrs/sync` | `journal` | `flows` |
-| `@smthrs/time-travel` | `database`, `engine-store`, `host`, `journal`, `keys` | `flows` |
-| `@smthrs/flows` | all ten | nothing |
+| `@smthrs/time-travel` | `database`, `engine-store`, `host`, `journal` | `flows` |
+| `@smthrs/flows` | all twelve | nothing |
 
 `npm run circular` fails the build on an import cycle, within a package or across them.
 
@@ -107,7 +117,9 @@ A package root exports contracts. A platform implementation lives under a subpat
 | `@smthrs/host/bun/BunHost` | no | yes | the Bun adapters, falling back to `@effect/platform-node` off Bun |
 | `@smthrs/host/test/TestHost` | no | yes | `effect/testing`'s `TestClock` imports `node:assert` |
 | `@smthrs/kernel` | yes | yes | capabilities, grants, decorated services |
-| `@smthrs/keys` | yes | yes | pure serialization and digests |
+| `@smthrs/canonical` | yes | yes | RFC 8785 canonical JSON schema |
+| `@smthrs/crypto` | yes | yes | injected cryptographic schemas |
+| `@smthrs/keys` | yes | yes | canonical workflow-key schema |
 | `@smthrs/database` | yes | yes | the driver-neutral contract only |
 | `@smthrs/database/node/NodeDatabase` | no | yes | `node:sqlite` through `@effect/sql-sqlite-node` |
 | `@smthrs/database/test/TestDatabase` | no | yes | in-memory SQLite through the same driver |
@@ -120,9 +132,9 @@ A package root exports contracts. A platform implementation lives under a subpat
 | `@smthrs/time-travel` | yes | yes | frames, replay, fork, rewind, compensation, recovery |
 | `@smthrs/flows` | no | yes | re-exports `@smthrs/engine-store` |
 
-Ten entry points bundle for the browser. Bundling is a weaker claim than running: `@smthrs/journal` bundles because it depends on the `Database` contract, and a browser application still has to supply a browser SQL client, such as Effect's sqlite-wasm OPFS worker, to that contract. No such layer ships here.
+Twelve entry points bundle for the browser. Bundling is a weaker claim than running: `@smthrs/journal` bundles because it depends on the `Database` contract, and a browser application still has to supply a browser SQL client, such as Effect's sqlite-wasm OPFS worker, to that contract. No such layer ships here.
 
-The accurate sentence is that the host contracts, `BrowserHost`, keys, kernel, database, journal, engine, plugin, sync, and time travel bundle for the browser, and the durable engine composition is Node and SQLite first. `@smthrs/engine-store`'s two `node:` uses are the complete browser-gap inventory, tracked as issue #114.
+The accurate sentence is that canonical JSON, crypto, the host contracts, `BrowserHost`, keys, kernel, database, journal, engine, plugin, sync, and time travel bundle for the browser, and the durable engine composition is Node and SQLite first. `@smthrs/engine-store`'s two `node:` uses are the complete browser-gap inventory, tracked as issue #114.
 
 ## Build shape
 

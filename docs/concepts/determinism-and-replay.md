@@ -39,10 +39,8 @@ const ReadConfig = Activity.make({
   success: Schema.String,
   tier: "sealed",
   idempotencyKey: {
-    body: "config/read/v1",
-    inputs: { path: "/workspace/config.json" },
-    layers: ["node-file-system"],
-    capabilities: { declared: ["fs:read:/workspace/config.json"] }
+    operation: "config/read/v1",
+    path: "/workspace/config.json"
   },
   execute: readConfigEffect
 })
@@ -52,9 +50,9 @@ The output may be nondeterministic. Replay safety comes from recording its encod
 
 ## Activity identity
 
-For a sealed activity with an `idempotencyKey`, the flow engine computes a content key. A **string** `idempotencyKey` is namespaced by the activity `name` (mirroring Skyframe's `SkyKey = (functionName, argument)`), so two distinct activities that pick the same idempotency string never share a key or replay each other's outcomes. This means renaming an activity that uses a string key changes its identity. An **object-form** `ContentIdentity` is caller-owned: the `name` is not folded in, so it is the escape hatch for rename-stable identity. String-key digests persisted before this namespacing do not replay against the new keys; those rows were unsafe (cross-activity aliasing), so the break is intentional.
+For a sealed activity with an `idempotencyKey`, the flow engine computes a cache key. A **string** is namespaced by the activity name and declared schemas. An **object** is caller-owned canonical JSON and remains stable across activity renames. The engine adds runtime environment and boundary facts separately.
 
-Sealed activities without a content identity, plus compensable and irreversible activities, use an ordinal allocated from a counter scoped to the activity's name, with the name folded into the key (issue #73). Concurrent activities of different names are therefore stable under any interleaving. Repeated invocations of one activity are numbered in allocation order, so changing control flow before such a boundary can still change which invocation occupies which ordinal. Prefer stable content identities for replayable reads.
+Sealed activities without a cache key input, plus compensable and irreversible activities, use an ordinal allocated from a counter scoped to the activity's name, with the name folded into the key (issue #73). Concurrent activities of different names are therefore stable under any interleaving. Repeated invocations of one activity are numbered in allocation order, so changing control flow before such a boundary can still change which invocation occupies which ordinal. Prefer stable cache key inputs for replayable reads.
 
 ## Suspension
 
@@ -81,8 +79,8 @@ The latter is suitable for rebuilding a view or assessing a frame. It is not an 
 
 There is no flow-source digest check. Existing activity keys and ordinal positions determine what reuses recorded state after a code edit:
 
-- changed content identity → new activity result;
-- unchanged content identity → existing result;
+- changed cache key input → new activity result;
+- unchanged cache key input → existing result;
 - changed control flow around ordinal activities → potentially different ordinal mapping;
 - changed flow schemas → stored payload or result decoding may fail as a defect.
 

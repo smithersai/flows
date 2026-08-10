@@ -68,8 +68,8 @@ An accepted submission is not necessarily durable until `flush` completes.
 
 High-value properties include:
 
-- canonical inputs produce the same `StepKey`,
-- reordered object keys and set-like declarations do not change a content key,
+- canonical inputs produce the same `Key`,
+- reordered object keys and set-like declarations do not change a cache key,
 - replay reuses completed attempt exits,
 - irreversible retries without idempotency fail,
 - stale ownership cannot be stolen without liveness evidence,

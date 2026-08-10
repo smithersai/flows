@@ -28,7 +28,7 @@ These are the behaviors that have to be exercised against real implementations, 
 | Claim, activate, heartbeat, steal | the compare-and-swap is the database's | `journal/test/RunStore.test.ts`, `engine-store/test/Ownership.test.ts` |
 | Hard-killed owner reclaim | needs the real stale-running sweep | `engine-store/test/HardKillReclaim.test.ts`, `StaleRunningAttempt.test.ts` |
 | Cross-connection write races | a single in-process double serializes by accident | `database/test/DatabaseWriteContract.test.ts`, `NodeDatabaseConcurrentOpen.test.ts`, `engine-store/test/CycleDetectionSql.test.ts` |
-| Migration ladder | DDL either applies or it does not | `journal/test/Migrations.test.ts` |
+| Durable schema | DDL and database invariants | `journal/test/Migrations.test.ts` |
 | Retry budget across process death | needs persisted attempt rows | `engine-store/test/RetryOrigin.test.ts`, `RetryExpiration.test.ts` |
 | Cache admission gating | needs real boundary evidence | `engine-store/test/CacheRecordGating.test.ts`, `CacheAdmissionSerialization.test.ts`, `CacheHitReadSetVerification.test.ts` |
 | Replay from persisted attempts | the point is that nothing is in memory | `engine-store/test/Replay.test.ts`, `engine/test/DurableAttemptResume.test.ts` |
@@ -46,10 +46,12 @@ These are the behaviors that have to be exercised against real implementations, 
 | `@smthrs/journal` | 18 | durable and lossy admission, fencing, transactions, retention, redaction, projections, run store, run coordinator, migrations |
 | `@smthrs/database` | 4 | the write-serialization contract, concurrent open, artifact shape |
 | `@smthrs/kernel` | 23 | capability parsing, matching, subsumption, tiers, ambient sets, grants and their journal persistence, every decorated service |
-| `@smthrs/keys` | 4 | canonical serialization, digests, step keys, and a purity suite |
+| `@smthrs/canonical` | 1 | RFC 8785 vectors, malformed Unicode, boundary values, and large values |
+| `@smthrs/crypto` | 1 | injected SHA-256, digest validation, platform failures, and irreversibility |
+| `@smthrs/keys` | 2 | canonical workflow keys and rejected inputs |
 | `@smthrs/engine` | 26 | flow definitions, execution ids, activity identity and keys, ordinal stability, keyless concurrency, deferreds, clocks, queues, retry, proxies |
 | `@smthrs/engine-store` | 61 | the durability matrix: ownership, adoption, sweeps, parking, cancellation, cycles, attempt persistence, cache admission, boundaries, WAL atomicity, fault matrix |
-| `@smthrs/plugin` | 6 | resolution and ordering, dispatch per hook kind, config waterfall, augmentation, content environment |
+| `@smthrs/plugin` | 6 | resolution and ordering, dispatch per hook kind, config waterfall, augmentation, cache environment |
 | `@smthrs/sync` | 20 | protocol, server paging and workspace merge, client cursors and gaps, transport faults, branch commands, presence, share, projection, convergence |
 | `@smthrs/time-travel` | 20 | replay, fork and its lineage, rewind with claims, concurrency and rollback, truncation, compensation, recovery, both stores |
 | `@smthrs/flows` | 2 | the barrel namespace list against the derived package universe, and the coverage-isolation conformance suite |

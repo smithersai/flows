@@ -30,8 +30,7 @@ hook catalog this analysis leans on.
 
 ### 1. Waiting-reason taxonomy — closed
 
-Closed by migration `0004_waiting_reason`
-(`packages/journal/src/migrations/0004_waiting_reason.ts`, commit `36fb342`).
+Closed by the waiting columns in the authoritative `0001_initial` schema.
 `DurableEngineState.park` / `wake` / `waiting` / `waitingRuns` round-trip
 `{ reason, wakeAt?, token? }` with `approval | event | timer | quota |
 released` reasons — `released` (issue #39) marks a run whose owning process

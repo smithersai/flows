@@ -35,12 +35,12 @@ const Compile = Activity.make({
   tier: "sealed",
   idempotencyKey: {
     body: "compile-v3",
-    inputs: { source: { digest: "sha256:source-bytes" } },
+    inputs: { source: { kind: "literal", value: "source-bytes" } },
     layers: ["typescript-6", "linux-amd64"],
     capabilities: {
       filesystem: ["fs:read:/workspace/src/**", "fs:write:/workspace/out/**"]
     },
-    hermetic: {
+    boundary: {
       readSet: [{ path: "/workspace/src", digest: "sha256:tree" }],
       writeSet: ["/workspace/out/**"],
       boundaryMode: "hard"
@@ -55,7 +55,7 @@ const Compile = Activity.make({
 })
 ```
 
-The idempotency identity creates the step key. `metadata` is separately decoded as `StepBoundary.Descriptor` by `EngineStore`; malformed or absent metadata means the production boundary cannot prove the activity cacheable.
+The idempotency identity creates the step key. `metadata` is separately decoded as `FileBoundary` by `EngineStore`; malformed or absent metadata means the production boundary cannot prove the activity cacheable.
 
 The built-in `StepBoundary.layerTest` accepts a simplified descriptor and is for tests only. A production boundary implementation is application-supplied today.
 

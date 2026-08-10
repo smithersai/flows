@@ -8,13 +8,18 @@ An arrow means “depends on.”
 flowchart TD
   H["@smthrs/host"]
   D["@smthrs/database"]
+  C["@smthrs/canonical"]
+  Crypto["@smthrs/crypto"]
 
   J["@smthrs/journal"] --> D
   K["@smthrs/kernel"] --> H
   K --> J
   W["@smthrs/engine"] --> Keys["@smthrs/keys"]
+  W --> Crypto
+  Keys --> C
+  Keys --> Crypto
   E["@smthrs/engine-store"] --> W
-  E --> Keys
+  E --> Crypto
   E --> J
   E --> K
   S["@smthrs/sync"] --> J
@@ -22,12 +27,13 @@ flowchart TD
   T --> E
   T --> H
   T --> J
-  T --> Keys
 ```
 
 | Package | Responsibility | Important boundary |
 | --- | --- | --- |
-| [`@smthrs/keys`](../reference/keys.md) | Pure canonical serialization and step-key construction | No Effect services and no other workspace dependency |
+| [`@smthrs/canonical`](../reference/canonical.md) | RFC 8785 canonical JSON as an Effect Schema | Wraps the standards-focused `canonicalize` library |
+| [`@smthrs/crypto`](../reference/crypto.md) | Injected cryptographic schema transformations | Platform implementation is supplied through Effect Crypto |
+| [`@smthrs/keys`](../reference/keys.md) | Canonical workflow keys | Composes `canonical` and `crypto` |
 | [`@smthrs/database`](../reference/database.md) | `SqlClient` access plus transactional SQLite write retry | Owns no domain tables |
 | [`@smthrs/host`](../reference/host.md) | Closed machine-facing service contracts and Node, Bun, browser, and test implementations | Raw effects; no permission decisions |
 | [`@smthrs/journal`](../reference/journal.md) | Journal, run ownership, attempts, and cache rows | Open event envelope; SQL-backed state |

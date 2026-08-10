@@ -1,6 +1,6 @@
 # Architecture
 
-Smithers Flows is one durable-execution engine assembled from eleven packages. This page shows how they fit together, which direction data moves, and where the boundaries you can substitute are. Read it before anything else; the pages after it assume the picture below.
+Smithers Flows is one durable-execution engine assembled from twelve packages. This page shows how they fit together, which direction data moves, and where the boundaries you can substitute are. Read it before anything else; the pages after it assume the picture below.
 
 ## The whole system
 
@@ -13,7 +13,9 @@ flowchart TB
 
   subgraph define["Definition and identity"]
     ENGINE["@smthrs/engine<br/>Flow, Activity, DurableDeferred,<br/>DurableClock, DurableQueue, RetryPolicy"]
-    KEYS["@smthrs/keys<br/>canonical serialization,<br/>SHA-256, StepKey"]
+    KEYS["@smthrs/keys<br/>canonical Key"]
+    CRYPTO["@smthrs/crypto<br/>injected SHA-256"]
+    CANONICAL["@smthrs/canonical<br/>RFC 8785 JSON"]
   end
 
   subgraph drive["Durable driver"]
@@ -44,9 +46,12 @@ flowchart TB
   BARREL -.re-exports.-> SYNC
   BARREL -.re-exports.-> TT
   ENGINE --> KEYS
+  ENGINE --> CRYPTO
+  KEYS --> CANONICAL
+  KEYS --> CRYPTO
   ENGINE -->|Encoded seam| STORE
   STORE --> JOURNAL
-  STORE --> KEYS
+  STORE --> CRYPTO
   STORE --> KERNEL
   STORE -.hooks, unwired.-> PLUGIN
   JOURNAL --> DB
@@ -67,9 +72,9 @@ Ask what would break if a boundary were removed, and its purpose becomes clear.
 
 The **host boundary** exists so flow code can run in a browser. `@smthrs/host` declares a closed set of service tags and nothing else; every platform implementation lives under a `/node`, `/bun`, `/browser`, or `/test` subpath. A module that depends only on the root never statically resolves a `node:` built-in, which is what makes browser bundling possible at all. `@smthrs/kernel` sits in front of that surface and decorates each service with a grant check, so a flow that asks for a file it was never granted fails in the error channel rather than reading the file.
 
-The **database and journal** split separates the storage driver from the shapes stored in it. `@smthrs/database` owns no domain tables; it wraps any Effect `SqlClient` and adds the transactional write retry that the rest of the system assumes. `@smthrs/journal` owns the tables: the event log, run rows, attempt rows, and cache rows, plus the migration ladder that creates them. Swap the driver and every shape survives.
+The **database and journal** split separates the storage driver from the shapes stored in it. `@smthrs/database` owns no domain tables; it wraps any Effect `SqlClient` and adds the transactional write retry that the rest of the system assumes. `@smthrs/journal` owns the tables and the authoritative schema that creates them. Swap the driver and every shape survives.
 
-The **keys and engine** pair decides identity before storage sees anything. `@smthrs/keys` is pure: canonical serialization plus SHA-256, no services and no workspace dependencies. `@smthrs/engine` computes a step key for every activity before it calls `FlowEngine.Encoded.activityExecute`, so the in-memory engine and the durable engine receive the same identity and neither has to implement key policy.
+The **canonical, crypto, keys, and engine** chain decides identity before storage sees anything. `@smthrs/canonical` owns RFC 8785 JSON, `@smthrs/crypto` owns injected hashing, `@smthrs/keys` owns the canonical workflow-key transformation, and `@smthrs/engine` owns activity-key policy. The engine computes a key before it calls `FlowEngine.Encoded.activityExecute`, so storage never implements key policy.
 
 The **engine and engine-store** pair separates what durability means from where it is written. `@smthrs/engine` defines flows, activities, durable deferreds, durable clocks, durable queues, and retry policy as typed values with an encoded seam beneath them. `@smthrs/engine-store` implements that seam over the journal: it claims a run row before driving it, fences continuing work with a heartbeat, admits and finishes attempt rows, and commits each lifecycle entry in the same transaction as the state transition it describes.
 
@@ -77,7 +82,7 @@ The **plugin** package is the extension seam. Its hook catalog is typed and its 
 
 The **read-only protocols** consume the journal without acquiring ownership. `@smthrs/sync` streams committed entries to a follower over Effect RPC and can neither mutate a run nor resume one. `@smthrs/time-travel` reads frames out of the same history and adds its own tables for snapshots, lineage edges, audits, receipts, and archived entries.
 
-The **barrel**, `@smthrs/flows`, re-exports the ten packages as namespaces for a single-import Node application. It re-exports `@smthrs/engine-store`, which reads `process.pid` and `node:crypto`, so the barrel is a Node entry point. A browser application imports the per-package roots.
+The **barrel**, `@smthrs/flows`, re-exports the twelve packages as namespaces for a single-import Node application. It re-exports `@smthrs/engine-store`, which reads `process.pid` and `node:crypto`, so the barrel is a Node entry point. A browser application imports the per-package roots.
 
 ## One execution, end to end
 

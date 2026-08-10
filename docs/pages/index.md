@@ -55,12 +55,14 @@ That engine keeps its state in the process. To survive a crash, drive the same f
 
 | Package | Role |
 | --- | --- |
-| `@smthrs/flows` | umbrella barrel re-exporting the ten packages below as namespaces |
+| `@smthrs/flows` | umbrella barrel re-exporting the twelve packages below as namespaces |
+| `@smthrs/canonical` | RFC 8785 canonical JSON as an Effect Schema |
 | `@smthrs/host` | closed host service contracts plus Node, Bun, browser, and test adapters |
 | `@smthrs/journal` | logical WAL, run, attempt, and cache stores, migrations, projections |
 | `@smthrs/database` | driver-neutral SQL contract with transactional write retry |
 | `@smthrs/kernel` | capability sets, grants, and permission-decorated host services |
-| `@smthrs/keys` | canonical serialization, SHA-256 digests, step keys |
+| `@smthrs/crypto` | injected cryptographic schema transformations |
+| `@smthrs/keys` | canonical workflow keys |
 | `@smthrs/engine` | flow definitions, activities, durable primitives, retry policy |
 | `@smthrs/engine-store` | the durable engine: claims, fences, and persists runs over the journal |
 | `@smthrs/plugin` | typed plugin kernel with a closed hook catalog |

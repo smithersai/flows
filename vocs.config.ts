@@ -19,6 +19,8 @@ export default defineConfig({
         { text: "@smthrs/journal", link: "/api/journal" },
         { text: "@smthrs/database", link: "/api/database" },
         { text: "@smthrs/kernel", link: "/api/kernel" },
+        { text: "@smthrs/canonical", link: "/api/canonical" },
+        { text: "@smthrs/crypto", link: "/api/crypto" },
         { text: "@smthrs/keys", link: "/api/keys" },
         { text: "@smthrs/engine", link: "/api/engine" },
         { text: "@smthrs/engine-store", link: "/api/engine-store" },
