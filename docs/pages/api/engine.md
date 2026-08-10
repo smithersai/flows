@@ -32,7 +32,7 @@ const layer = Build.toLayer(() => Compile).pipe(Layer.provideMerge(FlowEngine.la
 
 ## Flow
 
-[src/Flow.ts](https://github.com/smithersai/flows/blob/main/packages/engine/src/Flow.ts)
+[src/Flow](https://github.com/smithersai/flows/tree/main/packages/engine/src/Flow)
 
 | Export | Kind | Notes |
 | --- | --- | --- |
@@ -49,13 +49,13 @@ const layer = Build.toLayer(() => Compile).pipe(Layer.provideMerge(FlowEngine.la
 | `wrapActivityResult` | combinator | encodes an activity exit for storage |
 | `suspend` | effect | suspends the current flow |
 | `scope`, `provideScope`, `addFinalizer` | scope helpers | flow-scoped finalizers |
-| `withCompensation` | combinator | attaches a rollback to a step |
+| `withRollback` | combinator | undoes a successful effect if the enclosing flow later fails |
 | `CaptureDefects`, `SuspendOnFailure` | references | engine policy switches |
 | `ExecutionIdRequired` | class | fails when neither an id nor an idempotency key is supplied |
 
 ## Activity
 
-[src/Activity.ts](https://github.com/smithersai/flows/blob/main/packages/engine/src/Activity.ts)
+[src/Activity/](https://github.com/smithersai/flows/tree/main/packages/engine/src/Activity)
 
 | Export | Kind | Notes |
 | --- | --- | --- |
@@ -117,7 +117,7 @@ const layer = Build.toLayer(() => Compile).pipe(Layer.provideMerge(FlowEngine.la
 
 ## StepIdentity
 
-[src/StepIdentity.ts](https://github.com/smithersai/flows/blob/main/packages/engine/src/StepIdentity.ts)
+[src/Activity/StepIdentity.ts](https://github.com/smithersai/flows/blob/main/packages/engine/src/Activity/StepIdentity.ts)
 
 | Export | Kind | Notes |
 | --- | --- | --- |

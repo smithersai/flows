@@ -12,9 +12,9 @@ This page is the public API reference for typed flows, recorded activities, dura
 - `executionId(payload)`
 - `toLayer(handler)`
 - `annotate` and `annotateMerge`
-- `withCompensation`
+- `withRollback`
 
-`ExecutionIdRequired` is raised as a defect when neither explicit nor derived identity exists. Result exports include `Complete`, `Suspended`, `Result`, encoded schemas, `intoResult`, and `wrapActivityResult`. Scope helpers are `scope`, `provideScope`, `addFinalizer`, `withCompensation`, and `suspend`. Policy references are `CaptureDefects` and `SuspendOnFailure`.
+`ExecutionIdRequired` is raised as a defect when neither explicit nor derived identity exists. Result exports include `Complete`, `Suspended`, `Result`, encoded schemas, `intoResult`, and `wrapActivityResult`. Scope helpers are `scope`, `provideScope`, `addFinalizer`, `withRollback`, and `suspend`. Policy references are `CaptureDefects` and `SuspendOnFailure`.
 
 ## `Activity`
 
