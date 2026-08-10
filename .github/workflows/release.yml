@@ -91,10 +91,12 @@ jobs:
           }
           publish_if_missing @smthrs/database
           publish_if_missing @smthrs/keys
-          publish_if_missing @smthrs/host
           publish_if_missing @smthrs/journal
           publish_if_missing @smthrs/engine
           publish_if_missing @smthrs/kernel
+          publish_if_missing @smthrs/platform-browser
+          publish_if_missing @smthrs/platform-node
+          publish_if_missing @smthrs/platform-bun
           publish_if_missing @smthrs/plugin
           publish_if_missing @smthrs/sync
           publish_if_missing @smthrs/engine-store

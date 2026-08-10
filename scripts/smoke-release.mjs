@@ -69,7 +69,7 @@ try {
     join(smokeRoot, "smoke.mts"),
     [
       'import * as Flows from "@smthrs/flows"',
-      'import { runHostContract } from "@smthrs/host/test/contract"',
+      'import { runHostContract } from "@smthrs/kernel/test/contract"',
       "",
       "const publicApi: typeof Flows = Flows",
       "void publicApi",

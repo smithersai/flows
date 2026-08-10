@@ -26,11 +26,13 @@ const repoRoot = resolve(fileURLToPath(import.meta.url), "..", "..")
 const BROWSER_SAFE = [
   { name: "@smthrs/canonical", entry: "packages/canonical/src/index.ts" },
   { name: "@smthrs/crypto", entry: "packages/crypto/src/index.ts" },
-  { name: "@smthrs/host", entry: "packages/host/src/index.ts" },
-  { name: "@smthrs/host/browser/BrowserHost", entry: "packages/host/src/browser/BrowserHost.ts" },
   { name: "@smthrs/jj", entry: "packages/jj/src/index.ts" },
   { name: "@smthrs/jj/browser/BrowserJj", entry: "packages/jj/src/browser/BrowserJj.ts" },
   { name: "@smthrs/platform-browser", entry: "packages/platform-browser/src/index.ts" },
+  {
+    name: "@smthrs/platform-browser/BrowserHost",
+    entry: "packages/platform-browser/src/BrowserHost.ts"
+  },
   { name: "@smthrs/sandbox", entry: "packages/sandbox/src/index.ts" },
   { name: "@smthrs/kernel", entry: "packages/kernel/src/index.ts" },
   { name: "@smthrs/keys", entry: "packages/keys/src/index.ts" },
@@ -61,20 +63,20 @@ const NODE_ONLY = [
     reason: "the barrel re-exports @smthrs/engine-store; browser consumers import per-package roots"
   },
   {
-    name: "@smthrs/host/node/NodeHost",
-    entry: "packages/host/src/node/NodeHost.ts",
+    name: "@smthrs/platform-node",
+    entry: "packages/platform-node/src/index.ts",
     expect: "node:child_process",
     reason: "the Node host bundle spawns child processes"
   },
   {
-    name: "@smthrs/host/bun/BunHost",
-    entry: "packages/host/src/bun/BunHost.ts",
+    name: "@smthrs/platform-bun",
+    entry: "packages/platform-bun/src/index.ts",
     expect: "node:fs",
     reason: "the Bun bundle falls back to the @effect/platform-node adapters off Bun"
   },
   {
-    name: "@smthrs/host/test/TestHost",
-    entry: "packages/host/src/test/TestHost.ts",
+    name: "@smthrs/kernel/test/TestHost",
+    entry: "packages/kernel/src/test/TestHost.ts",
     expect: "node:assert",
     reason: "effect/testing's TestClock pulls node:assert"
   },
