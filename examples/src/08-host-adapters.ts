@@ -2,7 +2,7 @@
  * Run the same host program against two adapters.
  *
  * The host surface is a closed set of service tags: `FileSystem`, `Path`,
- * `Shell`, `Pty`, `Jj`, and a one-hop `HttpTransport`. A program written
+ * `Shell`, `Jj`, and a one-hop `HttpTransport`. A program written
  * against the tags runs on any bundle that provides them. This example runs
  * one program twice:
  *
