@@ -1,4 +1,4 @@
-import * as Jj from "@smthrs/host/Jj"
+import * as Jj from "@smthrs/jj"
 import { CacheStore, Journal, RunStore } from "@smthrs/journal"
 import type * as JournalEvent from "@smthrs/journal/JournalEvent"
 import type { OwnerId } from "@smthrs/journal/Ownership"

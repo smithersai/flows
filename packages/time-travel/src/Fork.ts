@@ -1,4 +1,4 @@
-import { Jj } from "@smthrs/host/Jj"
+import { Jj } from "@smthrs/jj"
 import * as RunStore from "@smthrs/journal/RunStore"
 import * as Effect from "effect/Effect"
 import type * as Scope from "effect/Scope"

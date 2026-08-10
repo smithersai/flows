@@ -3,7 +3,7 @@
  *
  * @since 0.1.0
  */
-import type { Jj } from "@smthrs/host/Jj"
+import type { Jj } from "@smthrs/jj"
 import type * as CacheStore from "@smthrs/journal/CacheStore"
 import * as Journal from "@smthrs/journal/Journal"
 import type * as JournalEvent from "@smthrs/journal/JournalEvent"

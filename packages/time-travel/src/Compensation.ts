@@ -3,7 +3,7 @@
  *
  * @since 0.1.0
  */
-import { Jj } from "@smthrs/host/Jj"
+import { Jj } from "@smthrs/jj"
 import * as CacheStore from "@smthrs/journal/CacheStore"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"

@@ -1,4 +1,4 @@
-import * as Jj from "@smthrs/host/Jj"
+import * as Jj from "@smthrs/jj"
 import { CacheStore, Journal, RunStore } from "@smthrs/journal"
 import type { LivenessEvidence, OwnerId } from "@smthrs/journal/Ownership"
 import * as Effect from "effect/Effect"

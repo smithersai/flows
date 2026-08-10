@@ -1,5 +1,5 @@
-import { jjError } from "@smthrs/host/HostError"
-import * as Jj from "@smthrs/host/Jj"
+import * as Jj from "@smthrs/jj"
+import { jjError } from "@smthrs/jj"
 import * as CacheStore from "@smthrs/journal/CacheStore"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
