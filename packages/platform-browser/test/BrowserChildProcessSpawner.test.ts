@@ -104,6 +104,7 @@ describe("BrowserChildProcessSpawner", () => {
     )
 
     expect(calls[0]?.command).toBe("ls | wc -l")
+    expect(calls[0]?.command).toBe(CommandLine.render(ChildProcess.make("ls | wc -l", [], { shell: true })))
   })
 
   it("reports the interpreter exit code and both captured streams", async () => {
@@ -350,6 +351,27 @@ describe("BrowserChildProcessSpawner rejected inputs", () => {
     )
 
     expect(calls).toHaveLength(1)
+  })
+
+  it.each([
+    [
+      "additional file descriptors",
+      ChildProcess.make("thing", [], { additionalFds: { fd3: { type: "output" } } }),
+      "additional file descriptors"
+    ],
+    ["a custom shell", ChildProcess.make("thing", [], { shell: "/bin/zsh" }), "requested shell"],
+    ["a detached process", ChildProcess.make("thing", [], { detached: true }), "detach"]
+  ])("rejects %s instead of silently ignoring it", async (_name, command, message) => {
+    const { bash, calls } = stub(ok())
+
+    const error = await run(
+      bash,
+      Effect.flip(Effect.flatMap(ChildProcessSpawner, (spawner) => spawner.exitCode(command)))
+    )
+
+    expect(error.reason._tag).toBe("BadArgument")
+    expect(error.message).toContain(message)
+    expect(calls).toEqual([])
   })
 })
 

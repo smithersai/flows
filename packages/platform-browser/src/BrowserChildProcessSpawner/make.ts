@@ -3,6 +3,7 @@
  *
  * @since 0.1.0
  */
+import * as CommandLine from "@smthrs/kernel/CommandLine"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Path from "effect/Path"
@@ -15,7 +16,6 @@ import type * as ChildProcess from "effect/unstable/process/ChildProcess"
 import type { ChildProcessHandle } from "effect/unstable/process/ChildProcessSpawner"
 import { ExitCode, make as makeSpawner, makeHandle, ProcessId } from "effect/unstable/process/ChildProcessSpawner"
 import { captured } from "./captured.ts"
-import { commandLine } from "./commandLine.ts"
 import type { JustBashLike } from "./JustBashLike.ts"
 
 /**
@@ -104,10 +104,22 @@ export const make = (bash: JustBashLike) =>
       if (suppliesStdin(cmd.options)) {
         return yield* Effect.fail(rejected("spawn", "just-bash cannot supply stdin to a command"))
       }
+      if (cmd.options.additionalFds !== undefined && Object.keys(cmd.options.additionalFds).length > 0) {
+        return yield* Effect.fail(rejected("spawn", "just-bash cannot configure additional file descriptors"))
+      }
+      if (typeof cmd.options.shell === "string") {
+        return yield* Effect.fail(rejected(
+          "spawn",
+          `just-bash cannot select the requested shell ${cmd.options.shell}`
+        ))
+      }
+      if (cmd.options.detached === true) {
+        return yield* Effect.fail(rejected("spawn", "just-bash cannot detach a command from the browser tab"))
+      }
 
       const cwd = yield* resolveWorkingDirectory(cmd.options)
       const env = resolveEnvironment(cmd.options)
-      const line = commandLine(cmd)
+      const line = CommandLine.render(cmd)
 
       const result = yield* gate.withPermit(
         Effect.uninterruptible(

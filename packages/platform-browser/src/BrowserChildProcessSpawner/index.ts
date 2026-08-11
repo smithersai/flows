@@ -34,6 +34,10 @@
  * - **No extra file descriptors.** `getInputFd` returns `Sink.drain` and
  *   `getOutputFd` returns `Stream.empty` — the same answer
  *   `NodeChildProcessSpawner` gives for a descriptor that was never configured.
+ *   A command that explicitly configures one is rejected at spawn time.
+ * - **No custom shell or detached process.** `shell: true` means the in-page
+ *   bash interpreter, but a shell path and `detached: true` cannot be honored
+ *   in a tab and are rejected.
  * - **`extendEnv` is ignored.** There is no ambient process environment in a
  *   tab to extend; only `env` reaches the interpreter.
  *

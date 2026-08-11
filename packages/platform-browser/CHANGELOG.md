@@ -6,7 +6,7 @@
 
 - Added `BrowserHost` and `BrowserHttpTransport`, moved out of `@smthrs/host`
   when that package dissolved. `BrowserHost.layer({ bash, fs })` is the complete
-  closed six-tag Host bundle for a tab; the spawner is provided _over_ the
+  closed five-tag Host bundle for a tab; the spawner is provided _over_ the
   filesystem and path layers, the way `NodeChildProcessSpawner` is, so the
   interpreter and the `FileSystem` service agree about what exists.
 
@@ -17,6 +17,9 @@
   helper. The two had to agree and did not: the kernel writes the rendered line
   as the `proc:spawn` capability resource, so a grant read `ls` while the tab
   ran `'ls'`.
+- Commands that request additional file descriptors, a custom shell path, or a
+  detached process now fail with `BadArgument`; the browser adapter cannot
+  preserve those semantics and no longer drops them silently.
 
 ### Added (initial extraction)
 
