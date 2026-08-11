@@ -73,7 +73,7 @@ An `Accepted` receipt from the lossy queue means the event entered the writer qu
 
 ### Writers and readers
 
-The writer is one scoped fiber inside `SqlJournal.layer`, persisting batches through `Database.write`. Published entries reach the general `changes` subscription and the per-run wake channels that `stream` follows, and publication is deferred until the outermost transaction commits.
+The writer is one scoped fiber inside `SqlJournal.layer`, persisting batches through `DurableWriter.write`. Published entries reach the general `changes` subscription and the per-run wake channels that `stream` follows, and publication is deferred until the outermost transaction commits.
 
 Readers: `Journal.entries` pages history, `Journal.stream` replays then follows, `Journal.project` folds a stream through a deterministic reducer with no separate durable state, `@smthrs/sync` replicates entries to followers, and `@smthrs/time-travel` reads suffixes and archives them.
 
@@ -225,4 +225,4 @@ Because journal sequences may have holes, `afterSeq` means entries after this nu
 
 ## The atomicity rule that ties these together
 
-A state transition and the lifecycle entry describing it commit in one write transaction, opened by `Journal.transact`. Every store above writes through the same `Database`, so their writes join that transaction as savepoints. Either both halves are durable or neither is. [Internal details](/internals) lists the exact pairs and what follows from them.
+A state transition and the lifecycle entry describing it commit in one write transaction, opened by `Journal.transact`. Every store above writes through the same `DurableWriter`, so their writes join that transaction as savepoints. Either both halves are durable or neither is. [Internal details](/internals) lists the exact pairs and what follows from them.

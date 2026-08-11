@@ -2,7 +2,7 @@
 
 This page is the public API reference for the `Jj` host service: version control as a capability. Permission enforcement is provided separately by `@smthrs/kernel`, whose `Jj` decorator wraps this contract.
 
-The package depends on `effect` alone. `Jj` is still one of the five services in the closed host list `@smthrs/host` owns; the contract lives here so a consumer that only snapshots a working copy does not take a shell and an HTTP transport with it.
+The package depends on `effect` alone. `Jj` is still one of the five services in the closed host list `@smthrs/kernel` owns; the contract lives here so a consumer that only snapshots a working copy does not take a process spawner and an HTTP transport with it.
 
 ## Contract
 
@@ -33,7 +33,7 @@ import { Jj } from "@smthrs/jj"
 import * as NodeJj from "@smthrs/jj/node/NodeJj"
 ```
 
-`NodeJj` deliberately spawns its own children rather than going through `Shell`: jj invocations are argv arrays with no shell interpretation, and the host must be able to checkpoint work even where a user-facing shell is unavailable or sandboxed. Errors are classified from jj's own stderr vocabulary onto the stable codes, the way `NodeFileSystem` classifies errno.
+`NodeJj` deliberately spawns its own children rather than going through `ChildProcessSpawner`: jj invocations are argv arrays with no shell interpretation, and the host must be able to checkpoint work even where process spawning is unavailable, sandboxed, or gated behind a `proc:spawn` grant the user has not given. Errors are classified from jj's own stderr vocabulary onto the stable codes, the way `NodeFileSystem` classifies errno.
 
 jj is a native binary, so there is nothing to run in a browser tab. `BrowserJj.layerUnsupported` reports `not_installed` — the same code the Node layer uses when the binary is absent, so a caller needs no browser-specific branch. It is a ticket, not a silent exception; see `Concepts/Browser jj` in the spec vault.
 
@@ -45,4 +45,4 @@ The tag key `flows/host/Jj` and the error `_tag` `flows/host/JjError` are frozen
 
 `@smthrs/jj` and `@smthrs/jj/browser/BrowserJj` are gated as browser entry points by `scripts/browser-check.mjs` (`npm run browser`, and one CI step). The same gate asserts `@smthrs/jj/node/NodeJj` and `@smthrs/jj/bun/BunJj` still do *not* bundle, and that the reason is `node:child_process`.
 
-See [Hosts and capabilities](../concepts/hosts-and-capabilities.md), the [`@smthrs/host` reference](host.md), the [`@smthrs/kernel` reference](kernel.md), and [time travel](../concepts/time-travel.md), which uses `Jj` for workspace snapshot and restore.
+See [Hosts and capabilities](../concepts/hosts-and-capabilities.md), the [`@smthrs/kernel` reference](kernel.md), and [time travel](../concepts/time-travel.md), which uses `Jj` for workspace snapshot and restore.

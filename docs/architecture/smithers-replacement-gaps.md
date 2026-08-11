@@ -194,7 +194,7 @@ gap.
    win: a workspace already on PGlite/Postgres cannot take it as written.
 
    What has landed: write-retry classification is no longer dialect-blind.
-   `Database.make` accepts any `SqlClient`, and the classifier now recognises
+   `DurableWriter.make` accepts any `SqlClient`, and the classifier now recognises
    the Postgres transient vocabulary (`40001`, `40P01`, `55P03`, plus the
    PGlite text forms) alongside the SQLite codes, and `fromSqlError` maps them
    to the same stable `busy` category — so a hand-supplied `PgClient` gets the

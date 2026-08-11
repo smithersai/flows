@@ -56,15 +56,16 @@ The in-memory engine above keeps state in the process. For a run that survives a
 
 | Package | Role |
 | --- | --- |
-| `@smthrs/flows` | Umbrella barrel re-exporting the fifteen packages below as namespaces |
+| `@smthrs/flows` | Umbrella barrel re-exporting the engine packages below as namespaces; the `platform-*` bundles are deliberately excluded |
 | `@smthrs/canonical` | RFC 8785 canonical JSON as an Effect Schema |
-| `@smthrs/host` | The closed host service list, the Shell and HTTP contracts, and the Node, Bun, browser, and test bundles |
+| `@smthrs/platform-node` | The Node Host bundle: Effect's Node platform services, the Undici transport, and the Node jj adapter |
+| `@smthrs/platform-bun` | The same bundle for Bun, over `@effect/platform-bun` |
 | `@smthrs/jj` | Jujutsu snapshot, restore, diff, and workspace operations as a host service |
 | `@smthrs/sandbox` | Remote-sandbox provider adaptation and the sandbox liveness probe |
-| `@smthrs/platform-browser` | Browser `FileSystem` and `ChildProcessSpawner` over ZenFS and just-bash |
+| `@smthrs/platform-browser` | Browser `FileSystem` and `ChildProcessSpawner` over ZenFS and just-bash, plus the `BrowserHost` bundle |
 | `@smthrs/journal` | Logical WAL, run/attempt/cache stores, migrations, projections |
 | `@smthrs/database` | Driver-neutral SQL contract with transactional write retry |
-| `@smthrs/kernel` | Capability sets, grants, and permission-decorated host services |
+| `@smthrs/kernel` | The closed host service list, capability sets, grants, and permission-decorated host services |
 | `@smthrs/crypto` | Injected cryptographic schema transformations |
 | `@smthrs/keys` | Canonical workflow keys |
 | `@smthrs/engine` | Flow definitions, activities, durable primitives, retry policy |

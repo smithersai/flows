@@ -64,4 +64,4 @@ A `StandardCommand` is rendered to a command line: without `shell`, the command 
 
 ## Reading next
 
-[`@smthrs/host`](/api/host) composes `BrowserFileSystem` into its `BrowserHost` bundle, and [browser support](/architecture) states which entry points the gate executes.
+This package composes `BrowserFileSystem` and `BrowserChildProcessSpawner` into its own `BrowserHost` bundle, and [browser support](/architecture) states which entry points the gate executes.

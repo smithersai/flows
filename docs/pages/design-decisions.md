@@ -36,7 +36,9 @@ Cost: nothing is admitted today. The filesystem-backed `StepBoundary.layer` meas
 
 ## D5. Host access is closed and decorated
 
-The host surface is exactly `FileSystem`, `Path`, `Shell`, `Jj`, and a one-hop `HttpTransport`, with Effect's `Clock` and `Random` treated as swappable built-ins. `@smthrs/kernel` decorates those services with grant checks instead of asking every flow to remember to check permissions.
+The host surface is exactly `FileSystem`, `Path`, `ChildProcessSpawner`, `Jj`, and a one-hop `HttpTransport`, with Effect's `Clock` and `Random` treated as swappable built-ins. `@smthrs/kernel` decorates those services with grant checks instead of asking every flow to remember to check permissions.
+
+Three of those five slots hold Effect's own tags rather than `flows` wrappers. `ChildProcessSpawner` is the newest: `flows` used to define a `Shell` service with `exec` and `stream`, which was `effect/unstable/process` with fewer features and a second error type to keep honest. It was deleted; `flows` now supplies implementations of Effect's spawner (Node, Bun, an in-browser just-bash one) and adds only the `proc:spawn` capability check on top. A wrapper earns its place by adding something; this one added a `timeoutMs` option that `Effect.timeout` already covers.
 
 The alternative was an open host surface with per-call permission arguments. An open surface cannot be audited, and per-call arguments are forgotten.
 

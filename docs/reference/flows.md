@@ -17,12 +17,10 @@ import { Engine, Host, Journal } from "@smthrs/flows"
 | `Database`    | `@smthrs/database`     | [database](database.md)                |
 | `Engine`      | `@smthrs/engine`       | [engine](engine.md)                    |
 | `EngineStore` | `@smthrs/engine-store` | [engine-store](engine-store.md)        |
-| `Host`        | `@smthrs/host`         | [host](host.md)                        |
 | `Jj`          | `@smthrs/jj`           | [jj](jj.md)                            |
 | `Journal`     | `@smthrs/journal`      | [journal](journal.md)                  |
 | `Kernel`      | `@smthrs/kernel`       | [kernel](kernel.md)                    |
 | `Keys`        | `@smthrs/keys`         | [keys](keys.md)                        |
-| `PlatformBrowser` | `@smthrs/platform-browser` | [platform-browser](platform-browser.md) |
 | `Plugin`      | `@smthrs/plugin`       | [plugin-system](../architecture/plugin-system.md) |
 | `Sandbox`     | `@smthrs/sandbox`      | [sandbox](sandbox.md)                  |
 | `Sync`        | `@smthrs/sync`         | [sync](sync.md)                        |
@@ -30,7 +28,11 @@ import { Engine, Host, Journal } from "@smthrs/flows"
 
 Each package is exported as a namespace rather than flattened, so every
 package keeps its own `make` / `makeNoop` / `layerNoop` trio without colliding
-with its neighbours: `Host.Shell.layerNoop`, `Journal.Store.layer`.
+with its neighbours: `Kernel.ChildProcessSpawner.layerNoop`, `Journal.Store.layer`.
+
+The `@smthrs/platform-*` bundles are deliberately not among them, for the same
+reason `effect`'s index does not re-export `@effect/platform-node`: a platform
+bundle is chosen by the program that runs, not by the library it depends on.
 
 ## When not to use it
 
@@ -43,13 +45,14 @@ package. The barrel pulls in all fifteen.
 entry point and does not bundle for a browser; `npm run browser` asserts that
 rather than hiding it. Browser consumers import the per-package roots listed in
 [browser support](../architecture/browser-support.md). The namespaces here also
-carry contracts only — `Host.NodeHost` and `Journal.TestJournal` do not exist;
-those live at `@smthrs/host/node/NodeHost` and
-`@smthrs/journal/test/TestJournal`.
+carry contracts only — `Journal.TestJournal` does not exist; it lives at
+`@smthrs/journal/test/TestJournal`, and the host bundles live at
+`@smthrs/platform-node`, `@smthrs/platform-bun`, and
+`@smthrs/platform-browser`.
 
 The barrel deliberately excludes the agent-layer packages, which sit above the
-engine, and the platform host adapters `@smthrs/host-cloudflare` and
-`@smthrs/host-vercel`, which are vendor integrations living in the
+engine, and the vendor host adapters `@smthrs/host-cloudflare` and
+`@smthrs/host-vercel`, which live in the
 [plugins repository](https://github.com/smithersai/plugins).
 
 See the [package map](../architecture/package-map.md) for the dependency

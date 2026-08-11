@@ -14,7 +14,7 @@ This page is the public API reference for journal projection replay, time-travel
 - fork records,
 - atomic archive/truncation results.
 
-`TimeTravelStore` exports `make`, `makeNoop`, and `layerNoop`. `MemoryTimeTravelStore.make/layer` provides observable memory state. `SqlTimeTravelStore.migrate`, `make`, and `layer` provide SQL persistence over `Database`.
+`TimeTravelStore` exports `make`, `makeNoop`, and `layerNoop`. `MemoryTimeTravelStore.make/layer` provides observable memory state. `SqlTimeTravelStore.migrate`, `make`, and `layer` provide SQL persistence over `DurableWriter` and Effect's `SqlClient`.
 
 ## Operations
 

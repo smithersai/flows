@@ -75,11 +75,11 @@ The honest positioning is an embeddable, Effect-native durable-execution toolkit
 
 | Limit | Detail |
 | --- | --- |
-| SQLite only | both shipped `Database` backends are SQLite, `@effect/sql-sqlite-node` on Node and sqlite-wasm OPFS in the browser, and the journal migration ladder is SQLite-flavoured DDL. Postgres and PGlite parity is an accepted gap, issue #78 |
-| No browser SQL layer | the journal bundles for the browser against the `Database` contract, and no browser SQL client layer ships here |
+| SQLite only | both shipped SQL backends are SQLite, `@effect/sql-sqlite-node` on Node and sqlite-wasm OPFS in the browser, and the journal migration ladder is SQLite-flavoured DDL. Postgres and PGlite parity is an accepted gap, issue #78 |
+| No browser SQL layer | the journal bundles for the browser against the `DurableWriter` contract, and no browser SQL client layer ships here |
 | Node-only durable engine | `@smthrs/engine-store` reads `process.pid` and `node:crypto`, so it and the `@smthrs/flows` barrel are Node entry points, issue #114 |
 | Registration before resume | flow registrations and active fibers are in-memory, so a restarted process must re-register handlers before driving stored runs |
-| Single-writer serialization | `Database.write` requires serialized write transactions, and a Postgres backend must run them `SERIALIZABLE` |
+| Single-writer serialization | `DurableWriter.write` requires serialized write transactions, and a Postgres backend must run them `SERIALIZABLE` |
 | No hosted deployment | a fully runnable engine-store on Cloudflare Workers and fully durable serverless deferreds and clocks on Vercel do not exist. Platform host adapters live in [smithersai/plugins](https://github.com/smithersai/plugins) |
 | Cache address convention | the time-travel package reads cache keys out of effect-boundary metadata, so a caller recording those boundaries must use the same address convention as the cache producer |
 | Fork records are not per-frame | `SqlTimeTravelStore.createFork` materializes from the parent's current persisted snapshot and attempts, not from a historical reconstruction at the frame |
@@ -88,7 +88,7 @@ Packages are pre-1.0. Treat every boundary above as an evolving compatibility co
 
 ## What Postgres parity would take
 
-The write-retry seam is already dialect-blind: `Database.make` accepts any `SqlClient`, and classification covers the Postgres transient SQLSTATEs `40001`, `40P01`, and `55P03` plus PGlite's text forms alongside the SQLite codes, normalized onto the same `busy` category. A hand-supplied `PgClient` is therefore degraded rather than unprotected.
+The write-retry seam is already dialect-blind: `DurableWriter.make` accepts any `SqlClient`, and classification covers the Postgres transient SQLSTATEs `40001`, `40P01`, and `55P03` plus PGlite's text forms alongside the SQLite codes, normalized onto the same `busy` category. A hand-supplied `PgClient` is therefore degraded rather than unprotected.
 
 What remains, in order:
 

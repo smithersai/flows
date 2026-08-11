@@ -1,6 +1,6 @@
 # Plugin system (`@smthrs/plugin`)
 
-Status: **kernel implemented, seams not yet dispatched**. This document is the contract. `packages/plugin` implements the plugin object, resolution and ordering, the config waterfall, and the four hook dispatch kinds; the engine call sites listed below still use their built-in defaults and will dispatch through the kernel in a later round. The package name is `@smthrs/plugin` — no reason was found to deviate: it sits beside `@smthrs/kernel` and `@smthrs/host` in the existing namespace, and the harness above the engine will depend on it under the same name.
+Status: **kernel implemented, seams not yet dispatched**. This document is the contract. `packages/plugin` implements the plugin object, resolution and ordering, the config waterfall, and the four hook dispatch kinds; the engine call sites listed below still use their built-in defaults and will dispatch through the kernel in a later round. The package name is `@smthrs/plugin` — no reason was found to deviate: it sits beside `@smthrs/kernel` and `@smthrs/journal` in the existing namespace, and the harness above the engine will depend on it under the same name.
 
 ## Motivation
 

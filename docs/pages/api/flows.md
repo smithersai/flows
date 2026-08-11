@@ -1,12 +1,14 @@
 # @smthrs/flows
 
-The umbrella barrel. It re-exports the sixteen engine packages as namespaces, so one dependency gives you the whole surface without collapsing each package's `make` / `makeNoop` / `layerNoop` trio into a shared namespace.
+The umbrella barrel. It re-exports the engine packages as namespaces, so one dependency gives you the whole surface without collapsing each package's `make` / `makeNoop` / `layerNoop` trio into a shared namespace.
+
+The `@smthrs/platform-*` bundles are deliberately absent, for the same reason `effect`'s index does not re-export `@effect/platform-node`: a platform bundle is chosen by the program that runs, not by the library it depends on. Import [`@smthrs/platform-node`](/api/platform-node), [`@smthrs/platform-bun`](/api/platform-bun), or [`@smthrs/platform-browser`](/api/platform-browser) directly.
 
 ```ts
-import { Engine, Host, Journal } from "@smthrs/flows"
+import { Engine, Journal, Kernel } from "@smthrs/flows"
 import * as Schema from "effect/Schema"
 
-const shell = Host.Shell.layerNoop({})
+const jj = Kernel.Jj.layerNoop()
 const runs = Journal.RunStore.layer
 const Build = Engine.Flow.make("example/Build", {
   payload: { target: Schema.String },
@@ -31,12 +33,10 @@ This entry point is Node-only, because it re-exports `@smthrs/engine-store`. Bro
 | `Database` | `@smthrs/database` | [Database](/api/database) |
 | `Engine` | `@smthrs/engine` | [Engine](/api/engine) |
 | `EngineStore` | `@smthrs/engine-store` | [EngineStore](/api/engine-store) |
-| `Host` | `@smthrs/host` | [Host](/api/host) |
 | `Jj` | `@smthrs/jj` | [Jj](/api/jj) |
 | `Journal` | `@smthrs/journal` | [Journal](/api/journal) |
 | `Kernel` | `@smthrs/kernel` | [Kernel](/api/kernel) |
 | `Keys` | `@smthrs/keys` | [Keys](/api/keys) |
-| `PlatformBrowser` | `@smthrs/platform-browser` | [PlatformBrowser](/api/platform-browser) |
 | `Plugin` | `@smthrs/plugin` | [Plugin](/api/plugin) |
 | `Sandbox` | `@smthrs/sandbox` | [Sandbox](/api/sandbox) |
 | `Sync` | `@smthrs/sync` | [Sync](/api/sync) |

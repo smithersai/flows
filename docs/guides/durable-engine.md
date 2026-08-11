@@ -50,13 +50,13 @@ const EngineLayer = EngineStore.layer({
 For a persistent deployment:
 
 1. create a compatible Effect `SqlClient`,
-2. wrap it with `Database.make` or a runtime adapter,
+2. wrap it with `DurableWriter.make` or a runtime adapter,
 3. run `Journal.Migrations`,
 4. construct `SqlJournal`, `RunStore`, `AttemptStore`, and `CacheStore` from that database,
 5. construct `DurableEngineState.layer` from the same migrated database,
 6. provide the resulting services to `EngineStore.layer`.
 
-Migrations must complete before any store service is exposed. `Database.write` wraps a SQL transaction and retries retryable SQLite write failures; non-SQLite drivers retain their own transaction behavior.
+Migrations must complete before any store service is exposed. `DurableWriter.write` wraps a SQL transaction and retries retryable SQLite write failures; non-SQLite drivers retain their own transaction behavior.
 
 ## Services still owned by the application
 

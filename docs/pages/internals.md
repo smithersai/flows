@@ -6,7 +6,7 @@ This page is for people changing the engine. It documents the rules the durable 
 
 The problem: executable state lives in `RunStore`, `AttemptStore`, `CacheStore`, and `DurableEngineState`, while the account of what happened lives in the journal. If those commit separately, a crash between them leaves durable state the log does not explain, and audit, sync, and time travel can no longer trust the log.
 
-The rule: every lifecycle entry commits in the same write transaction as the state transition it describes. `Journal.transact` opens that transaction. Every store writes through the same `Database`, so their writes join it as savepoints. Either both halves are durable or neither is.
+The rule: every lifecycle entry commits in the same write transaction as the state transition it describes. `Journal.transact` opens that transaction. Every store writes through the same `DurableWriter`, so their writes join it as savepoints. Either both halves are durable or neither is.
 
 The pairs that are closed today:
 
@@ -109,7 +109,7 @@ There is no flow-source digest. What decides reuse after a code edit is activity
 
 The driver records the edge before creating the run row, so a rejected request leaves no durable trace, and both writes happen in one storage transaction, so a crash between them leaves no orphan edge. The error surfaces to callers as the typed `FlowCycleDetected` in the error channel.
 
-Edge cleanup is enforced by an `AFTER DELETE` trigger on `flows_runs` rather than by call convention, so any lane that deletes a run row drops its edges in the same transaction. Writer serialization is a documented `Database.write` requirement: Postgres must run write transactions `SERIALIZABLE`.
+Edge cleanup is enforced by an `AFTER DELETE` trigger on `flows_runs` rather than by call convention, so any lane that deletes a run row drops its edges in the same transaction. Writer serialization is a documented `DurableWriter.write` requirement: Postgres must run write transactions `SERIALIZABLE`.
 
 ## Reading next
 

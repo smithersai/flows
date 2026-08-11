@@ -42,7 +42,6 @@ Read [implementation status](architecture/implementation-status.md) before choos
 
 - [`@smthrs/flows`](reference/flows.md) — barrel package re-exporting everything below
 - [`@smthrs/database`](reference/database.md)
-- [`@smthrs/host`](reference/host.md)
 - [`@smthrs/jj`](reference/jj.md)
 - [`@smthrs/sandbox`](reference/sandbox.md)
 - [`@smthrs/platform-browser`](reference/platform-browser.md)
@@ -57,7 +56,7 @@ Read [implementation status](architecture/implementation-status.md) before choos
 - [`@smthrs/sync`](reference/sync.md)
 - [`@smthrs/time-travel`](reference/time-travel.md)
 
-Platform host adapters (`@smthrs/host-cloudflare`, `@smthrs/host-vercel`) are
+Vendor host adapters (`@smthrs/host-cloudflare`, `@smthrs/host-vercel`) are
 documented in the [plugins repository](https://github.com/smithersai/plugins).
 
 ## Architecture

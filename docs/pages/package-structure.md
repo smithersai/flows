@@ -1,19 +1,20 @@
 # Package structure
 
-Fifteen npm workspaces under `packages/`, one closed dependency set. This page is the map: who owns which data, which package may import which, and which entry points bundle for a browser.
+Seventeen npm workspaces under `packages/`, one closed dependency set. This page is the map: who owns which data, which package may import which, and which entry points bundle for a browser.
 
 ## Workspaces
 
 | Workspace | Directory | Published | Owns |
 | --- | --- | --- | --- |
-| `@smthrs/flows` | `packages/flows` | yes | nothing; re-exports the fifteen below as namespaces |
-| `@smthrs/host` | `packages/host` | yes | the closed host service list, the `Shell` and `HttpTransport` contracts, and the platform bundles |
+| `@smthrs/flows` | `packages/flows` | yes | nothing; re-exports the engine packages below as namespaces — but not the `platform-*` bundles |
 | `@smthrs/jj` | `packages/jj` | yes | no tables; the `Jj` contract, `JjError`, and its adapters |
 | `@smthrs/sandbox` | `packages/sandbox` | yes | no tables; remote-sandbox execution and the health probe |
-| `@smthrs/platform-browser` | `packages/platform-browser` | yes | no tables; browser `FileSystem` and `ChildProcessSpawner` implementations |
+| `@smthrs/platform-browser` | `packages/platform-browser` | yes | no tables; browser `FileSystem` and `ChildProcessSpawner` implementations, and the `BrowserHost` bundle |
+| `@smthrs/platform-node` | `packages/platform-node` | yes | no tables; the Node `HttpTransport` and the `NodeHost` bundle |
+| `@smthrs/platform-bun` | `packages/platform-bun` | yes | no tables; the Bun filesystem and `HttpTransport`, and the `BunHost` bundle |
 | `@smthrs/journal` | `packages/journal` | yes | journal, run, attempt, cache, deferred, and clock tables |
 | `@smthrs/database` | `packages/database` | yes | no tables; the `SqlClient` contract and write retry |
-| `@smthrs/kernel` | `packages/kernel` | yes | capability sets, grants, and their journal records |
+| `@smthrs/kernel` | `packages/kernel` | yes | the closed host service list, the `HttpTransport` contract, capability sets, grants, and their journal records |
 | `@smthrs/canonical` | `packages/canonical` | yes | no tables; RFC 8785 canonical JSON |
 | `@smthrs/crypto` | `packages/crypto` | yes | no tables; injected cryptographic operations |
 | `@smthrs/keys` | `packages/keys` | yes | no tables; canonical workflow keys |
@@ -52,19 +53,18 @@ flowchart LR
   ENGINE["@smthrs/engine"]
   JOURNAL["@smthrs/journal"]
   DB["@smthrs/database"]
-  HOST["@smthrs/host"]
   JJ["@smthrs/jj"]
   SANDBOX["@smthrs/sandbox"]
   PB["@smthrs/platform-browser"]
+  PN["@smthrs/platform-node"]
+  PBUN["@smthrs/platform-bun"]
   KEYS["@smthrs/keys"]
   CRYPTO["@smthrs/crypto"]
   CANONICAL["@smthrs/canonical"]
   PLUGIN["@smthrs/plugin"]
 
-  FLOWS --> HOST
   FLOWS --> JJ
   FLOWS --> SANDBOX
-  FLOWS --> PB
   FLOWS --> DB
   FLOWS --> JOURNAL
   FLOWS --> KERNEL
@@ -77,12 +77,17 @@ flowchart LR
   FLOWS --> SYNC
   FLOWS --> TT
   JOURNAL --> DB
-  HOST --> JJ
-  HOST --> PB
-  SANDBOX --> HOST
-  KERNEL --> HOST
+  SANDBOX --> KERNEL
   KERNEL --> JJ
+  KERNEL --> PB
   KERNEL --> JOURNAL
+  PB --> KERNEL
+  PB --> JJ
+  PN --> KERNEL
+  PN --> JJ
+  PBUN --> KERNEL
+  PBUN --> JJ
+  PBUN --> PB
   ENGINE --> KEYS
   ENGINE --> CRYPTO
   KEYS --> CANONICAL
@@ -103,21 +108,24 @@ flowchart LR
 | `@smthrs/canonical` | nothing in the workspace | `keys`, `flows` |
 | `@smthrs/crypto` | nothing in the workspace | `keys`, `engine`, `engine-store`, `flows` |
 | `@smthrs/keys` | `canonical`, `crypto` | `engine`, `flows` |
-| `@smthrs/jj` | nothing in the workspace | `host`, `kernel`, `time-travel`, `flows` |
-| `@smthrs/platform-browser` | nothing in the workspace | `host`, `flows` |
-| `@smthrs/host` | `jj`, `platform-browser` | `kernel`, `sandbox`, `flows` |
-| `@smthrs/sandbox` | `host` | `flows` |
+| `@smthrs/jj` | nothing in the workspace | `kernel`, `platform-*`, `time-travel`, `flows` |
+| `@smthrs/platform-browser` | `jj`, `kernel` | `kernel` (test bundle only), `platform-bun` |
+| `@smthrs/platform-node` | `jj`, `kernel` | nothing |
+| `@smthrs/platform-bun` | `jj`, `kernel`, `platform-browser` | nothing |
+| `@smthrs/sandbox` | `kernel` | `flows` |
 | `@smthrs/database` | nothing in the workspace | `journal`, `time-travel`, `flows` |
 | `@smthrs/plugin` | nothing in the workspace | `flows` |
 | `@smthrs/journal` | `database` | `kernel`, `engine-store`, `sync`, `time-travel`, `flows` |
-| `@smthrs/kernel` | `host`, `jj`, `journal` | `engine-store`, `time-travel`, `flows` |
+| `@smthrs/kernel` | `jj`, `journal`, `platform-browser` | `engine-store`, `platform-*`, `sandbox`, `time-travel`, `flows` |
 | `@smthrs/engine` | `crypto`, `keys` | `engine-store`, `flows` |
 | `@smthrs/engine-store` | `crypto`, `engine`, `journal`, `kernel` | `time-travel`, `flows` |
 | `@smthrs/sync` | `journal` | `flows` |
 | `@smthrs/time-travel` | `database`, `engine-store`, `jj`, `journal` | `flows` |
-| `@smthrs/flows` | all fifteen | nothing |
+| `@smthrs/flows` | every package except the three `platform-*` bundles | nothing |
 
 `npm run circular` fails the build on an import cycle, within a package or across them.
+
+The one cycle at *package* granularity is `kernel` ↔ `platform-browser`: the kernel's deterministic `TestHost` bundle (a test-only subpath) mounts the browser filesystem and interpreter, and `BrowserHost` provides the kernel's `HttpTransport` slot. No module-level cycle exists, which is what `npm run circular` checks. The parked `remove-http-transport` lane removes the second half of it.
 
 ## Entry point matrix
 
@@ -127,11 +135,11 @@ A package root exports contracts. A platform implementation lives under a subpat
 
 | Entry point | Browser | Node | Why |
 | --- | --- | --- | --- |
-| `@smthrs/host` | yes | yes | the closed service list, `Shell` and `HttpTransport` contracts, `HostError`, no-op layers |
-| `@smthrs/host/browser/BrowserHost` | yes | yes | `layer({ bash, fs })` over an injected browser filesystem; Jujutsu reports unsupported |
-| `@smthrs/host/node/NodeHost` | no | yes | child processes, Node filesystem, Jujutsu |
-| `@smthrs/host/bun/BunHost` | no | yes | the Bun adapters, falling back to `@effect/platform-node` off Bun |
-| `@smthrs/host/test/TestHost` | no | yes | `effect/testing`'s `TestClock` imports `node:assert` |
+| `@smthrs/platform-browser` | yes | yes | browser `FileSystem` and `ChildProcessSpawner`, the fetch transport, and the `BrowserHost` bundle |
+| `@smthrs/platform-browser/BrowserHost` | yes | yes | `layer({ bash, fs })` over an injected browser filesystem and interpreter; Jujutsu reports unsupported |
+| `@smthrs/platform-node` | no | yes | child processes, Node filesystem, Jujutsu |
+| `@smthrs/platform-bun` | no | yes | the Bun adapters, falling back to `@effect/platform-node` off Bun |
+| `@smthrs/kernel/test/TestHost` | no | yes | `effect/testing`'s `TestClock` imports `node:assert` |
 | `@smthrs/jj` | yes | yes | the `Jj` contract, `JjError`, and the no-op layer |
 | `@smthrs/jj/browser/BrowserJj` | yes | yes | every operation reports `not_installed` |
 | `@smthrs/jj/node/NodeJj`, `@smthrs/jj/bun/BunJj` | no | yes | spawn the jj CLI through `node:child_process` |
@@ -143,7 +151,7 @@ A package root exports contracts. A platform implementation lives under a subpat
 | `@smthrs/database` | yes | yes | the driver-neutral contract only |
 | `@smthrs/database/node/NodeDatabase` | no | yes | `node:sqlite` through `@effect/sql-sqlite-node` |
 | `@smthrs/database/test/TestDatabase` | no | yes | in-memory SQLite through the same driver |
-| `@smthrs/journal` | yes | yes | stores and migrations over the `Database` contract |
+| `@smthrs/journal` | yes | yes | stores and migrations over `SqlClient` and the `DurableWriter` contract |
 | `@smthrs/journal/test/TestJournal` | no | yes | composes `TestDatabase` |
 | `@smthrs/engine` | yes | yes | flow, activity, durable primitives, retry, identity |
 | `@smthrs/engine-store` | no | yes | reads `process.pid` and imports `randomUUID` from `node:crypto` |

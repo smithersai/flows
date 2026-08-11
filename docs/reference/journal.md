@@ -26,7 +26,7 @@ This page is the public API reference for durable events, run ownership, activit
 
 ## SQL journal
 
-`SqlJournal.layer(options)` provides the bounded telemetry writer and inline durable writer over `Database`. Options are `capacity`, `overflow`, and optional `batchSize`, `sourceEventCache`, and `redact`.
+`SqlJournal.layer(options)` provides the bounded telemetry writer and inline durable writer over `DurableWriter`. Options are `capacity`, `overflow`, and optional `batchSize`, `sourceEventCache`, and `redact`.
 
 ### Source-event index bound
 
@@ -49,7 +49,7 @@ yield* journal.transact(Effect.gen(function*() {
 }))
 ```
 
-Those stores write through the same `Database`, so their writes join this transaction as savepoints: the row and its lifecycle entry either both commit or both roll back. Engine-store uses it for every lifecycle pair it writes, which is what makes the journal an account of record rather than a best-effort echo. The prior art is Temporal, which closes mutable state into a mutation plus event batches and submits them as one persistence request (`reference/temporal/service/history/workflow/transaction_impl.go`).
+Those stores write through the same `DurableWriter`, so their writes join this transaction as savepoints: the row and its lifecycle entry either both commit or both roll back. Engine-store uses it for every lifecycle pair it writes, which is what makes the journal an account of record rather than a best-effort echo. The prior art is Temporal, which closes mutable state into a mutation plus event batches and submits them as one persistence request (`reference/temporal/service/history/workflow/transaction_impl.go`).
 
 Three properties matter to callers:
 
@@ -59,7 +59,7 @@ Three properties matter to callers:
 
 A crash before COMMIT still loses the whole unit, so work that had already run — an activity body, for instance — re-executes on the next drive. And no local transaction makes a remote effect atomic, so external effects still need idempotency keys, fencing tokens, or compensation.
 
-Stated deviation from smithers (`packages/db/src/adapter.js`), which allocates under `BEGIN IMMEDIATE`: the SQLite backends we ship give Effect's SQL client no `beginTransaction` hook, so `Database.write` opens the default DEFERRED transaction. The floor read holds a shared lock and the INSERT upgrades it; under WAL a concurrent writer makes that upgrade fail `SQLITE_BUSY_SNAPSHOT`, which the database package classifies as retryable and replays the whole transaction — floor read included — against the committed snapshot. Allocation is therefore conflict-free by retry, not by lock escalation, and `packages/journal/test/JournalDurable.test.ts` proves it with two connections writing one run concurrently and with a cold-restart floor case.
+Stated deviation from smithers (`packages/db/src/adapter.js`), which allocates under `BEGIN IMMEDIATE`: the SQLite backends we ship give Effect's SQL client no `beginTransaction` hook, so `DurableWriter.write` opens the default DEFERRED transaction. The floor read holds a shared lock and the INSERT upgrades it; under WAL a concurrent writer makes that upgrade fail `SQLITE_BUSY_SNAPSHOT`, which the database package classifies as retryable and replays the whole transaction — floor read included — against the committed snapshot. Allocation is therefore conflict-free by retry, not by lock escalation, and `packages/journal/test/JournalDurable.test.ts` proves it with two connections writing one run concurrently and with a cold-restart floor case.
 
 Because that transaction both replays and can abort at COMMIT, `emitDurable` mutates the in-memory clock and publishes to `changes`/the per-run wake PubSub strictly *after* the transaction returns, exactly as the queued path publishes outside `persistBatch`. A rolled-back write is never observable to a subscriber and never becomes an allocation floor.
 
@@ -128,7 +128,7 @@ Promote a field to a column only when it must appear in a CAS guard. `Transition
 
 `patch(id, fields)` is the unfenced surface for opaque fields — checkpoint, error, outcome, and metadata — and never moves `state`, `started_at_ms`, or `finished_at_ms`. Omitted fields are left as recorded. It returns `Patched` or `NotFound`. Fields such as response text, worktree pointers, or cache flags belong in `meta`; the fenced lifecycle stays with `put`/`heartbeat`/`finish`.
 
-`CacheStore` exposes `get`, `put`, and `evict`. `put` returns `Inserted`, `ExistingSame`, or `Conflict`; cache entries retain the recording run and journal sequence as provenance. `evict(keyDigest, { ifRecordedBy })` deletes only while the row still carries that `(runId, eventSeq)` pair — both halves, since sequence numbers are per-run and collide across runs routinely. Whether the insert conflicted and whether the fenced delete hit are read through [`Database.affectedRows`](database.md#database) rather than a driver-specific `changes` cast, so the outcomes hold on every backend (issue #134).
+`CacheStore` exposes `get`, `put`, and `evict`. `put` returns `Inserted`, `ExistingSame`, or `Conflict`; cache entries retain the recording run and journal sequence as provenance. `evict(keyDigest, { ifRecordedBy })` deletes only while the row still carries that `(runId, eventSeq)` pair — both halves, since sequence numbers are per-run and collide across runs routinely. Whether the insert conflicted and whether the fenced delete hit are read through [`DurableWriter.affectedRows`](database.md#durablewriter) rather than a driver-specific `changes` cast, so the outcomes hold on every backend (issue #134).
 
 Both stores export SQL `make`/`layer` plus no-op test seams.
 

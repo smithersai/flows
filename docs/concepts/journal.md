@@ -56,7 +56,7 @@ Rejected and dropped admissions consume sequence numbers, so gaps are valid. Con
 
 ## Writer and streams
 
-A single scoped writer persists batches transactionally through `Database.write`. Committed inserts publish to:
+A single scoped writer persists batches transactionally through `DurableWriter.write`. Committed inserts publish to:
 
 - the general `changes` subscription;
 - per-run wake channels used by `stream`.
@@ -109,7 +109,7 @@ Time-travel tables use a separate migration in `@smthrs/time-travel`.
 
 `RunStore`, `AttemptStore`, `CacheStore`, and `DurableEngineState` hold the **executable authoritative state**. No engine state is derived from journal entries; the entries explain what happened, the rows decide what happens next.
 
-The two are nevertheless committed together. Engine-store writes every lifecycle event with `emitDurable` **inside `Journal.transact`**, the write transaction that also carries the state transition it describes — the run-row compare-and-swap with its decision, the attempt write with its attempt event. Those stores use the same `Database`, so their writes join that transaction as savepoints: either both halves are durable, or neither is. A crash can no longer leave durable state the journal does not explain, which is what lets audit, sync, and time travel treat the log as the account of record.
+The two are nevertheless committed together. Engine-store writes every lifecycle event with `emitDurable` **inside `Journal.transact`**, the write transaction that also carries the state transition it describes — the run-row compare-and-swap with its decision, the attempt write with its attempt event. Those stores use the same `DurableWriter`, so their writes join that transaction as savepoints: either both halves are durable, or neither is. A crash can no longer leave durable state the journal does not explain, which is what lets audit, sync, and time travel treat the log as the account of record.
 
 Of the two shapes this could have taken — deriving the store rows from the log, or committing the state projection and its entry in one transaction — flows took the second. It is the smaller change: the executable rows keep their fenced CAS semantics, and no read path has to be rebuilt on projection.
 

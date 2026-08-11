@@ -13,7 +13,7 @@ const program = Effect.gen(function*() {
 }).pipe(Effect.provide(NodeJj.layer))
 ```
 
-The package root holds the contract, its error, and the no-op layer only, so it bundles for the browser. Implementations live under `/node`, `/bun`, and `/browser`. The package depends on `effect` alone; `@smthrs/host` depends on it, because `Jj` is still one of the six tags in the closed host list.
+The package root holds the contract, its error, and the no-op layer only, so it bundles for the browser. Implementations live under `/node`, `/bun`, and `/browser`. The package depends on `effect` alone; `@smthrs/kernel` depends on it, because `Jj` is still one of the five tags in the closed host list.
 
 ## Entry points
 
@@ -49,4 +49,4 @@ The package root holds the contract, its error, and the no-op layer only, so it 
 
 ## Reading next
 
-[`@smthrs/host`](host.md) owns the closed service list, [`@smthrs/kernel`](kernel.md) decorates `Jj` with capability checks, and [`@smthrs/time-travel`](time-travel.md) uses it for workspace snapshot and restore.
+[`@smthrs/kernel`](kernel.md) owns the closed service list and decorates `Jj` with capability checks, and [`@smthrs/time-travel`](time-travel.md) uses it for workspace snapshot and restore.

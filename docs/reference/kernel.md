@@ -35,12 +35,14 @@ const decision = Permission.evaluate(
 
 ## Decorated host namespaces
 
-`FileSystem`, `Shell`, `Jj`, and `HttpClient` export kernel service tags and layers that depend on the corresponding raw host service plus `GrantStore` and related context. `Path` explicitly re-exports the pure path-service decision without a permission check.
+`FileSystem`, `ChildProcessSpawner`, `Jj`, and `HttpClient` export kernel service tags and layers that depend on the corresponding raw platform port plus `GrantStore` and related context. `Path` explicitly re-exports the pure path-service decision without a permission check.
+
+The `ChildProcessSpawner` decorator wraps `effect/unstable/process`'s own tag rather than a `flows` wrapper around it: `spawn` is checked against `proc:spawn` with `CommandLine.render(command)` as the resource, and the derived helpers (`exitCode`, `string`, `lines`, `stream*`) are rebuilt from the guarded `spawn` so none of them can route around the check. `layer` double-publishes, replacing Effect's tag with the guarded implementation, so a `Command` run as a plain `Effect` is checked too.
 
 `HostServices` composes the protected layer for the closed host service set. Use it at the application composition boundary:
 
 ```text
-raw @smthrs/host service
+raw platform port
         ↓
 kernel decorator → GrantStore
         ↓
@@ -51,4 +53,4 @@ flow-visible service
 
 `@smthrs/kernel/test/TestGrantStore` exports `layerAllow`, `layerDeny`, and `layerScripted`. The test module is a public deep import; internal modules are not.
 
-See [Hosts and capabilities](../concepts/hosts-and-capabilities.md) and the [`@smthrs/host` reference](host.md).
+See [Hosts and capabilities](../concepts/hosts-and-capabilities.md) and the platform bundles that satisfy these ports: [`@smthrs/platform-browser`](platform-browser.md), `@smthrs/platform-node`, and `@smthrs/platform-bun`.

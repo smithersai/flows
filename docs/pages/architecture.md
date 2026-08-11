@@ -31,7 +31,7 @@ flowchart TB
 
   subgraph guard["Host boundary"]
     KERNEL["@smthrs/kernel<br/>CapabilitySet, grants,<br/>permission-decorated services"]
-    HOST["@smthrs/host<br/>closed list: FileSystem, Path,<br/>Shell, Jj, HttpTransport"]
+    HOST["@smthrs/kernel<br/>closed list: FileSystem, Path,<br/>ChildProcessSpawner, Jj, HttpTransport"]
     JJ["@smthrs/jj<br/>contract + adapters"]
     SANDBOX["@smthrs/sandbox<br/>remote exec, liveness probe"]
     PB["@smthrs/platform-browser<br/>effect FileSystem +<br/>ChildProcessSpawner for a tab"]
@@ -74,7 +74,7 @@ Solid arrows are workspace dependencies that execute. Dotted arrows are re-expor
 
 Ask what would break if a boundary were removed, and its purpose becomes clear.
 
-The **host boundary** exists so flow code can run in a browser. `@smthrs/host` declares a closed set of service tags and nothing else; every platform implementation lives under a `/node`, `/bun`, `/browser`, or `/test` subpath. One of those tags — `Jj` — is a contract of `@smthrs/jj`, which host depends on rather than re-exports, so a consumer that needs only that capability does not take the whole host surface. A module that depends only on the root never statically resolves a `node:` built-in, which is what makes browser bundling possible at all. The browser bundle's own `FileSystem` and `ChildProcessSpawner` are not host contracts at all — they implement `effect`'s, so they live in `@smthrs/platform-browser` over an injected virtual filesystem and in-page bash interpreter. `@smthrs/kernel` sits in front of that surface and decorates each service with a grant check, so a flow that asks for a file it was never granted fails in the error channel rather than reading the file.
+The **host boundary** exists so flow code can run in a browser. `@smthrs/kernel` declares a closed set of five service tags and nothing else; every platform implementation lives in its own package — `@smthrs/platform-node`, `@smthrs/platform-bun`, `@smthrs/platform-browser`. Half those tags are Effect's own: `FileSystem`, `Path`, and `ChildProcessSpawner` are contracts `effect` already declares, so `flows` supplies implementations rather than wrappers. One more — `Jj` — is a contract of `@smthrs/jj`, which the kernel depends on rather than re-exports, so a consumer that needs only that capability does not take the whole host surface. A module that depends only on the kernel root never statically resolves a `node:` built-in, which is what makes browser bundling possible at all. `@smthrs/kernel` sits in front of that surface and decorates each service with a grant check, so a flow that asks for a file it was never granted fails in the error channel rather than reading the file.
 
 The **database and journal** split separates the storage driver from the shapes stored in it. `@smthrs/database` owns no domain tables; it wraps any Effect `SqlClient` and adds the transactional write retry that the rest of the system assumes. `@smthrs/journal` owns the tables and the authoritative schema that creates them. Swap the driver and every shape survives.
 

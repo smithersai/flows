@@ -25,10 +25,10 @@ Select explicit execution IDs so failures are reproducible.
 
 ## Test host operations
 
-`TestHost.layer` supplies an in-memory filesystem, stub shell, seeded Random, HTTP transport, and Jujutsu service. Configure only the seams a test exercises:
+`TestHost.layer` supplies an in-memory filesystem, a scripted command interpreter, seeded Random, HTTP transport, and a Jujutsu service. Configure only the seams a test exercises:
 
 ```ts
-import * as TestHost from "@smthrs/host/test/TestHost"
+import * as TestHost from "@smthrs/kernel/test/TestHost"
 
 const HostLayer = TestHost.layer({
   files: { "/workspace/input.txt": "hello" },
@@ -39,7 +39,7 @@ const HostLayer = TestHost.layer({
 })
 ```
 
-`TestHost`, like every other platform bundle, is imported from its subpath rather than the `@smthrs/host` root, which stays browser-safe ([browser support](../architecture/browser-support.md)). Consult the actual `TestHost.layer` option types when extending a fixture; filesystem and shell helpers deliberately implement only the host contracts used by tests.
+`TestHost` is imported from its subpath rather than the `@smthrs/kernel` root, which stays browser-safe ([browser support](../architecture/browser-support.md)); `effect/testing`'s `TestClock` reaches for `node:assert`, so the bundle itself is Node-only. Consult the actual `TestHost.layer` option types when extending a fixture; the filesystem and interpreter helpers deliberately implement only the host contracts used by tests.
 
 For kernel tests, `TestGrantStore.layerAllow`, `layerDeny`, and `layerScripted` provide explicit authorization behavior.
 
@@ -83,4 +83,4 @@ Run all package checks with:
 npm run check
 ```
 
-See [Determinism and replay](../concepts/determinism-and-replay.md) and the package references for [`@smthrs/host`](../reference/host.md) and [`@smthrs/journal`](../reference/journal.md).
+See [Determinism and replay](../concepts/determinism-and-replay.md) and the package references for [`@smthrs/kernel`](../reference/kernel.md) and [`@smthrs/journal`](../reference/journal.md).

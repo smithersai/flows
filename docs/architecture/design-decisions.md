@@ -30,7 +30,7 @@ Consequence: the filesystem-backed `StepBoundary.layer` measures declared read s
 
 ## D5. Host access is closed and decorated
 
-The Host surface is exactly FileSystem, Path, Shell, PTY, Jujutsu, and one-hop HTTP, with Effect Clock and Random treated as swappable built-ins. The kernel decorates these services rather than asking each flow to remember permission checks.
+The Host surface is exactly FileSystem, Path, ChildProcessSpawner, PTY, Jujutsu, and one-hop HTTP, with Effect Clock and Random treated as swappable built-ins. Three of those slots hold Effect's own tags: `flows` supplies implementations rather than wrappers, and the `Shell` service that used to occupy the third slot was deleted for duplicating `effect/unstable/process`. The kernel decorates these services rather than asking each flow to remember permission checks.
 
 Consequence: ambient authority can only shrink through `CapabilitySet.attenuate`, and capability failures stay in the Effect error channel when callers use kernel service tags.
 

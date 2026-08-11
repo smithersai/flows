@@ -15,10 +15,11 @@ export default defineConfig({
       text: "Public API",
       items: [
         { text: "@smthrs/flows", link: "/api/flows" },
-        { text: "@smthrs/host", link: "/api/host" },
         { text: "@smthrs/jj", link: "/api/jj" },
         { text: "@smthrs/sandbox", link: "/api/sandbox" },
         { text: "@smthrs/platform-browser", link: "/api/platform-browser" },
+        { text: "@smthrs/platform-node", link: "/api/platform-node" },
+        { text: "@smthrs/platform-bun", link: "/api/platform-bun" },
         { text: "@smthrs/journal", link: "/api/journal" },
         { text: "@smthrs/database", link: "/api/database" },
         { text: "@smthrs/kernel", link: "/api/kernel" },

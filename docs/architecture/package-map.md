@@ -6,7 +6,8 @@ An arrow means “depends on.”
 
 ```mermaid
 flowchart TD
-  H["@smthrs/host"]
+  PN["@smthrs/platform-node"]
+  PBUN["@smthrs/platform-bun"]
   JJ["@smthrs/jj"]
   SB["@smthrs/sandbox"]
   PB["@smthrs/platform-browser"]
@@ -15,9 +16,10 @@ flowchart TD
   Crypto["@smthrs/crypto"]
 
   J["@smthrs/journal"] --> D
-  H --> JJ
-  H --> PB
-  SB --> H
+  PB --> JJ
+  PN --> JJ
+  PBUN --> PB
+  SB --> K
   K["@smthrs/kernel"] --> H
   K --> JJ
   K --> J
@@ -42,9 +44,9 @@ flowchart TD
 | [`@smthrs/crypto`](../reference/crypto.md) | Injected cryptographic schema transformations | Platform implementation is supplied through Effect Crypto |
 | [`@smthrs/keys`](../reference/keys.md) | Canonical workflow keys | Composes `canonical` and `crypto` |
 | [`@smthrs/database`](../reference/database.md) | `SqlClient` access plus transactional SQLite write retry | Owns no domain tables |
-| [`@smthrs/host`](../reference/host.md) | The closed machine-facing service list, the Shell and HttpTransport contracts, and the Node, Bun, browser, and test bundles | Raw effects; no permission decisions |
+| `@smthrs/platform-node`, `@smthrs/platform-bun` | The Node and Bun Host bundles: Effect's platform services plus the single-hop HTTP transport | Raw effects; no permission decisions |
 | [`@smthrs/jj`](../reference/jj.md) | Jujutsu snapshot, restore, diff, and workspace operations | Depends on `effect` alone; the closed Host list still names it |
-| [`@smthrs/sandbox`](../reference/sandbox.md) | Remote-sandbox provider adaptation and sandbox liveness | Adapts a caller's provider onto `host`'s `Shell`; owns no host access |
+| [`@smthrs/sandbox`](../reference/sandbox.md) | Remote-sandbox provider adaptation and sandbox liveness | Adapts a caller's provider onto Effect's `ChildProcessSpawner`; owns no host access |
 | [`@smthrs/platform-browser`](../reference/platform-browser.md) | Browser implementations of effect's `FileSystem` and `ChildProcessSpawner` | Depends on `effect` alone; the ZenFS and just-bash backends are arguments, not dependencies |
 | [`@smthrs/journal`](../reference/journal.md) | Journal, run ownership, attempts, and cache rows | Open event envelope; SQL-backed state |
 | [`@smthrs/engine`](../reference/engine.md) | Vendored Effect flow runtime with flows identity and retry semantics | Computes activity keys above the encoded engine seam |
@@ -58,7 +60,7 @@ flowchart TD
 `@smthrs/journal` owns event rows, run rows, attempt rows, cache rows, and the
 migrations for deferred completions and clock deadlines.
 `@smthrs/engine-store` adds `DurableEngineState`: `layer` persists those waits
-through `Database`, while `layerMemory` remains available for deterministic
+through `DurableWriter`, while `layerMemory` remains available for deterministic
 tests.
 
 `@smthrs/time-travel` adds audit, receipt, snapshot, lineage-edge, and archive tables through `SqlTimeTravelStore`. Those tables are separate from the journal migration.
@@ -68,6 +70,6 @@ tests.
 The core contracts are isomorphic, but not every aggregate is runtime-neutral:
 
 - `@smthrs/engine-store` currently reads `process.pid` and `node:crypto`.
-- Platform host adapters (`@smthrs/host-cloudflare`, `@smthrs/host-vercel`) live in the [plugins repository](https://github.com/smithersai/plugins).
+- Vendor host adapters (`@smthrs/host-cloudflare`, `@smthrs/host-vercel`) live in the [plugins repository](https://github.com/smithersai/plugins).
 
 See [implementation status](implementation-status.md) and the Cloudflare and Vercel guides in the [plugins repository](https://github.com/smithersai/plugins/blob/main/docs/guides/).

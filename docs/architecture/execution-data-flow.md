@@ -9,7 +9,7 @@ sequenceDiagram
   participant Driver as @smthrs/engine-store
   participant Runs as @smthrs/journal RunStore
   participant Attempts as AttemptStore / CacheStore
-  participant Host as @smthrs/kernel → @smthrs/host
+  participant Host as @smthrs/kernel → @smthrs/platform-*
   participant Journal as Journal
 
   Caller->>Flow: flow.execute(payload, executionId)

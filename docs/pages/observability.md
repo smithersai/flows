@@ -60,7 +60,7 @@ Log annotations are attached by `DurableQueue` (`package`, `module`, `fiber`, `q
 | Aid | Where | Use |
 | --- | --- | --- |
 | `Notifying.wrap` and `Notifying.layer` | `@smthrs/journal/test/Notifying` | inject a crash or fence loss at a chosen interstitial around any Effect service |
-| `TestHost.layer` | `@smthrs/host/test/TestHost` | in-memory filesystem, scripted shell, seeded random, deterministic clock |
+| `TestHost.layer` | `@smthrs/kernel/test/TestHost` | in-memory filesystem, scripted command interpreter, seeded random, deterministic clock |
 | `TestJournal.layer()` | `@smthrs/journal/test/TestJournal` | the four SQL stores over in-memory SQLite |
 | `TestDatabase.layer` | `@smthrs/database/test/TestDatabase` | in-memory SQLite |
 | `TestSocket.makePair` | `@smthrs/sync/test/TestSocket` | a fault-injecting socket pair for sync |

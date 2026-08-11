@@ -67,6 +67,6 @@ const FetchInput = Activity.make({
 
 ## Host effects and permission effects
 
-`@smthrs/host` contains raw platform capabilities. `@smthrs/kernel` provides decorated services that check an exact capability through `GrantStore` before delegating to the host. Applications should expose the kernel service to untrusted flow code and keep the raw service at the composition boundary.
+The `@smthrs/platform-*` packages provide raw platform capabilities. `@smthrs/kernel` owns the closed list of ports and provides decorated services that check an exact capability through `GrantStore` before delegating. Applications should expose the kernel service to untrusted flow code and keep the raw service at the composition boundary.
 
 See [Hosts and capabilities](hosts-and-capabilities.md), [Failure and retry](failure-and-retry.md), and the [`@smthrs/engine` reference](../reference/engine.md).

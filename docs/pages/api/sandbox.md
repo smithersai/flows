@@ -1,23 +1,24 @@
 # @smthrs/sandbox
 
-Provider-neutral remote process execution and sandbox liveness. Provider packages adapt their SDK sessions to `RemoteSandbox.Provider`; this package converts them onto `@smthrs/host`'s closed `ShellError` surface and adds the health taxonomy above it.
+Provider-neutral remote process execution and sandbox liveness. Provider packages adapt their SDK sessions to `RemoteSandbox.Provider`; this package converts them onto Effect's `ChildProcessSpawner` contract and adds the health taxonomy above it.
 
 ```ts
-import { Shell } from "@smthrs/host"
 import { RemoteSandbox } from "@smthrs/sandbox"
 import * as Effect from "effect/Effect"
+import * as ChildProcess from "effect/unstable/process/ChildProcess"
+import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
 
 const provider = RemoteSandbox.TestSandbox.make({
-  scripts: { "echo hi": { result: { stdout: "hi", stderr: "", exitCode: 0 } } }
+  scripts: { "echo hi": { stdout: "hi" } }
 })
 
 const program = Effect.gen(function*() {
-  const shell = yield* Shell.Shell
-  return yield* shell.exec("echo hi")
-}).pipe(Effect.provide(RemoteSandbox.layerShell(provider)))
+  const spawner = yield* ChildProcessSpawner
+  return yield* spawner.string(ChildProcess.make("echo", ["hi"]))
+}).pipe(Effect.provide(RemoteSandbox.layer(provider)))
 ```
 
-The package depends on `@smthrs/host` and nothing else in the workspace: a sandbox is one way to satisfy `Shell`, so it sits above the host contract rather than inside it. It bundles for the browser — it only runs the effect a provider hands it.
+The package depends on `@smthrs/kernel` — for `CommandLine.render` alone — and nothing else in the workspace: a sandbox is one way to satisfy `ChildProcessSpawner`, so it sits above the closed host list rather than inside it. It bundles for the browser — it only runs the effect a provider hands it.
 
 ## Entry points
 
@@ -31,9 +32,11 @@ The package depends on `@smthrs/host` and nothing else in the workspace: a sandb
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `ProviderError` | class | tagged `flows/host/RemoteSandbox/ProviderError`; reuses the closed `ShellErrorCode` |
-| `Provider` | interface + service tag | `session`, scoped `open`, `exec`, `execStream` |
-| `layerShell` | layer | a `Shell` backed by a provider; acquisition is tied to the layer scope |
+| `ProviderErrorCode` | const + type | `aborted`, `timeout`, `unavailable`, `spawn_error`, `unknown` — the sandbox's own closed set |
+| `ProviderError` | class | tagged `flows/host/RemoteSandbox/ProviderError` |
+| `Provider` | interface + service tag | `session`, scoped `open`, scoped `spawn` |
+| `RemoteProcess`, `RemoteOptions` | interfaces | a started remote process (`stdout`, `stderr`, `exitCode`) and the `cwd`/`env` carried across |
+| `layer` | layer | a `ChildProcessSpawner` backed by a provider; acquisition is tied to the layer scope |
 | `TestScript`, `TestSandboxState`, `TestSandboxProvider` | interfaces | scripted provider fixtures |
 | `TestSandbox` | const | `make(options?)` — deterministic scripted provider |
 
@@ -52,4 +55,4 @@ The package depends on `@smthrs/host` and nothing else in the workspace: a sandb
 
 ## Reading next
 
-[`@smthrs/host`](host.md) owns the `Shell` contract this adapts to, and [`@smthrs/journal`](journal.md) owns the run-ownership heartbeat that detects a dead engine owner rather than a dead sandbox.
+[`@smthrs/kernel`](kernel.md) owns the closed host list this satisfies a slot of — and the `proc:spawn` check written against the same rendered command line the provider receives — and [`@smthrs/journal`](journal.md) owns the run-ownership heartbeat that detects a dead engine owner rather than a dead sandbox.

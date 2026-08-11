@@ -1,32 +1,33 @@
 # `@smthrs/database`
 
-This page is the public API reference for the thin SQL transaction service. `@smthrs/database` owns driver composition and normalized database failures; journal tables and queries belong to `@smthrs/journal`.
+This page is the public API reference for the durable write boundary. `@smthrs/database` owns driver composition, the shared write policy, and normalized database failures; journal tables and queries belong to `@smthrs/journal`. Queries use Effect's own `SqlClient` service directly — this package adds only the write policy on top of it.
 
 ## Import
 
 The root is the driver-neutral contract and bundles for the browser; the SQLite drivers are Node-only and live under their own subpaths (see [browser support](../architecture/browser-support.md)).
 
 ```ts
-import { Database } from "@smthrs/database"
+import { DurableWriter } from "@smthrs/database"
 import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 ```
 
-## `Database`
+## `DurableWriter`
 
 | Export | Purpose |
 | --- | --- |
-| `Database` | Effect service tag exposing `sql` and `write` |
-| `DatabaseService` | Structural service interface |
+| `DurableWriter` | Effect service tag exposing `write` |
+| `Service` | Structural service interface |
 | `DatabaseError` | Schema-tagged failure with `code` and optional `cause` |
 | `DatabaseErrorCode` | `busy`, `constraint`, `io`, `unsupported`, or `unknown` |
-| `make(sql, options?)` | Wrap an existing Effect `SqlClient` |
+| `make(sql, options?)` | Build the writer over an existing Effect `SqlClient` |
+| `layer(options?)` | Provide the writer over the context's `SqlClient` |
 | `fromSqlError(error)` | Normalize an Effect SQL error |
 | `affectedRows(raw)` | Read a write's affected-row count from any driver's raw result |
-| `makeNoop()` | Unsupported database stub |
+| `makeNoop()` | Unsupported writer stub |
 | `layerNoop` | Layer for the unsupported stub |
 
-`Database.write(effect)` runs `effect` through `sql.withTransaction` and applies bounded retry to retryable writes. The retry classifier is deliberately dialect-blind: it recognizes the SQLite lock/busy/IO codes *and* the Postgres transient SQLSTATEs (`40001` serialization_failure, `40P01` deadlock_detected, `55P03` lock_not_available, plus the text forms PGlite raises without a SQLSTATE), and `fromSqlError` normalizes both onto the same `busy` code. `Database.make` accepts any `SqlClient`, so a caller-supplied Postgres or PGlite client gets the retry behaviour rather than silently getting none (issue #78). A unique violation is never retried — it is the first-writer-wins signal the stores decide on. Other SQL failures are normalized without retry.
+`DurableWriter.write(effect)` runs `effect` through `sql.withTransaction` and applies bounded retry to retryable writes. The retry classifier is deliberately dialect-blind: it recognizes the SQLite lock/busy/IO codes *and* the Postgres transient SQLSTATEs (`40001` serialization_failure, `40P01` deadlock_detected, `55P03` lock_not_available, plus the text forms PGlite raises without a SQLSTATE), and `fromSqlError` normalizes both onto the same `busy` code. `DurableWriter.make` accepts any `SqlClient`, so a caller-supplied Postgres or PGlite client gets the retry behaviour rather than silently getting none (issue #78). A unique violation is never retried — it is the first-writer-wins signal the stores decide on. Other SQL failures are normalized without retry.
 
 **Retries belong to the outermost transaction.** A `write` nested inside another `write` joins the enclosing transaction as a savepoint and does not retry: a transient conflict dooms the enclosing transaction's snapshot, so replaying the savepoint alone can never resolve it. Only the outermost `write` retries, replaying the whole transaction body verbatim. Its classifier follows `cause` chains, so a store that has already normalized a savepoint failure into its own error type (a `RunStoreError` wrapping a `DatabaseError` wrapping the SQL failure) still keeps the outermost transaction replaying. This is what makes `Journal.transact` — a state projection and its lifecycle entry in one transaction — retryable as a unit.
 
@@ -38,8 +39,9 @@ The contract is pinned by a reusable conformance suite: `packages/database/test/
 
 ```ts
 const save = Effect.gen(function*() {
-  const database = yield* Database.Database
-  yield* database.write(database.sql`insert into items (id) values (${id})`)
+  const sql = yield* Effect.service(SqlClient.SqlClient)
+  const writer = yield* DurableWriter.DurableWriter
+  yield* writer.write(sql`insert into items (id) values (${id})`)
 })
 ```
 
@@ -47,7 +49,7 @@ const save = Effect.gen(function*() {
 
 **Node only** — `@smthrs/database/node/NodeDatabase`, not a root export.
 
-`NodeDatabase.layer({ filename, sqlite?, ...retryOptions })` provides the database over `@effect/sql-sqlite-node`. The underlying client enables WAL by default unless its configuration overrides that behavior.
+`NodeDatabase.layer({ filename, sqlite? })` provides Effect's `SqlClient` over `@effect/sql-sqlite-node` — connection options only; retry tuning belongs to `DurableWriter.layer(options)`, composed on top with `Layer.provideMerge(DurableWriter.layer(), NodeDatabase.layer({ filename }))`. The underlying client enables WAL by default unless its configuration overrides that behavior.
 
 Opening the connection is retried while SQLite reports the database as locked. The client opens the file and issues `PRAGMA journal_mode = WAL` inside its constructor with no busy timeout, so two processes opening one file concurrently can collide there — either on the WAL conversion itself (SQLite refuses a mode change while another connection holds the file, and refuses immediately, without consulting the busy handler) or with `SQLITE_BUSY_RECOVERY` while a peer recovers the log. Both arrive as construction-time defects rather than the `SqlError` values `WriteRetry` classifies, so they are handled at the layer instead. Both clear once the peer finishes; a defect that is not a lock is raised on the first attempt.
 
@@ -59,7 +61,7 @@ const DatabaseLayer = NodeDatabase.layer({
 
 ## `TestDatabase`
 
-**Node only** — `@smthrs/database/test/TestDatabase`, not a root export. `TestDatabase.layer` is `NodeDatabase.layer({ filename: ":memory:" })`. It is deterministic within one layer scope and has no restart durability.
+**Node only** — `@smthrs/database/test/TestDatabase`, not a root export. `TestDatabase.layer` is `DurableWriter.layer()` over `NodeDatabase.layer({ filename: ":memory:" })`, providing both the client and the writer. It is deterministic within one layer scope and has no restart durability.
 
 ## Runtime notes
 

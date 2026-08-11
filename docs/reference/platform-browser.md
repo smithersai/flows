@@ -110,5 +110,5 @@ runs, which is why the layer requires both.
 package resolves a `node:` built-in.
 
 See [browser support](../architecture/browser-support.md), the
-[`@smthrs/host` reference](host.md) — whose `BrowserHost` bundle composes
+[`@smthrs/kernel` reference](kernel.md) — whose closed list this package's `BrowserHost` bundle composes
 `BrowserFileSystem` — and [Hosts and capabilities](../concepts/hosts-and-capabilities.md).

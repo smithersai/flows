@@ -55,9 +55,10 @@ That engine keeps its state in the process. To survive a crash, drive the same f
 
 | Package | Role |
 | --- | --- |
-| `@smthrs/flows` | umbrella barrel re-exporting the fifteen packages below as namespaces |
+| `@smthrs/flows` | umbrella barrel re-exporting the engine packages below as namespaces; the `platform-*` bundles are deliberately excluded |
 | `@smthrs/canonical` | RFC 8785 canonical JSON as an Effect Schema |
-| `@smthrs/host` | the closed host service list, the Shell and HTTP contracts, and the Node, Bun, browser, and test bundles |
+| `@smthrs/platform-node` | the Node Host bundle: Effect's Node filesystem and child-process spawner, the Undici transport, and the Node jj adapter |
+| `@smthrs/platform-bun` | the same bundle for Bun, over `@effect/platform-bun` |
 | `@smthrs/jj` | jujutsu snapshot, restore, diff, and workspace operations as a host service |
 | `@smthrs/sandbox` | remote-sandbox provider adaptation and the sandbox liveness probe |
 | `@smthrs/platform-browser` | browser `FileSystem` and `ChildProcessSpawner` over ZenFS and just-bash |
