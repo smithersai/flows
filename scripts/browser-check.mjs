@@ -43,6 +43,8 @@ const BROWSER_SAFE = [
   { name: "@smthrs/step-cache", entry: "packages/step-cache/src/index.ts" },
   { name: "@smthrs/flow", entry: "packages/flow/src/index.ts" },
   { name: "@smthrs/engine", entry: "packages/engine/src/index.ts" },
+  { name: "@smthrs/engine-store", entry: "packages/engine-store/src/index.ts" },
+  { name: "@smthrs/flows", entry: "packages/flows/src/index.ts" },
   { name: "@smthrs/sync", entry: "packages/sync/src/index.ts" },
   { name: "@smthrs/time-travel", entry: "packages/time-travel/src/index.ts" }
 ]
@@ -53,18 +55,6 @@ const BROWSER_SAFE = [
  * or starts failing for some other reason — the docs and this list are wrong.
  */
 const NODE_ONLY = [
-  {
-    name: "@smthrs/engine-store",
-    entry: "packages/engine-store/src/index.ts",
-    expect: "node:crypto",
-    reason: "EngineStore uses process.pid and node:crypto randomUUID (issue #114)"
-  },
-  {
-    name: "@smthrs/flows",
-    entry: "packages/flows/src/index.ts",
-    expect: "node:crypto",
-    reason: "the barrel re-exports @smthrs/engine-store; browser consumers import per-package roots"
-  },
   {
     name: "@smthrs/platform-node",
     entry: "packages/platform-node/src/index.ts",
