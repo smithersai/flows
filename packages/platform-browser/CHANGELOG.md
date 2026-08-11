@@ -12,6 +12,12 @@
 
 ### Changed
 
+- `BrowserHttpTransport` is gone. An outgoing request is Effect's `HttpClient`,
+  and `BrowserHost.layer` now provides `FetchHttpClient.layer` directly with
+  `RequestInit { redirect: "manual" }` — the same redirect policy, expressed
+  against Effect's own service instead of a `flows` port. The package no longer
+  fills a kernel-owned slot.
+
 - `BrowserChildProcessSpawner` now renders a command with
   `@smthrs/kernel`'s `CommandLine.render` instead of its own always-quoting
   helper. The two had to agree and did not: the kernel writes the rendered line

@@ -3,11 +3,11 @@
  *
  * `@smthrs/platform-node` — the Node.js Host bundle.
  *
- * `@effect/platform-node` already ships `FileSystem`, `Path`, and
- * `ChildProcessSpawner` for Node, so this package adds only what `flows`
- * defines on top: the single-hop `HttpTransport`, and one `NodeHost.layer`
- * that composes the complete closed five-tag Host surface — including the
- * Node `Jj` adapter, which lives in `@smthrs/jj`.
+ * `@effect/platform-node` already ships `FileSystem`, `Path`,
+ * `ChildProcessSpawner`, and an Undici-backed `HttpClient` for Node, so this
+ * package adds only what `flows` defines on top: one `NodeHost.layer` that
+ * composes the complete closed five-tag Host surface — including the Node
+ * `Jj` adapter, which lives in `@smthrs/jj`.
  *
  * ```ts
  * import { NodeHost } from "@smthrs/platform-node"
@@ -19,6 +19,3 @@
 
 /** The complete closed Host bundle for Node. */
 export * as NodeHost from "./NodeHost.ts"
-
-/** Single-hop `HttpTransport` over Undici. */
-export * as NodeHttpTransport from "./NodeHttpTransport.ts"

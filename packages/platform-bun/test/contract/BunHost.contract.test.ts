@@ -21,5 +21,5 @@ runHostContract("BunHost", BunHost.layer, {
   jj: jjAvailable
     ? { expected: "success" }
     : { expected: "failure", code: "not_installed" },
-  httpTransport: { expected: "failure", code: "TransportError" }
+  httpClient: { expected: "failure", code: "TransportError" }
 })

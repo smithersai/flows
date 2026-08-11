@@ -4,10 +4,10 @@
  * `@smthrs/platform-bun` — the Bun Host bundle.
  *
  * Bun runs the `@effect/platform-node` adapters unchanged for the filesystem
- * and the child-process spawner (`@effect/platform-bun` re-exports the same
- * modules), so this package adds only the fetch-backed single-hop
- * `HttpTransport` and one `BunHost.layer` composing the complete closed
- * five-tag Host surface.
+ * and the child-process spawner, and Effect's own fetch-backed `HttpClient`
+ * for the network (`@effect/platform-bun` re-exports all three), so this
+ * package adds only one `BunHost.layer` composing the complete closed five-tag
+ * Host surface.
  *
  * ```ts
  * import { BunHost } from "@smthrs/platform-bun"
@@ -23,6 +23,3 @@ export * as BunFileSystem from "./BunFileSystem.ts"
 
 /** The complete closed Host bundle for Bun. */
 export * as BunHost from "./BunHost.ts"
-
-/** Single-hop `HttpTransport` over Bun's global `fetch`. */
-export * as BunHttpTransport from "./BunHttpTransport.ts"

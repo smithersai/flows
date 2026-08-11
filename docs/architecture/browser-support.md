@@ -13,9 +13,9 @@ These bundle for the browser. A resolution error in any of them fails the build.
 | `@smthrs/canonical` | RFC 8785 canonical JSON as an Effect Schema |
 | `@smthrs/platform-browser/BrowserHost` | `layer({ bash, fs })` over an injected browser filesystem and bash interpreter; Jujutsu reports `unsupported` |
 | `@smthrs/jj` | The `Jj` contract, `JjError`, and the no-op layer |
-| `@smthrs/jj/browser/BrowserJj` | `layerUnsupported` — every jj operation reports `not_installed` |
+| `@smthrs/jj/browser/BrowserJj` | `layer({ fs, wasm })` runs jj-lib compiled to `wasm32-wasip1` over an injected virtual filesystem through this package's WASI preview1 shim; `layerUnsupported` stays the fallback for a host that ships no module, reporting `not_installed` |
 | `@smthrs/sandbox` | `RemoteSandbox` provider adaptation and the `SandboxHealth` probe; it owns no host access of its own |
-| `@smthrs/platform-browser` | effect's `FileSystem` over a ZenFS-shaped promises API and effect's `ChildProcessSpawner` over an in-page bash interpreter, plus the `BrowserServices` aggregate and the fetch-backed `HttpTransport` |
+| `@smthrs/platform-browser` | effect's `FileSystem` over a ZenFS-shaped promises API and effect's `ChildProcessSpawner` over an in-page bash interpreter, plus the `BrowserServices` aggregate and a `BrowserHost` bundle that hands over effect's own fetch-backed `HttpClient` |
 | `@smthrs/kernel` | The closed host service list, `CommandLine.render`, capabilities, grants, and the permission-decorated host services |
 | `@smthrs/crypto` | Injected cryptographic schemas |
 | `@smthrs/keys` | Canonical flow keys |

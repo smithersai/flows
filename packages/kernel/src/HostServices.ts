@@ -16,11 +16,11 @@
  */
 import { Jj as JjPort } from "@smthrs/jj"
 import { FileSystem as EffectFileSystem, Layer, Path as EffectPath } from "effect"
+import { HttpClient as HttpClientPort } from "effect/unstable/http/HttpClient"
 import { ChildProcessSpawner as ChildProcessSpawnerPort } from "effect/unstable/process/ChildProcessSpawner"
 import * as ChildProcessSpawner from "./ChildProcessSpawner.ts"
 import * as FileSystem from "./FileSystem.ts"
 import * as HttpClient from "./HttpClient.ts"
-import { HttpTransport } from "./HttpTransport.ts"
 import * as Jj from "./Jj.ts"
 import * as Path from "./Path.ts"
 
@@ -39,16 +39,17 @@ import * as Path from "./Path.ts"
  *
  * Each slot's guarded implementation replaces the raw one under the same tag,
  * so a consumer that never heard of the kernel still cannot bypass it. Where
- * Effect owns the tag (`FileSystem`, `Path`, `ChildProcessSpawner`) the error
- * channel stays `PlatformError` and permission failures are projected into it
- * by `Permission.toPlatformError`; where `flows` owns the service (`Jj`) the
- * interface names the kernel's failures directly.
+ * Effect owns the tag (`FileSystem`, `Path`, `ChildProcessSpawner`,
+ * `HttpClient`) the error channel stays Effect's own — `PlatformError`, or
+ * `HttpClientError` for the network — and permission failures are projected
+ * into it by `Permission.toPlatformError` and `HttpClient.toHttpClientError`;
+ * where `flows` owns the service (`Jj`) the interface names the kernel's
+ * failures directly.
  *
- * `Path` is intentionally retained as an explicit pass-through decision. The
- * single-hop `HttpTransport` port is an implementation requirement for the
- * protected higher-level `HttpClient`; it is deliberately not re-provided
- * under its own tag, because a guarded transport would let a caller reach the
- * network through a service whose contract never mentions permission.
+ * `Path` is intentionally retained as an explicit pass-through decision.
+ * Network access is Effect's own `HttpClient`: there is no `flows` transport
+ * port beneath it, because a raw port would be a second way to reach the
+ * network whose contract never mentions permission.
  *
  * `Clock` and `Random` are Effect core built-ins: already port-shaped, already
  * swappable via `Effect.provideService`, so they are named in
@@ -65,7 +66,7 @@ export type HostService =
   | EffectPath.Path
   | ChildProcessSpawnerPort
   | JjPort
-  | HttpTransport
+  | HttpClientPort
 
 /**
  * The Host tags consumed by the kernel at runtime, decorated in place by
@@ -79,7 +80,7 @@ export const HostServiceTags = [
   EffectPath.Path,
   ChildProcessSpawnerPort,
   JjPort,
-  HttpTransport
+  HttpClientPort
 ] as const
 
 /**
@@ -100,7 +101,7 @@ export const HostServiceIds = [
   "effect/Path",
   "effect/process/ChildProcessSpawner",
   "@smthrs/jj/Jj",
-  "@smthrs/kernel/HttpTransport"
+  "effect/HttpClient"
 ] as const
 
 /** Built-ins provided by Effect itself; listed by name only. @category models */
@@ -113,10 +114,9 @@ export const HostBuiltinNames = ["effect/Clock", "effect/Random"] as const
  *
  * Every member both requires and provides its own slot's tag: provide this
  * layer over a raw platform bundle and the guarded implementation shadows the
- * raw one for everything downstream. `HttpClient` is the single exception — it
- * is a *projection* of the `HttpTransport` slot onto a new, permission-aware
- * service rather than a decoration of it, so the raw transport is consumed and
- * never republished.
+ * raw one for everything downstream. There is no exception and no second tag
+ * list — `HttpClient` decorates Effect's network tag exactly the way
+ * `FileSystem` decorates Effect's filesystem tag.
  *
  * @category layers
  * @since 0.1.0

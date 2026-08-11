@@ -10,14 +10,14 @@ Twenty npm workspaces under `packages/`, one closed dependency set. This page is
 | `@smthrs/jj` | `packages/jj` | yes | no tables; the `Jj` contract, `JjError`, and its adapters |
 | `@smthrs/sandbox` | `packages/sandbox` | yes | no tables; remote-sandbox execution and the health probe |
 | `@smthrs/platform-browser` | `packages/platform-browser` | yes | no tables; browser `FileSystem` and `ChildProcessSpawner` implementations, and the `BrowserHost` bundle |
-| `@smthrs/platform-node` | `packages/platform-node` | yes | no tables; the Node `HttpTransport` and the `NodeHost` bundle |
-| `@smthrs/platform-bun` | `packages/platform-bun` | yes | no tables; the Bun filesystem and `HttpTransport`, and the `BunHost` bundle |
+| `@smthrs/platform-node` | `packages/platform-node` | yes | no tables; the `NodeHost` bundle over Effect's own Node adapters |
+| `@smthrs/platform-bun` | `packages/platform-bun` | yes | no tables; the Bun filesystem and the `BunHost` bundle |
 | `@smthrs/journal` | `packages/journal` | yes | `flows_journal_events` |
 | `@smthrs/run-store` | `packages/run-store` | yes | `flows_runs`, `flows_attempts` |
 | `@smthrs/step-cache` | `packages/step-cache` | yes | `flows_step_cache` |
 | `@smthrs/database` | `packages/database` | yes | no tables; the `SqlClient` contract and write retry |
 | `@smthrs/capability` | `packages/capability` | yes | no tables; the capability vocabulary and typed permission failures, with their journaled schema ids |
-| `@smthrs/kernel` | `packages/kernel` | yes | the closed host service list, the `HttpTransport` contract, capability sets, grants, and their journal records |
+| `@smthrs/kernel` | `packages/kernel` | yes | the closed host service list, capability sets, grants, and their journal records |
 | `@smthrs/canonical` | `packages/canonical` | yes | no tables; RFC 8785 canonical JSON |
 | `@smthrs/crypto` | `packages/crypto` | yes | no tables; injected cryptographic operations |
 | `@smthrs/keys` | `packages/keys` | yes | no tables; canonical flow keys |
@@ -107,7 +107,6 @@ flowchart LR
   PN --> JJ
   PBUN --> KERNEL
   PBUN --> JJ
-  PBUN --> PB
   FLOW --> KEYS
   FLOW --> CRYPTO
   ENGINE --> FLOW
@@ -137,9 +136,9 @@ flowchart LR
 | `@smthrs/keys` | `canonical`, `crypto` | `flow`, `engine`, `flows` |
 | `@smthrs/capability` | nothing in the workspace | `jj`, `kernel`, `flows` |
 | `@smthrs/jj` | `capability` | `kernel`, `platform-*`, `time-travel`, `flows` |
-| `@smthrs/platform-browser` | `jj`, `kernel` | `kernel` (test bundle only), `platform-bun` |
+| `@smthrs/platform-browser` | `jj`, `kernel` | `kernel` (test bundle only) |
 | `@smthrs/platform-node` | `jj`, `kernel` | nothing |
-| `@smthrs/platform-bun` | `jj`, `kernel`, `platform-browser` | nothing |
+| `@smthrs/platform-bun` | `jj`, `kernel` | nothing |
 | `@smthrs/sandbox` | `kernel` | `flows` |
 | `@smthrs/database` | nothing in the workspace | `journal`, `run-store`, `step-cache`, `time-travel`, `flows` |
 | `@smthrs/journal` | `database` | `kernel`, `run-store`, `engine-store`, `sync`, `time-travel`, `flows` |
@@ -155,7 +154,7 @@ flowchart LR
 
 `npm run circular` fails the build on an import cycle, within a package or across them.
 
-The one cycle at *package* granularity is `kernel` ↔ `platform-browser`: the kernel's deterministic `TestHost` bundle (a test-only subpath) mounts the browser filesystem and interpreter, and `BrowserHost` provides the kernel's `HttpTransport` slot. No module-level cycle exists, which is what `npm run circular` checks. The parked `remove-http-transport` lane removes the second half of it.
+The one cycle at *package* granularity is `kernel` ↔ `platform-browser`: the kernel's deterministic `TestHost` bundle (a test-only subpath) mounts the browser filesystem and interpreter, and `BrowserChildProcessSpawner` renders command lines with the kernel's `CommandLine`. Removing `HttpTransport` cut the network half of it — `BrowserHost` now provides Effect's own `HttpClient` and no longer fills a kernel-owned slot. No module-level cycle exists, which is what `npm run circular` checks.
 
 ## Entry point matrix
 
@@ -165,13 +164,13 @@ A package root exports contracts. A platform implementation lives under a subpat
 
 | Entry point | Browser | Node | Why |
 | --- | --- | --- | --- |
-| `@smthrs/platform-browser` | yes | yes | browser `FileSystem` and `ChildProcessSpawner`, the fetch transport, and the `BrowserHost` bundle |
+| `@smthrs/platform-browser` | yes | yes | browser `FileSystem` and `ChildProcessSpawner`, and the `BrowserHost` bundle over effect's own fetch `HttpClient` |
 | `@smthrs/platform-browser/BrowserHost` | yes | yes | `layer({ bash, fs })` over an injected browser filesystem and interpreter; Jujutsu reports unsupported |
 | `@smthrs/platform-node` | no | yes | child processes, Node filesystem, Jujutsu |
 | `@smthrs/platform-bun` | no | yes | the Bun adapters, falling back to `@effect/platform-node` off Bun |
 | `@smthrs/kernel/test/TestHost` | no | yes | `effect/testing`'s `TestClock` imports `node:assert` |
 | `@smthrs/jj` | yes | yes | the `Jj` contract, `JjError`, and the no-op layer |
-| `@smthrs/jj/browser/BrowserJj` | yes | yes | every operation reports `not_installed` |
+| `@smthrs/jj/browser/BrowserJj` | yes | yes | jj-lib as `wasm32-wasip1` over an injected virtual filesystem; `layerUnsupported` is the no-module fallback |
 | `@smthrs/jj/node/NodeJj`, `@smthrs/jj/bun/BunJj` | no | yes | spawn the jj CLI through `node:child_process` |
 | `@smthrs/sandbox` | yes | yes | provider adaptation and the liveness probe; no host access of its own |
 | `@smthrs/capability` | yes | yes | capability vocabulary and typed permission failures |
@@ -201,7 +200,7 @@ The accurate sentence is that canonical JSON, crypto, the host contracts, `Brows
 
 ## Build shape
 
-Every published package builds a dual module surface: `dist/esm/index.js`, `dist/esm/index.d.ts`, and `dist/cjs/index.js`, named by a conditional `publishConfig.exports` map with `./internal/*` blocked. Every package ships a byte-identical `LICENSE` in its `files` whitelist. `packages/flow` and `packages/engine` additionally ship `THIRD_PARTY_NOTICES.md`, because they carry the two halves of a fork of Effect's unstable workflow surface; `packages/engine` also ships the `VENDOR.md` that records the fork for both.
+Every published package builds a dual module surface: `dist/esm/index.js`, `dist/esm/index.d.ts`, and `dist/cjs/index.js`, named by a conditional `publishConfig.exports` map with `./internal/*` blocked. `scripts/pack-release.mjs` packs and publishes all twenty workspaces from one dependency-ordered list, so a package cannot be published before something it depends on. Every package ships a byte-identical `LICENSE` in its `files` whitelist. `packages/flow` and `packages/engine` additionally ship `THIRD_PARTY_NOTICES.md`, because they carry the two halves of a fork of Effect's unstable workflow surface; `packages/engine` also ships the `VENDOR.md` that records the fork for both.
 
 New package modules mirror the Effect repository: file structure, module layout, `make` and `layer` naming, error conventions, and `@since` and `@category` JSDoc.
 

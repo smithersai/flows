@@ -80,7 +80,8 @@ export type { HostError } from "./HostError.ts"
 export * as HostServices from "./HostServices.ts"
 
 /**
- * Permission-decorated single-hop HTTP.
+ * The `net:get`/`net:post`/`model:call` middleware over Effect's own
+ * `HttpClient` tag.
  *
  * @category namespace exports
  * @since 0.1.0

@@ -9,7 +9,7 @@
  *
  * The error lives here rather than in a shared host error module so that a
  * consumer who only snapshots a working copy does not pull in a process
- * spawner or an HTTP transport. The one thing this package does import is
+ * spawner or an HTTP client. The one thing this package does import is
  * `@smthrs/capability`, the leaf that names the permission failures a guarded
  * `Jj` adds; it depends on nothing but `effect` either.
  *

@@ -1,8 +1,8 @@
 /**
  * `NodeHost` again, but taking every default the contract offers: the default
  * scratch path, the default command set, and — unlike the other bundles —
- * an HTTP transport that is expected to *succeed*, against a loopback server
- * started for the run. A transport that only ever refuses a connection never
+ * an HTTP client that is expected to *succeed*, against a loopback server
+ * started for the run. A client that only ever refuses a connection never
  * proves the response actually comes back.
  */
 import { runHostContract } from "@smthrs/kernel/test/contract"
@@ -36,13 +36,13 @@ runHostContract("NodeHost defaults", NodeHost.layer, {
   jj: jjAvailable
     ? { expected: "success" }
     : { expected: "failure", code: "not_installed" },
-  httpTransport: {
+  httpClient: {
     expected: "success",
     request: HttpClientRequest.get(`http://127.0.0.1:${port}/probe`),
     assertResponse: (response) => {
       expect(response.status).toBe(200)
       // Proves the loopback server answered this exact request, not a cache or
-      // a redirect: the header echoes the path the transport asked for.
+      // a redirect: the header echoes the path the client asked for.
       expect(response.headers["x-host-contract"]).toBe("echo:/probe")
     }
   }

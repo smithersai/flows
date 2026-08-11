@@ -46,14 +46,13 @@ The default heartbeat interval is one second and the stale threshold is 30 secon
 
 ## Recovery utilities
 
-`@smthrs/time-travel` includes:
+`@smthrs/time-travel` exposes one injectable service, `TimeTravel`, and the recovery machinery sits behind it:
 
-- `Retry.retry`, which reattempts an operation while blocking unsafe irreversible retries.
-- `Recovery.recover`, which completes or rolls back interrupted rewind audits during startup.
-- `Compensation`, which assesses and invokes registered rollback handlers.
-- `Rewind.rewind`, which performs a fenced, audited rewind protocol.
+- `TimeTravel.rewind` performs a fenced, audited rewind protocol, including the bounded retry that blocks unsafe irreversible reattempts.
+- Compensation assesses and invokes registered rollback handlers as part of that protocol.
+- Building `TimeTravel.layer` completes or rolls back interrupted rewind audits, so startup recovery is never a call the application makes.
 
-These utilities require boundary records and store integration supplied by the application. The engine does not create all time-travel records automatically today.
+The service requires boundary records and store integration supplied by the application. The engine does not create all time-travel records automatically today.
 
 ## Planned graph policy
 

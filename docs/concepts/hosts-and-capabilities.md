@@ -10,9 +10,9 @@ This page describes the portable host surface and the permission kernel that med
 - Effect `Path`
 - Effect `ChildProcessSpawner`
 - `Jj` (contract in [`@smthrs/jj`](../reference/jj.md))
-- one-hop `HttpTransport`
+- Effect `HttpClient`
 
-Three of the five slots hold Effect's own tags. `flows` used to define a `Shell` service in the third slot; it was `effect/unstable/process` with fewer features, so it was deleted and the slot now holds `effect/process/ChildProcessSpawner` (see [design decisions](../pages/design-decisions.md)). `flows` supplies implementations of it — Node, Bun, an in-browser just-bash one, and a remote-sandbox one — and adds only the `proc:spawn` check.
+Four of the five slots hold Effect's own tags. `flows` used to define a `Shell` service in the third slot; it was `effect/unstable/process` with fewer features, so it was deleted and the slot now holds `effect/process/ChildProcessSpawner` (see [design decisions](../pages/design-decisions.md)). The fifth slot went the same way: a `flows`-defined one-hop `HttpTransport` was deleted in favour of `effect/HttpClient`. `flows` supplies implementations of both — Node, Bun, an in-browser one, and a remote-sandbox one — and adds only the capability check.
 
 The list is closed, not the package: `Jj` ships as its own package so a consumer that only needs that capability does not take the whole host surface. The contract stays in `@smthrs/jj`; the kernel decorates that same tag (and re-exports it for convenience) rather than declaring a second one, and the composite bundles (`NodeHost`, `BunHost`, `BrowserHost`, `TestHost`) provide all five tags. There is no pseudo-terminal service: interactive-terminal support is out of core by design (see [design decisions](../pages/design-decisions.md)).
 
@@ -23,7 +23,7 @@ Cloudflare and Vercel adapters live in the separate
 operations fail through their service contract; they should not disappear
 from the environment type.
 
-`HttpTransport` intentionally performs one request without automatic redirect following. Redirect policy belongs above the raw adapter so every network hop can be authorized.
+Host bundles provide an `HttpClient` that never follows a redirect on its own — the fetch layers are configured with `RequestInit { redirect: "manual" }`, and Undici installs no redirect interceptor. Redirect following belongs *above* the kernel's guard: the decorator composes Effect's own `HttpClient.followRedirects` over the checked client, so every network hop is authorized independently.
 
 ## Kernel decoration
 
@@ -33,7 +33,7 @@ The kernel decorates each service tag in place — a middleware `Layer` over the
 2. asks `GrantStore` to authorize it,
 3. calls the raw platform port only when allowed.
 
-Where Effect owns the tag (`FileSystem`, `ChildProcessSpawner`) the error channel stays `PlatformError`: a refused operation surfaces with reason `PermissionDenied`, and the structured kernel failure rides on its `cause`, recoverable with `Permission.fromPlatformError`. Where `flows` owns the service (`Jj`, `HttpClient`) the interface names `Permission.PermissionError` directly.
+Where Effect owns the tag (`FileSystem`, `ChildProcessSpawner`) the error channel stays `PlatformError`: a refused operation surfaces with reason `PermissionDenied`, and the structured kernel failure rides on its `cause`, recoverable with `Permission.fromPlatformError`. `HttpClient` does the same in Effect's network channel: a refusal is an `HttpClientError` whose reason is a `TransportError` carrying the kernel failure on `cause`, recoverable with `HttpClient.fromHttpClientError`. Where `flows` owns the service (`Jj`) the interface names `Permission.PermissionError` directly.
 
 For a spawn, the exact capability is `proc:spawn` with `CommandLine.render(command)` as its resource — the same string a browser interpreter or a remote sandbox is handed for supported commands, so a grant and the thing it authorizes cannot drift apart. A custom shell path is included explicitly in the resource; adapters that cannot select it reject the command.
 
@@ -67,7 +67,7 @@ The kernel is a capability check, not an operating-system sandbox. Hermetic exec
 
 - The browser layer wraps an injected ZenFS-like promises API and an injected just-bash interpreter, which must be mounted on the *same* filesystem.
 - The browser spawner is buffered, cannot take stdin or be killed, and rejects custom shells, detached processes, and configured extra file descriptors rather than silently dropping them.
-- Browser `Jj` operations are explicitly unsupported: `@smthrs/jj/browser/BrowserJj` exports a `layerUnsupported` that fails in the error channel rather than omitting the tag.
+- Browser `Jj` has a real implementation: `@smthrs/jj/browser/BrowserJj`'s `layer({ fs, wasm })` drives jj-lib compiled to `wasm32-wasip1` over an injected virtual filesystem. `layerUnsupported` remains exported for a host that ships no wasm module — it fails in the error channel rather than omitting the tag — and it is still what the `BrowserHost` bundle wires by default.
 - Hosted-adapter behavior and limitations are documented with those adapters
   in the external plugins repository.
 

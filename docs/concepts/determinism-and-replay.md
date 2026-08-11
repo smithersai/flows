@@ -71,7 +71,7 @@ The current public API does not expose a separate durable record for every losin
 Two APIs use “replay” differently:
 
 - `EngineStore` replay re-runs a registered flow handler and returns stored boundaries.
-- `TimeTravel.Replay.rederive` is read-only. It folds committed journal entries up to a `Frame` and optionally resolves cache values. It never invokes a flow handler or activity dispatcher.
+- `TimeTravel.inspect` is read-only. It folds committed journal entries up to a `Frame` and optionally resolves cache values. It never invokes a flow handler or activity dispatcher.
 
 The latter is suitable for rebuilding a view or assessing a frame. It is not an engine resume.
 

@@ -188,10 +188,11 @@ gap.
    resume path assumes the engine can pick up any persisted run; the cutover
    shim must guarantee registration-before-resume.
 4. **SQLite-only dialect parity (accepted gap, issue #78).** flows ships two
-   `Database` backends and both are SQLite: `NodeDatabase` over
-   `@effect/sql-sqlite-node`, and the browser counterpart over Effect's
-   sqlite-wasm OPFS worker. The journal migration ladder
-   (`packages/journal/src/migrations/*`) is SQLite-flavoured DDL. Smithers,
+   `SqlClient` backends behind `DurableWriter` and both are SQLite:
+   `NodeDatabase` over `@effect/sql-sqlite-node`, and the browser counterpart
+   over Effect's sqlite-wasm OPFS worker. Every package's migration set
+   (`packages/{journal,run-store,step-cache,engine-store}/src/Migrations.ts`)
+   is SQLite-flavoured DDL. Smithers,
    however, supports PGlite and Postgres (`packages/db/src/ensure.js` and
    `adapter.js` branch on `dialect === 'postgres'`, and `smithers migrate`
    exists to move a workspace onto them), so stage 1 below is a *SQLite-only*

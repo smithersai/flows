@@ -16,9 +16,9 @@ const layer = EngineStore.layer({
 })
 ```
 
-`Options` contains `owner.hostId`, `journalSource`, and required `isAlive`. `make(options)` returns a `FlowRuntime` service — the port `@smthrs/flow` declares; `layer(options)` provides both `FlowRuntime` and `FlowEngine.SnapshotBoundary`. The liveness probe is mandatory because silently treating an unknown owner as alive can strand recovery forever.
+`Options` contains `owner.hostId`, `journalSource`, required `isAlive`, and the optional `clockFireRetryPolicy` — the redispatch `Schedule` for a durable clock whose fire failed, defaulting to exponential from 100ms capped at 30s, forever. It is the same option shape as the engine's `suspendedRetryPolicy`: the built-in behavior is the default, and a deployment supplies its own rather than patching the store. `make(options)` returns a `FlowRuntime` service — the port `@smthrs/flow` declares; `layer(options)` provides both `FlowRuntime` and `FlowEngine.SnapshotBoundary`. The liveness probe is mandatory because silently treating an unknown owner as alive can strand recovery forever.
 
-Required services are `Journal`, `RunStore`, `AttemptStore`, `CacheStore`, `DurableEngineState`, kernel `Jj`, `StepBoundary`, and `Scope`. `EngineCompositionError` represents an engine that was invoked without a complete composition.
+Required services are `Journal`, `RunStore`, `AttemptStore`, `CacheStore`, `DurableEngineState`, kernel `Jj`, `StepBoundary`, `OwnerIdentity`, and `Scope`. `EngineCompositionError` represents an engine that was invoked without a complete composition.
 
 The engine stores a versioned state envelope in each run row, fences run and attempt ownership, replays encoded exits, and writes engine decisions to the journal. Cache addresses are the injected `Sha256` transformation of the step key, not the raw `key1_…` value.
 
@@ -66,7 +66,7 @@ semantics) rather than being lost until process restart.
 
 <a id="stepboundary"></a>
 
-`FileBoundary` from `@smthrs/engine/FileBoundary` contains `readSet`, `writeSet`, and `boundaryMode` (`hard` or `expected`). A service implements:
+`FileBoundary` from `@smthrs/flow`'s `Activity` namespace contains `readSet`, `writeSet`, and `boundaryMode` (`hard` or `expected`). A service implements:
 
 ```ts
 interface Service {

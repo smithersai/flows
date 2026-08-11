@@ -36,9 +36,9 @@ Cost: nothing is admitted today. The filesystem-backed `StepBoundary.layer` meas
 
 ## D5. Host access is closed and decorated
 
-The host surface is exactly `FileSystem`, `Path`, `ChildProcessSpawner`, `Jj`, and a one-hop `HttpTransport`, with Effect's `Clock` and `Random` treated as swappable built-ins. `@smthrs/kernel` decorates those services with grant checks instead of asking every flow to remember to check permissions.
+The host surface is exactly `FileSystem`, `Path`, `ChildProcessSpawner`, `Jj`, and `HttpClient` — four of them Effect's own tags — with Effect's `Clock` and `Random` treated as swappable built-ins. `@smthrs/kernel` decorates those services with grant checks instead of asking every flow to remember to check permissions. A `flows`-defined one-hop `HttpTransport` used to sit in the last slot so redirects could be authorized hop by hop; it was deleted once the same guarantee could be had from Effect alone — host bundles hand over a client that never follows a redirect, and the kernel composes Effect's own `HttpClient.followRedirects` above the grant check.
 
-Three of those five slots hold Effect's own tags rather than `flows` wrappers. `ChildProcessSpawner` is the newest: `flows` used to define a `Shell` service with `exec` and `stream`, which was `effect/unstable/process` with fewer features and a second error type to keep honest. It was deleted; `flows` now supplies implementations of Effect's spawner (Node, Bun, an in-browser just-bash one) and adds only the `proc:spawn` capability check on top. A wrapper earns its place by adding something; this one added a `timeoutMs` option that `Effect.timeout` already covers.
+Four of those five slots hold Effect's own tags rather than `flows` wrappers, and the last two arrived by the same argument. `flows` used to define a `Shell` service with `exec` and `stream`, which was `effect/unstable/process` with fewer features and a second error type to keep honest. It was deleted; `flows` now supplies implementations of Effect's spawner (Node, Bun, an in-browser just-bash one) and adds only the `proc:spawn` capability check on top. `HttpTransport` went the same way once its one genuine contribution — hop-by-hop redirect authorization — turned out to be expressible as `followRedirects` composed above the guard. A wrapper earns its place by adding something; the shell wrapper added a `timeoutMs` option that `Effect.timeout` already covers, and the transport added a second way to reach the network.
 
 The alternative was an open host surface with per-call permission arguments. An open surface cannot be audited, and per-call arguments are forgotten.
 
@@ -72,7 +72,7 @@ Cost: failure handling is per-activity. There is no way to say that one failing 
 
 ## D9. Time travel is a separate protocol
 
-Replay is read-only: `Replay.rederive` folds committed entries into a projection and never invokes a handler. Fork creates a new run prefix and workspace. Rewind is an ownership-fenced protocol with preflight, audit, compensation, workspace restore, atomic archive and truncation, and startup recovery.
+Replay is read-only: `TimeTravel.inspect` folds committed entries into a projection and never invokes a handler. `TimeTravel.fork` creates a new run prefix and workspace. `TimeTravel.rewind` is an ownership-fenced protocol with preflight, audit, compensation, workspace restore, atomic archive and truncation, and startup recovery.
 
 The alternative was building rewind into the engine's own resume path, which would put a destructive operation behind the same entry point as an ordinary wake.
 
@@ -113,7 +113,7 @@ The alternative was keeping the `@smthrs/pty` package that once shipped here. It
 | Ship 0.1.0 or an experimental preview | a full 0.1.0, with WAL atomicity fixed first | atomicity landed; the version is `0.1.0` |
 | Package naming | keep the `@smthrs/*` names | kept |
 | Publish `@smthrs/plugin` | hold it back as private until dispatch is wired, because publishing sells an extension API nothing calls | settled by deleting the package: extension is dependency injection at the owning seam, so there is no hook kernel to publish |
-| Browser claim | narrow the claim and gate it, rather than restructure subpaths for 0.1.0 | narrowed to ten entry points and gated by `npm run browser`; the barrel and engine-store stay Node-only |
+| Browser claim | narrow the claim and gate it, rather than restructure subpaths for 0.1.0 | narrowed and gated by `npm run browser`; the gate has since grown to twenty browser entry points as each Node read moved behind a port, so the barrel and engine-store now bundle too — only the platform bundles, the jj and SQLite drivers, and the test host stay Node-only |
 | Positioning against Temporal, Restate, Inngest | lead with Effect integration, embeddability, content addressing, and time travel; do not lead with parity | adopted, see [External](/external) |
 
 ## Reading next

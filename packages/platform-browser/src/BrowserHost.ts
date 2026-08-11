@@ -10,17 +10,30 @@
  * layer this bundle installs, so an absent capability is still a capability
  * with an answer rather than a missing tag.
  *
+ * Network access is Effect's own `HttpClient` over `fetch` — there is no
+ * `flows` wrapper around it. The one thing this bundle configures is
+ * `redirect: "manual"`, so the runtime never walks to a second origin behind
+ * the capability kernel's back; following a redirect is
+ * `@smthrs/kernel`'s guarded `HttpClient.layer`, which rechecks every hop.
+ *
+ * A tab is stricter than a server about what that leaves visible. Under the
+ * Fetch standard, `redirect: "manual"` hands back an *opaque-redirect*
+ * response — status `0`, no headers — rather than the 3xx a Node or Bun fetch
+ * exposes, so the kernel's redirect loop has no `location` to follow and
+ * simply returns it. A redirect therefore fails closed in the browser instead
+ * of being followed; it never becomes an unauthorized hop.
+ *
  * @since 0.1.0
  */
 import type { Jj } from "@smthrs/jj"
 import * as BrowserJj from "@smthrs/jj/browser/BrowserJj"
-import type { HttpTransport } from "@smthrs/kernel/HttpTransport"
 import { Layer, Path } from "effect"
 import type { FileSystem } from "effect"
+import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient"
+import type { HttpClient } from "effect/unstable/http/HttpClient"
 import type { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
 import * as BrowserChildProcessSpawner from "./BrowserChildProcessSpawner/index.ts"
 import * as BrowserFileSystem from "./BrowserFileSystem/index.ts"
-import * as BrowserHttpTransport from "./BrowserHttpTransport.ts"
 
 /**
  * The complete closed Host service union provided by a browser tab.
@@ -33,7 +46,13 @@ export type BrowserHost =
   | Path.Path
   | ChildProcessSpawner
   | Jj
-  | HttpTransport
+  | HttpClient
+
+/** Effect's fetch client, told never to follow a redirect on its own. */
+const layerHttpClient: Layer.Layer<HttpClient> = Layer.provide(
+  FetchHttpClient.layer,
+  Layer.succeed(FetchHttpClient.RequestInit)({ redirect: "manual" })
+)
 
 /**
  * The complete Host bundle for a browser tab.
@@ -54,7 +73,7 @@ export const layer = (options: {
   return Layer.mergeAll(
     platform,
     Layer.provide(BrowserChildProcessSpawner.layer(options.bash), platform),
-    BrowserHttpTransport.layer,
+    layerHttpClient,
     BrowserJj.layerUnsupported
   )
 }

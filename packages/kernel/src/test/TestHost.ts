@@ -18,8 +18,9 @@ import * as BrowserFileSystem from "@smthrs/platform-browser/BrowserFileSystem"
 import { Layer, Path, Random } from "effect"
 import type { FileSystem } from "effect"
 import { TestClock } from "effect/testing"
+import type { HttpClient as EffectHttpClient } from "effect/unstable/http/HttpClient"
 import type { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
-import * as HttpTransport from "../HttpTransport.ts"
+import * as HttpClient from "../HttpClient.ts"
 
 /** POSIX-normalize so `/a/b`, `/a/b/`, and `/a/./b` are one key in the store. */
 const normalize = (path: string): string => {
@@ -211,7 +212,7 @@ export type TestHost =
   | Path.Path
   | ChildProcessSpawner
   | Jj
-  | HttpTransport.HttpTransport
+  | EffectHttpClient
 
 /**
  * The deterministic Host bundle.
@@ -245,7 +246,7 @@ export const layer = (options?: {
   return Layer.mergeAll(
     platform,
     Layer.provide(BrowserChildProcessSpawner.layer(makeStubBash(options?.commands)), platform),
-    HttpTransport.layerNoop(),
+    HttpClient.layerNoop(),
     BrowserJj.layerUnsupported,
     TestClock.layer(),
     layerSeededRandom(options?.seed)

@@ -45,7 +45,8 @@ The package root holds the contract, its error, and the no-op layer only, so it 
 | --- | --- | --- |
 | `NodeJj.layer` | `src/node/NodeJj.ts` | spawns the jj CLI with argv, never a shell string; classifies stderr onto the stable codes |
 | `BunJj.layer` | `src/bun/BunJj.ts` | Bun implements the same child-process API, so this *is* `NodeJj.layer` |
-| `BrowserJj.layerUnsupported` | `src/browser/BrowserJj.ts` | every operation reports `not_installed`, naming the jj command it would have run |
+| `BrowserJj.make`, `BrowserJj.layer`, `BrowserJjOptions` | `src/browser/BrowserJj.ts` | jj-lib compiled to `wasm32-wasip1` (`packages/jj/wasm/flows_jj.wasm`), driven over an injected virtual filesystem through this package's hand-written WASI preview1 shim; the mount and the compiled module arrive as options |
+| `BrowserJj.layerUnsupported` | `src/browser/BrowserJj.ts` | the fallback for a host that ships no wasm module — every operation reports `not_installed`, naming the jj command it would have run |
 
 ## Reading next
 

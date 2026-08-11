@@ -65,7 +65,7 @@ const layer = SqlJournal.layer({ capacity: 1024, overflow: "reject" }).pipe(
 | Export | Kind | Notes |
 | --- | --- | --- |
 | `SqlJournalOptions` | interface | `capacity`, `overflow`, `batchSize`, `sourceEventCache`, `redact` |
-| `layer` | layer | scoped writer over `Database` |
+| `layer` | layer | scoped writer over `DurableWriter` |
 ## OwnerId
 
 [src/OwnerId.ts](https://github.com/smithersai/flows/blob/main/packages/journal/src/OwnerId.ts)

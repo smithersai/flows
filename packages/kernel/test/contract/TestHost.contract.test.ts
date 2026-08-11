@@ -33,6 +33,6 @@ runHostContract(
       interruptCommand: ChildProcess.make("host-contract-interrupt")
     },
     jj: { expected: "failure", code: "not_installed" },
-    httpTransport: { expected: "failure", code: "TransportError" }
+    httpClient: { expected: "failure", code: "TransportError" }
   }
 )

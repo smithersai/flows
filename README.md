@@ -84,7 +84,7 @@ Serve the docs site locally with `npx vocs dev`. Start with [Architecture](docs/
 
 ## Status and compatibility
 
-Packages are pre-1.0 at 0.1.0 in lockstep. The shipped database backends are SQLite (Node and in-memory); Postgres and PGlite parity is an accepted, documented gap. The browser promise covers the contract packages; `@smthrs/engine-store` and the barrel are Node entry points.
+Packages are pre-1.0 at 0.1.0 in lockstep. The shipped database backends are SQLite (Node and in-memory); Postgres and PGlite parity is an accepted, documented gap. Every package root bundles for the browser, including `@smthrs/engine-store` and the `@smthrs/flows` barrel; only the platform bundles, the jj and SQLite drivers, and the test hosts are Node-only. Bundling is not running — no browser SQL client layer ships here yet.
 
 ## Contributing
 

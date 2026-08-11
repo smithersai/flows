@@ -45,6 +45,7 @@ Read [implementation status](architecture/implementation-status.md) before choos
 - [`@smthrs/jj`](reference/jj.md)
 - [`@smthrs/sandbox`](reference/sandbox.md)
 - [`@smthrs/platform-browser`](reference/platform-browser.md)
+- `@smthrs/platform-node` and `@smthrs/platform-bun` — the Node and Bun Host bundles; see the [platform-node](pages/api/platform-node.md) and [platform-bun](pages/api/platform-bun.md) API pages
 - [`@smthrs/journal`](reference/journal.md)
 - [`@smthrs/run-store`](reference/run-store.md)
 - [`@smthrs/step-cache`](reference/step-cache.md)

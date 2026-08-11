@@ -12,7 +12,7 @@ Most of what you would want from an observability stack is already a durable row
 | what is happening now | `Journal.stream({ runId, afterSequence })` |
 | a derived view over history | `Journal.project(projection, options)` |
 | the same from another process | `@smthrs/sync` `Read` and `Subscribe` |
-| the state at a past point | `TimeTravel.Replay.rederive(frame, projection, options)` |
+| the state at a past point | `TimeTravel.inspect(position, projection)` |
 
 The engine event types are listed in [Data structures](/data-structures). Filtering on `event_type` is indexed.
 

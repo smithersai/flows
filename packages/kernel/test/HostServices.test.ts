@@ -8,8 +8,6 @@ import { ChildProcessSpawner as EffectChildProcessSpawner } from "effect/unstabl
 import { describe, expect, it } from "vitest"
 import { GrantStore } from "../src/GrantStore.ts"
 import * as HostServices from "../src/HostServices.ts"
-import * as HttpClient from "../src/HttpClient.ts"
-import * as HostHttpTransport from "../src/HttpTransport.ts"
 import * as TestHost from "../src/test/TestHost.ts"
 import * as Workspace from "../src/Workspace.ts"
 
@@ -39,14 +37,14 @@ describe("HostServices", () => {
       EffectPath.Path,
       EffectChildProcessSpawner,
       HostJj.Jj,
-      HostHttpTransport.HttpTransport
+      EffectHttpClient.HttpClient
     ])
     expect(HostServices.HostServiceIds).toEqual([
       "effect/FileSystem",
       "effect/Path",
       "effect/process/ChildProcessSpawner",
       "@smthrs/jj/Jj",
-      "@smthrs/kernel/HttpTransport"
+      "effect/HttpClient"
     ])
     expect(HostServices.HostServiceTags).toHaveLength(HostServices.HostServiceIds.length)
     // There is no second, "protected" tag list to keep in slot order with this
@@ -73,12 +71,12 @@ describe("HostServices", () => {
         message: "jj is not available in the browser"
       })
 
-      const client = yield* HttpClient.HttpClient
+      const client = yield* EffectHttpClient.HttpClient
       expect((yield* client.get("https://example.test/health")).status).toBe(200)
     }).pipe(
       Effect.provide(HostServices.layer),
       Effect.provideService(EffectFileSystem.FileSystem, fileSystem),
-      Effect.provideService(HostHttpTransport.HttpTransport, HostHttpTransport.make(http.execute)),
+      Effect.provideService(EffectHttpClient.HttpClient, http),
       Effect.provide(TestHost.layer({
         files: { "/workspace/.keep": "" },
         commands: { fixture: { stdout: "protected\n" } }
@@ -137,7 +135,7 @@ describe("HostServices", () => {
     }).pipe(
       Effect.provide(HostServices.layer),
       Effect.provideService(EffectFileSystem.FileSystem, fileSystem),
-      Effect.provideService(HostHttpTransport.HttpTransport, HostHttpTransport.make(http.execute)),
+      Effect.provideService(EffectHttpClient.HttpClient, http),
       Effect.provide(TestHost.layer({ files: { "/workspace/.keep": "" } })),
       Effect.provide(Workspace.layer("/workspace")),
       Effect.provideService(GrantStore, deny),

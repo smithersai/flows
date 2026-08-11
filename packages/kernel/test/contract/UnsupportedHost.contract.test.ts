@@ -12,7 +12,7 @@ import * as BrowserFileSystem from "@smthrs/platform-browser/BrowserFileSystem"
 import { Effect, Layer, Path, PlatformError } from "effect"
 import { ChildProcessSpawner, make as makeSpawner } from "effect/unstable/process/ChildProcessSpawner"
 import * as CommandLine from "../../src/CommandLine.ts"
-import * as HttpTransport from "../../src/HttpTransport.ts"
+import * as HttpClient from "../../src/HttpClient.ts"
 import { runHostContract } from "./HostContract.ts"
 
 /**
@@ -63,7 +63,7 @@ runHostContract(
     layerPathUnsupported,
     layerSpawnerUnsupported,
     BrowserJj.layerUnsupported,
-    HttpTransport.layerNoop()
+    HttpClient.layerNoop()
   ),
   {
     // A `PlatformError` carries its code as `reason._tag`.
@@ -72,6 +72,6 @@ runHostContract(
     path: { expected: "failure", code: "NoFileUrls" },
     childProcess: { expected: "failure", code: "NotFound" },
     jj: { expected: "failure", code: "not_installed" },
-    httpTransport: { expected: "failure", code: "TransportError" }
+    httpClient: { expected: "failure", code: "TransportError" }
   }
 )

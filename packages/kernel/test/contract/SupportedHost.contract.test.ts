@@ -4,7 +4,7 @@
  * `TestHost` and `UnsupportedHost` between them declare almost everything as
  * unsupported — a scripted interpreter takes no stdin, and a browser-shaped
  * bundle has no jj and no network — so the suite's "declared supported"
- * branches for stdin, Jj, and HttpTransport would otherwise go unasserted
+ * branches for stdin, Jj, and HttpClient would otherwise go unasserted
  * here. The real bundles that exercise them live in `@smthrs/platform-node`
  * and `@smthrs/platform-bun`, which the kernel must not depend on: a
  * capability kernel that needed a platform package to be tested would not be
@@ -23,7 +23,9 @@ import * as JjService from "@smthrs/jj"
 import type { Jj } from "@smthrs/jj"
 import * as BrowserFileSystem from "@smthrs/platform-browser/BrowserFileSystem"
 import { Effect, Layer, Path, Sink, Stream } from "effect"
+import * as EffectHttpClient from "effect/unstable/http/HttpClient"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
+import type * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"
 
 import {
   ChildProcessSpawner,
@@ -34,7 +36,6 @@ import {
 } from "effect/unstable/process/ChildProcessSpawner"
 import { expect } from "vitest"
 import * as CommandLine from "../../src/CommandLine.ts"
-import * as HttpTransport from "../../src/HttpTransport.ts"
 import { makeMemoryFs } from "../../src/test/TestHost.ts"
 import { runHostContract } from "./HostContract.ts"
 
@@ -84,11 +85,11 @@ const layerJjSupported: Layer.Layer<Jj> = Layer.succeed(JjService.Jj)(
   JjService.makeNoop({ status: () => Effect.succeed("The working copy is clean") })
 )
 
-/** A transport that answers without a socket, so the success arm is asserted. */
-const layerTransportSupported: Layer.Layer<HttpTransport.HttpTransport> = Layer.succeed(
-  HttpTransport.HttpTransport
+/** A client that answers without a socket, so the success arm is asserted. */
+const layerHttpClientSupported: Layer.Layer<EffectHttpClient.HttpClient> = Layer.succeed(
+  EffectHttpClient.HttpClient
 )(
-  HttpTransport.make((request) =>
+  EffectHttpClient.make((request: HttpClientRequest.HttpClientRequest) =>
     Effect.succeed({ status: 200, headers: { "x-host-contract": "echo" }, request } as never)
   )
 )
@@ -100,7 +101,7 @@ runHostContract(
     Path.layer,
     layerSpawnerSupported,
     layerJjSupported,
-    layerTransportSupported
+    layerHttpClientSupported
   ),
   {
     // Every capability below takes the suite's defaults on purpose.
@@ -108,10 +109,10 @@ runHostContract(
     path: { expected: "success" },
     childProcess: { expected: "success" },
     jj: { expected: "success" },
-    httpTransport: {
+    httpClient: {
       expected: "success",
       request: HttpClientRequest.get("https://example.test/host-contract"),
-      assertResponse: (response) => {
+      assertResponse: (response: HttpClientResponse.HttpClientResponse) => {
         expect(response.status).toBe(200)
         expect(response.headers["x-host-contract"]).toBe("echo")
       }

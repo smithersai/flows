@@ -5,7 +5,7 @@ import { TestClock } from "effect/testing"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
 import { describe, expect, it } from "vitest"
-import * as HttpTransport from "../src/HttpTransport.ts"
+import * as HttpClient from "../src/HttpClient.ts"
 import * as TestHost from "../src/test/TestHost.ts"
 
 const decoder = new TextDecoder()
@@ -210,12 +210,10 @@ describe("TestHost unsupported services", () => {
     expect(new Set(jjErrors.map((error) => error.code))).toEqual(new Set(["not_installed"]))
   })
 
-  it("fails HTTP requests through the noop transport", async () => {
-    const transport = HttpTransport.makeNoop()
+  it("fails HTTP requests through the noop client", async () => {
+    const client = HttpClient.makeNoop()
 
-    const error = await Effect.runPromise(
-      Effect.flip(transport.execute({ url: "https://example.com" } as never))
-    )
+    const error = await Effect.runPromise(Effect.flip(client.get("https://example.com")))
 
     expect(error.reason._tag).toBe("TransportError")
   })

@@ -4,6 +4,33 @@
 
 ### Changed
 
+- **`HttpTransport` is gone; network access is Effect's own `HttpClient`**
+  (maintainer directive, 2026-08-10). `@smthrs/kernel/HttpTransport` — the
+  raw one-hop port — is deleted, and `HttpClient` is now middleware over
+  `effect/unstable/http`'s `HttpClient` tag rather than a kernel-owned service
+  projected off that port. The kernel declares no HTTP interface, no HTTP tag,
+  and no `executeModel` method: it re-exports Effect's tag and `make`, and adds
+  `layer`, a `TransportError`-reporting `makeNoop` / `layerNoop` stub, and the
+  `toHttpClientError` / `fromHttpClientError` projection.
+  - A `model:call` check is requested with the new `ModelCall` context
+    reference, set by `HttpClient.withModelCall(modelId)` around the request,
+    in place of the removed `executeModel` method.
+  - Permission failures now ride in `HttpClientError`, the channel Effect's tag
+    fixes: reason `TransportError`, `description` the one-line rendering, and
+    `cause` the structured `PermissionRequired` / `PermissionDenied` /
+    `GrantStoreError`. `HttpClient.fromHttpClientError` reads it back.
+  - **Redirects.** The old port existed so a redirect could not bypass
+    enforcement. The invariant is preserved with Effect alone: host bundles
+    provide a client that never follows a redirect on its own (fetch with
+    `RequestInit { redirect: "manual" }`, Undici with no redirect interceptor),
+    and the decorator composes Effect's own `HttpClient.followRedirects`
+    _above_ the guard, so each hop re-enters the guarded `postprocess` and is
+    authorized independently.
+  - `HostServices` slot 5 is now Effect's `HttpClient` tag and its
+    `HostServiceIds` entry changes from `@smthrs/kernel/HttpTransport` to
+    `effect/HttpClient`. **This changes step-key identity**: every cached step
+    that named the network slot is invalidated, which is the intent.
+
 - **One tag per protected service** (maintainer directive, 2026-08-10).
   Enforcement is now middleware over the service's _own_ tag —
   `Layer.effect(Tag, Effect.gen(function*() { const raw = yield* Tag; … }))`

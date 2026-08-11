@@ -26,7 +26,6 @@ flowchart TD
   PN --> K
   PBUN --> JJ
   PBUN --> K
-  PBUN --> PB
   SB --> K
   K["@smthrs/kernel"] --> CAP
   K --> JJ
@@ -62,11 +61,11 @@ flowchart TD
 | [`@smthrs/crypto`](../reference/crypto.md) | Injected cryptographic schema transformations | Platform implementation is supplied through Effect Crypto |
 | [`@smthrs/keys`](../reference/keys.md) | Canonical flow keys | Composes `canonical` and `crypto` |
 | [`@smthrs/database`](../reference/database.md) | `SqlClient` access plus transactional SQLite write retry | Owns no domain tables |
-| `@smthrs/platform-node`, `@smthrs/platform-bun` | The Node and Bun Host bundles: Effect's platform services plus the single-hop HTTP transport | Raw effects; no permission decisions |
+| `@smthrs/platform-node`, `@smthrs/platform-bun` | The Node and Bun Host bundles: Effect's own platform services — filesystem, path, spawner, `HttpClient` — composed with the `Jj` adapter | Raw effects; no permission decisions. Bun composes `@effect/platform-bun` directly and does not depend on `@smthrs/platform-browser` |
 | [`@smthrs/capability`](../reference/capability.md) | The capability vocabulary — actions, patterns, tiers — and typed permission failures with their `PlatformError` projection | A leaf both the kernel and `@smthrs/jj` depend on; its schema ids stay `@smthrs/kernel/…` because they are journaled |
 | [`@smthrs/jj`](../reference/jj.md) | Jujutsu snapshot, restore, diff, and workspace operations | Depends on `effect` and `@smthrs/capability`; the closed Host list still names it |
 | [`@smthrs/sandbox`](../reference/sandbox.md) | Remote-sandbox provider adaptation and sandbox liveness | Adapts a caller's provider onto Effect's `ChildProcessSpawner`; owns no host access |
-| [`@smthrs/platform-browser`](../reference/platform-browser.md) | Browser implementations of effect's `FileSystem` and `ChildProcessSpawner`, the fetch-backed `HttpTransport`, and the `BrowserHost` bundle | Depends on `effect`, `@smthrs/kernel`, and `@smthrs/jj` for the slots it fills; the ZenFS and just-bash backends are arguments, not dependencies |
+| [`@smthrs/platform-browser`](../reference/platform-browser.md) | Browser implementations of effect's `FileSystem` and `ChildProcessSpawner`, and the `BrowserHost` bundle, which provides effect's own fetch-backed `HttpClient` | Depends on `effect`, `@smthrs/kernel`, and `@smthrs/jj` for the slots it fills; the ZenFS and just-bash backends are arguments, not dependencies |
 | [`@smthrs/journal`](../reference/journal.md) | The immutable event history: journal rows, projections, redaction, and the `OwnerId` fence its durable channel accepts | Open event envelope; owns `flows_journal_events` only |
 | [`@smthrs/run-store`](../reference/run-store.md) | Executable run state: run rows, attempt rows, and ownership arbitration | Owns `flows_runs` and `flows_attempts`; validates supplied liveness evidence, never probes |
 | [`@smthrs/step-cache`](../reference/step-cache.md) | Sealed step results addressed by step-key digest | Owns `flows_step_cache`; depends on `database` alone |

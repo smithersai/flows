@@ -2,7 +2,7 @@
 
 This page is the public API reference for the `Jj` host service: version control as a capability. Permission enforcement is provided separately by `@smthrs/kernel`, whose `Jj` decorator wraps this contract.
 
-The package depends on `effect` and `@smthrs/capability` — the interface names `Permission.PermissionError` in its error channel so the kernel decorator needs no second tag. `Jj` is still one of the five services in the closed host list `@smthrs/kernel` owns; the contract lives here so a consumer that only snapshots a working copy does not take a process spawner and an HTTP transport with it.
+The package depends on `effect` and `@smthrs/capability` — the interface names `Permission.PermissionError` in its error channel so the kernel decorator needs no second tag. `Jj` is still one of the five services in the closed host list `@smthrs/kernel` owns; the contract lives here so a consumer that only snapshots a working copy does not take a process spawner and an HTTP client with it.
 
 ## Contract
 
@@ -26,7 +26,7 @@ Implementations are **not** root exports. The root is the portable contract and 
 | --- | --- |
 | `@smthrs/jj/node/NodeJj` | `layer` spawning the `jj` CLI with argv, never a shell string |
 | `@smthrs/jj/bun/BunJj` | `layer` — Bun implements the same child-process API, so this is `NodeJj.layer` |
-| `@smthrs/jj/browser/BrowserJj` | `layerUnsupported` — every operation reports `not_installed` |
+| `@smthrs/jj/browser/BrowserJj` | `layer({ fs, wasm })` — jj-lib compiled to `wasm32-wasip1`, run over an injected virtual filesystem; `layerUnsupported` is the fallback where no module ships, reporting `not_installed` |
 
 ```ts
 import { Jj } from "@smthrs/jj"
@@ -35,7 +35,7 @@ import * as NodeJj from "@smthrs/jj/node/NodeJj"
 
 `NodeJj` deliberately spawns its own children rather than going through `ChildProcessSpawner`: jj invocations are argv arrays with no shell interpretation, and the host must be able to checkpoint work even where process spawning is unavailable, sandboxed, or gated behind a `proc:spawn` grant the user has not given. Errors are classified from jj's own stderr vocabulary onto the stable codes, the way `NodeFileSystem` classifies errno.
 
-jj is a native binary, so there is nothing to run in a browser tab. `BrowserJj.layerUnsupported` reports `not_installed` — the same code the Node layer uses when the binary is absent, so a caller needs no browser-specific branch. It is a ticket, not a silent exception; see `Concepts/Browser jj` in the spec vault.
+jj is a native binary, but jj-lib compiles to `wasm32-wasip1`. `BrowserJj.layer({ fs, wasm })` runs that module — shipped as `packages/jj/wasm/flows_jj.wasm` — over an injected virtual filesystem, through a hand-written WASI preview1 shim in this package; the mount and the compiled module are arguments, not dependencies, so the library never picks a storage backend for its host. `BrowserJj.layerUnsupported` stays exported for a host that ships no module and reports `not_installed` — the same code the Node layer uses when the binary is absent, so a caller needs no browser-specific branch. It is a ticket, not a silent exception; see `Concepts/Browser jj` in the spec vault.
 
 ## Durable identity
 

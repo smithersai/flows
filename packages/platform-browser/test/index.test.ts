@@ -11,7 +11,6 @@ import { describe, expect, it } from "vitest"
 import * as BrowserChildProcessSpawner from "../src/BrowserChildProcessSpawner/index.ts"
 import * as BrowserFileSystem from "../src/BrowserFileSystem/index.ts"
 import * as BrowserHost from "../src/BrowserHost.ts"
-import * as BrowserHttpTransport from "../src/BrowserHttpTransport.ts"
 import * as BrowserServices from "../src/BrowserServices.ts"
 import * as Index from "../src/index.ts"
 
@@ -26,14 +25,12 @@ describe("@smthrs/platform-browser barrel", () => {
         "BrowserChildProcessSpawner",
         "BrowserFileSystem",
         "BrowserHost",
-        "BrowserHttpTransport",
         "BrowserServices"
       ].sort()
     )
     expect(Index.BrowserChildProcessSpawner.layer).toBe(BrowserChildProcessSpawner.layer)
     expect(Index.BrowserFileSystem.layer).toBe(BrowserFileSystem.layer)
     expect(Index.BrowserHost.layer).toBe(BrowserHost.layer)
-    expect(Index.BrowserHttpTransport.layer).toBe(BrowserHttpTransport.layer)
     expect(Index.BrowserServices.layer).toBe(BrowserServices.layer)
   })
 })

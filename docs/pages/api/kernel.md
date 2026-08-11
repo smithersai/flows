@@ -1,6 +1,6 @@
 # @smthrs/kernel
 
-Capability enforcement at the host boundary. The kernel decorates each host service tag in place — a middleware `Layer` over the very tag the platform adapter provides — checking a capability against a grant store before delegating. There is no second, "protected" tag: where Effect owns the tag (`FileSystem`, `ChildProcessSpawner`) a denied request surfaces as a `PlatformError` whose reason is `PermissionDenied` and whose `cause` carries the structured kernel failure (`Permission.fromPlatformError` reads it back); where `flows` owns the service (`Jj`, `HttpClient`) the interface names the kernel's failures directly. The `Capability` and `Permission` namespaces are re-exports from `@smthrs/capability`.
+Capability enforcement at the host boundary. The kernel decorates each host service tag in place — a middleware `Layer` over the very tag the platform adapter provides — checking a capability against a grant store before delegating. There is no second, "protected" tag: where Effect owns the tag (`FileSystem`, `ChildProcessSpawner`) a denied request surfaces as a `PlatformError` whose reason is `PermissionDenied` and whose `cause` carries the structured kernel failure (`Permission.fromPlatformError` reads it back); `HttpClient` is the same story in Effect's network channel, projecting a denial into an `HttpClientError` whose reason is a `TransportError` (`HttpClient.fromHttpClientError` reads it back); where `flows` owns the service (`Jj`) the interface names the kernel's failures directly. The `Capability` and `Permission` namespaces are re-exports from `@smthrs/capability`.
 
 ```ts
 import { Capability, Permission } from "@smthrs/kernel"
@@ -60,7 +60,7 @@ Re-exported from [`@smthrs/capability`](capability.md) — [packages/capability/
 | `RuleEffect` | type | `allow`, `deny`, `ask` |
 | `evaluate` | function | applies rules to a capability |
 | `PermissionRequired`, `PermissionDenied` | classes | typed failures the kernel raises |
-| `PermissionError` | type | `PermissionRequired \| PermissionDenied \| GrantStoreError` — the channel `Jj` and `HttpClient` expose directly |
+| `PermissionError` | type | `PermissionRequired \| PermissionDenied \| GrantStoreError` — the channel `Jj` exposes directly |
 | `permissionRequired`, `permissionDenied` | constructors | |
 | `GrantStoreError`, `GrantStoreErrorCode` | class + codes | |
 | `isPermissionError` | refinement | narrows `unknown` to a kernel permission failure |
@@ -82,14 +82,14 @@ Re-exported from [`@smthrs/capability`](capability.md) — [packages/capability/
 
 ## Decorated host services
 
-Each module below exports a `layer` that decorates the matching service tag in place. `FileSystem` and `ChildProcessSpawner` decorate Effect's own tags (permission failures projected into `PlatformError`); `Jj` decorates `@smthrs/jj`'s tag and re-exports it; only `HttpClient` declares a kernel-owned tag, because it is a projection of the raw `HttpTransport` slot rather than a decoration of it.
+Each module below exports a `layer` that decorates the matching service tag in place. `FileSystem`, `ChildProcessSpawner`, and `HttpClient` decorate Effect's own tags (permission failures projected into `PlatformError` and `HttpClientError` respectively); `Jj` decorates `@smthrs/jj`'s tag and re-exports it. No module declares a kernel-owned service tag.
 
 | Module | Source | Guarded actions |
 | --- | --- | --- |
 | `FileSystem` | [src/FileSystem.ts](https://github.com/smithersai/flows/blob/main/packages/kernel/src/FileSystem.ts) | `fs:read`, `fs:write`; also exports `canonicalResource` |
 | `ChildProcessSpawner` | [src/ChildProcessSpawner.ts](https://github.com/smithersai/flows/blob/main/packages/kernel/src/ChildProcessSpawner.ts) | `proc:spawn`, whose resource is `CommandLine.render(command)`; re-exports Effect's tag, `make`, plus `makeNoop`/`layerNoop` stubs |
 | `Jj` | [src/Jj.ts](https://github.com/smithersai/flows/blob/main/packages/kernel/src/Jj.ts) | the six `jj:*` actions; re-exports `@smthrs/jj`'s tag, `make`, `makeNoop`, and `layerNoop` |
-| `HttpClient` | [src/HttpClient.ts](https://github.com/smithersai/flows/blob/main/packages/kernel/src/HttpClient.ts) | `net:get`, `net:post`; kernel-owned tag; also exports `HttpClientError` |
+| `HttpClient` | [src/HttpClient.ts](https://github.com/smithersai/flows/blob/main/packages/kernel/src/HttpClient.ts) | `net:get`, `net:post`, and `model:call` under `withModelCall`; re-exports Effect's tag and `make`, plus `toHttpClientError`/`fromHttpClientError`, the `ModelCall` reference, and `makeNoop`/`layerNoop` stubs. Redirects are followed *above* the guard with Effect's `followRedirects`, so every hop is rechecked |
 | `Path` | [src/Path.ts](https://github.com/smithersai/flows/blob/main/packages/kernel/src/Path.ts) | none; pure path manipulation is not checked |
 | `Workspace` | [src/Workspace.ts](https://github.com/smithersai/flows/blob/main/packages/kernel/src/Workspace.ts) | supplies the root used to resolve path capabilities |
 

@@ -8,7 +8,7 @@ Smithers Flows is one durable-execution engine assembled from the workspace pack
 flowchart TB
   subgraph app["Your application"]
     CALL["flow.execute(payload)"]
-    BARREL["@smthrs/flows<br/>barrel, Node only"]
+    BARREL["@smthrs/flows<br/>barrel, Node and browser"]
   end
 
   subgraph define["Definition and identity"]
@@ -27,17 +27,19 @@ flowchart TB
     JOURNAL["@smthrs/journal<br/>logical WAL, projections,<br/>redaction, OwnerId"]
     RUNSTORE["@smthrs/run-store<br/>RunStore, AttemptStore,<br/>Ownership"]
     STEPCACHE["@smthrs/step-cache<br/>CacheStore"]
-    DB["@smthrs/database<br/>SqlClient contract,<br/>write retry"]
+    DB["@smthrs/database<br/>DurableWriter over SqlClient,<br/>write retry, composed migrations"]
     SQL[("SQLite<br/>Node file or wasm")]
   end
 
   subgraph guard["Host boundary"]
-    KERNEL["@smthrs/kernel<br/>CapabilitySet, grants,<br/>permission-decorated services"]
-    HOST["@smthrs/kernel<br/>closed list: FileSystem, Path,<br/>ChildProcessSpawner, Jj, HttpTransport"]
-    JJ["@smthrs/jj<br/>contract + adapters"]
+    KERNEL["@smthrs/kernel<br/>owns the closed 5-slot list<br/>FileSystem, Path, ChildProcessSpawner, Jj, HttpClient<br/>CapabilitySet, grants, permission-decorated services"]
+    CAP["@smthrs/capability<br/>capability vocabulary,<br/>typed permission failures"]
+    JJ["@smthrs/jj<br/>contract + node / bun / browser adapters"]
     SANDBOX["@smthrs/sandbox<br/>remote exec, liveness probe"]
-    PB["@smthrs/platform-browser<br/>effect FileSystem +<br/>ChildProcessSpawner for a tab"]
-    ADAPTERS["node / bun / browser / test<br/>adapters"]
+    PN["@smthrs/platform-node<br/>NodeHost bundle"]
+    PBUN["@smthrs/platform-bun<br/>BunHost bundle"]
+    PB["@smthrs/platform-browser<br/>BrowserHost bundle:<br/>effect FileSystem + ChildProcessSpawner for a tab"]
+    TESTHOST["@smthrs/kernel/test/TestHost<br/>deterministic host + contract suite"]
   end
 
   subgraph read["Read-only protocols"]
@@ -59,17 +61,29 @@ flowchart TB
   KEYS --> CRYPTO
   ENGINE -->|Encoded seam| STORE
   STORE --> JOURNAL
+  STORE --> RUNSTORE
+  STORE --> STEPCACHE
   STORE --> CRYPTO
   STORE --> KERNEL
   JOURNAL --> DB
+  RUNSTORE --> JOURNAL
+  RUNSTORE --> DB
+  STEPCACHE --> DB
   DB --> SQL
-  KERNEL --> HOST
-  HOST --> ADAPTERS
-  HOST --> PB
+  KERNEL --> CAP
+  KERNEL --> JJ
+  JJ --> CAP
+  PN -->|fills the slots| KERNEL
+  PBUN -->|fills the slots| KERNEL
+  PB -->|fills the slots| KERNEL
+  TESTHOST -->|fills the slots| KERNEL
+  SANDBOX --> KERNEL
   JOURNAL --> SYNC
   JOURNAL --> TT
   TT --> STORE
-  TT --> HOST
+  TT --> RUNSTORE
+  TT --> STEPCACHE
+  TT --> JJ
 ```
 
 Solid arrows are workspace dependencies that execute. Dotted arrows are re-exports.
@@ -78,7 +92,7 @@ Solid arrows are workspace dependencies that execute. Dotted arrows are re-expor
 
 Ask what would break if a boundary were removed, and its purpose becomes clear.
 
-The **host boundary** exists so flow code can run in a browser. `@smthrs/kernel` declares a closed set of five service tags and nothing else; every platform implementation lives in its own package — `@smthrs/platform-node`, `@smthrs/platform-bun`, `@smthrs/platform-browser`. Half those tags are Effect's own: `FileSystem`, `Path`, and `ChildProcessSpawner` are contracts `effect` already declares, so `flows` supplies implementations rather than wrappers. One more — `Jj` — is a contract of `@smthrs/jj`, whose tag the kernel decorates in place rather than shadowing with a second one, so a consumer that needs only that capability does not take the whole host surface. A module that depends only on the kernel root never statically resolves a `node:` built-in, which is what makes browser bundling possible at all. `@smthrs/kernel` sits in front of that surface and decorates each service with a grant check, so a flow that asks for a file it was never granted fails in the error channel rather than reading the file.
+The **host boundary** exists so flow code can run in a browser. `@smthrs/kernel` declares a closed set of five service tags and nothing else; every platform implementation lives in its own package — `@smthrs/platform-node`, `@smthrs/platform-bun`, `@smthrs/platform-browser`. Four of those five tags are Effect's own: `FileSystem`, `Path`, `ChildProcessSpawner`, and `HttpClient` are contracts `effect` already declares, so `flows` supplies implementations rather than wrappers. One more — `Jj` — is a contract of `@smthrs/jj`, whose tag the kernel decorates in place rather than shadowing with a second one, so a consumer that needs only that capability does not take the whole host surface. A module that depends only on the kernel root never statically resolves a `node:` built-in, which is what makes browser bundling possible at all. `@smthrs/kernel` sits in front of that surface and decorates each service with a grant check, so a flow that asks for a file it was never granted fails in the error channel rather than reading the file.
 
 The **database and journal** split separates the storage driver from the shapes stored in it. `@smthrs/database` owns no domain tables; it wraps any Effect `SqlClient` and adds the transactional write retry that the rest of the system assumes. `@smthrs/journal`, `@smthrs/run-store`, `@smthrs/step-cache`, and `@smthrs/engine-store` each own their own tables and the migration set that creates them, composed over one migrations table. Swap the driver and every shape survives.
 

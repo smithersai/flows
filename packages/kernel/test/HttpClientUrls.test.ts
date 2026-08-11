@@ -1,18 +1,22 @@
 import type * as Capability from "@smthrs/capability/Capability"
 import { PermissionDenied } from "@smthrs/capability/Permission"
-import { Effect } from "effect"
+import { Effect, Option } from "effect"
+import * as EffectHttpClient from "effect/unstable/http/HttpClient"
 import type * as EffectHttpClientError from "effect/unstable/http/HttpClientError"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
 import { describe, expect, it } from "vitest"
 import { GrantStore } from "../src/GrantStore.ts"
 import * as HttpClient from "../src/HttpClient.ts"
-import * as HostHttpTransport from "../src/HttpTransport.ts"
 
 /**
  * A request whose URL cannot be parsed has no host, so there is no honest
  * capability resource to ask about. The kernel fails closed — but the denial it
  * reports still has to name the action the caller attempted, otherwise the
  * audit record and the operator's error message describe the wrong effect tier.
+ *
+ * Effect owns the tag, so the denial rides in `HttpClientError`; the structured
+ * failure is recovered from it with `HttpClient.fromHttpClientError`, exactly
+ * the way `Permission.fromPlatformError` recovers a filesystem denial.
  */
 
 const itEffect = <E>(name: string, effect: () => Effect.Effect<void, E>) => it(name, () => Effect.runPromise(effect()))
@@ -29,15 +33,15 @@ const store = (checks: Array<Capability.Capability>) =>
   })
 
 const provide = <A, E>(
-  effect: Effect.Effect<A, E, HttpClient.HttpClient>,
+  effect: Effect.Effect<A, E, EffectHttpClient.HttpClient>,
   calls: Array<string>,
   checks: Array<Capability.Capability>
 ) =>
   effect.pipe(
     Effect.provide(HttpClient.layer),
     Effect.provideService(
-      HostHttpTransport.HttpTransport,
-      HostHttpTransport.make((request) =>
+      EffectHttpClient.HttpClient,
+      EffectHttpClient.make((request) =>
         Effect.sync(() => {
           calls.push(request.url)
           return { status: 200, headers: {}, request } as never
@@ -49,8 +53,11 @@ const provide = <A, E>(
 
 const unparsable = "not a url"
 
+const denial = (failure: EffectHttpClientError.HttpClientError) =>
+  Option.getOrThrow(HttpClient.fromHttpClientError(failure))
+
 const expectUnavailable = (
-  failure: HttpClient.HttpClientError,
+  failure: EffectHttpClientError.HttpClientError,
   method: string,
   url: string
 ): void => {
@@ -61,8 +68,7 @@ const expectUnavailable = (
       request: { method, url }
     }
   })
-  const transportFailure = failure as EffectHttpClientError.HttpClientError
-  expect(String(transportFailure.reason.cause)).toContain("HTTP transport is unavailable on this host")
+  expect(String(failure.reason.cause)).toContain("HTTP is unavailable on this host")
 }
 
 describe("HttpClient unparsable URLs", () => {
@@ -71,10 +77,10 @@ describe("HttpClient unparsable URLs", () => {
     const checks: Array<Capability.Capability> = []
     return provide(
       Effect.gen(function*() {
-        const client = yield* HttpClient.HttpClient
+        const client = yield* EffectHttpClient.HttpClient
         const failure = yield* Effect.flip(client.execute(HttpClientRequest.get(unparsable)))
-        expect(failure).toBeInstanceOf(PermissionDenied)
-        expect(failure).toMatchObject({
+        expect(denial(failure)).toBeInstanceOf(PermissionDenied)
+        expect(denial(failure)).toMatchObject({
           capability: { action: "net:get", resource: unparsable },
           reason: "HTTP capability checks require an absolute, parseable URL"
         })
@@ -91,9 +97,9 @@ describe("HttpClient unparsable URLs", () => {
     const checks: Array<Capability.Capability> = []
     return provide(
       Effect.gen(function*() {
-        const client = yield* HttpClient.HttpClient
+        const client = yield* EffectHttpClient.HttpClient
         const failure = yield* Effect.flip(client.head(unparsable))
-        expect(failure).toMatchObject({ capability: { action: "net:get" } })
+        expect(denial(failure)).toMatchObject({ capability: { action: "net:get" } })
       }),
       calls,
       checks
@@ -105,9 +111,9 @@ describe("HttpClient unparsable URLs", () => {
     const checks: Array<Capability.Capability> = []
     return provide(
       Effect.gen(function*() {
-        const client = yield* HttpClient.HttpClient
+        const client = yield* EffectHttpClient.HttpClient
         const failure = yield* Effect.flip(client.execute(HttpClientRequest.make("DELETE")(unparsable)))
-        expect(failure).toMatchObject({ capability: { action: "net:post", resource: unparsable } })
+        expect(denial(failure)).toMatchObject({ capability: { action: "net:post", resource: unparsable } })
         expect(calls).toEqual([])
       }),
       calls,
@@ -120,11 +126,11 @@ describe("HttpClient unparsable URLs", () => {
     const checks: Array<Capability.Capability> = []
     return provide(
       Effect.gen(function*() {
-        const client = yield* HttpClient.HttpClient
+        const client = yield* EffectHttpClient.HttpClient
         const failure = yield* Effect.flip(
-          client.executeModel(HttpClientRequest.get(unparsable), "anthropic/claude")
+          client.execute(HttpClientRequest.get(unparsable)).pipe(HttpClient.withModelCall("anthropic/claude"))
         )
-        expect(failure).toMatchObject({ capability: { action: "model:call", resource: unparsable } })
+        expect(denial(failure)).toMatchObject({ capability: { action: "model:call", resource: unparsable } })
         expect(checks).toEqual([])
         expect(calls).toEqual([])
       }),
@@ -137,7 +143,7 @@ describe("HttpClient unparsable URLs", () => {
 describe("HttpClient stub layer", () => {
   itEffect("provides an unavailable client", () =>
     Effect.gen(function*() {
-      const client = yield* HttpClient.HttpClient
+      const client = yield* EffectHttpClient.HttpClient
       expectUnavailable(
         yield* Effect.flip(client.get("https://example.test")),
         "GET",
@@ -145,37 +151,17 @@ describe("HttpClient stub layer", () => {
       )
     }).pipe(Effect.provide(HttpClient.layerNoop())))
 
-  itEffect("provides overridden model execution while plain requests stay unavailable", () =>
-    Effect.gen(function*() {
-      const client = yield* HttpClient.HttpClient
-      expect(yield* client.executeModel(HttpClientRequest.get("https://example.test"), "m"))
-        .toMatchObject({ status: 299 })
-      expectUnavailable(
-        yield* Effect.flip(client.get("https://example.test")),
-        "GET",
-        "https://example.test"
-      )
-    }).pipe(
-      Effect.provide(
-        HttpClient.layerNoop({
-          executeModel: () => Effect.succeed({ status: 299 } as never)
-        })
-      )
-    ))
-
   it("builds a stub client directly", () => {
-    const stub = HttpClient.makeNoop()
-    expect(typeof stub.executeModel).toBe("function")
-    expect(HttpClient.make(stub)).toStrictEqual(stub)
+    expect(EffectHttpClient.isHttpClient(HttpClient.makeNoop())).toBe(true)
   })
 })
 
 describe("HttpClient redirects", () => {
-  itEffect("re-checks each redirected request against the kernel", () => {
+  itEffect("re-checks each request against the kernel", () => {
     const calls: Array<string> = []
     const checks: Array<Capability.Capability> = []
     return Effect.gen(function*() {
-      const client = yield* HttpClient.HttpClient
+      const client = yield* EffectHttpClient.HttpClient
       yield* client.get("https://first.test/a")
       yield* client.get("https://second.test/b")
       expect(checks.map((check) => check.resource)).toEqual(["first.test", "second.test"])

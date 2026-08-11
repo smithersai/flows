@@ -2,7 +2,7 @@
 
 The Bun Host bundle: one layer that provides all five tags in the closed host list, backed by `@effect/platform-bun`.
 
-`@effect/platform-bun` re-exports the `@effect/platform-node` filesystem and child-process spawner unchanged, so this package adds only the fetch-backed single-hop `BunHttpTransport` and composes the Bun `Jj` adapter from [@smthrs/jj](/api/jj).
+`@effect/platform-bun` re-exports the `@effect/platform-node` filesystem and child-process spawner unchanged and ships Effect's fetch-backed `HttpClient`, so this package adds no implementation of its own: it composes those with the Bun `Jj` adapter from [@smthrs/jj](/api/jj). Bun no longer depends on [@smthrs/platform-browser](/api/platform-browser) to reach `fetch`.
 
 There is no shell service, and — because Bun's spawner *is* the Node one — no runtime detection either. The bundle works unchanged under Node, which is what vitest and CI run. See [design decisions](/design-decisions) for why the old `Shell` wrapper and its hand-rolled `Bun.spawn` detection were deleted together.
 
@@ -27,18 +27,17 @@ This entry point is Node-only by construction: it falls back to the `@effect/pla
 | `@smthrs/platform-bun` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/platform-bun/src/index.ts) | Bun, Node |
 | `@smthrs/platform-bun/BunHost` | [src/BunHost.ts](https://github.com/smithersai/flows/blob/main/packages/platform-bun/src/BunHost.ts) | Bun, Node |
 | `@smthrs/platform-bun/BunFileSystem` | [src/BunFileSystem.ts](https://github.com/smithersai/flows/blob/main/packages/platform-bun/src/BunFileSystem.ts) | Bun, Node |
-| `@smthrs/platform-bun/BunHttpTransport` | [src/BunHttpTransport.ts](https://github.com/smithersai/flows/blob/main/packages/platform-bun/src/BunHttpTransport.ts) | Bun, Node |
 
 ## Exports
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `BunHost.BunHost` | type | `FileSystem \| Path \| ChildProcessSpawner \| Jj \| HttpTransport` |
+| `BunHost.BunHost` | type | `FileSystem \| Path \| ChildProcessSpawner \| Jj \| HttpClient` |
 | `BunHost.layer` | layer | the complete closed host surface |
 | `BunHost.implementationIds` | const | identity tokens keyed by `HostServiceIds`, digested into step keys — not import specifiers |
 | `BunHost.BunChildProcessSpawner` | re-export | `@effect/platform-bun`'s spawner, which is `@effect/platform-node-shared`'s |
+| `BunHost.BunHttpClient` | re-export | `@effect/platform-bun`'s fetch-backed `HttpClient`, provided with `RequestInit { redirect: "manual" }` so the kernel sees every hop |
 | `BunFileSystem.layer` | layer | Effect's Node filesystem, typed as Bun's |
-| `BunHttpTransport.layer` | layer | the browser fetch transport, which Bun's global `fetch` satisfies |
 
 ## Conformance
 

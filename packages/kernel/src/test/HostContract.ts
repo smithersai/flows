@@ -10,6 +10,7 @@
 import * as JjService from "@smthrs/jj"
 import type { Jj, JjErrorCode } from "@smthrs/jj"
 import { Effect, Fiber, FileSystem, type Layer, Path, Stream } from "effect"
+import { HttpClient } from "effect/unstable/http/HttpClient"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
 import type * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
@@ -17,8 +18,6 @@ import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
-import type { HttpTransport } from "../HttpTransport.ts"
-import * as HttpTransportService from "../HttpTransport.ts"
 
 /**
  * A capability that must fail with a stable typed code.
@@ -108,7 +107,7 @@ export interface JjSuccess {
  * @category models
  * @since 0.1.0
  */
-export interface HttpTransportSuccess {
+export interface HttpClientSuccess {
   readonly expected: "success"
   readonly request: HttpClientRequest.HttpClientRequest
   readonly assertResponse: (response: HttpClientResponse.HttpClientResponse) => void
@@ -126,7 +125,7 @@ export interface HostContractCapabilities {
   readonly path: PathSuccess | FailureCapability<string>
   readonly childProcess: ChildProcessSuccess | FailureCapability<string>
   readonly jj: JjSuccess | FailureCapability<JjErrorCode>
-  readonly httpTransport: HttpTransportSuccess | FailureCapability<string>
+  readonly httpClient: HttpClientSuccess | FailureCapability<string>
 }
 
 /**
@@ -136,7 +135,7 @@ export interface HostContractCapabilities {
  * @since 0.1.0
  */
 export type HostContractLayer = Layer.Layer<
-  FileSystem.FileSystem | Path.Path | ChildProcessSpawner | Jj | HttpTransport,
+  FileSystem.FileSystem | Path.Path | ChildProcessSpawner | Jj | HttpClient,
   unknown
 >
 
@@ -241,7 +240,7 @@ const defaultStdinCommand = ChildProcess.make(
  *
  * Every invocation creates ten cases: complete service presence,
  * FileSystem, Path, five child-process lifecycle cases, Jj, and
- * HttpTransport.
+ * HttpClient.
  *
  * @category testing
  * @since 0.1.0
@@ -255,7 +254,7 @@ export const runHostContract = (
   const pathCap = caps.path
   const childProcessCap = caps.childProcess
   const jjCap = caps.jj
-  const httpTransportCap = caps.httpTransport
+  const httpClientCap = caps.httpClient
   const scratchPath = fileSystemCap.expected === "success"
     ? fileSystemCap.scratchPath ?? defaultScratchPath(name)
     : ""
@@ -268,7 +267,7 @@ export const runHostContract = (
           yield* Path.Path
           yield* ChildProcessSpawner
           yield* JjService.Jj
-          yield* HttpTransportService.HttpTransport
+          yield* HttpClient
         }),
         layer
       ))
@@ -411,20 +410,20 @@ export const runHostContract = (
         layer
       ))
 
-    it("declares HttpTransport behavior", () =>
+    it("declares HttpClient behavior", () =>
       run(
-        httpTransportCap.expected === "failure"
+        httpClientCap.expected === "failure"
           ? Effect.gen(function*() {
-            const transport = yield* HttpTransportService.HttpTransport
+            const client = yield* HttpClient
             yield* assertFailure(
-              transport.execute(HttpClientRequest.get("http://127.0.0.1:1/host-contract")),
-              httpTransportCap.code
+              client.execute(HttpClientRequest.get("http://127.0.0.1:1/host-contract")),
+              httpClientCap.code
             )
           })
           : Effect.gen(function*() {
-            const transport = yield* HttpTransportService.HttpTransport
-            httpTransportCap.assertResponse(
-              yield* transport.execute(httpTransportCap.request)
+            const client = yield* HttpClient
+            httpClientCap.assertResponse(
+              yield* client.execute(httpClientCap.request)
             )
           }),
         layer

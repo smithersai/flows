@@ -9,19 +9,27 @@
  * `@effect/platform-node-shared`'s re-exported — the same code on both
  * runtimes, so no runtime detection is needed here.
  *
+ * There is no Bun HTTP module either: outgoing requests are Effect's
+ * `HttpClient`, and `@effect/platform-bun/BunHttpClient` is Effect's own
+ * fetch-backed implementation. Bun reaches for it directly rather than
+ * borrowing a browser package to get at `fetch`. The one thing configured here
+ * is `redirect: "manual"`, so the runtime never walks to a second origin
+ * behind the capability kernel's back; following a redirect is
+ * `@smthrs/kernel`'s guarded `HttpClient.layer`, which rechecks every hop.
+ *
  * @since 0.1.0
  */
 import * as BunChildProcessSpawner from "@effect/platform-bun/BunChildProcessSpawner"
+import * as BunHttpClient from "@effect/platform-bun/BunHttpClient"
 import type { Jj } from "@smthrs/jj"
 import * as BunJj from "@smthrs/jj/bun/BunJj"
 import { HostServiceIds } from "@smthrs/kernel/HostServices"
-import type { HttpTransport } from "@smthrs/kernel/HttpTransport"
 import type { FileSystem } from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Path from "effect/Path"
+import type { HttpClient } from "effect/unstable/http/HttpClient"
 import type { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
 import * as BunFileSystem from "./BunFileSystem.ts"
-import * as BunHttpTransport from "./BunHttpTransport.ts"
 
 /**
  * Bun platform modules for selectively providing individual services.
@@ -32,7 +40,7 @@ import * as BunHttpTransport from "./BunHttpTransport.ts"
  * @category re-exports
  * @since 0.1.0
  */
-export { BunChildProcessSpawner, BunFileSystem, BunHttpTransport }
+export { BunChildProcessSpawner, BunFileSystem, BunHttpClient }
 
 /**
  * The complete closed Host service union provided by Bun.
@@ -40,7 +48,7 @@ export { BunChildProcessSpawner, BunFileSystem, BunHttpTransport }
  * @category models
  * @since 0.1.0
  */
-export type BunHost = FileSystem | Path.Path | ChildProcessSpawner | Jj | HttpTransport
+export type BunHost = FileSystem | Path.Path | ChildProcessSpawner | Jj | HttpClient
 
 /**
  * Stable implementation identities keyed by the closed Host service slots.
@@ -60,11 +68,17 @@ export const implementationIds: Readonly<Record<(typeof HostServiceIds)[number],
   [HostServiceIds[1]]: "effect/Path",
   [HostServiceIds[2]]: "@effect/platform-bun/BunChildProcessSpawner",
   [HostServiceIds[3]]: "@smthrs/jj/bun/BunJj",
-  [HostServiceIds[4]]: "@smthrs/platform-bun/BunHttpTransport"
+  [HostServiceIds[4]]: "@effect/platform-bun/BunHttpClient"
 }
 
 /** The two services `BunChildProcessSpawner` resolves paths and files with. */
 const platform = Layer.mergeAll(BunFileSystem.layer, Path.layer)
+
+/** Effect's fetch client, told never to follow a redirect on its own. */
+const layerHttpClient: Layer.Layer<HttpClient> = Layer.provide(
+  BunHttpClient.layer,
+  Layer.succeed(BunHttpClient.RequestInit)({ redirect: "manual" })
+)
 
 /**
  * Provides all five Bun Host services, including the runtime-independent Path
@@ -77,5 +91,5 @@ export const layer: Layer.Layer<BunHost> = Layer.mergeAll(
   platform,
   Layer.provide(BunChildProcessSpawner.layer, platform),
   BunJj.layer,
-  BunHttpTransport.layer
+  layerHttpClient
 )

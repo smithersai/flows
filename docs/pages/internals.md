@@ -99,7 +99,7 @@ Control flow is re-evaluated rather than restored from a stack snapshot, so code
 
 Durability attaches at boundaries: `Activity`, `DurableDeferred`, durable clocks, durable queues, child flow execution, and explicit journal or time-travel effect boundaries. Nothing between them is journaled.
 
-Two APIs use the word replay differently. `EngineStore` replay re-runs a registered handler. `TimeTravel.Replay.rederive` is read-only and folds committed entries into a projection, never invoking a handler or dispatcher.
+Two APIs use the word replay differently. `EngineStore` replay re-runs a registered handler. `TimeTravel.inspect` is read-only and folds committed entries into a projection, never invoking a handler or dispatcher.
 
 There is no flow-source digest. What decides reuse after a code edit is activity identity: a changed cache key input produces a new result, an unchanged one reuses the old, changed control flow around ordinal activities can remap ordinals, and changed schemas can make stored payloads or results fail to decode as a defect.
 

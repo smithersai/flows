@@ -6,9 +6,10 @@ authority, typed permission/grant decisions, journal-backed grants, and
 permission-aware replacements for every protected Host service.
 
 The implementations behind those ports live in `@smthrs/platform-node`,
-`@smthrs/platform-bun`, and `@smthrs/platform-browser`. Half the ports are
-Effect's own tags — `FileSystem`, `Path`, and `ChildProcessSpawner` — so
-`flows` supplies implementations of them rather than wrappers around them.
+`@smthrs/platform-bun`, and `@smthrs/platform-browser`. Four of the five ports
+are Effect's own tags — `FileSystem`, `Path`, `ChildProcessSpawner`, and
+`HttpClient` — so `flows` supplies implementations of them rather than wrappers
+around them.
 
 ```sh
 npm install @smthrs/kernel
@@ -32,7 +33,7 @@ their deep imports are `@smthrs/capability/Capability` and
 | `JournalGrantStore`   | `JournalGrantStoreOptions`; `make` and `layer` replay and persist grants through `Journal`.                                                                                                                                                                                                                                                                                                                          |
 | `HostServices`        | The one closed list: `HostService`, `HostServiceTags`, `HostServiceIds`, `HostBuiltinNames`, and aggregate decorator `layer`. Each slot is decorated in place, so there is no second tag list.                                                                                                                                                                                                                       |
 | `FileSystem`          | `canonicalResource` (symlink-escape prevention) and decorator `layer` over Effect's own `FileSystem` tag. No kernel interface, tag, or stub: `effect/FileSystem`'s `make`, `makeNoop`, and `layerNoop` are the ones to use.                                                                                                                                                                                          |
-| `HttpClient`          | `HttpClientError`, permission-aware `HttpClient` interface/tag with `executeModel`; `make`, `makeNoop`, `layerNoop`, and decorator `layer`.                                                                                                                                                                                                                                                                          |
+| `HttpClient`          | Decorator `layer` over Effect's own `HttpClient` tag; the tag and `make` are re-exported unchanged, plus the `ModelCall` reference and `withModelCall`, the `toHttpClientError` / `fromHttpClientError` projection, and a `makeNoop` / `layerNoop` stub that reports the missing host as a `TransportError`.                                                                                                         |
 | `ChildProcessSpawner` | Decorator `layer` over Effect's own `ChildProcessSpawner` tag; the tag and `make` are re-exported unchanged, plus a `makeNoop` / `layerNoop` stub that reports the missing host as a `NotFound` `PlatformError`.                                                                                                                                                                                                     |
 | `CommandLine`         | `render`, `quote`, `cwd`, and `env` — one renderer shared by the `proc:spawn` capability resource and by the interpreters that execute the line.                                                                                                                                                                                                                                                                     |
 | `Jj`                  | Decorator `layer` over `@smthrs/jj`'s own `Jj` tag; the tag, `make`, `makeNoop`, and `layerNoop` are re-exported unchanged.                                                                                                                                                                                                                                                                                          |
@@ -59,9 +60,18 @@ a raw platform bundle, the guarded FileSystem, Path, ChildProcessSpawner, Jj,
 and HttpClient implementations shadow the raw ones under the same tags. Where
 Effect owns the tag (`FileSystem`, `ChildProcessSpawner`) a refused operation
 surfaces as a `PlatformError` with reason `PermissionDenied` and the structured
-kernel failure on `cause` (`Permission.fromPlatformError` reads it back); `Jj`
-and `HttpClient` keep `Permission.PermissionError` in their own channels. HTTP
-consumers must use the kernel `HttpClient`, not the raw Host transport.
+kernel failure on `cause` (`Permission.fromPlatformError` reads it back);
+`HttpClient` does the same one module out, projecting a denial into an
+`HttpClientError` whose reason is a `TransportError` carrying the kernel
+failure (`HttpClient.fromHttpClientError` reads it back). `Jj` keeps
+`Permission.PermissionError` in its own channel.
+
+Network access is Effect's `HttpClient` — there is no `flows` transport port.
+Consumers require `HttpClient.HttpClient` from `effect/unstable/http`, and the
+kernel decorator shadows it. A redirect is a second destination, so the
+decorator composes Effect's `followRedirects` _above_ the grant check: every
+hop is rechecked, and platform bundles hand over a client that never follows a
+redirect on its own.
 
 See the [kernel reference](../../docs/reference/kernel.md),
 [host and capability concepts](../../docs/concepts/hosts-and-capabilities.md), and

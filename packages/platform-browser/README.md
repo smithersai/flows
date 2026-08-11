@@ -14,15 +14,22 @@ _can_ have both, given a virtual filesystem and an in-page bash interpreter.
 This package is that adapter pair, written the way `platform-node` writes its
 own.
 
+Network access is not one of them: `BrowserHost.layer` provides Effect's own
+`FetchHttpClient.layer` directly, configured with
+`RequestInit { redirect: "manual" }` so the runtime never follows a redirect
+behind `@smthrs/kernel`'s grant check. There is no `flows` wrapper around
+`fetch`.
+
 ## Public API
 
-| Export                                    | Meaning                                                                         |
-| ----------------------------------------- | ------------------------------------------------------------------------------- |
-| `BrowserFileSystem.make`, `.layer`        | `FileSystem` over a ZenFS-shaped promises API.                                  |
-| `BrowserFileSystem.ZenFsPromisesLike`     | The structural slice of that API — no `@zenfs/core` dependency.                 |
-| `BrowserChildProcessSpawner.layer`        | `ChildProcessSpawner` over a just-bash interpreter.                             |
-| `BrowserChildProcessSpawner.JustBashLike` | The structural slice of that interpreter — no `just-bash` dependency.           |
-| `BrowserServices.layer`                   | The aggregate: spawner, filesystem, and `Path`, mirroring `NodeServices.layer`. |
+| Export                                    | Meaning                                                                                      |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `BrowserFileSystem.make`, `.layer`        | `FileSystem` over a ZenFS-shaped promises API.                                               |
+| `BrowserFileSystem.ZenFsPromisesLike`     | The structural slice of that API — no `@zenfs/core` dependency.                              |
+| `BrowserChildProcessSpawner.layer`        | `ChildProcessSpawner` over a just-bash interpreter.                                          |
+| `BrowserChildProcessSpawner.JustBashLike` | The structural slice of that interpreter — no `just-bash` dependency.                        |
+| `BrowserServices.layer`                   | The aggregate: spawner, filesystem, and `Path`, mirroring `NodeServices.layer`.              |
+| `BrowserHost.layer`                       | The complete closed Host bundle: the above plus `Jj` and Effect's fetch-backed `HttpClient`. |
 
 Both backends are **arguments, not imports**. The page owns which ZenFS backend
 is mounted (IndexedDB, OPFS, memory) and which just-bash instance is wired to

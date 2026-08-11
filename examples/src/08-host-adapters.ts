@@ -2,10 +2,11 @@
  * Run the same host program against two adapters.
  *
  * The host surface is a closed set of service tags: `FileSystem`, `Path`,
- * `ChildProcessSpawner`, `Jj`, and a one-hop `HttpTransport`. A program
- * written against the tags runs on any bundle that provides them. Note that
- * `ChildProcessSpawner` is Effect's own tag from `effect/unstable/process` —
- * `flows` provides implementations of it rather than a wrapper around it.
+ * `ChildProcessSpawner`, `Jj`, and `HttpClient`. A program written against the
+ * tags runs on any bundle that provides them. Note that `ChildProcessSpawner`
+ * and `HttpClient` are Effect's own tags from `effect/unstable/process` and
+ * `effect/unstable/http` — `flows` provides implementations of them rather
+ * than a wrapper around them.
  *
  * This example runs one program twice:
  *

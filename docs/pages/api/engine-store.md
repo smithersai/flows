@@ -27,12 +27,14 @@ This entry point bundles for the browser. The two host reads it once made direct
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `Options` | interface | `owner.hostId`, `journalSource`, `isAlive` |
+| `Options` | interface | `owner.hostId`, `journalSource`, `isAlive`, optional `clockFireRetryPolicy` |
 | `make` | constructor | builds the engine from the required services |
 | `layer` | layer | the same as a `Layer` |
 | `EngineCompositionError` | class | `code: "engine_not_composed"` |
 
-Required services: `Journal`, `RunStore`, `AttemptStore`, `CacheStore`, `DurableEngineState`, kernel `Jj`, `StepBoundary`, and a `Scope`.
+Required services: `Journal`, `RunStore`, `AttemptStore`, `CacheStore`, `DurableEngineState`, kernel `Jj`, `StepBoundary`, [`OwnerIdentity`](#owneridentity), and a `Scope`.
+
+`clockFireRetryPolicy` is optional and defaults to exponential from 100ms capped at 30s, forever — the same option shape as the engine's `suspendedRetryPolicy`.
 
 `isAlive` is application-supplied. Elapsed wall time alone never proves an owner is dead, so takeover consults this probe.
 
