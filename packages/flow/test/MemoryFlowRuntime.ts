@@ -31,6 +31,7 @@ export const makeInstance = (
   const ordinals = new Map<string, number>()
   return FlowRuntime.FlowInstance.of({
     executionId,
+    lineageId: `${executionId}/root`,
     flow,
     scope: Scope.makeUnsafe(),
     suspended: false,

@@ -9,6 +9,7 @@ import type { Flow } from "@smthrs/flow"
 import { FlowRuntime } from "@smthrs/flow"
 import * as Latch from "effect/Latch"
 import * as Scope from "effect/Scope"
+import * as Lineage from "./Lineage.ts"
 
 /**
  * Creates the initial `FlowInstance` state for one flow execution.
@@ -32,6 +33,9 @@ export const makeInstance = (
   const ordinals = new Map<string, number>()
   return FlowRuntime.FlowInstance.of({
     executionId,
+    // The run's own root lineage: a subflow is a separate run with a separate
+    // journal, so nesting is a lineage EDGE rather than a longer id here.
+    lineageId: Lineage.root(executionId),
     flow,
     scope: Scope.makeUnsafe(),
     suspended: false,

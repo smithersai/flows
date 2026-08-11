@@ -9,5 +9,10 @@
 export * from "./Encoded.ts"
 export * from "./FlowInstance.ts"
 export * from "./layerMemory.ts"
+/**
+ * @category models
+ * @since 0.1.0
+ */
+export * as Lineage from "./Lineage.ts"
 export * from "./make.ts"
 export * from "./SnapshotBoundary.ts"
