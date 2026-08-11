@@ -1,5 +1,5 @@
 /**
- * Rewind a run to an earlier frame, and re-derive a view without executing.
+ * Rewind an ordinary engine run to an earlier frame, and re-derive a view.
  *
  * Both operations hang off one injectable service:
  *
@@ -13,107 +13,113 @@
  * registry are wired inside the service — none of them appear here.
  *
  * A position is a run id plus a frame `{ lineageId, seq }`, and `inspect` folds
- * only entries whose `meta.lineageId` matches, so every entry below carries one.
+ * only entries whose `meta.lineageId` matches. **Nothing below writes that
+ * metadata.** The engine mints the lineage id from the run and stamps it on
+ * every record it writes, so an ordinary run driven by the production
+ * composition is inspectable as it stands — this example used to hand-author a
+ * journal with `meta: { lineageId }` on every entry precisely because it was
+ * not.
+ *
+ * The run is left SUSPENDED on purpose: rewind is a writer, so it takes the
+ * ownership claim like any driver and refuses a live run. Phase one below parks
+ * the run at a `DurableDeferred.await`, which is what makes it rewindable.
  */
-import * as SqlClient from "effect/unstable/sql/SqlClient"
-import { DurableWriter } from "@smthrs/database"
-import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
-import * as Jj from "@smthrs/jj"
-import * as Migrations from "@smthrs/engine-store/Migrations"
-import { CacheStore } from "@smthrs/step-cache"
-import { Journal, JournalEvent, SqlJournal } from "@smthrs/journal"
-import { RunStore } from "@smthrs/run-store"
+import { Activity, DurableDeferred, Flow } from "@smthrs/flow"
+import { Journal, JournalEvent } from "@smthrs/journal"
 import { SqlTimeTravelStore, TimeTravel } from "@smthrs/time-travel"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as Schema from "effect/Schema"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
+import { durableEngine } from "./durable-layer.ts"
 
+export const Ledger = Flow.make("examples/Ledger", {
+  payload: {},
+  success: Schema.String
+})
+
+export const Settlement = DurableDeferred.make("examples/settlement", {
+  success: Schema.String
+})
+
+/** The run's root lineage, exactly as `FlowEngine.Lineage` mints it. */
 const lineageId = "ledger-1/root"
 
-const hostJj = Layer.succeed(
-  Jj.Jj,
-  Jj.make({
-    snapshot: () => Effect.succeed({ changeId: "examples-rewind" as never }),
-    restore: () => Effect.void,
-    diff: () => Effect.succeed(""),
-    workspaceAdd: () => Effect.void,
-    workspaceForget: () => Effect.void,
-    status: () => Effect.succeed("")
-  })
-)
-
 /**
- * `TimeTravel.layer` needs the store plus the journal, run, cache, and jj
- * services — the injectable contracts and nothing else. There is no handler
- * registry to provide and no recovery pass to schedule: building the layer
- * resolves any rewind a crash left half-finished.
+ * `TimeTravel.layer` asks only for injectable contracts — the store plus the
+ * journal, run, cache, and jj services the engine already provides — so it
+ * merges straight onto the engine composition. Building it also resolves any
+ * rewind a crash left half-finished, which is why recovery never appears as a
+ * call below.
  */
 const layer = (filename: string) =>
-  Layer.provideMerge(
-    TimeTravel.layer,
-    Layer.mergeAll(
-      Layer.provideMerge(
-        Layer.mergeAll(
-          SqlJournal.layer({ capacity: 1024, overflow: "reject" }),
-          CacheStore.layer,
-          RunStore.layer,
-          SqlTimeTravelStore.layer
-        ),
-        Layer.provideMerge(
-          Migrations.layer,
-          Layer.provideMerge(DurableWriter.layer(), NodeDatabase.layer({ filename }))
-        )
-      ),
-      hostJj
-    )
+  Ledger.toLayer(handler).pipe(
+    Layer.provideMerge(TimeTravel.layer),
+    Layer.provideMerge(SqlTimeTravelStore.layer),
+    Layer.provideMerge(durableEngine(filename, "ledger"))
   )
 
 export interface Summary {
-  readonly derivedTotal: number
+  readonly derivedAttempts: number
+  readonly totalEntries: number
   readonly archivedCount: number
   readonly remainingSeqs: ReadonlyArray<number>
   readonly auditStatus: string
 }
 
-const entry = (sourceSeq: number, amount: number) =>
-  new JournalEvent.Input({
-    runId: "ledger-1" as JournalEvent.RunId,
-    sourceId: "examples" as JournalEvent.SourceId,
-    sourceSeq: sourceSeq as JournalEvent.SourceSeq,
-    eventType: "examples.ledger.credited",
-    payload: { amount },
-    meta: { lineageId }
+const Credit = Activity.make({
+  name: "examples/Credit",
+  success: Schema.Number,
+  tier: "sealed",
+  idempotencyKey: "examples/credit/v1",
+  execute: Effect.succeed(30)
+})
+
+const handler = () =>
+  Effect.gen(function*() {
+    const amount = yield* Credit
+    const settlement = yield* DurableDeferred.await(Settlement)
+    return `${amount}:${settlement}`
   })
 
 export const main = (filename: string): Effect.Effect<Summary> =>
   Effect.gen(function*() {
+    // Drive the run until it parks at the deferred. It releases ownership on
+    // the way out, which is the state a rewind requires.
+    yield* Ledger.execute({}, { executionId: "ledger-1", discard: true })
+
     const journal = yield* Journal.Journal
-    const runs = yield* RunStore.RunStore
-    const timeTravel = yield* TimeTravel
+    yield* journal.flush
+    const before = yield* journal.entries({ runId: "ledger-1" as JournalEvent.RunId, limit: 200 })
+    // Rewind to the middle of what the run recorded.
+    const seq = before.entries[Math.floor(before.entries.length / 2)]!.seq
+    const position = { runId: "ledger-1", frame: { lineageId, seq } }
 
-    yield* runs.create("ledger-1", JSON.stringify({ version: 1 }))
-    const receipts = yield* Effect.forEach([10, 20, 30, 40], (amount, index) => journal.emitDurable(entry(index, amount)))
-    const position = { runId: "ledger-1", frame: { lineageId, seq: receipts[1]!.seq } }
-
-    // Read-only: sum the credits recorded up to the frame.
-    const derivedTotal = yield* timeTravel.inspect(position, {
-      initial: 0,
-      reduce: (state: number, committed) => {
-        const payload = committed.payload as { readonly amount?: number } | null
-        return state + (payload?.amount ?? 0)
-      }
-    })
+    // Read-only: count the activity attempts the frame covers, folding the
+    // engine's own records.
+    const derivedAttempts = yield* TimeTravel.pipe(
+      Effect.flatMap((timeTravel) =>
+        timeTravel.inspect(position, {
+          initial: 0,
+          reduce: (state: number, committed) =>
+            committed.eventType === "flows.engine.attempt-started" ? state + 1 : state
+        })
+      )
+    )
 
     // Mutating: drop everything after the frame.
+    const timeTravel = yield* TimeTravel
     const result = yield* timeTravel.rewind(position)
 
-    const remaining = yield* journal.entries({ runId: "ledger-1" as JournalEvent.RunId, limit: 100 })
+    const remaining = yield* journal.entries({ runId: "ledger-1" as JournalEvent.RunId, limit: 200 })
     const sql = yield* Effect.service(SqlClient.SqlClient)
     const audits = yield* sql<{ readonly status: string }>`
       SELECT status FROM flows_time_travel_audits WHERE id = ${result.auditId}
     `
 
     return {
-      derivedTotal,
+      derivedAttempts,
+      totalEntries: before.entries.length,
       archivedCount: result.archive.archived,
       remainingSeqs: remaining.entries.map((committed) => committed.seq),
       auditStatus: audits[0]?.status ?? "missing"
