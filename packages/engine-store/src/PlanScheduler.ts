@@ -181,7 +181,8 @@ export interface Options {
   /**
    * The admission caps. Both default to unbounded, because a cap the caller
    * did not declare is not the scheduler's to invent — `aspects.ts` owns the
-   * policy and narrows it.
+   * policy and narrows it. Both floor at one: a cap of zero admits nothing,
+   * and a round that admits nothing never settles anything.
    */
   readonly concurrency?: {
     readonly steps?: number | undefined
@@ -299,8 +300,12 @@ const storeFailure = (message: string) => (cause: unknown) =>
  */
 export const make = (options: Options): Service => {
   const rebaseLimit = options.rebaseLimit ?? 3
-  const stepCap = options.concurrency?.steps ?? Number.MAX_SAFE_INTEGER
-  const agentCap = options.concurrency?.agents ?? Number.MAX_SAFE_INTEGER
+  // A cap below one is not admission control, it is a stop: a round that
+  // admits nothing settles nothing, so the wavefront would spin forever
+  // ageing work it can never dispatch. Both caps therefore floor at one — the
+  // scheduler narrows latency, never liveness.
+  const stepCap = Math.max(1, options.concurrency?.steps ?? Number.MAX_SAFE_INTEGER)
+  const agentCap = Math.max(1, options.concurrency?.agents ?? Number.MAX_SAFE_INTEGER)
 
   const source = (suffix: string) => ({ runId: options.runId, sourceId: `${options.sourceId}/${suffix}` })
 
@@ -630,41 +635,63 @@ export const make = (options: Options): Service => {
        * on purpose: a deviation is a durable, replayable fact, and consuming
        * the fact keeps this seam usable by anything else that reads the
        * journal.
+       *
+       * Two properties the drain owes the reconciler, both of them about not
+       * letting arrival order decide a verdict:
+       *
+       * 1. **Attribute the whole page before judging any of it.** Deviating on
+       *    the same paths is a *symmetric* fact — two steps that both ran
+       *    `npm install` — so registering each signature as the entry was
+       *    judged answered the same situation two different ways: the first
+       *    node saw no peer and was failed, and only the second was factored
+       *    out. Every deviation on the page is attributed first, so both sides
+       *    of a pair see each other.
+       * 2. **Drain the journal, not one page of it.** A wide round journals
+       *    more records than one page holds, and the last round is the one that
+       *    matters: nothing follows it to pick up what a single page left
+       *    behind, so a deviation past the cursor would never reach the seam.
        */
       const drainDeviations = Effect.gen(function*() {
-        const page = yield* journal.entries({
-          runId: options.runId as JournalEvent.RunId,
-          ...(cursor === undefined ? {} : { after: cursor as JournalEvent.Seq }),
-          limit: 512
-        }).pipe(Effect.mapError(storeFailure("could not read the run's journal")))
-        for (const entry of page.entries) {
-          cursor = entry.seq
-          if (entry.eventType !== "flows.engine.expected-set-deviation") continue
-          const payload = decodeDeviation(entry.payload)
-          if (Option.isNone(payload)) continue
-          const nodeId = digestToNode.get(payload.value.stepKeyDigest)
-          if (nodeId === undefined) continue
-          const signature = [...payload.value.paths].sort().join(" ")
-          const alsoDeviatedBy = [...deviationSignatures.entries()]
-            .filter(([other, otherSignature]) => other !== nodeId && otherSignature === signature)
-            .map(([other]) => other)
-          deviationSignatures.set(nodeId, signature)
-          const declaredBy = Object.fromEntries(
-            payload.value.paths.flatMap((path) => {
-              const owner = writers.get(path)
-              return owner === undefined ? [] : [[path, owner] as const]
+        while (true) {
+          const page = yield* journal.entries({
+            runId: options.runId as JournalEvent.RunId,
+            ...(cursor === undefined ? {} : { after: cursor as JournalEvent.Seq }),
+            limit: 512
+          }).pipe(Effect.mapError(storeFailure("could not read the run's journal")))
+          const attributed: Array<{ nodeId: string; signature: string; payload: typeof DeviationPayload.Type }> = []
+          for (const entry of page.entries) {
+            cursor = entry.seq
+            if (entry.eventType !== "flows.engine.expected-set-deviation") continue
+            const payload = decodeDeviation(entry.payload)
+            if (Option.isNone(payload)) continue
+            const nodeId = digestToNode.get(payload.value.stepKeyDigest)
+            if (nodeId === undefined) continue
+            const signature = [...payload.value.paths].sort().join(" ")
+            deviationSignatures.set(nodeId, signature)
+            attributed.push({ nodeId, signature, payload: payload.value })
+          }
+          for (const { nodeId, payload, signature } of attributed) {
+            const alsoDeviatedBy = [...deviationSignatures.entries()]
+              .filter(([other, otherSignature]) => other !== nodeId && otherSignature === signature)
+              .map(([other]) => other)
+            const declaredBy = Object.fromEntries(
+              payload.paths.flatMap((path) => {
+                const owner = writers.get(path)
+                return owner === undefined ? [] : [[path, owner] as const]
+              })
+            )
+            const verdict = yield* reconciler.onDeviation({
+              nodeId,
+              keyDigest: payload.stepKeyDigest,
+              attempt: payload.attempt,
+              paths: payload.paths,
+              diffIdentity: payload.diffIdentity,
+              declaredBy,
+              alsoDeviatedBy
             })
-          )
-          const verdict = yield* reconciler.onDeviation({
-            nodeId,
-            keyDigest: payload.value.stepKeyDigest,
-            attempt: payload.value.attempt,
-            paths: payload.value.paths,
-            diffIdentity: payload.value.diffIdentity,
-            declaredBy,
-            alsoDeviatedBy
-          })
-          yield* applyVerdict(nodeId, verdict, "deviation")
+            yield* applyVerdict(nodeId, verdict, "deviation")
+          }
+          if (!page.hasMore) break
         }
       })
 

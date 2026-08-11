@@ -7,13 +7,14 @@
  */
 import { Journal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
-import { KeyMaterial, Plan } from "@smthrs/plan"
+import { KeyMaterial, Plan, PlanStore } from "@smthrs/plan"
 import { type Ownership, RunStore } from "@smthrs/run-store"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Latch from "effect/Latch"
 import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
 import * as Ref from "effect/Ref"
 import { describe, expect, it } from "vitest"
 import * as JournalRecords from "../src/internal/JournalRecords.ts"
@@ -373,18 +374,24 @@ describe("PlanScheduler conflict strategies", () => {
           ? Effect.succeed({ merged: node.material.body })
           : Effect.succeed(node.id)
     }
-    const report = await runPromise(
+    const { persisted, report } = await runPromise(
       Effect.gen(function*() {
         yield* activate("run-merge")
-        return yield* Effect.provide(
-          scheduler({ runId: "run-merge", executor }).run(plan),
-          harness({ runId: "run-merge", executor })
-        )
+        const service = scheduler({ runId: "run-merge", executor })
+        // The merge node is an elaboration of the SAME plan, so the plan has
+        // to be on disk for one to be appended to it.
+        yield* service.record(plan)
+        const report = yield* Effect.provide(service.run(plan), harness({ runId: "run-merge", executor }))
+        const store = yield* PlanStore.PlanStore
+        return { persisted: yield* store.get("plan-1"), report }
       }).pipe(Effect.provide(TestStores.layer()))
     )
     expect(report.appended).toEqual(["lane-b+merge"])
     expect(outcomes(report)).toEqual({ "lane-a": "built", "lane-b": "skipped", "lane-b+merge": "built" })
     expect(report.results["lane-b+merge"]).toEqual({ merged: { merge: { stopped: "lane-b", winners: ["lane-a"] } } })
+    // And it landed in the persisted plan as generation 1, not only in memory.
+    expect(Option.getOrThrow(persisted).nodes.map((node) => node.id)).toEqual(["lane-a", "lane-b", "lane-b+merge"])
+    expect(Option.getOrThrow(persisted).generation).toBe(1)
   })
 })
 
@@ -489,7 +496,48 @@ describe("PlanScheduler reconciliation", () => {
         )
       }).pipe(Effect.provide(TestStores.layer()))
     )
-    expect(report.verdicts.map((entry) => entry.verdict._tag)).toEqual(["Fail", "FactorOut"])
+    // BOTH sides, not just whichever the journal happened to list second.
+    // Two steps that produced the same undeclared paths are one symmetric
+    // fact, and neither of them is the anomaly the `Fail` default is for.
+    expect(report.verdicts.map((entry) => entry.verdict._tag)).toEqual(["FactorOut", "FactorOut"])
+    expect(report.verdicts.map((entry) => entry.nodeId).sort()).toEqual(["install-a", "install-b"])
+    expect(outcomes(report)).toEqual({ "install-a": "built", "install-b": "built" })
+  })
+
+  it("drains deviations past the first page of the journal", async () => {
+    // The reconciliation seam reads the journal a page at a time. A wide round
+    // journals more records than one page holds, and the last round has no
+    // successor to pick up the remainder — so a deviation beyond the cursor
+    // would never reach the seam at all. Filler records push the only real
+    // deviation off the first page.
+    const plan = await runPromise(compile([draft("late", { boundaryMode: "expected" })]))
+    const executor: PlanScheduler.Executor = { execute: ({ node }) => Effect.succeed(node.id) }
+    const report = await runPromise(
+      Effect.gen(function*() {
+        yield* activate("run-paged")
+        const journal = yield* Journal.Journal
+        yield* Effect.forEach(
+          Array.from({ length: 600 }, (_, index) => index),
+          (index) =>
+            journal.emitDurable(
+              JournalRecords.runDecision({ runId: "run-paged", sourceId: `filler/${index}` }, { index }),
+              owner
+            ),
+          { discard: true }
+        )
+        return yield* Effect.provide(
+          scheduler({ runId: "run-paged", executor }).run(plan),
+          harness({
+            runId: "run-paged",
+            executor,
+            boundary: deviating(["node_modules/late"]),
+            reconciliation: Reconciliation.layerDefault
+          })
+        )
+      }).pipe(Effect.provide(TestStores.layer()))
+    )
+    expect(report.verdicts.map((entry) => entry.nodeId)).toEqual(["late"])
+    expect(report.verdicts[0]?.verdict._tag).toBe("Fail")
   })
 })
 
