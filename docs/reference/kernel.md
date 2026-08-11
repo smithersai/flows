@@ -8,7 +8,7 @@ This page is the public API reference for capability matching, permission decisi
 | --- | --- |
 | `Capability` | `Capability`, `CapabilityPattern`, `make`, `parse`, `format`, `formatPattern`, `matches`, `subsumes`, `tierOf`, `requiresIdempotencyKey` |
 | `CapabilitySet` | `CapabilitySet` value; `fromPatterns`, `none`, `allows`, `intersect`, `equals`, `current`, and `attenuate` |
-| `Permission` | `Rule`, `evaluate`, `PermissionRequired`, `PermissionDenied`, `GrantStoreError`, constructor helpers |
+| `Permission` | `Rule`, `evaluate`, `PermissionRequired`, `PermissionDenied`, `GrantStoreError`, `PermissionError`, `toPlatformError`, `fromPlatformError`, `isPermissionError`, `formatError`, constructor helpers |
 | `GrantEvent` | Schema-backed request, resolution, revocation, and envelope grant events |
 | `GrantStore` | `GrantStore` service; `make`, `layer`, `makeNoop`, `layerNoop`; pending request and resolution types |
 | `JournalGrantStore` | Journal-backed `GrantStore` construction and layer |
@@ -35,9 +35,9 @@ const decision = Permission.evaluate(
 
 ## Decorated host namespaces
 
-`FileSystem`, `ChildProcessSpawner`, `Jj`, and `HttpClient` export kernel service tags and layers that depend on the corresponding raw platform port plus `GrantStore` and related context. `Path` explicitly re-exports the pure path-service decision without a permission check.
+`FileSystem`, `ChildProcessSpawner`, `Jj`, and `HttpClient` export layers that depend on the corresponding raw platform port plus `GrantStore` and related context. `FileSystem` and `ChildProcessSpawner` decorate Effect's own tags in place — the layer provides the same tag it requires, so there is no second kernel tag — and project permission failures into `PlatformError` via `Permission.toPlatformError` (reason `PermissionDenied`, structured failure on `cause`, recovered with `Permission.fromPlatformError`). `Jj` decorates `@smthrs/jj`'s own tag, whose error channel already names the kernel's failures. Only `HttpClient` declares a kernel-owned tag, because it projects the raw `HttpTransport` slot onto a permission-aware service instead of decorating it. `Path` explicitly re-exports the pure path-service decision without a permission check.
 
-The `ChildProcessSpawner` decorator wraps `effect/unstable/process`'s own tag rather than a `flows` wrapper around it: `spawn` is checked against `proc:spawn` with `CommandLine.render(command)` as the resource, and the derived helpers (`exitCode`, `string`, `lines`, `stream*`) are rebuilt from the guarded `spawn` so none of them can route around the check. `layer` double-publishes, replacing Effect's tag with the guarded implementation, so a `Command` run as a plain `Effect` is checked too.
+The `ChildProcessSpawner` decorator wraps `effect/unstable/process`'s own tag rather than a `flows` wrapper around it: `spawn` is checked against `proc:spawn` with `CommandLine.render(command)` as the resource, and the derived helpers (`exitCode`, `string`, `lines`, `stream*`) are rebuilt from the guarded `spawn` so none of them can route around the check. Because the guarded implementation replaces Effect's tag, a `Command` run as a plain `Effect` is checked too.
 
 `HostServices` composes the protected layer for the closed host service set. Use it at the application composition boundary:
 

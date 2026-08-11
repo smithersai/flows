@@ -14,28 +14,39 @@ flowchart TD
   D["@smthrs/database"]
   C["@smthrs/canonical"]
   Crypto["@smthrs/crypto"]
+  CAP["@smthrs/capability"]
 
   J["@smthrs/journal"] --> D
+  RS["@smthrs/run-store"] --> D
+  RS --> J
+  SC["@smthrs/step-cache"] --> D
   PB --> JJ
   PN --> JJ
   PBUN --> PB
   SB --> K
-  K["@smthrs/kernel"] --> H
+  K["@smthrs/kernel"] --> CAP
   K --> JJ
   K --> J
-  W["@smthrs/engine"] --> Keys["@smthrs/keys"]
-  W --> Crypto
+  JJ --> CAP
+  F["@smthrs/flow"] --> Keys["@smthrs/keys"]
+  F --> Crypto
+  W["@smthrs/engine"] --> F
+  W --> Keys
   Keys --> C
   Keys --> Crypto
   E["@smthrs/engine-store"] --> W
   E --> Crypto
   E --> J
+  E --> RS
+  E --> SC
   E --> K
   S["@smthrs/sync"] --> J
   T["@smthrs/time-travel"] --> D
   T --> E
   T --> JJ
   T --> J
+  T --> RS
+  T --> SC
 ```
 
 | Package | Responsibility | Important boundary |
@@ -45,20 +56,29 @@ flowchart TD
 | [`@smthrs/keys`](../reference/keys.md) | Canonical workflow keys | Composes `canonical` and `crypto` |
 | [`@smthrs/database`](../reference/database.md) | `SqlClient` access plus transactional SQLite write retry | Owns no domain tables |
 | `@smthrs/platform-node`, `@smthrs/platform-bun` | The Node and Bun Host bundles: Effect's platform services plus the single-hop HTTP transport | Raw effects; no permission decisions |
-| [`@smthrs/jj`](../reference/jj.md) | Jujutsu snapshot, restore, diff, and workspace operations | Depends on `effect` alone; the closed Host list still names it |
+| [`@smthrs/capability`](../reference/capability.md) | The capability vocabulary — actions, patterns, tiers — and typed permission failures with their `PlatformError` projection | A leaf both the kernel and `@smthrs/jj` depend on; its schema ids stay `@smthrs/kernel/…` because they are journaled |
+| [`@smthrs/jj`](../reference/jj.md) | Jujutsu snapshot, restore, diff, and workspace operations | Depends on `effect` and `@smthrs/capability`; the closed Host list still names it |
 | [`@smthrs/sandbox`](../reference/sandbox.md) | Remote-sandbox provider adaptation and sandbox liveness | Adapts a caller's provider onto Effect's `ChildProcessSpawner`; owns no host access |
 | [`@smthrs/platform-browser`](../reference/platform-browser.md) | Browser implementations of effect's `FileSystem` and `ChildProcessSpawner` | Depends on `effect` alone; the ZenFS and just-bash backends are arguments, not dependencies |
-| [`@smthrs/journal`](../reference/journal.md) | Journal, run ownership, attempts, and cache rows | Open event envelope; SQL-backed state |
-| [`@smthrs/engine`](../reference/engine.md) | Vendored Effect flow runtime with flows identity and retry semantics | Computes activity keys above the encoded engine seam |
+| [`@smthrs/journal`](../reference/journal.md) | The immutable event history: journal rows, projections, redaction, and the `OwnerId` fence its durable channel accepts | Open event envelope; owns `flows_journal_events` only |
+| [`@smthrs/run-store`](../reference/run-store.md) | Executable run state: run rows, attempt rows, and ownership arbitration | Owns `flows_runs` and `flows_attempts`; validates supplied liveness evidence, never probes |
+| [`@smthrs/step-cache`](../reference/step-cache.md) | Sealed step results addressed by step-key digest | Owns `flows_step_cache`; depends on `database` alone |
+| [`@smthrs/flow`](../reference/flow.md) | The flow authoring model — flows, activities, durable primitives, retry policy, step identity — and the `FlowRuntime` port they execute against | Declares the runtime port; depends on nothing that implements it |
+| [`@smthrs/engine`](../reference/engine.md) | The runtime that executes flows: the encoded engine seam, its typed adapter, the in-memory implementation, and the RPC/HTTP façades | Computes activity keys above the encoded engine seam |
 | [`@smthrs/kernel`](../reference/kernel.md) | Capability sets, grants, and guarded Host decorators | Permission checks occur immediately before Host delegation |
-| [`@smthrs/engine-store`](../reference/engine-store.md) | Durable `FlowEngine` implementation over journal stores | Claims runs before driving and fences activity persistence |
+| [`@smthrs/engine-store`](../reference/engine-store.md) | Durable `FlowEngine` implementation composing the journal, run, and cache stores | Claims runs before driving and fences activity persistence; owns the deferred/clock tables and composes every migration set |
 | [`@smthrs/sync`](../reference/sync.md) | Read-only journal replication protocol and RPC client/server | It does not mutate runs or journal state |
-| [`@smthrs/time-travel`](../reference/time-travel.md) | Replay, fork, rewind, compensation, recovery, and retry utilities | Operates through public journal, cache, `Jj`, and time-travel store contracts |
+| [`@smthrs/time-travel`](../reference/time-travel.md) | Replay, fork, rewind, compensation, recovery, and retry utilities | Operates through public journal, run-store, step-cache, `Jj`, and time-travel store contracts |
 
 ## Two persistence seams
 
-`@smthrs/journal` owns event rows, run rows, attempt rows, cache rows, and the
-migrations for deferred completions and clock deadlines.
+Each storage package owns its own tables and its own migration set:
+`@smthrs/journal` owns `flows_journal_events`, `@smthrs/run-store` owns
+`flows_runs` and `flows_attempts`, `@smthrs/step-cache` owns
+`flows_step_cache`, and `@smthrs/engine-store` owns `flows_deferred_completions`
+and `flows_clock_deadlines`. `@smthrs/database`'s `Migrations` composes those
+sets over one `flows_migrations` table, namespacing each package's migration
+ids into a reserved block so two packages' `0001_initial` cannot collide.
 `@smthrs/engine-store` adds `DurableEngineState`: `layer` persists those waits
 through `DurableWriter`, while `layerMemory` remains available for deterministic
 tests.

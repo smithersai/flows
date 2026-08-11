@@ -1,15 +1,14 @@
 # @smthrs/journal
 
-The logical write-ahead log plus the run, attempt, and cache stores that hold executable state. Every store writes through the `@smthrs/database` contract, so the package root bundles for the browser.
+The logical write-ahead log: the immutable event history, its projections and redaction, and the `OwnerId` fence its durable channel accepts. Run and attempt state live in [`@smthrs/run-store`](/api/run-store), sealed step results in [`@smthrs/step-cache`](/api/step-cache). The journal writes through the `@smthrs/database` contract, so the package root bundles for the browser.
 
 ```ts
-import { Journal, JournalEvent, Migrations, RunStore, SqlJournal } from "@smthrs/journal"
+import { Journal, JournalEvent, Migrations, SqlJournal } from "@smthrs/journal"
 import * as Layer from "effect/Layer"
 
-const layer = Layer.mergeAll(
-  SqlJournal.layer({ capacity: 1024, overflow: "reject" }),
-  RunStore.layer
-).pipe(Layer.provideMerge(Migrations.layer))
+const layer = SqlJournal.layer({ capacity: 1024, overflow: "reject" }).pipe(
+  Layer.provideMerge(Migrations.layer)
+)
 ```
 
 ## Entry points
@@ -67,75 +66,13 @@ const layer = Layer.mergeAll(
 | --- | --- | --- |
 | `SqlJournalOptions` | interface | `capacity`, `overflow`, `batchSize`, `sourceEventCache`, `redact` |
 | `layer` | layer | scoped writer over `Database` |
+## OwnerId
 
-## RunStore
-
-[src/RunStore.ts](https://github.com/smithersai/flows/blob/main/packages/journal/src/RunStore.ts)
-
-| Export | Kind | Notes |
-| --- | --- | --- |
-| `RunStore` | service tag | `flows/journal/RunStore` |
-| `RunStatus` | const + type | `pending`, `running`, `suspended`, `completed`, `failed`, `cancelled` |
-| `RunRow`, `RunSnapshot`, `CreateOptions`, `TransitionGuard` | interfaces | row and argument shapes |
-| `RunStoreError`, `RunStoreErrorCode` | class + codes | |
-| `ClaimOutcome`, `ClaimAndOwnOutcome`, `ActivateOutcome`, `AbandonClaimOutcome`, `RecoverClaimOutcome`, `HeartbeatOutcome`, `TransitionOutcome`, `RequestCancelOutcome` | types | compare-and-swap results |
-| `make`, `makeNoop` | constructors | |
-| `layer`, `layerNoop` | layers | |
-
-| Method | Behavior |
-| --- | --- |
-| `create(runId, stateJson, options?)` | inserts a `pending` row |
-| `get(runId)` | reads the exact row |
-| `requestCancel(runId, nowMs)` | records an unfenced cancellation request |
-| `claim(runId, expected, claimant, nowMs)` | compare-and-swap on an exact snapshot |
-| `claimAndOwn(runId, expected, owner, nowMs, evidence?)` | claim plus activate in one step |
-| `activate(runId, claimant, claimedAtMs, expected)` | promotes a claim to ownership |
-| `abandonClaim`, `recoverClaim` | generation-fenced claim release and stale-claim recovery |
-| `heartbeat(runId, owner, nowMs)` | refreshes the owner fence |
-| `transitionOwned(runId, owner, toStatus, stateJson?, guard?)` | owned status change |
-| `steal(runId, expected, claimant, nowMs, evidence)` | takeover with liveness evidence |
-
-## Ownership
-
-[src/Ownership.ts](https://github.com/smithersai/flows/blob/main/packages/journal/src/Ownership.ts)
-
-| Export | Kind | Value |
-| --- | --- | --- |
-| `OwnerId` | schema + type | `hostId`, `pid`, `nonce` |
-| `LivenessEvidence` | schema + type | application-supplied proof an owner is gone |
-| `LivenessProbe` | type | probe signature |
-| `heartbeatInterval` | `Duration` | 1 second |
-| `heartbeatWriteTolerance` | `Duration` | 19 seconds |
-| `heartbeatStaleAfter` | `Duration` | 30 seconds |
-| `heartbeatSkewAllowance` | `Duration` | clock-skew slack |
-| `heartbeatLoop` | function | the owner heartbeat fiber |
-
-## AttemptStore
-
-[src/AttemptStore.ts](https://github.com/smithersai/flows/blob/main/packages/journal/src/AttemptStore.ts)
+[src/OwnerId.ts](https://github.com/smithersai/flows/blob/main/packages/journal/src/OwnerId.ts)
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `AttemptStore` | service tag | address is `(runId, stepKeyDigest, attempt)` |
-| `AttemptId`, `Attempt`, `FinishAttempt`, `AttemptPatch`, `Options` | interfaces | row and argument shapes |
-| `PutResult`, `PatchResult`, `HeartbeatResult`, `FinishResult` | types | fenced outcomes |
-| `AttemptStoreError`, `AttemptStoreErrorCode` | class + codes | |
-| `make`, `makeWith`, `makeNoop` | constructors | `makeWith` takes an in-progress vocabulary and checkpoint cap |
-| `layer`, `layerWith`, `layerNoop` | layers | |
-
-## CacheStore
-
-[src/CacheStore.ts](https://github.com/smithersai/flows/blob/main/packages/journal/src/CacheStore.ts)
-
-| Export | Kind | Notes |
-| --- | --- | --- |
-| `CacheStore` | service tag | digest to result, first writer wins |
-| `CacheEntry` | interface | `resultJson`, `metaJson`, `createdAtMs`, `recordedRunId`, `recordedEventSeq` |
-| `PutResult` | type | `Inserted`, `ExistingSame`, `Conflict` |
-| `EvictOptions` | type | eviction arguments |
-| `CacheStoreError`, `CacheStoreErrorCode` | class + codes | |
-| `make`, `makeNoop` | constructors | |
-| `layer`, `layerNoop` | layers | |
+| `OwnerId` | schema + type | `hostId`, `pid`, `nonce` — the fence `emitDurable` accepts; `@smthrs/run-store`'s `Ownership` re-exports it |
 
 ## Migrations
 
@@ -143,20 +80,22 @@ const layer = Layer.mergeAll(
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `run` | effect | apply the authoritative schema |
-| `layer` | layer | applies the schema at construction |
+| `set` | `MigrationSet` | the namespaced set for `flows_journal_events`, in id block `0` |
+| `run` | effect | apply the journal schema |
+| `layer` | layer | applies the journal schema at construction |
 
-## Projection, Redaction, RunCoordinator
+Every other durable table belongs to the package that reads it. `@smthrs/database`'s `Migrations` composes the sets, and `@smthrs/engine-store/Migrations` is the composed list a durable engine installs.
+
+## Projection, Redaction
 
 | Export | Source | Notes |
 | --- | --- | --- |
 | `Projection.Projection`, `Projection.make` | [src/Projection.ts](https://github.com/smithersai/flows/blob/main/packages/journal/src/Projection.ts) | `initial` plus an effectful `reduce` |
 | `Redaction.Rule`, `defaultRules`, `placeholder`, `isSensitiveKey`, `Options`, `redact`, `Redactor`, `make`, `redactJsonString`, `makeNoop` | [src/Redaction.ts](https://github.com/smithersai/flows/blob/main/packages/journal/src/Redaction.ts) | applied at the single `payload`/`meta` encode chokepoint |
-| `RunCoordinator.RunCoordinator`, `RunCoordinator.make` | [src/RunCoordinator.ts](https://github.com/smithersai/flows/blob/main/packages/journal/src/RunCoordinator.ts) | one keyed drain per execution id in a process |
 
 ## Test layers
 
 | Export | Source | Notes |
 | --- | --- | --- |
-| `TestJournal.layer(options?)`, `TestJournal.TestJournalOptions` | [src/test/TestJournal.ts](https://github.com/smithersai/flows/blob/main/packages/journal/src/test/TestJournal.ts) | journal, run, attempt, and cache stores over in-memory SQLite |
+| `TestJournal.layer(options?)`, `TestJournal.TestJournalOptions` | [src/test/TestJournal.ts](https://github.com/smithersai/flows/blob/main/packages/journal/src/test/TestJournal.ts) | the SQL journal over in-memory SQLite; `@smthrs/engine-store/test/TestStores` bundles all four stores over one database |
 | `Notifying.wrap`, `Notifying.layer`, `Notifying.Order`, `Notifying.Hook` | [src/test/Notifying.ts](https://github.com/smithersai/flows/blob/main/packages/journal/src/test/Notifying.ts) | interstitial crash and fence-loss injection around any Effect service |

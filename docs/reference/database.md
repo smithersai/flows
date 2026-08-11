@@ -1,6 +1,6 @@
 # `@smthrs/database`
 
-This page is the public API reference for the durable write boundary. `@smthrs/database` owns driver composition, the shared write policy, and normalized database failures; journal tables and queries belong to `@smthrs/journal`. Queries use Effect's own `SqlClient` service directly — this package adds only the write policy on top of it.
+This page is the public API reference for the durable write boundary. `@smthrs/database` owns driver composition, the shared write policy, and normalized database failures; domain tables and queries belong to the packages that read them — `@smthrs/journal`, `@smthrs/run-store`, `@smthrs/step-cache`, and `@smthrs/engine-store`. Queries use Effect's own `SqlClient` service directly — this package adds only the write policy on top of it.
 
 ## Import
 
@@ -69,4 +69,8 @@ The database service does not run domain migrations. Compose [`Journal.Migration
 
 **Shipped backends are SQLite only.** `NodeDatabase` wraps `@effect/sql-sqlite-node`; the browser counterpart wraps Effect's sqlite-wasm OPFS worker. There is no `PgDatabase`/`PGliteDatabase` layer, and the journal schema is SQLite-flavoured DDL, so a Postgres client wrapped by `Database.make` gets correct retry classification but not a runnable schema. This is an accepted, documented gap with a plan — see gap 4 in [`../architecture/smithers-replacement-gaps.md`](../architecture/smithers-replacement-gaps.md).
 
-See [Assembling a durable engine](../guides/durable-engine.md) and the [`@smthrs/journal` reference](journal.md).
+## Migrations
+
+`Migrations` composes those packages' migration sets over one `flows_migrations` table. A `MigrationSet` declares a `namespace` that prefixes its migration names and an `idOffset` — a multiple of `idBlock` (1000) — that reserves a block of migration ids, so two packages that both ship an `0001_initial` land on distinct identities instead of colliding or, worse, silently shadowing one another through a merged record. `loader(sets)` rejects a duplicate namespace, a duplicate offset, a malformed key, and any id collision the offsets failed to prevent; `run(sets)` and `layer(sets)` apply them in id order. It also rejects the second way a block scheme can lose a table: Effect's `Migrator` decides what to run from a single high-water mark, so a migration whose id sits at or below the highest id the database already applied would be assumed done and never run — migrating a database with the `2000` block alone and then composing every set would otherwise leave the `0` and `1000` blocks' tables uncreated. That fails loudly instead. `@smthrs/engine-store/Migrations` is the composed list a durable engine installs.
+
+See [Assembling a durable engine](../guides/durable-engine.md) and the [`@smthrs/journal`](journal.md), [`@smthrs/run-store`](run-store.md), and [`@smthrs/step-cache`](step-cache.md) references.

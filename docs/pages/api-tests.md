@@ -25,7 +25,7 @@ These are the behaviors that have to be exercised against real implementations, 
 | --- | --- | --- |
 | Transactional commit of state plus lifecycle entry | the guarantee is a property of the SQL transaction | `engine-store/test/WalAtomicity.test.ts` over real SQLite |
 | Crash at an interstitial, then restart | a double cannot lose a partial write | `WalAtomicity.test.ts`, `journal/test/Notifying.test.ts` |
-| Claim, activate, heartbeat, steal | the compare-and-swap is the database's | `journal/test/RunStore.test.ts`, `engine-store/test/Ownership.test.ts` |
+| Claim, activate, heartbeat, steal | the compare-and-swap is the database's | `run-store/test/RunStore.test.ts`, `engine-store/test/Ownership.test.ts` |
 | Hard-killed owner reclaim | needs the real stale-running sweep | `engine-store/test/HardKillReclaim.test.ts`, `StaleRunningAttempt.test.ts` |
 | Cross-connection write races | a single in-process double serializes by accident | `database/test/DatabaseWriteContract.test.ts`, `NodeDatabaseConcurrentOpen.test.ts`, `engine-store/test/CycleDetectionSql.test.ts` |
 | Durable schema | DDL and database invariants | `journal/test/Migrations.test.ts` |
@@ -48,13 +48,16 @@ These are the behaviors that have to be exercised against real implementations, 
 | `@smthrs/jj` | 4 | the contract and its no-op, the jj CLI against a real repository, error classification against a scripted binary, and the Bun and browser layers |
 | `@smthrs/sandbox` | 3 | provider adaptation and cancellation, the scripted test provider, and the deadline-bounded health probe |
 | `@smthrs/platform-browser` | 4 | the filesystem adapter's operations and bounded streaming against a real directory, the spawner's command rendering, rejected inputs, handle capabilities, and its serialized uninterruptible boundary, and the aggregate layer |
-| `@smthrs/journal` | 18 | durable and lossy admission, fencing, transactions, retention, redaction, projections, run store, run coordinator, migrations |
+| `@smthrs/journal` | 12 | durable and lossy admission, fencing, transactions, retention, redaction, projections, migrations |
+| `@smthrs/run-store` | 9 | run and attempt stores, ownership arbitration, run metadata, migrations |
+| `@smthrs/step-cache` | 6 | cache admission, eviction, provenance, migrations |
 | `@smthrs/database` | 4 | the write-serialization contract, concurrent open, artifact shape |
 | `@smthrs/kernel` | 23 | capability parsing, matching, subsumption, tiers, ambient sets, grants and their journal persistence, every decorated service |
 | `@smthrs/canonical` | 1 | RFC 8785 vectors, malformed Unicode, boundary values, and large values |
 | `@smthrs/crypto` | 1 | injected SHA-256, digest validation, platform failures, and irreversibility |
 | `@smthrs/keys` | 2 | canonical workflow keys and rejected inputs |
-| `@smthrs/engine` | 26 | flow definitions, execution ids, activity identity and keys, ordinal stability, keyless concurrency, deferreds, clocks, queues, retry, proxies |
+| `@smthrs/flow` | 12 | flow definitions, execution ids, results, suspension, activity combinators and retry pinning, deferreds, clocks, queues, retry policy data, step identity |
+| `@smthrs/engine` | 18 | activity identity and keys, ordinal stability, keyless concurrency, tiers, durable attempt resume, the memory engine, retry decisions, proxies |
 | `@smthrs/engine-store` | 61 | the durability matrix: ownership, adoption, sweeps, parking, cancellation, cycles, attempt persistence, cache admission, boundaries, WAL atomicity, fault matrix |
 | `@smthrs/plugin` | 6 | resolution and ordering, dispatch per hook kind, config waterfall, augmentation, cache environment |
 | `@smthrs/sync` | 20 | protocol, server paging and workspace merge, client cursors and gaps, transport faults, branch commands, presence, share, projection, convergence |
@@ -79,4 +82,4 @@ These are known and unclosed. None of them is covered by an existing suite.
 
 ## Adding a test
 
-Match the package's existing style: real SQLite through `TestJournal.layer()` or `TestDatabase.layer` rather than a fake store, `Notifying.wrap` for crash and fence-loss injection, and the host contract suite rather than a new bespoke adapter assertion. Coverage is already at 100%, so a new branch in `src` without a new case fails the gate rather than passing quietly.
+Match the package's existing style: real SQLite through `TestJournal.layer()`, `TestStores.layer()`, or `TestDatabase.layer` rather than a fake store, `Notifying.wrap` for crash and fence-loss injection, and the host contract suite rather than a new bespoke adapter assertion. Coverage is already at 100%, so a new branch in `src` without a new case fails the gate rather than passing quietly.

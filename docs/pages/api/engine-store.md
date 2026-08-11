@@ -1,6 +1,6 @@
 # @smthrs/engine-store
 
-The durable `FlowEngine`. It claims a run before driving it, fences every write against the current owner, and persists attempts, waits, and terminal results through the journal stores.
+The durable `FlowEngine`. It claims a run before driving it, fences every write against the current owner, and persists attempts, waits, and terminal results through [`@smthrs/journal`](/api/journal), [`@smthrs/run-store`](/api/run-store), and [`@smthrs/step-cache`](/api/step-cache). It owns the durable deferred/clock tables and composes every package's migration set.
 
 ```ts
 import { EngineStore, StepBoundary } from "@smthrs/engine-store"
@@ -101,3 +101,24 @@ The unwired core default is strict.
 | `AttemptEvidenceQuarantined` | `attempt_evidence_quarantined` |
 
 Every `code` literal is part of the public API. Consumers may switch on `code` or `_tag`.
+
+## Migrations
+
+[src/Migrations.ts](https://github.com/smithersai/flows/blob/main/packages/engine-store/src/Migrations.ts)
+
+| Export | Kind | Notes |
+| --- | --- | --- |
+| `set` | `MigrationSet` | the namespaced set for `flows_deferred_completions` and `flows_clock_deadlines`, in id block `3000` |
+| `sets` | `ReadonlyArray<MigrationSet>` | journal, run-store, step-cache, then this package — the whole durable engine schema, in dependency order |
+| `run` | effect | apply every set |
+| `layer` | layer | applies every set at construction |
+
+## Internal scheduling
+
+`internal/RunCoordinator` deduplicates in-process work by key and exposes `active`, `run`, `wake`, and `interrupt` around scoped fibers. It is in-memory scheduling, not persistence, and is not exported: distributed ownership is `@smthrs/run-store`'s `RunStore`.
+
+## Test layers
+
+| Export | Source | Notes |
+| --- | --- | --- |
+| `TestStores.layer(options?)`, `TestStores.database` | [src/test/TestStores.ts](https://github.com/smithersai/flows/blob/main/packages/engine-store/src/test/TestStores.ts) | migrated journal, run, attempt, and cache services over ONE in-memory SQLite database |

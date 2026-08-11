@@ -9,11 +9,12 @@ You define a flow once with Schema-typed payload, success, and error, and regist
 Requires Node.js 22.19 or later.
 
 ```sh
-npm install @smthrs/engine effect
+npm install @smthrs/flow @smthrs/engine effect
 ```
 
 ```ts
-import { Flow, FlowEngine } from "@smthrs/engine"
+import { FlowEngine } from "@smthrs/engine"
+import { Flow } from "@smthrs/flow"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
@@ -62,12 +63,16 @@ That engine keeps its state in the process. To survive a crash, drive the same f
 | `@smthrs/jj` | jujutsu snapshot, restore, diff, and workspace operations as a host service |
 | `@smthrs/sandbox` | remote-sandbox provider adaptation and the sandbox liveness probe |
 | `@smthrs/platform-browser` | browser `FileSystem` and `ChildProcessSpawner` over ZenFS and just-bash |
-| `@smthrs/journal` | logical WAL, run, attempt, and cache stores, migrations, projections |
+| `@smthrs/journal` | logical WAL, migrations, projections, redaction, the `OwnerId` fence |
+| `@smthrs/run-store` | run and attempt stores, ownership arbitration, migrations |
+| `@smthrs/step-cache` | the sealed step result cache and its migration |
 | `@smthrs/database` | driver-neutral SQL contract with transactional write retry |
+| `@smthrs/capability` | the capability vocabulary and typed permission failures, shared by the kernel and `@smthrs/jj` |
 | `@smthrs/kernel` | capability sets, grants, and permission-decorated host services |
 | `@smthrs/crypto` | injected cryptographic schema transformations |
 | `@smthrs/keys` | canonical workflow keys |
-| `@smthrs/engine` | flow definitions, activities, durable primitives, retry policy |
+| `@smthrs/flow` | flow definitions, activities, durable primitives, retry policy |
+| `@smthrs/engine` | the engine that executes them, plus the RPC and HTTP façades |
 | `@smthrs/engine-store` | the durable engine: claims, fences, and persists runs over the journal |
 | `@smthrs/plugin` | typed plugin kernel with a closed hook catalog |
 | `@smthrs/sync` | read-only journal replication for followers |

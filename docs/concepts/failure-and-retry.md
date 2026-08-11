@@ -19,7 +19,7 @@ Each durable attempt is addressed by:
 `Activity.retry` increments `Activity.CurrentAttempt` and delegates scheduling to Effect:
 
 ```ts
-import { Activity } from "@smthrs/engine"
+import { Activity } from "@smthrs/flow"
 const result = yield* Activity.retry(
   WriteArtifact,
   { times: 4 }

@@ -16,9 +16,12 @@ import { Engine, Host, Journal } from "@smthrs/flows"
 | `Crypto`      | `@smthrs/crypto`        | [crypto](crypto.md)                    |
 | `Database`    | `@smthrs/database`     | [database](database.md)                |
 | `Engine`      | `@smthrs/engine`       | [engine](engine.md)                    |
+| `Flow`, `Activity`, `RetryPolicy`, `DurableDeferred`, `DurableClock`, `DurableQueue`, `FlowRuntime`, `StepIdentity` | `@smthrs/flow` (flat) | [flow](flow.md) |
 | `EngineStore` | `@smthrs/engine-store` | [engine-store](engine-store.md)        |
 | `Jj`          | `@smthrs/jj`           | [jj](jj.md)                            |
 | `Journal`     | `@smthrs/journal`      | [journal](journal.md)                  |
+| `RunStore`    | `@smthrs/run-store`    | [run-store](run-store.md)              |
+| `StepCache`   | `@smthrs/step-cache`   | [step-cache](step-cache.md)            |
 | `Kernel`      | `@smthrs/kernel`       | [kernel](kernel.md)                    |
 | `Keys`        | `@smthrs/keys`         | [keys](keys.md)                        |
 | `Plugin`      | `@smthrs/plugin`       | [plugin-system](../architecture/plugin-system.md) |
@@ -28,7 +31,7 @@ import { Engine, Host, Journal } from "@smthrs/flows"
 
 Each package is exported as a namespace rather than flattened, so every
 package keeps its own `make` / `makeNoop` / `layerNoop` trio without colliding
-with its neighbours: `Kernel.ChildProcessSpawner.layerNoop`, `Journal.Store.layer`.
+with its neighbours: `Kernel.ChildProcessSpawner.layerNoop`, `RunStore.RunStore.layer`.
 
 The `@smthrs/platform-*` bundles are deliberately not among them, for the same
 reason `effect`'s index does not re-export `@effect/platform-node`: a platform

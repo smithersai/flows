@@ -35,7 +35,7 @@ This entry point is Node-only by construction: it falls back to the `@effect/pla
 | --- | --- | --- |
 | `BunHost.BunHost` | type | `FileSystem \| Path \| ChildProcessSpawner \| Jj \| HttpTransport` |
 | `BunHost.layer` | layer | the complete closed host surface |
-| `BunHost.implementationIds` | const | frozen identity tokens keyed by `HostServiceIds`, digested into step keys — not import specifiers |
+| `BunHost.implementationIds` | const | identity tokens keyed by `HostServiceIds`, digested into step keys — not import specifiers |
 | `BunHost.BunChildProcessSpawner` | re-export | `@effect/platform-bun`'s spawner, which is `@effect/platform-node-shared`'s |
 | `BunFileSystem.layer` | layer | Effect's Node filesystem, typed as Bun's |
 | `BunHttpTransport.layer` | layer | the browser fetch transport, which Bun's global `fetch` satisfies |

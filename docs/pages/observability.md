@@ -61,7 +61,8 @@ Log annotations are attached by `DurableQueue` (`package`, `module`, `fiber`, `q
 | --- | --- | --- |
 | `Notifying.wrap` and `Notifying.layer` | `@smthrs/journal/test/Notifying` | inject a crash or fence loss at a chosen interstitial around any Effect service |
 | `TestHost.layer` | `@smthrs/kernel/test/TestHost` | in-memory filesystem, scripted command interpreter, seeded random, deterministic clock |
-| `TestJournal.layer()` | `@smthrs/journal/test/TestJournal` | the four SQL stores over in-memory SQLite |
+| `TestJournal.layer()` | `@smthrs/journal/test/TestJournal` | the SQL journal over in-memory SQLite |
+| `TestStores.layer()` | `@smthrs/engine-store/test/TestStores` | the four SQL stores over ONE in-memory SQLite database |
 | `TestDatabase.layer` | `@smthrs/database/test/TestDatabase` | in-memory SQLite |
 | `TestSocket.makePair` | `@smthrs/sync/test/TestSocket` | a fault-injecting socket pair for sync |
 | `DurableEngineState.layerMemory` | `@smthrs/engine-store` | deterministic waits with no database |
@@ -74,7 +75,7 @@ Log annotations are attached by `DurableQueue` (`package`, `module`, `fiber`, `q
 | --- | --- |
 | Metrics of any kind, including counters for claims, steals, attempts, or cache hits | Planned, no `Metric` usage exists in `src` |
 | A shipped OpenTelemetry or exporter layer | Planned; applications wire their own tracer |
-| Spans in `@smthrs/engine-store`, `@smthrs/journal`, `@smthrs/sync`, and `@smthrs/time-travel` | Planned; only `@smthrs/engine` opens spans today |
+| Spans in `@smthrs/engine-store`, `@smthrs/journal`, `@smthrs/run-store`, `@smthrs/step-cache`, `@smthrs/sync`, and `@smthrs/time-travel` | Planned; only `@smthrs/engine` opens spans today |
 | A run inspector or dashboard | Planned; the journal and sync are the substrate one would build on |
 | Structured audit of permission decisions beyond the grant events | Planned |
 | Journal checkpointing or compaction for unbounded histories | Planned |

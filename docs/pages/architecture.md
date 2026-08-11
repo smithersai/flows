@@ -12,7 +12,8 @@ flowchart TB
   end
 
   subgraph define["Definition and identity"]
-    ENGINE["@smthrs/engine<br/>Flow, Activity, DurableDeferred,<br/>DurableClock, DurableQueue, RetryPolicy"]
+    FLOW["@smthrs/flow<br/>Flow, Activity, DurableDeferred,<br/>DurableClock, DurableQueue, RetryPolicy"]
+    ENGINE["@smthrs/engine<br/>FlowEngine, FlowProxy"]
     KEYS["@smthrs/keys<br/>canonical Key"]
     CRYPTO["@smthrs/crypto<br/>injected SHA-256"]
     CANONICAL["@smthrs/canonical<br/>RFC 8785 JSON"]
@@ -24,7 +25,9 @@ flowchart TB
   end
 
   subgraph persist["Persistence"]
-    JOURNAL["@smthrs/journal<br/>logical WAL, RunStore,<br/>AttemptStore, CacheStore, Migrations"]
+    JOURNAL["@smthrs/journal<br/>logical WAL, projections,<br/>redaction, OwnerId"]
+    RUNSTORE["@smthrs/run-store<br/>RunStore, AttemptStore,<br/>Ownership"]
+    STEPCACHE["@smthrs/step-cache<br/>CacheStore"]
     DB["@smthrs/database<br/>SqlClient contract,<br/>write retry"]
     SQL[("SQLite<br/>Node file or wasm")]
   end
@@ -43,13 +46,16 @@ flowchart TB
     TT["@smthrs/time-travel<br/>frames, replay, fork,<br/>rewind, compensation, recovery"]
   end
 
-  CALL --> ENGINE
+  CALL --> FLOW
+  FLOW -->|FlowRuntime port| ENGINE
+  BARREL -.re-exports.-> FLOW
   BARREL -.re-exports.-> ENGINE
   BARREL -.re-exports.-> STORE
   BARREL -.re-exports.-> SYNC
   BARREL -.re-exports.-> TT
+  FLOW --> KEYS
+  FLOW --> CRYPTO
   ENGINE --> KEYS
-  ENGINE --> CRYPTO
   KEYS --> CANONICAL
   KEYS --> CRYPTO
   ENGINE -->|Encoded seam| STORE
@@ -74,13 +80,13 @@ Solid arrows are workspace dependencies that execute. Dotted arrows are re-expor
 
 Ask what would break if a boundary were removed, and its purpose becomes clear.
 
-The **host boundary** exists so flow code can run in a browser. `@smthrs/kernel` declares a closed set of five service tags and nothing else; every platform implementation lives in its own package — `@smthrs/platform-node`, `@smthrs/platform-bun`, `@smthrs/platform-browser`. Half those tags are Effect's own: `FileSystem`, `Path`, and `ChildProcessSpawner` are contracts `effect` already declares, so `flows` supplies implementations rather than wrappers. One more — `Jj` — is a contract of `@smthrs/jj`, which the kernel depends on rather than re-exports, so a consumer that needs only that capability does not take the whole host surface. A module that depends only on the kernel root never statically resolves a `node:` built-in, which is what makes browser bundling possible at all. `@smthrs/kernel` sits in front of that surface and decorates each service with a grant check, so a flow that asks for a file it was never granted fails in the error channel rather than reading the file.
+The **host boundary** exists so flow code can run in a browser. `@smthrs/kernel` declares a closed set of five service tags and nothing else; every platform implementation lives in its own package — `@smthrs/platform-node`, `@smthrs/platform-bun`, `@smthrs/platform-browser`. Half those tags are Effect's own: `FileSystem`, `Path`, and `ChildProcessSpawner` are contracts `effect` already declares, so `flows` supplies implementations rather than wrappers. One more — `Jj` — is a contract of `@smthrs/jj`, whose tag the kernel decorates in place rather than shadowing with a second one, so a consumer that needs only that capability does not take the whole host surface. A module that depends only on the kernel root never statically resolves a `node:` built-in, which is what makes browser bundling possible at all. `@smthrs/kernel` sits in front of that surface and decorates each service with a grant check, so a flow that asks for a file it was never granted fails in the error channel rather than reading the file.
 
-The **database and journal** split separates the storage driver from the shapes stored in it. `@smthrs/database` owns no domain tables; it wraps any Effect `SqlClient` and adds the transactional write retry that the rest of the system assumes. `@smthrs/journal` owns the tables and the authoritative schema that creates them. Swap the driver and every shape survives.
+The **database and journal** split separates the storage driver from the shapes stored in it. `@smthrs/database` owns no domain tables; it wraps any Effect `SqlClient` and adds the transactional write retry that the rest of the system assumes. `@smthrs/journal`, `@smthrs/run-store`, `@smthrs/step-cache`, and `@smthrs/engine-store` each own their own tables and the migration set that creates them, composed over one migrations table. Swap the driver and every shape survives.
 
-The **canonical, crypto, keys, and engine** chain decides identity before storage sees anything. `@smthrs/canonical` owns RFC 8785 JSON, `@smthrs/crypto` owns injected hashing, `@smthrs/keys` owns the canonical workflow-key transformation, and `@smthrs/engine` owns activity-key policy. The engine computes a key before it calls `FlowEngine.Encoded.activityExecute`, so storage never implements key policy.
+The **canonical, crypto, keys, and engine** chain decides identity before storage sees anything. `@smthrs/canonical` owns RFC 8785 JSON, `@smthrs/crypto` owns injected hashing, `@smthrs/keys` owns the canonical workflow-key transformation, and `@smthrs/engine` owns activity-key policy above the seam. The engine computes a key before it calls `FlowEngine.Encoded.activityExecute`, so storage never implements key policy.
 
-The **engine and engine-store** pair separates what durability means from where it is written. `@smthrs/engine` defines flows, activities, durable deferreds, durable clocks, durable queues, and retry policy as typed values with an encoded seam beneath them. `@smthrs/engine-store` implements that seam over the journal: it claims a run row before driving it, fences continuing work with a heartbeat, admits and finishes attempt rows, and commits each lifecycle entry in the same transaction as the state transition it describes.
+The **flow, engine, and engine-store** chain separates what a durable program is from what runs it and from where it is written. `@smthrs/flow` defines flows, activities, durable deferreds, durable clocks, durable queues, and retry policy as typed values, written against the `FlowRuntime` port it declares. `@smthrs/engine` implements that port and puts an encoded seam beneath it. `@smthrs/engine-store` implements that seam over the journal: it claims a run row before driving it, fences continuing work with a heartbeat, admits and finishes attempt rows, and commits each lifecycle entry in the same transaction as the state transition it describes.
 
 The **plugin** package is the extension seam. Its hook catalog is typed and its kernel resolves, orders, and dispatches plugins today. The engine call sites that would dispatch those hooks still use their built-in defaults, so a plugin cannot yet change engine behavior. Planned.
 
@@ -93,7 +99,7 @@ The **barrel**, `@smthrs/flows`, re-exports the sixteen packages as namespaces f
 ```mermaid
 sequenceDiagram
   participant Caller
-  participant Flow as @smthrs/engine
+  participant Flow as @smthrs/flow
   participant Driver as @smthrs/engine-store
   participant Runs as RunStore
   participant Rows as AttemptStore / CacheStore

@@ -20,8 +20,11 @@ These bundle for the browser. A resolution error in any of them fails the build.
 | `@smthrs/crypto` | Injected cryptographic schemas |
 | `@smthrs/keys` | Canonical workflow keys |
 | `@smthrs/database` | The driver-neutral `DurableWriter` write boundary over Effect's own `SqlClient` service |
-| `@smthrs/journal` | Journal, run/attempt/cache stores, migrations, and projections, all over `SqlClient` and the `DurableWriter` contract |
-| `@smthrs/engine` | Flow, activity, durable clock/deferred/queue, retry policy, and step identity |
+| `@smthrs/journal` | The journal, its migration, projections, and redaction, all over `SqlClient` and the `DurableWriter` contract |
+| `@smthrs/run-store` | Run and attempt stores, ownership arbitration, and their migration, over the same contracts |
+| `@smthrs/step-cache` | The step cache and its migration, over the same contracts |
+| `@smthrs/flow` | Flow, activity, durable clock/deferred/queue, retry policy, step identity, and the `FlowRuntime` port |
+| `@smthrs/engine` | The engine that executes flows: the encoded seam, the in-memory runtime, and the RPC/HTTP façades |
 | `@smthrs/plugin` | Hooks, resolution, and the config pipeline |
 | `@smthrs/sync` | Read-only journal sync and branch protocols |
 | `@smthrs/time-travel` | Frames, replay, fork, rewind, compensation, and recovery |
@@ -44,7 +47,7 @@ These are Node-only, deliberately. The gate asserts each one *still* fails to bu
 
 ## The rule this encodes
 
-A package root exports **contracts**; a platform implementation lives under a subpath named for its platform — `/node`, `/bun`, `/browser`, `/test` — the way `effect` keeps `@effect/platform-node` out of `effect`. A root that re-exports an implementation resolves that implementation's imports for every consumer, including browser ones, before any bundler can tree-shake it. `packages/host/test/index.test.ts` pins that rule for the host root as a unit test — including the constraint that `Jj`, `RemoteSandbox`, and `SandboxHealth`, now their own packages, are not re-exported from it, and the browser gate pins it for every entry point in this table.
+A platform-neutral package root exports **contracts**; an implementation lives in its platform package — `@smthrs/platform-node`, `@smthrs/platform-bun`, or `@smthrs/platform-browser` — the way `effect` keeps `@effect/platform-node` out of `effect`. A neutral root that re-exports an implementation resolves that implementation's imports for every consumer, including browser ones, before any bundler can tree-shake it. Package barrel tests pin the namespaces each root exports, and the browser gate pins every browser-safe entry point in this table.
 
 ## The honest claim
 

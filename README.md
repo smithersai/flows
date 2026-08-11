@@ -9,11 +9,12 @@ You define a flow once with Schema-typed payload, success, and error, and regist
 Requires Node.js 22.19 or later.
 
 ```sh
-npm install @smthrs/engine effect
+npm install @smthrs/flow @smthrs/engine effect
 ```
 
 ```ts
-import { Flow, FlowEngine } from "@smthrs/engine"
+import { FlowEngine } from "@smthrs/engine"
+import { Flow } from "@smthrs/flow"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
@@ -63,12 +64,16 @@ The in-memory engine above keeps state in the process. For a run that survives a
 | `@smthrs/jj` | Jujutsu snapshot, restore, diff, and workspace operations as a host service |
 | `@smthrs/sandbox` | Remote-sandbox provider adaptation and the sandbox liveness probe |
 | `@smthrs/platform-browser` | Browser `FileSystem` and `ChildProcessSpawner` over ZenFS and just-bash, plus the `BrowserHost` bundle |
-| `@smthrs/journal` | Logical WAL, run/attempt/cache stores, migrations, projections |
+| `@smthrs/journal` | Logical WAL, migrations, projections, redaction, the `OwnerId` fence |
+| `@smthrs/run-store` | Run and attempt stores, ownership arbitration, migrations |
+| `@smthrs/step-cache` | Sealed step result cache and its migration |
 | `@smthrs/database` | Driver-neutral SQL contract with transactional write retry |
+| `@smthrs/capability` | Capability vocabulary and typed permission failures, shared by the kernel and `@smthrs/jj` |
 | `@smthrs/kernel` | The closed host service list, capability sets, grants, and permission-decorated host services |
 | `@smthrs/crypto` | Injected cryptographic schema transformations |
 | `@smthrs/keys` | Canonical workflow keys |
-| `@smthrs/engine` | Flow definitions, activities, durable primitives, retry policy |
+| `@smthrs/flow` | Flow definitions, activities, durable primitives, retry policy, and the `FlowRuntime` port |
+| `@smthrs/engine` | The runtime that executes flows, plus the RPC and HTTP façades |
 | `@smthrs/engine-store` | The durable engine: claims, fences, and persists runs over the journal |
 | `@smthrs/plugin` | Typed plugin kernel with a closed hook catalog |
 | `@smthrs/sync` | Read-only journal replication for followers |

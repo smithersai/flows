@@ -12,11 +12,11 @@ This guide describes the services required by `@smthrs/engine-store` and gives a
 - `StepBoundary`
 - an Effect `Scope`
 
-`TestJournal.layer()` supplies the four SQL services over an in-memory SQLite database. It is useful for integration tests, not restart durability:
+`TestStores.layer()` supplies the four SQL services — journal, run, attempt, and cache — over ONE in-memory SQLite database. It is useful for integration tests, not restart durability:
 
 ```ts
 import { DurableEngineState, EngineStore, StepBoundary } from "@smthrs/engine-store"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import * as TestStores from "@smthrs/engine-store/test/TestStores"
 import { Jj } from "@smthrs/kernel"
 import { Effect, Layer } from "effect"
 
@@ -30,7 +30,7 @@ const jj = Jj.make({
 })
 
 const Requirements = Layer.mergeAll(
-  TestJournal.layer(),
+  TestStores.layer(),
   DurableEngineState.layerMemory,
   StepBoundary.layerTest(),
   Layer.succeed(Jj.Jj, jj)

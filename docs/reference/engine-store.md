@@ -4,7 +4,7 @@ This page is the public API reference for the journal-backed `FlowEngine` compos
 
 ## Node only
 
-`@smthrs/engine-store` is a **Node entry point**, and the repository's browser gate treats it as one. `EngineStore` reads `process.pid` and imports `randomUUID` from `node:crypto` (`packages/engine-store/src/EngineStore.ts:20`); those two are the package's entire browser-gap inventory (issue #114). Everything it composes above — `@smthrs/crypto`, `@smthrs/journal`, `@smthrs/database`, and `@smthrs/engine` — is browser-bundleable, so the gap is an owner-identity and UUID-source decision, not a rewrite. Until it closes, do not describe the durable engine as browser-capable; `npm run browser` asserts this entry point still fails to bundle for the browser, so the claim cannot drift. See [browser support](../architecture/browser-support.md).
+`@smthrs/engine-store` is a **Node entry point**, and the repository's browser gate treats it as one. `EngineStore` reads `process.pid` and imports `randomUUID` from `node:crypto` (`packages/engine-store/src/EngineStore.ts:20`); those two are the package's entire browser-gap inventory (issue #114). Everything it composes above — `@smthrs/crypto`, `@smthrs/journal`, `@smthrs/run-store`, `@smthrs/step-cache`, `@smthrs/database`, and `@smthrs/engine` — is browser-bundleable, so the gap is an owner-identity and UUID-source decision, not a rewrite. Until it closes, do not describe the durable engine as browser-capable; `npm run browser` asserts this entry point still fails to bundle for the browser, so the claim cannot drift. See [browser support](../architecture/browser-support.md).
 
 ## `EngineStore`
 
@@ -16,7 +16,7 @@ const layer = EngineStore.layer({
 })
 ```
 
-`Options` contains `owner.hostId`, `journalSource`, and required `isAlive`. `make(options)` returns a `FlowEngine` service; `layer(options)` provides both `FlowEngine` and `FlowEngine.SnapshotBoundary`. The liveness probe is mandatory because silently treating an unknown owner as alive can strand recovery forever.
+`Options` contains `owner.hostId`, `journalSource`, and required `isAlive`. `make(options)` returns a `FlowRuntime` service — the port `@smthrs/flow` declares; `layer(options)` provides both `FlowRuntime` and `FlowEngine.SnapshotBoundary`. The liveness probe is mandatory because silently treating an unknown owner as alive can strand recovery forever.
 
 Required services are `Journal`, `RunStore`, `AttemptStore`, `CacheStore`, `DurableEngineState`, kernel `Jj`, `StepBoundary`, and `Scope`. `EngineCompositionError` represents an engine that was invoked without a complete composition.
 
@@ -89,3 +89,22 @@ Replaying a succeeded attempt row also converges the cache: if a crash landed be
 A persisted `failed` attempt row replays by rethrowing the persisted domain failure — never by readmission, so `AttemptAdmissionRejected` marks only genuinely mid-flight (`running`) rows. The `Fail` errors were schema-encoded before persistence, so their `_tag` survives the JSON round trip and `RetryPolicy` non-retryable matching applies on replay (issue #59). The composition also implements the engine's `activityLatestAttempt` (attempt counter resumes from the persisted sequence) and degrades `activityRetryOrigin` to the earliest surviving attempt row when a retention job pruned attempt 1 (issue #69).
 
 See [Assembling a durable engine](../guides/durable-engine.md), [Implementation status](../architecture/implementation-status.md), and [Step keys](../concepts/step-keys.md).
+
+## Migrations and internal scheduling
+
+`@smthrs/engine-store` owns `flows_deferred_completions` and
+`flows_clock_deadlines` — the persisted `DurableDeferred`/`DurableClock` state
+`internal/DeferredPersistence` operates and no other package reads — and
+reserves migration id block `3000`. Because it composes every storage package,
+`Migrations.sets` is also the complete durable engine schema in dependency
+order (journal, run store, step cache, then its own) and `Migrations.layer`
+installs all of it. See [`@smthrs/database`](database.md) for how the
+namespaced sets compose without colliding.
+
+`internal/RunCoordinator` lives here rather than in a storage package because
+it is in-memory scheduling, not persistence: `make({ drain })` deduplicates
+in-process work by key and exposes `active`, `run`, `wake`, and `interrupt`
+around scoped fibers. `RunDriver` is its only consumer. It is not distributed
+ownership; that is [`@smthrs/run-store`](run-store.md)'s `RunStore`. The shape
+is adapted from opencode's `packages/core/src/session/run-coordinator.ts`,
+which also lives in the session layer.

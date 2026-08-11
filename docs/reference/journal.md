@@ -1,6 +1,6 @@
 # `@smthrs/journal`
 
-This page is the public API reference for durable events, run ownership, activity attempts, and content-cache rows. The package stores engine facts; flow orchestration is implemented by `@smthrs/engine-store`.
+This page is the public API reference for the durable event history. Run and attempt state moved to [`@smthrs/run-store`](run-store.md) and sealed step results to [`@smthrs/step-cache`](step-cache.md); flow orchestration is implemented by [`@smthrs/engine-store`](engine-store.md).
 
 ## Journal events
 
@@ -65,7 +65,7 @@ Because that transaction both replays and can abort at COMMIT, `emitDurable` mut
 
 Every write funnels through one preparation step, and that step redacts: `payload` and `meta` are scrubbed by `Redaction.make()` before they are encoded, so no channel can persist a credential. Fields whose names read as credentials (`apiKey`, `authorization`, `cookie`, `token`, `password`, `secret`, and separator/case variants) are replaced wholesale; provider keys, bearer tokens, and `SECRET=value` assignments are replaced inside any string. Rows are permanent and are replayed verbatim to sync subscribers and time-travel consumers, so redaction on write is the only place it can be enforced once. Pass `redact: Redaction.makeNoop()` to `SqlJournal.layer` to persist payloads verbatim by choice.
 
-Redaction stops at the journal. It is an **observability** concern, and journal rows exist to be read — by sync subscribers, by time-travel consumers, by a support bundle. The other three stores hold *executable* state and are deliberately not redacted: `RunStore.state_json` is decoded and re-entered on every resume, an `AttemptStore` checkpoint is handed back to the retrying step, an outcome is returned verbatim as the replayed result, and a `CacheStore` hit *is* the step's result. A name-suffix redactor there is silent corruption, not defence: a legitimate `pageToken` resumes as `"[REDACTED]"` and the flow reads the wrong page, and a non-string field like `clientSecret: { … }` becomes a string, so schema decode of the persisted state dies and the run is undrivable (issue #72). Those stores therefore take no `redact` option at all — `RunStore.layer`, `AttemptStore.layer`, and `CacheStore.layer` round-trip their columns byte-for-byte.
+Redaction stops at the journal. It is an **observability** concern, and journal rows exist to be read — by sync subscribers, by time-travel consumers, by a support bundle. The stores in [`@smthrs/run-store`](run-store.md) and [`@smthrs/step-cache`](step-cache.md) hold *executable* state and are deliberately not redacted; those pages state why, and neither takes a `redact` option at all.
 
 A value that must never reach durable executable state is a typed boundary, not a guess made at the storage seam: model it as a `Redacted` field in the flow's own state schema, so the encoder drops it by declaration and the decoder knows it is absent. For rendering a stored column to a human, `Redaction.redactJsonString` scrubs an already-encoded JSON string at the display surface, leaving the durable row untouched.
 
@@ -73,73 +73,18 @@ The two channels also fail independently, and neither failure is permanent. A ba
 
 ### Migrations
 
-`Migrations.run` creates the complete journal, run, attempt, cache, deferred, and clock schema. `Migrations.layer` runs it as a layer dependency. The repository is unreleased, so there is one authoritative initial schema rather than compatibility migrations for obsolete internal versions.
+`Migrations.set` is the journal's namespaced migration set — `flows_journal_events` and its event-type index — and reserves migration id block `0`. `Migrations.run` / `Migrations.layer` install it alone. Every other durable table belongs to the package that reads it, and `@smthrs/database`'s `Migrations` composes those sets over one `flows_migrations` table, namespacing each package's ids into a reserved block so two packages' `0001_initial` cannot collide; `@smthrs/engine-store/Migrations` is the composed list a durable engine installs. The repository is unreleased, so each package has one authoritative initial schema rather than compatibility migrations for obsolete internal versions.
 
-## Run ownership
+## Ownership token
 
-`RunStore` exports:
+`OwnerId.OwnerId` contains `hostId`, `pid`, and `nonce`. It lives here rather than with the arbitration in `@smthrs/run-store` because the journal is what it fences: `emitDurable(input, owner)` only lands the row while `flows_runs` still records that owner as the running run's owner, and otherwise fails `fence_lost`. `@smthrs/run-store`'s `Ownership` re-exports it alongside `LivenessEvidence`, `LivenessProbe`, and the heartbeat constants.
 
-- `RunStatus`: `pending`, `running`, `suspended`, `completed`, `failed`, or `cancelled`.
-- `RunRow`, `RunSnapshot`, `CreateOptions`, and `TransitionGuard`.
-- fenced `create`, `get`, `claim`, `claimAndOwn`, `activate`, `abandonClaim`, `recoverClaim`, `heartbeat`, `transitionOwned`, and `steal`, plus unfenced `requestCancel`.
-- tagged outcome unions for every compare-and-set operation.
-- `make`, `layer`, `makeNoop`, and `layerNoop`.
+## Projections and tests
 
-### Run metadata: columns versus `state_json`
-
-`flows_runs` carries exactly two metadata columns beyond identity, lifecycle, and ownership:
-
-| Column | Why it is a column |
-| --- | --- |
-| `cancel_requested_at_ms` | It participates in a compare-and-swap. `transitionOwned(..., { cancelRequested: "absent" })` compiles the predicate into the same `UPDATE` as the ownership fence, so a cancellation request cannot slip between a read and a terminal write. |
-| `parent_run_id` | Lineage is walked in SQL. A recursive CTE over `parent_run_id` answers ancestry questions that a JSON side-channel would force into decode-then-filter. |
-
-Everything else a harness records about a run — workflow name and hash, cancel attribution, pause and hijack requests, VCS coordinates, config — stays in `state_json`. That is the intended extension point, not a workaround: those fields are read with the row, never guarded on, and adding a column per harness concept would make the schema a union of its consumers. `state_json` is checked to be valid JSON, and `transitionOwned` replaces it atomically with the status change.
-
-When a `state_json` field does need to be scanned, index the expression rather than promoting the column:
-
-```sql
-CREATE INDEX flows_runs_workflow_name_idx
-ON flows_runs (json_extract(state_json, '$.workflowName'));
-
-SELECT run_id FROM flows_runs
-WHERE json_extract(state_json, '$.workflowName') = 'deploy';
-```
-
-Promote a field to a column only when it must appear in a CAS guard. `TransitionGuard` is the seam for that: new guarded metadata extends the interface and the single `UPDATE`, rather than adding a transition variant per rule.
-
-`requestCancel(runId, nowMs)` records the request without an owner fence — any observer may ask, and the owner decides at its next guarded transition. It returns `CancelRequested`, `AlreadyRequested` (with the original request time, which is never overwritten), or `NotFound`. A guarded transition that loses only to its guard returns `GuardFailed`, distinct from `FenceLost`.
-
-`Ownership.OwnerId` contains `hostId`, `pid`, and `nonce`. `LivenessEvidence` records observer and observation time. `heartbeatLoop`, `heartbeatInterval`, `heartbeatStaleAfter`, `heartbeatSkewAllowance`, and `heartbeatWriteTolerance` support scoped ownership maintenance. The loop interrupts its owner immediately on durable evidence that the fence is gone (any outcome other than `Updated`), but tolerates failed heartbeat *writes* for `heartbeatWriteTolerance`. That budget is `heartbeatStaleAfter` minus `heartbeatSkewAllowance` minus one heartbeat tick. The allowance is explicit because the owner stamps the heartbeat from its own clock while the stealer judges it against *its* clock, so the hosts' offset is subtracted straight from the owner's margin; the tick covers the budget only being re-evaluated once per pulse. Within the allowance the owner always stops executing side effects before a steal can be admitted. Beyond it the lease is bounded, not guaranteed: durable writes stay safe because the ownership compare-and-set fences them, but non-durable external side effects can overlap — inherent to any wall-clock lease, and a caller that cannot tolerate overlap needs a fencing token at the side effect itself. A successful pulse re-arms that window.
-
-## Attempts and cache
-
-`AttemptStore` addresses rows with `AttemptId`, exposes `put`, `get`, `heartbeat`, `finish`, and `patch`, and returns explicit fenced outcome unions.
-
-`make`/`layer` use the default policy; `makeWith(options)`/`layerWith(options)` take an `Options`:
-
-| Option | Default | Effect |
-| --- | --- | --- |
-| `inProgressStates` | `["running"]` | States the store treats as still in progress. `heartbeat` and `finish` fence on membership, and `finish` refuses them as targets. A harness whose vocabulary is `in-progress` configures it here instead of translating at the boundary. |
-| `maxCheckpointBytes` | `1048576` | Largest encoded checkpoint accepted. Raise it when the durable mid-attempt checkpoint is an agent session rather than a cursor. |
-| `putMode` | `"insert"` | `"insert"` is first-writer-wins: a re-put with different content reports `Conflict`. `"upsert"` overwrites the row and reports `Upserted`. Both keep the run-ownership fence. |
-
-`finish` COALESCEs `error_json`, `outcome_json`, and `meta_json`: a value recorded mid-flight by `put` or `patch` survives a terminal claim that omits it, and supplying one replaces it. Only `put`'s upsert rewrites those columns unconditionally, because an upsert restates the whole row.
-
-`patch(id, fields)` is the unfenced surface for opaque fields — checkpoint, error, outcome, and metadata — and never moves `state`, `started_at_ms`, or `finished_at_ms`. Omitted fields are left as recorded. It returns `Patched` or `NotFound`. Fields such as response text, worktree pointers, or cache flags belong in `meta`; the fenced lifecycle stays with `put`/`heartbeat`/`finish`.
-
-`CacheStore` exposes `get`, `put`, and `evict`. `put` returns `Inserted`, `ExistingSame`, or `Conflict`; cache entries retain the recording run and journal sequence as provenance. `evict(keyDigest, { ifRecordedBy })` deletes only while the row still carries that `(runId, eventSeq)` pair — both halves, since sequence numbers are per-run and collide across runs routinely. Whether the insert conflicted and whether the fenced delete hit are read through [`DurableWriter.affectedRows`](database.md#durablewriter) rather than a driver-specific `changes` cast, so the outcomes hold on every backend (issue #134).
-
-Both stores export SQL `make`/`layer` plus no-op test seams.
-
-## Coordination and tests
-
-`RunCoordinator.make({ drain })` deduplicates in-process work by key and exposes `active`, `run`, `wake`, and `interrupt` around scoped fibers. It is not distributed ownership; use `RunStore` for that.
-
-`Projection.make` is an identity constructor for `{ name, initial, reduce }`. `TestJournal.layer(options?)` — imported from `@smthrs/journal/test/TestJournal`, not the root — composes migrations and all SQL stores over in-memory SQLite.
+`Projection.make` is an identity constructor for `{ name, initial, reduce }`. `TestJournal.layer(options?)` — imported from `@smthrs/journal/test/TestJournal`, not the root — provides the migrated SQL journal over in-memory SQLite. For the journal, run, attempt, and cache services over ONE database, take `@smthrs/engine-store/test/TestStores`.
 
 ## Entry points
 
-The root holds the stores and their contracts, all written against the driver-neutral `@smthrs/database` service, and it bundles for the browser (`npm run browser`). The test doubles bind a Node SQLite database and are therefore imported from `@smthrs/journal/test/TestJournal` and `@smthrs/journal/test/Notifying`. See [browser support](../architecture/browser-support.md).
+The root holds the journal and its contracts, written against the driver-neutral `@smthrs/database` service, and it bundles for the browser (`npm run browser`). The test doubles bind a Node SQLite database and are therefore imported from `@smthrs/journal/test/TestJournal` and `@smthrs/journal/test/Notifying`. See [browser support](../architecture/browser-support.md).
 
 See [Journal semantics](../concepts/journal.md), [Concurrency](../concepts/concurrency.md), and the [`@smthrs/engine-store` reference](engine-store.md).

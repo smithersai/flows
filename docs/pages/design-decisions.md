@@ -42,7 +42,7 @@ Three of those five slots hold Effect's own tags rather than `flows` wrappers. `
 
 The alternative was an open host surface with per-call permission arguments. An open surface cannot be audited, and per-call arguments are forgotten.
 
-Cost: anything the closed surface does not name has to be added to the surface. Ambient authority can only shrink, through `CapabilitySet.attenuate`, and capability failures stay in the Effect error channel as long as callers use the kernel service tags rather than the raw host tags.
+Cost: anything the closed surface does not name has to be added to the surface. Ambient authority can only shrink, through `CapabilitySet.attenuate`, and because the kernel decorates each service tag in place there is no unguarded raw tag left to call: capability failures reach every consumer, as typed `Permission` failures where `flows` owns the contract and as `PlatformError` (reason `PermissionDenied`, structured failure on `cause`) where Effect does.
 
 ## D6. The journal is the authoritative logical WAL, and only telemetry is optimistic
 
@@ -88,7 +88,7 @@ Cost: a follower can rebuild a read model but cannot act on it through this prot
 
 ## D11. The engine vendors Effect's unstable workflow surface
 
-`@smthrs/engine` vendors Effect's `unstable/workflow` rather than depending on it, because the upstream API is explicitly unstable and this engine needs to change its identity and retry semantics.
+`@smthrs/flow` and `@smthrs/engine` vendor Effect's `unstable/workflow` rather than depending on it, because the upstream API is explicitly unstable and this engine needs to change its identity and retry semantics.
 
 Cost: an attribution obligation, discharged by `packages/engine/THIRD_PARTY_NOTICES.md` reproducing Effect's MIT notice and `VENDOR.md` recording what was taken and why. Upstream changes have to be merged by hand.
 

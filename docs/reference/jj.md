@@ -2,16 +2,16 @@
 
 This page is the public API reference for the `Jj` host service: version control as a capability. Permission enforcement is provided separately by `@smthrs/kernel`, whose `Jj` decorator wraps this contract.
 
-The package depends on `effect` alone. `Jj` is still one of the five services in the closed host list `@smthrs/kernel` owns; the contract lives here so a consumer that only snapshots a working copy does not take a process spawner and an HTTP transport with it.
+The package depends on `effect` and `@smthrs/capability` — the interface names `Permission.PermissionError` in its error channel so the kernel decorator needs no second tag. `Jj` is still one of the five services in the closed host list `@smthrs/kernel` owns; the contract lives here so a consumer that only snapshots a working copy does not take a process spawner and an HTTP transport with it.
 
 ## Contract
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `Jj` | interface + service tag | tag key `flows/host/Jj` |
+| `Jj` | interface + service tag | tag key `@smthrs/jj/Jj` |
 | `ChangeId` | type | the durable handle a run uses to name workspace state |
 | `snapshot`, `restore`, `diff`, `workspaceAdd`, `workspaceForget`, `status` | methods | every one fails with `JjError` |
-| `JjError` | class | tagged `flows/host/JjError`, carrying `code`, `module`, `method`, `message`, and the `command` that produced it |
+| `JjError` | class | tagged `@smthrs/jj/JjError`, carrying `code`, `module`, `method`, `message`, and the `command` that produced it |
 | `JjErrorCode` | const + type | `not_installed`, `conflict`, `invalid_ref`, `unknown` |
 | `jjError` | constructor | builds a `JjError` from a code plus context |
 | `make`, `makeNoop`, `layerNoop` | constructors and layer | `makeNoop` fails every method with `not_installed` until overridden |
@@ -39,7 +39,7 @@ jj is a native binary, so there is nothing to run in a browser tab. `BrowserJj.l
 
 ## Durable identity
 
-The tag key `flows/host/Jj` and the error `_tag` `flows/host/JjError` are frozen. Step keys digest the resolved service set, and `JjError` round-trips through the journal, so these strings name the service's identity rather than the package its module happens to live in. `packages/jj/test/index.test.ts` pins both. See [step keys](../concepts/step-keys.md).
+The tag key `@smthrs/jj/Jj` and the error `_tag` `@smthrs/jj/JjError` are durable identity: step keys digest the resolved service set, and `JjError` round-trips through the journal, so renaming either invalidates recorded runs. `packages/jj/test/index.test.ts` pins both. See [step keys](../concepts/step-keys.md).
 
 ## Browser support
 

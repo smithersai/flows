@@ -6,7 +6,7 @@ What exists elsewhere, what this engine borrows from it, and what a deployment c
 
 | System | What it is | What was taken |
 | --- | --- | --- |
-| [Effect](https://effect.website) | the runtime this library is written in | `unstable/workflow` is vendored into `@smthrs/engine`; `unstable/ai`, `unstable/rpc`, and `unstable/sql` shape the service, layer, and schema conventions everywhere else |
+| [Effect](https://effect.website) | the runtime this library is written in | `unstable/workflow` is vendored into `@smthrs/flow` and `@smthrs/engine`; `unstable/ai`, `unstable/rpc`, and `unstable/sql` shape the service, layer, and schema conventions everywhere else |
 | [Temporal](https://docs.temporal.io/) | a mature durable-execution service and cloud platform | shard and rangeID fencing became the run claim expressed as a `WHERE` clause; mutable state plus event batches in one persistence request became `Journal.transact`; reset and rebuild informed the rewind protocol; persisted attempt counts informed the retry origin |
 | [Restate](https://docs.restate.dev/foundations/services) | a lightweight runtime with durable services, state, promises, and exactly-once-per-ID workflows | the shape of an idempotency-derived execution id |
 | [Inngest](https://www.inngest.com/docs/learn/how-functions-are-executed) | managed coordination with memoized steps, queues, and flow control | the memoized-step model that `Activity` implements |
@@ -38,7 +38,7 @@ The honest positioning is an embeddable, Effect-native durable-execution toolkit
 | Plugin kernel | typed hook catalog, `resolve` and `Kernel.make`, `enforce` and `order` resolution, `apply` filtering, the config waterfall, and sequential, parallel, first, and waterfall dispatch |
 | Cache-conflict receiver | `Inconsistency` with strict, tolerant, and noop layers; the unwired core default is strict |
 | Run cycle detection | the parent edge and the child-to-parent walk inside one write transaction, rolling back with `RunParentCycleError`, surfaced as the typed `FlowCycleDetected` |
-| Waiting taxonomy | `park`, `wake`, `waiting`, and `waitingRuns` with reason, wake time, and token columns, driven by `FlowEngine.annotateWaiting` or derived from clock state |
+| Waiting taxonomy | `park`, `wake`, `waiting`, and `waitingRuns` with reason, wake time, and token columns, driven by `FlowRuntime.annotateWaiting` or derived from clock state |
 | Retry policy | data-shaped policy, pure `nextDelay`, a `decideEffect` decision point driven by the persisted attempt count, and an `expirationMs` bound measured from the durably persisted first-attempt start |
 | WAL atomicity | every lifecycle entry commits in the same write transaction as the state transition it describes |
 | Fault harness | `Notifying.wrap` and `layer` for interstitial crash and fence-loss injection, driven at every closed interstitial by `WalAtomicity.test.ts` |

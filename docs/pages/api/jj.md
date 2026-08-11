@@ -13,7 +13,7 @@ const program = Effect.gen(function*() {
 }).pipe(Effect.provide(NodeJj.layer))
 ```
 
-The package root holds the contract, its error, and the no-op layer only, so it bundles for the browser. Implementations live under `/node`, `/bun`, and `/browser`. The package depends on `effect` alone; `@smthrs/kernel` depends on it, because `Jj` is still one of the five tags in the closed host list.
+The package root holds the contract, its error, and the no-op layer only, so it bundles for the browser. Implementations live under `/node`, `/bun`, and `/browser`. The package depends on `effect` and `@smthrs/capability` (its error channel names `Permission.PermissionError`); `@smthrs/kernel` depends on it, because `Jj` is still one of the five tags in the closed host list.
 
 ## Entry points
 
@@ -32,8 +32,8 @@ The package root holds the contract, its error, and the no-op layer only, so it 
 | --- | --- | --- |
 | `ChangeId` | type | string handle for workspace state |
 | `Jj` | interface | `snapshot`, `restore`, `diff`, `workspaceAdd`, `workspaceForget`, `status` |
-| `Jj` | service tag | `flows/host/Jj` — frozen; it is digested into step keys |
-| `JjError` | class | tagged `flows/host/JjError`; carries `code`, `module`, `method`, `message`, `command` |
+| `Jj` | service tag | `@smthrs/jj/Jj` — digested into step keys |
+| `JjError` | class | tagged `@smthrs/jj/JjError`; carries `code`, `module`, `method`, `message`, `command` |
 | `JjErrorCode` | const + type | `not_installed`, `conflict`, `invalid_ref`, `unknown` |
 | `jjError` | constructor | builds an error from a code plus context |
 | `make`, `makeNoop` | constructors | `makeNoop` fails every method `not_installed` |

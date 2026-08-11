@@ -7,9 +7,9 @@ Everything durable in Smithers Flows is one of a small number of shapes. This pa
 | Shape | Table | Migration | Package |
 | --- | --- | --- | --- |
 | Journal entry | `flows_journal_events` | `0001_initial` | `@smthrs/journal` |
-| Run row | `flows_runs` | `0001_initial` | `@smthrs/journal` |
-| Attempt row | `flows_attempts` | `0001_initial` | `@smthrs/journal` |
-| Cache row | `flows_step_cache` | `0001_initial` | `@smthrs/journal` |
+| Run row | `flows_runs` | `0001_initial` | `@smthrs/run-store` |
+| Attempt row | `flows_attempts` | `0001_initial` | `@smthrs/run-store` |
+| Cache row | `flows_step_cache` | `0001_initial` | `@smthrs/step-cache` |
 | Deferred completion | `flows_deferred_completions` | `0001_initial` | `@smthrs/engine-store` |
 | Clock deadline | `flows_clock_deadlines` | `0001_initial` | `@smthrs/engine-store` |
 | Run-parent edge | `flows_run_parents` | created by `DurableEngineState.make` | `@smthrs/engine-store` |
@@ -120,7 +120,7 @@ A parked run carries a reason. `DurableEngineState.park` writes it, `wake` clear
 
 | Reason | Source |
 | --- | --- |
-| declared, for example `approval` or `quota` | `FlowEngine.annotateWaiting` |
+| declared, for example `approval` or `quota` | `FlowRuntime.annotateWaiting` |
 | `timer` | the earliest clock deadline |
 | `event` | anything else |
 

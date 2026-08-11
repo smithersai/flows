@@ -5,9 +5,9 @@ This page traces one flow execution through the current implementation, from a t
 ```mermaid
 sequenceDiagram
   participant Caller
-  participant Flow as @smthrs/engine
+  participant Flow as @smthrs/flow
   participant Driver as @smthrs/engine-store
-  participant Runs as @smthrs/journal RunStore
+  participant Runs as @smthrs/run-store RunStore
   participant Attempts as AttemptStore / CacheStore
   participant Host as @smthrs/kernel → @smthrs/platform-*
   participant Journal as Journal

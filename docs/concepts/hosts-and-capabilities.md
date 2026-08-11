@@ -14,7 +14,7 @@ This page describes the portable host surface and the permission kernel that med
 
 Three of the five slots hold Effect's own tags. `flows` used to define a `Shell` service in the third slot; it was `effect/unstable/process` with fewer features, so it was deleted and the slot now holds `effect/process/ChildProcessSpawner` (see [design decisions](../pages/design-decisions.md)). `flows` supplies implementations of it — Node, Bun, an in-browser just-bash one, and a remote-sandbox one — and adds only the `proc:spawn` check.
 
-The list is closed, not the package: `Jj` ships as its own package so a consumer that only needs that capability does not take the whole host surface. The kernel depends on it — a dependency, not a re-export — and the composite bundles (`NodeHost`, `BunHost`, `BrowserHost`, `TestHost`) provide all five tags. There is no pseudo-terminal service: interactive-terminal support is out of core by design (see [design decisions](../pages/design-decisions.md)).
+The list is closed, not the package: `Jj` ships as its own package so a consumer that only needs that capability does not take the whole host surface. The contract stays in `@smthrs/jj`; the kernel decorates that same tag (and re-exports it for convenience) rather than declaring a second one, and the composite bundles (`NodeHost`, `BunHost`, `BrowserHost`, `TestHost`) provide all five tags. There is no pseudo-terminal service: interactive-terminal support is out of core by design (see [design decisions](../pages/design-decisions.md)).
 
 Clock and Random are tracked as host built-ins. This workspace ships Node,
 Bun, browser, and deterministic test layers for the same service tags.
@@ -27,13 +27,15 @@ from the environment type.
 
 ## Kernel decoration
 
-The kernel exports parallel services such as `FileSystem`, `ChildProcessSpawner`, `Jj`, and `HttpClient`. Each decorator:
+The kernel decorates each service tag in place — a middleware `Layer` over the very tag the platform adapter provides, so there is no second "protected" tag to reach around. Each decorator:
 
 1. derives an exact `Capability`,
 2. asks `GrantStore` to authorize it,
 3. calls the raw platform port only when allowed.
 
-For a spawn, the exact capability is `proc:spawn` with `CommandLine.render(command)` as its resource — the same string a browser interpreter or a remote sandbox is handed, so a grant and the thing it authorizes cannot drift apart.
+Where Effect owns the tag (`FileSystem`, `ChildProcessSpawner`) the error channel stays `PlatformError`: a refused operation surfaces with reason `PermissionDenied`, and the structured kernel failure rides on its `cause`, recoverable with `Permission.fromPlatformError`. Where `flows` owns the service (`Jj`, `HttpClient`) the interface names `Permission.PermissionError` directly.
+
+For a spawn, the exact capability is `proc:spawn` with `CommandLine.render(command)` as its resource — the same string a browser interpreter or a remote sandbox is handed for supported commands, so a grant and the thing it authorizes cannot drift apart. A custom shell path is included explicitly in the resource; adapters that cannot select it reject the command.
 
 ```ts
 import { Capability, Permission } from "@smthrs/kernel"
@@ -64,7 +66,7 @@ The kernel is a capability check, not an operating-system sandbox. Hermetic exec
 ## Adapter limitations
 
 - The browser layer wraps an injected ZenFS-like promises API and an injected just-bash interpreter, which must be mounted on the *same* filesystem.
-- The browser spawner cannot stream, take stdin, or be killed, and says so in the error channel rather than pretending.
+- The browser spawner is buffered, cannot take stdin or be killed, and rejects custom shells, detached processes, and configured extra file descriptors rather than silently dropping them.
 - Browser `Jj` operations are explicitly unsupported: `@smthrs/jj/browser/BrowserJj` exports a `layerUnsupported` that fails in the error channel rather than omitting the tag.
 - Hosted-adapter behavior and limitations are documented with those adapters
   in the external plugins repository.

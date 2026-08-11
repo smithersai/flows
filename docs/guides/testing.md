@@ -47,7 +47,7 @@ For kernel tests, `TestGrantStore.layerAllow`, `layerDeny`, and `layerScripted` 
 
 Combine:
 
-- `TestJournal.layer()` (from `@smthrs/journal/test/TestJournal`) for migrated in-memory SQLite stores,
+- `TestJournal.layer()` (from `@smthrs/journal/test/TestJournal`) for a migrated in-memory SQLite journal, `TestRunStore.layer` and `TestCacheStore.layer` for the run and cache stores, or `TestStores.layer()` (from `@smthrs/engine-store/test/TestStores`) for all four over one database,
 - `DurableEngineState.makeMemory()` for deferred/clock state,
 - `StepBoundary.layerTest()` for deterministic boundary evidence,
 - a stub `Jj` (`@smthrs/jj/browser/BrowserJj`'s `layerUnsupported`).
@@ -83,4 +83,4 @@ Run all package checks with:
 npm run check
 ```
 
-See [Determinism and replay](../concepts/determinism-and-replay.md) and the package references for [`@smthrs/kernel`](../reference/kernel.md) and [`@smthrs/journal`](../reference/journal.md).
+See [Determinism and replay](../concepts/determinism-and-replay.md) and the package references for [`@smthrs/kernel`](../reference/kernel.md), [`@smthrs/journal`](../reference/journal.md), [`@smthrs/run-store`](../reference/run-store.md), and [`@smthrs/step-cache`](../reference/step-cache.md).

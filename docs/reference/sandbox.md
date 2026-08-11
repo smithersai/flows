@@ -11,7 +11,7 @@ It depends on `@smthrs/kernel` — for `CommandLine.render` alone — and nothin
 | `Provider` | interface + service tag | `session`, scoped `open`, and a scoped `spawn` returning a `RemoteProcess` |
 | `RemoteProcess`, `RemoteOptions` | interfaces | a started remote process in the same three pieces a child process has (`stdout`, `stderr`, `exitCode`), and the `cwd`/`env` a rendered command carries across |
 | `ProviderErrorCode` | const + type | `aborted`, `timeout`, `unavailable`, `spawn_error`, `unknown` |
-| `ProviderError` | class | tagged `flows/host/RemoteSandbox/ProviderError` |
+| `ProviderError` | class | tagged `@smthrs/sandbox/RemoteSandbox/ProviderError` |
 | `layer` | layer | adapts a configured provider to Effect's `ChildProcessSpawner` |
 | `TestScript`, `TestSandboxState`, `TestSandboxProvider` | interfaces | scripted provider fixtures |
 | `TestSandbox` | const | `make(options?)` builds a deterministic scripted provider |
@@ -22,18 +22,18 @@ A provider may add SDK details to `ProviderError.cause`, but it cannot create ne
 
 The codes are the sandbox's own. They used to borrow the deleted `Shell` service's set; a remote session goes wrong in its own ways, so the seam now declares them.
 
-The command reaches the provider as the string `CommandLine.render` produces — the same string `@smthrs/kernel`'s `proc:spawn` check is written against, so a grant and the thing it authorizes cannot drift apart. Two capabilities a remote session does not have are declared rather than dropped: piping `stdin` and delivering a signal to `kill` both fail with a `BadArgument` `PlatformError`. A remote process ends by closing its scope.
+The command reaches the provider as the string `CommandLine.render` produces — the same string `@smthrs/kernel`'s `proc:spawn` check is written against, so a grant and the thing it authorizes cannot drift apart. Unsupported semantics are declared rather than dropped: command-supplied stdin streams, additional file descriptors, custom shell paths, detached processes, non-default pipeline routing, and delivering a signal to `kill` fail with a `BadArgument` `PlatformError`. The adapter honors output `pipe` / `ignore` / `inherit` dispositions and output sinks. A remote process ends by closing its scope.
 
 ## SandboxHealth
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `Healthy`, `Unhealthy` | classes | tagged `flows/host/SandboxHealth/Healthy` and `…/Unhealthy` |
+| `Healthy`, `Unhealthy` | classes | tagged `@smthrs/sandbox/SandboxHealth/Healthy` and `…/Unhealthy` |
 | `HealthState` | const + type | union schema of the two |
 | `UnhealthyReason` | const + type | `unresponsive`, `ping_failed` |
 | `PingProvider`, `ProbeOptions`, `Service` | interfaces | probe inputs and the service shape |
 | `probe` | function | runs one ping under a deadline; never fails |
-| `SandboxHealth` | service tag | tag key `flows/host/SandboxHealth` |
+| `SandboxHealth` | service tag | tag key `@smthrs/sandbox/SandboxHealth` |
 | `make`, `makeNoop`, `layer`, `layerNoop` | constructors and layers | `makeNoop` always reports `Healthy`, for hosts without a remote sandbox |
 
 The journal's run-ownership heartbeat detects a dead engine owner; nothing detected a dead sandbox under a live engine. This module closes that gap with a taxonomy plus a probe, not a supervisor — no polling loop lives here.

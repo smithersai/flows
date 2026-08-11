@@ -44,7 +44,7 @@ definition. Smithers' inline per-reason states in `engine.js` (pinned by
 taxonomy, per the pluggability rule.
 
 The production park path reaches the full taxonomy through
-`FlowEngine.annotateWaiting` (issue #31): a flow declares
+`FlowRuntime.annotateWaiting` (issue #31): a flow declares
 `{ reason, wakeAt?, token? }` immediately before suspending and the driver
 parks the run with exactly that payload (`AnnotatedWaiting.test.ts` pins the
 approval-with-token and due-quota sweeps end-to-end); without an annotation the
@@ -54,7 +54,7 @@ driver derives `timer`/`event` from durable clock state.
 
 `RunStore.claimAndOwn` (PR #7) carries the fence; the hardening wave added the
 lease half the audit called missing: `heartbeat_at_ms` with a 30s staleness
-window (`packages/journal/src/RunStore.ts:334`), stale-owner steal inside the
+window (`packages/run-store/src/RunStore.ts:334`), stale-owner steal inside the
 claim's `WHERE` clause (`RunStore.ts:637,692,818`), and a fenced `heartbeat`
 operation. No pid probing anywhere — the audit's explicit rejection of
 smithers' pid-verified `runState` (`packages/db/src/runState`) holds. Fault

@@ -33,12 +33,18 @@ The package depends on `@smthrs/kernel` — for `CommandLine.render` alone — a
 | Export | Kind | Notes |
 | --- | --- | --- |
 | `ProviderErrorCode` | const + type | `aborted`, `timeout`, `unavailable`, `spawn_error`, `unknown` — the sandbox's own closed set |
-| `ProviderError` | class | tagged `flows/host/RemoteSandbox/ProviderError` |
+| `ProviderError` | class | tagged `@smthrs/sandbox/RemoteSandbox/ProviderError` |
 | `Provider` | interface + service tag | `session`, scoped `open`, scoped `spawn` |
 | `RemoteProcess`, `RemoteOptions` | interfaces | a started remote process (`stdout`, `stderr`, `exitCode`) and the `cwd`/`env` carried across |
 | `layer` | layer | a `ChildProcessSpawner` backed by a provider; acquisition is tied to the layer scope |
 | `TestScript`, `TestSandboxState`, `TestSandboxProvider` | interfaces | scripted provider fixtures |
 | `TestSandbox` | const | `make(options?)` — deterministic scripted provider |
+
+`layer` rejects command-supplied stdin streams, additional file descriptors,
+custom shell paths, detached processes, and non-default pipeline routing with a
+`BadArgument` `PlatformError`; those options cannot be represented by the
+provider contract and are never silently dropped. Output dispositions and
+output sinks are applied by the adapter.
 
 ## SandboxHealth
 
@@ -49,10 +55,10 @@ The package depends on `@smthrs/kernel` — for `CommandLine.render` alone — a
 | `UnhealthyReason` | const + type | `unresponsive`, `ping_failed` |
 | `PingProvider`, `ProbeOptions`, `Service` | interfaces | probe inputs |
 | `probe` | function | one ping under a deadline (5 seconds by default); never fails |
-| `SandboxHealth` | service tag | `flows/host/SandboxHealth` |
+| `SandboxHealth` | service tag | `@smthrs/sandbox/SandboxHealth` |
 | `make`, `makeNoop` | constructors | `makeNoop` always reports `Healthy` |
 | `layer`, `layerNoop` | layers | |
 
 ## Reading next
 
-[`@smthrs/kernel`](kernel.md) owns the closed host list this satisfies a slot of — and the `proc:spawn` check written against the same rendered command line the provider receives — and [`@smthrs/journal`](journal.md) owns the run-ownership heartbeat that detects a dead engine owner rather than a dead sandbox.
+[`@smthrs/kernel`](kernel.md) owns the closed host list this satisfies a slot of — and the `proc:spawn` check written against the same rendered command line the provider receives — and [`@smthrs/run-store`](run-store.md) owns the run-ownership heartbeat that detects a dead engine owner rather than a dead sandbox.
