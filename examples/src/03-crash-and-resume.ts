@@ -10,7 +10,7 @@
  * The counter proves the replay contract: the handler body runs twice, and the
  * activity in front of the suspension dispatches once.
  */
-import { Activity, DurableDeferred, Flow, FlowEngine } from "@smthrs/engine"
+import { Activity, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
@@ -69,7 +69,7 @@ export const main = (filename: string): Effect.Effect<Summary> =>
     // Phase two: a fresh engine completes the deferred and finishes the run.
     const result = yield* Effect.scoped(
       Effect.gen(function*() {
-        const flowEngine = yield* FlowEngine.FlowEngine
+        const flowEngine = yield* FlowRuntime.FlowRuntime
         yield* flowEngine.deferredDone(Approval, {
           flowName: Review._tag,
           executionId: "review-1",

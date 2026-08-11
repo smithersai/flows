@@ -6,7 +6,8 @@
  * with whichever engine is in scope, and `FlowEngine.layerMemory` supplies an
  * engine that keeps its state in the process.
  */
-import { Flow, FlowEngine } from "@smthrs/engine"
+import { FlowEngine } from "@smthrs/engine"
+import { Flow } from "@smthrs/flow"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"

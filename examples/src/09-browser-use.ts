@@ -13,7 +13,8 @@
  * for this example bundles the file itself for the browser and fails if a
  * Node-only import ever sneaks in.
  */
-import { Flow, FlowEngine } from "@smthrs/engine"
+import { FlowEngine } from "@smthrs/engine"
+import { Flow } from "@smthrs/flow"
 import { Key } from "@smthrs/keys"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"

@@ -11,7 +11,7 @@
  * the key to the execution that produced it, and the fork would re-execute.
  */
 import * as SqlClient from "effect/unstable/sql/SqlClient"
-import { Activity, Flow } from "@smthrs/engine"
+import { Activity, Flow } from "@smthrs/flow"
 import { EngineStore } from "@smthrs/engine-store"
 import { Journal } from "@smthrs/journal"
 import { SqlTimeTravelStore } from "@smthrs/time-travel"

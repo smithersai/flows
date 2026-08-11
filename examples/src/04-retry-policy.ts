@@ -7,7 +7,7 @@
  * advances `Activity.CurrentAttempt`, which is the attempt number the durable
  * store addresses each attempt row by.
  */
-import { Activity, Flow, RetryPolicy } from "@smthrs/engine"
+import { Activity, Flow, RetryPolicy } from "@smthrs/flow"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"

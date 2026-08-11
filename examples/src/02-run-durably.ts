@@ -6,7 +6,7 @@
  * heartbeat, persists every activity attempt, and commits each lifecycle
  * event in the same transaction as the state transition it describes.
  */
-import { Activity, Flow } from "@smthrs/engine"
+import { Activity, Flow } from "@smthrs/flow"
 import { Journal, type JournalEvent } from "@smthrs/journal"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
