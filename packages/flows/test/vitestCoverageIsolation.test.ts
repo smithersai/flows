@@ -300,9 +300,21 @@ describe("vitest coverage isolation conformance", () => {
     // directives that the earlier literal-`v8 ignore` grep never saw.
     const directive = /(?:istanbul|[cv]8|node:coverage)\s+ignore\s+(if|else|next|file|start|stop)(?=\W|$)/g
     const allowlist: Record<string, number> = {
+      // Three unreachable-by-construction branches in the plan scheduler: the
+      // ready-set can never be empty while work is pending (the compiler
+      // rejects cycles), the dispatch key is built from strings so
+      // canonicalization cannot reject it, and the merge node's elaboration
+      // cannot hit any of `Plan.append`'s four refusals.
+      "engine-store/src/PlanScheduler.ts": 3,
       "engine-store/src/internal/RunCoordinator.ts": 1,
       "engine/src/FlowEngine/make.ts": 1,
       "journal/src/SqlJournal.ts": 1,
+      // Plan order closes every dependency before its dependent, so the
+      // transitive-closure fallback is unreachable.
+      "plan/src/Plan.ts": 1,
+      // Every `flows_plans` column carries a CHECK constraint, so a row that
+      // fails the row decode cannot be written.
+      "plan/src/PlanStore.ts": 1,
       "run-store/src/AttemptStore.ts": 1,
       "run-store/src/RunStore.ts": 1,
       "step-cache/src/CacheStore.ts": 1

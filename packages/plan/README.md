@@ -49,19 +49,19 @@ yield* store.record(plan, Date.now())
 
 ## What is in here
 
-| Module        | Role                                                                                                |
-| ------------- | --------------------------------------------------------------------------------------------------- |
-| `KeyMaterial` | What a planner declares about a node: body, tagged input references, layers, capabilities, effects  |
-| `StepKey`     | The compiler that turns material plus resolved dependency digests into an `@smthrs/keys` `Key`      |
-| `Plan`        | `compile`, `append`, the node/edge/conflict schemas, and the digest an approval binds to            |
-| `PlanDiff`    | `flows plan --diff` as a value: added, removed, re-keyed (with attribution), unchanged              |
+| Module        | Role                                                                                                 |
+| ------------- | ---------------------------------------------------------------------------------------------------- |
+| `KeyMaterial` | What a planner declares about a node: body, tagged input references, layers, capabilities, effects   |
+| `StepKey`     | The compiler that turns material plus resolved dependency digests into an `@smthrs/keys` `Key`       |
+| `Plan`        | `compile`, `append`, the node/edge/conflict schemas, and the digest an approval binds to             |
+| `PlanDiff`    | `flows plan --diff` as a value: added, removed, re-keyed (with attribution), unchanged               |
 | `PlanStore`   | Append-only SQL persistence — migration block `4000`, enforced by triggers rather than by convention |
-| `Migrations`  | The namespaced migration set, composed by `@smthrs/engine-store`'s `Migrations.sets`                |
+| `Migrations`  | The namespaced migration set, composed by `@smthrs/engine-store`'s `Migrations.sets`                 |
 
 ## The three rules this package exists to keep
 
 **Planning performs no I/O.** Nothing here reads a file, a clock, or a network.
-A node's declared `effects` carry read and write *paths*, never digests —
+A node's declared `effects` carry read and write _paths_, never digests —
 measuring them is the scheduler's run-time job.
 
 **Invalidation is re-keying.** A node's key is a function of what it consumes,
@@ -73,7 +73,7 @@ regression, not an optimisation.
 **A plan grows; it is never rewritten.** `append` adds a pre-keyed subgraph at
 the next generation. Recorded nodes keep their id, key, edges, and generation
 byte for byte, and the SQL raises rather than letting a caller update or delete
-one. Re-ordering after a reconciliation happens by re-keying *future* steps.
+one. Re-ordering after a reconciliation happens by re-keying _future_ steps.
 
 ## Conflict annotations
 

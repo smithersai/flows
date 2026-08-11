@@ -76,6 +76,73 @@ export const diffBundleCaptured = (options: EventOptions, payload: unknown) =>
  */
 export const copyBackSettled = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.copy-back-settled", payload)
+/**
+ * A plan was recorded and a run is about to be driven under it. Carries the
+ * plan id, its generation-0 digest, and its node count, so
+ * `docs/specs/Specs/Plan.md`'s audit question — "show me the plan this ran
+ * under" — is answered exactly rather than reconstructed.
+ *
+ * @since 0.1.0
+ * @category events
+ */
+export const planRecorded = (options: EventOptions, payload: unknown) =>
+  event(options, "flows.engine.plan-recorded", payload)
+/**
+ * An elaboration appended a pre-keyed subgraph to the SAME plan. The plan
+ * grows; it is never invalidated, so this record names the new generation, the
+ * advanced digest, and the node ids added — never a replacement graph.
+ *
+ * @since 0.1.0
+ * @category events
+ */
+export const subgraphAppended = (options: EventOptions, payload: unknown) =>
+  event(options, "flows.engine.subgraph-appended", payload)
+/**
+ * A plan node was admitted to the scheduler: its caps and seats allowed it,
+ * and its effective priority selected it. Paired with `node-settled`, this is
+ * the queue-time evidence `docs/specs/Concepts/Concurrency.md` asks the journal
+ * to measure.
+ *
+ * @since 0.1.0
+ * @category events
+ */
+export const nodeScheduled = (options: EventOptions, payload: unknown) =>
+  event(options, "flows.engine.node-scheduled", payload)
+/**
+ * A plan node reached one of the four evaluation outcomes. Skyframe's
+ * `EvaluationProgressReceiver.EvaluationState` is the prior art and the
+ * quadruple is deliberately the same size, with one deviation:
+ * `SUCCESS_VERSION_CHANGED`/`SUCCESS_VERSION_UNCHANGED` map onto `built`/
+ * `clean`, and where Skyframe splits failure by version we use `failed` and
+ * `skipped` — a content-addressed store never serves a failure from cache, so
+ * `FAIL_VERSION_UNCHANGED` has no analogue, while a dependent that never ran
+ * because its cone failed does.
+ *
+ * @since 0.1.0
+ * @category events
+ */
+export const nodeSettled = (options: EventOptions, payload: unknown) =>
+  event(options, "flows.engine.node-settled", payload)
+/**
+ * A scheduled node's dispatch identity was invalidated: its measured inputs no
+ * longer match the ones its key was computed from, so it is re-keyed and
+ * re-dispatched. Invalidation is re-keying — there is no dirty bit and no
+ * invalidating visitor to journal.
+ *
+ * @since 0.1.0
+ * @category events
+ */
+export const nodeInvalidated = (options: EventOptions, payload: unknown) =>
+  event(options, "flows.engine.node-invalidated", payload)
+/**
+ * The reconciliation seam returned a verdict for a deviation or an unabsorbed
+ * materialization conflict.
+ *
+ * @since 0.1.0
+ * @category events
+ */
+export const nodeReconciled = (options: EventOptions, payload: unknown) =>
+  event(options, "flows.engine.node-reconciled", payload)
 /** @since 0.1.0 @category events */
 export const cacheProvenance = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.cache-provenance", payload)

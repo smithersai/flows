@@ -53,6 +53,9 @@ describe("durable engine migrations", () => {
       "flows_deferred_completions",
       "flows_journal_events",
       "flows_migrations",
+      "flows_plan_edges",
+      "flows_plan_nodes",
+      "flows_plans",
       "flows_runs",
       "flows_step_cache"
     ])
@@ -128,7 +131,10 @@ describe("durable engine migrations", () => {
         "recorded_event_seq",
         "recorded_run_id",
         "result_json"
-      ]
+      ],
+      flows_plans: ["base_digest", "created_at_ms", "digest", "flow", "generation", "plan_id"],
+      flows_plan_nodes: ["generation", "key_digest", "kind", "node_id", "node_json", "ordinal", "plan_id"],
+      flows_plan_edges: ["from_node", "plan_id", "to_node"]
     })
     expect(
       Object.values(schema.tables).flat().some((column) =>

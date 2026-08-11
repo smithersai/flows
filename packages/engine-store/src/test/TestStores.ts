@@ -15,6 +15,7 @@
  */
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import * as SqlJournal from "@smthrs/journal/SqlJournal"
+import * as PlanStore from "@smthrs/plan/PlanStore"
 import * as AttemptStore from "@smthrs/run-store/AttemptStore"
 import * as RunStore from "@smthrs/run-store/RunStore"
 import * as CacheStore from "@smthrs/step-cache/CacheStore"
@@ -65,5 +66,6 @@ export const layer = (options?: TestStoresOptions) =>
     }),
     RunStore.layer,
     AttemptStore.layer,
-    CacheStore.layer
+    CacheStore.layer,
+    PlanStore.layer
   ).pipe(Layer.provide(database), Layer.merge(OwnerIdentity.layer))

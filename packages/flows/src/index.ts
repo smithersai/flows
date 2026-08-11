@@ -59,6 +59,7 @@ export * as Jj from "@smthrs/jj"
 export * as Journal from "@smthrs/journal"
 export * as Kernel from "@smthrs/kernel"
 export * as Keys from "@smthrs/keys"
+export * as Plan from "@smthrs/plan"
 export * as RunStore from "@smthrs/run-store"
 export * as Sandbox from "@smthrs/sandbox"
 export * as StepCache from "@smthrs/step-cache"
@@ -100,6 +101,7 @@ export const namespaces = [
   "Journal",
   "Kernel",
   "Keys",
+  "Plan",
   "RetryPolicy",
   "RunStore",
   "Sandbox",
