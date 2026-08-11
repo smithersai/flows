@@ -18,6 +18,7 @@ import * as RpcServer from "effect/unstable/rpc/RpcServer"
 import * as Socket from "effect/unstable/socket/Socket"
 import { describe, expect, it } from "vitest"
 import * as BranchCommands from "../src/BranchCommands.ts"
+import * as BranchIds from "../src/BranchIds.ts"
 import * as BranchPresence from "../src/BranchPresence.ts"
 import {
   type BranchId,
@@ -32,7 +33,7 @@ import * as BranchServer from "../src/BranchServer.ts"
 import * as BranchShare from "../src/BranchShare.ts"
 import * as TestSocket from "../src/test/TestSocket.ts"
 
-const base = Layer.mergeAll(TestJournal.layer(), BranchShare.layerHmac({ secret: "wire-secret" }))
+const base = Layer.mergeAll(TestJournal.layer(), BranchShare.layerHmac({ secret: "wire-secret" }), BranchIds.layer)
 const services = Layer.mergeAll(BranchPresence.layer({ leaseMs: 600_000 }), BranchCommands.layer).pipe(
   Layer.provide(base)
 )
@@ -43,6 +44,7 @@ type Requirements =
   | BranchShare.BranchShare
   | BranchPresence.BranchPresence
   | BranchCommands.BranchCommands
+  | BranchIds.BranchIds
   | Scope.Scope
 
 const program = <A, E>(effect: Effect.Effect<A, E, Requirements>) =>
