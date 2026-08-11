@@ -47,6 +47,7 @@
  * service — or a different constructor option — at the seam that owns it.
  */
 
+export * as Artifacts from "@smthrs/artifacts"
 export * as Canonical from "@smthrs/canonical"
 export * as Capability from "@smthrs/capability"
 export * as Crypto from "@smthrs/crypto"
@@ -83,6 +84,7 @@ export { TimeTravel } from "@smthrs/time-travel"
  */
 export const namespaces = [
   "Activity",
+  "Artifacts",
   "Canonical",
   "Capability",
   "Crypto",

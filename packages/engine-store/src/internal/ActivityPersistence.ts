@@ -23,6 +23,7 @@ import * as Schema from "effect/Schema"
 import * as Inconsistency from "../Inconsistency.ts"
 import * as StepBoundary from "../StepBoundary.ts"
 import * as AttemptAdmission from "./AttemptAdmission.ts"
+import * as CachePublication from "./CachePublication.ts"
 import * as JournalRecords from "./JournalRecords.ts"
 
 /** @since 0.1.0 @category models */
@@ -392,6 +393,15 @@ export const make = (deps: Dependencies) => {
         readonly createdAtMs: number
       }) =>
         Effect.gen(function*() {
+          // BLOBS BEFORE METADATA (issue #172). Every artifact this evidence
+          // references is made durable in the shared tier *before* the entry
+          // that references it is written, so a sibling machine can never see
+          // a hit whose outputs it cannot materialize. Bazel's REAPI ordering
+          // constraint, stated at `UploadManifest.java:630-633`; the whole
+          // protocol lives in `CachePublication`, which is a no-op when no
+          // shared tier is configured. It runs OUTSIDE the write transaction
+          // below, like every other host call.
+          yield* CachePublication.publishArtifacts(options.meta.boundary)
           // The producer identity folds a digest of the recorded content
           // (issue #129): a constant per-key identity made a post-eviction
           // re-record collapse into a `Duplicate` carrying the EVICTED
@@ -531,7 +541,27 @@ export const make = (deps: Dependencies) => {
                 const measured = yield* boundary.prepare(input.metadata).pipe(Effect.option)
                 const verified = Option.isSome(measured) && StepBoundary.readSetMatches(measured.value)
                 if (verified) {
-                  const materialized = yield* boundary.replayOutputs(meta.boundary).pipe(Effect.exit)
+                  const evidence = meta.boundary
+                  let materialized = yield* boundary.replayOutputs(evidence).pipe(Effect.exit)
+                  if (
+                    Exit.isFailure(materialized) &&
+                    CachePublication.replayMissingArtifact(materialized.cause) !== undefined
+                  ) {
+                    // LAZY DOWNLOAD (issue #172). A shared cache row is
+                    // routinely recorded on a machine whose artifacts this one
+                    // has never seen, so "the blob is not here" is the normal
+                    // first answer, not a defect — and it is the one replay
+                    // refusal a shared artifact tier can repair. Fetch, verify,
+                    // write back, and retry the replay ONCE. Only once: a
+                    // second failure means the tier cannot serve it either, and
+                    // the fall-through below (a real execution) is strictly
+                    // better than looping. With no shared tier configured
+                    // `hydrateArtifacts` reports `false` and this costs one
+                    // cheap branch.
+                    if (yield* CachePublication.hydrateArtifacts(evidence)) {
+                      materialized = yield* boundary.replayOutputs(evidence).pipe(Effect.exit)
+                    }
+                  }
                   if (Exit.isSuccess(materialized)) {
                     const recorded = {
                       runId: cached.value.recordedRunId,

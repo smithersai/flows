@@ -13,6 +13,7 @@
  * succeeded-attempt path returns the durable outcome with the refusal
  * journalled, and the production layer mkdirs parents before materializing.
  */
+import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
 import { Journal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
 import { type Ownership, RunStore } from "@smthrs/run-store"
@@ -24,6 +25,13 @@ import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+
+/**
+ * The production boundary now needs an `ArtifactStore` as well as a
+ * `FileSystem`: blob mechanics moved to `@smthrs/artifacts`.
+ */
+const hostLayer = (fs: FileSystem.FileSystem) =>
+  ArtifactStore.layerFileSystem().pipe(Layer.provideMerge(Layer.succeed(FileSystem.FileSystem)(fs)))
 import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
 
@@ -200,7 +208,7 @@ describe("the production replayOutputs creates parent directories (issue #107)",
           files.delete(path)
         })) as never
     })
-    return { files, layer: StepBoundary.layer.pipe(Layer.provide(Layer.succeed(FileSystem.FileSystem)(fs))) }
+    return { files, layer: StepBoundary.layer.pipe(Layer.provide(hostLayer(fs))) }
   }
 
   it("materializes an output whose parent directory the original body created", async () => {

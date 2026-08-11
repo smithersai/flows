@@ -13,6 +13,7 @@
  * blob refuses with `UnsupportedBoundary`, which the issue-#107 call sites
  * turn into a real execution instead of a failure.
  */
+import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
 import type { FileBoundary } from "@smthrs/flow/FileBoundary"
 import * as Effect from "effect/Effect"
 import * as Encoding from "effect/Encoding"
@@ -64,8 +65,24 @@ const memoryFs = (seed: Record<string, string>) => {
   return { files, directories, writes, renames, fs }
 }
 
-const boundaryLayer = (fs: FileSystem.FileSystem, options?: StepBoundary.FileSystemOptions) =>
-  Layer.succeed(StepBoundary.StepBoundary, StepBoundary.makeFileSystem(fs, options))
+/**
+ * The blob mechanics moved to `@smthrs/artifacts`; the inline-versus-spill
+ * budgets stayed here, so a boundary is now a policy over a store.
+ */
+type BoundaryOptions = StepBoundary.FileSystemOptions & { readonly objectsDirectory?: string }
+
+const boundaryLayer = (fs: FileSystem.FileSystem, options?: BoundaryOptions) =>
+  Layer.succeed(
+    StepBoundary.StepBoundary,
+    StepBoundary.makeFileSystem(
+      fs,
+      ArtifactStore.makeFileSystem(fs, { directory: options?.objectsDirectory }),
+      options
+    )
+  )
+
+/** The two-hex fanout address `@smthrs/artifacts` publishes at. */
+const blobPath = (directory: string, digest: string) => `${directory}/${digest.slice(0, 2)}/${digest}`
 
 const descriptor: FileBoundary = {
   readSet: [{ path: "input.txt", digest: sha256("original") }],
@@ -105,7 +122,7 @@ describe("materialized outputs are digest-referenced and bounded (issue #113)", 
     expect(output!.content).toBeUndefined()
     expect(JSON.stringify(evidence)).not.toContain("xxxxxxxx")
     // The payload lives in the host's content-addressed object directory.
-    expect(decoder.decode(host.files.get(`.objects/${sha256(artifact)}`))).toBe(artifact)
+    expect(decoder.decode(host.files.get(blobPath(".objects", sha256(artifact))))).toBe(artifact)
   })
 
   it("a small output stays inline under the bound and replays without the object store", async () => {
@@ -153,7 +170,11 @@ describe("materialized outputs are digest-referenced and bounded (issue #113)", 
         return yield* Effect.flip(boundary.replayOutputs(evidence))
       }).pipe(Effect.provide(boundaryLayer(fresh.fs, { maxInlineBytes: 16, objectsDirectory: ".objects" })))
     )
-    expect(failure).toMatchObject({ code: "unsupported_boundary" })
+    // A locally-missing artifact is its own typed refusal (issue #172): it is
+    // the one replay failure a shared artifact tier can repair, so the
+    // dispatch path fetches and retries before falling through to a real
+    // execution. Every other host refusal stays `unsupported_boundary`.
+    expect(failure).toMatchObject({ code: "missing_artifact" })
     expect(fresh.files.has("artifact.bin")).toBe(false)
   })
 
@@ -224,6 +245,33 @@ describe("legacy round-7 evidence rows still decode and replay (issue #123)", ()
   })
 })
 
+describe("an artifact store that refuses outright stays a retryable host refusal", () => {
+  it("classifies a store failure as unsupported_boundary, never as a missing artifact", async () => {
+    // A store that refuses says nothing about the artifact — unlike a miss,
+    // which a shared tier can repair, or a corruption, which routes to the
+    // Inconsistency receiver. It stays the ordinary retryable refusal the
+    // issue-#107 call sites already handle.
+    const host = memoryFs({ "input.txt": "original" })
+    const artifact = "r".repeat(64)
+    const evidence = await runPromise(settleWithArtifact(host, artifact, 16))
+    const failure = await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        return yield* Effect.flip(boundary.replayOutputs(evidence))
+      }).pipe(
+        Effect.provide(
+          Layer.succeed(
+            StepBoundary.StepBoundary,
+            StepBoundary.makeFileSystem(host.fs, ArtifactStore.makeNoop(), { maxInlineBytes: 16 })
+          )
+        )
+      )
+    )
+    expect(failure).toMatchObject({ code: "unsupported_boundary" })
+    expect((failure as StepBoundary.UnsupportedBoundary).message).toContain("artifact store")
+  })
+})
+
 describe("the aggregate inline payload is bounded (issue #122)", () => {
   it("spills outputs past maxTotalInlineBytes to the object store and still replays them", async () => {
     // Ten-byte outputs each fit the 16-byte per-output bound, but the third
@@ -232,7 +280,7 @@ describe("the aggregate inline payload is bounded (issue #122)", () => {
     // digest reference only.
     const host = memoryFs({ "input.txt": "original" })
     const contents = ["a".repeat(10), "b".repeat(10), "c".repeat(10)]
-    const options: StepBoundary.FileSystemOptions = {
+    const options: BoundaryOptions = {
       maxInlineBytes: 16,
       maxTotalInlineBytes: 24,
       objectsDirectory: ".objects"
@@ -258,7 +306,7 @@ describe("the aggregate inline payload is bounded (issue #122)", () => {
     expect(outputs[2]!.content).toBeUndefined()
     expect(outputs[2]!.digest).toBe(sha256(contents[2]!))
     expect(JSON.stringify(evidence)).not.toContain(Encoding.encodeBase64(encoder.encode(contents[2]!)))
-    expect(host.files.has(`.objects/${sha256(contents[2]!)}`)).toBe(true)
+    expect(host.files.has(blobPath(".objects", sha256(contents[2]!)))).toBe(true)
     // Replay round-trips the mixed inline/reference evidence.
     host.files.delete("a.bin")
     host.files.delete("b.bin")
@@ -288,7 +336,7 @@ describe("blob writes are atomic and materialization is digest-verified (issue #
     const evidence = await runPromise(settleWithArtifact(host, artifact, 16))
     // The blob at the canonical content address was truncated after settle
     // — a torn write, disk corruption, or a clobbered partial file.
-    host.files.set(`.objects/${sha256(artifact)}`, encoder.encode("truncated"))
+    host.files.set(blobPath(".objects", sha256(artifact)), encoder.encode("truncated"))
     host.files.delete("artifact.bin")
     const failure = await runPromise(replay(host, evidence))
     // A digest mismatch is corruption, not a transient host refusal
@@ -329,20 +377,20 @@ describe("blob writes are atomic and materialization is digest-verified (issue #
   it("writes blobs via temp+rename and never rewrites an existing valid blob", async () => {
     const host = memoryFs({ "input.txt": "original" })
     const artifact = "t".repeat(64)
-    const blobPath = `.objects/${sha256(artifact)}`
+    const address = blobPath(".objects", sha256(artifact))
     await runPromise(settleWithArtifact(host, artifact, 16))
     // The canonical address is never the direct write target: the payload
     // lands at a temp path and is renamed into place, so a crash mid-write
     // can never leave a partial file at the content address.
-    expect(host.writes).not.toContain(blobPath)
+    expect(host.writes).not.toContain(address)
     expect(host.renames).toHaveLength(1)
-    expect(host.renames[0]![0]).toMatch(new RegExp(`^${blobPath}\\.tmp-`))
-    expect(host.renames[0]![1]).toBe(blobPath)
+    expect(host.renames[0]![0]).toMatch(new RegExp(`^${address}\\.tmp-`))
+    expect(host.renames[0]![1]).toBe(address)
     // No temp file survives the settle.
     expect([...host.files.keys()].filter((path) => path.includes(".tmp-"))).toHaveLength(0)
     // Content-addressed: a second settle of the same payload skips the write.
     await runPromise(settleWithArtifact(host, artifact, 16))
-    expect(host.writes.filter((path) => path.startsWith(`${blobPath}.tmp-`))).toHaveLength(1)
+    expect(host.writes.filter((path) => path.startsWith(`${address}.tmp-`))).toHaveLength(1)
     expect(host.renames).toHaveLength(1)
   })
 })

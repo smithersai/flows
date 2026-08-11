@@ -76,6 +76,7 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
+    "@smthrs/artifacts": "0.1.0",
     "@smthrs/canonical": "0.1.0",
     "@smthrs/capability": "0.1.0",
     "@smthrs/crypto": "0.1.0",

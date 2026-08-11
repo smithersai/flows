@@ -24,6 +24,7 @@ const repoRoot = resolve(fileURLToPath(import.meta.url), "..", "..")
  * browser; any resolution or syntax error fails the gate.
  */
 const BROWSER_SAFE = [
+  { name: "@smthrs/artifacts", entry: "packages/artifacts/src/index.ts" },
   { name: "@smthrs/canonical", entry: "packages/canonical/src/index.ts" },
   { name: "@smthrs/capability", entry: "packages/capability/src/index.ts" },
   { name: "@smthrs/crypto", entry: "packages/crypto/src/index.ts" },

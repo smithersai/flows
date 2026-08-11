@@ -4,18 +4,16 @@
  *
  * @since 0.1.0
  */
+import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
 import { Sha256 } from "@smthrs/crypto"
 import { FileBoundary } from "@smthrs/flow/FileBoundary"
 import { FileInput } from "@smthrs/flow/FileInput"
-import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Encoding from "effect/Encoding"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
-import * as Option from "effect/Option"
-import * as Random from "effect/Random"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 
@@ -115,6 +113,26 @@ export class BoundaryCorruption extends Schema.TaggedErrorClass<BoundaryCorrupti
   }
 ) {}
 
+/**
+ * Recorded evidence references an artifact this host's store does not hold
+ * (issue #172). Distinct from {@link UnsupportedBoundary} because it is the one
+ * replay refusal a *shared artifact tier* can repair: the caller fetches the
+ * blob from the remote store, writes it back locally, and retries the replay
+ * once before falling through to a real execution. Every other host refusal
+ * says nothing about where the bytes might be.
+ *
+ * @since 0.1.0
+ * @category errors
+ */
+export class MissingArtifact extends Schema.TaggedErrorClass<MissingArtifact>()(
+  "flows/engine-store/MissingArtifact",
+  {
+    code: Schema.Literal("missing_artifact"),
+    path: Schema.String,
+    digest: Schema.String
+  }
+) {}
+
 /** @since 0.1.0 @category models */
 export interface Service {
   readonly prepare: (
@@ -125,7 +143,7 @@ export interface Service {
   ) => Effect.Effect<BoundaryEvidence, UndeclaredWrite | UnsupportedBoundary, Crypto.Crypto>
   readonly replayOutputs: (
     evidence: BoundaryEvidence
-  ) => Effect.Effect<void, UnsupportedBoundary | BoundaryCorruption, Crypto.Crypto>
+  ) => Effect.Effect<void, UnsupportedBoundary | BoundaryCorruption | MissingArtifact, Crypto.Crypto>
 }
 
 /** @since 0.1.0 @category services */
@@ -224,6 +242,18 @@ const hostFailure = (cause: unknown): UnsupportedBoundary =>
   })
 
 /**
+ * An artifact store that refused the operation outright — a failing disk, an
+ * unreachable shared tier, an address that is not a content address. Unlike a
+ * miss or a corruption it says nothing about the artifact, so it stays the
+ * ordinary retryable host refusal the issue-#107 call sites already handle.
+ */
+const artifactFailure = (cause: ArtifactStore.ArtifactStoreError): UnsupportedBoundary =>
+  new UnsupportedBoundary({
+    code: "unsupported_boundary",
+    message: `the artifact store could not serve the step boundary: ${cause.message}`
+  })
+
+/**
  * Corruption of an *inline* evidence payload (issue #159): the recorded
  * base64 no longer decodes, so there are no bytes to measure a digest of —
  * the `invalid_base64` sentinel records that the measurement itself was
@@ -241,14 +271,9 @@ const inlineCorruption = (path: string, recordedDigest: string): BoundaryCorrupt
 /** @since 0.1.0 @category models */
 export interface FileSystemOptions {
   /**
-   * Where blob-referenced outputs are stored, content-addressed by digest.
-   * Workspace-relative; defaults to `.flows/objects`.
-   */
-  readonly objectsDirectory?: string | undefined
-  /**
    * The largest output (in bytes) inlined into the boundary evidence
-   * itself. Anything larger is written to {@link objectsDirectory} and
-   * recorded by digest reference only (issue #113). Defaults to 1 MiB.
+   * itself. Anything larger is handed to the `ArtifactStore` and recorded by
+   * digest reference only (issue #113). Defaults to 1 MiB.
    */
   readonly maxInlineBytes?: number | undefined
   /**
@@ -256,139 +281,65 @@ export interface FileSystemOptions {
    * fold into its boundary evidence (issue #122). A per-output bound alone
    * still let a wide write set multiply many individually-small payloads
    * into an unbounded evidence row; once an output would push the running
-   * total past this bound it is spilled to {@link objectsDirectory} and
+   * total past this bound it is spilled to the `ArtifactStore` and
    * recorded by digest reference only, even though it individually fits
    * {@link maxInlineBytes}. Defaults to 8 MiB.
    */
   readonly maxTotalInlineBytes?: number | undefined
 }
 
-const defaultObjectsDirectory = ".flows/objects"
 const defaultMaxInlineBytes = 1024 * 1024
 const defaultMaxTotalInlineBytes = 8 * 1024 * 1024
-/**
- * How old a `.tmp-*` file must be before the issue-#138 sweep treats it as a
- * crash orphan rather than a live writer's in-flight scratch file. A spill
- * writes and renames within one capture, so an hour is far beyond any live
- * writer's window.
- */
-const staleTempMs = 60 * 60 * 1000
-/**
- * The fixed capacity of the issue-#155 verified-digest LRU. One 64-hex
- * digest per distinct blob this store recently captured or verified;
- * 4096 entries bound the memo near half a megabyte while still covering
- * far more distinct in-flight blobs than any realistic settle working set,
- * so eviction on a healthy host is rare and costs only a re-verification.
- */
-const verifiedDigestCapacity = 4096
 
 type MaterializedOutput = typeof DigestReferencedOutput.Type
 
 /**
+ * The digests this evidence references rather than inlines — the set that must
+ * be durable in a shared artifact tier before the evidence's cache entry
+ * becomes observable there, and the set a replay on a fresh host has to fetch.
+ *
+ * Evidence recorded by a foreign boundary implementation references nothing
+ * this store can name, so it yields the empty list rather than failing: the
+ * caller's replay path already refuses such evidence with
+ * {@link UnsupportedBoundary}.
+ *
+ * @since 0.1.0
+ * @category accessors
+ */
+export const referencedDigests = (evidence: BoundaryEvidence): ReadonlyArray<string> => {
+  const decoded = Schema.decodeUnknownResult(MaterializedOutputs)(evidence.declaredOutputs)
+  if (decoded._tag === "Failure") return []
+  const digests: Array<string> = []
+  for (const output of decoded.success.outputs) {
+    // A legacy round-7 row carries no digest at all, and an inline row carries
+    // its bytes with it; neither references the artifact store.
+    if (!("digest" in output)) continue
+    if (output.digest === null || output.content !== undefined) continue
+    digests.push(output.digest)
+  }
+  return digests
+}
+
+/**
  * Builds the filesystem-backed boundary service.
+ *
+ * The blob mechanics — content addressing, atomic publication, digest
+ * verification, dedupe — belong to `artifacts` and were extracted into
+ * `@smthrs/artifacts` (`docs/specs/Concepts/Remote Cache.md`). What stays here
+ * is the *policy* that decides which outputs become blobs at all: the
+ * inline-versus-spill budgets are a property of how large an evidence row may
+ * get, not of how bytes are stored.
  *
  * @since 0.1.0
  * @category constructors
  */
-export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOptions = {}): Service => {
-  const objectsDirectory = options.objectsDirectory ?? defaultObjectsDirectory
+export const makeFileSystem = (
+  fs: FileSystem.FileSystem,
+  artifacts: ArtifactStore.Service,
+  options: FileSystemOptions = {}
+): Service => {
   const maxInlineBytes = options.maxInlineBytes ?? defaultMaxInlineBytes
   const maxTotalInlineBytes = options.maxTotalInlineBytes ?? defaultMaxTotalInlineBytes
-  /**
-   * Distinguishes concurrent temp paths for the same digest across writers
-   * (issues #117, #131). The counter separates in-flight writers of this
-   * service instance; the random token separates instances — the default
-   * objects directory is workspace-shared, so two processes (or two
-   * instances) spilling the same digest would otherwise both write
-   * `<blob>.tmp-0`, clobber each other's completed temp file, and publish
-   * torn bytes at the canonical content address. The token never enters any
-   * persisted identity, so its randomness is invisible to replay.
-   *
-   * It is drawn from Effect's `Random` — the sanctioned swappable port for
-   * nondeterminism, named alongside `Clock` in the kernel's closed host list
-   * — rather than from ambient `Math.random`, so a deterministic composition
-   * (or a seeded test) controls it like every other draw. The draw is
-   * memoized on first spill: one token per service instance is the property
-   * issue #131 needs, and `makeFileSystem` itself stays synchronous.
-   */
-  let tempToken: string | undefined
-  const freshTempToken: Effect.Effect<string> = Effect.suspend(() =>
-    tempToken === undefined
-      ? Effect.map(
-        Random.nextIntBetween(0, Number.MAX_SAFE_INTEGER, { halfOpen: true }),
-        (drawn) => {
-          tempToken = drawn.toString(36).slice(0, 10).padEnd(10, "0")
-          return tempToken
-        }
-      )
-      : Effect.succeed(tempToken)
-  )
-  let tempSequence = 0
-  /**
-   * Digests whose canonical blob this store has already verified — or
-   * published itself — this lifetime (issue #144). Membership lets a repeat
-   * capture of a known digest skip the O(blob size) read+hash that the
-   * issue #132 verification otherwise pays on every spill.
-   *
-   * FINAL SHAPE (issue #155, subsuming the #144/#145 lineage — do not
-   * iterate on this memo again): a bounded LRU over an insertion-ordered
-   * `Map`, capped at {@link verifiedDigestCapacity} entries so a long-lived
-   * server host spilling outputs across hundreds of thousands of steps
-   * cannot grow it monotonically for the process lifetime. A hit refreshes
-   * recency; inserting past capacity evicts the least-recently-used digest,
-   * whose next capture simply re-verifies (correctness never depends on
-   * membership — eviction only re-pays the #132 read+hash). Any
-   * materialization failure over a digest — blob missing, unreadable, or
-   * mismatching — drops its entry so the next capture re-verifies and heals
-   * instead of trusting stale proof (issue #145).
-   */
-  const verifiedDigests = new Map<string, true>()
-  const verifiedDigestSeen = (digest: string): boolean => {
-    if (!verifiedDigests.has(digest)) return false
-    // Refresh recency: re-insertion moves the digest to the newest end of
-    // the Map's insertion order.
-    verifiedDigests.delete(digest)
-    verifiedDigests.set(digest, true)
-    return true
-  }
-  const verifiedDigestRecord = (digest: string): void => {
-    verifiedDigests.delete(digest)
-    verifiedDigests.set(digest, true)
-    if (verifiedDigests.size > verifiedDigestCapacity) {
-      // The size guard guarantees a non-empty Map, so the iterator always
-      // yields the least-recently-used digest.
-      verifiedDigests.delete(verifiedDigests.keys().next().value!)
-    }
-  }
-  /**
-   * Best-effort reclamation of temp files orphaned by a crash between the
-   * temp write and the rename (issue #138): nothing else ever observes them
-   * — `materialize` reads only canonical paths — so without a sweep the
-   * objects directory accumulates dead `.tmp-*` files unboundedly. The
-   * sweep runs once per store, on the first spill, and is conservative: a
-   * temp younger than the stale bound may belong to a live writer in
-   * another process, and one whose age cannot be measured says nothing
-   * about its writer, so both survive. Every step is best-effort — a
-   * missing directory or failing host never fails the capture.
-   */
-  let sweepDone = false
-  const sweepOrphanedTemps = Effect.gen(function*() {
-    if (sweepDone) return
-    sweepDone = true
-    const entries = yield* fs.readDirectory(objectsDirectory).pipe(
-      Effect.catch(() => Effect.succeed([] as ReadonlyArray<string>))
-    )
-    const now = yield* Clock.currentTimeMillis
-    for (const entry of entries) {
-      if (!entry.includes(".tmp-")) continue
-      const orphanPath = `${objectsDirectory}/${entry}`
-      const info = yield* fs.stat(orphanPath).pipe(Effect.option)
-      if (Option.isNone(info)) continue
-      const mtime = Option.getOrUndefined(info.value.mtime)
-      if (mtime === undefined || now - mtime.getTime() < staleTempMs) continue
-      yield* fs.remove(orphanPath).pipe(Effect.ignore)
-    }
-  })
   const measure = (path: string): Effect.Effect<string, UnsupportedBoundary, Crypto.Crypto> =>
     fs.exists(path).pipe(
       Effect.flatMap((present) =>
@@ -417,57 +368,11 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
       }
     }
     // Over the inline bound: the payload goes to the content-addressed
-    // object directory and the persisted row carries only the reference.
-    const blobPath = `${objectsDirectory}/${digest}`
-    const stored = yield* fs.exists(blobPath).pipe(Effect.mapError(hostFailure))
-    // Existence alone is not validity (issue #132): a truncated blob left by
-    // a pre-#117 non-atomic writer or by disk corruption would be trusted
-    // forever at capture time while `materialize` digest-verifies and
-    // refuses — a permanent failure with no repair path even though this
-    // process holds the correct bytes. The existing blob is digest-verified
-    // here (an unreadable blob counts as corrupt), and only a verified match
-    // skips the write; a mismatch falls through to the atomic rewrite below,
-    // healing the address. Verification runs ONCE per digest per store
-    // lifetime (issue #144): a full read+hash of the existing blob on every
-    // capture made the dedupe fast path O(blob size) on every re-spill of a
-    // known digest, and one verified match — or this store's own atomic
-    // publication — is proof enough; corruption introduced behind the
-    // store's back afterwards is exactly what `materialize`'s digest check
-    // still refuses — and a materialization that finds the blob missing,
-    // unreadable, or mismatching evicts the memo entry (issue #145), so the
-    // next capture re-verifies and heals instead of trusting stale proof.
-    const verified = stored &&
-      (verifiedDigestSeen(digest) ||
-        (yield* fs.readFile(blobPath).pipe(
-          Effect.flatMap((existing) =>
-            Schema.decodeUnknownEffect(Sha256)(existing).pipe(
-              Effect.orDie,
-              Effect.map((measured) => measured === digest)
-            )
-          ),
-          Effect.catch(() => Effect.succeed(false))
-        )))
-    if (!verified) {
-      // Atomic publication (issue #117): a plain write to the canonical
-      // address could be observed — or survive a crash — as a partial file
-      // that every later materialization of this digest would trust. The
-      // payload lands at a temp path and is renamed into place; an existing
-      // blob is rewritten only when its bytes no longer match its address.
-      yield* fs.makeDirectory(objectsDirectory, { recursive: true }).pipe(Effect.mapError(hostFailure))
-      yield* sweepOrphanedTemps
-      const tempPath = `${blobPath}.tmp-${yield* freshTempToken}-${tempSequence++}`
-      // A failed publication removes its own scratch file (issue #138); a
-      // crash cannot, which is what the sweep above reclaims.
-      yield* fs.writeFile(tempPath, bytes).pipe(
-        Effect.andThen(fs.rename(tempPath, blobPath)),
-        Effect.mapError(hostFailure),
-        Effect.onError(() => fs.remove(tempPath).pipe(Effect.ignore))
-      )
-    }
-    // Reaching here means the address holds verified bytes: either the
-    // existing blob matched its digest, or this store just published them
-    // atomically. Later captures of the digest trust that proof.
-    verifiedDigestRecord(digest)
+    // artifact store and the persisted row carries only the reference. Every
+    // property that used to live here — atomic publication, verify-once
+    // dedupe, healing rewrite of a corrupt address — is now the store's, and
+    // is tested there (`@smthrs/artifacts`).
+    yield* artifacts.put(bytes).pipe(Effect.mapError(artifactFailure))
     return { output: { path, digest, sizeBytes: bytes.length } satisfies MaterializedOutput, inlinedBytes: 0 }
   })
   const materialize = Effect.fn("StepBoundary.materialize")(function*(output: MaterializedOutput) {
@@ -482,58 +387,45 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
         return yield* Effect.fail(inlineCorruption(output.path, `${output.digest}`))
       }
       bytes = decoded.success
-    } else {
-      const blobPath = `${objectsDirectory}/${output.digest}`
-      const present = yield* fs.exists(blobPath).pipe(Effect.mapError(hostFailure))
-      if (!present) {
-        // The blob vanished behind the store's back, so any cached
-        // verification of it is stale (issue #145): dropping the memo entry
-        // lets the next capture republish instead of trusting the proof.
-        // The memo key is interpolated exactly as `blobPath` is — a null
-        // digest never enters the set, so its eviction is a no-op.
-        verifiedDigests.delete(`${output.digest}`)
-        // The reference cannot be resolved on this host — refusing routes
-        // the issue-#107 call sites to a real execution instead of
-        // materializing nothing silently.
+      // Inline evidence is verified here because nothing else can: the bytes
+      // travel inside the row rather than at a content address. A referenced
+      // artifact is verified by the store on the way out, so the check below
+      // would be a second read+hash of the same bytes.
+      const measured = yield* Schema.decodeUnknownEffect(Sha256)(bytes).pipe(Effect.orDie)
+      if (measured !== output.digest) {
         return yield* Effect.fail(
-          new UnsupportedBoundary({
-            code: "unsupported_boundary",
-            message: `the referenced output blob ${output.digest} is not in ${objectsDirectory}`
+          new BoundaryCorruption({
+            code: "boundary_corruption",
+            path: output.path,
+            recordedDigest: `${output.digest}`,
+            measuredDigest: measured
           })
         )
       }
-      bytes = yield* fs.readFile(blobPath).pipe(
-        // An unreadable blob invalidates its cached verification too
-        // (issue #145): the memo must never outlive the proof it caches.
-        Effect.tapError(() =>
-          Effect.sync(() => {
-            verifiedDigests.delete(`${output.digest}`)
-          })
-        ),
-        Effect.mapError(hostFailure)
-      )
-    }
-    // Every materialization is digest-verified (issue #117): a corrupted or
-    // truncated blob at the canonical address — or tampered inline content —
-    // must never be written into the workspace as if it were the recorded
-    // output.
-    const measured = yield* Schema.decodeUnknownEffect(Sha256)(bytes).pipe(Effect.orDie)
-    if (measured !== output.digest) {
-      // Corruption observed at the canonical address disproves any cached
-      // verification of this digest (issue #145): without the eviction, the
-      // #144 memo lets every later capture skip the hash check AND the #132
-      // healing rewrite, so the mismatch would be permanent for the store's
-      // lifetime even though the capturing process holds the correct bytes.
-      verifiedDigests.delete(`${output.digest}`)
-      // Corruption is a distinct typed failure from a transient host error
-      // (issue #150): the caller routes it to the Inconsistency receiver
-      // instead of treating it as an ordinary retryable refusal.
-      return yield* Effect.fail(
-        new BoundaryCorruption({
-          code: "boundary_corruption",
-          path: output.path,
-          recordedDigest: `${output.digest}`,
-          measuredDigest: measured
+    } else {
+      bytes = yield* artifacts.get(`${output.digest}`).pipe(
+        Effect.catchTags({
+          // A reference this host cannot resolve is not a host refusal: a
+          // shared artifact tier may still hold it, so the caller gets a
+          // typed, repairable failure and fetches before falling back to a
+          // real execution (issue #172).
+          "@smthrs/artifacts/ArtifactMissing": (missing) =>
+            Effect.fail(
+              new MissingArtifact({ code: "missing_artifact", path: output.path, digest: missing.digest })
+            ),
+          // Corruption is a distinct typed failure from a transient host
+          // error (issue #150): the caller routes it to the Inconsistency
+          // receiver instead of treating it as an ordinary retryable refusal.
+          "@smthrs/artifacts/ArtifactCorruption": (corrupt) =>
+            Effect.fail(
+              new BoundaryCorruption({
+                code: "boundary_corruption",
+                path: output.path,
+                recordedDigest: corrupt.recordedDigest,
+                measuredDigest: corrupt.measuredDigest
+              })
+            ),
+          "@smthrs/artifacts/ArtifactStoreError": (failure) => Effect.fail(artifactFailure(failure))
         })
       )
     }
@@ -635,14 +527,20 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
  *
  * Host access arrives through Effect's `FileSystem` tag, which the capability
  * kernel decorates in place — the same seam every host implementation (node,
- * bun, browser, sandbox) already provides.
+ * bun, browser, sandbox) already provides. Blob storage arrives through
+ * `@smthrs/artifacts`, so the same boundary runs over a purely local store or
+ * over a local-plus-shared composition without knowing which it got.
  *
  * @since 0.1.0
  * @category layers
  */
-export const layer: Layer.Layer<Service, never, FileSystem.FileSystem> = Layer.effect(
+export const layer: Layer.Layer<Service, never, FileSystem.FileSystem | ArtifactStore.ArtifactStore> = Layer.effect(
   StepBoundary,
-  Effect.map(FileSystem.FileSystem, makeFileSystem)
+  Effect.gen(function*() {
+    const fs = yield* FileSystem.FileSystem
+    const artifacts = yield* ArtifactStore.ArtifactStore
+    return makeFileSystem(fs, artifacts)
+  })
 )
 
 /** @since 0.1.0 @category models */

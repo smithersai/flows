@@ -1,9 +1,17 @@
+import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
 import type { FileBoundary } from "@smthrs/flow/FileBoundary"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"
 import * as StepBoundary from "../src/StepBoundary.ts"
+
+/**
+ * The production boundary now needs an `ArtifactStore` as well as a
+ * `FileSystem`: blob mechanics moved to `@smthrs/artifacts`.
+ */
+const hostLayer = (fs: FileSystem.FileSystem) =>
+  ArtifactStore.layerFileSystem().pipe(Layer.provideMerge(Layer.succeed(FileSystem.FileSystem)(fs)))
 import { runPromise, sha256 } from "./Sha256.ts"
 
 const descriptor: FileBoundary = {
@@ -110,7 +118,7 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
           files.delete(path)
         })) as never
     })
-    return { files, layer: StepBoundary.layer.pipe(Layer.provide(Layer.succeed(FileSystem.FileSystem)(fs))) }
+    return { files, layer: StepBoundary.layer.pipe(Layer.provide(hostLayer(fs))) }
   }
 
   const declared = (content: string): FileBoundary => ({
@@ -317,7 +325,7 @@ describe("StepBoundary.layer host failures", () => {
           })
         )
       }).pipe(
-        Effect.provide(StepBoundary.layer.pipe(Layer.provide(Layer.succeed(FileSystem.FileSystem)(fs))))
+        Effect.provide(StepBoundary.layer.pipe(Layer.provide(hostLayer(fs))))
       )
     )
     expect(failure).toMatchObject({ code: "unsupported_boundary" })

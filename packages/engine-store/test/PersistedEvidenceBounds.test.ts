@@ -6,6 +6,7 @@
  * boundary cannot observe the whole tree, so its evidence must not enter the
  * shared cache even when the declared output capture succeeds.
  */
+import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
 import { Jj } from "@smthrs/kernel"
 import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
 import { CacheStore } from "@smthrs/step-cache"
@@ -92,7 +93,11 @@ describe("persisted evidence stays bounded through the real boundary (issue #125
     }
     const boundaryLayer = Layer.succeed(
       StepBoundary.StepBoundary,
-      StepBoundary.makeFileSystem(host.fs, { maxInlineBytes: 16, objectsDirectory: ".objects" })
+      StepBoundary.makeFileSystem(
+        host.fs,
+        ArtifactStore.makeFileSystem(host.fs, { directory: ".objects" }),
+        { maxInlineBytes: 16 }
+      )
     )
     const outcome = await runPromise(
       Effect.gen(function*() {
@@ -139,6 +144,6 @@ describe("persisted evidence stays bounded through the real boundary (issue #125
     // the output was 4 KiB.
     expect(JSON.stringify(meta).length).toBeLessThan(2048)
     // The payload itself lives in the content-addressed object directory.
-    expect(host.files.has(`.objects/${artifactDigest}`)).toBe(true)
+    expect(host.files.has(`.objects/${artifactDigest.slice(0, 2)}/${artifactDigest}`)).toBe(true)
   })
 })
