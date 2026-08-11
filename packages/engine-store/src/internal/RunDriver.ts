@@ -792,9 +792,13 @@ export const make = (
             // durable write with no journal record at all, which left the
             // replay-derived state projection with no base to fold onto —
             // `flowName` and `payload` exist nowhere else in the journal.
+            // The state travels ENCODED, exactly as every later decision
+            // carries it: `stateAt` folds these payloads and hands the winner
+            // back as the run row's own `state_json`, so a base recorded in the
+            // decoded shape would be a schema the caller cannot decode.
             yield* emitDecision(options.executionId, {
               decision: "created",
-              state,
+              state: JSON.parse(createdStateJson),
               ...(options.parent === undefined ? {} : { parentExecutionId: options.parent.executionId })
             })
             if (options.parent !== undefined) {
@@ -819,7 +823,15 @@ export const make = (
                       `Child run ${options.executionId} exists and keeps its own journal; rewinding past its spawn orphans it.`
                   },
                   "succeeded",
-                  { childRunId: options.executionId, flowName: flow._tag }
+                  // `attached` is written even though it is always false: the
+                  // lineage-tree bridge in `@smthrs/time-travel` reads it off
+                  // this payload, and an absent field there would make "this
+                  // spawn is detached" indistinguishable from "this producer
+                  // predates the field". A run created with a parent is a
+                  // separate run row with its own claim, which is what detached
+                  // means (`docs/specs/Concepts/Subflows.md`); attached nesting
+                  // never reaches `create` because it is one journal.
+                  { childRunId: options.executionId, flowName: flow._tag, attached: false }
                 )
               ).pipe(Effect.orDie)
             }
