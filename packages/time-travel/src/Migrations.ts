@@ -57,7 +57,12 @@ export const sets: ReadonlyArray<DatabaseMigrations.MigrationSet> = [
   set
 ]
 
-/** Creates the complete durable schema for an engine with time travel. @category migrations @since 0.1.0 */
+/**
+ * Creates the complete durable schema for an engine with time travel.
+ *
+ * @category migrations
+ * @since 0.1.0
+ */
 export const run = DatabaseMigrations.run(sets)
 
 /**

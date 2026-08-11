@@ -79,7 +79,12 @@ export const AttemptId = Schema.Struct({
   )
 })
 
-/** Identifies one execution of a content-addressed step within a run. @category models @since 0.1.0 */
+/**
+ * Identifies one execution of a content-addressed step within a run.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type AttemptId = typeof AttemptId.Type
 
 /**
@@ -100,7 +105,12 @@ export const Attempt = Schema.Struct({
   meta: Schema.Unknown
 })
 
-/** A durable attempt row. @category models @since 0.1.0 */
+/**
+ * A durable attempt row.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Attempt = typeof Attempt.Type
 
 /**
@@ -123,7 +133,12 @@ export const FinishAttempt = Schema.Struct({
   meta: Schema.optionalKey(Schema.Unknown)
 })
 
-/** Input used to finish an existing attempt. @category models @since 0.1.0 */
+/**
+ * Input used to finish an existing attempt.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type FinishAttempt = typeof FinishAttempt.Type
 
 /**
@@ -157,7 +172,12 @@ export const AttemptPatch = Schema.Struct({
   meta: Schema.optionalKey(Schema.Unknown)
 })
 
-/** Fields an unfenced patch may rewrite. @category models @since 0.1.0 */
+/**
+ * Fields an unfenced patch may rewrite.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type AttemptPatch = typeof AttemptPatch.Type
 
 /**

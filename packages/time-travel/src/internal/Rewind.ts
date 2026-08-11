@@ -43,7 +43,8 @@ export const RewindStep = Schema.Literals([
 /**
  * The value form of {@link RewindStep}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type RewindStep = typeof RewindStep.Type
 
@@ -60,7 +61,8 @@ export const RateLimitDecision = Schema.Struct({
 /**
  * The value form of {@link RateLimitDecision}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type RateLimitDecision = typeof RateLimitDecision.Type
 
@@ -74,7 +76,8 @@ export const DetachedChildPolicy = Schema.Literals(["block", "cancel"])
 /**
  * The value form of {@link DetachedChildPolicy}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type DetachedChildPolicy = typeof DetachedChildPolicy.Type
 
@@ -92,7 +95,8 @@ export const DetachedChildWarning = Schema.Struct({
 /**
  * The value form of {@link DetachedChildWarning}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type DetachedChildWarning = typeof DetachedChildWarning.Type
 
@@ -125,7 +129,8 @@ export const AuditDetail = Schema.Struct({
 /**
  * The value form of {@link AuditDetail}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type AuditDetail = typeof AuditDetail.Type
 
@@ -177,7 +182,8 @@ export const Result = Schema.Struct({
 /**
  * The value form of {@link Result}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type Result = typeof Result.Type
 

@@ -25,7 +25,8 @@ export const Assessment = Schema.Struct({ ...HandlerAssessment.fields, effect: E
 /**
  * The value form of {@link Assessment}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type Assessment = typeof Assessment.Type
 
@@ -44,7 +45,8 @@ export const Plan = Schema.Struct({
 /**
  * The value form of {@link Plan}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type Plan = typeof Plan.Type
 
@@ -61,7 +63,8 @@ export const WorkspaceReceipt = Schema.Struct({
 /**
  * The value form of {@link WorkspaceReceipt}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type WorkspaceReceipt = typeof WorkspaceReceipt.Type
 
@@ -78,7 +81,8 @@ export const Result = Schema.Struct({
 /**
  * The value form of {@link Result}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type Result = typeof Result.Type
 

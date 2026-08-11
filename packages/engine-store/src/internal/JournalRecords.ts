@@ -14,7 +14,8 @@ import * as Effect from "effect/Effect"
  * record without one is a record no time-travel frame can address — which is
  * why it is required here rather than optional.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export interface EventOptions {
   readonly runId: string
@@ -66,7 +67,8 @@ const event = (options: EventOptions, eventType: string, payload: unknown): Jour
  * travel derives the state AT a frame, rather than reading the run row's
  * latest value.
  *
- * @since 0.1.0 @category events
+ * @since 0.1.0
+ * @category events
  */
 export const runDecision = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.run-decision", payload)
@@ -74,7 +76,8 @@ export const runDecision = (options: EventOptions, payload: unknown) =>
  * An activity attempt was admitted and its body is about to run. Paired with
  * {@link attemptFinished}; an unmatched one is crash evidence.
  *
- * @since 0.1.0 @category events
+ * @since 0.1.0
+ * @category events
  */
 export const attemptStarted = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.attempt-started", payload)
@@ -82,7 +85,8 @@ export const attemptStarted = (options: EventOptions, payload: unknown) =>
  * An activity attempt settled, successfully or not. Closes the span opened by
  * {@link attemptStarted}.
  *
- * @since 0.1.0 @category events
+ * @since 0.1.0
+ * @category events
  */
 export const attemptFinished = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.attempt-finished", payload)
@@ -91,7 +95,8 @@ export const attemptFinished = (options: EventOptions, payload: unknown) =>
  * resolution is the only evidence of it — a replay cannot re-derive a value
  * that arrived over the network.
  *
- * @since 0.1.0 @category events
+ * @since 0.1.0
+ * @category events
  */
 export const deferredCompleted = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.deferred-completed", payload)
@@ -100,7 +105,8 @@ export const deferredCompleted = (options: EventOptions, payload: unknown) =>
  * what lets a resumed run re-arm the same deadline instead of restarting the
  * wait.
  *
- * @since 0.1.0 @category events
+ * @since 0.1.0
+ * @category events
  */
 export const clockScheduled = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.clock-scheduled", payload)
@@ -109,7 +115,8 @@ export const clockScheduled = (options: EventOptions, payload: unknown) =>
  * to failing. Recorded so a later reader can tell a cancelled run from a
  * broken one.
  *
- * @since 0.1.0 @category events
+ * @since 0.1.0
+ * @category events
  */
 export const interrupted = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.interrupted", payload)
@@ -118,7 +125,8 @@ export const interrupted = (options: EventOptions, payload: unknown) =>
  * are the two tier-2 facts replay cannot derive, which is why the engine emits
  * them and time travel's snapshot projector folds them into frame anchors.
  *
- * @since 0.1.0 @category events
+ * @since 0.1.0
+ * @category events
  */
 export const snapshotIdentified = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.snapshot-identified", payload)
@@ -127,7 +135,8 @@ export const snapshotIdentified = (options: EventOptions, payload: unknown) =>
  * refused. The record is the forensic trail for a declaration that does not
  * match what the step actually does.
  *
- * @since 0.1.0 @category events
+ * @since 0.1.0
+ * @category events
  */
 export const hardViolation = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.hard-violation", payload)
@@ -136,7 +145,8 @@ export const hardViolation = (options: EventOptions, payload: unknown) =>
  * {@link hardViolation} the result still stands — the declaration was a
  * prediction, and this is the record of it being wrong.
  *
- * @since 0.1.0 @category events
+ * @since 0.1.0
+ * @category events
  */
 export const expectedSetDeviation = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.expected-set-deviation", payload)
@@ -239,7 +249,8 @@ export const nodeReconciled = (options: EventOptions, payload: unknown) =>
  * key. A cache hit is otherwise invisible in the journal, and provenance is
  * what makes one auditable after the fact.
  *
- * @since 0.1.0 @category events
+ * @since 0.1.0
+ * @category events
  */
 export const cacheProvenance = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.cache-provenance", payload)
@@ -247,7 +258,8 @@ export const cacheProvenance = (options: EventOptions, payload: unknown) =>
  * Two runs recorded different results under one step key — the journaled form
  * of an under-specified declaration.
  *
- * @since 0.1.0 @category events
+ * @since 0.1.0
+ * @category events
  */
 export const cacheConflict = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.cache-conflict", payload)
@@ -255,7 +267,8 @@ export const cacheConflict = (options: EventOptions, payload: unknown) =>
  * A cached output failed its digest check and the entry was evicted. Journaled
  * because a repeat is a failing disk, not a coincidence.
  *
- * @since 0.1.0 @category events
+ * @since 0.1.0
+ * @category events
  */
 export const cacheCorruption = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.cache-corruption", payload)

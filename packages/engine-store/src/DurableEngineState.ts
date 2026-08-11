@@ -35,7 +35,12 @@ export const DeferredAddress = Schema.Struct({
   deferredName: Schema.NonEmptyString
 })
 
-/** The durable address of a deferred result. @category models @since 0.1.0 */
+/**
+ * The durable address of a deferred result.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type DeferredAddress = typeof DeferredAddress.Type
 
 /**
@@ -54,7 +59,12 @@ export const DeferredRow = Schema.Struct({
   completedAtMs: NonNegativeSafeInt
 })
 
-/** The first durable completion recorded for a deferred. @category models @since 0.1.0 */
+/**
+ * The first durable completion recorded for a deferred.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type DeferredRow = typeof DeferredRow.Type
 
 /**
@@ -79,7 +89,12 @@ export const ClockAddress = Schema.Struct({
   clockName: Schema.NonEmptyString
 })
 
-/** The durable address of a clock. @category models @since 0.1.0 */
+/**
+ * The durable address of a clock.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type ClockAddress = typeof ClockAddress.Type
 
 /**
@@ -95,7 +110,12 @@ export const ClockRow = Schema.Struct({
   completedAtMs: Schema.NullOr(NonNegativeSafeInt)
 })
 
-/** A durable absolute clock deadline. @category models @since 0.1.0 */
+/**
+ * A durable absolute clock deadline.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type ClockRow = typeof ClockRow.Type
 
 /**
@@ -148,7 +168,12 @@ export type CompleteClockOutcome =
  */
 export const WaitingReason = Schema.NonEmptyString
 
-/** The open wait-reason vocabulary. @category models @since 0.1.0 */
+/**
+ * The open wait-reason vocabulary.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type WaitingReason = typeof WaitingReason.Type
 
 /**
@@ -168,7 +193,12 @@ export const Waiting = Schema.Struct({
   token: Schema.optional(Schema.NonEmptyString)
 })
 
-/** The payload recorded when a run parks. @category models @since 0.1.0 */
+/**
+ * The payload recorded when a run parks.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Waiting = typeof Waiting.Type
 
 /**
@@ -184,7 +214,12 @@ export const WaitingRow = Schema.Struct({
   token: Schema.NullOr(Schema.NonEmptyString)
 })
 
-/** A decoded waiting row for a parked run. @category models @since 0.1.0 */
+/**
+ * A decoded waiting row for a parked run.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type WaitingRow = typeof WaitingRow.Type
 
 /**
@@ -249,7 +284,12 @@ export const RunParentEdge = Schema.Struct({
   seq: NonNegativeSafeInt
 })
 
-/** A durable parent edge in the run DAG. @category models @since 0.1.0 */
+/**
+ * A durable parent edge in the run DAG.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type RunParentEdge = typeof RunParentEdge.Type
 
 /**
@@ -270,7 +310,12 @@ export const AttemptSurvivors = Schema.Struct({
   latest: NonNegativeSafeInt
 })
 
-/** The surviving attempt range of one activity key. @category models @since 0.1.0 */
+/**
+ * The surviving attempt range of one activity key.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type AttemptSurvivors = typeof AttemptSurvivors.Type
 
 /**

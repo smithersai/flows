@@ -25,7 +25,8 @@ import * as Schema from "effect/Schema"
  * records were durable". Frame `0` is the state before the run wrote
  * anything, which makes it the only frame that is always addressable.
  *
- * @since 0.1.0 @category schemas
+ * @since 0.1.0
+ * @category schemas
  */
 export const Frame = Schema.Struct({
   lineageId: Schema.NonEmptyString,
@@ -34,7 +35,8 @@ export const Frame = Schema.Struct({
 /**
  * The value form of {@link Frame}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type Frame = typeof Frame.Type
 /**
@@ -48,13 +50,15 @@ export type Frame = typeof Frame.Type
  * past, which is why rewind treats forked descendants differently from the
  * other two.
  *
- * @since 0.1.0 @category schemas
+ * @since 0.1.0
+ * @category schemas
  */
 export const LineageEdgeKind = Schema.Literals(["child", "fork", "continuation"])
 /**
  * The value form of {@link LineageEdgeKind}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type LineageEdgeKind = typeof LineageEdgeKind.Type
 /**
@@ -67,7 +71,8 @@ export type LineageEdgeKind = typeof LineageEdgeKind.Type
  * loose and survives the rewind as an independent run. It is the flag the
  * rewind's detached-child policy reads.
  *
- * @since 0.1.0 @category schemas
+ * @since 0.1.0
+ * @category schemas
  */
 export const LineageEdge = Schema.Struct({
   parentRunId: Schema.NonEmptyString,
@@ -79,7 +84,8 @@ export const LineageEdge = Schema.Struct({
 /**
  * The value form of {@link LineageEdge}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type LineageEdge = typeof LineageEdge.Type
 /**
@@ -90,7 +96,8 @@ export type LineageEdge = typeof LineageEdge.Type
  * without consulting the edge table. The record sits directly above the copied
  * prefix and carries `(parentRunId, forkJournalOffset)`.
  *
- * @since 0.1.0 @category constants
+ * @since 0.1.0
+ * @category constants
  */
 export const forkCreatedEventType = "flows.time-travel.fork-created"
 /**
@@ -101,7 +108,8 @@ export const forkCreatedEventType = "flows.time-travel.fork-created"
  * own records begin at that offset — reading it back is how a forensic walk
  * maps a child sequence number onto the parent's timeline.
  *
- * @since 0.1.0 @category schemas
+ * @since 0.1.0
+ * @category schemas
  */
 export const ForkCreated = Schema.Struct({
   parentRunId: Schema.NonEmptyString,
@@ -111,6 +119,7 @@ export const ForkCreated = Schema.Struct({
 /**
  * The value form of {@link ForkCreated}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type ForkCreated = typeof ForkCreated.Type

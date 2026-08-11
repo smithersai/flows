@@ -140,7 +140,8 @@ export class NodeExecutor extends Context.Service<NodeExecutor, Executor>()("flo
  * runtime, a test double, or a remote dispatcher each become a layer by
  * passing themselves here.
  *
- * @since 0.1.0 @category layers
+ * @since 0.1.0
+ * @category layers
  */
 export const layerExecutor = (executor: Executor): Layer.Layer<NodeExecutor> => Layer.succeed(NodeExecutor, executor)
 
@@ -252,7 +253,12 @@ export interface Service {
   readonly run: (plan: Plan.Plan) => Effect.Effect<Report, SchedulerError, Requirements>
 }
 
-/** Service tag for the plan scheduler. @since 0.1.0 @category services */
+/**
+ * Service tag for the plan scheduler.
+ *
+ * @since 0.1.0
+ * @category services
+ */
 export class PlanScheduler extends Context.Service<PlanScheduler, Service>()("flows/engine-store/PlanScheduler") {}
 
 /**

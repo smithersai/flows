@@ -64,7 +64,12 @@ const NonNegativeSafeInt = Schema.Int.check(
   Schema.isLessThanOrEqualTo(Number.MAX_SAFE_INTEGER)
 )
 
-/** The durable data recorded for a cache key. @category schemas @since 0.1.0 */
+/**
+ * The durable data recorded for a cache key.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
 export const CacheEntry = Schema.Struct({
   keyDigest: Schema.NonEmptyString,
   result: Schema.Unknown,
@@ -74,7 +79,12 @@ export const CacheEntry = Schema.Struct({
   recordedEventSeq: NonNegativeSafeInt
 })
 
-/** The durable data recorded for a cache key. @category models @since 0.1.0 */
+/**
+ * The durable data recorded for a cache key.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type CacheEntry = typeof CacheEntry.Type
 
 /**

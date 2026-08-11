@@ -50,7 +50,8 @@ export interface State {
  * Because a projection has no durable state of its own, every run of the
  * projector starts here and replays to the same result.
  *
- * @since 0.1.0 @category constants
+ * @since 0.1.0
+ * @category constants
  */
 export const initial: State = { changeId: undefined, planDigest: undefined, anchors: 0 }
 

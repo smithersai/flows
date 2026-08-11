@@ -68,7 +68,12 @@ export class JournalError extends Schema.TaggedErrorClass<JournalError>()("flows
  */
 export const OverflowPolicy = Schema.Literals(["reject", "drop-newest", "drop-oldest"])
 
-/** Policy applied when the non-blocking admission queue is full. @category models @since 0.1.0 */
+/**
+ * Policy applied when the non-blocking admission queue is full.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type OverflowPolicy = typeof OverflowPolicy.Type
 
 /**
@@ -91,7 +96,12 @@ export const Accepted = Schema.TaggedStruct("Accepted", {
   }))
 })
 
-/** Receipt for a newly admitted event. @category models @since 0.1.0 */
+/**
+ * Receipt for a newly admitted event.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Accepted = typeof Accepted.Type
 
 /**
@@ -110,7 +120,12 @@ export const Duplicate = Schema.TaggedStruct("Duplicate", {
   status: Schema.Literals(["pending", "committed"])
 })
 
-/** Receipt for an exact producer retry. @category models @since 0.1.0 */
+/**
+ * Receipt for an exact producer retry.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Duplicate = typeof Duplicate.Type
 
 /**
@@ -128,7 +143,12 @@ export const Dropped = Schema.TaggedStruct("Dropped", {
   policy: Schema.Literal("drop-newest")
 })
 
-/** Receipt for an event discarded by policy. @category models @since 0.1.0 */
+/**
+ * Receipt for an event discarded by policy.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Dropped = typeof Dropped.Type
 
 /**
@@ -139,7 +159,12 @@ export type Dropped = typeof Dropped.Type
  */
 export const EmitReceipt = Schema.Union([Accepted, Duplicate, Dropped])
 
-/** Receipt union for the lossy channel. @category models @since 0.1.0 */
+/**
+ * Receipt union for the lossy channel.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type EmitReceipt = typeof EmitReceipt.Type
 
 /**
@@ -153,7 +178,12 @@ export type EmitReceipt = typeof EmitReceipt.Type
  */
 export const DurableReceipt = Schema.Union([Accepted, Duplicate])
 
-/** Receipt union for the durable channel. @category models @since 0.1.0 */
+/**
+ * Receipt union for the durable channel.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type DurableReceipt = typeof DurableReceipt.Type
 
 /**
@@ -167,7 +197,12 @@ export const StreamOptions = Schema.Struct({
   afterSequence: Schema.optionalKey(Seq)
 })
 
-/** Cursor used to replay a run and follow its committed tail. @category models @since 0.1.0 */
+/**
+ * Cursor used to replay a run and follow its committed tail.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type StreamOptions = typeof StreamOptions.Type
 
 /**
@@ -182,7 +217,12 @@ export const EntriesOptions = Schema.Struct({
   limit: Schema.Int.check(Schema.isGreaterThan(0))
 })
 
-/** Cursor and page size for durable journal reads. @category models @since 0.1.0 */
+/**
+ * Cursor and page size for durable journal reads.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type EntriesOptions = typeof EntriesOptions.Type
 
 /**
@@ -196,7 +236,12 @@ export const EntriesPage = Schema.Struct({
   hasMore: Schema.Boolean
 })
 
-/** One page of durable journal entries. @category models @since 0.1.0 */
+/**
+ * One page of durable journal entries.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type EntriesPage = typeof EntriesPage.Type
 
 /**

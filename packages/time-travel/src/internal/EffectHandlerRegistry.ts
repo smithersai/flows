@@ -23,7 +23,8 @@ export const Classification = Schema.Literals(["revertible", "warning", "blockin
 /**
  * The value form of {@link Classification}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type Classification = typeof Classification.Type
 
@@ -44,7 +45,8 @@ export const Assessment = Schema.Struct({
 /**
  * The value form of {@link Assessment}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type Assessment = typeof Assessment.Type
 
@@ -65,7 +67,8 @@ export const RollbackReceipt = Schema.Struct({
 /**
  * The value form of {@link RollbackReceipt}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type RollbackReceipt = typeof RollbackReceipt.Type
 

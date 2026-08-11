@@ -29,7 +29,12 @@ export const set: DatabaseMigrations.MigrationSet = {
   }
 }
 
-/** Creates the step cache schema. @category migrations @since 0.1.0 */
+/**
+ * Creates the step cache schema.
+ *
+ * @category migrations
+ * @since 0.1.0
+ */
 export const run = DatabaseMigrations.run([set])
 
 /**

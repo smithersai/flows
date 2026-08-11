@@ -22,7 +22,8 @@ import * as Schema from "effect/Schema"
  * `parentExecutionId` is present only on a child run, and is what makes a
  * spawned subflow reachable from the run that spawned it.
  *
- * @since 0.1.0 @category schemas
+ * @since 0.1.0
+ * @category schemas
  */
 export const RunState = Schema.Struct({
   version: Schema.Literal(1),
@@ -38,6 +39,7 @@ export const RunState = Schema.Struct({
 /**
  * The value form of {@link RunState}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type RunState = typeof RunState.Type

@@ -31,7 +31,8 @@ import type { EffectHandlerRegistry } from "./EffectHandlerRegistry.ts"
  * child rather than restoring the parent's — the parent keeps its own working
  * copy untouched.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export interface ForkOptions {
   readonly parentRunId: string
@@ -96,7 +97,8 @@ const normalize = (
  * (see the module header), asks the store to create the fork, and adds the
  * child's jj workspace. The parent is never mutated.
  *
- * @since 0.1.0 @category constructors
+ * @since 0.1.0
+ * @category constructors
  */
 export const fork = (
   options: ForkOptions

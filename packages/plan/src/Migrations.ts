@@ -33,7 +33,12 @@ export const set: DatabaseMigrations.MigrationSet = {
   }
 }
 
-/** Creates the plan schema. @category migrations @since 0.1.0 */
+/**
+ * Creates the plan schema.
+ *
+ * @category migrations
+ * @since 0.1.0
+ */
 export const run = DatabaseMigrations.run([set])
 
 /**

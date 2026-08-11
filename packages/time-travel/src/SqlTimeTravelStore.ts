@@ -26,7 +26,12 @@ import { forkCreatedEventType, type LineageEdge } from "./Frame.ts"
 import { error, TimeTravelError } from "./TimeTravelError.ts"
 import * as TimeTravelStore from "./TimeTravelStore.ts"
 
-/** Creates the time-travel tables. The SQL uses only portable scalar columns. @since 0.1.0 @category migrations */
+/**
+ * Creates the time-travel tables. The SQL uses only portable scalar columns.
+ *
+ * @since 0.1.0
+ * @category migrations
+ */
 export const migrate: Effect.Effect<void, unknown, SqlClient.SqlClient> = Effect.gen(function*() {
   const sql = yield* Effect.service(SqlClient.SqlClient)
   yield* sql`CREATE TABLE IF NOT EXISTS flows_time_travel_audits (
@@ -209,7 +214,8 @@ const attemptRef = Schema.decodeUnknownOption(AttemptPayload)
  * rewind's audit row, receipts, and truncation land under the same durability
  * discipline as the engine's own journal writes.
  *
- * @since 0.1.0 @category constructors
+ * @since 0.1.0
+ * @category constructors
  */
 export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter | SqlClient.SqlClient> = Effect.gen(
   function*() {
@@ -646,7 +652,8 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter |
  * Provides {@link make} as the `TimeTravelStore` service. Requires a
  * `SqlClient` and a `DurableWriter`; building it migrates the schema.
  *
- * @since 0.1.0 @category layers
+ * @since 0.1.0
+ * @category layers
  */
 export const layer: Layer.Layer<TimeTravelStore.TimeTravelStore, never, DurableWriter | SqlClient.SqlClient> = Layer
   .effect(

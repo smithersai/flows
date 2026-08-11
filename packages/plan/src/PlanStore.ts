@@ -37,7 +37,12 @@ export const PlanStoreErrorCode = Schema.Literals([
   "unknown"
 ])
 
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link PlanStoreErrorCode}.
+ *
+ * @since 0.1.0
+ * @category models
+ */
 export type PlanStoreErrorCode = typeof PlanStoreErrorCode.Type
 
 /**

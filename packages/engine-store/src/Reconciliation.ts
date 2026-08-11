@@ -57,7 +57,8 @@ export const Deviation = Schema.Struct({
 /**
  * The value form of {@link Deviation}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type Deviation = typeof Deviation.Type
 
@@ -82,7 +83,8 @@ export const Conflict = Schema.Struct({
 /**
  * The value form of {@link Conflict}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type Conflict = typeof Conflict.Type
 
@@ -101,7 +103,8 @@ export const Verdict = Schema.Union([
 /**
  * The value form of {@link Verdict}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type Verdict = typeof Verdict.Type
 
@@ -131,7 +134,8 @@ export class Reconciliation extends Context.Service<Reconciliation, Service>()("
  * its definition site, which is where a wrong-shaped reconciler should be
  * reported rather than at whichever layer eventually provides it.
  *
- * @since 0.1.0 @category constructors
+ * @since 0.1.0
+ * @category constructors
  */
 export const make = (service: Service): Service => service
 
@@ -139,7 +143,8 @@ export const make = (service: Service): Service => service
  * Provides a {@link Service} as the {@link Reconciliation} seam, replacing the
  * deterministic default.
  *
- * @since 0.1.0 @category layers
+ * @since 0.1.0
+ * @category layers
  */
 export const layer = (service: Service): Layer.Layer<Reconciliation> => Layer.succeed(Reconciliation, service)
 

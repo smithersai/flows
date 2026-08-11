@@ -37,7 +37,8 @@ import * as SandboxedExecution from "./SandboxedExecution.ts"
  * the `@smthrs/flow` declaration cannot drift apart; it is a distinct name only
  * because "metadata" is how the activity input refers to it.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type BoundaryMetadata = FileBoundary
 
@@ -50,7 +51,8 @@ export type BoundaryMetadata = FileBoundary
  * one carry the same claim about their inputs — which is what makes the
  * attempt row and the cache row addressable by it.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export interface ActivityInput {
   readonly activity: unknown
@@ -67,7 +69,8 @@ export interface ActivityInput {
  * its attempt number, so resuming continues the same attempt rather than
  * burning a new one against the retry budget.
  *
- * @since 0.1.0 @category errors
+ * @since 0.1.0
+ * @category errors
  */
 export class AttemptSuspended extends Schema.TaggedErrorClass<AttemptSuspended>()(
   "flows/engine-store/AttemptSuspended",
@@ -88,7 +91,8 @@ export class AttemptSuspended extends Schema.TaggedErrorClass<AttemptSuspended>(
  * the engine refuses rather than risking a second charge, a second send, or a
  * second irreversible write.
  *
- * @since 0.1.0 @category errors
+ * @since 0.1.0
+ * @category errors
  */
 export class IrreversibleRetryRequiresIdempotencyKey
   extends Schema.TaggedErrorClass<IrreversibleRetryRequiresIdempotencyKey>()(
@@ -107,7 +111,8 @@ export class IrreversibleRetryRequiresIdempotencyKey
  * same-key attempt, an already-settled row. Because the body did not execute,
  * this failure is always safe to surface without compensation.
  *
- * @since 0.1.0 @category errors
+ * @since 0.1.0
+ * @category errors
  */
 export class AttemptAdmissionRejected extends Schema.TaggedErrorClass<AttemptAdmissionRejected>()(
   "flows/engine-store/AttemptAdmissionRejected",
@@ -126,7 +131,8 @@ export class AttemptAdmissionRejected extends Schema.TaggedErrorClass<AttemptAdm
  * answer. `recordedRunId` names the run that got there first, so the
  * divergence can be investigated rather than silently resolved.
  *
- * @since 0.1.0 @category errors
+ * @since 0.1.0
+ * @category errors
  */
 export class CacheConflictDetected extends Schema.TaggedErrorClass<CacheConflictDetected>()(
   "flows/engine-store/CacheConflictDetected",
@@ -144,7 +150,8 @@ export class CacheConflictDetected extends Schema.TaggedErrorClass<CacheConflict
  * dropped and the next dispatch re-executes and re-captures cleanly (issue
  * #164). Reported rather than swallowed so a failing disk is visible.
  *
- * @since 0.1.0 @category errors
+ * @since 0.1.0
+ * @category errors
  */
 export class CacheCorruptionDetected extends Schema.TaggedErrorClass<CacheCorruptionDetected>()(
   "flows/engine-store/CacheCorruptionDetected",
@@ -266,7 +273,8 @@ const declarationViolated = (cause: Cause.Cause<unknown>): boolean =>
  * keeps the persistence discipline in one place regardless of what a flow
  * runtime does with the body.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export interface Dependencies {
   readonly runId: string

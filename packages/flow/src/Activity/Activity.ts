@@ -21,7 +21,12 @@ import type { TypeId } from "./TypeId.ts"
  */
 export const Tier = Schema.Literals(["sealed", "compensable", "irreversible"])
 
-/** The durability and retry semantics of an activity. @category models @since 0.1.0 */
+/**
+ * The durability and retry semantics of an activity.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Tier = typeof Tier.Type
 
 /**

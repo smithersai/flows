@@ -33,7 +33,8 @@ import { error, type TimeTravelError } from "./TimeTravelError.ts"
  * optional because a run driven without a persisted plan has none — an absent
  * digest means "no plan was in force", never "the digest was lost".
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export const Snapshot = Schema.Struct({
   runId: Schema.NonEmptyString,
@@ -44,7 +45,8 @@ export const Snapshot = Schema.Struct({
 /**
  * The value form of {@link Snapshot}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type Snapshot = typeof Snapshot.Type
 /**
@@ -55,7 +57,8 @@ export type Snapshot = typeof Snapshot.Type
  * ran: an attempt that started after the frame is not part of the history the
  * child inherits.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export const AttemptRef = Schema.Struct({
   stepKeyDigest: Schema.NonEmptyString,
@@ -64,7 +67,8 @@ export const AttemptRef = Schema.Struct({
 /**
  * The value form of {@link AttemptRef}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type AttemptRef = typeof AttemptRef.Type
 /**
@@ -76,13 +80,15 @@ export type AttemptRef = typeof AttemptRef.Type
  * under them. `detached` children have already been cut loose and are reported
  * only so the operation can say what it left running.
  *
- * @since 0.1.0 @category schemas
+ * @since 0.1.0
+ * @category schemas
  */
 export const Descendants = Schema.Struct({ attached: Schema.Array(LineageEdge), detached: Schema.Array(LineageEdge) })
 /**
  * The value form of {@link Descendants}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type Descendants = typeof Descendants.Type
 /**
@@ -94,7 +100,8 @@ export type Descendants = typeof Descendants.Type
  * operation that owned each one. `rateLimit` and `detail` stay `Unknown`
  * because they are diagnostic payloads the store never interprets.
  *
- * @since 0.1.0 @category schemas
+ * @since 0.1.0
+ * @category schemas
  */
 export const Audit = Schema.Struct({
   id: Schema.NonEmptyString,
@@ -107,7 +114,8 @@ export const Audit = Schema.Struct({
 /**
  * The value form of {@link Audit}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type Audit = typeof Audit.Type
 /**
@@ -119,7 +127,8 @@ export type Audit = typeof Audit.Type
  * recovery tell an effect that was already rolled back from one that never
  * was, so a resumed rewind never compensates the same effect twice.
  *
- * @since 0.1.0 @category schemas
+ * @since 0.1.0
+ * @category schemas
  */
 export const Receipt = Schema.Struct({
   id: Schema.NonEmptyString,
@@ -130,7 +139,8 @@ export const Receipt = Schema.Struct({
 /**
  * The value form of {@link Receipt}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type Receipt = typeof Receipt.Type
 /**
@@ -141,7 +151,8 @@ export type Receipt = typeof Receipt.Type
  * still reach them — and `orphaned` is the honest accounting of descendants
  * the operation detached rather than resolved.
  *
- * @since 0.1.0 @category schemas
+ * @since 0.1.0
+ * @category schemas
  */
 export const ArchiveResult = Schema.Struct({
   archived: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
@@ -150,7 +161,8 @@ export const ArchiveResult = Schema.Struct({
 /**
  * The value form of {@link ArchiveResult}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type ArchiveResult = typeof ArchiveResult.Type
 /**
@@ -162,7 +174,8 @@ export type ArchiveResult = typeof ArchiveResult.Type
  * **normalized to warnings** — "this effect may execute again on the child".
  * A fork with a non-empty `warnings` is a successful fork, not a refused one.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export const Fork = Schema.Struct({
   runId: Schema.NonEmptyString,
@@ -172,7 +185,8 @@ export const Fork = Schema.Struct({
 /**
  * The value form of {@link Fork}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type Fork = typeof Fork.Type
 /**
@@ -185,7 +199,8 @@ export type Fork = typeof Fork.Type
  * mutations that change the lineage tree. Implement it with
  * {@link make}, or stub it with {@link makeNoop}.
  *
- * @since 0.1.0 @category services
+ * @since 0.1.0
+ * @category services
  */
 export interface Service {
   readonly snapshotAt: (runId: string, frame: Frame) => Effect.Effect<Snapshot | undefined, TimeTravelError>
@@ -252,7 +267,8 @@ export interface Service {
  * history; provide it with {@link layerNoop}, `MemoryTimeTravelStore.layer`,
  * or `SqlTimeTravelStore.layer`.
  *
- * @since 0.1.0 @category services
+ * @since 0.1.0
+ * @category services
  */
 export class TimeTravelStore extends Context.Service<TimeTravelStore, Service>()("flows/time-travel/TimeTravelStore") {}
 /**
@@ -260,7 +276,8 @@ export class TimeTravelStore extends Context.Service<TimeTravelStore, Service>()
  * backend is written against the interface and checked at its definition site
  * rather than at the layer.
  *
- * @since 0.1.0 @category constructors
+ * @since 0.1.0
+ * @category constructors
  */
 export const make = (implementation: Service): Service => TimeTravelStore.of(implementation)
 const unavailable = <A>(method: string): Effect.Effect<A, TimeTravelError> =>
@@ -274,7 +291,8 @@ const unavailable = <A>(method: string): Effect.Effect<A, TimeTravelError> =>
  * under test reaches a third. Prefer `MemoryTimeTravelStore` when the test
  * actually needs a working store.
  *
- * @since 0.1.0 @category constructors
+ * @since 0.1.0
+ * @category constructors
  */
 export const makeNoop = (overrides: Partial<Service> = {}): Service =>
   TimeTravelStore.of({
@@ -294,7 +312,8 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service =>
 /**
  * Provides {@link makeNoop} as a `TimeTravelStore` layer.
  *
- * @since 0.1.0 @category layers
+ * @since 0.1.0
+ * @category layers
  */
 export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<TimeTravelStore> =>
   Layer.succeed(TimeTravelStore)(makeNoop(overrides))

@@ -23,7 +23,8 @@ import * as Schema from "effect/Schema"
  * — an effect in the truncated range cannot be undone at all. `unknown` — the
  * store or an unmapped host failure.
  *
- * @since 0.1.0 @category schemas
+ * @since 0.1.0
+ * @category schemas
  */
 export const TimeTravelErrorCode = Schema.Literals([
   "busy",
@@ -38,7 +39,8 @@ export const TimeTravelErrorCode = Schema.Literals([
 /**
  * The value form of {@link TimeTravelErrorCode}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type TimeTravelErrorCode = typeof TimeTravelErrorCode.Type
 /**
@@ -46,7 +48,8 @@ export type TimeTravelErrorCode = typeof TimeTravelErrorCode.Type
  * that says why, a human-readable message, and the underlying `cause` when one
  * exists.
  *
- * @since 0.1.0 @category errors
+ * @since 0.1.0
+ * @category errors
  */
 export class TimeTravelError extends Schema.TaggedErrorClass<TimeTravelError>()("flows/time-travel/TimeTravelError", {
   code: TimeTravelErrorCode,
@@ -57,7 +60,8 @@ export class TimeTravelError extends Schema.TaggedErrorClass<TimeTravelError>()(
  * Creates a {@link TimeTravelError}, omitting `cause` entirely when none is
  * supplied so an absent cause never encodes as an explicit `undefined`.
  *
- * @since 0.1.0 @category constructors
+ * @since 0.1.0
+ * @category constructors
  */
 export const error = (code: TimeTravelErrorCode, message: string, cause?: unknown): TimeTravelError =>
   new TimeTravelError({ code, message, ...(cause === undefined ? {} : { cause }) })

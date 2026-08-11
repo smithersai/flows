@@ -25,7 +25,8 @@ import * as Schema from "effect/Schema"
  * it afterwards, which is what lets the boundary say whether the world moved
  * underneath the declaration. Check it with {@link readSetMatches}.
  *
- * @since 0.1.0 @category schemas
+ * @since 0.1.0
+ * @category schemas
  */
 export const PreparedBoundary = Schema.Struct({
   descriptor: FileBoundary,
@@ -41,7 +42,8 @@ export const PreparedBoundary = Schema.Struct({
 /**
  * The value form of {@link PreparedBoundary}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type PreparedBoundary = typeof PreparedBoundary.Type
 
@@ -70,7 +72,8 @@ export const readSetMatches = (prepared: PreparedBoundary): boolean =>
  * error. A hard-mode boundary raises {@link UndeclaredWrite} for the same
  * observation.
  *
- * @since 0.1.0 @category schemas
+ * @since 0.1.0
+ * @category schemas
  */
 export const BoundaryDeviation = Schema.TaggedStruct("ExpectedSetDeviation", {
   paths: Schema.Array(Schema.String),
@@ -80,7 +83,8 @@ export const BoundaryDeviation = Schema.TaggedStruct("ExpectedSetDeviation", {
 /**
  * The value form of {@link BoundaryDeviation}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type BoundaryDeviation = typeof BoundaryDeviation.Type
 
@@ -95,7 +99,8 @@ export type BoundaryDeviation = typeof BoundaryDeviation.Type
  * the entire execution tree, and `deviation` only when it saw writes the
  * declaration did not predict.
  *
- * @since 0.1.0 @category schemas
+ * @since 0.1.0
+ * @category schemas
  */
 export const BoundaryEvidence = Schema.Struct({
   declaredOutputs: Schema.Unknown,
@@ -113,7 +118,8 @@ export const BoundaryEvidence = Schema.Struct({
 /**
  * The value form of {@link BoundaryEvidence}.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export type BoundaryEvidence = typeof BoundaryEvidence.Type
 
@@ -125,7 +131,8 @@ export type BoundaryEvidence = typeof BoundaryEvidence.Type
  * entry. An expected-mode boundary records the same observation as a
  * {@link BoundaryDeviation} instead.
  *
- * @since 0.1.0 @category errors
+ * @since 0.1.0
+ * @category errors
  */
 export class UndeclaredWrite extends Schema.TaggedErrorClass<UndeclaredWrite>()(
   "flows/engine-store/UndeclaredWrite",
@@ -145,7 +152,8 @@ export class UndeclaredWrite extends Schema.TaggedErrorClass<UndeclaredWrite>()(
  * under a recorded digest) and {@link MissingArtifact} (the bytes might be
  * fetchable from a shared tier).
  *
- * @since 0.1.0 @category errors
+ * @since 0.1.0
+ * @category errors
  */
 export class UnsupportedBoundary extends Schema.TaggedErrorClass<UnsupportedBoundary>()(
   "flows/engine-store/UnsupportedBoundary",
@@ -204,7 +212,8 @@ export class MissingArtifact extends Schema.TaggedErrorClass<MissingArtifact>()(
  * a cache hit can materialize results on a workspace that never executed
  * anything.
  *
- * @since 0.1.0 @category services
+ * @since 0.1.0
+ * @category services
  */
 export interface Service {
   readonly prepare: (
@@ -222,7 +231,8 @@ export interface Service {
  * The service key for a {@link Service}. Provide it with `layerFileSystem` for
  * a real workspace or `layerTest` for a deterministic in-memory one.
  *
- * @since 0.1.0 @category services
+ * @since 0.1.0
+ * @category services
  */
 export const StepBoundary: Context.Service<Service, Service> = Context.Service<Service>(
   "flows/engine-store/StepBoundary"
@@ -233,7 +243,8 @@ export const StepBoundary: Context.Service<Service, Service> = Context.Service<S
  * boundary backend is type-checked where it is written rather than where it is
  * provided.
  *
- * @since 0.1.0 @category constructors
+ * @since 0.1.0
+ * @category constructors
  */
 export const make = (service: Service): Service => StepBoundary.of(service)
 
@@ -359,7 +370,8 @@ const inlineCorruption = (path: string, recordedDigest: string): BoundaryCorrupt
  * raise them only when the workspace's outputs are known to be small and the
  * extra artifact round-trip is measurably costing something.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export interface FileSystemOptions {
   /**
@@ -643,7 +655,8 @@ export const layer: Layer.Layer<Service, never, FileSystem.FileSystem | Artifact
  * to support the boundary at all — then asserts on the resulting evidence or
  * refusal. Defaults describe a well-behaved, fully-supported host.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export interface TestOptions {
   /** The paths `settle` reports as written. Defaults to none. */

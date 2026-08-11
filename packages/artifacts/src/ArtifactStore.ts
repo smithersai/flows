@@ -218,7 +218,8 @@ const distinct = (digests: Iterable<string>): Array<string> => [...new Set(diges
  * The directory is workspace-relative rather than absolute so a workspace can
  * be moved or copied whole and still resolve its own artifacts.
  *
- * @category models @since 0.1.0
+ * @category models
+ * @since 0.1.0
  */
 export interface FileSystemOptions {
   /**

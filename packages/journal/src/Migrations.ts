@@ -31,7 +31,12 @@ export const set: DatabaseMigrations.MigrationSet = {
   }
 }
 
-/** Creates the journal's authoritative durable schema. @category migrations @since 0.1.0 */
+/**
+ * Creates the journal's authoritative durable schema.
+ *
+ * @category migrations
+ * @since 0.1.0
+ */
 export const run = DatabaseMigrations.run([set])
 
 /**

@@ -22,7 +22,12 @@ import * as Schema from "effect/Schema"
 import type { Frame } from "../Frame.ts"
 import { error, type TimeTravelError } from "../TimeTravelError.ts"
 
-/** A pure fold over durable journal evidence. @since 0.1.0 @category models */
+/**
+ * A pure fold over durable journal evidence.
+ *
+ * @since 0.1.0
+ * @category models
+ */
 export interface Projection<S> {
   readonly initial: S
   readonly reduce: (state: S, entry: Entry, sealed: unknown | undefined) => S
@@ -34,7 +39,8 @@ export interface Projection<S> {
  * because the fold sees the same entries in the same order whatever the page
  * boundaries are. It defaults to 100.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export interface ReplayOptions {
   readonly runId: string
@@ -47,7 +53,8 @@ const CacheMetadata = Schema.Struct({ cacheKey: Schema.NonEmptyString })
 /**
  * Re-derives a projection from committed evidence only. This deliberately has
  * no dispatcher dependency: model and child results can only be cache reads.
- * @since 0.1.0 @category constructors
+ * @since 0.1.0
+ * @category constructors
  */
 export const rederive = <S>(
   frame: Frame,

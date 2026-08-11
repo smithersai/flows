@@ -58,7 +58,12 @@ export const sets: ReadonlyArray<DatabaseMigrations.MigrationSet> = [
   PlanMigrations.set
 ]
 
-/** Creates the complete durable engine schema. @category migrations @since 0.1.0 */
+/**
+ * Creates the complete durable engine schema.
+ *
+ * @category migrations
+ * @since 0.1.0
+ */
 export const run = DatabaseMigrations.run(sets)
 
 /**

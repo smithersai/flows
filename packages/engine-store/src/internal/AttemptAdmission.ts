@@ -30,7 +30,8 @@ import * as Semaphore from "effect/Semaphore"
  * must remember to return would make an interrupted dispatch leak exclusion
  * for the rest of the process's life; a bracketing combinator cannot.
  *
- * @since 0.1.0 @category services
+ * @since 0.1.0
+ * @category services
  */
 export interface Service {
   /**

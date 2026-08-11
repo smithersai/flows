@@ -30,7 +30,12 @@ import { SyncError } from "./SyncError.ts"
  */
 export const AuthorizeRequest = Schema.Struct({ branchId: BranchId, access: Access })
 
-/** The branch and access one authorization request needs. @category models @since 0.1.0 */
+/**
+ * The branch and access one authorization request needs.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type AuthorizeRequest = typeof AuthorizeRequest.Type
 
 /**
@@ -46,7 +51,12 @@ export const MintRequest = Schema.Struct({
   ttlMs: Schema.Int.check(Schema.isGreaterThan(0))
 })
 
-/** What a freshly minted capability grants. @category models @since 0.1.0 */
+/**
+ * What a freshly minted capability grants.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type MintRequest = typeof MintRequest.Type
 
 /**

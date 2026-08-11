@@ -47,7 +47,12 @@ export const NodeEffects = Schema.Struct({
   boundaryMode: Schema.Literals(["hard", "expected"])
 })
 
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link NodeEffects}.
+ *
+ * @since 0.1.0
+ * @category models
+ */
 export type NodeEffects = typeof NodeEffects.Type
 
 /**
@@ -59,7 +64,12 @@ export type NodeEffects = typeof NodeEffects.Type
  */
 export const PairStrategy = Schema.Literals(["serialize", "lane", "fail"])
 
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link PairStrategy}.
+ *
+ * @since 0.1.0
+ * @category models
+ */
 export type PairStrategy = typeof PairStrategy.Type
 
 /**
@@ -73,7 +83,12 @@ export type PairStrategy = typeof PairStrategy.Type
  */
 export const RuntimeStrategy = Schema.Literals(["delay-rebase", "stop-merge"])
 
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link RuntimeStrategy}.
+ *
+ * @since 0.1.0
+ * @category models
+ */
 export type RuntimeStrategy = typeof RuntimeStrategy.Type
 
 /**
@@ -90,7 +105,12 @@ export const ConflictAnnotation = Schema.Struct({
   runtime: RuntimeStrategy
 })
 
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link ConflictAnnotation}.
+ *
+ * @since 0.1.0
+ * @category models
+ */
 export type ConflictAnnotation = typeof ConflictAnnotation.Type
 
 /**
@@ -122,7 +142,12 @@ export const PlanNode = Schema.Struct({
   generation: Schema.Int
 })
 
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link PlanNode}.
+ *
+ * @since 0.1.0
+ * @category models
+ */
 export type PlanNode = typeof PlanNode.Type
 
 /**
@@ -144,7 +169,12 @@ export const Plan = Schema.Struct({
   nodes: Schema.Array(PlanNode)
 })
 
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link Plan}.
+ *
+ * @since 0.1.0
+ * @category models
+ */
 export type Plan = typeof Plan.Type
 
 /**

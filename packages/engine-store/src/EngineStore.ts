@@ -76,7 +76,8 @@ type Requirements =
  * wiring mistake, and a named error says so at the call site instead of
  * failing later inside an unrelated operation.
  *
- * @since 0.1.0 @category errors
+ * @since 0.1.0
+ * @category errors
  */
 export class EngineCompositionError extends Schema.TaggedErrorClass<EngineCompositionError>()(
   "flows/engine-store/EngineCompositionError",

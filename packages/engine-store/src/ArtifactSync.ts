@@ -61,7 +61,8 @@ export class ArtifactPublicationFailed extends Schema.TaggedErrorClass<ArtifactP
  * hydrating never fails, because a shared tier that is down should cost a run
  * a cache hit, not the run itself.
  *
- * @since 0.1.0 @category services
+ * @since 0.1.0
+ * @category services
  */
 export interface Service {
   /**

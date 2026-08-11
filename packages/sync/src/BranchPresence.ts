@@ -44,7 +44,8 @@ export const Announcement = Schema.Struct({
 /**
  * The value form of {@link Announcement}.
  *
- * @category models @since 0.1.0
+ * @category models
+ * @since 0.1.0
  */
 export type Announcement = typeof Announcement.Type
 
@@ -58,7 +59,8 @@ export const RosterRequest = Schema.Struct({ capability: ShareCapability, branch
 /**
  * The value form of {@link RosterRequest}.
  *
- * @category models @since 0.1.0
+ * @category models
+ * @since 0.1.0
  */
 export type RosterRequest = typeof RosterRequest.Type
 
@@ -72,7 +74,8 @@ export const LeaveRequest = Schema.Struct({ ...RosterRequest.fields, participant
 /**
  * The value form of {@link LeaveRequest}.
  *
- * @category models @since 0.1.0
+ * @category models
+ * @since 0.1.0
  */
 export type LeaveRequest = typeof LeaveRequest.Type
 
@@ -142,7 +145,8 @@ export const PresenceOptions = Schema.Struct({
 /**
  * The value form of {@link PresenceOptions}.
  *
- * @category models @since 0.1.0
+ * @category models
+ * @since 0.1.0
  */
 export type PresenceOptions = typeof PresenceOptions.Type
 

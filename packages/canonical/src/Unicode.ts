@@ -37,6 +37,7 @@ const Unicode = Schema.String.check(
  * Validates every string and property name in a JSON-like value.
  *
  * @private
+ * @since 0.1.0
  */
 export const validateUnicode = (
   value: unknown,

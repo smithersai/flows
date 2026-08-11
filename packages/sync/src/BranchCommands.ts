@@ -43,7 +43,8 @@ export const SubmitRequest = Schema.Struct({ capability: ShareCapability, submis
 /**
  * The value form of {@link SubmitRequest}.
  *
- * @category models @since 0.1.0
+ * @category models
+ * @since 0.1.0
  */
 export type SubmitRequest = typeof SubmitRequest.Type
 

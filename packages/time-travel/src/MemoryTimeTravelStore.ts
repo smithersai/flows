@@ -28,7 +28,8 @@ import * as TimeTravelStore from "./TimeTravelStore.ts"
  * `lineageId` the frame addresses, and an opaque `payload`. A test seeds these
  * through {@link Options.records} to describe a run's past.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export interface JournalRecord {
   readonly runId: string
@@ -51,7 +52,8 @@ export interface JournalRecord {
  * operation returns, like which records were archived rather than dropped and
  * which lineage edges survived.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export interface MemoryState {
   readonly records: ReadonlyArray<JournalRecord>
@@ -66,7 +68,8 @@ export interface MemoryState {
  * The history a memory store starts life holding, plus the one knob that makes
  * it misbehave on purpose.
  *
- * @since 0.1.0 @category models
+ * @since 0.1.0
+ * @category models
  */
 export interface Options {
   /** Journal records the run has already written, oldest first. */
@@ -138,7 +141,8 @@ const descendantsFrom = (
  * wants to assert on archived records or surviving edges must hold the
  * concrete store rather than resolve the service.
  *
- * @since 0.1.0 @category constructors
+ * @since 0.1.0
+ * @category constructors
  */
 export const make = (options: Options = {}): TimeTravelStore.Service & { readonly state: () => MemoryState } => {
   let records = [...(options.records ?? [])]
@@ -338,7 +342,8 @@ export const make = (options: Options = {}): TimeTravelStore.Service & { readonl
  * `state()` inspector is not reachable through the service key — use
  * {@link make} when a test needs it.
  *
- * @since 0.1.0 @category layers
+ * @since 0.1.0
+ * @category layers
  */
 export const layer = (options: Options = {}): Layer.Layer<TimeTravelStore.TimeTravelStore> =>
   Layer.succeed(TimeTravelStore.TimeTravelStore)(make(options))

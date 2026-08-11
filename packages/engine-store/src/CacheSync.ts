@@ -45,7 +45,8 @@ import * as Option from "effect/Option"
  * `CacheStore`, and all this seam does is take an already-durable local entry
  * and try to share it.
  *
- * @since 0.1.0 @category services
+ * @since 0.1.0
+ * @category services
  */
 export interface Service {
   /**
