@@ -43,7 +43,11 @@ export const Message = Schema.Struct({
   participantId: ParticipantId,
   text: Schema.String
 })
-/** @category models @since 0.1.0 */
+/**
+ * The value form of {@link Message}.
+ *
+ * @category models @since 0.1.0
+ */
 export type Message = typeof Message.Type
 
 /**
@@ -60,7 +64,11 @@ export const AppliedCommand = Schema.Struct({
   args: Schema.String,
   target: Schema.String
 })
-/** @category models @since 0.1.0 */
+/**
+ * The value form of {@link AppliedCommand}.
+ *
+ * @category models @since 0.1.0
+ */
 export type AppliedCommand = typeof AppliedCommand.Type
 
 /**
@@ -75,7 +83,11 @@ export const Field = Schema.Struct({
   seq: JournalEvent.Seq,
   participantId: ParticipantId
 })
-/** @category models @since 0.1.0 */
+/**
+ * The value form of {@link Field}.
+ *
+ * @category models @since 0.1.0
+ */
 export type Field = typeof Field.Type
 
 /**
@@ -94,7 +106,11 @@ export const State = Schema.Struct({
   commands: Schema.Array(AppliedCommand),
   fields: Schema.Array(Field)
 })
-/** @category models @since 0.1.0 */
+/**
+ * The value form of {@link State}.
+ *
+ * @category models @since 0.1.0
+ */
 export type State = typeof State.Type
 
 /**

@@ -29,13 +29,13 @@ export * as BranchProtocol from "./BranchProtocol.ts"
 export * as BranchProjection from "./BranchProjection.ts"
 
 /**
- * @category RPC
+ * @category rpc
  * @since 0.1.0
  */
 export * as SyncRpcs from "./SyncRpcs.ts"
 
 /**
- * @category RPC
+ * @category rpc
  * @since 0.1.0
  */
 export * as BranchRpcs from "./BranchRpcs.ts"

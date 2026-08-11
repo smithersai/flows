@@ -41,7 +41,11 @@ export const Announcement = Schema.Struct({
   displayName: Schema.NonEmptyString,
   cursor: Schema.NullOr(Cursor)
 })
-/** @category models @since 0.1.0 */
+/**
+ * The value form of {@link Announcement}.
+ *
+ * @category models @since 0.1.0
+ */
 export type Announcement = typeof Announcement.Type
 
 /**
@@ -51,7 +55,11 @@ export type Announcement = typeof Announcement.Type
  * @since 0.1.0
  */
 export const RosterRequest = Schema.Struct({ capability: ShareCapability, branchId: BranchId })
-/** @category models @since 0.1.0 */
+/**
+ * The value form of {@link RosterRequest}.
+ *
+ * @category models @since 0.1.0
+ */
 export type RosterRequest = typeof RosterRequest.Type
 
 /**
@@ -61,7 +69,11 @@ export type RosterRequest = typeof RosterRequest.Type
  * @since 0.1.0
  */
 export const LeaveRequest = Schema.Struct({ ...RosterRequest.fields, participantId: ParticipantId })
-/** @category models @since 0.1.0 */
+/**
+ * The value form of {@link LeaveRequest}.
+ *
+ * @category models @since 0.1.0
+ */
 export type LeaveRequest = typeof LeaveRequest.Type
 
 /**
@@ -127,7 +139,11 @@ export const layerNoop: Layer.Layer<BranchPresence> = Layer.succeed(BranchPresen
 export const PresenceOptions = Schema.Struct({
   leaseMs: Schema.Int.check(Schema.isGreaterThan(0))
 })
-/** @category models @since 0.1.0 */
+/**
+ * The value form of {@link PresenceOptions}.
+ *
+ * @category models @since 0.1.0
+ */
 export type PresenceOptions = typeof PresenceOptions.Type
 
 const key = (branchId: BranchId, participantId: ParticipantId): string => `${branchId}\u0000${participantId}`

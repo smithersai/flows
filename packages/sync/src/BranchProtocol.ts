@@ -203,7 +203,16 @@ export class CommandSubmission extends Schema.Class<CommandSubmission>(
   target: Schema.String
 }) {}
 
-/** Schema for the durable payload stored for an admitted command. */
+/**
+ * The durable payload stored for an admitted command.
+ *
+ * Distinct from the wire request: `args` and `target` carry decoding defaults,
+ * so a row written before those fields existed still decodes rather than
+ * failing the whole ledger rebuild.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
 export class CommandEventPayload extends Schema.Class<CommandEventPayload>(
   "flows/sync/BranchProtocol/CommandEventPayload"
 )({
@@ -214,7 +223,15 @@ export class CommandEventPayload extends Schema.Class<CommandEventPayload>(
   target: Schema.String.pipe(Schema.withDecodingDefaultKey(Effect.succeed("")))
 }) {}
 
-/** Schema for the command identity needed when rebuilding the idempotency ledger. */
+/**
+ * The one field a ledger rebuild needs from a stored command: its id.
+ *
+ * Kept as its own schema so the rebuild decodes only what it uses — a payload
+ * whose other fields have since changed shape still yields its identity.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
 export class CommandIdentity extends Schema.Class<CommandIdentity>(
   "flows/sync/BranchProtocol/CommandIdentity"
 )({
