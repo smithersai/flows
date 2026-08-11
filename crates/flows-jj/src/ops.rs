@@ -82,6 +82,12 @@ fn snapshot_options() -> SnapshotOptions<'static> {
 /// Loads the workspace at `root`, initializing a `SimpleBackend` repo first
 /// when `root` has no `.jj` — every op auto-inits, mirroring how the flows
 /// host treats jj as always-available infrastructure.
+///
+/// KNOWN DIVERGENCE from `NodeJj`, mandated by design: the CLI-backed layer
+/// fails every op with `unknown` ("There is no jj repo in ...") when `root`
+/// has no repository, while this layer materializes one. A mistyped `root`
+/// on the browser side therefore yields a fresh empty repo (and a later
+/// `restore` of a known id reports `invalid_ref`), never a "no repo" error.
 fn load_or_init(
     settings: &UserSettings,
     root: &Path,

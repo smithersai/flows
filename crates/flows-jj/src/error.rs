@@ -117,12 +117,3 @@ impl_from_unknown!(
     jj_lib::workspace_store::WorkspaceStoreError,
     std::io::Error,
 );
-
-/// Prefixes an error message with `jj {method}: `, mirroring how `NodeJj`
-/// reports failures (`jj snapshot: <stderr>`).
-pub fn with_method(method: &str, err: OpError) -> OpError {
-    OpError {
-        code: err.code,
-        message: format!("jj {method}: {message}", message = err.message),
-    }
-}

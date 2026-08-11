@@ -23,7 +23,6 @@ use std::path::Path;
 
 use crate::error::ErrorCode;
 use crate::error::OpError;
-use crate::error::with_method;
 use crate::ops;
 use crate::protocol::ErrPayload;
 use crate::protocol::OkPayload;
@@ -65,16 +64,16 @@ fn handle(request: &[u8]) -> Vec<u8> {
             }));
         }
     };
+    // The message is deliberately bare: the TypeScript bridge prefixes every
+    // error with `jj {method}: ` (mirroring how `NodeJj` prefixes stderr), so
+    // a crate-side prefix would appear twice in every surfaced message.
     let response = match dispatch(&request) {
         Ok(payload) => Response::Ok(payload),
-        Err(err) => {
-            let err = with_method(request.method(), err);
-            Response::Err(ErrPayload {
-                code: err.code,
-                message: err.message,
-                command: request.command(),
-            })
-        }
+        Err(err) => Response::Err(ErrPayload {
+            code: err.code,
+            message: err.message,
+            command: request.command(),
+        }),
     };
     encode(&response)
 }

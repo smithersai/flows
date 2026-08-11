@@ -46,22 +46,10 @@ pub enum Request {
 }
 
 impl Request {
-    /// The `Jj` contract method name, used in error messages
-    /// (`jj snapshot: ...`) exactly like `NodeJj` does.
-    pub fn method(&self) -> &'static str {
-        match self {
-            Self::Init { .. } => "init",
-            Self::Snapshot { .. } => "snapshot",
-            Self::Restore { .. } => "restore",
-            Self::Diff { .. } => "diff",
-            Self::WorkspaceAdd { .. } => "workspaceAdd",
-            Self::WorkspaceForget { .. } => "workspaceForget",
-            Self::Status { .. } => "status",
-        }
-    }
-
     /// The human-oriented equivalent CLI command, reported in the `command`
-    /// field of error responses.
+    /// field of error responses. Error *messages* stay bare — the TypeScript
+    /// bridge prefixes them with `jj {method}: `, exactly like `NodeJj` does
+    /// with stderr, so a crate-side prefix would double up.
     pub fn command(&self) -> String {
         match self {
             Self::Init { .. } => "jj init".into(),

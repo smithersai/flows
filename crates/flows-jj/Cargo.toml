@@ -15,8 +15,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 bstr = { version = "1.12.1", default-features = false, features = ["std"] }
 futures = "0.3.32"
-# INTEGRATE: flip to ../../vendor/jj/lib once Lane A's wasm patches land there.
-jj-lib = { path = "/private/tmp/claude-501/-Users-williamcory-flows-flows/957955d7-801c-4d7f-92b5-4246e16fdbc8/scratchpad/jj/lib", default-features = false }
+jj-lib = { path = "../../vendor/jj/lib", default-features = false }
 pollster = "1.0.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0.150"

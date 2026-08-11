@@ -136,8 +136,11 @@ fn restore_to_unknown_id_reports_invalid_ref_with_command() {
     assert_eq!(value["err"]["code"], "invalid_ref");
     assert_eq!(value["err"]["command"], "jj restore --from kkkkkkkkkkkk");
     let message = value["err"]["message"].as_str().unwrap();
-    assert!(message.starts_with("jj restore: "), "{message}");
     assert!(message.contains("doesn't exist"), "{message}");
+    // The message is bare: the TypeScript bridge prefixes `jj restore: `
+    // unconditionally, so a crate-side prefix would surface doubled
+    // ("jj restore: jj restore: ...").
+    assert!(!message.starts_with("jj "), "{message}");
 }
 
 #[test]
