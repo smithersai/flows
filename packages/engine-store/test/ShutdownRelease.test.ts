@@ -6,9 +6,9 @@
  * `cancelled`. Only an interruption backed by a durable cancel request
  * (`cancel_requested_at_ms`) may close the run terminally.
  */
-import { Flow, type FlowEngine } from "@smthrs/engine"
-import { Journal, type Ownership, RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Flow, FlowRuntime } from "@smthrs/flow"
+import { Journal } from "@smthrs/journal"
+import { type Ownership, RunStore } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Fiber from "effect/Fiber"
@@ -19,6 +19,7 @@ import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise } from "./Sha256.ts"
 
 const TestFlow = Flow.make("ShutdownRelease/Test", {
@@ -32,7 +33,7 @@ const owner: Ownership.OwnerId = {
   nonce: "shutdown-owner"
 }
 
-const fakeEngine = {} as unknown as FlowEngine.FlowEngine["Service"]
+const fakeEngine = {} as unknown as FlowRuntime.FlowRuntime["Service"]
 
 const makeDriver = () =>
   RunDriver.make({
@@ -46,7 +47,7 @@ const provideJournal = <A, E, R>(
   effect: Effect.Effect<A, E, R | Journal.Journal | RunStore.RunStore>
 ) =>
   effect.pipe(
-    Effect.provide(TestJournal.layer()),
+    Effect.provide(TestStores.layer()),
     Effect.provide(DurableEngineState.layerMemory),
     Effect.provide(TestClock.layer()),
     Effect.scoped

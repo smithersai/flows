@@ -5,10 +5,10 @@
  * the same stores must give up with `retry_policy_expired` once the
  * wall-clock budget is exhausted, without re-dispatching the activity body.
  */
-import { Activity, Flow, type FlowEngine, RetryPolicy, StepIdentity } from "@smthrs/engine"
-import { AttemptStore, Journal, RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Activity, Flow, FlowRuntime, RetryPolicy, StepIdentity } from "@smthrs/flow"
+import { Journal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
+import { AttemptStore, RunStore } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Fiber from "effect/Fiber"
@@ -21,6 +21,7 @@ import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { invocationKey, runPromise, runSync, sha256 } from "./Sha256.ts"
 
 const jj = Jj.make({
@@ -34,7 +35,7 @@ const jj = Jj.make({
 
 const withRestart = <A>(
   body: (
-    makeEngine: Effect.Effect<FlowEngine.FlowEngine["Service"], never, any>,
+    makeEngine: Effect.Effect<FlowRuntime.FlowRuntime["Service"], never, any>,
     store: RunStore.Service,
     attempts: AttemptStore.Service
   ) => Effect.Effect<A, any, any>
@@ -48,7 +49,7 @@ const withRestart = <A>(
           owner: { hostId: "retry-expiration-host" },
           journalSource: "retry-expiration-test",
           isAlive: () => Effect.succeed(false)
-        }) as Effect.Effect<FlowEngine.FlowEngine["Service"], never, any>
+        }) as Effect.Effect<FlowRuntime.FlowRuntime["Service"], never, any>
         return yield* body(makeEngine, store, attempts)
       }).pipe(
         Effect.provideService(
@@ -59,7 +60,7 @@ const withRestart = <A>(
       )
     ).pipe(
       Effect.provide(StepBoundary.layerTest()),
-      Effect.provide(TestJournal.layer()),
+      Effect.provide(TestStores.layer()),
       Effect.provide(TestClock.layer())
     ) as Effect.Effect<A>
   )

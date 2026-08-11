@@ -8,14 +8,15 @@
  * while a genuinely new observation (against a different recorded row) still
  * journals.
  */
-import { Journal, type Ownership, RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Journal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
+import { type Ownership, RunStore } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "provenance-idem-host", pid: 53, nonce: "provenance-idem-process" }
@@ -110,7 +111,7 @@ describe("cacheProvenance emissions are idempotent per observation (issue #124)"
         const second = yield* dispatch
         const records = yield* provenance("provenance-idem-second")
         return { first, second, records }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     expect(outcome.first._tag).toBe("Failure")
     expect(outcome.second._tag).toBe("Failure")

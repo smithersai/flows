@@ -5,10 +5,11 @@
  */
 import { DurableWriter } from "@smthrs/database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
-import { Activity, Flow, RetryPolicy } from "@smthrs/engine"
-import { AttemptStore, CacheStore, Migrations, RunStore, SqlJournal } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Activity, Flow, RetryPolicy } from "@smthrs/flow"
+import { SqlJournal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
+import { AttemptStore, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"
 import * as Layer from "effect/Layer"
@@ -18,7 +19,9 @@ import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
+import * as Migrations from "../src/Migrations.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise } from "./Sha256.ts"
 
 const OriginFlow = Flow.make("RetryOrigin/Flow", {
@@ -41,7 +44,7 @@ const provide = <A>(effect: Effect.Effect<A, any, any>, state: DurableEngineStat
       Effect.provideService(DurableEngineState.DurableEngineState, state),
       Effect.provideService(Jj.Jj, jj),
       Effect.provide(StepBoundary.layerTest()),
-      Effect.provide(TestJournal.layer()),
+      Effect.provide(TestStores.layer()),
       Effect.provide(TestClock.layer())
     ) as Effect.Effect<A>
   )

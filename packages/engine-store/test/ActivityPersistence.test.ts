@@ -1,6 +1,7 @@
-import { AttemptStore, CacheStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Journal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
+import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -10,6 +11,7 @@ import { describe, expect, it } from "vitest"
 import * as Inconsistency from "../src/Inconsistency.ts"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "activity-host", pid: 11, nonce: "activity-process" }
@@ -48,7 +50,7 @@ const activate = (runId: string) =>
     }
   })
 
-const layer = Layer.mergeAll(TestJournal.layer(), StepBoundary.layerTest(), jj)
+const layer = Layer.mergeAll(TestStores.layer(), StepBoundary.layerTest(), jj)
 
 /**
  * These cases assert the *cache row* outcome of a lost put race, not the
@@ -278,7 +280,7 @@ describe("ActivityPersistence", () => {
       }).pipe(
         Effect.provide(
           Layer.mergeAll(
-            TestJournal.layer(),
+            TestStores.layer(),
             StepBoundary.layerTest({ wholeTreeWriteDetection: false }),
             jj
           )

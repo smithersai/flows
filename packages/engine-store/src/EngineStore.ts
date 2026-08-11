@@ -8,10 +8,13 @@
  * @since 0.1.0
  */
 import { Sha256 } from "@smthrs/crypto"
-import { type Activity, Flow, FlowEngine } from "@smthrs/engine"
-import { FileBoundary } from "@smthrs/engine/FileBoundary"
-import { AttemptStore, CacheStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
+import { FlowEngine } from "@smthrs/engine"
+import { type Activity, Flow, FlowRuntime } from "@smthrs/flow"
+import { FileBoundary } from "@smthrs/flow/FileBoundary"
+import { Journal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
+import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -82,7 +85,7 @@ const ownerId = (hostId: string): Ownership.OwnerId => ({
  */
 export const make = (
   options: Options
-): Effect.Effect<FlowEngine.FlowEngine["Service"], never, Requirements> =>
+): Effect.Effect<FlowRuntime.FlowRuntime["Service"], never, Requirements> =>
   Effect.gen(function*() {
     const owner = ownerId(options.owner.hostId)
     // One admission mutex per incarnation, shared by every dispatch this
@@ -99,7 +102,7 @@ export const make = (
     const engineState = yield* DurableEngineState.DurableEngineState
     const attemptSurvivors = engineState.attemptSurvivors
 
-    const engine = yield* Deferred.make<FlowEngine.FlowEngine["Service"]>()
+    const engine = yield* Deferred.make<FlowRuntime.FlowRuntime["Service"]>()
     const driver = yield* RunDriver.make({
       owner,
       journalSource: options.journalSource,
@@ -119,8 +122,8 @@ export const make = (
       readonly tier: Activity.Tier
       readonly metadata: unknown
     }) {
-      const parent = yield* FlowEngine.FlowInstance
-      const instance = FlowEngine.FlowInstance.initial(
+      const parent = yield* FlowRuntime.FlowInstance
+      const instance = FlowEngine.makeInstance(
         parent.flow,
         parent.executionId
       )
@@ -146,9 +149,9 @@ export const make = (
           : {})
       }).pipe(
         Flow.intoResult,
-        Effect.provideService(FlowEngine.FlowInstance, instance),
+        Effect.provideService(FlowRuntime.FlowInstance, instance),
         Effect.provideService(
-          FlowEngine.FlowEngine,
+          FlowRuntime.FlowRuntime,
           flowEngine
         ),
         Effect.provideService(AttemptStore.AttemptStore, attemptStore),
@@ -181,7 +184,7 @@ export const make = (
       activityRetryOrigin: Effect.fnUntraced(function*(input: {
         readonly key: string
       }) {
-        const parent = yield* FlowEngine.FlowInstance
+        const parent = yield* FlowRuntime.FlowInstance
         const survivors = yield* AttemptProbe.probeAttempts(
           attemptStore,
           attemptSurvivors,
@@ -199,7 +202,7 @@ export const make = (
       activityLatestAttempt: Effect.fnUntraced(function*(input: {
         readonly key: string
       }) {
-        const parent = yield* FlowEngine.FlowInstance
+        const parent = yield* FlowRuntime.FlowInstance
         const survivors = yield* AttemptProbe.probeAttempts(
           attemptStore,
           attemptSurvivors,
@@ -229,7 +232,7 @@ export const make = (
 export const layer = (
   options: Options
 ): Layer.Layer<
-  FlowEngine.SnapshotBoundary | FlowEngine.FlowEngine,
+  FlowEngine.SnapshotBoundary | FlowRuntime.FlowRuntime,
   never,
   Requirements
 > => {
@@ -253,7 +256,7 @@ export const layer = (
       }))
   )
   return Layer.merge(
-    Layer.effect(FlowEngine.FlowEngine, make(options)),
+    Layer.effect(FlowRuntime.FlowRuntime, make(options)),
     snapshotBoundary
   )
 }

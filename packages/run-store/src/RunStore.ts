@@ -10,10 +10,11 @@
  * @since 0.1.0
  */
 import { DurableWriter, fromSqlError } from "@smthrs/database/DurableWriter"
+import type { OwnerId } from "@smthrs/journal/OwnerId"
 import { Clock, Context, Effect, Layer, Schema } from "effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import type * as SqlError from "effect/unstable/sql/SqlError"
-import type { LivenessEvidence, OwnerId } from "./Ownership.ts"
+import type { LivenessEvidence } from "./Ownership.ts"
 
 /**
  * Stable run states understood by the durability layer.

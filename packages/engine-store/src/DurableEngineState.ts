@@ -11,7 +11,7 @@
  * @since 0.1.0
  */
 import { DatabaseError, DurableWriter } from "@smthrs/database/DurableWriter"
-import type { OwnerId } from "@smthrs/journal/Ownership"
+import type { OwnerId } from "@smthrs/run-store/Ownership"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"

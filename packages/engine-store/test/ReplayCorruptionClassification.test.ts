@@ -11,9 +11,10 @@
  * transient host errors stay retryable and never reach the receiver. Both
  * classes journal their `reason` on the `replay_failed` provenance record.
  */
-import { AttemptStore, CacheStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Journal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
+import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -23,6 +24,7 @@ import { describe, expect, it } from "vitest"
 import * as Inconsistency from "../src/Inconsistency.ts"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "corruption-host", pid: 91, nonce: "corruption-process" }
@@ -129,7 +131,7 @@ describe("replay-failed classification (issue #150)", () => {
         const provenance = yield* records("corruption-strict-second", "flows.engine.cache-provenance")
         const corruption = yield* records("corruption-strict-second", "flows.engine.cache-corruption")
         return { failed, provenance, corruption }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     expect(outcome.failed).toBeInstanceOf(ActivityPersistence.CacheCorruptionDetected)
     const failure = outcome.failed as ActivityPersistence.CacheCorruptionDetected
@@ -178,7 +180,7 @@ describe("replay-failed classification (issue #150)", () => {
           Effect.provide(Layer.mergeAll(failingReplay(corruptionError), tolerant))
         )
         return { executions, second }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     // The tolerated corruption is not a hit: the body re-executes for real.
     expect(outcome.second).toBe("recorded")
@@ -221,7 +223,7 @@ describe("replay-failed classification (issue #150)", () => {
         )
         const provenance = yield* records("corruption-host-second", "flows.engine.cache-provenance")
         return { executions, second, provenance }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     // A transient refusal falls back to a real execution — even under a
     // receiver whose corruption verdict is "fail" — because it is not
@@ -269,7 +271,7 @@ describe("replay-failed classification (issue #150)", () => {
           attempt: 1
         })
         return { failed, refailed, provenance, corruption, row }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     // The failure is the TYPED quarantine error, not the evictable-cache
     // corruption class: the driver keys the operator park off it.
@@ -307,7 +309,7 @@ describe("replay-failed classification (issue #150)", () => {
         return yield* dispatch("corruption-row-tolerated", key, () => Effect.die("must not re-execute")).pipe(
           Effect.provide(Layer.mergeAll(failingReplay(corruptionError), tolerant))
         )
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     // The attempt durably succeeded: under a tolerant verdict its recorded
     // outcome remains the truth.
@@ -331,7 +333,7 @@ describe("replay-failed classification (issue #150)", () => {
         )
         const cached = yield* cache.get(sha256(key))
         return { replayed, cached }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     // The durable outcome is still the truth for this run…
     expect(outcome.replayed).toBe("durable-outcome")
@@ -409,7 +411,7 @@ describe("replay-failed classification (issue #150)", () => {
           })).pipe(Effect.provide(healthyReplay))
         const recorded = yield* cache.get(sha256(key))
         return { failed, evicted, healed, executions, recorded }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     expect(outcome.failed).toBeInstanceOf(ActivityPersistence.CacheCorruptionDetected)
     expect(Option.isNone(outcome.evicted)).toBe(true)
@@ -432,7 +434,7 @@ describe("replay-failed classification (issue #150)", () => {
           Effect.provide(Layer.mergeAll(failingReplay(corruptionError), Inconsistency.layerTolerant))
         )
         return yield* cache.get(sha256(key))
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     // Without the evict, `CacheStore.put`'s insert-or-nothing left the first
     // run's corrupt row in place; the healing re-execution must own the row.
@@ -472,7 +474,7 @@ describe("replay-failed classification (issue #150)", () => {
           yield* cache.put(poisoned.value)
         }
         return yield* records("corruption-distinct-second", "flows.engine.cache-corruption")
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     expect(outcome).toHaveLength(2)
     expect(outcome.map((payload) => payload.measuredDigest).sort()).toEqual([
@@ -525,7 +527,7 @@ describe("replay-failed classification (issue #150)", () => {
           corruption: yield* records("corruption-dedupe-second", "flows.engine.cache-corruption"),
           provenance: yield* records("corruption-dedupe-second", "flows.engine.cache-provenance")
         }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     expect(outcome.corruption).toHaveLength(1)
     // Both per-attempt durable rows converge, not just the corruption record

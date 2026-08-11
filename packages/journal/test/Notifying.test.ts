@@ -1,7 +1,7 @@
 import { Effect, Layer, Stream } from "effect"
 import { describe, expect, it } from "vitest"
-import { CacheStore } from "../src/CacheStore.ts"
-import * as CacheStoreLive from "../src/CacheStore.ts"
+import { Journal } from "../src/Journal.ts"
+import * as JournalLive from "../src/Journal.ts"
 import * as Notifying from "../src/test/Notifying.ts"
 
 const record = (log: Array<string>): Notifying.Hook => (op, order, args) =>
@@ -39,21 +39,22 @@ describe("Notifying", () => {
 
   it("re-provides a real service under the same key as a layer", async () => {
     const log: Array<string> = []
-    const layer = Notifying.layer(CacheStore, record(log)).pipe(
+    const layer = Notifying.layer(Journal, record(log)).pipe(
       Layer.provide(
-        Layer.succeed(CacheStore)(CacheStoreLive.makeNoop({
-          evict: () => Effect.succeed(true)
+        Layer.succeed(Journal)(JournalLive.makeNoop({
+          emitLossy: () =>
+            Effect.succeed({ _tag: "Dropped", seq: 0, sourceSeq: 0, policy: "drop-newest" } as JournalLive.Dropped)
         }))
       )
     )
 
     await Effect.runPromise(
       Effect.gen(function*() {
-        const store = yield* CacheStore
-        yield* store.evict("digest")
+        const journal = yield* Journal
+        yield* journal.emitLossy({} as never)
       }).pipe(Effect.provide(layer))
     )
 
-    expect(log).toEqual(["evict:before:1", "evict:after:1"])
+    expect(log).toEqual(["emitLossy:before:1", "emitLossy:after:1"])
   })
 })

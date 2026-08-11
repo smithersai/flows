@@ -1,33 +1,31 @@
 /**
- * Structural run ownership identities and heartbeat supervision.
+ * Run ownership arbitration: liveness evidence, probes, and heartbeat
+ * supervision.
+ *
+ * The identity being arbitrated — {@link OwnerId} — is defined by
+ * `@smthrs/journal`, because it is the fencing token the journal accepts on
+ * durable appends. It is re-exported here so ownership callers keep reading it
+ * as one vocabulary.
  *
  * Governing design: `docs/specs/Concepts/Run Ownership.md`.
  * Schema boundary: `docs/specs/Research/Smithers Deviations 2026-07-28.md`.
  *
  * @since 0.1.0
  */
+import { OwnerId } from "@smthrs/journal/OwnerId"
 import { Clock, Duration, Effect, Schema } from "effect"
 import { RunStore } from "./RunStore.ts"
 
-/**
- * A process identity scoped to a host and a unique ownership nonce.
- *
- * @since 0.1.0
- * @category models
- */
-export const OwnerId = Schema.Struct({
-  hostId: Schema.String,
-  pid: Schema.Number,
-  nonce: Schema.String
-})
-
-/**
- * A process identity scoped to a host and a unique ownership nonce.
- *
- * @since 0.1.0
- * @category models
- */
-export type OwnerId = typeof OwnerId.Type
+export {
+  /**
+   * A process identity scoped to a host and a unique ownership nonce, defined
+   * by `@smthrs/journal` as the fence on durable appends.
+   *
+   * @since 0.1.0
+   * @category models
+   */
+  OwnerId
+}
 
 /**
  * Evidence that the owner in an exact run snapshot is no longer live.

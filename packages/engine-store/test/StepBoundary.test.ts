@@ -1,6 +1,6 @@
-import type { FileBoundary } from "@smthrs/engine/FileBoundary"
-import { FileSystem } from "@smthrs/kernel"
+import type { FileBoundary } from "@smthrs/flow/FileBoundary"
 import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"
 import * as StepBoundary from "../src/StepBoundary.ts"

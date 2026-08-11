@@ -1,6 +1,7 @@
-import { CacheStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Journal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
+import { type Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
@@ -9,6 +10,7 @@ import { describe, expect, it } from "vitest"
 import * as Inconsistency from "../src/Inconsistency.ts"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "inconsistency-host", pid: 7, nonce: "inconsistency-process" }
@@ -31,7 +33,7 @@ const jj = Layer.succeed(
   })
 )
 
-const base = Layer.mergeAll(TestJournal.layer(), StepBoundary.layerTest(), jj)
+const base = Layer.mergeAll(TestStores.layer(), StepBoundary.layerTest(), jj)
 
 const activate = (runId: string) =>
   Effect.gen(function*() {

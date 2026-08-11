@@ -3,10 +3,9 @@
  * must park — populating `waiting_reason`/`waiting_wake_at_ms` so
  * `waitingRuns` sweepers can find it — and a resume must wake it.
  */
-import { DurableClock, DurableDeferred, Flow, type FlowEngine } from "@smthrs/engine"
-import { RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { DurableClock, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
 import { Jj } from "@smthrs/kernel"
+import { RunStore } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
@@ -15,6 +14,7 @@ import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise } from "./Sha256.ts"
 
 const jj = Jj.make({
@@ -53,7 +53,7 @@ const withEngine = <A>(
       )
     ).pipe(
       Effect.provide(StepBoundary.layerTest()),
-      Effect.provide(TestJournal.layer())
+      Effect.provide(TestStores.layer())
     ) as Effect.Effect<A>
   )
 
@@ -69,7 +69,7 @@ describe("suspended runs park with a waiting reason", () => {
 
     const result = await withEngine(state, (makeEngine, store) =>
       Effect.gen(function*() {
-        const engine = (yield* makeEngine) as FlowEngine.FlowEngine["Service"]
+        const engine = (yield* makeEngine) as FlowRuntime.FlowRuntime["Service"]
         yield* engine.register(EventFlow as never, handler as never)
         yield* engine.execute(EventFlow as never, {
           executionId: "parking-event",
@@ -116,7 +116,7 @@ describe("suspended runs park with a waiting reason", () => {
 
     const result = await withEngine(state, (makeEngine, store) =>
       Effect.gen(function*() {
-        const engine = (yield* makeEngine) as FlowEngine.FlowEngine["Service"]
+        const engine = (yield* makeEngine) as FlowRuntime.FlowRuntime["Service"]
         yield* engine.register(TimerFlow as never, handler as never)
         yield* engine.execute(TimerFlow as never, {
           executionId: "parking-timer",

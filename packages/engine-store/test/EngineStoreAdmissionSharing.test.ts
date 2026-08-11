@@ -16,8 +16,7 @@
  * (double execution or an AttemptAdmissionRejected conflict); with it the
  * loser waits out the winner's span and replays its terminal row.
  */
-import { Activity, Flow } from "@smthrs/engine"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Activity, Flow } from "@smthrs/flow"
 import { Jj } from "@smthrs/kernel"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -26,6 +25,7 @@ import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise } from "./Sha256.ts"
 
 const AdmissionFlow = Flow.make("EngineStoreAdmission/Flow", {
@@ -43,7 +43,7 @@ const jj = Jj.make({
 })
 
 const baseLayers = Layer.mergeAll(
-  TestJournal.layer(),
+  TestStores.layer(),
   StepBoundary.layerTest(),
   Layer.succeed(Jj.Jj, jj),
   Layer.succeed(DurableEngineState.DurableEngineState, DurableEngineState.makeMemory())

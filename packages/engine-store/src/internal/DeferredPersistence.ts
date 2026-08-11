@@ -3,8 +3,9 @@
  *
  * @since 0.1.0
  */
-import { type DurableClock, type DurableDeferred, type Flow, FlowEngine } from "@smthrs/engine"
-import { Journal, type Ownership } from "@smthrs/journal"
+import { type DurableClock, type DurableDeferred, type Flow, FlowRuntime } from "@smthrs/flow"
+import { Journal } from "@smthrs/journal"
+import type { Ownership } from "@smthrs/run-store"
 import * as Clock from "effect/Clock"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
@@ -69,7 +70,7 @@ export interface Service {
   ) => Effect.Effect<
     Option.Option<Exit.Exit<unknown, unknown>>,
     never,
-    FlowEngine.FlowInstance
+    FlowRuntime.FlowInstance
   >
   readonly deferredDone: (options: DeferredDoneOptions) => Effect.Effect<void>
   readonly scheduleClock: (
@@ -311,7 +312,7 @@ export const make = (
 
     return {
       deferredResult: Effect.fn("DeferredPersistence.deferredResult")(function*(deferred) {
-        const instance = yield* FlowEngine.FlowInstance
+        const instance = yield* FlowRuntime.FlowInstance
         const row = yield* state.deferred({
           flowName: instance.flow._tag,
           executionId: instance.executionId,

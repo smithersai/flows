@@ -1,10 +1,12 @@
-import { AttemptStore, CacheStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Journal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
+import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import { Effect, Layer, Option } from "effect"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "tiers", pid: 1, nonce: "owner" }
@@ -76,7 +78,7 @@ describe("engine-store activity tiers", () => {
       })
       return second
     }).pipe(
-      Effect.provide(Layer.mergeAll(TestJournal.layer(), StepBoundary.layerTest(), jjLayer([], []))),
+      Effect.provide(Layer.mergeAll(TestStores.layer(), StepBoundary.layerTest(), jjLayer([], []))),
       Effect.scoped
     )
 
@@ -105,7 +107,7 @@ describe("engine-store activity tiers", () => {
         cached: yield* cache.get(sha256("caller-key/compensable"))
       }
     }).pipe(
-      Effect.provide(Layer.mergeAll(TestJournal.layer(), StepBoundary.layerTest(), jjLayer(snapshots, restores))),
+      Effect.provide(Layer.mergeAll(TestStores.layer(), StepBoundary.layerTest(), jjLayer(snapshots, restores))),
       Effect.scoped
     )
 
@@ -135,7 +137,7 @@ describe("engine-store activity tiers", () => {
       })({ activity: {}, attempt: 2, key: "caller-key/irreversible-keyed", tier: "irreversible" })
       return { withoutKey: yield* withoutKey, withKey }
     }).pipe(
-      Effect.provide(Layer.mergeAll(TestJournal.layer(), StepBoundary.layerTest(), jjLayer([], []))),
+      Effect.provide(Layer.mergeAll(TestStores.layer(), StepBoundary.layerTest(), jjLayer([], []))),
       Effect.scoped
     )
 
@@ -164,7 +166,7 @@ describe("engine-store activity tiers", () => {
       }).pipe(Effect.result)
     }).pipe(
       Effect.provide(
-        Layer.mergeAll(TestJournal.layer(), StepBoundary.layerTest({ changedPaths: ["other"] }), jjLayer([], []))
+        Layer.mergeAll(TestStores.layer(), StepBoundary.layerTest({ changedPaths: ["other"] }), jjLayer([], []))
       ),
       Effect.scoped
     )
@@ -196,7 +198,7 @@ describe("engine-store activity tiers", () => {
       }
     }).pipe(
       Effect.provide(
-        Layer.mergeAll(TestJournal.layer(), StepBoundary.layerTest({ changedPaths: ["other"] }), jjLayer([], []))
+        Layer.mergeAll(TestStores.layer(), StepBoundary.layerTest({ changedPaths: ["other"] }), jjLayer([], []))
       ),
       Effect.scoped
     )

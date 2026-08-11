@@ -16,8 +16,9 @@
  */
 import { DurableWriter } from "@smthrs/database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
-import { Flow, type FlowEngine } from "@smthrs/engine"
-import { Migrations, RunStore, SqlJournal } from "@smthrs/journal"
+import { Flow, FlowRuntime } from "@smthrs/flow"
+import { SqlJournal } from "@smthrs/journal"
+import { RunStore } from "@smthrs/run-store"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -29,6 +30,7 @@ import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
+import * as Migrations from "../src/Migrations.ts"
 import { runPromise } from "./Sha256.ts"
 
 const AtomicFlow = Flow.make("RunParentAtomicity/Test", {
@@ -36,7 +38,7 @@ const AtomicFlow = Flow.make("RunParentAtomicity/Test", {
   success: Schema.String
 })
 
-const fakeEngine = {} as unknown as FlowEngine.FlowEngine["Service"]
+const fakeEngine = {} as unknown as FlowRuntime.FlowRuntime["Service"]
 
 const migratedDatabase = Layer.provideMerge(Migrations.layer, TestDatabase.layer)
 
@@ -46,7 +48,7 @@ const services = Layer.mergeAll(
   DurableEngineState.layer
 ).pipe(Layer.provideMerge(migratedDatabase))
 
-const parentInstance = (executionId: string) => ({ executionId } as FlowEngine.FlowInstance["Service"])
+const parentInstance = (executionId: string) => ({ executionId } as FlowRuntime.FlowInstance["Service"])
 
 const run = <A, E, R>(effect: Effect.Effect<A, E, R>): Promise<A> =>
   runPromise(

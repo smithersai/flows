@@ -5,10 +5,9 @@
  * silently for the rest of the process lifetime. The sweep gets the same
  * sandbox-and-log hardening `armClock` received.
  */
-import { DurableDeferred, Flow, type FlowEngine } from "@smthrs/engine"
-import { Ownership, RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
 import { Jj } from "@smthrs/kernel"
+import { Ownership, RunStore } from "@smthrs/run-store"
 import * as Clock from "effect/Clock"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
@@ -16,6 +15,7 @@ import * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
 import { describe, expect, it, vi } from "vitest"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise } from "./Sha256.ts"
 
 /**
@@ -26,29 +26,26 @@ import { runPromise } from "./Sha256.ts"
  */
 const wakeFailures = vi.hoisted(() => ({ budget: 0 }))
 
-vi.mock("@smthrs/journal", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@smthrs/journal")>()
+vi.mock("../src/internal/RunCoordinator.ts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/internal/RunCoordinator.ts")>()
   return {
     ...actual,
-    RunCoordinator: {
-      ...actual.RunCoordinator,
-      make: (options: never) =>
-        (actual.RunCoordinator.make(options) as unknown as Effect.Effect<
-          { wake: (key: unknown) => Effect.Effect<void> },
-          never,
-          Scope.Scope
-        >).pipe(
-          Effect.map((coordinator) => ({
-            ...coordinator,
-            wake: (key: unknown) =>
-              Effect.suspend(() =>
-                wakeFailures.budget-- > 0
-                  ? Effect.die(new Error("injected coordinator.wake defect"))
-                  : coordinator.wake(key)
-              )
-          }))
-        )
-    }
+    make: (options: never) =>
+      (actual.make(options) as unknown as Effect.Effect<
+        { wake: (key: unknown) => Effect.Effect<void> },
+        never,
+        Scope.Scope
+      >).pipe(
+        Effect.map((coordinator) => ({
+          ...coordinator,
+          wake: (key: unknown) =>
+            Effect.suspend(() =>
+              wakeFailures.budget-- > 0
+                ? Effect.die(new Error("injected coordinator.wake defect"))
+                : coordinator.wake(key)
+            )
+        }))
+      )
   }
 })
 import * as DurableEngineState from "../src/DurableEngineState.ts"
@@ -92,7 +89,7 @@ describe("the cancel sweeper survives transient defects (issue #44)", () => {
             owner: { hostId: "sweeper-resilience-host" },
             journalSource: "sweeper-resilience-test",
             isAlive: () => Effect.succeed(false)
-          })) as FlowEngine.FlowEngine["Service"]
+          })) as FlowRuntime.FlowRuntime["Service"]
 
           yield* engine.register(
             EventFlow as never,
@@ -122,7 +119,7 @@ describe("the cancel sweeper survives transient defects (issue #44)", () => {
         )
       ).pipe(
         Effect.provide(StepBoundary.layerTest()),
-        Effect.provide(TestJournal.layer()),
+        Effect.provide(TestStores.layer()),
         Effect.provide(TestClock.layer())
       ) as Effect.Effect<{
         afterBusy: RunStore.RunRow
@@ -158,7 +155,7 @@ describe("the cancel sweeper survives transient defects (issue #44)", () => {
             owner: { hostId: "sweeper-wake-defect-host" },
             journalSource: "sweeper-wake-defect-test",
             isAlive: () => Effect.succeed(false)
-          })) as FlowEngine.FlowEngine["Service"]
+          })) as FlowRuntime.FlowRuntime["Service"]
 
           yield* engine.register(
             EventFlow as never,
@@ -190,7 +187,7 @@ describe("the cancel sweeper survives transient defects (issue #44)", () => {
         )
       ).pipe(
         Effect.provide(StepBoundary.layerTest()),
-        Effect.provide(TestJournal.layer()),
+        Effect.provide(TestStores.layer()),
         Effect.provide(TestClock.layer())
       ) as Effect.Effect<{
         afterDefect: RunStore.RunRow

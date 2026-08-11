@@ -2,14 +2,13 @@
  * Pins issue #31: the production park path must be able to record `approval`
  * and `quota` waits (and the wake token), not only the derived
  * `timer`/`event` reasons. A flow declares its wait with
- * `FlowEngine.annotateWaiting` immediately before suspending, and the driver
+ * `FlowRuntime.annotateWaiting` immediately before suspending, and the driver
  * parks the run with exactly that payload so reason-specific sweeps
  * (`WHERE waiting_reason = 'approval'`) see it.
  */
-import { DurableClock, DurableDeferred, Flow, FlowEngine } from "@smthrs/engine"
-import { RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { DurableClock, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
 import { Jj } from "@smthrs/kernel"
+import { RunStore } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
@@ -18,6 +17,7 @@ import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise } from "./Sha256.ts"
 
 const jj = Jj.make({
@@ -31,7 +31,7 @@ const jj = Jj.make({
 
 const withEngine = <A>(
   body: (
-    engine: FlowEngine.FlowEngine["Service"],
+    engine: FlowRuntime.FlowRuntime["Service"],
     store: RunStore.Service,
     state: DurableEngineState.Service
   ) => Effect.Effect<A, any, any>
@@ -45,7 +45,7 @@ const withEngine = <A>(
           owner: { hostId: "annotated-host" },
           journalSource: "annotated-test",
           isAlive: () => Effect.succeed(false)
-        })) as FlowEngine.FlowEngine["Service"]
+        })) as FlowRuntime.FlowRuntime["Service"]
         return yield* body(engine, store, state)
       }).pipe(
         Effect.provideService(DurableEngineState.DurableEngineState, state),
@@ -53,7 +53,7 @@ const withEngine = <A>(
       )
     ).pipe(
       Effect.provide(StepBoundary.layerTest()),
-      Effect.provide(TestJournal.layer())
+      Effect.provide(TestStores.layer())
     ) as Effect.Effect<A>
   )
 }
@@ -72,7 +72,7 @@ describe("annotated waiting reasons reach the parked row (issue #31)", () => {
           ApprovalFlow as never,
           (() =>
             Effect.gen(function*() {
-              yield* FlowEngine.annotateWaiting({ reason: "approval", token: "request-42" })
+              yield* FlowRuntime.annotateWaiting({ reason: "approval", token: "request-42" })
               return yield* Effect.map(DurableDeferred.await(gate), (value) => `approved:${value}`)
             })) as never
         )
@@ -125,7 +125,7 @@ describe("annotated waiting reasons reach the parked row (issue #31)", () => {
           QuotaFlow as never,
           (() =>
             Effect.gen(function*() {
-              yield* FlowEngine.annotateWaiting({ reason: "quota", wakeAt: 60_000 })
+              yield* FlowRuntime.annotateWaiting({ reason: "quota", wakeAt: 60_000 })
               return yield* Effect.map(DurableDeferred.await(gate), (value) => value)
             })) as never
         )
@@ -158,7 +158,7 @@ describe("annotated waiting reasons reach the parked row (issue #31)", () => {
           TwoStageFlow as never,
           (() =>
             Effect.gen(function*() {
-              yield* FlowEngine.annotateWaiting({ reason: "approval", token: "request-42" })
+              yield* FlowRuntime.annotateWaiting({ reason: "approval", token: "request-42" })
               const approved = yield* DurableDeferred.await(gate)
               // The second suspension is timer-backed: the replayed approval
               // annotation must not classify this park.

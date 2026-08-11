@@ -11,11 +11,11 @@
  * persisted failure after a restart — the failure itself is durable, not
  * just the fact that an attempt happened.
  */
-import { Activity, Flow, RetryPolicy } from "@smthrs/engine"
-import { AttemptStore, Journal, RunStore } from "@smthrs/journal"
+import { Activity, Flow, RetryPolicy } from "@smthrs/flow"
+import { Journal } from "@smthrs/journal"
 import * as Notifying from "@smthrs/journal/test/Notifying"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Jj } from "@smthrs/kernel"
+import { AttemptStore, RunStore } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
@@ -28,6 +28,7 @@ import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { key, runPromise, sha256 } from "./Sha256.ts"
 
 const ReplayFlow = Flow.make("NonRetryableReplay/Flow", {
@@ -51,7 +52,7 @@ const provide = <A>(effect: Effect.Effect<A, any, any>, state: DurableEngineStat
       Effect.provideService(DurableEngineState.DurableEngineState, state),
       Effect.provideService(Jj.Jj, jj),
       Effect.provide(StepBoundary.layerTest()),
-      Effect.provide(TestJournal.layer()),
+      Effect.provide(TestStores.layer()),
       Effect.provide(TestClock.layer()),
       // Sealed cache keys hash the resolved environment. Declaring an empty
       // one — what a hand-wired composition does through

@@ -1,5 +1,6 @@
-import { DurableClock, Flow } from "@smthrs/engine"
-import { Journal, JournalEvent, type Ownership } from "@smthrs/journal"
+import { DurableClock, Flow } from "@smthrs/flow"
+import { Journal, JournalEvent } from "@smthrs/journal"
+import { type Ownership } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"

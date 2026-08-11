@@ -1,8 +1,14 @@
 # @smthrs/journal
 
-Durable event, run-ownership, attempt, and content-cache services for flows.
-It owns the SQL schema above `@smthrs/database`, bounded journal admission,
-fenced run transitions, and the records consumed by engine-store and sync.
+The flows event journal: the immutable history of what happened, and nothing
+else. It owns `flows_journal_events` above `@smthrs/database`, bounded journal
+admission, the `OwnerId` fence its durable channel accepts, and the records
+consumed by engine-store and sync.
+
+Run and attempt state live in [`@smthrs/run-store`](../run-store), sealed step
+results in [`@smthrs/step-cache`](../step-cache), and the durable
+deferred/clock tables in [`@smthrs/engine-store`](../engine-store) — see
+[`docs/specs/Concepts/Journal Split.md`](../../docs/specs/Concepts/Journal%20Split.md).
 
 The journal is flows' own **logical (domain) write-ahead log**, intended to
 become the authoritative state history.
@@ -26,29 +32,30 @@ npm install @smthrs/journal
 The root exports these namespaces, also available from matching
 `@smthrs/journal/*` subpaths.
 
-| Namespace        | Public exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `JournalEvent`   | Branded schema/types `RunId`, `Seq`, `SourceId`, and `SourceSeq`; input/committed schemas `Input` and `Entry`; deterministic `makeEventId`.                                                                                                                                                                                                                                                                                                                                   |
-| `Journal`        | `Journal` / `Service` operations `emitLossy`, `emitDurable`, `transact`, `stream`, `entries`, `changes`, `project`, and `flush`; typed errors, receipts, and read options; constructors and no-op layer.                                                                                                                                                                                                                                                                      |
-| `SqlJournal`     | `SqlJournalOptions` and database-backed `layer(options)` with explicit lossy and durable channels.                                                                                                                                                                                                                                                                                                                                                                            |
-| `Projection`     | Reproducible `Projection` model and identity constructor `make`.                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `Migrations`     | `run` and prerequisite `layer` install the package schema.                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| `RunStore`       | `RunStatus`, `RunStoreErrorCode`, `RunStoreError`, `RunSnapshot`, `RunRow`, `CreateOptions`, and `TransitionGuard`; outcome types `RequestCancelOutcome`, `ClaimOutcome`, `ClaimAndOwnOutcome`, `ActivateOutcome`, `AbandonClaimOutcome`, `RecoverClaimOutcome`, `HeartbeatOutcome`, and `TransitionOutcome`; `Service` / `RunStore` for create/get/cancel, claim/activate/recover/steal, heartbeat, and owned transitions; `make`, `makeNoop`, `layerNoop`, and SQL `layer`. |
-| `Ownership`      | `OwnerId`, `LivenessEvidence`, `LivenessProbe`, `heartbeatInterval`, `heartbeatStaleAfter`, and `heartbeatLoop`.                                                                                                                                                                                                                                                                                                                                                              |
-| `AttemptStore`   | `AttemptStoreErrorCode`, `AttemptStoreError`, `AttemptId`, `Attempt`, `FinishAttempt`, `AttemptPatch`, `Options`, and result types `PutResult`, `PatchResult`, `HeartbeatResult`, `FinishResult`; `Service` / `AttemptStore` operations `put`, `get`, `heartbeat`, `finish`, and `patch`; `makeWith`, `make`, `makeNoop`, `layerNoop`, `layer`, and `layerWith`.                                                                                                              |
-| `CacheStore`     | `CacheStoreErrorCode`, `CacheStoreError`, `CacheEntry`, and `PutResult`; `Service` / `CacheStore` operations `get`, `put`, and `evict`; `make`, `makeNoop`, `layerNoop`, and SQL `layer`.                                                                                                                                                                                                                                                                                     |
-| `RunCoordinator` | Scoped keyed-drain `RunCoordinator` (`active`, `run`, `wake`, `interrupt`) and `make`.                                                                                                                                                                                                                                                                                                                                                                                        |
+| Namespace      | Public exports                                                                                                                                                                                                             |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `JournalEvent` | Branded schema/types `RunId`, `Seq`, `SourceId`, and `SourceSeq`; input/committed schemas `Input` and `Entry`; deterministic `makeEventId`.                                                                                |
+| `Journal`      | `Journal` / `Service` operations `emitLossy`, `emitDurable`, `transact`, `stream`, `entries`, `changes`, `project`, and `flush`; typed errors, receipts, and read options; constructors and no-op layer.                   |
+| `SqlJournal`   | `SqlJournalOptions` and database-backed `layer(options)` with explicit lossy and durable channels.                                                                                                                         |
+| `Projection`   | Reproducible `Projection` model and identity constructor `make`.                                                                                                                                                           |
+| `Redaction`    | The payload redaction applied to journal entries before they are written.                                                                                                                                                  |
+| `OwnerId`      | `OwnerId` — `hostId`, `pid`, `nonce` — the fencing token `emitDurable` accepts. Defined here because the journal is what it fences; `@smthrs/run-store`'s `Ownership` re-exports it alongside the arbitration built on it. |
+| `Migrations`   | `set` (the namespaced migration set for `flows_journal_events`), `run`, and prerequisite `layer`.                                                                                                                          |
 
 The root is written against the driver-neutral `@smthrs/database` contract
 and bundles for the browser. The test doubles bind a Node SQLite database, so
 they live under explicit subpaths:
 
-| Import                             | Public exports                                                                                                                                    |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@smthrs/journal/test/TestJournal` | **Node only.** `TestJournalOptions` and `layer(options?)`, providing migrated in-memory Journal, RunStore, AttemptStore, and CacheStore services. |
-| `@smthrs/journal/test/Notifying`   | `Order`, `Hook`, `wrap`, and `layer` inject before/after notifications around Effect-valued service operations.                                   |
+| Import                             | Public exports                                                                                                                                                                                                                                                                      |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@smthrs/journal/test/TestJournal` | **Node only.** `TestJournalOptions` and `layer(options?)`, providing a migrated in-memory `Journal`. `@smthrs/run-store/test/TestRunStore` and `@smthrs/step-cache/test/TestCacheStore` provide theirs; `@smthrs/engine-store/test/TestStores` provides all four over ONE database. |
+| `@smthrs/journal/test/Notifying`   | `Order`, `Hook`, `wrap`, and `layer` inject before/after notifications around Effect-valued service operations.                                                                                                                                                                     |
 
-The single `migrations/0001_initial` module creates the current schema. Normal callers use `Migrations.run` or `Migrations.layer`.
+The single `migrations/0001_initial` module creates this package's table.
+`Migrations.run` and `Migrations.layer` install it alone; an application that
+also needs run, cache, or engine tables composes `Migrations.set` with the
+other packages' sets through `@smthrs/database`'s `Migrations`, which is what
+`@smthrs/engine-store/Migrations` already does.
 
 ```ts
 import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
@@ -75,15 +82,21 @@ const program = Effect.gen(function*() {
 retries. Rejected and dropped admissions may consume either sequence, so gaps
 are valid.
 
-`RunStore`, `AttemptStore`, and `CacheStore` (with `DurableEngineState` in
-`@smthrs/engine-store`) hold the executable authoritative state today; it is
+`@smthrs/run-store`'s `RunStore` and `AttemptStore` (with `DurableEngineState`
+in `@smthrs/engine-store`) hold the executable authoritative state today; it is
 not derived from journal entries. `transact` is what keeps the two halves
-consistent anyway: it runs a state projection and the `emitDurable` calls
-describing it in ONE write transaction — the stores write through the same
-`Database`, so their writes join it as savepoints — and defers publication
-until that transaction commits. Either a transition and its lifecycle entry
-are both durable, or neither is. See
+consistent across the package boundary: it runs a state projection and the
+`emitDurable` calls describing it in ONE write transaction — the stores write
+through the same `DurableWriter`, so their writes join it as savepoints — and
+defers publication until that transaction commits. Either a transition and its
+lifecycle entry are both durable, or neither is. See
 [implementation status](../../docs/architecture/implementation-status.md).
+
+One coupling outlives the split at the SQL level: a fenced `emitDurable` gates
+its insert on a `flows_runs` row still naming the given owner, so the journal
+reads a table `@smthrs/run-store` owns. `test/JournalFence.test.ts` pins that
+contract here against a fixture of the columns the fence reads;
+`@smthrs/engine-store` pins it against the real migrated schema.
 
 See the [journal reference](../../docs/reference/journal.md) and
 [journal concepts](../../docs/concepts/journal.md).

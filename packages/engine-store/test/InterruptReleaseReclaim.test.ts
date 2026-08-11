@@ -7,10 +7,9 @@
  * durable `requestCancel`. The release must park with a durable reason so
  * the run is re-drivable and cancellable.
  */
-import { Flow, type FlowEngine } from "@smthrs/engine"
-import { Ownership, RunStore } from "@smthrs/journal"
+import { Flow, FlowRuntime } from "@smthrs/flow"
 import type { Journal } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Ownership, RunStore } from "@smthrs/run-store"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -22,6 +21,7 @@ import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise } from "./Sha256.ts"
 
 const TestFlow = Flow.make("InterruptReleaseReclaim/Test", {
@@ -29,7 +29,7 @@ const TestFlow = Flow.make("InterruptReleaseReclaim/Test", {
   success: Schema.String
 })
 
-const fakeEngine = {} as unknown as FlowEngine.FlowEngine["Service"]
+const fakeEngine = {} as unknown as FlowRuntime.FlowRuntime["Service"]
 
 const makeDriver = (nonce: string) =>
   RunDriver.make({
@@ -43,7 +43,7 @@ const provideJournal = <A, E, R>(
   effect: Effect.Effect<A, E, R | Journal.Journal | RunStore.RunStore>
 ) =>
   effect.pipe(
-    Effect.provide(TestJournal.layer()),
+    Effect.provide(TestStores.layer()),
     Effect.provide(DurableEngineState.layerMemory),
     Effect.provide(TestClock.layer()),
     Effect.scoped

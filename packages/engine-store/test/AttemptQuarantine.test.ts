@@ -10,11 +10,12 @@
  * an operator resumes it after restoring the evidence bytes or
  * time-travelling past the attempt.
  */
-import { Activity, Flow, type FlowEngine, RetryPolicy } from "@smthrs/engine"
-import { AttemptStore, CacheStore, Journal, RunStore } from "@smthrs/journal"
+import { Activity, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow"
+import { Journal } from "@smthrs/journal"
 import * as Notifying from "@smthrs/journal/test/Notifying"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Jj } from "@smthrs/kernel"
+import { AttemptStore, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as ManagedRuntime from "effect/ManagedRuntime"
@@ -27,6 +28,7 @@ import * as EngineStore from "../src/EngineStore.ts"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise } from "./Sha256.ts"
 
 const QuarantineFlow = Flow.make("AttemptQuarantine/Flow", {
@@ -100,7 +102,7 @@ describe("succeeded-row corruption parks the run quarantined for an operator (is
     )
     const runtime = ManagedRuntime.make(
       Layer.mergeAll(
-        TestJournal.layer(),
+        TestStores.layer(),
         TestClock.layer(),
         Layer.succeed(DurableEngineState.DurableEngineState, state),
         Layer.succeed(Jj.Jj, jj),
@@ -267,7 +269,7 @@ const CancelRaceFlow = Flow.make("AttemptQuarantine/CancelRace", {
   success: Schema.String
 })
 
-const fakeEngine = {} as unknown as FlowEngine.FlowEngine["Service"]
+const fakeEngine = {} as unknown as FlowRuntime.FlowRuntime["Service"]
 
 describe("a cancel that races the quarantine park", () => {
   it("cancels the run instead of parking it, because the park's transition guard sees the request", async () => {
@@ -321,7 +323,7 @@ describe("a cancel that races the quarantine park", () => {
           interruptions: page.entries.filter((entry) => entry.eventType === "flows.engine.interrupted")
         }
       }).pipe(
-        Effect.provide(TestJournal.layer()),
+        Effect.provide(TestStores.layer()),
         Effect.provide(TestClock.layer()),
         Effect.scoped,
         Effect.orDie

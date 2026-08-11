@@ -8,10 +8,12 @@
  * @since 0.1.0
  */
 import { Sha256 } from "@smthrs/crypto"
-import type { Activity } from "@smthrs/engine"
-import type { FileBoundary } from "@smthrs/engine/FileBoundary"
-import { AttemptStore, CacheStore, Journal, type JournalEvent, Ownership, RunStore } from "@smthrs/journal"
+import type { Activity } from "@smthrs/flow"
+import type { FileBoundary } from "@smthrs/flow/FileBoundary"
+import { Journal, type JournalEvent } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
+import { AttemptStore, Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"

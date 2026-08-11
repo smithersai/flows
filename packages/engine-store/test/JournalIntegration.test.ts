@@ -1,10 +1,11 @@
-import { Journal, type Ownership, RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Journal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
+import { type Ownership, RunStore } from "@smthrs/run-store"
 import { Effect, Layer } from "effect"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "journal", pid: 1, nonce: "owner" }
@@ -48,7 +49,7 @@ describe("engine-store journal integration", () => {
       const journal = yield* Journal.Journal
       yield* journal.flush
       return yield* journal.entries({ runId: "journal-run" as never, limit: 20 })
-    }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), StepBoundary.layerTest(), jj)), Effect.scoped)
+    }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), StepBoundary.layerTest(), jj)), Effect.scoped)
     const entries = await runPromise(program)
     expect(entries.entries.map((entry) => entry.eventType)).toEqual([
       "flows.engine.attempt-started",
@@ -111,7 +112,7 @@ describe("engine-store journal integration", () => {
         metadata: { readSet: [], writeSet: ["result.json"], boundaryMode: "hard" }
       })
       return { claims, dispatches, second }
-    }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), StepBoundary.layerTest(), jj)), Effect.scoped)
+    }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), StepBoundary.layerTest(), jj)), Effect.scoped)
     const result = await runPromise(program)
     expect(result.claims.filter((claim) => claim._tag === "Claimed")).toHaveLength(1)
     expect(result).toMatchObject({ dispatches: 1, second: 1 })

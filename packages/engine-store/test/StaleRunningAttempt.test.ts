@@ -11,15 +11,15 @@
  * attempt is gone and the work must re-execute under its original attempt
  * number, then finish through the ordinary fenced transition.
  */
-import { AttemptStore, type Ownership, RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Jj } from "@smthrs/kernel"
+import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "stale-host", pid: 21, nonce: "reclaimer" }
@@ -36,7 +36,7 @@ const jj = Layer.succeed(
   })
 )
 
-const layer = Layer.mergeAll(TestJournal.layer(), StepBoundary.layerTest(), jj)
+const layer = Layer.mergeAll(TestStores.layer(), StepBoundary.layerTest(), jj)
 
 const activate = (runId: string) =>
   Effect.gen(function*() {

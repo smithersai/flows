@@ -3,7 +3,7 @@
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
-  "description": "Effect services for flows journals, run ownership, attempts, and content-addressed results",
+  "description": "Effect services for the flows event journal: the immutable run history and the owner fence on its durable channel",
   "homepage": "https://github.com/smithersai/flows",
   "repository": {
     "type": "git",

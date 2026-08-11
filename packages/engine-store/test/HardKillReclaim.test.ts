@@ -14,8 +14,9 @@
  */
 import { DurableWriter } from "@smthrs/database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
-import { Flow, type FlowEngine } from "@smthrs/engine"
-import { Migrations, Ownership, RunStore, SqlJournal } from "@smthrs/journal"
+import { Flow, FlowRuntime } from "@smthrs/flow"
+import { SqlJournal } from "@smthrs/journal"
+import { Ownership, RunStore } from "@smthrs/run-store"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -26,6 +27,7 @@ import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
+import * as Migrations from "../src/Migrations.ts"
 import { runPromise } from "./Sha256.ts"
 
 const TestFlow = Flow.make("HardKillReclaim/Test", {
@@ -33,7 +35,7 @@ const TestFlow = Flow.make("HardKillReclaim/Test", {
   success: Schema.String
 })
 
-const fakeEngine = {} as unknown as FlowEngine.FlowEngine["Service"]
+const fakeEngine = {} as unknown as FlowRuntime.FlowRuntime["Service"]
 
 const makeDriver = (nonce: string) =>
   RunDriver.make({

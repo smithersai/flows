@@ -1,6 +1,6 @@
-import { Flow, FlowEngine } from "@smthrs/engine"
-import { Journal, Ownership, RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Flow, FlowRuntime } from "@smthrs/flow"
+import { Journal } from "@smthrs/journal"
+import { Ownership, RunStore } from "@smthrs/run-store"
 import * as Cause from "effect/Cause"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
@@ -12,6 +12,7 @@ import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise } from "./Sha256.ts"
 
 const TestFlow = Flow.make("Ownership/Test", {
@@ -31,7 +32,7 @@ const ownerB: Ownership.OwnerId = {
   nonce: "owner-b"
 }
 
-const fakeEngine = {} as unknown as FlowEngine.FlowEngine["Service"]
+const fakeEngine = {} as unknown as FlowRuntime.FlowRuntime["Service"]
 
 const persistedState = JSON.stringify({
   version: 1,
@@ -78,7 +79,7 @@ const provideJournal = <A, E, R>(
   effect: Effect.Effect<A, E, R | Journal.Journal | RunStore.RunStore>
 ) =>
   effect.pipe(
-    Effect.provide(TestJournal.layer()),
+    Effect.provide(TestStores.layer()),
     Effect.provide(DurableEngineState.layerMemory),
     Effect.provide(TestClock.layer()),
     Effect.scoped
@@ -216,7 +217,7 @@ describe("RunDriver ownership", () => {
       const driver = yield* makeDriver(ownerA)
       yield* driver.register(TestFlow, () =>
         Effect.flatMap(
-          FlowEngine.FlowInstance,
+          FlowRuntime.FlowInstance,
           Flow.suspend
         ))
       yield* driver.execute(TestFlow, {

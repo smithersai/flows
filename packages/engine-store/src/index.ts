@@ -39,3 +39,9 @@ export * as RunState from "./RunState.ts"
  * @category errors
  */
 export * as Errors from "./Errors.ts"
+
+/**
+ * @since 0.1.0
+ * @category migrations
+ */
+export * as Migrations from "./Migrations.ts"

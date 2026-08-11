@@ -4,11 +4,11 @@
  * @since 0.1.0
  */
 import type { Jj } from "@smthrs/jj"
-import type * as CacheStore from "@smthrs/journal/CacheStore"
 import * as Journal from "@smthrs/journal/Journal"
 import type * as JournalEvent from "@smthrs/journal/JournalEvent"
-import type { LivenessEvidence, OwnerId } from "@smthrs/journal/Ownership"
-import * as RunStore from "@smthrs/journal/RunStore"
+import type { LivenessEvidence, OwnerId } from "@smthrs/run-store/Ownership"
+import * as RunStore from "@smthrs/run-store/RunStore"
+import type * as CacheStore from "@smthrs/step-cache/CacheStore"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"

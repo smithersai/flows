@@ -3,10 +3,11 @@
  * the journal's durable (undroppable) channel, fenced to the owning process
  * where the write is owned — never the optimistic lossy queue.
  */
-import { AttemptStore, CacheStore, Journal, type JournalEvent, Ownership, RunStore } from "@smthrs/journal"
+import { Journal, type JournalEvent } from "@smthrs/journal"
 import * as Notifying from "@smthrs/journal/test/Notifying"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Jj } from "@smthrs/kernel"
+import { AttemptStore, Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Clock from "effect/Clock"
 import type * as Crypto from "effect/Crypto"
 import * as Duration from "effect/Duration"
@@ -21,6 +22,7 @@ import { describe, expect, it } from "vitest"
 import * as Inconsistency from "../src/Inconsistency.ts"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
 
 const ownerA: Ownership.OwnerId = { hostId: "lifecycle-host-a", pid: 1, nonce: "lifecycle-owner-a" }
@@ -44,7 +46,7 @@ const jj = Layer.succeed(
   })
 )
 
-const layer = Layer.mergeAll(TestJournal.layer(), StepBoundary.layerTest(), jj)
+const layer = Layer.mergeAll(TestStores.layer(), StepBoundary.layerTest(), jj)
 
 const run = <A, E>(
   effect: Effect.Effect<

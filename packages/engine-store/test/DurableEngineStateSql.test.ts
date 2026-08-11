@@ -1,6 +1,6 @@
 import { DurableWriter } from "@smthrs/database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
-import { Migrations, type Ownership } from "@smthrs/journal"
+import { type Ownership } from "@smthrs/run-store"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -9,6 +9,7 @@ import * as Option from "effect/Option"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
+import * as Migrations from "../src/Migrations.ts"
 import { runPromise } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = {

@@ -1,6 +1,6 @@
 import { Cause, Deferred, Effect, Exit, Fiber } from "effect"
 import { describe, expect, it } from "vitest"
-import * as RunCoordinator from "../src/RunCoordinator.ts"
+import * as RunCoordinator from "../src/internal/RunCoordinator.ts"
 
 const effect = <E>(name: string, body: () => Effect.Effect<void, E>) => it(name, () => Effect.runPromise(body()))
 

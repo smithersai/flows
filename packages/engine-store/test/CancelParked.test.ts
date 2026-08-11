@@ -6,10 +6,9 @@
  * re-activation transition so a resumed cancel-requested run cancels instead
  * of re-executing flow side effects.
  */
-import { DurableDeferred, Flow, type FlowEngine } from "@smthrs/engine"
-import { Ownership, RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
 import { Jj } from "@smthrs/kernel"
+import { Ownership, RunStore } from "@smthrs/run-store"
 import * as Clock from "effect/Clock"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
@@ -19,6 +18,7 @@ import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise } from "./Sha256.ts"
 
 const jj = Jj.make({
@@ -32,7 +32,7 @@ const jj = Jj.make({
 
 const withEngine = <A>(
   body: (
-    engine: FlowEngine.FlowEngine["Service"],
+    engine: FlowRuntime.FlowRuntime["Service"],
     store: RunStore.Service,
     state: DurableEngineState.Service
   ) => Effect.Effect<A, any, any>
@@ -46,7 +46,7 @@ const withEngine = <A>(
           owner: { hostId: "cancel-parked-host" },
           journalSource: "cancel-parked-test",
           isAlive: () => Effect.succeed(false)
-        })) as FlowEngine.FlowEngine["Service"]
+        })) as FlowRuntime.FlowRuntime["Service"]
         return yield* body(engine, store, state)
       }).pipe(
         Effect.provideService(DurableEngineState.DurableEngineState, state),
@@ -54,7 +54,7 @@ const withEngine = <A>(
       )
     ).pipe(
       Effect.provide(StepBoundary.layerTest()),
-      Effect.provide(TestJournal.layer()),
+      Effect.provide(TestStores.layer()),
       Effect.provide(TestClock.layer())
     ) as Effect.Effect<A>
   )

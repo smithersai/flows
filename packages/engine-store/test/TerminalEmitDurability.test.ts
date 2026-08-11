@@ -17,16 +17,17 @@
  * the per-attempt producer identity `(sourceId, sourceSeq 0)` collapses the
  * re-emission into a `Duplicate` on every ordinary replay.
  */
-import type { Activity } from "@smthrs/engine"
-import { AttemptStore, Journal, type JournalEvent, type Ownership, RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import type { Activity } from "@smthrs/flow"
+import { Journal, type JournalEvent } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
+import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "terminal-emit-host", pid: 61, nonce: "terminal-emit-process" }
@@ -145,7 +146,7 @@ describe("replay re-emission tolerates a foreign-lineage terminal record (issue 
           metadata: declared
         }).pipe(Effect.provide(boundary))
         return { replayed }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     expect(outcome.replayed).toBe("done")
   })
@@ -181,7 +182,7 @@ describe("replay re-emission tolerates a foreign-lineage terminal record (issue 
           Effect.exit
         )
         return { replayed }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     // The strong form (issue #128): not just any failure — the surfaced
     // cause carries the journal's own error, so the convergence emit
@@ -223,7 +224,7 @@ describe("replay converges a terminal record the journal is missing (issue #109)
         )
         const after = yield* eventsOf(runId, "flows.engine.attempt-finished")
         return { missing, replayed, events, after }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     expect(outcome.missing).toHaveLength(0)
     expect(outcome.replayed).toBe("done")
@@ -252,7 +253,7 @@ describe("replay converges a terminal record the journal is missing (issue #109)
         const violations = yield* eventsOf(runId, "flows.engine.hard-violation")
         const finished = yield* eventsOf(runId, "flows.engine.attempt-finished")
         return { missing, replayed, violations, finished }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     expect(outcome.missing).toHaveLength(0)
     expect(outcome.replayed._tag).toBe("Failure")
@@ -289,7 +290,7 @@ describe("replay converges a terminal record the journal is missing (issue #109)
         const deviations = yield* eventsOf(runId, "flows.engine.expected-set-deviation")
         const finished = yield* eventsOf(runId, "flows.engine.attempt-finished")
         return { replayed, deviations, finished }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     expect(outcome.replayed).toBe("deviated")
     expect(outcome.deviations).toHaveLength(1)
@@ -331,7 +332,7 @@ describe("the crash window itself is closed", () => {
         const row = yield* attempts.get({ runId, stepKeyDigest: sha256(key), attempt: 1 })
         const finished = yield* eventsOf(runId, "flows.engine.attempt-finished")
         return { crashed, row, finished }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     expect(outcome.crashed._tag).toBe("Failure")
     // The row never reached its terminal state, so no terminal record exists.

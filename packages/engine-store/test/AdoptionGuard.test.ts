@@ -23,9 +23,9 @@
  * now take a dedicated per-attempt producer identity, so a re-emission is an
  * exact retry the journal collapses into a `Duplicate`.
  */
-import { AttemptStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Journal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
+import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
@@ -33,6 +33,7 @@ import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as JournalRecords from "../src/internal/JournalRecords.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "adoption-host", pid: 7, nonce: "live" }
@@ -75,7 +76,7 @@ const activate = (runId: string) =>
   })
 
 const layers = (calls: Array<{ readonly op: string; readonly id?: string }>) =>
-  Layer.mergeAll(TestJournal.layer(), StepBoundary.layerTest(), scriptedJj(calls))
+  Layer.mergeAll(TestStores.layer(), StepBoundary.layerTest(), scriptedJj(calls))
 
 describe("adoption liveness evidence is the admission permit (issues #86, #102, #103)", () => {
   it("adopts a running row left by a dead fiber of the current incarnation (issue #103)", async () => {

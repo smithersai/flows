@@ -3,10 +3,11 @@
  * (issue #21): failed execute, prepare/settle boundary failures, suspended
  * attempt rows, and the fence guard on the failed-attempt finish path.
  */
-import { AttemptStore, CacheStore, Journal, type JournalEvent, Ownership, RunStore } from "@smthrs/journal"
+import { Journal, type JournalEvent } from "@smthrs/journal"
 import * as Notifying from "@smthrs/journal/test/Notifying"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Jj } from "@smthrs/kernel"
+import { AttemptStore, Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import type * as Crypto from "effect/Crypto"
@@ -20,6 +21,7 @@ import type * as Scope from "effect/Scope"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
 
 const ownerA: Ownership.OwnerId = { hostId: "failure-host-a", pid: 1, nonce: "failure-owner-a" }
@@ -58,7 +60,7 @@ const run = <A, E>(
 ) =>
   runPromise(
     effect.pipe(
-      Effect.provide(Layer.mergeAll(TestJournal.layer(), boundary, jj)),
+      Effect.provide(Layer.mergeAll(TestStores.layer(), boundary, jj)),
       Effect.scoped
     ) as Effect.Effect<A, E, Crypto.Crypto>
   )

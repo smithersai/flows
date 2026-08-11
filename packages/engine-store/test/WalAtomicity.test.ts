@@ -19,19 +19,12 @@
  */
 import { DurableWriter } from "@smthrs/database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
-import { DurableClock, Flow, type FlowEngine } from "@smthrs/engine"
-import {
-  AttemptStore,
-  CacheStore,
-  Journal,
-  type JournalEvent,
-  Migrations,
-  Ownership,
-  RunStore,
-  SqlJournal
-} from "@smthrs/journal"
+import { DurableClock, Flow, FlowRuntime } from "@smthrs/flow"
+import { Journal, type JournalEvent, SqlJournal } from "@smthrs/journal"
 import * as Notifying from "@smthrs/journal/test/Notifying"
 import { Jj } from "@smthrs/kernel"
+import { AttemptStore, Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Duration from "effect/Duration"
@@ -49,6 +42,7 @@ import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as DeferredPersistence from "../src/internal/DeferredPersistence.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
+import * as Migrations from "../src/Migrations.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
 
@@ -301,7 +295,7 @@ const DriverFlow = Flow.make("WalAtomicity/Driver", {
   success: Schema.String
 })
 
-const fakeEngine = {} as unknown as FlowEngine.FlowEngine["Service"]
+const fakeEngine = {} as unknown as FlowRuntime.FlowRuntime["Service"]
 
 const makeDriver = (nonce: string) =>
   RunDriver.make({

@@ -1,5 +1,5 @@
 import * as Jj from "@smthrs/jj"
-import { CacheStore } from "@smthrs/journal"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"

@@ -11,16 +11,18 @@
  * reports, which is Skyframe's dirty-check invariant (re-verify a node
  * against its dependencies' current values before reuse).
  */
-import type { FileInput } from "@smthrs/engine/FileInput"
-import { CacheStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import type { FileInput } from "@smthrs/flow/FileInput"
+import { Journal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
+import { type Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "read-set-host", pid: 21, nonce: "read-set-process" }
@@ -100,7 +102,7 @@ const replayWithMeasurement = (
     )
     return { executions, first, replays, second }
   }).pipe(
-    Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)),
+    Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)),
     Effect.scoped
   )
 
@@ -172,7 +174,7 @@ describe("a refused stale hit invalidates the poisoned entry (issue #99)", () =>
         const third = yield* run("stale-conflict-third", [{ path: "config.json", digest: "D2" }])
         const entry = yield* cache.get(keyDigest)
         return { first, second, third, entry }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     expect(outcome.first).toBe("recorded")
     expect(outcome.second).toBe("fresh-1")
@@ -217,7 +219,7 @@ describe("cache provenance records a refused hit (issue #90)", () => {
         return page.entries
           .filter((entry) => entry.eventType === "flows.engine.cache-provenance")
           .map((entry) => entry.payload as { readonly action?: string })
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
 
     expect(records.map((record) => record.action)).toContain("stale_read_set")

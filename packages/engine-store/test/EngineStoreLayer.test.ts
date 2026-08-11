@@ -1,7 +1,8 @@
-import { Activity, DurableDeferred, Flow, FlowEngine } from "@smthrs/engine"
-import { Journal, type Ownership, RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { FlowEngine } from "@smthrs/engine"
+import { Activity, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
+import { Journal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
+import { type Ownership, RunStore } from "@smthrs/run-store"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -11,6 +12,7 @@ import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise } from "./Sha256.ts"
 
 const LayerFlow = Flow.make("EngineStoreLayer/Flow", {
@@ -56,7 +58,7 @@ const recordingJj = (
 
 const baseLayers = (jj: Jj.Jj, state: DurableEngineState.Service) =>
   Layer.mergeAll(
-    TestJournal.layer(),
+    TestStores.layer(),
     StepBoundary.layerTest(),
     Layer.succeed(Jj.Jj, jj),
     Layer.succeed(DurableEngineState.DurableEngineState, state)
@@ -145,7 +147,7 @@ describe("EngineStore.layer", () => {
     const state = DurableEngineState.makeMemory()
     const row = await runPromise(
       Effect.scoped(Effect.gen(function*() {
-        const engine = yield* FlowEngine.FlowEngine
+        const engine = yield* FlowRuntime.FlowRuntime
         yield* engine.register(LayerFlow, () => Effect.succeed("layered"))
         const value = yield* engine.execute(LayerFlow, {
           executionId: "layered-run",

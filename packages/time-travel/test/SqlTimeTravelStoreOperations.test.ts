@@ -1,6 +1,6 @@
 import * as DatabaseModule from "@smthrs/database/DurableWriter"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
-import * as Migrations from "@smthrs/journal/Migrations"
+import * as Migrations from "@smthrs/engine-store/Migrations"
 import * as Effect from "effect/Effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"

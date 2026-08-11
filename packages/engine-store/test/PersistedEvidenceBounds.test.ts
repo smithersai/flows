@@ -6,15 +6,17 @@
  * boundary cannot observe the whole tree, so its evidence must not enter the
  * shared cache even when the declared output capture succeeds.
  */
-import { AttemptStore, CacheStore, type Ownership, RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
-import { FileSystem, Jj } from "@smthrs/kernel"
+import { Jj } from "@smthrs/kernel"
+import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "evidence-bounds-host", pid: 59, nonce: "evidence-bounds-process" }
@@ -110,7 +112,7 @@ describe("persisted evidence stays bounded through the real boundary (issue #125
         const entry = yield* cache.get(keyDigest)
         const row = yield* attempts.get({ runId, stepKeyDigest: keyDigest, attempt: 1 })
         return { result, entry, row }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     expect(outcome.result).toBe("done")
     expect(Option.isNone(outcome.entry)).toBe(true)

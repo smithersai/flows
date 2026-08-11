@@ -43,7 +43,7 @@ import {
   type StreamOptions
 } from "./Journal.ts"
 import { Entry, Input, makeEventId, type RunId, type Seq, type SourceId, type SourceSeq } from "./JournalEvent.ts"
-import type { OwnerId } from "./Ownership.ts"
+import type { OwnerId } from "./OwnerId.ts"
 import type { Projection } from "./Projection.ts"
 import * as Redaction from "./Redaction.ts"
 

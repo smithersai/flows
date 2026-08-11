@@ -1,7 +1,7 @@
-import { Activity, DurableDeferred, Flow } from "@smthrs/engine"
-import { Journal, type Ownership, RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Activity, DurableDeferred, Flow } from "@smthrs/flow"
+import { Journal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
+import { type Ownership, RunStore } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Schema from "effect/Schema"
@@ -9,6 +9,7 @@ import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise } from "./Sha256.ts"
 
 const ReplayFlow = Flow.make("Replay/Flow", {
@@ -140,7 +141,7 @@ describe("deterministic replay", () => {
         )
       ).pipe(
         Effect.provide(StepBoundary.layerTest()),
-        Effect.provide(TestJournal.layer())
+        Effect.provide(TestStores.layer())
       )
     )
 

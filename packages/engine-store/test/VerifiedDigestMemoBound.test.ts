@@ -8,9 +8,9 @@
  * evicts the least-recently-used digest, and eviction costs only the #132
  * re-verification on that digest's next capture — never correctness.
  */
-import type { FileBoundary } from "@smthrs/engine/FileBoundary"
-import { FileSystem } from "@smthrs/kernel"
+import type { FileBoundary } from "@smthrs/flow/FileBoundary"
 import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
 import { describe, expect, it } from "vitest"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import { runPromise, sha256 } from "./Sha256.ts"

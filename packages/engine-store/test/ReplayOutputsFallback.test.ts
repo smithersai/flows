@@ -13,15 +13,18 @@
  * succeeded-attempt path returns the durable outcome with the refusal
  * journalled, and the production layer mkdirs parents before materializing.
  */
-import { CacheStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
-import { FileSystem, Jj } from "@smthrs/kernel"
+import { Journal } from "@smthrs/journal"
+import { Jj } from "@smthrs/kernel"
+import { type Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "replay-fallback-host", pid: 51, nonce: "replay-fallback-process" }
@@ -122,7 +125,7 @@ describe("unreplayable evidence on a verified cache hit (issue #107)", () => {
         const third = yield* dispatch("replay-fallback-third", key, body).pipe(Effect.provide(unreplayable()))
         const records = yield* provenance("replay-fallback-second")
         return { executions, second, third, records }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     expect(outcome.second).toBe("recorded")
     expect(outcome.third).toBe("recorded")
@@ -148,7 +151,7 @@ describe("unreplayable evidence on a verified cache hit (issue #107)", () => {
         )
         const records = yield* provenance("replay-fallback-row")
         return { replayed, records }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     // The attempt durably succeeded: its outcome is the truth, and failing
     // the run over a best-effort materialization recreated the #99 loop.

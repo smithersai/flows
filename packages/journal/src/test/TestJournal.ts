@@ -1,17 +1,18 @@
 /**
- * Deterministic bundle of the production journal services.
+ * Deterministic bundle of the production journal service.
  *
- * Governing designs: `docs/specs/Concepts/Journal Queue.md` and
- * `docs/specs/Concepts/Run Ownership.md`.
+ * This provides the journal and nothing else. A consumer that also needs run
+ * state or the step cache composes `@smthrs/run-store/test/TestRunStore` and
+ * `@smthrs/step-cache/test/TestCacheStore` over the same database, or takes
+ * the whole engine bundle from `@smthrs/engine-store/test/TestStores`.
+ *
+ * Governing design: `docs/specs/Concepts/Journal Queue.md`.
  *
  * @since 0.1.0
  */
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import * as Layer from "effect/Layer"
-import * as AttemptStore from "../AttemptStore.ts"
-import * as CacheStore from "../CacheStore.ts"
 import * as Migrations from "../Migrations.ts"
-import * as RunStore from "../RunStore.ts"
 import * as SqlJournal from "../SqlJournal.ts"
 
 /**
@@ -27,22 +28,15 @@ export interface TestJournalOptions {
 }
 
 /**
- * Provides the production SQLite journal, run, attempt, and cache services over
- * an in-memory database. Migrations run before any durable service is exposed.
+ * Provides the production SQLite journal over an in-memory database.
+ * Migrations run before the journal is exposed.
  *
  * @category layers
  * @since 0.1.0
  */
-export const layer = (options?: TestJournalOptions) => {
-  const database = Layer.provideMerge(Migrations.layer, TestDatabase.layer)
-  return Layer.mergeAll(
-    SqlJournal.layer({
-      capacity: options?.capacity ?? 1024,
-      overflow: options?.overflow ?? "reject",
-      batchSize: options?.batchSize
-    }),
-    RunStore.layer,
-    AttemptStore.layer,
-    CacheStore.layer
-  ).pipe(Layer.provide(database))
-}
+export const layer = (options?: TestJournalOptions) =>
+  SqlJournal.layer({
+    capacity: options?.capacity ?? 1024,
+    overflow: options?.overflow ?? "reject",
+    batchSize: options?.batchSize
+  }).pipe(Layer.provide(Layer.provideMerge(Migrations.layer, TestDatabase.layer)))

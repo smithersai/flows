@@ -1,6 +1,6 @@
-import { Flow, FlowEngine } from "@smthrs/engine"
-import { Journal, Ownership, RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Flow, FlowRuntime } from "@smthrs/flow"
+import { Journal } from "@smthrs/journal"
+import { Ownership, RunStore } from "@smthrs/run-store"
 import * as Cause from "effect/Cause"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as JournalRecords from "../src/internal/JournalRecords.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise } from "./Sha256.ts"
 
 const EdgeFlow = Flow.make("RunDriverEdges/Flow", {
@@ -33,7 +34,7 @@ const UnregisteredFlow = Flow.make("RunDriverEdges/Unregistered", {
 
 const owner: Ownership.OwnerId = { hostId: "edge-host", pid: 7, nonce: "edge" }
 
-const fakeEngine = {} as unknown as FlowEngine.FlowEngine["Service"]
+const fakeEngine = {} as unknown as FlowRuntime.FlowRuntime["Service"]
 
 const stateJson = (flowName: string, payload: unknown = {}) => JSON.stringify({ version: 1, flowName, payload })
 
@@ -51,7 +52,7 @@ const provideJournal = <A, E, R>(
   effect: Effect.Effect<A, E, R | Journal.Journal | RunStore.RunStore>
 ) =>
   effect.pipe(
-    Effect.provide(TestJournal.layer()),
+    Effect.provide(TestStores.layer()),
     Effect.provide(DurableEngineState.layerMemory),
     Effect.scoped
   ) as Effect.Effect<
@@ -271,7 +272,7 @@ describe("RunDriver poll", () => {
       const driver = yield* makeDriver()
       yield* driver.register(
         EdgeFlow,
-        () => Effect.flatMap(FlowEngine.FlowInstance, Flow.suspend)
+        () => Effect.flatMap(FlowRuntime.FlowInstance, Flow.suspend)
       )
       return yield* driver.execute(EdgeFlow, {
         executionId: "parked",
@@ -530,7 +531,7 @@ describe("RunDriver parent-chain traversal", () => {
         executionId: "orphan-child",
         payload: {},
         discard: true,
-        parent: { executionId: "ghost-parent" } as FlowEngine.FlowInstance["Service"]
+        parent: { executionId: "ghost-parent" } as FlowRuntime.FlowInstance["Service"]
       })
       return yield* (yield* RunStore.RunStore).get("orphan-child")
     })))
@@ -551,7 +552,7 @@ describe("RunDriver parent-chain traversal", () => {
         executionId: "cycle-read-broken",
         payload: {},
         discard: true,
-        parent: { executionId: "some-parent" } as FlowEngine.FlowInstance["Service"]
+        parent: { executionId: "some-parent" } as FlowRuntime.FlowInstance["Service"]
       }))
     })))
 
@@ -671,7 +672,7 @@ const provideJournalWithTestClock = <A, E, R>(
   effect: Effect.Effect<A, E, R | Journal.Journal | RunStore.RunStore>
 ) =>
   effect.pipe(
-    Effect.provide(TestJournal.layer()),
+    Effect.provide(TestStores.layer()),
     Effect.provide(DurableEngineState.layerMemory),
     Effect.provide(TestClock.layer()),
     Effect.scoped

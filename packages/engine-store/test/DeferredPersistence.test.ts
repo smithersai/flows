@@ -1,4 +1,5 @@
-import { DurableClock, DurableDeferred, Flow, FlowEngine } from "@smthrs/engine"
+import { FlowEngine } from "@smthrs/engine"
+import { DurableClock, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
 import { Journal, JournalEvent } from "@smthrs/journal"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -155,7 +156,7 @@ describe("DeferredPersistence", () => {
       })
 
       const restarted = yield* build(state, journal, [])
-      const instance = FlowEngine.FlowInstance.initial(
+      const instance = FlowEngine.makeInstance(
         TestFlow,
         "restart"
       )
@@ -164,7 +165,7 @@ describe("DeferredPersistence", () => {
           success: Schema.String
         })
       ).pipe(
-        Effect.provideService(FlowEngine.FlowInstance, instance)
+        Effect.provideService(FlowRuntime.FlowInstance, instance)
       )
     })))
 

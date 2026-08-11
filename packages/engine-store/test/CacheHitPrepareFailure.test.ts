@@ -11,15 +11,17 @@
  * row's provenance first so a fresh entry recorded by a concurrent run
  * between the get and the evict is not deleted with the poison.
  */
-import { CacheStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Journal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
+import { type Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "prepare-failure-host", pid: 31, nonce: "prepare-failure-process" }
@@ -101,7 +103,7 @@ describe("transient prepare host errors on a cache hit (issue #110)", () => {
         const entry = yield* cache.get(keyDigest)
         const records = yield* provenance("prepare-transient-second")
         return { executions, exit, entry, records }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     // The attempt fails as an ordinary host error the retry ladder owns…
     expect(outcome.exit._tag).toBe("Failure")
@@ -162,7 +164,7 @@ describe("transient prepare host errors on a cache hit (issue #110)", () => {
         const entry = yield* cache.get(keyDigest)
         const records = yield* provenance("prepare-transient-recovery-second")
         return { result, executions, entry, records }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     // The dispatch succeeds on the re-prepared real execution…
     expect(outcome.result).toBe("recorded")
@@ -191,7 +193,7 @@ describe("transient prepare host errors on a cache hit (issue #110)", () => {
         const entry = yield* cache.get(keyDigest)
         const records = yield* provenance("prepare-stale-second")
         return { entry, records }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     expect(outcome.records.map((record) => record.action)).toContain("stale_read_set")
     // The poisoned row was invalidated (the re-execution recorded nothing
@@ -244,7 +246,7 @@ describe("transient prepare host errors on a cache hit (issue #110)", () => {
         )
         const entry = yield* cache.get(keyDigest)
         return { exit, entry }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     // The concurrent run's fresh entry survives the racing evict.
     expect(Option.isSome(outcome.entry)).toBe(true)

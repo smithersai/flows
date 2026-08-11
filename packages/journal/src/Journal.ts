@@ -18,7 +18,7 @@ import type * as Scope from "effect/Scope"
 import * as Stream from "effect/Stream"
 import { Entry, RunId, Seq, SourceSeq } from "./JournalEvent.ts"
 import type { Input } from "./JournalEvent.ts"
-import type { OwnerId } from "./Ownership.ts"
+import type { OwnerId } from "./OwnerId.ts"
 import type { Projection } from "./Projection.ts"
 
 /**

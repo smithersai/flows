@@ -14,6 +14,7 @@
  * @since 0.1.0
  */
 import { DatabaseError, DurableWriter } from "@smthrs/database/DurableWriter"
+import type { OwnerId } from "@smthrs/journal/OwnerId"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -21,7 +22,6 @@ import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as SqlError from "effect/unstable/sql/SqlError"
-import type { OwnerId } from "./Ownership.ts"
 
 /**
  * Stable error codes returned by attempt persistence operations.

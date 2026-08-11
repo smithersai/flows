@@ -1,14 +1,14 @@
 import { DurableWriter, type Service as WriterService } from "@smthrs/database/DurableWriter"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import { type DurableReceipt, Journal, type JournalError, makeNoop } from "@smthrs/journal/Journal"
+import { Input, type RunId, type Seq, type SourceId, type SourceSeq } from "@smthrs/journal/JournalEvent"
+import type { OwnerId } from "@smthrs/journal/OwnerId"
+import * as SqlJournal from "@smthrs/journal/SqlJournal"
 import { Deferred, Effect, Layer } from "effect"
 import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
-import { type DurableReceipt, Journal, type JournalError, makeNoop } from "../src/Journal.ts"
-import { Input, type RunId, type Seq, type SourceId, type SourceSeq } from "../src/JournalEvent.ts"
 import * as Migrations from "../src/Migrations.ts"
-import type { OwnerId } from "../src/Ownership.ts"
-import * as SqlJournal from "../src/SqlJournal.ts"
 
 const runId = (value: string): RunId => value as RunId
 const sourceId = (value: string): SourceId => value as SourceId

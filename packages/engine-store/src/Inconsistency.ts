@@ -20,7 +20,9 @@
  *
  * @since 0.1.0
  */
-import { type CacheStore, Journal, type Ownership } from "@smthrs/journal"
+import { Journal } from "@smthrs/journal"
+import type { Ownership } from "@smthrs/run-store"
+import type { CacheStore } from "@smthrs/step-cache"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"

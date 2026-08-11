@@ -1,6 +1,6 @@
-import * as CacheStore from "@smthrs/journal/CacheStore"
 import * as Journal from "@smthrs/journal/Journal"
 import type { Entry, RunId, Seq, SourceId, SourceSeq } from "@smthrs/journal/JournalEvent"
+import * as CacheStore from "@smthrs/step-cache/CacheStore"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"

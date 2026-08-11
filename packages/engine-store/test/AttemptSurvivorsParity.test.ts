@@ -8,7 +8,7 @@
  */
 import { DurableWriter } from "@smthrs/database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
-import { AttemptStore, Migrations, type Ownership } from "@smthrs/journal"
+import { AttemptStore, type Ownership } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
@@ -16,6 +16,7 @@ import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as AttemptProbe from "../src/internal/AttemptProbe.ts"
+import * as Migrations from "../src/Migrations.ts"
 import { runPromise } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "survivor-parity", pid: 1, nonce: "owner" }

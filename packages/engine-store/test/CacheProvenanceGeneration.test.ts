@@ -11,16 +11,18 @@
  * generation with fresh provenance, while the #124 convergence re-record
  * (identical content) still collapses into a `Duplicate`.
  */
-import type { FileInput } from "@smthrs/engine/FileInput"
-import { CacheStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import type { FileInput } from "@smthrs/flow/FileInput"
+import { Journal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
+import { type Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "generation-host", pid: 29, nonce: "generation-process" }
@@ -132,7 +134,7 @@ describe("post-eviction re-records take fresh provenance (issue #129)", () => {
           laggardDeleted,
           survivorPresent: Option.isSome(survivor)
         }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     expect(outcome.second).toBe("regenerated")
     expect(outcome.generation1.result).toBe("regenerated")
@@ -199,7 +201,7 @@ describe("identical-content re-records collapse into the original provenance", (
           (entry.payload as { readonly action?: string }).action === "recorded"
         )
         return { replayed, executions, original: original.value, converged: converged.value, recorded }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     expect(outcome.replayed).toBe("recorded")
     // The convergence replayed the persisted attempt row — it did NOT
@@ -264,7 +266,7 @@ describe("identical-content re-records collapse into the original provenance", (
           laggardDeleted,
           survivorPresent: Option.isSome(survivor)
         }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     // The indistinguishable re-record inherits the evicted provenance...
     expect(outcome.generation1.recordedEventSeq).toBe(outcome.generation0.recordedEventSeq)

@@ -1,7 +1,7 @@
-import { Activity, DurableDeferred, Flow, FlowEngine } from "@smthrs/engine"
-import { Journal, RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Activity, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
+import { Journal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
+import { RunStore } from "@smthrs/run-store"
 import * as Cause from "effect/Cause"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise } from "./Sha256.ts"
 
 const jj = Jj.make({
@@ -30,7 +31,7 @@ const jj = Jj.make({
 const withRestart = <A>(
   body: (
     makeEngine: Effect.Effect<
-      FlowEngine.FlowEngine["Service"],
+      FlowRuntime.FlowRuntime["Service"],
       never,
       RunStore.RunStore | DurableEngineState.DurableEngineState | Journal.Journal | Jj.Jj | StepBoundary.Service
     >,
@@ -56,7 +57,7 @@ const withRestart = <A>(
       )
     ).pipe(
       Effect.provide(StepBoundary.layerTest()),
-      Effect.provide(TestJournal.layer())
+      Effect.provide(TestStores.layer())
     ) as Effect.Effect<A, unknown>
   )
 

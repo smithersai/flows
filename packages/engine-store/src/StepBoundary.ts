@@ -5,14 +5,14 @@
  * @since 0.1.0
  */
 import { Sha256 } from "@smthrs/crypto"
-import { FileBoundary } from "@smthrs/engine/FileBoundary"
-import { FileInput } from "@smthrs/engine/FileInput"
-import { FileSystem } from "@smthrs/kernel"
+import { FileBoundary } from "@smthrs/flow/FileBoundary"
+import { FileInput } from "@smthrs/flow/FileInput"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Encoding from "effect/Encoding"
+import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Result from "effect/Result"
@@ -616,8 +616,9 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
  * declared write set and captures the write set's post-state, and
  * `replayOutputs` re-materializes those outputs on cache-hit replay.
  *
- * Host access arrives through the kernel `FileSystem` layer — the same seam
- * every host implementation (node, bun, browser, sandbox) already provides.
+ * Host access arrives through Effect's `FileSystem` tag, which the capability
+ * kernel decorates in place — the same seam every host implementation (node,
+ * bun, browser, sandbox) already provides.
  *
  * @since 0.1.0
  * @category layers

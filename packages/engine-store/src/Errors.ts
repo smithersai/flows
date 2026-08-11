@@ -5,7 +5,7 @@
  * consumers may switch on `code` (or `_tag`) and the strings will not change
  * without a major version. The classes themselves are declared next to the
  * logic that raises them (`internal/ActivityPersistence.ts`,
- * `@smthrs/engine`'s `FlowEngine.ts`); this module is the barrel-exported
+ * `@smthrs/flow`'s `FlowRuntime/`); this module is the barrel-exported
  * surface so that `internal/` never has to be imported by consumers.
  *
  * Design notes: [[Events And Errors]]
@@ -16,7 +16,7 @@
  *
  * @since 0.1.0
  */
-export { FlowCycleDetected } from "@smthrs/engine/FlowEngine"
+export { FlowCycleDetected } from "@smthrs/flow/FlowRuntime"
 export {
   AttemptAdmissionRejected,
   AttemptEvidenceQuarantined,

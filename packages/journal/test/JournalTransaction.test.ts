@@ -1,8 +1,9 @@
 /**
- * Pins the WAL/state atomicity seam: `Journal.transact` runs a state
- * projection and the lifecycle entries describing it in ONE write
- * transaction, and publishes those entries only once that transaction has
- * committed.
+ * Pins the WAL side of the atomicity seam: `Journal.transact` runs its body
+ * and the lifecycle entries describing it in ONE write transaction, and
+ * publishes those entries only once that transaction has committed. The
+ * cross-package half — a `@smthrs/run-store` state write committing or rolling
+ * back with its entry — lives in `@smthrs/engine-store`, which composes both.
  *
  * Prior art: `reference/temporal/service/history/workflow/transaction_impl.go`
  * submits the mutable-state mutation and its event batches as one persistence
@@ -18,7 +19,6 @@ import { describe, expect, it } from "vitest"
 import { Journal, JournalError, makeNoop } from "../src/Journal.ts"
 import { Input, type RunId, type SourceId, type SourceSeq } from "../src/JournalEvent.ts"
 import * as Migrations from "../src/Migrations.ts"
-import * as RunStore from "../src/RunStore.ts"
 import * as SqlJournal from "../src/SqlJournal.ts"
 
 const runId = (value: string): RunId => value as RunId
@@ -44,12 +44,11 @@ const input = (
 const migratedDatabase = Layer.provideMerge(Migrations.layer, TestDatabase.layer)
 
 const stack = SqlJournal.layer({ capacity: 8, overflow: "reject" }).pipe(
-  Layer.merge(RunStore.layer),
   Layer.provideMerge(migratedDatabase)
 )
 
 const withStack = <A, E>(
-  body: Effect.Effect<A, E, Journal | DurableWriter | SqlClient.SqlClient | RunStore.RunStore | Scope.Scope>
+  body: Effect.Effect<A, E, Journal | DurableWriter | SqlClient.SqlClient | Scope.Scope>
 ) => Effect.scoped(body.pipe(Effect.provide(stack)))
 
 const rowsOf = (sql: SqlClient.SqlClient, run: RunId) =>
@@ -62,48 +61,19 @@ class Rejected extends Error {
 }
 
 describe("Journal.transact", () => {
-  effect(
-    "commits a lifecycle entry and the state projection it describes together",
-    () =>
-      withStack(Effect.gen(function*() {
-        const journal = yield* Journal
-        const runs = yield* RunStore.RunStore
-        const sql = yield* Effect.service(SqlClient.SqlClient)
-        const run = runId("atomic-commit")
-
-        yield* journal.transact(Effect.gen(function*() {
-          yield* runs.create(run, "{}")
-          yield* journal.emitDurable(
-            input(run, sourceId("driver"), "flows.engine.run-decision", { decision: "created" })
-          )
-        }))
-
-        const row = yield* runs.get(run)
-        const rows = yield* rowsOf(sql, run)
-        expect(row.status).toBe("pending")
-        expect(rows.map((entry) => entry.event_type)).toEqual(["flows.engine.run-decision"])
-      }))
-  )
-
-  effect("rolls the lifecycle entry back with the state write it describes", () =>
+  effect("rolls a committed entry back with the transaction that wrote it", () =>
     withStack(Effect.gen(function*() {
       const journal = yield* Journal
-      const runs = yield* RunStore.RunStore
       const sql = yield* Effect.service(SqlClient.SqlClient)
       const run = runId("atomic-rollback")
 
       const exit = yield* journal.transact(Effect.gen(function*() {
-        yield* runs.create(run, "{}")
         yield* journal.emitDurable(input(run, sourceId("driver"), "flows.engine.run-decision", { decision: "created" }))
-        return yield* Effect.fail(new Rejected("state transition rejected after the WAL append"))
+        return yield* Effect.fail(new Rejected("rejected after the WAL append"))
       })).pipe(Effect.exit)
 
       expect(exit._tag).toBe("Failure")
-      const missing = yield* runs.get(run).pipe(Effect.flip)
-      const rows = yield* rowsOf(sql, run)
-      // Journal/state equivalence: neither half of the pair survives.
-      expect(missing.code).toBe("not_found_row")
-      expect(rows).toHaveLength(0)
+      expect(yield* rowsOf(sql, run)).toHaveLength(0)
     })))
 
   effect("leaves a rolled-back producer identity re-emittable", () =>
@@ -148,13 +118,11 @@ describe("Journal.transact", () => {
   effect("settles a nested transaction once, at the outermost commit", () =>
     withStack(Effect.gen(function*() {
       const journal = yield* Journal
-      const runs = yield* RunStore.RunStore
       const sql = yield* Effect.service(SqlClient.SqlClient)
       const run = runId("atomic-nested")
       const subscription = yield* journal.changes
 
       const exit = yield* journal.transact(Effect.gen(function*() {
-        yield* runs.create(run, "{}")
         yield* journal.transact(
           journal.emitDurable(input(run, sourceId("driver"), "flows.engine.run-decision", { decision: "nested" }))
         )

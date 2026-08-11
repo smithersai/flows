@@ -5,8 +5,10 @@
  *
  * @since 0.1.0
  */
-import { Flow, FlowEngine } from "@smthrs/engine"
-import { Journal, Ownership, RunCoordinator, RunStore } from "@smthrs/journal"
+import { FlowEngine } from "@smthrs/engine"
+import { Flow, FlowRuntime } from "@smthrs/flow"
+import { Journal } from "@smthrs/journal"
+import { Ownership, RunStore } from "@smthrs/run-store"
 import * as Clock from "effect/Clock"
 import * as Deferred from "effect/Deferred"
 import * as Duration from "effect/Duration"
@@ -19,6 +21,7 @@ import * as DurableEngineState from "../DurableEngineState.ts"
 import { RunState } from "../RunState.ts"
 import * as ActivityPersistence from "./ActivityPersistence.ts"
 import * as JournalRecords from "./JournalRecords.ts"
+import * as RunCoordinator from "./RunCoordinator.ts"
 
 const RunStateJson = Schema.fromJsonString(RunState)
 
@@ -31,20 +34,20 @@ const RunStateJson = Schema.fromJsonString(RunState)
  * parent upward — an O(depth) check, not a dependency-graph DFS — because
  * `parentExecutionId` is the only edge our runtime model can express.
  *
- * The class is declared by `@smthrs/engine` (it is part of the `execute`
+ * The class is declared by `@smthrs/flow` (it is part of the `execute`
  * contract) and re-exported here for the detector's callers. See
  * `docs/specs/Concepts/Run Ownership.md`.
  *
  * @since 0.1.0
  * @category errors
  */
-export const FlowCycleDetected = FlowEngine.FlowCycleDetected
+export const FlowCycleDetected = FlowRuntime.FlowCycleDetected
 
 /**
  * @since 0.1.0
  * @category errors
  */
-export type FlowCycleDetected = FlowEngine.FlowCycleDetected
+export type FlowCycleDetected = FlowRuntime.FlowCycleDetected
 
 /**
  * Dependencies for the run driver.
@@ -56,7 +59,7 @@ export interface Dependencies {
   readonly owner: Ownership.OwnerId
   readonly journalSource: string
   readonly isAlive: (owner: Ownership.OwnerId) => Effect.Effect<boolean>
-  readonly engine: Effect.Effect<FlowEngine.FlowEngine["Service"]>
+  readonly engine: Effect.Effect<FlowRuntime.FlowRuntime["Service"]>
 }
 
 /**
@@ -85,7 +88,7 @@ interface Registration {
   readonly execute: (
     payload: object,
     executionId: string
-  ) => Effect.Effect<unknown, unknown, FlowEngine.FlowInstance | FlowEngine.FlowEngine>
+  ) => Effect.Effect<unknown, unknown, FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime>
 }
 
 const snapshot = (row: RunStore.RunRow): RunStore.RunSnapshot => ({
@@ -144,7 +147,7 @@ export const make = (
      * newly registered flow makes previously dropped runs drivable again.
      */
     const warnedUnregistered = new Set<string>()
-    const liveInstances = new Map<string, FlowEngine.FlowInstance["Service"]>()
+    const liveInstances = new Map<string, FlowRuntime.FlowInstance["Service"]>()
     const encodeState = (state: RunState): Effect.Effect<string> =>
       Schema.encodeEffect(RunStateJson)(state).pipe(Effect.orDie)
 
@@ -486,7 +489,7 @@ export const make = (
         const payload = yield* (Schema.decodeUnknownEffect(
           Schema.toCodecJson(registration.flow.payloadSchema)
         )(activeState.payload).pipe(Effect.orDie) as Effect.Effect<unknown>)
-        const instance = FlowEngine.FlowInstance.initial(
+        const instance = FlowEngine.makeInstance(
           registration.flow,
           executionId
         )
@@ -498,8 +501,8 @@ export const make = (
             Effect.raceFirst(
               registration.execute(payload as object, executionId).pipe(
                 Flow.intoResult,
-                Effect.provideService(FlowEngine.FlowInstance, instance),
-                Effect.provideService(FlowEngine.FlowEngine, flowEngine)
+                Effect.provideService(FlowRuntime.FlowInstance, instance),
+                Effect.provideService(FlowRuntime.FlowRuntime, flowEngine)
               ),
               Ownership.heartbeatLoop(executionId, dependencies.owner).pipe(
                 Effect.provideService(RunStore.RunStore, store)
@@ -572,7 +575,7 @@ export const make = (
           // else waits on an external event (deferred completion). This is
           // what makes `waitingRuns` sweepers and the 0004 partial index
           // match real suspensions (issue #12).
-          // A flow-declared classification (FlowEngine.annotateWaiting) wins:
+          // A flow-declared classification (FlowRuntime.annotateWaiting) wins:
           // it is the only way an approval or quota wait — and its wake
           // token — reaches the parked row (issue #31). The durable-state
           // derivation stays the fallback.
@@ -715,7 +718,7 @@ export const make = (
       options: {
         readonly executionId: string
         readonly payload: object
-        readonly parent?: FlowEngine.FlowInstance["Service"] | undefined
+        readonly parent?: FlowRuntime.FlowInstance["Service"] | undefined
       }
     ): Effect.Effect<void, FlowCycleDetected> =>
       Effect.gen(function*() {
@@ -830,7 +833,7 @@ export const make = (
           readonly executionId: string
           readonly payload: object
           readonly discard: Discard
-          readonly parent?: FlowEngine.FlowInstance["Service"] | undefined
+          readonly parent?: FlowRuntime.FlowInstance["Service"] | undefined
         }
       ) {
         if (!registrations.has(flow._tag)) {

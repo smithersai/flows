@@ -1,7 +1,8 @@
-import type { Activity } from "@smthrs/engine"
-import { AttemptStore, CacheStore, Journal, type Ownership, RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import type { Activity } from "@smthrs/flow"
+import { Journal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
+import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -11,6 +12,7 @@ import { describe, expect, it } from "vitest"
 import * as Inconsistency from "../src/Inconsistency.ts"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "edge-host", pid: 11, nonce: "edge-process" }
@@ -43,7 +45,7 @@ const jjLayer = (restores: Array<string>, snapshots: Array<string>) =>
   )
 
 const base = (restores: Array<string> = [], snapshots: Array<string> = []) =>
-  Layer.mergeAll(TestJournal.layer(), StepBoundary.layerTest(), jjLayer(restores, snapshots))
+  Layer.mergeAll(TestStores.layer(), StepBoundary.layerTest(), jjLayer(restores, snapshots))
 
 const activate = (runId: string) =>
   Effect.gen(function*() {

@@ -79,8 +79,11 @@
     "@smthrs/crypto": "0.1.0",
     "@smthrs/database": "0.1.0",
     "@smthrs/engine": "0.1.0",
+    "@smthrs/flow": "0.1.0",
     "@smthrs/journal": "0.1.0",
     "@smthrs/kernel": "0.1.0",
+    "@smthrs/run-store": "0.1.0",
+    "@smthrs/step-cache": "0.1.0",
     "effect": "4.0.0-beta.102"
   },
   "devDependencies": {

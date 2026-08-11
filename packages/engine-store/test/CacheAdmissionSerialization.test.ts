@@ -7,14 +7,14 @@
  * span: every cache mutation and read-verify-materialize step happens under
  * the per-key admission permit, and a verified hit returns from inside it.
  */
-import { type Ownership, RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Jj } from "@smthrs/kernel"
+import { type Ownership, RunStore } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "cache-serial-host", pid: 47, nonce: "cache-serial-process" }
@@ -114,7 +114,7 @@ describe("the cache-hit block runs under the per-key admission permit (issue #11
         )
         const results = yield* Effect.all([dispatch, dispatch], { concurrency: 2 })
         return { results, maxActive: boundary.maxActive() }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     expect(outcome.results).toEqual(["recorded", "recorded"])
     // The permit serializes the whole read-verify-materialize span: at no
@@ -154,7 +154,7 @@ describe("the cache-hit block runs under the per-key admission permit (issue #11
           )
         const results = yield* Effect.all([dispatchAt(1), dispatchAt(2)], { concurrency: 2 })
         return { results, maxActive: boundary.maxActive() }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     expect(outcome.results).toEqual(["recorded", "recorded"])
     expect(outcome.maxActive).toBe(1)

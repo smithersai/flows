@@ -1,11 +1,11 @@
 import { DurableWriter } from "@smthrs/database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
-import { Migrations } from "@smthrs/journal"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
+import * as Migrations from "../src/Migrations.ts"
 import { describeContract, type Harness, type HarnessContext } from "./contract/DurableEngineStateContract.ts"
 import { runPromise } from "./Sha256.ts"
 

@@ -9,15 +9,16 @@
  * match the declaration the key was derived from, on both the fresh
  * completion path and the succeeded-attempt convergence replay (#24).
  */
-import { CacheStore, type Ownership, RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Jj } from "@smthrs/kernel"
+import { type Ownership, RunStore } from "@smthrs/run-store"
+import { CacheStore } from "@smthrs/step-cache"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "record-gating-host", pid: 41, nonce: "record-gating-process" }
@@ -103,7 +104,7 @@ describe("cache recording requires a verified read set (issue #106)", () => {
             Effect.provide(StepBoundary.layerTest({ readSnapshot: declared.readSet }))
           )
         return { first, second, third, poisoned, executions }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     expect(outcome.first).toBe("result-computed-from-D2")
     expect(Option.isNone(outcome.poisoned)).toBe(true)
@@ -130,7 +131,7 @@ describe("cache recording requires a verified read set (issue #106)", () => {
         )
         const entry = yield* cache.get(keyDigest)
         return { replayed, entry }
-      }).pipe(Effect.provide(Layer.mergeAll(TestJournal.layer(), jjLayer)), Effect.scoped)
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     expect(outcome.replayed).toBe("stale-result")
     expect(Option.isNone(outcome.entry)).toBe(true)

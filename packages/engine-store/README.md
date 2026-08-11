@@ -38,8 +38,8 @@ The root exports these namespaces; each is also available from its matching
 | `Errors`             | Stable `FlowCycleDetected`, `AttemptAdmissionRejected`, and `CacheConflictDetected` errors.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 
 ```ts
-import { FlowEngine } from "@smthrs/engine"
 import { EngineStore } from "@smthrs/engine-store"
+import { FlowRuntime } from "@smthrs/flow"
 import { Effect } from "effect"
 
 const engineLayer = EngineStore.layer({
@@ -49,7 +49,7 @@ const engineLayer = EngineStore.layer({
 })
 
 const program = Effect.gen(function*() {
-  return yield* FlowEngine.FlowEngine
+  return yield* FlowRuntime.FlowRuntime
 }).pipe(Effect.provide(engineLayer))
 ```
 

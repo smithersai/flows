@@ -1,6 +1,6 @@
-import { Flow, FlowEngine } from "@smthrs/engine"
-import { Journal, Ownership, RunStore } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Flow, FlowRuntime } from "@smthrs/flow"
+import { Journal } from "@smthrs/journal"
+import { Ownership, RunStore } from "@smthrs/run-store"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -10,6 +10,7 @@ import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
+import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise } from "./Sha256.ts"
 
 const TestFlow = Flow.make("CycleDetection/Test", {
@@ -23,7 +24,7 @@ const owner: Ownership.OwnerId = {
   nonce: "owner-cycles"
 }
 
-const fakeEngine = {} as unknown as FlowEngine.FlowEngine["Service"]
+const fakeEngine = {} as unknown as FlowRuntime.FlowRuntime["Service"]
 
 const makeDriver = () =>
   RunDriver.make({
@@ -37,7 +38,7 @@ const provideJournal = <A, E, R>(
   effect: Effect.Effect<A, E, R | Journal.Journal | RunStore.RunStore>
 ) =>
   effect.pipe(
-    Effect.provide(TestJournal.layer()),
+    Effect.provide(TestStores.layer()),
     Effect.provide(DurableEngineState.layerMemory),
     Effect.provide(TestClock.layer()),
     Effect.scoped
@@ -83,7 +84,7 @@ describe("RunDriver cycle detection", () => {
         executionId: "self",
         payload: {},
         discard: true,
-        parent: { executionId: "self" } as FlowEngine.FlowInstance["Service"]
+        parent: { executionId: "self" } as FlowRuntime.FlowInstance["Service"]
       })
     }))))
 
@@ -109,7 +110,7 @@ describe("RunDriver cycle detection", () => {
         executionId: "great-grandchild",
         payload: {},
         discard: true,
-        parent: { executionId: "grandchild" } as FlowEngine.FlowInstance["Service"]
+        parent: { executionId: "grandchild" } as FlowRuntime.FlowInstance["Service"]
       })
     })))
 
@@ -130,7 +131,7 @@ describe("RunDriver cycle detection", () => {
         executionId: "a",
         payload: {},
         discard: true,
-        parent: { executionId: "b" } as FlowEngine.FlowInstance["Service"]
+        parent: { executionId: "b" } as FlowRuntime.FlowInstance["Service"]
       })
     }))))
 
@@ -157,7 +158,7 @@ describe("RunDriver cycle detection", () => {
         executionId: "x",
         payload: {},
         discard: true,
-        parent: { executionId: "z" } as FlowEngine.FlowInstance["Service"]
+        parent: { executionId: "z" } as FlowRuntime.FlowInstance["Service"]
       })
     }))))
 
@@ -186,7 +187,7 @@ describe("RunDriver cycle detection", () => {
         executionId: "c",
         payload: {},
         discard: true,
-        parent: { executionId: "b" } as FlowEngine.FlowInstance["Service"]
+        parent: { executionId: "b" } as FlowRuntime.FlowInstance["Service"]
       })
 
       // C executes B: a cycle reachable only through the C -> B request edge.
@@ -194,7 +195,7 @@ describe("RunDriver cycle detection", () => {
         executionId: "b",
         payload: {},
         discard: true,
-        parent: { executionId: "c" } as FlowEngine.FlowInstance["Service"]
+        parent: { executionId: "c" } as FlowRuntime.FlowInstance["Service"]
       })
     }))))
 
@@ -223,13 +224,13 @@ describe("RunDriver cycle detection", () => {
         executionId: "diamond-c",
         payload: {},
         discard: true,
-        parent: { executionId: "diamond-a" } as FlowEngine.FlowInstance["Service"]
+        parent: { executionId: "diamond-a" } as FlowRuntime.FlowInstance["Service"]
       }))
       const second = yield* Effect.exit(driver.execute(TestFlow, {
         executionId: "diamond-c",
         payload: {},
         discard: true,
-        parent: { executionId: "diamond-b" } as FlowEngine.FlowInstance["Service"]
+        parent: { executionId: "diamond-b" } as FlowRuntime.FlowInstance["Service"]
       }))
       const row = yield* store.get("diamond-c")
       return { first, second, status: row.status }
@@ -265,13 +266,13 @@ describe("RunDriver cycle detection", () => {
           executionId: "race-b",
           payload: {},
           discard: true,
-          parent: { executionId: "race-a" } as FlowEngine.FlowInstance["Service"]
+          parent: { executionId: "race-a" } as FlowRuntime.FlowInstance["Service"]
         })),
         Effect.exit(driver.execute(TestFlow, {
           executionId: "race-a",
           payload: {},
           discard: true,
-          parent: { executionId: "race-b" } as FlowEngine.FlowInstance["Service"]
+          parent: { executionId: "race-b" } as FlowRuntime.FlowInstance["Service"]
         }))
       ], { concurrency: "unbounded" })
       return { exits }
@@ -316,13 +317,13 @@ describe("RunDriver cycle detection", () => {
             executionId: "xrace-b",
             payload: {},
             discard: true,
-            parent: { executionId: "xrace-a" } as FlowEngine.FlowInstance["Service"]
+            parent: { executionId: "xrace-a" } as FlowRuntime.FlowInstance["Service"]
           })),
           Effect.exit(driverTwo.execute(TestFlow, {
             executionId: "xrace-a",
             payload: {},
             discard: true,
-            parent: { executionId: "xrace-b" } as FlowEngine.FlowInstance["Service"]
+            parent: { executionId: "xrace-b" } as FlowRuntime.FlowInstance["Service"]
           }))
         ], { concurrency: "unbounded" })
         return { exits }
@@ -353,7 +354,7 @@ describe("RunDriver cycle detection", () => {
           executionId: "restart-c",
           payload: {},
           discard: true,
-          parent: { executionId: "restart-b" } as FlowEngine.FlowInstance["Service"]
+          parent: { executionId: "restart-b" } as FlowRuntime.FlowInstance["Service"]
         })
         yield* Scope.close(firstScope, Exit.void)
 
@@ -366,7 +367,7 @@ describe("RunDriver cycle detection", () => {
           executionId: "restart-b",
           payload: {},
           discard: true,
-          parent: { executionId: "restart-c" } as FlowEngine.FlowInstance["Service"]
+          parent: { executionId: "restart-c" } as FlowRuntime.FlowInstance["Service"]
         })
       }))))
 
@@ -397,7 +398,7 @@ describe("RunDriver cycle detection", () => {
         executionId: "unrelated-target",
         payload: {},
         discard: true,
-        parent: { executionId: "p" } as FlowEngine.FlowInstance["Service"]
+        parent: { executionId: "p" } as FlowRuntime.FlowInstance["Service"]
       })
     }))))
 
@@ -430,13 +431,13 @@ describe("RunDriver cycle detection", () => {
             executionId: "chord-c",
             payload: {},
             discard: true,
-            parent: { executionId: "chord-a" } as FlowEngine.FlowInstance["Service"]
+            parent: { executionId: "chord-a" } as FlowRuntime.FlowInstance["Service"]
           })),
           Effect.exit(driverTwo.execute(TestFlow, {
             executionId: "chord-a",
             payload: {},
             discard: true,
-            parent: { executionId: "chord-c" } as FlowEngine.FlowInstance["Service"]
+            parent: { executionId: "chord-c" } as FlowRuntime.FlowInstance["Service"]
           }))
         ], { concurrency: "unbounded" })
         return { closing, chord }
@@ -468,13 +469,13 @@ describe("RunDriver cycle detection", () => {
           executionId: "wd-a",
           payload: {},
           discard: true as const,
-          parent: { executionId: "wd-b" } as FlowEngine.FlowInstance["Service"]
+          parent: { executionId: "wd-b" } as FlowRuntime.FlowInstance["Service"]
         }
         const runB = {
           executionId: "wd-b",
           payload: {},
           discard: true as const,
-          parent: { executionId: "wd-a" } as FlowEngine.FlowInstance["Service"]
+          parent: { executionId: "wd-a" } as FlowRuntime.FlowInstance["Service"]
         }
         const exits = yield* Effect.all([
           Effect.exit(driverOne.execute(TestFlow, runA)),
@@ -492,7 +493,7 @@ describe("RunDriver cycle detection", () => {
           executionId: "wd-child",
           payload: {},
           discard: true,
-          parent: { executionId: winnerOptions.executionId } as FlowEngine.FlowInstance["Service"]
+          parent: { executionId: winnerOptions.executionId } as FlowRuntime.FlowInstance["Service"]
         }))
         // The loser's rejected create left no run row behind.
         const loserRow = yield* Effect.exit(store.get(loserOptions.executionId))
@@ -521,7 +522,7 @@ describe("RunDriver cycle detection", () => {
         executionId: "seq-a",
         payload: {},
         discard: true,
-        parent: { executionId: "seq-b" } as FlowEngine.FlowInstance["Service"]
+        parent: { executionId: "seq-b" } as FlowRuntime.FlowInstance["Service"]
       }))
       // The rejection is atomic: no half-recorded edge survives it, so both
       // runs stay fully usable afterwards (the crash window between insert
@@ -531,13 +532,13 @@ describe("RunDriver cycle detection", () => {
         executionId: "seq-b",
         payload: {},
         discard: true,
-        parent: { executionId: "seq-a" } as FlowEngine.FlowInstance["Service"]
+        parent: { executionId: "seq-a" } as FlowRuntime.FlowInstance["Service"]
       }))
       const freshChild = yield* Effect.exit(driver.execute(TestFlow, {
         executionId: "seq-c",
         payload: {},
         discard: true,
-        parent: { executionId: "seq-a" } as FlowEngine.FlowInstance["Service"]
+        parent: { executionId: "seq-a" } as FlowRuntime.FlowInstance["Service"]
       }))
       return { rejected, edgesOfA, replay, freshChild }
     })))

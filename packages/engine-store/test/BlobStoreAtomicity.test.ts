@@ -9,11 +9,11 @@
  * writer material (pid + random token), so concurrent writers — in-process
  * or cross-process — never share a temp path.
  */
-import type { FileBoundary } from "@smthrs/engine/FileBoundary"
-import { FileSystem } from "@smthrs/kernel"
+import type { FileBoundary } from "@smthrs/flow/FileBoundary"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
+import * as FileSystem from "effect/FileSystem"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as StepBoundary from "../src/StepBoundary.ts"
