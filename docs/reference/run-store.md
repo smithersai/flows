@@ -29,16 +29,16 @@ the same `DurableWriter` and so commit as one transaction.
 | `cancel_requested_at_ms` | It participates in a compare-and-swap. `transitionOwned(..., { cancelRequested: "absent" })` compiles the predicate into the same `UPDATE` as the ownership fence, so a cancellation request cannot slip between a read and a terminal write. |
 | `parent_run_id` | Lineage is walked in SQL. A recursive CTE over `parent_run_id` answers ancestry questions that a JSON side-channel would force into decode-then-filter. |
 
-Everything else a harness records about a run — workflow name and hash, cancel attribution, pause and hijack requests, VCS coordinates, config — stays in `state_json`. That is the intended extension point, not a workaround: those fields are read with the row, never guarded on, and adding a column per harness concept would make the schema a union of its consumers. `state_json` is checked to be valid JSON, and `transitionOwned` replaces it atomically with the status change.
+Everything else a harness records about a run — flow name and hash, cancel attribution, pause and hijack requests, VCS coordinates, config — stays in `state_json`. That is the intended extension point, not a workaround: those fields are read with the row, never guarded on, and adding a column per harness concept would make the schema a union of its consumers. `state_json` is checked to be valid JSON, and `transitionOwned` replaces it atomically with the status change.
 
 When a `state_json` field does need to be scanned, index the expression rather than promoting the column:
 
 ```sql
-CREATE INDEX flows_runs_workflow_name_idx
-ON flows_runs (json_extract(state_json, '$.workflowName'));
+CREATE INDEX flows_runs_flow_name_idx
+ON flows_runs (json_extract(state_json, '$.flowName'));
 
 SELECT run_id FROM flows_runs
-WHERE json_extract(state_json, '$.workflowName') = 'deploy';
+WHERE json_extract(state_json, '$.flowName') = 'deploy';
 ```
 
 Promote a field to a column only when it must appear in a CAS guard. `TransitionGuard` is the seam for that: new guarded metadata extends the interface and the single `UPDATE`, rather than adding a transition variant per rule.

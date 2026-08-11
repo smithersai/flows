@@ -20,7 +20,7 @@ Twenty npm workspaces under `packages/`, one closed dependency set. This page is
 | `@smthrs/kernel` | `packages/kernel` | yes | the closed host service list, the `HttpTransport` contract, capability sets, grants, and their journal records |
 | `@smthrs/canonical` | `packages/canonical` | yes | no tables; RFC 8785 canonical JSON |
 | `@smthrs/crypto` | `packages/crypto` | yes | no tables; injected cryptographic operations |
-| `@smthrs/keys` | `packages/keys` | yes | no tables; canonical workflow keys |
+| `@smthrs/keys` | `packages/keys` | yes | no tables; canonical flow keys |
 | `@smthrs/flow` | `packages/flow` | yes | no tables; flow, activity, and durable-primitive definitions plus the runtime port |
 | `@smthrs/engine` | `packages/engine` | yes | no tables; the engine that executes them, and the RPC/HTTP façades |
 | `@smthrs/engine-store` | `packages/engine-store` | yes | `flows_deferred_completions`, `flows_clock_deadlines`, `flows_run_parents` |
@@ -178,7 +178,7 @@ A package root exports contracts. A platform implementation lives under a subpat
 | `@smthrs/kernel` | yes | yes | capabilities, grants, decorated services |
 | `@smthrs/canonical` | yes | yes | RFC 8785 canonical JSON schema |
 | `@smthrs/crypto` | yes | yes | injected cryptographic schemas |
-| `@smthrs/keys` | yes | yes | canonical workflow-key schema |
+| `@smthrs/keys` | yes | yes | canonical flow-key schema |
 | `@smthrs/database` | yes | yes | the driver-neutral contract only |
 | `@smthrs/database/node/NodeDatabase` | no | yes | `node:sqlite` through `@effect/sql-sqlite-node` |
 | `@smthrs/database/test/TestDatabase` | no | yes | in-memory SQLite through the same driver |

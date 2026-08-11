@@ -60,7 +60,7 @@ flowchart TD
 | --- | --- | --- |
 | [`@smthrs/canonical`](../reference/canonical.md) | RFC 8785 canonical JSON as an Effect Schema | Wraps the standards-focused `canonicalize` library |
 | [`@smthrs/crypto`](../reference/crypto.md) | Injected cryptographic schema transformations | Platform implementation is supplied through Effect Crypto |
-| [`@smthrs/keys`](../reference/keys.md) | Canonical workflow keys | Composes `canonical` and `crypto` |
+| [`@smthrs/keys`](../reference/keys.md) | Canonical flow keys | Composes `canonical` and `crypto` |
 | [`@smthrs/database`](../reference/database.md) | `SqlClient` access plus transactional SQLite write retry | Owns no domain tables |
 | `@smthrs/platform-node`, `@smthrs/platform-bun` | The Node and Bun Host bundles: Effect's platform services plus the single-hop HTTP transport | Raw effects; no permission decisions |
 | [`@smthrs/capability`](../reference/capability.md) | The capability vocabulary — actions, patterns, tiers — and typed permission failures with their `PlatformError` projection | A leaf both the kernel and `@smthrs/jj` depend on; its schema ids stay `@smthrs/kernel/…` because they are journaled |

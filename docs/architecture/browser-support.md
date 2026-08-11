@@ -18,7 +18,7 @@ These bundle for the browser. A resolution error in any of them fails the build.
 | `@smthrs/platform-browser` | effect's `FileSystem` over a ZenFS-shaped promises API and effect's `ChildProcessSpawner` over an in-page bash interpreter, plus the `BrowserServices` aggregate and the fetch-backed `HttpTransport` |
 | `@smthrs/kernel` | The closed host service list, `CommandLine.render`, capabilities, grants, and the permission-decorated host services |
 | `@smthrs/crypto` | Injected cryptographic schemas |
-| `@smthrs/keys` | Canonical workflow keys |
+| `@smthrs/keys` | Canonical flow keys |
 | `@smthrs/database` | The driver-neutral `DurableWriter` write boundary over Effect's own `SqlClient` service |
 | `@smthrs/journal` | The journal, its migration, projections, and redaction, all over `SqlClient` and the `DurableWriter` contract |
 | `@smthrs/run-store` | Run and attempt stores, ownership arbitration, and their migration, over the same contracts |

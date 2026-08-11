@@ -1,6 +1,6 @@
 # `@smthrs/keys`
 
-The package turns canonical JSON into a validated workflow key.
+The package turns canonical JSON into a validated flow key.
 
 ```typescript
 /** A versioned SHA-256 key derived from canonical JSON. */

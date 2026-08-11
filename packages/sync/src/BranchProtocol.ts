@@ -185,9 +185,9 @@ export class Participant extends Schema.Class<Participant>("flows/sync/BranchPro
  * Schema for one submitted command or flow invocation.
  *
  * Every user action on a shared branch arrives here first — chat messages are
- * the `branch.say` command, renames are `branch.rename`, and a workflow launch
- * is that workflow's own flow name. `target` names the shared field a command
- * durably edits and is `""` for commands that only append.
+ * the `branch.say` command, renames are `branch.rename`, and a flow launch is
+ * that flow's own name. `target` names the shared field a command durably
+ * edits and is `""` for commands that only append.
  *
  * @category schemas
  * @since 0.1.0

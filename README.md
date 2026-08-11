@@ -71,7 +71,7 @@ The in-memory engine above keeps state in the process. For a run that survives a
 | `@smthrs/capability` | Capability vocabulary and typed permission failures, shared by the kernel and `@smthrs/jj` |
 | `@smthrs/kernel` | The closed host service list, capability sets, grants, and permission-decorated host services |
 | `@smthrs/crypto` | Injected cryptographic schema transformations |
-| `@smthrs/keys` | Canonical workflow keys |
+| `@smthrs/keys` | Canonical flow keys |
 | `@smthrs/flow` | Flow definitions, activities, durable primitives, retry policy, and the `FlowRuntime` port |
 | `@smthrs/engine` | The runtime that executes flows, plus the RPC and HTTP façades |
 | `@smthrs/engine-store` | The durable engine: claims, fences, and persists runs over the journal |

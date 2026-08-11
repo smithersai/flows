@@ -5,7 +5,7 @@
 - Upstream repository: `Effect-TS/effect`
 - Upstream commit: `23e176a4f05ed3e81cc13a5d70111099692ea9a5`
 - Upstream package: `effect@4.0.0-beta.102`
-- Upstream source: `packages/effect/src/unstable/flow`
+- Upstream source: `packages/effect/src/unstable/workflow`
 - Vendored modules: `Flow.ts`, `Activity.ts`, `FlowEngine.ts`,
   `DurableClock.ts`, `DurableDeferred.ts`, `DurableQueue.ts`,
   `FlowProxy.ts`, `FlowProxyServer.ts`, and `index.ts`

@@ -55,7 +55,7 @@ These are the behaviors that have to be exercised against real implementations, 
 | `@smthrs/kernel` | 23 | capability parsing, matching, subsumption, tiers, ambient sets, grants and their journal persistence, every decorated service |
 | `@smthrs/canonical` | 1 | RFC 8785 vectors, malformed Unicode, boundary values, and large values |
 | `@smthrs/crypto` | 1 | injected SHA-256, digest validation, platform failures, and irreversibility |
-| `@smthrs/keys` | 2 | canonical workflow keys and rejected inputs |
+| `@smthrs/keys` | 2 | canonical flow keys and rejected inputs |
 | `@smthrs/flow` | 12 | flow definitions, execution ids, results, suspension, activity combinators and retry pinning, deferreds, clocks, queues, retry policy data, step identity |
 | `@smthrs/engine` | 18 | activity identity and keys, ordinal stability, keyless concurrency, tiers, durable attempt resume, the memory engine, retry decisions, proxies |
 | `@smthrs/engine-store` | 61 | the durability matrix: ownership, adoption, sweeps, parking, cancellation, cycles, attempt persistence, cache admission, boundaries, WAL atomicity, fault matrix |

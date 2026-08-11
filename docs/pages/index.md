@@ -70,7 +70,7 @@ That engine keeps its state in the process. To survive a crash, drive the same f
 | `@smthrs/capability` | the capability vocabulary and typed permission failures, shared by the kernel and `@smthrs/jj` |
 | `@smthrs/kernel` | capability sets, grants, and permission-decorated host services |
 | `@smthrs/crypto` | injected cryptographic schema transformations |
-| `@smthrs/keys` | canonical workflow keys |
+| `@smthrs/keys` | canonical flow keys |
 | `@smthrs/flow` | flow definitions, activities, durable primitives, retry policy |
 | `@smthrs/engine` | the engine that executes them, plus the RPC and HTTP façades |
 | `@smthrs/engine-store` | the durable engine: claims, fences, and persists runs over the journal |

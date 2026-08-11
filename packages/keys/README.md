@@ -1,6 +1,6 @@
 # @smthrs/keys
 
-An Effect schema for canonical workflow keys.
+An Effect schema for canonical flow keys.
 
 ```sh
 npm install @smthrs/keys

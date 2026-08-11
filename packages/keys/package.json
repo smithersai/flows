@@ -3,7 +3,7 @@
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
-  "description": "Effect schema for canonical workflow keys",
+  "description": "Effect schema for canonical flow keys",
   "homepage": "https://github.com/smithersai/flows",
   "repository": {
     "type": "git",

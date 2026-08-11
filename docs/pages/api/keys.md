@@ -1,6 +1,6 @@
 # @smthrs/keys
 
-An Effect schema for canonical workflow keys.
+An Effect schema for canonical flow keys.
 
 ```typescript
 /** A versioned SHA-256 key derived from canonical JSON. */
