@@ -1,7 +1,7 @@
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
 import { DurableWriter } from "@smthrs/database"
 import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
-import { DurableEngineState, EngineStore, StepBoundary } from "@smthrs/engine-store"
+import { DurableEngineState, EngineStore, OwnerIdentity, StepBoundary } from "@smthrs/engine-store"
 import * as Migrations from "@smthrs/engine-store/Migrations"
 import { Activity, Flow } from "@smthrs/flow"
 import { Journal, SqlJournal } from "@smthrs/journal"
@@ -49,6 +49,7 @@ const requirements = (filename: string) => {
     sqlServices,
     NodeCrypto.layer,
     StepBoundary.layerTest(),
+    OwnerIdentity.layer,
     Layer.succeed(Jj.Jj, jj),
     // A fork replays attempt rows copied from its parent, and those rows are
     // addressed by sealed cache key. An undeclared environment pins that key

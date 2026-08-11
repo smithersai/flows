@@ -7,10 +7,10 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
-import * as EffectHandlerRegistry from "../src/EffectHandlerRegistry.ts"
+import * as EffectHandlerRegistry from "../src/internal/EffectHandlerRegistry.ts"
 import type { LineageEdge } from "../src/Frame.ts"
 import * as MemoryTimeTravelStore from "../src/MemoryTimeTravelStore.ts"
-import * as Rewind from "../src/Rewind.ts"
+import * as Rewind from "../src/internal/Rewind.ts"
 import { TimeTravelStore } from "../src/TimeTravelStore.ts"
 
 /**

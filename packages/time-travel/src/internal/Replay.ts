@@ -4,8 +4,8 @@ import * as CacheStore from "@smthrs/step-cache/CacheStore"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
-import type { Frame } from "./Frame.ts"
-import { error, type TimeTravelError } from "./TimeTravelError.ts"
+import type { Frame } from "../Frame.ts"
+import { error, type TimeTravelError } from "../TimeTravelError.ts"
 
 /** A pure fold over durable journal evidence. @since 0.1.0 @category models */
 export interface Projection<S> {

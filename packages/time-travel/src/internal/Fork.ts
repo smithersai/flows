@@ -2,9 +2,9 @@ import { Jj } from "@smthrs/jj"
 import * as RunStore from "@smthrs/run-store/RunStore"
 import * as Effect from "effect/Effect"
 import type * as Scope from "effect/Scope"
-import type { Frame } from "./Frame.ts"
-import { error, type TimeTravelError } from "./TimeTravelError.ts"
-import { type Fork as ForkResult, TimeTravelStore } from "./TimeTravelStore.ts"
+import type { Frame } from "../Frame.ts"
+import { error, type TimeTravelError } from "../TimeTravelError.ts"
+import { type Fork as ForkResult, TimeTravelStore } from "../TimeTravelStore.ts"
 /** @since 0.1.0 @category models */
 export interface ForkOptions {
   readonly parentRunId: string

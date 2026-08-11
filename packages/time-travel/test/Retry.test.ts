@@ -5,8 +5,8 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import type { EffectRecord, EffectTier } from "../src/EffectBoundary.ts"
-import * as EffectHandlerRegistry from "../src/EffectHandlerRegistry.ts"
-import * as Retry from "../src/Retry.ts"
+import * as EffectHandlerRegistry from "../src/internal/EffectHandlerRegistry.ts"
+import * as Retry from "../src/internal/Retry.ts"
 
 const crossed = (
   tier: EffectTier,

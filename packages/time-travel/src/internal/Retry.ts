@@ -8,9 +8,9 @@ import * as CacheStore from "@smthrs/step-cache/CacheStore"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as Random from "effect/Random"
-import type { EffectRecord } from "./EffectBoundary.ts"
+import type { EffectRecord } from "../EffectBoundary.ts"
 import { EffectHandlerRegistry } from "./EffectHandlerRegistry.ts"
-import { error, type TimeTravelError } from "./TimeTravelError.ts"
+import { error, type TimeTravelError } from "../TimeTravelError.ts"
 
 /**
  * Fresh attempt identity supplied to a rerun.

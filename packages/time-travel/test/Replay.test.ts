@@ -8,7 +8,7 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Result from "effect/Result"
 import { describe, expect, it } from "vitest"
-import * as Replay from "../src/Replay.ts"
+import * as Replay from "../src/internal/Replay.ts"
 
 const entry = (seq: number, payload: string, cacheKey?: string): Entry => ({
   runId: "run" as RunId,

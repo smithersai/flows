@@ -9,8 +9,8 @@ import * as HashMap from "effect/HashMap"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
-import { EffectRecord, type EffectTier } from "./EffectBoundary.ts"
-import { error, type TimeTravelError } from "./TimeTravelError.ts"
+import { EffectRecord, type EffectTier } from "../EffectBoundary.ts"
+import { error, type TimeTravelError } from "../TimeTravelError.ts"
 
 /**
  * The classification returned by an irreversible-effect handler during

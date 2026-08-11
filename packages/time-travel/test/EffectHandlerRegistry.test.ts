@@ -11,7 +11,7 @@ import * as Result from "effect/Result"
 import { describe, expect, it } from "vitest"
 import * as EffectBoundary from "../src/EffectBoundary.ts"
 import type { EffectRecord } from "../src/EffectBoundary.ts"
-import * as EffectHandlerRegistry from "../src/EffectHandlerRegistry.ts"
+import * as EffectHandlerRegistry from "../src/internal/EffectHandlerRegistry.ts"
 import { error } from "../src/TimeTravelError.ts"
 
 const crossed = (

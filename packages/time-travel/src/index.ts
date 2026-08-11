@@ -1,78 +1,73 @@
 /**
- * Execution-history frame models.
+ * Time travel over the journal: inspect, fork, rewind.
  *
+ * The verbs are reached through ONE injectable service. `Replay`, `Fork`,
+ * `Rewind`, `Retry`, `Recovery`, `Compensation`, and the effect-handler
+ * registry are machinery under `src/internal/` — the same way every other
+ * package here hides the modules a caller should never name — and the package
+ * blocks `@smthrs/time-travel/internal/*` at its `exports` map.
+ *
+ * ```ts
+ * import { MemoryTimeTravelStore, TimeTravel } from "@smthrs/time-travel"
+ * import * as Effect from "effect/Effect"
+ *
+ * const program = Effect.gen(function*() {
+ *   const timeTravel = yield* TimeTravel
+ *   return yield* timeTravel.fork({ runId: "analyse-1", frame: { lineageId: "analyse-1/root", seq: 4 } })
+ * })
+ * ```
+ *
+ * `TimeTravel` is exported FLAT rather than as a namespace, the way
+ * `@smthrs/jj` exports its service module: the service key is the door, so
+ * `yield* TimeTravel` — and `yield* Flows.TimeTravel` from the umbrella —
+ * is the whole onboarding. `TimeTravel.layer` provides it.
+ *
+ * What stays public beside it is what a caller injects or integrates with: the
+ * frame address, the error, the store contract and its two implementations,
+ * and `EffectBoundary` — the producer-side API engine code calls to journal an
+ * effect so a rewind can assess it.
+ *
+ * @since 0.1.0
+ */
+
+/**
+ * @category services
+ * @since 0.1.0
+ */
+export { TimeTravel } from "./TimeTravel.ts"
+
+/**
+ * @category models
  * @since 0.1.0
  */
 export * as Frame from "./Frame.ts"
+
 /**
- * Time-travel error types.
- *
+ * @category errors
  * @since 0.1.0
  */
 export * as TimeTravelError from "./TimeTravelError.ts"
+
 /**
- * Time-travel persistence contracts.
- *
+ * @category services
  * @since 0.1.0
  */
 export * as TimeTravelStore from "./TimeTravelStore.ts"
+
 /**
- * In-memory time-travel persistence.
- *
+ * @category layers
  * @since 0.1.0
  */
 export * as MemoryTimeTravelStore from "./MemoryTimeTravelStore.ts"
+
 /**
- * SQL-backed time-travel persistence.
- *
+ * @category layers
  * @since 0.1.0
  */
 export * as SqlTimeTravelStore from "./SqlTimeTravelStore.ts"
+
 /**
- * History replay operations.
- *
- * @since 0.1.0
- */
-export * as Replay from "./Replay.ts"
-/**
- * History fork operations.
- *
- * @since 0.1.0
- */
-export * as Fork from "./Fork.ts"
-/**
- * History rewind operations.
- *
- * @since 0.1.0
- */
-export * as Rewind from "./Rewind.ts"
-/**
- * Effect compensation operations.
- *
- * @since 0.1.0
- */
-export * as Compensation from "./Compensation.ts"
-/**
- * Effect-handler registration.
- *
- * @since 0.1.0
- */
-export * as EffectHandlerRegistry from "./EffectHandlerRegistry.ts"
-/**
- * Durable effect-boundary contracts.
- *
+ * @category models
  * @since 0.1.0
  */
 export * as EffectBoundary from "./EffectBoundary.ts"
-/**
- * Interrupted-execution recovery operations.
- *
- * @since 0.1.0
- */
-export * as Recovery from "./Recovery.ts"
-/**
- * Historical-attempt retry operations.
- *
- * @since 0.1.0
- */
-export * as Retry from "./Retry.ts"

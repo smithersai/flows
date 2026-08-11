@@ -15,11 +15,11 @@ import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Schema from "effect/Schema"
 import * as Compensation from "./Compensation.ts"
-import * as EffectBoundary from "./EffectBoundary.ts"
+import * as EffectBoundary from "../EffectBoundary.ts"
 import type { EffectHandlerRegistry } from "./EffectHandlerRegistry.ts"
-import { Frame, type LineageEdge } from "./Frame.ts"
-import { error, TimeTravelError, type TimeTravelError as TimeTravelFailure } from "./TimeTravelError.ts"
-import { ArchiveResult, type Audit, TimeTravelStore } from "./TimeTravelStore.ts"
+import { Frame, type LineageEdge } from "../Frame.ts"
+import { error, TimeTravelError, type TimeTravelError as TimeTravelFailure } from "../TimeTravelError.ts"
+import { ArchiveResult, type Audit, TimeTravelStore } from "../TimeTravelStore.ts"
 
 /**
  * The eight fault-injection points pinned by the rewind parity suite.
