@@ -29,12 +29,18 @@ behind `@smthrs/kernel`'s grant check. There is no `flows` wrapper around
 | `BrowserChildProcessSpawner.layer`        | `ChildProcessSpawner` over a just-bash interpreter.                                          |
 | `BrowserChildProcessSpawner.JustBashLike` | The structural slice of that interpreter — no `just-bash` dependency.                        |
 | `BrowserServices.layer`                   | The aggregate: spawner, filesystem, and `Path`, mirroring `NodeServices.layer`.              |
-| `BrowserHost.layer`                       | The complete closed Host bundle: the above plus `Jj` and Effect's fetch-backed `HttpClient`. |
+| `BrowserHost.layer`                       | The complete closed Host bundle: the above plus the wasm-backed `Jj` and Effect's fetch-backed `HttpClient`. |
 
-Both backends are **arguments, not imports**. The page owns which ZenFS backend
-is mounted (IndexedDB, OPFS, memory) and which just-bash instance is wired to
-it, and the two must be the _same_ filesystem or the spawner and the
-`FileSystem` service will disagree about what exists. The signature says so:
+Every backend is an **argument, not an import**. The page owns which ZenFS
+backend is mounted (IndexedDB, OPFS, memory), which just-bash instance is wired
+to it, and how the `flows_jj.wasm` bytes arrive (bundler asset, `fetch` +
+`WebAssembly.compileStreaming` — see `@smthrs/jj`'s README for the recipe).
+`BrowserHost.layer({ bash, fs, jj })` takes all three; `jj.fs` is the
+_synchronous_ slice of the same mount `fs` exposes as promises, because WASI
+preview1 is a sync syscall ABI. All of them must view the same filesystem or
+the spawner, the `FileSystem` service, and jj will disagree about what exists.
+A page with no wasm to hand over composes `BrowserJj.layerUnsupported`
+explicitly — the bundle never installs it silently. The signature says so:
 
 ```ts
 import { BrowserServices } from "@smthrs/platform-browser"

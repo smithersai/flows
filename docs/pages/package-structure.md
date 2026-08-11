@@ -165,7 +165,7 @@ A package root exports contracts. A platform implementation lives under a subpat
 | Entry point | Browser | Node | Why |
 | --- | --- | --- | --- |
 | `@smthrs/platform-browser` | yes | yes | browser `FileSystem` and `ChildProcessSpawner`, and the `BrowserHost` bundle over effect's own fetch `HttpClient` |
-| `@smthrs/platform-browser/BrowserHost` | yes | yes | `layer({ bash, fs })` over an injected browser filesystem and interpreter; Jujutsu reports unsupported |
+| `@smthrs/platform-browser/BrowserHost` | yes | yes | `layer({ bash, fs, jj })` over an injected browser filesystem, interpreter, and compiled `flows_jj.wasm`; all five tags real |
 | `@smthrs/platform-node` | no | yes | child processes, Node filesystem, Jujutsu |
 | `@smthrs/platform-bun` | no | yes | the Bun adapters, falling back to `@effect/platform-node` off Bun |
 | `@smthrs/kernel/test/TestHost` | no | yes | `effect/testing`'s `TestClock` imports `node:assert` |

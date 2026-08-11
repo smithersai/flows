@@ -12,6 +12,11 @@
 
 ### Changed
 
+- `BrowserHost.layer` now wires the real wasm-backed `Jj`: the options gained a
+  required `jj: BrowserJjOptions` field — the compiled `flows_jj.wasm` module
+  and the synchronous slice of the same mount `fs` exposes as promises. The
+  bundle no longer installs `BrowserJj.layerUnsupported` silently; a jj-less
+  host composes that layer explicitly.
 - `BrowserHttpTransport` is gone. An outgoing request is Effect's `HttpClient`,
   and `BrowserHost.layer` now provides `FetchHttpClient.layer` directly with
   `RequestInit { redirect: "manual" }` — the same redirect policy, expressed

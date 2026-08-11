@@ -11,7 +11,7 @@ These bundle for the browser. A resolution error in any of them fails the build.
 | Entry point | Notes |
 | --- | --- |
 | `@smthrs/canonical` | RFC 8785 canonical JSON as an Effect Schema |
-| `@smthrs/platform-browser/BrowserHost` | `layer({ bash, fs })` over an injected browser filesystem and bash interpreter; Jujutsu reports `unsupported` |
+| `@smthrs/platform-browser/BrowserHost` | `layer({ bash, fs, jj })` over an injected browser filesystem, bash interpreter, and the compiled `flows_jj.wasm` with its sync mount slice — all five tags real |
 | `@smthrs/jj` | The `Jj` contract, `JjError`, and the no-op layer |
 | `@smthrs/jj/browser/BrowserJj` | `layer({ fs, wasm })` runs jj-lib compiled to `wasm32-wasip1` over an injected virtual filesystem through this package's WASI preview1 shim; `layerUnsupported` stays the fallback for a host that ships no module, reporting `not_installed` |
 | `@smthrs/sandbox` | `RemoteChildProcessSpawner` provider adaptation and the `SandboxHealth` probe; it owns no host access of its own |

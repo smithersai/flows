@@ -6,9 +6,13 @@
  * it: the complete closed Host surface `flows` runs on, so the same five tags
  * `NodeHost` and `BunHost` provide are present in a tab too.
  *
- * `Jj` has no browser implementation; its package ships the ticket-failing
- * layer this bundle installs, so an absent capability is still a capability
- * with an answer rather than a missing tag.
+ * `Jj` is jj-lib compiled to wasm: the page hands this bundle the compiled
+ * `flows_jj.wasm` module and the synchronous half of its filesystem mount, and
+ * the bundle wires `BrowserJj.layer` over them — the same operations a Node
+ * host gets from the binary, in a tab. The bundle never installs
+ * `BrowserJj.layerUnsupported` on its own; a page with no wasm to hand over
+ * composes that layer explicitly, so a jj-less host is a stated choice rather
+ * than a silent default.
  *
  * Network access is Effect's own `HttpClient` over `fetch` — there is no
  * `flows` wrapper around it. The one thing this bundle configures is
@@ -57,10 +61,14 @@ const layerHttpClient: Layer.Layer<HttpClient> = Layer.provide(
 /**
  * The complete Host bundle for a browser tab.
  *
- * Both backends are passed in rather than imported: the page owns which ZenFS
- * backend is mounted and which just-bash instance is wired to it, and they must
- * be the *same* filesystem or spawned commands and the FileSystem service will
- * disagree about what exists.
+ * Every backend is passed in rather than imported: the page owns which ZenFS
+ * backend is mounted, which just-bash instance is wired to it, and how the
+ * `flows_jj.wasm` bytes arrive (bundler asset, `fetch` +
+ * `WebAssembly.compileStreaming`, cache). The bash interpreter, the promises
+ * slice, and `jj.fs` — the synchronous slice — must all view the *same*
+ * filesystem, or spawned commands, the FileSystem service, and jj will
+ * disagree about what exists. Durability is also the page's job: with an
+ * async-mirror ZenFS mount, call the mount's `sync()` after jj writes.
  *
  * @category layers
  * @since 0.1.0
@@ -68,12 +76,18 @@ const layerHttpClient: Layer.Layer<HttpClient> = Layer.provide(
 export const layer = (options: {
   readonly bash: BrowserChildProcessSpawner.JustBashLike
   readonly fs: BrowserFileSystem.ZenFsPromisesLike
+  /**
+   * What `BrowserJj.layer` needs: the compiled `flows_jj.wasm` module and the
+   * synchronous slice of the same mount `fs` exposes as promises, plus the
+   * workspace root inside that namespace and optional stdio taps.
+   */
+  readonly jj: BrowserJj.BrowserJjOptions
 }): Layer.Layer<BrowserHost> => {
   const platform = Layer.mergeAll(BrowserFileSystem.layer(options.fs), Path.layer)
   return Layer.mergeAll(
     platform,
     Layer.provide(BrowserChildProcessSpawner.layer(options.bash), platform),
     layerHttpClient,
-    BrowserJj.layerUnsupported
+    BrowserJj.layer(options.jj)
   )
 }
