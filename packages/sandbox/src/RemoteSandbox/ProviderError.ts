@@ -39,7 +39,7 @@ export type ProviderErrorCode = typeof ProviderErrorCode.Type
  * @since 0.1.0
  */
 export class ProviderError extends Schema.TaggedErrorClass<ProviderError>()(
-  "flows/host/RemoteSandbox/ProviderError",
+  "@smthrs/sandbox/RemoteSandbox/ProviderError",
   {
     code: ProviderErrorCode,
     message: Schema.String,

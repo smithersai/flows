@@ -11,14 +11,15 @@
   failures onto `PlatformError`. Piping stdin and killing by signal are declared
   unsupported rather than silently dropped; a remote process ends by closing its
   scope.
+- `RemoteSandbox.layer` now applies output dispositions and sinks, and rejects
+  command-supplied stdin, additional file descriptors, custom shell paths,
+  detached processes, and non-default pipeline routing with `BadArgument`
+  instead of changing or dropping their semantics.
 - `ProviderError` carries its own closed `ProviderErrorCode` set (`aborted`,
   `timeout`, `unavailable`, `spawn_error`, `unknown`) instead of borrowing the
   shell's. The schema `_tag` is unchanged.
 - The package now depends on `@smthrs/kernel` — for `CommandLine.render` alone —
   instead of `@smthrs/host`.
-
-### Changed
-
 - Split remote execution and sandbox health into focused model, service,
   adapter, probe, and layer files without changing public imports.
 

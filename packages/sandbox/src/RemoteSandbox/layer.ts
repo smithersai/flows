@@ -65,12 +65,68 @@ const noKill = (command: string): PlatformError.PlatformError =>
     description: `remote sandboxes end \`${command}\` by closing its scope, not by signal`
   })
 
+const rejected = (description: string): PlatformError.PlatformError =>
+  PlatformError.badArgument({ module: MODULE, method: "spawn", description })
+
+const suppliesStdin = (options: ChildProcess.CommandOptions): boolean => {
+  const stdin = options.stdin
+  if (stdin === undefined || typeof stdin === "string") return false
+  return Stream.isStream(stdin) || Stream.isStream(stdin.stream)
+}
+
+const validateCommand = (command: ChildProcess.Command): Effect.Effect<void, PlatformError.PlatformError> => {
+  if (command._tag === "PipedCommand") {
+    if (command.options.from !== undefined && command.options.from !== "stdout") {
+      return Effect.fail(rejected(`remote sandboxes cannot pipe from ${command.options.from}`))
+    }
+    if (command.options.to !== undefined && command.options.to !== "stdin") {
+      return Effect.fail(rejected(`remote sandboxes cannot pipe to ${command.options.to}`))
+    }
+    return Effect.andThen(validateCommand(command.left), validateCommand(command.right))
+  }
+  if (suppliesStdin(command.options)) {
+    return Effect.fail(rejected("remote sandboxes cannot supply stdin to a command"))
+  }
+  if (command.options.additionalFds !== undefined && Object.keys(command.options.additionalFds).length > 0) {
+    return Effect.fail(rejected("remote sandboxes cannot configure additional file descriptors"))
+  }
+  if (typeof command.options.shell === "string") {
+    return Effect.fail(rejected(`remote sandboxes cannot select the requested shell ${command.options.shell}`))
+  }
+  if (command.options.detached === true) {
+    return Effect.fail(rejected("remote sandboxes cannot detach a command from its session"))
+  }
+  return Effect.void
+}
+
+const outputStream = (
+  stream: Stream.Stream<Uint8Array, PlatformError.PlatformError>,
+  option: ChildProcess.CommandOutput | { readonly stream?: ChildProcess.CommandOutput | undefined } | undefined
+): Stream.Stream<Uint8Array, PlatformError.PlatformError> => {
+  const disposition = option === undefined || typeof option === "string" || Sink.isSink(option)
+    ? option
+    : option.stream
+  if (disposition === undefined || disposition === "pipe" || disposition === "overlapped") return stream
+  if (Sink.isSink(disposition)) return Stream.transduce(stream, disposition)
+  return Stream.empty
+}
+
+const rightmostOptions = (command: ChildProcess.Command): ChildProcess.CommandOptions =>
+  command._tag === "StandardCommand" ? command.options : rightmostOptions(command.right)
+
 let nextPid = 1
 
-const handleOf = (command: string, process: RemoteProcess): ChildProcessHandle => {
+const handleOf = (
+  command: string,
+  child: ChildProcess.Command,
+  process: RemoteProcess
+): ChildProcessHandle => {
   let running = true
-  const stdout = Stream.mapError(process.stdout, platformError("stdout", command))
-  const stderr = Stream.mapError(process.stderr, platformError("stderr", command))
+  const rawStdout = Stream.mapError(process.stdout, platformError("stdout", command))
+  const rawStderr = Stream.mapError(process.stderr, platformError("stderr", command))
+  const options = rightmostOptions(child)
+  const stdout = outputStream(rawStdout, options.stdout)
+  const stderr = outputStream(rawStderr, options.stderr)
   return makeHandle({
     pid: ProcessId(nextPid++),
     exitCode: process.exitCode.pipe(
@@ -118,12 +174,13 @@ export const layer = (provider: Provider): Layer.Layer<ChildProcessSpawner> =>
         onSuccess: () =>
           makeSpawner(
             Effect.fnUntraced(function*(command: ChildProcess.Command) {
+              yield* validateCommand(command)
               const rendered = CommandLine.render(command)
               const started = yield* provider.spawn(rendered, {
                 cwd: CommandLine.cwd(command),
                 env: CommandLine.env(command)
               }).pipe(Effect.mapError(platformError("spawn", rendered)))
-              return handleOf(rendered, started)
+              return handleOf(rendered, command, started)
             })
           )
       })

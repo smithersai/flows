@@ -18,6 +18,11 @@ npm install @smthrs/sandbox
 
 Opening a provider is scoped, so interruption closes the layer scope and runs
 the provider's cancellation finalizer. No `AbortSignal` crosses this seam.
+Command-supplied stdin streams, additional file descriptors, custom shell
+paths, detached processes, and non-default pipeline routing fail with a
+`BadArgument` `PlatformError` because the provider contract cannot preserve
+their semantics. Output `pipe` / `ignore` / `inherit` dispositions and output
+sinks are honored by the adapter.
 
 The package is browser-bundleable: it adapts a provider a caller hands it and
 owns no host access of its own. `npm run browser` at the repository root pins

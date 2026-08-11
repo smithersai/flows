@@ -12,13 +12,13 @@ describe("@smthrs/sandbox barrel", () => {
   })
 
   /**
-   * The schema `_tag`s round-trip through the journal, so moving these modules
-   * out of the dissolved `@smthrs/host` must not rename them.
+   * The schema `_tag`s round-trip through the journal, so renames here
+   * invalidate recorded runs.
    */
-  it("keeps the `flows/host/…` identity strings the durable record depends on", () => {
-    expect(Sandbox.SandboxHealth.SandboxHealth.key).toBe("flows/host/SandboxHealth")
-    expect(Sandbox.RemoteSandbox.Provider.key).toBe("flows/host/RemoteSandbox/Provider")
+  it("pins the identity strings the durable record depends on", () => {
+    expect(Sandbox.SandboxHealth.SandboxHealth.key).toBe("@smthrs/sandbox/SandboxHealth")
+    expect(Sandbox.RemoteSandbox.Provider.key).toBe("@smthrs/sandbox/RemoteSandbox/Provider")
     expect(new Sandbox.RemoteSandbox.ProviderError({ code: "unknown", message: "x" })._tag)
-      .toBe("flows/host/RemoteSandbox/ProviderError")
+      .toBe("@smthrs/sandbox/RemoteSandbox/ProviderError")
   })
 })

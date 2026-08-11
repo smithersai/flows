@@ -1,4 +1,4 @@
-import { Effect, Fiber, PlatformError, Stream } from "effect"
+import { Effect, Fiber, PlatformError, Sink, Stream } from "effect"
 import { ChildProcess } from "effect/unstable/process"
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
 import { describe, expect, it } from "vitest"
@@ -47,6 +47,24 @@ describe("RemoteSandbox", () => {
 
     expect(output).toBe("a b")
     expect(provider.state.commands).toEqual(["printf 'a b' | grep a"])
+  })
+
+  it("renders shell commands under the exact unquoted line the provider executes", async () => {
+    const provider = RemoteSandbox.TestSandbox.make({
+      scripts: { "echo safe; run privileged": { stdout: "done" } }
+    })
+
+    const output = await Effect.runPromise(
+      Effect.flatMap(
+        ChildProcessSpawner,
+        (spawner) => spawner.string(ChildProcess.make("echo", ["safe;", "run", "privileged"], { shell: true }))
+      ).pipe(
+        Effect.provide(RemoteSandbox.layer(provider))
+      )
+    )
+
+    expect(output).toBe("done")
+    expect(provider.state.commands).toEqual(["echo safe; run privileged"])
   })
 
   it("interleaves stdout and stderr through the handle's `all` stream", async () => {
@@ -169,6 +187,137 @@ describe("RemoteSandbox", () => {
     )
 
     expect(errors.map(reason)).toEqual(["BadArgument", "BadArgument"])
+  })
+
+  it("rejects command-supplied stdin before the provider starts", async () => {
+    const provider = RemoteSandbox.TestSandbox.make({ scripts: { quiet: {} } })
+
+    const error = await Effect.runPromise(
+      Effect.flip(
+        Effect.flatMap(ChildProcessSpawner, (spawner) =>
+          spawner.exitCode(ChildProcess.make("quiet", [], {
+            stdin: Stream.fromArray([new Uint8Array([1])])
+          })))
+      ).pipe(Effect.provide(RemoteSandbox.layer(provider)))
+    )
+
+    expect(reason(error)).toBe("BadArgument")
+    expect(error.message).toContain("cannot supply stdin")
+    expect(provider.state.commands).toEqual([])
+  })
+
+  it("rejects command-supplied stdin inside a config", async () => {
+    const provider = RemoteSandbox.TestSandbox.make({ scripts: { quiet: {} } })
+
+    const error = await Effect.runPromise(
+      Effect.flip(
+        Effect.flatMap(ChildProcessSpawner, (spawner) =>
+          spawner.exitCode(ChildProcess.make("quiet", [], {
+            stdin: { stream: Stream.fromArray([new Uint8Array([1])]) }
+          })))
+      ).pipe(Effect.provide(RemoteSandbox.layer(provider)))
+    )
+
+    expect(reason(error)).toBe("BadArgument")
+    expect(provider.state.commands).toEqual([])
+  })
+
+  it.each([
+    [
+      "a non-default pipe source",
+      ChildProcess.pipeTo(ChildProcess.make("left"), ChildProcess.make("right"), { from: "stderr" }),
+      "pipe from stderr"
+    ],
+    [
+      "a non-default pipe destination",
+      ChildProcess.pipeTo(ChildProcess.make("left"), ChildProcess.make("right"), { to: "fd3" }),
+      "pipe to fd3"
+    ],
+    [
+      "additional file descriptors",
+      ChildProcess.make("quiet", [], { additionalFds: { fd3: { type: "output" } } }),
+      "additional file descriptors"
+    ],
+    ["a custom shell", ChildProcess.make("quiet", [], { shell: "/bin/zsh" }), "requested shell"],
+    ["a detached process", ChildProcess.make("quiet", [], { detached: true }), "detach"]
+  ])("rejects %s instead of changing its meaning", async (_name, command, message) => {
+    const provider = RemoteSandbox.TestSandbox.make({})
+
+    const error = await Effect.runPromise(
+      Effect.flip(Effect.flatMap(ChildProcessSpawner, (spawner) => spawner.exitCode(command))).pipe(
+        Effect.provide(RemoteSandbox.layer(provider))
+      )
+    )
+
+    expect(reason(error)).toBe("BadArgument")
+    expect(error.message).toContain(message)
+    expect(provider.state.commands).toEqual([])
+  })
+
+  it("honors output dispositions and sinks", async () => {
+    const provider = RemoteSandbox.TestSandbox.make({
+      scripts: { noisy: { stdout: "out", stderr: "err" } }
+    })
+    const upper = Sink.map(
+      Sink.collect<Uint8Array>(),
+      (chunks) =>
+        new TextEncoder().encode(
+          chunks.map((chunk) => new TextDecoder().decode(chunk)).join("").toUpperCase()
+        )
+    )
+
+    const observed = await Effect.runPromise(
+      Effect.gen(function*() {
+        const spawner = yield* ChildProcessSpawner
+        const handle = yield* spawner.spawn(ChildProcess.make("noisy", [], {
+          stdout: upper,
+          stderr: { stream: "ignore" }
+        }))
+        return {
+          stdout: yield* Stream.mkString(Stream.decodeText(handle.stdout)),
+          stderr: yield* Stream.mkString(Stream.decodeText(handle.stderr))
+        }
+      }).pipe(Effect.scoped, Effect.provide(RemoteSandbox.layer(provider)))
+    )
+
+    expect(observed).toEqual({ stdout: "OUT", stderr: "" })
+  })
+
+  it.each([
+    [undefined, "out"],
+    ["pipe" as const, "out"],
+    ["overlapped" as const, "out"],
+    ["ignore" as const, ""],
+    ["inherit" as const, ""]
+  ])("honors the %s stdout disposition", async (stdout, expected) => {
+    const provider = RemoteSandbox.TestSandbox.make({ scripts: { noisy: { stdout: "out" } } })
+
+    const observed = await Effect.runPromise(
+      Effect.flatMap(ChildProcessSpawner, (spawner) => spawner.string(ChildProcess.make("noisy", [], { stdout }))).pipe(
+        Effect.provide(RemoteSandbox.layer(provider))
+      )
+    )
+
+    expect(observed).toBe(expected)
+  })
+
+  it("accepts explicit default pipeline routing and empty option objects", async () => {
+    const provider = RemoteSandbox.TestSandbox.make({
+      scripts: { "left | right": { stdout: "ok" } }
+    })
+    const command = ChildProcess.pipeTo(
+      ChildProcess.make("left", [], { additionalFds: {}, stdin: "pipe" }),
+      ChildProcess.make("right", [], { stdout: {}, stderr: {} }),
+      { from: "stdout", to: "stdin" }
+    )
+
+    const output = await Effect.runPromise(
+      Effect.flatMap(ChildProcessSpawner, (spawner) => spawner.string(command)).pipe(
+        Effect.provide(RemoteSandbox.layer(provider))
+      )
+    )
+
+    expect(output).toBe("ok")
   })
 })
 

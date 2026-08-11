@@ -11,6 +11,6 @@ import * as Schema from "effect/Schema"
  * @category models
  * @since 0.1.0
  */
-export class Healthy extends Schema.Class<Healthy>("flows/host/SandboxHealth/Healthy")({
+export class Healthy extends Schema.Class<Healthy>("@smthrs/sandbox/SandboxHealth/Healthy")({
   _tag: Schema.tag("Healthy")
 }) {}
