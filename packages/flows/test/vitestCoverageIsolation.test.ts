@@ -226,7 +226,7 @@ describe("vitest coverage isolation conformance", () => {
     // #163) skips enforcement with every conformance cell green. Source-text
     // pins, matching the config-source approach used across this suite.
     const ci = readFileSync(join(packagesDir, "..", ".github", "workflows", "ci.yml"), "utf8")
-    expect(ci).toContain("npm install --global npm@11.5.1 --ignore-scripts")
+    expect(ci).toMatch(/npm install --global npm@\d+\.\d+\.\d+ --ignore-scripts/)
     expect(ci).toMatch(/^\s*- run: npm ci --ignore-scripts$/m)
     expect(ci).toMatch(/^\s*run: npm run check$/m)
     expect(ci).toMatch(/^\s*run: npm run lint$/m)
@@ -248,7 +248,14 @@ describe("vitest coverage isolation conformance", () => {
     expect(publish).toBeGreaterThan(smoke)
     expect(release).toContain("node scripts/pack-release.mjs \"$PACK_DIR\"")
     expect(release).toContain("node scripts/smoke-release.mjs \"$PACK_DIR\"")
-    expect(release).toContain("npm install --global npm@11.5.1 --ignore-scripts")
+    // The publish CLI must be the exact npm CI validated, so the two
+    // workflows' pins may only move together.
+    const pinPattern = /npm install --global npm@(\d+\.\d+\.\d+) --ignore-scripts/
+    const releasePin = release.match(pinPattern)
+    const ciPin = readFileSync(join(packagesDir, "..", ".github", "workflows", "ci.yml"), "utf8")
+      .match(pinPattern)
+    expect(releasePin?.[1]).toBeDefined()
+    expect(releasePin?.[1]).toBe(ciPin?.[1])
     expect(release).toContain("npm publish \"$PACK_DIR/$tarball\"")
     expect(release).toContain("npm view \"$spec\" version")
     expect(release).toContain("publish_if_missing")
