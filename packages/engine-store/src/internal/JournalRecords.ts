@@ -50,10 +50,16 @@ export const hardViolation = (options: EventOptions, payload: unknown) =>
 export const expectedSetDeviation = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.expected-set-deviation", payload)
 /**
- * An isolated execution produced a diff bundle. Required by
- * `docs/specs/Concepts/Forensics.md`: the bundle's content address is recorded
- * before it can reach the host, so what was proposed is auditable
- * independently of whether it was applied.
+ * An isolated execution produced a diff bundle: its content address, the paths
+ * it changed, and the deviations the declaration did not predict. One of the
+ * two record types `docs/specs/Concepts/Forensics.md` names for copy-back.
+ *
+ * It is written once the attempt's copy-back has settled, not before it — the
+ * rebase loop owns the window in between, and a bundle that lost every race
+ * was never a proposal the host saw. A crash inside that window leaves the
+ * attempt row unfinished, so the replay re-executes and journals the bundle it
+ * actually applies. An execution the declaration invalidated journals nothing
+ * here at all; its `hard-violation` record carries the identity instead.
  *
  * @since 0.1.0
  * @category events

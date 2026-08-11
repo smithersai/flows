@@ -32,7 +32,7 @@ This entry point bundles for the browser. The two host reads it once made direct
 | `layer` | layer | the same as a `Layer` |
 | `EngineCompositionError` | class | `code: "engine_not_composed"` |
 
-Required services: `Journal`, `RunStore`, `AttemptStore`, `CacheStore`, `DurableEngineState`, kernel `Jj`, `StepBoundary`, [`OwnerIdentity`](#owneridentity), and a `Scope`.
+Required services: `Journal`, `RunStore`, `AttemptStore`, `CacheStore`, `DurableEngineState`, kernel `Jj`, `StepBoundary`, [`OwnerIdentity`](#owneridentity), and a `Scope`. [`WorkspaceSandbox`](#workspacesandbox) and its `EffectDispatcher` are optional; when present, `make` resolves them here and re-provides them onto the engine's own fiber, which does not carry the store's layer context.
 
 `clockFireRetryPolicy` is optional and defaults to exponential from 100ms capped at 30s, forever — the same option shape as the engine's `suspendedRetryPolicy`.
 
@@ -73,9 +73,32 @@ Required services: `Journal`, `RunStore`, `AttemptStore`, `CacheStore`, `Durable
 | `layerTest`, `TestOptions` | test layer | simplified descriptor for suites |
 | `UndeclaredWrite`, `UnsupportedBoundary`, `BoundaryCorruption`, `MissingArtifact` | classes | boundary failures |
 
-`layer` cannot observe writes outside the declared sets, so its evidence is deliberately not admitted to the cross-run cache. Whole-tree write verification is Planned.
+`layer` cannot observe writes outside the declared sets, so it never claims whole-tree write verification itself. That claim comes from running the body somewhere else — see [`WorkspaceSandbox`](#workspacesandbox); a composition without one keeps run-local results.
 
 `MissingArtifact` is the one replay refusal a shared artifact tier can repair: the bytes are simply not on this host.
+
+## WorkspaceSandbox
+
+[src/WorkspaceSandbox.ts](https://github.com/smithersai/flows/blob/main/packages/engine-store/src/WorkspaceSandbox.ts)
+
+| Export | Kind | Notes |
+| --- | --- | --- |
+| `WorkspaceSandbox` | service tag | the two-phase workspace transaction |
+| `Service`, `Execution` | interfaces | `execute` is speculative; `materialize` is the only host write |
+| `Workspace` | service tag | the in-transaction filesystem and effect outbox, seeded only inside `execute` |
+| `WorkflowResult`, `FileChange`, `QueuedEffect`, `Provenance`, `Resource`, `InputObservation`, `OutputObservation` | interfaces | the functional result of one execution |
+| `Accepted`, `Invalidated`, `ExecutionResult`, `DeclarationViolation`, `CacheDisposition` | models | `Invalidated` exposes provenance and violations only |
+| `Host` | interface | `snapshot`, `baseline`, `retain`, `commit`, `root` — the seam both implementations share |
+| `violations` | accessor | what a declaration failed to predict |
+| `make`, `layer`, `makeHosted` | constructors | from an implementation or a `Host` |
+| `makeMemory`, `InitialFiles`, `MemorySandbox`, `HostFile` | in-memory implementation | deterministic, browser-safe, the conformance suite's host |
+| `makeFileSystem`, `FileSystemOptions`, `layerFileSystem` | filesystem implementation | kernel `FileSystem` + `Workspace` root + [`@smthrs/artifacts`](/api/artifacts) for oversized products |
+| `Dispatcher`, `EffectDispatcher`, `layerDispatcher` | optional dispatch stage | runs after copy-back settles, deduplicated by idempotency key |
+| `WorkspaceError`, `WorkspaceErrorCode`, `MaterializationConflict` | classes + schema | transaction and copy-back failures |
+
+The body observes exactly its declared read set, its writes become a diff bundle, and the host is untouched until `materialize` — a compare-and-set on every `beforeDigest` that applies whole or not at all. That is what makes whole-tree write observation structural, and therefore what lets a production-composed sealed result enter the shared cache.
+
+Both services are optional. Without a sandbox the body runs against the host directly, exactly as before. It is a deterministic transaction model, **not a security boundary**.
 
 ## ArtifactSync
 
