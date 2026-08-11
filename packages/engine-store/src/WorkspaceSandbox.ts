@@ -220,6 +220,13 @@ export interface DeclarationViolation {
  * owns that through `CacheStore` and the step key. `disabled` is what a caller
  * that supplied no `cacheKey` gets, and is the engine's ordinary case.
  *
+ * A `hit` hands back the same {@link WorkflowResult} the miss produced rather
+ * than a copy of it — the proof of concept deep-cloned, but cloning the output
+ * needs `structuredClone`, and this port's output is not constrained to
+ * `Schema.Json`. The transaction itself is still isolated (its reads and writes
+ * copy bytes in both directions); what a caller must not do is mutate a
+ * returned result in place and then ask for it again.
+ *
  * @category models
  * @since 0.1.0
  */
