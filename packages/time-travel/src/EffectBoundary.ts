@@ -18,7 +18,11 @@ import { error, type TimeTravelError } from "./TimeTravelError.ts"
  * @category models
  */
 export const EffectTier = Schema.Literals(["sealed", "compensable", "irreversible"])
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link EffectTier}.
+ *
+ * @since 0.1.0 @category models
+ */
 export type EffectTier = typeof EffectTier.Type
 
 /**
@@ -28,7 +32,11 @@ export type EffectTier = typeof EffectTier.Type
  * @category models
  */
 export const EffectStatus = Schema.Literals(["intended", "succeeded", "unknown"])
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link EffectStatus}.
+ *
+ * @since 0.1.0 @category models
+ */
 export type EffectStatus = typeof EffectStatus.Type
 
 /**
@@ -71,7 +79,11 @@ export const EffectRecord = Schema.Struct({
   attempt: Schema.optionalKey(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))),
   nonce: Schema.optionalKey(Schema.NonEmptyString)
 })
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link EffectRecord}.
+ *
+ * @since 0.1.0 @category models
+ */
 export type EffectRecord = typeof EffectRecord.Type
 
 /**
@@ -106,7 +118,11 @@ export const Description = Schema.Struct({
   nonce: Schema.optionalKey(Schema.NonEmptyString),
   metadata: Schema.optionalKey(Schema.Unknown)
 })
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link Description}.
+ *
+ * @since 0.1.0 @category models
+ */
 export type Description = typeof Description.Type
 
 const Metadata = Schema.Record(Schema.String, Schema.Unknown)

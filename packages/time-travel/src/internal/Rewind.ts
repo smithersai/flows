@@ -40,7 +40,11 @@ export const RewindStep = Schema.Literals([
   "restore-workspace",
   "archive-and-truncate"
 ])
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link RewindStep}.
+ *
+ * @since 0.1.0 @category models
+ */
 export type RewindStep = typeof RewindStep.Type
 
 /**
@@ -53,7 +57,11 @@ export const RateLimitDecision = Schema.Struct({
   allowed: Schema.Boolean,
   detail: Schema.optionalKey(Schema.Unknown)
 })
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link RateLimitDecision}.
+ *
+ * @since 0.1.0 @category models
+ */
 export type RateLimitDecision = typeof RateLimitDecision.Type
 
 /**
@@ -63,7 +71,11 @@ export type RateLimitDecision = typeof RateLimitDecision.Type
  * @category models
  */
 export const DetachedChildPolicy = Schema.Literals(["block", "cancel"])
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link DetachedChildPolicy}.
+ *
+ * @since 0.1.0 @category models
+ */
 export type DetachedChildPolicy = typeof DetachedChildPolicy.Type
 
 /**
@@ -77,7 +89,11 @@ export const DetachedChildWarning = Schema.Struct({
   parentSeq: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   reason: Schema.String
 })
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link DetachedChildWarning}.
+ *
+ * @since 0.1.0 @category models
+ */
 export type DetachedChildWarning = typeof DetachedChildWarning.Type
 
 /**
@@ -106,7 +122,11 @@ export const AuditDetail = Schema.Struct({
   cancelledChildren: Schema.Array(Schema.NonEmptyString),
   failure: Schema.optionalKey(Schema.String)
 })
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link AuditDetail}.
+ *
+ * @since 0.1.0 @category models
+ */
 export type AuditDetail = typeof AuditDetail.Type
 
 /**
@@ -154,7 +174,11 @@ export const Result = Schema.Struct({
   warnings: Schema.Array(DetachedChildWarning),
   cancelledChildren: Schema.Array(Schema.NonEmptyString)
 })
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link Result}.
+ *
+ * @since 0.1.0 @category models
+ */
 export type Result = typeof Result.Type
 
 interface ClaimedRun {

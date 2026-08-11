@@ -1,3 +1,18 @@
+/**
+ * Deriving a run's past state from committed journal evidence alone.
+ *
+ * This is what makes a frame an address rather than a snapshot: nothing stores
+ * "the state at seq 17", so {@link rederive} folds the journal prefix up to a
+ * frame through a caller-supplied {@link Projection}. It reads only durable
+ * evidence — entries and sealed cache results — and has no dispatcher, so a
+ * replay can never re-execute a model call or a child flow. Anything not
+ * committed simply is not in the answer.
+ *
+ * Entries are filtered by lineage, so a run whose journal interleaves several
+ * lineages replays exactly the one the frame names.
+ *
+ * @since 0.1.0
+ */
 import * as Journal from "@smthrs/journal/Journal"
 import type { Entry, RunId, Seq } from "@smthrs/journal/JournalEvent"
 import * as CacheStore from "@smthrs/step-cache/CacheStore"
@@ -12,7 +27,15 @@ export interface Projection<S> {
   readonly initial: S
   readonly reduce: (state: S, entry: Entry, sealed: unknown | undefined) => S
 }
-/** @since 0.1.0 @category models */
+/**
+ * Which run to replay, and how large a journal page to read at a time.
+ *
+ * `pageSize` is a throughput knob only — it never changes the derived state,
+ * because the fold sees the same entries in the same order whatever the page
+ * boundaries are. It defaults to 100.
+ *
+ * @since 0.1.0 @category models
+ */
 export interface ReplayOptions {
   readonly runId: string
   readonly pageSize?: number

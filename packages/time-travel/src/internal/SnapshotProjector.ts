@@ -44,7 +44,14 @@ export interface State {
   readonly anchors: number
 }
 
-/** @since 0.1.0 @category constants */
+/**
+ * The fold's starting {@link State}: no pointer, no digest, nothing anchored.
+ *
+ * Because a projection has no durable state of its own, every run of the
+ * projector starts here and replays to the same result.
+ *
+ * @since 0.1.0 @category constants
+ */
 export const initial: State = { changeId: undefined, planDigest: undefined, anchors: 0 }
 
 const LineageMeta = Schema.Struct({ lineageId: Schema.NonEmptyString })

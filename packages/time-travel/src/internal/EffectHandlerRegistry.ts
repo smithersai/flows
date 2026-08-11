@@ -20,7 +20,11 @@ import { error, type TimeTravelError } from "../TimeTravelError.ts"
  * @category models
  */
 export const Classification = Schema.Literals(["revertible", "warning", "blocking"])
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link Classification}.
+ *
+ * @since 0.1.0 @category models
+ */
 export type Classification = typeof Classification.Type
 
 /**
@@ -37,7 +41,11 @@ export const Assessment = Schema.Struct({
   reason: Schema.String,
   residue: Schema.String
 })
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link Assessment}.
+ *
+ * @since 0.1.0 @category models
+ */
 export type Assessment = typeof Assessment.Type
 
 /**
@@ -54,7 +62,11 @@ export const RollbackReceipt = Schema.Struct({
   effect: EffectRecord,
   data: Schema.Unknown
 })
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link RollbackReceipt}.
+ *
+ * @since 0.1.0 @category models
+ */
 export type RollbackReceipt = typeof RollbackReceipt.Type
 
 /**

@@ -1,3 +1,23 @@
+/**
+ * The persistence contract time travel reads history through.
+ *
+ * `TimeTravelStore` is the only thing that knows how a run's past is stored.
+ * It answers the two questions replay cannot answer on its own — what the
+ * tier-2 anchors were at a frame, and what state and attempts existed there —
+ * and it owns the three mutations time travel performs: writing the audit
+ * trail of an in-flight rewind, truncating a run back to a frame, and creating
+ * a fork off one. Everything else in the package is a policy layered over this
+ * interface.
+ *
+ * Two implementations satisfy it: `MemoryTimeTravelStore` for tests and
+ * browser use, and `SqlTimeTravelStore` for a durable database. They are held
+ * to the same behaviour, so a run inspected under one must be inspected
+ * identically under the other.
+ *
+ * `docs/specs/Concepts/Time Travel.md` is the governing design.
+ *
+ * @since 0.1.0
+ */
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -21,7 +41,11 @@ export const Snapshot = Schema.Struct({
   changeId: Schema.NonEmptyString,
   planDigest: Schema.optionalKey(Schema.NonEmptyString)
 })
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link Snapshot}.
+ *
+ * @since 0.1.0 @category models
+ */
 export type Snapshot = typeof Snapshot.Type
 /**
  * The attempt rows that existed at a frame, addressed the way
@@ -37,13 +61,41 @@ export const AttemptRef = Schema.Struct({
   stepKeyDigest: Schema.NonEmptyString,
   attempt: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 })
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link AttemptRef}.
+ *
+ * @since 0.1.0 @category models
+ */
 export type AttemptRef = typeof AttemptRef.Type
-/** @since 0.1.0 @category models */
+/**
+ * A run's descendants at a frame, split by whether they still depend on the
+ * history under that frame.
+ *
+ * `attached` children are the ones a rewind must resolve — cancel them, detach
+ * them, or refuse — because truncating the parent would cut history out from
+ * under them. `detached` children have already been cut loose and are reported
+ * only so the operation can say what it left running.
+ *
+ * @since 0.1.0 @category schemas
+ */
 export const Descendants = Schema.Struct({ attached: Schema.Array(LineageEdge), detached: Schema.Array(LineageEdge) })
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link Descendants}.
+ *
+ * @since 0.1.0 @category models
+ */
 export type Descendants = typeof Descendants.Type
-/** @since 0.1.0 @category models */
+/**
+ * The durable record of one rewind attempt, written before the rewind touches
+ * anything and updated as it progresses.
+ *
+ * The audit row is what makes a rewind crash-safe: recovery reads back the
+ * `in_progress` rows on layer build and either finishes or rolls back the
+ * operation that owned each one. `rateLimit` and `detail` stay `Unknown`
+ * because they are diagnostic payloads the store never interprets.
+ *
+ * @since 0.1.0 @category schemas
+ */
 export const Audit = Schema.Struct({
   id: Schema.NonEmptyString,
   runId: Schema.NonEmptyString,
@@ -52,23 +104,54 @@ export const Audit = Schema.Struct({
   rateLimit: Schema.optionalKey(Schema.Unknown),
   detail: Schema.optionalKey(Schema.Unknown)
 })
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link Audit}.
+ *
+ * @since 0.1.0 @category models
+ */
 export type Audit = typeof Audit.Type
-/** @since 0.1.0 @category models */
+/**
+ * Proof that one side effect was compensated during a rewind.
+ *
+ * A rewind reverts effects by calling their registered rollback handlers; each
+ * handler returns an opaque receipt, and the receipt is persisted against the
+ * audit row before the journal is truncated. That ordering is what lets
+ * recovery tell an effect that was already rolled back from one that never
+ * was, so a resumed rewind never compensates the same effect twice.
+ *
+ * @since 0.1.0 @category schemas
+ */
 export const Receipt = Schema.Struct({
   id: Schema.NonEmptyString,
   auditId: Schema.NonEmptyString,
   effectId: Schema.NonEmptyString,
   receipt: Schema.Unknown
 })
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link Receipt}.
+ *
+ * @since 0.1.0 @category models
+ */
 export type Receipt = typeof Receipt.Type
-/** @since 0.1.0 @category models */
+/**
+ * What a truncation actually did: how many journal records it archived, and
+ * which lineage edges it left pointing at history that no longer exists.
+ *
+ * Archiving is not deletion — the records move aside so a forensic reader can
+ * still reach them — and `orphaned` is the honest accounting of descendants
+ * the operation detached rather than resolved.
+ *
+ * @since 0.1.0 @category schemas
+ */
 export const ArchiveResult = Schema.Struct({
   archived: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   orphaned: Schema.Array(LineageEdge)
 })
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link ArchiveResult}.
+ *
+ * @since 0.1.0 @category models
+ */
 export type ArchiveResult = typeof ArchiveResult.Type
 /**
  * A fork's outcome: the child run, its lineage edge, and everything the
@@ -86,9 +169,24 @@ export const Fork = Schema.Struct({
   edge: LineageEdge,
   warnings: Schema.Array(Schema.String)
 })
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link Fork}.
+ *
+ * @since 0.1.0 @category models
+ */
 export type Fork = typeof Fork.Type
-/** @since 0.1.0 @category services */
+/**
+ * The operations a time-travel state store must provide.
+ *
+ * The reads (`snapshotAt`, `stateAt`, `attemptsAt`, `descendants`) reconstruct
+ * a frame's past; the audit trio (`writeAudit`, `updateAudit`,
+ * `pendingAudits`) makes an in-flight rewind recoverable; and
+ * `archiveAndTruncate`, `createFork`, and `recordReceipt` are the three
+ * mutations that change the lineage tree. Implement it with
+ * {@link make}, or stub it with {@link makeNoop}.
+ *
+ * @since 0.1.0 @category services
+ */
 export interface Service {
   readonly snapshotAt: (runId: string, frame: Frame) => Effect.Effect<Snapshot | undefined, TimeTravelError>
   /**
@@ -109,25 +207,75 @@ export interface Service {
    * the attempt lifecycle records.
    */
   readonly attemptsAt: (runId: string, frame: Frame) => Effect.Effect<ReadonlyArray<AttemptRef>, TimeTravelError>
+  /**
+   * The lineage edges hanging off this run at or after a frame, split into the
+   * children a rewind must resolve and the ones already detached from it.
+   */
   readonly descendants: (runId: string, frame: Frame) => Effect.Effect<Descendants, TimeTravelError>
+  /**
+   * Opens the audit trail for a rewind. Written before anything is
+   * compensated or truncated, so a crash always leaves a row recovery can
+   * find.
+   */
   readonly writeAudit: (audit: Audit) => Effect.Effect<void, TimeTravelError>
+  /** Advances an open audit row — normally to `completed` or `failed`. */
   readonly updateAudit: (id: string, patch: Partial<Audit>) => Effect.Effect<void, TimeTravelError>
+  /**
+   * Every audit row still `in_progress`: the rewinds a crash interrupted.
+   * Recovery drains this on layer build.
+   */
   readonly pendingAudits: () => Effect.Effect<ReadonlyArray<Audit>, TimeTravelError>
+  /**
+   * Truncates a run back to a frame, moving the records above it into the
+   * archive rather than deleting them, and persisting the compensation
+   * `receipts` that justified the truncation.
+   */
   readonly archiveAndTruncate: (
     runId: string,
     frame: Frame,
     receipts: ReadonlyArray<Receipt>
   ) => Effect.Effect<ArchiveResult, TimeTravelError>
+  /**
+   * Branches a new run off `parentRunId` at a frame, copying the journal
+   * prefix and the attempts that existed there, and recording the `fork`
+   * lineage edge. The parent is untouched and keeps running.
+   */
   readonly createFork: (parentRunId: string, frame: Frame) => Effect.Effect<Fork, TimeTravelError>
+  /**
+   * Persists one compensation receipt against its audit row, before the
+   * journal range that effect belongs to is truncated.
+   */
   readonly recordReceipt: (receipt: Receipt) => Effect.Effect<void, TimeTravelError>
 }
-/** @since 0.1.0 @category services */
+/**
+ * The service key for a {@link Service}. Inject it to read or mutate a run's
+ * history; provide it with {@link layerNoop}, `MemoryTimeTravelStore.layer`,
+ * or `SqlTimeTravelStore.layer`.
+ *
+ * @since 0.1.0 @category services
+ */
 export class TimeTravelStore extends Context.Service<TimeTravelStore, Service>()("flows/time-travel/TimeTravelStore") {}
-/** @since 0.1.0 @category constructors */
+/**
+ * Brands a {@link Service} implementation as a `TimeTravelStore`, so a new
+ * backend is written against the interface and checked at its definition site
+ * rather than at the layer.
+ *
+ * @since 0.1.0 @category constructors
+ */
 export const make = (implementation: Service): Service => TimeTravelStore.of(implementation)
 const unavailable = <A>(method: string): Effect.Effect<A, TimeTravelError> =>
   Effect.fail(error("unknown", `${method} is unavailable`))
-/** @since 0.1.0 @category constructors */
+/**
+ * A store whose every operation fails with an `unknown`-coded
+ * {@link TimeTravelError}, except the ones `overrides` supplies.
+ *
+ * The failing default is deliberate: a test that stubs only the two methods it
+ * exercises gets a named failure — not a silent success — the moment the code
+ * under test reaches a third. Prefer `MemoryTimeTravelStore` when the test
+ * actually needs a working store.
+ *
+ * @since 0.1.0 @category constructors
+ */
 export const makeNoop = (overrides: Partial<Service> = {}): Service =>
   TimeTravelStore.of({
     snapshotAt: () => unavailable("snapshotAt"),
@@ -143,6 +291,10 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service =>
     recordReceipt: () => unavailable("recordReceipt"),
     ...overrides
   })
-/** @since 0.1.0 @category layers */
+/**
+ * Provides {@link makeNoop} as a `TimeTravelStore` layer.
+ *
+ * @since 0.1.0 @category layers
+ */
 export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<TimeTravelStore> =>
   Layer.succeed(TimeTravelStore)(makeNoop(overrides))

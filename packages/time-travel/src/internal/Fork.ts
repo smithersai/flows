@@ -23,12 +23,24 @@ import { type Fork as ForkResult, TimeTravelStore } from "../TimeTravelStore.ts"
 import * as Compensation from "./Compensation.ts"
 import type { EffectHandlerRegistry } from "./EffectHandlerRegistry.ts"
 
-/** @since 0.1.0 @category models */
+/**
+ * What a fork needs to know: which parent frame to branch from, and where the
+ * child's workspace goes.
+ *
+ * The workspace fields are separate because a fork adds a jj workspace for the
+ * child rather than restoring the parent's — the parent keeps its own working
+ * copy untouched.
+ *
+ * @since 0.1.0 @category models
+ */
 export interface ForkOptions {
   readonly parentRunId: string
   readonly frame: Frame
+  /** The jj workspace name to create for the child run. */
   readonly workspaceName: string
+  /** Where that workspace is materialized on disk. */
   readonly workspacePath: string
+  /** Journal page size for the suffix scan; defaults to the store's own. */
   readonly pageSize?: number | undefined
 }
 
@@ -74,7 +86,18 @@ const normalize = (
         `on a fork it is never reverted and may execute again on the child. ${assessment.residue}`
   )
 
-/** @since 0.1.0 @category constructors */
+/**
+ * Branches a child run off a parent frame.
+ *
+ * Refuses with `live_parent` if the parent is still running, claimed, or
+ * owned — a fork copies a settled prefix, and a live parent has no settled
+ * prefix to copy. Otherwise it reads the journal suffix past the frame,
+ * assesses the effects in it, normalizes every classification to a warning
+ * (see the module header), asks the store to create the fork, and adds the
+ * child's jj workspace. The parent is never mutated.
+ *
+ * @since 0.1.0 @category constructors
+ */
 export const fork = (
   options: ForkOptions
 ): Effect.Effect<

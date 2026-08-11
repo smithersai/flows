@@ -1,10 +1,35 @@
+/**
+ * A `TimeTravelStore` held entirely in JavaScript objects.
+ *
+ * This is the reference implementation of the store contract and the one every
+ * time-travel test runs against: it is deterministic, needs no database, and
+ * works in the browser. {@link make} additionally exposes the whole mutable
+ * world as a {@link MemoryState} snapshot, so a test asserts on what a rewind
+ * *did* rather than on what it returned, and {@link Options.failAt} injects a
+ * failure at a named step so crash-recovery paths are reachable without
+ * actually crashing.
+ *
+ * It is a behavioural peer of `SqlTimeTravelStore`, not a lesser one: the two
+ * are held to the same answers for the same history.
+ *
+ * @since 0.1.0
+ */
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import type { Frame, LineageEdge } from "./Frame.ts"
 import { error, TimeTravelError } from "./TimeTravelError.ts"
 import * as TimeTravelStore from "./TimeTravelStore.ts"
 
-/** @since 0.1.0 @category models */
+/**
+ * One journal record as this store holds it.
+ *
+ * It is a seeded stand-in for a real engine journal row, carrying only the
+ * fields the derived reads fold over: the `(runId, seq)` coordinate, the
+ * `lineageId` the frame addresses, and an opaque `payload`. A test seeds these
+ * through {@link Options.records} to describe a run's past.
+ *
+ * @since 0.1.0 @category models
+ */
 export interface JournalRecord {
   readonly runId: string
   readonly seq: number
@@ -17,7 +42,17 @@ export interface JournalRecord {
    */
   readonly eventType?: string | undefined
 }
-/** @since 0.1.0 @category models */
+/**
+ * The store's entire contents, as returned by the `state()` method
+ * {@link make} attaches.
+ *
+ * Every collection is copied on read, so a test can capture the world before
+ * an operation and compare it with the world after — including the parts no
+ * operation returns, like which records were archived rather than dropped and
+ * which lineage edges survived.
+ *
+ * @since 0.1.0 @category models
+ */
 export interface MemoryState {
   readonly records: ReadonlyArray<JournalRecord>
   readonly archived: ReadonlyArray<JournalRecord>
@@ -27,12 +62,29 @@ export interface MemoryState {
   readonly snapshots: ReadonlyArray<TimeTravelStore.Snapshot>
   readonly liveRuns: ReadonlySet<string>
 }
-/** @since 0.1.0 @category models */
+/**
+ * The history a memory store starts life holding, plus the one knob that makes
+ * it misbehave on purpose.
+ *
+ * @since 0.1.0 @category models
+ */
 export interface Options {
+  /** Journal records the run has already written, oldest first. */
   readonly records?: ReadonlyArray<JournalRecord>
+  /** Pre-existing lineage edges, so a test can describe a run that already has descendants. */
   readonly edges?: ReadonlyArray<LineageEdge>
+  /** Tier-2 anchors the snapshot projector would have recorded. */
   readonly snapshots?: ReadonlyArray<TimeTravelStore.Snapshot>
+  /**
+   * Runs to treat as still executing. A frame belonging to one of these is
+   * refused with `live_parent` or `live_child`.
+   */
   readonly liveRuns?: ReadonlySet<string>
+  /**
+   * Throws an `unknown`-coded {@link TimeTravelError} at the named internal
+   * step, so a test can interrupt a rewind mid-flight and then assert that
+   * recovery finishes or rolls it back.
+   */
   readonly failAt?: string
 }
 
@@ -77,7 +129,17 @@ const descendantsFrom = (
   return { attached, detached, attachedRunIds }
 }
 
-/** @since 0.1.0 @category constructors */
+/**
+ * Creates an in-memory store seeded from `options`, returning the store
+ * *widened* with a `state()` inspector.
+ *
+ * The widened return is the reason to call this instead of {@link layer}: the
+ * inspector is not part of the `TimeTravelStore` contract, so a test that
+ * wants to assert on archived records or surviving edges must hold the
+ * concrete store rather than resolve the service.
+ *
+ * @since 0.1.0 @category constructors
+ */
 export const make = (options: Options = {}): TimeTravelStore.Service & { readonly state: () => MemoryState } => {
   let records = [...(options.records ?? [])]
   let archived: Array<JournalRecord> = []
@@ -271,6 +333,12 @@ export const make = (options: Options = {}): TimeTravelStore.Service & { readonl
   })
   return Object.assign(service, { state })
 }
-/** @since 0.1.0 @category layers */
+/**
+ * Provides a seeded memory store as the `TimeTravelStore` service. The
+ * `state()` inspector is not reachable through the service key — use
+ * {@link make} when a test needs it.
+ *
+ * @since 0.1.0 @category layers
+ */
 export const layer = (options: Options = {}): Layer.Layer<TimeTravelStore.TimeTravelStore> =>
   Layer.succeed(TimeTravelStore.TimeTravelStore)(make(options))

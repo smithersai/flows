@@ -1,3 +1,20 @@
+/**
+ * The durable `TimeTravelStore`, backed by SQL.
+ *
+ * Three tables carry what the journal cannot: `flows_time_travel_audits`
+ * (one row per rewind, so a crash leaves something recovery can find),
+ * `flows_time_travel_receipts` (proof a side effect was compensated), and
+ * `flows_time_travel_snapshots` (the tier-2 anchors at a frame). Lineage edges
+ * are read as ONE tree across this package's fork edges and the engine's child
+ * spawns, per `docs/specs/Concepts/Subflows.md` §129-131.
+ *
+ * The derived reads — state and attempts at a frame — are folds over journal
+ * records rather than columns, because the run row holds only the *latest*
+ * state. The SQL sticks to portable scalar columns and JSON text so the same
+ * schema runs on every backend the `SqlClient` supports.
+ *
+ * @since 0.1.0
+ */
 import { DurableWriter } from "@smthrs/database/DurableWriter"
 import { RunState } from "@smthrs/engine-store/RunState"
 import * as Clock from "effect/Clock"
@@ -184,7 +201,16 @@ const AttemptPayload = Schema.Struct({
 })
 const attemptRef = Schema.decodeUnknownOption(AttemptPayload)
 
-/** @since 0.1.0 @category constructors */
+/**
+ * Builds the SQL-backed store, running {@link migrate} first so a fresh
+ * database is usable without a separate setup step.
+ *
+ * Writes go through `DurableWriter` rather than straight to `SqlClient`, so a
+ * rewind's audit row, receipts, and truncation land under the same durability
+ * discipline as the engine's own journal writes.
+ *
+ * @since 0.1.0 @category constructors
+ */
 export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter | SqlClient.SqlClient> = Effect.gen(
   function*() {
     const sql = yield* Effect.service(SqlClient.SqlClient)
@@ -616,7 +642,12 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter |
     })
   }
 )
-/** @since 0.1.0 @category layers */
+/**
+ * Provides {@link make} as the `TimeTravelStore` service. Requires a
+ * `SqlClient` and a `DurableWriter`; building it migrates the schema.
+ *
+ * @since 0.1.0 @category layers
+ */
 export const layer: Layer.Layer<TimeTravelStore.TimeTravelStore, never, DurableWriter | SqlClient.SqlClient> = Layer
   .effect(
     TimeTravelStore.TimeTravelStore

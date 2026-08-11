@@ -55,7 +55,11 @@ export const Position = Schema.Struct({
   runId: Schema.NonEmptyString,
   frame: Frame
 })
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link Position}.
+ *
+ * @since 0.1.0 @category models
+ */
 export type Position = typeof Position.Type
 
 /**
