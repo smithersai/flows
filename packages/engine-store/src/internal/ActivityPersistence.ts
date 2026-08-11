@@ -1096,9 +1096,13 @@ export const make = (deps: Dependencies) => {
               descriptor: input.metadata,
               workflow: deps.execute(input)
             }).pipe(Effect.exit)
+          // The settlement is the isolated execution's whole story; the
+          // attempt's outcome is only its `result`, so the ordinary failure
+          // handling below is unchanged by which path produced it.
+          const settlement = isolated !== undefined && Exit.isSuccess(isolated) ? isolated.value : undefined
           const outcome = isolated === undefined
             ? yield* deps.execute(input).pipe(Effect.exit)
-            : Exit.map(isolated, (settlement) => settlement.result)
+            : Exit.map(isolated, (settled) => settled.result)
           if (Exit.isFailure(outcome)) {
             const finishedAtMs = yield* Clock.currentTimeMillis
             // A boundary violation raised while the body ran is classified
@@ -1130,9 +1134,6 @@ export const make = (deps: Dependencies) => {
             if (!finished) return yield* Effect.interrupt
             return yield* Effect.failCause(outcome.cause)
           }
-          const settlement = isolated === undefined ? undefined : (isolated as Exit.Success<
-            SandboxedExecution.Settlement
-          >).value
           if (settlement !== undefined) {
             // Forensics requires both halves as journal facts, never inferred
             // from an absence (`docs/specs/Concepts/Forensics.md`): what the
