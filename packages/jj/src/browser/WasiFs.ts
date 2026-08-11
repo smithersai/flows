@@ -75,11 +75,13 @@ export interface SyncDirentLike {
  *   (`"ENOENT"`, `"EEXIST"`, `"ENOTDIR"`, …); the shim maps those codes onto
  *   WASI errno values. Both backends already throw exactly that shape.
  *
- * There is deliberately no `fsyncSync`, `futimesSync`, or `ftruncateSync`: a
- * synchronous backend is durable the moment a call returns, so `fd_sync` is an
- * honest no-op, and the shim serves the fd-addressed `filestat_set_*` calls
- * through the path it tracked at `path_open` time. That keeps the slice at the
- * sixteen members below.
+ * There is deliberately no `fsyncSync`: a synchronous backend is durable the
+ * moment a call returns, so `fd_sync` is an honest no-op. `ftruncateSync` and
+ * `futimesSync` ARE required: the fd-addressed `fd_filestat_set_size` and
+ * `fd_filestat_set_times` must follow the open file even after a
+ * `path_rename` (jj's tempfile-persist shape is open → rename → mutate), so
+ * serving them through a path captured at `path_open` time would mutate
+ * whatever file occupies the old name. Both backends carry the fd flavours.
  *
  * @category models
  * @since 0.1.0
@@ -102,6 +104,8 @@ export interface SyncFsLike {
     position: number
   ) => number
   readonly fstatSync: (fd: number) => SyncStatsLike
+  readonly ftruncateSync: (fd: number, length: number) => void
+  readonly futimesSync: (fd: number, atime: number, mtime: number) => void
   readonly statSync: (path: string) => SyncStatsLike
   readonly lstatSync: (path: string) => SyncStatsLike
   readonly mkdirSync: (path: string) => unknown

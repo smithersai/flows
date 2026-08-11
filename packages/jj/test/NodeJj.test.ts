@@ -109,11 +109,36 @@ describe.skipIf(!jjInstalled)("NodeJj", () => {
     expect(error.message).toContain("jj restore")
   })
 
-  it("classifies an unrecognized failure as `unknown`", async () => {
+  it("classifies a malformed revset as `invalid_ref`, agreeing with BrowserJj", async () => {
+    // "Failed to parse revset: Syntax error" — the browser layer resolves the
+    // same string to invalid_ref, and the code is durable identity in
+    // journals, so the two layers must agree.
     const error = await run(Effect.flip(Effect.flatMap(Jj, (jj) => jj.diff("@@@bad", "@"))))
 
-    expect(error.code).toBe("unknown")
+    expect(error.code).toBe("invalid_ref")
     expect(error.message).toContain("jj diff")
+  })
+
+  it("classifies an empty revision as `invalid_ref` without spawning jj", async () => {
+    const error = await run(Effect.flip(Effect.flatMap(Jj, (jj) => jj.restore(""))))
+
+    expect(error.code).toBe("invalid_ref")
+    expect(error.message).toBe("jj restore: empty revision string")
+  })
+
+  it("classifies an unrecognized failure as `unknown`", async () => {
+    // Running outside any repository is jj's plain "There is no jj repo"
+    // error, which matches none of the classified vocabularies.
+    const outside = await mkdtemp(join(tmpdir(), "flows-node-jj-norepo-"))
+    process.chdir(outside)
+    try {
+      const error = await run(Effect.flip(Effect.flatMap(Jj, (jj) => jj.status())))
+      expect(error.code).toBe("unknown")
+      expect(error.message).toContain("jj status")
+    } finally {
+      process.chdir(repository)
+      await rm(outside, { recursive: true, force: true })
+    }
   })
 
   it("reports `not_installed` when `jj` is not on PATH", async () => {

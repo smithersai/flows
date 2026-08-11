@@ -168,6 +168,8 @@ const boomFs = (cause: unknown): SyncFsLike => {
     readSync: boom,
     writeSync: boom,
     fstatSync: boom,
+    ftruncateSync: boom,
+    futimesSync: boom,
     statSync: boom,
     lstatSync: boom,
     mkdirSync: boom,
@@ -588,6 +590,74 @@ describe("WasiPreview1 path_open", () => {
     const created = open(h, "/made.txt", { oflags: OFLAG.creat, rights: W, dirflags: 0 })
     expect(h.sys.fd_close!(created)).toBe(E.success)
   })
+
+  it("creates the target of a dangling symlink with O_CREAT, like open(2)", () => {
+    const root = freshDir()
+    fsModule.symlinkSync("created-by-open.txt", join(root, "dangling"))
+    const h = host({ root })
+    const fd = open(h, "/dangling", { oflags: OFLAG.creat, rights: RW })
+    expect(writeAll(h, fd, "through the link")).toBe(E.success)
+    h.sys.fd_close!(fd)
+    expect(fsModule.readFileSync(join(root, "created-by-open.txt"), "utf8")).toBe("through the link")
+    expect(fsModule.lstatSync(join(root, "dangling")).isSymbolicLink()).toBe(true) // the link survives
+    // O_CREAT|O_EXCL through any symlink stays EEXIST, as POSIX mandates.
+    fsModule.unlinkSync(join(root, "created-by-open.txt"))
+    expect(openErrno(h, "/dangling", { oflags: OFLAG.creat | OFLAG.excl, rights: W })).toBe(E.exist)
+    // Without O_CREAT a dangling link is simply a missing file.
+    expect(openErrno(h, "/dangling")).toBe(E.noent)
+  })
+
+  it("creates through a chain of dangling links and reports cycles as ELOOP", () => {
+    const root = freshDir()
+    fsModule.symlinkSync("two", join(root, "one"))
+    fsModule.symlinkSync("final.txt", join(root, "two"))
+    const h = host({ root })
+    const fd = open(h, "/one", { oflags: OFLAG.creat, rights: W })
+    expect(writeAll(h, fd, "chained")).toBe(E.success)
+    h.sys.fd_close!(fd)
+    expect(fsModule.readFileSync(join(root, "final.txt"), "utf8")).toBe("chained")
+    fsModule.symlinkSync("loop-b", join(root, "loop-a"))
+    fsModule.symlinkSync("loop-a", join(root, "loop-b"))
+    expect(openErrno(h, "/loop-a", { oflags: OFLAG.creat, rights: W })).toBe(E.loop)
+  })
+
+  it("creates through a dangling link with an absolute target", () => {
+    const root = freshDir()
+    fsModule.symlinkSync(join(root, "abs-target.txt"), join(root, "abs-link"))
+    const h = host({ root })
+    const fd = open(h, "/abs-link", { oflags: OFLAG.creat, rights: W })
+    expect(writeAll(h, fd, "absolute")).toBe(E.success)
+    h.sys.fd_close!(fd)
+    expect(fsModule.readFileSync(join(root, "abs-target.txt"), "utf8")).toBe("absolute")
+  })
+
+  it("caps dangling-link chain resolution instead of spinning forever", () => {
+    // A backend whose links never terminate (each readlink names another
+    // link) — the OS's own SYMLOOP limit cannot be relied on here because the
+    // chain is resolved lexically, so the shim carries its own depth cap.
+    const link = {
+      size: 0,
+      atimeMs: 0,
+      mtimeMs: 0,
+      ctimeMs: 0,
+      isFile: () => false,
+      isDirectory: () => false,
+      isSymbolicLink: () => true
+    }
+    const h = host({
+      fs: stubFs({
+        statSync: () => {
+          throw codeError("ENOENT")
+        },
+        lstatSync: () => link,
+        readlinkSync: () => "next",
+        openSync: () => {
+          throw codeError("EEXIST")
+        }
+      })
+    })
+    expect(openErrno(h, "/first", { oflags: OFLAG.creat, rights: W })).toBe(E.loop)
+  })
 })
 
 describe("WasiPreview1 read/write/seek", () => {
@@ -711,6 +781,24 @@ describe("WasiPreview1 read/write/seek", () => {
     expect(readAll(h, 200, 3)).toBe("aaa")
   })
 
+  it("never re-allocates a renumber target for a later open", () => {
+    const root = freshDir()
+    fsModule.writeFileSync(join(root, "a.txt"), "AAAA")
+    fsModule.writeFileSync(join(root, "b.txt"), "BBBB")
+    fsModule.writeFileSync(join(root, "c.txt"), "CCCC")
+    const h = host({ root })
+    const a = open(h, "/a.txt")
+    expect(h.sys.fd_renumber!(a, a + 2)).toBe(E.success) // renumber ahead of the allocator
+    const b = open(h, "/b.txt")
+    const c = open(h, "/c.txt")
+    // The allocator skipped past the renumber target: all three fds are live
+    // and distinct, and the renumbered handle still addresses its own file.
+    expect(new Set([a + 2, b, c]).size).toBe(3)
+    expect(readAll(h, a + 2, 8)).toBe("AAAA")
+    expect(readAll(h, b, 8)).toBe("BBBB")
+    expect(readAll(h, c, 8)).toBe("CCCC")
+  })
+
   it("truncates through fd_filestat_set_size", () => {
     const root = freshDir()
     fsModule.writeFileSync(join(root, "t.txt"), "0123456789")
@@ -722,6 +810,37 @@ describe("WasiPreview1 read/write/seek", () => {
     expect(fsModule.statSync(join(root, "t.txt")).size).toBe(8)
     expect(h.sys.fd_filestat_set_size!(1, 0n)).toBe(E.spipe)
     expect(h.sys.fd_allocate!(fd, 0n, 16n)).toBe(E.notsup)
+  })
+
+  it("truncates and stamps the open fd, not the path it was opened at", () => {
+    const root = freshDir()
+    fsModule.writeFileSync(join(root, "sized.txt"), "0123456789")
+    const h = host({ root })
+    const fd = open(h, "/sized.txt", { rights: RW })
+    // jj's tempfile persist shape: open → rename → mutate through the fd.
+    const from = h.str(PATH_A, "/sized.txt")
+    const to = h.str(PATH_B, "/renamed.txt")
+    expect(h.sys.path_rename!(3, from.ptr, from.len, 3, to.ptr, to.len)).toBe(E.success)
+    // An unrelated file now occupies the old name; it must stay untouched.
+    fsModule.writeFileSync(join(root, "sized.txt"), "UNRELATED CONTENT")
+    expect(h.sys.fd_filestat_set_size!(fd, 4n)).toBe(E.success)
+    expect(fsModule.readFileSync(join(root, "renamed.txt"), "utf8")).toBe("0123")
+    expect(fsModule.readFileSync(join(root, "sized.txt"), "utf8")).toBe("UNRELATED CONTENT")
+    const mtim = 1_600_000_111_500_000_000n // 2020: distinguishable from "now"
+    expect(h.sys.fd_filestat_set_times!(fd, 0n, mtim, 4)).toBe(E.success)
+    expectNsClose(nsOfMs(fsModule.statSync(join(root, "renamed.txt")).mtimeMs), mtim)
+    expect(fsModule.statSync(join(root, "sized.txt")).mtimeMs).toBeGreaterThan(1_700_000_000_000)
+    h.sys.fd_close!(fd)
+  })
+
+  it("stamps times on a directory fd through its tracked path", () => {
+    const root = freshDir()
+    fsModule.mkdirSync(join(root, "stamped"))
+    const h = host({ root })
+    const fd = open(h, "/stamped", { oflags: OFLAG.directory })
+    const mtim = 1_600_000_111_500_000_000n
+    expect(h.sys.fd_filestat_set_times!(fd, 0n, mtim, 4)).toBe(E.success)
+    expectNsClose(nsOfMs(fsModule.statSync(join(root, "stamped")).mtimeMs), mtim)
   })
 
   it("stops the write loop when the backend reports a short write", () => {

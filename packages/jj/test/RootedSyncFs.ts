@@ -18,6 +18,8 @@ export const rootedSyncFs = (hostRoot: string): SyncFsLike => {
     readSync: (fd, buffer, offset, length, position) => fs.readSync(fd, buffer, offset, length, position),
     writeSync: (fd, buffer, offset, length, position) => fs.writeSync(fd, buffer, offset, length, position),
     fstatSync: (fd) => fs.fstatSync(fd),
+    ftruncateSync: (fd, length) => fs.ftruncateSync(fd, length),
+    futimesSync: (fd, atime, mtime) => fs.futimesSync(fd, atime, mtime),
     statSync: (path) => fs.statSync(at(path)),
     lstatSync: (path) => fs.lstatSync(at(path)),
     mkdirSync: (path) => fs.mkdirSync(at(path)),

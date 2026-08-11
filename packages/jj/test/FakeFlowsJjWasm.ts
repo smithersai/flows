@@ -14,11 +14,16 @@
  *   has into what the host serialized — then returns `(64 << 32) | len`
  *   pointing at the canned response the data segments placed at offset 64;
  * - with `trap: true`, `flows_jj_call` instead calls the imported `proc_exit`,
- *   exercising the host's trap handling.
+ *   exercising the host's trap handling;
+ * - with `packedResult`, `flows_jj_call` returns exactly `(ptr << 32) | len`
+ *   without writing any response — for driving the host's handling of a
+ *   corrupt answer whose buffer lies outside wasm memory.
  *
  * Memory map: `0..4` response length, `32..40` scratch iovec, `64..` canned
- * response, `1024..1028` the `INIT` marker, `4096` the fixed allocation
- * `flows_jj_alloc` returns.
+ * response, `1024..1028` the `INIT` marker, `1032..1036`/`1040..1044` the
+ * `ALOC`/`FREE` markers (written to fd 2 when `logAllocs` is set, so a test
+ * can assert the host's alloc/free pairing discipline), `4096` the fixed
+ * allocation `flows_jj_alloc` returns.
  */
 
 const encoder = new TextEncoder()
@@ -91,6 +96,18 @@ export interface FakeFlowsJjWasmOptions {
   readonly response?: string
   /** When set, `flows_jj_call` calls `proc_exit(7)` instead of answering. */
   readonly trap?: boolean
+  /**
+   * When set, `flows_jj_call` returns exactly `(ptr << 32) | len` — a corrupt
+   * packed answer the host must survive when it points outside wasm memory.
+   * Both values must fit in an i32 (< 2^31).
+   */
+  readonly packedResult?: { readonly ptr: number; readonly len: number }
+  /**
+   * When set, `flows_jj_alloc` writes `ALOC` and `flows_jj_free` writes
+   * `FREE` to fd 2, so a test can count the host's alloc/free pairing —
+   * including on the trap path, where the request buffer must still be freed.
+   */
+  readonly logAllocs?: boolean
 }
 
 /** A syntactically valid module exporting nothing — for missing-export tests. */
@@ -103,6 +120,14 @@ export const fakeFlowsJjWasm = (options: FakeFlowsJjWasmOptions = {}): Uint8Arra
 
   const callBody = options.trap === true
     ? [...i32c(7), 0x10, ...uleb(1), 0x00] // proc_exit(7); unreachable
+    : options.packedResult !== undefined
+    ? [
+      ...i64c(options.packedResult.ptr),
+      ...i64c(32),
+      0x86, // i64.shl
+      ...i64c(options.packedResult.len),
+      0x84 // i64.or → (ptr << 32) | len
+    ]
     : [
       ...writeStderr([0x20, 0x00], [0x20, 0x01]), // echo the request (local 0, local 1) to stderr
       ...i64c(64),
@@ -159,8 +184,12 @@ export const fakeFlowsJjWasm = (options: FakeFlowsJjWasmOptions = {}): Uint8Arra
       10,
       vec([
         body(writeStderr(i32c(1024), i32c(4))),
-        body(i32c(4096)),
-        body([]),
+        body(
+          options.logAllocs === true
+            ? [...writeStderr(i32c(1032), i32c(4)), ...i32c(4096)]
+            : i32c(4096)
+        ),
+        body(options.logAllocs === true ? writeStderr(i32c(1040), i32c(4)) : []),
         body(callBody)
       ])
     ),
@@ -178,7 +207,9 @@ export const fakeFlowsJjWasm = (options: FakeFlowsJjWasmOptions = {}): Uint8Arra
           0x00
         ],
         [0x00, ...i32c(64), 0x0b, ...uleb(response.length), ...response],
-        [0x00, ...i32c(1024), 0x0b, ...str("INIT")]
+        [0x00, ...i32c(1024), 0x0b, ...str("INIT")],
+        [0x00, ...i32c(1032), 0x0b, ...str("ALOC")],
+        [0x00, ...i32c(1040), 0x0b, ...str("FREE")]
       ])
     )
   ]

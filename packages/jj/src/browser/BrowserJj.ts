@@ -92,14 +92,24 @@ type OkPayload = Record<string, unknown>
 const exchange = (abi: AbiExports, request: Record<string, unknown>): string => {
   const req = encoder.encode(JSON.stringify(request))
   const reqPtr = abi.flows_jj_alloc(req.length)
-  new Uint8Array(abi.memory.buffer, reqPtr, req.length).set(req)
-  const packed = BigInt.asUintN(64, abi.flows_jj_call(reqPtr, req.length))
-  const resPtr = Number(packed >> 32n)
-  const resLen = Number(packed & 0xFFFF_FFFFn)
-  const response = new Uint8Array(abi.memory.buffer, resPtr, resLen).slice()
-  abi.flows_jj_free(resPtr, resLen)
-  abi.flows_jj_free(reqPtr, req.length)
-  return decoder.decode(response)
+  try {
+    new Uint8Array(abi.memory.buffer, reqPtr, req.length).set(req)
+    const packed = BigInt.asUintN(64, abi.flows_jj_call(reqPtr, req.length))
+    const resPtr = Number(packed >> 32n)
+    const resLen = Number(packed & 0xFFFF_FFFFn)
+    const response = new Uint8Array(abi.memory.buffer, resPtr, resLen).slice()
+    abi.flows_jj_free(resPtr, resLen)
+    return decoder.decode(response)
+  } finally {
+    // The instance survives a trapped call (it stays cached and reused), so
+    // the request buffer must be freed on the error path too — otherwise
+    // every trap leaks its request bytes into the instance's allocator.
+    try {
+      abi.flows_jj_free(reqPtr, req.length)
+    } catch {
+      // Freeing after a trap can itself trap; the original failure wins.
+    }
+  }
 }
 
 /**

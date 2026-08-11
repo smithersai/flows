@@ -106,6 +106,10 @@ describe.skipIf(wasmBytes === undefined)("BrowserJj over flows_jj.wasm", () => {
   it("classifies an unknown revision as invalid_ref", { timeout }, async () => {
     const error = await Effect.runPromise(Effect.flip(jj.restore("nosuchchangeid")))
     expect(error.code).toBe("invalid_ref")
+    // Exactly one method prefix: the bridge prefixes, the crate must not —
+    // "jj restore: jj restore: ..." was a real regression.
+    expect(error.message).toMatch(/^jj restore: /)
+    expect(error.message).not.toContain("jj restore: jj restore:")
 
     const diffError = await Effect.runPromise(Effect.flip(jj.diff("zzznotachange", "alsonotachange")))
     expect(diffError.code).toBe("invalid_ref")

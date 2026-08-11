@@ -13,20 +13,32 @@ import * as Effect from "effect/Effect"
 import * as fs from "node:fs"
 import { describe, expect, it } from "vitest"
 import * as BrowserJj from "../src/browser/BrowserJj.ts"
-import { Jj, type JjError } from "../src/Jj.ts"
+import { isJjError, Jj, type JjError, type JjFailure } from "../src/Jj.ts"
 import { emptyWasmModule, fakeFlowsJjWasm } from "./FakeFlowsJjWasm.ts"
 
 /** The fake module never touches the filesystem; any structural slice will do. */
 const slice = fs
 
-const run = <A>(options: BrowserJj.BrowserJjOptions, effect: (jj: Jj) => Effect.Effect<A, JjError>): Promise<A> =>
+/**
+ * `Jj`'s error channel is `JjFailure` because the capability kernel decorates
+ * the very same tag; an undecorated host layer can only ever produce the
+ * `JjError` half, so narrow rather than widen every assertion.
+ */
+const jjError = (error: JjFailure): JjError => {
+  if (!isJjError(error)) throw new Error(`expected a JjError from an undecorated host layer, got ${error._tag}`)
+  return error
+}
+
+const run = <A>(options: BrowserJj.BrowserJjOptions, effect: (jj: Jj) => Effect.Effect<A, JjFailure>): Promise<A> =>
   Effect.runPromise(Effect.provide(Effect.flatMap(Jj, effect), BrowserJj.layer(options)))
 
 const flip = (
   options: BrowserJj.BrowserJjOptions,
-  effect: (jj: Jj) => Effect.Effect<unknown, JjError>
+  effect: (jj: Jj) => Effect.Effect<unknown, JjFailure>
 ): Promise<JjError> =>
-  Effect.runPromise(Effect.provide(Effect.flip(Effect.flatMap(Jj, effect)), BrowserJj.layer(options)))
+  Effect.runPromise(
+    Effect.provide(Effect.map(Effect.flip(Effect.flatMap(Jj, effect)), jjError), BrowserJj.layer(options))
+  )
 
 /** Every string field any operation extracts, so one module serves all six. */
 const OK_ALL = "{\"ok\":{\"changeId\":\"qpvuntsm\",\"diff\":\"diff --git\",\"status\":\"clean\"}}"
@@ -93,7 +105,9 @@ describe("BrowserJj over the fake ABI module", () => {
   })
 
   it("accepts a precompiled WebAssembly.Module as well as raw bytes", async () => {
-    const module = await WebAssembly.compile(fakeFlowsJjWasm({ response: "{\"ok\":{\"status\":\"ok\"}}" }))
+    const module = await WebAssembly.compile(
+      Uint8Array.from(fakeFlowsJjWasm({ response: "{\"ok\":{\"status\":\"ok\"}}" }))
+    )
     expect(await run({ wasm: module, fs: slice }, (jj) => jj.status())).toBe("ok")
   })
 
@@ -147,7 +161,7 @@ describe("BrowserJj over the fake ABI module", () => {
 
   it("fails an operation whose ok payload is missing its field", async () => {
     const empty = fakeFlowsJjWasm({ response: "{\"ok\":{}}" })
-    const cases: Array<readonly [(jj: Jj) => Effect.Effect<unknown, JjError>, string]> = [
+    const cases: Array<readonly [(jj: Jj) => Effect.Effect<unknown, JjFailure>, string]> = [
       [(jj) => jj.snapshot(), "changeId"],
       [(jj) => jj.diff("a", "b"), "diff"],
       [(jj) => jj.status(), "status"]
@@ -186,10 +200,63 @@ describe("BrowserJj over the fake ABI module", () => {
     expect(error.message).toBe("jj: failed to instantiate flows_jj.wasm: boom")
   })
 
+  it("frees the request and response buffers on the success path", async () => {
+    const stderr: Array<string> = []
+    const options: BrowserJj.BrowserJjOptions = {
+      wasm: fakeFlowsJjWasm({ response: "{\"ok\":{\"status\":\"clean\"}}", logAllocs: true }),
+      fs: slice,
+      onStderr: (text) => stderr.push(text)
+    }
+    expect(await run(options, (jj) => jj.status())).toBe("clean")
+    expect(stderr.filter((entry) => entry === "ALOC")).toHaveLength(1) // the request buffer
+    expect(stderr.filter((entry) => entry === "FREE")).toHaveLength(2) // response, then request
+  })
+
+  it("frees the request buffer even when flows_jj_call traps", async () => {
+    const stderr: Array<string> = []
+    const options: BrowserJj.BrowserJjOptions = {
+      wasm: fakeFlowsJjWasm({ trap: true, logAllocs: true }),
+      fs: slice,
+      onStderr: (text) => stderr.push(text)
+    }
+    const error = await flip(options, (jj) => jj.status())
+    expect(error.code).toBe("unknown")
+    // The instance stays cached and reused after a trap, so the error path
+    // must free what it allocated: exactly one ALOC, exactly one FREE.
+    expect(stderr.filter((entry) => entry === "ALOC")).toHaveLength(1)
+    expect(stderr.filter((entry) => entry === "FREE")).toHaveLength(1)
+  })
+
   it("surfaces a proc_exit trap as a failed operation naming the command", async () => {
     const error = await flip({ wasm: fakeFlowsJjWasm({ trap: true }), fs: slice }, (jj) => jj.status())
     expect(error.code).toBe("unknown")
     expect(error.message).toBe("jj status: wasm module called proc_exit(7)")
     expect(error.command).toBe("jj status")
+  })
+
+  it("survives a corrupt packed answer pointing outside wasm memory", async () => {
+    // ptr far past the module's single memory page: copying the response out
+    // throws a RangeError, which must classify as a failed operation.
+    const options: BrowserJj.BrowserJjOptions = {
+      wasm: fakeFlowsJjWasm({ packedResult: { ptr: 0x7FFF_0000, len: 4096 } }),
+      fs: slice
+    }
+    const jj = await Effect.runPromise(Effect.provide(Jj, BrowserJj.layer(options)))
+    const first = await Effect.runPromise(Effect.map(Effect.flip(jj.status()), jjError))
+    expect(first.code).toBe("unknown")
+    expect(first.command).toBe("jj status")
+    // The throw released the semaphore permit: the same instance still answers
+    // the next operation instead of deadlocking.
+    const second = await Effect.runPromise(Effect.map(Effect.flip(jj.diff("a", "b")), jjError))
+    expect(second.code).toBe("unknown")
+    expect(second.command).toBe("jj diff")
+  })
+
+  it("survives a corrupt packed answer whose length overruns wasm memory", async () => {
+    const overrun = fakeFlowsJjWasm({ packedResult: { ptr: 0, len: 0x7FFF_FFFF } })
+    const error = await flip({ wasm: overrun, fs: slice }, (jj) => jj.snapshot())
+    expect(error.code).toBe("unknown")
+    expect(error.message).toContain("jj snapshot: ")
+    expect(error.command).toBe("jj snapshot")
   })
 })

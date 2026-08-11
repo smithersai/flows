@@ -22,6 +22,7 @@ case "$FLOWS_FAKE_JJ" in
   conflict) echo "Error: would leave conflicts in note.txt" 1>&2; exit 1 ;;
   revision-not-found) echo "Error: Revision not found" 1>&2; exit 1 ;;
   doesnt-exist) echo "Error: Path doesn't exist" 1>&2; exit 1 ;;
+  revset-parse) echo "Error: Failed to parse revset: Syntax error" 1>&2; exit 1 ;;
   stdout-only) echo "Error: reported on stdout"; exit 1 ;;
   signal) kill -9 $$ ;;
   slow) echo $$ > "$FLOWS_FAKE_JJ_MARKER.pid"; : > "$FLOWS_FAKE_JJ_MARKER.started"; /bin/sleep 1; : > "$FLOWS_FAKE_JJ_MARKER" ;;
@@ -102,6 +103,20 @@ describe.skipIf(process.platform === "win32")("NodeJj failure classification", (
 
   it("classifies `doesn't exist` as `invalid_ref`", async () => {
     expect((await status("doesnt-exist")).code).toBe("invalid_ref")
+  })
+
+  it("classifies `failed to parse revset` as `invalid_ref`, agreeing with the wasm layer", async () => {
+    expect((await status("revset-parse")).code).toBe("invalid_ref")
+  })
+
+  it("classifies empty revisions as `invalid_ref` before any spawn", async () => {
+    process.env.FLOWS_FAKE_JJ = "ok" // the fake would exit 0: proof no spawn happened
+    const restoreError = await run(Effect.flip(Effect.flatMap(Jj, (jj) => jj.restore(""))))
+    expect(restoreError.code).toBe("invalid_ref")
+    expect(restoreError.message).toBe("jj restore: empty revision string")
+    const diffError = await run(Effect.flip(Effect.flatMap(Jj, (jj) => jj.diff("@", ""))))
+    expect(diffError.code).toBe("invalid_ref")
+    expect(diffError.message).toBe("jj diff: empty revision string")
   })
 
   it("falls back to stdout for the message when stderr is empty", async () => {

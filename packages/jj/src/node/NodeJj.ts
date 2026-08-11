@@ -28,10 +28,25 @@ const classify = (method: string, output: Output): JjError => {
   const code: JjError["code"] = text.includes("conflict")
     ? "conflict"
     : text.includes("no such revision") || text.includes("revision not found") || text.includes("doesn't exist")
+        // A malformed revision ("Failed to parse revset: Syntax error") is an
+        // invalid ref, exactly as the wasm layer classifies it — the code is
+        // durable identity in journals, so the two layers must agree.
+        || text.includes("failed to parse revset")
     ? "invalid_ref"
     : "unknown"
   return new JjError({ code, message: `jj ${method}: ${output.stderr.trim() || output.stdout.trim()}` })
 }
+
+/**
+ * Mirrors the wasm layer's guard in `resolve_revision` (`crates/flows-jj`):
+ * an empty revision string is `invalid_ref` before anything is spawned —
+ * `jj`'s own answer would be a clap usage error that classifies `unknown`,
+ * and the two layers must agree on durable error identity.
+ */
+const requireRevision = (method: string, revision: string): Effect.Effect<string, JjError> =>
+  revision.length === 0
+    ? Effect.fail(new JjError({ code: "invalid_ref", message: `jj ${method}: empty revision string` }))
+    : Effect.succeed(revision)
 
 /** Runs `jj` with argv (never a shell string) in `cwd`. */
 const jj = (method: string, args: ReadonlyArray<string>, cwd?: string): Effect.Effect<string, JjError> =>
@@ -75,9 +90,16 @@ const snapshot = (message?: string) =>
     Effect.map((changeId) => ({ changeId: changeId.trim() }))
   )
 
-const restore = (changeId: string) => Effect.asVoid(jj("restore", ["restore", "--from", changeId]))
+const restore = (changeId: string) =>
+  Effect.asVoid(
+    Effect.flatMap(requireRevision("restore", changeId), (revision) => jj("restore", ["restore", "--from", revision]))
+  )
 
-const diff = (from: string, to: string) => jj("diff", ["diff", "--from", from, "--to", to, "--git"])
+const diff = (from: string, to: string) =>
+  Effect.flatMap(
+    Effect.all([requireRevision("diff", from), requireRevision("diff", to)]),
+    ([fromRevision, toRevision]) => jj("diff", ["diff", "--from", fromRevision, "--to", toRevision, "--git"])
+  )
 
 const workspaceAdd = (name: string, path: string) =>
   Effect.asVoid(jj("workspaceAdd", ["workspace", "add", "--name", name, path]))
