@@ -3,7 +3,7 @@
 A driver-neutral SQL contract with a bounded write-retry seam. The package owns no domain tables.
 
 ```ts
-import { Database } from "@smthrs/database"
+import { DurableWriter } from "@smthrs/database"
 import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
 
 const layer = NodeDatabase.layer({ filename: "runs.sqlite" })
@@ -19,14 +19,14 @@ The root is the contract, so it bundles for the browser. The SQLite drivers are 
 | `@smthrs/database/node/NodeDatabase` | [src/node/NodeDatabase.ts](https://github.com/smithersai/flows/blob/main/packages/database/src/node/NodeDatabase.ts) | Node |
 | `@smthrs/database/test/TestDatabase` | [src/test/TestDatabase.ts](https://github.com/smithersai/flows/blob/main/packages/database/src/test/TestDatabase.ts) | Node |
 
-## Database
+## DurableWriter
 
-[src/Database.ts](https://github.com/smithersai/flows/blob/main/packages/database/src/Database.ts)
+[src/DurableWriter.ts](https://github.com/smithersai/flows/blob/main/packages/database/src/DurableWriter.ts)
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `Database` | service tag | `flows/database/Database` |
-| `DatabaseService` | interface | `sql: SqlClient`, `write: (effect) => Effect` |
+| `DurableWriter` | service tag | `flows/database/DurableWriter` |
+| `Service` | interface | `sql: SqlClient`, `write: (effect) => Effect` |
 | `DatabaseError` | class | carries a `DatabaseErrorCode` |
 | `DatabaseErrorCode` | const + type | includes `busy`, `constraint`, `io` |
 | `fromSqlError` | function | maps an Effect `SqlError` onto the stable code vocabulary |
