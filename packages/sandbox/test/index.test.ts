@@ -8,7 +8,7 @@ import * as Sandbox from "../src/index.ts"
 
 describe("@smthrs/sandbox barrel", () => {
   it("re-exports every module as its own namespace", () => {
-    expect(Object.keys(Sandbox).sort()).toEqual(["RemoteSandbox", "SandboxHealth"])
+    expect(Object.keys(Sandbox).sort()).toEqual(["RemoteChildProcessSpawner", "SandboxHealth"])
   })
 
   /**
@@ -17,8 +17,10 @@ describe("@smthrs/sandbox barrel", () => {
    */
   it("pins the identity strings the durable record depends on", () => {
     expect(Sandbox.SandboxHealth.SandboxHealth.key).toBe("@smthrs/sandbox/SandboxHealth")
-    expect(Sandbox.RemoteSandbox.Provider.key).toBe("@smthrs/sandbox/RemoteSandbox/Provider")
-    expect(new Sandbox.RemoteSandbox.ProviderError({ code: "unknown", message: "x" })._tag)
-      .toBe("@smthrs/sandbox/RemoteSandbox/ProviderError")
+    expect(Sandbox.RemoteChildProcessSpawner.Provider.key).toBe(
+      "@smthrs/sandbox/RemoteChildProcessSpawner/Provider"
+    )
+    expect(new Sandbox.RemoteChildProcessSpawner.ProviderError({ code: "unknown", message: "x" })._tag)
+      .toBe("@smthrs/sandbox/RemoteChildProcessSpawner/ProviderError")
   })
 })

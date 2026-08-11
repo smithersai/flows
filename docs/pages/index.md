@@ -61,7 +61,7 @@ That engine keeps its state in the process. To survive a crash, drive the same f
 | `@smthrs/platform-node` | the Node Host bundle: Effect's Node filesystem and child-process spawner, the Undici transport, and the Node jj adapter |
 | `@smthrs/platform-bun` | the same bundle for Bun, over `@effect/platform-bun` |
 | `@smthrs/jj` | jujutsu snapshot, restore, diff, and workspace operations as a host service |
-| `@smthrs/sandbox` | remote-sandbox provider adaptation and the sandbox liveness probe |
+| `@smthrs/sandbox` | a remote `ChildProcessSpawner` implementation and the sandbox liveness probe |
 | `@smthrs/platform-browser` | browser `FileSystem` and `ChildProcessSpawner` over ZenFS and just-bash |
 | `@smthrs/journal` | logical WAL, migrations, projections, redaction, the `OwnerId` fence |
 | `@smthrs/run-store` | run and attempt stores, ownership arbitration, migrations |

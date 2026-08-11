@@ -1,9 +1,9 @@
 /**
- * Adapts a remote sandbox provider to Effect's `ChildProcessSpawner`.
+ * Adapts a remote provider to Effect's `ChildProcessSpawner`.
  *
  * Provider packages adapt their SDK sessions to `Provider`; this module owns
  * the conversion to Effect's `ChildProcessSpawner` contract and its
- * `PlatformError` surface, so a remote sandbox is the same service a local
+ * `PlatformError` surface, so a remote session is the same service a local
  * process spawner is. Opening a provider is scoped, so interruption closes the
  * layer scope and runs the provider's cancellation finalizer. No `AbortSignal`
  * crosses this seam.
@@ -28,7 +28,7 @@ import {
 import type { Provider, RemoteProcess } from "./Provider.ts"
 import type { ProviderError, ProviderErrorCode } from "./ProviderError.ts"
 
-const MODULE = "RemoteSandbox"
+const MODULE = "ChildProcess"
 
 /** Provider codes map onto the normalized reasons `PlatformError` already has. */
 const REASON: Record<ProviderErrorCode, PlatformError.SystemErrorTag> = {
@@ -55,14 +55,14 @@ const noStdin = (command: string): PlatformError.PlatformError =>
   PlatformError.badArgument({
     module: MODULE,
     method: "spawn",
-    description: `remote sandboxes do not pipe stdin to \`${command}\``
+    description: `remote sessions do not pipe stdin to \`${command}\``
   })
 
 const noKill = (command: string): PlatformError.PlatformError =>
   PlatformError.badArgument({
     module: MODULE,
     method: "kill",
-    description: `remote sandboxes end \`${command}\` by closing its scope, not by signal`
+    description: `remote sessions end \`${command}\` by closing its scope, not by signal`
   })
 
 const rejected = (description: string): PlatformError.PlatformError =>
@@ -77,24 +77,24 @@ const suppliesStdin = (options: ChildProcess.CommandOptions): boolean => {
 const validateCommand = (command: ChildProcess.Command): Effect.Effect<void, PlatformError.PlatformError> => {
   if (command._tag === "PipedCommand") {
     if (command.options.from !== undefined && command.options.from !== "stdout") {
-      return Effect.fail(rejected(`remote sandboxes cannot pipe from ${command.options.from}`))
+      return Effect.fail(rejected(`a remote session cannot pipe from ${command.options.from}`))
     }
     if (command.options.to !== undefined && command.options.to !== "stdin") {
-      return Effect.fail(rejected(`remote sandboxes cannot pipe to ${command.options.to}`))
+      return Effect.fail(rejected(`a remote session cannot pipe to ${command.options.to}`))
     }
     return Effect.andThen(validateCommand(command.left), validateCommand(command.right))
   }
   if (suppliesStdin(command.options)) {
-    return Effect.fail(rejected("remote sandboxes cannot supply stdin to a command"))
+    return Effect.fail(rejected("a remote session cannot supply stdin to a command"))
   }
   if (command.options.additionalFds !== undefined && Object.keys(command.options.additionalFds).length > 0) {
-    return Effect.fail(rejected("remote sandboxes cannot configure additional file descriptors"))
+    return Effect.fail(rejected("a remote session cannot configure additional file descriptors"))
   }
   if (typeof command.options.shell === "string") {
-    return Effect.fail(rejected(`remote sandboxes cannot select the requested shell ${command.options.shell}`))
+    return Effect.fail(rejected(`a remote session cannot select the requested shell ${command.options.shell}`))
   }
   if (command.options.detached === true) {
-    return Effect.fail(rejected("remote sandboxes cannot detach a command from its session"))
+    return Effect.fail(rejected("a remote session cannot detach a command from its session"))
   }
   return Effect.void
 }

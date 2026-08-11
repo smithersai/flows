@@ -1,5 +1,5 @@
 /**
- * Defines observations recorded by the remote sandbox test provider.
+ * Defines observations recorded by the remote test provider.
  *
  * @since 0.1.0
  */
@@ -10,7 +10,7 @@
  * @category models
  * @since 0.1.0
  */
-export interface TestSandboxState {
+export interface TestRemoteState {
   readonly openedSessions: Array<string>
   readonly commands: Array<string>
   cancellations: number

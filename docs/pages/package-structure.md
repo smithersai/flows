@@ -8,7 +8,7 @@ Twenty npm workspaces under `packages/`, one closed dependency set. This page is
 | --- | --- | --- | --- |
 | `@smthrs/flows` | `packages/flows` | yes | nothing; re-exports the engine packages below as namespaces — but not the `platform-*` bundles |
 | `@smthrs/jj` | `packages/jj` | yes | no tables; the `Jj` contract, `JjError`, and its adapters |
-| `@smthrs/sandbox` | `packages/sandbox` | yes | no tables; remote-sandbox execution and the health probe |
+| `@smthrs/sandbox` | `packages/sandbox` | yes | no tables; remote process execution and the health probe |
 | `@smthrs/platform-browser` | `packages/platform-browser` | yes | no tables; browser `FileSystem` and `ChildProcessSpawner` implementations, and the `BrowserHost` bundle |
 | `@smthrs/platform-node` | `packages/platform-node` | yes | no tables; the `NodeHost` bundle over Effect's own Node adapters |
 | `@smthrs/platform-bun` | `packages/platform-bun` | yes | no tables; the Bun filesystem and the `BunHost` bundle |

@@ -2,14 +2,14 @@ import { Effect, Fiber, PlatformError, Sink, Stream } from "effect"
 import { ChildProcess } from "effect/unstable/process"
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
 import { describe, expect, it } from "vitest"
-import * as RemoteSandbox from "../src/RemoteSandbox/index.ts"
+import * as RemoteChildProcessSpawner from "../src/RemoteChildProcessSpawner/index.ts"
 
 const reason = (error: unknown): string =>
   error instanceof PlatformError.PlatformError ? error.reason._tag : `not a PlatformError: ${String(error)}`
 
-describe("RemoteSandbox", () => {
+describe("RemoteChildProcessSpawner", () => {
   it("adapts a scripted command through the spawner's buffered helper", async () => {
-    const provider = RemoteSandbox.TestSandbox.make({
+    const provider = RemoteChildProcessSpawner.TestRemote.make({
       session: "exec-session",
       scripts: { greet: { stdout: "hello" } }
     })
@@ -22,7 +22,7 @@ describe("RemoteSandbox", () => {
           stdout: yield* spawner.string(command),
           exitCode: yield* spawner.exitCode(command)
         }
-      }).pipe(Effect.provide(RemoteSandbox.layer(provider)))
+      }).pipe(Effect.provide(RemoteChildProcessSpawner.layer(provider)))
     )
 
     expect(result).toEqual({ stdout: "hello", exitCode: 0 })
@@ -31,7 +31,7 @@ describe("RemoteSandbox", () => {
   })
 
   it("renders arguments and a pipeline into the command the provider receives", async () => {
-    const provider = RemoteSandbox.TestSandbox.make({
+    const provider = RemoteChildProcessSpawner.TestRemote.make({
       scripts: { "printf 'a b' | grep a": { stdout: "a b" } }
     })
 
@@ -42,7 +42,7 @@ describe("RemoteSandbox", () => {
           spawner.string(
             ChildProcess.make("printf", ["a b"]).pipe(ChildProcess.pipeTo(ChildProcess.make("grep", ["a"])))
           )
-      ).pipe(Effect.provide(RemoteSandbox.layer(provider)))
+      ).pipe(Effect.provide(RemoteChildProcessSpawner.layer(provider)))
     )
 
     expect(output).toBe("a b")
@@ -50,7 +50,7 @@ describe("RemoteSandbox", () => {
   })
 
   it("renders shell commands under the exact unquoted line the provider executes", async () => {
-    const provider = RemoteSandbox.TestSandbox.make({
+    const provider = RemoteChildProcessSpawner.TestRemote.make({
       scripts: { "echo safe; run privileged": { stdout: "done" } }
     })
 
@@ -59,7 +59,7 @@ describe("RemoteSandbox", () => {
         ChildProcessSpawner,
         (spawner) => spawner.string(ChildProcess.make("echo", ["safe;", "run", "privileged"], { shell: true }))
       ).pipe(
-        Effect.provide(RemoteSandbox.layer(provider))
+        Effect.provide(RemoteChildProcessSpawner.layer(provider))
       )
     )
 
@@ -68,7 +68,7 @@ describe("RemoteSandbox", () => {
   })
 
   it("interleaves stdout and stderr through the handle's `all` stream", async () => {
-    const provider = RemoteSandbox.TestSandbox.make({
+    const provider = RemoteChildProcessSpawner.TestRemote.make({
       scripts: { noisy: { stdout: "out", stderr: "err" } }
     })
 
@@ -76,14 +76,14 @@ describe("RemoteSandbox", () => {
       Effect.flatMap(
         ChildProcessSpawner,
         (spawner) => Stream.runCollect(spawner.streamString(ChildProcess.make("noisy"), { includeStderr: true }))
-      ).pipe(Effect.provide(RemoteSandbox.layer(provider)))
+      ).pipe(Effect.provide(RemoteChildProcessSpawner.layer(provider)))
     )
 
     expect(Array.from(output).sort()).toEqual(["err", "out"])
   })
 
   it("runs the provider cancellation finalizer on interruption", async () => {
-    const provider = RemoteSandbox.TestSandbox.make({ scripts: { pending: { pending: true } } })
+    const provider = RemoteChildProcessSpawner.TestRemote.make({ scripts: { pending: { pending: true } } })
 
     await Effect.runPromise(
       Effect.gen(function*() {
@@ -91,7 +91,7 @@ describe("RemoteSandbox", () => {
           ChildProcessSpawner,
           (spawner) => spawner.exitCode(ChildProcess.make("pending"))
         ).pipe(
-          Effect.provide(RemoteSandbox.layer(provider)),
+          Effect.provide(RemoteChildProcessSpawner.layer(provider)),
           Effect.forkChild({ startImmediately: true })
         )
         yield* Effect.yieldNow
@@ -104,13 +104,16 @@ describe("RemoteSandbox", () => {
   })
 
   it("maps typed provider failures onto normalized PlatformError reasons", async () => {
-    const provider = RemoteSandbox.TestSandbox.make({
+    const provider = RemoteChildProcessSpawner.TestRemote.make({
       scripts: {
         fail: {
-          failure: new RemoteSandbox.ProviderError({ code: "spawn_error", message: "provider rejected command" })
+          failure: new RemoteChildProcessSpawner.ProviderError({
+            code: "spawn_error",
+            message: "provider rejected command"
+          })
         },
         slow: {
-          failure: new RemoteSandbox.ProviderError({ code: "timeout", message: "provider gave up" })
+          failure: new RemoteChildProcessSpawner.ProviderError({ code: "timeout", message: "provider gave up" })
         }
       }
     })
@@ -122,7 +125,7 @@ describe("RemoteSandbox", () => {
           yield* Effect.flip(spawner.string(ChildProcess.make("fail"))),
           yield* Effect.flip(spawner.string(ChildProcess.make("slow")))
         ]
-      }).pipe(Effect.provide(RemoteSandbox.layer(provider)))
+      }).pipe(Effect.provide(RemoteChildProcessSpawner.layer(provider)))
     )
 
     expect(errors.map(reason)).toEqual(["Unknown", "TimedOut"])
@@ -130,8 +133,8 @@ describe("RemoteSandbox", () => {
   })
 
   it("provides a spawner that fails every command when opening the session fails", async () => {
-    const provider = RemoteSandbox.TestSandbox.make({
-      openFailure: new RemoteSandbox.ProviderError({
+    const provider = RemoteChildProcessSpawner.TestRemote.make({
+      openFailure: new RemoteChildProcessSpawner.ProviderError({
         code: "unavailable",
         message: "provider session is unavailable"
       })
@@ -145,7 +148,7 @@ describe("RemoteSandbox", () => {
           // A stream must fail too, not hang on a queue nothing will ever end.
           yield* Effect.flip(Stream.runDrain(spawner.streamString(ChildProcess.make("never-opened"))))
         ]
-      }).pipe(Effect.provide(RemoteSandbox.layer(provider)))
+      }).pipe(Effect.provide(RemoteChildProcessSpawner.layer(provider)))
     )
 
     expect(errors.map(reason)).toEqual(["NotFound", "NotFound"])
@@ -153,7 +156,7 @@ describe("RemoteSandbox", () => {
   })
 
   it("answers an unconfigured extra file descriptor the way a local spawner does", async () => {
-    const provider = RemoteSandbox.TestSandbox.make({ scripts: { quiet: { stdout: "out" } } })
+    const provider = RemoteChildProcessSpawner.TestRemote.make({ scripts: { quiet: { stdout: "out" } } })
 
     const observed = await Effect.runPromise(
       Effect.gen(function*() {
@@ -165,7 +168,7 @@ describe("RemoteSandbox", () => {
           written: yield* Stream.run(Stream.fromArray([new Uint8Array([1])]), handle.getInputFd(3)),
           read: yield* Stream.runCollect(handle.getOutputFd(3))
         }
-      }).pipe(Effect.scoped, Effect.provide(RemoteSandbox.layer(provider)))
+      }).pipe(Effect.scoped, Effect.provide(RemoteChildProcessSpawner.layer(provider)))
     )
 
     expect(observed.written).toBeUndefined()
@@ -173,7 +176,7 @@ describe("RemoteSandbox", () => {
   })
 
   it("rejects stdin and kill instead of dropping them silently", async () => {
-    const provider = RemoteSandbox.TestSandbox.make({ scripts: { quiet: {} } })
+    const provider = RemoteChildProcessSpawner.TestRemote.make({ scripts: { quiet: {} } })
 
     const errors = await Effect.runPromise(
       Effect.gen(function*() {
@@ -183,14 +186,14 @@ describe("RemoteSandbox", () => {
           yield* Effect.flip(Stream.run(Stream.fromArray([new Uint8Array([1])]), handle.stdin)),
           yield* Effect.flip(handle.kill())
         ]
-      }).pipe(Effect.scoped, Effect.provide(RemoteSandbox.layer(provider)))
+      }).pipe(Effect.scoped, Effect.provide(RemoteChildProcessSpawner.layer(provider)))
     )
 
     expect(errors.map(reason)).toEqual(["BadArgument", "BadArgument"])
   })
 
   it("rejects command-supplied stdin before the provider starts", async () => {
-    const provider = RemoteSandbox.TestSandbox.make({ scripts: { quiet: {} } })
+    const provider = RemoteChildProcessSpawner.TestRemote.make({ scripts: { quiet: {} } })
 
     const error = await Effect.runPromise(
       Effect.flip(
@@ -198,7 +201,7 @@ describe("RemoteSandbox", () => {
           spawner.exitCode(ChildProcess.make("quiet", [], {
             stdin: Stream.fromArray([new Uint8Array([1])])
           })))
-      ).pipe(Effect.provide(RemoteSandbox.layer(provider)))
+      ).pipe(Effect.provide(RemoteChildProcessSpawner.layer(provider)))
     )
 
     expect(reason(error)).toBe("BadArgument")
@@ -207,7 +210,7 @@ describe("RemoteSandbox", () => {
   })
 
   it("rejects command-supplied stdin inside a config", async () => {
-    const provider = RemoteSandbox.TestSandbox.make({ scripts: { quiet: {} } })
+    const provider = RemoteChildProcessSpawner.TestRemote.make({ scripts: { quiet: {} } })
 
     const error = await Effect.runPromise(
       Effect.flip(
@@ -215,7 +218,7 @@ describe("RemoteSandbox", () => {
           spawner.exitCode(ChildProcess.make("quiet", [], {
             stdin: { stream: Stream.fromArray([new Uint8Array([1])]) }
           })))
-      ).pipe(Effect.provide(RemoteSandbox.layer(provider)))
+      ).pipe(Effect.provide(RemoteChildProcessSpawner.layer(provider)))
     )
 
     expect(reason(error)).toBe("BadArgument")
@@ -241,11 +244,11 @@ describe("RemoteSandbox", () => {
     ["a custom shell", ChildProcess.make("quiet", [], { shell: "/bin/zsh" }), "requested shell"],
     ["a detached process", ChildProcess.make("quiet", [], { detached: true }), "detach"]
   ])("rejects %s instead of changing its meaning", async (_name, command, message) => {
-    const provider = RemoteSandbox.TestSandbox.make({})
+    const provider = RemoteChildProcessSpawner.TestRemote.make({})
 
     const error = await Effect.runPromise(
       Effect.flip(Effect.flatMap(ChildProcessSpawner, (spawner) => spawner.exitCode(command))).pipe(
-        Effect.provide(RemoteSandbox.layer(provider))
+        Effect.provide(RemoteChildProcessSpawner.layer(provider))
       )
     )
 
@@ -255,7 +258,7 @@ describe("RemoteSandbox", () => {
   })
 
   it("honors output dispositions and sinks", async () => {
-    const provider = RemoteSandbox.TestSandbox.make({
+    const provider = RemoteChildProcessSpawner.TestRemote.make({
       scripts: { noisy: { stdout: "out", stderr: "err" } }
     })
     const upper = Sink.map(
@@ -277,7 +280,7 @@ describe("RemoteSandbox", () => {
           stdout: yield* Stream.mkString(Stream.decodeText(handle.stdout)),
           stderr: yield* Stream.mkString(Stream.decodeText(handle.stderr))
         }
-      }).pipe(Effect.scoped, Effect.provide(RemoteSandbox.layer(provider)))
+      }).pipe(Effect.scoped, Effect.provide(RemoteChildProcessSpawner.layer(provider)))
     )
 
     expect(observed).toEqual({ stdout: "OUT", stderr: "" })
@@ -290,11 +293,11 @@ describe("RemoteSandbox", () => {
     ["ignore" as const, ""],
     ["inherit" as const, ""]
   ])("honors the %s stdout disposition", async (stdout, expected) => {
-    const provider = RemoteSandbox.TestSandbox.make({ scripts: { noisy: { stdout: "out" } } })
+    const provider = RemoteChildProcessSpawner.TestRemote.make({ scripts: { noisy: { stdout: "out" } } })
 
     const observed = await Effect.runPromise(
       Effect.flatMap(ChildProcessSpawner, (spawner) => spawner.string(ChildProcess.make("noisy", [], { stdout }))).pipe(
-        Effect.provide(RemoteSandbox.layer(provider))
+        Effect.provide(RemoteChildProcessSpawner.layer(provider))
       )
     )
 
@@ -302,7 +305,7 @@ describe("RemoteSandbox", () => {
   })
 
   it("accepts explicit default pipeline routing and empty option objects", async () => {
-    const provider = RemoteSandbox.TestSandbox.make({
+    const provider = RemoteChildProcessSpawner.TestRemote.make({
       scripts: { "left | right": { stdout: "ok" } }
     })
     const command = ChildProcess.pipeTo(
@@ -313,7 +316,7 @@ describe("RemoteSandbox", () => {
 
     const output = await Effect.runPromise(
       Effect.flatMap(ChildProcessSpawner, (spawner) => spawner.string(command)).pipe(
-        Effect.provide(RemoteSandbox.layer(provider))
+        Effect.provide(RemoteChildProcessSpawner.layer(provider))
       )
     )
 
@@ -321,9 +324,9 @@ describe("RemoteSandbox", () => {
   })
 })
 
-describe("RemoteSandbox test double scripting", () => {
+describe("RemoteChildProcessSpawner test double scripting", () => {
   it("answers an unscripted command the way a shell reports a missing binary", async () => {
-    const provider = RemoteSandbox.TestSandbox.make({ scripts: { other: {} } })
+    const provider = RemoteChildProcessSpawner.TestRemote.make({ scripts: { other: {} } })
 
     const result = await Effect.runPromise(
       Effect.gen(function*() {
@@ -333,14 +336,14 @@ describe("RemoteSandbox test double scripting", () => {
           stderr: yield* Stream.mkString(spawner.streamString(command, { includeStderr: true })),
           exitCode: yield* spawner.exitCode(command)
         }
-      }).pipe(Effect.provide(RemoteSandbox.layer(provider)))
+      }).pipe(Effect.provide(RemoteChildProcessSpawner.layer(provider)))
     )
 
     expect(result).toEqual({ stderr: "command not found: nope\n", exitCode: 127 })
   })
 
   it("answers a scripted command with no declared output as an empty success", async () => {
-    const provider = RemoteSandbox.TestSandbox.make({ scripts: { quiet: {} } })
+    const provider = RemoteChildProcessSpawner.TestRemote.make({ scripts: { quiet: {} } })
 
     const result = await Effect.runPromise(
       Effect.gen(function*() {
@@ -350,14 +353,14 @@ describe("RemoteSandbox test double scripting", () => {
           stdout: yield* spawner.string(command),
           exitCode: yield* spawner.exitCode(command)
         }
-      }).pipe(Effect.provide(RemoteSandbox.layer(provider)))
+      }).pipe(Effect.provide(RemoteChildProcessSpawner.layer(provider)))
     )
 
     expect(result).toEqual({ stdout: "", exitCode: 0 })
   })
 
   it("reports the process as running until its exit code arrives", async () => {
-    const provider = RemoteSandbox.TestSandbox.make({ scripts: { quiet: { exitCode: 3 } } })
+    const provider = RemoteChildProcessSpawner.TestRemote.make({ scripts: { quiet: { exitCode: 3 } } })
 
     const observed = await Effect.runPromise(
       Effect.gen(function*() {
@@ -366,7 +369,7 @@ describe("RemoteSandbox test double scripting", () => {
         const before = yield* handle.isRunning
         const exitCode = yield* handle.exitCode
         return { before, exitCode, after: yield* handle.isRunning }
-      }).pipe(Effect.scoped, Effect.provide(RemoteSandbox.layer(provider)))
+      }).pipe(Effect.scoped, Effect.provide(RemoteChildProcessSpawner.layer(provider)))
     )
 
     expect(observed).toEqual({ before: true, exitCode: 3, after: false })

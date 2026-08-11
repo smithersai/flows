@@ -1,6 +1,6 @@
 import { Effect } from "effect"
 import { describe, expect, it } from "vitest"
-import { ProviderError } from "../src/RemoteSandbox/index.ts"
+import { ProviderError } from "../src/RemoteChildProcessSpawner/index.ts"
 import * as SandboxHealth from "../src/SandboxHealth/index.ts"
 
 const healthyProvider: SandboxHealth.PingProvider = {

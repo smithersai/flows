@@ -1,7 +1,7 @@
 /**
  * @since 0.1.0
  *
- * `@smthrs/sandbox` — remote sandbox execution and liveness.
+ * `@smthrs/sandbox` — remote process execution and sandbox liveness.
  *
  * Modules are re-exported as namespaces, the way `effect`'s own index does it,
  * so each keeps its `make` / `makeNoop` / `layerNoop` trio without colliding
@@ -13,12 +13,12 @@
  * root pins that property.
  *
  * ```ts
- * import { RemoteSandbox, SandboxHealth } from "@smthrs/sandbox"
+ * import { RemoteChildProcessSpawner, SandboxHealth } from "@smthrs/sandbox"
  * ```
  */
 
-/** Provider-neutral remote process execution. */
-export * as RemoteSandbox from "./RemoteSandbox/index.ts"
+/** Remote implementation of Effect's `ChildProcessSpawner`. */
+export * as RemoteChildProcessSpawner from "./RemoteChildProcessSpawner/index.ts"
 
 /** Sandbox health-check contracts. */
 export * as SandboxHealth from "./SandboxHealth/index.ts"

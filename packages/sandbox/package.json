@@ -3,7 +3,7 @@
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
-  "description": "Provider-neutral remote sandbox execution and health probing for flows",
+  "description": "Provider-neutral remote process execution and sandbox health probing for flows",
   "homepage": "https://github.com/smithersai/flows",
   "repository": {
     "type": "git",
@@ -32,8 +32,8 @@
   "exports": {
     "./package.json": "./package.json",
     ".": "./src/index.ts",
-    "./RemoteSandbox": "./src/RemoteSandbox/index.ts",
-    "./RemoteSandbox/*": null,
+    "./RemoteChildProcessSpawner": "./src/RemoteChildProcessSpawner/index.ts",
+    "./RemoteChildProcessSpawner/*": null,
     "./SandboxHealth": "./src/SandboxHealth/index.ts",
     "./SandboxHealth/*": null,
     "./*": "./src/*.ts",
@@ -61,12 +61,12 @@
         "import": "./dist/esm/index.js",
         "require": "./dist/cjs/index.js"
       },
-      "./RemoteSandbox": {
-        "types": "./dist/esm/RemoteSandbox/index.d.ts",
-        "import": "./dist/esm/RemoteSandbox/index.js",
-        "require": "./dist/cjs/RemoteSandbox/index.js"
+      "./RemoteChildProcessSpawner": {
+        "types": "./dist/esm/RemoteChildProcessSpawner/index.d.ts",
+        "import": "./dist/esm/RemoteChildProcessSpawner/index.js",
+        "require": "./dist/cjs/RemoteChildProcessSpawner/index.js"
       },
-      "./RemoteSandbox/*": null,
+      "./RemoteChildProcessSpawner/*": null,
       "./SandboxHealth": {
         "types": "./dist/esm/SandboxHealth/index.d.ts",
         "import": "./dist/esm/SandboxHealth/index.js",

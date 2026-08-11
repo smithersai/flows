@@ -1,5 +1,5 @@
 /**
- * Defines failures reported by remote sandbox providers.
+ * Defines failures reported by remote providers.
  *
  * @since 0.1.0
  */
@@ -8,7 +8,7 @@ import * as Schema from "effect/Schema"
 /**
  * The closed set of failure kinds a provider may report.
  *
- * The codes are the sandbox's own. They used to borrow the `Shell` service's
+ * The codes are this seam's own. They used to borrow the `Shell` service's
  * closed code set; that service is gone — process execution is Effect's
  * `ChildProcessSpawner` — so the seam declares what a *remote session* can go
  * wrong with and `layer` normalizes those onto `PlatformError`. Provider
@@ -39,7 +39,7 @@ export type ProviderErrorCode = typeof ProviderErrorCode.Type
  * @since 0.1.0
  */
 export class ProviderError extends Schema.TaggedErrorClass<ProviderError>()(
-  "@smthrs/sandbox/RemoteSandbox/ProviderError",
+  "@smthrs/sandbox/RemoteChildProcessSpawner/ProviderError",
   {
     code: ProviderErrorCode,
     message: Schema.String,

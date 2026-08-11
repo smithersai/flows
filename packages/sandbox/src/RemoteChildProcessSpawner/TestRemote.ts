@@ -1,5 +1,5 @@
 /**
- * Constructs deterministic remote sandbox providers for tests.
+ * Constructs deterministic remote providers for tests.
  *
  * @since 0.1.0
  */
@@ -7,8 +7,8 @@ import * as Effect from "effect/Effect"
 import * as Stream from "effect/Stream"
 import { Provider } from "./Provider.ts"
 import type { ProviderError } from "./ProviderError.ts"
-import type { TestSandboxProvider } from "./TestSandboxProvider.ts"
-import type { TestSandboxState } from "./TestSandboxState.ts"
+import type { TestRemoteProvider } from "./TestRemoteProvider.ts"
+import type { TestRemoteState } from "./TestRemoteState.ts"
 import type { TestScript } from "./TestScript.ts"
 
 const encoder = new TextEncoder()
@@ -22,12 +22,12 @@ const scriptedOutput = (text: string | undefined): Stream.Stream<Uint8Array, Pro
  * @private
  * @since 0.1.0
  */
-const makeTestSandbox = (options: {
+const makeTestRemote = (options: {
   readonly session?: string | undefined
   readonly scripts?: Readonly<Record<string, TestScript>> | undefined
   readonly openFailure?: ProviderError | undefined
-} = {}): TestSandboxProvider => {
-  const state: TestSandboxState = {
+} = {}): TestRemoteProvider => {
+  const state: TestRemoteState = {
     openedSessions: [],
     commands: [],
     cancellations: 0
@@ -36,7 +36,7 @@ const makeTestSandbox = (options: {
   const script = (command: string): TestScript =>
     options.scripts?.[command] ?? { stderr: `command not found: ${command}\n`, exitCode: 127 }
 
-  const provider: TestSandboxProvider = {
+  const provider: TestRemoteProvider = {
     state,
     session: options.session ?? "test-session",
     open: (session) =>
@@ -64,7 +64,7 @@ const makeTestSandbox = (options: {
         }
     })
   }
-  return Provider.of(provider) as TestSandboxProvider
+  return Provider.of(provider) as TestRemoteProvider
 }
 
 /**
@@ -74,6 +74,6 @@ const makeTestSandbox = (options: {
  * @category testing
  * @since 0.1.0
  */
-export const TestSandbox = {
-  make: makeTestSandbox
+export const TestRemote = {
+  make: makeTestRemote
 } as const

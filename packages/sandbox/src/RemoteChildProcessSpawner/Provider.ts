@@ -1,5 +1,5 @@
 /**
- * Defines the provider-neutral remote sandbox contract.
+ * Defines the provider-neutral remote execution contract.
  *
  * @since 0.1.0
  */
@@ -34,7 +34,7 @@ export interface RemoteOptions {
 }
 
 /**
- * A configured remote-sandbox provider.
+ * A configured remote provider.
  *
  * `session` is the stable provider-neutral session key. `open(session)` must
  * acquire the remote session and register its cancellation or close operation
@@ -54,7 +54,7 @@ export interface Provider {
 }
 
 /**
- * Remote-sandbox provider service tag.
+ * Remote provider service tag.
  *
  * Provider packages may expose this tag in addition to passing the configured
  * service directly to `layer`.
@@ -63,5 +63,5 @@ export interface Provider {
  * @since 0.1.0
  */
 export const Provider: Context.Service<Provider, Provider> = Context.Service(
-  "@smthrs/sandbox/RemoteSandbox/Provider"
+  "@smthrs/sandbox/RemoteChildProcessSpawner/Provider"
 )

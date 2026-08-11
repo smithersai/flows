@@ -62,7 +62,7 @@ The in-memory engine above keeps state in the process. For a run that survives a
 | `@smthrs/platform-node` | The Node Host bundle: Effect's Node platform services, the Undici transport, and the Node jj adapter |
 | `@smthrs/platform-bun` | The same bundle for Bun, over `@effect/platform-bun` |
 | `@smthrs/jj` | Jujutsu snapshot, restore, diff, and workspace operations as a host service |
-| `@smthrs/sandbox` | Remote-sandbox provider adaptation and the sandbox liveness probe |
+| `@smthrs/sandbox` | Remote `ChildProcessSpawner` implementation and the sandbox liveness probe |
 | `@smthrs/platform-browser` | Browser `FileSystem` and `ChildProcessSpawner` over ZenFS and just-bash, plus the `BrowserHost` bundle |
 | `@smthrs/journal` | Logical WAL, migrations, projections, redaction, the `OwnerId` fence |
 | `@smthrs/run-store` | Run and attempt stores, ownership arbitration, migrations |

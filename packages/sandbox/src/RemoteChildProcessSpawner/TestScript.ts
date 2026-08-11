@@ -1,12 +1,12 @@
 /**
- * Defines one scripted response for the remote sandbox test provider.
+ * Defines one scripted response for the remote test provider.
  *
  * @since 0.1.0
  */
 import type { ProviderError } from "./ProviderError.ts"
 
 /**
- * One scripted response used by `TestSandbox.make`.
+ * One scripted response used by `TestRemote.make`.
  *
  * `pending` creates an operation that runs until its fiber is interrupted.
  *
