@@ -83,11 +83,26 @@ a later rewind has something to assess. It stays public for that reason.
 | `guard`, `fromEntry`, `fromEntries`, `eventType` | functions + constant | records intent and outcome around an external effect |
 | `EffectRecord`, `Description`, `EffectTier`, `EffectStatus` | shapes | `intended`, `succeeded`, `unknown` |
 
-Handler registration, compensation planning, and tier-aware retry are internal:
-`rewind` resolves them itself. The registry it resolves against is empty today,
-so a crossed record that is not sealed classifies as `blocking` and the rewind
-fails with `irreversible`; supplying application handlers through the service is
-not wired yet.
+The engine is the producer: `@smthrs/engine-store` writes an `intended` record
+before an irreversible activity's body runs and a terminal record after it
+settles, so an ordinary run leaves a rewind something to assess without the
+application calling `guard` by hand.
+
+## CompensationHandlers
+
+[src/CompensationHandlers.ts](https://github.com/smithersai/flows/blob/main/packages/time-travel/src/CompensationHandlers.ts)
+
+Compensation planning and tier-aware retry stay internal: `rewind` resolves them
+itself. What a composition contributes is the handler, not the registry.
+
+| Export | Kind | Notes |
+| --- | --- | --- |
+| `CompensationHandlers` | service | optional; the handlers a composition contributes |
+| `layer(handlers)`, `layerNoop` | layers | `TimeTravel.layer` reads the service when present |
+| `Handler` | shape | `kind` (the activity name the engine journaled), `tier`, `residue`, `revert`, optional `assess`/`rollback` |
+
+With no handlers provided, a crossed record that is not sealed classifies as
+`blocking` and the rewind fails with `irreversible` — the safe default.
 
 ## TimeTravelError
 

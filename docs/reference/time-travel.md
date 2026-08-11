@@ -44,14 +44,23 @@ Cancelling a detached child under `detachedChildren: "cancel"` is terminal and h
 
 `EffectBoundary.guard` records an external effect’s intended and terminal status using the journal. `fromEntry` and `fromEntries` decode those records. `eventType` is the stable journal event name.
 
-Handler registration and compensation planning are internal: `rewind` resolves
-handlers, classifies each record as `revertible`, `warning`, or `blocking`, and
-records the rollback receipts on its audit itself.
+The engine writes these records itself: an irreversible activity dispatch is
+wrapped in an `intended` record before the body runs and a `succeeded` or
+`unknown` record after it settles, and a child spawn is journaled as one too.
 
-The registry `TimeTravel.layer` wires is empty today. Sealed effects are still
-classified from the cache, but any other crossed record resolves to no handler
-and is therefore `blocking`, so a rewind across one fails with `irreversible`.
-Supplying application handlers through the service is not wired yet.
+Compensation planning stays internal — `rewind` resolves handlers, classifies
+each record as `revertible`, `warning`, or `blocking`, and records the rollback
+receipts on its audit itself. What is public is the *door*:
+`CompensationHandlers.layer([...])` contributes handlers from the composition
+that owns the adapter. It is optional; with none provided, a crossed record that
+is not sealed resolves to no handler, classifies as `blocking`, and the rewind
+fails with `irreversible`.
+
+| Export | Kind | Notes |
+| --- | --- | --- |
+| `CompensationHandlers` | service | the handlers a composition contributes |
+| `layer(handlers)`, `layerNoop` | layers | provide them; `layerNoop` is the default |
+| `Handler` | shape | `kind`, `tier`, `residue`, `revert`, optional `assess`/`rollback` |
 
 ## Errors
 
