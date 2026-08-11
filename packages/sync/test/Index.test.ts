@@ -10,6 +10,7 @@ describe("@smthrs/sync barrel", () => {
   it("re-exports every module as its own namespace", () => {
     expect(Object.keys(Sync).sort()).toEqual([
       "BranchCommands",
+      "BranchIds",
       "BranchPresence",
       "BranchProjection",
       "BranchProtocol",
@@ -39,6 +40,7 @@ describe("@smthrs/sync barrel", () => {
     expect(Sync.BranchCommands).toBe(await import("../src/BranchCommands.ts"))
     expect(Sync.BranchRpcs).toBe(await import("../src/BranchRpcs.ts"))
     expect(Sync.BranchServer).toBe(await import("../src/BranchServer.ts"))
+    expect(Sync.BranchIds).toBe(await import("../src/BranchIds.ts"))
   })
 
   it("maps a branch onto exactly one journal run, reversibly", () => {
