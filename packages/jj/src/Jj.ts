@@ -21,10 +21,27 @@ import type * as Permission from "@smthrs/capability/Permission"
 import { Context, Effect, Layer, Schema } from "effect"
 import type { PlatformError } from "effect/PlatformError"
 
-/** @category models */
+/**
+ * Why a jj operation failed, as a closed and stable set.
+ *
+ * `not_installed` — no usable jj on this host. `conflict` — the repository
+ * refused because the operation would conflict. `invalid_ref` — the change id
+ * or revision does not resolve. `unknown` — everything else jj reported.
+ *
+ * These codes are public contract: callers branch on them, step keys digest
+ * them, and UIs map them to remediation. Add a code; never repurpose one.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const JjErrorCode = Schema.Literals(["not_installed", "conflict", "invalid_ref", "unknown"])
 
-/** @category models */
+/**
+ * The value form of {@link JjErrorCode}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type JjErrorCode = typeof JjErrorCode.Type
 
 /**
@@ -34,7 +51,8 @@ export type JjErrorCode = typeof JjErrorCode.Type
  * Codes are a STABLE public contract: callers branch on them, step keys digest
  * them, UIs map them to remediation. Never repurpose a code — add one.
  *
- * @category models
+ * @category errors
+ * @since 0.1.0
  */
 export class JjError extends Schema.TaggedErrorClass<JjError>()("@smthrs/jj/JjError", {
   code: JjErrorCode,
@@ -46,8 +64,12 @@ export class JjError extends Schema.TaggedErrorClass<JjError>()("@smthrs/jj/JjEr
 }) {}
 
 /**
- * Creates a `JjError` from a failed jj operation.
+ * Creates a `JjError` from a failed jj operation, composing the human
+ * `message` from the code, the failing `module.method`, and the optional
+ * description so every jj failure reads the same way.
+ *
  * @category constructors
+ * @since 0.1.0
  */
 export const jjError = (options: {
   readonly code: JjErrorCode
@@ -69,14 +91,22 @@ export const jjError = (options: {
 /**
  * Refines a failure to jj's own error, so a caller can tell "jj said no" from
  * "the capability kernel said no" without matching on `_tag` by hand.
+ *
  * @category refinements
+ * @since 0.1.0
  */
 export const isJjError = (error: unknown): error is JjError =>
   typeof error === "object" && error !== null && "_tag" in error && error._tag === "@smthrs/jj/JjError"
 
 /**
  * A jj change id — the durable handle a run uses to name workspace state.
+ *
+ * It is a bare string alias rather than a branded type because it crosses the
+ * journal and the process boundary as one, and the value jj prints is the
+ * value we store.
+ *
  * @category models
+ * @since 0.1.0
  */
 export type ChangeId = string
 
@@ -94,10 +124,22 @@ export type ChangeId = string
  * kernel → jj dependency acyclic.
  *
  * @category models
+ * @since 0.1.0
  */
 export type JjFailure = JjError | Permission.PermissionError
 
-/** @category services */
+/**
+ * Version control as a host capability: snapshot the working copy, restore it,
+ * diff two revisions, and manage the workspaces parallel agents run in.
+ *
+ * It is deliberately small — only the operations `flows` needs to make a step
+ * reversible — and every method's error channel is {@link JjFailure}, so a
+ * caller cannot forget that a snapshot may be denied by the permission kernel
+ * rather than by jj.
+ *
+ * @category services
+ * @since 0.1.0
+ */
 export interface Jj {
   /** Commits the working copy and returns the change id to restore to later. */
   readonly snapshot: (message?: string) => Effect.Effect<{ readonly changeId: ChangeId }, JjFailure>
@@ -114,24 +156,41 @@ export interface Jj {
    * filesystem operation that can itself fail.
    */
   readonly workspaceAdd: (name: string, path: string) => Effect.Effect<void, JjFailure | PlatformError>
+  /** Drops a named workspace, without touching the commits made in it. */
   readonly workspaceForget: (name: string) => Effect.Effect<void, JjFailure>
+  /** The working copy's status, as jj prints it. */
   readonly status: () => Effect.Effect<string, JjFailure>
 }
 
 /**
+ * The service key for {@link Jj}. The tag string is durable identity — step
+ * keys digest the resolved service set — so renaming it invalidates recorded
+ * runs.
+ *
  * @category services
  * @since 0.1.0
  */
 export const Jj: Context.Service<Jj, Jj> = Context.Service("@smthrs/jj/Jj")
 
-/** @category constructors */
+/**
+ * Brands an implementation as the {@link Jj} service, so a new backend is
+ * checked where it is written rather than where it is provided.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const make = (impl: Jj): Jj => Jj.of(impl)
 
 /**
  * Creates a stub `Jj` for tests. Every method fails with `JjError`
  * `not_installed` until overridden.
  *
+ * The failing default is the point: a test that stubs only `snapshot` gets a
+ * named failure the moment the code under test reaches `restore`, instead of a
+ * silent success.
+ *
  * @category constructors
+ * @since 0.1.0
  */
 export const makeNoop = (overrides: Partial<Jj>): Jj => {
   const missing = (method: string) =>
@@ -149,5 +208,10 @@ export const makeNoop = (overrides: Partial<Jj>): Jj => {
   })
 }
 
-/** @category layers */
+/**
+ * Provides {@link makeNoop} as the `Jj` layer.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
 export const layerNoop = (overrides: Partial<Jj>): Layer.Layer<Jj> => Layer.succeed(Jj)(makeNoop(overrides))

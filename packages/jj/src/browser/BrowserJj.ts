@@ -48,6 +48,13 @@ interface AbiExports {
 const REQUIRED_EXPORTS = ["memory", "_initialize", "flows_jj_alloc", "flows_jj_free", "flows_jj_call"] as const
 
 /**
+ * What the browser `Jj` layer needs to run jj in a page: the wasm reactor, and
+ * the synchronous filesystem the repository lives on.
+ *
+ * The layer never fetches the module itself — a page decides when and how to
+ * load bytes, and passing an already-compiled `WebAssembly.Module` lets it
+ * share one across layers.
+ *
  * @category models
  * @since 0.1.0
  */

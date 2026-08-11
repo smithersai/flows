@@ -190,6 +190,12 @@ type FdEntry = FileFd | DirFd | StdioFd
 const zeroStats = { size: 0, atimeMs: 0, mtimeMs: 0, ctimeMs: 0 }
 
 /**
+ * What the shim serves the module: a synchronous filesystem, the slice of it
+ * preopened as the WASI root, and where the module's stdout and stderr go.
+ *
+ * The filesystem must be *synchronous* because WASI preview 1 syscalls return
+ * a value rather than a promise — there is nowhere to await inside an import.
+ *
  * @category models
  * @since 0.1.0
  */
@@ -209,6 +215,13 @@ export interface WasiPreview1Options {
 }
 
 /**
+ * A WASI preview 1 host: the `imports` object to instantiate a module with,
+ * and the {@link WasiPreview1.initialize} call that binds its memory.
+ *
+ * The two are separate because the shim cannot read the module's memory until
+ * the module exists, and the module cannot be instantiated without the
+ * imports — so the binding necessarily happens after instantiation.
+ *
  * @category models
  * @since 0.1.0
  */
