@@ -85,6 +85,22 @@ describe("publications", () => {
     expect(remote.rows.get(entry.keyDigest)).toEqual(entry)
   })
 
+  it("leaves the shared write to the caller in deferred mode", async () => {
+    // The engine commits the local row inside a `DurableWriter` transaction and
+    // a host call must never be held across one, so its composition defers the
+    // shared write to its own `CacheSync` seam. Lookups stay read-through.
+    const local = tier()
+    const remote = tier()
+    const combined = CombinedCacheStore.make({
+      local: local.store,
+      remote: remote.store,
+      publication: "deferred"
+    })
+    expect(await Effect.runPromise(combined.put(entry))).toEqual({ _tag: "Inserted" })
+    expect(local.rows.get(entry.keyDigest)).toEqual(entry)
+    expect(remote.calls).toEqual([])
+  })
+
   it("does not publish a result the local tier says conflicts", async () => {
     // A local `Conflict` is what drives the strict `Inconsistency` verdict;
     // pushing the losing result to the shared tier would spread it.

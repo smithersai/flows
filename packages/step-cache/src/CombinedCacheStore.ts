@@ -15,6 +15,10 @@
  * present". `@smthrs/engine-store`'s `ArtifactSync` enforces it around
  * `put`. This module cannot: it does not know what an entry references.
  *
+ * *When* the shared copy is written is configurable for the same reason — see
+ * {@link Options.publication}. A caller holding a write transaction takes
+ * `"deferred"` and publishes afterwards.
+ *
  * @since 0.1.0
  */
 import * as Effect from "effect/Effect"
@@ -33,6 +37,23 @@ export interface Options {
   readonly local: CacheStore.Service
   /** The shared tier. Consulted only on a local miss; written through on put. */
   readonly remote: CacheStore.Service
+  /**
+   * When the shared tier's copy of an entry is written.
+   *
+   * - `"inline"` (the default): `put` writes both tiers before it returns.
+   * - `"deferred"`: `put` writes the **local tier only**, and publishing to the
+   *   shared tier belongs to the caller.
+   *
+   * `"deferred"` exists for one caller: `@smthrs/engine-store` commits the
+   * cache row and the journal record that explains it inside a single
+   * `DurableWriter` transaction, and a host call must never be held across a
+   * write transaction — an inline `put` would hold a network round trip inside
+   * it and roll the local row back whenever a shared cache is unreachable. That
+   * engine composes this store in `"deferred"` mode and publishes through its
+   * own `CacheSync` seam once the transaction has committed. Lookups stay
+   * read-through in both modes.
+   */
+  readonly publication?: "inline" | "deferred" | undefined
 }
 
 /**
@@ -43,6 +64,7 @@ export interface Options {
  */
 export const make = (options: Options): CacheStore.Service => {
   const { local, remote } = options
+  const deferred = options.publication === "deferred"
 
   const get: CacheStore.Service["get"] = Effect.fn("CombinedCacheStore.get")((keyDigest: string) =>
     Effect.gen(function*() {
@@ -72,7 +94,9 @@ export const make = (options: Options): CacheStore.Service => {
       // result under the key. Publishing to the shared tier anyway would push
       // a result the caller is about to fail the run over.
       if (outcome._tag === "Conflict") return outcome
-      yield* remote.put(entry)
+      // In `"deferred"` mode the shared write is the caller's, precisely so it
+      // can happen outside whatever transaction this `put` runs in.
+      if (!deferred) yield* remote.put(entry)
       return outcome
     })
   )

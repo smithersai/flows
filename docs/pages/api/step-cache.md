@@ -45,8 +45,10 @@ const layer = CacheStore.layer.pipe(Layer.provideMerge(Migrations.layer))
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `Options` | interface | the `local` and `remote` tiers |
+| `Options` | interface | the `local` and `remote` tiers, plus `publication: "inline" \| "deferred"` |
 | `make`, `layer` | constructor + layer | local-first lookup with write-back into the local SQL store; eviction stays local |
+
+`publication` defaults to `"inline"`, which writes both tiers in `put`. `"deferred"` writes the local tier only and leaves the shared write to the caller — for a caller holding a write transaction, which must never span a host call. `@smthrs/engine-store` composes this mode and publishes through its `CacheSync` seam once the transaction commits.
 
 ## Migrations
 

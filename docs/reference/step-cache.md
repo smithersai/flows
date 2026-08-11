@@ -43,7 +43,11 @@ tier where another machine may still hold the artifacts this one lost.
 **Publication order is the caller's job.** A cache entry must never be
 observable in the shared tier while an artifact it references is missing from
 the shared artifact tier; `@smthrs/engine-store`'s `ArtifactSync` enforces that
-around `put`. See [`@smthrs/artifacts`](artifacts.md) and
+around `put`. *When* the shared copy is written is the caller's too:
+`publication: "deferred"` makes `put` write the local tier only, so a caller
+holding a write transaction can publish afterwards rather than hold a network
+round trip across it. That is the mode the engine composes, publishing through
+its own `CacheSync` seam. See [`@smthrs/artifacts`](artifacts.md) and
 [Remote cache](../../../docs/specs/Concepts/Remote%20Cache.md).
 
 ## Entry points
