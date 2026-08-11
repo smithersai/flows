@@ -3,6 +3,7 @@
  * `POST /cas/findMissing`, mirroring
  * `reference/bazel/.../remote/http/HttpCacheClient.java`.
  */
+import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
@@ -220,6 +221,27 @@ describe("the batched probe", () => {
     )
     expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
   })
+})
+
+describe("the address guard", () => {
+  // A digest reaches a read straight out of a durable row, so it is untrusted
+  // input, and here it is interpolated into a URL path. An address carrying a
+  // separator or a `..` would point this client at a different resource on the
+  // configured endpoint — so it is refused before any request goes out, by the
+  // same guard the filesystem tier applies.
+  const unusable = ["", "../ac/other-key", "sub/dir", "..", "back\\slash"]
+  for (const digest of unusable) {
+    it(`refuses ${JSON.stringify(digest)} without a round trip`, async () => {
+      const tier = remote(() => new Response(null, { status: 200 }))
+      const store = await runPromise(tier.store)
+      const refused = async (operation: Effect.Effect<unknown, unknown, Crypto.Crypto>) =>
+        (errorOf(await runPromise(operation.pipe(Effect.exit))) as ArtifactStore.ArtifactStoreError).code
+      expect(await refused(store.get(digest))).toBe("invalid_digest")
+      expect(await refused(store.has(digest))).toBe("invalid_digest")
+      expect(await refused(store.findMissing([digest]))).toBe("invalid_digest")
+      expect(tier.calls).toEqual([])
+    })
+  }
 })
 
 describe("layer", () => {

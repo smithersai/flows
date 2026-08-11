@@ -96,7 +96,13 @@ export const make = (
     const headers = options.headers
     const authorize = (request: HttpClientRequest.HttpClientRequest): HttpClientRequest.HttpClientRequest =>
       headers === undefined ? request : HttpClientRequest.setHeaders(request, headers)
-    const casUrl = (digest: string) => `${base}/cas/${digest}`
+    // The address is a URL path segment, so it is refused before it is
+    // interpolated and percent-encoded when it is: an address carrying a
+    // separator or a `..` would otherwise point this client at a different
+    // resource on the configured endpoint. `ArtifactStore.validateDigest` is
+    // the same guard the filesystem tier applies to the same untrusted input —
+    // a digest read back out of a durable row.
+    const casUrl = (digest: string) => `${base}/cas/${encodeURIComponent(digest)}`
     const send = (operation: string, request: HttpClientRequest.HttpClientRequest) =>
       client.execute(authorize(request)).pipe(Effect.mapError((cause) => transportFailure(operation, cause)))
     const measure = (bytes: Uint8Array): Effect.Effect<ArtifactStore.Digest, never, Crypto.Crypto> =>
@@ -118,6 +124,7 @@ export const make = (
 
     const get: ArtifactStore.Service["get"] = Effect.fn("RemoteArtifacts.get")((digest: string) =>
       Effect.gen(function*() {
+        yield* ArtifactStore.validateDigest(digest)
         const response = yield* send("a download", HttpClientRequest.get(casUrl(digest)))
         if (response.status === 404) {
           return yield* Effect.fail(new ArtifactStore.ArtifactMissing({ code: "artifact_missing", digest }))
@@ -147,6 +154,7 @@ export const make = (
 
     const has: ArtifactStore.Service["has"] = Effect.fn("RemoteArtifacts.has")((digest: string) =>
       Effect.gen(function*() {
+        yield* ArtifactStore.validateDigest(digest)
         const response = yield* send("an existence probe", HttpClientRequest.head(casUrl(digest)))
         if (response.status === 404) return false
         if (!isOk(response)) return yield* Effect.fail(unexpectedStatus("an existence probe", response.status))
@@ -159,6 +167,10 @@ export const make = (
         Effect.gen(function*() {
           const requested = [...new Set(digests)]
           if (requested.length === 0) return []
+          // The batch travels in a JSON body rather than a path, but an
+          // unusable address is still an unusable address, and the local tier
+          // refuses the same batch wholesale rather than probing part of it.
+          for (const digest of requested) yield* ArtifactStore.validateDigest(digest)
           const response = yield* send(
             "a batched existence probe",
             HttpClientRequest.post(`${base}/cas/findMissing`).pipe(

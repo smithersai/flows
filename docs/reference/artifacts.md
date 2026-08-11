@@ -67,6 +67,14 @@ verification rewrites the mismatched blob: a read-through heals a corrupt local
 address rather than failing on it forever. Concurrent uploads of one digest
 deduplicate in flight.
 
+A `put` records locally first and its local digest is the answer: the upload to
+the shared tier is opportunistic, and a refusal is dropped rather than
+propagated. Failing there would fail whatever produced the bytes — a step's
+`settle`, say — because a *cache* was unreachable. Nothing depends on that
+upload; what gates a shared cache entry is the publication protocol's
+`findMissing` → upload → confirm, run before the entry is published, so a
+dropped upload costs one re-upload and never correctness.
+
 ## Entry points
 
 The root is written against Effect's `FileSystem` and `HttpClient` contracts and

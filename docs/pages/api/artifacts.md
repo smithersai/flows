@@ -31,8 +31,11 @@ const layer = CombinedArtifacts.layer({
 | `ArtifactCorruption` | error | stored bytes no longer hash to their address |
 | `ArtifactStoreError`, `ArtifactStoreErrorCode` | class + codes | `invalid_digest`, `unavailable`, `transport_failed` |
 | `FileSystemOptions` | interface | `directory`, default `.flows/objects` |
+| `validateDigest` | predicate | refuses an address that cannot be a path segment, before any tier interpolates it |
 | `makeFileSystem`, `makeMemory`, `makeNoop` | constructors | |
 | `layerFileSystem`, `layerMemory`, `layerNoop` | layers | |
+
+A digest reaches a read straight out of a durable row, so every implementation validates it before interpolating it into a location — a path under the objects directory, a `/cas/{digest}` URL. The 64-hex *shape* is deliberately not enforced: refusing to look up an unfamiliar address would reclassify an ordinary miss as a caller error, and the digest verification on read is the check that actually protects the caller.
 
 ## RemoteArtifacts
 
@@ -51,3 +54,5 @@ const layer = CombinedArtifacts.layer({
 | --- | --- | --- |
 | `Options` | interface | the `local` and `remote` tiers |
 | `make`, `layer` | constructor + layer | local-first read-through with local write-back; in-flight uploads deduplicate per digest |
+
+`put` records locally and its local digest is the answer; the upload to the shared tier is opportunistic and a refusal is dropped, because failing there would fail whatever produced the bytes over an unreachable *cache*. What gates a shared cache entry is the publication protocol's `findMissing` → upload → confirm, not this upload.

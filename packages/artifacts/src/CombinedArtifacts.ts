@@ -70,7 +70,15 @@ export const make = (options: Options): ArtifactStore.Service => {
       // this machine's replays resolve against, so a remote tier that is down
       // must not stop an artifact from being recorded locally.
       const digest = yield* local.put(bytes)
-      yield* uploadOnce(digest, bytes)
+      // Which means the upload is opportunistic, and a refusal is dropped
+      // rather than propagated. Failing here would fail whatever produced the
+      // bytes — a step's `settle`, say — because a *cache* was unreachable,
+      // which is the opposite of the line above. Nothing depends on this
+      // upload: what actually guarantees a shared cache entry's blobs are
+      // durable is the publication protocol's `findMissing` → upload →
+      // confirm, run before the entry is published. A dropped upload here
+      // costs that protocol one re-upload, never correctness.
+      yield* Effect.ignore(uploadOnce(digest, bytes))
       return digest
     })
   )

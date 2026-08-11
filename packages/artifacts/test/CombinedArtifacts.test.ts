@@ -91,6 +91,17 @@ describe("writes", () => {
     expect(await runPromise(remote.store.has(digest))).toBe(true)
   })
 
+  it("records the artifact locally even when the shared tier refuses the upload", async () => {
+    // Failing here would fail whatever produced the bytes — a step's `settle`,
+    // say — because a cache was unreachable. The artifact is recorded where
+    // this machine's replays resolve it, and the publication protocol's
+    // findMissing → upload → confirm is what actually gates a shared entry.
+    const local = countingMemory()
+    const combined = CombinedArtifacts.make({ local: local.store, remote: ArtifactStore.makeNoop() })
+    expect(await runPromise(combined.put(bytes(artifact)))).toBe(digest)
+    expect(await runPromise(local.store.has(digest))).toBe(true)
+  })
+
   it("deduplicates concurrent uploads of one digest", async () => {
     const local = countingMemory()
     const uploads: Array<string> = []

@@ -187,18 +187,24 @@ const hostFailure = (cause: unknown): ArtifactStoreError =>
   error("unavailable", `the host filesystem refused an artifact operation: ${String(cause)}`, cause)
 
 /**
- * A content address is used verbatim as a path segment, so an address that is
- * empty, contains a separator, or is a directory traversal would escape the
- * objects directory entirely. Rejecting is cheap and closes that door for
- * every implementation.
+ * Refuses a content address that cannot safely be used as a path segment.
  *
- * The 64-hex *shape* is deliberately NOT enforced here. Digests reach `get`
- * from durable rows written by older layers and by foreign boundary
- * implementations; refusing to look one up would reclassify an ordinary miss
- * as a caller error, and the digest verification on read is the check that
+ * Every implementation interpolates the address into a location — a filesystem
+ * path under the objects directory, a `/cas/{digest}` URL — so an address that
+ * is empty, carries a separator, or is a directory traversal would address
+ * something else entirely. Rejecting is cheap and closes that door once for all
+ * of them, which is why this is exported rather than repeated per backend.
+ *
+ * The 64-hex *shape* is deliberately NOT enforced. Digests reach `get` from
+ * durable rows written by older layers and by foreign boundary
+ * implementations; refusing to look one up would reclassify an ordinary miss as
+ * a caller error, and the digest verification on read is the check that
  * actually protects the caller.
+ *
+ * @category predicates
+ * @since 0.1.0
  */
-const validateDigest = (digest: string): Effect.Effect<void, ArtifactStoreError> =>
+export const validateDigest = (digest: string): Effect.Effect<void, ArtifactStoreError> =>
   digest.length > 0 && !digest.includes("/") && !digest.includes("\\") && digest !== "." && digest !== ".."
     ? Effect.void
     : Effect.fail(error("invalid_digest", `${JSON.stringify(digest)} is not a usable content address`))
