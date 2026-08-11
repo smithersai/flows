@@ -38,8 +38,11 @@
   "scripts": {
     "lint": "eslint src --max-warnings=0 && dprint check",
     "format": "dprint fmt",
+    "build": "node scripts/build.mjs",
     "check": "tsc -b tsconfig.json && tsc -p tsconfig.test.json --noEmit",
-    "test": "vitest"
+    "circular": "node scripts/circular.mjs",
+    "test": "vitest",
+    "coverage": "vitest --coverage"
   },
   "dependencies": {
     "canonicalize": "3.0.0",
@@ -50,10 +53,12 @@
     "@eslint/js": "9.39.1",
     "@types/node": "25.9.5",
     "dprint": "0.55.2",
+    "esbuild": "0.28.1",
     "eslint": "9.39.1",
     "eslint-import-resolver-typescript": "4.4.5",
     "eslint-plugin-import": "2.32.0",
     "eslint-plugin-unicorn": "61.0.2",
+    "madge": "8.0.0",
     "typescript": "6.0.3",
     "typescript-eslint": "8.65.0",
     "vitest": "4.1.9"
