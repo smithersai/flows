@@ -245,4 +245,26 @@ describe("internal/node call factories", () => {
     expect(Object.hasOwn(cloned, "__proto__")).toBe(true)
     expect(cloned.__proto__).toBe("safe")
   })
+
+  it("reads back the declaration and the continuation a graph builder needs", () => {
+    const declaration = { tag: "counter/read" }
+    const activity = Node.activityCall(declaration, "counter/read", { path: "counter.txt" })
+    const flow = Node.flowCall(declaration, "counter/next", "inline", { path: "counter.txt" })
+    expect(Node.declaration(tagged(activity.ast, "ActivityCall"))).toBe(declaration)
+    expect(Node.declaration(tagged(flow.ast, "FlowCall"))).toBe(declaration)
+
+    const built = Node.andThen(Node.succeed(1), (value: Planned.Planned<number>) => Node.succeed(value))
+    const continued = Node.continuation(tagged(built.ast, "AndThen"))?.(Planned.make<number>("upstream"))
+    expect(Node.isNode(continued)).toBe(true)
+    const supplied = Node.andThen(Node.succeed(1), Node.succeed(2))
+    expect(Node.continuation(tagged(supplied.ast, "AndThen"))).toBeUndefined()
+  })
+
+  it("digests a function the AST does not store the same way it digests one it does", () => {
+    const mapper = (value: number): number => value + 1
+    const identity: Node.FunctionIdentity = Node.functionIdentity(mapper)
+
+    expect(identity).toEqual(tagged(Node.map(Node.succeed(1), mapper).ast, "Map").mapper)
+    expect(Node.functionIdentity((value: number): number => value + 2)).not.toEqual(identity)
+  })
 })

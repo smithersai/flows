@@ -53,6 +53,10 @@ export interface Flow<
    * The payload is decoded real data and the returned node only describes
    * topology. This field is optional during the additive migration and will
    * become required by `docs/specs/Concepts/Unified Flow Authoring.md`.
+   * Purity includes closure capture: the body must not read mutable module
+   * state, clocks, random values, services, or environment values captured
+   * outside `payload`; source-digest identity cannot observe those aliases
+   * changing. Work that genuinely wants opaque code is an Activity.
    */
   readonly body?: ((payload: Payload["Type"]) => Node.Node<unknown, unknown>) | undefined
   readonly idempotencyKey?: ((payload: Payload["Type"]) => string) | undefined

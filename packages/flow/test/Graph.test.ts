@@ -1,0 +1,588 @@
+import { Activity, Flow, Graph } from "@smthrs/flow"
+import { KeyMaterial, Node, Plan, Planned } from "@smthrs/plan"
+import { Schema } from "effect"
+import { describe, expect, it } from "vitest"
+import { runPromise } from "./Crypto.ts"
+
+const Read = Activity.make("counter/read", {
+  payload: { path: Schema.String },
+  success: Schema.Struct({ value: Schema.Number, files: Schema.Array(Schema.String) })
+})
+
+const Increment = Activity.make("counter/increment", {
+  payload: { path: Schema.String },
+  success: Schema.Number
+})
+
+const Write = Activity.make("counter/write", {
+  payload: { path: Schema.String, value: Schema.Number },
+  success: Schema.Number
+})
+
+const Sum = Activity.make("counter/sum", {
+  payload: { values: Schema.Array(Schema.Number) },
+  success: Schema.Number
+})
+
+const Child = Flow.make("counter/child", {
+  payload: { path: Schema.String, seed: Schema.Number },
+  success: Schema.Number,
+  body: ({ path, seed }) => Write.call({ path, value: seed })
+})
+
+const Parent = Flow.make("counter/parent", {
+  payload: { path: Schema.String },
+  success: Schema.Number,
+  body: ({ path }) =>
+    Node.all({ left: Read.call({ path }), right: Node.succeed(1) }).pipe(
+      Node.map((both) => both.right),
+      Node.andThen((seed) => Child.call({ path, seed }))
+    )
+})
+
+const node = (graph: Graph.Graph, id: string): Graph.GraphNode => {
+  const found = Graph.nodes(graph).find((candidate) => candidate.id === id)
+  expect(found, `node ${id}`).toBeDefined()
+  return found!
+}
+
+const material = (graph: Graph.Graph, id: string): KeyMaterial.KeyMaterial => node(graph, id).draft.material
+
+const body = (graph: Graph.Graph, id: string): Record<string, unknown> =>
+  material(graph, id).body as Record<string, unknown>
+
+const planNode = (plan: Plan.Plan, id: string): Plan.PlanNode => {
+  const found = plan.nodes.find((candidate) => candidate.id === id)
+  expect(found, `plan node ${id}`).toBeDefined()
+  return found!
+}
+
+const compile = (planId: string, flow: string, graph: Graph.Graph): Promise<Plan.Plan> =>
+  runPromise(Plan.compile({ planId, flow, nodes: Graph.drafts(graph) }))
+
+/** An AST that crossed a serialization boundary, leaving its side tables behind. */
+const detached = <A>(built: Node.Node<A>): Node.Node<A> => ({
+  ...built,
+  ast: JSON.parse(JSON.stringify(built.ast)) as Node.Ast
+})
+
+describe("Graph.build topology", () => {
+  it("expands every node variant, entering the flow as a call to itself", () => {
+    const graph = Graph.build(Parent, { path: "counter.txt" })
+
+    expect(Graph.nodes(graph).map((observed) => [observed.id, observed.kind])).toEqual([
+      ["root.flow.andThen.map.all.left", "ActivityCall"],
+      ["root.flow.andThen.map.all.right", "Succeed"],
+      ["root.flow.andThen.map", "All"],
+      ["root.flow.andThen", "Map"],
+      ["root.flow.then.flow", "ActivityCall"],
+      ["root.flow.then", "FlowCall"],
+      ["root.flow", "AndThen"],
+      ["root", "FlowCall"]
+    ])
+    expect(Graph.edges(graph)).toEqual([
+      { from: "root.flow.andThen.map.all.left", to: "root.flow.andThen.map", reason: "value" },
+      { from: "root.flow.andThen.map.all.right", to: "root.flow.andThen.map", reason: "value" },
+      { from: "root.flow.andThen.map", to: "root.flow.andThen", reason: "value" },
+      { from: "root.flow.andThen", to: "root.flow", reason: "value" },
+      { from: "root.flow.andThen", to: "root.flow.then", reason: "continuation" },
+      { from: "root.flow.then.flow", to: "root.flow.then", reason: "value" },
+      { from: "root.flow.then", to: "root.flow", reason: "value" },
+      { from: "root.flow", to: "root", reason: "value" }
+    ])
+    expect(Graph.diagnostics(graph)).toEqual([])
+    expect(Graph.drafts(graph).map((draft) => draft.id)).toEqual(
+      Graph.nodes(graph).map((observed) => observed.id)
+    )
+    expect(Graph.drafts(graph).every((draft) => draft.kind === undefined)).toBe(true)
+  })
+
+  it("hashes the deferred mapper, the members of a combination, and a static continuation", () => {
+    const graph = Graph.build(Parent, { path: "counter.txt" })
+
+    expect(body(graph, "root.flow.andThen").mapper).toMatchObject({
+      _tag: "FunctionIdentity",
+      algorithm: "fnv1a32-source/v1"
+    })
+    expect(body(graph, "root.flow.andThen.map")).toEqual({ _tag: "All", members: ["left", "right"] })
+    expect(body(graph, "root.flow")).toMatchObject({ _tag: "AndThen", static: false })
+    expect(body(graph, "root.flow.then")).toMatchObject({ _tag: "FlowCall", flow: "counter/child", mode: "inline" })
+    expect(body(graph, "root.flow.then.flow")).toMatchObject({
+      _tag: "ActivityCall",
+      activity: "counter/write",
+      tier: "sealed"
+    })
+
+    const stat = Graph.build(Node.andThen(Node.succeed(1), Node.succeed(2)))
+    expect(body(stat, "root")).toMatchObject({ _tag: "AndThen", static: true })
+    expect(Graph.nodes(stat).map((observed) => observed.id)).toEqual(["root.andThen", "root.then", "root"])
+  })
+
+  it("keeps a real payload intact for the body, values that are not plain data included", () => {
+    const when = new Date(0)
+    const seen: Array<unknown> = []
+    const flow = Flow.make("literal/passthrough", {
+      payload: { when: Schema.Unknown, missing: Schema.Unknown, tags: Schema.Unknown },
+      body: (payload) => {
+        seen.push(payload.when)
+        return Node.succeed(payload.missing)
+      }
+    })
+    const graph = Graph.build(flow, { when, missing: null, tags: ["a", "b"] })
+
+    expect(seen).toEqual([when])
+    expect(seen[0]).toBe(when)
+    expect(material(graph, "root").inputs[0]).toEqual({
+      _tag: "Literal",
+      value: { missing: null, tags: ["a", "b"], when }
+    })
+  })
+
+  it("keeps an own __proto__ field in what the body sees and in the key material", () => {
+    const seen: Array<unknown> = []
+    const flow = Flow.make("literal/proto-field", {
+      payload: { data: Schema.Unknown },
+      body: (payload) => {
+        seen.push(payload.data)
+        return Node.succeed(payload.data)
+      }
+    })
+    const carried = Graph.build(flow, { data: { ["__proto__"]: "own" } })
+    const bare = Graph.build(flow, { data: {} })
+
+    expect(Object.hasOwn(seen[0] as object, "__proto__")).toBe(true)
+    expect((seen[0] as Record<string, unknown>)["__proto__"]).toBe("own")
+    expect(material(carried, "root").inputs[0]).toEqual({
+      _tag: "Literal",
+      value: { data: { ["__proto__"]: "own" } }
+    })
+    // The field is key material, so dropping it hashed two distinct payloads alike.
+    expect(material(carried, "root").inputs[0]).not.toEqual(material(bare, "root").inputs[0])
+  })
+
+  it("records an object-valued own __proto__ field instead of reparenting the clone", () => {
+    const flow = Flow.make("literal/proto-object", {
+      payload: { data: Schema.Unknown },
+      body: (payload) => Node.succeed(payload.data)
+    })
+    const graph = Graph.build(flow, { data: { ["__proto__"]: { evil: 1 } } })
+    const data = (node(graph, "root").payload as { readonly data: Record<string, unknown> }).data
+
+    expect(Object.getPrototypeOf(data)).toBe(null)
+    expect(data["__proto__"]).toEqual({ evil: 1 })
+    // Reparenting would have served `evil` off the prototype instead.
+    expect(data["evil"]).toBeUndefined()
+    expect(material(graph, "root").inputs[0]).toEqual({
+      _tag: "Literal",
+      value: { data: { ["__proto__"]: { evil: 1 } } }
+    })
+  })
+})
+
+describe("Graph.build planned values", () => {
+  it("threads reference paths from a payload into Ref inputs, once per distinct path", () => {
+    const flow = Flow.make("refs/thread", {
+      payload: { path: Schema.String },
+      body: ({ path }) =>
+        Read.call({ path }).pipe(
+          Node.andThen((result) =>
+            Node.all({
+              written: Write.call({ path: result.files[0]!, value: result.value }),
+              summed: Sum.call({ values: [result.value, result.value] })
+            })
+          )
+        )
+    })
+    const graph = Graph.build(flow, { path: "counter.txt" })
+    const upstream = "root.flow.andThen"
+
+    expect(material(graph, "root.flow.then.all.written").inputs).toEqual([
+      {
+        _tag: "Literal",
+        value: {
+          path: { _tag: "PlannedInput", path: ["files", "0"] },
+          value: { _tag: "PlannedInput", path: ["value"] }
+        }
+      },
+      { _tag: "Ref", from: upstream, path: ["files", "0"] },
+      { _tag: "Ref", from: upstream, path: ["value"] }
+    ])
+    expect(material(graph, "root.flow.then.all.summed").inputs).toEqual([
+      {
+        _tag: "Literal",
+        value: {
+          values: [{ _tag: "PlannedInput", path: ["value"] }, { _tag: "PlannedInput", path: ["value"] }]
+        }
+      },
+      { _tag: "Ref", from: upstream, path: ["value"] }
+    ])
+    expect(material(graph, "root.flow.then").inputs).toEqual([{ _tag: "Pending", from: upstream }, {
+      _tag: "Ref",
+      from: "root.flow.then.all.written",
+      path: []
+    }, { _tag: "Ref", from: "root.flow.then.all.summed", path: [] }])
+  })
+
+  it("expands both branch arms and rewrites the subject to the branch's own upstream node", () => {
+    const CountTo100 = Flow.make("counter/count-to-100", {
+      payload: { path: Schema.String },
+      success: Schema.Number,
+      body: ({ path }): Node.Node<unknown> =>
+        Increment.call({ path }).pipe(
+          Node.branch({
+            if: (value) => value >= 100,
+            then: (value) => Flow.done(value),
+            else: (): Node.Node<unknown> => CountTo100.to({ path })
+          })
+        )
+    })
+    const graph = Graph.build(CountTo100, { path: "counter.txt" })
+
+    expect(Graph.nodes(graph).map((observed) => [observed.id, observed.kind])).toEqual([
+      ["root.flow.branch", "ActivityCall"],
+      ["root.flow.then", "Succeed"],
+      ["root.flow.else", "Succeed"],
+      ["root.flow", "Branch"],
+      ["root", "FlowCall"]
+    ])
+    expect(body(graph, "root.flow").predicate).toMatchObject({
+      _tag: "FunctionIdentity",
+      algorithm: "fnv1a32-source/v1"
+    })
+    expect(material(graph, "root.flow.then").inputs).toEqual([
+      { _tag: "Literal", value: { _tag: "Done", value: { _tag: "PlannedInput", path: [] } } },
+      { _tag: "Ref", from: "root.flow.branch", path: [] },
+      { _tag: "Pending", from: "root.flow.branch" }
+    ])
+    expect(material(graph, "root.flow.else").inputs).toEqual([
+      { _tag: "Literal", value: { _tag: "To", flow: "counter/count-to-100", payload: { path: "counter.txt" } } },
+      { _tag: "Pending", from: "root.flow.branch" }
+    ])
+  })
+
+  it("evaluates each continuation and arm builder exactly once", () => {
+    let continued = 0
+    let armed = 0
+    const flow = Flow.make("strict/once", {
+      payload: { path: Schema.String },
+      body: ({ path }) =>
+        Increment.call({ path }).pipe(
+          Node.andThen((value) => {
+            continued++
+            return Write.call({ path, value }).pipe(
+              Node.branch({
+                if: (settled) => settled >= 100,
+                then: () => {
+                  armed++
+                  return Node.succeed("done")
+                },
+                else: () => {
+                  armed++
+                  return Node.succeed("again")
+                }
+              })
+            )
+          })
+        )
+    })
+    Graph.build(flow, { path: "counter.txt" })
+
+    expect(continued).toBe(1)
+    expect(armed).toBe(2)
+  })
+
+  it("throws on computation in a continuation, naming the source node and the fix", () => {
+    const flow = Flow.make("strict/computed", {
+      payload: { path: Schema.String },
+      body: ({ path }) =>
+        Read.call({ path }).pipe(
+          Node.andThen((result) => Node.succeed(`${result.value}`))
+        )
+    })
+    expect(() => Graph.build(flow, { path: "counter.txt" })).toThrowError(expect.objectContaining({
+      _tag: "flows/plan/GraphBuildError",
+      code: "planned_value_computed",
+      node: "root.flow.andThen",
+      path: ["value"],
+      message: expect.stringContaining("Use Node.map to compute")
+    }))
+  })
+
+  it("throws on computation inside a branch arm", () => {
+    const flow = Flow.make("strict/armed", {
+      payload: { path: Schema.String },
+      body: ({ path }) =>
+        Increment.call({ path }).pipe(
+          Node.branch({
+            if: (value) => value >= 100,
+            then: (value) => Node.succeed(`${value}`),
+            else: () => Node.succeed("again")
+          })
+        )
+    })
+    expect(() => Graph.build(flow, { path: "counter.txt" })).toThrowError(expect.objectContaining({
+      _tag: "flows/plan/GraphBuildError",
+      code: "planned_value_computed",
+      node: Node.branchSubject,
+      path: [],
+      message: expect.stringContaining("Node.branch to decide")
+    }))
+  })
+
+  it("lets a failure that is not a build refusal escape the body untouched", () => {
+    const boom = new TypeError("the body itself is broken")
+    const flow = Flow.make("strict/defect", {
+      payload: {},
+      body: (): Node.Node<unknown> => {
+        throw boom
+      }
+    })
+
+    expect(() => Graph.build(flow, {})).toThrow(boom)
+  })
+})
+
+describe("Graph.build composition", () => {
+  it("throws when a flow calls itself inline and names the two ways out", () => {
+    const Recursive = Flow.make("recursion/self", {
+      payload: { depth: Schema.Number },
+      success: Schema.Number,
+      body: ({ depth }): Node.Node<unknown> => Recursive.call({ depth })
+    })
+    expect(() => Graph.build(Recursive, { depth: 0 })).toThrowError(expect.objectContaining({
+      _tag: "flows/plan/GraphBuildError",
+      code: "recursion_requires_boundary",
+      node: "root.flow",
+      path: [],
+      message: expect.stringMatching(/recursion\/self\.to\(payload\).*\.child\(payload\)/)
+    }))
+  })
+
+  it("detects mutual recursion through the flow the expansion stack already holds", () => {
+    const Ping: Flow.Flow<"recursion/ping", Schema.Struct<{ depth: Schema.Number }>, Schema.Number, Schema.Never> = Flow
+      .make("recursion/ping", {
+        payload: { depth: Schema.Number },
+        success: Schema.Number,
+        body: ({ depth }): Node.Node<unknown> => Pong.call({ depth })
+      })
+    const Pong = Flow.make("recursion/pong", {
+      payload: { depth: Schema.Number },
+      success: Schema.Number,
+      body: ({ depth }): Node.Node<unknown> => Ping.call({ depth })
+    })
+    expect(() => Graph.build(Ping, { depth: 0 })).toThrowError(expect.objectContaining({
+      _tag: "flows/plan/GraphBuildError",
+      code: "recursion_requires_boundary",
+      node: "root.flow.flow",
+      message: expect.stringContaining("recursion/ping.to(payload)")
+    }))
+  })
+
+  it("leaves a body-less callee and an explicit boundary as leaf nodes", () => {
+    const Leaf = Flow.make("counter/leaf", {
+      payload: { path: Schema.String },
+      success: Schema.Number
+    })
+    const boundary: Node.Node<number> = Node.flowCall(Child, "counter/child", "boundary", { path: "p", seed: 1 })
+    const flow = Flow.make("counter/leaves", {
+      payload: {},
+      body: () => Node.all({ boundary, leaf: Leaf.call({ path: "p" }) })
+    })
+    const graph = Graph.build(flow, {})
+
+    expect(Graph.nodes(graph).map((observed) => [observed.id, observed.kind])).toEqual([
+      ["root.flow.all.boundary", "FlowCall"],
+      ["root.flow.all.leaf", "FlowCall"],
+      ["root.flow", "All"],
+      ["root", "FlowCall"]
+    ])
+    expect(body(graph, "root.flow.all.boundary")).toMatchObject({ mode: "boundary", flow: "counter/child" })
+    expect(node(graph, "root.flow.all.leaf").dependencies).toEqual([])
+  })
+
+  it("intersects the caller's capabilities with the callee's declared ceiling", () => {
+    const Narrow = Flow.make("caps/narrow", {
+      payload: {},
+      body: () => Increment.call({ path: "counter.txt" })
+    }).annotate(Flow.Capabilities, ["fs:read"])
+    const Wide = Flow.make("caps/wide", {
+      payload: {},
+      body: () => Narrow.call({})
+    }).annotate(Flow.Capabilities, ["fs:read", "fs:write"])
+    const graph = Graph.build(Wide, {})
+
+    expect(node(graph, "root").capabilities).toEqual(["fs:read", "fs:write"])
+    expect(node(graph, "root.flow").capabilities).toEqual(["fs:read", "fs:write"])
+    expect(node(graph, "root.flow.flow").capabilities).toEqual(["fs:read"])
+    expect(material(graph, "root.flow.flow").capabilities).toEqual(["fs:read"])
+    expect(body(graph, "root.flow").declaration).toMatchObject({ capabilities: ["fs:read"] })
+  })
+
+  it("folds the callee's own body digest into a call the graph keeps as a leaf", () => {
+    const digestOf = (calleeBody: (payload: { readonly path: string }) => Node.Node<number>): unknown => {
+      const Callee = Flow.make("keys/callee", {
+        payload: { path: Schema.String },
+        success: Schema.Number,
+        body: calleeBody
+      })
+      const boundary: Node.Node<number> = Node.flowCall(Callee, "keys/callee", "boundary", { path: "counter.txt" })
+      return (body(Graph.build(boundary), "root").declaration as Record<string, unknown>).body
+    }
+    const one = digestOf(({ path }) => Write.call({ path, value: 1 }))
+
+    expect(one).toMatchObject({ _tag: "FunctionIdentity", algorithm: "fnv1a32-source/v1" })
+    expect(digestOf(({ path }) => Write.call({ path, value: 1 }))).toEqual(one)
+    expect(digestOf(({ path }) => Write.call({ path, value: 2 }))).not.toEqual(one)
+
+    const Bodyless = Flow.make("keys/bodyless", { payload: {}, success: Schema.Number })
+    expect(body(Graph.build(Bodyless, {}), "root").declaration).toMatchObject({ body: undefined })
+  })
+})
+
+describe("Graph.build annotations", () => {
+  it("carries declared effects, placement, tier, and resolved layers into the material", () => {
+    const effects: Flow.Effects = { reads: ["counter.txt"], writes: ["counter.txt"], boundaryMode: "hard" }
+    const placement: Flow.PlacementDirective = { host: "sandbox" }
+    const Risky = Activity.make("counter/risky", {
+      payload: { path: Schema.String },
+      success: Schema.Number,
+      tier: "irreversible"
+    })
+      .annotate(Flow.EffectsDeclaration, effects)
+      .annotate(Flow.Placement, placement)
+    const flow = Flow.make("counter/annotated", {
+      payload: {},
+      body: () => Risky.call({ path: "counter.txt" })
+    })
+    const graph = Graph.build(flow, {}, {
+      resolveLayers: (request) => request.kind === "ActivityCall" ? ["host:sandbox", "host:sandbox"] : []
+    })
+    const risky = node(graph, "root.flow")
+
+    expect(risky.draft.material.kind).toBe("irreversible")
+    expect(risky.draft.effects).toEqual(effects)
+    expect(risky.draft.material.effects).toEqual(effects)
+    expect(risky.draft.material.placement).toEqual(placement)
+    expect(risky.draft.material.layers).toEqual(["host:sandbox"])
+    expect(risky.placement).toEqual(placement)
+
+    const root = node(graph, "root")
+    expect(root.draft.effects).toEqual({ reads: [], writes: [], boundaryMode: "expected" })
+    expect(root.draft.material.effects).toBeUndefined()
+    expect(root.draft.material.placement).toBeUndefined()
+    expect(root.draft.material.layers).toEqual([])
+    expect(root.placement).toBeUndefined()
+  })
+})
+
+describe("Graph.build diagnostics", () => {
+  it("records a continuation that did not answer with a node instead of throwing", () => {
+    const broken = Node.andThen(
+      Node.succeed(1),
+      (() => 42) as unknown as (value: Planned.Planned<number>) => Node.Node<number>
+    )
+    const graph = Graph.build(broken)
+
+    expect(Graph.diagnostics(graph)).toHaveLength(1)
+    expect(Graph.diagnostics(graph)[0]).toMatchObject({
+      code: "invalid_continuation",
+      node: "root",
+      path: []
+    })
+    expect(Graph.nodes(graph).map((observed) => observed.id)).toEqual(["root.andThen", "root"])
+    expect(node(graph, "root").capabilities).toEqual([])
+    expect(() => Graph.drafts(graph)).toThrow(Graph.diagnostics(graph)[0])
+    // One refusing surface: the built graph carries no field handing the
+    // truncated drafts of an incomplete graph back past the accessor.
+    expect(Object.hasOwn(graph, "drafts")).toBe(false)
+  })
+
+  it("treats an AST that lost its side tables as leaves, and records its lost continuation", () => {
+    const graph = Graph.build(detached(
+      Read.call({ path: "counter.txt" }).pipe(Node.andThen(() => Child.call({ path: "counter.txt", seed: 1 })))
+    ))
+
+    expect(Graph.diagnostics(graph)).toHaveLength(1)
+    expect(Graph.diagnostics(graph)[0]).toMatchObject({ code: "invalid_continuation", node: "root" })
+    expect(body(graph, "root.andThen")).toEqual({
+      _tag: "ActivityCall",
+      activity: "counter/read",
+      tier: "sealed",
+      declaration: undefined
+    })
+
+    const call = Graph.build(detached(Child.call({ path: "counter.txt", seed: 1 })))
+    expect(Graph.nodes(call).map((observed) => observed.id)).toEqual(["root"])
+    expect(body(call, "root")).toEqual({
+      _tag: "FlowCall",
+      flow: "counter/child",
+      mode: "inline",
+      declaration: undefined
+    })
+  })
+})
+
+describe("Graph.build into a plan", () => {
+  it("compiles drafts into a keyed plan whose edges are the material references", async () => {
+    const graph = Graph.build(Parent, { path: "counter.txt" })
+    const plan = await compile("plan-parent", "counter/parent", graph)
+
+    expect(plan.nodes.map((planned) => planned.id)).toEqual(Graph.drafts(graph).map((draft) => draft.id))
+    expect(plan.nodes.every((planned) => /^key1_[0-9a-f]{64}$/.test(planned.key))).toBe(true)
+    expect(planNode(plan, "root.flow.andThen.map").dependsOn).toEqual([
+      "root.flow.andThen.map.all.left",
+      "root.flow.andThen.map.all.right"
+    ])
+    expect(planNode(plan, "root.flow.then").dependsOn).toEqual(["root.flow.andThen", "root.flow.then.flow"])
+    expect(planNode(plan, "root.flow").dependsOn).toEqual(["root.flow.andThen", "root.flow.then"])
+    expect(planNode(plan, "root").dependsOn).toEqual(["root.flow"])
+    expect(planNode(plan, "root.flow.andThen.map.all.right").dependsOn).toEqual([])
+  })
+
+  it("re-keys exactly what reads an edited mapper, and nothing upstream of it", async () => {
+    const flowWith = (bump: (value: number) => number) =>
+      Flow.make("keys/map", {
+        payload: { path: Schema.String },
+        success: Schema.Number,
+        body: ({ path }) =>
+          Increment.call({ path }).pipe(
+            Node.map(bump),
+            Node.andThen((value) => Write.call({ path, value }))
+          )
+      })
+    const before = await compile(
+      "plan-keys",
+      "keys/map",
+      Graph.build(flowWith((value) => value + 1), { path: "counter.txt" })
+    )
+    const after = await compile(
+      "plan-keys",
+      "keys/map",
+      Graph.build(flowWith((value) => value + 2), { path: "counter.txt" })
+    )
+
+    expect(after.nodes.map((planned) => planned.id)).toEqual(before.nodes.map((planned) => planned.id))
+    expect(planNode(after, "root.flow.andThen.map").key).toBe(planNode(before, "root.flow.andThen.map").key)
+    for (const id of ["root.flow.andThen", "root.flow.then", "root.flow", "root"]) {
+      expect(planNode(after, id).key, id).not.toBe(planNode(before, id).key)
+    }
+    expect(after.digest).not.toBe(before.digest)
+  })
+
+  it("appends a later round that consumes a node the plan already holds", async () => {
+    const plan = await compile("plan-round", "counter/parent", Graph.build(Parent, { path: "counter.txt" }))
+    const Follow = Flow.make("counter/follow", {
+      payload: { seed: Schema.Number },
+      success: Schema.Number,
+      body: ({ seed }) => Write.call({ path: "counter.txt", value: seed })
+    })
+    const next = Graph.build(Follow, { seed: Planned.make<number>("root.flow.then.flow") }, { root: "round-1" })
+    const grown = await runPromise(Plan.append(plan, Graph.drafts(next)))
+
+    expect(Graph.nodes(next).map((observed) => observed.id)).toEqual(["round-1.flow", "round-1"])
+    expect(grown.generation).toBe(1)
+    expect(planNode(grown, "round-1.flow").dependsOn).toEqual(["root.flow.then.flow"])
+    expect(planNode(grown, "round-1").dependsOn).toEqual(["root.flow.then.flow", "round-1.flow"])
+    expect(planNode(grown, "root").key).toBe(planNode(plan, "root").key)
+  })
+})

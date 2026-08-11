@@ -55,6 +55,16 @@ export type TypeId = "~flows/plan/Node"
 export type Ast = internal.NodeAst
 
 /**
+ * The serializable stand-in an AST keeps for a plan-time function: a digest of
+ * its normalized source, hashed in place of a closure that could not be
+ * shipped, stored, or compared.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export type FunctionIdentity = Extract<Ast, { readonly _tag: "Map" }>["mapper"]
+
+/**
  * A pure graph-building value, covariant in what it will succeed and fail
  * with. It is a description: holding one has run nothing.
  *
@@ -317,3 +327,40 @@ export const activityCall = <A = unknown, E = never>(
   activity: string,
   payload: unknown
 ): Node<A, E> => internal.makeNode<A, E>(internal.activityCall(declaration, activity, payload))
+
+/**
+ * Reads the flow or activity declaration a call node names, so `@smthrs/flow`
+ * can expand a call it recorded. It is `undefined` for an AST that was
+ * rehydrated from JSON, because the declaration lives beside the AST rather
+ * than inside it — a graph built from such an AST keeps the call as a leaf.
+ *
+ * @since 0.1.0
+ * @private
+ */
+export const declaration = (
+  ast: Extract<Ast, { readonly _tag: "ActivityCall" | "FlowCall" }>
+): unknown => internal.declaration(ast)
+
+/**
+ * Reads the continuation builder of a sequenced node, which graph building
+ * evaluates once against a placeholder. It is `undefined` when the author
+ * supplied a node directly — the topology is already in `next` — and for a
+ * rehydrated AST, whose side table did not survive serialization.
+ *
+ * @since 0.1.0
+ * @private
+ */
+export const continuation = (
+  ast: Extract<Ast, { readonly _tag: "AndThen" }>
+): ((value: Planned.Planned<unknown>) => unknown) | undefined => internal.operation(ast)
+
+/**
+ * Digests a plan-time function the AST does NOT store — a flow's `body` —
+ * exactly as the AST digests the mapper and the continuation it does store.
+ * A call that keeps its callee as a leaf still has to re-key when that
+ * callee's body is edited, and this is the identity it folds in.
+ *
+ * @since 0.1.0
+ * @private
+ */
+export const functionIdentity = (operation: unknown): FunctionIdentity => internal.functionIdentity(operation)

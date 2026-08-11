@@ -47,6 +47,13 @@ export * as Flow from "./Flow/index.ts"
 export * as FlowRuntime from "./FlowRuntime/index.ts"
 
 /**
+ * Plan-time graph building from flow declarations.
+ *
+ * @since 0.1.0
+ */
+export * as Graph from "./Graph.ts"
+
+/**
  * Retry policy models and constructors.
  *
  * @since 4.0.0
