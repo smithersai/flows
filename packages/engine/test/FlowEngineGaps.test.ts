@@ -1,10 +1,11 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
+import { Activity, DurableDeferred, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow"
 import { Cause, Effect, Exit, Fiber, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
-import { Activity, DurableDeferred, Flow, FlowEngine, RetryPolicy } from "../src/index.ts"
+import { FlowEngine } from "../src/index.ts"
 import { runPromise } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
@@ -149,11 +150,11 @@ describe("annotateWaiting", () => {
     })
     const layer = flow.toLayer(() =>
       Effect.gen(function*() {
-        const instance = yield* FlowEngine.FlowInstance
+        const instance = yield* FlowRuntime.FlowInstance
         const before = instance.waiting
-        yield* FlowEngine.annotateWaiting({ reason: "approval", token: "req-1", wakeAt: 42 })
+        yield* FlowRuntime.annotateWaiting({ reason: "approval", token: "req-1", wakeAt: 42 })
         const during = instance.waiting
-        yield* FlowEngine.annotateWaiting(undefined)
+        yield* FlowRuntime.annotateWaiting(undefined)
         return { before, during, after: instance.waiting }
       })
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
@@ -207,7 +208,7 @@ describe("suspended resume policy", () => {
       expect(Exit.isFailure(exit) && String(exit.cause)).toContain("suspendedRetryPolicy expired")
       expect(executions).toBe(2)
     }).pipe(
-      Effect.provide(Layer.succeed(FlowEngine.FlowEngine)(scripted)),
+      Effect.provide(Layer.succeed(FlowRuntime.FlowRuntime)(scripted)),
       Effect.provide(TestClock.layer())
     )
   })
@@ -311,10 +312,10 @@ describe("activity retry give-up reasons", () => {
       }
     }).pipe(
       Effect.provideService(
-        FlowEngine.FlowInstance,
-        FlowEngine.FlowInstance.initial(flow, "run-origin")
+        FlowRuntime.FlowInstance,
+        FlowEngine.makeInstance(flow, "run-origin")
       ),
-      Effect.provide(Layer.succeed(FlowEngine.FlowEngine)(scripted))
+      Effect.provide(Layer.succeed(FlowRuntime.FlowRuntime)(scripted))
     )
   })
 
@@ -403,7 +404,7 @@ describe("memory engine lifecycle", () => {
       Layer.provideMerge(FlowEngine.layerMemory)
     )
     return Effect.gen(function*() {
-      const engine = yield* FlowEngine.FlowEngine
+      const engine = yield* FlowRuntime.FlowRuntime
       yield* engine.interruptUnsafe(flow, "never-started")
       yield* engine.resume(flow, "never-started")
       expect(Option.isNone(yield* flow.poll("never-started"))).toBe(true)

@@ -1,9 +1,10 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
+import { Activity, DurableDeferred, Flow, FlowRuntime, RetryPolicy, StepIdentity } from "@smthrs/flow"
 import { Cause, Effect, Exit, Layer, Option, Result, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
-import { Activity, DurableDeferred, Flow, FlowEngine, RetryPolicy, StepIdentity } from "../src/index.ts"
+import { FlowEngine } from "../src/index.ts"
 import { runPromise, runSync } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
@@ -106,8 +107,8 @@ describe("DurableDeferred.into", () => {
       const replayed = yield* DurableDeferred.await(Result_).pipe(
         Effect.exit,
         Effect.provideService(
-          FlowEngine.FlowInstance,
-          FlowEngine.FlowInstance.initial(flow, "run-into")
+          FlowRuntime.FlowInstance,
+          FlowEngine.makeInstance(flow, "run-into")
         )
       )
       expect(Exit.isFailure(replayed) && Cause.squash(replayed.cause)).toBe("into-boom")
@@ -132,8 +133,8 @@ describe("DurableDeferred.into", () => {
       expect(
         yield* DurableDeferred.await(Result_).pipe(
           Effect.provideService(
-            FlowEngine.FlowInstance,
-            FlowEngine.FlowInstance.initial(flow, "run-into-ok")
+            FlowRuntime.FlowInstance,
+            FlowEngine.makeInstance(flow, "run-into-ok")
           )
         )
       ).toBe(7)
@@ -283,65 +284,6 @@ describe("waitForZero", () => {
       expect(Option.isSome(polled) && polled.value._tag).toBe("Suspended")
       // suspension waited for the long-running sibling to finish first
       expect(events).toEqual(["slow:start", "slow:end"])
-    }).pipe(Effect.provide(layer))
-  })
-
-  effect("keeps waiting when a sibling starts another activity after the in-flight count hits zero", () => {
-    // The in-flight count can briefly return to zero between two sequential
-    // activities of a still-running sibling. Suspension must not be released
-    // in that window: every activity of the chain has to settle first.
-    const ran: Array<string> = []
-    const step = (name: string) =>
-      Activity.make({
-        name,
-        success: Schema.String,
-        execute: Effect.gen(function*() {
-          for (let i = 0; i < 2; i++) yield* Effect.yieldNow
-          ran.push(name)
-          return name
-        })
-      })
-    const failing = Activity.make({
-      name: "Edge/chain-suspender",
-      success: Schema.String,
-      error: Schema.String,
-      execute: Effect.gen(function*() {
-        yield* Effect.yieldNow
-        return yield* Effect.fail("chain-boom")
-      })
-    })
-    const flow = Flow.make("Edge/chain", {
-      payload: { id: Schema.String },
-      success: Schema.String,
-      error: Schema.String
-    }).annotate(Flow.SuspendOnFailure, true)
-    const layer = flow.toLayer(() =>
-      Effect.map(
-        Effect.all([
-          failing,
-          Effect.gen(function*() {
-            yield* step("Edge/chain-a")
-            yield* Effect.yieldNow
-            yield* step("Edge/chain-b")
-            yield* Effect.yieldNow
-            yield* Effect.yieldNow
-            yield* step("Edge/chain-c")
-            return "chain"
-          })
-        ], { concurrency: "unbounded" }),
-        ([a, b]) => `${a}+${b}`
-      )
-    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
-
-    return Effect.gen(function*() {
-      yield* flow.execute({ id: "x" }, { executionId: "run-chain", discard: true })
-      let polled = yield* flow.poll("run-chain")
-      for (let i = 0; i < 300 && (Option.isNone(polled) || polled.value._tag !== "Suspended"); i++) {
-        yield* Effect.yieldNow
-        polled = yield* flow.poll("run-chain")
-      }
-      expect(Option.isSome(polled) && polled.value._tag).toBe("Suspended")
-      expect(ran).toEqual(["Edge/chain-a", "Edge/chain-b", "Edge/chain-c"])
     }).pipe(Effect.provide(layer))
   })
 })

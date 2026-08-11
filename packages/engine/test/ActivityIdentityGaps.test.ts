@@ -1,9 +1,10 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
+import { Activity, Flow, FlowRuntime } from "@smthrs/flow"
 import { Cause, Effect, Exit, Layer, Result, Schedule, Schema, Scope } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
-import { Activity, Flow, FlowEngine } from "../src/index.ts"
+import { FlowEngine } from "../src/index.ts"
 import { invocationKey as decodeInvocationKey, runPromise } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
@@ -18,14 +19,14 @@ const provideHost = <A, E>(
   self: Effect.Effect<
     A,
     E,
-    FlowEngine.FlowEngine | FlowEngine.FlowInstance | Scope.Scope
+    FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance | Scope.Scope
   >
 ): Effect.Effect<A, E> =>
   self.pipe(
     Effect.scoped,
     Effect.provideService(
-      FlowEngine.FlowInstance,
-      FlowEngine.FlowInstance.initial(hostFlow, "host-run")
+      FlowRuntime.FlowInstance,
+      FlowEngine.makeInstance(hostFlow, "host-run")
     ),
     Effect.provide(FlowEngine.layerMemory)
   )

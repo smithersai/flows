@@ -17,9 +17,10 @@ import type * as Crypto from "effect/Crypto"
  * descriptor of issue #57 — it is folded into BOTH key forms and a caller
  * cannot opt out of it.
  */
+import { Activity, Flow, FlowRuntime } from "@smthrs/flow"
 import { Effect, Exit, Layer, Schema } from "effect"
 import { describe, expect, it } from "vitest"
-import { Activity, Flow, FlowEngine } from "../src/index.ts"
+import { FlowEngine } from "../src/index.ts"
 import { runPromise } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
@@ -69,7 +70,7 @@ const keyUnder = (
     scheduleClock: () => Effect.void
   })
   return Effect.gen(function*() {
-    const service = yield* FlowEngine.FlowEngine
+    const service = yield* FlowRuntime.FlowRuntime
     yield* service.activityExecute(activity as never, 1)
     return captured!
   }).pipe(
@@ -77,10 +78,10 @@ const keyUnder = (
       ? (self) => self
       : Effect.provideService(Activity.CurrentCacheEnvironment, environment),
     Effect.provideService(
-      FlowEngine.FlowInstance,
-      FlowEngine.FlowInstance.initial(flow, executionId)
+      FlowRuntime.FlowInstance,
+      FlowEngine.makeInstance(flow, executionId)
     ),
-    Effect.provide(Layer.succeed(FlowEngine.FlowEngine)(engine))
+    Effect.provide(Layer.succeed(FlowRuntime.FlowRuntime)(engine))
   ) as Effect.Effect<string>
 }
 

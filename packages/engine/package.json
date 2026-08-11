@@ -3,7 +3,7 @@
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
-  "description": "Vendored Effect flow engine with flows execution and activity identity semantics",
+  "description": "The runtime that executes @smthrs/flow flows, plus HTTP and RPC transport projections",
   "homepage": "https://github.com/smithersai/flows",
   "repository": {
     "type": "git",
@@ -32,14 +32,8 @@
   "exports": {
     "./package.json": "./package.json",
     ".": "./src/index.ts",
-    "./Activity": "./src/Activity/index.ts",
-    "./Activity/*": null,
-    "./CacheEnvironment": "./src/Activity/CacheEnvironment.ts",
-    "./FileBoundary": "./src/Activity/FileBoundary.ts",
-    "./FileInput": "./src/Activity/FileInput.ts",
-    "./Flow": "./src/Flow/index.ts",
-    "./Flow/*": null,
-    "./StepIdentity": "./src/Activity/StepIdentity.ts",
+    "./FlowEngine": "./src/FlowEngine/index.ts",
+    "./FlowEngine/*": null,
     "./*": "./src/*.ts",
     "./internal/*": null,
     "./*/index": null
@@ -67,38 +61,12 @@
         "import": "./dist/esm/index.js",
         "require": "./dist/cjs/index.js"
       },
-      "./Activity": {
-        "types": "./dist/esm/Activity/index.d.ts",
-        "import": "./dist/esm/Activity/index.js",
-        "require": "./dist/cjs/Activity/index.js"
+      "./FlowEngine": {
+        "types": "./dist/esm/FlowEngine/index.d.ts",
+        "import": "./dist/esm/FlowEngine/index.js",
+        "require": "./dist/cjs/FlowEngine/index.js"
       },
-      "./Activity/*": null,
-      "./CacheEnvironment": {
-        "types": "./dist/esm/Activity/CacheEnvironment.d.ts",
-        "import": "./dist/esm/Activity/CacheEnvironment.js",
-        "require": "./dist/cjs/Activity/CacheEnvironment.js"
-      },
-      "./FileBoundary": {
-        "types": "./dist/esm/Activity/FileBoundary.d.ts",
-        "import": "./dist/esm/Activity/FileBoundary.js",
-        "require": "./dist/cjs/Activity/FileBoundary.js"
-      },
-      "./FileInput": {
-        "types": "./dist/esm/Activity/FileInput.d.ts",
-        "import": "./dist/esm/Activity/FileInput.js",
-        "require": "./dist/cjs/Activity/FileInput.js"
-      },
-      "./Flow": {
-        "types": "./dist/esm/Flow/index.d.ts",
-        "import": "./dist/esm/Flow/index.js",
-        "require": "./dist/cjs/Flow/index.js"
-      },
-      "./Flow/*": null,
-      "./StepIdentity": {
-        "types": "./dist/esm/Activity/StepIdentity.d.ts",
-        "import": "./dist/esm/Activity/StepIdentity.js",
-        "require": "./dist/cjs/Activity/StepIdentity.js"
-      },
+      "./FlowEngine/*": null,
       "./*": {
         "types": "./dist/esm/*.d.ts",
         "import": "./dist/esm/*.js",
@@ -118,7 +86,7 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@smthrs/crypto": "0.1.0",
+    "@smthrs/flow": "0.1.0",
     "@smthrs/keys": "0.1.0",
     "effect": "4.0.0-beta.102"
   },

@@ -6,11 +6,12 @@
  * `layerHttpApi` connects the HTTP API group created by `FlowProxy` to the
  * supplied flows. `layerRpcHandlers` does the same for the generated RPC
  * definitions. Both layers route execute, discard, and resume requests to the
- * matching flow operation, while the `FlowEngine` and flow handler
+ * matching flow operation, while the `FlowRuntime` and flow handler
  * services stay on the server side.
  *
  * @since 4.0.0
  */
+import type { Flow, FlowRuntime } from "@smthrs/flow"
 import type { NonEmptyReadonlyArray } from "effect/Array"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
@@ -19,8 +20,6 @@ import type * as HttpApi from "effect/unstable/httpapi/HttpApi"
 import * as HttpApiBuilder from "effect/unstable/httpapi/HttpApiBuilder"
 import type * as HttpApiGroup from "effect/unstable/httpapi/HttpApiGroup"
 import type * as Rpc from "effect/unstable/rpc/Rpc"
-import type * as Flow from "./Flow/index.ts"
-import type { FlowEngine } from "./FlowEngine.ts"
 
 /**
  * Creates handlers for a flow HTTP API group, wiring execute, discard, and
@@ -41,7 +40,7 @@ export const layerHttpApi = <
 ): Layer.Layer<
   HttpApiGroup.Service<ApiId, Identifier>,
   never,
-  FlowEngine | Flow.RequirementsHandler<Flows[number]>
+  FlowRuntime.FlowRuntime | Flow.RequirementsHandler<Flows[number]>
 > =>
   HttpApiBuilder.group(
     api,
@@ -119,7 +118,7 @@ export const layerRpcHandlers = <
 }): Layer.Layer<
   RpcHandlers<Flows[number], Prefix>,
   never,
-  FlowEngine | Flow.RequirementsHandler<Flows[number]>
+  FlowRuntime.FlowRuntime | Flow.RequirementsHandler<Flows[number]>
 > =>
   Layer.effectContext(Effect.gen(function*() {
     const context = yield* Effect.context<never>()

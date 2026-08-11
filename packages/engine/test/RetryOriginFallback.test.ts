@@ -7,11 +7,12 @@
  * budget restarts (with a logged warning) instead of failing the run — so
  * the #45 fix cannot silently regress into an untested branch.
  */
+import { Activity, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow"
 import { Cause, Effect, Exit, Fiber, Layer, Logger, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
-import { Activity, Flow, FlowEngine, RetryPolicy } from "../src/index.ts"
+import { FlowEngine } from "../src/index.ts"
 import { runPromise } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
@@ -98,10 +99,10 @@ describe("retry origin fallback when the durable hook yields none", () => {
       }
     }).pipe(
       Effect.provideService(
-        FlowEngine.FlowInstance,
-        FlowEngine.FlowInstance.initial(flow, "retry-origin-fallback-run")
+        FlowRuntime.FlowInstance,
+        FlowEngine.makeInstance(flow, "retry-origin-fallback-run")
       ),
-      Effect.provide(Layer.succeed(FlowEngine.FlowEngine)(engine)),
+      Effect.provide(Layer.succeed(FlowRuntime.FlowRuntime)(engine)),
       Effect.provide(Logger.layer([capture])),
       Effect.provide(TestClock.layer())
     ) as Effect.Effect<void>

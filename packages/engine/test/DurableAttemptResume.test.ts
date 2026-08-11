@@ -8,9 +8,10 @@ import type * as Crypto from "effect/Crypto"
  * failed attempts keep their numbering: the backoff ladder is not re-slept
  * and the retry decision sees the true attempt count.
  */
+import { Activity, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow"
 import { Cause, Effect, Exit, Layer, Option, Schema } from "effect"
 import { describe, expect, it } from "vitest"
-import { Activity, Flow, FlowEngine, RetryPolicy } from "../src/index.ts"
+import { FlowEngine } from "../src/index.ts"
 import { runPromise } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
@@ -46,13 +47,13 @@ const scriptedWith = (options: {
     scheduleClock: () => Effect.void
   })
 
-const provideInstance = <A, E>(self: Effect.Effect<A, E, any>, engine: FlowEngine.FlowEngine["Service"]) =>
+const provideInstance = <A, E>(self: Effect.Effect<A, E, any>, engine: FlowRuntime.FlowRuntime["Service"]) =>
   self.pipe(
     Effect.provideService(
-      FlowEngine.FlowInstance,
-      FlowEngine.FlowInstance.initial(flow, "attempt-resume-run")
+      FlowRuntime.FlowInstance,
+      FlowEngine.makeInstance(flow, "attempt-resume-run")
     ),
-    Effect.provide(Layer.succeed(FlowEngine.FlowEngine)(engine))
+    Effect.provide(Layer.succeed(FlowRuntime.FlowRuntime)(engine))
   ) as Effect.Effect<A, E>
 
 describe("durable attempt counter resume", () => {

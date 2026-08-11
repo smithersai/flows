@@ -12,9 +12,10 @@ import type * as Crypto from "effect/Crypto"
  * with `ConcurrentKeylessDispatch`, and declaring an `idempotencyKey` is the
  * sanctioned way to run distinguishable invocations concurrently.
  */
+import { Activity, Flow, FlowRuntime } from "@smthrs/flow"
 import { Cause, Deferred, Effect, Exit, Fiber, Layer, Scheduler, Schema } from "effect"
 import { describe, expect, it } from "vitest"
-import { Activity, Flow, FlowEngine } from "../src/index.ts"
+import { FlowEngine } from "../src/index.ts"
 import { runPromise } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
@@ -63,7 +64,7 @@ const gatedEngine = (gate: Deferred.Deferred<void>) =>
 const drive = (
   executionId: string,
   program: (
-    engine: FlowEngine.FlowEngine["Service"],
+    engine: FlowRuntime.FlowRuntime["Service"],
     gate: Deferred.Deferred<void>
     // The `as never` activity casts below erase the dispatch requirements, so
     // the program's `R` widens; `drive` discharges both services and pins the
@@ -75,10 +76,10 @@ const drive = (
     const engine = gatedEngine(gate)
     return yield* program(engine, gate).pipe(
       Effect.provideService(
-        FlowEngine.FlowInstance,
-        FlowEngine.FlowInstance.initial(flow, executionId)
+        FlowRuntime.FlowInstance,
+        FlowEngine.makeInstance(flow, executionId)
       ),
-      Effect.provide(Layer.succeed(FlowEngine.FlowEngine)(engine)),
+      Effect.provide(Layer.succeed(FlowRuntime.FlowRuntime)(engine)),
       Effect.exit
     )
   }) as Effect.Effect<Exit.Exit<unknown, unknown>>

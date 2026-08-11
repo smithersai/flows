@@ -1,9 +1,10 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
+import { Activity, Flow, FlowRuntime } from "@smthrs/flow"
 import { Cause, Context, Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
-import { Activity, Flow, FlowEngine } from "../src/index.ts"
+import { FlowEngine } from "../src/index.ts"
 import { runPromise } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
@@ -65,7 +66,7 @@ describe("memory engine execution surface", () => {
     )
     return Effect.gen(function*() {
       yield* flow.execute({ id: "x" }, { executionId: "run-i", discard: true })
-      const engine = yield* FlowEngine.FlowEngine
+      const engine = yield* FlowRuntime.FlowRuntime
       yield* engine.interruptUnsafe(flow, "run-i")
       const result = yield* flow.poll("run-i").pipe(Effect.exit)
       // A discard result is observable only after `resume` has installed the

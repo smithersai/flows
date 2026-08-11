@@ -1,0 +1,482 @@
+// Deep reviewed and polished by a human on 2026-08-10.
+
+/**
+ * Adapts a low-level `Encoded` implementation into the typed `FlowRuntime`
+ * port `@smthrs/flow` declares.
+ *
+ * @since 4.0.0
+ */
+import { Activity, type DurableDeferred, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow"
+import * as Cause from "effect/Cause"
+import * as Clock from "effect/Clock"
+import * as Context from "effect/Context"
+import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
+import * as Option from "effect/Option"
+import * as Result from "effect/Result"
+import * as Schema from "effect/Schema"
+import { activityKey, ordinalScope, uncanonicalKey } from "./ActivityKey.ts"
+import type { ActivityExecuteOptions, Encoded } from "./Encoded.ts"
+import { SnapshotBoundary, type SnapshotBoundaryOptions } from "./SnapshotBoundary.ts"
+
+const toJsonExit = Exit.map((value: any) => value ?? null)
+
+/**
+ * Builds a typed `FlowRuntime` service from a low-level encoded
+ * implementation.
+ *
+ * **When to use**
+ *
+ * Use when wiring a trusted low-level flow engine implementation into the
+ * typed `FlowRuntime` port.
+ *
+ * **Gotchas**
+ *
+ * The implementation must correctly persist, resume, and encode flow state.
+ *
+ * @category constructors
+ * @since 4.0.0
+ */
+export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"] =>
+  FlowRuntime.FlowRuntime.of({
+    // Untraced because registering a flow recursively re-enters the engine.
+    register: Effect.fnUntraced(function*(flow, execute) {
+      const services = yield* Effect.context<FlowRuntime.FlowRuntime>()
+      yield* options.register(flow, (payload, executionId) =>
+        Effect.suspend(() => execute(payload, executionId)).pipe(
+          Effect.updateContext(
+            (input) => Context.merge(services, input) as Context.Context<any>
+          )
+        ))
+    }),
+    // Untraced because flow execution recursively invokes child flows.
+    execute: Effect.fnUntraced(function*<
+      Name extends string,
+      Payload extends Flow.AnyStructSchema,
+      Success extends Schema.Top,
+      Error extends Schema.Top,
+      const Discard extends boolean = false
+    >(
+      self: Flow.Flow<Name, Payload, Success, Error>,
+      opts: {
+        readonly executionId: string
+        readonly payload: Payload["Type"]
+        readonly discard?: Discard | undefined
+        readonly suspendedRetryPolicy?:
+          | RetryPolicy.RetryPolicy
+          | undefined
+      }
+    ) {
+      const payload = opts.payload
+      const executionId = opts.executionId
+      const suspendedRetryPolicy = opts.suspendedRetryPolicy ?? RetryPolicy.defaultRetryPolicy
+      yield* Effect.annotateCurrentSpan({ executionId })
+      let result = Option.none<Flow.Result<Success["Type"], Error["Type"]>>()
+
+      // link interruption with parent flow
+      const parentInstance = yield* Effect.serviceOption(FlowRuntime.FlowInstance)
+      if (Option.isSome(parentInstance)) {
+        const instance = parentInstance.value
+        yield* Effect.addFinalizer(() => {
+          if (!instance.interrupted || (Option.isSome(result) && result.value._tag === "Complete")) {
+            return Effect.void
+          }
+          return options.interrupt(self, executionId)
+        })
+      }
+      const run = options.execute(self, {
+        executionId,
+        payload: payload as object,
+        discard: opts.discard ?? false,
+        parent: Option.getOrUndefined(parentInstance)
+      }) as Effect.Effect<Flow.Result<Success["Type"], Error["Type"]>>
+
+      if (opts.discard) {
+        yield* run
+        return executionId
+      }
+
+      if (Option.isSome(parentInstance)) {
+        const wrapped = yield* Flow.wrapActivityResult(
+          run,
+          (result) => result._tag === "Suspended"
+        )
+        result = Option.some(wrapped)
+        if (wrapped._tag === "Suspended") {
+          return yield* Flow.suspend(parentInstance.value)
+        }
+        return yield* wrapped.exit
+      }
+
+      let resumeAttempt = 0
+      // The expiration origin for the resume loop is in-process by design:
+      // the loop itself only lives as long as this caller, and a restart
+      // re-enters `execute` with a fresh budget. What must not happen is the
+      // bound being silently inert (issue #45): `expirationMs` on the
+      // suspended retry policy caps the wall-clock time this caller keeps
+      // polling a suspended execution.
+      const resumeStartMs = yield* Clock.currentTimeMillis
+      while (true) {
+        const wrapped = yield* run
+        result = Option.some(wrapped)
+        if (wrapped._tag === "Complete") {
+          return yield* wrapped.exit as Exit.Exit<any>
+        }
+        // The resume delay is derived from the attempt count (data policy) so
+        // backoff survives a restart.
+        resumeAttempt = resumeAttempt + 1
+        const elapsedMs = (yield* Clock.currentTimeMillis) - resumeStartMs
+        const delay = yield* RetryPolicy.nextDelayEffect(
+          suspendedRetryPolicy,
+          resumeAttempt,
+          { elapsedMs }
+        )
+        if (Option.isNone(delay)) {
+          // Distinguish the wall-clock give-up from attempt exhaustion: the
+          // delay is only elapsed-dependent when dropping `elapsedMs` would
+          // have allowed another attempt.
+          const expired = Option.isSome(
+            RetryPolicy.nextDelay(suspendedRetryPolicy, resumeAttempt)
+          )
+          return yield* Effect.die(
+            `${self._tag}.execute: suspendedRetryPolicy ${expired ? "expired" : "exhausted"}`
+          )
+        }
+        const sleep = Effect.sleep(delay.value)
+        yield* (options.resumeSignal === undefined
+          ? sleep
+          : Effect.raceFirst(sleep, options.resumeSignal(self, executionId)))
+      }
+    }),
+    poll: options.poll,
+    interrupt: options.interrupt,
+    interruptUnsafe: options.interruptUnsafe,
+    resume: options.resume,
+    // Untraced because activity retries are a hot path within a flow run.
+    activityExecute: Effect.fnUntraced(function*<
+      Success extends Schema.Constraint,
+      Error extends Schema.Constraint,
+      R
+    >(activity: Activity.Activity<Success, Error, R>, attempt: number) {
+      const instance = yield* FlowRuntime.FlowInstance
+      // `Activity.retry` hands down an empty slot map rather than a number:
+      // the ordinal can only be allocated here, where the activity — and so
+      // its allocation scope — is known (issue #73). The slot is keyed by
+      // scope so a retry block dispatching several distinct activities pins
+      // each to its own ordinal (issue #84), reused across every attempt of
+      // the sequence. Within one attempt the n-th dispatch of a scope takes
+      // the n-th pinned ordinal (issue #100): a retry block may dispatch one
+      // declaration several times, and each dispatch owns its own identity —
+      // allocated on the attempt that first reaches it, replayed by position
+      // on every later attempt.
+      const scopeResult = yield* Effect.result(ordinalScope(activity))
+      if (Result.isFailure(scopeResult)) {
+        return uncanonicalKey(activity.name, scopeResult.failure)
+      }
+      const scope = scopeResult.success
+      const slot = yield* Activity.CurrentOrdinal
+      let ordinal: number
+      if (slot === undefined) {
+        ordinal = instance.activityState.nextOrdinal(scope)
+      } else {
+        const index = slot.cursors.get(scope) ?? 0
+        slot.cursors.set(scope, index + 1)
+        const pinned = slot.values.get(scope) ?? []
+        if (index < pinned.length) {
+          ordinal = pinned[index]!
+        } else {
+          ordinal = instance.activityState.nextOrdinal(scope)
+          pinned.push(ordinal)
+          slot.values.set(scope, pinned)
+        }
+      }
+      // Invocation keys are run-local, so the environment is not their key
+      // material; `activityKey` folds it into cache keys only (issue #75).
+      const environment = yield* Activity.CurrentCacheEnvironment
+      // `AnyWithProps` widening: `activityKey` needs the declared schemas so
+      // the string-form sealed identity folds the compiled declaration
+      // (issue #120); every activity built by `Activity.make` carries them,
+      // only the `Schema.Constraint` type parameters resist the assignment.
+      const keyResult = yield* Effect.result(activityKey(
+        activity as unknown as Activity.AnyWithProps,
+        instance.executionId,
+        ordinal,
+        environment,
+        scope
+      ))
+      /* v8 ignore next 3 -- defensive typed guard (issue #151): rejected
+         caller identity material always fails the ordinal-scope derivation
+         above first, so this branch is unreachable until the environment or
+         hermetic folding gains fallible material of its own. */
+      if (Result.isFailure(keyResult)) {
+        return uncanonicalKey(activity.name, keyResult.failure)
+      }
+      const key = keyResult.success
+      const policy = activity.retryPolicy
+      // Elapsed retry time for the policy's expiration bound. Durable
+      // drivers persist the first attempt's start time alongside the attempt
+      // row and expose it through `activityRetryOrigin`, so the
+      // schedule-to-close budget survives park/resume and process death
+      // (issue #45, mirroring Temporal's persisted expiration interval). The
+      // in-process clock is the fallback for engines without durable
+      // attempts.
+      const durableOrigin = policy?.expirationMs !== undefined &&
+          options.activityRetryOrigin !== undefined
+        ? yield* options.activityRetryOrigin({ key })
+        : Option.none<number>()
+      if (
+        policy?.expirationMs !== undefined &&
+        options.activityRetryOrigin !== undefined &&
+        Option.isNone(durableOrigin)
+      ) {
+        // A durable driver that finds no surviving attempt row cannot bound
+        // the schedule-to-close budget to the true first attempt. The engine
+        // keeps the in-process fallback — failing the run outright would
+        // turn benign attempt-row retention pruning into spurious failures —
+        // but the restarted budget is worth a trace (issue #69).
+        yield* Effect.logWarning(
+          `FlowEngine.activityExecute: no durable retry origin for "${activity.name}"; the expirationMs budget restarts from the current clock`
+        )
+      }
+      const retryStartMs = Option.isSome(durableOrigin)
+        ? durableOrigin.value
+        : yield* Clock.currentTimeMillis
+      // Resume the durable attempt counter (issue #59): a persisted attempt
+      // sequence keeps its numbering across process death, so replayed
+      // failed attempts do not re-sleep the backoff ladder from attempt 1
+      // and the retry decision below sees the true attempt count.
+      const latestAttempt = options.activityLatestAttempt !== undefined
+        ? yield* options.activityLatestAttempt({ key })
+        : Option.none<number>()
+      let currentAttempt = Option.isSome(latestAttempt) && latestAttempt.value > attempt
+        ? latestAttempt.value
+        : attempt
+      while (true) {
+        if (
+          activity.tier === "irreversible" &&
+          currentAttempt > 1 &&
+          activity.idempotencyKey === undefined
+        ) {
+          return yield* Effect.die(
+            new Activity.IrreversibleRetryRequiresIdempotencyKey({
+              activityName: activity.name,
+              attempt: currentAttempt
+            })
+          )
+        }
+        const input: ActivityExecuteOptions = {
+          activity,
+          attempt: currentAttempt,
+          key,
+          tier: activity.tier,
+          metadata: activity.metadata
+        }
+        let result: Flow.Result<unknown, unknown>
+        if (activity.tier === "compensable") {
+          const boundaryOption = yield* Effect.serviceOption(SnapshotBoundary)
+          if (Option.isNone(boundaryOption)) {
+            return yield* Effect.die(
+              `Compensable activity "${activity.name}" requires SnapshotBoundary`
+            )
+          }
+          const boundary = boundaryOption.value
+          const boundaryOptions: SnapshotBoundaryOptions = {
+            flow: instance.flow,
+            executionId: instance.executionId,
+            key,
+            attempt: currentAttempt,
+            metadata: activity.metadata
+          }
+          if (currentAttempt > 1 && instance.activityState.snapshots.has(key)) {
+            yield* boundary.restore(
+              instance.activityState.snapshots.get(key),
+              boundaryOptions
+            )
+          }
+          const snapshot = yield* boundary.snapshot(boundaryOptions)
+          instance.activityState.snapshots.set(key, snapshot)
+          result = yield* options.activityExecute(input).pipe(
+            Effect.ensuring(Effect.asVoid(boundary.diff(snapshot, boundaryOptions))),
+            Effect.provideService(Activity.CurrentAttempt, currentAttempt)
+          )
+        } else {
+          result = yield* options.activityExecute(input).pipe(
+            Effect.provideService(Activity.CurrentAttempt, currentAttempt)
+          )
+        }
+        if (result._tag === "Suspended") {
+          return result
+        }
+        // The engine's single retry decision point. The delay is derived from
+        // the attempt count — persisted by durable engines and passed back in
+        // on resume — so a backoff sequence survives process death.
+        // nonRetryable classification is evaluated here and nowhere else.
+        if (policy !== undefined && result.exit._tag === "Failure") {
+          const failure = result.exit.cause.reasons.find(Cause.isFailReason)
+          if (failure !== undefined) {
+            const decision = yield* RetryPolicy.decideEffect(policy, {
+              attempt: currentAttempt,
+              error: failure.error,
+              elapsedMs: (yield* Clock.currentTimeMillis) - retryStartMs
+            })
+            if (decision._tag === "RetryAfter") {
+              yield* Effect.sleep(decision.delayMs)
+              currentAttempt = currentAttempt + 1
+              continue
+            }
+            if (decision.reason === "exhausted") {
+              return new Flow.Complete({
+                exit: Exit.die(
+                  new RetryPolicy.RetryAttemptsExhausted({
+                    activityName: activity.name,
+                    attempt: currentAttempt,
+                    maxAttempts: policy.maxAttempts ?? currentAttempt,
+                    lastError: failure.error
+                  })
+                )
+              })
+            }
+            if (decision.reason === "expired") {
+              return new Flow.Complete({
+                exit: Exit.die(
+                  new RetryPolicy.RetryPolicyExpired({
+                    activityName: activity.name,
+                    attempt: currentAttempt,
+                    // `expired` is only ever produced by a policy that
+                    // declares `expirationMs`, so the bound is always present.
+                    expirationMs: policy.expirationMs as number,
+                    lastError: failure.error
+                  })
+                )
+              })
+            }
+            // nonRetryable: fall through and propagate the original failure.
+          }
+        }
+        const exit = yield* Effect.orDie(
+          Schema.decodeEffect(activity.exitSchemaPartial)(toJsonExit(result.exit))
+        )
+        return new Flow.Complete({ exit })
+      }
+    }, (body, activity) =>
+      // Ordinal-keyed invocations of one allocation scope are
+      // allocation-ordered: with two in flight at once the ordinals — and so
+      // the step keys, attempt rows, and recorded outcomes — would be
+      // assigned by fiber arrival order, and a crash-resume replaying the
+      // fibers in the opposite order would silently hand one invocation the
+      // other's recorded outcome (issue #111). There is no engine-visible
+      // input material to order them by (inputs live in the execute
+      // closure), so the hazard is refused up front — Temporal's
+      // nondeterminism error, moved to the first run — and a declared
+      // idempotencyKey *distinguishing the invocations* is the way out.
+      // Only a sealed activity with a key escapes the refusal: it takes a
+      // pure cache key with no ordinal at all. A keyed activity at any
+      // other tier still resolves to an invocation key whose scope folds the
+      // key, so two concurrent SAME-key dispatches share one scope and have
+      // exactly the arrival-order hazard — and, nested in sibling retry
+      // blocks under a shared outer block, the #116 private cursor views
+      // would even hand both dispatches the same pinned ordinal (issue
+      // #130). Distinct keys are distinct scopes and overlap freely.
+      Effect.gen(function*() {
+        if (activity.tier === "sealed" && activity.idempotencyKey !== undefined) return yield* body
+        const instance = yield* FlowRuntime.FlowInstance
+        const inFlight = instance.activityState.keylessInFlight
+        const scope = yield* ordinalScope(activity).pipe(Effect.orDie)
+        // The acquire and its release live in one uninterruptible region
+        // (issue #139): a bare `add` followed by `Effect.ensuring` left a
+        // one-op window — after the add, before the finalizer registered —
+        // where an interruption (a lost race, a timeout) leaked the scope
+        // into the Set forever, so every later fully sequential dispatch of
+        // the same scope falsely died `ConcurrentKeylessDispatch`.
+        return yield* Effect.acquireUseRelease(
+          Effect.sync(() => {
+            if (inFlight.has(scope)) return false
+            inFlight.add(scope)
+            return true
+          }),
+          (acquired) =>
+            acquired
+              ? body
+              : Effect.die(
+                new Activity.ConcurrentKeylessDispatch({ activityName: activity.name })
+              ),
+          (acquired) => acquired ? Effect.sync(() => inFlight.delete(scope)) : Effect.void
+        )
+      })),
+    // Untraced because the explicit span below carries deferred attributes.
+    deferredResult: Effect.fnUntraced(
+      function*<Success extends Schema.Constraint, Error extends Schema.Constraint>(
+        deferred: DurableDeferred.DurableDeferred<Success, Error>
+      ) {
+        const instance = yield* FlowRuntime.FlowInstance
+        yield* Effect.annotateCurrentSpan({
+          executionId: instance.executionId
+        })
+        const exit = yield* options.deferredResult(deferred)
+        if (Option.isNone(exit)) {
+          return Option.none()
+        }
+        // A persisted result means the annotated wait (if any) resolved: the
+        // waiting annotation is consumed here so a replayed
+        // `annotateWaiting` cannot classify a later, unrelated suspension
+        // (issue #42).
+        instance.waiting = undefined
+        return Option.some(
+          yield* Effect.orDie(
+            Schema.decodeEffect(deferred.exitSchema)(toJsonExit(exit.value))
+          ) as Effect.Effect<Exit.Exit<Success["Type"], Error["Type"]>>
+        )
+      },
+      Effect.withSpan(
+        "FlowEngine.deferredResult",
+        (deferred) => ({
+          attributes: { name: deferred.name }
+        }),
+        { captureStackTrace: false }
+      )
+    ),
+    // Untraced because the explicit span below carries completion attributes.
+    deferredDone: Effect.fnUntraced(
+      function*<Success extends Schema.Constraint, Error extends Schema.Constraint>(
+        deferred: DurableDeferred.DurableDeferred<Success, Error>,
+        opts: {
+          readonly flowName: string
+          readonly executionId: string
+          readonly deferredName: string
+          readonly exit: Exit.Exit<Success["Type"], Error["Type"]>
+        }
+      ) {
+        return yield* options.deferredDone({
+          flowName: opts.flowName,
+          executionId: opts.executionId,
+          deferredName: opts.deferredName,
+          exit: yield* Schema.encodeEffect(deferred.exitSchema)(
+            opts.exit
+          ) as Effect.Effect<Exit.Exit<unknown, unknown>>
+        })
+      },
+      Effect.withSpan(
+        "FlowEngine.deferredDone",
+        (_, { deferredName, executionId }) => ({
+          attributes: { name: deferredName, executionId }
+        }),
+        { captureStackTrace: false }
+      )
+    ),
+    scheduleClock: Effect.fn("FlowEngine.scheduleClock")((flow, opts) =>
+      options.scheduleClock(flow, opts).pipe(
+        Effect.withSpan(
+          "FlowEngine.scheduleClock",
+          {
+            attributes: {
+              executionId: opts.executionId,
+              name: opts.clock.name
+            }
+          },
+          {
+            captureStackTrace: false
+          }
+        )
+      )
+    )
+  })

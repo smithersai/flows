@@ -1,0 +1,532 @@
+// Deep reviewed and polished by a human on 2026-08-10.
+
+import { Activity, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
+import { Cause, Effect, Exit, Layer, Option, Schema, Scope } from "effect"
+import type * as Crypto from "effect/Crypto"
+import { describe, expect, it } from "vitest"
+import { runPromise } from "./Crypto.ts"
+import { layerMemory, makeInstance } from "./MemoryFlowRuntime.ts"
+
+const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
+  it(name, () => runPromise(body()))
+
+const pollSuspended = <A, E, R>(
+  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>
+) =>
+  Effect.gen(function*() {
+    let result = yield* poll
+    for (let i = 0; i < 20 && Option.isNone(result); i++) {
+      yield* Effect.yieldNow
+      result = yield* poll
+    }
+    return result
+  })
+
+const pollComplete = <A, E, R>(
+  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>
+) =>
+  Effect.gen(function*() {
+    let result = yield* poll
+    for (let i = 0; i < 20 && (Option.isNone(result) || result.value._tag !== "Complete"); i++) {
+      yield* Effect.yieldNow
+      result = yield* poll
+    }
+    return result
+  })
+
+const Gate = DurableDeferred.make("DurableDeferred/Gate", {
+  success: Schema.String,
+  error: Schema.String
+})
+
+const makeFlow = (
+  tag: string,
+  body: Effect.Effect<
+    string,
+    string,
+    FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance | Scope.Scope
+  >
+) => {
+  const flow = Flow.make(tag, {
+    payload: { id: Schema.String },
+    success: Schema.String,
+    error: Schema.String,
+    idempotencyKey: ({ id }) => id
+  })
+  return {
+    flow,
+    layer: flow.toLayer(() => body).pipe(Layer.provideMerge(layerMemory))
+  }
+}
+
+const completeToken = <S extends Schema.Constraint, E extends Schema.Constraint>(
+  deferred: DurableDeferred.DurableDeferred<S, E>,
+  flow: Flow.Any,
+  executionId: string
+) => Effect.sync(() => DurableDeferred.tokenFromExecutionId(deferred, { flow, executionId }))
+
+describe("DurableDeferred", () => {
+  effect("tokens round-trip through their base64url encoding", () =>
+    Effect.sync(() => {
+      const token = new DurableDeferred.TokenParsed({
+        flowName: "Some/Flow",
+        executionId: "exec-1",
+        deferredName: "Gate"
+      }).asToken
+      const parsed = DurableDeferred.TokenParsed.fromString(token)
+      expect(parsed.flowName).toBe("Some/Flow")
+      expect(parsed.executionId).toBe("exec-1")
+      expect(parsed.deferredName).toBe("Gate")
+      expect(DurableDeferred.TokenParsed.encode(parsed)).toBe(token)
+    }))
+
+  effect("tokenFromPayload derives the same token as the running instance", () => {
+    const flow = Flow.make("DurableDeferred/token-payload", {
+      payload: { id: Schema.String },
+      success: Schema.Void,
+      idempotencyKey: ({ id }) => id
+    })
+    return Effect.gen(function*() {
+      const executionId = yield* flow.executionId({ id: "abc" })
+      const fromPayload = yield* DurableDeferred.tokenFromPayload(Gate, {
+        flow,
+        payload: { id: "abc" }
+      })
+      const fromInstance = yield* DurableDeferred.token(Gate).pipe(
+        Effect.provideService(
+          FlowRuntime.FlowInstance,
+          makeInstance(flow, executionId)
+        )
+      )
+      expect(fromPayload).toBe(fromInstance)
+      expect(DurableDeferred.TokenParsed.fromString(fromPayload).deferredName).toBe(Gate.name)
+    })
+  })
+
+  effect("awaiting an unresolved deferred suspends the flow until it succeeds", () => {
+    const { flow, layer } = makeFlow(
+      "DurableDeferred/await-success",
+      Effect.map(DurableDeferred.await(Gate), (value) => `got:${value}`)
+    )
+    return Effect.gen(function*() {
+      const executionId = yield* flow.execute({ id: "s" }, { discard: true })
+      yield* Effect.yieldNow
+      const suspended = yield* flow.poll(executionId)
+      expect(Option.isSome(suspended) && suspended.value._tag).toBe("Suspended")
+
+      const token = yield* completeToken(Gate, flow, executionId)
+      yield* DurableDeferred.succeed(Gate, { token, value: "hello" })
+
+      const result = yield* pollComplete(flow.poll(executionId))
+      expect(Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)).toBe(true)
+      if (Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)) {
+        expect(result.value.exit.value).toBe("got:hello")
+      }
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("a deferred failure propagates as a typed flow failure", () => {
+    const { flow, layer } = makeFlow(
+      "DurableDeferred/await-fail",
+      DurableDeferred.await(Gate)
+    )
+    return Effect.gen(function*() {
+      const executionId = yield* flow.execute({ id: "f" }, { discard: true })
+      yield* Effect.yieldNow
+      const token = yield* completeToken(Gate, flow, executionId)
+      yield* DurableDeferred.fail(Gate, { token, error: "boom" })
+
+      const result = yield* pollComplete(flow.poll(executionId))
+      expect(Option.isSome(result) && result.value._tag === "Complete" && Exit.isFailure(result.value.exit)).toBe(true)
+      if (Option.isSome(result) && result.value._tag === "Complete" && Exit.isFailure(result.value.exit)) {
+        expect(result.value.exit.cause.reasons.find(Cause.isFailReason)?.error).toBe("boom")
+      }
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("a deferred failure can be handled inside the flow", () => {
+    const { flow, layer } = makeFlow(
+      "DurableDeferred/await-handled",
+      DurableDeferred.await(Gate).pipe(
+        Effect.catch((error) => Effect.succeed(`recovered:${error}`))
+      )
+    )
+    return Effect.gen(function*() {
+      const executionId = yield* flow.execute({ id: "h" }, { discard: true })
+      yield* Effect.yieldNow
+      const token = yield* completeToken(Gate, flow, executionId)
+      yield* DurableDeferred.fail(Gate, { token, error: "boom" })
+
+      const result = yield* pollComplete(flow.poll(executionId))
+      expect(Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)).toBe(true)
+      if (Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)) {
+        expect(result.value.exit.value).toBe("recovered:boom")
+      }
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("a deferred defect propagates as a die cause", () => {
+    const { flow, layer } = makeFlow(
+      "DurableDeferred/await-defect",
+      DurableDeferred.await(Gate)
+    )
+    return Effect.gen(function*() {
+      const executionId = yield* flow.execute({ id: "d" }, { discard: true })
+      yield* Effect.yieldNow
+      const token = yield* completeToken(Gate, flow, executionId)
+      yield* DurableDeferred.failCause(Gate, {
+        token,
+        cause: Cause.die("defective")
+      })
+
+      const result = yield* pollComplete(flow.poll(executionId))
+      expect(Option.isSome(result) && result.value._tag === "Complete" && Exit.isFailure(result.value.exit)).toBe(true)
+      if (Option.isSome(result) && result.value._tag === "Complete" && Exit.isFailure(result.value.exit)) {
+        expect(result.value.exit.cause.reasons.some(Cause.isDieReason)).toBe(true)
+      }
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("a recorded interruption is a terminal outcome, not a request to suspend", () => {
+    const { flow, layer } = makeFlow(
+      "DurableDeferred/await-interrupt",
+      DurableDeferred.await(Gate)
+    )
+    return Effect.gen(function*() {
+      const executionId = yield* flow.execute({ id: "int" }, { discard: true })
+      yield* Effect.yieldNow
+      const token = yield* completeToken(Gate, flow, executionId)
+      yield* DurableDeferred.failCause(Gate, { token, cause: Cause.interrupt(1) })
+
+      // an interrupt-only cause must terminate the run; if it were mistaken for
+      // an external suspension interrupt the run would spin in suspended-retry
+      const result = yield* pollComplete(flow.poll(executionId))
+      expect(Option.isSome(result) && result.value._tag).toBe("Complete")
+      if (Option.isSome(result) && result.value._tag === "Complete") {
+        expect(Exit.isFailure(result.value.exit)).toBe(true)
+        if (Exit.isFailure(result.value.exit)) {
+          expect(Cause.hasInterruptsOnly(result.value.exit.cause)).toBe(true)
+        }
+      }
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("into drops interrupt reasons from a mixed cause and records the failure", () => {
+    const Mixed = DurableDeferred.make("DurableDeferred/Mixed", {
+      success: Schema.Number,
+      error: Schema.String
+    })
+    const flow = Flow.make("DurableDeferred/into-mixed", {
+      payload: { id: Schema.String },
+      success: Schema.String,
+      idempotencyKey: ({ id }) => id
+    })
+    const mixedCause = Cause.fromReasons<string>([
+      ...Cause.fail("boom").reasons,
+      ...Cause.interrupt(7).reasons
+    ])
+    const layer = flow.toLayer(() =>
+      Effect.gen(function*() {
+        const engine = yield* FlowRuntime.FlowRuntime
+        yield* DurableDeferred.into(
+          Effect.failCause(mixedCause) as Effect.Effect<number, string>,
+          Mixed
+        ).pipe(Effect.exit)
+        const persisted = yield* engine.deferredResult(Mixed)
+        expect(Option.isSome(persisted)).toBe(true)
+        if (Option.isNone(persisted)) return "missing"
+        const exit = persisted.value as Exit.Exit<number, string>
+        expect(Exit.isFailure(exit)).toBe(true)
+        if (!Exit.isFailure(exit)) return "not-a-failure"
+        // the interrupt reason is stripped; only the typed failure is durable
+        expect(exit.cause.reasons.some(Cause.isInterruptReason)).toBe(false)
+        return String(exit.cause.reasons.find(Cause.isFailReason)?.error)
+      })
+    ).pipe(Layer.provideMerge(layerMemory))
+    return Effect.gen(function*() {
+      expect(yield* flow.execute({ id: "mixed" })).toBe("boom")
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("the first completion wins and later completions are ignored", () => {
+    const { flow, layer } = makeFlow(
+      "DurableDeferred/first-wins",
+      Effect.map(DurableDeferred.await(Gate), (value) => `got:${value}`)
+    )
+    return Effect.gen(function*() {
+      const executionId = yield* flow.execute({ id: "w" }, { discard: true })
+      yield* Effect.yieldNow
+      const token = yield* completeToken(Gate, flow, executionId)
+      yield* DurableDeferred.succeed(Gate, { token, value: "first" })
+      // a divergent duplicate completion must not overwrite the winner
+      yield* DurableDeferred.succeed(Gate, { token, value: "second" })
+      yield* DurableDeferred.fail(Gate, { token, error: "late-failure" })
+
+      const result = yield* pollComplete(flow.poll(executionId))
+      expect(Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)).toBe(true)
+      if (Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)) {
+        expect(result.value.exit.value).toBe("got:first")
+      }
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("a completion recorded before the flow awaits is redelivered", () => {
+    const { flow, layer } = makeFlow(
+      "DurableDeferred/early-completion",
+      Effect.map(DurableDeferred.await(Gate), (value) => `got:${value}`)
+    )
+    return Effect.gen(function*() {
+      // complete the deferred before the execution ever starts
+      const executionId = yield* flow.executionId({ id: "e" })
+      const token = DurableDeferred.tokenFromExecutionId(Gate, { flow, executionId })
+      yield* DurableDeferred.succeed(Gate, { token, value: "early" })
+
+      const value = yield* flow.execute({ id: "e" })
+      expect(value).toBe("got:early")
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("into records the effect exit so a replay reuses it without re-running", () => {
+    let runs = 0
+    const Recorded = DurableDeferred.make("DurableDeferred/Recorded", {
+      success: Schema.Number,
+      error: Schema.String
+    })
+    const flow = Flow.make("DurableDeferred/into", {
+      payload: { id: Schema.String },
+      success: Schema.Number,
+      error: Schema.String,
+      idempotencyKey: ({ id }) => id
+    })
+    const layer = flow.toLayer(() =>
+      Effect.gen(function*() {
+        const engine = yield* FlowRuntime.FlowRuntime
+        const first = yield* DurableDeferred.into(
+          Effect.sync(() => ++runs),
+          Recorded
+        )
+        const persisted = yield* engine.deferredResult(Recorded)
+        expect(Option.isSome(persisted)).toBe(true)
+        const second = yield* DurableDeferred.into(
+          Effect.sync(() => ++runs),
+          Recorded
+        )
+        return first + second
+      })
+    ).pipe(Layer.provideMerge(layerMemory))
+    return Effect.gen(function*() {
+      // `into` writes the exit once; the recorded exit is what a resumed flow reads
+      expect(yield* flow.execute({ id: "i" })).toBe(3)
+      expect(runs).toBe(2)
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("raceAll returns the first result and replays it from the persisted exit", () => {
+    let attempts = 0
+    const flow = Flow.make("DurableDeferred/raceAll", {
+      payload: { id: Schema.String },
+      success: Schema.String,
+      error: Schema.String,
+      idempotencyKey: ({ id }) => id
+    })
+    const race = DurableDeferred.raceAll({
+      name: "race",
+      success: Schema.String,
+      error: Schema.String,
+      effects: [
+        Effect.sync(() => {
+          attempts++
+          return "fast"
+        }),
+        Effect.never as Effect.Effect<string, string>
+      ]
+    })
+    const layer = flow.toLayer(() =>
+      Effect.gen(function*() {
+        const first = yield* race
+        const second = yield* race
+        return `${first}/${second}`
+      })
+    ).pipe(Layer.provideMerge(layerMemory))
+    return Effect.gen(function*() {
+      expect(yield* flow.execute({ id: "r" })).toBe("fast/fast")
+      // the second call reads the persisted race exit instead of racing again
+      expect(attempts).toBe(1)
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("raceAll over durable waits settles on the one branch that resolves", () => {
+    const Fast = DurableDeferred.make("DurableDeferred/Race/Fast", { success: Schema.String })
+    const Slow = DurableDeferred.make("DurableDeferred/Race/Slow", { success: Schema.String })
+    const flow = Flow.make("DurableDeferred/race-partial", {
+      payload: { id: Schema.String },
+      success: Schema.String,
+      idempotencyKey: ({ id }) => id
+    })
+    const layer = flow.toLayer(() =>
+      DurableDeferred.raceAll({
+        name: "either",
+        success: Schema.String,
+        error: Schema.Never,
+        effects: [DurableDeferred.await(Fast), DurableDeferred.await(Slow)]
+      })
+    ).pipe(Layer.provideMerge(layerMemory))
+    return Effect.gen(function*() {
+      const executionId = yield* flow.execute({ id: "rp" }, { discard: true })
+      yield* Effect.yieldNow
+      // neither branch has a result yet, so the race itself is suspended
+      const suspended = yield* pollSuspended(flow.poll(executionId))
+      expect(Option.isSome(suspended) && suspended.value._tag).toBe("Suspended")
+
+      const tokenSlow = DurableDeferred.tokenFromExecutionId(Slow, { flow, executionId })
+      yield* DurableDeferred.succeed(Slow, { token: tokenSlow, value: "slow" })
+      const result = yield* pollComplete(flow.poll(executionId))
+      expect(Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)).toBe(true)
+      if (Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)) {
+        expect(result.value.exit.value).toBe("slow")
+      }
+
+      // a late completion of the losing branch cannot change the settled race
+      const tokenFast = DurableDeferred.tokenFromExecutionId(Fast, { flow, executionId })
+      yield* DurableDeferred.succeed(Fast, { token: tokenFast, value: "fast" })
+      yield* Effect.yieldNow
+      const settled = yield* flow.poll(executionId)
+      expect(
+        Option.isSome(settled) && settled.value._tag === "Complete" && Exit.isSuccess(settled.value.exit) &&
+          settled.value.exit.value
+      ).toBe("slow")
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("withActivityAttempt scopes the deferred name to the current attempt", () =>
+    Effect.gen(function*() {
+      const scoped = yield* Gate.withActivityAttempt
+      expect(scoped.name).toBe(`${Gate.name}/1`)
+      const retryScoped = yield* Gate.withActivityAttempt.pipe(
+        Effect.provideService(Activity.CurrentAttempt, 3)
+      )
+      expect(retryScoped.name).toBe(`${Gate.name}/3`)
+    }))
+
+  effect("concurrently awaited deferreds resume only once every branch has a result", () => {
+    const A = DurableDeferred.make("DurableDeferred/Concurrent/A", { success: Schema.String })
+    const B = DurableDeferred.make("DurableDeferred/Concurrent/B", { success: Schema.String })
+    let bodies = 0
+    const flow = Flow.make("DurableDeferred/concurrent", {
+      payload: { id: Schema.String },
+      success: Schema.String,
+      idempotencyKey: ({ id }) => id
+    })
+    const layer = flow.toLayer(() =>
+      Effect.gen(function*() {
+        bodies++
+        const [a, b] = yield* Effect.all(
+          [DurableDeferred.await(A), DurableDeferred.await(B)],
+          { concurrency: "unbounded" }
+        )
+        return `${a}+${b}`
+      })
+    ).pipe(Layer.provideMerge(layerMemory))
+    return Effect.gen(function*() {
+      const executionId = yield* flow.execute({ id: "c" }, { discard: true })
+      yield* Effect.yieldNow
+      expect(Option.isSome(yield* flow.poll(executionId))).toBe(true)
+
+      // resolving one branch of the concurrent pair is a *partial* frontier:
+      // the flow re-runs, records A's result, and suspends again on B
+      const tokenA = DurableDeferred.tokenFromExecutionId(A, { flow, executionId })
+      yield* DurableDeferred.succeed(A, { token: tokenA, value: "a" })
+      const partial = yield* pollSuspended(flow.poll(executionId))
+      expect(Option.isSome(partial) && partial.value._tag).toBe("Suspended")
+
+      const tokenB = DurableDeferred.tokenFromExecutionId(B, { flow, executionId })
+      yield* DurableDeferred.succeed(B, { token: tokenB, value: "b" })
+      const result = yield* pollComplete(flow.poll(executionId))
+      expect(Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)).toBe(true)
+      if (Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)) {
+        expect(result.value.exit.value).toBe("a+b")
+      }
+      // one body run per resolution plus the initial attempt: resumption is
+      // bounded by how many times the frontier advanced, not by branch count
+      expect(bodies).toBe(3)
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("precompleted concurrent deferreds finish in one replay without an intermediate suspension", () => {
+    // Bazel Skyframe parity: `StateMachineTest.java`
+    // parallelSubmachines_shorteningBothPathsReducesRestarts — when every
+    // concurrent dependency already has a value, evaluation completes in a
+    // single pass instead of suspending once per branch.
+    const A = DurableDeferred.make("DurableDeferred/Precompleted/A", { success: Schema.String })
+    const B = DurableDeferred.make("DurableDeferred/Precompleted/B", { success: Schema.String })
+    let bodies = 0
+    const flow = Flow.make("DurableDeferred/precompleted", {
+      payload: { id: Schema.String },
+      success: Schema.String,
+      idempotencyKey: ({ id }) => id
+    })
+    const layer = flow.toLayer(() =>
+      Effect.gen(function*() {
+        bodies++
+        const [a, b] = yield* Effect.all(
+          [DurableDeferred.await(A), DurableDeferred.await(B)],
+          { concurrency: "unbounded" }
+        )
+        return `${a}+${b}`
+      })
+    ).pipe(Layer.provideMerge(layerMemory))
+    return Effect.gen(function*() {
+      const executionId = yield* flow.executionId({ id: "pre" })
+      // Both branches are completed before the flow ever runs.
+      const tokenA = DurableDeferred.tokenFromExecutionId(A, { flow, executionId })
+      const tokenB = DurableDeferred.tokenFromExecutionId(B, { flow, executionId })
+      yield* DurableDeferred.succeed(A, { token: tokenA, value: "a" })
+      yield* DurableDeferred.succeed(B, { token: tokenB, value: "b" })
+
+      const startedId = yield* flow.execute({ id: "pre" }, { discard: true })
+      expect(startedId).toBe(executionId)
+      const result = yield* pollComplete(flow.poll(executionId))
+      expect(Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)).toBe(true)
+      if (Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)) {
+        expect(result.value.exit.value).toBe("a+b")
+      }
+      // The single replay reads both recorded results: exactly one body run,
+      // no intermediate suspension.
+      expect(bodies).toBe(1)
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("independent deferreds resume the flow as each one resolves", () => {
+    const A = DurableDeferred.make("DurableDeferred/Parallel/A", { success: Schema.String })
+    const B = DurableDeferred.make("DurableDeferred/Parallel/B", { success: Schema.String })
+    const flow = Flow.make("DurableDeferred/parallel", {
+      payload: { id: Schema.String },
+      success: Schema.String,
+      idempotencyKey: ({ id }) => id
+    })
+    const layer = flow.toLayer(() =>
+      Effect.gen(function*() {
+        const a = yield* DurableDeferred.await(A)
+        const b = yield* DurableDeferred.await(B)
+        return `${a}+${b}`
+      })
+    ).pipe(Layer.provideMerge(layerMemory))
+    return Effect.gen(function*() {
+      const executionId = yield* flow.execute({ id: "p" }, { discard: true })
+      yield* Effect.yieldNow
+      const tokenB = DurableDeferred.tokenFromExecutionId(B, { flow, executionId })
+      // resolving the not-yet-awaited deferred first must not complete the flow
+      yield* DurableDeferred.succeed(B, { token: tokenB, value: "b" })
+      const stillSuspended = yield* pollSuspended(flow.poll(executionId))
+      expect(Option.isSome(stillSuspended) && stillSuspended.value._tag).toBe("Suspended")
+
+      const tokenA = DurableDeferred.tokenFromExecutionId(A, { flow, executionId })
+      yield* DurableDeferred.succeed(A, { token: tokenA, value: "a" })
+      const result = yield* pollComplete(flow.poll(executionId))
+      expect(Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)).toBe(true)
+      if (Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)) {
+        expect(result.value.exit.value).toBe("a+b")
+      }
+    }).pipe(Effect.provide(layer))
+  })
+})

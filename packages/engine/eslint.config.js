@@ -58,25 +58,7 @@ export default tseslint.config(
     }
   },
   {
-    files: ["src/Activity/Activity.ts"],
-    rules: {
-      "@typescript-eslint/no-empty-object-type": "off"
-    }
-  },
-  {
-    files: ["src/Activity/make.ts"],
-    rules: {
-      "prefer-const": "off"
-    }
-  },
-  {
-    files: ["src/Flow/Flow.ts"],
-    rules: {
-      "@typescript-eslint/no-empty-object-type": "off"
-    }
-  },
-  {
-    files: ["src/DurableDeferred.ts", "src/FlowProxyServer.ts"],
+    files: ["src/FlowProxyServer.ts"],
     rules: {
       "@typescript-eslint/no-unnecessary-type-assertion": "off"
     }

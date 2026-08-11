@@ -11,13 +11,13 @@
  *
  * @since 4.0.0
  */
+import type { Flow } from "@smthrs/flow"
 import type { NonEmptyReadonlyArray } from "effect/Array"
 import * as Schema from "effect/Schema"
 import * as HttpApiEndpoint from "effect/unstable/httpapi/HttpApiEndpoint"
 import * as HttpApiGroup from "effect/unstable/httpapi/HttpApiGroup"
 import * as Rpc from "effect/unstable/rpc/Rpc"
 import * as RpcGroup from "effect/unstable/rpc/RpcGroup"
-import type * as Flow from "./Flow/index.ts"
 
 const OptionalExecutionId = Schema.optional(Schema.String)
 
@@ -42,7 +42,8 @@ const executePayload = <Payload extends Flow.AnyStructSchema>(
  * ```ts
  * import { Layer, Schema } from "effect"
  * import { RpcServer } from "effect/unstable/rpc"
- * import { Flow, FlowProxy, FlowProxyServer } from "@smthrs/engine"
+ * import { FlowProxy, FlowProxyServer } from "@smthrs/engine"
+ * import { Flow } from "@smthrs/flow"
  *
  * const EmailFlow = Flow.make("EmailFlow", {
  *   payload: {
@@ -123,7 +124,8 @@ export type ConvertRpcs<Flows extends Flow.Any, Prefix extends string> = Flows e
  * ```ts
  * import { Layer, Schema } from "effect"
  * import { HttpApi, HttpApiBuilder } from "effect/unstable/httpapi"
- * import { Flow, FlowProxy, FlowProxyServer } from "@smthrs/engine"
+ * import { FlowProxy, FlowProxyServer } from "@smthrs/engine"
+ * import { Flow } from "@smthrs/flow"
  *
  * const EmailFlow = Flow.make("EmailFlow", {
  *   payload: {

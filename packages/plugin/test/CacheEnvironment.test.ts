@@ -9,7 +9,7 @@
  * supplies its complete capability identity. Otherwise the engine keeps
  * sealed keys run-local.
  */
-import { Activity } from "@smthrs/engine"
+import { Activity } from "@smthrs/flow"
 import { Context, Effect, Layer } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Kernel from "../src/Kernel.ts"

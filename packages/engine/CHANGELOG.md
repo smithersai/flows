@@ -2,7 +2,24 @@
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- Split the flow authoring model out into `@smthrs/flow`. `Flow`, `Activity`,
+  `RetryPolicy`, `DurableDeferred`, `DurableClock`, `DurableQueue`, and
+  `StepIdentity` are no longer exported here; import them from `@smthrs/flow`.
+- The `FlowEngine.FlowEngine` service and `FlowEngine.FlowInstance` moved to
+  `@smthrs/flow` as `FlowRuntime.FlowRuntime` and `FlowRuntime.FlowInstance`,
+  together with `annotateWaiting`, `WaitingAnnotation`, and
+  `FlowCycleDetected`. `@smthrs/engine` implements that port; the dependency
+  direction is now `@smthrs/flow` ← `@smthrs/engine`, with no cycle.
+- `FlowEngine.FlowInstance.initial(flow, executionId)` is now
+  `FlowEngine.makeInstance(flow, executionId)`.
+
 ### Changed
+
+- Broke the single `FlowEngine.ts` module into a `FlowEngine/` folder:
+  `Encoded.ts`, `SnapshotBoundary.ts`, `FlowInstance.ts`, `ActivityKey.ts`,
+  `make.ts`, `layerMemory.ts`, and the barrel.
 
 - Renamed `Flow.withCompensation` to the clearer `Flow.withRollback`.
 - Moved `BoundaryMode` beside the `Activity` model it configures.

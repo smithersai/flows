@@ -1,31 +1,32 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
+import { Activity, Flow, FlowRuntime } from "@smthrs/flow"
 import { Clock, Effect, Exit, Fiber, Schedule, Schema } from "effect"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
-import { Activity, Flow, FlowEngine } from "../src/index.ts"
+import { FlowEngine } from "../src/index.ts"
 import { runPromise } from "./Crypto.ts"
 
 const flow = Flow.make("RetryOnInterrupt/test", {
   payload: {},
   success: Schema.Void
 })
-const instance = FlowEngine.FlowInstance.initial(flow, "retry-on-interrupt")
+const instance = FlowEngine.makeInstance(flow, "retry-on-interrupt")
 
 const effect = (
   name: string,
   body: () => Effect.Effect<
     void,
     unknown,
-    Scope.Scope | FlowEngine.FlowEngine | FlowEngine.FlowInstance
+    Scope.Scope | FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance
   >
 ) =>
   it(name, () =>
     runPromise(
       body().pipe(
         Effect.provide(FlowEngine.layerMemory),
-        Effect.provideService(FlowEngine.FlowInstance, instance),
+        Effect.provideService(FlowRuntime.FlowInstance, instance),
         Effect.provide(TestClock.layer()),
         Effect.scoped
       )

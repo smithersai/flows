@@ -10,6 +10,13 @@
   `DurableClock.ts`, `DurableDeferred.ts`, `DurableQueue.ts`,
   `FlowProxy.ts`, `FlowProxyServer.ts`, and `index.ts`
 
+The vendored source now spans two packages. `@smthrs/flow` carries the
+authoring half (`Flow`, `Activity`, `DurableClock`, `DurableDeferred`,
+`DurableQueue`, and the runtime port those APIs are written against);
+`@smthrs/engine` carries the runtime half (the encoded seam, its typed
+adapter, the in-memory implementation, and the proxies). This file documents
+the fork for both, and both tarballs ship `THIRD_PARTY_NOTICES.md`.
+
 The baseline vendor commit rewrites imports that pointed elsewhere inside the
 Effect repository to published `effect/*` package subpaths. Because Effect
 strips its internal crypto helper from published declarations, that baseline

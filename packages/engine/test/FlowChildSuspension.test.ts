@@ -1,9 +1,10 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
+import { Activity, DurableDeferred, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow"
 import { Effect, Exit, Fiber, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
-import { Activity, DurableDeferred, Flow, FlowEngine, RetryPolicy } from "../src/index.ts"
+import { FlowEngine } from "../src/index.ts"
 import { runPromise } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
@@ -149,7 +150,7 @@ describe("child flow suspension and interruption", () => {
         deferredDone: () => Effect.void,
         scheduleClock: () => Effect.void
       })
-      const parentInstance = FlowEngine.FlowInstance.initial(parentFlow, "parent-exec")
+      const parentInstance = FlowEngine.makeInstance(parentFlow, "parent-exec")
       parentInstance.interrupted = parentInterrupted
 
       return Effect.gen(function*() {
@@ -165,8 +166,8 @@ describe("child flow suspension and interruption", () => {
         expect(Exit.isSuccess(exit)).toBe(childOutcome === "Complete")
         expect(interruptCalls).toEqual(expected)
       }).pipe(
-        Effect.provideService(FlowEngine.FlowInstance, parentInstance),
-        Effect.provideService(FlowEngine.FlowEngine, scripted)
+        Effect.provideService(FlowRuntime.FlowInstance, parentInstance),
+        Effect.provideService(FlowRuntime.FlowRuntime, scripted)
       )
     })
   }
@@ -237,7 +238,7 @@ describe("resumeSignal", () => {
       expect(yield* flow.execute({ id: "x" }, { executionId: "run-signal" })).toBe("woken")
       expect(executions).toBe(2)
       expect(signals).toBe(1)
-    }).pipe(Effect.provide(Layer.succeed(FlowEngine.FlowEngine)(scripted)))
+    }).pipe(Effect.provide(Layer.succeed(FlowRuntime.FlowRuntime)(scripted)))
   })
 
   effect("without a resumeSignal the engine falls back to the policy delay", () => {
@@ -269,6 +270,6 @@ describe("resumeSignal", () => {
     return Effect.gen(function*() {
       expect(yield* flow.execute({ id: "x" }, { executionId: "run-nosignal" })).toBe("slept")
       expect(executions).toBe(2)
-    }).pipe(Effect.provide(Layer.succeed(FlowEngine.FlowEngine)(scripted)))
+    }).pipe(Effect.provide(Layer.succeed(FlowRuntime.FlowRuntime)(scripted)))
   })
 })

@@ -1,10 +1,11 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
+import { DurableDeferred, Flow } from "@smthrs/flow"
 import { Effect, Fiber, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
-import { DurableDeferred, Flow, FlowEngine, FlowProxy } from "../src/index.ts"
+import { FlowEngine, FlowProxy } from "../src/index.ts"
 import { runPromise } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>

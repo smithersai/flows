@@ -17,9 +17,10 @@ import type * as Crypto from "effect/Crypto"
  * orders, which is exactly what a permuted interleaving produces. Each
  * activity must keep its own identity across both.
  */
+import { Activity, Flow, FlowRuntime } from "@smthrs/flow"
 import { Deferred, Effect, Exit, Layer, Schema } from "effect"
 import { describe, expect, it } from "vitest"
-import { Activity, Flow, FlowEngine } from "../src/index.ts"
+import { FlowEngine } from "../src/index.ts"
 import { runPromise } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
@@ -77,17 +78,17 @@ const drive = (
 ): Effect.Effect<ReadonlyArray<{ readonly name: string; readonly key: string }>> => {
   const keys: Array<{ readonly name: string; readonly key: string }> = []
   return Effect.gen(function*() {
-    const engine = yield* FlowEngine.FlowEngine
+    const engine = yield* FlowRuntime.FlowRuntime
     for (const activity of activities) {
       yield* engine.activityExecute(activity as never, 1)
     }
   }).pipe(
     Effect.as(keys as ReadonlyArray<{ readonly name: string; readonly key: string }>),
     Effect.provideService(
-      FlowEngine.FlowInstance,
-      FlowEngine.FlowInstance.initial(flow, executionId)
+      FlowRuntime.FlowInstance,
+      FlowEngine.makeInstance(flow, executionId)
     ),
-    Effect.provide(Layer.succeed(FlowEngine.FlowEngine)(scriptedEngine(keys)))
+    Effect.provide(Layer.succeed(FlowRuntime.FlowRuntime)(scriptedEngine(keys)))
   ) as Effect.Effect<ReadonlyArray<{ readonly name: string; readonly key: string }>>
 }
 
@@ -137,7 +138,7 @@ describe("invocation key stability under permuted scheduling (issue #73)", () =>
 /** One drive of a run executing an arbitrary program against the engine. */
 const driveProgram = (
   executionId: string,
-  program: (engine: FlowEngine.FlowEngine["Service"]) => Effect.Effect<unknown, unknown, any>
+  program: (engine: FlowRuntime.FlowRuntime["Service"]) => Effect.Effect<unknown, unknown, any>
 ): Effect.Effect<ReadonlyArray<{ readonly name: string; readonly key: string }>> => {
   const keys: Array<{ readonly name: string; readonly key: string }> = []
   const engine = scriptedEngine(keys)
@@ -146,10 +147,10 @@ const driveProgram = (
   }).pipe(
     Effect.as(keys as ReadonlyArray<{ readonly name: string; readonly key: string }>),
     Effect.provideService(
-      FlowEngine.FlowInstance,
-      FlowEngine.FlowInstance.initial(flow, executionId)
+      FlowRuntime.FlowInstance,
+      FlowEngine.makeInstance(flow, executionId)
     ),
-    Effect.provide(Layer.succeed(FlowEngine.FlowEngine)(engine))
+    Effect.provide(Layer.succeed(FlowRuntime.FlowRuntime)(engine))
   ) as Effect.Effect<ReadonlyArray<{ readonly name: string; readonly key: string }>>
 }
 

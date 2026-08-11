@@ -12,7 +12,7 @@
  *
  * @since 0.1.0
  */
-import { Activity } from "@smthrs/engine"
+import { Activity } from "@smthrs/flow"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import type { FlowsConfig } from "./Config.ts"
