@@ -7,7 +7,7 @@
  * own index does it, so one dependency gives you the whole engine surface
  * without collapsing each package's `make` / `makeNoop` / `layerNoop` trio into
  * a shared namespace: `Kernel.ChildProcessSpawner.layerNoop`,
- * `Journal.Store.layer`.
+ * `RunStore.RunStore.layer`.
  *
  * The `@smthrs/platform-*` packages are deliberately NOT re-exported, for the
  * same reason `effect`'s index does not re-export `@effect/platform-node`: a
@@ -22,8 +22,14 @@
  * seam. The only API of its own is {@link namespaces}, the runtime list of
  * the re-exported namespace names.
  *
+ * The one exception is `@smthrs/flow`: the authoring model is re-exported
+ * *flat*, so `Flow`, `Activity`, `RetryPolicy`, `DurableDeferred`,
+ * `DurableClock`, `DurableQueue`, `FlowRuntime`, and `StepIdentity` sit at the
+ * top level beside the infrastructure namespaces. Writing a flow is the point
+ * of the library; `Flows.Flow.Flow.make` would be noise.
+ *
  * ```ts
- * import { Engine, Kernel, Journal } from "@smthrs/flows"
+ * import { Activity, Engine, Flow, Journal } from "@smthrs/flows"
  * ```
  *
  * One caveat: `Plugin` is re-exported as a namespace, but declaration merging
@@ -33,21 +39,28 @@
  */
 
 export * as Canonical from "@smthrs/canonical"
+export * as Capability from "@smthrs/capability"
 export * as Crypto from "@smthrs/crypto"
 export * as Database from "@smthrs/database"
 export * as Engine from "@smthrs/engine"
 export * as EngineStore from "@smthrs/engine-store"
+export * from "@smthrs/flow"
 export * as Jj from "@smthrs/jj"
 export * as Journal from "@smthrs/journal"
 export * as Kernel from "@smthrs/kernel"
 export * as Keys from "@smthrs/keys"
 export * as Plugin from "@smthrs/plugin"
+export * as RunStore from "@smthrs/run-store"
 export * as Sandbox from "@smthrs/sandbox"
+export * as StepCache from "@smthrs/step-cache"
 export * as Sync from "@smthrs/sync"
 export * as TimeTravel from "@smthrs/time-travel"
 
 /**
- * The namespace names this barrel re-exports, in export order.
+ * The namespace names this barrel re-exports, sorted.
+ *
+ * It covers both re-export styles: the per-package namespaces and the flat
+ * authoring names `@smthrs/flow` contributes.
  *
  * Pure re-exports carry no executable statements, so before this constant
  * the package's enforced 100% coverage gate evaluated an empty denominator
@@ -61,17 +74,28 @@ export * as TimeTravel from "@smthrs/time-travel"
  * @category models
  */
 export const namespaces = [
+  "Activity",
   "Canonical",
+  "Capability",
   "Crypto",
   "Database",
+  "DurableClock",
+  "DurableDeferred",
+  "DurableQueue",
   "Engine",
   "EngineStore",
+  "Flow",
+  "FlowRuntime",
   "Jj",
   "Journal",
   "Kernel",
   "Keys",
   "Plugin",
+  "RetryPolicy",
+  "RunStore",
   "Sandbox",
+  "StepCache",
+  "StepIdentity",
   "Sync",
   "TimeTravel"
 ] as const

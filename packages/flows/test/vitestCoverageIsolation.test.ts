@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest"
  * invocations in the same package destroy each other — one aborts with a
  * removed-coverage-directory error and the other enforces 100% against a
  * partial profile with every test passing (issues #115/#121). #115's fix
- * landed in packages/host only; this conformance test pins the per-process,
+ * landed in one package only; this conformance test pins the per-process,
  * tmpdir-scoped `reportsDirectory` derivation across ALL packages so a new or
  * regressed config cannot reintroduce the collision.
  *
@@ -293,12 +293,12 @@ describe("vitest coverage isolation conformance", () => {
     // directives that the earlier literal-`v8 ignore` grep never saw.
     const directive = /(?:istanbul|[cv]8|node:coverage)\s+ignore\s+(if|else|next|file|start|stop)(?=\W|$)/g
     const allowlist: Record<string, number> = {
-      "engine/src/FlowEngine.ts": 1,
-      "journal/src/AttemptStore.ts": 1,
-      "journal/src/CacheStore.ts": 1,
-      "journal/src/RunCoordinator.ts": 1,
-      "journal/src/RunStore.ts": 1,
-      "journal/src/SqlJournal.ts": 1
+      "engine-store/src/internal/RunCoordinator.ts": 1,
+      "engine/src/FlowEngine/make.ts": 1,
+      "journal/src/SqlJournal.ts": 1,
+      "run-store/src/AttemptStore.ts": 1,
+      "run-store/src/RunStore.ts": 1,
+      "step-cache/src/CacheStore.ts": 1
     }
     const sourceFiles = (directory: string): Array<string> => {
       let entries

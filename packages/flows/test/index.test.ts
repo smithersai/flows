@@ -1,3 +1,4 @@
+import * as FlowPackage from "@smthrs/flow"
 import { readdirSync, statSync } from "node:fs"
 import { join, resolve } from "node:path"
 import { describe, expect, it } from "vitest"
@@ -37,10 +38,20 @@ const namespaceName = (directory: string) =>
 const isPlatformBundle = (name: string) => name.startsWith("platform-")
 const packageNames = readdirSync(packagesDir)
   .filter((name) => isFile(join(packagesDir, name, "package.json")))
-const expected = packageNames
-  .filter((name) => name !== "flows" && !isPlatformBundle(name))
-  .map(namespaceName)
-  .sort()
+// `@smthrs/flow` is the one package re-exported FLAT rather than as a single
+// namespace: writing a flow is the point of the library, so `Flow`,
+// `Activity`, `RetryPolicy`, and their siblings sit at the top level. Its
+// contribution is therefore derived from the package's own exports, not from
+// its directory name — a new authoring namespace there fails this test until
+// the barrel re-exports it, exactly as a new package does.
+const expected = [
+  ...new Set([
+    ...packageNames
+      .filter((name) => name !== "flows" && name !== "flow" && !isPlatformBundle(name))
+      .map(namespaceName),
+    ...Object.keys(FlowPackage)
+  ])
+].sort()
 
 describe("barrel", () => {
   it("derives a non-trivial universe from packages/*", () => {
@@ -49,6 +60,9 @@ describe("barrel", () => {
     expect(expected.length).toBeGreaterThanOrEqual(10)
     expect(expected).toContain("EngineStore")
     expect(expected).toContain("TimeTravel")
+    // the flat authoring re-export is part of the universe too
+    expect(expected).toContain("Flow")
+    expect(expected).toContain("Activity")
   })
 
   it("excludes the platform bundles, and there are some to exclude", () => {
