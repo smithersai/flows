@@ -1,11 +1,11 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import canonicalize from "canonicalize"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as SchemaGetter from "effect/SchemaGetter"
 import * as SchemaIssue from "effect/SchemaIssue"
+import { canonicalize } from "./internal/canonicalize.ts"
 import { validateUnicode } from "./Unicode.ts"
 
 /** @private */

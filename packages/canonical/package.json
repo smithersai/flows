@@ -45,7 +45,6 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "canonicalize": "3.0.0",
     "effect": "4.0.0-beta.102"
   },
   "devDependencies": {
