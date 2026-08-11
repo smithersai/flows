@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Changed
+
+- `Jj`'s error channel is now honest about the capability kernel: every method
+  fails with `JjFailure` (`JjError | Permission.PermissionError`), and
+  `workspaceAdd` additionally with `PlatformError` because the guarded
+  implementation canonicalizes its destination path first. `@smthrs/kernel`
+  decorates _this_ tag rather than redeclaring the interface behind one of its
+  own, so there is one `Jj` interface and one `Jj` tag. The new dependency,
+  `@smthrs/capability`, is a leaf that depends on nothing but `effect`, so this
+  package stays browser-bundleable.
+- Added `isJjError`, so a caller can tell "jj said no" from "the capability
+  kernel said no" without matching on `_tag` by hand.
+
 ### Added
 
 - `BrowserJj.layer({ fs, wasm })`: a working browser implementation of the

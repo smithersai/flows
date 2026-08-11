@@ -1,14 +1,18 @@
 /**
  * Typed permission failures and capability policy rules.
  *
+ * The schema ids below round-trip through the grant journal and are digested
+ * into step keys, so renaming one invalidates recorded runs.
+ *
  * Governing design:
  * `docs/specs/Concepts/Permission Kernel.md` and
  * `docs/specs/Concepts/Trust Granularity.md`.
  *
  * @since 0.1.0
  */
-import { Schema } from "effect"
-import { Capability, CapabilityPattern, type EffectTier, matches } from "./Capability.ts"
+import { Option, Schema } from "effect"
+import { type PlatformError, systemError } from "effect/PlatformError"
+import { Capability, CapabilityPattern, type EffectTier, format, matches } from "./Capability.ts"
 
 /**
  * A permission request that must be resolved by an attended surface.
@@ -19,7 +23,7 @@ import { Capability, CapabilityPattern, type EffectTier, matches } from "./Capab
  * @since 0.1.0
  */
 export class PermissionRequired extends Schema.TaggedErrorClass<PermissionRequired>()(
-  "@smthrs/kernel/PermissionRequired",
+  "@smthrs/capability/PermissionRequired",
   {
     code: Schema.Literal("permission_required"),
     requestId: Schema.String,
@@ -48,7 +52,7 @@ export class PermissionRequired extends Schema.TaggedErrorClass<PermissionRequir
  * @since 0.1.0
  */
 export class PermissionDenied extends Schema.TaggedErrorClass<PermissionDenied>()(
-  "@smthrs/kernel/PermissionDenied",
+  "@smthrs/capability/PermissionDenied",
   {
     code: Schema.Literal("permission_denied"),
     capability: Capability,
@@ -96,7 +100,7 @@ export type GrantStoreErrorCode = typeof GrantStoreErrorCode.Type
  * @since 0.1.0
  */
 export class GrantStoreError extends Schema.TaggedErrorClass<GrantStoreError>()(
-  "@smthrs/kernel/GrantStoreError",
+  "@smthrs/capability/GrantStoreError",
   {
     code: GrantStoreErrorCode,
     message: Schema.optional(Schema.String),
@@ -120,7 +124,7 @@ const RuleEffect = Schema.Literals(["allow", "deny", "ask"])
  * @category models
  * @since 0.1.0
  */
-export class Rule extends Schema.Class<Rule>("@smthrs/kernel/Permission/Rule")({
+export class Rule extends Schema.Class<Rule>("@smthrs/capability/Permission/Rule")({
   effect: RuleEffect,
   pattern: CapabilityPattern
 }) {}
@@ -196,3 +200,91 @@ export const permissionDenied = (capability: Capability, reason: string): Permis
     capability,
     reason
   })
+
+/**
+ * Every failure the capability kernel can add to a guarded Host call.
+ *
+ * A protected service names this union in its own interface, so a caller that
+ * holds the service cannot forget that an operation may be suspended, denied,
+ * or left undecided by a broken grant store.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type PermissionError = PermissionRequired | PermissionDenied | GrantStoreError
+
+/**
+ * Refines an unknown value to a kernel permission failure.
+ *
+ * @category refinements
+ * @since 0.1.0
+ */
+export const isPermissionError = (input: unknown): input is PermissionError =>
+  typeof input === "object" && input !== null && "_tag" in input &&
+  (input._tag === "@smthrs/capability/PermissionRequired" ||
+    input._tag === "@smthrs/capability/PermissionDenied" ||
+    input._tag === "@smthrs/capability/GrantStoreError")
+
+/**
+ * Renders a permission failure as the one-line `description` a `SystemError`
+ * carries — the string a log line or an unattended report shows.
+ *
+ * @category formatting
+ * @since 0.1.0
+ */
+export const formatError = (error: PermissionError): string => {
+  switch (error._tag) {
+    case "@smthrs/capability/PermissionRequired":
+      return `${error.code}: ${format(error.capability)} (tier ${error.tier}, request ${error.requestId})`
+    case "@smthrs/capability/PermissionDenied":
+      return `${error.code}: ${format(error.capability)}: ${error.reason}`
+    case "@smthrs/capability/GrantStoreError":
+      // `message` is optional in the schema, but the `Error` base always
+      // materializes it — an unset one is the empty string, not `undefined`.
+      return `grant store ${error.code}${error.message ? `: ${error.message}` : ""}`
+  }
+}
+
+/**
+ * Projects a permission failure into Effect's `PlatformError` channel.
+ *
+ * Effect owns `FileSystem` and `ChildProcessSpawner`, and their tags fix the
+ * error channel to `PlatformError`. Rather than mint a second tag whose only
+ * difference is a wider error type, the kernel decorates those tags in place
+ * and maps its own failures through here.
+ *
+ * Nothing is lost: the normalized reason is always `PermissionDenied` — the
+ * operation did not happen because the capability kernel refused, suspended,
+ * or could not decide it — `description` carries the human rendering from
+ * {@link formatError}, and `cause` carries the structured failure itself, so
+ * {@link fromPlatformError} hands the attended surface back the original
+ * `capability`, `tier`, `requestId`, and `reason`.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const toPlatformError = (options: {
+  readonly module: string
+  readonly method: string
+  readonly pathOrDescriptor?: string | number | undefined
+  readonly error: PermissionError
+}): PlatformError =>
+  systemError({
+    _tag: "PermissionDenied",
+    module: options.module,
+    method: options.method,
+    description: formatError(options.error),
+    ...(options.pathOrDescriptor === undefined ? {} : { pathOrDescriptor: options.pathOrDescriptor }),
+    cause: options.error
+  })
+
+/**
+ * Recovers the structured permission failure a {@link toPlatformError}
+ * projection carries, so an attended surface can still reply to the request
+ * and an unattended report can still name the capability.
+ *
+ * @category refinements
+ * @since 0.1.0
+ */
+export const fromPlatformError = (error: PlatformError): Option.Option<PermissionError> =>
+  isPermissionError(error.reason.cause) ? Option.some(error.reason.cause) : Option.none()

@@ -24,6 +24,17 @@ describe("CommandLine.render", () => {
     expect(CommandLine.render(ChildProcess.make("echo", ["it's"]))).toBe("echo 'it'\\''s'")
   })
 
+  it("renders shell commands verbatim so the capability names what executes", () => {
+    expect(CommandLine.render(ChildProcess.make("echo", ["safe; touch /tmp/marker"], { shell: true })))
+      .toBe("echo safe; touch /tmp/marker")
+    expect(CommandLine.render(ChildProcess.make("echo", ["a b"], { shell: "/bin/sh" })))
+      .toBe("/bin/sh -c 'echo a b'")
+    expect(CommandLine.render(ChildProcess.make("echo", ["it's"], { shell: "/custom shell" })))
+      .toBe("'/custom shell' -c 'echo it'\\''s'")
+    expect(CommandLine.render(ChildProcess.make("echo", ["a b"], { shell: false })))
+      .toBe("echo 'a b'")
+  })
+
   it("renders a pipeline with `|` between its stages", () => {
     const pipeline = ChildProcess.make("printf", ["a b"]).pipe(
       ChildProcess.pipeTo(ChildProcess.make("grep", ["a"]))

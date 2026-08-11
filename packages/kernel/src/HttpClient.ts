@@ -9,15 +9,15 @@
  * @since 0.1.0
  */
 
+import { make as makeCapability } from "@smthrs/capability/Capability"
+import { PermissionDenied, type PermissionError } from "@smthrs/capability/Permission"
 import { Context, Effect, Layer } from "effect"
 import * as EffectHttpClient from "effect/unstable/http/HttpClient"
 import type * as EffectHttpClientError from "effect/unstable/http/HttpClientError"
 import type * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
 import type * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"
-import { make as makeCapability } from "./Capability.ts"
 import { GrantStore } from "./GrantStore.ts"
 import * as HostHttpTransport from "./HttpTransport.ts"
-import { type GrantStoreError, PermissionDenied, type PermissionRequired } from "./Permission.ts"
 
 /**
  * The error channel added by the capability kernel to HTTP requests.
@@ -25,11 +25,7 @@ import { type GrantStoreError, PermissionDenied, type PermissionRequired } from 
  * @category models
  * @since 0.1.0
  */
-export type HttpClientError =
-  | EffectHttpClientError.HttpClientError
-  | PermissionRequired
-  | PermissionDenied
-  | GrantStoreError
+export type HttpClientError = EffectHttpClientError.HttpClientError | PermissionError
 
 /**
  * An HTTP client whose requests have passed through the capability kernel.

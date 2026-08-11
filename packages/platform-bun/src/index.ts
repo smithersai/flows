@@ -7,7 +7,7 @@
  * and the child-process spawner (`@effect/platform-bun` re-exports the same
  * modules), so this package adds only the fetch-backed single-hop
  * `HttpTransport` and one `BunHost.layer` composing the complete closed
- * six-tag Host surface.
+ * five-tag Host surface.
  *
  * ```ts
  * import { BunHost } from "@smthrs/platform-bun"

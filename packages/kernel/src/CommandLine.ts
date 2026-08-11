@@ -35,6 +35,17 @@ export const quote = (token: string): string =>
 /**
  * Renders a `Command` as a single shell command line.
  *
+ * A standard command with `shell: true` renders its tokens verbatim, matching
+ * the line Node and the browser interpreter hand to the default shell. A
+ * custom shell renders as an explicit `<shell> -c <line>` invocation so the
+ * selected executable is part of the permission resource. Without `shell`,
+ * every token is POSIX-quoted to preserve literal argv semantics. These
+ * distinctions are security-sensitive: the rendered value is also the
+ * `proc:spawn` capability resource, so it must describe what will execute.
+ * The rendering is POSIX-only by contract: on Windows, Node invokes the shell
+ * with `/d /s /c` rather than `-c`, so the rendered line describes the POSIX
+ * invocation, not a cmd.exe one.
+ *
  * A `PipedCommand` renders with `|` between its sides. That is a faithful
  * rendering of what the pipeline does, and it is the only form an interpreter
  * that takes a command line rather than an `argv` can be given. `from`/`to`
@@ -47,7 +58,11 @@ export const quote = (token: string): string =>
  */
 export const render = (command: ChildProcess.Command): string =>
   command._tag === "StandardCommand"
-    ? [command.command, ...command.args].map(quote).join(" ")
+    ? command.options.shell === undefined || command.options.shell === false
+      ? [command.command, ...command.args].map(quote).join(" ")
+      : command.options.shell === true
+      ? [command.command, ...command.args].join(" ")
+      : `${quote(command.options.shell)} -c ${quote([command.command, ...command.args].join(" "))}`
     : `${render(command.left)} | ${render(command.right)}`
 
 /**

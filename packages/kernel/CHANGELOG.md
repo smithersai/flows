@@ -2,12 +2,53 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **One tag per protected service** (maintainer directive, 2026-08-10).
+  Enforcement is now middleware over the service's _own_ tag —
+  `Layer.effect(Tag, Effect.gen(function*() { const raw = yield* Tag; … }))`
+  composed over the platform layer with `Layer.provide` — instead of a widened
+  redeclaration of the interface behind a second tag plus an
+  `as unknown as` cast to force the guarded implementation back onto the raw
+  one. There are now **zero** casts in `packages/kernel/src`.
+  - `FileSystem` and `ChildProcessSpawner` no longer export a kernel
+    interface, tag, `make`, `makeNoop`, or `layerNoop` for the service itself;
+    Effect's are the ones to use. `FileSystem` keeps `canonicalResource` and
+    `layer`; `ChildProcessSpawner` keeps `layer` plus a `NotFound`-reporting
+    `makeNoop` / `layerNoop` stub, and re-exports Effect's tag and `make`.
+  - `Jj` no longer redeclares `@smthrs/jj`'s interface. It re-exports that
+    package's tag, `make`, `makeNoop`, and `layerNoop`, and adds `layer`.
+  - `HostServices` collapses to one closed list: `ProtectedHostService` and
+    `ProtectedHostServiceTags` are gone. `HostServiceIds` is unchanged — the
+    service identities did not change, only the plumbing.
+- Permission failures on Effect-owned services are projected into the native
+  `PlatformError` channel by the new `Permission.toPlatformError`: the reason
+  is the normalized `PermissionDenied` system-error tag, `description` is the
+  one-line rendering of the failure, and `cause` carries the structured
+  `PermissionRequired` / `PermissionDenied` / `GrantStoreError`.
+  `Permission.fromPlatformError` reads it back, so the attended surface and
+  unattended reporting lose nothing.
+- `Capability` and `Permission` moved to the new leaf package
+  `@smthrs/capability` and are re-exported from the root barrel unchanged;
+  only the deep imports move (`@smthrs/kernel/Capability` →
+  `@smthrs/capability/Capability`, same for `Permission`). The split exists
+  so `@smthrs/jj` can
+  declare the permission failures its guarded interface adds without depending
+  on the kernel that already depends on it. Every schema id is frozen and
+  unchanged (`@smthrs/kernel/Capability`, `@smthrs/kernel/PermissionDenied`, …)
+  because they round-trip through the grant journal.
+- `GrantStore`, `CapabilitySet`, `GrantEvent`, and `JournalGrantStore`
+  semantics are untouched: attended suspension on a `Deferred`, unattended
+  fail-fast, and terminal denial all behave exactly as before.
+
 ### Added
 
 - Added `CommandLine`, which renders an `effect/unstable/process` `Command` back
   to a POSIX command line. One renderer, two callers: the `proc:spawn`
   capability resource and the interpreter or remote sandbox that executes the
-  line, so a grant and the thing it authorizes cannot drift apart.
+  line, so a grant and the thing it authorizes cannot drift apart. `shell: true`
+  keeps shell syntax verbatim, while a custom shell path is named explicitly in
+  the rendered invocation and therefore in the permission resource.
 - Added `ChildProcessSpawner`, the permission decorator over Effect's own
   spawner. The check is suspended inside `spawn`, so building a `Command` or a
   stream neither asks permission nor starts a process; the derived helpers

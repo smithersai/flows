@@ -5,6 +5,7 @@
  * they claim to be wired to and that they keep the stable identity strings.
  */
 import * as Effect from "effect/Effect"
+import type { PlatformError } from "effect/PlatformError"
 import { describe, expect, it } from "vitest"
 import * as BrowserJj from "../src/browser/BrowserJj.ts"
 import * as BunJj from "../src/bun/BunJj.ts"
@@ -15,19 +16,17 @@ import * as NodeJj from "../src/node/NodeJj.ts"
 describe("@smthrs/jj barrel", () => {
   it("re-exports the contract flat", () => {
     expect(Object.keys(Index).sort()).toEqual(
-      ["Jj", "JjError", "JjErrorCode", "jjError", "layerNoop", "make", "makeNoop"].sort()
+      ["Jj", "JjError", "JjErrorCode", "isJjError", "jjError", "layerNoop", "make", "makeNoop"].sort()
     )
   })
 
   /**
    * The tag key is digested into step keys and the error `_tag` round-trips
-   * through the journal, so moving these modules out of the dissolved
-   * `@smthrs/host` must not
-   * rename either.
+   * through the journal, so renames here invalidate recorded runs.
    */
-  it("keeps the `flows/host/…` identity strings the step-key digest depends on", () => {
-    expect(Jj.key).toBe("flows/host/Jj")
-    expect(new Index.JjError({ code: "unknown", message: "x" })._tag).toBe("flows/host/JjError")
+  it("pins the identity strings the step-key digest depends on", () => {
+    expect(Jj.key).toBe("@smthrs/jj/Jj")
+    expect(new Index.JjError({ code: "unknown", message: "x" })._tag).toBe("@smthrs/jj/JjError")
   })
 })
 
@@ -40,7 +39,7 @@ describe("BunJj", () => {
 describe("BrowserJj", () => {
   it("reports `not_installed` for every operation, naming the jj command", async () => {
     const jj = await Effect.runPromise(Effect.provide(Jj, BrowserJj.layerUnsupported))
-    const calls: ReadonlyArray<readonly [Effect.Effect<unknown, Index.JjError>, string]> = [
+    const calls: ReadonlyArray<readonly [Effect.Effect<unknown, Index.JjFailure | PlatformError>, string]> = [
       [jj.snapshot("msg"), "jj commit"],
       [jj.restore("abc"), "jj edit"],
       [jj.diff("a", "b"), "jj diff"],

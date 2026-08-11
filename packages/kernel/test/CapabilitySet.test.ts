@@ -1,7 +1,7 @@
+import { Capability, CapabilityPattern } from "@smthrs/capability/Capability"
 import { Effect } from "effect"
 import { FastCheck } from "effect/testing"
 import { describe, expect, it } from "vitest"
-import { Capability, CapabilityPattern } from "../src/Capability.ts"
 import * as CapabilitySets from "../src/CapabilitySet.ts"
 
 const actions = [

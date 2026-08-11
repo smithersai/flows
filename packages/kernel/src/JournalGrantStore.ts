@@ -7,15 +7,15 @@
  *
  * @since 0.1.0
  */
+import type { CapabilityPattern } from "@smthrs/capability/Capability"
+import { GrantStoreError, Rule } from "@smthrs/capability/Permission"
 import * as JournalModule from "@smthrs/journal/Journal"
 import * as JournalEvent from "@smthrs/journal/JournalEvent"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
-import type { CapabilityPattern } from "./Capability.ts"
 import { decode, type GrantEvent, GrantEventSchema } from "./GrantEvent.ts"
 import * as GrantStore from "./GrantStore.ts"
-import { GrantStoreError, Rule } from "./Permission.ts"
 import { Workspace } from "./Workspace.ts"
 
 /**

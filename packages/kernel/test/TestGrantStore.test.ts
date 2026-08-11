@@ -1,6 +1,6 @@
+import { Capability } from "@smthrs/capability/Capability"
 import { Effect } from "effect"
 import { describe, expect, it } from "vitest"
-import { Capability } from "../src/Capability.ts"
 import { GrantStore } from "../src/GrantStore.ts"
 import * as TestGrantStore from "../src/test/TestGrantStore.ts"
 

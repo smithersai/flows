@@ -1,12 +1,12 @@
+import type * as Capability from "@smthrs/capability/Capability"
+import { PermissionDenied } from "@smthrs/capability/Permission"
 import { Effect } from "effect"
 import type * as EffectHttpClientError from "effect/unstable/http/HttpClientError"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
 import { describe, expect, it } from "vitest"
-import type * as Capability from "../src/Capability.ts"
 import { GrantStore } from "../src/GrantStore.ts"
 import * as HttpClient from "../src/HttpClient.ts"
 import * as HostHttpTransport from "../src/HttpTransport.ts"
-import { PermissionDenied } from "../src/Permission.ts"
 
 /**
  * A request whose URL cannot be parsed has no host, so there is no honest

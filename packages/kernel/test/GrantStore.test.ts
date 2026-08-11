@@ -1,10 +1,10 @@
+import { Capability, CapabilityPattern } from "@smthrs/capability/Capability"
+import { GrantStoreError, PermissionDenied, PermissionRequired, Rule } from "@smthrs/capability/Permission"
 import { Deferred, Effect, Fiber } from "effect"
 import { describe, expect, it } from "vitest"
-import { Capability, CapabilityPattern } from "../src/Capability.ts"
 import { attenuate } from "../src/CapabilitySet.ts"
 import type { GrantEvent } from "../src/GrantEvent.ts"
 import { make as makeGrantStore, type MakeOptions, type PendingRequest, type Service } from "../src/GrantStore.ts"
-import { GrantStoreError, PermissionDenied, PermissionRequired, Rule } from "../src/Permission.ts"
 import * as Workspace from "../src/Workspace.ts"
 
 const readme = new Capability({

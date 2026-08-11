@@ -1,3 +1,5 @@
+import * as Capability from "@smthrs/capability/Capability"
+import { PermissionRequired, Rule } from "@smthrs/capability/Permission"
 import * as JournalModule from "@smthrs/journal/Journal"
 import { Journal } from "@smthrs/journal/Journal"
 import * as JournalEvent from "@smthrs/journal/JournalEvent"
@@ -6,11 +8,9 @@ import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Effect, Fiber, Layer } from "effect"
 import type * as Scope from "effect/Scope"
 import { describe, expect, it } from "vitest"
-import * as Capability from "../src/Capability.ts"
 import * as GrantEvent from "../src/GrantEvent.ts"
 import { GrantStore } from "../src/GrantStore.ts"
 import * as JournalGrantStore from "../src/JournalGrantStore.ts"
-import { PermissionRequired, Rule } from "../src/Permission.ts"
 import * as Workspace from "../src/Workspace.ts"
 
 /**

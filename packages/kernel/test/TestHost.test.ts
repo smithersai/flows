@@ -1,4 +1,4 @@
-import { Jj } from "@smthrs/jj"
+import { isJjError, Jj } from "@smthrs/jj"
 import * as BrowserFileSystem from "@smthrs/platform-browser/BrowserFileSystem"
 import { Clock, Effect, FileSystem, Random, Stream } from "effect"
 import { TestClock } from "effect/testing"
@@ -195,7 +195,11 @@ describe("TestHost unsupported services", () => {
       }).pipe(Effect.provide(TestHost.TestHost))
     )
 
-    expect(errors.map((error) => error.command)).toEqual([
+    const jjErrors = errors.map((error) => {
+      if (!isJjError(error)) throw new Error("the test host's jj layer only fails with JjError")
+      return error
+    })
+    expect(jjErrors.map((error) => error.command)).toEqual([
       "jj commit",
       "jj edit",
       "jj diff",
@@ -203,7 +207,7 @@ describe("TestHost unsupported services", () => {
       "jj workspace forget",
       "jj status"
     ])
-    expect(new Set(errors.map((error) => error.code))).toEqual(new Set(["not_installed"]))
+    expect(new Set(jjErrors.map((error) => error.code))).toEqual(new Set(["not_installed"]))
   })
 
   it("fails HTTP requests through the noop transport", async () => {

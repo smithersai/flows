@@ -7,10 +7,14 @@
  *
  * @since 0.1.0
  */
-import { Context, Deferred, Effect, Layer, type Scope, Semaphore } from "effect"
-import { type Capability, CapabilityPattern, type EffectTier, matches, subsumes, tierOf } from "./Capability.ts"
-import { allows, type CapabilitySet, current } from "./CapabilitySet.ts"
-import { DeniedGrant, EnvelopeGrant, type GrantEvent, OnceGrant, RememberedGrant, RunGrant } from "./GrantEvent.ts"
+import {
+  type Capability,
+  CapabilityPattern,
+  type EffectTier,
+  matches,
+  subsumes,
+  tierOf
+} from "@smthrs/capability/Capability"
 import {
   evaluate,
   GrantStoreError,
@@ -19,7 +23,10 @@ import {
   type PermissionRequired,
   permissionRequired,
   Rule
-} from "./Permission.ts"
+} from "@smthrs/capability/Permission"
+import { Context, Deferred, Effect, Layer, type Scope, Semaphore } from "effect"
+import { allows, type CapabilitySet, current } from "./CapabilitySet.ts"
+import { DeniedGrant, EnvelopeGrant, type GrantEvent, OnceGrant, RememberedGrant, RunGrant } from "./GrantEvent.ts"
 import { Workspace } from "./Workspace.ts"
 
 /**

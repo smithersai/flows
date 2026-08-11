@@ -8,8 +8,8 @@
  *
  * @since 0.1.0
  */
+import { type Capability, type CapabilityPattern, matches } from "@smthrs/capability/Capability"
 import { Context, Effect } from "effect"
-import { type Capability, type CapabilityPattern, matches } from "./Capability.ts"
 
 const CapabilitySetTypeId: unique symbol = Symbol.for("@smthrs/kernel/CapabilitySet")
 

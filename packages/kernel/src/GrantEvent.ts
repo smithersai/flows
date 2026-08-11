@@ -7,8 +7,8 @@
  *
  * @since 0.1.0
  */
+import { Capability, CapabilityPattern } from "@smthrs/capability/Capability"
 import * as Schema from "effect/Schema"
-import { Capability, CapabilityPattern } from "./Capability.ts"
 
 /**
  * The tier at which a capability decision was made.

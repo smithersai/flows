@@ -33,7 +33,7 @@ describe("kernel stubs without any host", () => {
   })
 
   it("denies every jj operation with `not_installed`", async () => {
-    const jj = Jj.makeNoop()
+    const jj = Jj.makeNoop({})
     const errors = await Effect.runPromise(
       Effect.all([
         Effect.flip(jj.snapshot("m")),
@@ -77,8 +77,20 @@ describe("kernel stubs without any host", () => {
     await expect(Effect.runPromise(Effect.flip(jj.snapshot()))).resolves.toMatchObject({ code: "not_installed" })
   })
 
-  it("returns the implementation unchanged from `make`", () => {
-    const spawner = ChildProcessSpawner.makeNoop()
-    expect(ChildProcessSpawner.make(spawner)).toStrictEqual(spawner)
+  it("derives the whole helper surface from the one `spawn` it is given", async () => {
+    const command = ChildProcess.make("echo", ["hi"])
+    const spawner = ChildProcessSpawner.make(() =>
+      Effect.fail(
+        PlatformError.systemError({
+          _tag: "NotFound",
+          module: "ChildProcessSpawner",
+          method: "spawn",
+          description: "derived"
+        })
+      )
+    )
+    const failure = await Effect.runPromise(Effect.flip(spawner.string(command)))
+    expect((failure as PlatformError.PlatformError).reason._tag).toBe("NotFound")
+    expect(failure.message).toContain("derived")
   })
 })

@@ -10,7 +10,7 @@
  * @category namespace exports
  * @since 0.1.0
  */
-export * as Capability from "./Capability.ts"
+export * as Capability from "@smthrs/capability/Capability"
 
 /**
  * Monotone ambient authority and intersection.
@@ -21,7 +21,7 @@ export * as Capability from "./Capability.ts"
 export * as CapabilitySet from "./CapabilitySet.ts"
 
 /**
- * Permission-decorated process spawning.
+ * The `proc:spawn` middleware over Effect's own `ChildProcessSpawner` tag.
  *
  * @category namespace exports
  * @since 0.1.0
@@ -37,7 +37,7 @@ export * as ChildProcessSpawner from "./ChildProcessSpawner.ts"
 export * as CommandLine from "./CommandLine.ts"
 
 /**
- * Permission-decorated filesystem services.
+ * The `fs:read`/`fs:write` middleware over Effect's own `FileSystem` tag.
  *
  * @category namespace exports
  * @since 0.1.0
@@ -88,7 +88,7 @@ export * as HostServices from "./HostServices.ts"
 export * as HttpClient from "./HttpClient.ts"
 
 /**
- * Permission-decorated Jujutsu services.
+ * The jj capability middleware over `@smthrs/jj`'s own `Jj` tag.
  *
  * @category namespace exports
  * @since 0.1.0
@@ -117,7 +117,7 @@ export * as Path from "./Path.ts"
  * @category namespace exports
  * @since 0.1.0
  */
-export * as Permission from "./Permission.ts"
+export * as Permission from "@smthrs/capability/Permission"
 
 /**
  * The shared workspace-root service.

@@ -28,7 +28,7 @@ importing the contract never resolves a `node:` built-in.
 
 | Export                              | Meaning                                                                  |
 | ----------------------------------- | ------------------------------------------------------------------------ |
-| `Jj`                                | The service interface and its tag (`flows/host/Jj`).                     |
+| `Jj`                                | The service interface and its tag (`@smthrs/jj/Jj`).                     |
 | `ChangeId`                          | The durable handle a run uses to name workspace state.                   |
 | `JjErrorCode`, `JjError`, `jjError` | The closed failure vocabulary and its constructor.                       |
 | `make`, `makeNoop`, `layerNoop`     | Complete, stubbed, and layered service construction.                     |
@@ -49,9 +49,9 @@ const program = Effect.gen(function*() {
 Effect.runPromise(program)
 ```
 
-The tag key and the error `_tag` are `flows/host/…` and are frozen: step keys
-digest the resolved service set and `JjError` round-trips through the journal,
-so this package's identity strings survived its split out of `@smthrs/host`.
+The tag key and the error `_tag` are durable identity: step keys digest the
+resolved service set and `JjError` round-trips through the journal, so
+renaming either invalidates recorded runs.
 
 ## Browser
 

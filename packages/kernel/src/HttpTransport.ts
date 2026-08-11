@@ -4,8 +4,7 @@
  * This is the unguarded platform port. Its protected projection is
  * `./HttpClient.ts`; this tag is deliberately never republished as a guarded
  * kernel tag, because doing so would erase permission failures from its error
- * channel. The tag id `flows/host/HttpTransport` is FROZEN — it is digested
- * into step keys.
+ * channel. The tag id is digested into step keys.
  *
  * Governing designs:
  * [Host Adapters](../../../docs/specs/Concepts/Host%20Adapters.md),
@@ -40,7 +39,7 @@ export interface HttpTransport {
  * @since 0.1.0
  */
 export const HttpTransport: Context.Service<HttpTransport, HttpTransport> = Context.Service(
-  "flows/host/HttpTransport"
+  "@smthrs/kernel/HttpTransport"
 )
 
 /**

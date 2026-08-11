@@ -1,10 +1,10 @@
+import * as Capability from "@smthrs/capability/Capability"
+import { permissionDenied } from "@smthrs/capability/Permission"
 import * as HostJj from "@smthrs/jj"
 import { Effect, FileSystem as EffectFileSystem, Path } from "effect"
 import { describe, expect, it } from "vitest"
-import * as Capability from "../src/Capability.ts"
 import { GrantStore } from "../src/GrantStore.ts"
 import * as Jj from "../src/Jj.ts"
-import { permissionDenied } from "../src/Permission.ts"
 import * as Workspace from "../src/Workspace.ts"
 
 const itEffect = (name: string, effect: () => Effect.Effect<void, unknown, never>) =>

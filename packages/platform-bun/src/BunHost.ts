@@ -48,21 +48,19 @@ export type BunHost = FileSystem | Path.Path | ChildProcessSpawner | Jj | HttpTr
  * Planners can digest these values in `HostServiceIds` order without learning
  * about Bun implementation modules.
  *
- * These strings are FROZEN opaque identity tokens, not import specifiers. The
- * Bun jj adapter moved to `@smthrs/jj` byte for byte, and the filesystem and
- * transport moved here from `@smthrs/host`; a step run against them is the
- * same step, so the digest must not change
- * ([[Step Keys]], `docs/concepts/step-keys.md`).
+ * These strings are identity tokens digested into step keys, not import
+ * specifiers, so a rename invalidates every cached step run against a Bun
+ * host ([[Step Keys]], `docs/concepts/step-keys.md`).
  *
  * @category models
  * @since 0.1.0
  */
 export const implementationIds: Readonly<Record<(typeof HostServiceIds)[number], string>> = {
-  [HostServiceIds[0]]: "@smthrs/host/bun/BunFileSystem",
+  [HostServiceIds[0]]: "@smthrs/platform-bun/BunFileSystem",
   [HostServiceIds[1]]: "effect/Path",
   [HostServiceIds[2]]: "@effect/platform-bun/BunChildProcessSpawner",
-  [HostServiceIds[3]]: "@smthrs/host/bun/BunJj",
-  [HostServiceIds[4]]: "@smthrs/host/bun/BunHttpTransport"
+  [HostServiceIds[3]]: "@smthrs/jj/bun/BunJj",
+  [HostServiceIds[4]]: "@smthrs/platform-bun/BunHttpTransport"
 }
 
 /** The two services `BunChildProcessSpawner` resolves paths and files with. */

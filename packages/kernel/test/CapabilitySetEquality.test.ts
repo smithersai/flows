@@ -1,5 +1,5 @@
+import { CapabilityPattern } from "@smthrs/capability/Capability"
 import { describe, expect, it } from "vitest"
-import { CapabilityPattern } from "../src/Capability.ts"
 import * as CapabilitySets from "../src/CapabilitySet.ts"
 
 /**

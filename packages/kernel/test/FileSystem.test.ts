@@ -1,13 +1,20 @@
+import * as Capability from "@smthrs/capability/Capability"
+import * as Permission from "@smthrs/capability/Permission"
 import { Effect, FileSystem as EffectFileSystem, Option, Path as EffectPath, type PlatformError, Stream } from "effect"
 import { describe, expect, it } from "vitest"
-import * as Capability from "../src/Capability.ts"
 import * as FileSystem from "../src/FileSystem.ts"
 import { GrantStore } from "../src/GrantStore.ts"
-import { permissionDenied } from "../src/Permission.ts"
 import * as Workspace from "../src/Workspace.ts"
 
 const itEffect = (name: string, effect: () => Effect.Effect<void, unknown, never>) =>
   it(name, () => Effect.runPromise(effect()))
+
+/**
+ * Effect's `FileSystem` tag fixes its error channel to `PlatformError`, so the
+ * kernel projects its own failure into one and keeps the structured original
+ * on the cause. Every denial assertion reads it back out.
+ */
+const denial = (error: unknown) => Option.getOrThrow(Permission.fromPlatformError(error as PlatformError.PlatformError))
 
 const scriptedStore = (allowed: ReadonlySet<string>, checks: Array<Capability.Capability>) =>
   GrantStore.of({
@@ -15,7 +22,7 @@ const scriptedStore = (allowed: ReadonlySet<string>, checks: Array<Capability.Ca
       checks.push(capability)
       return allowed.has(`${capability.action}:${capability.resource}`)
         ? Effect.void
-        : Effect.fail(permissionDenied(capability, "denied by test"))
+        : Effect.fail(Permission.permissionDenied(capability, "denied by test"))
     },
     reply: () => Effect.die("not used by filesystem decorator tests"),
     list: Effect.succeed([]),
@@ -29,7 +36,7 @@ const hostFileSystem = (overrides: Partial<EffectFileSystem.FileSystem>) =>
   })
 
 const provide = (
-  effect: Effect.Effect<void, unknown, FileSystem.FileSystem>,
+  effect: Effect.Effect<void, unknown, EffectFileSystem.FileSystem>,
   host: EffectFileSystem.FileSystem,
   grants: ReturnType<typeof scriptedStore>
 ) =>
@@ -68,7 +75,7 @@ describe("FileSystem", () => {
 
     return provide(
       Effect.gen(function*() {
-        const fileSystem = yield* FileSystem.FileSystem
+        const fileSystem = yield* EffectFileSystem.FileSystem
         yield* fileSystem.stat("src/dir/../file.ts")
         yield* fileSystem.writeFile("out/file.ts", new Uint8Array())
         yield* fileSystem.makeDirectory("out")
@@ -113,7 +120,7 @@ describe("FileSystem", () => {
 
     return provide(
       Effect.gen(function*() {
-        const fileSystem = yield* FileSystem.FileSystem
+        const fileSystem = yield* EffectFileSystem.FileSystem
         yield* fileSystem.copy("from", "to")
         yield* fileSystem.rename("old", "new")
         expect(checks).toEqual([
@@ -141,7 +148,7 @@ describe("FileSystem", () => {
 
     return provide(
       Effect.gen(function*() {
-        const fileSystem = yield* FileSystem.FileSystem
+        const fileSystem = yield* EffectFileSystem.FileSystem
         expect(fileSystem["~effect/platform/FileSystem"]).toBe("~effect/platform/FileSystem")
         yield* fileSystem.symlink("../target", "links/item")
         expect(checks).toEqual([
@@ -167,7 +174,7 @@ describe("FileSystem", () => {
 
     return provide(
       Effect.gen(function*() {
-        const fileSystem = yield* FileSystem.FileSystem
+        const fileSystem = yield* EffectFileSystem.FileSystem
         yield* fileSystem.glob("**/*.ts", { root: "src" })
         expect(checks).toEqual([{ action: "fs:read", resource: "/workspace/src/**/*.ts" }])
         expect(calls).toEqual([{ pattern: "/workspace/src/**/*.ts", root: "/workspace/src" }])
@@ -189,8 +196,8 @@ describe("FileSystem", () => {
 
     return provide(
       Effect.gen(function*() {
-        const fileSystem = yield* FileSystem.FileSystem
-        expect(yield* Effect.flip(fileSystem.writeFile("blocked", new Uint8Array()))).toMatchObject({
+        const fileSystem = yield* EffectFileSystem.FileSystem
+        expect(denial(yield* Effect.flip(fileSystem.writeFile("blocked", new Uint8Array())))).toMatchObject({
           code: "permission_denied",
           capability: { action: "fs:write", resource: "/workspace/blocked" },
           reason: "denied by test"
@@ -222,7 +229,7 @@ describe("FileSystem", () => {
 
     return provide(
       Effect.gen(function*() {
-        const fileSystem = yield* FileSystem.FileSystem
+        const fileSystem = yield* EffectFileSystem.FileSystem
         const file = yield* fileSystem.open("input", { flag: "r" })
         yield* file.read(new Uint8Array())
         expect(reads).toBe(1)
@@ -250,7 +257,7 @@ describe("FileSystem", () => {
 
     return provide(
       Effect.gen(function*() {
-        const fileSystem = yield* FileSystem.FileSystem
+        const fileSystem = yield* EffectFileSystem.FileSystem
         const stream = fileSystem.stream("lazy")
         expect(checks).toEqual([])
         expect(acquired).toBe(false)
@@ -282,8 +289,8 @@ describe("FileSystem", () => {
 
     return provide(
       Effect.gen(function*() {
-        const fileSystem = yield* FileSystem.FileSystem
-        expect(yield* Effect.flip(fileSystem.readFile("link"))).toMatchObject({
+        const fileSystem = yield* EffectFileSystem.FileSystem
+        expect(denial(yield* Effect.flip(fileSystem.readFile("link")))).toMatchObject({
           code: "permission_denied",
           capability: { action: "fs:read", resource: "/outside/secret" },
           reason: "denied by test"
@@ -320,8 +327,8 @@ describe("FileSystem", () => {
 
     return provide(
       Effect.gen(function*() {
-        const fileSystem = yield* FileSystem.FileSystem
-        expect(yield* Effect.flip(fileSystem.writeFile("link", new Uint8Array()))).toMatchObject({
+        const fileSystem = yield* EffectFileSystem.FileSystem
+        expect(denial(yield* Effect.flip(fileSystem.writeFile("link", new Uint8Array())))).toMatchObject({
           code: "permission_denied",
           capability: { action: "fs:write", resource: "/outside/new-file" },
           reason: "denied by test"
@@ -351,8 +358,8 @@ describe("FileSystem", () => {
 
     return provide(
       Effect.gen(function*() {
-        const fileSystem = yield* FileSystem.FileSystem
-        expect(yield* Effect.flip(fileSystem.writeFile("linked", new Uint8Array()))).toMatchObject({
+        const fileSystem = yield* EffectFileSystem.FileSystem
+        expect(denial(yield* Effect.flip(fileSystem.writeFile("linked", new Uint8Array())))).toMatchObject({
           code: "permission_denied",
           capability: { action: "fs:write", resource: "/workspace/linked" },
           reason: "hard-linked files cannot be confined to the workspace"

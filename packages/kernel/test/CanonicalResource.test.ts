@@ -1,8 +1,16 @@
-import { Effect, FileSystem as EffectFileSystem, Path as EffectPath, type PlatformError, Sink, Stream } from "effect"
+import * as Permission from "@smthrs/capability/Permission"
+import {
+  Effect,
+  FileSystem as EffectFileSystem,
+  Option,
+  Path as EffectPath,
+  type PlatformError,
+  Sink,
+  Stream
+} from "effect"
 import { describe, expect, it } from "vitest"
 import * as FileSystem from "../src/FileSystem.ts"
 import { GrantStore } from "../src/GrantStore.ts"
-import { permissionDenied } from "../src/Permission.ts"
 import * as Workspace from "../src/Workspace.ts"
 
 /**
@@ -118,50 +126,8 @@ describe("canonicalResource", () => {
   )
 })
 
-describe("FileSystem stubs", () => {
-  itEffect("answers every operation with the host `unavailable` error by default", () =>
-    Effect.gen(function*() {
-      const fileSystem = yield* FileSystem.FileSystem
-      const failure = yield* Effect.flip(fileSystem.readFileString("a"))
-      expect(failure).toMatchObject({
-        _tag: "PlatformError",
-        reason: {
-          _tag: "NotFound",
-          module: "FileSystem",
-          method: "readFileString",
-          pathOrDescriptor: "a"
-        }
-      })
-      expect(fileSystem["~effect/platform/FileSystem"]).toBe("~effect/platform/FileSystem")
-    }).pipe(Effect.provide(FileSystem.layerNoop())))
-
-  itEffect("lets an override replace one operation while the rest stay unavailable", () =>
-    Effect.gen(function*() {
-      const fileSystem = yield* FileSystem.FileSystem
-      expect(yield* fileSystem.readFileString("a")).toBe("stubbed")
-      expect(yield* Effect.flip(fileSystem.writeFileString("a", "b"))).toMatchObject({
-        _tag: "PlatformError",
-        reason: {
-          _tag: "NotFound",
-          module: "FileSystem",
-          method: "writeFileString",
-          pathOrDescriptor: "a"
-        }
-      })
-    }).pipe(
-      Effect.provide(FileSystem.layerNoop({ readFileString: () => Effect.succeed("stubbed") }))
-    ))
-
-  it("keeps the runtime marker on a directly constructed stub", () => {
-    const stub = FileSystem.makeNoop()
-    expect(stub["~effect/platform/FileSystem"]).toBe("~effect/platform/FileSystem")
-    const overridden = FileSystem.makeNoop({ exists: () => Effect.succeed(true) })
-    expect(overridden["~effect/platform/FileSystem"]).toBe("~effect/platform/FileSystem")
-  })
-})
-
 describe("FileSystem.sink failures", () => {
-  itEffect("surfaces a host sink failure through the permission-widened error channel", () => {
+  itEffect("surfaces a host sink failure through the decorated tag's PlatformError channel", () => {
     const grants = GrantStore.of({
       check: () => Effect.void,
       reply: () => Effect.die("not used"),
@@ -173,7 +139,7 @@ describe("FileSystem.sink failures", () => {
       sink: () => Sink.forEach(() => Effect.fail(platformError("ENOSPC")))
     })
     return Effect.gen(function*() {
-      const fileSystem = yield* FileSystem.FileSystem
+      const fileSystem = yield* EffectFileSystem.FileSystem
       const failure = yield* Effect.flip(
         Stream.make(new Uint8Array([1])).pipe(Stream.run(fileSystem.sink("out.bin")))
       )
@@ -190,7 +156,7 @@ describe("FileSystem.sink failures", () => {
   itEffect("keeps a denied sink from ever reaching the host", () => {
     let opened = false
     const grants = GrantStore.of({
-      check: (capability) => Effect.fail(permissionDenied(capability, "denied by test")),
+      check: (capability) => Effect.fail(Permission.permissionDenied(capability, "denied by test")),
       reply: () => Effect.die("not used"),
       list: Effect.succeed([]),
       grantEnvelope: () => Effect.void
@@ -205,11 +171,18 @@ describe("FileSystem.sink failures", () => {
         )
     })
     return Effect.gen(function*() {
-      const fileSystem = yield* FileSystem.FileSystem
+      const fileSystem = yield* EffectFileSystem.FileSystem
       const failure = yield* Effect.flip(
         Stream.make(new Uint8Array([1])).pipe(Stream.run(fileSystem.sink("out.bin")))
       )
-      expect(failure).toMatchObject({ code: "permission_denied" })
+      expect(failure).toMatchObject({
+        _tag: "PlatformError",
+        reason: { _tag: "PermissionDenied", module: "FileSystem", method: "write" }
+      })
+      expect(Option.getOrThrow(Permission.fromPlatformError(failure))).toMatchObject({
+        code: "permission_denied",
+        capability: { action: "fs:write", resource: "/workspace/out.bin" }
+      })
       expect(opened).toBe(false)
     }).pipe(
       Effect.provide(FileSystem.layer),

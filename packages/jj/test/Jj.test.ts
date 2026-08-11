@@ -1,4 +1,5 @@
 import { Effect } from "effect"
+import type { PlatformError } from "effect/PlatformError"
 import { describe, expect, it } from "vitest"
 import * as Jj from "../src/Jj.ts"
 
@@ -11,7 +12,7 @@ describe("jjError", () => {
       command: "jj restore --from abc"
     })
 
-    expect(error._tag).toBe("flows/host/JjError")
+    expect(error._tag).toBe("@smthrs/jj/JjError")
     expect(error.module).toBe("Jj")
     expect(error.message).toBe("conflict: Jj.restore: working copy conflicted")
     expect(error.command).toBe("jj restore --from abc")
@@ -28,7 +29,7 @@ describe("jjError", () => {
 describe("Jj facade", () => {
   it("fails every method with `not_installed` naming the method that was called", async () => {
     const jj = Jj.makeNoop({})
-    const calls: ReadonlyArray<readonly [string, Effect.Effect<unknown, Jj.JjError>]> = [
+    const calls: ReadonlyArray<readonly [string, Effect.Effect<unknown, Jj.JjFailure | PlatformError>]> = [
       ["snapshot", jj.snapshot("msg")],
       ["restore", jj.restore("abc")],
       ["diff", jj.diff("a", "b")],

@@ -1,6 +1,14 @@
 /**
  * Permission-aware filesystem operations.
  *
+ * There is no kernel `FileSystem` interface and no kernel `FileSystem` tag.
+ * Effect owns both, and its tag fixes the error channel to `PlatformError`, so
+ * this module is only the middleware: a `Layer` over Effect's own tag that
+ * reads the raw service out of context and returns a guarded one in its place.
+ * Permission failures are projected into `PlatformError` by
+ * `Permission.toPlatformError`, which keeps the structured kernel failure on
+ * the error's `cause`.
+ *
  * Governing design:
  * `docs/specs/Concepts/Permission Kernel.md`,
  * `docs/specs/Concepts/Effect Taxonomy.md`, and
@@ -8,138 +16,22 @@
  *
  * @since 0.1.0
  */
+import { make as makeCapability } from "@smthrs/capability/Capability"
+import { permissionDenied, type PermissionError, toPlatformError } from "@smthrs/capability/Permission"
 import {
-  Context,
   Effect,
   FileSystem as EffectFileSystem,
   Layer,
   Option,
   Path as EffectPath,
   type PlatformError,
-  type Scope,
   Sink,
   Stream
 } from "effect"
-import { make as makeCapability } from "./Capability.ts"
 import { GrantStore } from "./GrantStore.ts"
-import { type GrantStoreError, type PermissionDenied, permissionDenied, type PermissionRequired } from "./Permission.ts"
 import { Workspace } from "./Workspace.ts"
 
-type PermissionError = PermissionRequired | PermissionDenied | GrantStoreError
 const FileSystemTypeId = "~effect/platform/FileSystem"
-type WidenResult<T> = T extends Effect.Effect<infer A, infer E, infer R> ? Effect.Effect<A, E | PermissionError, R>
-  : T extends Stream.Stream<infer A, infer E, infer R> ? Stream.Stream<A, E | PermissionError, R>
-  : T extends Sink.Sink<infer A, infer I, infer L, infer E, infer R> ? Sink.Sink<A, I, L, E | PermissionError, R>
-  : T
-type Widen<T> = T extends (...args: infer Args) => infer Result ? (...args: Args) => WidenResult<Result>
-  : WidenResult<T>
-
-/**
- * A permission-aware opened file handle.
- *
- * @category models
- * @since 0.1.0
- */
-export interface File {
-  readonly [EffectFileSystem.FileTypeId]: typeof EffectFileSystem.FileTypeId
-  readonly fd: EffectFileSystem.File.Descriptor
-  readonly stat: Widen<EffectFileSystem.File["stat"]>
-  readonly seek: Widen<EffectFileSystem.File["seek"]>
-  readonly sync: Widen<EffectFileSystem.File["sync"]>
-  readonly read: Widen<EffectFileSystem.File["read"]>
-  readonly readAlloc: Widen<EffectFileSystem.File["readAlloc"]>
-  readonly truncate: Widen<EffectFileSystem.File["truncate"]>
-  readonly write: Widen<EffectFileSystem.File["write"]>
-  readonly writeAll: Widen<EffectFileSystem.File["writeAll"]>
-}
-
-/**
- * The local filesystem service whose errors include kernel permission errors.
- *
- * Effect's `FileSystem.FileSystem` fixes its error channel to `PlatformError`,
- * so this distinct tag is required to represent denied requests honestly.
- *
- * @category models
- * @since 0.1.0
- */
-export interface FileSystem {
-  readonly [FileSystemTypeId]: typeof FileSystemTypeId
-  readonly access: Widen<EffectFileSystem.FileSystem["access"]>
-  readonly copy: Widen<EffectFileSystem.FileSystem["copy"]>
-  readonly copyFile: Widen<EffectFileSystem.FileSystem["copyFile"]>
-  readonly chmod: Widen<EffectFileSystem.FileSystem["chmod"]>
-  readonly chown: Widen<EffectFileSystem.FileSystem["chown"]>
-  readonly glob: Widen<EffectFileSystem.FileSystem["glob"]>
-  readonly exists: Widen<EffectFileSystem.FileSystem["exists"]>
-  readonly link: Widen<EffectFileSystem.FileSystem["link"]>
-  readonly makeDirectory: Widen<EffectFileSystem.FileSystem["makeDirectory"]>
-  readonly makeTempDirectory: Widen<EffectFileSystem.FileSystem["makeTempDirectory"]>
-  readonly makeTempDirectoryScoped: Widen<EffectFileSystem.FileSystem["makeTempDirectoryScoped"]>
-  readonly makeTempFile: Widen<EffectFileSystem.FileSystem["makeTempFile"]>
-  readonly makeTempFileScoped: Widen<EffectFileSystem.FileSystem["makeTempFileScoped"]>
-  readonly open: (
-    path: string,
-    options?: { readonly flag?: EffectFileSystem.OpenFlag | undefined; readonly mode?: number | undefined }
-  ) => Effect.Effect<File, PlatformError.PlatformError | PermissionError, Scope.Scope>
-  readonly readDirectory: Widen<EffectFileSystem.FileSystem["readDirectory"]>
-  readonly readFile: Widen<EffectFileSystem.FileSystem["readFile"]>
-  readonly readFileString: Widen<EffectFileSystem.FileSystem["readFileString"]>
-  readonly readLink: Widen<EffectFileSystem.FileSystem["readLink"]>
-  readonly realPath: Widen<EffectFileSystem.FileSystem["realPath"]>
-  readonly remove: Widen<EffectFileSystem.FileSystem["remove"]>
-  readonly rename: Widen<EffectFileSystem.FileSystem["rename"]>
-  readonly sink: Widen<EffectFileSystem.FileSystem["sink"]>
-  readonly stat: Widen<EffectFileSystem.FileSystem["stat"]>
-  readonly stream: Widen<EffectFileSystem.FileSystem["stream"]>
-  readonly symlink: Widen<EffectFileSystem.FileSystem["symlink"]>
-  readonly truncate: Widen<EffectFileSystem.FileSystem["truncate"]>
-  readonly utimes: Widen<EffectFileSystem.FileSystem["utimes"]>
-  readonly watch: Widen<EffectFileSystem.FileSystem["watch"]>
-  readonly writeFile: Widen<EffectFileSystem.FileSystem["writeFile"]>
-  readonly writeFileString: Widen<EffectFileSystem.FileSystem["writeFileString"]>
-}
-
-/**
- * The permission-aware filesystem service tag.
- *
- * @category services
- * @since 0.1.0
- */
-export const FileSystem: Context.Service<FileSystem, FileSystem> = Context.Service("@smthrs/kernel/FileSystem")
-
-/**
- * Constructs a permission-aware filesystem service.
- *
- * @category constructors
- * @since 0.1.0
- */
-export const make = (impl: Omit<FileSystem, typeof FileSystemTypeId>): FileSystem =>
-  FileSystem.of({
-    ...impl,
-    [FileSystemTypeId]: FileSystemTypeId
-  })
-
-/**
- * Constructs an unavailable permission-aware filesystem stub.
- *
- * @category constructors
- * @since 0.1.0
- */
-export const makeNoop = (overrides: Partial<FileSystem> = {}): FileSystem =>
-  FileSystem.of({
-    ...EffectFileSystem.makeNoop({}),
-    ...overrides,
-    [FileSystemTypeId]: FileSystemTypeId
-  })
-
-/**
- * Provides an unavailable permission-aware filesystem stub.
- *
- * @category layers
- * @since 0.1.0
- */
-export const layerNoop = (overrides: Partial<FileSystem> = {}): Layer.Layer<FileSystem> =>
-  Layer.succeed(FileSystem)(makeNoop(overrides))
 
 const readableOpenFlags: ReadonlySet<EffectFileSystem.OpenFlag> = new Set([
   "r",
@@ -230,17 +122,28 @@ export const canonicalResource = (
   )
 }
 
-/*
- * Decorates Effect's filesystem service with workspace-normalized capability
- * checks. Canonical-path and hard-link guards are always evaluated before the
- * capability check and delegate acquisition.
+/**
+ * Decorates Effect's filesystem service in place with workspace-normalized
+ * capability checks. Canonical-path and hard-link guards are always evaluated
+ * before the capability check and delegate acquisition.
+ *
+ * The layer provides the tag it also requires: compose it over a host
+ * filesystem layer with `Layer.provide` and every consumer of
+ * `FileSystem.FileSystem` — including one that never heard of the kernel —
+ * resolves the guarded implementation. A denied request surfaces as a
+ * `PlatformError` whose reason is `PermissionDenied` and whose `cause` is the
+ * kernel's own `PermissionRequired`, `PermissionDenied`, or `GrantStoreError`;
+ * `Permission.fromPlatformError` reads it back.
+ *
+ * @category layers
+ * @since 0.1.0
  */
-const layerKernel: Layer.Layer<
-  FileSystem,
+export const layer: Layer.Layer<
+  EffectFileSystem.FileSystem,
   PlatformError.PlatformError,
   EffectFileSystem.FileSystem | EffectPath.Path | Workspace | GrantStore
 > = Layer.effect(
-  FileSystem,
+  EffectFileSystem.FileSystem,
   Effect.gen(function*() {
     const fileSystem = yield* EffectFileSystem.FileSystem
     const path = yield* EffectPath.Path
@@ -250,8 +153,14 @@ const layerKernel: Layer.Layer<
       path.normalize(path.isAbsolute(value) ? value : path.resolve(base, value))
     const normalize = (value: string): string => normalizeFrom(workspace.root, value)
     yield* fileSystem.realPath(normalize(workspace.root))
-    const guard = (action: "fs:read" | "fs:write", value: string) => {
+    const refuse = (method: string, resource: string) => (error: PermissionError): PlatformError.PlatformError =>
+      toPlatformError({ module: "FileSystem", method, pathOrDescriptor: resource, error })
+    const guard = (
+      action: "fs:read" | "fs:write",
+      value: string
+    ): Effect.Effect<void, PlatformError.PlatformError> => {
       const normalized = normalize(value)
+      const method = action === "fs:read" ? "read" : "write"
       return canonicalResource(fileSystem, path, workspace.root, normalized).pipe(
         Effect.flatMap((resource) =>
           fileSystem.stat(normalized).pipe(
@@ -268,7 +177,8 @@ const layerKernel: Layer.Layer<
                   )
                   : grants.check(makeCapability(action, resource))
               }
-            })
+            }),
+            Effect.mapError(refuse(method, resource))
           )
         )
       )
@@ -292,7 +202,7 @@ const layerKernel: Layer.Layer<
         write(value) :
         read(value)
     }
-    const wrapFile = (file: EffectFileSystem.File, value: string): File => ({
+    const wrapFile = (file: EffectFileSystem.File, value: string): EffectFileSystem.File => ({
       [EffectFileSystem.FileTypeId]: EffectFileSystem.FileTypeId,
       fd: file.fd,
       stat: Effect.fn("FileSystem.File.stat")(() =>
@@ -314,7 +224,8 @@ const layerKernel: Layer.Layer<
         write(value).pipe(Effect.andThen(file.writeAll(buffer)))
       )
     })
-    return make({
+    const guarded: EffectFileSystem.FileSystem = {
+      [FileSystemTypeId]: FileSystemTypeId,
       access: Effect.fn("FileSystem.access")((value, options) =>
         read(value).pipe(Effect.andThen(fileSystem.access(normalize(value), options)))
       ),
@@ -395,16 +306,7 @@ const layerKernel: Layer.Layer<
       sink: (value, options) =>
         Sink.unwrap(
           Effect.fn("FileSystem.sink")(
-            () =>
-              Effect.suspend(() =>
-                write(value).pipe(
-                  Effect.map(() =>
-                    fileSystem.sink(normalize(value), options).pipe(
-                      Sink.mapError((error): PlatformError.PlatformError | PermissionError => error)
-                    )
-                  )
-                )
-              )
+            () => Effect.suspend(() => write(value).pipe(Effect.map(() => fileSystem.sink(normalize(value), options))))
           )()
         ),
       stat: Effect.fn("FileSystem.stat")((value) =>
@@ -426,37 +328,18 @@ const layerKernel: Layer.Layer<
         write(value).pipe(Effect.andThen(fileSystem.utimes(normalize(value), atime, mtime)))
       ),
       watch: (value) =>
-        Stream.unwrap(Effect.suspend(() => read(value).pipe(Effect.map(() => fileSystem.watch(normalize(value)))))),
+        Stream.unwrap(
+          Effect.fn("FileSystem.watch")(() =>
+            Effect.suspend(() => read(value).pipe(Effect.map(() => fileSystem.watch(normalize(value)))))
+          )()
+        ),
       writeFile: Effect.fn("FileSystem.writeFile")((value, data, options) =>
         write(value).pipe(Effect.andThen(fileSystem.writeFile(normalize(value), data, options)))
       ),
       writeFileString: Effect.fn("FileSystem.writeFileString")((value, data, options) =>
         write(value).pipe(Effect.andThen(fileSystem.writeFileString(normalize(value), data, options)))
       )
-    })
+    }
+    return guarded
   })
 )
-
-const layerHost: Layer.Layer<EffectFileSystem.FileSystem, never, FileSystem> = Layer.effect(
-  EffectFileSystem.FileSystem,
-  Effect.map(
-    FileSystem,
-    (fileSystem) => fileSystem as unknown as EffectFileSystem.FileSystem
-  )
-)
-
-/**
- * Provides the widened kernel filesystem tag and replaces Effect's original
- * `FileSystem` tag with the same guarded implementation. The cast is confined
- * to this boundary because Effect's upstream tag fixes its error channel to
- * `PlatformError`; use the kernel tag when permission errors must remain
- * visible to TypeScript.
- *
- * @category layers
- * @since 0.1.0
- */
-export const layer: Layer.Layer<
-  FileSystem | EffectFileSystem.FileSystem,
-  PlatformError.PlatformError,
-  EffectFileSystem.FileSystem | EffectPath.Path | Workspace | GrantStore
-> = Layer.provideMerge(layerHost, layerKernel)

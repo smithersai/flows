@@ -1,7 +1,7 @@
+import type * as Capability from "@smthrs/capability/Capability"
 import * as HostJj from "@smthrs/jj"
 import { Effect, FileSystem as EffectFileSystem, Path } from "effect"
 import { describe, expect, it } from "vitest"
-import type * as Capability from "../src/Capability.ts"
 import { GrantStore } from "../src/GrantStore.ts"
 import * as Jj from "../src/Jj.ts"
 import * as Workspace from "../src/Workspace.ts"
@@ -32,7 +32,7 @@ const fileSystem = EffectFileSystem.makeNoop({
 })
 
 const provide = <A, E>(
-  effect: Effect.Effect<A, E, Jj.Jj>,
+  effect: Effect.Effect<A, E, HostJj.Jj>,
   host: HostJj.Jj,
   checks: Array<Capability.Capability>
 ) =>
@@ -59,7 +59,7 @@ describe("Jj capability resources", () => {
 
     return provide(
       Effect.gen(function*() {
-        const jj = yield* Jj.Jj
+        const jj = yield* HostJj.Jj
         expect(yield* jj.snapshot()).toEqual({ changeId: "change" })
         expect(checks).toEqual([{ action: "jj:snapshot", resource: "" }])
         // The absent message is forwarded as-is; only the resource is defaulted.
@@ -82,7 +82,7 @@ describe("Jj capability resources", () => {
 
     return provide(
       Effect.gen(function*() {
-        const jj = yield* Jj.Jj
+        const jj = yield* HostJj.Jj
         yield* jj.workspaceAdd("lane", "lanes/./one")
         expect(checks).toEqual([
           { action: "jj:workspace-add", resource: "/workspace/lanes/one" },
@@ -107,7 +107,7 @@ describe("Jj capability resources", () => {
 
     return provide(
       Effect.gen(function*() {
-        const jj = yield* Jj.Jj
+        const jj = yield* HostJj.Jj
         yield* jj.workspaceAdd("lane", "/elsewhere/lane")
         expect(checks.map((check) => check.resource)).toEqual(["/elsewhere/lane", "/elsewhere/lane"])
         expect(calls).toEqual([["lane", "/elsewhere/lane"]])
@@ -121,13 +121,13 @@ describe("Jj capability resources", () => {
 describe("Jj stub layer", () => {
   itEffect("provides an unavailable Jj service", () =>
     Effect.gen(function*() {
-      const jj = yield* Jj.Jj
+      const jj = yield* HostJj.Jj
       expect(yield* Effect.flip(jj.status())).toMatchObject({ code: "not_installed", method: "status" })
-    }).pipe(Effect.provide(Jj.layerNoop())))
+    }).pipe(Effect.provide(Jj.layerNoop({}))))
 
   itEffect("provides overridden operations while the rest stay unavailable", () =>
     Effect.gen(function*() {
-      const jj = yield* Jj.Jj
+      const jj = yield* HostJj.Jj
       expect(yield* jj.status()).toBe("clean")
       expect(yield* Effect.flip(jj.snapshot("m"))).toMatchObject({ code: "not_installed" })
     }).pipe(Effect.provide(Jj.layerNoop({ status: () => Effect.succeed("clean") }))))

@@ -1,3 +1,5 @@
+import * as Capability from "@smthrs/capability/Capability"
+import { PermissionRequired } from "@smthrs/capability/Permission"
 import { Journal } from "@smthrs/journal/Journal"
 import * as JournalModule from "@smthrs/journal/Journal"
 import { Input, type RunId, type SourceId } from "@smthrs/journal/JournalEvent"
@@ -5,10 +7,8 @@ import * as TestJournal from "@smthrs/journal/test/TestJournal"
 import { Effect, Fiber } from "effect"
 import type * as Scope from "effect/Scope"
 import { describe, expect, it } from "vitest"
-import * as Capability from "../src/Capability.ts"
 import * as GrantEvent from "../src/GrantEvent.ts"
 import * as JournalGrantStore from "../src/JournalGrantStore.ts"
-import { PermissionRequired } from "../src/Permission.ts"
 import * as Workspace from "../src/Workspace.ts"
 
 const runId = (value: string): RunId => value as RunId

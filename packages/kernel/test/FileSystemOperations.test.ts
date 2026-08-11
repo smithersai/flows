@@ -1,9 +1,9 @@
+import type * as Capability from "@smthrs/capability/Capability"
+import { permissionDenied } from "@smthrs/capability/Permission"
 import { Effect, FileSystem as EffectFileSystem, Path as EffectPath, Sink, Stream } from "effect"
 import { describe, expect, it } from "vitest"
-import type * as Capability from "../src/Capability.ts"
 import * as FileSystem from "../src/FileSystem.ts"
 import { GrantStore } from "../src/GrantStore.ts"
-import { permissionDenied } from "../src/Permission.ts"
 import * as Workspace from "../src/Workspace.ts"
 
 /**
@@ -118,7 +118,7 @@ interface Case {
   readonly capabilities: ReadonlyArray<Capability.Capability>
   /** Undefined when the guard itself uses this host method, making it unobservable. */
   readonly hostCall?: string | undefined
-  readonly run: (fileSystem: FileSystem.FileSystem) => Effect.Effect<unknown, unknown, never>
+  readonly run: (fileSystem: EffectFileSystem.FileSystem) => Effect.Effect<unknown, unknown, never>
 }
 
 const read = (resource: string): Capability.Capability => ({ action: "fs:read", resource })
@@ -324,12 +324,12 @@ const cases: ReadonlyArray<Case> = [
 ]
 
 const provide = <A, E>(
-  program: (fileSystem: FileSystem.FileSystem) => Effect.Effect<A, E, never>,
+  program: (fileSystem: EffectFileSystem.FileSystem) => Effect.Effect<A, E, never>,
   host: EffectFileSystem.FileSystem,
   grants: ReturnType<typeof scriptedStore>
 ) =>
   Effect.gen(function*() {
-    const fileSystem = yield* FileSystem.FileSystem
+    const fileSystem = yield* EffectFileSystem.FileSystem
     return yield* Effect.exit(program(fileSystem))
   }).pipe(
     Effect.provide(FileSystem.layer),

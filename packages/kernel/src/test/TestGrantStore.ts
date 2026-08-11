@@ -3,9 +3,9 @@
  *
  * @since 0.1.0
  */
+import { GrantStoreError, permissionDenied } from "@smthrs/capability/Permission"
 import { Effect, Layer } from "effect"
 import { GrantStore, layerNoop, type Resolution, type Service } from "../GrantStore.ts"
-import { GrantStoreError, permissionDenied } from "../Permission.ts"
 
 /**
  * An allow-all grant store.

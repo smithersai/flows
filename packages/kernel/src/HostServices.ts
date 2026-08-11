@@ -1,10 +1,11 @@
 /**
- * The closed Host service list, raw and permission-aware.
+ * The closed Host service list.
  *
- * One module owns both halves so the slots can never drift: {@link HostService}
- * / {@link HostServiceTags} / {@link HostServiceIds} are the raw platform
- * ports, and {@link ProtectedHostService} / {@link ProtectedHostServiceTags}
- * are the guarded projections in the same slot order.
+ * One list, one set of tags. The kernel decorates each slot **in place** — a
+ * middleware `Layer` over the very tag the platform adapter provides — so
+ * there is no second, "protected" tag to keep in slot-order sync with this
+ * one, and no cast to force a guarded implementation onto a narrower error
+ * contract.
  *
  * Governing design:
  * `docs/specs/Concepts/Permission Kernel.md`,
@@ -36,10 +37,18 @@ import * as Path from "./Path.ts"
  *     implementations were in scope is part of a step's identity, so a replay
  *     under different layers is a different step rather than a silent lie.
  *
+ * Each slot's guarded implementation replaces the raw one under the same tag,
+ * so a consumer that never heard of the kernel still cannot bypass it. Where
+ * Effect owns the tag (`FileSystem`, `Path`, `ChildProcessSpawner`) the error
+ * channel stays `PlatformError` and permission failures are projected into it
+ * by `Permission.toPlatformError`; where `flows` owns the service (`Jj`) the
+ * interface names the kernel's failures directly.
+ *
  * `Path` is intentionally retained as an explicit pass-through decision. The
  * single-hop `HttpTransport` port is an implementation requirement for the
- * protected higher-level `HttpClient`; it is not republished as a guarded raw
- * tag because that would erase permission failures from its error channel.
+ * protected higher-level `HttpClient`; it is deliberately not re-provided
+ * under its own tag, because a guarded transport would let a caller reach the
+ * network through a service whose contract never mentions permission.
  *
  * `Clock` and `Random` are Effect core built-ins: already port-shaped, already
  * swappable via `Effect.provideService`, so they are named in
@@ -59,8 +68,8 @@ export type HostService =
   | HttpTransport
 
 /**
- * The platform-port tags consumed by the kernel at runtime, and digested by
- * the step-key planner.
+ * The Host tags consumed by the kernel at runtime, decorated in place by
+ * {@link layer}, and digested by the step-key planner.
  *
  * @category models
  * @since 0.1.0
@@ -77,19 +86,11 @@ export const HostServiceTags = [
  * Stable slot identifiers shared by host composition, kernel attenuation, and
  * step-layer resolution.
  *
- * These strings are FROZEN. They are digested into step keys, so they name a
- * service's identity, not the package its module happens to live in: `Jj`
- * moved to `@smthrs/jj`, and `HttpTransport` moved here from the dissolved
- * `@smthrs/host`, without changing behaviour. Renaming them would invalidate
- * every cached step for no reason.
- *
- * The third slot is the exception that proves the rule: dropping the `Shell`
- * wrapper for Effect's own `ChildProcessSpawner` replaced the *service*, not
- * just its home, so `flows/host/Shell` became
- * `effect/process/ChildProcessSpawner` and every step that ran a command is
- * correctly a different step. The deleted `flows/host/Pty` slot is the other
- * direction: the service left the surface entirely (see D13 in the design
- * decisions), and no cached step named it.
+ * Each id is the tag key of its slot's service — Effect's own key for the
+ * services Effect ships, the defining module's path for ours. The ids are
+ * digested into step keys, so a rename invalidates every cached step naming
+ * the slot; rename only when the service itself changes, as when `Shell` was
+ * replaced by Effect's `ChildProcessSpawner`.
  *
  * @category models
  * @since 0.1.0
@@ -98,53 +99,24 @@ export const HostServiceIds = [
   "effect/FileSystem",
   "effect/Path",
   "effect/process/ChildProcessSpawner",
-  "flows/host/Jj",
-  "flows/host/HttpTransport"
+  "@smthrs/jj/Jj",
+  "@smthrs/kernel/HttpTransport"
 ] as const
 
 /** Built-ins provided by Effect itself; listed by name only. @category models */
 export const HostBuiltinNames = ["effect/Clock", "effect/Random"] as const
 
 /**
- * The permission-aware services exposed above the platform ports.
- *
- * `HttpClient` is the protected projection of the host's single-hop
- * `HttpTransport` slot; all other entries correspond positionally to the
- * shared `HostServiceIds` contract.
- *
- * @category models
- * @since 0.1.0
- */
-export type ProtectedHostService =
-  | FileSystem.FileSystem
-  | Path.Path
-  | ChildProcessSpawner.ChildProcessSpawner
-  | Jj.Jj
-  | HttpClient.HttpClient
-
-/**
- * Permission-aware tags exposed by `layer`, in the same slot order as
- * `HostServiceIds`.
- *
- * @category models
- * @since 0.1.0
- */
-export const ProtectedHostServiceTags = [
-  FileSystem.FileSystem,
-  Path.Path,
-  ChildProcessSpawner.ChildProcessSpawner,
-  Jj.Jj,
-  HttpClient.HttpClient
-] as const
-
-/**
  * Builds the full protected Host surface over a host platform bundle and a
  * `GrantStore`. `Workspace` remains a requirement so the exact same root
  * service can be supplied to both the grant store and filesystem decorators.
  *
- * The layer exposes permission-aware kernel tags whose TypeScript error
- * channels include permission failures. Raw HTTP tags are never republished;
- * consumers must use `@smthrs/kernel/HttpClient`.
+ * Every member both requires and provides its own slot's tag: provide this
+ * layer over a raw platform bundle and the guarded implementation shadows the
+ * raw one for everything downstream. `HttpClient` is the single exception — it
+ * is a *projection* of the `HttpTransport` slot onto a new, permission-aware
+ * service rather than a decoration of it, so the raw transport is consumed and
+ * never republished.
  *
  * @category layers
  * @since 0.1.0
