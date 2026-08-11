@@ -29,6 +29,7 @@ This entry point is Node-only, because it re-exports `@smthrs/engine-store`. Bro
 | Namespace | Package | Reference |
 | --- | --- | --- |
 | `Canonical` | `@smthrs/canonical` | [Canonical](/api/canonical) |
+| `Capability` | `@smthrs/capability` | [Capability](/api/capability) |
 | `Crypto` | `@smthrs/crypto` | [Crypto](/api/crypto) |
 | `Database` | `@smthrs/database` | [Database](/api/database) |
 | `Engine` | `@smthrs/engine` | [Engine](/api/engine) |

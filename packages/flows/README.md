@@ -10,7 +10,7 @@ npm install @smthrs/flows
 ```
 
 ```ts
-import { Engine, EngineStore, Host, Journal } from "@smthrs/flows"
+import { Engine, EngineStore, Kernel, Journal } from "@smthrs/flows"
 ```
 
 ## Public API
@@ -18,17 +18,20 @@ import { Engine, EngineStore, Host, Journal } from "@smthrs/flows"
 | Namespace                                                                                                           | Re-exported package               |
 | ------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
 | `Canonical`                                                                                                         | `@smthrs/canonical`               |
+| `Capability`                                                                                                        | `@smthrs/capability`              |
 | `Crypto`                                                                                                            | `@smthrs/crypto`                  |
 | `Database`                                                                                                          | `@smthrs/database`                |
 | `Engine`                                                                                                            | `@smthrs/engine`                  |
 | `Flow`, `Activity`, `RetryPolicy`, `DurableDeferred`, `DurableClock`, `DurableQueue`, `FlowRuntime`, `StepIdentity` | `@smthrs/flow` (re-exported flat) |
 | `EngineStore`                                                                                                       | `@smthrs/engine-store`            |
+| `Jj`                                                                                                                | `@smthrs/jj`                      |
 | `Journal`                                                                                                           | `@smthrs/journal`                 |
 | `RunStore`                                                                                                          | `@smthrs/run-store`               |
 | `StepCache`                                                                                                         | `@smthrs/step-cache`              |
 | `Kernel`                                                                                                            | `@smthrs/kernel`                  |
 | `Keys`                                                                                                              | `@smthrs/keys`                    |
 | `Plugin`                                                                                                            | `@smthrs/plugin`                  |
+| `Sandbox`                                                                                                           | `@smthrs/sandbox`                 |
 | `Sync`                                                                                                              | `@smthrs/sync`                    |
 | `TimeTravel`                                                                                                        | `@smthrs/time-travel`             |
 
@@ -45,11 +48,13 @@ is chosen by the program that runs, not by the library it depends on.
 `@smthrs/flows` re-exports `@smthrs/engine-store`, which is Node-only
 (`process.pid` and `node:crypto`, issue #114), so **the barrel does not bundle
 for a browser**. Browser consumers import the per-package roots, each of which
-is gated by `npm run browser`: `@smthrs/canonical`, `@smthrs/crypto`,
+is gated by `npm run browser`: `@smthrs/canonical`, `@smthrs/capability`,
+`@smthrs/crypto`, `@smthrs/jj`, `@smthrs/jj/browser/BrowserJj`,
 `@smthrs/platform-browser`, `@smthrs/platform-browser/BrowserHost`,
-`@smthrs/kernel`, `@smthrs/keys`, `@smthrs/database`, `@smthrs/journal`,
-`@smthrs/run-store`, `@smthrs/step-cache`, `@smthrs/flow`, `@smthrs/engine`,
-`@smthrs/plugin`, `@smthrs/sync`, and `@smthrs/time-travel`.
+`@smthrs/sandbox`, `@smthrs/kernel`, `@smthrs/keys`, `@smthrs/database`,
+`@smthrs/journal`, `@smthrs/run-store`, `@smthrs/step-cache`, `@smthrs/flow`,
+`@smthrs/engine`, `@smthrs/plugin`, `@smthrs/sync`, and
+`@smthrs/time-travel`.
 
 Platform implementations are never re-exported through the namespaces here
 either. Import `@smthrs/platform-node`, `@smthrs/platform-bun`,

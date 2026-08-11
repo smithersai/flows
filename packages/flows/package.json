@@ -87,7 +87,6 @@
     "@smthrs/journal": "0.1.0",
     "@smthrs/kernel": "0.1.0",
     "@smthrs/keys": "0.1.0",
-    "@smthrs/plugin": "0.1.0",
     "@smthrs/run-store": "0.1.0",
     "@smthrs/sandbox": "0.1.0",
     "@smthrs/step-cache": "0.1.0",

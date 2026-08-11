@@ -67,3 +67,11 @@ Consequence: time travel depends on explicit effect-boundary records, lineage ed
 `@smthrs/sync` exports catch-up and follow RPCs over journal entries. Mutation, resume, and permission decisions are deliberately outside this protocol.
 
 Consequence: consumers can rebuild read models without acquiring run ownership or receiving write authority.
+
+## D11. Extension is dependency injection, not a plugin framework
+
+`flows` is extended by providing an Effect `Layer`, and a behavior is replaced by providing a different implementation of the service — or a different constructor option — at the seam that owns it. The rule for what becomes a seam: external effects, nondeterminism, and policies a user may reasonably replace become named services or options with defaults; deterministic algorithms stay ordinary functions.
+
+A speculative `@smthrs/plugin` package once shipped a typed hook catalog with plugin ordering, config resolution, and four dispatch kinds. No runtime ever dispatched a hook from it, and its only consumer was a re-export in the `@smthrs/flows` barrel, so it sold an extension API nothing called. It was deleted rather than wired, because every seam it proposed is reachable today through injection: `Inconsistency` for cache-conflict verdicts, `OwnerIdentity` for owner minting, `StepBoundary` for hermeticity, `Jj` and the rest of the closed Host list for host access, and constructor options such as `suspendedRetryPolicy` and `clockFireRetryPolicy` for retry policy.
+
+Consequence: there is no hook registry, no event bus, and no plugin resolution order to reason about. The composition root is the extension point, and the requirement types of `Layer` say exactly which behaviors a program must supply and may override. This supersedes the open disagreement recorded for publishing `@smthrs/plugin` in [design decisions](../pages/design-decisions.md).

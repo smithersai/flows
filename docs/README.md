@@ -56,7 +56,6 @@ Read [implementation status](architecture/implementation-status.md) before choos
 - [`@smthrs/flow`](reference/flow.md)
 - [`@smthrs/engine`](reference/engine.md)
 - [`@smthrs/engine-store`](reference/engine-store.md)
-- [`@smthrs/plugin`](architecture/plugin-system.md)
 - [`@smthrs/sync`](reference/sync.md)
 - [`@smthrs/time-travel`](reference/time-travel.md)
 
@@ -70,7 +69,6 @@ documented in the [plugins repository](https://github.com/smithersai/plugins).
 - [Execution and data flow](architecture/execution-data-flow.md)
 - [Design decisions](architecture/design-decisions.md)
 - [Implementation status](architecture/implementation-status.md)
-- [Plugin system](architecture/plugin-system.md)
 
 ## Documentation conventions
 

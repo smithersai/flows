@@ -43,7 +43,6 @@ const BROWSER_SAFE = [
   { name: "@smthrs/step-cache", entry: "packages/step-cache/src/index.ts" },
   { name: "@smthrs/flow", entry: "packages/flow/src/index.ts" },
   { name: "@smthrs/engine", entry: "packages/engine/src/index.ts" },
-  { name: "@smthrs/plugin", entry: "packages/plugin/src/index.ts" },
   { name: "@smthrs/sync", entry: "packages/sync/src/index.ts" },
   { name: "@smthrs/time-travel", entry: "packages/time-travel/src/index.ts" }
 ]

@@ -32,7 +32,6 @@ export default defineConfig({
         { text: "@smthrs/flow", link: "/api/flow" },
         { text: "@smthrs/engine", link: "/api/engine" },
         { text: "@smthrs/engine-store", link: "/api/engine-store" },
-        { text: "@smthrs/plugin", link: "/api/plugin" },
         { text: "@smthrs/sync", link: "/api/sync" },
         { text: "@smthrs/time-travel", link: "/api/time-travel" }
       ]

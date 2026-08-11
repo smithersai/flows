@@ -1,6 +1,6 @@
 # Architecture
 
-Smithers Flows is one durable-execution engine assembled from sixteen packages. This page shows how they fit together, which direction data moves, and where the boundaries you can substitute are. Read it before anything else; the pages after it assume the picture below.
+Smithers Flows is one durable-execution engine assembled from the workspace packages listed in [package structure](/package-structure). This page shows how they fit together, which direction data moves, and where the boundaries you can substitute are. Read it before anything else; the pages after it assume the picture below.
 
 ## The whole system
 
@@ -21,7 +21,6 @@ flowchart TB
 
   subgraph drive["Durable driver"]
     STORE["@smthrs/engine-store<br/>claims, fences, heartbeats,<br/>attempt persistence, cache admission"]
-    PLUGIN["@smthrs/plugin<br/>typed hook catalog"]
   end
 
   subgraph persist["Persistence"]
@@ -62,7 +61,6 @@ flowchart TB
   STORE --> JOURNAL
   STORE --> CRYPTO
   STORE --> KERNEL
-  STORE -.hooks, unwired.-> PLUGIN
   JOURNAL --> DB
   DB --> SQL
   KERNEL --> HOST
@@ -74,7 +72,7 @@ flowchart TB
   TT --> HOST
 ```
 
-Solid arrows are workspace dependencies that execute. Dotted arrows are re-exports and the plugin seam, which is defined but not yet dispatched from the engine.
+Solid arrows are workspace dependencies that execute. Dotted arrows are re-exports.
 
 ## What each boundary is for
 
@@ -88,11 +86,11 @@ The **canonical, crypto, keys, and engine** chain decides identity before storag
 
 The **flow, engine, and engine-store** chain separates what a durable program is from what runs it and from where it is written. `@smthrs/flow` defines flows, activities, durable deferreds, durable clocks, durable queues, and retry policy as typed values, written against the `FlowRuntime` port it declares. `@smthrs/engine` implements that port and puts an encoded seam beneath it. `@smthrs/engine-store` implements that seam over the journal: it claims a run row before driving it, fences continuing work with a heartbeat, admits and finishes attempt rows, and commits each lifecycle entry in the same transaction as the state transition it describes.
 
-The **plugin** package is the extension seam. Its hook catalog is typed and its kernel resolves, orders, and dispatches plugins today. The engine call sites that would dispatch those hooks still use their built-in defaults, so a plugin cannot yet change engine behavior. Planned.
+**Extension** has no package of its own, because it is Effect dependency injection. Every behavior a program may reasonably want to replace is either a named service — `Inconsistency` for cache-conflict verdicts, `OwnerIdentity` for owner minting, `StepBoundary` for hermeticity, `Jj` and the rest of the closed host list for host access, `Clock` and `Random` for time and nondeterminism — or a constructor option carrying the built-in behavior as its default, such as `suspendedRetryPolicy` and `clockFireRetryPolicy`. Providing a different `Layer` at the composition root is the whole mechanism; there is no hook registry and no dispatch order to reason about. See [design decisions](/design-decisions).
 
 The **read-only protocols** consume the journal without acquiring ownership. `@smthrs/sync` streams committed entries to a follower over Effect RPC and can neither mutate a run nor resume one. `@smthrs/time-travel` reads frames out of the same history and adds its own tables for snapshots, lineage edges, audits, receipts, and archived entries.
 
-The **barrel**, `@smthrs/flows`, re-exports the sixteen packages as namespaces for a single-import Node application. It re-exports `@smthrs/engine-store`, which reads `process.pid` and `node:crypto`, so the barrel is a Node entry point. A browser application imports the per-package roots.
+The **barrel**, `@smthrs/flows`, re-exports the engine packages as namespaces for a single-import application. A browser application may still prefer the per-package roots for a narrower dependency footprint.
 
 ## One execution, end to end
 

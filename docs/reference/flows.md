@@ -7,12 +7,13 @@ barrel's one executable statement, so the package's 100% coverage gate has a
 real denominator instead of an empty one (issue #169).
 
 ```ts
-import { Engine, Host, Journal } from "@smthrs/flows"
+import { Engine, Kernel, Journal } from "@smthrs/flows"
 ```
 
 | Namespace     | Package                  | Reference                              |
 | ------------- | ------------------------ | -------------------------------------- |
 | `Canonical`   | `@smthrs/canonical`     | [canonical](canonical.md)              |
+| `Capability`  | `@smthrs/capability`    | [capability](capability.md)            |
 | `Crypto`      | `@smthrs/crypto`        | [crypto](crypto.md)                    |
 | `Database`    | `@smthrs/database`     | [database](database.md)                |
 | `Engine`      | `@smthrs/engine`       | [engine](engine.md)                    |
@@ -41,7 +42,7 @@ bundle is chosen by the program that runs, not by the library it depends on.
 
 Depend on the individual `@smthrs/*` packages when you want a narrower
 dependency footprint, or when a runtime target cannot carry every engine
-package. The barrel pulls in all fifteen.
+package. The barrel pulls in every one of them.
 
 **A browser is one of those targets.** The barrel re-exports
 `@smthrs/engine-store`, which is Node-only, so `@smthrs/flows` is a Node

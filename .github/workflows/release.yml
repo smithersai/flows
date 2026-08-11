@@ -104,7 +104,6 @@ jobs:
           publish_if_missing @smthrs/platform-browser
           publish_if_missing @smthrs/platform-node
           publish_if_missing @smthrs/platform-bun
-          publish_if_missing @smthrs/plugin
           publish_if_missing @smthrs/sandbox
           publish_if_missing @smthrs/sync
           publish_if_missing @smthrs/engine-store

@@ -32,10 +32,19 @@
  * import { Activity, Engine, Flow, Journal } from "@smthrs/flows"
  * ```
  *
- * One caveat: `Plugin` is re-exported as a namespace, but declaration merging
- * into `FlowsHooks` must target the owning module — `declare module
- * "@smthrs/plugin"`, never `"@smthrs/flows"`. A re-export is not an
- * augmentation target.
+ * `@smthrs/time-travel` is the second: `TimeTravel` is a *service key*, not a
+ * namespace, so `const timeTravel = yield* Flows.TimeTravel` is the entire
+ * onboarding and `Flows.TimeTravel.layer` provides it. Effect's own index
+ * makes exactly this trade for `./Function.ts` — one flat re-export where the
+ * surface is what you reach for, namespaces everywhere else. The rest of that
+ * package (`Frame`, `TimeTravelStore`, the two store layers,
+ * `EffectBoundary`) is reached through `@smthrs/time-travel` directly; see
+ * `docs/specs/Concepts/Time Travel Service.md`.
+ *
+ * There is no plugin namespace and no hook catalog: extension in `flows` is
+ * Effect dependency injection. You extend the engine by providing a `Layer`,
+ * and you replace a behavior by providing a different implementation of the
+ * service — or a different constructor option — at the seam that owns it.
  */
 
 export * as Canonical from "@smthrs/canonical"
@@ -49,12 +58,11 @@ export * as Jj from "@smthrs/jj"
 export * as Journal from "@smthrs/journal"
 export * as Kernel from "@smthrs/kernel"
 export * as Keys from "@smthrs/keys"
-export * as Plugin from "@smthrs/plugin"
 export * as RunStore from "@smthrs/run-store"
 export * as Sandbox from "@smthrs/sandbox"
 export * as StepCache from "@smthrs/step-cache"
 export * as Sync from "@smthrs/sync"
-export * as TimeTravel from "@smthrs/time-travel"
+export { TimeTravel } from "@smthrs/time-travel"
 
 /**
  * The namespace names this barrel re-exports, sorted.
@@ -90,7 +98,6 @@ export const namespaces = [
   "Journal",
   "Kernel",
   "Keys",
-  "Plugin",
   "RetryPolicy",
   "RunStore",
   "Sandbox",

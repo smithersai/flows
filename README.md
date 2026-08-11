@@ -51,7 +51,7 @@ The in-memory engine above keeps state in the process. For a run that survives a
 - Host adapters for Node, Bun, browser, and tests behind one closed service surface.
 - Read-only catch-up and follow sync of journal entries over Effect RPC.
 - Time travel over run history: frame-addressed replay, fork, rewind, compensation, recovery.
-- A Vite-style plugin kernel with typed hooks at engine seams.
+- Extension by dependency injection: every replaceable behavior is an Effect service or a constructor option with a default, so a `Layer` swaps it.
 
 ## Packages
 
@@ -75,7 +75,6 @@ The in-memory engine above keeps state in the process. For a run that survives a
 | `@smthrs/flow` | Flow definitions, activities, durable primitives, retry policy, and the `FlowRuntime` port |
 | `@smthrs/engine` | The runtime that executes flows, plus the RPC and HTTP façades |
 | `@smthrs/engine-store` | The durable engine: claims, fences, and persists runs over the journal |
-| `@smthrs/plugin` | Typed plugin kernel with a closed hook catalog |
 | `@smthrs/sync` | Read-only journal replication for followers |
 | `@smthrs/time-travel` | Replay, fork, rewind, compensation, and recovery protocols |
 

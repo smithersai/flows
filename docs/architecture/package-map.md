@@ -2,7 +2,7 @@
 
 This page defines the repository’s package boundaries and actual workspace dependency direction. It is an architecture map, not an API reference; follow each package link for its exported types and functions.
 
-An arrow means “depends on.”
+An arrow means “depends on.” The one dotted edge is a test-only seam: `@smthrs/kernel`’s `test/TestHost` composes `@smthrs/platform-browser`’s in-tab `FileSystem` and `ChildProcessSpawner` to build its deterministic host, so the manifest edge exists in that direction too. No production module in `@smthrs/kernel` imports a platform bundle.
 
 ```mermaid
 flowchart TD
@@ -21,12 +21,17 @@ flowchart TD
   RS --> J
   SC["@smthrs/step-cache"] --> D
   PB --> JJ
+  PB --> K
   PN --> JJ
+  PN --> K
+  PBUN --> JJ
+  PBUN --> K
   PBUN --> PB
   SB --> K
   K["@smthrs/kernel"] --> CAP
   K --> JJ
   K --> J
+  K -.test seam.-> PB
   JJ --> CAP
   F["@smthrs/flow"] --> Keys["@smthrs/keys"]
   F --> Crypto
