@@ -76,6 +76,25 @@ describe("PlanStore", () => {
     expect(await withStore((store) => store.get("absent"))).toEqual(Option.none())
   })
 
+  it("refuses to append to a plan that was never recorded, and leaves no orphan rows", async () => {
+    const base = await runPromise(samplePlan())
+    const grown = await runPromise(Plan.append(base, [draft("late", { inputs: [{ _tag: "Pending", from: "child" }] })]))
+    const { failure, orphans } = await withStore((store) =>
+      Effect.gen(function*() {
+        // The UPDATE matches nothing while the node inserts succeed, so
+        // without the check this wrote a generation of a plan that does not
+        // exist — and the append-only triggers mean those rows could never be
+        // taken back out again.
+        const failure = yield* Effect.flip(store.append(grown))
+        const sql = yield* SqlClient.SqlClient
+        const rows = yield* sql<{ n: number }>`SELECT count(*) AS n FROM flows_plan_nodes`
+        return { failure, orphans: rows[0]!.n }
+      })
+    )
+    expect(failure).toMatchObject({ code: "constraint" })
+    expect(orphans).toBe(0)
+  })
+
   it("refuses a value that is not a plan", async () => {
     const failure = await withStore((store) =>
       Effect.flip(store.record({ planId: "", flow: "f", generation: 0, baseDigest: "x", digest: "x", nodes: [] }, 1))

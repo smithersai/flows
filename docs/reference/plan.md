@@ -102,6 +102,13 @@ Append-only is enforced **in SQL, not by convention**: triggers on
 the `flows_plans` row accepts only an update that raises the generation and
 leaves the approved base digest alone.
 
+`append` grows a plan that was recorded, and refuses one that was not with a
+`constraint` error. The refusal matters precisely *because* of those triggers:
+the node rows would land while the plan row's update matched nothing, leaving a
+generation of a plan that does not exist and that nothing is allowed to delete.
+The whole append is one transaction, so the refusal takes the rows back with
+it.
+
 ## Migrations
 
 The package owns `flows_plans`, `flows_plan_nodes`, and `flows_plan_edges`, and

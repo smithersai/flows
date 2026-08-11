@@ -74,6 +74,9 @@ regression, not an optimisation.
 the next generation. Recorded nodes keep their id, key, edges, and generation
 byte for byte, and the SQL raises rather than letting a caller update or delete
 one. Re-ordering after a reconciliation happens by re-keying _future_ steps.
+Growth implies something to grow: appending to a plan that was never recorded
+is a `constraint` refusal, because the alternative is node rows for a plan that
+does not exist and that the append-only triggers then forbid removing.
 
 ## Conflict annotations
 

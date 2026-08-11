@@ -189,10 +189,21 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
       yield* writer.write(
         Effect.gen(function*() {
           yield* insertNodes(plan.planId, appended, plan.nodes.length - appended.length)
-          yield* sql`
+          const advanced = yield* sql`
             UPDATE flows_plans SET digest = ${plan.digest}, generation = ${plan.generation}
             WHERE plan_id = ${plan.planId}
-          `
+          `.raw
+          // An elaboration grows a plan that was recorded. Without this the
+          // UPDATE matching nothing is silently fine while the node rows land
+          // anyway, leaving a generation of a plan that does not exist — and
+          // the append-only triggers guarantee those rows can never be
+          // removed. The whole write is one transaction, so refusing here
+          // takes them back with it.
+          if ((yield* affectedRows(advanced)) === 0) {
+            return yield* Effect.fail(
+              error("constraint", `plan ${plan.planId} was never recorded, so nothing can be appended to it`, undefined)
+            )
+          }
         })
       ).pipe(Effect.mapError(mapPersistenceError))
     })
