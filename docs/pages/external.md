@@ -35,7 +35,7 @@ The honest positioning is an embeddable, Effect-native durable-execution toolkit
 | Host bundles | Node, Bun, browser, and deterministic test adapters |
 | Durable primitives | SQL deferred completions and absolute clock rows, restart re-arming, wake recovery, the durable queue API, attached child flow wake-up |
 | Sync | read-only catch-up and credit-bounded follow over schema-backed Effect RPC |
-| Plugin kernel | typed hook catalog, `resolve` and `Kernel.make`, `enforce` and `order` resolution, `apply` filtering, the config waterfall, and sequential, parallel, first, and waterfall dispatch |
+| Extension | dependency injection at the owning seam: named services (`Inconsistency`, `OwnerIdentity`, `StepBoundary`, the closed host list, `Clock`, `Random`) and constructor options carrying the built-in behavior as their default (`suspendedRetryPolicy`, `clockFireRetryPolicy`, `retrySchedule`) |
 | Cache-conflict receiver | `Inconsistency` with strict, tolerant, and noop layers; the unwired core default is strict |
 | Run cycle detection | the parent edge and the child-to-parent walk inside one write transaction, rolling back with `RunParentCycleError`, surfaced as the typed `FlowCycleDetected` |
 | Waiting taxonomy | `park`, `wake`, `waiting`, and `waitingRuns` with reason, wake time, and token columns, driven by `FlowRuntime.annotateWaiting` or derived from clock state |
@@ -62,7 +62,7 @@ The honest positioning is an embeddable, Effect-native durable-execution toolkit
 - A packaged production layer composing database, migrations, journal stores, durable deferred and clock state, kernel, host, and engine. Nothing composes them today, so assembly is application work.
 - Event-driven `resumeSignal`. Suspension wake-up is polling and sweeps.
 - Journal checkpointing and compaction for unbounded histories.
-- Plugin dispatch at the engine seams: `resolveRetry`, `classifyError`, `cacheInconsistency`, `resolveShareability`, `waitStart`, `wake`. The kernel ships, the call sites use built-in defaults.
+- Injectable seams for retry classification, shareability, and wait/wake. Cache-conflict verdicts and owner identity already have services; retry classification and shareability are still fixed engine behavior.
 - Graph-level failure policies such as quarantine or continue-on-failure.
 - Detached child flow construction and lifecycle policy.
 - Automatic creation of time-travel snapshots, lineage edges, and boundary records from ordinary execution.
@@ -77,7 +77,7 @@ The honest positioning is an embeddable, Effect-native durable-execution toolkit
 | --- | --- |
 | SQLite only | both shipped SQL backends are SQLite, `@effect/sql-sqlite-node` on Node and sqlite-wasm OPFS in the browser, and the journal migration ladder is SQLite-flavoured DDL. Postgres and PGlite parity is an accepted gap, issue #78 |
 | No browser SQL layer | the journal bundles for the browser against the `DurableWriter` contract, and no browser SQL client layer ships here |
-| Node-only durable engine | `@smthrs/engine-store` reads `process.pid` and `node:crypto`, so it and the `@smthrs/flows` barrel are Node entry points, issue #114 |
+| Durable engine bundles, does not yet run, in a browser | `@smthrs/engine-store` and the `@smthrs/flows` barrel are browser entry points — owner identity moved behind the `OwnerIdentity` service and closed issue #114 — but running the composition still needs a browser SQL client behind `DurableWriter`, which is the row above |
 | Registration before resume | flow registrations and active fibers are in-memory, so a restarted process must re-register handlers before driving stored runs |
 | Single-writer serialization | `DurableWriter.write` requires serialized write transactions, and a Postgres backend must run them `SERIALIZABLE` |
 | No hosted deployment | a fully runnable engine-store on Cloudflare Workers and fully durable serverless deferreds and clocks on Vercel do not exist. Platform host adapters live in [smithersai/plugins](https://github.com/smithersai/plugins) |

@@ -112,7 +112,7 @@ The alternative was keeping the `@smthrs/pty` package that once shipped here. It
 | --- | --- | --- |
 | Ship 0.1.0 or an experimental preview | a full 0.1.0, with WAL atomicity fixed first | atomicity landed; the version is `0.1.0` |
 | Package naming | keep the `@smthrs/*` names | kept |
-| Publish `@smthrs/plugin` | hold it back as private until dispatch is wired, because publishing sells an extension API nothing calls | published anyway, and recorded here as an open disagreement |
+| Publish `@smthrs/plugin` | hold it back as private until dispatch is wired, because publishing sells an extension API nothing calls | settled by deleting the package: extension is dependency injection at the owning seam, so there is no hook kernel to publish |
 | Browser claim | narrow the claim and gate it, rather than restructure subpaths for 0.1.0 | narrowed to ten entry points and gated by `npm run browser`; the barrel and engine-store stay Node-only |
 | Positioning against Temporal, Restate, Inngest | lead with Effect integration, embeddability, content addressing, and time travel; do not lead with parity | adopted, see [External](/external) |
 

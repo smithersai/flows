@@ -40,7 +40,9 @@ flowchart TD
   Keys --> C
   Keys --> Crypto
   E["@smthrs/engine-store"] --> W
+  E --> F
   E --> Crypto
+  E --> D
   E --> J
   E --> RS
   E --> SC
@@ -64,7 +66,7 @@ flowchart TD
 | [`@smthrs/capability`](../reference/capability.md) | The capability vocabulary — actions, patterns, tiers — and typed permission failures with their `PlatformError` projection | A leaf both the kernel and `@smthrs/jj` depend on; its schema ids stay `@smthrs/kernel/…` because they are journaled |
 | [`@smthrs/jj`](../reference/jj.md) | Jujutsu snapshot, restore, diff, and workspace operations | Depends on `effect` and `@smthrs/capability`; the closed Host list still names it |
 | [`@smthrs/sandbox`](../reference/sandbox.md) | Remote-sandbox provider adaptation and sandbox liveness | Adapts a caller's provider onto Effect's `ChildProcessSpawner`; owns no host access |
-| [`@smthrs/platform-browser`](../reference/platform-browser.md) | Browser implementations of effect's `FileSystem` and `ChildProcessSpawner` | Depends on `effect` alone; the ZenFS and just-bash backends are arguments, not dependencies |
+| [`@smthrs/platform-browser`](../reference/platform-browser.md) | Browser implementations of effect's `FileSystem` and `ChildProcessSpawner`, the fetch-backed `HttpTransport`, and the `BrowserHost` bundle | Depends on `effect`, `@smthrs/kernel`, and `@smthrs/jj` for the slots it fills; the ZenFS and just-bash backends are arguments, not dependencies |
 | [`@smthrs/journal`](../reference/journal.md) | The immutable event history: journal rows, projections, redaction, and the `OwnerId` fence its durable channel accepts | Open event envelope; owns `flows_journal_events` only |
 | [`@smthrs/run-store`](../reference/run-store.md) | Executable run state: run rows, attempt rows, and ownership arbitration | Owns `flows_runs` and `flows_attempts`; validates supplied liveness evidence, never probes |
 | [`@smthrs/step-cache`](../reference/step-cache.md) | Sealed step results addressed by step-key digest | Owns `flows_step_cache`; depends on `database` alone |
@@ -74,6 +76,7 @@ flowchart TD
 | [`@smthrs/engine-store`](../reference/engine-store.md) | Durable `FlowEngine` implementation composing the journal, run, and cache stores | Claims runs before driving and fences activity persistence; owns the deferred/clock tables and composes every migration set |
 | [`@smthrs/sync`](../reference/sync.md) | Read-only journal replication protocol and RPC client/server | It does not mutate runs or journal state |
 | [`@smthrs/time-travel`](../reference/time-travel.md) | Replay, fork, rewind, compensation, recovery, and retry utilities | Operates through public journal, run-store, step-cache, `Jj`, and time-travel store contracts |
+| [`@smthrs/flows`](../reference/flows.md) | The umbrella barrel: every engine package re-exported as a namespace, plus `@smthrs/flow` flat and `TimeTravel` as a service key | Owns no code of its own beyond `namespaces`; the three `platform-*` bundles are deliberately not re-exported |
 
 ## Two persistence seams
 
@@ -94,7 +97,7 @@ tests.
 
 The core contracts are isomorphic, but not every aggregate is runtime-neutral:
 
-- `@smthrs/engine-store` currently reads `process.pid` and `node:crypto`.
+- `@smthrs/engine-store` mints owner identity through the injectable `OwnerIdentity` service rather than reading `process.pid` and `node:crypto` directly, so the package root — and the `@smthrs/flows` barrel above it — bundles for the browser. Running it still needs a browser SQL client for the `DurableWriter` contract, and none ships here.
 - Vendor host adapters (`@smthrs/host-cloudflare`, `@smthrs/host-vercel`) live in the [plugins repository](https://github.com/smithersai/plugins).
 
 See [implementation status](implementation-status.md) and the Cloudflare and Vercel guides in the [plugins repository](https://github.com/smithersai/plugins/blob/main/docs/guides/).

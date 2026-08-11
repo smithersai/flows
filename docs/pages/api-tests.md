@@ -59,9 +59,8 @@ These are the behaviors that have to be exercised against real implementations, 
 | `@smthrs/flow` | 12 | flow definitions, execution ids, results, suspension, activity combinators and retry pinning, deferreds, clocks, queues, retry policy data, step identity |
 | `@smthrs/engine` | 18 | activity identity and keys, ordinal stability, keyless concurrency, tiers, durable attempt resume, the memory engine, retry decisions, proxies |
 | `@smthrs/engine-store` | 61 | the durability matrix: ownership, adoption, sweeps, parking, cancellation, cycles, attempt persistence, cache admission, boundaries, WAL atomicity, fault matrix |
-| `@smthrs/plugin` | 6 | resolution and ordering, dispatch per hook kind, config waterfall, augmentation, cache environment |
 | `@smthrs/sync` | 20 | protocol, server paging and workspace merge, client cursors and gaps, transport faults, branch commands, presence, share, projection, convergence |
-| `@smthrs/time-travel` | 20 | replay, fork and its lineage, rewind with claims, concurrency and rollback, truncation, compensation, recovery, both stores |
+| `@smthrs/time-travel` | 21 | the `TimeTravel` service surface, replay, fork and its lineage, rewind with claims, concurrency and rollback, truncation, compensation, recovery, both stores |
 | `@smthrs/flows` | 2 | the barrel namespace list against the derived package universe, and the coverage-isolation conformance suite |
 | `@smthrs/examples` | 9 | every documentation example, run end to end against the real packages |
 
@@ -73,7 +72,6 @@ These are known and unclosed. None of them is covered by an existing suite.
 | --- | --- |
 | No Postgres or PGlite backend, so the write contract runs on SQLite only | dialect parity is asserted by classification code, not by execution |
 | No production whole-tree `StepBoundary`, so no suite exercises a genuine cross-run cache hit | admission is proven to be refused, and never proven to be correct when granted |
-| No plugin dispatch at the engine seams | the hook catalog is tested; the engine call sites still use built-in defaults, so no suite covers a plugin changing engine behavior |
 | No automatic time-travel record creation from ordinary execution | the protocols are tested against records the suites write by hand |
 | No event-driven `resumeSignal` | suspension wake-up is covered through polling and sweeps only |
 | No multi-process ownership test spanning real operating-system processes | takeover is covered in-process with injected liveness evidence |

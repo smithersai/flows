@@ -1,6 +1,6 @@
 # Package structure
 
-Twenty-one npm workspaces under `packages/`, one closed dependency set. This page is the map: who owns which data, which package may import which, and which entry points bundle for a browser.
+Twenty npm workspaces under `packages/`, one closed dependency set. This page is the map: who owns which data, which package may import which, and which entry points bundle for a browser.
 
 ## Workspaces
 
@@ -24,7 +24,6 @@ Twenty-one npm workspaces under `packages/`, one closed dependency set. This pag
 | `@smthrs/flow` | `packages/flow` | yes | no tables; flow, activity, and durable-primitive definitions plus the runtime port |
 | `@smthrs/engine` | `packages/engine` | yes | no tables; the engine that executes them, and the RPC/HTTP façades |
 | `@smthrs/engine-store` | `packages/engine-store` | yes | `flows_deferred_completions`, `flows_clock_deadlines`, `flows_run_parents` |
-| `@smthrs/plugin` | `packages/plugin` | yes | no tables; the hook catalog and kernel |
 | `@smthrs/sync` | `packages/sync` | yes | no tables; a wire protocol over journal entries |
 | `@smthrs/time-travel` | `packages/time-travel` | yes | `flows_time_travel_snapshots`, `_edges`, `_audits`, `_receipts`, `_archive` |
 | `@smthrs/examples` | `examples` | no | the runnable example suite |
@@ -73,7 +72,6 @@ flowchart LR
   KEYS["@smthrs/keys"]
   CRYPTO["@smthrs/crypto"]
   CANONICAL["@smthrs/canonical"]
-  PLUGIN["@smthrs/plugin"]
   CAP["@smthrs/capability"]
 
   KERNEL --> CAP
@@ -93,7 +91,6 @@ flowchart LR
   FLOWS --> FLOW
   FLOWS --> ENGINE
   FLOWS --> ES
-  FLOWS --> PLUGIN
   FLOWS --> SYNC
   FLOWS --> TT
   JOURNAL --> DB
@@ -115,7 +112,6 @@ flowchart LR
   FLOW --> CRYPTO
   ENGINE --> FLOW
   ENGINE --> KEYS
-  PLUGIN --> FLOW
   KEYS --> CANONICAL
   KEYS --> CRYPTO
   ES --> FLOW
@@ -146,12 +142,11 @@ flowchart LR
 | `@smthrs/platform-bun` | `jj`, `kernel`, `platform-browser` | nothing |
 | `@smthrs/sandbox` | `kernel` | `flows` |
 | `@smthrs/database` | nothing in the workspace | `journal`, `run-store`, `step-cache`, `time-travel`, `flows` |
-| `@smthrs/plugin` | `flow` | `flows` |
 | `@smthrs/journal` | `database` | `kernel`, `run-store`, `engine-store`, `sync`, `time-travel`, `flows` |
 | `@smthrs/run-store` | `database`, `journal` | `engine-store`, `time-travel`, `flows` |
 | `@smthrs/step-cache` | `database` | `engine-store`, `time-travel`, `flows` |
 | `@smthrs/kernel` | `capability`, `jj`, `journal`, `platform-browser` | `engine-store`, `platform-*`, `sandbox`, `time-travel`, `flows` |
-| `@smthrs/flow` | `crypto`, `keys` | `engine`, `plugin`, `engine-store`, `flows` |
+| `@smthrs/flow` | `crypto`, `keys` | `engine`, `engine-store`, `flows` |
 | `@smthrs/engine` | `flow`, `keys` | `engine-store`, `flows` |
 | `@smthrs/engine-store` | `crypto`, `flow`, `engine`, `journal`, `run-store`, `step-cache`, `kernel` | `time-travel`, `flows` |
 | `@smthrs/sync` | `journal` | `flows` |
@@ -195,15 +190,14 @@ A package root exports contracts. A platform implementation lives under a subpat
 | `@smthrs/step-cache/test/TestCacheStore` | no | yes | composes `TestDatabase` |
 | `@smthrs/flow` | yes | yes | flow, activity, durable primitives, retry, identity |
 | `@smthrs/engine` | yes | yes | the engine that executes flows, plus the RPC/HTTP façades |
-| `@smthrs/engine-store` | no | yes | reads `process.pid` and imports `randomUUID` from `node:crypto` |
-| `@smthrs/plugin` | yes | yes | hooks, resolution, config pipeline |
+| `@smthrs/engine-store` | yes | yes | the durable engine; owner identity enters through `OwnerIdentity` |
 | `@smthrs/sync` | yes | yes | protocol and client and server over RPC |
 | `@smthrs/time-travel` | yes | yes | frames, replay, fork, rewind, compensation, recovery |
-| `@smthrs/flows` | no | yes | re-exports `@smthrs/engine-store` |
+| `@smthrs/flows` | yes | yes | re-exports every engine package |
 
-Sixteen entry points bundle for the browser. Bundling is a weaker claim than running: `@smthrs/journal`, `@smthrs/run-store`, and `@smthrs/step-cache` bundle because they depend on the `Database` contract, and a browser application still has to supply a browser SQL client, such as Effect's sqlite-wasm OPFS worker, to that contract. No such layer ships here.
+Twenty entry points bundle for the browser. Bundling is a weaker claim than running: `@smthrs/journal`, `@smthrs/run-store`, and `@smthrs/step-cache` bundle because they depend on the `DurableWriter` contract, and a browser application still has to supply a browser SQL client, such as Effect's sqlite-wasm OPFS worker, to that contract. No such layer ships here.
 
-The accurate sentence is that canonical JSON, crypto, the host contracts, `BrowserHost`, keys, capability, kernel, database, journal, run store, step cache, flow, engine, plugin, sync, and time travel bundle for the browser, and the durable engine composition is Node and SQLite first. `@smthrs/engine-store`'s two `node:` uses are the complete browser-gap inventory, tracked as issue #114.
+The accurate sentence is that canonical JSON, crypto, the host contracts, `BrowserHost`, keys, capability, kernel, database, journal, run store, step cache, flow, engine, engine-store, the barrel, sync, and time travel bundle for the browser, and the durable engine composition is still SQLite-on-Node first because no browser SQL client layer ships here. `@smthrs/engine-store`'s last two `node:`-flavoured reads — `process.pid` and `node:crypto` `randomUUID` — moved behind the `OwnerIdentity` service, which closed issue #114.
 
 ## Build shape
 

@@ -74,8 +74,7 @@ That engine keeps its state in the process. To survive a crash, drive the same f
 | `@smthrs/flow` | flow definitions, activities, durable primitives, retry policy |
 | `@smthrs/engine` | the engine that executes them, plus the RPC and HTTP façades |
 | `@smthrs/engine-store` | the durable engine: claims, fences, and persists runs over the journal |
-| `@smthrs/plugin` | typed plugin kernel with a closed hook catalog |
 | `@smthrs/sync` | read-only journal replication for followers |
 | `@smthrs/time-travel` | replay, fork, rewind, compensation, and recovery protocols |
 
-Packages are pre-1.0 at `0.1.0` in lockstep. The browser promise covers the contract packages; `@smthrs/engine-store` and the barrel are Node entry points.
+Packages are pre-1.0 at `0.1.0` in lockstep. Every engine package — including `@smthrs/engine-store` and the barrel — bundles for the browser; the `platform-node`, `platform-bun`, and driver subpaths are the deliberate Node-only entry points.

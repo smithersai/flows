@@ -72,7 +72,7 @@ elsewhere in the tree, so its results are not admitted to the shared cache.
 Supply a stronger boundary that enforces declared writes and returns
 `wholeTreeWritesVerified: true` before admitting cross-run cache entries.
 
-`EngineStore` currently uses `node:crypto.randomUUID` and `process.pid`. The composition is therefore Node-oriented even when the database and host have edge adapters. An edge-safe engine owner identity is **Planned**.
+`EngineStore` mints its owner identity through the `OwnerIdentity` service rather than reading `node:crypto.randomUUID` and `process.pid` directly, so the composition itself is edge-safe: the default draws an incarnation number from `Random` where the platform has no process, and `OwnerIdentity.layerConstant` pins the whole token where a host already holds a lease. What is still **Planned** is a browser SQL client behind the `DurableWriter` contract — without one there is nothing for the composition to run against off Node.
 
 ## Ownership and liveness
 

@@ -13,13 +13,13 @@ const engine = EngineStore.layer({
 })
 ```
 
-This entry point is Node-only: `EngineStore` reads `process.pid` and imports `randomUUID` from `node:crypto`. Those two are the whole browser gap.
+This entry point bundles for the browser. The two host reads it once made directly — `process.pid` and `randomUUID` from `node:crypto` — enter through the [`OwnerIdentity`](#owneridentity) service. Bundling is not running: the only `DurableWriter` backing shipped here is `node:sqlite`.
 
 ## Entry point
 
 | Import | Source | Platform |
 | --- | --- | --- |
-| `@smthrs/engine-store` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/engine-store/src/index.ts) | Node |
+| `@smthrs/engine-store` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/engine-store/src/index.ts) | Node and browser |
 
 ## EngineStore
 
@@ -44,7 +44,7 @@ Required services: `Journal`, `RunStore`, `AttemptStore`, `CacheStore`, `Durable
 | --- | --- | --- |
 | `DurableEngineState` | service tag | deferreds, clocks, waiting rows, run-parent edges |
 | `Service` | interface | the methods below |
-| `make`, `layer` | SQL implementation | persists through `Database` |
+| `make`, `layer` | SQL implementation | persists through `DurableWriter` |
 | `makeMemory`, `layerMemory`, `MemoryOptions`, `MemoryRunView` | memory implementation | deterministic tests |
 | `DeferredAddress`, `DeferredRow`, `CompleteDeferredOutcome` | shapes | deferred completions |
 | `ClockAddress`, `ClockRow`, `ScheduleClockOutcome`, `CompleteClockOutcome` | shapes | absolute deadlines |
@@ -62,8 +62,8 @@ Required services: `Journal`, `RunStore`, `AttemptStore`, `CacheStore`, `Durable
 | --- | --- | --- |
 | `StepBoundary` | service tag | prepare and settle around an activity |
 | `Service`, `PreparedBoundary` | interfaces | |
-| `FileBoundary`, `FileInput` | schemas + types from `@smthrs/engine` subpaths | the declared filesystem boundary |
-| `Activity.BoundaryMode` | schema + type from `@smthrs/engine/Activity` | `hard` or `expected` enforcement |
+| `FileBoundary`, `FileInput` | schemas + types from `@smthrs/flow/FileBoundary` | the declared filesystem boundary |
+| `Activity.BoundaryMode` | schema + type from `@smthrs/flow/Activity` | `hard` or `expected` enforcement |
 | `BoundaryEvidence`, `BoundaryDeviation`, `readSetMatches` | schemas + predicate | settle evidence |
 | `make` | constructor | from an implementation |
 | `makeFileSystem`, `FileSystemOptions`, `layer` | filesystem implementation | measures declared read sets, materializes declared outputs |
@@ -87,6 +87,28 @@ Required services: `Journal`, `RunStore`, `AttemptStore`, `CacheStore`, `Durable
 | `layerNoop` | layer | |
 
 The unwired core default is strict.
+
+## OwnerIdentity
+
+[src/OwnerIdentity.ts](https://github.com/smithersai/flows/blob/main/packages/engine-store/src/OwnerIdentity.ts)
+
+| Export | Kind | Notes |
+| --- | --- | --- |
+| `OwnerIdentity` | service tag | `flows/engine-store/OwnerIdentity` |
+| `Service` | interface | `ownerId(hostId)` mints the `OwnerId` this incarnation fences with |
+| `make` | constructor | from an implementation |
+| `makeDefault`, `layer` | default implementation | the platform's process id where one exists, a `Random`-drawn incarnation number where none does, paired with a `crypto.randomUUID` nonce |
+| `layerConstant` | layer | pins a whole `OwnerId` — for a test, or a host that derives ownership from a lease it already holds |
+
+Minting an owner id is nondeterminism against the host, so it sits behind a port rather than in the composition. That is what makes this package browser-bundleable: the module carries no Node binding, reading `process?.pid` off `globalThis` instead.
+
+## RunState
+
+[src/RunState.ts](https://github.com/smithersai/flows/blob/main/packages/engine-store/src/RunState.ts)
+
+| Export | Kind | Notes |
+| --- | --- | --- |
+| `RunState` | schema + type | the versioned state envelope the engine stores in each run row |
 
 ## Errors
 

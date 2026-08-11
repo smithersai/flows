@@ -25,7 +25,8 @@ These bundle for the browser. A resolution error in any of them fails the build.
 | `@smthrs/step-cache` | The step cache and its migration, over the same contracts |
 | `@smthrs/flow` | Flow, activity, durable clock/deferred/queue, retry policy, step identity, and the `FlowRuntime` port |
 | `@smthrs/engine` | The engine that executes flows: the encoded seam, the in-memory runtime, and the RPC/HTTP façades |
-| `@smthrs/plugin` | Hooks, resolution, and the config pipeline |
+| `@smthrs/engine-store` | The durable engine over the journal. Owner identity — the last `process.pid` and `node:crypto` read — enters through the `OwnerIdentity` service, whose default draws an incarnation number where a host has no process (issue #114) |
+| `@smthrs/flows` | The barrel. It re-exports every engine package, so it bundles exactly when they all do |
 | `@smthrs/sync` | Read-only journal sync and branch protocols |
 | `@smthrs/time-travel` | Frames, replay, fork, rewind, compensation, and recovery |
 
@@ -37,8 +38,6 @@ These are Node-only, deliberately. The gate asserts each one *still* fails to bu
 
 | Entry point | Why |
 | --- | --- |
-| `@smthrs/engine-store` | `EngineStore` reads `process.pid` and imports `randomUUID` from `node:crypto`. These two are the complete browser-gap inventory for a browser composition (issue #114). |
-| `@smthrs/flows` | The barrel re-exports `@smthrs/engine-store`. **Browser consumers import the per-package roots above rather than the barrel.** |
 | `@smthrs/platform-node`, `@smthrs/platform-bun` | Child processes, Node/Bun filesystem, and Jujutsu; the Bun bundle falls back to the `@effect/platform-node` adapters off Bun |
 | `@smthrs/jj/node/NodeJj`, `@smthrs/jj/bun/BunJj` | `node:child_process`; the jj CLI is spawned with argv and never a shell string |
 | `@smthrs/kernel/test/TestHost` | `effect/testing`'s `TestClock` imports `node:assert`, so the deterministic host is Node-only even though its own adapters are pure |
@@ -51,4 +50,4 @@ A platform-neutral package root exports **contracts**; an implementation lives i
 
 ## The honest claim
 
-“`flows` has browser-safe canonical JSON, crypto, and host contracts with a working `BrowserHost`, and its journal, keys, kernel, engine, sync, and time-travel surfaces bundle for the browser. Its durable engine composition is Node/SQLite-first.” Do not shorten that to “the library is browser compatible” while `@smthrs/engine-store` and the barrel are in this page's second table.
+“`flows` has browser-safe canonical JSON, crypto, and host contracts with a working `BrowserHost`, and its journal, keys, kernel, engine, engine-store, sync, time-travel, and barrel surfaces all bundle for the browser. Its durable engine composition is still SQLite-on-Node in practice, because no browser SQL client layer ships here.” Do not shorten that to “the library is browser compatible”: bundling is not running, and every entry in this page's second table is still Node-only.

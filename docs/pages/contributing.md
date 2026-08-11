@@ -56,7 +56,7 @@ Use explicit pathspecs for every commit. Do not use `git add -A`, `git commit -a
 | Epic | Commits | Depends on |
 | --- | --- | --- |
 | `vocs-scaffold` | the Vocs devDependency and `vocs.config.ts`; the sidebar in reading order; the package barrel export docs | nothing |
-| `api-reference` | one commit per package page, in sidebar order: host, journal, database, kernel, keys, engine, engine-store, plugin, sync, time-travel, then the `@smthrs/flows` barrel | `vocs-scaffold` |
+| `api-reference` | one commit per package page, in sidebar order: host, journal, database, kernel, keys, engine, engine-store, sync, time-travel, then the `@smthrs/flows` barrel | `vocs-scaffold` |
 | `internals` | the public API test inventory; observability; internal details; data structures | `api-reference` |
 | `architecture` | the mermaid devDependency; the architecture page; package structure | `internals` |
 | `narrative` | examples; design decisions; external; this page; the introduction | `architecture` |
@@ -69,16 +69,16 @@ Each of these closes a gap named in [External](/external). They are listed in de
 
 | Epic | Intended commits | Depends on |
 | --- | --- | --- |
-| `production-layer` | a `@smthrs/flows` layer composing database, migrations, journal stores, durable deferred and clock state, kernel, host, and engine; a durable getting-started example that survives a restart; the manifest and gate updates | nothing |
-| `plugin-dispatch` | dispatch `resolveRetry`, then `classifyError`, then `cacheInconsistency`, then `resolveShareability`, then `waitStart` and `wake`, one seam per commit with a suite proving a plugin changes engine behavior | `production-layer` |
+| `production-layer` | a `@smthrs/flows` layer composing database, migrations, journal stores, durable deferred and clock state, kernel, a platform bundle, and engine; a durable getting-started example that survives a restart; the manifest and gate updates | nothing |
+| `injectable-seams` | put a service or a defaulted option in front of `resolveRetry`, then `classifyError`, then `resolveShareability`, then `waitStart` and `wake`, one seam per commit with a suite proving a provided `Layer` changes engine behavior | `production-layer` |
 | `supervisor` | `Supervisor.layer` scanning expired leases, due wakes, and `released` rows; a fault case for each scan class | `production-layer` |
-| `run-control` | a `RunControl` service journalling attributed pause, cancel, and hijack with actor and reason; the run-row columns; hijack as a plugin over `runControl` | `plugin-dispatch` |
-| `quota-park` | a plugin classifying provider quota errors, parking with a wake time, and waking through the durable clock | `plugin-dispatch` |
+| `run-control` | a `RunControl` service journalling attributed pause, cancel, and hijack with actor and reason; the run-row columns; hijack as an alternative `RunControl` implementation | `injectable-seams` |
+| `quota-park` | an error-classification service that recognizes provider quota errors, parks with a wake time, and wakes through the durable clock | `injectable-seams` |
 | `pg-parity` | a `PgDatabase` layer; a `PGliteDatabase` layer; a dialect parameter on `Migrations.run`; the out-of-ladder statements ported; the journal and engine-store suites run against PGlite in CI | nothing |
 | `whole-tree-boundary` | a jj-diff-backed `StepBoundary` that attests whole-tree write verification; the first suite proving a cross-run cache hit is correct when granted | nothing |
-| `checkpoint` | a `Checkpoint` host capability, layer-gated with a browser noop, invoked only through the `checkpoint` hook; worktree-lane lifecycle | `plugin-dispatch` |
+| `checkpoint` | a `Checkpoint` host capability, layer-gated with a browser noop; worktree-lane lifecycle | `injectable-seams` |
 | `continue-as-new` | a `Continued` terminal status closing a parent run; automatic lineage recording from ordinary execution; a restart-lineage fault case | `production-layer` |
-| `browser-engine-store` | replace `process.pid` with an identity from a `Random` or crypto layer and `node:crypto` with a platform-neutral source, then move `@smthrs/engine-store` and the barrel into the browser half of the entry matrix | nothing |
+| `browser-sql-client` | a `DurableWriter`-backing SQL client layer for the browser, so the durable engine can *run* where it already bundles | nothing |
 
 ## Adding a test
 

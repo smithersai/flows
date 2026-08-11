@@ -3,7 +3,7 @@
 This page is the public API reference for the **step result cache**: sealed
 activity results addressed by step-key digest. It was split out of
 `@smthrs/journal` — see
-[`docs/specs/Concepts/Journal Split.md`](../specs/Concepts/Journal%20Split.md).
+[`docs/specs/Concepts/Journal Split.md`](../../../docs/specs/Concepts/Journal%20Split.md).
 
 It is deliberately a *cache*. Entries may be evicted, a stale entry is a miss
 rather than a corruption, and the same admission gate serves normal execution,
@@ -37,5 +37,5 @@ SQLite database and is therefore imported from
 it with the journal's, the run store's, and the engine's. See
 [`@smthrs/database`](database.md) for the composition rules.
 
-See [Step keys](../specs/Concepts/Step%20Keys.md) and the
+See [Step keys](../../../docs/specs/Concepts/Step%20Keys.md) and the
 [`@smthrs/engine-store` reference](engine-store.md).

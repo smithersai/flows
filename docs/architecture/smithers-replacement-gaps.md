@@ -4,15 +4,17 @@ The maintainer's question: **what are we missing to truly support replacing the
 internal engine in smithers (`~/smithers`, read-only reference) with the flows
 engine?** This page re-verifies the pre-hardening audit ledger against the
 current tree — after the issues fix wave and the round-1 hardening wave both
-landed — and closes with a migration sequence, the plugin-absorption list, and
+landed — and closes with a migration sequence, the injected-seam list, and
 an honest "not soon" list. Statuses cite current source; smithers-side line
 references come from the audit's partial reads (`engine.js` resume/claim
 ~7161–7230, `adapter.js` `claimRunForResume` ~1722, `insertEventWithNextSeq`
 ~3514, attempts ~2252–2340) and are directional, not pinned.
 
 Companion pages: [implementation-status](implementation-status.md) for the
-authoritative per-area status table, [plugin-system](plugin-system.md) for the
-hook catalog this analysis leans on.
+authoritative per-area status table. Sections below that route work to a
+"plugin" predate the deletion of `@smthrs/plugin`; the seam they name is now
+an injected service or a constructor option — see
+[design decisions](design-decisions.md).
 
 ## Ledger re-verification
 
@@ -61,12 +63,13 @@ smithers' pid-verified `runState` (`packages/db/src/runState`) holds. Fault
 coverage: `FaultMatrix.test.ts` proves fence loss at heartbeat, `attempts.put`,
 and `attempts.finish` leaves exactly one durable completion.
 
-**Caveat:** `EngineStore` still uses `process.pid` and `node:crypto`
-(see [implementation-status](implementation-status.md) cautions), so the
-browser-host requirement is not yet met by the store itself, and cross-host
-liveness (`EngineStore.Options.isAlive`) is application-supplied. Done =
-identity from `Random`/crypto layer instead of pid, and a default `isAlive`
-derived from lease expiry alone.
+**Caveat:** the pid half is closed — `EngineStore` mints owner identity through
+the `OwnerIdentity` port, whose default draws from `Random` where the platform
+has no process, so the store now meets the browser-host requirement (see
+[implementation-status](implementation-status.md) cautions). What remains is
+cross-host liveness: `EngineStore.Options.isAlive` is still
+application-supplied. Done = a default `isAlive` derived from lease expiry
+alone.
 
 ### 3. Journal append fencing — closed
 
@@ -87,14 +90,13 @@ all; flows is now strictly ahead here.
 - **Pause: effectively available** as `park(reason)` over §1's taxonomy, but
   there is no user-facing pause verb and, critically, **no attribution** —
   no actor/why fields on the park or the control event.
-- **Hijack: missing**, by design deferred to the plugin surface. The
-  `runControl` hook (sequential) already exists in the engine hook catalog
-  (`packages/plugin/src/Hooks.ts:357`), so the seam is named; nothing
-  dispatches it yet.
+- **Hijack: missing**, by design deferred to an injected seam. The deleted
+  hook catalog named a `runControl` hook, so the seam has a name; no service
+  owns it yet.
 
 Done = a small `RunControl` service that journals an attributed control event
-(actor, reason) and flips `DurableEngineState`, with hijack shipping as a
-plugin over `runControl`. Smithers evidence: pause and hijack fault cases plus
+(actor, reason) and flips `DurableEngineState`, with hijack shipping as an
+alternative `RunControl` implementation provided by a `Layer`. Smithers evidence: pause and hijack fault cases plus
 who/why columns on the run row.
 
 ### 5. Continue-as-new lineage — partial
@@ -126,9 +128,10 @@ The store half is done and was designed for exactly this: `quota` is a
 first-class waiting reason, and `waitingRuns` answers "which quota-parked runs
 are due" (`WHERE waiting_reason = 'quota' AND waiting_wake_at_ms <= now`,
 covered by a test). Durable clock rows with restart re-arming also already
-ship. Missing: the plugin that classifies a provider quota error → parks with
-`wakeAt` → wakes via the durable clock. Done = that plugin over the `waitStart`
-/ `wake` hooks, with one park-then-wake fault case; nothing new in core.
+ship. Missing: the classifier that turns a provider quota error into a park
+with `wakeAt` and a wake via the durable clock. Done = that classifier as an
+injected service at the wait/wake seam, with one park-then-wake fault case;
+nothing new in core.
 
 ### 8. Supervisor sweep — still missing
 
@@ -170,11 +173,12 @@ gap.
 
 ## New gaps the audit did not list
 
-1. **Plugin dispatch is unwired.** The `@smthrs/plugin` kernel ships
-   (`985adb5`) with the full catalog, but the engine call sites still use
-   built-in defaults. Since pause attribution, hijack, quota, and checkpoints
-   are all specified *as plugins*, wiring dispatch at the seams is the
-   gating dependency for half this ledger.
+1. **The hook catalog was never dispatched, and is now gone.** The
+   `@smthrs/plugin` kernel shipped (`985adb5`) with the full catalog, but no
+   engine call site ever dispatched a hook from it, so it was deleted rather
+   than wired. Pause attribution, hijack, quota, and checkpoints still need
+   seams — as injected services and constructor options at the sites that own
+   them, not as a registry.
 2. **No packaged production layer.** Nothing composes database + migrations +
    journal + engine-store + kernel + Host + engine into one importable layer.
    Smithers cannot adopt the engine as a dependency until this exists — it is
@@ -254,13 +258,15 @@ existing smithers CLI unchanged.
    time-travel stores. Last because it has the largest missing surface (§6)
    and the least crash-safety risk while both systems coexist.
 
-## (b) Gaps the plugin system should absorb
+## (b) Gaps that belong at an injected seam, not in core
 
-Per [plugin-system](plugin-system.md), these belong on hooks, not in core:
+These stay out of the executor. Each names a hook from the deleted catalog;
+read each as the service or constructor option that now owns that decision:
 
-- **Hijack** — a plugin over `runControl` (§4).
-- **Quota park/wake** — a plugin over `waitStart`/`wake` + durable clock (§7).
-- **Checkpoint triggering** — the `checkpoint` hook decides when; core only
+- **Hijack** — an alternative `RunControl` implementation (§4).
+- **Quota park/wake** — an injected error classifier at the wait/wake seam,
+  plus the durable clock (§7).
+- **Checkpoint triggering** — an injected policy decides when; core only
   provides the host capability (§6).
 - **Provider-specific error classification** (quota vs transient vs fatal) —
   `classifyError` / `resolveRetry`, keeping smithers' hard-won provider quirks
@@ -291,8 +297,8 @@ Of the audit's nine areas, four are fully closed (taxonomy, liveness, journal
 fencing, fault harness), three are partial with the hard half done (control
 verbs, lineage, quota), and two remain (checkpoints, supervisor — the latter
 now trivial). The durability core is at or above smithers parity; what stands
-between here and cutover is integration, not invariants: wire plugin dispatch,
-package the production layer, and ship the small `Supervisor`/`RunControl`
+between here and cutover is integration, not invariants: put services behind
+the remaining seams, package the production layer, and ship the small `Supervisor`/`RunControl`
 layers, then begin stage 1 of the migration immediately — for a SQLite-backed
 workspace the storage swap is already a strict upgrade. For a PGlite- or
 Postgres-backed one it is not yet available at all; that is new gap 4, an

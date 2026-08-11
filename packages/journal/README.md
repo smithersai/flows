@@ -8,7 +8,7 @@ consumed by engine-store and sync.
 Run and attempt state live in [`@smthrs/run-store`](../run-store), sealed step
 results in [`@smthrs/step-cache`](../step-cache), and the durable
 deferred/clock tables in [`@smthrs/engine-store`](../engine-store) — see
-[`docs/specs/Concepts/Journal Split.md`](../../docs/specs/Concepts/Journal%20Split.md).
+[`docs/specs/Concepts/Journal Split.md`](../../../docs/specs/Concepts/Journal%20Split.md).
 
 The journal is flows' own **logical (domain) write-ahead log**, intended to
 become the authoritative state history.

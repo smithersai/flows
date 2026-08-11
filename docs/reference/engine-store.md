@@ -1,10 +1,10 @@
 # `@smthrs/engine-store`
 
-This page is the public API reference for the journal-backed `FlowEngine` composition, deferred/clock state contract, and hermetic boundary contract. The current composition is Node-oriented.
+This page is the public API reference for the journal-backed `FlowEngine` composition, deferred/clock state contract, and hermetic boundary contract. The composition bundles anywhere; the shipped storage beneath it is still SQLite-on-Node.
 
-## Node only
+## Bundles for the browser
 
-`@smthrs/engine-store` is a **Node entry point**, and the repository's browser gate treats it as one. `EngineStore` reads `process.pid` and imports `randomUUID` from `node:crypto` (`packages/engine-store/src/EngineStore.ts:20`); those two are the package's entire browser-gap inventory (issue #114). Everything it composes above — `@smthrs/crypto`, `@smthrs/journal`, `@smthrs/run-store`, `@smthrs/step-cache`, `@smthrs/database`, and `@smthrs/engine` — is browser-bundleable, so the gap is an owner-identity and UUID-source decision, not a rewrite. Until it closes, do not describe the durable engine as browser-capable; `npm run browser` asserts this entry point still fails to bundle for the browser, so the claim cannot drift. See [browser support](../architecture/browser-support.md).
+`@smthrs/engine-store` is a **browser entry point**, and the repository's browser gate treats it as one. The two host reads it once made directly — `process.pid` and `randomUUID` from `node:crypto` — moved behind the injectable `OwnerIdentity` service (`packages/engine-store/src/OwnerIdentity.ts`), which closed issue #114: the default reads a process id off `globalThis` where the platform has one and draws an incarnation number from `Random` where it does not, and `layerConstant` pins the whole token. Everything it composes — `@smthrs/crypto`, `@smthrs/flow`, `@smthrs/journal`, `@smthrs/run-store`, `@smthrs/step-cache`, `@smthrs/database`, `@smthrs/kernel`, and `@smthrs/engine` — is browser-bundleable too. Bundling is still not running: the only `DurableWriter` backing shipped here is `node:sqlite`, so do not describe the durable engine as browser-*ready* until a browser SQL client layer exists. `npm run browser` bundles this entry point and fails the build if it regresses. See [browser support](../architecture/browser-support.md).
 
 ## `EngineStore`
 

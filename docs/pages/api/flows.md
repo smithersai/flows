@@ -1,28 +1,28 @@
 # @smthrs/flows
 
-The umbrella barrel. It re-exports the engine packages as namespaces, so one dependency gives you the whole surface without collapsing each package's `make` / `makeNoop` / `layerNoop` trio into a shared namespace. `@smthrs/flow` is the one exception: the authoring model is re-exported flat, so `Flow`, `Activity`, and their siblings sit at the top level.
+The umbrella barrel. It re-exports the engine packages as namespaces, so one dependency gives you the whole surface without collapsing each package's `make` / `makeNoop` / `layerNoop` trio into a shared namespace. There are two exceptions: `@smthrs/flow`'s authoring model is re-exported flat, so `Flow`, `Activity`, and their siblings sit at the top level, and `@smthrs/time-travel` contributes the `TimeTravel` *service key* flat rather than a namespace, so `yield* TimeTravel` is the whole onboarding and `TimeTravel.layer` provides it.
 
 The `@smthrs/platform-*` bundles are deliberately absent, for the same reason `effect`'s index does not re-export `@effect/platform-node`: a platform bundle is chosen by the program that runs, not by the library it depends on. Import [`@smthrs/platform-node`](/api/platform-node), [`@smthrs/platform-bun`](/api/platform-bun), or [`@smthrs/platform-browser`](/api/platform-browser) directly.
 
 ```ts
-import { Engine, Kernel, RunStore } from "@smthrs/flows"
+import { Flow, Kernel, RunStore } from "@smthrs/flows"
 import * as Schema from "effect/Schema"
 
 const jj = Kernel.Jj.layerNoop({})
 const runs = RunStore.RunStore.layer
-const Build = Engine.Flow.make("example/Build", {
+const Build = Flow.make("example/Build", {
   payload: { target: Schema.String },
   success: Schema.String
 })
 ```
 
-This entry point is Node-only, because it re-exports `@smthrs/engine-store`. Browser consumers import the per-package roots.
+This entry point bundles for the browser: it re-exports only package roots, each of which is itself browser-safe, and `npm run browser` gates all of them. Bundling is not running — the durable composition still needs a SQL client behind the `DurableWriter` contract, and the only ones shipped here are `node:sqlite`-backed.
 
 ## Entry point
 
 | Import | Source | Platform |
 | --- | --- | --- |
-| `@smthrs/flows` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/flows/src/index.ts) | Node |
+| `@smthrs/flows` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/flows/src/index.ts) | Node and browser |
 
 ## Namespaces
 
@@ -41,10 +41,11 @@ This entry point is Node-only, because it re-exports `@smthrs/engine-store`. Bro
 | `StepCache` | `@smthrs/step-cache` | [StepCache](/api/step-cache) |
 | `Kernel` | `@smthrs/kernel` | [Kernel](/api/kernel) |
 | `Keys` | `@smthrs/keys` | [Keys](/api/keys) |
-| `Plugin` | `@smthrs/plugin` | [Plugin](/api/plugin) |
 | `Sandbox` | `@smthrs/sandbox` | [Sandbox](/api/sandbox) |
 | `Sync` | `@smthrs/sync` | [Sync](/api/sync) |
-| `TimeTravel` | `@smthrs/time-travel` | [TimeTravel](/api/time-travel) |
+| `TimeTravel` | `@smthrs/time-travel` (the service key, re-exported flat) | [TimeTravel](/api/time-travel) |
+
+The rest of `@smthrs/time-travel` — `Frame`, `TimeTravelStore`, its two store layers, and `EffectBoundary` — is reached through that package directly, not through the barrel.
 
 ## Own exports
 
@@ -56,18 +57,5 @@ This entry point is Node-only, because it re-exports `@smthrs/engine-store`. Bro
 
 ## When to use the barrel
 
-Take the barrel when you want the whole engine in one dependency and you are on Node. Take the individual packages when you want a narrower dependency footprint, or when you are targeting a browser bundle.
+Take the barrel when you want the whole engine in one dependency. Take the individual packages when you want a narrower dependency footprint.
 
-## Declaration merging
-
-`Plugin` is re-exported as a namespace, and a re-export is not an augmentation target. Augment the owning module:
-
-```ts
-declare module "@smthrs/plugin" {
-  interface FlowsHooks {
-    toolCall: SequentialHook<(ctx: ToolCallContext) => Effect.Effect<Option.Option<ToolOverride>>>
-  }
-}
-```
-
-Writing `declare module "@smthrs/flows"` compiles and then does nothing.
