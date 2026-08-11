@@ -2,6 +2,7 @@ import js from "@eslint/js"
 import importPlugin from "eslint-plugin-import"
 import unicorn from "eslint-plugin-unicorn"
 import tseslint from "typescript-eslint"
+import { jsdocConvention } from "../../eslint.jsdoc.js"
 
 export default tseslint.config(
   { ignores: ["**/dist", "**/build", "**/coverage"] },
@@ -41,5 +42,6 @@ export default tseslint.config(
       "unicorn/no-accessor-recursion": "error",
       "unicorn/prefer-array-flat-map": "error"
     }
-  }
+  },
+  ...jsdocConvention
 )

@@ -4,6 +4,7 @@ import js from "@eslint/js"
 import importPlugin from "eslint-plugin-import"
 import unicorn from "eslint-plugin-unicorn"
 import tseslint from "typescript-eslint"
+import { jsdocConvention } from "../../eslint.jsdoc.js"
 
 export default tseslint.config(
   { ignores: ["**/dist", "**/coverage"] },
@@ -22,5 +23,6 @@ export default tseslint.config(
       "import/no-duplicates": "error",
       "no-console": "error"
     }
-  }
+  },
+  ...jsdocConvention
 )
