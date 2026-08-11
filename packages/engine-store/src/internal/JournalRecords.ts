@@ -49,6 +49,27 @@ export const hardViolation = (options: EventOptions, payload: unknown) =>
 /** @since 0.1.0 @category events */
 export const expectedSetDeviation = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.expected-set-deviation", payload)
+/**
+ * An isolated execution produced a diff bundle. Required by
+ * `docs/specs/Concepts/Forensics.md`: the bundle's content address is recorded
+ * before it can reach the host, so what was proposed is auditable
+ * independently of whether it was applied.
+ *
+ * @since 0.1.0
+ * @category events
+ */
+export const diffBundleCaptured = (options: EventOptions, payload: unknown) =>
+  event(options, "flows.engine.diff-bundle-captured", payload)
+/**
+ * A diff bundle reached the host. Carries the rebase count and the queued
+ * effects the dispatch stage then delivered, so a copy-back that raced, or one
+ * whose effects fired, is never inferred from an absence.
+ *
+ * @since 0.1.0
+ * @category events
+ */
+export const copyBackSettled = (options: EventOptions, payload: unknown) =>
+  event(options, "flows.engine.copy-back-settled", payload)
 /** @since 0.1.0 @category events */
 export const cacheProvenance = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.cache-provenance", payload)

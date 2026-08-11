@@ -277,6 +277,27 @@ describe("WorkspaceSandbox conformance", () => {
     expect(accepted.result.provenance.outputs).toEqual([])
   })
 
+  it("lets a declaration that names a path outside the workspace cover nothing", async () => {
+    const program = Effect.gen(function*() {
+      const test = yield* WorkspaceSandbox.makeMemory()
+      return yield* test.service.execute({
+        // Neither entry can be named inside the workspace, so neither covers
+        // the write the body actually performs.
+        descriptor: descriptor({ writeSet: ["/outside.txt", "../escape.txt"] }),
+        workflow: Effect.gen(function*() {
+          const workspace = yield* WorkspaceSandbox.Workspace
+          yield* workspace.writeFile("inside.txt", encoder.encode("x"))
+          return null
+        })
+      })
+    })
+
+    expect(await runPromise(program)).toMatchObject({
+      _tag: "Invalidated",
+      violations: [{ kind: "undeclared-write", resource: { id: "inside.txt" } }]
+    })
+  })
+
   it("provides the implementation as an Effect layer", async () => {
     const program = Effect.gen(function*() {
       const test = yield* WorkspaceSandbox.makeMemory()
@@ -525,6 +546,7 @@ describe("WorkspaceSandbox filesystem host", () => {
       const unresolvable = yield* Effect.flip(sandbox.materialize({
         _tag: "Accepted",
         cache: { status: "disabled" },
+        violations: [],
         result: {
           output: null,
           effects: [],
@@ -574,6 +596,7 @@ describe("WorkspaceSandbox filesystem host", () => {
       return yield* Effect.flip(sandbox.materialize({
         _tag: "Accepted",
         cache: { status: "disabled" },
+        violations: [],
         result: {
           output: null,
           effects: [],

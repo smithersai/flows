@@ -241,6 +241,17 @@ export interface Accepted<out Output = unknown> {
   readonly _tag: "Accepted"
   readonly result: WorkflowResult<Output>
   readonly cache: CacheDisposition
+  /**
+   * Deviations the declaration did not predict. Empty in hard mode — that
+   * execution is {@link Invalidated} instead — and, in expected mode, the
+   * whole-tree evidence behind the deviation the engine journals.
+   *
+   * The proof of concept had no expected mode and so had no field here. It is
+   * carried on the result rather than recomputed by the caller because only
+   * the sandbox knows the root the declaration and the observations have to be
+   * compared in.
+   */
+  readonly violations: ReadonlyArray<DeclarationViolation>
 }
 
 /**
@@ -368,6 +379,45 @@ export const make = (service: Service): Service => WorkspaceSandbox.of(service)
  */
 export const layer = (service: Service): Layer.Layer<Service> => Layer.succeed(WorkspaceSandbox, make(service))
 
+/**
+ * Delivery for the effects a transaction queued but refused to send.
+ *
+ * The engine runs this **after** copy-back settles, never inside the
+ * transaction: an effect dispatched speculatively has already reached the
+ * world when its execution turns out to be invalid, and has reached it twice
+ * when copy-back loses a race and the body re-runs. Deduplication is by
+ * {@link QueuedEffect.idempotencyKey}, which is the same key
+ * `docs/specs/Concepts/Effect Taxonomy.md` requires before an irreversible
+ * effect may be retried at all.
+ *
+ * @category services
+ * @since 0.1.0
+ */
+export interface Dispatcher {
+  readonly dispatch: (effect: QueuedEffect) => Effect.Effect<void>
+}
+
+/**
+ * Context service for the queued-effect dispatch stage. Optional: with no
+ * dispatcher provided the engine journals what a transaction queued and sends
+ * nothing.
+ *
+ * @category services
+ * @since 0.1.0
+ */
+export const EffectDispatcher: Context.Service<Dispatcher, Dispatcher> = Context.Service<Dispatcher>(
+  "flows/engine-store/WorkspaceSandbox/EffectDispatcher"
+)
+
+/**
+ * Provides a queued-effect dispatch stage.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
+export const layerDispatcher = (dispatcher: Dispatcher): Layer.Layer<Dispatcher> =>
+  Layer.succeed(EffectDispatcher, EffectDispatcher.of(dispatcher))
+
 // -----------------------------------------------------------------------------
 // path vocabulary
 // -----------------------------------------------------------------------------
@@ -416,6 +466,30 @@ const covers = (pattern: string, path: string): boolean => {
 }
 
 const resource = (path: string): Resource => ({ kind: "file", id: path })
+
+/**
+ * Restates a declaration in the transaction's own path vocabulary.
+ *
+ * A caller may declare `out/result.txt` or the absolute path the same file has
+ * on the host — the kernel-decorated `FileSystem` accepts both, so the
+ * declaration does too. Observed paths are always workspace-relative, so the
+ * declaration has to be brought to the same footing before anything is
+ * compared against it, or an absolute declaration would cover nothing and
+ * every write would read as undeclared. An entry that cannot be named inside
+ * the workspace is kept verbatim: it covers nothing, which is the honest
+ * answer for a declaration pointing outside the tree.
+ */
+const workspaceRelative = (root: string, descriptor: FileBoundary): FileBoundary => {
+  const relative = (path: string): string => {
+    const normalized = normalizePath(root, path)
+    return Result.isFailure(normalized) ? path : normalized.success
+  }
+  return {
+    readSet: descriptor.readSet.map((entry) => ({ ...entry, path: relative(entry.path) })),
+    writeSet: descriptor.writeSet.map(relative),
+    boundaryMode: descriptor.boundaryMode
+  }
+}
 
 const digestOf = (bytes: Uint8Array): Effect.Effect<string, never, Crypto.Crypto> =>
   Schema.decodeUnknownEffect(Sha256)(bytes).pipe(Effect.orDie)
@@ -665,7 +739,10 @@ export const violations = (
  * @since 0.1.0
  */
 export const makeHosted = (host: Host): Service => {
-  const memo = new Map<string, WorkflowResult<never>>()
+  const memo = new Map<
+    string,
+    { readonly result: WorkflowResult<never>; readonly violations: ReadonlyArray<DeclarationViolation> }
+  >()
   return make({
     execute: Effect.fn("WorkspaceSandbox.execute")(function*<Output, Error>(
       execution: Execution<Output, Error>
@@ -676,7 +753,8 @@ export const makeHosted = (host: Host): Service => {
         if (hit !== undefined) {
           return {
             _tag: "Accepted" as const,
-            result: hit as unknown as WorkflowResult<Output>,
+            result: hit.result as unknown as WorkflowResult<Output>,
+            violations: hit.violations,
             cache: { status: "hit" as const, key }
           }
         }
@@ -702,7 +780,7 @@ export const makeHosted = (host: Host): Service => {
           digest: change.afterDigest
         }))
       }
-      const invalid = violations(execution.descriptor, base, provenance)
+      const invalid = violations(workspaceRelative(host.root, execution.descriptor), base, provenance)
       // Hard mode discards; expected mode admits the result and leaves the
       // deviation for the engine to journal and reconcile
       // (`Effect Taxonomy.md`, "Expected sets — the soft mode"). Either way
@@ -711,10 +789,13 @@ export const makeHosted = (host: Host): Service => {
         return { _tag: "Invalidated" as const, provenance, violations: invalid }
       }
       const result: WorkflowResult<Output> = { output, files, provenance, effects: trace.effects }
-      if (key !== undefined) memo.set(key, result as unknown as WorkflowResult<never>)
+      if (key !== undefined) {
+        memo.set(key, { result: result as unknown as WorkflowResult<never>, violations: invalid })
+      }
       return {
         _tag: "Accepted" as const,
         result,
+        violations: invalid,
         cache: key === undefined ? { status: "disabled" as const } : { status: "miss" as const, key }
       }
     }),

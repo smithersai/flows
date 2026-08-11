@@ -22,9 +22,11 @@ import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as Inconsistency from "../Inconsistency.ts"
 import * as StepBoundary from "../StepBoundary.ts"
+import * as WorkspaceSandbox from "../WorkspaceSandbox.ts"
 import * as AttemptAdmission from "./AttemptAdmission.ts"
 import * as CachePublication from "./CachePublication.ts"
 import * as JournalRecords from "./JournalRecords.ts"
+import * as SandboxedExecution from "./SandboxedExecution.ts"
 
 /** @since 0.1.0 @category models */
 /** @since 0.1.0 @category models */
@@ -165,6 +167,18 @@ const replayCorruption = (
   }
   return undefined
 }
+
+/**
+ * Whether a failing execution failed because it broke its declared boundary.
+ *
+ * The isolated execution path raises the boundary's own `UndeclaredWrite`, so
+ * a violation detected while the body ran classifies exactly like one detected
+ * at settle time: the row records `hardViolation` and the journal gets the
+ * violation record, rather than the failure passing as an ordinary activity
+ * error the retry policy might happily retry.
+ */
+const declarationViolated = (cause: Cause.Cause<unknown>): boolean =>
+  cause.reasons.some((reason) => Cause.isFailReason(reason) && reason.error instanceof StepBoundary.UndeclaredWrite)
 
 /** @since 0.1.0 @category models */
 export interface Dependencies {
@@ -1059,20 +1073,99 @@ export const make = (deps: Dependencies) => {
           }
           const prepared = preparedResult === undefined ? undefined : preparedResult.value
 
-          const outcome = yield* deps.execute(input).pipe(Effect.exit)
+          /**
+           * THE ISOLATED EXECUTION (this lane). A sealed activity carrying a
+           * boundary descriptor runs inside a workspace transaction when one
+           * is composed: the body observes only its declared read set, its
+           * writes become a diff bundle, and the host is untouched until
+           * copy-back. That is what makes whole-tree write verification
+           * structural rather than inferred — and therefore what lets a
+           * production-composed result enter the shared cache at all.
+           *
+           * The service is optional. Without it the body runs directly
+           * against the host, exactly as before, and its evidence keeps the
+           * honest omission that withholds it from the shared cache.
+           */
+          const sandbox = boundary === undefined || input.metadata === undefined
+            ? undefined
+            : Option.getOrUndefined(yield* Effect.serviceOption(WorkspaceSandbox.WorkspaceSandbox))
+          const isolated = sandbox === undefined || input.metadata === undefined
+            ? undefined
+            : yield* SandboxedExecution.execute({
+              sandbox,
+              descriptor: input.metadata,
+              workflow: deps.execute(input)
+            }).pipe(Effect.exit)
+          const outcome = isolated === undefined
+            ? yield* deps.execute(input).pipe(Effect.exit)
+            : Exit.map(isolated, (settlement) => settlement.result)
           if (Exit.isFailure(outcome)) {
             const finishedAtMs = yield* Clock.currentTimeMillis
+            // A boundary violation raised while the body ran is classified
+            // like one raised at settle time (issue #109): the row records it
+            // so a post-crash replay can re-emit the violation record, which
+            // the persisted cause alone cannot distinguish.
+            const violation = declarationViolated(outcome.cause)
             const finished = yield* settleAttempt({
               ...attemptId,
               state: "failed",
               finishedAtMs,
               error: persistCause(outcome.cause),
-              meta: { tier: input.tier, ...(snapshotId === undefined ? {} : { snapshotId }) }
+              meta: {
+                tier: input.tier,
+                ...(violation ? { hardViolation: true as const } : {}),
+                ...(snapshotId === undefined ? {} : { snapshotId })
+              }
             }, [
+              ...(violation
+                ? [
+                  JournalRecords.hardViolation(attemptSource("hard-violation"), {
+                    ...attemptId,
+                    error: outcome.cause
+                  })
+                ]
+                : []),
               JournalRecords.attemptFinished(attemptSource("finished"), { ...attemptId, state: "failed" })
             ])
             if (!finished) return yield* Effect.interrupt
             return yield* Effect.failCause(outcome.cause)
+          }
+          const settlement = isolated === undefined ? undefined : (isolated as Exit.Success<
+            SandboxedExecution.Settlement
+          >).value
+          if (settlement !== undefined) {
+            // Forensics requires both halves as journal facts, never inferred
+            // from an absence (`docs/specs/Concepts/Forensics.md`): what the
+            // transaction proposed, and that it reached the host.
+            yield* emitConverging(
+              JournalRecords.diffBundleCaptured(attemptSource("diff-bundle"), {
+                ...attemptId,
+                bundleIdentity: settlement.bundleIdentity,
+                changedPaths: settlement.files.map((change) => change.path),
+                deviations: settlement.deviations
+              })
+            )
+            // THE DISPATCH STAGE. Queued effects fire here — after copy-back
+            // settled, outside the transaction, deduplicated by idempotency
+            // key so a body that queued the same key twice, and a bundle that
+            // rebased before it landed, both send exactly once.
+            const dispatcher = Option.getOrUndefined(
+              yield* Effect.serviceOption(WorkspaceSandbox.EffectDispatcher)
+            )
+            const dispatched = new Set<string>()
+            for (const queued of settlement.effects) {
+              if (dispatched.has(queued.idempotencyKey)) continue
+              dispatched.add(queued.idempotencyKey)
+              if (dispatcher !== undefined) yield* dispatcher.dispatch(queued)
+            }
+            yield* emitConverging(
+              JournalRecords.copyBackSettled(attemptSource("copy-back"), {
+                ...attemptId,
+                bundleIdentity: settlement.bundleIdentity,
+                rebases: settlement.rebases,
+                dispatched: [...dispatched]
+              })
+            )
           }
 
           const settled = prepared === undefined || boundary === undefined
@@ -1095,7 +1188,35 @@ export const make = (deps: Dependencies) => {
             if (!finished) return yield* Effect.interrupt
             return yield* Effect.failCause(settled.cause)
           }
-          const evidence = settled === undefined ? undefined : settled.value
+          const settledEvidence = settled === undefined ? undefined : settled.value
+          /**
+           * THE RETIRED LIMITATION. `StepBoundary`'s filesystem layer omits
+           * `wholeTreeWritesVerified` because it can only re-measure paths it
+           * was told about, and only `layerTest` ever set it — so under the
+           * production composition nothing could enter the shared cache.
+           *
+           * An isolated execution answers the question the boundary could not:
+           * the transaction *is* the tree, so a write outside the declared set
+           * is a map comparison rather than an inference. The claim is made
+           * here, by the code that knows the body ran in isolation, and only
+           * when the whole-tree diff found no deviation — the same whole-tree
+           * view also supplies a deviation the boundary's declared-read scan
+           * would have missed entirely.
+           */
+          const evidence = settledEvidence === undefined || settlement === undefined
+            ? settledEvidence
+            : {
+              ...settledEvidence,
+              ...(settlement.deviations.length === 0
+                ? { wholeTreeWritesVerified: true as const }
+                : {
+                  deviation: {
+                    _tag: "ExpectedSetDeviation" as const,
+                    paths: settlement.deviations,
+                    diffIdentity: settlement.bundleIdentity
+                  }
+                })
+            }
           const finishedAtMs = yield* Clock.currentTimeMillis
           // The declared read set is the key input; the prepare-time
           // measurement is the evidence it described reality when the body
