@@ -23,6 +23,7 @@ export default defineConfig({
         { text: "@smthrs/journal", link: "/api/journal" },
         { text: "@smthrs/run-store", link: "/api/run-store" },
         { text: "@smthrs/step-cache", link: "/api/step-cache" },
+        { text: "@smthrs/artifacts", link: "/api/artifacts" },
         { text: "@smthrs/database", link: "/api/database" },
         { text: "@smthrs/capability", link: "/api/capability" },
         { text: "@smthrs/kernel", link: "/api/kernel" },
