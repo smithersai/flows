@@ -1,5 +1,16 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
+/**
+ * The Unicode well-formedness check RFC 8785 canonicalization depends on.
+ *
+ * A lone surrogate has no UTF-8 encoding, so a document containing one has no
+ * canonical byte sequence to hash — different runtimes would substitute
+ * different replacement characters and produce different digests. The check
+ * therefore runs before serialization and refuses, rather than letting a value
+ * through that hashes inconsistently.
+ *
+ * @since 0.1.0
+ */
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
