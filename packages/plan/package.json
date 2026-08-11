@@ -32,6 +32,9 @@
   "exports": {
     "./package.json": "./package.json",
     ".": "./src/index.ts",
+    "./GraphBuildError": "./src/GraphBuildError.ts",
+    "./Node": "./src/Node.ts",
+    "./Planned": "./src/Planned.ts",
     "./*": "./src/*.ts",
     "./internal/*": null,
     "./*/index": null
@@ -56,6 +59,21 @@
         "types": "./dist/esm/index.d.ts",
         "import": "./dist/esm/index.js",
         "require": "./dist/cjs/index.js"
+      },
+      "./GraphBuildError": {
+        "types": "./dist/esm/GraphBuildError.d.ts",
+        "import": "./dist/esm/GraphBuildError.js",
+        "require": "./dist/cjs/GraphBuildError.js"
+      },
+      "./Node": {
+        "types": "./dist/esm/Node.d.ts",
+        "import": "./dist/esm/Node.js",
+        "require": "./dist/cjs/Node.js"
+      },
+      "./Planned": {
+        "types": "./dist/esm/Planned.d.ts",
+        "import": "./dist/esm/Planned.js",
+        "require": "./dist/cjs/Planned.js"
       },
       "./*": {
         "types": "./dist/esm/*.d.ts",

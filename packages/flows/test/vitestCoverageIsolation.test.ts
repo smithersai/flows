@@ -315,6 +315,10 @@ describe("vitest coverage isolation conformance", () => {
       // Every `flows_plans` column carries a CHECK constraint, so a row that
       // fails the row decode cannot be written.
       "plan/src/PlanStore.ts": 1,
+      // The planned-value placeholder's proxy target is callable only so the
+      // `apply` trap fires; the target body itself is unreachable by
+      // construction because every application enters the trap.
+      "plan/src/Planned.ts": 1,
       "run-store/src/AttemptStore.ts": 1,
       "run-store/src/RunStore.ts": 1,
       "step-cache/src/CacheStore.ts": 1
