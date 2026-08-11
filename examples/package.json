@@ -9,6 +9,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@smthrs/artifacts": "0.1.0",
     "@smthrs/database": "0.1.0",
     "@smthrs/engine": "0.1.0",
     "@smthrs/engine-store": "0.1.0",

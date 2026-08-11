@@ -12,6 +12,7 @@
  */
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
 import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
+import { Activity, Flow } from "@smthrs/flow"
 import { Jj } from "@smthrs/kernel"
 import * as KernelWorkspace from "@smthrs/kernel/Workspace"
 import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
@@ -20,10 +21,13 @@ import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import * as Schema from "effect/Schema"
 import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
+import * as DurableEngineState from "../src/DurableEngineState.ts"
+import * as EngineStore from "../src/EngineStore.ts"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as JournalRecords from "../src/internal/JournalRecords.ts"
 import * as SandboxedExecution from "../src/internal/SandboxedExecution.ts"
@@ -356,6 +360,75 @@ describe("sealed activities under the production composition", () => {
     // A deviating result is applied but never shared.
     expect(Option.isNone(entry)).toBe(true)
     expect(await runPromise(hostText(root, "out/surprise.txt"))).toBe("deviating")
+  })
+})
+
+/**
+ * `EngineStore.make` resolves services once and re-provides them onto the
+ * engine's fiber, which does not carry the store's layer context. The sandbox
+ * and its dispatch stage have to travel the same way or an activity would
+ * silently run unsandboxed under a composition that declared one.
+ */
+describe("EngineStore composition", () => {
+  const SandboxFlow = Flow.make("SandboxedActivity/Flow", {
+    payload: {},
+    success: Schema.String
+  })
+
+  it("carries the sandbox and the dispatch stage onto the engine's own fiber", async () => {
+    const delivered: Array<string> = []
+    let dispatches = 0
+    const sealed = Activity.make({
+      name: "sandboxed",
+      success: Schema.String,
+      tier: "sealed",
+      idempotencyKey: "engine-store-sandboxed-v1",
+      metadata: { readSet: [], writeSet: ["out.txt"], boundaryMode: "hard" },
+      execute: Effect.gen(function*() {
+        dispatches++
+        const inner = yield* WorkspaceSandbox.Workspace
+        yield* inner.writeFile("out.txt", encoder.encode("produced"))
+        yield* inner.queueEffect({ protocol: "chat/v1", idempotencyKey: `send-${dispatches}`, payload: {} })
+        return "sandboxed-result"
+      }).pipe(Effect.orDie)
+    })
+
+    const sandbox = Layer.effect(
+      WorkspaceSandbox.WorkspaceSandbox,
+      Effect.map(WorkspaceSandbox.makeMemory(), (memory) => memory.service)
+    )
+    const program = Effect.scoped(Effect.gen(function*() {
+      const engine = yield* EngineStore.make({
+        owner: { hostId: "sandbox-composition" },
+        journalSource: "sandbox-composition",
+        isAlive: () => Effect.succeed(false)
+      })
+      yield* engine.register(SandboxFlow, () => sealed as unknown as Effect.Effect<string, never, never>)
+      return yield* engine.execute(SandboxFlow, {
+        executionId: "composed-a",
+        payload: {},
+        discard: false
+      })
+    })).pipe(
+      Effect.provide(
+        Layer.mergeAll(
+          TestStores.layer(),
+          StepBoundary.layerTest({ wholeTreeWriteDetection: false }),
+          jjLayer,
+          Layer.succeed(DurableEngineState.DurableEngineState, DurableEngineState.makeMemory()),
+          sandbox,
+          WorkspaceSandbox.layerDispatcher({
+            dispatch: (effect) => Effect.sync(() => void delivered.push(effect.idempotencyKey))
+          })
+        )
+      )
+    )
+
+    expect(await runPromise(program)).toBe("sandboxed-result")
+    // The body reached the transaction's `Workspace` service, so the sandbox
+    // travelled; the dispatcher received the queued effect, so the stage did.
+    expect(dispatches).toBe(1)
+    expect(delivered).toEqual(["send-1"])
   })
 })
 

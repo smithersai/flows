@@ -30,6 +30,7 @@ import * as DeferredPersistence from "./internal/DeferredPersistence.ts"
 import * as RunDriver from "./internal/RunDriver.ts"
 import * as OwnerIdentity from "./OwnerIdentity.ts"
 import * as StepBoundary from "./StepBoundary.ts"
+import * as WorkspaceSandbox from "./WorkspaceSandbox.ts"
 
 /**
  * Engine-store construction options.
@@ -105,6 +106,18 @@ export const make = (
     const jj = yield* Jj.Jj
     const runStore = yield* RunStore.RunStore
     const stepBoundary = yield* StepBoundary.StepBoundary
+    /**
+     * Both halves of the isolated-execution lane are OPTIONAL and resolved
+     * here, at composition time, for the same reason every service above is:
+     * `activityExecute` runs on the engine's fiber, which does not carry the
+     * store's layer context, so anything the dispatch needs has to be captured
+     * now and re-provided below. A composition without a sandbox keeps the
+     * pre-existing behaviour — the body runs against the host directly — and
+     * one without a dispatcher journals what a transaction queued without
+     * sending it.
+     */
+    const workspaceSandbox = yield* Effect.serviceOption(WorkspaceSandbox.WorkspaceSandbox)
+    const effectDispatcher = yield* Effect.serviceOption(WorkspaceSandbox.EffectDispatcher)
     const engineState = yield* DurableEngineState.DurableEngineState
     const attemptSurvivors = engineState.attemptSurvivors
 
@@ -166,7 +179,15 @@ export const make = (
         Effect.provideService(Journal.Journal, journal),
         Effect.provideService(Jj.Jj, jj),
         Effect.provideService(RunStore.RunStore, runStore),
-        Effect.provideService(StepBoundary.StepBoundary, stepBoundary)
+        Effect.provideService(StepBoundary.StepBoundary, stepBoundary),
+        (dispatch) =>
+          Option.isNone(workspaceSandbox)
+            ? dispatch
+            : Effect.provideService(dispatch, WorkspaceSandbox.WorkspaceSandbox, workspaceSandbox.value),
+        (dispatch) =>
+          Option.isNone(effectDispatcher)
+            ? dispatch
+            : Effect.provideService(dispatch, WorkspaceSandbox.EffectDispatcher, effectDispatcher.value)
       )
     })
 
