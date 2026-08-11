@@ -39,6 +39,23 @@ The root is the contract, so it bundles for the browser. The SQLite drivers are 
 
 A backend must run write transactions serializably. `packages/database/test/contract/DatabaseWriteContract.ts` is the conformance suite for that requirement.
 
+## Migrations
+
+[src/Migrations.ts](https://github.com/smithersai/flows/blob/main/packages/database/src/Migrations.ts)
+
+Every storage package declares its own `MigrationSet`; this module composes them over one table so two packages' `0001_initial` cannot collide.
+
+| Export | Kind | Notes |
+| --- | --- | --- |
+| `table` | const | `"flows_migrations"`, the single ledger every set records into |
+| `MigrationSet` | interface | a `namespace` prefixing the set's migration names and an `idOffset` reserving its block of ids |
+| `idBlock` | const | `1000` — the block size each package's `idOffset` is a multiple of |
+| `loader` | loader | turns a list of sets into an Effect `Migrator.Loader` |
+| `run` | migration | applies every set in the order given |
+| `layer` | layer | applies them at construction |
+
+The shipped offsets are `journal` at `0`, `run-store` at `idBlock`, `step-cache` at `idBlock * 2`, and `engine-store` at `idBlock * 3`.
+
 ## NodeDatabase
 
 [src/node/NodeDatabase.ts](https://github.com/smithersai/flows/blob/main/packages/database/src/node/NodeDatabase.ts)
