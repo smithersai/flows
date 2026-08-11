@@ -48,13 +48,12 @@ export type AttemptStoreErrorCode = typeof AttemptStoreErrorCode.Type
 /**
  * Error raised by attempt persistence operations.
  *
- * @category errors
- * @since 0.1.0
- */
-/**
  * The identity string is frozen at its pre-split `flows/journal/…` value for
  * the same reason the service tag beside it is: it is journaled and digested,
  * so a rename is a cache invalidation, never a file move.
+ *
+ * @category errors
+ * @since 0.1.0
  */
 export class AttemptStoreError extends Schema.TaggedErrorClass<AttemptStoreError>()(
   "flows/journal/AttemptStoreError",
@@ -250,10 +249,6 @@ export interface Service {
 /**
  * Service tag for durable step attempts.
  *
- * @category services
- * @since 0.1.0
- */
-/**
  * The identity string is DELIBERATELY FROZEN at its pre-split
  * `flows/journal/…` value. It is not drift, and it must not be re-cut to match
  * this module's path: service identities are digested into step keys, so
@@ -263,6 +258,9 @@ export interface Service {
  * same implementation and therefore the same step. New identities in new
  * modules do equal their module path (`@smthrs/artifacts/ArtifactStore`); only
  * these three survivors of `docs/specs/Concepts/Journal Split.md` do not.
+ *
+ * @category services
+ * @since 0.1.0
  */
 export class AttemptStore extends Context.Service<AttemptStore, Service>()("flows/journal/AttemptStore") {}
 

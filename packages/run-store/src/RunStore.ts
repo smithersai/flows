@@ -68,13 +68,12 @@ export type RunStoreErrorCode = typeof RunStoreErrorCode.Type
  * Compare-and-swap competition is represented by successful outcome values,
  * never by this error channel.
  *
- * @since 0.1.0
- * @category errors
- */
-/**
  * The identity string is frozen at its pre-split `flows/journal/…` value for
  * the same reason the service tag beside it is: it is journaled and digested,
  * so a rename is a cache invalidation, never a file move.
+ *
+ * @since 0.1.0
+ * @category errors
  */
 export class RunStoreError extends Schema.TaggedErrorClass<RunStoreError>()("flows/journal/RunStoreError", {
   code: RunStoreErrorCode,
@@ -316,10 +315,6 @@ export interface Service {
 /**
  * Service tag for fenced run persistence.
  *
- * @since 0.1.0
- * @category services
- */
-/**
  * The identity string is DELIBERATELY FROZEN at its pre-split
  * `flows/journal/…` value. It is not drift, and it must not be re-cut to match
  * this module's path: service identities are digested into step keys, so
@@ -329,6 +324,9 @@ export interface Service {
  * same implementation and therefore the same step. New identities in new
  * modules do equal their module path (`@smthrs/artifacts/ArtifactStore`); only
  * these three survivors of `docs/specs/Concepts/Journal Split.md` do not.
+ *
+ * @since 0.1.0
+ * @category services
  */
 export class RunStore extends Context.Service<RunStore, Service>()("flows/journal/RunStore") {}
 

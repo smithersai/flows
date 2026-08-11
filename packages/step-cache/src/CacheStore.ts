@@ -43,13 +43,12 @@ export type CacheStoreErrorCode = typeof CacheStoreErrorCode.Type
 /**
  * Error raised by cache persistence operations.
  *
- * @category errors
- * @since 0.1.0
- */
-/**
  * The identity string is frozen at its pre-split `flows/journal/…` value for
  * the same reason the service tag beside it is: it is journaled and digested,
  * so a rename is a cache invalidation, never a file move.
+ *
+ * @category errors
+ * @since 0.1.0
  */
 export class CacheStoreError extends Schema.TaggedErrorClass<CacheStoreError>()(
   "flows/journal/CacheStoreError",
@@ -130,10 +129,6 @@ export interface Service {
 /**
  * Service tag for content-addressed recorded step results.
  *
- * @category services
- * @since 0.1.0
- */
-/**
  * The identity string is DELIBERATELY FROZEN at its pre-split
  * `flows/journal/…` value. It is not drift, and it must not be re-cut to match
  * this module's path: service identities are digested into step keys, so
@@ -143,6 +138,9 @@ export interface Service {
  * same implementation and therefore the same step. New identities in new
  * modules do equal their module path (`@smthrs/artifacts/ArtifactStore`); only
  * these three survivors of `docs/specs/Concepts/Journal Split.md` do not.
+ *
+ * @category services
+ * @since 0.1.0
  */
 export class CacheStore extends Context.Service<CacheStore, Service>()("flows/journal/CacheStore") {}
 
