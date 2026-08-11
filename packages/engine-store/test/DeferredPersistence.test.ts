@@ -4,6 +4,7 @@ import { Journal, JournalEvent } from "@smthrs/journal"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
+import * as Schedule from "effect/Schedule"
 import * as Schema from "effect/Schema"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
@@ -63,7 +64,8 @@ const build = (
   state: DurableEngineState.Service,
   journal: Journal.Service,
   resumes: Array<string>,
-  onResume?: () => void
+  onResume?: () => void,
+  fireRetryPolicy?: DeferredPersistence.FireRetryPolicy
 ) =>
   DeferredPersistence.make({
     owner,
@@ -72,7 +74,8 @@ const build = (
       Effect.sync(() => {
         onResume?.()
         resumes.push(`${executionId}:${reason}`)
-      })
+      }),
+    fireRetryPolicy
   }).pipe(
     Effect.provideService(DurableEngineState.DurableEngineState, state),
     Effect.provideService(Journal.Journal, journal)
@@ -271,6 +274,55 @@ describe("DeferredPersistence", () => {
     expect(result.afterSecondFailure.completedAtMs).toBeNull()
     expect(result.afterRetry.completedAtMs).not.toBeNull()
     expect(result.resumes).toEqual(["retry-run:clock"])
+  })
+
+  it("redispatches on a supplied policy instead of the default backoff", async () => {
+    // The default ladder starts at 100ms (`defaultFireRetryPolicy`); this
+    // composition supplies a flat 5s one instead, so the redispatch that the
+    // test above observed after 100ms must not have happened yet at 4999ms.
+    const result = await runPromise(
+      Effect.scoped(Effect.gen(function*() {
+        const state = DurableEngineState.makeMemory()
+        const events: Array<string> = []
+        const resumes: Array<string> = []
+        let failuresRemaining = 0
+        const base = makeJournal(events)
+        const journal = {
+          ...base,
+          emitDurable: (input: JournalEvent.Input) =>
+            Effect.suspend(() => {
+              if (failuresRemaining > 0 && input.eventType === "flows.engine.deferred-completed") {
+                failuresRemaining--
+                return Effect.die(new Error("transient journal failure"))
+              }
+              return base.emitDurable(input)
+            })
+        }
+        const clock = DurableClock.make({ name: "slow-retry", duration: "10 seconds" })
+        const service = yield* build(state, journal as never, resumes, undefined, Schedule.spaced("5 seconds"))
+        yield* service.scheduleClock(TestFlow, { executionId: "slow-retry-run", clock })
+        failuresRemaining = 1
+        const address = {
+          flowName: TestFlow._tag,
+          executionId: "slow-retry-run",
+          clockName: "slow-retry"
+        }
+
+        yield* TestClock.adjust("10 seconds")
+        yield* Effect.yieldNow
+        yield* TestClock.adjust("4999 millis")
+        yield* Effect.yieldNow
+        const beforeSuppliedDelay = Option.getOrThrow(yield* state.clock(address))
+        yield* TestClock.adjust("1 millis")
+        yield* Effect.yieldNow
+        const afterSuppliedDelay = Option.getOrThrow(yield* state.clock(address))
+        return { beforeSuppliedDelay, afterSuppliedDelay, resumes }
+      })).pipe(Effect.provide(TestClock.layer()))
+    )
+
+    expect(result.beforeSuppliedDelay.completedAtMs).toBeNull()
+    expect(result.afterSuppliedDelay.completedAtMs).not.toBeNull()
+    expect(result.resumes).toEqual(["slow-retry-run:clock"])
   })
 
   it("delivers deferred completions and clock fires while the lossy sink failure is latched", async () => {

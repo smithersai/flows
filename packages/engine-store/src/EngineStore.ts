@@ -119,9 +119,7 @@ export const make = (
       owner,
       journalSource: options.journalSource,
       scheduleResume: (flowName, executionId, reason) => driver.scheduleResume(flowName, executionId, reason),
-      ...(options.clockFireRetryPolicy === undefined
-        ? {}
-        : { fireRetryPolicy: options.clockFireRetryPolicy })
+      fireRetryPolicy: options.clockFireRetryPolicy
     })
 
     const activityExecute = Effect.fn("FlowEngine.activityExecute")(function*(input: {

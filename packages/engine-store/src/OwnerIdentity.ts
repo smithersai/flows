@@ -12,7 +12,7 @@
  *
  * @since 0.1.0
  */
-import { OwnerId } from "@smthrs/journal/OwnerId"
+import type { OwnerId } from "@smthrs/journal/OwnerId"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -54,39 +54,36 @@ export const make = (service: Service): Service => OwnerIdentity.of(service)
  *
  * Read off `globalThis` rather than through a bare `process` reference so the
  * module carries no Node binding at all: a browser bundle sees `undefined`
- * here and falls through to a drawn incarnation number below. This is the one
+ * here and falls through to a drawn incarnation number instead. This is the one
  * place in the package that looks at the platform, which is exactly what makes
  * it replaceable — a host that knows better provides its own {@link Service}.
  */
 const hostProcessId = (globalThis as { readonly process?: { readonly pid?: number } }).process?.pid
 
 /**
- * The incarnation number component of an owner id.
+ * Builds the standard identity source over an explicitly supplied process id.
  *
- * On node and bun this is the real pid, unchanged from what the store minted
- * before this service existed. A browser tab has no process, and no stable
- * per-tab integer that means the same thing, so a drawn number stands in: the
- * component's only job is to distinguish concurrent incarnations on one host,
- * and `Random` is the sanctioned port for drawing one. Effect's own cluster
- * storage does the same where a backend exposes no connection pid
- * (`reference/effect` `unstable/cluster/SqlRunnerStorage.ts`).
- */
-const incarnationId: Effect.Effect<number> = typeof hostProcessId === "number"
-  ? Effect.succeed(hostProcessId)
-  : Random.nextIntBetween(0, Number.MAX_SAFE_INTEGER, { halfOpen: true })
-
-/**
- * The default identity source: the platform's process id where one exists,
- * paired with a fresh Web Crypto UUID nonce. `crypto.randomUUID` is the same
- * generator the previous `node:crypto` import reached, and is a global on
- * node, bun, and in a secure browser context, so the default behaves
- * identically on every supported host without binding one of them.
+ * On node and bun `pid` is the real process id, so the minted token is exactly
+ * what the store produced before this service existed. A browser tab has no
+ * process, and no stable per-tab integer that means the same thing, so
+ * `undefined` draws an incarnation number instead: the component's only job is
+ * to distinguish concurrent incarnations on one host, and `Random` is the
+ * sanctioned port for drawing one. Effect's own cluster storage does the same
+ * where a backend exposes no connection pid (`reference/effect`
+ * `unstable/cluster/SqlRunnerStorage.ts`).
+ *
+ * The nonce is a fresh Web Crypto UUID — the same generator the removed
+ * `node:crypto` import reached, and a global on node, bun, and in a secure
+ * browser context, so one implementation serves every supported host.
  *
  * @category constructors
  * @since 0.1.0
  */
-export const makeDefault = (): Service =>
-  make({
+export const makeIncarnation = (pid: number | undefined): Service => {
+  const incarnationId: Effect.Effect<number> = pid === undefined
+    ? Random.nextIntBetween(0, Number.MAX_SAFE_INTEGER, { halfOpen: true })
+    : Effect.succeed(pid)
+  return make({
     ownerId: Effect.fn("OwnerIdentity.ownerId")(function*(hostId) {
       return {
         hostId,
@@ -95,6 +92,16 @@ export const makeDefault = (): Service =>
       } satisfies OwnerId
     })
   })
+}
+
+/**
+ * The default identity source: {@link makeIncarnation} over whatever process
+ * id the running platform reports.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const makeDefault = (): Service => makeIncarnation(hostProcessId)
 
 /**
  * Provides {@link makeDefault}. This is what engine composition supplies
