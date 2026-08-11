@@ -538,6 +538,27 @@ export interface Host {
     descriptor: FileBoundary
   ) => Effect.Effect<ReadonlyMap<string, Uint8Array>, WorkspaceError, Crypto.Crypto>
   /**
+   * The host's current digest for a path the transaction never observed, or
+   * `undefined` when the host holds nothing there.
+   *
+   * A host that seeds only the declared read set does not know what else is on
+   * disk, and "absent from the seed" is emphatically **not** "absent from the
+   * host": a body writing a declared output it never declared as a read is the
+   * ordinary case, and that file usually already exists from a previous run.
+   * Treating the seed as the whole world made every such copy-back a
+   * {@link MaterializationConflict} the engine could only rebase into the same
+   * refusal, and made an identical rewrite look like a change.
+   *
+   * The digest this returns is therefore the change's `beforeDigest`. A blind
+   * write cannot carry a compare-and-set over the body's whole execution — the
+   * body never read the prior content, so there is nothing it could have
+   * depended on — but copy-back still refuses if the path moves again between
+   * the diff and the commit.
+   */
+  readonly baseline: (
+    path: string
+  ) => Effect.Effect<string | undefined, WorkspaceError, Crypto.Crypto>
+  /**
    * Decides whether a produced file's bytes travel inline in its
    * {@link FileChange} or by content address. Returning `undefined` means the
    * bytes were retained under the change's `afterDigest` and must be fetched
@@ -670,7 +691,9 @@ const changes = Effect.fn("WorkspaceSandbox.changes")(function*(
   for (const path of paths) {
     const before = base.get(path)
     const after = current.get(path)
-    const beforeDigest = before === undefined ? undefined : yield* digestOf(before)
+    // A path the transaction never observed is not a path the host lacks: ask
+    // the host what is there before claiming the change creates it.
+    const beforeDigest = before === undefined ? yield* host.baseline(path) : yield* digestOf(before)
     const afterDigest = after === undefined ? undefined : yield* digestOf(after)
     if (beforeDigest === afterDigest) continue
     result.push({
@@ -876,6 +899,12 @@ export const makeMemory = (
     const service = makeHosted({
       root: "",
       snapshot: () => Ref.get(host),
+      // This host seeds the transaction with the WHOLE tree, so a path the
+      // transaction did not observe is one the host genuinely did not hold:
+      // `undefined` is the honest snapshot-time answer, and a file that
+      // appeared underneath the transaction is caught by copy-back's
+      // compare-and-set rather than clobbered.
+      baseline: () => Effect.succeed(undefined),
       retain: (bytes) => Effect.succeed(bytes.slice()),
       commit: Effect.fn("WorkspaceSandbox.commit")(function*(changes) {
         const current = yield* Ref.get(host)
@@ -979,6 +1008,10 @@ export const makeFileSystem = (
         if (content !== undefined) base.set(normalized.success, content)
       }
       return base
+    }),
+    baseline: Effect.fn("WorkspaceSandbox.baseline")(function*(path) {
+      const content = yield* readIfPresent(hostPath(path))
+      return content === undefined ? undefined : yield* digestOf(content)
     }),
     // The bytes now live at the change's `afterDigest`; the change itself
     // carries only the reference, exactly as oversized `StepBoundary`

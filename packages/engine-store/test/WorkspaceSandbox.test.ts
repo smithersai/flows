@@ -621,6 +621,63 @@ describe("WorkspaceSandbox filesystem host", () => {
     expect(decoder.decode(files.get("root.txt"))).toBe("top level")
   })
 
+  it("overwrites a declared output that already exists but was never declared as a read", async () => {
+    // The seed is the declared READ set, so a write-only output is absent from
+    // it while being very much present on the host — the ordinary shape of a
+    // second run. Reading "absent from the seed" as "absent from the host"
+    // made every such copy-back a conflict the engine could only rebase into
+    // the same refusal.
+    const files = new Map<string, Uint8Array>([["/w/out/result.txt", encoder.encode("previous")]])
+    const program = Effect.gen(function*() {
+      const sandbox = WorkspaceSandbox.makeFileSystem(
+        yield* FileSystem.FileSystem,
+        yield* ArtifactStore.ArtifactStore,
+        "/w"
+      )
+      const accepted = yield* sandbox.execute({
+        descriptor: descriptor({ writeSet: ["out/result.txt"] }),
+        workflow: Effect.gen(function*() {
+          const fs = yield* FileSystem.FileSystem
+          yield* fs.writeFileString("out/result.txt", "next")
+          return null
+        })
+      })
+      if (accepted._tag !== "Accepted") throw new Error("expected accepted execution")
+      yield* sandbox.materialize(accepted)
+      return accepted
+    }).pipe(Effect.provide(hostLayer(files)))
+
+    const accepted = await runPromise(program)
+    expect(accepted.result.files).toMatchObject([
+      { path: "out/result.txt", beforeDigest: sha256("previous"), afterDigest: sha256("next") }
+    ])
+    expect(decoder.decode(files.get("/w/out/result.txt"))).toBe("next")
+  })
+
+  it("omits an unobserved output the body rewrote with the bytes already there", async () => {
+    const files = new Map<string, Uint8Array>([["/w/out/result.txt", encoder.encode("same")]])
+    const program = Effect.gen(function*() {
+      const sandbox = WorkspaceSandbox.makeFileSystem(
+        yield* FileSystem.FileSystem,
+        yield* ArtifactStore.ArtifactStore,
+        "/w"
+      )
+      return yield* sandbox.execute({
+        descriptor: descriptor({ writeSet: ["out/result.txt"] }),
+        workflow: Effect.gen(function*() {
+          const fs = yield* FileSystem.FileSystem
+          yield* fs.writeFileString("out/result.txt", "same")
+          return null
+        })
+      })
+    }).pipe(Effect.provide(hostLayer(files)))
+
+    const accepted = await runPromise(program)
+    if (accepted._tag !== "Accepted") throw new Error("expected accepted execution")
+    expect(accepted.result.files).toEqual([])
+    expect(accepted.result.provenance.outputs).toEqual([])
+  })
+
   it("refuses copy-back of a bundle whose retained bytes the artifact store cannot serve", async () => {
     const program = Effect.gen(function*() {
       const sandbox = WorkspaceSandbox.makeFileSystem(
