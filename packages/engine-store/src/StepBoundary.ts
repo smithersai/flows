@@ -17,7 +17,16 @@ import * as Layer from "effect/Layer"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 
-/** @since 0.1.0 @category models */
+/**
+ * A file boundary that has been measured but not yet run: the caller's
+ * declaration, paired with what the host actually found on disk for it.
+ *
+ * `prepare` produces one of these before a step executes and `settle` consumes
+ * it afterwards, which is what lets the boundary say whether the world moved
+ * underneath the declaration. Check it with {@link readSetMatches}.
+ *
+ * @since 0.1.0 @category schemas
+ */
 export const PreparedBoundary = Schema.Struct({
   descriptor: FileBoundary,
   /**
@@ -29,7 +38,11 @@ export const PreparedBoundary = Schema.Struct({
   readSnapshot: Schema.Array(FileInput)
 })
 
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link PreparedBoundary}.
+ *
+ * @since 0.1.0 @category models
+ */
 export type PreparedBoundary = typeof PreparedBoundary.Type
 
 /**
@@ -48,16 +61,42 @@ export const readSetMatches = (prepared: PreparedBoundary): boolean =>
     prepared.readSnapshot.some((measured) => measured.path === entry.path && measured.digest === entry.digest)
   )
 
-/** @since 0.1.0 @category models */
+/**
+ * The paths a step wrote that its `expected` write set did not name, together
+ * with the diff identity they were observed under.
+ *
+ * An expected-mode boundary reports these rather than failing: the declaration
+ * is a prediction, and a wrong prediction is evidence to journal, not an
+ * error. A hard-mode boundary raises {@link UndeclaredWrite} for the same
+ * observation.
+ *
+ * @since 0.1.0 @category schemas
+ */
 export const BoundaryDeviation = Schema.TaggedStruct("ExpectedSetDeviation", {
   paths: Schema.Array(Schema.String),
   diffIdentity: Schema.NonEmptyString
 })
 
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link BoundaryDeviation}.
+ *
+ * @since 0.1.0 @category models
+ */
 export type BoundaryDeviation = typeof BoundaryDeviation.Type
 
-/** @since 0.1.0 @category models */
+/**
+ * What a settled boundary proved about a step's writes — the record the
+ * journal keeps and a later cache hit is justified against.
+ *
+ * `diffIdentity` names the post-state the step produced; `declaredOutputs`
+ * carries whatever the implementation needs to reproduce it on a workspace
+ * that never ran the step. The two optional fields are the honest gaps:
+ * `wholeTreeWritesVerified` is present only when the boundary could observe
+ * the entire execution tree, and `deviation` only when it saw writes the
+ * declaration did not predict.
+ *
+ * @since 0.1.0 @category schemas
+ */
 export const BoundaryEvidence = Schema.Struct({
   declaredOutputs: Schema.Unknown,
   diffIdentity: Schema.NonEmptyString,
@@ -71,10 +110,23 @@ export const BoundaryEvidence = Schema.Struct({
   deviation: Schema.optional(BoundaryDeviation)
 })
 
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link BoundaryEvidence}.
+ *
+ * @since 0.1.0 @category models
+ */
 export type BoundaryEvidence = typeof BoundaryEvidence.Type
 
-/** @since 0.1.0 @category errors */
+/**
+ * A hard-mode step wrote outside its declared write set.
+ *
+ * Hard mode treats the declaration as a contract, so this is a refusal, not a
+ * report: the step's evidence is never journaled and never becomes a cache
+ * entry. An expected-mode boundary records the same observation as a
+ * {@link BoundaryDeviation} instead.
+ *
+ * @since 0.1.0 @category errors
+ */
 export class UndeclaredWrite extends Schema.TaggedErrorClass<UndeclaredWrite>()(
   "flows/engine-store/UndeclaredWrite",
   {
@@ -84,7 +136,17 @@ export class UndeclaredWrite extends Schema.TaggedErrorClass<UndeclaredWrite>()(
   }
 ) {}
 
-/** @since 0.1.0 @category errors */
+/**
+ * The host could not honour the boundary at all — a filesystem that cannot be
+ * measured, a path that cannot be read, a transient I/O failure.
+ *
+ * It is the catch-all host refusal, deliberately kept distinct from the two
+ * refusals a caller can act on: {@link BoundaryCorruption} (the bytes changed
+ * under a recorded digest) and {@link MissingArtifact} (the bytes might be
+ * fetchable from a shared tier).
+ *
+ * @since 0.1.0 @category errors
+ */
 export class UnsupportedBoundary extends Schema.TaggedErrorClass<UnsupportedBoundary>()(
   "flows/engine-store/UnsupportedBoundary",
   {
@@ -133,7 +195,17 @@ export class MissingArtifact extends Schema.TaggedErrorClass<MissingArtifact>()(
   }
 ) {}
 
-/** @since 0.1.0 @category models */
+/**
+ * The three-call lifecycle of a hermetic step boundary.
+ *
+ * `prepare` measures the declared read set before the step runs; `settle`
+ * measures the writes afterwards and turns them into {@link BoundaryEvidence};
+ * `replayOutputs` reproduces a previous step's outputs from that evidence, so
+ * a cache hit can materialize results on a workspace that never executed
+ * anything.
+ *
+ * @since 0.1.0 @category services
+ */
 export interface Service {
   readonly prepare: (
     descriptor: FileBoundary
@@ -146,12 +218,23 @@ export interface Service {
   ) => Effect.Effect<void, UnsupportedBoundary | BoundaryCorruption | MissingArtifact, Crypto.Crypto>
 }
 
-/** @since 0.1.0 @category services */
+/**
+ * The service key for a {@link Service}. Provide it with `layerFileSystem` for
+ * a real workspace or `layerTest` for a deterministic in-memory one.
+ *
+ * @since 0.1.0 @category services
+ */
 export const StepBoundary: Context.Service<Service, Service> = Context.Service<Service>(
   "flows/engine-store/StepBoundary"
 )
 
-/** @since 0.1.0 @category constructors */
+/**
+ * Brands a {@link Service} implementation as a `StepBoundary`, so a new
+ * boundary backend is type-checked where it is written rather than where it is
+ * provided.
+ *
+ * @since 0.1.0 @category constructors
+ */
 export const make = (service: Service): Service => StepBoundary.of(service)
 
 /**
@@ -268,7 +351,16 @@ const inlineCorruption = (path: string, recordedDigest: string): BoundaryCorrupt
     measuredDigest: "invalid_base64"
   })
 
-/** @since 0.1.0 @category models */
+/**
+ * The two size bounds that decide when a settled output is inlined into
+ * boundary evidence and when it is spilled to the `ArtifactStore` by digest.
+ *
+ * Both default to values that keep an evidence row small enough to journal;
+ * raise them only when the workspace's outputs are known to be small and the
+ * extra artifact round-trip is measurably costing something.
+ *
+ * @since 0.1.0 @category models
+ */
 export interface FileSystemOptions {
   /**
    * The largest output (in bytes) inlined into the boundary evidence
@@ -543,8 +635,18 @@ export const layer: Layer.Layer<Service, never, FileSystem.FileSystem | Artifact
   })
 )
 
-/** @since 0.1.0 @category models */
+/**
+ * What the deterministic test boundary should pretend the host observed.
+ *
+ * Every field is a fixture, not a behaviour knob: a test states the writes it
+ * wants seen, the read snapshot it wants measured, and whether the host claims
+ * to support the boundary at all — then asserts on the resulting evidence or
+ * refusal. Defaults describe a well-behaved, fully-supported host.
+ *
+ * @since 0.1.0 @category models
+ */
 export interface TestOptions {
+  /** The paths `settle` reports as written. Defaults to none. */
   readonly changedPaths?: ReadonlyArray<string> | undefined
   /**
    * What `prepare` reports as measured for the declared read set. Defaults
@@ -553,11 +655,15 @@ export interface TestOptions {
    * (issue #90).
    */
   readonly readSnapshot?: ReadonlyArray<FileInput> | undefined
+  /** The opaque replay payload recorded in the evidence. */
   readonly declaredOutputs?: unknown
+  /** The post-state identity the evidence names. Defaults to a fixed string. */
   readonly diffIdentity?: string | undefined
+  /** When false, every call fails with {@link UnsupportedBoundary}. Defaults to true. */
   readonly supported?: boolean | undefined
   /** Whether `changedPaths` represents a whole-tree observation. Defaults to true. */
   readonly wholeTreeWriteDetection?: boolean | undefined
+  /** Observes each `replayOutputs` call, so a test can assert replay happened. */
   readonly onReplay?: (evidence: BoundaryEvidence) => void
 }
 

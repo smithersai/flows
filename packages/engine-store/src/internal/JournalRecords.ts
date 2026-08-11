@@ -6,7 +6,16 @@
 import { Journal, JournalEvent } from "@smthrs/journal"
 import * as Effect from "effect/Effect"
 
-/** @since 0.1.0 @category models */
+/**
+ * The addressing every engine record shares: which run wrote it, which source
+ * inside that run, and which journal lineage it belongs to.
+ *
+ * Only `lineageId` is a semantic requirement rather than bookkeeping — a
+ * record without one is a record no time-travel frame can address — which is
+ * why it is required here rather than optional.
+ *
+ * @since 0.1.0 @category models
+ */
 export interface EventOptions {
   readonly runId: string
   readonly sourceId: string
@@ -52,31 +61,83 @@ const event = (options: EventOptions, eventType: string, payload: unknown): Jour
     meta: meta(options)
   })
 
-/** @since 0.1.0 @category events */
+/**
+ * The run's state advanced. Replaying these records in order is how time
+ * travel derives the state AT a frame, rather than reading the run row's
+ * latest value.
+ *
+ * @since 0.1.0 @category events
+ */
 export const runDecision = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.run-decision", payload)
-/** @since 0.1.0 @category events */
+/**
+ * An activity attempt was admitted and its body is about to run. Paired with
+ * {@link attemptFinished}; an unmatched one is crash evidence.
+ *
+ * @since 0.1.0 @category events
+ */
 export const attemptStarted = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.attempt-started", payload)
-/** @since 0.1.0 @category events */
+/**
+ * An activity attempt settled, successfully or not. Closes the span opened by
+ * {@link attemptStarted}.
+ *
+ * @since 0.1.0 @category events
+ */
 export const attemptFinished = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.attempt-finished", payload)
-/** @since 0.1.0 @category events */
+/**
+ * A durable deferred was resolved from outside the run. Journaled because the
+ * resolution is the only evidence of it — a replay cannot re-derive a value
+ * that arrived over the network.
+ *
+ * @since 0.1.0 @category events
+ */
 export const deferredCompleted = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.deferred-completed", payload)
-/** @since 0.1.0 @category events */
+/**
+ * A durable timer was armed. Journaling the schedule rather than the firing is
+ * what lets a resumed run re-arm the same deadline instead of restarting the
+ * wait.
+ *
+ * @since 0.1.0 @category events
+ */
 export const clockScheduled = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.clock-scheduled", payload)
-/** @since 0.1.0 @category events */
+/**
+ * The run was interrupted — cancelled, fenced out, or torn down — as opposed
+ * to failing. Recorded so a later reader can tell a cancelled run from a
+ * broken one.
+ *
+ * @since 0.1.0 @category events
+ */
 export const interrupted = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.interrupted", payload)
-/** @since 0.1.0 @category events */
+/**
+ * The jj pointer and plan digest in force at this point in the journal. These
+ * are the two tier-2 facts replay cannot derive, which is why the engine emits
+ * them and time travel's snapshot projector folds them into frame anchors.
+ *
+ * @since 0.1.0 @category events
+ */
 export const snapshotIdentified = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.snapshot-identified", payload)
-/** @since 0.1.0 @category events */
+/**
+ * A hard-mode step wrote outside its declared write set, so its result was
+ * refused. The record is the forensic trail for a declaration that does not
+ * match what the step actually does.
+ *
+ * @since 0.1.0 @category events
+ */
 export const hardViolation = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.hard-violation", payload)
-/** @since 0.1.0 @category events */
+/**
+ * An expected-mode step wrote paths its declaration did not predict. Unlike
+ * {@link hardViolation} the result still stands — the declaration was a
+ * prediction, and this is the record of it being wrong.
+ *
+ * @since 0.1.0 @category events
+ */
 export const expectedSetDeviation = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.expected-set-deviation", payload)
 /**
@@ -173,13 +234,29 @@ export const nodeInvalidated = (options: EventOptions, payload: unknown) =>
  */
 export const nodeReconciled = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.node-reconciled", payload)
-/** @since 0.1.0 @category events */
+/**
+ * Where a reused result came from: which run first produced it and under which
+ * key. A cache hit is otherwise invisible in the journal, and provenance is
+ * what makes one auditable after the fact.
+ *
+ * @since 0.1.0 @category events
+ */
 export const cacheProvenance = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.cache-provenance", payload)
-/** @since 0.1.0 @category events */
+/**
+ * Two runs recorded different results under one step key — the journaled form
+ * of an under-specified declaration.
+ *
+ * @since 0.1.0 @category events
+ */
 export const cacheConflict = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.cache-conflict", payload)
-/** @since 0.1.0 @category events */
+/**
+ * A cached output failed its digest check and the entry was evicted. Journaled
+ * because a repeat is a failing disk, not a coincidence.
+ *
+ * @since 0.1.0 @category events
+ */
 export const cacheCorruption = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.cache-corruption", payload)
 

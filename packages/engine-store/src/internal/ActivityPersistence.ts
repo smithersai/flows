@@ -30,11 +30,28 @@ import * as EffectRecords from "./EffectRecords.ts"
 import * as JournalRecords from "./JournalRecords.ts"
 import * as SandboxedExecution from "./SandboxedExecution.ts"
 
-/** @since 0.1.0 @category models */
-/** @since 0.1.0 @category models */
+/**
+ * The boundary declaration an activity may carry alongside its input.
+ *
+ * Aliased to `FileBoundary` rather than re-declared so the dispatch path and
+ * the `@smthrs/flow` declaration cannot drift apart; it is a distinct name only
+ * because "metadata" is how the activity input refers to it.
+ *
+ * @since 0.1.0 @category models
+ */
 export type BoundaryMetadata = FileBoundary
 
-/** @since 0.1.0 @category models */
+/**
+ * Everything one dispatch of a durable activity needs: the opaque `activity`
+ * body, which `attempt` this is, the step `key` it is cached under, its trust
+ * `tier`, and the boundary it declared, if any.
+ *
+ * The `key` is a digest of the caller's declaration, so two dispatches sharing
+ * one carry the same claim about their inputs — which is what makes the
+ * attempt row and the cache row addressable by it.
+ *
+ * @since 0.1.0 @category models
+ */
 export interface ActivityInput {
   readonly activity: unknown
   readonly attempt: number
@@ -43,7 +60,15 @@ export interface ActivityInput {
   readonly metadata?: BoundaryMetadata | undefined
 }
 
-/** @since 0.1.0 @category errors */
+/**
+ * The attempt stopped without settling — it is durably parked, not failed.
+ *
+ * The distinction matters to the driver: a suspended attempt keeps its row and
+ * its attempt number, so resuming continues the same attempt rather than
+ * burning a new one against the retry budget.
+ *
+ * @since 0.1.0 @category errors
+ */
 export class AttemptSuspended extends Schema.TaggedErrorClass<AttemptSuspended>()(
   "flows/engine-store/AttemptSuspended",
   {
@@ -54,7 +79,17 @@ export class AttemptSuspended extends Schema.TaggedErrorClass<AttemptSuspended>(
   }
 ) {}
 
-/** @since 0.1.0 @category errors */
+/**
+ * A retry of an irreversible activity was refused because the caller supplied
+ * no idempotency key.
+ *
+ * Retrying an irreversible body is only safe if the downstream effect can
+ * recognize the repeat, and the idempotency key is how it does. Without one
+ * the engine refuses rather than risking a second charge, a second send, or a
+ * second irreversible write.
+ *
+ * @since 0.1.0 @category errors
+ */
 export class IrreversibleRetryRequiresIdempotencyKey
   extends Schema.TaggedErrorClass<IrreversibleRetryRequiresIdempotencyKey>()(
     "flows/engine-store/IrreversibleRetryRequiresIdempotencyKey",
@@ -65,7 +100,15 @@ export class IrreversibleRetryRequiresIdempotencyKey
   )
 {}
 
-/** @since 0.1.0 @category errors */
+/**
+ * The attempt was not admitted, so its body never ran.
+ *
+ * `outcome` names which admission check refused — a superseded fence, a live
+ * same-key attempt, an already-settled row. Because the body did not execute,
+ * this failure is always safe to surface without compensation.
+ *
+ * @since 0.1.0 @category errors
+ */
 export class AttemptAdmissionRejected extends Schema.TaggedErrorClass<AttemptAdmissionRejected>()(
   "flows/engine-store/AttemptAdmissionRejected",
   {
@@ -75,7 +118,16 @@ export class AttemptAdmissionRejected extends Schema.TaggedErrorClass<AttemptAdm
   }
 ) {}
 
-/** @since 0.1.0 @category errors */
+/**
+ * Two different runs recorded results under the same step key.
+ *
+ * The key is a digest of the declaration, so a conflict means the declaration
+ * does not fully describe what the step depends on: same key, different
+ * answer. `recordedRunId` names the run that got there first, so the
+ * divergence can be investigated rather than silently resolved.
+ *
+ * @since 0.1.0 @category errors
+ */
 export class CacheConflictDetected extends Schema.TaggedErrorClass<CacheConflictDetected>()(
   "flows/engine-store/CacheConflictDetected",
   {
@@ -85,7 +137,15 @@ export class CacheConflictDetected extends Schema.TaggedErrorClass<CacheConflict
   }
 ) {}
 
-/** @since 0.1.0 @category errors */
+/**
+ * A cached output's bytes no longer hash to the digest recorded for them.
+ *
+ * Unlike a succeeded attempt row, a shared cache row is evictable: the entry is
+ * dropped and the next dispatch re-executes and re-captures cleanly (issue
+ * #164). Reported rather than swallowed so a failing disk is visible.
+ *
+ * @since 0.1.0 @category errors
+ */
 export class CacheCorruptionDetected extends Schema.TaggedErrorClass<CacheCorruptionDetected>()(
   "flows/engine-store/CacheCorruptionDetected",
   {
@@ -196,12 +256,28 @@ const activityKind = (activity: unknown): string =>
 const declarationViolated = (cause: Cause.Cause<unknown>): boolean =>
   cause.reasons.some((reason) => Cause.isFailReason(reason) && reason.error instanceof StepBoundary.UndeclaredWrite)
 
-/** @since 0.1.0 @category models */
+/**
+ * What the activity dispatcher is constructed with: the run it belongs to, the
+ * ownership fence it writes under, and the `execute` function that actually
+ * runs an activity body.
+ *
+ * Everything durable — the attempt row, the cache row, the journal record — is
+ * this module's job; `execute` is the only part it delegates, which is what
+ * keeps the persistence discipline in one place regardless of what a flow
+ * runtime does with the body.
+ *
+ * @since 0.1.0 @category models
+ */
 export interface Dependencies {
   readonly runId: string
   readonly owner: Ownership.OwnerId
   readonly sourceId: string
+  /** Runs one activity body. The only part of a dispatch this module delegates. */
   readonly execute: (input: ActivityInput) => Effect.Effect<unknown, unknown>
+  /**
+   * Makes a retry of an irreversible activity recognizable downstream. Its
+   * absence is what {@link IrreversibleRetryRequiresIdempotencyKey} reports.
+   */
   readonly idempotencyKey?: string | undefined
   /**
    * The incarnation-wide admission mutex (issues #102, #103). `EngineStore`

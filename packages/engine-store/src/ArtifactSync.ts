@@ -51,7 +51,18 @@ export class ArtifactPublicationFailed extends Schema.TaggedErrorClass<ArtifactP
   }
 ) {}
 
-/** @since 0.1.0 @category models */
+/**
+ * The two directions of the artifact protocol: {@link Service.publish} before a
+ * cache entry becomes observable, {@link Service.hydrate} when a replay needs
+ * bytes this host does not have.
+ *
+ * The asymmetry in their error types is the design: publishing may fail,
+ * because publishing an entry whose artifacts are missing is the unsafe state;
+ * hydrating never fails, because a shared tier that is down should cost a run
+ * a cache hit, not the run itself.
+ *
+ * @since 0.1.0 @category services
+ */
 export interface Service {
   /**
    * Makes every digest durable in the shared tier, in REAPI order:

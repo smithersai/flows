@@ -37,7 +37,16 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 
-/** @since 0.1.0 @category models */
+/**
+ * The one operation the shared-cache publication seam exposes.
+ *
+ * It is a single method rather than a store interface on purpose: everything
+ * about reading, keying, and invalidating a cache entry belongs to
+ * `CacheStore`, and all this seam does is take an already-durable local entry
+ * and try to share it.
+ *
+ * @since 0.1.0 @category services
+ */
 export interface Service {
   /**
    * Publishes a cache entry to the shared tier, reporting the refusal rather

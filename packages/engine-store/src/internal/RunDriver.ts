@@ -45,6 +45,8 @@ const RunStateJson = Schema.fromJsonString(RunState)
 export const FlowCycleDetected = FlowRuntime.FlowCycleDetected
 
 /**
+ * The value form of {@link FlowCycleDetected}.
+ *
  * @since 0.1.0
  * @category errors
  */

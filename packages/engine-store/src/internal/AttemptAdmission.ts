@@ -22,7 +22,16 @@
 import * as Effect from "effect/Effect"
 import * as Semaphore from "effect/Semaphore"
 
-/** @since 0.1.0 @category models */
+/**
+ * The single operation the admission mutex exposes: run something while
+ * holding a key's exclusive permit.
+ *
+ * It is deliberately not a lock/unlock pair. Handing out a permit a caller
+ * must remember to return would make an interrupted dispatch leak exclusion
+ * for the rest of the process's life; a bracketing combinator cannot.
+ *
+ * @since 0.1.0 @category services
+ */
 export interface Service {
   /**
    * Runs `effect` while holding this process's exclusive permit for `key`.

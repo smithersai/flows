@@ -133,7 +133,15 @@ export interface Executor {
  */
 export class NodeExecutor extends Context.Service<NodeExecutor, Executor>()("flows/engine-store/NodeExecutor") {}
 
-/** @since 0.1.0 @category layers */
+/**
+ * Provides a plain {@link Executor} value as the {@link NodeExecutor} service.
+ *
+ * This is the whole wiring story for the scheduler's one open seam: a flow
+ * runtime, a test double, or a remote dispatcher each become a layer by
+ * passing themselves here.
+ *
+ * @since 0.1.0 @category layers
+ */
 export const layerExecutor = (executor: Executor): Layer.Layer<NodeExecutor> => Layer.succeed(NodeExecutor, executor)
 
 /**

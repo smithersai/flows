@@ -54,7 +54,11 @@ export const Deviation = Schema.Struct({
   alsoDeviatedBy: Schema.Array(Schema.NonEmptyString)
 })
 
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link Deviation}.
+ *
+ * @since 0.1.0 @category models
+ */
 export type Deviation = typeof Deviation.Type
 
 /**
@@ -75,7 +79,11 @@ export const Conflict = Schema.Struct({
   conflictsWith: Schema.Array(Schema.NonEmptyString)
 })
 
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link Conflict}.
+ *
+ * @since 0.1.0 @category models
+ */
 export type Conflict = typeof Conflict.Type
 
 /**
@@ -90,7 +98,11 @@ export const Verdict = Schema.Union([
   Schema.TaggedStruct("FactorOut", { paths: Schema.Array(Schema.String), reason: Schema.String })
 ])
 
-/** @since 0.1.0 @category models */
+/**
+ * The value form of {@link Verdict}.
+ *
+ * @since 0.1.0 @category models
+ */
 export type Verdict = typeof Verdict.Type
 
 /**
@@ -112,10 +124,23 @@ export interface Service {
  */
 export class Reconciliation extends Context.Service<Reconciliation, Service>()("flows/engine-store/Reconciliation") {}
 
-/** @since 0.1.0 @category constructors */
+/**
+ * Names a {@link Service} implementation as a reconciler.
+ *
+ * It is the identity function: the value is checked against the interface at
+ * its definition site, which is where a wrong-shaped reconciler should be
+ * reported rather than at whichever layer eventually provides it.
+ *
+ * @since 0.1.0 @category constructors
+ */
 export const make = (service: Service): Service => service
 
-/** @since 0.1.0 @category layers */
+/**
+ * Provides a {@link Service} as the {@link Reconciliation} seam, replacing the
+ * deterministic default.
+ *
+ * @since 0.1.0 @category layers
+ */
 export const layer = (service: Service): Layer.Layer<Reconciliation> => Layer.succeed(Reconciliation, service)
 
 /**
