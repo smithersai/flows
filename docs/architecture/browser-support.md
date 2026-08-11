@@ -10,6 +10,7 @@ These bundle for the browser. A resolution error in any of them fails the build.
 
 | Entry point | Notes |
 | --- | --- |
+| `@smthrs/artifacts` | The content-addressed artifact store: the `ArtifactStore` contract, its filesystem/memory/no-op implementations, the HTTP CAS client over Effect's `HttpClient` tag, and the local-first/remote-second composition |
 | `@smthrs/canonical` | RFC 8785 canonical JSON as an Effect Schema |
 | `@smthrs/platform-browser/BrowserHost` | `layer({ bash, fs, jj })` over an injected browser filesystem, bash interpreter, and the compiled `flows_jj.wasm` with its sync mount slice — all five tags real |
 | `@smthrs/jj` | The `Jj` contract, `JjError`, and the no-op layer |
@@ -22,7 +23,7 @@ These bundle for the browser. A resolution error in any of them fails the build.
 | `@smthrs/database` | The driver-neutral `DurableWriter` write boundary over Effect's own `SqlClient` service |
 | `@smthrs/journal` | The journal, its migration, projections, and redaction, all over `SqlClient` and the `DurableWriter` contract |
 | `@smthrs/run-store` | Run and attempt stores, ownership arbitration, and their migration, over the same contracts |
-| `@smthrs/step-cache` | The step cache and its migration, over the same contracts |
+| `@smthrs/step-cache` | The step cache and its migration, over the same contracts, plus the HTTP action-cache client and the two-tier composition |
 | `@smthrs/flow` | Flow, activity, durable clock/deferred/queue, retry policy, step identity, and the `FlowRuntime` port |
 | `@smthrs/engine` | The engine that executes flows: the encoded seam, the in-memory runtime, and the RPC/HTTP façades |
 | `@smthrs/engine-store` | The durable engine over the journal. Owner identity — the last `process.pid` and `node:crypto` read — enters through the `OwnerIdentity` service, whose default draws an incarnation number where a host has no process (issue #114) |

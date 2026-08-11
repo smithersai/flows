@@ -30,6 +30,24 @@ const layer = CacheStore.layer.pipe(Layer.provideMerge(Migrations.layer))
 | `make`, `makeNoop` | constructors | |
 | `layer`, `layerNoop` | layers | |
 
+## RemoteCacheStore
+
+[src/RemoteCacheStore.ts](https://github.com/smithersai/flows/blob/main/packages/step-cache/src/RemoteCacheStore.ts)
+
+| Export | Kind | Notes |
+| --- | --- | --- |
+| `Options` | interface | `endpoint`, `headers` — a capability, never a step-key input |
+| `make`, `layer` | constructor + layer | `GET`/`PUT`/`DELETE /ac/{keyDigest}` over Effect's `HttpClient` |
+
+## CombinedCacheStore
+
+[src/CombinedCacheStore.ts](https://github.com/smithersai/flows/blob/main/packages/step-cache/src/CombinedCacheStore.ts)
+
+| Export | Kind | Notes |
+| --- | --- | --- |
+| `Options` | interface | the `local` and `remote` tiers |
+| `make`, `layer` | constructor + layer | local-first lookup with write-back into the local SQL store; eviction stays local |
+
 ## Migrations
 
 [src/Migrations.ts](https://github.com/smithersai/flows/blob/main/packages/step-cache/src/Migrations.ts)

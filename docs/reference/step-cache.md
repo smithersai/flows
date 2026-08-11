@@ -21,6 +21,31 @@ name-suffix redactor there would hand the flow a `"[REDACTED]"` string where it
 expected its own value (issue #72). `CacheStore.layer` round-trips `result` and
 `meta` byte-for-byte.
 
+## RemoteCacheStore and CombinedCacheStore
+
+`RemoteCacheStore` is the same contract spoken over HTTP — `GET`/`PUT`/`DELETE
+/ac/{keyDigest}` carrying the `CacheEntry` JSON — mirroring the action-cache
+half of Bazel's dumb-HTTP remote cache. `201 Created` is `Inserted`, any other
+2xx is `ExistingSame`, `409` is `Conflict`, which is the smallest vocabulary
+that preserves first-writer-wins over plain HTTP. A lookup that comes back
+recorded under a *different* key is refused: a tier answering with someone
+else's entry would hand the caller a result under the wrong key. The endpoint
+and its headers are layer construction options — a capability, never an input,
+and never part of a step key.
+
+`CombinedCacheStore` composes a local and a remote tier: local first, remote
+second, writing the shared entry back into the local SQL store so the next
+lookup is local. A local `Conflict` is never published upward. Eviction is
+deliberately local-only — every engine eviction is a "this host observed this
+row to be poison" judgement, and none of those observations generalize to a
+tier where another machine may still hold the artifacts this one lost.
+
+**Publication order is the caller's job.** A cache entry must never be
+observable in the shared tier while an artifact it references is missing from
+the shared artifact tier; `@smthrs/engine-store`'s `ArtifactSync` enforces that
+around `put`. See [`@smthrs/artifacts`](artifacts.md) and
+[Remote cache](../../../docs/specs/Concepts/Remote%20Cache.md).
+
 ## Entry points
 
 The root is written against the driver-neutral `@smthrs/database` service and

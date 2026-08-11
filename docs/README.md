@@ -49,6 +49,7 @@ Read [implementation status](architecture/implementation-status.md) before choos
 - [`@smthrs/journal`](reference/journal.md)
 - [`@smthrs/run-store`](reference/run-store.md)
 - [`@smthrs/step-cache`](reference/step-cache.md)
+- [`@smthrs/artifacts`](reference/artifacts.md)
 - [`@smthrs/capability`](reference/capability.md)
 - [`@smthrs/kernel`](reference/kernel.md)
 - [`@smthrs/canonical`](reference/canonical.md)

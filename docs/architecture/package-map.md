@@ -20,6 +20,7 @@ flowchart TD
   RS["@smthrs/run-store"] --> D
   RS --> J
   SC["@smthrs/step-cache"] --> D
+  A["@smthrs/artifacts"] --> Crypto
   PB --> JJ
   PB --> K
   PN --> JJ
@@ -45,6 +46,7 @@ flowchart TD
   E --> J
   E --> RS
   E --> SC
+  E --> A
   E --> K
   S["@smthrs/sync"] --> J
   T["@smthrs/time-travel"] --> D
@@ -68,7 +70,8 @@ flowchart TD
 | [`@smthrs/platform-browser`](../reference/platform-browser.md) | Browser implementations of effect's `FileSystem` and `ChildProcessSpawner`, and the `BrowserHost` bundle, which provides effect's own fetch-backed `HttpClient` | Depends on `effect`, `@smthrs/kernel`, and `@smthrs/jj` for the slots it fills; the ZenFS and just-bash backends are arguments, not dependencies |
 | [`@smthrs/journal`](../reference/journal.md) | The immutable event history: journal rows, projections, redaction, and the `OwnerId` fence its durable channel accepts | Open event envelope; owns `flows_journal_events` only |
 | [`@smthrs/run-store`](../reference/run-store.md) | Executable run state: run rows, attempt rows, and ownership arbitration | Owns `flows_runs` and `flows_attempts`; validates supplied liveness evidence, never probes |
-| [`@smthrs/step-cache`](../reference/step-cache.md) | Sealed step results addressed by step-key digest | Owns `flows_step_cache`; depends on `database` alone |
+| [`@smthrs/step-cache`](../reference/step-cache.md) | Sealed step results addressed by step-key digest, plus the HTTP action-cache client and the local-first/remote-second composition | Owns `flows_step_cache`; depends on `database` alone |
+| [`@smthrs/artifacts`](../reference/artifacts.md) | The content-addressed artifact store the step cache references by digest: local, remote-over-HTTP, and the combination | Owns no tables and no migration; depends on `crypto` alone. Host access is Effect's `FileSystem` and `HttpClient` tags |
 | [`@smthrs/flow`](../reference/flow.md) | The flow authoring model — flows, activities, durable primitives, retry policy, step identity — and the `FlowRuntime` port they execute against | Declares the runtime port; depends on nothing that implements it |
 | [`@smthrs/engine`](../reference/engine.md) | The runtime that executes flows: the encoded engine seam, its typed adapter, the in-memory implementation, and the RPC/HTTP façades | Computes activity keys above the encoded engine seam |
 | [`@smthrs/kernel`](../reference/kernel.md) | Capability sets, grants, and guarded Host decorators | Permission checks occur immediately before Host delegation |
