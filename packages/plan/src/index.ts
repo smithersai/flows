@@ -1,0 +1,48 @@
+/**
+ * The persisted plan: a keyed action graph, its append-only store, its diff,
+ * and the step-key compiler that gives every node its identity.
+ *
+ * `docs/specs/Specs/Object Model.md` calls a `Plan` "a `Node` graph with every
+ * key computed, produced by the plan phase and inert until run". This package
+ * is that value made durable — and nothing more: it performs no I/O beyond the
+ * database and never executes anything. Driving a plan is
+ * `@smthrs/engine-store`'s `PlanScheduler`.
+ *
+ * @since 0.1.0
+ */
+
+/**
+ * @since 0.1.0
+ * @category models
+ */
+export * as KeyMaterial from "./KeyMaterial.ts"
+
+/**
+ * @since 0.1.0
+ * @category models
+ */
+export * as Plan from "./Plan.ts"
+
+/**
+ * @since 0.1.0
+ * @category constructors
+ */
+export * as PlanDiff from "./PlanDiff.ts"
+
+/**
+ * @since 0.1.0
+ * @category services
+ */
+export * as PlanStore from "./PlanStore.ts"
+
+/**
+ * @since 0.1.0
+ * @category constructors
+ */
+export * as StepKey from "./StepKey.ts"
+
+/**
+ * @since 0.1.0
+ * @category migrations
+ */
+export * as Migrations from "./Migrations.ts"

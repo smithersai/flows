@@ -38,6 +38,7 @@ const BROWSER_SAFE = [
   { name: "@smthrs/sandbox", entry: "packages/sandbox/src/index.ts" },
   { name: "@smthrs/kernel", entry: "packages/kernel/src/index.ts" },
   { name: "@smthrs/keys", entry: "packages/keys/src/index.ts" },
+  { name: "@smthrs/plan", entry: "packages/plan/src/index.ts" },
   { name: "@smthrs/database", entry: "packages/database/src/index.ts" },
   { name: "@smthrs/journal", entry: "packages/journal/src/index.ts" },
   { name: "@smthrs/run-store", entry: "packages/run-store/src/index.ts" },
