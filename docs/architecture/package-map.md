@@ -39,6 +39,8 @@ flowchart TD
   W --> Keys
   Keys --> C
   Keys --> Crypto
+  P["@smthrs/plan"] --> Keys
+  P --> D
   E["@smthrs/engine-store"] --> W
   E --> F
   E --> Crypto
@@ -48,6 +50,7 @@ flowchart TD
   E --> SC
   E --> A
   E --> K
+  E --> P
   S["@smthrs/sync"] --> J
   T["@smthrs/time-travel"] --> D
   T --> E
@@ -71,6 +74,7 @@ flowchart TD
 | [`@smthrs/journal`](../reference/journal.md) | The immutable event history: journal rows, projections, redaction, and the `OwnerId` fence its durable channel accepts | Open event envelope; owns `flows_journal_events` only |
 | [`@smthrs/run-store`](../reference/run-store.md) | Executable run state: run rows, attempt rows, and ownership arbitration | Owns `flows_runs` and `flows_attempts`; validates supplied liveness evidence, never probes |
 | [`@smthrs/step-cache`](../reference/step-cache.md) | Sealed step results addressed by step-key digest, plus the HTTP action-cache client and the local-first/remote-second composition | Owns `flows_step_cache`; depends on `database` alone |
+| [`@smthrs/plan`](../reference/plan.md) | The persisted plan: the `KeyMaterial`→`StepKey` compiler, `Plan.compile`/`append`, `PlanDiff`, and the append-only `PlanStore` | Owns `flows_plans`, `flows_plan_nodes`, `flows_plan_edges`, and migration block `4000`; performs no I/O beyond the database and executes nothing |
 | [`@smthrs/artifacts`](../reference/artifacts.md) | The content-addressed artifact store the step cache references by digest: local, remote-over-HTTP, and the combination | Owns no tables and no migration; depends on `crypto` alone. Host access is Effect's `FileSystem` and `HttpClient` tags |
 | [`@smthrs/flow`](../reference/flow.md) | The flow authoring model — flows, activities, durable primitives, retry policy, step identity — and the `FlowRuntime` port they execute against | Declares the runtime port; depends on nothing that implements it |
 | [`@smthrs/engine`](../reference/engine.md) | The runtime that executes flows: the encoded engine seam, its typed adapter, the in-memory implementation, and the RPC/HTTP façades | Computes activity keys above the encoded engine seam |
@@ -85,8 +89,9 @@ flowchart TD
 Each storage package owns its own tables and its own migration set:
 `@smthrs/journal` owns `flows_journal_events`, `@smthrs/run-store` owns
 `flows_runs` and `flows_attempts`, `@smthrs/step-cache` owns
-`flows_step_cache`, and `@smthrs/engine-store` owns `flows_deferred_completions`
-and `flows_clock_deadlines`. `@smthrs/database`'s `Migrations` composes those
+`flows_step_cache`, `@smthrs/plan` owns `flows_plans`, `flows_plan_nodes`, and
+`flows_plan_edges`, and `@smthrs/engine-store` owns
+`flows_deferred_completions` and `flows_clock_deadlines`. `@smthrs/database`'s `Migrations` composes those
 sets over one `flows_migrations` table, namespacing each package's migration
 ids into a reserved block so two packages' `0001_initial` cannot collide.
 `@smthrs/engine-store` adds `DurableEngineState`: `layer` persists those waits

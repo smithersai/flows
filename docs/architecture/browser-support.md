@@ -20,6 +20,7 @@ These bundle for the browser. A resolution error in any of them fails the build.
 | `@smthrs/kernel` | The closed host service list, `CommandLine.render`, capabilities, grants, and the permission-decorated host services |
 | `@smthrs/crypto` | Injected cryptographic schemas |
 | `@smthrs/keys` | Canonical flow keys |
+| `@smthrs/plan` | The persisted plan contract: the step-key compiler, the graph schemas, the diff, and the append-only store over the same `SqlClient`/`DurableWriter` contracts |
 | `@smthrs/database` | The driver-neutral `DurableWriter` write boundary over Effect's own `SqlClient` service |
 | `@smthrs/journal` | The journal, its migration, projections, and redaction, all over `SqlClient` and the `DurableWriter` contract |
 | `@smthrs/run-store` | Run and attempt stores, ownership arbitration, and their migration, over the same contracts |

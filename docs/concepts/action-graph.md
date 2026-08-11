@@ -52,11 +52,20 @@ Without that host layer, the durable engine can still replay an attempt within o
 
 ## Graph planning
 
-Resolving graph-local dependency references into digests belongs to the future graph planner. The repository does not publish placeholder graph schemas before that planner exists; when implemented, its declarations and references will live with the planner rather than in `@smthrs/keys`.
+Resolving graph-local dependency references into digests is [`@smthrs/plan`](../reference/plan.md). `Plan.compile` walks drafts in topological order and substitutes each dependency's already-computed key for its `Ref`/`Pending` reference, so a node's key is a function of what it consumes. The declarations and references live with the planner rather than in `@smthrs/keys`, which stays the single hashing transformation.
 
-## Current scheduling
+Two properties fall out and are the reason the package exists:
 
-The runtime schedules fibers, not a persisted static DAG:
+- **Planning performs no I/O.** Declared `effects` carry read and write *paths*, never digests. Measuring a path is run-time work.
+- **Invalidation is re-keying.** An edited declaration re-keys that node and its dependent cone, and nothing else. There is deliberately no reverse-dependency index and no invalidating node visitor — content addressing subsumes both.
+
+A plan grows rather than being replaced: `Plan.append` adds a pre-keyed subgraph at the next generation, and `PlanStore` enforces append-only with SQL triggers.
+
+## Scheduling
+
+Two schedulers coexist, at different altitudes.
+
+Inside one flow body the runtime schedules **fibers**, not a persisted DAG:
 
 - independent Effect branches can run concurrently;
 - one `RunCoordinator` drain is active per execution ID in a process;
@@ -64,19 +73,22 @@ The runtime schedules fibers, not a persisted static DAG:
 - queue worker concurrency is explicit;
 - run ownership prevents cross-process duplicate drivers.
 
-There is no global step scheduler, resource pool, critical-path analysis, write-conflict planner, or package-defined concurrency ceiling.
+Above that, `EngineStore.PlanScheduler` drives a **persisted plan**. It walks the graph, admits ready nodes under `steps`/`agents` caps ordered by priority plus one point per round waited, and dispatches each through the same `ActivityPersistence` seam an ordinary activity uses — so the shared cache, the workspace sandbox, attempt rows, and the fenced journal all apply unchanged. Each node settles as `built`, `clean`, `failed`, or `skipped`, and the outcome is journaled.
 
-## What a future plan must preserve
+There is still no resource pool, critical-path analysis, or package-defined concurrency ceiling; `aspects.ts`-derived caps are supplied to the scheduler by its caller rather than read by it.
 
-The existing contracts constrain a future planner:
+## What the plan preserves
 
-- key computation must remain above the encoded storage seam;
-- graph-local IDs must remain lookup addresses, not hash material;
-- Host implementation identities and capabilities must enter cache key input;
-- cache hits must still replay declared outputs through `StepBoundary`, and a
-  fresh execution must still reach the host only through `WorkspaceSandbox`'s
-  copy-back;
-- planning must not execute Host effects;
-- ordinal work must remain run-local.
+The pre-existing contracts constrained the planner, and it keeps all of them:
 
-See [implementation status](../architecture/implementation-status.md) for the planned surfaces.
+- key computation stays above the encoded storage seam;
+- graph-local IDs remain lookup addresses, not hash material;
+- Host implementation identities and capabilities enter cache key input;
+- cache hits still replay declared outputs through `StepBoundary`, and a fresh
+  execution still reaches the host only through `WorkspaceSandbox`'s copy-back;
+- planning executes no Host effects;
+- ordinal work remains run-local.
+
+The scheduler adds one: a node's *dispatch* key folds the plan-time key together with the boundary the host measured just before dispatch, because two runs whose input files differ declare the same graph and must not share a result.
+
+See [implementation status](../architecture/implementation-status.md) for what is and is not shipped.

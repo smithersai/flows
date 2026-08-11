@@ -55,6 +55,7 @@ Read [implementation status](architecture/implementation-status.md) before choos
 - [`@smthrs/canonical`](reference/canonical.md)
 - [`@smthrs/crypto`](reference/crypto.md)
 - [`@smthrs/keys`](reference/keys.md)
+- [`@smthrs/plan`](reference/plan.md)
 - [`@smthrs/flow`](reference/flow.md)
 - [`@smthrs/engine`](reference/engine.md)
 - [`@smthrs/engine-store`](reference/engine-store.md)

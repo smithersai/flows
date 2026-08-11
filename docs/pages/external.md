@@ -57,7 +57,6 @@ The honest positioning is an embeddable, Effect-native durable-execution toolkit
 
 ### Planned
 
-- A public static planner and action-graph API that computes keys and cache hits before execution.
 - Production hermetic action execution and output materialization for cross-run caching.
 - A packaged production layer composing database, migrations, journal stores, durable deferred and clock state, kernel, host, and engine. Nothing composes them today, so assembly is application work.
 - Event-driven `resumeSignal`. Suspension wake-up is polling and sweeps.
