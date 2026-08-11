@@ -20,3 +20,9 @@
  * @since 0.1.0
  */
 export * as DurableWriter from "./DurableWriter.ts"
+
+/**
+ * @category migrations
+ * @since 0.1.0
+ */
+export * as Migrations from "./Migrations.ts"
