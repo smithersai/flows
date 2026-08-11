@@ -8,14 +8,30 @@
  * database and never executes anything. Driving a plan is
  * `@smthrs/engine-store`'s `PlanScheduler`.
  *
+ * Above the persisted form sits the authoring AST: `Node` describes a plan as
+ * pure data, and `Planned` is the placeholder a body sees where a step result
+ * will be. Both build plans; neither runs one.
+ *
  * @since 0.1.0
  */
+
+/**
+ * @since 0.1.0
+ * @category errors
+ */
+export * as GraphBuildError from "./GraphBuildError.ts"
 
 /**
  * @since 0.1.0
  * @category models
  */
 export * as KeyMaterial from "./KeyMaterial.ts"
+
+/**
+ * @since 0.1.0
+ * @category models
+ */
+export * as Node from "./Node.ts"
 
 /**
  * @since 0.1.0
@@ -34,6 +50,12 @@ export * as PlanDiff from "./PlanDiff.ts"
  * @category services
  */
 export * as PlanStore from "./PlanStore.ts"
+
+/**
+ * @since 0.1.0
+ * @category models
+ */
+export * as Planned from "./Planned.ts"
 
 /**
  * @since 0.1.0
