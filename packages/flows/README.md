@@ -15,23 +15,23 @@ import { Engine, EngineStore, Journal, Kernel } from "@smthrs/flows"
 
 ## Public API
 
-| Namespace                                                                                                           | Re-exported package               |
-| ------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
-| `Canonical`                                                                                                         | `@smthrs/canonical`               |
-| `Capability`                                                                                                        | `@smthrs/capability`              |
-| `Crypto`                                                                                                            | `@smthrs/crypto`                  |
-| `Database`                                                                                                          | `@smthrs/database`                |
-| `Engine`                                                                                                            | `@smthrs/engine`                  |
-| `Flow`, `Activity`, `RetryPolicy`, `DurableDeferred`, `DurableClock`, `DurableQueue`, `FlowRuntime`, `StepIdentity` | `@smthrs/flow` (re-exported flat) |
-| `EngineStore`                                                                                                       | `@smthrs/engine-store`            |
-| `Jj`                                                                                                                | `@smthrs/jj`                      |
-| `Journal`                                                                                                           | `@smthrs/journal`                 |
-| `RunStore`                                                                                                          | `@smthrs/run-store`               |
-| `StepCache`                                                                                                         | `@smthrs/step-cache`              |
-| `Kernel`                                                                                                            | `@smthrs/kernel`                  |
-| `Keys`                                                                                                              | `@smthrs/keys`                    |
-| `Sandbox`                                                                                                           | `@smthrs/sandbox`                 |
-| `Sync`                                                                                                              | `@smthrs/sync`                    |
+| Namespace                                                                                                           | Re-exported package                                   |
+| ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| `Canonical`                                                                                                         | `@smthrs/canonical`                                   |
+| `Capability`                                                                                                        | `@smthrs/capability`                                  |
+| `Crypto`                                                                                                            | `@smthrs/crypto`                                      |
+| `Database`                                                                                                          | `@smthrs/database`                                    |
+| `Engine`                                                                                                            | `@smthrs/engine`                                      |
+| `Flow`, `Activity`, `RetryPolicy`, `DurableDeferred`, `DurableClock`, `DurableQueue`, `FlowRuntime`, `StepIdentity` | `@smthrs/flow` (re-exported flat)                     |
+| `EngineStore`                                                                                                       | `@smthrs/engine-store`                                |
+| `Jj`                                                                                                                | `@smthrs/jj`                                          |
+| `Journal`                                                                                                           | `@smthrs/journal`                                     |
+| `RunStore`                                                                                                          | `@smthrs/run-store`                                   |
+| `StepCache`                                                                                                         | `@smthrs/step-cache`                                  |
+| `Kernel`                                                                                                            | `@smthrs/kernel`                                      |
+| `Keys`                                                                                                              | `@smthrs/keys`                                        |
+| `Sandbox`                                                                                                           | `@smthrs/sandbox`                                     |
+| `Sync`                                                                                                              | `@smthrs/sync`                                        |
 | `TimeTravel`                                                                                                        | `@smthrs/time-travel` (service key, re-exported flat) |
 
 Namespacing preserves APIs such as `Kernel.ChildProcessSpawner.layerNoop` and
