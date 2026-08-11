@@ -13,11 +13,11 @@ import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Schema from "effect/Schema"
+import { error, TimeTravelError, type TimeTravelError as TimeTravelFailure } from "../TimeTravelError.ts"
+import { type Audit, TimeTravelStore } from "../TimeTravelStore.ts"
 import * as Compensation from "./Compensation.ts"
 import type { EffectHandlerRegistry } from "./EffectHandlerRegistry.ts"
 import { AuditDetail } from "./Rewind.ts"
-import { error, TimeTravelError, type TimeTravelError as TimeTravelFailure } from "../TimeTravelError.ts"
-import { type Audit, TimeTravelStore } from "../TimeTravelStore.ts"
 
 /**
  * Recovery construction options.

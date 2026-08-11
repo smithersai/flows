@@ -1,12 +1,13 @@
 # @smthrs/time-travel
 
-Frame-addressed history: read-only replay, fork, rewind, compensation, recovery, and tier-aware retry. It reads and writes through public journal, cache, host, and time-travel store contracts.
+Frame-addressed history behind ONE injectable service: inspect, fork, rewind. It reads and writes through public journal, cache, host, and time-travel store contracts.
 
 ```ts
-import { Frame, Replay } from "@smthrs/time-travel"
+import { TimeTravel } from "@smthrs/time-travel"
 
-const frame: Frame.Frame = { lineageId: "build-42/root", seq: 17 }
-const count = yield* Replay.rederive(frame, { initial: 0, reduce: (state) => state + 1 }, { runId: "build-42" })
+const timeTravel = yield* TimeTravel
+const position = { runId: "build-42", frame: { lineageId: "build-42/root", seq: 17 } }
+const count = yield* timeTravel.inspect(position, { initial: 0, reduce: (state) => state + 1 })
 ```
 
 ## Entry point
@@ -43,44 +44,47 @@ const count = yield* Replay.rederive(frame, { initial: 0, reduce: (state) => sta
 
 `SqlTimeTravelStore.migrate` creates `flows_time_travel_snapshots`, `flows_time_travel_edges`, `flows_time_travel_audits`, `flows_time_travel_receipts`, and `flows_time_travel_archive`.
 
-## Replay
+## TimeTravel
 
-[src/Replay.ts](https://github.com/smithersai/flows/blob/main/packages/time-travel/src/Replay.ts)
+[src/TimeTravel.ts](https://github.com/smithersai/flows/blob/main/packages/time-travel/src/TimeTravel.ts)
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `Projection` | interface | `initial` plus `reduce` |
-| `ReplayOptions` | interface | `runId`, optional cache resolution |
-| `rederive` | function | folds committed entries up to a frame |
+| `TimeTravel` | service key | tag `@smthrs/time-travel/TimeTravel`; `yield* TimeTravel` is the whole surface |
+| `TimeTravel.layer` | layer | needs only `TimeTravelStore`, `Journal`, `RunStore`, `CacheStore`, and `Jj` |
+| `make` | constructor | the scoped effect `layer` is built from |
+| `Position` | schema + type | `runId` plus a `Frame` — an address, never a snapshot |
+| `Projection`, `ForkOptions`, `RewindOptions`, `ForkResult`, `RewindResult` | types | operation inputs and outputs |
 
-`rederive` is read-only. It never invokes a flow handler or an activity dispatcher, which is what separates it from an engine resume.
+| Operation | Notes |
+| --- | --- |
+| `inspect(position, projection)` | read-only fold of committed entries up to the frame; never invokes a flow handler or an activity dispatcher, which is what separates it from an engine resume |
+| `fork(position, options?)` | requires a terminal or inactive parent; the jj workspace name and path are derived from the position, and the lane is forgotten when the service is released. `options.workspaceRoot` only moves where it lands |
+| `rewind(position, options?)` | the fenced, audited suffix-removal protocol. The ownership claim and audit id are minted inside; `options.detachedChildren` (`"block"` by default, or `"cancel"`) and `options.pageSize` are the only knobs |
 
-## Fork and Rewind
+Recovery is not an operation. Building `TimeTravel.layer` finishes or rolls
+back every interrupted rewind audit before the service accepts work, so a
+crashed rewind never needs a call the caller has to remember.
 
-| Export | Source | Notes |
+`Replay`, `Fork`, `Rewind`, `Retry`, `Recovery`, `Compensation`, and
+`EffectHandlerRegistry` are internal machinery under
+[src/internal/](https://github.com/smithersai/flows/blob/main/packages/time-travel/src/internal);
+the package blocks `@smthrs/time-travel/internal/*` at its `exports` map.
+
+## EffectBoundary
+
+[src/EffectBoundary.ts](https://github.com/smithersai/flows/blob/main/packages/time-travel/src/EffectBoundary.ts)
+
+The producer side of the contract: engine code calls `EffectBoundary.guard` so
+a later rewind has something to assess. It stays public for that reason.
+
+| Export | Kind | Notes |
 | --- | --- | --- |
-| `Fork.fork`, `ForkOptions` | [src/Fork.ts](https://github.com/smithersai/flows/blob/main/packages/time-travel/src/Fork.ts) | requires a terminal or inactive parent; adds an isolated jj workspace whose scope finalizer forgets it |
-| `Rewind.rewind`, `Options`, `Result` | [src/Rewind.ts](https://github.com/smithersai/flows/blob/main/packages/time-travel/src/Rewind.ts) | the fenced, audited suffix-removal protocol |
-| `Rewind.RewindStep` | type | the protocol steps an audit records |
-| `Rewind.DetachedChildPolicy`, `DetachedChildWarning` | type + interface | `block` or `cancel` |
-| `Rewind.RateLimitDecision`, `AuditDetail` | interfaces | audit payloads |
+| `guard`, `fromEntry`, `fromEntries`, `eventType` | functions + constant | records intent and outcome around an external effect |
+| `EffectRecord`, `Description`, `EffectTier`, `EffectStatus` | shapes | `intended`, `succeeded`, `unknown` |
 
-## Effect boundaries and compensation
-
-| Export | Source | Notes |
-| --- | --- | --- |
-| `EffectBoundary.guard`, `fromEntry`, `fromEntries`, `eventType` | [src/EffectBoundary.ts](https://github.com/smithersai/flows/blob/main/packages/time-travel/src/EffectBoundary.ts) | records intent and outcome around an external effect |
-| `EffectBoundary.EffectRecord`, `Description`, `EffectTier`, `EffectStatus` | shapes | `intended`, `succeeded`, `unknown` |
-| `EffectHandlerRegistry.EffectHandlerRegistry`, `Service`, `Handler`, `Assessment`, `RollbackReceipt`, `Classification`, `make`, `makeNoop`, `layer`, `layerNoop` | [src/EffectHandlerRegistry.ts](https://github.com/smithersai/flows/blob/main/packages/time-travel/src/EffectHandlerRegistry.ts) | maps effect kinds to assessment and rollback handlers |
-| `Compensation.assess`, `compensate`, `execute`, `rollback`, `restoreWorkspace`, `toStoreReceipts` | [src/Compensation.ts](https://github.com/smithersai/flows/blob/main/packages/time-travel/src/Compensation.ts) | classifies suffix records, then invokes eligible handlers |
-| `Compensation.Assessment`, `Plan`, `Result`, `WorkspaceReceipt` | interfaces | |
-
-## Recovery and Retry
-
-| Export | Source | Notes |
-| --- | --- | --- |
-| `Recovery.recover`, `Options`, `Outcome` | [src/Recovery.ts](https://github.com/smithersai/flows/blob/main/packages/time-travel/src/Recovery.ts) | completes or rolls back interrupted rewind audits at startup |
-| `Retry.retry`, `Options`, `Outcome`, `AttemptContext`, `BlockedReason` | [src/Retry.ts](https://github.com/smithersai/flows/blob/main/packages/time-travel/src/Retry.ts) | reattempts historical work while blocking unsafe irreversible retries |
+Handler registration, compensation planning, and tier-aware retry are internal:
+`rewind` resolves them itself.
 
 ## TimeTravelError
 

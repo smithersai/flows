@@ -1,6 +1,6 @@
 # `@smthrs/time-travel`
 
-This page is the public API reference for journal projection replay, time-travel stores, forks, compensating recovery, and audited rewind. The package is a protocol library and is not automatically wired into every engine execution.
+This page is the public API reference for the `TimeTravel` service and the stores it reads through. The package is a protocol library and is not automatically wired into every engine execution.
 
 ## Frames and stores
 
@@ -18,25 +18,35 @@ This page is the public API reference for journal projection replay, time-travel
 
 ## Operations
 
-| Namespace | Main API |
+`TimeTravel` is one injectable service with three operations, each addressed by
+a `Position` — a run ID plus a `Frame`:
+
+| Operation | Main API |
 | --- | --- |
-| `Replay` | `rederive(frame, projection, options)` folds committed journal entries |
-| `Fork` | `fork(options)` creates a fork and scoped Jujutsu workspace |
-| `Rewind` | `rewind(options)` runs the fenced audit/compensate/restore/archive protocol |
-| `Recovery` | `recover(options)` completes or rolls back interrupted rewind audits |
-| `Retry` | `retry(options)` applies tier-aware retry safety |
+| inspect | `inspect(position, projection)` folds committed journal entries |
+| fork | `fork(position, options?)` creates a fork and its derived Jujutsu workspace |
+| rewind | `rewind(position, options?)` runs the fenced audit/compensate/restore/archive protocol |
 
-`Rewind.Options` includes target run/frame, owner, audit ID, page size, detached-child policy, rate-limit hook, child-liveness hook, and fault-injection hooks. `Rewind.Result` returns audit, archive, assessments, warnings, and cancelled children.
+`TimeTravel.layer` requires `TimeTravelStore`, `Journal`, `RunStore`,
+`CacheStore`, and `Jj`, and nothing else. Building it completes or rolls back
+interrupted rewind audits, so recovery is never a call. `Replay`, `Fork`,
+`Rewind`, `Retry`, `Recovery`, `Compensation`, and `EffectHandlerRegistry` are
+internal machinery under `src/internal/`.
 
-Cancelling a detached child under `detachedChildPolicy: "cancel"` is terminal and happens *before* the archive commit point, so it is the one rewind mutation rollback cannot undo. Each cancellation is written to the audit detail as it happens, and a rewind that later rolls back keeps the full `cancelledChildren` list and names the surviving cancellations in `detail.failure`. A `rolled_back` audit therefore never understates what the attempt left behind.
+`ForkOptions` carries only `workspaceRoot`; the workspace name and path are
+derived from the position. `RewindOptions` carries `detachedChildren` and
+`pageSize`; the owner and audit ID are minted internally. `RewindResult`
+returns audit, archive, assessments, warnings, and cancelled children.
+
+Cancelling a detached child under `detachedChildren: "cancel"` is terminal and happens *before* the archive commit point, so it is the one rewind mutation rollback cannot undo. Each cancellation is written to the audit detail as it happens, and a rewind that later rolls back keeps the full `cancelledChildren` list and names the surviving cancellations in `detail.failure`. A `rolled_back` audit therefore never understates what the attempt left behind.
 
 ## External-effect records
 
 `EffectBoundary.guard` records an external effect’s intended and terminal status using the journal. `fromEntry` and `fromEntries` decode those records. `eventType` is the stable journal event name.
 
-`EffectHandlerRegistry` registers handlers by effect kind. Each handler classifies a record as `revertible`, `warning`, or `blocking`, and may return a rollback receipt.
-
-`Compensation` exports `assess`, `compensate`, `restoreWorkspace`, `execute`, `rollback`, and `toStoreReceipts`.
+Handler registration and compensation planning are internal: `rewind` resolves
+handlers, classifies each record as `revertible`, `warning`, or `blocking`, and
+records the rollback receipts on its audit itself.
 
 ## Errors
 

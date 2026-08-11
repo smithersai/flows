@@ -18,11 +18,11 @@
  *
  * @since 0.1.0
  */
-import { Jj } from "@smthrs/jj"
-import * as Journal from "@smthrs/journal/Journal"
+import type { Jj } from "@smthrs/jj"
+import type * as Journal from "@smthrs/journal/Journal"
 import type { OwnerId } from "@smthrs/run-store/Ownership"
-import * as RunStore from "@smthrs/run-store/RunStore"
-import * as CacheStore from "@smthrs/step-cache/CacheStore"
+import type * as RunStore from "@smthrs/run-store/RunStore"
+import type * as CacheStore from "@smthrs/step-cache/CacheStore"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
@@ -37,7 +37,7 @@ import * as Recovery from "./internal/Recovery.ts"
 import * as Replay from "./internal/Replay.ts"
 import * as Rewind from "./internal/Rewind.ts"
 import type { TimeTravelError } from "./TimeTravelError.ts"
-import { type Fork as ForkRecord, TimeTravelStore } from "./TimeTravelStore.ts"
+import type { Fork as ForkRecord, TimeTravelStore } from "./TimeTravelStore.ts"
 
 /**
  * Where in history an operation acts: a run, and a frame inside it.

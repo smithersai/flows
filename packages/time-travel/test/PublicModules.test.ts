@@ -4,9 +4,9 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import { describe, expect, it } from "vitest"
-import * as Fork from "../src/internal/Fork.ts"
 import * as Frame from "../src/Frame.ts"
 import * as TimeTravel from "../src/index.ts"
+import * as Fork from "../src/internal/Fork.ts"
 import * as MemoryTimeTravelStore from "../src/MemoryTimeTravelStore.ts"
 import { error, TimeTravelError, TimeTravelErrorCode } from "../src/TimeTravelError.ts"
 import { TimeTravelStore } from "../src/TimeTravelStore.ts"
@@ -51,22 +51,24 @@ const runFork = (
   )
 
 describe("public time-travel modules", () => {
-  it("exports every production namespace from the package barrel", () => {
+  it("exports the service key and the injectable surface, and nothing else", () => {
+    // `Replay`, `Fork`, `Rewind`, `Retry`, `Recovery`, `Compensation`, and the
+    // effect-handler registry are machinery under `src/internal/` — this list
+    // growing back is the regression.
     expect(Object.keys(TimeTravel).sort()).toEqual([
-      "Compensation",
       "EffectBoundary",
-      "EffectHandlerRegistry",
-      "Fork",
       "Frame",
       "MemoryTimeTravelStore",
-      "Recovery",
-      "Replay",
-      "Retry",
-      "Rewind",
       "SqlTimeTravelStore",
+      "TimeTravel",
       "TimeTravelError",
       "TimeTravelStore"
     ])
+  })
+
+  it("exposes the service key as a yieldable tag carrying its own layer", () => {
+    expect(TimeTravel.TimeTravel.key).toBe("@smthrs/time-travel/TimeTravel")
+    expect(Object.keys(TimeTravel.TimeTravel)).toContain("layer")
   })
 
   it("accepts the exact frame boundary and every lineage edge kind", () => {

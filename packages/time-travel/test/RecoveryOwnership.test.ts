@@ -6,9 +6,9 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"
 import * as EffectHandlerRegistry from "../src/internal/EffectHandlerRegistry.ts"
-import * as MemoryTimeTravelStore from "../src/MemoryTimeTravelStore.ts"
 import * as Recovery from "../src/internal/Recovery.ts"
 import type { AuditDetail } from "../src/internal/Rewind.ts"
+import * as MemoryTimeTravelStore from "../src/MemoryTimeTravelStore.ts"
 import { type Audit, TimeTravelStore } from "../src/TimeTravelStore.ts"
 
 /**

@@ -52,12 +52,14 @@ const row = (runId: string): RunStore.RunRow => ({
 })
 
 const makeRuns = (): RunStore.Service => {
-  const state = new Map([["run", row("run")]])
+  const state = new Map([["run", { ...row("run") }]])
   return RunStore.makeNoop({
     get: (runId) => {
       const found = state.get(runId)
       return found === undefined
-        ? Effect.fail(new RunStore.RunStoreError({ code: "not_found_row", method: "get", message: "missing" }))
+        ? Effect.fail(
+          new RunStore.RunStoreError({ code: "not_found_row", method: "get", message: "missing", cause: runId })
+        )
         : Effect.succeed({ ...found })
     },
     claim: (runId, _expected, claimant, nowMs) =>
@@ -205,12 +207,36 @@ describe("TimeTravel", () => {
       records: [record(0, 10), record(1, 20), record(2, 30), record(3, 40)]
     })
 
-    const result = await run(store, (timeTravel) =>
-      timeTravel.rewind({ runId: "run", frame: { lineageId, seq: 1 } }))
+    const result = await run(store, (timeTravel) => timeTravel.rewind({ runId: "run", frame: { lineageId, seq: 1 } }))
 
     expect(result.archive.archived).toBe(2)
     expect(store.state().records.map((entry) => entry.seq)).toEqual([0, 1])
     expect(store.state().audits.map((audit) => audit.status)).toEqual(["completed"])
+  })
+
+  it("honours the only two knobs it takes: fork root and rewind paging", async () => {
+    const store = MemoryTimeTravelStore.make({
+      records: [record(0, 10), record(1, 20), record(2, 30), record(3, 40)]
+    })
+    const workspaces: Array<string> = []
+
+    const result = await run(
+      store,
+      (timeTravel) =>
+        Effect.gen(function*() {
+          yield* timeTravel.fork({ runId: "run", frame: { lineageId, seq: 1 } }, {
+            workspaceRoot: "/tmp/lanes"
+          })
+          return yield* timeTravel.rewind({ runId: "run", frame: { lineageId, seq: 1 } }, {
+            detachedChildren: "cancel",
+            pageSize: 1
+          })
+        }),
+      workspaces
+    )
+
+    expect(workspaces).toEqual(["flows-fork-run-1@/tmp/lanes/flows-fork-run-1"])
+    expect(result.archive.archived).toBe(2)
   })
 
   it("resolves an interrupted rewind while the layer is built", async () => {

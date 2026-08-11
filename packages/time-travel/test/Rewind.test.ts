@@ -9,10 +9,10 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as EffectBoundary from "../src/EffectBoundary.ts"
-import * as EffectHandlerRegistry from "../src/internal/EffectHandlerRegistry.ts"
 import type { LineageEdge } from "../src/Frame.ts"
-import * as MemoryTimeTravelStore from "../src/MemoryTimeTravelStore.ts"
+import * as EffectHandlerRegistry from "../src/internal/EffectHandlerRegistry.ts"
 import * as Rewind from "../src/internal/Rewind.ts"
+import * as MemoryTimeTravelStore from "../src/MemoryTimeTravelStore.ts"
 import { TimeTravelStore } from "../src/TimeTravelStore.ts"
 
 const owner: OwnerId = { hostId: "test-host", pid: 10, nonce: "rewind-owner" }

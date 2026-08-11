@@ -1,4 +1,5 @@
 import * as FlowPackage from "@smthrs/flow"
+import * as Effect from "effect/Effect"
 import { readdirSync, statSync } from "node:fs"
 import { join, resolve } from "node:path"
 import { describe, expect, it } from "vitest"
@@ -87,5 +88,22 @@ describe("barrel", () => {
     const namespace = (Flows as Record<string, object>)[name]
     expect(namespace).toBeDefined()
     expect(Object.keys(namespace ?? {}).length).toBeGreaterThan(0)
+  })
+
+  /**
+   * `TimeTravel` is the one entry that is a service KEY rather than a
+   * namespace, so `yield* Flows.TimeTravel` is the whole onboarding for time
+   * travel (`docs/specs/Concepts/Time Travel Service.md`). That it typechecks
+   * as a yieldable is the acceptance criterion; the durable tag key is what a
+   * rename would silently break.
+   */
+  it("re-exports TimeTravel as a yieldable service key, not a namespace", () => {
+    const program = Effect.gen(function*() {
+      const timeTravel = yield* Flows.TimeTravel
+      return timeTravel
+    })
+    expect(program).toBeDefined()
+    expect(Flows.TimeTravel.key).toBe("@smthrs/time-travel/TimeTravel")
+    expect(Flows.TimeTravel.layer).toBeDefined()
   })
 })
