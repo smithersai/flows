@@ -153,10 +153,15 @@ describe("ActivityPersistence", () => {
     expect(
       result.exits.every((exit) => Exit.isFailure(exit) && Cause.hasInterruptsOnly(exit.cause))
     ).toBe(true)
+    // A rejected finish still leaves the attempt's admission and its tier-2
+    // frame anchor on the journal; what it must not leave is a terminal record.
     expect(result.entries.entries.map((entry) => entry.eventType)).toEqual([
       "flows.engine.attempt-started",
+      "flows.engine.snapshot-identified",
       "flows.engine.attempt-started",
-      "flows.engine.attempt-started"
+      "flows.engine.snapshot-identified",
+      "flows.engine.attempt-started",
+      "flows.engine.snapshot-identified"
     ])
   })
 

@@ -51,11 +51,19 @@ describe("engine-store journal integration", () => {
       return yield* journal.entries({ runId: "journal-run" as never, limit: 20 })
     }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), StepBoundary.layerTest(), jj)), Effect.scoped)
     const entries = await runPromise(program)
+    // Every attempt now anchors its frame, not only a compensable one: a sealed
+    // dispatch records a `carried` tier-2 pointer so a rewind to this frame has
+    // an address to restore (`docs/specs/Concepts/Time Travel.md`).
     expect(entries.entries.map((entry) => entry.eventType)).toEqual([
       "flows.engine.attempt-started",
+      "flows.engine.snapshot-identified",
       "flows.engine.attempt-finished",
       "flows.engine.cache-provenance"
     ])
+    // Lineage is the frame address, and it is on every engine record.
+    expect(entries.entries.map((entry) => (entry.meta as { lineageId?: string }).lineageId)).toEqual(
+      entries.entries.map(() => "journal-run/root")
+    )
   })
 
   it("allows exactly one claimant when two resumers race and a fresh runner reads cached completion", async () => {

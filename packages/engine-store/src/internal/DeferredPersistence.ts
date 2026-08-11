@@ -3,6 +3,7 @@
  *
  * @since 0.1.0
  */
+import { FlowEngine } from "@smthrs/engine"
 import { type DurableClock, type DurableDeferred, type Flow, FlowRuntime } from "@smthrs/flow"
 import { Journal } from "@smthrs/journal"
 import type { Ownership } from "@smthrs/run-store"
@@ -188,6 +189,7 @@ export const make = (
             yield* journal.emitDurable(
               JournalRecords.deferredCompleted({
                 runId: options.executionId,
+                lineageId: FlowEngine.Lineage.root(options.executionId),
                 sourceId: `${dependencies.journalSource}:deferred:${
                   JSON.stringify([options.flowName, options.executionId, options.deferredName])
                 }`,
@@ -260,6 +262,7 @@ export const make = (
       journal.emitDurable(
         JournalRecords.clockScheduled({
           runId: row.executionId,
+          lineageId: FlowEngine.Lineage.root(row.executionId),
           sourceId: `${dependencies.journalSource}:clock:${
             JSON.stringify([row.flowName, row.executionId, row.clockName])
           }`,

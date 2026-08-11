@@ -20,6 +20,7 @@ import type * as Scope from "effect/Scope"
 import * as DurableEngineState from "../DurableEngineState.ts"
 import { RunState } from "../RunState.ts"
 import * as ActivityPersistence from "./ActivityPersistence.ts"
+import * as EffectRecords from "./EffectRecords.ts"
 import * as JournalRecords from "./JournalRecords.ts"
 import * as RunCoordinator from "./RunCoordinator.ts"
 
@@ -90,6 +91,15 @@ interface Registration {
     executionId: string
   ) => Effect.Effect<unknown, unknown, FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime>
 }
+
+/**
+ * The effect kind a detached child spawn is journaled under, and therefore the
+ * kind an engine composition registers a spawn-compensation handler for.
+ *
+ * @since 0.1.0
+ * @category constants
+ */
+export const spawnEffectKind = "flows/engine-store/child-spawn"
 
 const snapshot = (row: RunStore.RunRow): RunStore.RunSnapshot => ({
   status: row.status,
@@ -170,6 +180,7 @@ export const make = (
       journal.emitDurable(
         JournalRecords.runDecision({
           runId,
+          lineageId: FlowEngine.Lineage.root(runId),
           sourceId: dependencies.journalSource
         }, payload)
       ).pipe(Effect.asVoid, Effect.orDie)
@@ -207,7 +218,13 @@ export const make = (
             guard
           ).pipe(Effect.orDie)
           if (transitioned._tag !== "Transitioned") return transitioned
-          yield* emitDecision(runId, decision)
+          // The decision carries the state it committed, so run state at a
+          // frame is DERIVED by replaying decisions rather than read off the
+          // run row's current `state_json`
+          // (`docs/specs/Concepts/Time Travel.md`; Temporal's
+          // `ndc/state_rebuilder.go` is the model). Without it a fork at an
+          // early frame silently inherited the parent's *latest* state.
+          yield* emitDecision(runId, { ...(decision as object), state: JSON.parse(stateJson) })
           return transitioned
         })
       ).pipe(Effect.orDie)
@@ -342,6 +359,7 @@ export const make = (
             yield* journal.emitDurable(
               JournalRecords.interrupted({
                 runId,
+                lineageId: FlowEngine.Lineage.root(runId),
                 sourceId: dependencies.journalSource
               }, {
                 outcome: "cancelled",
@@ -764,11 +782,49 @@ export const make = (
               ? {}
               : { parentExecutionId: options.parent.executionId })
           }
+          const createdStateJson = yield* encodeState(state)
           const created = yield* store.create(
             options.executionId,
-            yield* encodeState(state)
+            createdStateJson
           ).pipe(Effect.exit)
-          if (Exit.isSuccess(created)) return
+          if (Exit.isSuccess(created)) {
+            // The run's opening frame. `store.create` used to be the one
+            // durable write with no journal record at all, which left the
+            // replay-derived state projection with no base to fold onto —
+            // `flowName` and `payload` exist nowhere else in the journal.
+            yield* emitDecision(options.executionId, {
+              decision: "created",
+              state,
+              ...(options.parent === undefined ? {} : { parentExecutionId: options.parent.executionId })
+            })
+            if (options.parent !== undefined) {
+              // A spawn is a lineage edge, and a DETACHED spawn is a tier-3
+              // effect: nothing the parent's rewind can undo, because the child
+              // is its own claim and its own journal
+              // (`docs/specs/Concepts/Subflows.md` §detached spawn). The record
+              // is boundary-shaped so the same assessment that classifies a
+              // sent webhook classifies an orphaned child, and it is emitted at
+              // `succeeded` because by this point the child run durably exists.
+              yield* journal.emitDurable(
+                EffectRecords.boundary(
+                  {
+                    id: `${options.parent.executionId}:spawn:${options.executionId}`,
+                    kind: spawnEffectKind,
+                    tier: "irreversible",
+                    runId: options.parent.executionId,
+                    lineageId: FlowEngine.Lineage.root(options.parent.executionId),
+                    sourceId: dependencies.journalSource,
+                    attempt: 1,
+                    residue:
+                      `Child run ${options.executionId} exists and keeps its own journal; rewinding past its spawn orphans it.`
+                  },
+                  "succeeded",
+                  { childRunId: options.executionId, flowName: flow._tag }
+                )
+              ).pipe(Effect.orDie)
+            }
+            return
+          }
 
           const failure = Option.getOrThrow(Exit.findErrorOption(created))
           if (!(failure instanceof RunStore.RunStoreError) || failure.code !== "constraint") {

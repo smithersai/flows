@@ -20,6 +20,7 @@
  *
  * @since 0.1.0
  */
+import { FlowEngine } from "@smthrs/engine"
 import { Journal } from "@smthrs/journal"
 import type { Ownership } from "@smthrs/run-store"
 import type { CacheStore } from "@smthrs/step-cache"
@@ -130,7 +131,11 @@ export const make = (options: MakeOptions): Service => ({
     Effect.as(
       options.journal.emitDurable(
         JournalRecords.cacheConflict(
-          { runId: event.attempted.recordedRunId, sourceId: "flows/engine-store/inconsistency" },
+          {
+            runId: event.attempted.recordedRunId,
+            sourceId: "flows/engine-store/inconsistency",
+            lineageId: FlowEngine.Lineage.root(event.attempted.recordedRunId)
+          },
           {
             key: event.key,
             verdict: options.verdict,
@@ -157,6 +162,7 @@ export const make = (options: MakeOptions): Service => ({
         JournalRecords.cacheCorruption(
           {
             runId: event.runId,
+            lineageId: FlowEngine.Lineage.root(event.runId),
             // The producer identity is the corruption's cache key (issue
             // #156): a caller re-observing the identical corrupt row — a
             // retry, or a converging replay — re-emits an exact producer

@@ -8,6 +8,7 @@
  * @since 0.1.0
  */
 import { Sha256 } from "@smthrs/crypto"
+import { FlowEngine } from "@smthrs/engine"
 import type { Activity } from "@smthrs/flow"
 import type { FileBoundary } from "@smthrs/flow/FileBoundary"
 import { Journal, type JournalEvent } from "@smthrs/journal"
@@ -25,6 +26,7 @@ import * as StepBoundary from "../StepBoundary.ts"
 import * as WorkspaceSandbox from "../WorkspaceSandbox.ts"
 import * as AttemptAdmission from "./AttemptAdmission.ts"
 import * as CachePublication from "./CachePublication.ts"
+import * as EffectRecords from "./EffectRecords.ts"
 import * as JournalRecords from "./JournalRecords.ts"
 import * as SandboxedExecution from "./SandboxedExecution.ts"
 
@@ -177,6 +179,20 @@ const replayCorruption = (
  * violation record, rather than the failure passing as an ordinary activity
  * error the retry policy might happily retry.
  */
+/**
+ * The stable effect kind a compensation handler is registered under.
+ *
+ * The activity name is the adapter's own identity and is what an engine
+ * composition registers its handler by; a dispatch whose activity carries no
+ * name at all (the plan scheduler's synthetic node dispatch) falls back to a
+ * constant, which resolves to no handler and therefore assesses as blocking —
+ * the safe direction.
+ */
+const activityKind = (activity: unknown): string =>
+  typeof activity === "object" && activity !== null && typeof (activity as { name?: unknown }).name === "string"
+    ? (activity as { readonly name: string }).name
+    : "flows/engine-store/activity"
+
 const declarationViolated = (cause: Cause.Cause<unknown>): boolean =>
   cause.reasons.some((reason) => Cause.isFailReason(reason) && reason.error instanceof StepBoundary.UndeclaredWrite)
 
@@ -299,6 +315,11 @@ const rehydrateCause = (error: unknown): Cause.Cause<unknown> => {
  */
 export const make = (deps: Dependencies) => {
   const admission = deps.admission ?? AttemptAdmission.makeUnsafe()
+  // The lineage every record this executor writes addresses itself to.
+  // An activity is a node inside its run's root lineage, not a lineage of
+  // its own: a lineage segment is minted only where a separate run is
+  // (`docs/specs/Concepts/Subflows.md`).
+  const lineageId = FlowEngine.Lineage.root(deps.runId)
   return Effect.fn("ActivityPersistence.execute")((input: ActivityInput) =>
     Effect.gen(function*() {
       const attempts = yield* AttemptStore.AttemptStore
@@ -389,6 +410,7 @@ export const make = (deps: Dependencies) => {
         recorded?: { readonly runId: string; readonly eventSeq: number }
       ): JournalRecords.EventOptions => ({
         runId: deps.runId,
+        lineageId,
         sourceId: `${deps.sourceId}:cache:${keyDigest}:${action}${
           recorded === undefined ? "" : `:${recorded.runId}:${recorded.eventSeq}`
         }`,
@@ -454,6 +476,8 @@ export const make = (deps: Dependencies) => {
               const receipt = yield* emitLifecycle(
                 JournalRecords.cacheProvenance({
                   runId: deps.runId,
+                  lineageId,
+                  cacheKey: keyDigest,
                   sourceId: `${deps.sourceId}:cache:${keyDigest}:recorded:${generation}`,
                   sourceSeq: 0
                 }, { keyDigest, action: "recorded" })
@@ -556,6 +580,12 @@ export const make = (deps: Dependencies) => {
           // into a `Duplicate`.
           const attemptSource = (record: string): JournalRecords.EventOptions => ({
             runId: deps.runId,
+            lineageId,
+            // A sealed dispatch's result lives in the step cache, so the record
+            // carries the digest that addresses it: replay hands the projection
+            // the sealed value instead of re-deriving it, and a cache miss is
+            // simply an absent value rather than a broken fold.
+            ...(input.tier === "sealed" ? { cacheKey: keyDigest } : {}),
             sourceId: `${deps.sourceId}:attempt:${keyDigest}:${input.attempt}:${record}`,
             sourceSeq: 0
           })
@@ -1005,6 +1035,30 @@ export const make = (deps: Dependencies) => {
               JournalRecords.snapshotIdentified(attemptSource("snapshot"), { ...attemptId, snapshotId })
             )
           let snapshotId: string | undefined
+          if (input.tier !== "compensable") {
+            /**
+             * THE TIER-2 ANCHOR FOR AN ORDINARY FRAME.
+             *
+             * `docs/specs/Concepts/Time Travel.md` requires the jj pointer
+             * current when a seq was journaled to be recorded at the frame,
+             * because replay cannot derive it. Only compensable work took a
+             * fresh snapshot, so every other frame had no anchor at all and a
+             * rewind to it restored the workspace to whatever the nearest
+             * *compensable* attempt happened to leave behind.
+             *
+             * The anchor is `carried`: it asserts "the same pointer as the
+             * previous anchor in this lineage" rather than naming one. That is
+             * the cheap half of the obligation — no jj call, no host round
+             * trip, one journal row — and the snapshot projector resolves it by
+             * copying the last change id forward. A lineage that has taken no
+             * snapshot yet carries nothing forward, which is honest: there is
+             * no pointer to restore, and a rewind reports none rather than
+             * inventing one.
+             */
+            yield* emitLifecycle(
+              JournalRecords.snapshotIdentified(attemptSource("snapshot"), { ...attemptId, carried: true })
+            )
+          }
           if (input.tier === "compensable") {
             const jj = yield* Jj.Jj
             if (adopted && runningMeta?.snapshotId !== undefined) {
@@ -1100,8 +1154,47 @@ export const make = (deps: Dependencies) => {
           // attempt's outcome is only its `result`, so the ordinary failure
           // handling below is unchanged by which path produced it.
           const settlement = isolated !== undefined && Exit.isSuccess(isolated) ? isolated.value : undefined
+          /**
+           * THE EFFECT BOUNDARY. An irreversible dispatch is the only kind that
+           * can change the world outside this journal, so it is the only kind
+           * wrapped: `intended` commits before the body starts, and the
+           * terminal record commits after it settles — `succeeded` with the
+           * recorded result, `unknown` for a failure, defect, or interruption
+           * whose external outcome nobody can testify to
+           * (`docs/specs/Concepts/Time Travel Compensation.md`).
+           *
+           * The settlement is uninterruptible: cancellation must not strand an
+           * effect that has already crossed without at least attempting to say
+           * so. Sealed and compensable work is deliberately outside this — a
+           * sealed result is cache evidence and a compensable one restores
+           * through jj, neither needs the operator to decide anything.
+           */
+          const effect = input.tier === "irreversible"
+            ? {
+              id: `${deps.runId}:${keyDigest}:${input.attempt}`,
+              kind: activityKind(input.activity),
+              tier: "irreversible" as const,
+              runId: deps.runId,
+              lineageId,
+              sourceId: deps.sourceId,
+              attempt: input.attempt,
+              ...(deps.idempotencyKey === undefined ? {} : { idempotencyKey: deps.idempotencyKey })
+            } satisfies EffectRecords.Descriptor
+            : undefined
+          const dispatch = effect === undefined
+            ? deps.execute(input)
+            : Effect.uninterruptibleMask((restore) =>
+              Effect.gen(function*() {
+                yield* emitLifecycle(EffectRecords.boundary(effect, "intended"))
+                const exit = yield* Effect.exit(restore(deps.execute(input)))
+                yield* Exit.isSuccess(exit)
+                  ? emitLifecycle(EffectRecords.boundary(effect, "succeeded", exit.value))
+                  : Effect.ignore(emitLifecycle(EffectRecords.boundary(effect, "unknown")))
+                return yield* exit
+              })
+            )
           const outcome = isolated === undefined
-            ? yield* deps.execute(input).pipe(Effect.exit)
+            ? yield* dispatch.pipe(Effect.exit)
             : Exit.map(isolated, (settled) => settled.result)
           if (Exit.isFailure(outcome)) {
             const finishedAtMs = yield* Clock.currentTimeMillis

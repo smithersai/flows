@@ -11,7 +11,36 @@ export interface EventOptions {
   readonly runId: string
   readonly sourceId: string
   readonly sourceSeq?: number | undefined
+  /**
+   * The journal lineage this record addresses itself to — minted by the engine
+   * (`FlowEngine.Lineage`) and carried on every engine record.
+   *
+   * `docs/specs/Concepts/Time Travel.md` makes a frame the position
+   * `(lineageId, seq)`, and time travel's replay skips any entry whose
+   * `meta.lineageId` names a different lineage. An engine record without it is
+   * a record no frame can address, which is why this is required rather than
+   * optional: the omission used to make `TimeTravel.inspect` fail `not_found`
+   * on every journal the production composition wrote.
+   */
+  readonly lineageId: string
+  /**
+   * The step-cache key whose sealed row holds this record's result, when one
+   * exists. Replay reads it to hand the projection the sealed value instead of
+   * re-deriving it.
+   */
+  readonly cacheKey?: string | undefined
 }
+
+/**
+ * The additive envelope every engine record carries.
+ *
+ * Kept a plain open record on purpose: `meta` is the journal's forward-compatible
+ * side channel, so a consumer that does not know a key ignores it.
+ */
+const meta = (options: EventOptions): Readonly<Record<string, unknown>> => ({
+  lineageId: options.lineageId,
+  ...(options.cacheKey === undefined ? {} : { cacheKey: options.cacheKey })
+})
 
 const event = (options: EventOptions, eventType: string, payload: unknown): JournalEvent.Input =>
   new JournalEvent.Input({
@@ -19,7 +48,8 @@ const event = (options: EventOptions, eventType: string, payload: unknown): Jour
     sourceId: options.sourceId as JournalEvent.SourceId,
     ...(options.sourceSeq === undefined ? {} : { sourceSeq: options.sourceSeq as JournalEvent.SourceSeq }),
     eventType,
-    payload
+    payload,
+    meta: meta(options)
   })
 
 /** @since 0.1.0 @category events */

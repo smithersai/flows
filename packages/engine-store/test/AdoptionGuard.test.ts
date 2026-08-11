@@ -309,14 +309,24 @@ describe("adoption re-emissions are producer-idempotent (issue #91)", () => {
         const attemptId = { runId: "adoption-dedupe", stepKeyDigest: digest, attempt: 1 }
         yield* journal.emitDurable(
           JournalRecords.attemptStarted(
-            { runId: "adoption-dedupe", sourceId: `adoption-test:attempt:${digest}:1:started`, sourceSeq: 0 },
+            {
+              runId: "adoption-dedupe",
+              lineageId: "adoption-dedupe/root",
+              sourceId: `adoption-test:attempt:${digest}:1:started`,
+              sourceSeq: 0
+            },
             { ...attemptId, tier: "compensable" }
           ),
           owner
         )
         yield* journal.emitDurable(
           JournalRecords.snapshotIdentified(
-            { runId: "adoption-dedupe", sourceId: `adoption-test:attempt:${digest}:1:snapshot`, sourceSeq: 0 },
+            {
+              runId: "adoption-dedupe",
+              lineageId: "adoption-dedupe/root",
+              sourceId: `adoption-test:attempt:${digest}:1:snapshot`,
+              sourceSeq: 0
+            },
             { ...attemptId, snapshotId: "pre-image" }
           ),
           owner

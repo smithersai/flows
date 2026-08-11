@@ -54,6 +54,7 @@
  * @since 0.1.0
  */
 import { Sha256 } from "@smthrs/crypto"
+import { FlowEngine } from "@smthrs/engine"
 import type { FileBoundary } from "@smthrs/flow/FileBoundary"
 import { Journal, type JournalEvent } from "@smthrs/journal"
 import type { Jj } from "@smthrs/kernel"
@@ -307,7 +308,10 @@ export const make = (options: Options): Service => {
   const stepCap = Math.max(1, options.concurrency?.steps ?? Number.MAX_SAFE_INTEGER)
   const agentCap = Math.max(1, options.concurrency?.agents ?? Number.MAX_SAFE_INTEGER)
 
-  const source = (suffix: string) => ({ runId: options.runId, sourceId: `${options.sourceId}/${suffix}` })
+  // Every scheduler record addresses the run's root lineage, so a frame can
+  // reach it (`docs/specs/Concepts/Time Travel.md`).
+  const lineageId = FlowEngine.Lineage.root(options.runId)
+  const source = (suffix: string) => ({ runId: options.runId, sourceId: `${options.sourceId}/${suffix}`, lineageId })
 
   /**
    * Scheduler records take the journal's durable, owner-fenced channel: a plan

@@ -610,7 +610,7 @@ describe("the transaction is not a security boundary", () => {
 
 describe("Journal record vocabulary", () => {
   it("names the two copy-back events Forensics requires", () => {
-    const options = { runId: "r", sourceId: "s" }
+    const options = { runId: "r", lineageId: "r/root", sourceId: "s" }
     expect(JournalRecords.diffBundleCaptured(options, {}).eventType).toBe("flows.engine.diff-bundle-captured")
     expect(JournalRecords.copyBackSettled(options, {}).eventType).toBe("flows.engine.copy-back-settled")
   })

@@ -520,7 +520,10 @@ describe("PlanScheduler reconciliation", () => {
           Array.from({ length: 600 }, (_, index) => index),
           (index) =>
             journal.emitDurable(
-              JournalRecords.runDecision({ runId: "run-paged", sourceId: `filler/${index}` }, { index }),
+              JournalRecords.runDecision(
+                { runId: "run-paged", lineageId: "run-paged/root", sourceId: `filler/${index}` },
+                { index }
+              ),
               owner
             ),
           { discard: true }
@@ -694,11 +697,19 @@ describe("PlanScheduler invalidation and journal plumbing", () => {
         yield* activate("run-foreign")
         const journal = yield* Journal.Journal
         yield* journal.emitDurable(
-          JournalRecords.expectedSetDeviation({ runId: "run-foreign", sourceId: "foreign/malformed" }, {}),
+          JournalRecords.expectedSetDeviation({
+            runId: "run-foreign",
+            lineageId: "run-foreign/root",
+            sourceId: "foreign/malformed"
+          }, {}),
           owner
         )
         yield* journal.emitDurable(
-          JournalRecords.expectedSetDeviation({ runId: "run-foreign", sourceId: "foreign/unknown" }, {
+          JournalRecords.expectedSetDeviation({
+            runId: "run-foreign",
+            lineageId: "run-foreign/root",
+            sourceId: "foreign/unknown"
+          }, {
             stepKeyDigest: "not-a-node-of-this-plan",
             attempt: 1,
             paths: ["x"],
