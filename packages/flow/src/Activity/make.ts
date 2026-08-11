@@ -9,6 +9,8 @@ import * as Node from "@smthrs/plan/Node"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Effectable from "effect/Effectable"
+import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
 import * as Predicate from "effect/Predicate"
 import type * as Schedule from "effect/Schedule"
 import * as Schema from "effect/Schema"
@@ -19,6 +21,7 @@ import { FlowRuntime } from "../FlowRuntime/FlowRuntime.ts"
 import type * as RetryPolicy from "../RetryPolicy.ts"
 import type { Activity, Declared, IdempotencyKey, Tier } from "./Activity.ts"
 import { CurrentAttempt } from "./Context.ts"
+import { type Implementation, Implementations } from "./Implementations.ts"
 import { TypeId } from "./TypeId.ts"
 
 /**
@@ -150,7 +153,7 @@ const makeDeclared = <
         error: errorSchema,
         annotations
       })
-      return registration.toLayer((payload) =>
+      const activity = (payload: PayloadSchema["Type"]) =>
         makeInline({
           name: tag,
           success: successSchema,
@@ -160,7 +163,32 @@ const makeDeclared = <
           annotations,
           execute: execute(payload)
         })
-      )
+      // A driver that expands a body reaches the implementation by tag rather
+      // than by invoking the flow this registers, so the same implementation is
+      // filed in the table when a composition wired one up. The table is
+      // optional on purpose: a composition that only executes registered
+      // handlers has no use for it, and requiring it would change what every
+      // existing `toLayer` call site must provide.
+      const file = Layer.effectDiscard(Effect.gen(function*() {
+        const table = yield* Effect.serviceOption(Implementations)
+        if (Option.isNone(table)) return
+        const services = yield* Effect.context<never>()
+        // The captured context is what the runtime's own `register` captures
+        // for the handler path: the services the implementation was wired with,
+        // overridable by whatever the run provides on top of them.
+        const provided = (payload: unknown) =>
+          Effect.flatMap(
+            // A driver assembles this payload from plan values rather than from
+            // a typed call site, so the declaration validates it exactly as
+            // `Flow.execute` validates a caller's. The cast is the erasure that
+            // hands an unknown to the constructor; `makeEffect` is what decides
+            // whether it was one.
+            Effect.orDie(payloadSchema.makeEffect(payload as never)),
+            (decoded) => activity(decoded)
+          ).pipe(Effect.updateContext((input) => Context.merge(services, input) as Context.Context<any>))
+        yield* table.value.add({ name: tag, activity: provided as Implementation["activity"] })
+      }))
+      return Layer.merge(registration.toLayer(activity), file)
     }
   }
   return self

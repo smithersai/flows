@@ -109,15 +109,33 @@ describe("Node", () => {
     }))
     const ast = tagged(node.ast, "Branch")
     expect(evaluated).toBe(2)
-    expect(seen).toEqual([
-      { node: Node.branchSubject, path: [] },
-      { node: Node.branchSubject, path: [] }
-    ])
+    expect(seen).toHaveLength(2)
+    expect(seen[0]?.node).toBe(ast.subject)
+    expect(seen[1]?.node).toBe(ast.subject)
+    expect(ast.subject).toMatch(/^branch\/subject\/\d+$/)
     expect(ast.first).toEqual({ _tag: "Succeed", value: 1 })
     expect(ast.then).toEqual({ _tag: "Succeed", value: "done" })
     expect(ast.else).toEqual({ _tag: "Succeed", value: "again" })
     expect(internal.predicate(ast)?.(100)).toBe(true)
     expect(internal.predicate(ast)?.(99)).toBe(false)
+  })
+
+  it("hands a driver the deferred mapper and the run-time predicate, and nothing else", () => {
+    const mapped = Node.succeed(2).pipe(Node.map((value) => value + 1))
+    const decided = Node.succeed(2).pipe(
+      Node.branch({ if: (value) => value >= 100, then: () => Node.succeed("done"), else: () => Node.succeed("again") })
+    )
+
+    expect(Node.mapper(mapped.ast)?.(2)).toBe(3)
+    expect(Node.predicate(decided.ast)?.(100)).toBe(true)
+    expect(Node.predicate(decided.ast)?.(99)).toBe(false)
+    // Each accessor answers for its own variant only, so a driver switching on
+    // the AST tag never has to guard the lookup itself.
+    expect(Node.mapper(decided.ast)).toBeUndefined()
+    expect(Node.predicate(mapped.ast)).toBeUndefined()
+    // A rehydrated AST left its side tables behind.
+    expect(Node.mapper(JSON.parse(JSON.stringify(mapped.ast)) as Node.Ast)).toBeUndefined()
+    expect(Node.predicate(JSON.parse(JSON.stringify(decided.ast)) as Node.Ast)).toBeUndefined()
   })
 
   it("refuses a branch arm that does not return a node", () => {

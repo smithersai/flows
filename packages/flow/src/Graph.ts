@@ -95,6 +95,26 @@ export interface GraphNode {
   readonly capabilities: ReadonlyArray<string>
   readonly placement: unknown
   readonly draft: Plan.NodeDraft
+  /**
+   * The authoring node this graph node was observed at.
+   *
+   * Key material digests a mapper, a predicate, and a callee's schemas; it
+   * cannot carry them, because a digest is not a function. A driver that has
+   * the real values in hand needs the functions themselves, so the AST rides
+   * along: {@link module:Node.mapper}, {@link module:Node.predicate}, and the
+   * member names of an `All` are read off it. The entry node a flow is entered
+   * as is the call the graph synthesized, carrying the real payload rather than
+   * the inert form an authored call records.
+   */
+  readonly ast: Node.Ast
+  /**
+   * What this node passes on, hydrated: real data where the author wrote data,
+   * and a {@link module:Planned.Planned} placeholder where a step result goes.
+   * It is the call payload of an `ActivityCall` or a `FlowCall`, the value of a
+   * `Succeed`, and `undefined` for every other variant, which passes nothing of
+   * its own.
+   */
+  readonly payload: unknown
 }
 
 /**
@@ -400,6 +420,8 @@ export const build = (
     readonly tier: KeyMaterial.KeyMaterial["kind"]
     readonly body: unknown
     readonly inputs: ReadonlyArray<KeyMaterial.InputRef>
+    readonly ast: Node.Ast
+    readonly payload: unknown
   }): string => {
     const material: KeyMaterial.KeyMaterial = {
       version: KeyMaterial.version,
@@ -425,7 +447,9 @@ export const build = (
       dependencies: entry.dependencies,
       capabilities: entry.capabilities,
       placement: entry.placement,
-      draft: { id: entry.id, material, effects: entry.effects ?? emptyEffects }
+      draft: { id: entry.id, material, effects: entry.effects ?? emptyEffects },
+      ast: entry.ast,
+      payload: entry.payload
     })
     return entry.id
   }
@@ -436,6 +460,7 @@ export const build = (
    */
   const flowNode = (call: {
     readonly id: string
+    readonly ast: Node.Ast
     readonly flow: string
     readonly mode: "inline" | "boundary"
     readonly declaration: Flow.Any | undefined
@@ -500,7 +525,9 @@ export const build = (
           body: call.declaration.body === undefined ? undefined : Node.functionIdentity(call.declaration.body)
         }
       },
-      inputs
+      inputs,
+      ast: call.ast,
+      payload: call.payload
     })
   }
 
@@ -571,6 +598,7 @@ export const build = (
       case "FlowCall": {
         return flowNode({
           id,
+          ast,
           flow: ast.flow,
           mode: ast.mode,
           declaration: flowDeclaration(Node.declaration(ast)),
@@ -585,6 +613,7 @@ export const build = (
       case "ActivityCall": {
         const declared = activityDeclaration(Node.declaration(ast))
         const annotations = declared?.annotations ?? Context.empty()
+        const payload = hydrate(ast.payload, substitutions)
         return record({
           id,
           kind: ast._tag,
@@ -603,10 +632,13 @@ export const build = (
               error: schemaIdentity(declared.errorSchema)
             }
           },
-          inputs: [...payloadInputs(hydrate(ast.payload, substitutions)), ...inputs]
+          inputs: [...payloadInputs(payload), ...inputs],
+          ast,
+          payload
         })
       }
       case "Succeed": {
+        const value = hydrate(ast.value, substitutions)
         return record({
           id,
           kind: ast._tag,
@@ -616,7 +648,9 @@ export const build = (
           placement: undefined,
           tier: "sealed",
           body: { _tag: ast._tag },
-          inputs: [...payloadInputs(hydrate(ast.value, substitutions)), ...inputs]
+          inputs: [...payloadInputs(value), ...inputs],
+          ast,
+          payload: value
         })
       }
       case "All": {
@@ -631,7 +665,9 @@ export const build = (
           placement: undefined,
           tier: "sealed",
           body: { _tag: ast._tag, members },
-          inputs
+          inputs,
+          ast,
+          payload: undefined
         })
       }
       case "Map": {
@@ -645,7 +681,9 @@ export const build = (
           placement: undefined,
           tier: "sealed",
           body: { _tag: ast._tag, mapper: ast.mapper },
-          inputs
+          inputs,
+          ast,
+          payload: undefined
         })
       }
       case "AndThen": {
@@ -662,18 +700,19 @@ export const build = (
           placement: undefined,
           tier: "sealed",
           body: { _tag: ast._tag, continuation: ast.continuation, static: ast.next !== undefined },
-          inputs
+          inputs,
+          ast,
+          payload: undefined
         })
       }
       case "Branch": {
         const first = child(ast.first, `${id}.branch`)
         depend(first, "value")
-        // OPEN QUESTION (2026-08-11): every arm subject is recorded under the one
-        // `Node.branchSubject` name, so an arm nested inside another branch's
-        // arm cannot say which subject it meant. The innermost binding wins
-        // here; whether the AST should carry per-branch subject names instead
-        // is undecided.
-        const arms = new Map([...substitutions, [Node.branchSubject, first]])
+        // DECIDED (2026-08-11, pending review): each Branch AST carries its own
+        // subject token. An outer subject captured inside a nested arm must
+        // retain the outer binding; one shared token silently rebound it to
+        // the inner branch's subject.
+        const arms = new Map([...substitutions, [ast.subject, first]])
         depend(child(ast.then, `${id}.then`, { substitutions: arms, prerequisite: first }), "value")
         depend(child(ast.else, `${id}.else`, { substitutions: arms, prerequisite: first }), "value")
         return record({
@@ -685,7 +724,9 @@ export const build = (
           placement: undefined,
           tier: "sealed",
           body: { _tag: ast._tag, predicate: ast.predicate },
-          inputs
+          inputs,
+          ast,
+          payload: undefined
         })
       }
     }
@@ -703,12 +744,18 @@ export const build = (
       prerequisite: undefined
     })
   } else {
+    const entry = hydrate(payload, new Map())
     flowNode({
       id: root,
+      // The entry is a call to the flow itself that no author wrote, so its
+      // AST is synthesized here rather than recorded by `Node.flowCall`, which
+      // would replace a payload's non-JSON values with their plain-object
+      // copies. What a body was planned with stays what the entry node shows.
+      ast: { _tag: "FlowCall", flow: declaration._tag, mode: "inline", payload: entry },
       flow: declaration._tag,
       mode: "inline",
       declaration,
-      payload: hydrate(payload, new Map()),
+      payload: entry,
       capabilities: sorted(Context.get(declaration.annotations, Annotations.Capabilities)),
       substitutions: new Map(),
       stack: [],

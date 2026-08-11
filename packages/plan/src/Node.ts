@@ -114,6 +114,9 @@ export type Error<N> = N extends Node<infer _A, infer E> ? E : never
  */
 export const branchSubject = "branch/subject"
 
+/** @private */
+let branchOrdinal = 0
+
 /**
  * The two arms of a decision plus the predicate that chooses between them.
  *
@@ -288,9 +291,11 @@ export const branch: {
     self: Node<A, E>,
     options: BranchOptions<A, B1, E1, B2, E2>
   ): Node<B1 | B2, E | E1 | E2> => {
-    const subject = Planned.make<A>(branchSubject)
+    const subjectToken = `${branchSubject}/${branchOrdinal++}`
+    const subject = Planned.make<A>(subjectToken)
     return internal.makeNode<B1 | B2, E | E1 | E2>(
       internal.branch(
+        subjectToken,
         self.ast,
         (value) => options.if(value as A),
         options.if,
@@ -353,6 +358,30 @@ export const declaration = (
 export const continuation = (
   ast: Extract<Ast, { readonly _tag: "AndThen" }>
 ): ((value: Planned.Planned<unknown>) => unknown) | undefined => internal.operation(ast)
+
+/**
+ * Reads the deferred mapper of a {@link map} node, which a driver applies to
+ * the real upstream value once it has one. It is `undefined` for every other
+ * variant, and for a rehydrated AST whose side table did not survive
+ * serialization.
+ *
+ * @since 0.1.0
+ * @private
+ */
+export const mapper = (ast: Ast): ((value: unknown) => unknown) | undefined =>
+  ast._tag === "Map" ? internal.operation(ast) : undefined
+
+/**
+ * Reads the run-time predicate of a {@link branch} node, which a driver
+ * evaluates on the real subject value to choose an arm. It is `undefined` for
+ * every other variant, and for a rehydrated AST whose side table did not
+ * survive serialization.
+ *
+ * @since 0.1.0
+ * @private
+ */
+export const predicate = (ast: Ast): ((value: unknown) => boolean) | undefined =>
+  ast._tag === "Branch" ? internal.predicate(ast) : undefined
 
 /**
  * Digests a plan-time function the AST does NOT store — a flow's `body` —

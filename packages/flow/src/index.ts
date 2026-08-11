@@ -54,6 +54,13 @@ export * as FlowRuntime from "./FlowRuntime/index.ts"
 export * as Graph from "./Graph.ts"
 
 /**
+ * Execution of a flow body, and the layer that registers it.
+ *
+ * @since 0.1.0
+ */
+export * as Interpreter from "./Interpreter.ts"
+
+/**
  * Retry policy models and constructors.
  *
  * @since 4.0.0

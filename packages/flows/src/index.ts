@@ -97,6 +97,8 @@ export const namespaces = [
   "EngineStore",
   "Flow",
   "FlowRuntime",
+  "Graph",
+  "Interpreter",
   "Jj",
   "Journal",
   "Kernel",

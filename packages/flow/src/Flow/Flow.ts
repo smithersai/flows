@@ -217,6 +217,48 @@ export interface Flow<
 }
 
 /**
+ * A flow whose behavior is its `body`.
+ *
+ * `Flow.make` answers with this shape whenever a body is declared, and the one
+ * thing it takes away is `toLayer`: a bodied flow already has exactly one
+ * behavior, so attaching a second, opaque one is the attachment-decides
+ * ambiguity `docs/specs/Concepts/Unified Flow Authoring.md` rejects. Calling it
+ * is a compile error here and a `BodyDefinesBehavior` defect at run time. Drive
+ * one with the body interpreter's registration layer instead.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface Bodied<
+  Tag extends string,
+  Payload extends AnyStructSchema,
+  Success extends Schema.Top,
+  Error extends Schema.Top
+> extends Flow<Tag, Payload, Success, Error> {
+  readonly body: (payload: Payload["Type"]) => Node.Node<unknown, unknown>
+
+  /**
+   * Not callable on a bodied flow: the body is the behavior.
+   */
+  readonly toLayer: never
+
+  /**
+   * Annotating carries the body across, so the refusal above carries with it.
+   */
+  annotate<I, S>(
+    key: Context.Key<I, S>,
+    value: S
+  ): Bodied<Tag, Payload, Success, Error>
+
+  /**
+   * Annotating carries the body across, so the refusal above carries with it.
+   */
+  annotateMerge<I>(
+    annotations: Context.Context<I>
+  ): Bodied<Tag, Payload, Success, Error>
+}
+
+/**
  * Schema constraint for flow payload schemas that expose struct fields.
  *
  * @category schemas

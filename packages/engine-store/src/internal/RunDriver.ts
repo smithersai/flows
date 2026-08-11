@@ -174,6 +174,23 @@ export const make = (
      * legitimately recorded by a process that does not (or no longer does)
      * own the run; the ownership fence for these paths is the run-row CAS
      * that precedes each emit.
+     *
+     * `meta.lineageId` is a JOURNAL lineage id (`FlowEngine.Lineage`,
+     * `<runId>/root`), because that is the space a time-travel frame addresses:
+     * `docs/specs/Concepts/Time Travel.md` makes a frame `(lineageId, seq)`, and
+     * replay skips an entry whose `meta.lineageId` names a different lineage.
+     * The run row's `lineageId` column is a different space — the TRAMPOLINE
+     * lineage of `docs/specs/Concepts/Trampoline Loops.md`, round 0's execution
+     * id — so on a run that is a later round of a lineage the persisted value
+     * read here is NOT a journal lineage id, and the decisions of that round
+     * address a lineage its own attempt records do not.
+     *
+     * DECIDED (2026-08-11, pending review): documented rather than changed
+     * here. Which space the decisions of a later round belong to is a
+     * behavioral question — one journal lineage per round, or one per
+     * trampoline lineage so a UI can walk the whole run — and answering it
+     * moves persisted frame addresses, so it belongs to a change of its own
+     * rather than to this docs clarification.
      */
     const emitDecision = (
       runId: string,

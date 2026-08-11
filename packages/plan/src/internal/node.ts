@@ -106,6 +106,7 @@ export interface AndThen {
  */
 export interface Branch {
   readonly _tag: "Branch"
+  readonly subject: string
   readonly first: NodeAst
   readonly predicate: FunctionIdentity
   readonly then: NodeAst
@@ -353,6 +354,7 @@ export const andThenNode = (first: NodeAst, next: NodeAst): AndThen => ({
  * @private
  */
 export const branch = (
+  subject: string,
   first: NodeAst,
   predicate: Predicate,
   source: unknown,
@@ -361,6 +363,7 @@ export const branch = (
 ): Branch => {
   const ast: Branch = {
     _tag: "Branch",
+    subject,
     first,
     predicate: functionIdentity(source),
     then,

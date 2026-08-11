@@ -260,6 +260,32 @@ describe("Graph.build planned values", () => {
     ])
   })
 
+  it("keeps a captured outer branch subject inside a nested branch arm", () => {
+    const graph = Graph.build(
+      Node.succeed("outer").pipe(Node.branch({
+        if: () => true,
+        then: (outer) =>
+          Node.succeed("inner").pipe(Node.branch({
+            if: () => true,
+            then: () => Node.succeed({ outer }),
+            else: () => Node.succeed("unused")
+          })),
+        else: () => Node.succeed("unused")
+      }))
+    )
+
+    expect(material(graph, "root.then.then").inputs).toContainEqual({
+      _tag: "Ref",
+      from: "root.branch",
+      path: []
+    })
+    expect(material(graph, "root.then.then").inputs).not.toContainEqual({
+      _tag: "Ref",
+      from: "root.then.branch",
+      path: []
+    })
+  })
+
   it("evaluates each continuation and arm builder exactly once", () => {
     let continued = 0
     let armed = 0
@@ -323,7 +349,7 @@ describe("Graph.build planned values", () => {
     expect(() => Graph.build(flow, { path: "counter.txt" })).toThrowError(expect.objectContaining({
       _tag: "flows/plan/GraphBuildError",
       code: "planned_value_computed",
-      node: Node.branchSubject,
+      node: expect.stringMatching(/^branch\/subject\/\d+$/),
       path: [],
       message: expect.stringContaining("Node.branch to decide")
     }))
