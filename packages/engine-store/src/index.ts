@@ -38,6 +38,12 @@ export * as StepBoundary from "./StepBoundary.ts"
  * @since 0.1.0
  * @category services
  */
+export * as WorkspaceSandbox from "./WorkspaceSandbox.ts"
+
+/**
+ * @since 0.1.0
+ * @category services
+ */
 export * as Inconsistency from "./Inconsistency.ts"
 
 /**

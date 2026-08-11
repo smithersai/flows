@@ -1,0 +1,616 @@
+import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
+import type { FileBoundary } from "@smthrs/flow/FileBoundary"
+import * as KernelWorkspace from "@smthrs/kernel/Workspace"
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Layer from "effect/Layer"
+import { describe, expect, it } from "vitest"
+import * as WorkspaceSandbox from "../src/WorkspaceSandbox.ts"
+import { runPromise, sha256 } from "./Sha256.ts"
+
+const encoder = new TextEncoder()
+const decoder = new TextDecoder()
+
+const descriptor = (input: Partial<FileBoundary> = {}): FileBoundary => ({
+  readSet: input.readSet ?? [],
+  writeSet: input.writeSet ?? [],
+  boundaryMode: input.boundaryMode ?? "hard"
+})
+
+const read = (path: string, content: string) => ({ path, digest: sha256(content) })
+
+const text = (files: ReadonlyArray<WorkspaceSandbox.HostFile>, path: string): string | undefined => {
+  const file = files.find((candidate) => candidate.path === path)
+  return file === undefined ? undefined : decoder.decode(file.content)
+}
+
+/**
+ * The eight behaviors the `engine-harness` proof of concept documented, ported
+ * onto this side's declaration vocabulary (`FileBoundary` rather than
+ * `Effects.Declaration`) and its identity surfaces (`@smthrs/crypto` rather
+ * than the deleted `@smthrs/keys` digest module).
+ */
+describe("WorkspaceSandbox conformance", () => {
+  it("returns functional files and queued effects without changing the host before materialization", async () => {
+    const program = Effect.gen(function*() {
+      const test = yield* WorkspaceSandbox.makeMemory({ "src/input.txt": "hello" })
+      const accepted = yield* test.service.execute({
+        descriptor: descriptor({ readSet: [read("src/input.txt", "hello")], writeSet: ["out/result.txt"] }),
+        workflow: Effect.gen(function*() {
+          const workspace = yield* WorkspaceSandbox.Workspace
+          const input = decoder.decode(yield* workspace.readFile("src/input.txt"))
+          yield* workspace.writeFile("out/result.txt", encoder.encode(`${input} world`))
+          yield* workspace.queueEffect({
+            protocol: "chat/v1",
+            idempotencyKey: "reply-1",
+            payload: { message: "finished" }
+          })
+          return { rendered: true, count: 1 }
+        })
+      })
+      if (accepted._tag !== "Accepted") throw new Error("expected accepted execution")
+      const before = yield* test.files
+      yield* test.service.materialize(accepted)
+      return { accepted, before, after: yield* test.files }
+    })
+
+    const { accepted, after, before } = await runPromise(program)
+    expect(text(before, "out/result.txt")).toBeUndefined()
+    expect(accepted.result.output).toEqual({ rendered: true, count: 1 })
+    expect(accepted.result.provenance.inputs).toHaveLength(1)
+    expect(accepted.result.provenance.outputs).toEqual([
+      { resource: { kind: "file", id: "out/result.txt" }, operation: "write", digest: sha256("hello world") }
+    ])
+    expect(accepted.result.effects).toEqual([{
+      protocol: "chat/v1",
+      idempotencyKey: "reply-1",
+      payload: { message: "finished" }
+    }])
+    expect(decoder.decode(accepted.result.files[0]?.after)).toBe("hello world")
+    expect(text(after, "out/result.txt")).toBe("hello world")
+  })
+
+  it("invalidates and discards undeclared reads and writes", async () => {
+    const program = Effect.gen(function*() {
+      const test = yield* WorkspaceSandbox.makeMemory({
+        "src/declared.txt": "declared",
+        "src/secret.txt": "secret"
+      })
+      const invalidated = yield* test.service.execute({
+        descriptor: descriptor({ readSet: [read("src/declared.txt", "declared")], writeSet: ["out/declared.txt"] }),
+        workflow: Effect.gen(function*() {
+          const workspace = yield* WorkspaceSandbox.Workspace
+          const secret = yield* workspace.readFile("src/secret.txt")
+          yield* workspace.writeFile("out/surprise.txt", secret)
+          yield* workspace.queueEffect({
+            protocol: "chat/v1",
+            idempotencyKey: "must-not-dispatch",
+            payload: { leaked: true }
+          })
+          return { leaked: true }
+        })
+      })
+      return { invalidated, files: yield* test.files }
+    })
+
+    const { files, invalidated } = await runPromise(program)
+    expect(invalidated).toMatchObject({
+      _tag: "Invalidated",
+      violations: [
+        { kind: "undeclared-read", resource: { kind: "file", id: "src/secret.txt" } },
+        { kind: "undeclared-write", resource: { kind: "file", id: "out/surprise.txt" } }
+      ]
+    })
+    // The candidate output, files, and queued effects have no accessor at all
+    // on the `Invalidated` shape: nothing leaks, by construction.
+    expect(Object.keys(invalidated).sort()).toEqual(["_tag", "provenance", "violations"])
+    expect(text(files, "out/surprise.txt")).toBeUndefined()
+  })
+
+  it("replays memoized results by content identity without rerunning the body", async () => {
+    let runs = 0
+    const program = Effect.gen(function*() {
+      const test = yield* WorkspaceSandbox.makeMemory({ "src/input.txt": "same input" })
+      const execution = {
+        descriptor: descriptor({ readSet: [read("src/input.txt", "same input")], writeSet: ["out/result.txt"] }),
+        cacheKey: "step-key",
+        workflow: Effect.gen(function*() {
+          runs = runs + 1
+          const workspace = yield* WorkspaceSandbox.Workspace
+          const input = yield* workspace.readFile("src/input.txt")
+          yield* workspace.writeFile("out/result.txt", input)
+          return { value: decoder.decode(input) }
+        })
+      }
+      return [yield* test.service.execute(execution), yield* test.service.execute(execution)]
+    })
+
+    const [first, replay] = await runPromise(program)
+    expect(first).toMatchObject({ _tag: "Accepted", cache: { status: "miss", key: "step-key" } })
+    expect(replay).toMatchObject({ _tag: "Accepted", cache: { status: "hit", key: "step-key" } })
+    expect(runs).toBe(1)
+  })
+
+  it("refuses to materialize over a changed output base", async () => {
+    const program = Effect.gen(function*() {
+      const test = yield* WorkspaceSandbox.makeMemory({ "out/result.txt": "base" })
+      const execute = (value: string) =>
+        test.service.execute({
+          descriptor: descriptor({ writeSet: ["out/result.txt"] }),
+          workflow: Effect.gen(function*() {
+            const workspace = yield* WorkspaceSandbox.Workspace
+            yield* workspace.writeFile("out/result.txt", encoder.encode(value))
+            return { value }
+          })
+        })
+      const stale = yield* execute("stale")
+      const current = yield* execute("current")
+      if (stale._tag !== "Accepted" || current._tag !== "Accepted") throw new Error("expected accepted executions")
+      yield* test.service.materialize(current)
+      const conflict = yield* Effect.flip(test.service.materialize(stale))
+      return { conflict, files: yield* test.files }
+    })
+
+    const { conflict, files } = await runPromise(program)
+    expect(conflict).toMatchObject({
+      _tag: "flows/engine-store/MaterializationConflict",
+      paths: ["out/result.txt"]
+    })
+    expect(text(files, "out/result.txt")).toBe("current")
+  })
+
+  it("supports removals and replays their functional result", async () => {
+    let runs = 0
+    const program = Effect.gen(function*() {
+      const test = yield* WorkspaceSandbox.makeMemory({ "out/old.txt": "old" })
+      const execution = {
+        descriptor: descriptor({ writeSet: ["out/old.txt"] }),
+        cacheKey: "removal",
+        workflow: Effect.gen(function*() {
+          runs = runs + 1
+          const workspace = yield* WorkspaceSandbox.Workspace
+          yield* workspace.removeFile("out/old.txt")
+          return ["removed"]
+        })
+      }
+      const first = yield* test.service.execute(execution)
+      const replay = yield* test.service.execute(execution)
+      if (first._tag !== "Accepted" || replay._tag !== "Accepted") throw new Error("expected accepted executions")
+      yield* test.service.materialize(replay)
+      return { first, replay, files: yield* test.files }
+    })
+
+    const { files, first, replay } = await runPromise(program)
+    expect(first.result.files).toMatchObject([{
+      path: "out/old.txt",
+      beforeDigest: sha256("old"),
+      afterDigest: undefined
+    }])
+    expect(first.result.provenance.outputs[0]?.operation).toBe("remove")
+    expect(replay.cache.status).toBe("hit")
+    expect(runs).toBe(1)
+    expect(text(files, "out/old.txt")).toBeUndefined()
+  })
+
+  it("disables memoization when the caller supplies no cache key", async () => {
+    let runs = 0
+    const program = Effect.gen(function*() {
+      const test = yield* WorkspaceSandbox.makeMemory()
+      const execution = {
+        descriptor: descriptor(),
+        workflow: Effect.sync(() => {
+          runs = runs + 1
+          return { run: runs }
+        })
+      }
+      return [yield* test.service.execute(execution), yield* test.service.execute(execution)]
+    })
+
+    const [first, second] = await runPromise(program)
+    expect(first).toMatchObject({ _tag: "Accepted", cache: { status: "disabled" } })
+    expect(second).toMatchObject({ _tag: "Accepted", cache: { status: "disabled" } })
+    expect(runs).toBe(2)
+  })
+
+  it("rejects invalid paths and missing files", async () => {
+    for (const path of ["", "/absolute.txt", "nested/../escape.txt", "."]) {
+      const invalid = await runPromise(Effect.flip(WorkspaceSandbox.makeMemory({ [path]: "invalid" })))
+      expect(invalid).toMatchObject({ _tag: "flows/engine-store/WorkspaceError", code: "invalid_path" })
+    }
+
+    const program = Effect.gen(function*() {
+      const test = yield* WorkspaceSandbox.makeMemory({ "bytes.bin": encoder.encode("bytes") })
+      const missing = yield* Effect.flip(test.service.execute({
+        descriptor: descriptor({ readSet: [read("missing.txt", "")] }),
+        workflow: Effect.gen(function*() {
+          const workspace = yield* WorkspaceSandbox.Workspace
+          yield* workspace.readFile("missing.txt")
+          return null
+        })
+      }))
+      const escaping = yield* Effect.flip(test.service.execute({
+        descriptor: descriptor({ writeSet: ["out/**"] }),
+        workflow: Effect.gen(function*() {
+          const workspace = yield* WorkspaceSandbox.Workspace
+          yield* workspace.writeFile("../escape.txt", encoder.encode("no"))
+          return null
+        })
+      }))
+      const removing = yield* Effect.flip(test.service.execute({
+        descriptor: descriptor(),
+        workflow: Effect.gen(function*() {
+          const workspace = yield* WorkspaceSandbox.Workspace
+          yield* workspace.removeFile("/absolute.txt")
+          return null
+        })
+      }))
+      return { escaping, files: yield* test.files, missing, removing }
+    })
+
+    const { escaping, files, missing, removing } = await runPromise(program)
+    expect(missing).toMatchObject({ code: "not_found" })
+    expect(escaping).toMatchObject({ code: "invalid_path" })
+    expect(removing).toMatchObject({ code: "invalid_path" })
+    expect(text(files, "bytes.bin")).toBe("bytes")
+  })
+
+  it("normalizes relative paths and omits unchanged writes from the file diff", async () => {
+    const program = Effect.gen(function*() {
+      const test = yield* WorkspaceSandbox.makeMemory({ "src/b.txt": "b", "src/a.txt": "a" })
+      return yield* test.service.execute({
+        descriptor: descriptor({ readSet: [read("src/a.txt", "a")], writeSet: ["src/*.txt"] }),
+        workflow: Effect.gen(function*() {
+          const workspace = yield* WorkspaceSandbox.Workspace
+          const input = yield* workspace.readFile("./src//a.txt")
+          yield* workspace.writeFile("src\\a.txt", input)
+          return { unchanged: true }
+        })
+      })
+    })
+
+    const accepted = await runPromise(program)
+    if (accepted._tag !== "Accepted") throw new Error("expected accepted execution")
+    expect(accepted.result.files).toEqual([])
+    expect(accepted.result.provenance.inputs[0]?.resource.id).toBe("src/a.txt")
+    // A read of a declared file never counts against the declaration, and an
+    // unchanged rewrite produces no output observation at all.
+    expect(accepted.result.provenance.outputs).toEqual([])
+  })
+
+  it("provides the implementation as an Effect layer", async () => {
+    const program = Effect.gen(function*() {
+      const test = yield* WorkspaceSandbox.makeMemory()
+      const resolved = yield* WorkspaceSandbox.WorkspaceSandbox.pipe(
+        Effect.provide(WorkspaceSandbox.layer(test.service))
+      )
+      return resolved === test.service
+    })
+    expect(await runPromise(program)).toBe(true)
+  })
+})
+
+describe("WorkspaceSandbox expected mode", () => {
+  it("admits a deviating execution and leaves the deviation for the engine to journal", async () => {
+    const program = Effect.gen(function*() {
+      const test = yield* WorkspaceSandbox.makeMemory({ "src/a.txt": "a" })
+      const accepted = yield* test.service.execute({
+        descriptor: descriptor({
+          readSet: [read("src/a.txt", "a")],
+          writeSet: ["out/declared.txt"],
+          boundaryMode: "expected"
+        }),
+        workflow: Effect.gen(function*() {
+          const workspace = yield* WorkspaceSandbox.Workspace
+          yield* workspace.writeFile("out/surprise.txt", encoder.encode("deviation"))
+          return null
+        })
+      })
+      if (accepted._tag !== "Accepted") throw new Error("expected accepted execution")
+      return accepted
+    })
+
+    const accepted = await runPromise(program)
+    expect(
+      WorkspaceSandbox.violations(
+        descriptor({ writeSet: ["out/declared.txt"], boundaryMode: "expected" }),
+        new Map(),
+        accepted.result.provenance
+      )
+    ).toEqual([{ kind: "undeclared-write", resource: { kind: "file", id: "out/surprise.txt" } }])
+  })
+})
+
+/**
+ * The transaction also seeds Effect's own `FileSystem` tag, which is how an
+ * ordinary activity body — one that never heard of `WorkspaceSandbox` — runs
+ * isolated.
+ */
+describe("WorkspaceSandbox transaction filesystem", () => {
+  it("serves an ordinary FileSystem body over the transaction", async () => {
+    const program = Effect.gen(function*() {
+      const test = yield* WorkspaceSandbox.makeMemory({ "src/in.txt": "seed", "src/nested/deep.txt": "deep" })
+      const accepted = yield* test.service.execute({
+        descriptor: descriptor({
+          readSet: [read("src/in.txt", "seed"), read("src/nested/deep.txt", "deep")],
+          writeSet: ["out/**", "src/in.txt"]
+        }),
+        workflow: Effect.gen(function*() {
+          const fs = yield* FileSystem.FileSystem
+          const present = yield* fs.exists("src/in.txt")
+          const absent = yield* fs.exists("/escape.txt")
+          const bytes = yield* fs.readFile("src/in.txt")
+          const string = yield* fs.readFileString("src/nested/deep.txt")
+          yield* fs.makeDirectory("out", { recursive: true })
+          yield* fs.writeFile("out/bytes.bin", bytes)
+          yield* fs.writeFileString("out/text.txt", `${string}!`)
+          const entries = yield* fs.readDirectory("src")
+          yield* fs.remove("src/in.txt")
+          const missing = yield* Effect.flip(fs.readFile("out/nope.txt"))
+          const bad = yield* Effect.flip(fs.writeFileString("../escape.txt", "no"))
+          const badDirectory = yield* Effect.flip(fs.readDirectory("/nope"))
+          const badRemove = yield* Effect.flip(fs.remove("/nope"))
+          const badRead = yield* Effect.flip(fs.readFileString("/nope"))
+          return { absent, bad, badDirectory, badRead, badRemove, entries, missing, present }
+        })
+      })
+      if (accepted._tag !== "Accepted") throw new Error("expected accepted execution")
+      yield* test.service.materialize(accepted)
+      return { accepted, files: yield* test.files }
+    })
+
+    const { accepted, files } = await runPromise(program)
+    const observed = accepted.result.output
+    expect(observed.present).toBe(true)
+    expect(observed.absent).toBe(false)
+    expect(observed.entries).toEqual(["in.txt", "nested"])
+    expect(observed.missing._tag).toBe("PlatformError")
+    expect(observed.bad._tag).toBe("PlatformError")
+    expect(observed.badDirectory._tag).toBe("PlatformError")
+    expect(observed.badRead._tag).toBe("PlatformError")
+    expect(observed.badRemove._tag).toBe("PlatformError")
+    expect(text(files, "out/text.txt")).toBe("deep!")
+    expect(text(files, "out/bytes.bin")).toBe("seed")
+    expect(text(files, "src/in.txt")).toBeUndefined()
+  })
+})
+
+/**
+ * The filesystem host is the one that makes this real: copy-in of the declared
+ * read set, whole-tree diff of the transaction, artifact-store retention of
+ * oversized products, and a compare-and-set copy-back onto the host tree.
+ */
+describe("WorkspaceSandbox filesystem host", () => {
+  const hostLayer = (files: Map<string, Uint8Array>) => {
+    const fs = FileSystem.makeNoop({
+      exists: (path) => Effect.succeed(files.has(String(path))),
+      readFile: (path) => Effect.succeed(files.get(String(path))!),
+      writeFile: (path, data) => Effect.sync(() => void files.set(String(path), data)),
+      remove: (path) => Effect.sync(() => void files.delete(String(path))),
+      makeDirectory: () => Effect.void
+    })
+    return ArtifactStore.layerMemory.pipe(Layer.provideMerge(Layer.succeed(FileSystem.FileSystem)(fs)))
+  }
+
+  it("seeds only the declared read set, so an undeclared file is simply not there", async () => {
+    const files = new Map<string, Uint8Array>([
+      ["/w/src/in.txt", encoder.encode("seed")],
+      ["/w/src/secret.txt", encoder.encode("secret")]
+    ])
+    const program = Effect.gen(function*() {
+      const sandbox = WorkspaceSandbox.makeFileSystem(
+        yield* FileSystem.FileSystem,
+        yield* ArtifactStore.ArtifactStore,
+        "/w"
+      )
+      return yield* sandbox.execute({
+        descriptor: descriptor({ readSet: [read("src/in.txt", "seed")], writeSet: ["out/copy.txt"] }),
+        workflow: Effect.gen(function*() {
+          const fs = yield* FileSystem.FileSystem
+          return {
+            declared: yield* fs.exists("src/in.txt"),
+            undeclared: yield* fs.exists("src/secret.txt")
+          }
+        })
+      })
+    }).pipe(Effect.provide(hostLayer(files)))
+
+    const accepted = await runPromise(program)
+    if (accepted._tag !== "Accepted") throw new Error("expected accepted execution")
+    expect(accepted.result.output).toEqual({ declared: true, undeclared: false })
+  })
+
+  it("copies back through a beforeDigest compare-and-set, retaining oversized products by digest", async () => {
+    const files = new Map<string, Uint8Array>([["/w/src/in.txt", encoder.encode("seed")]])
+    const large = "x".repeat(64)
+    const program = Effect.gen(function*() {
+      const sandbox = WorkspaceSandbox.makeFileSystem(
+        yield* FileSystem.FileSystem,
+        yield* ArtifactStore.ArtifactStore,
+        "/w/",
+        { maxInlineBytes: 8 }
+      )
+      const execution = {
+        descriptor: descriptor({
+          readSet: [read("src/in.txt", "seed"), read("src/absent.txt", "nothing")],
+          writeSet: ["out/**", "src/in.txt"]
+        }),
+        workflow: Effect.gen(function*() {
+          const fs = yield* FileSystem.FileSystem
+          yield* fs.writeFileString("out/large.txt", large)
+          yield* fs.writeFileString("out/small.txt", "ok")
+          yield* fs.remove("src/in.txt")
+          return { done: true }
+        })
+      }
+      const accepted = yield* sandbox.execute(execution)
+      if (accepted._tag !== "Accepted") throw new Error("expected accepted execution")
+      const untouched = new Map(files)
+      yield* sandbox.materialize(accepted)
+      // A second copy-back of the same bundle now conflicts: the host moved.
+      const conflict = yield* Effect.flip(sandbox.materialize(accepted))
+      return { accepted, conflict, untouched }
+    }).pipe(Effect.provide(hostLayer(files)))
+
+    const { accepted, conflict, untouched } = await runPromise(program)
+    expect([...untouched.keys()]).toEqual(["/w/src/in.txt"])
+    const large_ = accepted.result.files.find((change) => change.path === "out/large.txt")
+    const small = accepted.result.files.find((change) => change.path === "out/small.txt")
+    expect(large_?.after).toBeUndefined()
+    expect(large_?.afterDigest).toBe(sha256(large))
+    expect(small?.after).toBeDefined()
+    expect(decoder.decode(files.get("/w/out/large.txt"))).toBe(large)
+    expect(decoder.decode(files.get("/w/out/small.txt"))).toBe("ok")
+    expect(files.has("/w/src/in.txt")).toBe(false)
+    expect(conflict._tag).toBe("flows/engine-store/MaterializationConflict")
+  })
+
+  it("refuses a declared read path that escapes the workspace", async () => {
+    const program = Effect.gen(function*() {
+      const sandbox = WorkspaceSandbox.makeFileSystem(
+        yield* FileSystem.FileSystem,
+        yield* ArtifactStore.ArtifactStore,
+        "/w"
+      )
+      return yield* Effect.flip(sandbox.execute({
+        descriptor: descriptor({ readSet: [read("../outside.txt", "x")] }),
+        workflow: Effect.succeed(null)
+      }))
+    }).pipe(Effect.provide(hostLayer(new Map())))
+
+    await expect(runPromise(program)).resolves.toMatchObject({ code: "invalid_path" })
+  })
+
+  it("reports a refusing host honestly rather than as an empty read set", async () => {
+    const fs = FileSystem.makeNoop({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      exists: () => Effect.fail({ _tag: "PlatformError", message: "EIO" } as any)
+    })
+    const program = Effect.gen(function*() {
+      const sandbox = WorkspaceSandbox.makeFileSystem(
+        yield* FileSystem.FileSystem,
+        yield* ArtifactStore.ArtifactStore,
+        "/w"
+      )
+      return yield* Effect.flip(sandbox.execute({
+        descriptor: descriptor({ readSet: [read("src/in.txt", "seed")] }),
+        workflow: Effect.succeed(null)
+      }))
+    }).pipe(
+      Effect.provide(ArtifactStore.layerMemory.pipe(Layer.provideMerge(Layer.succeed(FileSystem.FileSystem)(fs))))
+    )
+
+    await expect(runPromise(program)).resolves.toMatchObject({ code: "host_unavailable" })
+  })
+
+  it("reports an artifact store that refuses retention or resolution as a host failure", async () => {
+    const files = new Map<string, Uint8Array>()
+    const fs = FileSystem.makeNoop({
+      exists: (path) => Effect.succeed(files.has(String(path))),
+      readFile: (path) => Effect.succeed(files.get(String(path))!),
+      writeFile: (path, data) => Effect.sync(() => void files.set(String(path), data)),
+      makeDirectory: () => Effect.void
+    })
+    const program = Effect.gen(function*() {
+      // An unrooted host: a workspace root of "" leaves boundary paths as the
+      // host paths they already are.
+      const sandbox = WorkspaceSandbox.makeFileSystem(fs, ArtifactStore.makeNoop(), "", { maxInlineBytes: 0 })
+      const refused = yield* Effect.flip(sandbox.execute({
+        descriptor: descriptor({ writeSet: ["root.txt"] }),
+        workflow: Effect.gen(function*() {
+          const inner = yield* FileSystem.FileSystem
+          yield* inner.writeFileString("root.txt", "spilled")
+          return null
+        })
+      }))
+      const unresolvable = yield* Effect.flip(sandbox.materialize({
+        _tag: "Accepted",
+        cache: { status: "disabled" },
+        result: {
+          output: null,
+          effects: [],
+          provenance: { baseRevision: "r", inputs: [], outputs: [] },
+          files: [{ path: "root.txt", beforeDigest: undefined, afterDigest: sha256("spilled") }]
+        }
+      }))
+      return { refused, unresolvable }
+    })
+
+    const { refused, unresolvable } = await runPromise(program)
+    expect(refused.message).toContain("artifact store")
+    expect(unresolvable.message).toContain("artifact store")
+  })
+
+  it("copies a workspace-root file back without inventing a parent directory", async () => {
+    const files = new Map<string, Uint8Array>()
+    const program = Effect.gen(function*() {
+      const sandbox = WorkspaceSandbox.makeFileSystem(
+        yield* FileSystem.FileSystem,
+        yield* ArtifactStore.ArtifactStore,
+        ""
+      )
+      const accepted = yield* sandbox.execute({
+        descriptor: descriptor({ writeSet: ["root.txt"] }),
+        workflow: Effect.gen(function*() {
+          const fs = yield* FileSystem.FileSystem
+          yield* fs.writeFileString("root.txt", "top level")
+          return null
+        })
+      })
+      if (accepted._tag !== "Accepted") throw new Error("expected accepted execution")
+      yield* sandbox.materialize(accepted)
+    }).pipe(Effect.provide(hostLayer(files)))
+
+    await runPromise(program)
+    expect(decoder.decode(files.get("root.txt"))).toBe("top level")
+  })
+
+  it("refuses copy-back of a bundle whose retained bytes the artifact store cannot serve", async () => {
+    const program = Effect.gen(function*() {
+      const sandbox = WorkspaceSandbox.makeFileSystem(
+        yield* FileSystem.FileSystem,
+        yield* ArtifactStore.ArtifactStore,
+        "/w"
+      )
+      return yield* Effect.flip(sandbox.materialize({
+        _tag: "Accepted",
+        cache: { status: "disabled" },
+        result: {
+          output: null,
+          effects: [],
+          provenance: { baseRevision: "r", inputs: [], outputs: [] },
+          files: [{ path: "out/gone.txt", beforeDigest: undefined, afterDigest: sha256("gone") }]
+        }
+      }))
+    }).pipe(Effect.provide(hostLayer(new Map())))
+
+    await expect(runPromise(program)).resolves.toMatchObject({ code: "not_found" })
+  })
+
+  it("resolves the workspace root through the kernel Workspace service", async () => {
+    const files = new Map<string, Uint8Array>([["/w/src/in.txt", encoder.encode("seed")]])
+    const program = Effect.gen(function*() {
+      const sandbox = yield* WorkspaceSandbox.WorkspaceSandbox
+      return yield* sandbox.execute({
+        descriptor: descriptor({ readSet: [read("src/in.txt", "seed")], writeSet: ["out/copy.txt"] }),
+        workflow: Effect.gen(function*() {
+          const fs = yield* FileSystem.FileSystem
+          // An absolute path a body resolved against the real workspace root
+          // still lands inside the transaction.
+          yield* fs.writeFile("/w/out/copy.txt", yield* fs.readFile("/w/src/in.txt"))
+          return null
+        })
+      })
+    }).pipe(
+      Effect.provide(
+        WorkspaceSandbox.layerFileSystem().pipe(
+          Layer.provide(KernelWorkspace.layer("/w")),
+          Layer.provide(hostLayer(files))
+        )
+      )
+    )
+
+    const accepted = await runPromise(program)
+    if (accepted._tag !== "Accepted") throw new Error("expected accepted execution")
+    expect(accepted.result.files.map((change) => change.path)).toEqual(["out/copy.txt"])
+  })
+})
