@@ -25,6 +25,7 @@ const repoRoot = resolve(fileURLToPath(import.meta.url), "..", "..")
  */
 const BROWSER_SAFE = [
   { name: "@smthrs/canonical", entry: "packages/canonical/src/index.ts" },
+  { name: "@smthrs/capability", entry: "packages/capability/src/index.ts" },
   { name: "@smthrs/crypto", entry: "packages/crypto/src/index.ts" },
   { name: "@smthrs/jj", entry: "packages/jj/src/index.ts" },
   { name: "@smthrs/jj/browser/BrowserJj", entry: "packages/jj/src/browser/BrowserJj.ts" },
@@ -38,6 +39,9 @@ const BROWSER_SAFE = [
   { name: "@smthrs/keys", entry: "packages/keys/src/index.ts" },
   { name: "@smthrs/database", entry: "packages/database/src/index.ts" },
   { name: "@smthrs/journal", entry: "packages/journal/src/index.ts" },
+  { name: "@smthrs/run-store", entry: "packages/run-store/src/index.ts" },
+  { name: "@smthrs/step-cache", entry: "packages/step-cache/src/index.ts" },
+  { name: "@smthrs/flow", entry: "packages/flow/src/index.ts" },
   { name: "@smthrs/engine", entry: "packages/engine/src/index.ts" },
   { name: "@smthrs/plugin", entry: "packages/plugin/src/index.ts" },
   { name: "@smthrs/sync", entry: "packages/sync/src/index.ts" },

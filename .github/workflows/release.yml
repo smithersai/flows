@@ -89,15 +89,23 @@ jobs:
             tarball="${tarball/\//-}-$release_version.tgz"
             npm publish "$PACK_DIR/$tarball" --provenance --access public --tag "$publish_tag"
           }
+          publish_if_missing @smthrs/canonical
+          publish_if_missing @smthrs/capability
+          publish_if_missing @smthrs/crypto
           publish_if_missing @smthrs/database
           publish_if_missing @smthrs/keys
+          publish_if_missing @smthrs/jj
           publish_if_missing @smthrs/journal
+          publish_if_missing @smthrs/run-store
+          publish_if_missing @smthrs/step-cache
+          publish_if_missing @smthrs/flow
           publish_if_missing @smthrs/engine
           publish_if_missing @smthrs/kernel
           publish_if_missing @smthrs/platform-browser
           publish_if_missing @smthrs/platform-node
           publish_if_missing @smthrs/platform-bun
           publish_if_missing @smthrs/plugin
+          publish_if_missing @smthrs/sandbox
           publish_if_missing @smthrs/sync
           publish_if_missing @smthrs/engine-store
           publish_if_missing @smthrs/time-travel
