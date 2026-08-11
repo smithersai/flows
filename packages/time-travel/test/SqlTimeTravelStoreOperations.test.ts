@@ -4,6 +4,7 @@ import * as Migrations from "@smthrs/engine-store/Migrations"
 import * as Effect from "effect/Effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
+import * as Frame from "../src/Frame.ts"
 import * as SqlTimeTravelStore from "../src/SqlTimeTravelStore.ts"
 import type * as TimeTravelStore from "../src/TimeTravelStore.ts"
 
@@ -455,50 +456,120 @@ describe("SqlTimeTravelStore.recordReceipt", () => {
   })
 })
 
-describe("SqlTimeTravelStore.createFork", () => {
-  it("copies the prefix, attempts and restartable state, and numbers repeated forks", async () => {
+describe("SqlTimeTravelStore derived reads", () => {
+  it("reads back the plan digest an anchor recorded, and skips an attempt record it cannot decode", async () => {
     const result = await run((store, sql) =>
       Effect.gen(function*() {
+        yield* store.recordSnapshot({
+          runId: "derived",
+          frame: { lineageId: "derived/root", seq: 1 },
+          changeId: "change-1",
+          planDigest: "plan-a"
+        })
+        yield* sql`
+          INSERT INTO flows_journal_events
+            (run_id, seq, event_id, source_id, source_seq, emitted_at_ms, event_type, payload_json, meta_json)
+          VALUES
+            ('derived', 0, 'd0', 's', 0, 0, 'flows.engine.attempt-started',
+             ${JSON.stringify({ stepKeyDigest: "a", attempt: 1 })}, ${JSON.stringify({ lineageId: "derived/root" })}),
+            ('derived', 1, 'd1', 's', 1, 0, 'flows.engine.attempt-started',
+             ${JSON.stringify({ nothing: true })}, ${JSON.stringify({ lineageId: "derived/root" })})
+        `
+        return {
+          anchor: yield* store.snapshotAt("derived", { lineageId: "derived/root", seq: 2 }),
+          attempts: yield* store.attemptsAt("derived", { lineageId: "derived/root", seq: 2 }),
+          absent: yield* store.stateAt("derived", { lineageId: "derived/root", seq: 2 })
+        }
+      })
+    )
+
+    expect(result.anchor).toEqual({
+      runId: "derived",
+      frame: { lineageId: "derived/root", seq: 1 },
+      changeId: "change-1",
+      planDigest: "plan-a"
+    })
+    // The malformed record is skipped, not guessed at.
+    expect(result.attempts).toEqual([{ stepKeyDigest: "a", attempt: 1 }])
+    expect(result.absent).toBeUndefined()
+  })
+})
+
+describe("SqlTimeTravelStore.createFork", () => {
+  it("derives state and attempts AT the frame, marks the fork, and numbers repeated forks", async () => {
+    const result = await run((store, sql) =>
+      Effect.gen(function*() {
+        // The run row holds the run's state NOW — terminal, with a result and a
+        // cancellation. The fork must not inherit any of it; it must rebuild
+        // the state the frame recorded.
         yield* insertRun(sql, "parent", {
           stateJson: JSON.stringify({
             version: 1,
             flowName: "Demo",
-            payload: { seed: 1 },
+            payload: { seed: "final" },
             result: { _tag: "Success" },
             cancellation: { interruptedAtMs: 1 }
           })
         })
-        for (const seq of [0, 1, 2]) {
-          yield* sql`
+        const event = (seq: number, eventType: string, payload: unknown) =>
+          sql`
             INSERT INTO flows_journal_events
               (run_id, seq, event_id, source_id, source_seq, emitted_at_ms, event_type, payload_json, meta_json)
-            VALUES ('parent', ${seq}, ${`e${seq}`}, 'source', ${seq}, 0, 'test', '{}', '{}')
+            VALUES (
+              'parent', ${seq}, ${`e${seq}`}, 'source', ${seq}, 0, ${eventType},
+              ${JSON.stringify(payload)}, ${JSON.stringify({ lineageId: "main" })}
+            )
+          `
+        yield* event(0, "flows.engine.run-decision", {
+          decision: "created",
+          state: { version: 1, flowName: "Demo", payload: { seed: "at-frame" } }
+        })
+        yield* event(1, "flows.engine.attempt-started", { stepKeyDigest: "digest", attempt: 1 })
+        // Everything below the fork frame: a later state the child must not
+        // inherit, and a later attempt its copied journal cannot explain.
+        yield* event(2, "flows.engine.attempt-started", { stepKeyDigest: "later", attempt: 1 })
+        yield* event(3, "flows.engine.run-decision", {
+          decision: "transitioned",
+          state: { version: 1, flowName: "Demo", payload: { seed: "final" } }
+        })
+        for (const digest of ["digest", "later"]) {
+          yield* sql`
+            INSERT INTO flows_attempts
+              (run_id, step_key_digest, attempt, state, started_at_ms, finished_at_ms,
+               heartbeat_at_ms, checkpoint_json, error_json, outcome_json, meta_json)
+            VALUES ('parent', ${digest}, 1, 'succeeded', 0, 1, 1, NULL, NULL, '{}', '{}')
           `
         }
-        yield* sql`
-          INSERT INTO flows_attempts
-            (run_id, step_key_digest, attempt, state, started_at_ms, finished_at_ms,
-             heartbeat_at_ms, checkpoint_json, error_json, outcome_json, meta_json)
-          VALUES ('parent', 'digest', 1, 'succeeded', 0, 1, 1, NULL, NULL, '{}', '{}')
-        `
 
         const first = yield* store.createFork("parent", { lineageId: "main", seq: 1 })
         const second = yield* store.createFork("parent", { lineageId: "main", seq: 1 })
-        const forkEvents = yield* sql<{ readonly seq: number; readonly event_id: string }>`
-          SELECT seq, event_id FROM flows_journal_events WHERE run_id = ${first.runId} ORDER BY seq
+        const forkEvents = yield* sql<
+          {
+            readonly seq: number
+            readonly event_id: string
+            readonly event_type: string
+            readonly payload_json: string
+          }
+        >`
+          SELECT seq, event_id, event_type, payload_json
+          FROM flows_journal_events WHERE run_id = ${first.runId} ORDER BY seq
         `
         const forkRun = yield* sql<{ readonly status: string; readonly state_json: string }>`
           SELECT status, state_json FROM flows_runs WHERE run_id = ${first.runId}
         `
         const forkAttempts = yield* sql<{ readonly step_key_digest: string }>`
-          SELECT step_key_digest FROM flows_attempts WHERE run_id = ${first.runId}
+          SELECT step_key_digest FROM flows_attempts WHERE run_id = ${first.runId} ORDER BY step_key_digest
         `
-        return { first, second, forkEvents, forkRun, forkAttempts }
+        const parentAttempts = yield* sql<{ readonly step_key_digest: string }>`
+          SELECT step_key_digest FROM flows_attempts WHERE run_id = 'parent' ORDER BY step_key_digest
+        `
+        return { first, second, forkEvents, forkRun, forkAttempts, parentAttempts }
       })
     )
 
     expect(result.first.runId).toBe("parent:fork:1:1")
     expect(result.second.runId).toBe("parent:fork:1:2")
+    expect(result.first.warnings).toEqual([])
     expect(result.first.edge).toEqual({
       parentRunId: "parent",
       parentSeq: 1,
@@ -506,15 +577,26 @@ describe("SqlTimeTravelStore.createFork", () => {
       kind: "fork",
       attached: false
     })
-    expect(result.forkEvents.map((row) => row.seq)).toEqual([0, 1])
+    // The copied prefix, then the fork-created marker directly above it.
+    expect(result.forkEvents.map((row) => row.seq)).toEqual([0, 1, 2])
     expect(result.forkEvents[0]!.event_id).toBe("fork:parent:fork:1:1:e0")
+    expect(result.forkEvents[2]!.event_type).toBe(Frame.forkCreatedEventType)
+    expect(JSON.parse(result.forkEvents[2]!.payload_json)).toEqual({
+      parentRunId: "parent",
+      forkJournalOffset: 1,
+      childRunId: "parent:fork:1:1"
+    })
     expect(result.forkRun[0]!.status).toBe("pending")
+    // The state AT the frame, not the parent's current state.
     expect(JSON.parse(result.forkRun[0]!.state_json)).toEqual({
       version: 1,
       flowName: "Demo",
-      payload: { seed: 1 }
+      payload: { seed: "at-frame" }
     })
+    // Filtered to the frame: `later` started after it and is not inherited,
+    // while the parent keeps both.
     expect(result.forkAttempts).toEqual([{ step_key_digest: "digest" }])
+    expect(result.parentAttempts).toEqual([{ step_key_digest: "digest" }, { step_key_digest: "later" }])
   })
 
   it("surfaces a missing parent as a typed `not_found` failure", async () => {

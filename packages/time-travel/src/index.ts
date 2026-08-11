@@ -24,8 +24,11 @@
  *
  * What stays public beside it is what a caller injects or integrates with: the
  * frame address, the error, the store contract and its two implementations,
- * and `EffectBoundary` — the producer-side API engine code calls to journal an
- * effect so a rewind can assess it.
+ * `EffectBoundary` — the producer-side API engine code calls to journal an
+ * effect so a rewind can assess it — `CompensationHandlers`, the door a
+ * composition contributes its adapters' compensations through, and
+ * `Migrations`, the ladder rung for a composition that migrates the schema
+ * itself rather than letting the store create its own tables.
  *
  * @since 0.1.0
  */
@@ -71,3 +74,15 @@ export * as SqlTimeTravelStore from "./SqlTimeTravelStore.ts"
  * @since 0.1.0
  */
 export * as EffectBoundary from "./EffectBoundary.ts"
+
+/**
+ * @category services
+ * @since 0.1.0
+ */
+export * as CompensationHandlers from "./CompensationHandlers.ts"
+
+/**
+ * @category migrations
+ * @since 0.1.0
+ */
+export * as Migrations from "./Migrations.ts"

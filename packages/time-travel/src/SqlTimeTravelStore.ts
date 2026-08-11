@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
-import type { LineageEdge } from "./Frame.ts"
+import { forkCreatedEventType, type LineageEdge } from "./Frame.ts"
 import { error, TimeTravelError } from "./TimeTravelError.ts"
 import * as TimeTravelStore from "./TimeTravelStore.ts"
 
@@ -34,8 +34,18 @@ export const migrate: Effect.Effect<void, unknown, SqlClient.SqlClient> = Effect
     lineage_id TEXT NOT NULL CHECK (length(lineage_id) > 0),
     seq INTEGER NOT NULL CHECK (typeof(seq) = 'integer' AND seq >= 0 AND seq <= 9007199254740991),
     change_id TEXT NOT NULL CHECK (length(change_id) > 0),
+    plan_digest TEXT CHECK (plan_digest IS NULL OR length(plan_digest) > 0),
     PRIMARY KEY (run_id, lineage_id, seq)
   )`
+  // Idempotent widening for a database migrated before the plan digest joined
+  // the anchor. `ADD COLUMN` on a table that already has it is an error, not a
+  // no-op, and there is nothing to repair when it fails.
+  yield* sql`ALTER TABLE flows_time_travel_snapshots ADD COLUMN plan_digest TEXT`.pipe(Effect.ignore)
+  // The frame address is `(lineageId, seq)`, and every engine record carries
+  // its lineage in the open `meta` envelope. Indexing it out of `meta_json`
+  // keeps a lineage-filtered replay from degenerating into a full run scan.
+  yield* sql`CREATE INDEX IF NOT EXISTS flows_journal_events_lineage_idx
+    ON flows_journal_events (run_id, json_extract(meta_json, '$.lineageId'), seq)`
   yield* sql`CREATE TABLE IF NOT EXISTS flows_time_travel_edges (
     parent_run_id TEXT NOT NULL CHECK (length(parent_run_id) > 0),
     parent_seq INTEGER NOT NULL CHECK (
@@ -146,6 +156,34 @@ const descendantsFrom = (
   return { attached, detached, attachedRunIds }
 }
 
+/**
+ * The kind an engine child spawn is journaled under.
+ *
+ * `@smthrs/engine-store` writes a boundary-shaped record naming the child at
+ * the parent's spawn seq. Reading it here is the BRIDGE decision: rather than
+ * teach the engine to write `flows_time_travel_edges` (it must not depend on
+ * this package) or leave three parallel stores of the same tree, fork edges
+ * stay in `flows_time_travel_edges` and child edges are DERIVED from the
+ * parent's own journal, which is the only one of the three that carries the
+ * `parentSeq` a frame needs. `flows_runs.parent_run_id` and
+ * `flows_run_parents` keep their existing jobs — the fork chain walk and cycle
+ * detection — and stop being a third opinion about the lineage tree.
+ *
+ * @private
+ */
+const spawnEffectKind = "flows/engine-store/child-spawn"
+
+/** @private */
+const DecisionPayload = Schema.Struct({ state: Schema.Unknown })
+const decisionState = Schema.decodeUnknownOption(DecisionPayload)
+
+/** @private */
+const AttemptPayload = Schema.Struct({
+  stepKeyDigest: Schema.NonEmptyString,
+  attempt: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
+})
+const attemptRef = Schema.decodeUnknownOption(AttemptPayload)
+
 /** @since 0.1.0 @category constructors */
 export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter | SqlClient.SqlClient> = Effect.gen(
   function*() {
@@ -153,23 +191,145 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter |
     const writer = yield* DurableWriter
 
     yield* migrate.pipe(Effect.mapError(() => undefined), Effect.orDie)
+
+    /**
+     * Every lineage edge, forks and engine child spawns as ONE tree.
+     *
+     * `docs/specs/Concepts/Subflows.md` §129-131 asks for one lineage tree with
+     * an edge kind; this is that union, expressed where both sources can be
+     * read. Fork edges stay in `flows_time_travel_edges`; child edges are
+     * DERIVED from the parent's own journal, which is the only one of the three
+     * stores of this tree that carries the `parentSeq` a frame needs.
+     */
+    const allEdges = sql<EdgeRow>`
+      SELECT parent_run_id, parent_seq, child_run_id, kind, attached
+      FROM flows_time_travel_edges
+      UNION ALL
+      SELECT run_id AS parent_run_id,
+             seq AS parent_seq,
+             json_extract(payload_json, '$.effect.output.childRunId') AS child_run_id,
+             'child' AS kind,
+             CASE WHEN json_extract(payload_json, '$.effect.output.attached') = 1 THEN 1 ELSE 0 END AS attached
+      FROM flows_journal_events
+      WHERE event_type = 'flows.time-travel.effect-boundary'
+        AND json_extract(payload_json, '$.effect.kind') = ${spawnEffectKind}
+        AND json_extract(payload_json, '$.effect.status') = 'succeeded'
+        AND json_extract(payload_json, '$.effect.output.childRunId') IS NOT NULL
+    `.pipe(Effect.flatMap(decodeEdges), Effect.mapError(mapError))
+
+    /**
+     * Reads one event type's lineage-filtered prefix.
+     *
+     * An entry with no `meta.lineageId` is kept: records written before lineage
+     * was minted, and records from producers outside the engine, are still
+     * evidence of this run, and dropping them would silently shorten the fold.
+     */
+    const prefix = (
+      runId: string,
+      frame: TimeTravelStore.Snapshot["frame"],
+      eventType: string
+    ) =>
+      sql<{ readonly seq: number; readonly payload_json: string }>`
+        SELECT seq, payload_json FROM flows_journal_events
+        WHERE run_id = ${runId}
+          AND seq <= ${frame.seq}
+          AND event_type = ${eventType}
+          AND (
+            json_extract(meta_json, '$.lineageId') IS NULL
+            OR json_extract(meta_json, '$.lineageId') = ${frame.lineageId}
+          )
+        ORDER BY seq ASC
+      `.pipe(Effect.mapError(mapError))
+
+    /**
+     * Run state at a frame, rebuilt by folding the run-decision records —
+     * Temporal's `mutable_state_rebuilder.ApplyEvents`, scoped to the one
+     * decision channel that carries state. The base comes from the `created`
+     * decision (the only record naming `flowName` and `payload`) and each later
+     * transition replaces it wholesale, so the fold is "last state at or before
+     * the frame".
+     */
+    const stateAtFrame = (
+      runId: string,
+      frame: TimeTravelStore.Snapshot["frame"]
+    ): Effect.Effect<string | undefined, TimeTravelError> =>
+      prefix(runId, frame, "flows.engine.run-decision").pipe(
+        Effect.flatMap((rows) =>
+          Effect.gen(function*() {
+            let state: unknown = undefined
+            for (const row of rows) {
+              const payload = yield* decodeJson(row.payload_json)
+              const decoded = decisionState(payload)
+              if (decoded._tag === "Some") state = decoded.value.state
+            }
+            return state === undefined ? undefined : yield* encodeJson(state)
+          })
+        )
+      )
+
+    /**
+     * The attempts admitted at a frame. `attempt-started` adds one and nothing
+     * removes it: a failed attempt is still part of the history the child
+     * inherits, and the fork replays its recorded failure rather than re-running
+     * the body.
+     */
+    const attemptsAtFrame = (
+      runId: string,
+      frame: TimeTravelStore.Snapshot["frame"]
+    ): Effect.Effect<ReadonlyArray<TimeTravelStore.AttemptRef>, TimeTravelError> =>
+      prefix(runId, frame, "flows.engine.attempt-started").pipe(
+        Effect.flatMap((rows) =>
+          Effect.gen(function*() {
+            const refs = new Map<string, TimeTravelStore.AttemptRef>()
+            for (const row of rows) {
+              const payload = yield* decodeJson(row.payload_json)
+              const decoded = attemptRef(payload)
+              if (decoded._tag === "None") continue
+              refs.set(`${decoded.value.stepKeyDigest}:${decoded.value.attempt}`, decoded.value)
+            }
+            return [...refs.values()]
+          })
+        )
+      )
+
     return TimeTravelStore.make({
       snapshotAt: Effect.fn("TimeTravelStore.snapshotAt")((runId, frame) =>
         sql<
-          { readonly change_id: string; readonly seq: number }
-        >`SELECT change_id, seq FROM flows_time_travel_snapshots WHERE run_id = ${runId} AND lineage_id = ${frame.lineageId} AND seq <= ${frame.seq} ORDER BY seq DESC LIMIT 1`
+          { readonly change_id: string; readonly seq: number; readonly plan_digest: string | null }
+        >`SELECT change_id, seq, plan_digest FROM flows_time_travel_snapshots WHERE run_id = ${runId} AND lineage_id = ${frame.lineageId} AND seq <= ${frame.seq} ORDER BY seq DESC LIMIT 1`
           .pipe(
             Effect.map((rows) =>
-              rows[0] === undefined
-                ? undefined
-                : { runId, frame: { lineageId: frame.lineageId, seq: rows[0].seq }, changeId: rows[0].change_id }
+              rows[0] === undefined ? undefined : {
+                runId,
+                frame: { lineageId: frame.lineageId, seq: rows[0].seq },
+                changeId: rows[0].change_id,
+                ...(rows[0].plan_digest === null ? {} : { planDigest: rows[0].plan_digest })
+              }
             ),
             Effect.mapError(mapError)
           )
       ),
+      recordSnapshot: Effect.fn("TimeTravelStore.recordSnapshot")((snapshot) =>
+        writer.write(
+          sql`
+            INSERT INTO flows_time_travel_snapshots (run_id, lineage_id, seq, change_id, plan_digest)
+            VALUES (
+              ${snapshot.runId},
+              ${snapshot.frame.lineageId},
+              ${snapshot.frame.seq},
+              ${snapshot.changeId},
+              ${snapshot.planDigest ?? null}
+            )
+            ON CONFLICT (run_id, lineage_id, seq) DO UPDATE SET
+              change_id = excluded.change_id,
+              plan_digest = excluded.plan_digest
+          `
+        ).pipe(Effect.asVoid, Effect.mapError(mapError))
+      ),
+      stateAt: Effect.fn("TimeTravelStore.stateAt")(stateAtFrame),
+      attemptsAt: Effect.fn("TimeTravelStore.attemptsAt")(attemptsAtFrame),
       descendants: Effect.fn("TimeTravelStore.descendants")((runId, frame) =>
-        sql<EdgeRow>`SELECT parent_run_id, parent_seq, child_run_id, kind, attached FROM flows_time_travel_edges`.pipe(
-          Effect.flatMap(decodeEdges),
+        allEdges.pipe(
           Effect.map((rows) => {
             const descendants = descendantsFrom(rows, runId, frame)
             return { attached: descendants.attached, detached: descendants.detached }
@@ -252,10 +412,7 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter |
       archiveAndTruncate: Effect.fn("TimeTravelStore.archiveAndTruncate")((runId, frame, receipts) =>
         writer.write(
           Effect.gen(function*() {
-            const rows = yield* sql<EdgeRow>`
-            SELECT parent_run_id, parent_seq, child_run_id, kind, attached
-            FROM flows_time_travel_edges
-          `.pipe(Effect.flatMap(decodeEdges))
+            const rows = yield* allEdges
             const descendants = descendantsFrom(rows, runId, frame)
             const nowMs = yield* Clock.currentTimeMillis
             const parentCount = yield* sql<{ readonly count: number }>`
@@ -347,10 +504,26 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter |
           `
             const runId = `${parentRunId}:fork:${frame.seq}:${Number(existing[0]!.count) + 1}`
             const nowMs = yield* Clock.currentTimeMillis
+            /**
+             * THE CHILD'S STATE IS THE STATE **AT** THE FRAME.
+             *
+             * Copying `flows_runs.state_json` copied the parent's state NOW —
+             * a fork at seq 3 of a run that later reached seq 40 started from
+             * seq 40's payload and parent pointer. `stateAt` folds the
+             * run-decision records up to the frame instead, exactly the
+             * derive-don't-copy rule `ndc/state_rebuilder.go` follows. The
+             * run row stays the fallback for a journal written before
+             * decisions carried state; both then pass through
+             * `restartableStateJson`, because a fork must not inherit the
+             * parent's recorded result or cancellation.
+             */
+            const derived = yield* stateAtFrame(parentRunId, frame)
+            // The liveness walk above already proved the parent row exists, so
+            // the fallback read cannot come back empty.
             const parentState = yield* sql<{ readonly state_json: string }>`
             SELECT state_json FROM flows_runs WHERE run_id = ${parentRunId}
           `
-            const stateJson = yield* restartableStateJson(parentState[0]!.state_json)
+            const stateJson = yield* restartableStateJson(derived ?? parentState[0]!.state_json)
             yield* sql`
             INSERT INTO flows_runs (run_id, status, created_at_ms, parent_run_id, state_json)
             VALUES (${runId}, 'pending', ${nowMs}, ${parentRunId}, ${stateJson})
@@ -365,39 +538,58 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter |
             FROM flows_journal_events
             WHERE run_id = ${parentRunId} AND seq <= ${frame.seq}
           `
-            yield* sql`
-            INSERT INTO flows_attempts (
-              run_id,
-              step_key_digest,
-              attempt,
-              state,
-              started_at_ms,
-              finished_at_ms,
-              heartbeat_at_ms,
-              checkpoint_json,
-              error_json,
-              outcome_json,
-              meta_json
-            )
-            SELECT
-              ${runId},
-              step_key_digest,
-              attempt,
-              state,
-              started_at_ms,
-              finished_at_ms,
-              heartbeat_at_ms,
-              checkpoint_json,
-              error_json,
-              outcome_json,
-              meta_json
-            FROM flows_attempts
-            WHERE run_id = ${parentRunId}
-          `
+            /**
+             * THE ATTEMPTS ARE FILTERED TO THE FRAME.
+             *
+             * The copy had no predicate at all: a fork at seq 3 inherited every
+             * attempt row the parent ever wrote, including the ones its own
+             * copied journal has no record of, so the child replayed results
+             * from a future it was forked away from. The `attempt-started`
+             * fold names exactly the rows the copied prefix can explain.
+             */
+            const attempts = yield* attemptsAtFrame(parentRunId, frame)
+            for (const ref of attempts) {
+              yield* sql`
+              INSERT INTO flows_attempts (
+                run_id, step_key_digest, attempt, state, started_at_ms, finished_at_ms,
+                heartbeat_at_ms, checkpoint_json, error_json, outcome_json, meta_json
+              )
+              SELECT
+                ${runId}, step_key_digest, attempt, state, started_at_ms, finished_at_ms,
+                heartbeat_at_ms, checkpoint_json, error_json, outcome_json, meta_json
+              FROM flows_attempts
+              WHERE run_id = ${parentRunId}
+                AND step_key_digest = ${ref.stepKeyDigest}
+                AND attempt = ${ref.attempt}
+            `
+            }
             yield* sql`
             INSERT INTO flows_time_travel_edges
               (parent_run_id, parent_seq, child_run_id, kind, attached)
             VALUES (${parentRunId}, ${frame.seq}, ${runId}, 'fork', 0)
+          `
+            /**
+             * The fork-created marker `docs/specs/Concepts/Forensics.md` §68
+             * asks for: written on the CHILD, above the copied prefix, naming
+             * the parent and the offset it was cut at. A cross-fork timeline
+             * can now start from any child and find its origin without
+             * consulting the edge table.
+             */
+            yield* sql`
+            INSERT INTO flows_journal_events
+              (run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
+               event_type, payload_json, meta_json)
+            VALUES (
+              ${runId},
+              ${frame.seq + 1},
+              ${`fork:${runId}:created`},
+              ${"flows/time-travel/fork"},
+              0,
+              ${nowMs},
+              ${forkCreatedEventType},
+              ${JSON.stringify({ parentRunId, forkJournalOffset: frame.seq, childRunId: runId })},
+              ${JSON.stringify({ lineageId: frame.lineageId })}
+            )
           `
             return {
               runId,
@@ -407,7 +599,8 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter |
                 childRunId: runId,
                 kind: "fork" as const,
                 attached: false
-              }
+              },
+              warnings: []
             }
           }).pipe(Effect.mapError(mapError))
         ).pipe(Effect.mapError(mapError))

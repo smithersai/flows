@@ -1,15 +1,32 @@
 import * as Jj from "@smthrs/jj"
+import * as Journal from "@smthrs/journal/Journal"
 import * as RunStore from "@smthrs/run-store/RunStore"
+import * as CacheStore from "@smthrs/step-cache/CacheStore"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import { describe, expect, it } from "vitest"
 import * as Frame from "../src/Frame.ts"
 import * as TimeTravel from "../src/index.ts"
+import * as EffectHandlerRegistry from "../src/internal/EffectHandlerRegistry.ts"
 import * as Fork from "../src/internal/Fork.ts"
 import * as MemoryTimeTravelStore from "../src/MemoryTimeTravelStore.ts"
 import { error, TimeTravelError, TimeTravelErrorCode } from "../src/TimeTravelError.ts"
 import { TimeTravelStore } from "../src/TimeTravelStore.ts"
+
+/**
+ * A fork now assesses the boundary before it copies anything, so it reads the
+ * journal suffix and consults the cache and the handler registry. An empty
+ * suffix is the "nothing crossed" case these cases are about.
+ */
+const forkDeps = Layer.mergeAll(
+  Layer.succeed(
+    Journal.Journal,
+    Journal.makeNoop({ entries: () => Effect.succeed({ entries: [], hasMore: false }) })
+  ),
+  Layer.succeed(CacheStore.CacheStore, CacheStore.makeNoop()),
+  EffectHandlerRegistry.layerNoop
+)
 
 const frame = { lineageId: "parent/root", seq: 0 } as const
 const owner = { hostId: "host", pid: 1, nonce: "owner" } as const
@@ -45,7 +62,8 @@ const runFork = (
       }).pipe(
         Effect.provide(Layer.succeed(RunStore.RunStore, runs)),
         Effect.provide(Layer.succeed(TimeTravelStore, store)),
-        Effect.provide(Layer.succeed(Jj.Jj, jj))
+        Effect.provide(Layer.succeed(Jj.Jj, jj)),
+        Effect.provide(forkDeps)
       )
     )
   )
@@ -56,14 +74,17 @@ describe("public time-travel modules", () => {
     // effect-handler registry are machinery under `src/internal/` — this list
     // growing back is the regression.
     expect(Object.keys(TimeTravel).sort()).toEqual([
+      // The handler DOOR is public; the registry behind it is not.
+      "CompensationHandlers",
       "EffectBoundary",
       "Frame",
+      "Migrations",
       "MemoryTimeTravelStore",
       "SqlTimeTravelStore",
       "TimeTravel",
       "TimeTravelError",
       "TimeTravelStore"
-    ])
+    ].sort())
   })
 
   it("exposes the service key as a yieldable tag carrying its own layer", () => {
@@ -150,7 +171,8 @@ describe("Fork.fork", () => {
           }).pipe(
             Effect.provide(Layer.succeed(RunStore.RunStore, RunStore.makeNoop({ get: () => Effect.succeed(row()) }))),
             Effect.provide(Layer.succeed(TimeTravelStore, MemoryTimeTravelStore.make())),
-            Effect.provide(Layer.succeed(Jj.Jj, Jj.makeNoop({})))
+            Effect.provide(Layer.succeed(Jj.Jj, Jj.makeNoop({}))),
+            Effect.provide(forkDeps)
           )
         )
       )
@@ -166,7 +188,8 @@ describe("Fork.fork", () => {
           }).pipe(
             Effect.provide(Layer.succeed(RunStore.RunStore, RunStore.makeNoop())),
             Effect.provide(Layer.succeed(TimeTravelStore, MemoryTimeTravelStore.make())),
-            Effect.provide(Layer.succeed(Jj.Jj, Jj.makeNoop({})))
+            Effect.provide(Layer.succeed(Jj.Jj, Jj.makeNoop({}))),
+            Effect.provide(forkDeps)
           )
         )
       )
@@ -203,7 +226,8 @@ describe("Fork.fork", () => {
                   Jj.Jj,
                   Jj.makeNoop({ workspaceAdd: () => Effect.sync(() => void (added = true)) })
                 )
-              )
+              ),
+              Effect.provide(forkDeps)
             )
           )
         )

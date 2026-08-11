@@ -11,6 +11,11 @@ export interface JournalRecord {
   readonly eventId: string
   readonly lineageId: string
   readonly payload: unknown
+  /**
+   * The engine record type this stands in for, when a test drives the derived
+   * reads. Absent means "some other record", which the folds skip.
+   */
+  readonly eventType?: string | undefined
 }
 /** @since 0.1.0 @category models */
 export interface MemoryState {
@@ -94,6 +99,20 @@ export const make = (options: Options = {}): TimeTravelStore.Service & { readonl
     snapshots: [...snapshots],
     liveRuns: new Set(liveRuns)
   })
+  /** The lineage-filtered prefix of one record type, mirroring the SQL store. */
+  const framed = (
+    runId: string,
+    frame: Frame,
+    eventType: string
+  ): ReadonlyArray<JournalRecord> =>
+    records
+      .filter((record) =>
+        record.runId === runId &&
+        record.seq <= frame.seq &&
+        record.eventType === eventType &&
+        record.lineageId === frame.lineageId
+      )
+      .sort((left, right) => left.seq - right.seq)
   const atomic = <A>(body: () => A): Effect.Effect<A, TimeTravelError> =>
     Effect.try({
       try: () => {
@@ -126,6 +145,47 @@ export const make = (options: Options = {}): TimeTravelStore.Service & { readonl
           snapshot.runId === runId && snapshot.frame.lineageId === frame.lineageId && snapshot.frame.seq <= frame.seq
         ).sort((a, b) => b.frame.seq - a.frame.seq)[0]
       )
+    ),
+    recordSnapshot: Effect.fn("TimeTravelStore.recordSnapshot")((snapshot) =>
+      atomic(() => {
+        fail("recordSnapshot")
+        snapshots = [
+          ...snapshots.filter((existing) =>
+            !(
+              existing.runId === snapshot.runId &&
+              existing.frame.lineageId === snapshot.frame.lineageId &&
+              existing.frame.seq === snapshot.frame.seq
+            )
+          ),
+          snapshot
+        ]
+      })
+    ),
+    stateAt: Effect.fn("TimeTravelStore.stateAt")((runId, frame) =>
+      Effect.sync(() => {
+        let state: unknown = undefined
+        for (const record of framed(runId, frame, "flows.engine.run-decision")) {
+          const payload = record.payload as { readonly state?: unknown } | null
+          if (payload !== null && payload !== undefined && payload.state !== undefined) state = payload.state
+        }
+        return state === undefined ? undefined : JSON.stringify(state)
+      })
+    ),
+    attemptsAt: Effect.fn("TimeTravelStore.attemptsAt")((runId, frame) =>
+      Effect.sync(() => {
+        const refs = new Map<string, TimeTravelStore.AttemptRef>()
+        for (const record of framed(runId, frame, "flows.engine.attempt-started")) {
+          const payload = record.payload as
+            | { readonly stepKeyDigest?: unknown; readonly attempt?: unknown }
+            | null
+          if (typeof payload?.stepKeyDigest !== "string" || typeof payload.attempt !== "number") continue
+          refs.set(`${payload.stepKeyDigest}:${payload.attempt}`, {
+            stepKeyDigest: payload.stepKeyDigest,
+            attempt: payload.attempt
+          })
+        }
+        return [...refs.values()]
+      })
     ),
     descendants: Effect.fn("TimeTravelStore.descendants")((runId, frame) =>
       Effect.sync(() => {
@@ -199,7 +259,7 @@ export const make = (options: Options = {}): TimeTravelStore.Service & { readonl
         }
         edges.push(edge)
         fail("createFork:commit")
-        return { runId, edge }
+        return { runId, edge, warnings: [] }
       })
     ),
     recordReceipt: Effect.fn("TimeTravelStore.recordReceipt")((receipt) =>

@@ -58,6 +58,13 @@ export const EffectRecord = Schema.Struct({
   cacheKey: Schema.optionalKey(Schema.NonEmptyString),
   changeId: Schema.optionalKey(Schema.NonEmptyString),
   idempotencyKey: Schema.optionalKey(Schema.NonEmptyString),
+  /**
+   * The stable compensation descriptor the adapter that performed this effect
+   * owns. `docs/specs/Concepts/Time Travel Compensation.md` puts it in the
+   * entry so a rewind's handler preflight resolves against recorded evidence
+   * rather than inferring a compensation from the effect kind alone.
+   */
+  compensation: Schema.optionalKey(Schema.NonEmptyString),
   residue: Schema.optionalKey(Schema.String),
   durableBoundary: Schema.Boolean,
   providerStream: Schema.Boolean,
@@ -85,6 +92,13 @@ export const Description = Schema.Struct({
   cacheKey: Schema.optionalKey(Schema.NonEmptyString),
   changeId: Schema.optionalKey(Schema.NonEmptyString),
   idempotencyKey: Schema.optionalKey(Schema.NonEmptyString),
+  /**
+   * The stable compensation descriptor the adapter that performed this effect
+   * owns. `docs/specs/Concepts/Time Travel Compensation.md` puts it in the
+   * entry so a rewind's handler preflight resolves against recorded evidence
+   * rather than inferring a compensation from the effect kind alone.
+   */
+  compensation: Schema.optionalKey(Schema.NonEmptyString),
   residue: Schema.optionalKey(Schema.String),
   durableBoundary: Schema.optionalKey(Schema.Boolean),
   providerStream: Schema.optionalKey(Schema.Boolean),
@@ -130,6 +144,7 @@ const record = (
   ...(description.changeId === undefined ? {} : { changeId: description.changeId }),
   ...(description.idempotencyKey === undefined ? {} : { idempotencyKey: description.idempotencyKey }),
   ...(description.residue === undefined ? {} : { residue: description.residue }),
+  ...(description.compensation === undefined ? {} : { compensation: description.compensation }),
   durableBoundary: description.durableBoundary ?? true,
   providerStream: description.providerStream ?? false,
   ...(description.attempt === undefined ? {} : { attempt: description.attempt }),
@@ -204,6 +219,13 @@ const BoundaryRecord = Schema.Struct({
   cacheKey: Schema.optionalKey(Schema.NonEmptyString),
   changeId: Schema.optionalKey(Schema.NonEmptyString),
   idempotencyKey: Schema.optionalKey(Schema.NonEmptyString),
+  /**
+   * The stable compensation descriptor the adapter that performed this effect
+   * owns. `docs/specs/Concepts/Time Travel Compensation.md` puts it in the
+   * entry so a rewind's handler preflight resolves against recorded evidence
+   * rather than inferring a compensation from the effect kind alone.
+   */
+  compensation: Schema.optionalKey(Schema.NonEmptyString),
   residue: Schema.optionalKey(Schema.String),
   durableBoundary: Schema.optionalKey(Schema.Boolean),
   providerStream: Schema.optionalKey(Schema.Boolean),

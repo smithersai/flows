@@ -27,15 +27,18 @@ import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
 import * as Random from "effect/Random"
 import * as Schema from "effect/Schema"
 import * as Scope from "effect/Scope"
+import { CompensationHandlers } from "./CompensationHandlers.ts"
 import { Frame } from "./Frame.ts"
 import * as EffectHandlerRegistry from "./internal/EffectHandlerRegistry.ts"
 import * as ForkOperation from "./internal/Fork.ts"
 import * as Recovery from "./internal/Recovery.ts"
 import * as Replay from "./internal/Replay.ts"
 import * as Rewind from "./internal/Rewind.ts"
+import * as SnapshotProjector from "./internal/SnapshotProjector.ts"
 import type { TimeTravelError } from "./TimeTravelError.ts"
 import type { Fork as ForkRecord, TimeTravelStore } from "./TimeTravelStore.ts"
 
@@ -183,7 +186,22 @@ export const make: Effect.Effect<Service, TimeTravelError, Requirements | Scope.
   const scope = yield* Effect.scope
   const services = yield* Effect.context<Requirements>()
   const owner = yield* mintOwner
-  const registry = EffectHandlerRegistry.makeNoop()
+  // The contribution door (`.smithers/tickets/time-travel-compensation-handlers.md`):
+  // handlers come from the composition that owns the effect boundary, and the
+  // registry itself stays internal. Absent service means no handlers, which is
+  // the pre-existing behaviour — every crossed irreversible effect blocks.
+  const contributed = yield* Effect.serviceOption(CompensationHandlers)
+  const registry = yield* EffectHandlerRegistry.make(
+    Option.getOrElse(contributed, () => []).map((handler) => ({
+      kind: handler.kind,
+      tier: handler.tier,
+      requiresIdempotencyKey: handler.requiresIdempotencyKey ?? false,
+      residue: handler.residue,
+      ...(handler.assess === undefined ? {} : { assess: handler.assess }),
+      revert: handler.revert,
+      rollback: handler.rollback
+    }))
+  )
 
   const provided = <A>(
     effect: Effect.Effect<A, TimeTravelError, Requirements | EffectHandlerRegistry.EffectHandlerRegistry | Scope.Scope>
@@ -198,6 +216,24 @@ export const make: Effect.Effect<Service, TimeTravelError, Requirements | Scope.
   // finished or rolled back before this service accepts new work.
   yield* provided(Recovery.recover({ owner }))
 
+  /**
+   * Folds the run's journal into its frame anchors before a verb reads them.
+   *
+   * BEST EFFORT on purpose. The anchor table is a cache of facts the journal
+   * already holds, so a journal that cannot project — a composition wired
+   * without the projection channel, a partial test double — must not turn a
+   * fork or a rewind into a failure. What it does instead is leave the anchors
+   * as they were, and the verbs already say what that costs: a fork with no
+   * anchor at the frame reports a warning naming the workspace it could not
+   * restore, and a rewind restores no pointer rather than a wrong one.
+   */
+  const refreshAnchors = (runId: string) =>
+    SnapshotProjector.project(runId).pipe(
+      Effect.catchCause((cause) =>
+        Effect.logWarning(`time-travel: could not refresh frame anchors for ${runId}`, cause)
+      )
+    )
+
   return {
     inspect: (position, projection) =>
       provided(
@@ -205,22 +241,25 @@ export const make: Effect.Effect<Service, TimeTravelError, Requirements | Scope.
       ),
     fork: (position, options) =>
       provided(
-        ForkOperation.fork({
+        // The anchors a fork restores from are a projection of the engine's own
+        // records, folded on demand: an ordinary engine run writes journal
+        // rows, never this package's tables.
+        refreshAnchors(position.runId).pipe(Effect.andThen(ForkOperation.fork({
           parentRunId: position.runId,
           frame: position.frame,
           workspaceName: workspaceSlug(position),
           workspacePath: `${options?.workspaceRoot ?? workspaceRoot}/${workspaceSlug(position)}`
-        })
+        })))
       ),
     rewind: (position, options) =>
       provided(
-        Rewind.rewind({
+        refreshAnchors(position.runId).pipe(Effect.andThen(Rewind.rewind({
           runId: position.runId,
           frame: position.frame,
           owner,
           detachedChildPolicy: options?.detachedChildren ?? "block",
           ...(options?.pageSize === undefined ? {} : { pageSize: options.pageSize })
-        })
+        })))
       )
   }
 })
