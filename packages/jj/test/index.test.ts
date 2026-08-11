@@ -21,7 +21,8 @@ describe("@smthrs/jj barrel", () => {
 
   /**
    * The tag key is digested into step keys and the error `_tag` round-trips
-   * through the journal, so moving these modules out of `@smthrs/host` must not
+   * through the journal, so moving these modules out of the dissolved
+   * `@smthrs/host` must not
    * rename either.
    */
   it("keeps the `flows/host/…` identity strings the step-key digest depends on", () => {

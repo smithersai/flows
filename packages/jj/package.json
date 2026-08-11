@@ -34,12 +34,14 @@
   "exports": {
     "./package.json": "./package.json",
     ".": "./src/index.ts",
+    "./wasm/flows_jj.wasm": "./wasm/flows_jj.wasm",
     "./*": "./src/*.ts",
     "./internal/*": null,
     "./*/index": null
   },
   "files": [
     "src/**/*.ts",
+    "wasm/*.wasm",
     "dist/**/*.js",
     "dist/**/*.js.map",
     "dist/**/*.d.ts",
@@ -59,6 +61,7 @@
         "import": "./dist/esm/index.js",
         "require": "./dist/cjs/index.js"
       },
+      "./wasm/flows_jj.wasm": "./wasm/flows_jj.wasm",
       "./*": {
         "types": "./dist/esm/*.d.ts",
         "import": "./dist/esm/*.js",
@@ -72,6 +75,7 @@
     "lint": "eslint src --max-warnings=0 && dprint check",
     "format": "dprint fmt",
     "build": "node scripts/build.mjs",
+    "build:wasm": "node ../../crates/flows-jj/build-wasm.mjs",
     "check": "tsc -b tsconfig.json && tsc -p tsconfig.test.json --noEmit",
     "circular": "node scripts/circular.mjs",
     "test": "vitest",

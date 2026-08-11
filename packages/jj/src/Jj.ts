@@ -9,7 +9,7 @@
  *
  * The error lives here rather than in a shared host error module so that this
  * package depends on nothing but `effect`: a consumer that only snapshots a
- * working copy does not pull in a shell, a pty, or an HTTP transport.
+ * working copy does not pull in a process spawner or an HTTP transport.
  *
  * The tag key and the error `_tag` are `flows/host/…` and are FROZEN. They are
  * durable identity — step keys digest the resolved service set, and `JjError`
