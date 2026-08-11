@@ -401,7 +401,14 @@ export const make = (deps: Dependencies) => {
           // protocol lives in `CachePublication`, which is a no-op when no
           // shared tier is configured. It runs OUTSIDE the write transaction
           // below, like every other host call.
-          yield* CachePublication.publishArtifacts(options.meta.boundary)
+          //
+          // A refusal withholds the SHARED entry, never the local row and never
+          // the run: this point is reached after `attempts.finish`, so the work
+          // is already done and durably recorded, and failing here would throw
+          // a real result away because an optional accelerator was unreachable.
+          // It is journalled below instead — the same "visible, not silent"
+          // treatment an unverified read set gets (issue #106).
+          let unshareable = yield* CachePublication.publishArtifacts(options.meta.boundary)
           // The producer identity folds a digest of the recorded content
           // (issue #129): a constant per-key identity made a post-eviction
           // re-record collapse into a `Duplicate` carrying the EVICTED
@@ -449,6 +456,41 @@ export const make = (deps: Dependencies) => {
               return { entry, outcome }
             })
           )
+          // ENTRY LAST, AND OUTSIDE THE TRANSACTION. The local row and its
+          // provenance record are now durable together; only here does the
+          // entry become observable to other machines, which is the second half
+          // of the REAPI ordering constraint. It is deliberately not inside the
+          // transaction above: `CacheSync` speaks HTTP, and nothing that is not
+          // storage work may be held across a `DurableWriter` write — a stalled
+          // shared cache would block every other writer and roll back a row
+          // that has nothing to do with it. A `Conflict` skips publication for
+          // the reason the local tier reported it: this machine does not agree
+          // with itself about the key yet.
+          if (unshareable === undefined && recording.outcome._tag !== "Conflict") {
+            unshareable = yield* CachePublication.publishEntry(recording.entry)
+          }
+          if (unshareable !== undefined) {
+            // The refusal is journalled so a missing shared entry is
+            // explainable, never inferred from its absence. The identity folds
+            // a digest of the reason for the same reason the `recorded` record
+            // above folds one of its content (issue #129): a convergence
+            // re-record hitting the identical refusal is an exact producer
+            // retry the journal collapses into a `Duplicate`, while a
+            // *different* refusal is a genuinely new observation that journals
+            // fresh — and neither can ever be the same identity carrying
+            // different content, which is what an idempotency conflict is.
+            const reason = yield* Schema.decodeUnknownEffect(Sha256)(
+              `${unshareable.stage}:${unshareable.message}`
+            ).pipe(Effect.orDie)
+            yield* emitLifecycle(
+              JournalRecords.cacheProvenance(cacheSource(`unpublished:${reason}`), {
+                keyDigest,
+                action: "unpublished",
+                stage: unshareable.stage,
+                message: unshareable.message
+              })
+            )
+          }
           if (recording.outcome._tag === "Conflict") {
             const conflicting = yield* cache.get(keyDigest)
             const receiverOption = yield* Effect.serviceOption(Inconsistency.Inconsistency)

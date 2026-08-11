@@ -7,13 +7,16 @@
  *   is uploaded LAST, after every blob it references, because "action results
  *   may fail to validate server-side if they are accessed before all blobs they
  *   refer to are present". A publication that cannot make the artifacts durable
- *   must not record the entry.
+ *   must not publish the entry — and must not fail the run over it either: the
+ *   result is already durable on this host, and a shared cache is an
+ *   accelerator, so the refusal is journalled and the local row stands.
  * - **Lazy download.** A shared row is routinely recorded on a machine whose
  *   artifacts this one has never seen, so "the blob is not here" is the normal
  *   first answer. The dispatch fetches, retries the replay ONCE, and otherwise
  *   falls through to a real execution rather than looping.
  */
 import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
+import { Journal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
 import { type Ownership, RunStore } from "@smthrs/run-store"
 import { CacheStore } from "@smthrs/step-cache"
@@ -22,6 +25,7 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as ArtifactSync from "../src/ArtifactSync.ts"
+import * as CacheSync from "../src/CacheSync.ts"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
@@ -97,6 +101,21 @@ const dispatch = (runId: string, key: string, execute: () => Effect.Effect<unkno
     metadata: declared
   })
 
+/**
+ * The `unpublished` provenance records a run journalled — the explanation for
+ * a result that stayed local because a shared tier refused it.
+ */
+const unpublishedRecords = (runId: string) =>
+  Effect.gen(function*() {
+    const journal = yield* Journal.Journal
+    yield* journal.flush
+    const page = yield* journal.entries({ runId: runId as never, limit: 50 })
+    return page.entries
+      .filter((entry) => entry.eventType === "flows.engine.cache-provenance")
+      .map((entry) => entry.payload as { readonly action?: string; readonly stage?: string; readonly message?: string })
+      .filter((payload) => payload.action === "unpublished")
+  })
+
 describe("blobs before metadata", () => {
   it("publishes every referenced artifact before the entry is recorded", async () => {
     const key = "remote-cache/publish"
@@ -124,19 +143,73 @@ describe("blobs before metadata", () => {
     expect(outcome.published).toBe(true)
   })
 
-  it("records no entry when a referenced artifact cannot be published", async () => {
+  it("publishes the entry to the shared tier only after its artifacts, and only outside the transaction", async () => {
+    const key = "remote-cache/publish-entry"
+    const local = ArtifactStore.makeMemory()
+    const remote = ArtifactStore.makeMemory()
+    const order: Array<string> = []
+    const sharedRows = new Map<string, CacheStore.CacheEntry>()
+    const sharedCache: CacheStore.Service = {
+      get: (keyDigest) =>
+        Effect.sync(() => {
+          const row = sharedRows.get(keyDigest)
+          return row === undefined ? Option.none() : Option.some(row)
+        }),
+      put: (entry) =>
+        Effect.sync(() => {
+          order.push("entry")
+          sharedRows.set(entry.keyDigest, entry)
+          return { _tag: "Inserted" } as const
+        }),
+      evict: () => Effect.succeed(false)
+    }
+    await runPromise(
+      Effect.gen(function*() {
+        yield* local.put(payload)
+        yield* activate("publish-entry-run")
+        yield* dispatch("publish-entry-run", key, () => Effect.succeed("recorded")).pipe(
+          Effect.provide(boundaryLayer(() => Effect.void))
+        )
+      }).pipe(
+        Effect.provideService(
+          ArtifactSync.ArtifactSync,
+          ArtifactSync.make({
+            local,
+            remote: {
+              ...remote,
+              put: (bytes) => Effect.tap(remote.put(bytes), () => Effect.sync(() => order.push("blob")))
+            }
+          })
+        ),
+        Effect.provideService(CacheSync.CacheSync, CacheSync.make({ remote: sharedCache })),
+        Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)),
+        Effect.scoped
+      )
+    )
+    // Bazel's ordering, end to end: every blob lands before the action result.
+    expect(order).toEqual(["blob", "entry"])
+    expect(sharedRows.get(sha256(key))?.result).toBe("recorded")
+  })
+
+  it("withholds the shared entry — but not the local row, and not the run — when an artifact cannot be published", async () => {
     // The entry must never become observable while an artifact it references
-    // is missing: a sibling machine would get a hit it cannot materialize.
+    // is missing: a sibling machine would get a hit it cannot materialize. That
+    // is a reason to withhold the SHARED entry, never a reason to throw away a
+    // completed run's durable result because an optional accelerator is down.
     const key = "remote-cache/publish-refused"
+    const shared: Array<string> = []
     const outcome = await runPromise(
       Effect.gen(function*() {
         const cache = yield* CacheStore.CacheStore
         yield* activate("publish-refused-run")
-        const exit = yield* dispatch("publish-refused-run", key, () => Effect.succeed("recorded")).pipe(
-          Effect.provide(boundaryLayer(() => Effect.void)),
-          Effect.exit
+        const result = yield* dispatch("publish-refused-run", key, () => Effect.succeed("recorded")).pipe(
+          Effect.provide(boundaryLayer(() => Effect.void))
         )
-        return { exit, entry: yield* cache.get(sha256(key)) }
+        return {
+          result,
+          entry: yield* cache.get(sha256(key)),
+          unpublished: yield* unpublishedRecords("publish-refused-run")
+        }
       }).pipe(
         Effect.provideService(
           ArtifactSync.ArtifactSync,
@@ -144,12 +217,125 @@ describe("blobs before metadata", () => {
           // have recorded cannot be read back and publication refuses.
           ArtifactSync.make({ local: ArtifactStore.makeMemory(), remote: ArtifactStore.makeMemory() })
         ),
+        Effect.provideService(
+          CacheSync.CacheSync,
+          CacheSync.make({
+            remote: {
+              get: () => Effect.succeed(Option.none()),
+              put: (entry) => Effect.sync(() => (shared.push(entry.keyDigest), { _tag: "Inserted" } as const)),
+              evict: () => Effect.succeed(false)
+            }
+          })
+        ),
         Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)),
         Effect.scoped
       )
     )
-    expect(outcome.exit._tag).toBe("Failure")
-    expect(Option.isNone(outcome.entry)).toBe(true)
+    expect(outcome.result).toBe("recorded")
+    // Local row: recorded. Shared entry: withheld, because its blob is not
+    // durable in the shared tier.
+    expect(Option.isSome(outcome.entry)).toBe(true)
+    expect(shared).toEqual([])
+    // Visible, not silent: the missing shared entry is explainable from the
+    // journal rather than inferred from its absence.
+    expect(outcome.unpublished.map((record) => record.stage)).toEqual(["artifacts"])
+  })
+
+  it("journals a shared tier that refuses the entry itself, and still returns the result", async () => {
+    const key = "remote-cache/entry-refused"
+    const local = ArtifactStore.makeMemory()
+    const outcome = await runPromise(
+      Effect.gen(function*() {
+        const cache = yield* CacheStore.CacheStore
+        yield* local.put(payload)
+        yield* activate("entry-refused-run")
+        const result = yield* dispatch("entry-refused-run", key, () => Effect.succeed("recorded")).pipe(
+          Effect.provide(boundaryLayer(() => Effect.void))
+        )
+        return {
+          result,
+          entry: yield* cache.get(sha256(key)),
+          unpublished: yield* unpublishedRecords("entry-refused-run")
+        }
+      }).pipe(
+        Effect.provideService(
+          ArtifactSync.ArtifactSync,
+          ArtifactSync.make({ local, remote: ArtifactStore.makeMemory() })
+        ),
+        Effect.provideService(
+          CacheSync.CacheSync,
+          CacheSync.make({
+            remote: {
+              get: () => Effect.succeed(Option.none()),
+              put: () =>
+                Effect.fail(
+                  new CacheStore.CacheStoreError({ code: "persistence_failed", message: "the shared tier is down" })
+                ),
+              evict: () => Effect.succeed(false)
+            }
+          })
+        ),
+        Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)),
+        Effect.scoped
+      )
+    )
+    expect(outcome.result).toBe("recorded")
+    expect(Option.isSome(outcome.entry)).toBe(true)
+    expect(outcome.unpublished.map((record) => record.stage)).toEqual(["entry"])
+    expect(outcome.unpublished[0]!.message).toContain("the shared tier is down")
+  })
+})
+
+describe("the single-tier default", () => {
+  it("publishes nothing and journals nothing when no shared step-result tier is configured", async () => {
+    // A purely local composition must not pay for — or notice — any of this.
+    const refusal = await runPromise(
+      CacheSync.makeLocal().publishEntry({
+        keyDigest: "irrelevant",
+        result: null,
+        meta: null,
+        createdAtMs: 0,
+        recordedRunId: "run",
+        recordedEventSeq: 0
+      })
+    )
+    expect(Option.isNone(refusal)).toBe(true)
+  })
+
+  it("provides that default as a layer", async () => {
+    const service = await runPromise(
+      Effect.flatMap(CacheSync.CacheSync, (sync) => Effect.succeed(sync)).pipe(
+        Effect.provide(CacheSync.layerLocal)
+      )
+    )
+    expect(typeof service.publishEntry).toBe("function")
+  })
+
+  it("builds the shared publisher from an effect", async () => {
+    const rows: Array<string> = []
+    const published = await runPromise(
+      Effect.flatMap(CacheSync.CacheSync, (sync) =>
+        sync.publishEntry({
+          keyDigest: "layer-key",
+          result: null,
+          meta: null,
+          createdAtMs: 0,
+          recordedRunId: "run",
+          recordedEventSeq: 0
+        })).pipe(
+          Effect.provide(
+            CacheSync.layer(
+              Effect.succeed<CacheStore.Service>({
+                get: () => Effect.succeed(Option.none()),
+                put: (entry) => Effect.sync(() => (rows.push(entry.keyDigest), { _tag: "Inserted" } as const)),
+                evict: () => Effect.succeed(false)
+              })
+            )
+          )
+        )
+    )
+    expect(Option.isNone(published)).toBe(true)
+    expect(rows).toEqual(["layer-key"])
   })
 })
 

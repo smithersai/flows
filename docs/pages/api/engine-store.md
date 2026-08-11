@@ -67,12 +67,44 @@ Required services: `Journal`, `RunStore`, `AttemptStore`, `CacheStore`, `Durable
 | `FileBoundary`, `FileInput` | schemas + types from `@smthrs/flow/FileBoundary` | the declared filesystem boundary |
 | `Activity.BoundaryMode` | schema + type from `@smthrs/flow/Activity` | `hard` or `expected` enforcement |
 | `BoundaryEvidence`, `BoundaryDeviation`, `readSetMatches` | schemas + predicate | settle evidence |
+| `referencedDigests` | accessor | the digests evidence references rather than inlines |
 | `make` | constructor | from an implementation |
-| `makeFileSystem`, `FileSystemOptions`, `layer` | filesystem implementation | measures declared read sets, materializes declared outputs |
+| `makeFileSystem`, `FileSystemOptions`, `layer` | filesystem implementation | measures declared read sets, materializes declared outputs through the [`@smthrs/artifacts`](/api/artifacts) `ArtifactStore` |
 | `layerTest`, `TestOptions` | test layer | simplified descriptor for suites |
-| `UndeclaredWrite`, `UnsupportedBoundary`, `BoundaryCorruption` | classes | boundary failures |
+| `UndeclaredWrite`, `UnsupportedBoundary`, `BoundaryCorruption`, `MissingArtifact` | classes | boundary failures |
 
 `layer` cannot observe writes outside the declared sets, so its evidence is deliberately not admitted to the cross-run cache. Whole-tree write verification is Planned.
+
+`MissingArtifact` is the one replay refusal a shared artifact tier can repair: the bytes are simply not on this host.
+
+## ArtifactSync
+
+[src/ArtifactSync.ts](https://github.com/smithersai/flows/blob/main/packages/engine-store/src/ArtifactSync.ts)
+
+| Export | Kind | Notes |
+| --- | --- | --- |
+| `ArtifactSync` | service tag | the two-tier artifact protocol |
+| `Service` | interface | `publish(digests)`, `hydrate(digests)` |
+| `makeLocal`, `layerLocal` | single-tier default | publish is a no-op, hydrate reports nothing arrived |
+| `make`, `layer` | two-tier implementation | `layer` takes the local tier from the `ArtifactStore` tag |
+| `ArtifactPublicationFailed` | class | a referenced artifact could not be made durable in the shared tier |
+
+`publish` runs `findMissing` → upload the missing → re-probe to confirm, immediately **before** the transaction that records the cache entry and never inside it. That is Bazel's REAPI ordering constraint: the action result is uploaded after every blob it refers to.
+
+## CacheSync
+
+[src/CacheSync.ts](https://github.com/smithersai/flows/blob/main/packages/engine-store/src/CacheSync.ts)
+
+| Export | Kind | Notes |
+| --- | --- | --- |
+| `CacheSync` | service tag | the shared step-result publication seam |
+| `Service` | interface | `publishEntry(entry)`, reporting a refusal rather than failing |
+| `makeLocal`, `layerLocal` | single-tier default | nothing to publish |
+| `make`, `layer` | shared implementation | over a remote [`CacheStore`](/api/step-cache) |
+
+The entry is published **after** the transaction that made the local row durable, because a host call must never be held across a `DurableWriter` write. Pair it with `CombinedCacheStore` in `"deferred"` publication mode, which leaves the shared write to this seam.
+
+Neither publication step can fail a run. By the time they run the result is already durably recorded on this host, so a refusal withholds the shared copy and journals a `cache-provenance` record with `action: "unpublished"` — visible, not silent.
 
 ## Inconsistency
 

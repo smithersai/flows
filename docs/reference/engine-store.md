@@ -88,8 +88,18 @@ interface Service {
 
 The two-tier artifact protocol, and the seam a shared-cache composition injects into. `makeLocal()` is the default when the tag is absent: publish is a no-op and hydrate reports nothing arrived, so a purely local engine pays nothing. `make({ local, remote })` — or `layer(remote)`, which takes the local tier from the `ArtifactStore` tag — implements the real thing:
 
-- `publish(digests)` runs `findMissing` on the shared tier, uploads what is missing, and re-probes to confirm. `ActivityPersistence` calls it immediately **before** the transaction that records the cache entry, and never inside it. This is Bazel's REAPI ordering constraint (`UploadManifest.java:630-633`): an action result is uploaded after every blob it refers to, because a result accessed before its blobs are present cannot be validated. A publication that cannot make the artifacts durable fails with `ArtifactPublicationFailed` and the entry is not recorded.
+- `publish(digests)` runs `findMissing` on the shared tier, uploads what is missing, and re-probes to confirm. `ActivityPersistence` calls it immediately **before** the transaction that records the cache entry, and never inside it. This is Bazel's REAPI ordering constraint (`UploadManifest.java:630-633`): an action result is uploaded after every blob it refers to, because a result accessed before its blobs are present cannot be validated. A publication that cannot make the artifacts durable fails with `ArtifactPublicationFailed`, and the **shared** entry is withheld.
 - `hydrate(digests)` fetches what this host is missing and writes it back locally, reporting whether the replay is now worth retrying. It never fails a run: a shared tier that is down must not stop work that can simply be done.
+
+## `CacheSync`
+
+<a id="cachesync"></a>
+
+The second half of the ordering constraint: the shared step-result tier's `put`, run **after** the transaction that made the local row durable. `makeLocal()` is the default when the tag is absent. `make({ remote })` — or `layer(remote)` — publishes to a remote `CacheStore`, typically `RemoteCacheStore`.
+
+It is a separate seam from the `CacheStore` tag because of *where* the local row is written. `ActivityPersistence` commits the cache row and the journal record explaining it in one `DurableWriter` transaction, and nothing that is not storage work may be held across one — a `CacheStore` whose `put` also wrote a shared HTTP tier would put a network round trip inside that transaction, blocking every other writer for its duration and rolling the local row back whenever a *shared cache* was unreachable. So the local put stays inside and the shared put becomes this service. Compose it with `CombinedCacheStore` in `"deferred"` publication mode, which is the mode that leaves the shared write here; lookups stay read-through either way.
+
+Neither publication step can fail a run. Both run after `attempts.finish`, so the result is already durably recorded on this host, and failing a completed run because an optional accelerator is unreachable trades a real result for an unavailable one. A refusal withholds the shared copy — never the local row — and journals a `cache-provenance` record with `action: "unpublished"` carrying the stage (`artifacts` or `entry`) and the reason. That is the same "visible, not silent" treatment an unverified read set gets (issue #106); a missing shared entry is explainable from the journal rather than inferred from its absence.
 
 Downloads are lazy — a replay fetches when materialization actually needs the bytes, so a metadata-only replay state is representable. A Bazel-style download policy (`RemoteOutputChecker`, `--remote_download_{all,toplevel,minimal}`) is out of scope and ticketed in `.smithers/tickets/remote-cache-download-policy.md`.
 
