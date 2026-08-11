@@ -466,9 +466,13 @@ const covers = (pattern: string, path: string): boolean => {
   if (!pattern.includes("*")) return false
   const source = pattern
     .replaceAll(/[.+?^${}()|[\]\\]/g, "\\$&")
-    .replaceAll("**", " ")
+    // The placeholder is NUL because a filesystem path cannot contain one:
+    // any printable stand-in would be rewritten inside a pattern that
+    // legitimately contained that character. It is written as an escape,
+    // never as a literal control byte in the source.
+    .replaceAll("**", "\u0000")
     .replaceAll("*", "[^/]*")
-    .replaceAll(" ", ".*")
+    .replaceAll("\u0000", ".*")
   return new RegExp(`^${source}$`).test(path)
 }
 

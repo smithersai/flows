@@ -277,6 +277,41 @@ describe("WorkspaceSandbox conformance", () => {
     expect(accepted.result.provenance.outputs).toEqual([])
   })
 
+  it("honors glob declarations without rewriting the characters inside them", async () => {
+    const program = Effect.gen(function*() {
+      const test = yield* WorkspaceSandbox.makeMemory()
+      return yield* test.service.execute({
+        descriptor: descriptor({
+          // `**` crosses directories, `*` does not, and a pattern containing a
+          // literal space must survive translation intact — the placeholder the
+          // translation uses is NUL precisely because a path cannot hold one.
+          writeSet: ["deep/**", "flat/*.txt", "with space/*.txt"]
+        }),
+        workflow: Effect.gen(function*() {
+          const workspace = yield* WorkspaceSandbox.Workspace
+          for (
+            const path of [
+              "deep/a/b/c.txt",
+              "flat/ok.txt",
+              "with space/ok.txt",
+              "flat/nested/too-deep.txt"
+            ]
+          ) {
+            yield* workspace.writeFile(path, encoder.encode("x"))
+          }
+          return null
+        })
+      })
+    })
+
+    // Only the `*`-under-`flat/` write escapes coverage: `*` stops at a
+    // separator, while `deep/**` and the space-bearing pattern both match.
+    expect(await runPromise(program)).toMatchObject({
+      _tag: "Invalidated",
+      violations: [{ kind: "undeclared-write", resource: { id: "flat/nested/too-deep.txt" } }]
+    })
+  })
+
   it("lets a declaration that names a path outside the workspace cover nothing", async () => {
     const program = Effect.gen(function*() {
       const test = yield* WorkspaceSandbox.makeMemory()
