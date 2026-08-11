@@ -33,16 +33,19 @@ const count = yield* timeTravel.inspect(position, { initial: 0, reduce: (state) 
 | Export | Kind | Notes |
 | --- | --- | --- |
 | `TimeTravelStore` | service tag | |
-| `Service` | interface | snapshots, lineage, audits, receipts, archive |
-| `Snapshot`, `Descendants`, `Audit`, `Receipt`, `ArchiveResult`, `Fork` | interfaces | stored shapes |
+| `Service` | interface | snapshots, derived frame state, lineage, audits, receipts, archive |
+| `snapshotAt`, `recordSnapshot` | methods | the tier-2 anchor at a frame — its jj pointer and the plan digest in force |
+| `stateAt`, `attemptsAt` | methods | run state and admitted attempts AT a frame, folded from the journal rather than read off the run row |
+| `Snapshot`, `AttemptRef`, `Descendants`, `Audit`, `Receipt`, `ArchiveResult`, `Fork` | interfaces | stored shapes; `Fork` carries the normalized `warnings` |
 | `make`, `makeNoop`, `layerNoop` | constructors + layer | |
 
 | Implementation | Source | Notes |
 | --- | --- | --- |
 | `MemoryTimeTravelStore.make`, `layer`, `MemoryState`, `JournalRecord`, `Options` | [src/MemoryTimeTravelStore.ts](https://github.com/smithersai/flows/blob/main/packages/time-travel/src/MemoryTimeTravelStore.ts) | deterministic tests |
-| `SqlTimeTravelStore.migrate`, `make`, `layer` | [src/SqlTimeTravelStore.ts](https://github.com/smithersai/flows/blob/main/packages/time-travel/src/SqlTimeTravelStore.ts) | its own migration, separate from the journal ladder |
+| `SqlTimeTravelStore.migrate`, `make`, `layer` | [src/SqlTimeTravelStore.ts](https://github.com/smithersai/flows/blob/main/packages/time-travel/src/SqlTimeTravelStore.ts) | creates its tables on build |
+| `Migrations.set`, `sets`, `run`, `layer` | [src/Migrations.ts](https://github.com/smithersai/flows/blob/main/packages/time-travel/src/Migrations.ts) | the same DDL as a rung on the shared ladder, at id block `5000` |
 
-`SqlTimeTravelStore.migrate` creates `flows_time_travel_snapshots`, `flows_time_travel_edges`, `flows_time_travel_audits`, `flows_time_travel_receipts`, and `flows_time_travel_archive`.
+`SqlTimeTravelStore.migrate` creates `flows_time_travel_snapshots`, `flows_time_travel_edges`, `flows_time_travel_audits`, `flows_time_travel_receipts`, and `flows_time_travel_archive`, and indexes `meta_json.lineageId` on the journal's own `flows_journal_events` so a lineage-filtered read is not a full run scan.
 
 ## TimeTravel
 
@@ -116,4 +119,6 @@ With no handlers provided, a crossed record that is not sealed classifies as
 
 ## Integration boundary
 
-The protocols here are Implemented and tested against real stores. What is Planned is automatic population: `EngineStore` does not create every snapshot, lineage edge, or effect-boundary record these protocols consume, so an application wires those records and the time-travel migration itself. `SqlTimeTravelStore.createFork` copies the parent's current persisted snapshot and attempts, which is not a per-frame historical view.
+The protocols here are Implemented and tested against real stores, including against a journal an ordinary engine run wrote (`test/EngineIntegration.test.ts`). `EngineStore` populates them: it stamps `meta.lineageId` on every record it writes, journals a tier-2 anchor per attempt, and writes the effect-boundary records around an irreversible dispatch and a child spawn. Anchors reach `flows_time_travel_snapshots` through a projection of those journal records — the engine never writes this package's tables, which is what keeps the dependency arrow one-way. `SqlTimeTravelStore.createFork` derives the child's state at the frame and copies only the attempts the frame's prefix can explain.
+
+One gap remains: a fork's workspace is created but not pinned to the frame's jj pointer, because `Jj` cannot provision a workspace at a revision. The fork discloses that as a warning rather than restoring the parent's tree (`.smithers/tickets/fork-workspace-revision.md`).

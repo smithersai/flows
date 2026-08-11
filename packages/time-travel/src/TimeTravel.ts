@@ -186,7 +186,8 @@ export const make: Effect.Effect<Service, TimeTravelError, Requirements | Scope.
   const scope = yield* Effect.scope
   const services = yield* Effect.context<Requirements>()
   const owner = yield* mintOwner
-  // The contribution door (`.smithers/tickets/time-travel-compensation-handlers.md`):
+  // The contribution door (`docs/specs/Concepts/Time Travel Service.md`
+  // §"The open gap this leaves"):
   // handlers come from the composition that owns the effect boundary, and the
   // registry itself stays internal. Absent service means no handlers, which is
   // the pre-existing behaviour — every crossed irreversible effect blocks.

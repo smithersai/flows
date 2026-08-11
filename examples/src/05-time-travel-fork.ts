@@ -7,10 +7,12 @@
  * edge back to the parent, and the jj workspace the copy lands in are derived
  * inside the service; the parent is checked for liveness there too.
  *
- * Under the fork, `SqlTimeTravelStore.createFork` copies the parent's
- * executable state and its attempt rows into the new run id. Because the copied
- * attempts are addressed by sealed cache key, the fork replays them instead of
- * dispatching again, which is why the counter below stays at one.
+ * Under the fork, `SqlTimeTravelStore.createFork` derives the parent's
+ * executable state AT the frame and copies only the attempt rows the frame's
+ * journal prefix can explain. Because those attempts are addressed by sealed
+ * cache key, the fork replays them instead of dispatching again, which is why
+ * the counter below stays at one. The frame here is the parent's last committed
+ * sequence, so the fork inherits everything.
  *
  * The environment declaration matters. A sealed cache key is computed under
  * `Activity.CurrentCacheEnvironment`; with no declaration the engine scopes

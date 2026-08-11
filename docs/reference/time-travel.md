@@ -1,6 +1,6 @@
 # `@smthrs/time-travel`
 
-This page is the public API reference for the `TimeTravel` service and the stores it reads through. The package is a protocol library and is not automatically wired into every engine execution.
+This page is the public API reference for the `TimeTravel` service and the stores it reads through. The service is not part of every engine composition, but its evidence is: an ordinary `EngineStore` run stamps `meta.lineageId` on every record, journals a tier-2 anchor per attempt, and writes effect-boundary records, so a journal is inspectable, forkable, and rewindable without the application emitting anything by hand.
 
 ## Frames and stores
 
@@ -8,7 +8,8 @@ This page is the public API reference for the `TimeTravel` service and the store
 
 `TimeTravelStore.Service` stores and retrieves:
 
-- snapshots at frames,
+- snapshots at frames — `snapshotAt` reads the nearest anchor at or before a frame, `recordSnapshot` writes one (the snapshot projector is its only caller),
+- run state and admitted attempts at a frame — `stateAt` and `attemptsAt` fold the journal's own decision and attempt records rather than reading the run row's current values,
 - descendants and lineage edges,
 - rewind audits and compensation receipts,
 - fork records,
@@ -66,15 +67,25 @@ fails with `irreversible`.
 
 `TimeTravelError` is the tagged failure type. `TimeTravelErrorCode` is `busy`, `live_parent`, `live_child`, `not_found`, `rate_limited`, `compensation_failed`, `irreversible`, or `unknown`. `error(code, message, cause?)` is the constructor helper.
 
-## Integration caveat
+## Fork
 
-`SqlTimeTravelStore.createFork` creates a restartable engine row, copies
-attempts, copies the selected journal prefix, and records lineage twice: in
+`SqlTimeTravelStore.createFork` creates a restartable engine row whose state is
+the state **at** the frame — folded from the run-decision records, not copied
+from the parent's current row — copies the selected journal prefix, copies only
+the attempts that prefix can explain, and writes a `fork-created` marker on the
+child naming `(parentRunId, forkJournalOffset)`. Lineage is recorded twice: in
 `flows_time_travel_edges` for the attach/detach protocol, and in the child's
 `flows_runs.parent_run_id` so ancestry is walkable with a recursive CTE and
-survives edge archival. Current run state and attempts are not historical
-per-frame snapshots, so applications must still create boundary records and
-snapshots where exact frame semantics require them. Automatic integration is
-**Planned**.
+survives edge archival. Child-spawn edges are not stored a third time; they are
+derived from the parent journal's own spawn record, the only source that carries
+a parent sequence.
+
+A fork never touches the parent: the boundary assessment still runs, but every
+verdict is normalized into `Fork.warnings` — "this effect may execute again on
+the child" — and nothing is reverted, truncated, or restored. The child's lane is
+added but **not** pinned to the frame's jj pointer: `Jj` acts on the one working
+copy it is rooted at and cannot provision a workspace at a revision, so pinning
+it would restore the parent's tree. The fork discloses the pointer as a warning
+instead (`.smithers/tickets/fork-workspace-revision.md`).
 
 See [Time travel](../concepts/time-travel.md), [Failure and retry](../concepts/failure-and-retry.md), and [Implementation status](../architecture/implementation-status.md).

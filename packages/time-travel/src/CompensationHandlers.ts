@@ -1,11 +1,11 @@
 /**
  * The registration door for compensation handlers.
  *
- * `.smithers/tickets/time-travel-compensation-handlers.md` asked for one of two
- * doors: a construction argument on `TimeTravel.layer`, or handlers contributed
- * by the engine composition that owns the effect boundary — either way without
- * re-exposing `EffectHandlerRegistry`, which is machinery and stays under
- * `internal/`.
+ * `docs/specs/Concepts/Time Travel Service.md` §"The open gap this leaves"
+ * asked for one of two doors: a construction argument on `TimeTravel.layer`, or
+ * handlers contributed by the engine composition that owns the effect boundary
+ * — either way without re-exposing `EffectHandlerRegistry`, which is machinery
+ * and stays under `internal/`.
  *
  * **The pick is the contribution door.** The adapter that performed a tier-3
  * effect owns its compensation
