@@ -1,5 +1,20 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
+/**
+ * The canonical flow key: `key1_` followed by a SHA-256 digest.
+ *
+ * A key is how `flows` names work — the step cache, the attempt rows, and the
+ * plan all address by it — so it must be derivable from the value alone and
+ * identical on every host. That is why it is a digest of the value's
+ * {@link Canonical} RFC 8785 form rather than of whatever `JSON.stringify`
+ * happened to produce.
+ *
+ * The `key1_` prefix is a version marker. A future derivation gets `key2_`,
+ * and both remain decodable, so a stored key never becomes ambiguous about
+ * which scheme produced it.
+ *
+ * @since 0.1.0
+ */
 import { Canonical } from "@smthrs/canonical/Canonical"
 import { Sha256 } from "@smthrs/crypto"
 import * as Effect from "effect/Effect"

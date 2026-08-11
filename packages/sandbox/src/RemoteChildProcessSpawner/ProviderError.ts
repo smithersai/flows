@@ -27,6 +27,8 @@ export const ProviderErrorCode = Schema.Literals([
 ])
 
 /**
+ * The value form of {@link ProviderErrorCode}.
+ *
  * @category models
  * @since 0.1.0
  */

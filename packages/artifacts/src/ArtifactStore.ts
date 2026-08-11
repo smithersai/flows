@@ -212,7 +212,14 @@ export const validateDigest = (digest: string): Effect.Effect<void, ArtifactStor
 /** Deduplicates a digest iterable while preserving first-seen order. */
 const distinct = (digests: Iterable<string>): Array<string> => [...new Set(digests)]
 
-/** @category models @since 0.1.0 */
+/**
+ * Where the filesystem-backed store keeps its blobs.
+ *
+ * The directory is workspace-relative rather than absolute so a workspace can
+ * be moved or copied whole and still resolve its own artifacts.
+ *
+ * @category models @since 0.1.0
+ */
 export interface FileSystemOptions {
   /**
    * Where blobs are stored, content-addressed by digest. Workspace-relative;

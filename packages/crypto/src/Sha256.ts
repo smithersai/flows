@@ -1,5 +1,16 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
+/**
+ * SHA-256 as an injected capability, not an import.
+ *
+ * Hashing is host access — it is `crypto.subtle` in a page and `node:crypto`
+ * on a server — so it goes through `effect/Crypto` like every other host
+ * service, which is what keeps `flows` browser-bundleable. Digests are
+ * validated lowercase hex, because a digest is an identity that crosses the
+ * journal and the cache and must compare byte-for-byte wherever it is read.
+ *
+ * @since 0.1.0
+ */
 import * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Encoding from "effect/Encoding"
