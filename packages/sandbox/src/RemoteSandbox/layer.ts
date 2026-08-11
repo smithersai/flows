@@ -39,7 +39,7 @@ const REASON: Record<ProviderErrorCode, PlatformError.SystemErrorTag> = {
   unknown: "Unknown"
 }
 
-const platformError = (method: string, command: string | undefined) =>
+const platformError = (method: string, command: string) =>
 (
   error: ProviderError
 ): PlatformError.PlatformError =>
@@ -47,7 +47,7 @@ const platformError = (method: string, command: string | undefined) =>
     _tag: REASON[error.code],
     module: MODULE,
     method,
-    description: command === undefined ? error.message : `\`${command}\`: ${error.message}`,
+    description: `\`${command}\`: ${error.message}`,
     cause: error.cause
   })
 

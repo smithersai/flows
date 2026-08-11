@@ -134,6 +134,26 @@ describe("RemoteSandbox", () => {
     expect(errors[0]?.message).toContain("`never-opened`: provider session is unavailable")
   })
 
+  it("answers an unconfigured extra file descriptor the way a local spawner does", async () => {
+    const provider = RemoteSandbox.TestSandbox.make({ scripts: { quiet: { stdout: "out" } } })
+
+    const observed = await Effect.runPromise(
+      Effect.gen(function*() {
+        const spawner = yield* ChildProcessSpawner
+        const handle = yield* spawner.spawn(ChildProcess.make("quiet"))
+        return {
+          // A descriptor nobody configured drains on the way in and is empty on
+          // the way out — the same answer `NodeChildProcessSpawner` gives.
+          written: yield* Stream.run(Stream.fromArray([new Uint8Array([1])]), handle.getInputFd(3)),
+          read: yield* Stream.runCollect(handle.getOutputFd(3))
+        }
+      }).pipe(Effect.scoped, Effect.provide(RemoteSandbox.layer(provider)))
+    )
+
+    expect(observed.written).toBeUndefined()
+    expect(Array.from(observed.read)).toEqual([])
+  })
+
   it("rejects stdin and kill instead of dropping them silently", async () => {
     const provider = RemoteSandbox.TestSandbox.make({ scripts: { quiet: {} } })
 
