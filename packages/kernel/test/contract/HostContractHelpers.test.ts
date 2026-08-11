@@ -4,7 +4,7 @@
  * normalizer must not invent a code, and the failure assertion must not let a
  * capability declared unsupported quietly succeed.
  */
-import { PtyError } from "@smthrs/pty"
+import { JjError } from "@smthrs/jj"
 import { Effect } from "effect"
 import { tmpdir } from "node:os"
 import { isAbsolute, relative, sep } from "node:path"
@@ -13,7 +13,7 @@ import { assertFailure, defaultScratchPath, errorCode } from "./HostContract.ts"
 
 describe("errorCode", () => {
   it("prefers a string `code` field", () => {
-    expect(errorCode(new PtyError({ code: "exited", message: "slow" }))).toBe("exited")
+    expect(errorCode(new JjError({ code: "conflict", message: "slow" }))).toBe("conflict")
   })
 
   it("falls back to a nested `reason._tag`", () => {
@@ -39,7 +39,7 @@ describe("errorCode", () => {
 describe("assertFailure", () => {
   it("passes when the effect fails with the declared code", async () => {
     await expect(
-      Effect.runPromise(assertFailure(Effect.fail(new PtyError({ code: "exited", message: "slow" })), "exited"))
+      Effect.runPromise(assertFailure(Effect.fail(new JjError({ code: "conflict", message: "slow" })), "conflict"))
     ).resolves.toBeUndefined()
   })
 
@@ -51,7 +51,7 @@ describe("assertFailure", () => {
   it("rejects a failure carrying a different code", async () => {
     await expect(
       Effect.runPromise(
-        assertFailure(Effect.fail(new PtyError({ code: "not_found", message: "no" })), "unsupported")
+        assertFailure(Effect.fail(new JjError({ code: "not_installed", message: "no" })), "unsupported")
       )
     ).rejects.toThrow()
   })

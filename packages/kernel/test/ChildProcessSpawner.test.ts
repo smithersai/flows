@@ -1,4 +1,3 @@
-import * as PtyPort from "@smthrs/pty"
 import { Effect, Sink, Stream } from "effect"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import {
@@ -13,7 +12,6 @@ import * as Capability from "../src/Capability.ts"
 import * as ChildProcessSpawner from "../src/ChildProcessSpawner.ts"
 import { GrantStore } from "../src/GrantStore.ts"
 import { permissionDenied } from "../src/Permission.ts"
-import * as Pty from "../src/Pty.ts"
 
 const itEffect = (name: string, effect: () => Effect.Effect<void, unknown, never>) =>
   it(name, () => Effect.runPromise(effect()))
@@ -177,67 +175,6 @@ describe("ChildProcessSpawner", () => {
       Effect.provide(ChildProcessSpawner.layer),
       Effect.provideService(HostChildProcessSpawner, hostSpawner({ stdout: "out" })),
       Effect.provideService(GrantStore, store)
-    )
-  })
-})
-
-describe("Pty", () => {
-  itEffect("checks once before spawn and returns the host handle unchanged", () => {
-    let invoked = false
-    const checks: Array<Capability.Capability> = []
-    const handle: PtyPort.PtyHandle = {
-      write: () => Effect.void,
-      resize: () => Effect.void,
-      output: Stream.empty,
-      attach: () => Stream.empty,
-      exitCode: Effect.succeed(0)
-    }
-    const host = PtyPort.makeNoop({
-      spawn: () =>
-        Effect.sync(() => {
-          invoked = true
-          return handle
-        })
-    })
-
-    return Effect.gen(function*() {
-      const pty = yield* Pty.Pty
-      expect(yield* pty.spawn("tool", { cols: 80, rows: 24, cwd: "/work" })).toBe(handle)
-      expect(invoked).toBe(true)
-      expect(checks).toEqual([{ action: "proc:spawn", resource: "tool" }])
-    }).pipe(
-      Effect.provide(Pty.layer),
-      Effect.provideService(PtyPort.Pty, host),
-      Effect.provideService(GrantStore, scriptedStore(new Set(["proc:spawn:tool"]), checks)),
-      Effect.scoped
-    )
-  })
-
-  itEffect("does not spawn a denied terminal", () => {
-    let invoked = false
-    const checks: Array<Capability.Capability> = []
-    const host = PtyPort.makeNoop({
-      spawn: () =>
-        Effect.sync(() => {
-          invoked = true
-          throw new Error("delegate must not run")
-        })
-    })
-
-    return Effect.gen(function*() {
-      const pty = yield* Pty.Pty
-      expect(yield* Effect.flip(pty.spawn("blocked", { cols: 80, rows: 24 }))).toMatchObject({
-        code: "permission_denied",
-        capability: { action: "proc:spawn", resource: "blocked" },
-        reason: "denied by test"
-      })
-      expect(invoked).toBe(false)
-      expect(checks).toEqual([{ action: "proc:spawn", resource: "blocked" }])
-    }).pipe(
-      Effect.provide(Pty.layer),
-      Effect.provideService(PtyPort.Pty, host),
-      Effect.provideService(GrantStore, scriptedStore(new Set(), checks)),
-      Effect.scoped
     )
   })
 })

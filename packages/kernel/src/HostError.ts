@@ -17,15 +17,14 @@
  * them, UIs map them to remediation. Never repurpose a code — add one.
  */
 import type { JjError } from "@smthrs/jj"
-import type { PtyError } from "@smthrs/pty"
 
 /**
  * Every failure the Host surface is allowed to surface.
  *
- * `PtyError` and `JjError` are declared by `@smthrs/pty` and `@smthrs/jj`
- * beside their contracts; they are named here because those services are still
- * part of the closed Host surface (`HostServices.ts`). This is a type
- * union, not a re-export — import the errors themselves from their packages.
+ * `JjError` is declared by `@smthrs/jj` beside its contract; it is named here
+ * because that service is still part of the closed Host surface
+ * (`HostServices.ts`). This is a type union, not a re-export — import the
+ * error itself from its package.
  *
  * Running a command is absent on purpose: process execution is Effect's
  * `ChildProcessSpawner`, so it fails with `PlatformError` like the rest of
@@ -33,4 +32,4 @@ import type { PtyError } from "@smthrs/pty"
  *
  * @category models
  */
-export type HostError = PtyError | JjError
+export type HostError = JjError

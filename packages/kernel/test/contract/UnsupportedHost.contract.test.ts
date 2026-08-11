@@ -9,7 +9,6 @@
  */
 import * as BrowserJj from "@smthrs/jj/browser/BrowserJj"
 import * as BrowserFileSystem from "@smthrs/platform-browser/BrowserFileSystem"
-import * as BrowserPty from "@smthrs/pty/browser/BrowserPty"
 import { Effect, Layer, Path, PlatformError } from "effect"
 import { ChildProcessSpawner, make as makeSpawner } from "effect/unstable/process/ChildProcessSpawner"
 import * as CommandLine from "../../src/CommandLine.ts"
@@ -63,7 +62,6 @@ runHostContract(
     BrowserFileSystem.layer(rejecting()),
     layerPathUnsupported,
     layerSpawnerUnsupported,
-    BrowserPty.layerUnsupported,
     BrowserJj.layerUnsupported,
     HttpTransport.layerNoop()
   ),
@@ -73,7 +71,6 @@ runHostContract(
     // A thrown tagged value carries it as a bare `_tag`.
     path: { expected: "failure", code: "NoFileUrls" },
     childProcess: { expected: "failure", code: "NotFound" },
-    pty: { expected: "failure", code: "unsupported" },
     jj: { expected: "failure", code: "not_installed" },
     httpTransport: { expected: "failure", code: "TransportError" }
   }

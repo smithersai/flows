@@ -1,8 +1,9 @@
 /**
  * The workspace root used to make filesystem capability resources stable.
  *
- * This local service should migrate to `@smthrs/host` once that package owns a
- * workspace-root contract.
+ * It lives beside the closed host list rather than in a platform package: a
+ * workspace root is a policy decision the kernel needs before it can name a
+ * filesystem capability, not something a platform can answer.
  *
  * Governing design:
  * `docs/specs/Concepts/Effect Taxonomy.md` and

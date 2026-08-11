@@ -17,7 +17,6 @@ describe("kernel package barrel", () => {
       "JournalGrantStore",
       "Path",
       "Permission",
-      "Pty",
       "Workspace"
     ])
   })

@@ -1,5 +1,4 @@
 import * as HostJj from "@smthrs/jj"
-import * as HostPty from "@smthrs/pty"
 import { Effect, FileSystem as EffectFileSystem, Option, Path as EffectPath } from "effect"
 import * as EffectHttpClient from "effect/unstable/http/HttpClient"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
@@ -14,7 +13,6 @@ import * as HttpClient from "../src/HttpClient.ts"
 import * as HostHttpTransport from "../src/HttpTransport.ts"
 import * as Jj from "../src/Jj.ts"
 import { permissionDenied } from "../src/Permission.ts"
-import * as Pty from "../src/Pty.ts"
 import * as TestHost from "../src/test/TestHost.ts"
 import * as Workspace from "../src/Workspace.ts"
 
@@ -41,7 +39,6 @@ describe("HostServices", () => {
       EffectFileSystem.FileSystem,
       EffectPath.Path,
       EffectChildProcessSpawner,
-      HostPty.Pty,
       HostJj.Jj,
       HostHttpTransport.HttpTransport
     ])
@@ -49,7 +46,6 @@ describe("HostServices", () => {
       "effect/FileSystem",
       "effect/Path",
       "effect/process/ChildProcessSpawner",
-      "flows/host/Pty",
       "flows/host/Jj",
       "flows/host/HttpTransport"
     ])
@@ -57,7 +53,6 @@ describe("HostServices", () => {
       FileSystem.FileSystem,
       EffectPath.Path,
       ChildProcessSpawner.ChildProcessSpawner,
-      Pty.Pty,
       Jj.Jj,
       HttpClient.HttpClient
     ])
@@ -78,12 +73,6 @@ describe("HostServices", () => {
       const rawSpawner = yield* EffectChildProcessSpawner
       expect(rawSpawner).toBe(protectedSpawner)
       expect(yield* protectedSpawner.string(ChildProcess.make("fixture"))).toBe("protected\n")
-
-      const protectedPty = yield* Pty.Pty
-      const rawPty = yield* HostPty.Pty
-      expect(rawPty).toBe(protectedPty)
-      expect(yield* Effect.flip(Effect.scoped(protectedPty.spawn("fixture", { cols: 80, rows: 24 }))))
-        .toMatchObject({ code: "unsupported", message: "no pty in the browser (requested: fixture)" })
 
       const protectedJj = yield* Jj.Jj
       const rawJj = yield* HostJj.Jj
@@ -129,12 +118,6 @@ describe("HostServices", () => {
         capability: { action: "proc:spawn", resource: "blocked" },
         reason: "denied by integration test"
       })
-      const pty = yield* HostPty.Pty
-      expect(yield* Effect.flip(pty.spawn("blocked-pty", { cols: 80, rows: 24 }))).toMatchObject({
-        code: "permission_denied",
-        capability: { action: "proc:spawn", resource: "blocked-pty" },
-        reason: "denied by integration test"
-      })
       const jj = yield* HostJj.Jj
       expect(yield* Effect.flip(jj.status())).toMatchObject({
         code: "permission_denied",
@@ -159,7 +142,6 @@ describe("HostServices", () => {
 
     await Effect.runPromise(program)
     expect(checks.map((capability) => capability.action)).toEqual([
-      "proc:spawn",
       "proc:spawn",
       "jj:status",
       "fs:read"

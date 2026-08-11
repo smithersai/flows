@@ -4,7 +4,6 @@ import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import { describe, expect, it } from "vitest"
 import * as ChildProcessSpawner from "../src/ChildProcessSpawner.ts"
 import * as Jj from "../src/Jj.ts"
-import * as Pty from "../src/Pty.ts"
 
 /**
  * The kernel stubs exist so a program can be wired without a host at all: an
@@ -31,17 +30,6 @@ describe("kernel stubs without any host", () => {
       expect((error as PlatformError.PlatformError).reason._tag).toBe("NotFound")
       expect(error.message).toContain("no process host for `ls -al`")
     }
-  })
-
-  it("denies pty spawn with `unsupported`", async () => {
-    const error = await Effect.runPromise(
-      Effect.gen(function*() {
-        const pty = yield* Pty.Pty
-        return yield* Effect.flip(Effect.scoped(pty.spawn("bash", { cols: 80, rows: 24 })))
-      }).pipe(Effect.provide(Pty.layerNoop()))
-    )
-
-    expect(error).toMatchObject({ code: "unsupported", method: "spawn" })
   })
 
   it("denies every jj operation with `not_installed`", async () => {
@@ -90,8 +78,6 @@ describe("kernel stubs without any host", () => {
   })
 
   it("returns the implementation unchanged from `make`", () => {
-    const pty = Pty.makeNoop()
-    expect(Pty.make(pty)).toStrictEqual(pty)
     const spawner = ChildProcessSpawner.makeNoop()
     expect(ChildProcessSpawner.make(spawner)).toStrictEqual(spawner)
   })

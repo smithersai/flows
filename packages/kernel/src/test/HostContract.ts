@@ -9,8 +9,6 @@
  */
 import * as JjService from "@smthrs/jj"
 import type { Jj, JjErrorCode } from "@smthrs/jj"
-import * as PtyService from "@smthrs/pty"
-import type { Pty, PtyErrorCode } from "@smthrs/pty"
 import { Effect, Fiber, FileSystem, type Layer, Path, Stream } from "effect"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
 import type * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"
@@ -93,18 +91,6 @@ export interface ChildProcessSuccess {
 }
 
 /**
- * Successful Pty contract options.
- *
- * @category models
- * @since 0.1.0
- */
-export interface PtySuccess {
-  readonly expected: "success"
-  readonly command?: string | undefined
-  readonly expectedOutput?: string | undefined
-}
-
-/**
  * Successful Jj contract expectation.
  *
  * @category models
@@ -129,7 +115,7 @@ export interface HttpTransportSuccess {
 }
 
 /**
- * Complete capability expectations for the closed six-tag Host surface.
+ * Complete capability expectations for the closed five-tag Host surface.
  * Unsupported capabilities are asserted with their code and are never skipped.
  *
  * @category models
@@ -139,7 +125,6 @@ export interface HostContractCapabilities {
   readonly fileSystem: FileSystemSuccess | FailureCapability<string>
   readonly path: PathSuccess | FailureCapability<string>
   readonly childProcess: ChildProcessSuccess | FailureCapability<string>
-  readonly pty: PtySuccess | FailureCapability<PtyErrorCode>
   readonly jj: JjSuccess | FailureCapability<JjErrorCode>
   readonly httpTransport: HttpTransportSuccess | FailureCapability<string>
 }
@@ -151,15 +136,15 @@ export interface HostContractCapabilities {
  * @since 0.1.0
  */
 export type HostContractLayer = Layer.Layer<
-  FileSystem.FileSystem | Path.Path | ChildProcessSpawner | Pty | Jj | HttpTransport,
+  FileSystem.FileSystem | Path.Path | ChildProcessSpawner | Jj | HttpTransport,
   unknown
 >
 
 /**
  * Normalizes the code a Host failure is identified by, across the three shapes
- * the closed surface produces: a `code` field (`PtyError`,
- * `JjError`), a nested `reason._tag` (`PlatformError`, `HttpClientError`), and a
- * bare `_tag`. Anything else is uncoded.
+ * the closed surface produces: a `code` field (`JjError`), a nested
+ * `reason._tag` (`PlatformError`, `HttpClientError`), and a bare `_tag`.
+ * Anything else is uncoded.
  *
  * @category testing
  * @since 0.1.0
@@ -251,9 +236,9 @@ const defaultStdinCommand = ChildProcess.make(
 /**
  * Registers the shared Host contract with Vitest.
  *
- * Every invocation creates eleven cases: complete service presence,
- * FileSystem, Path, five child-process lifecycle cases, Pty cursor replay, Jj,
- * and HttpTransport.
+ * Every invocation creates ten cases: complete service presence,
+ * FileSystem, Path, five child-process lifecycle cases, Jj, and
+ * HttpTransport.
  *
  * @category testing
  * @since 0.1.0
@@ -266,7 +251,6 @@ export const runHostContract = (
   const fileSystemCap = caps.fileSystem
   const pathCap = caps.path
   const childProcessCap = caps.childProcess
-  const ptyCap = caps.pty
   const jjCap = caps.jj
   const httpTransportCap = caps.httpTransport
   const scratchPath = fileSystemCap.expected === "success"
@@ -280,7 +264,6 @@ export const runHostContract = (
           yield* FileSystem.FileSystem
           yield* Path.Path
           yield* ChildProcessSpawner
-          yield* PtyService.Pty
           yield* JjService.Jj
           yield* HttpTransportService.HttpTransport
         }),
@@ -408,35 +391,6 @@ export const runHostContract = (
             yield* Effect.yieldNow
             yield* Fiber.interrupt(fiber)
           }),
-        layer
-      ))
-
-    it("declares Pty cursor/replay behavior", () =>
-      run(
-        ptyCap.expected === "failure"
-          ? Effect.gen(function*() {
-            const pty = yield* PtyService.Pty
-            yield* Effect.scoped(
-              assertFailure(
-                pty.spawn("host-contract-unsupported", { cols: 80, rows: 24 }),
-                ptyCap.code
-              )
-            )
-          })
-          : Effect.scoped(
-            Effect.gen(function*() {
-              const pty = yield* PtyService.Pty
-              const handle = yield* pty.spawn(
-                ptyCap.command ?? "printf host-contract-pty",
-                { cols: 80, rows: 24 }
-              )
-              yield* handle.resize(100, 30)
-              expect(yield* handle.exitCode).toBe(0)
-              const chunks = yield* handle.attach(5).pipe(Stream.runCollect)
-              const output = Array.from(chunks, (chunk) => new TextDecoder().decode(chunk)).join("")
-              expect(output).toContain(ptyCap.expectedOutput ?? "contract-pty")
-            })
-          ),
         layer
       ))
 

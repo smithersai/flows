@@ -120,14 +120,6 @@ export * as Path from "./Path.ts"
 export * as Permission from "./Permission.ts"
 
 /**
- * Permission-decorated pseudo-terminal services.
- *
- * @category namespace exports
- * @since 0.1.0
- */
-export * as Pty from "./Pty.ts"
-
-/**
  * The shared workspace-root service.
  *
  * @category namespace exports

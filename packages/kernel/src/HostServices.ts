@@ -14,7 +14,6 @@
  * @since 0.1.0
  */
 import { Jj as JjPort } from "@smthrs/jj"
-import { Pty as PtyPort } from "@smthrs/pty"
 import { FileSystem as EffectFileSystem, Layer, Path as EffectPath } from "effect"
 import { ChildProcessSpawner as ChildProcessSpawnerPort } from "effect/unstable/process/ChildProcessSpawner"
 import * as ChildProcessSpawner from "./ChildProcessSpawner.ts"
@@ -23,7 +22,6 @@ import * as HttpClient from "./HttpClient.ts"
 import { HttpTransport } from "./HttpTransport.ts"
 import * as Jj from "./Jj.ts"
 import * as Path from "./Path.ts"
-import * as Pty from "./Pty.ts"
 
 /**
  * The CLOSED LIST of platform ports the kernel protects.
@@ -57,7 +55,6 @@ export type HostService =
   | EffectFileSystem.FileSystem
   | EffectPath.Path
   | ChildProcessSpawnerPort
-  | PtyPort
   | JjPort
   | HttpTransport
 
@@ -72,7 +69,6 @@ export const HostServiceTags = [
   EffectFileSystem.FileSystem,
   EffectPath.Path,
   ChildProcessSpawnerPort,
-  PtyPort,
   JjPort,
   HttpTransport
 ] as const
@@ -82,16 +78,18 @@ export const HostServiceTags = [
  * step-layer resolution.
  *
  * These strings are FROZEN. They are digested into step keys, so they name a
- * service's identity, not the package its module happens to live in: `Pty` and
- * `Jj` moved to `@smthrs/pty` and `@smthrs/jj`, and `HttpTransport` moved here
- * from the dissolved `@smthrs/host`, without changing behaviour. Renaming them
- * would invalidate every cached step for no reason.
+ * service's identity, not the package its module happens to live in: `Jj`
+ * moved to `@smthrs/jj`, and `HttpTransport` moved here from the dissolved
+ * `@smthrs/host`, without changing behaviour. Renaming them would invalidate
+ * every cached step for no reason.
  *
  * The third slot is the exception that proves the rule: dropping the `Shell`
  * wrapper for Effect's own `ChildProcessSpawner` replaced the *service*, not
  * just its home, so `flows/host/Shell` became
  * `effect/process/ChildProcessSpawner` and every step that ran a command is
- * correctly a different step.
+ * correctly a different step. The deleted `flows/host/Pty` slot is the other
+ * direction: the service left the surface entirely (see D13 in the design
+ * decisions), and no cached step named it.
  *
  * @category models
  * @since 0.1.0
@@ -100,7 +98,6 @@ export const HostServiceIds = [
   "effect/FileSystem",
   "effect/Path",
   "effect/process/ChildProcessSpawner",
-  "flows/host/Pty",
   "flows/host/Jj",
   "flows/host/HttpTransport"
 ] as const
@@ -122,7 +119,6 @@ export type ProtectedHostService =
   | FileSystem.FileSystem
   | Path.Path
   | ChildProcessSpawner.ChildProcessSpawner
-  | Pty.Pty
   | Jj.Jj
   | HttpClient.HttpClient
 
@@ -137,7 +133,6 @@ export const ProtectedHostServiceTags = [
   FileSystem.FileSystem,
   Path.Path,
   ChildProcessSpawner.ChildProcessSpawner,
-  Pty.Pty,
   Jj.Jj,
   HttpClient.HttpClient
 ] as const
@@ -158,7 +153,6 @@ export const layer = Layer.mergeAll(
   FileSystem.layer,
   Path.layer,
   ChildProcessSpawner.layer,
-  Pty.layer,
   Jj.layer,
   HttpClient.layer
 )

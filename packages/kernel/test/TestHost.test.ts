@@ -1,6 +1,5 @@
 import { Jj } from "@smthrs/jj"
 import * as BrowserFileSystem from "@smthrs/platform-browser/BrowserFileSystem"
-import { Pty } from "@smthrs/pty"
 import { Clock, Effect, FileSystem, Random, Stream } from "effect"
 import { TestClock } from "effect/testing"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
@@ -181,16 +180,6 @@ describe("TestHost determinism", () => {
 })
 
 describe("TestHost unsupported services", () => {
-  it("fails `pty.spawn` with `unsupported` and names the requested command", async () => {
-    const error = await Effect.runPromise(
-      Effect.flatMap(Pty, (pty) => Effect.flip(Effect.scoped(pty.spawn("bash", { cols: 80, rows: 24 })))).pipe(
-        Effect.provide(TestHost.TestHost)
-      )
-    )
-
-    expect(error).toMatchObject({ code: "unsupported", message: "no pty in the browser (requested: bash)" })
-  })
-
   it("fails every jj method with `not_installed` and the command it would have run", async () => {
     const errors = await Effect.runPromise(
       Effect.gen(function*() {
@@ -250,5 +239,23 @@ describe("TestHost memory filesystem edges", () => {
     const memory = TestHost.makeMemoryFs({ "/a/b/c.txt": "x", "/a/b/d.txt": "y", "/a/top.txt": "z" })
 
     expect(await memory.readdir("/a")).toEqual(["b", "top.txt"])
+  })
+})
+
+describe("TestHost scripted interpreter latency", () => {
+  /**
+   * `delayMs` is the bundle's one concession to real time: a scripted command
+   * can take a while, so a test can interleave work with a slow command or put
+   * an `Effect.timeout` around one. Nothing else in the bundle moves without a
+   * `TestClock.adjust`, so the knob is worth pinning.
+   */
+  it("holds a scripted command open for its declared delay", async () => {
+    const bash = TestHost.makeStubBash({ slow: { stdout: "late", delayMs: 5 } })
+
+    const started = performance.now()
+    const result = await bash.run("slow")
+
+    expect(result).toEqual({ stdout: "late", stderr: "", exitCode: 0 })
+    expect(performance.now() - started).toBeGreaterThanOrEqual(4)
   })
 })

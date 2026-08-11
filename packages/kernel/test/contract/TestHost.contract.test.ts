@@ -32,7 +32,6 @@ runHostContract(
       stdin: { expected: "failure", code: "BadArgument" },
       interruptCommand: ChildProcess.make("host-contract-interrupt")
     },
-    pty: { expected: "failure", code: "unsupported" },
     jj: { expected: "failure", code: "not_installed" },
     httpTransport: { expected: "failure", code: "TransportError" }
   }

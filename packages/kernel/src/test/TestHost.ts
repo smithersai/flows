@@ -15,8 +15,6 @@ import type { Jj } from "@smthrs/jj"
 import * as BrowserJj from "@smthrs/jj/browser/BrowserJj"
 import * as BrowserChildProcessSpawner from "@smthrs/platform-browser/BrowserChildProcessSpawner"
 import * as BrowserFileSystem from "@smthrs/platform-browser/BrowserFileSystem"
-import type { Pty } from "@smthrs/pty"
-import * as BrowserPty from "@smthrs/pty/browser/BrowserPty"
 import { Layer, Path, Random } from "effect"
 import type { FileSystem } from "effect"
 import { TestClock } from "effect/testing"
@@ -208,7 +206,6 @@ export type TestHost =
   | FileSystem.FileSystem
   | Path.Path
   | ChildProcessSpawner
-  | Pty
   | Jj
   | HttpTransport.HttpTransport
 
@@ -217,8 +214,8 @@ export type TestHost =
  *
  * Every source of nondeterminism is pinned: an in-memory filesystem, a scripted
  * interpreter, `TestClock` (time only moves when a test calls
- * `TestClock.adjust`), and a seeded PRNG. `Pty` and `Jj` reuse their packages'
- * ticket-failing browser layers so a test that reaches for them fails loudly
+ * `TestClock.adjust`), and a seeded PRNG. `Jj` reuses its package's
+ * ticket-failing browser layer so a test that reaches for it fails loudly
  * instead of touching the real machine.
  *
  * The spawner is provided *over* the filesystem and path layers, exactly the
@@ -245,7 +242,6 @@ export const layer = (options?: {
     platform,
     Layer.provide(BrowserChildProcessSpawner.layer(makeStubBash(options?.commands)), platform),
     HttpTransport.layerNoop(),
-    BrowserPty.layerUnsupported,
     BrowserJj.layerUnsupported,
     TestClock.layer(),
     layerSeededRandom(options?.seed)
