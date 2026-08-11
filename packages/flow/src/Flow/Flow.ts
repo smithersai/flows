@@ -10,6 +10,7 @@
  *
  * @since 4.0.0
  */
+import type * as Node from "@smthrs/plan/Node"
 import type * as Cause from "effect/Cause"
 import type * as Context from "effect/Context"
 import type * as Effect from "effect/Effect"
@@ -17,8 +18,10 @@ import type * as Layer from "effect/Layer"
 import type * as Option from "effect/Option"
 import type * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
+import type { PlannedPayload } from "../Activity/Activity.ts"
 import type { FlowInstance, FlowRuntime } from "../FlowRuntime/index.ts"
 import type * as RetryPolicy from "../RetryPolicy.ts"
+import type { To } from "./Outcome.ts"
 import type { Result } from "./Result.ts"
 import type { TypeId } from "./TypeId.ts"
 
@@ -44,8 +47,30 @@ export interface Flow<
   readonly successSchema: Success
   readonly errorSchema: Error
   readonly annotations: Context.Context<never>
+  /**
+   * Pure plan-time body for this flow.
+   *
+   * The payload is decoded real data and the returned node only describes
+   * topology. This field is optional during the additive migration and will
+   * become required by `docs/specs/Concepts/Unified Flow Authoring.md`.
+   */
+  readonly body?: ((payload: Payload["Type"]) => Node.Node<unknown, unknown>) | undefined
   readonly idempotencyKey?: ((payload: Payload["Type"]) => string) | undefined
   readonly suspendedRetryPolicy?: RetryPolicy.RetryPolicy | undefined
+
+  /**
+   * Describes an inline call to this flow without executing it.
+   */
+  readonly call: (
+    payload: PlannedPayload<Payload["~type.make.in"]>
+  ) => Node.Node<Success["Type"], Error["Type"]>
+
+  /**
+   * Describes a serializable invocation for the next trampoline round.
+   */
+  readonly to: (
+    payload: PlannedPayload<Payload["~type.make.in"]>
+  ) => Node.Node<To<Payload["Type"]>>
 
   /**
    * Add an annotation to the flow.
@@ -226,6 +251,7 @@ export interface Any {
   readonly successSchema: Schema.Top
   readonly errorSchema: Schema.Top
   readonly annotations: Context.Context<never>
+  readonly body?: ((payload: any) => Node.Node<unknown, unknown>) | undefined
   readonly idempotencyKey?: ((payload: any) => string) | undefined
   readonly suspendedRetryPolicy?: RetryPolicy.RetryPolicy | undefined
 }

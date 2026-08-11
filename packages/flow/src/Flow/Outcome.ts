@@ -1,0 +1,126 @@
+/**
+ * Serializable values with which one flow round can settle.
+ *
+ * Engine handoff semantics are intentionally separate. These values contain
+ * only the completed value, the next flow invocation, or the durable waiting
+ * classification described by `docs/specs/Concepts/Trampoline Loops.md`.
+ *
+ * @since 0.1.0
+ */
+import * as Node from "@smthrs/plan/Node"
+import * as Schema from "effect/Schema"
+import type { WaitingAnnotation } from "../FlowRuntime/WaitingAnnotation.ts"
+
+/**
+ * A completed trampoline lineage value.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface Done<A> {
+  readonly _tag: "Done"
+  /**
+   * The completed value in its author-facing form. The engine encodes it with
+   * the settling flow's success schema at the settlement boundary; callers do
+   * not pre-encode values passed to {@link done}.
+   */
+  readonly value: A
+}
+
+/**
+ * A serializable invocation of the next flow round.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface To<Payload> {
+  readonly _tag: "To"
+  readonly flow: string
+  /**
+   * The next round's payload in its author-facing form. The engine encodes it
+   * with the target flow's payload schema at settlement, before persisting the
+   * handoff; callers do not pre-encode values passed to `Flow.to`.
+   */
+  readonly payload: Payload
+}
+
+/**
+ * A request to durably park the current flow round.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface Park {
+  readonly _tag: "Park"
+  readonly reason: WaitingAnnotation
+}
+
+/**
+ * The three pure-data settlements a trampoline round can produce.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type Outcome<A = unknown, Payload = unknown> = Done<A> | To<Payload> | Park
+
+/**
+ * Schema for completed trampoline lineage values.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const Done = Schema.Struct({
+  _tag: Schema.tag("Done"),
+  value: Schema.Unknown
+})
+
+/**
+ * Schema for next-round flow invocations.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const To = Schema.Struct({
+  _tag: Schema.tag("To"),
+  flow: Schema.String,
+  payload: Schema.Unknown
+})
+
+/**
+ * Schema for durable trampoline parking requests.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const Park = Schema.Struct({
+  _tag: Schema.tag("Park"),
+  reason: Schema.Struct({
+    reason: Schema.String,
+    wakeAt: Schema.optional(Schema.Number),
+    token: Schema.optional(Schema.String)
+  })
+})
+
+/**
+ * Schema for every pure-data trampoline settlement.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const Outcome = Schema.Union([Done, To, Park])
+
+/**
+ * Constructs a completed trampoline lineage value.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const done = <A>(value: A): Node.Node<Done<A>> => Node.succeed({ _tag: "Done", value })
+
+/**
+ * Constructs a durable parking request using the runtime waiting vocabulary.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const park = (reason: WaitingAnnotation): Node.Node<Park> => Node.succeed({ _tag: "Park", reason })

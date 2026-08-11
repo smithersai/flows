@@ -6,6 +6,7 @@
  * @since 4.0.0
  */
 import { Sha256 } from "@smthrs/crypto"
+import * as Node from "@smthrs/plan/Node"
 import * as Context from "effect/Context"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
@@ -15,6 +16,7 @@ import { FlowRuntime } from "../FlowRuntime/FlowRuntime.ts"
 import type * as RetryPolicy from "../RetryPolicy.ts"
 import { ExecutionIdRequired } from "./ExecutionIdRequired.ts"
 import type { AnyStructSchema, AnyWithProps, Flow } from "./Flow.ts"
+import type { To } from "./Outcome.ts"
 import { withRollback } from "./Runtime.ts"
 import { TypeId } from "./TypeId.ts"
 
@@ -46,6 +48,7 @@ const Proto = {
       successSchema: this.successSchema,
       errorSchema: this.errorSchema,
       annotations: Context.add(this.annotations, tag, value),
+      body: this.body,
       idempotencyKey: this.idempotencyKey,
       suspendedRetryPolicy: this.suspendedRetryPolicy
     })
@@ -57,8 +60,19 @@ const Proto = {
       successSchema: this.successSchema,
       errorSchema: this.errorSchema,
       annotations: Context.merge(this.annotations, context),
+      body: this.body,
       idempotencyKey: this.idempotencyKey,
       suspendedRetryPolicy: this.suspendedRetryPolicy
+    })
+  },
+  call(this: AnyWithProps, payload: unknown) {
+    return Node.flowCall(this, this._tag, "inline", payload)
+  },
+  to(this: AnyWithProps, payload: unknown): Node.Node<To<unknown>> {
+    return Node.succeed({
+      _tag: "To",
+      flow: this._tag,
+      payload
     })
   },
   execute<const Discard extends boolean = false>(
@@ -133,6 +147,7 @@ const makeProto = <
   readonly successSchema: Success
   readonly errorSchema: Error
   readonly annotations: Context.Context<never>
+  readonly body?: ((payload: Payload["Type"]) => Node.Node<unknown, unknown>) | undefined
   readonly idempotencyKey?: ((payload: Payload["Type"]) => string) | undefined
   readonly suspendedRetryPolicy?: RetryPolicy.RetryPolicy | undefined
 }): Flow<Tag, Payload, Success, Error> => {
@@ -167,6 +182,11 @@ export const make = <
   readonly error?: Error
   readonly suspendedRetryPolicy?: RetryPolicy.RetryPolicy | undefined
   readonly annotations?: Context.Context<never>
+  readonly body?:
+    | ((
+      payload: Payload extends Schema.Struct.Fields ? Schema.Struct.Type<Payload> : Payload["Type"]
+    ) => Node.Node<unknown, unknown>)
+    | undefined
 }): Flow<
   Tag,
   Payload extends Schema.Struct.Fields ? Schema.Struct<Payload> : Payload,
@@ -182,6 +202,11 @@ export const make = <
     successSchema: options.success ?? (Schema.Void as any),
     errorSchema: options.error ?? (Schema.Never as any),
     annotations: options.annotations ?? Context.empty(),
+    body: options.body as
+      | ((
+        payload: (Payload extends Schema.Struct.Fields ? Schema.Struct<Payload> : Payload)["Type"]
+      ) => Node.Node<unknown, unknown>)
+      | undefined,
     idempotencyKey: options.idempotencyKey as any,
     suspendedRetryPolicy: options.suspendedRetryPolicy
   })

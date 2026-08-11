@@ -7,6 +7,70 @@
  */
 import * as Context from "effect/Context"
 import { constFalse, constTrue } from "effect/Function"
+import * as Schema from "effect/Schema"
+
+/**
+ * Declared filesystem effects copied from the plan node effect contract.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const Effects = Schema.Struct({
+  reads: Schema.Array(Schema.String),
+  writes: Schema.Array(Schema.String),
+  boundaryMode: Schema.Literals(["hard", "expected"])
+})
+
+/**
+ * The value form of {@link Effects}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type Effects = typeof Effects.Type
+
+/**
+ * Schema-encodable placement directive retained opaquely until planning.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const PlacementDirective = Schema.Unknown
+
+/**
+ * The value form of {@link PlacementDirective}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type PlacementDirective = typeof PlacementDirective.Type
+
+/**
+ * Capability names a flow may require, defaulting to none.
+ *
+ * @category annotations
+ * @since 0.1.0
+ */
+export const Capabilities = Context.Reference<ReadonlyArray<string>>(
+  "@smthrs/flow/Flow/Capabilities",
+  { defaultValue: () => [] }
+)
+
+/**
+ * Required annotation key for a flow's declared filesystem effects.
+ *
+ * @category annotations
+ * @since 0.1.0
+ */
+export const EffectsDeclaration = Context.Service<Effects>("@smthrs/flow/Flow/EffectsDeclaration")
+
+/**
+ * Required annotation key for a flow's schema-encodable placement directive.
+ *
+ * @category annotations
+ * @since 0.1.0
+ */
+export const Placement = Context.Service<PlacementDirective>("@smthrs/flow/Flow/Placement")
 
 /**
  * Captures defects for a flow and includes them in the result of the flow or its activities.
