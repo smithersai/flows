@@ -20,7 +20,7 @@ import { SqlJournal } from "@smthrs/journal"
 import { Jj, Workspace } from "@smthrs/kernel"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
-import { dirname } from "node:path"
+import { dirname, join } from "node:path"
 
 /**
  * A Jujutsu service that records nothing. The engine calls it for compensable
@@ -64,9 +64,15 @@ const workspaceRoot = (filename: string) => dirname(filename)
 /**
  * The host half: a real filesystem, a content-addressed artifact store inside
  * the workspace, and the workspace root itself.
+ *
+ * The store's directory is passed explicitly. `ArtifactStore.layerFileSystem`
+ * does not read the kernel `Workspace` tag — its default `.flows/objects` is
+ * resolved by the filesystem, which means the process's current directory —
+ * so leaving it out would scatter an example's blobs wherever it happened to
+ * be run from instead of into the temp workspace it just made.
  */
 const hostLayer = (filename: string) =>
-  ArtifactStore.layerFileSystem().pipe(
+  ArtifactStore.layerFileSystem({ directory: join(workspaceRoot(filename), ".flows/objects") }).pipe(
     Layer.provideMerge(Workspace.layer(workspaceRoot(filename))),
     Layer.provideMerge(NodeFileSystem.layer)
   )
