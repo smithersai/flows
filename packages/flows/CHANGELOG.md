@@ -1,5 +1,16 @@
 # @smthrs/flows
 
+## [Unreleased]
+
+### Removed
+
+- Dropped the `Host` and `PlatformBrowser` namespaces. `@smthrs/host` was
+  dissolved, and the `@smthrs/platform-*` bundles are deliberately not
+  re-exported here — for the same reason `effect`'s index does not re-export
+  `@effect/platform-node`, a platform bundle is chosen by the program that runs,
+  not by the library it depends on. Import `@smthrs/platform-node`,
+  `@smthrs/platform-bun`, or `@smthrs/platform-browser` directly.
+
 ## [0.1.0] - 2026-08-05
 
 ### Added

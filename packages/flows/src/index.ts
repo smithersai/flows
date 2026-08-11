@@ -42,7 +42,6 @@ export * as Journal from "@smthrs/journal"
 export * as Kernel from "@smthrs/kernel"
 export * as Keys from "@smthrs/keys"
 export * as Plugin from "@smthrs/plugin"
-export * as Pty from "@smthrs/pty"
 export * as Sandbox from "@smthrs/sandbox"
 export * as Sync from "@smthrs/sync"
 export * as TimeTravel from "@smthrs/time-travel"
@@ -72,7 +71,6 @@ export const namespaces = [
   "Kernel",
   "Keys",
   "Plugin",
-  "Pty",
   "Sandbox",
   "Sync",
   "TimeTravel"

@@ -86,7 +86,6 @@
     "@smthrs/kernel": "0.1.0",
     "@smthrs/keys": "0.1.0",
     "@smthrs/plugin": "0.1.0",
-    "@smthrs/pty": "0.1.0",
     "@smthrs/sandbox": "0.1.0",
     "@smthrs/sync": "0.1.0",
     "@smthrs/time-travel": "0.1.0",

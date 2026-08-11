@@ -47,7 +47,7 @@ describe("vitest coverage isolation conformance", () => {
   it("finds every package's vitest config", () => {
     const names = configs.map((config) => config.name)
     expect(names).toContain("flows")
-    expect(names).toContain("host")
+    expect(names).toContain("kernel")
     expect(names.length).toBeGreaterThanOrEqual(11)
   })
 
