@@ -33,6 +33,7 @@ The root exports these namespaces, also available from matching
 | `BranchShare`      | `BranchShare` / `Service` with `mint` and `verify`; `AuthorizeRequest`, `MintRequest`, `make`, `makeNoop`, `layerNoop`, `makeHmac`, `layerHmac`.                                                                                                              |
 | `BranchPresence`   | `BranchPresence` / `Service` with `announce`, `leave`, `list`, `changes`; `Announcement`, `RosterRequest`, `LeaveRequest`, `PresenceOptions`, `make`, `makeNoop`, `layerNoop`, `makeMemory`, `layer`.                                                         |
 | `BranchCommands`   | `BranchCommands` / `Service` with `submit`; `SubmitRequest`, `submission`, `make`, `makeNoop`, `layerNoop`, `makeLive`, `layer`.                                                                                                                              |
+| `BranchIds`        | `BranchIds` / `Service` with `fresh`, the port `BranchServer.layerHandlers` mints branch and capability ids through; `make`, `makeWebCrypto`, `layer` (Web Crypto UUIDs), and `layerSequential(prefix)` for deterministic tests.                              |
 | `BranchProjection` | `State`, `Message`, `AppliedCommand`, `Field`; `empty`, `apply`, `project`, and the explicit `resolveField` conflict policy.                                                                                                                                  |
 
 Public test subpaths are `@smthrs/sync/test/TestSocket` (`FrameFilter`,

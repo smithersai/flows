@@ -442,10 +442,10 @@ export const make = (deps: Dependencies) => {
           if (recording.outcome._tag === "Conflict") {
             const conflicting = yield* cache.get(keyDigest)
             const receiverOption = yield* Effect.serviceOption(Inconsistency.Inconsistency)
-            // Core default is STRICT: journal the conflict and fail the run
-            // (`docs/architecture/plugin-system.md`, the `cacheInconsistency`
-            // hook's core default). Providing `Inconsistency.layerTolerant`
-            // opts out.
+            // Core default is STRICT: journal the conflict and fail the run,
+            // which is Skyframe's throwing `GraphInconsistencyReceiver`
+            // (`docs/architecture/implementation-status.md`, cache-conflict
+            // receiver). Providing `Inconsistency.layerTolerant` opts out.
             const receiver = Option.isSome(receiverOption)
               ? receiverOption.value
               : Inconsistency.make({ journal, verdict: "fail", owner: deps.owner })

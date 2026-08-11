@@ -34,7 +34,6 @@ export const workspaces = [
   "platform-browser",
   "platform-node",
   "platform-bun",
-  "plugin",
   "sandbox",
   "sync",
   "engine-store",
