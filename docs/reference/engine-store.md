@@ -105,6 +105,51 @@ interface Service {
 
 It is a **deterministic transaction model, not a security boundary**. A body reaching the host through a service the transaction does not seed is outside it; denying that ambient access is the VM/`SandboxProvider` story in `docs/specs/Concepts/Agent Adapters.md`. The human diff-review gate of `docs/specs/Concepts/Diff Review.md` is not implemented — a settled bundle is applied without it (`.smithers/tickets/diff-review-gate.md`) — and the transaction's `FileSystem` surface is deliberately partial (`.smithers/tickets/sandbox-filesystem-surface.md`).
 
+## `PlanScheduler`
+
+<a id="planscheduler"></a>
+
+The node scheduler: it drives a persisted [`@smthrs/plan`](plan.md) `Plan` to completion. `record` persists generation 0 and journals `plan-recorded`, `append` persists the newest generation and journals `subgraph-appended`, and `run` walks the graph.
+
+```ts
+interface Service {
+  record(plan: Plan): Effect<RecordResult, SchedulerError, PlanStore | Journal>
+  append(plan: Plan): Effect<void, SchedulerError, PlanStore | Journal>
+  run(plan: Plan): Effect<Report, SchedulerError, Requirements>
+}
+```
+
+Ready nodes dispatch through the same `internal/ActivityPersistence` seam every activity uses, so the shared step cache, [`WorkspaceSandbox`](#workspacesandbox)'s execute→materialize transaction, attempt rows, and the fenced journal all apply unchanged. The dispatch key folds the plan-time node key together with the boundary the host measured immediately before dispatch: two runs whose input files differ declare the same graph, and serving one the other's result is exactly the staleness the boundary exists to prevent.
+
+Skyframe's `AbstractParallelEvaluator` is the prior art, with two deliberate deviations. There is **no reverse-dependency index and no invalidating node visitor** — `docs/specs/Concepts/Engine Hardening Round 1.md` rejects both, because a node is dirty iff the key it would dispatch under moved and the dispatch-time recheck already computes that. And dependency discovery is a **wavefront** rather than Skyframe's restart-based discovery, because the plan declares its edges before anything runs.
+
+Each node settles as one of four outcomes — `built`, `clean` (the shared cache served it and nothing ran), `failed`, and `skipped` (its cone failed, or `stop-merge` stopped it) — journaled as `node-settled`. Admission is `docs/specs/Concepts/Concurrency.md`'s middle limit only: `concurrency.steps` caps leaf execution and `concurrency.agents` caps the agent subset within it. Both default to unbounded and both floor at one, because a cap of zero admits nothing and a round that admits nothing settles nothing. Ready work is ordered by declared `priority` plus one point per round waited, so priority changes latency without permitting starvation.
+
+Source paths — read by the plan, written by nothing in it — are measured **once** before the first dispatch and pinned for the whole run; produced paths are measured after their producer settles. That is `docs/specs/Concepts/Staleness.md`'s torn-run rule: a rebase re-observes our own outputs, never the world.
+
+The runtime conflict strategies of `docs/specs/Concepts/Runtime Conflict Strategies.md` ride the plan's pair annotations. **delay/rebase** holds the dependents and re-executes against the newly recorded base — the re-measure re-keys, so it is a new attempt rather than a retry of one identity, journaled as `node-invalidated` — bounded by `rebaseLimit`. **stop/merge** stops the loser and appends a merge node to the *same* plan as an ordinary elaboration, with no rebase budget of its own per `Worktree Lanes`' restart-or-fail landing contract. A conflict neither absorbs goes to [`Reconciliation`](#reconciliation).
+
+`NodeExecutor` is the DI seam that turns a `NodeInput` into work: the scheduler owns identity, admission, caching, and journaling, and deliberately owns nothing about what a node *means*.
+
+## `Reconciliation`
+
+<a id="reconciliation"></a>
+
+The pluggable seam for when the world disagrees with the declaration. It is the **first consumer** `flows.engine.expected-set-deviation` has ever had — the emitters shipped with isolated execution and nothing read them.
+
+```ts
+interface Service {
+  onDeviation(deviation: Deviation): Effect<Verdict>
+  onConflict(conflict: Conflict): Effect<Verdict>
+}
+```
+
+Pluggability is dependency injection at the owning seam, per the repository's extension doctrine; there is no hook kernel. `layerDefault` installs a deterministic verdict function in the vault's order of preference: **`Reorder`** when every undeclared path is one another plan node declares it writes (a real dependency the declaration missed, made explicit), **`FactorOut`** when another node in the same run deviated on exactly the same paths (content addressing collapses two identical extracted steps to one key by itself, so the verdict is a record and a hint), and **`Fail`** otherwise, because a deviation nothing explains is the case the vault calls genuinely wrong. A conflict the runtime strategy could not absorb always fails here: choosing a winner between two landings is a semantic judgement this default does not have the material to make.
+
+The scheduler attributes every deviation on a journal page before judging any of it, so two steps that produced the same undeclared paths both see each other — deviating identically is a symmetric fact, and which of the pair the journal happened to list first must not decide the verdict.
+
+A model-backed reconciler is a different `Layer`. It lives in the agent repository and is tracked in `.smithers/tickets/agent-reconciliation-flow.md`; this package has no model dependency and must not grow one.
+
 ## `ArtifactSync`
 
 <a id="artifactsync"></a>
