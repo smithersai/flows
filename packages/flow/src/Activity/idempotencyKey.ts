@@ -16,7 +16,7 @@ import * as StepIdentity from "./StepIdentity.ts"
  *
  * The `name` remains diagnostic only and never contributes to identity.
  *
- * @category Idempotency
+ * @category idempotency
  * @since 4.0.0
  */
 export const idempotencyKey: (

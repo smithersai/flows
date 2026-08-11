@@ -208,7 +208,7 @@ export class RetryAttemptsExhausted extends Schema.TaggedErrorClass<RetryAttempt
  * un-jittered value. Use {@link nextDelayEffect} to sample the `Random`
  * service instead.
  *
- * @category Attempts
+ * @category attempts
  * @since 0.1.0
  */
 export const nextDelay = (
@@ -256,7 +256,7 @@ export const nextDelay = (
  * Deterministic under `Random.withSeed`. Policies without a `jitterRatio`
  * never touch the service.
  *
- * @category Attempts
+ * @category attempts
  * @since 0.1.0
  */
 export const nextDelayEffect = (
@@ -272,7 +272,7 @@ export const nextDelayEffect = (
  * Extracts the stable identity tag of an error for non-retryable matching:
  * a string `_tag` property when present, otherwise the `Error` name.
  *
- * @category Attempts
+ * @category attempts
  * @since 0.1.0
  */
 export const errorTag = (error: unknown): string | undefined => {
@@ -302,7 +302,7 @@ export const errorTag = (error: unknown): string | undefined => {
  * unretried, which parks the run in the `quarantine` waiting state for an
  * operator instead of failing it.
  *
- * @category Attempts
+ * @category attempts
  * @since 0.1.0
  */
 export const defaultNonRetryable: ReadonlyArray<string> = [
@@ -314,7 +314,7 @@ export const defaultNonRetryable: ReadonlyArray<string> = [
  * Whether an error is classified non-retryable — by type (see
  * {@link defaultNonRetryable}) or by the policy's declared tag list.
  *
- * @category Attempts
+ * @category attempts
  * @since 0.1.0
  */
 export const isNonRetryable = (policy: RetryPolicy, error: unknown): boolean => {
@@ -335,7 +335,7 @@ export const isNonRetryable = (policy: RetryPolicy, error: unknown): boolean => 
  * the default a pluggable `resolveRetry` resolution falls back to when no
  * plugin claims the decision.
  *
- * @category Attempts
+ * @category attempts
  * @since 0.1.0
  */
 export const decide = (
@@ -372,7 +372,7 @@ export const decide = (
  * single decision point so a plugin hook dispatch can later be inserted in
  * front of it without touching call sites.
  *
- * @category Attempts
+ * @category attempts
  * @since 0.1.0
  */
 export const decideEffect = (

@@ -1,5 +1,19 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
+/**
+ * The environment description folded into every cross-run cache key.
+ *
+ * A cached result is only reusable on a host that would have produced the same
+ * bytes, so the key has to name the environment as well as the inputs — the
+ * platform, the toolchain, and the capability groups in force. Bazel's action
+ * key does the same thing for the same reason.
+ *
+ * It is a *complete* value on purpose: an environment a composition cannot
+ * fully describe is one whose cache hits cannot be justified, and the engine
+ * executes rather than guessing at the missing part.
+ *
+ * @since 0.1.0
+ */
 import * as Schema from "effect/Schema"
 
 /**

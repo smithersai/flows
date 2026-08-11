@@ -17,7 +17,7 @@ import type { CacheEnvironment } from "./CacheEnvironment.ts"
  * it absent. When absent, the engine scopes activity keys to the current run
  * instead of presenting incomplete environment data as reusable identity.
  *
- * @category Idempotency
+ * @category idempotency
  * @since 0.1.0
  */
 export const CurrentCacheEnvironment = Context.Reference<CacheEnvironment | undefined>(
@@ -33,7 +33,7 @@ export const CurrentCacheEnvironment = Context.Reference<CacheEnvironment | unde
  * Use this only when the composition can identify every semantic runtime
  * layer and its complete capability set. Otherwise leave the context absent.
  *
- * @category Idempotency
+ * @category idempotency
  * @since 0.1.0
  */
 export const layerCacheEnvironment = (
@@ -63,7 +63,7 @@ export const layerCacheEnvironment = (
  * so the n-th same-scope dispatch of every attempt reuses the n-th pinned
  * ordinal.
  *
- * @category Attempts
+ * @category attempts
  * @since 0.1.0
  */
 export interface OrdinalSlot {
@@ -75,7 +75,7 @@ export interface OrdinalSlot {
  * Context reference carrying the ordinal slot of the enclosing
  * `Activity.retry` sequence, when present.
  *
- * @category Attempts
+ * @category attempts
  * @since 0.1.0
  */
 export const CurrentOrdinal = Context.Reference<OrdinalSlot | undefined>(
@@ -87,7 +87,7 @@ export const CurrentOrdinal = Context.Reference<OrdinalSlot | undefined>(
  * Context reference containing the current activity retry attempt, defaulting
  * to `1`.
  *
- * @category Attempts
+ * @category attempts
  * @since 4.0.0
  */
 export const CurrentAttempt = Context.Reference<number>(
