@@ -44,6 +44,13 @@ interface OpenFailure {
   readonly defect: unknown
 }
 
+/**
+ * Deliberately not an option. Unlike the write-retry policy — which callers
+ * tune through `WriteRetryOptions` — this ladder bounds a driver-internal
+ * race during layer construction, before any service exists to configure. Its
+ * bounds are dictated by SQLite's WAL conversion behavior described below,
+ * not by workload, so a caller has nothing to say about them.
+ */
 const openSchedule = Schedule.exponential(Duration.millis(openBaseDelayMs)).pipe(
   Schedule.modifyDelay(({ duration }) =>
     Effect.succeed(Duration.millis(Math.min(openMaxDelayMs, Duration.toMillis(duration))))

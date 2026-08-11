@@ -205,6 +205,9 @@ let scratchSeq = 0
  */
 export const defaultScratchPath = (suite: string): string => {
   const slug = suite.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "host"
+  // Ambient `process.pid` on purpose: this is a Node-only test harness that
+  // must name a path unique to THIS operating-system process before any layer
+  // exists to ask. Injecting it would only move the same read one frame out.
   return join(tmpdir(), `flows-host-contract-${process.pid}-${++scratchSeq}-${slug}`)
 }
 

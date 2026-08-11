@@ -378,6 +378,11 @@ export const make = (options: WasiPreview1Options): WasiPreview1 => {
     if ((flags & (FSTFLAGS.atim | FSTFLAGS.atimNow)) === (FSTFLAGS.atim | FSTFLAGS.atimNow)) fail(Errno.inval)
     if ((flags & (FSTFLAGS.mtim | FSTFLAGS.mtimNow)) === (FSTFLAGS.mtim | FSTFLAGS.mtimNow)) fail(Errno.inval)
     const stats = statsOf()
+    // Deliberately ambient `Date.now`, not Effect's `Clock`: this is the
+    // guest's own `clock_realtime`, read inside a synchronous WASI import
+    // callback that the wasm module calls directly. There is no Effect fiber
+    // on this stack to read a service from, and a guest whose wall clock came
+    // from a swapped test clock would be lied to about the world it runs in.
     const nowSec = Date.now() / 1e3
     const atimeSec = (flags & FSTFLAGS.atim) !== 0
       ? Number(atim) / 1e9
@@ -422,6 +427,9 @@ export const make = (options: WasiPreview1Options): WasiPreview1 => {
   }
 
   const clockTimeGet = (id: number, _precision: bigint, retPtr: number): number => {
+    // Same exemption as `resolveTimes` above: `clock_time_get` IS the WASI
+    // clock shim, called synchronously by the guest, so it reads the host
+    // clock directly rather than routing through Effect's `Clock`.
     const now = id === 0
       ? BigInt(Date.now()) * 1_000_000n
       : id === 1 || id === 2 || id === 3

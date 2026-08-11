@@ -162,6 +162,10 @@ export const makeStubBash = (
       return { stdout: "", stderr: `command not found: ${command}\n`, exitCode: 127 }
     }
     if (scripted.delayMs !== undefined) {
+      // Ambient `setTimeout` on purpose: this stub implements a foreign
+      // promise-returning interface (`JustBashLike`), so there is no Effect
+      // fiber here to sleep on `Clock`. The delay exists only to make a
+      // scripted command observably slow to its caller.
       await new Promise((resolve) => setTimeout(resolve, scripted.delayMs))
     }
     return {

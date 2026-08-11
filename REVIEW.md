@@ -44,7 +44,7 @@ Not blockers, but they came with the run: the three missing changelogs with 0.1.
 1. Verify control of the `@smthrs` npm organization and reserve all 11 names. The review's E404s proved availability to that client, not ownership; nothing in the run changed that.
 2. Confirm the `LICENSE` copyright holder. The run wrote `William Cory and the Smithers Flows contributors` without the owner confirmation §3 required.
 3. Rehearse `.github/workflows/release.yml` against a prerelease/`next` tag before tagging `v0.1.0`. It has never executed, and npm-side trusted-publishing configuration is not verifiable from the repo.
-4. Decide `@smthrs/plugin`: §4 said hold it back (`private`, out of the barrel and the dependency list); the run published it. Either reverse it or record the disagreement.
+4. ~~Decide `@smthrs/plugin`: §4 said hold it back (`private`, out of the barrel and the dependency list); the run published it. Either reverse it or record the disagreement.~~ **Settled by deletion.** The package was removed entirely — no runtime ever dispatched one of its hooks, and its only consumer was the barrel re-export. Extension in `flows` is Effect dependency injection at the seam that owns the behavior, recorded as D11 in [design decisions](docs/architecture/design-decisions.md). The remaining `@smthrs/plugin` references below are historical, describing the tree as reviewed.
 
 **High-priority items from the original review that are still open, unchanged:**
 

@@ -25,6 +25,9 @@ const fileType = (stats: ZenFsStatsLike): FileSystem.File.Type =>
  */
 export const fileInfo = (stats: ZenFsStatsLike): FileSystem.File.Info => ({
   type: fileType(stats),
+  // Not a clock read: `stats.mtimeMs` is a timestamp the host already
+  // reported, and this only re-boxes it in the `Date` that `File.Info`
+  // declares. Nothing here observes the current time.
   mtime: Option.some(new Date(stats.mtimeMs)),
   atime: Option.none(),
   birthtime: Option.none(),
