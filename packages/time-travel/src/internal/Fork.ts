@@ -113,23 +113,36 @@ export const fork = (
         Effect.mapError((cause) => error("unknown", "could not add fork workspace", cause))
       )
       yield* Effect.addFinalizer(() => jj.workspaceForget(options.workspaceName).pipe(Effect.ignore))
-      // The child gets its own worktree RESTORED FROM THE FRAME'S POINTER. A
-      // fresh workspace otherwise starts at whatever the parent's tree happens
-      // to hold now, which is the one state the fork is explicitly not forking
-      // from. A frame with no anchor restores nothing and says so.
-      if (snapshot === undefined) {
-        return {
-          ...result,
-          warnings: [
-            ...warnings,
-            `Frame ${options.frame.lineageId}@${options.frame.seq} has no recorded jj pointer; ` +
-            `the fork workspace ${options.workspaceName} starts from the lane default rather than the frame.`
-          ]
-        }
+      /**
+       * THE CHILD'S WORKTREE, AND WHY IT IS ONLY DISCLOSED.
+       *
+       * `docs/specs/Concepts/Time Travel.md` §Fork wants the child's lane
+       * restored to the frame's jj pointer. `Jj` cannot express that: every
+       * verb — `restore` included — acts on the ONE working copy the layer is
+       * rooted at, and `workspaceAdd(name, path)` takes no revision, so the
+       * only tree a fork could `restore` is the PARENT'S. Doing that would
+       * break the load-bearing half of the same section — "Fork never touches
+       * the parent. No compensation, no truncation, no workspace restore of
+       * the parent" — and `jj restore --from` is destructive: it would rewrite
+       * a parked parent's working copy to an old change on every fork.
+       *
+       * So the fork adds the lane and DISCLOSES the pointer it could not pin
+       * it to, which is exactly what the fork's warning channel is for. Pinning
+       * needs a workspace-scoped provisioning verb (`jj workspace add
+       * --revision`, `.smithers/tickets/fork-workspace-revision.md`), which
+       * reaches into `@smthrs/jj`'s node, browser, and wasm layers alike.
+       */
+      return {
+        ...result,
+        warnings: [
+          ...warnings,
+          snapshot === undefined
+            ? `Frame ${options.frame.lineageId}@${options.frame.seq} has no recorded jj pointer; ` +
+              `the fork workspace ${options.workspaceName} starts from the lane default rather than the frame.`
+            : `Fork workspace ${options.workspaceName} was created at the lane default, not at the frame's ` +
+              `jj pointer ${snapshot.changeId}: provisioning a workspace at a revision is not yet expressible ` +
+              `through Jj. Restore it before running work that assumes the frame's tree.`
+        ]
       }
-      yield* jj.restore(snapshot.changeId).pipe(
-        Effect.mapError((cause) => error("unknown", `could not restore fork workspace to ${snapshot.changeId}`, cause))
-      )
-      return { ...result, warnings }
     })
   )()

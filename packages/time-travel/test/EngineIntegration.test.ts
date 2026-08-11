@@ -210,7 +210,7 @@ describe("time travel over an engine-written journal", () => {
     expect(result.anchored).toBe(3)
   })
 
-  it("forks at a frame with the state and attempts of THAT frame, and restores its pointer", async () => {
+  it("forks at a frame with the state and attempts of THAT frame, and spares the parent's tree", async () => {
     const result = await drive([], (harness) =>
       Effect.gen(function*() {
         const committed = yield* entries
@@ -248,10 +248,15 @@ describe("time travel over an engine-written journal", () => {
     // copied prefix can explain.
     expect(result.parentAttempts).toBe(3)
     expect(result.childAttempts).toBe(2)
-    // The fork's own workspace, restored to the frame's recorded pointer.
-    const added = result.jjCalls.findIndex((call) => call.startsWith("add:"))
-    expect(added).toBeGreaterThanOrEqual(0)
-    expect(result.jjCalls[added + 1]).toMatch(/^restore:/)
+    // The fork gets its OWN workspace and leaves the parent's tree alone:
+    // `Jj.restore` acts on the one working copy the layer is rooted at, so a
+    // fork that called it would restore the parent — forbidden by
+    // `docs/specs/Concepts/Time Travel.md` §Fork. The pointer it could not pin
+    // the lane to is disclosed instead
+    // (`.smithers/tickets/fork-workspace-revision.md`).
+    expect(result.jjCalls.some((call) => call.startsWith("add:"))).toBe(true)
+    expect(result.jjCalls.some((call) => call.startsWith("restore:"))).toBe(false)
+    expect(result.fork.warnings.join(" ")).toContain("was created at the lane default")
     // The irreversible effect the fork carried past is disclosed, never reverted.
     expect(result.fork.warnings.join(" ")).toContain(notifyKind)
     expect(result.fork.warnings.join(" ")).toContain("may execute again on the child")

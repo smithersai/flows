@@ -139,7 +139,7 @@ const runFork = (options: {
 }
 
 describe("fork boundary assessment", () => {
-  it("normalizes every crossed effect to a warning and restores the frame's pointer", async () => {
+  it("normalizes every crossed effect to a warning and never touches the parent's tree", async () => {
     const handler: EffectHandlerRegistry.Handler = {
       kind: "billing/Charge",
       tier: "irreversible",
@@ -164,9 +164,15 @@ describe("fork boundary assessment", () => {
       "billing/Charge (charge-1) was classified revertible for rewind; on a fork it is never reverted and may " +
       "execute again on the child. The charge stands.",
       "mail/Send (email-1) was classified blocking for rewind; on a fork it is never reverted and may " +
-      "execute again on the child. email-1 stands."
+      "execute again on the child. email-1 stands.",
+      "Fork workspace fork-workspace was created at the lane default, not at the frame's jj pointer " +
+      "change-at-frame: provisioning a workspace at a revision is not yet expressible through Jj. " +
+      "Restore it before running work that assumes the frame's tree."
     ])
-    expect(calls).toEqual(["add:fork-workspace", "restore:change-at-frame", "forget:fork-workspace"])
+    // `Jj.restore` acts on the ONE working copy the layer is rooted at — the
+    // parent's. `docs/specs/Concepts/Time Travel.md` §Fork forbids a fork from
+    // restoring it, so the fork discloses the pointer instead of applying it.
+    expect(calls).toEqual(["add:fork-workspace", "forget:fork-workspace"])
   })
 
   it("keeps a `warning` classification's own disclosure verbatim", async () => {
@@ -190,7 +196,10 @@ describe("fork boundary assessment", () => {
     })
 
     expect(result.warnings).toEqual([
-      "billing/Charge (charge-1): The charge stands and will not be refunded."
+      "billing/Charge (charge-1): The charge stands and will not be refunded.",
+      "Fork workspace fork-workspace was created at the lane default, not at the frame's jj pointer " +
+      "change-at-frame: provisioning a workspace at a revision is not yet expressible through Jj. " +
+      "Restore it before running work that assumes the frame's tree."
     ])
   })
 
@@ -204,7 +213,7 @@ describe("fork boundary assessment", () => {
     expect(calls).toEqual(["add:fork-workspace", "forget:fork-workspace"])
   })
 
-  it("maps a suffix read failure and a restore failure to typed errors", async () => {
+  it("maps a suffix read failure and a workspace-add failure to typed errors", async () => {
     const readFailure = await Effect.runPromise(
       Effect.flip(
         Effect.scoped(
@@ -226,7 +235,7 @@ describe("fork boundary assessment", () => {
         )
       ) as unknown as Effect.Effect<{ readonly message: string }>
     )
-    const restoreFailure = await Effect.runPromise(
+    const workspaceFailure = await Effect.runPromise(
       Effect.flip(
         Effect.scoped(
           Fork.fork({
@@ -246,12 +255,9 @@ describe("fork boundary assessment", () => {
                 })
               )
             ),
-            Effect.provide(
-              Layer.succeed(
-                Jj.Jj,
-                Jj.makeNoop({ workspaceAdd: () => Effect.void, workspaceForget: () => Effect.void })
-              )
-            ),
+            // `workspaceAdd` is left unimplemented, so the noop's
+            // `not_installed` failure is what has to arrive typed.
+            Effect.provide(Layer.succeed(Jj.Jj, Jj.makeNoop({ workspaceForget: () => Effect.void }))),
             Effect.provide(journalOf([], 1)),
             Effect.provide(Layer.succeed(CacheStore.CacheStore, CacheStore.makeNoop())),
             Effect.provide(EffectHandlerRegistry.layerNoop)
@@ -261,7 +267,7 @@ describe("fork boundary assessment", () => {
     )
 
     expect(readFailure.message).toBe("could not read fork suffix for parent")
-    expect(restoreFailure.message).toBe("could not restore fork workspace to change-at-frame")
+    expect(workspaceFailure.message).toBe("could not add fork workspace")
   })
 })
 
