@@ -1,3 +1,4 @@
+import * as DurableWriter from "@smthrs/database/DurableWriter"
 import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Migrations } from "@smthrs/journal"
@@ -166,7 +167,10 @@ describe("cross-connection cycle rejection (issue #74)", () => {
     // concurrently.
     const owner = Effect.gen(function*() {
       const context = yield* Layer.build(
-        Layer.provideMerge(Migrations.layer, NodeDatabase.layer({ filename })) as unknown as Layer.Layer<never>
+        Layer.provideMerge(
+          Migrations.layer,
+          Layer.provideMerge(DurableWriter.layer(), NodeDatabase.layer({ filename }))
+        ) as unknown as Layer.Layer<never>
       )
       return yield* (DurableEngineState.make.pipe(
         Effect.provide(context as never)

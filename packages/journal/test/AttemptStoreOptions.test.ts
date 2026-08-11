@@ -1,6 +1,7 @@
-import { Database } from "@smthrs/database/Database"
+import { DurableWriter } from "@smthrs/database/DurableWriter"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Effect, Layer, Option } from "effect"
+import type * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as AttemptStore from "../src/AttemptStore.ts"
 import * as Migrations from "../src/Migrations.ts"
@@ -16,7 +17,7 @@ const base = Layer.provideMerge(
 
 const withStore = <A, E>(
   options: AttemptStore.Options,
-  body: (store: AttemptStore.Service) => Effect.Effect<A, E, RunStore.RunStore | Database>
+  body: (store: AttemptStore.Service) => Effect.Effect<A, E, RunStore.RunStore | DurableWriter | SqlClient.SqlClient>
 ) =>
   Effect.runPromise(
     Effect.gen(function*() {

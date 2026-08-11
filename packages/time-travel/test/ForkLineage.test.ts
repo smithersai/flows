@@ -1,14 +1,14 @@
-import { Database } from "@smthrs/database/Database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import * as Migrations from "@smthrs/journal/Migrations"
 import * as RunStore from "@smthrs/journal/RunStore"
 import * as Effect from "effect/Effect"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as SqlTimeTravelStore from "../src/SqlTimeTravelStore.ts"
 
 const seed = (runId: string) =>
   Effect.gen(function*() {
-    const { sql } = yield* Database
+    const sql = yield* Effect.service(SqlClient.SqlClient)
     yield* sql`
       INSERT INTO flows_runs (run_id, status, created_at_ms, state_json)
       VALUES (${runId}, 'suspended', 0, ${
@@ -28,7 +28,7 @@ describe("fork lineage", () => {
     const ancestry = await Effect.runPromise(
       Effect.gen(function*() {
         yield* Migrations.run
-        const { sql } = yield* Database
+        const sql = yield* Effect.service(SqlClient.SqlClient)
         const store = yield* SqlTimeTravelStore.make
         yield* seed("root")
         const child = yield* store.createFork("root", { lineageId: "root/root", seq: 0 })

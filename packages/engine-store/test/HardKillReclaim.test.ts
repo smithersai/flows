@@ -12,7 +12,7 @@
  * because the hard-kill evidence (a `running` row with a stale
  * `heartbeat_at_ms`) lives in `flows_runs` itself.
  */
-import { Database } from "@smthrs/database"
+import { DurableWriter } from "@smthrs/database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Flow, type FlowEngine } from "@smthrs/engine"
 import { Migrations, Ownership, RunStore, SqlJournal } from "@smthrs/journal"
@@ -22,6 +22,7 @@ import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
@@ -58,13 +59,14 @@ const services = Layer.mergeAll(
  */
 const insertHardKilledRun = (runId: string) =>
   Effect.gen(function*() {
-    const database = yield* Database.Database
+    const sql = yield* Effect.service(SqlClient.SqlClient)
+    const writer = yield* DurableWriter.DurableWriter
     const stateJson = JSON.stringify({
       version: 1,
       flowName: TestFlow._tag,
       payload: {}
     })
-    yield* database.write(database.sql`
+    yield* writer.write(sql`
       INSERT INTO flows_runs (
         run_id,
         status,

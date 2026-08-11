@@ -10,13 +10,14 @@
  *
  * @since 0.1.0
  */
-import { Database, DatabaseError } from "@smthrs/database/Database"
+import { DatabaseError, DurableWriter } from "@smthrs/database/DurableWriter"
 import type { OwnerId } from "@smthrs/journal/Ownership"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as EngineStateSchema from "./internal/EngineStateSchema.ts"
 
 /** @private */
@@ -611,15 +612,15 @@ const decodeClockRow = (input: unknown): Effect.Effect<ClockRow> =>
  * @since 0.1.0
  * @category constructors
  */
-export const make: Effect.Effect<Service, never, Database> = Effect.gen(function*() {
-  const database = yield* Database
-  const { sql } = database
+export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlClient> = Effect.gen(function*() {
+  const sql = yield* Effect.service(SqlClient.SqlClient)
+  const writer = yield* DurableWriter
 
   // Engine-store-owned storage created outside the journal migration
   // (issues #40/#41/#79/#81). The statements, their rationale, and
   // the dialects each is known to accept live in one machine-readable
   // inventory so the pg-porting plan cannot omit them (issue #92).
-  yield* EngineStateSchema.apply(database)
+  yield* EngineStateSchema.apply(sql, writer)
 
   const selectDeferred = (address: DeferredAddress) =>
     sql<DeferredDatabaseRow>`
@@ -670,7 +671,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
       const metadataJson = row.metadata === undefined
         ? null
         : yield* encodeJson(row.metadata, "metadata")
-      return yield* database.write(
+      return yield* writer.write(
         Effect.gen(function*() {
           const inserted = yield* sql<DeferredDatabaseRow>`
             INSERT INTO flows_deferred_completions (
@@ -732,7 +733,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
   const scheduleClock: Service["scheduleClock"] = Effect.fn("DurableEngineState.scheduleClock")((row, owner) =>
     owner === undefined
       ? Effect.interrupt
-      : database.write(
+      : writer.write(
         Effect.gen(function*() {
           const inserted = yield* sql<ClockDatabaseRow>`
             INSERT INTO flows_clock_deadlines (
@@ -790,7 +791,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
     address,
     completedAtMs
   ) =>
-    database.write(
+    writer.write(
       Effect.gen(function*() {
         const updated = yield* sql<ClockDatabaseRow>`
           UPDATE flows_clock_deadlines
@@ -924,7 +925,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
     `
 
   const park: Service["park"] = Effect.fn("DurableEngineState.park")((runId, waiting, owner) =>
-    database.write(
+    writer.write(
       Effect.gen(function*() {
         const updated = yield* sql<WaitingDatabaseRow>`
           UPDATE flows_runs
@@ -951,7 +952,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
   )
 
   const wake: Service["wake"] = Effect.fn("DurableEngineState.wake")((runId) =>
-    database.write(
+    writer.write(
       Effect.gen(function*() {
         const before = yield* selectWaiting(runId)
         if (before[0] === undefined) {
@@ -1139,7 +1140,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
   const recordRunParent: Service["recordRunParent"] = Effect.fn(
     "DurableEngineState.recordRunParent"
   )((childId, parentId) =>
-    database.write(
+    writer.write(
       Effect.gen(function*() {
         // MAX(seq)+1 and the insert share one write transaction, so the
         // assigned seq is a total insertion order over the store.
@@ -1160,12 +1161,12 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
           // durable and there is no check-then-record window for another
           // writer to slip through (issues #54/#55/#56). The insert
           // precedes the walk, so the transaction holds the write lock
-          // while walking: under `Database.write`'s documented contract —
+          // while walking: under `DurableWriter.write`'s documented contract —
           // write transactions are mutually serialized (issue #74) — of two
           // edges that jointly close a cycle, exactly the later one fails.
           // This is a contract requirement, not a SQLite artifact; a
           // backend that ran writes at READ COMMITTED would break it and is
-          // excluded by the Database contract.
+          // excluded by the DurableWriter contract.
           const cycle = yield* findCyclePath(childId, parentId, parentIdsOf)
           if (cycle !== undefined) {
             return yield* Effect.fail(new RunParentCycleError({ path: cycle }))
@@ -1194,7 +1195,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
   const removeRunParentsForRun: Service["removeRunParentsForRun"] = Effect.fn(
     "DurableEngineState.removeRunParentsForRun"
   )((runId) =>
-    database.write(sql`
+    writer.write(sql`
       DELETE FROM flows_run_parents
       WHERE child_id = ${runId}
         OR parent_id = ${runId}
@@ -1204,7 +1205,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
   const transaction: Service["transaction"] = <A, E, R>(
     effect: Effect.Effect<A, E, R>
   ): Effect.Effect<A, E, R> =>
-    database.write(effect).pipe(
+    writer.write(effect).pipe(
       Effect.catchIf(
         (error): error is DatabaseError => error instanceof DatabaseError,
         (error) => Effect.die(error)
@@ -1254,7 +1255,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
  * @since 0.1.0
  * @category layers
  */
-export const layer: Layer.Layer<DurableEngineState, never, Database> = Layer.effect(
+export const layer: Layer.Layer<DurableEngineState, never, DurableWriter | SqlClient.SqlClient> = Layer.effect(
   DurableEngineState,
   make
 )

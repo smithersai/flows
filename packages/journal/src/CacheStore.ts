@@ -9,12 +9,13 @@
  *
  * @since 0.1.0
  */
-import { affectedRows, Database, DatabaseError } from "@smthrs/database/Database"
+import { affectedRows, DatabaseError, DurableWriter } from "@smthrs/database/DurableWriter"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as SqlError from "effect/unstable/sql/SqlError"
 
 /**
@@ -206,9 +207,9 @@ const decodeRow = (input: unknown): Effect.Effect<CacheEntry, CacheStoreError> =
  * @category constructors
  * @since 0.1.0
  */
-export const make: Effect.Effect<Service, never, Database> = Effect.gen(function*() {
-  const database = yield* Database
-  const { sql } = database
+export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlClient> = Effect.gen(function*() {
+  const sql = yield* Effect.service(SqlClient.SqlClient)
+  const writer = yield* DurableWriter
 
   const get: Service["get"] = Effect.fn("CacheStore.get")((keyDigest) =>
     Effect.gen(function*() {
@@ -226,7 +227,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
       yield* validateEntry(entry)
       const result = yield* encode(entry.result, "result")
       const meta = yield* encode(entry.meta, "meta")
-      return yield* database.write(
+      return yield* writer.write(
         Effect.gen(function*() {
           const inserted = yield* sql`
             INSERT INTO flows_step_cache (
@@ -262,7 +263,7 @@ export const make: Effect.Effect<Service, never, Database> = Effect.gen(function
       // drop it. Temporal fences its mutable-state writes the same way — the
       // guard is part of the write, never a prior read.
       const fenced = options?.ifRecordedBy
-      const deleted = yield* database.write(
+      const deleted = yield* writer.write(
         fenced === undefined
           ? sql`DELETE FROM flows_step_cache WHERE key_digest = ${keyDigest}`.raw
           : sql`
@@ -313,4 +314,4 @@ export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<CacheSt
  * @category layers
  * @since 0.1.0
  */
-export const layer: Layer.Layer<CacheStore, never, Database> = Layer.effect(CacheStore)(make)
+export const layer: Layer.Layer<CacheStore, never, DurableWriter | SqlClient.SqlClient> = Layer.effect(CacheStore)(make)

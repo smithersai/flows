@@ -9,9 +9,9 @@
  *
  * @since 0.1.0
  */
-import { Database, fromSqlError } from "@smthrs/database/Database"
+import { DurableWriter, fromSqlError } from "@smthrs/database/DurableWriter"
 import { Clock, Context, Effect, Layer, Schema } from "effect"
-import type * as SqlClient from "effect/unstable/sql/SqlClient"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import type * as SqlError from "effect/unstable/sql/SqlError"
 import type { LivenessEvidence, OwnerId } from "./Ownership.ts"
 
@@ -510,15 +510,15 @@ const evidenceMatchesOwner = (
  * @since 0.1.0
  * @category constructors
  */
-export const make: Effect.Effect<Service, never, Database> = Effect.gen(function*() {
-  const database = yield* Database
-  const sql = database.sql
+export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlClient> = Effect.gen(function*() {
+  const sql = yield* Effect.service(SqlClient.SqlClient)
+  const writer = yield* DurableWriter
 
   const write = <A, E, R>(
     method: string,
     effect: Effect.Effect<A, E, R>
   ): Effect.Effect<A, RunStoreError, R> =>
-    database.write(effect).pipe(Effect.mapError((cause) => persistenceError(method, cause)))
+    writer.write(effect).pipe(Effect.mapError((cause) => persistenceError(method, cause)))
 
   // A bare SELECT needs no write transaction and no replay; only the error
   // vocabulary stays shared with `write`.
@@ -1045,4 +1045,4 @@ export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<RunStor
  * @since 0.1.0
  * @category layers
  */
-export const layer: Layer.Layer<RunStore, never, Database> = Layer.effect(RunStore, make)
+export const layer: Layer.Layer<RunStore, never, DurableWriter | SqlClient.SqlClient> = Layer.effect(RunStore, make)

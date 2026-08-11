@@ -1,7 +1,8 @@
-import { Database } from "@smthrs/database"
+import type { DurableWriter } from "@smthrs/database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Cause, Clock, Deferred, Duration, Effect, Exit, Fiber } from "effect"
 import { TestClock } from "effect/testing"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as Migrations from "../src/Migrations.ts"
 import {
@@ -18,7 +19,7 @@ import * as RunStoreLive from "../src/RunStore.ts"
 
 const run = <A, E>(effect: Effect.Effect<A, E, never>) => Effect.runPromise(effect)
 
-const migrated = <A, E>(effect: Effect.Effect<A, E, Database.Database | RunStore>) =>
+const migrated = <A, E>(effect: Effect.Effect<A, E, DurableWriter.DurableWriter | SqlClient.SqlClient | RunStore>) =>
   run(
     effect.pipe(
       Effect.provide(RunStoreLive.layer),
@@ -88,7 +89,7 @@ describe("RunStore", () => {
 
   it("returns typed errors for invalid, duplicate, missing, and corrupt runs", async () => {
     const codes = await migrated(Effect.gen(function*() {
-      const database = yield* Database.Database
+      const sql = yield* Effect.service(SqlClient.SqlClient)
       const store = yield* RunStore
       const empty = yield* Effect.flip(store.create("", "{}"))
       const invalidJson = yield* Effect.flip(store.create("invalid-json", "not-json"))
@@ -96,13 +97,13 @@ describe("RunStore", () => {
       const duplicate = yield* Effect.flip(store.create("duplicate", "{}"))
       const missing = yield* Effect.flip(store.get("missing"))
 
-      yield* database.sql`PRAGMA ignore_check_constraints = ON`
+      yield* sql`PRAGMA ignore_check_constraints = ON`
       yield* store.create("corrupt-schema", "{}")
-      yield* database.sql`UPDATE flows_runs SET created_at_ms = 'bad' WHERE run_id = 'corrupt-schema'`
+      yield* sql`UPDATE flows_runs SET created_at_ms = 'bad' WHERE run_id = 'corrupt-schema'`
       const corruptSchema = yield* Effect.flip(store.get("corrupt-schema"))
 
       yield* store.create("corrupt-owner", "{}")
-      yield* database.sql`
+      yield* sql`
         UPDATE flows_runs
         SET owner_host_id = 'host', owner_pid = 1, owner_nonce = NULL
         WHERE run_id = 'corrupt-owner'
@@ -110,13 +111,13 @@ describe("RunStore", () => {
       const corruptOwner = yield* Effect.flip(store.get("corrupt-owner"))
 
       yield* store.create("corrupt-heartbeat", "{}")
-      yield* database.sql`
+      yield* sql`
         UPDATE flows_runs SET heartbeat_at_ms = 1 WHERE run_id = 'corrupt-heartbeat'
       `
       const corruptHeartbeat = yield* Effect.flip(store.get("corrupt-heartbeat"))
 
       yield* store.create("corrupt-running-owner", "{}")
-      yield* database.sql`
+      yield* sql`
         UPDATE flows_runs
         SET status = 'running', heartbeat_at_ms = 1
         WHERE run_id = 'corrupt-running-owner'
@@ -124,19 +125,19 @@ describe("RunStore", () => {
       const corruptRunningOwner = yield* Effect.flip(store.get("corrupt-running-owner"))
 
       yield* store.create("corrupt-claim", "{}")
-      yield* database.sql`
+      yield* sql`
         UPDATE flows_runs SET claim_host_id = 'host' WHERE run_id = 'corrupt-claim'
       `
       const corruptClaim = yield* Effect.flip(store.get("corrupt-claim"))
 
       yield* store.create("corrupt-claim-time", "{}")
-      yield* database.sql`
+      yield* sql`
         UPDATE flows_runs SET claimed_at_ms = 1 WHERE run_id = 'corrupt-claim-time'
       `
       const corruptClaimTime = yield* Effect.flip(store.get("corrupt-claim-time"))
 
       yield* store.create("corrupt-complete-claim", "{}")
-      yield* database.sql`
+      yield* sql`
         UPDATE flows_runs
         SET claim_host_id = 'host', claim_pid = 1, claim_nonce = 'nonce'
         WHERE run_id = 'corrupt-complete-claim'
@@ -144,12 +145,12 @@ describe("RunStore", () => {
       const corruptCompleteClaim = yield* Effect.flip(store.get("corrupt-complete-claim"))
 
       yield* store.create("corrupt-json", "{}")
-      yield* database.sql`
+      yield* sql`
         UPDATE flows_runs SET state_json = 'not-json' WHERE run_id = 'corrupt-json'
       `
       const corruptJson = yield* Effect.flip(store.get("corrupt-json"))
-      yield* database.sql`PRAGMA ignore_check_constraints = OFF`
-      yield* database.sql`DROP TABLE flows_runs`
+      yield* sql`PRAGMA ignore_check_constraints = OFF`
+      yield* sql`DROP TABLE flows_runs`
       const persistence = yield* Effect.flip(store.create("missing-table", "{}"))
       const readPersistence = yield* Effect.flip(store.get("missing-table"))
 

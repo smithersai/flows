@@ -15,8 +15,9 @@
  *
  * @since 0.1.0
  */
-import type { DatabaseService } from "@smthrs/database/Database"
+import type { Service as WriterService } from "@smthrs/database/DurableWriter"
 import * as Effect from "effect/Effect"
+import type * as SqlClient from "effect/unstable/sql/SqlClient"
 
 /**
  * SQL dialects a statement is known to be accepted by, verbatim.
@@ -122,9 +123,9 @@ export const statements: ReadonlyArray<Statement> = [
  * @since 0.1.0
  * @category constructors
  */
-export const apply = (database: DatabaseService): Effect.Effect<void> =>
+export const apply = (sql: SqlClient.SqlClient, writer: WriterService): Effect.Effect<void> =>
   Effect.forEach(
     statements,
-    (statement) => database.write(database.sql.unsafe(statement.ddl)).pipe(Effect.orDie),
+    (statement) => writer.write(sql.unsafe(statement.ddl)).pipe(Effect.orDie),
     { discard: true }
   )

@@ -1,7 +1,7 @@
 /**
  * Shared behavioural contract for every `DurableEngineState` implementation.
  *
- * Modeled on `packages/host/test/contract/HostContract.ts`: one suite, run
+ * Modeled on `packages/kernel/src/test/HostContract.ts`: one suite, run
  * against both the SQL and the in-memory implementations, so the two can
  * never diverge silently (issue #23 — memory `park` used to drop the owner
  * fence the SQL layer enforces).

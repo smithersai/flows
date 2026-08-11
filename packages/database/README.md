@@ -1,8 +1,9 @@
 # @smthrs/database
 
-Thin Effect SQL boundary for the durable flows packages. It provides a normalized
-database service and Node/in-memory SQLite layers; journal schema and queries stay
-in `@smthrs/journal`.
+Durable write boundary for the flows persistence packages. It provides the
+shared write policy (`DurableWriter`), normalized database failures, and
+Node/in-memory SQLite client layers; queries go through Effect's own
+`SqlClient` service, and journal schema and queries stay in `@smthrs/journal`.
 
 ```sh
 npm install @smthrs/database
@@ -14,25 +15,29 @@ The root is the driver-neutral contract and bundles for the browser. The drivers
 are Node-only — `node:sqlite` through `@effect/sql-sqlite-node` — so they live
 under explicit subpaths.
 
-| Import                               | Public exports                                                                                                                                                                                                                                                |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@smthrs/database`                   | `Database` and `DatabaseService` expose `sql` plus transaction-scoped `write(effect)`. `DatabaseErrorCode`, `DatabaseError`, and `fromSqlError` normalize driver failures. `make` wraps a SQL client; `makeNoop` and `layerNoop` provide an unsupported stub. |
-| `@smthrs/database/node/NodeDatabase` | **Node only.** `NodeDatabaseOptions` configures SQLite and write retries; `layer(options)` provides `Database`.                                                                                                                                               |
-| `@smthrs/database/test/TestDatabase` | **Node only.** `layer` provides the production Node adapter over a fresh `:memory:` database.                                                                                                                                                                 |
+| Import                               | Public exports                                                                                                                                                                                                                                                                                         |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `@smthrs/database`                   | `DurableWriter` and `Service` expose transaction-scoped `write(effect)`. `DatabaseErrorCode`, `DatabaseError`, and `fromSqlError` normalize driver failures. `make` builds over a SQL client; `layer` composes over the context's `SqlClient`; `makeNoop` and `layerNoop` provide an unsupported stub. |
+| `@smthrs/database/node/NodeDatabase` | **Node only.** `NodeDatabaseOptions` configures the SQLite connection; `layer(options)` provides Effect's `SqlClient`.                                                                                                                                                                                 |
+| `@smthrs/database/test/TestDatabase` | **Node only.** `layer` provides the production Node client and the writer over a fresh `:memory:` database.                                                                                                                                                                                            |
 
-Any Effect `SqlClient` can be wrapped with `Database.make`, so a browser or
+Any Effect `SqlClient` works underneath `DurableWriter.layer()`, so a browser or
 Postgres client gets the same normalized errors and write retry — see
 [browser support](../../docs/architecture/browser-support.md).
 
 ```ts
-import { Database } from "@smthrs/database"
+import { DurableWriter } from "@smthrs/database"
 import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
-import { Effect } from "effect"
+import { Effect, Layer } from "effect"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 
 const program = Effect.gen(function*() {
-  const database = yield* Database.Database
-  return yield* database.write(database.sql`SELECT 1 AS value`)
-}).pipe(Effect.provide(NodeDatabase.layer({ filename: "flows.db" })))
+  const sql = yield* Effect.service(SqlClient.SqlClient)
+  const writer = yield* DurableWriter.DurableWriter
+  return yield* writer.write(sql`SELECT 1 AS value`)
+}).pipe(Effect.provide(
+  Layer.provideMerge(DurableWriter.layer(), NodeDatabase.layer({ filename: "flows.db" }))
+))
 
 Effect.runPromise(program)
 ```
@@ -40,12 +45,12 @@ Effect.runPromise(program)
 SQLite busy, locked, I/O, and lock-timeout writes are retried. Constraints,
 syntax errors, and arbitrary application errors are not.
 
-## Why `write` instead of bare `sql.withTransaction`
+## Why `DurableWriter.write` instead of bare `sql.withTransaction`
 
-`write` is one combinator, not a decorated client — `sql` is the plain Effect
-`SqlClient`, used directly for queries. The combinator exists because the
-durable stores (`@smthrs/journal`, `@smthrs/engine-store`,
-`@smthrs/time-travel`) share transaction policy that must live at one boundary:
+`write` is one combinator, not a decorated client — queries use Effect's plain
+`SqlClient` directly. The combinator exists because the durable stores
+(`@smthrs/journal`, `@smthrs/engine-store`, `@smthrs/time-travel`) share
+transaction policy that must live at one boundary:
 
 - **Savepoint composition.** Every store writes through the same `write`, so a
   store call inside `Journal.transact` joins the enclosing transaction as a

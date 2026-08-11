@@ -5,6 +5,8 @@
 ### Changed
 
 - Required an owner-liveness probe when constructing the durable engine.
+- `DurableEngineState` now requires Effect's `SqlClient` service plus
+  `DurableWriter` (the renamed `Database` service).
 
 ### Fixed
 

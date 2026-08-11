@@ -17,7 +17,7 @@
  * persistence request
  * (`reference/temporal/service/history/workflow/transaction_impl.go`).
  */
-import { Database } from "@smthrs/database"
+import { DurableWriter } from "@smthrs/database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { DurableClock, Flow, type FlowEngine } from "@smthrs/engine"
 import {
@@ -43,6 +43,7 @@ import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"

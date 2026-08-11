@@ -1,4 +1,4 @@
-import { Database } from "@smthrs/database"
+import { DurableWriter } from "@smthrs/database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Migrations, type Ownership } from "@smthrs/journal"
 import * as Cause from "effect/Cause"
@@ -6,6 +6,7 @@ import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import { runPromise } from "./Sha256.ts"
@@ -20,7 +21,7 @@ const migratedDatabase = Layer.provideMerge(Migrations.layer, TestDatabase.layer
 
 const insertOwnedRun = (runId: string) =>
   Effect.gen(function*() {
-    const { sql } = yield* Database.Database
+    const sql = yield* Effect.service(SqlClient.SqlClient)
     yield* sql`
       INSERT INTO flows_runs (
         run_id, status, created_at_ms,
@@ -176,7 +177,7 @@ describe("SQL durable state encoding failures", () => {
     const result = await runPromise(
       Effect.gen(function*() {
         yield* insertOwnedRun("corrupt")
-        const { sql } = yield* Database.Database
+        const sql = yield* Effect.service(SqlClient.SqlClient)
         const state = yield* DurableEngineState.make
         const missing = yield* state.deferred(address)
         yield* sql`PRAGMA ignore_check_constraints = ON`
@@ -208,7 +209,7 @@ describe("SQL first-writer transaction integrity", () => {
     const exit = await runPromise(
       Effect.gen(function*() {
         yield* insertOwnedRun("torn")
-        const database = yield* Database.Database
+        const sql = yield* Effect.service(SqlClient.SqlClient)
         const first = yield* DurableEngineState.make
         yield* first.completeDeferred({ ...address, exit: Exit.succeed("first"), completedAtMs: 0 })
 
@@ -220,17 +221,14 @@ describe("SQL first-writer transaction integrity", () => {
           (strings: TemplateStringsArray, ...args: ReadonlyArray<unknown>) =>
             strings.join("").includes("FROM flows_deferred_completions")
               ? Effect.succeed([])
-              : (database.sql as unknown as (
+              : (sql as unknown as (
                 strings: TemplateStringsArray,
                 ...args: ReadonlyArray<unknown>
               ) => unknown)(strings, ...args),
-          database.sql
+          sql
         )
         const torn = yield* DurableEngineState.make.pipe(
-          Effect.provideService(
-            Database.Database,
-            Database.Database.of({ ...database, sql: blindSelect as never })
-          )
+          Effect.provideService(SqlClient.SqlClient, blindSelect as never)
         )
         return yield* Effect.exit(
           torn.completeDeferred({ ...address, exit: Exit.succeed("second"), completedAtMs: 1 })

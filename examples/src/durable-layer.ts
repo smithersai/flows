@@ -7,6 +7,7 @@
  * a later example reads the same rows a previous one wrote.
  */
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
+import { DurableWriter } from "@smthrs/database"
 import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
 import { DurableEngineState, EngineStore, StepBoundary } from "@smthrs/engine-store"
 import { AttemptStore, CacheStore, Migrations, RunStore, SqlJournal } from "@smthrs/journal"
@@ -33,7 +34,10 @@ export const stubJj = Layer.succeed(
 
 /** Journal, run, attempt, and cache stores over one migrated SQLite file. */
 export const storesLayer = (filename: string) => {
-  const database = Layer.provideMerge(Migrations.layer, NodeDatabase.layer({ filename }))
+  const database = Layer.provideMerge(
+    Migrations.layer,
+    Layer.provideMerge(DurableWriter.layer(), NodeDatabase.layer({ filename }))
+  )
   return Layer.mergeAll(
     SqlJournal.layer({ capacity: 1024, overflow: "reject" }),
     RunStore.layer,

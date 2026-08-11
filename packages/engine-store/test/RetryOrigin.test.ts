@@ -3,7 +3,7 @@
  * the durably recorded first attempt, so it survives park/resume and process
  * death instead of restarting on every process.
  */
-import { Database } from "@smthrs/database"
+import { DurableWriter } from "@smthrs/database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Activity, Flow, RetryPolicy } from "@smthrs/engine"
 import { AttemptStore, CacheStore, Migrations, RunStore, SqlJournal } from "@smthrs/journal"
@@ -14,6 +14,7 @@ import * as Fiber from "effect/Fiber"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import { TestClock } from "effect/testing"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
@@ -182,7 +183,7 @@ describe("durable schedule-to-close origin", () => {
         const dispatchesBeforeRestart = dispatches
 
         // Retention prunes the attempt-1 row while the run is parked.
-        const { sql } = yield* Database.Database
+        const sql = yield* Effect.service(SqlClient.SqlClient)
         yield* sql`DELETE FROM flows_attempts WHERE run_id = 'retry-origin-pruned' AND attempt = 1`
 
         yield* TestClock.adjust("500 seconds")

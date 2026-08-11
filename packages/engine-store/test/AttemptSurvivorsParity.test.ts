@@ -6,12 +6,13 @@
  * leading attempts, so the same run restored its retry origin under SQL
  * state and silently restarted its expiration budget under the fallback.
  */
-import { Database } from "@smthrs/database"
+import { DurableWriter } from "@smthrs/database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { AttemptStore, Migrations, type Ownership } from "@smthrs/journal"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as AttemptProbe from "../src/internal/AttemptProbe.ts"
@@ -26,7 +27,7 @@ const layers = Layer.provideMerge(
 
 const insertOwnedRun = (runId: string) =>
   Effect.gen(function*() {
-    const { sql } = yield* Database.Database
+    const sql = yield* Effect.service(SqlClient.SqlClient)
     yield* sql`
       INSERT INTO flows_runs (
         run_id, status, created_at_ms,
@@ -40,7 +41,7 @@ const insertOwnedRun = (runId: string) =>
 
 const insertAttempt = (runId: string, digest: string, attempt: number) =>
   Effect.gen(function*() {
-    const { sql } = yield* Database.Database
+    const sql = yield* Effect.service(SqlClient.SqlClient)
     yield* sql`
       INSERT INTO flows_attempts (
         run_id, step_key_digest, attempt, state, started_at_ms, meta_json

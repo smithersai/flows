@@ -8,11 +8,12 @@
  * submits the mutable-state mutation and its event batches as one persistence
  * request.
  */
-import { Database } from "@smthrs/database/Database"
+import { DurableWriter } from "@smthrs/database/DurableWriter"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Effect, Layer, PubSub } from "effect"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import { Journal, JournalError, makeNoop } from "../src/Journal.ts"
 import { Input, type RunId, type SourceId, type SourceSeq } from "../src/JournalEvent.ts"
@@ -47,11 +48,12 @@ const stack = SqlJournal.layer({ capacity: 8, overflow: "reject" }).pipe(
   Layer.provideMerge(migratedDatabase)
 )
 
-const withStack = <A, E>(body: Effect.Effect<A, E, Journal | Database | RunStore.RunStore | Scope.Scope>) =>
-  Effect.scoped(body.pipe(Effect.provide(stack)))
+const withStack = <A, E>(
+  body: Effect.Effect<A, E, Journal | DurableWriter | SqlClient.SqlClient | RunStore.RunStore | Scope.Scope>
+) => Effect.scoped(body.pipe(Effect.provide(stack)))
 
-const rowsOf = (database: Database["Service"], run: RunId) =>
-  database.sql<{ readonly seq: number; readonly event_type: string }>`
+const rowsOf = (sql: SqlClient.SqlClient, run: RunId) =>
+  sql<{ readonly seq: number; readonly event_type: string }>`
     SELECT seq, event_type FROM flows_journal_events WHERE run_id = ${run} ORDER BY seq ASC
   `
 
@@ -66,7 +68,7 @@ describe("Journal.transact", () => {
       withStack(Effect.gen(function*() {
         const journal = yield* Journal
         const runs = yield* RunStore.RunStore
-        const database = yield* Database
+        const sql = yield* Effect.service(SqlClient.SqlClient)
         const run = runId("atomic-commit")
 
         yield* journal.transact(Effect.gen(function*() {
@@ -77,7 +79,7 @@ describe("Journal.transact", () => {
         }))
 
         const row = yield* runs.get(run)
-        const rows = yield* rowsOf(database, run)
+        const rows = yield* rowsOf(sql, run)
         expect(row.status).toBe("pending")
         expect(rows.map((entry) => entry.event_type)).toEqual(["flows.engine.run-decision"])
       }))
@@ -87,7 +89,7 @@ describe("Journal.transact", () => {
     withStack(Effect.gen(function*() {
       const journal = yield* Journal
       const runs = yield* RunStore.RunStore
-      const database = yield* Database
+      const sql = yield* Effect.service(SqlClient.SqlClient)
       const run = runId("atomic-rollback")
 
       const exit = yield* journal.transact(Effect.gen(function*() {
@@ -98,7 +100,7 @@ describe("Journal.transact", () => {
 
       expect(exit._tag).toBe("Failure")
       const missing = yield* runs.get(run).pipe(Effect.flip)
-      const rows = yield* rowsOf(database, run)
+      const rows = yield* rowsOf(sql, run)
       // Journal/state equivalence: neither half of the pair survives.
       expect(missing.code).toBe("not_found_row")
       expect(rows).toHaveLength(0)
@@ -107,7 +109,7 @@ describe("Journal.transact", () => {
   effect("leaves a rolled-back producer identity re-emittable", () =>
     withStack(Effect.gen(function*() {
       const journal = yield* Journal
-      const database = yield* Database
+      const sql = yield* Effect.service(SqlClient.SqlClient)
       const run = runId("atomic-reemit")
       const record = () => input(run, sourceId("driver"), "flows.engine.attempt-finished", { state: "succeeded" })
 
@@ -120,7 +122,7 @@ describe("Journal.transact", () => {
       // The in-process source index must not vouch for the rolled-back write:
       // a retry has to reach SQL again, not collapse into a phantom Duplicate.
       const receipt = yield* journal.emitDurable(record())
-      const rows = yield* rowsOf(database, run)
+      const rows = yield* rowsOf(sql, run)
       expect(receipt._tag).toBe("Accepted")
       expect(rows.map((entry) => entry.seq)).toEqual([receipt.seq])
     })))
@@ -147,7 +149,7 @@ describe("Journal.transact", () => {
     withStack(Effect.gen(function*() {
       const journal = yield* Journal
       const runs = yield* RunStore.RunStore
-      const database = yield* Database
+      const sql = yield* Effect.service(SqlClient.SqlClient)
       const run = runId("atomic-nested")
       const subscription = yield* journal.changes
 
@@ -163,15 +165,15 @@ describe("Journal.transact", () => {
       // rollback takes the inner append with it — and nothing was published.
       expect(exit._tag).toBe("Failure")
       expect(yield* PubSub.remaining(subscription)).toBe(0)
-      expect(yield* rowsOf(database, run)).toHaveLength(0)
+      expect(yield* rowsOf(sql, run)).toHaveLength(0)
     })))
 
   effect("reports a storage failure as a journal error", () =>
     withStack(Effect.gen(function*() {
       const journal = yield* Journal
-      const database = yield* Database
+      const sql = yield* Effect.service(SqlClient.SqlClient)
       const failure = yield* journal.transact(
-        database.sql`SELECT 1 FROM flows_no_such_table`
+        sql`SELECT 1 FROM flows_no_such_table`
       ).pipe(Effect.flip)
       expect(failure).toBeInstanceOf(JournalError)
       expect((failure as JournalError).code).toBe("sink_failed")

@@ -1,4 +1,4 @@
-import { Database } from "@smthrs/database"
+import { DurableWriter } from "@smthrs/database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Migrations, type Ownership } from "@smthrs/journal"
 import * as Cause from "effect/Cause"
@@ -6,6 +6,7 @@ import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import { runPromise } from "./Sha256.ts"
@@ -20,7 +21,7 @@ const migratedDatabase = Layer.provideMerge(Migrations.layer, TestDatabase.layer
 
 const insertOwnedRun = (runId: string) =>
   Effect.gen(function*() {
-    const { sql } = yield* Database.Database
+    const sql = yield* Effect.service(SqlClient.SqlClient)
     yield* sql`
       INSERT INTO flows_runs (
         run_id,
@@ -147,7 +148,7 @@ describe("SQL DurableEngineState", () => {
   it("answers attempt survivors with one range read: none when fresh, earliest plus contiguous latest when pruned (issue #77)", async () => {
     const insertAttempt = (attempt: number, startedAtMs: number) =>
       Effect.gen(function*() {
-        const { sql } = yield* Database.Database
+        const sql = yield* Effect.service(SqlClient.SqlClient)
         yield* sql`
           INSERT INTO flows_attempts (
             run_id, step_key_digest, attempt, state, started_at_ms, meta_json
@@ -182,7 +183,7 @@ describe("SQL DurableEngineState", () => {
     const result = await runPromise(
       Effect.gen(function*() {
         yield* DurableEngineState.make
-        const { sql } = yield* Database.Database
+        const sql = yield* Effect.service(SqlClient.SqlClient)
         const indexes = yield* sql<{ readonly name: string }>`
           SELECT name FROM sqlite_master
           WHERE type = 'index' AND tbl_name = 'flows_runs'

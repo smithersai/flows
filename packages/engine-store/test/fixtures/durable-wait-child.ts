@@ -1,4 +1,4 @@
-import { Database } from "@smthrs/database"
+import { DurableWriter } from "@smthrs/database"
 import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
 import { DurableClock, DurableDeferred, Flow } from "@smthrs/engine"
 import { DurableEngineState, EngineStore, StepBoundary } from "@smthrs/engine-store"
@@ -9,6 +9,7 @@ import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { runPromise } from "../Sha256.ts"
 
 const mode = process.argv[2]
@@ -42,7 +43,7 @@ const jj = Jj.make({
   status: () => Effect.succeed("")
 })
 
-const database = NodeDatabase.layer({ filename })
+const database = Layer.provideMerge(DurableWriter.layer(), NodeDatabase.layer({ filename }))
 const migratedDatabase = Layer.provideMerge(Migrations.layer, database)
 const sqlServices = Layer.provideMerge(
   Layer.mergeAll(
@@ -92,7 +93,7 @@ const stateCompletion = Effect.gen(function*() {
 }).pipe(Effect.provide(database))
 
 const stateInitialization = Effect.gen(function*() {
-  const { sql } = yield* Database.Database
+  const sql = yield* Effect.service(SqlClient.SqlClient)
   yield* sql`
     INSERT INTO flows_runs (run_id, status, created_at_ms, state_json)
     VALUES (${executionId}, 'suspended', 0, '{}')

@@ -1,27 +1,28 @@
 /**
- * Node SQLite database layer.
+ * Node SQLite driver layer.
  *
  * Backend pattern:
  * `reference/effect/packages/sql/sqlite-node/src/SqliteClient.ts`.
  * The browser counterpart is tracked against Effect's
  * `sqlite-wasm/src/OpfsWorker.ts`.
  *
+ * This layer provides only the SQL client — connection options and nothing
+ * else. The write policy lives in `DurableWriter.layer`, composed on top.
+ *
  * @since 0.1.0
  */
 import * as SqliteClient from "@effect/sql-sqlite-node/SqliteClient"
 
 import { Duration, Effect, Layer, Schedule } from "effect"
-import * as SqlClient from "effect/unstable/sql/SqlClient"
-import * as Database from "../Database.ts"
-import type * as WriteRetry from "../internal/WriteRetry.ts"
+import type * as SqlClient from "effect/unstable/sql/SqlClient"
 
 /**
- * Configuration for a Node SQLite database.
+ * Configuration for a Node SQLite connection.
  *
  * @category models
  * @since 0.1.0
  */
-export interface NodeDatabaseOptions extends WriteRetry.WriteRetryOptions {
+export interface NodeDatabaseOptions {
   /** SQLite database filename. */
   readonly filename: string
   /** Additional driver configuration. WAL remains enabled unless explicitly disabled. */
@@ -88,20 +89,14 @@ const retryLockedOpen = <A>(self: Layer.Layer<A>): Layer.Layer<A> =>
   )
 
 /**
- * Provides the node:sqlite client and the thin Database service. WAL is enabled
- * by the underlying client by default.
+ * Provides the node:sqlite SQL client. WAL is enabled by the underlying
+ * client by default.
  *
  * @category layers
  * @since 0.1.0
  */
-export const layer = (options: NodeDatabaseOptions): Layer.Layer<Database.Database> => {
-  const sqlite = retryLockedOpen(SqliteClient.layer({
+export const layer = (options: NodeDatabaseOptions): Layer.Layer<SqlClient.SqlClient> =>
+  retryLockedOpen(SqliteClient.layer({
     ...options.sqlite,
     filename: options.filename
   }))
-  const database = Layer.effect(
-    Database.Database,
-    Effect.map(Effect.service(SqlClient.SqlClient), (sql) => Database.make(sql, options))
-  )
-  return Layer.provide(database, sqlite)
-}

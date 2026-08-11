@@ -1,8 +1,9 @@
-import { Database, DatabaseError } from "@smthrs/database/Database"
+import { DatabaseError, DurableWriter, layer as writerLayer } from "@smthrs/database/DurableWriter"
 import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Context, Effect, Layer, PubSub } from "effect"
 import { TestClock } from "effect/testing"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -42,24 +43,34 @@ const journalLayer = (overrides: Partial<SqlJournal.SqlJournalOptions> = {}) =>
   SqlJournal.layer({ ...options, ...overrides }).pipe(Layer.provideMerge(migratedDatabase))
 
 const withJournal = <A, E>(
-  body: Effect.Effect<A, E, Journal | Database>,
+  body: Effect.Effect<A, E, Journal | DurableWriter | SqlClient.SqlClient>,
   overrides: Partial<SqlJournal.SqlJournalOptions> = {}
 ) => Effect.scoped(body.pipe(Effect.provide(journalLayer(overrides))))
 
-const seqsOf = (database: Database["Service"], run: RunId) =>
-  database.sql<{ readonly seq: number }>`
+const seqsOf = (sql: SqlClient.SqlClient, run: RunId) =>
+  sql<{ readonly seq: number }>`
     SELECT seq FROM flows_journal_events WHERE run_id = ${run} ORDER BY seq ASC
   `
+
+/** Re-provides the current client/writer pair as a layer for a second journal instance. */
+const sharedContext = Effect.map(
+  Effect.all([Effect.service(SqlClient.SqlClient), Effect.service(DurableWriter)]),
+  ([sql, writer]) =>
+    Layer.merge(
+      Layer.succeed(SqlClient.SqlClient)(sql),
+      Layer.succeed(DurableWriter)(writer)
+    )
+)
 
 describe("SqlJournal durable emission", () => {
   effect("emitDurable returns a committed sequence", () =>
     withJournal(
       Effect.gen(function*() {
         const journal = yield* Journal
-        const database = yield* Database
+        const sql = yield* Effect.service(SqlClient.SqlClient)
         const receipt = yield* journal.emitDurable(input(runId("run"), sourceId("s"), "created", { a: 1 }))
         expect(receipt._tag).toBe("Accepted")
-        const rows = yield* seqsOf(database, runId("run"))
+        const rows = yield* seqsOf(sql, runId("run"))
         expect(rows.map((row) => row.seq)).toEqual([receipt.seq])
       })
     ))
@@ -67,8 +78,8 @@ describe("SqlJournal durable emission", () => {
   effect("emitDurable allocates gapless sequences across independent writers", () =>
     Effect.scoped(
       Effect.gen(function*() {
-        const database = yield* Database
-        const shared = Layer.succeed(Database)(database)
+        const sql = yield* Effect.service(SqlClient.SqlClient)
+        const shared = yield* sharedContext
         const build = Effect.map(
           Layer.build(SqlJournal.layer(options).pipe(Layer.provide(shared))),
           (context) => Context.get(context, Journal) as Service
@@ -80,7 +91,7 @@ describe("SqlJournal durable emission", () => {
         yield* right.emitDurable(input(run, sourceId("right"), "r0", 0))
         yield* left.emitDurable(input(run, sourceId("left"), "l1", 1))
         yield* right.emitDurable(input(run, sourceId("right"), "r1", 1))
-        const rows = yield* seqsOf(database, run)
+        const rows = yield* seqsOf(sql, run)
         expect(rows.map((row) => row.seq)).toEqual([0, 1, 2, 3])
       }).pipe(Effect.provide(migratedDatabase))
     ))
@@ -151,8 +162,8 @@ describe("SqlJournal durable emission", () => {
     withJournal(
       Effect.gen(function*() {
         const journal = yield* Journal
-        const database = yield* Database
-        yield* database.sql`
+        const sql = yield* Effect.service(SqlClient.SqlClient)
+        yield* sql`
           INSERT INTO flows_journal_events (
             run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
             event_type, payload_json, meta_json
@@ -169,8 +180,8 @@ describe("SqlJournal durable emission", () => {
     withJournal(
       Effect.gen(function*() {
         const journal = yield* Journal
-        const database = yield* Database
-        yield* database.sql`DROP TABLE flows_journal_events`
+        const sql = yield* Effect.service(SqlClient.SqlClient)
+        yield* sql`DROP TABLE flows_journal_events`
         const failure = yield* Effect.flip(journal.emitDurable(input(runId("run"), sourceId("s"), "x", 1)))
         expect((failure as JournalError).code).toBe("sink_failed")
       })
@@ -179,20 +190,24 @@ describe("SqlJournal durable emission", () => {
   effect("emitDurable publishes nothing when the transaction fails at commit", () =>
     Effect.scoped(
       Effect.gen(function*() {
-        const database = yield* Database
+        const sql = yield* Effect.service(SqlClient.SqlClient)
+        const writer = yield* DurableWriter
+        const shared = yield* sharedContext
         // Models a COMMIT-time failure: the body (including the INSERT) runs to
         // completion, then the transaction aborts and rolls the row back.
-        const commitFails = Layer.succeed(Database)(
-          Database.of({
-            sql: database.sql,
-            write: (effect) =>
-              database.write(
-                Effect.flatMap(effect, () =>
-                  Effect.fail(
-                    new DatabaseError({ code: "busy" })
-                  ))
-              ) as never
-          })
+        const commitFails = Layer.merge(
+          Layer.succeed(SqlClient.SqlClient)(sql),
+          Layer.succeed(DurableWriter)(
+            DurableWriter.of({
+              write: (effect) =>
+                writer.write(
+                  Effect.flatMap(effect, () =>
+                    Effect.fail(
+                      new DatabaseError({ code: "busy" })
+                    ))
+                ) as never
+            })
+          )
         )
         const journal = yield* Effect.map(
           Layer.build(SqlJournal.layer(options).pipe(Layer.provide(commitFails))),
@@ -202,12 +217,12 @@ describe("SqlJournal durable emission", () => {
         const run = runId("commit-failure")
         yield* Effect.flip(journal.emitDurable(input(run, sourceId("s"), "created", 1)))
         expect(yield* PubSub.remaining(subscription)).toBe(0)
-        const rows = yield* seqsOf(database, run)
+        const rows = yield* seqsOf(sql, run)
         expect(rows).toEqual([])
         // The rolled-back sequence must not become an in-memory allocation
         // floor: the next successful write still starts at 0.
         const healthy = yield* Effect.map(
-          Layer.build(SqlJournal.layer(options).pipe(Layer.provide(Layer.succeed(Database)(database)))),
+          Layer.build(SqlJournal.layer(options).pipe(Layer.provide(shared))),
           (context) => Context.get(context, Journal) as Service
         )
         expect((yield* healthy.emitDurable(input(run, sourceId("s"), "created", 1))).seq).toBe(0)
@@ -249,7 +264,11 @@ describe("SqlJournal durable emission across connections", () => {
     }
   }
 
-  const migrated = (filename: string) => Layer.provideMerge(Migrations.layer, NodeDatabase.layer({ filename }))
+  const migrated = (filename: string) =>
+    Layer.provideMerge(
+      Migrations.layer,
+      Layer.provideMerge(writerLayer(), NodeDatabase.layer({ filename }))
+    )
 
   const connection = (filename: string) =>
     Effect.map(
@@ -280,8 +299,8 @@ describe("SqlJournal durable emission across connections", () => {
               yield* Effect.scoped(
                 Effect.provide(
                   Effect.gen(function*() {
-                    const database = yield* Database
-                    const rows = yield* seqsOf(database, run)
+                    const sql = yield* Effect.service(SqlClient.SqlClient)
+                    const rows = yield* seqsOf(sql, run)
                     expect(rows.map((row) => row.seq)).toEqual(
                       Array.from({ length: writes * 2 }, (_, index) => index)
                     )

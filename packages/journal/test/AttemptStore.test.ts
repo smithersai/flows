@@ -1,9 +1,9 @@
-import { Database as DatabaseModule } from "@smthrs/database"
+import { DurableWriter } from "@smthrs/database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
-import type * as SqlClient from "effect/unstable/sql/SqlClient"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as SqlError from "effect/unstable/sql/SqlError"
 import { describe, expect, it } from "vitest"
 import { AttemptStore } from "../src/AttemptStore.ts"
@@ -12,7 +12,9 @@ import * as Migrations from "../src/Migrations.ts"
 
 const run = <A, E>(effect: Effect.Effect<A, E, never>) => Effect.runPromise(effect)
 
-const migrated = <A, E>(effect: Effect.Effect<A, E, DatabaseModule.Database | AttemptStore>) =>
+const migrated = <A, E>(
+  effect: Effect.Effect<A, E, DurableWriter.DurableWriter | SqlClient.SqlClient | AttemptStore>
+) =>
   run(
     effect.pipe(
       Effect.provide(AttemptStoreLive.layer),
@@ -23,7 +25,7 @@ const migrated = <A, E>(effect: Effect.Effect<A, E, DatabaseModule.Database | At
 
 const owner = { hostId: "host-a", pid: 42, nonce: "nonce-a" }
 
-const failingDatabase = (cause: unknown): Layer.Layer<DatabaseModule.Database> => {
+const failingDatabase = (cause: unknown): Layer.Layer<DurableWriter.DurableWriter | SqlClient.SqlClient> => {
   const sql = new Proxy(
     () => Effect.fail(cause),
     {
@@ -32,16 +34,17 @@ const failingDatabase = (cause: unknown): Layer.Layer<DatabaseModule.Database> =
       get: (target, property) => property === "in" ? () => "" : Reflect.get(target, property)
     }
   ) as unknown as SqlClient.SqlClient
-  const write: DatabaseModule.DatabaseService["write"] = (effect) => effect
-  return Layer.succeed(DatabaseModule.Database)(
-    DatabaseModule.Database.of({ sql, write })
+  const write: DurableWriter.Service["write"] = (effect) => effect
+  return Layer.merge(
+    Layer.succeed(SqlClient.SqlClient)(sql),
+    Layer.succeed(DurableWriter.DurableWriter)(DurableWriter.DurableWriter.of({ write }))
   )
 }
 
 const createRun = (runId = "run-1") =>
   Effect.gen(function*() {
-    const database = yield* DatabaseModule.Database
-    yield* database.sql`
+    const sql = yield* Effect.service(SqlClient.SqlClient)
+    yield* sql`
       INSERT INTO flows_runs (
         run_id, status, created_at_ms, owner_host_id, owner_pid, owner_nonce, heartbeat_at_ms, state_json
       ) VALUES (${runId}, 'running', 1, ${owner.hostId}, ${owner.pid}, ${owner.nonce}, 1, '{}')
@@ -220,7 +223,7 @@ describe("AttemptStore", () => {
   it("reports FenceLost when the run owner tuple changed", async () => {
     const result = await migrated(Effect.gen(function*() {
       yield* createRun()
-      const database = yield* DatabaseModule.Database
+      const sql = yield* Effect.service(SqlClient.SqlClient)
       const store = yield* AttemptStore
       yield* store.put({
         runId: "run-1",
@@ -230,7 +233,7 @@ describe("AttemptStore", () => {
         startedAtMs: 10,
         meta: {}
       }, owner)
-      yield* database.sql`
+      yield* sql`
         UPDATE flows_runs SET owner_host_id = 'host-b', owner_pid = 43, owner_nonce = 'nonce-b'
         WHERE run_id = 'run-1'
       `
@@ -534,7 +537,7 @@ describe("AttemptStore", () => {
   it("reports decode_failed for corrupt durable attempt JSON", async () => {
     const codes = await migrated(Effect.gen(function*() {
       yield* createRun()
-      const database = yield* DatabaseModule.Database
+      const sql = yield* Effect.service(SqlClient.SqlClient)
       const store = yield* AttemptStore
       yield* store.put({
         runId: "run-1",
@@ -544,17 +547,17 @@ describe("AttemptStore", () => {
         startedAtMs: 0,
         meta: {}
       }, owner)
-      yield* database.sql`PRAGMA ignore_check_constraints = ON`
+      yield* sql`PRAGMA ignore_check_constraints = ON`
       const codes: Array<string> = []
       for (const column of ["checkpoint_json", "error_json", "outcome_json", "meta_json"] as const) {
-        yield* database.sql.unsafe(
+        yield* sql.unsafe(
           `UPDATE flows_attempts SET ${column} = 'not-json' WHERE run_id = 'run-1'`
         )
         const failure = yield* Effect.flip(
           store.get({ runId: "run-1", stepKeyDigest: "digest", attempt: 0 })
         )
         codes.push(failure.code)
-        yield* database.sql.unsafe(
+        yield* sql.unsafe(
           `UPDATE flows_attempts SET ${column} = ${column === "meta_json" ? "'{}'" : "NULL"} WHERE run_id = 'run-1'`
         )
       }
@@ -567,7 +570,7 @@ describe("AttemptStore", () => {
   it("decodes complete durable attempt rows before exposing numeric or state fields", async () => {
     const codes = await migrated(Effect.gen(function*() {
       yield* createRun()
-      const database = yield* DatabaseModule.Database
+      const sql = yield* Effect.service(SqlClient.SqlClient)
       const store = yield* AttemptStore
       yield* store.put({
         runId: "run-1",
@@ -578,7 +581,7 @@ describe("AttemptStore", () => {
         heartbeatAtMs: 1,
         meta: {}
       }, owner)
-      yield* database.sql`PRAGMA ignore_check_constraints = ON`
+      yield* sql`PRAGMA ignore_check_constraints = ON`
       const corruptions = [
         ["state", "''", "'running'"],
         ["started_at_ms", "'bad'", "0"],
@@ -587,13 +590,13 @@ describe("AttemptStore", () => {
       ] as const
       return yield* Effect.forEach(corruptions, ([column, value, restore]) =>
         Effect.gen(function*() {
-          yield* database.sql.unsafe(
+          yield* sql.unsafe(
             `UPDATE flows_attempts SET ${column} = ${value} WHERE run_id = 'run-1'`
           )
           const failure = yield* Effect.flip(
             store.get({ runId: "run-1", stepKeyDigest: "digest", attempt: 0 })
           )
-          yield* database.sql.unsafe(
+          yield* sql.unsafe(
             `UPDATE flows_attempts SET ${column} = ${restore} WHERE run_id = 'run-1'`
           )
           return failure.code
@@ -616,7 +619,7 @@ describe("AttemptStore", () => {
       new SqlError.SqlError({
         reason: new SqlError.UniqueViolation({ cause: new Error("unique"), constraint: "attempt" })
       }),
-      new DatabaseModule.DatabaseError({ code: "constraint" }),
+      new DurableWriter.DatabaseError({ code: "constraint" }),
       { code: "other" },
       {},
       null,

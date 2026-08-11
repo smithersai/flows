@@ -1,8 +1,8 @@
-import { Database } from "@smthrs/database/Database"
+import { DurableWriter } from "@smthrs/database/DurableWriter"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Deferred, Effect, Layer } from "effect"
 import { TestClock } from "effect/testing"
-import type * as SqlClient from "effect/unstable/sql/SqlClient"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import type * as Statement from "effect/unstable/sql/Statement"
 import { describe, expect, it } from "vitest"
 import { Journal, JournalError } from "../src/Journal.ts"
@@ -26,7 +26,10 @@ const input = (sequence: number): Input =>
     payload: { value: sequence }
   }, { disableChecks: true })
 
-const effect = <E>(name: string, body: () => Effect.Effect<void, E, Database>) =>
+const effect = <E>(
+  name: string,
+  body: () => Effect.Effect<void, E, DurableWriter | SqlClient.SqlClient>
+) =>
   it(name, () =>
     Effect.runPromise(
       body().pipe(
@@ -35,38 +38,55 @@ const effect = <E>(name: string, body: () => Effect.Effect<void, E, Database>) =
       )
     ))
 
+/** A database decorator: reshapes the enclosing client/writer pair in place. */
+type DatabaseDecorator = Layer.Layer<
+  DurableWriter | SqlClient.SqlClient,
+  never,
+  DurableWriter | SqlClient.SqlClient
+>
+
+const keepWriter: Layer.Layer<DurableWriter, never, DurableWriter> = Layer.effect(
+  DurableWriter,
+  Effect.service(DurableWriter)
+)
+
+const keepSql: Layer.Layer<SqlClient.SqlClient, never, SqlClient.SqlClient> = Layer.effect(
+  SqlClient.SqlClient,
+  Effect.service(SqlClient.SqlClient)
+)
+
 /** Records every compiled statement so the startup load can be inspected. */
-const recordingDatabase = (
-  queries: Array<string>
-): Layer.Layer<Database, never, Database> =>
-  Layer.effect(
-    Database,
-    Effect.gen(function*() {
-      const database = yield* Database
-      const sql = new Proxy(database.sql, {
-        apply(target, thisArgument, argumentsList) {
-          const statement = Reflect.apply(target, thisArgument, argumentsList) as Statement.Statement<unknown>
-          if (typeof statement.compile === "function") {
-            queries.push(statement.compile()[0])
+const recordingDatabase = (queries: Array<string>): DatabaseDecorator =>
+  Layer.merge(
+    Layer.effect(
+      SqlClient.SqlClient,
+      Effect.gen(function*() {
+        const base = yield* Effect.service(SqlClient.SqlClient)
+        return new Proxy(base, {
+          apply(target, thisArgument, argumentsList) {
+            const statement = Reflect.apply(target, thisArgument, argumentsList) as Statement.Statement<unknown>
+            if (typeof statement.compile === "function") {
+              queries.push(statement.compile()[0])
+            }
+            return statement
           }
-          return statement
-        }
-      }) as SqlClient.SqlClient
-      return Database.of({ sql, write: database.write })
-    })
+        }) as SqlClient.SqlClient
+      })
+    ),
+    keepWriter
   )
 
 const journal = (
   options: SqlJournal.SqlJournalOptions,
-  database?: Layer.Layer<Database, never, Database>
+  database?: DatabaseDecorator
 ) =>
   database === undefined
     ? SqlJournal.layer(options)
     : SqlJournal.layer(options).pipe(Layer.provide(database))
 
 const eventCount = Effect.gen(function*() {
-  const database = yield* Database
-  const rows = yield* database.sql<{ readonly total: number }>`
+  const sql = yield* Effect.service(SqlClient.SqlClient)
+  const rows = yield* sql<{ readonly total: number }>`
     SELECT COUNT(*) AS total FROM flows_journal_events
   `
   return Number(rows[0]!.total)
@@ -133,15 +153,17 @@ describe("SqlJournal source-event retention", () => {
   effect("never evicts an uncommitted entry, so pending dedup still holds", () =>
     Effect.gen(function*() {
       const gate = yield* Deferred.make<void>()
-      const database = Layer.effect(
-        Database,
-        Effect.gen(function*() {
-          const inner = yield* Database
-          return Database.of({
-            sql: inner.sql,
-            write: (write) => Deferred.await(gate).pipe(Effect.andThen(inner.write(write)))
+      const database: DatabaseDecorator = Layer.merge(
+        Layer.effect(
+          DurableWriter,
+          Effect.gen(function*() {
+            const inner = yield* DurableWriter
+            return DurableWriter.of({
+              write: (write) => Deferred.await(gate).pipe(Effect.andThen(inner.write(write)))
+            })
           })
-        })
+        ),
+        keepSql
       )
       const receipts = yield* Effect.gen(function*() {
         const service = yield* Journal

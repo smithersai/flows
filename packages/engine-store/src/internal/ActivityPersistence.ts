@@ -307,7 +307,7 @@ export const make = (deps: Dependencies) => {
        * describing it in ONE write transaction.
        *
        * The store writes below (`attempts.put`/`patch`/`finish`, `cache.put`)
-       * and `emitLifecycle` all go through the same `Database`, so the inner
+       * and `emitLifecycle` all go through the same `DurableWriter`, so the inner
        * writes become savepoints of this transaction: either the row and its
        * journal entry are both durable, or neither is. Before this, a crash in
        * the interstitial left an attempt row the journal could not explain —

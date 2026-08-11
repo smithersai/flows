@@ -1,10 +1,11 @@
-import { Database } from "@smthrs/database"
+import { DurableWriter } from "@smthrs/database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Migrations } from "@smthrs/journal"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import { runPromise } from "./Sha256.ts"
@@ -199,7 +200,7 @@ describe("run parent edges (sql fault injection)", () => {
   it("dies rather than inventing an edge when the conflicting row cannot be re-read", async () => {
     const exit = await runPromise(
       Effect.gen(function*() {
-        const database = yield* Database.Database
+        const sql = yield* Effect.service(SqlClient.SqlClient)
         const first = yield* DurableEngineState.make
         yield* first.recordRunParent("child", "parent")
 
@@ -209,17 +210,14 @@ describe("run parent edges (sql fault injection)", () => {
           (strings: TemplateStringsArray, ...args: ReadonlyArray<unknown>) =>
             strings.join("").includes("FROM flows_run_parents\n      WHERE child_id")
               ? Effect.succeed([])
-              : (database.sql as unknown as (
+              : (sql as unknown as (
                 strings: TemplateStringsArray,
                 ...args: ReadonlyArray<unknown>
               ) => unknown)(strings, ...args),
-          database.sql
+          sql
         )
         const torn = yield* DurableEngineState.make.pipe(
-          Effect.provideService(
-            Database.Database,
-            Database.Database.of({ ...database, sql: blindSelect as never })
-          )
+          Effect.provideService(SqlClient.SqlClient, blindSelect as never)
         )
         return yield* Effect.exit(torn.recordRunParent("child", "parent"))
       }).pipe(Effect.provide(migratedDatabase))
@@ -235,18 +233,17 @@ describe("run parent edges (sql fault injection)", () => {
   it("dies (not a typed failure) when the write transaction itself fails", async () => {
     const exit = await runPromise(
       Effect.gen(function*() {
-        const database = yield* Database.Database
+        const writer = yield* DurableWriter.DurableWriter
         // Writes succeed during `make` (table/index bootstrap), then fail.
         let breakWrites = false
         const broken = yield* DurableEngineState.make.pipe(
           Effect.provideService(
-            Database.Database,
-            Database.Database.of({
-              ...database,
+            DurableWriter.DurableWriter,
+            DurableWriter.DurableWriter.of({
               write: (effect) =>
                 breakWrites
-                  ? Effect.fail(new Database.DatabaseError({ code: "busy" }))
-                  : database.write(effect)
+                  ? Effect.fail(new DurableWriter.DatabaseError({ code: "busy" })) as never
+                  : writer.write(effect)
             })
           )
         )

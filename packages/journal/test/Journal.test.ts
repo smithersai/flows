@@ -1,9 +1,9 @@
-import { Database, DatabaseError, type DatabaseService } from "@smthrs/database/Database"
+import { DatabaseError, DurableWriter, type Service as WriterService } from "@smthrs/database/DurableWriter"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Deferred, Effect, Fiber, Layer, PubSub, Stream } from "effect"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
-import type * as SqlClient from "effect/unstable/sql/SqlClient"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import type * as Statement from "effect/unstable/sql/Statement"
 import { describe, expect, it } from "vitest"
 import { Journal, JournalError } from "../src/Journal.ts"
@@ -33,12 +33,13 @@ const input = (
     payload
   }, { disableChecks: true })
 
-const migratedDatabase = (database: Layer.Layer<Database> = TestDatabase.layer) =>
-  Layer.provideMerge(Migrations.layer, database)
+const migratedDatabase = (
+  database: Layer.Layer<DurableWriter | SqlClient.SqlClient> = TestDatabase.layer
+) => Layer.provideMerge(Migrations.layer, database)
 
 const journalLayer = (
   options: SqlJournal.SqlJournalOptions,
-  database: Layer.Layer<Database> = TestDatabase.layer
+  database: Layer.Layer<DurableWriter | SqlClient.SqlClient> = TestDatabase.layer
 ) => SqlJournal.layer(options).pipe(Layer.provide(migratedDatabase(database)))
 
 const runJournal = <A, E>(
@@ -53,59 +54,63 @@ const runJournal = <A, E>(
     Effect.scoped
   )
 
-const gateWrites = (gate: Deferred.Deferred<void>): Layer.Layer<Database, never, Database> =>
+const gateWrites = (gate: Deferred.Deferred<void>): Layer.Layer<DurableWriter, never, DurableWriter> =>
   Layer.effect(
-    Database,
+    DurableWriter,
     Effect.gen(function*() {
-      const database = yield* Database
-      const write: DatabaseService["write"] = (effect) =>
-        Deferred.await(gate).pipe(Effect.andThen(database.write(effect)))
-      return Database.of({ sql: database.sql, write })
+      const writer = yield* DurableWriter
+      const write: WriterService["write"] = (effect) => Deferred.await(gate).pipe(Effect.andThen(writer.write(effect)))
+      return DurableWriter.of({ write })
     })
   )
 
-const gatedDatabase = (gate: Deferred.Deferred<void>): Layer.Layer<Database> =>
-  gateWrites(gate).pipe(Layer.provide(TestDatabase.layer))
+const gatedDatabase = (gate: Deferred.Deferred<void>): Layer.Layer<DurableWriter | SqlClient.SqlClient> =>
+  Layer.provideMerge(gateWrites(gate), TestDatabase.layer)
 
-const failedDatabase: Layer.Layer<Database> = Layer.effect(
-  Database,
-  Effect.gen(function*() {
-    const database = yield* Database
-    const write: DatabaseService["write"] = () =>
+const failedWrites: Layer.Layer<DurableWriter> = Layer.succeed(DurableWriter)(
+  DurableWriter.of({
+    write: () =>
       Effect.fail(
         new DatabaseError({
           code: "io",
           cause: new Error("sink unavailable")
         })
-      )
-    return Database.of({ sql: database.sql, write })
+      ) as never
   })
-).pipe(Layer.provide(TestDatabase.layer))
+)
+
+const failedDatabase: Layer.Layer<DurableWriter | SqlClient.SqlClient> = Layer.provideMerge(
+  failedWrites,
+  TestDatabase.layer
+)
 
 const failedDatabaseWithReadSignal = (
   readStarted: Deferred.Deferred<void>
-): Layer.Layer<Database> =>
-  Layer.effect(
-    Database,
-    Effect.gen(function*() {
-      const database = yield* Database
-      const sql = new Proxy(database.sql, {
-        apply(target, thisArgument, argumentsList) {
-          const statement = Reflect.apply(target, thisArgument, argumentsList) as Statement.Statement<unknown>
-          if (typeof statement.compile !== "function") {
-            return statement
-          }
-          const [query] = statement.compile()
-          return query.includes("FROM flows_journal_events") && query.includes("seq >")
-            ? Deferred.succeed(readStarted, undefined).pipe(Effect.andThen(statement))
-            : statement
-        }
-      }) as SqlClient.SqlClient
-      const write: DatabaseService["write"] = () =>
-        Effect.fail(new DatabaseError({ code: "io", cause: new Error("sink unavailable") }))
-      return Database.of({ sql, write })
-    })
-  ).pipe(Layer.provide(TestDatabase.layer))
+): Layer.Layer<DurableWriter | SqlClient.SqlClient> =>
+  Layer.provideMerge(
+    failedWrites,
+    Layer.provideMerge(
+      Layer.effect(
+        SqlClient.SqlClient,
+        Effect.gen(function*() {
+          const base = yield* Effect.service(SqlClient.SqlClient)
+          return new Proxy(base, {
+            apply(target, thisArgument, argumentsList) {
+              const statement = Reflect.apply(target, thisArgument, argumentsList) as Statement.Statement<unknown>
+              if (typeof statement.compile !== "function") {
+                return statement
+              }
+              const [query] = statement.compile()
+              return query.includes("FROM flows_journal_events") && query.includes("seq >")
+                ? Deferred.succeed(readStarted, undefined).pipe(Effect.andThen(statement))
+                : statement
+            }
+          }) as SqlClient.SqlClient
+        })
+      ),
+      TestDatabase.layer
+    )
+  )
 
 /**
  * A database whose writes fail until `repair` is called, modelling a transient
@@ -113,7 +118,7 @@ const failedDatabaseWithReadSignal = (
  * clears.
  */
 const transientlyFailingDatabase = (): {
-  readonly layer: Layer.Layer<Database>
+  readonly layer: Layer.Layer<DurableWriter | SqlClient.SqlClient>
   repair: () => void
 } => {
   let broken = true
@@ -121,28 +126,29 @@ const transientlyFailingDatabase = (): {
     repair: () => {
       broken = false
     },
-    layer: Layer.effect(
-      Database,
-      Effect.gen(function*() {
-        const database = yield* Database
-        const write: DatabaseService["write"] = (effect) =>
-          broken
-            ? Effect.fail(new DatabaseError({ code: "io", cause: new Error("sink unavailable") }))
-            : database.write(effect)
-        return Database.of({ sql: database.sql, write })
-      })
-    ).pipe(Layer.provide(TestDatabase.layer))
+    layer: Layer.provideMerge(
+      Layer.effect(
+        DurableWriter,
+        Effect.gen(function*() {
+          const writer = yield* DurableWriter
+          const write: WriterService["write"] = (effect) =>
+            broken
+              ? Effect.fail(new DatabaseError({ code: "io", cause: new Error("sink unavailable") }))
+              : writer.write(effect)
+          return DurableWriter.of({ write })
+        })
+      ),
+      TestDatabase.layer
+    )
   }
 }
 
-const defectDatabase: Layer.Layer<Database> = Layer.effect(
-  Database,
-  Effect.gen(function*() {
-    const database = yield* Database
-    const write: DatabaseService["write"] = () => Effect.die("sink defect")
-    return Database.of({ sql: database.sql, write })
-  })
-).pipe(Layer.provide(TestDatabase.layer))
+const defectDatabase: Layer.Layer<DurableWriter | SqlClient.SqlClient> = Layer.provideMerge(
+  Layer.succeed(DurableWriter)(
+    DurableWriter.of({ write: () => Effect.die("sink defect") })
+  ),
+  TestDatabase.layer
+)
 
 interface InitializationOverride {
   readonly sequences?:
@@ -178,12 +184,12 @@ interface InitializationOverride {
 
 const overrideInitialization = (
   override: InitializationOverride
-): Layer.Layer<Database, never, Database> =>
+): Layer.Layer<SqlClient.SqlClient, never, SqlClient.SqlClient> =>
   Layer.effect(
-    Database,
+    SqlClient.SqlClient,
     Effect.gen(function*() {
-      const database = yield* Database
-      const sql = new Proxy(database.sql, {
+      const base = yield* Effect.service(SqlClient.SqlClient)
+      const sql = new Proxy(base, {
         apply(target, thisArgument, argumentsList) {
           const statement = Reflect.apply(target, thisArgument, argumentsList) as Statement.Statement<unknown>
           const [query] = statement.compile()
@@ -218,7 +224,7 @@ const overrideInitialization = (
           return statement
         }
       }) as SqlClient.SqlClient
-      return Database.of({ sql, write: database.write })
+      return sql
     })
   )
 
@@ -226,19 +232,19 @@ const racedDuplicateDatabase = (
   duplicateRunId: RunId,
   duplicateSourceId: SourceId,
   duplicateSourceSeq: SourceSeq
-): Layer.Layer<Database, never, Database> =>
+): Layer.Layer<SqlClient.SqlClient, never, SqlClient.SqlClient> =>
   Layer.effect(
-    Database,
+    SqlClient.SqlClient,
     Effect.gen(function*() {
-      const database = yield* Database
+      const base = yield* Effect.service(SqlClient.SqlClient)
       let armed = true
-      const sql = new Proxy(database.sql, {
+      const sql = new Proxy(base, {
         apply(target, thisArgument, argumentsList) {
           const statement = Reflect.apply(target, thisArgument, argumentsList) as Statement.Statement<unknown>
           const [query] = statement.compile()
           if (armed && query.includes("INSERT INTO flows_journal_events")) {
             armed = false
-            return database.sql`
+            return base`
               INSERT INTO flows_journal_events (
                 run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
                 event_type, payload_json, meta_json
@@ -253,7 +259,7 @@ const racedDuplicateDatabase = (
           return statement
         }
       }) as SqlClient.SqlClient
-      return Database.of({ sql, write: database.write })
+      return sql
     })
   )
 
@@ -262,19 +268,19 @@ const preflightDuplicateDatabase = (
   duplicateSourceId: SourceId,
   duplicateSourceSeq: SourceSeq,
   payloadJson: string
-): Layer.Layer<Database, never, Database> =>
+): Layer.Layer<SqlClient.SqlClient, never, SqlClient.SqlClient> =>
   Layer.effect(
-    Database,
+    SqlClient.SqlClient,
     Effect.gen(function*() {
-      const database = yield* Database
+      const base = yield* Effect.service(SqlClient.SqlClient)
       let armed = true
-      const sql = new Proxy(database.sql, {
+      const sql = new Proxy(base, {
         apply(target, thisArgument, argumentsList) {
           const statement = Reflect.apply(target, thisArgument, argumentsList) as Statement.Statement<unknown>
           const [query] = statement.compile()
           if (armed && query.includes("WHERE event_id")) {
             armed = false
-            return database.sql`
+            return base`
               INSERT INTO flows_journal_events (
                 run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
                 event_type, payload_json, meta_json
@@ -289,7 +295,7 @@ const preflightDuplicateDatabase = (
           return statement
         }
       }) as SqlClient.SqlClient
-      return Database.of({ sql, write: database.write })
+      return sql
     })
   )
 
@@ -299,12 +305,12 @@ interface ReadGate {
   readonly started: Deferred.Deferred<void>
 }
 
-const readGatedDatabase = (gate: ReadGate): Layer.Layer<Database, never, Database> =>
+const readGatedDatabase = (gate: ReadGate): Layer.Layer<SqlClient.SqlClient, never, SqlClient.SqlClient> =>
   Layer.effect(
-    Database,
+    SqlClient.SqlClient,
     Effect.gen(function*() {
-      const database = yield* Database
-      const sql = new Proxy(database.sql, {
+      const base = yield* Effect.service(SqlClient.SqlClient)
+      const sql = new Proxy(base, {
         apply(target, thisArgument, argumentsList) {
           const statement = Reflect.apply(target, thisArgument, argumentsList) as Statement.Statement<unknown>
           const [query] = statement.compile()
@@ -322,10 +328,7 @@ const readGatedDatabase = (gate: ReadGate): Layer.Layer<Database, never, Databas
           )
         }
       }) as SqlClient.SqlClient
-      return Database.of({
-        sql,
-        write: database.write
-      })
+      return sql
     })
   )
 
@@ -774,9 +777,7 @@ describe("Journal", () => {
       release: Deferred.makeUnsafe<void>(),
       started: Deferred.makeUnsafe<void>()
     }
-    const database = readGatedDatabase(gate).pipe(
-      Layer.provide(migratedDatabase())
-    )
+    const database = Layer.provideMerge(readGatedDatabase(gate), migratedDatabase())
 
     return Effect.gen(function*() {
       const journal = yield* Journal
@@ -1001,21 +1002,24 @@ describe("Journal", () => {
     // Loses the first batch, then holds every later batch at `gate`, so the
     // entries queued behind the loss are provably still unpersisted while the
     // flush under test runs.
-    const database = Layer.effect(
-      Database,
-      Effect.gen(function*() {
-        const inner = yield* Database
-        let first = true
-        const write: DatabaseService["write"] = (effect) => {
-          if (first) {
-            first = false
-            return Effect.fail(new DatabaseError({ code: "io", cause: new Error("sink unavailable") }))
+    const database = Layer.provideMerge(
+      Layer.effect(
+        DurableWriter,
+        Effect.gen(function*() {
+          const inner = yield* DurableWriter
+          let first = true
+          const write: WriterService["write"] = (effect) => {
+            if (first) {
+              first = false
+              return Effect.fail(new DatabaseError({ code: "io", cause: new Error("sink unavailable") }))
+            }
+            return Deferred.await(gate).pipe(Effect.andThen(inner.write(effect)))
           }
-          return Deferred.await(gate).pipe(Effect.andThen(inner.write(effect)))
-        }
-        return Database.of({ sql: inner.sql, write })
-      })
-    ).pipe(Layer.provide(TestDatabase.layer))
+          return DurableWriter.of({ write })
+        })
+      ),
+      TestDatabase.layer
+    )
 
     return Effect.gen(function*() {
       const journal = yield* Journal
@@ -1090,7 +1094,7 @@ describe("Journal", () => {
     const emitted = Deferred.makeUnsafe<void>()
 
     return Effect.gen(function*() {
-      const database = yield* Database
+      const sql = yield* Effect.service(SqlClient.SqlClient)
       const closing = yield* Effect.scoped(
         Effect.gen(function*() {
           const journal = yield* Journal
@@ -1112,7 +1116,7 @@ describe("Journal", () => {
 
       yield* Deferred.succeed(gate, undefined)
       yield* Fiber.join(closing)
-      const rows = yield* database.sql<{ readonly seq: number }>`
+      const rows = yield* sql<{ readonly seq: number }>`
           SELECT seq FROM flows_journal_events WHERE run_id = ${run}
         `
       expect(rows.map((row) => row.seq)).toEqual([0])
@@ -1180,11 +1184,14 @@ describe("Journal", () => {
       Effect.provide(
         SqlJournal.layer({ capacity: 4, overflow: "reject" }).pipe(
           Layer.provide(
-            racedDuplicateDatabase(
-              duplicateRunId,
-              duplicateSourceId,
-              duplicateSourceSeq
-            ).pipe(Layer.provide(migratedDatabase()))
+            Layer.provideMerge(
+              racedDuplicateDatabase(
+                duplicateRunId,
+                duplicateSourceId,
+                duplicateSourceSeq
+              ),
+              migratedDatabase()
+            )
           )
         )
       ),
@@ -1217,12 +1224,15 @@ describe("Journal", () => {
       Effect.provide(
         SqlJournal.layer({ capacity: 4, overflow: "reject" }).pipe(
           Layer.provide(
-            preflightDuplicateDatabase(
-              duplicateRunId,
-              duplicateSourceId,
-              duplicateSourceSeq,
-              "{\"value\":1}"
-            ).pipe(Layer.provide(migratedDatabase()))
+            Layer.provideMerge(
+              preflightDuplicateDatabase(
+                duplicateRunId,
+                duplicateSourceId,
+                duplicateSourceSeq,
+                "{\"value\":1}"
+              ),
+              migratedDatabase()
+            )
           )
         )
       ),
@@ -1250,12 +1260,15 @@ describe("Journal", () => {
       Effect.provide(
         SqlJournal.layer({ capacity: 4, overflow: "reject" }).pipe(
           Layer.provide(
-            preflightDuplicateDatabase(
-              duplicateRunId,
-              duplicateSourceId,
-              duplicateSourceSeq,
-              "{\"value\":2}"
-            ).pipe(Layer.provide(migratedDatabase()))
+            Layer.provideMerge(
+              preflightDuplicateDatabase(
+                duplicateRunId,
+                duplicateSourceId,
+                duplicateSourceSeq,
+                "{\"value\":2}"
+              ),
+              migratedDatabase()
+            )
           )
         )
       ),
@@ -1285,9 +1298,9 @@ describe("Journal", () => {
   effect("reports sequence conflicts introduced by another writer after initialization", () =>
     Effect.scoped(
       Effect.gen(function*() {
-        const database = yield* Database
+        const sql = yield* Effect.service(SqlClient.SqlClient)
         const journal = yield* Journal
-        yield* database.sql`
+        yield* sql`
           INSERT INTO flows_journal_events (
             run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
             event_type, payload_json, meta_json
@@ -1309,10 +1322,10 @@ describe("Journal", () => {
   effect("rejects corrupt durable journal rows with decode_failed", () =>
     Effect.scoped(
       Effect.gen(function*() {
-        const database = yield* Database
+        const sql = yield* Effect.service(SqlClient.SqlClient)
         const journal = yield* Journal
-        yield* database.sql`PRAGMA ignore_check_constraints = ON`
-        yield* database.sql`
+        yield* sql`PRAGMA ignore_check_constraints = ON`
+        yield* sql`
           INSERT INTO flows_journal_events (
             run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
             event_type, payload_json, meta_json
@@ -1324,7 +1337,7 @@ describe("Journal", () => {
         const invalidJson = yield* Effect.flip(
           journal.entries({ runId: runId("corrupt-json"), limit: 1 })
         )
-        yield* database.sql`
+        yield* sql`
           INSERT INTO flows_journal_events (
             run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
             event_type, payload_json, meta_json
@@ -1349,9 +1362,9 @@ describe("Journal", () => {
   effect("normalizes SQL read failures", () =>
     Effect.scoped(
       Effect.gen(function*() {
-        const database = yield* Database
+        const sql = yield* Effect.service(SqlClient.SqlClient)
         const journal = yield* Journal
-        yield* database.sql`DROP TABLE flows_journal_events`
+        yield* sql`DROP TABLE flows_journal_events`
         const failure = yield* Effect.flip(
           journal.entries({ runId: runId("missing-table"), limit: 1 })
         )

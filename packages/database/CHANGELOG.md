@@ -2,11 +2,23 @@
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- Renamed the `Database` service to `DurableWriter` and removed its `sql`
+  member: queries go through Effect's own `SqlClient` service, and the writer
+  exposes only `write`. `DurableWriter.layer(options?)` composes over the
+  context's `SqlClient`.
+- `NodeDatabase.layer` now provides only the `SqlClient` (connection options
+  only); retry tuning moved to `DurableWriter.layer`. `TestDatabase.layer`
+  provides both the client and the writer.
+- Removed the `unsupportedSql` proxy from `makeNoop`; the noop writer only
+  fails `write` with `unsupported`.
+
 ### Changed
 
-- A `write` nested inside another `write` now joins the enclosing transaction
-  as a savepoint without its own retry; only the outermost transaction replays
-  a transient conflict.
+- A `write` nested inside the client's open transaction now joins it as a
+  savepoint without its own retry; only the outermost transaction replays a
+  transient conflict.
 - The retry classifier follows `cause` chains, so a domain error wrapping a
   transient SQL failure keeps the outermost transaction replaying.
 

@@ -1,7 +1,7 @@
-import { Database } from "@smthrs/database/Database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import * as Migrations from "@smthrs/journal/Migrations"
 import * as Effect from "effect/Effect"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as SqlTimeTravelStore from "../src/SqlTimeTravelStore.ts"
 
@@ -10,8 +10,8 @@ describe("SqlTimeTravelStore", () => {
     const result = await Effect.runPromise(
       Effect.gen(function*() {
         yield* Migrations.run
-        const database = yield* Database
-        const { sql } = database
+        const sql = yield* Effect.service(SqlClient.SqlClient)
+
         const store = yield* SqlTimeTravelStore.make
         for (const runId of ["parent", "child", "grandchild", "detached"]) {
           yield* sql`

@@ -1,6 +1,7 @@
-import { Database } from "@smthrs/database/Database"
+import { DurableWriter } from "@smthrs/database/DurableWriter"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Effect, Layer } from "effect"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as Migrations from "../src/Migrations.ts"
 import type { OwnerId } from "../src/Ownership.ts"
@@ -13,8 +14,10 @@ const layer = Layer.provideMerge(
   Layer.provideMerge(Migrations.layer, TestDatabase.layer)
 )
 
-const effect = <E>(name: string, body: () => Effect.Effect<void, E, RunStore.RunStore | Database>) =>
-  it(name, () => Effect.runPromise(body().pipe(Effect.provide(layer), Effect.scoped)))
+const effect = <E>(
+  name: string,
+  body: () => Effect.Effect<void, E, RunStore.RunStore | DurableWriter | SqlClient.SqlClient>
+) => it(name, () => Effect.runPromise(body().pipe(Effect.provide(layer), Effect.scoped)))
 
 const own = (store: RunStore.Service, runId: string) =>
   store.claimAndOwn(runId, { status: "pending", owner: null, heartbeatAtMs: null }, owner, 1_000)
@@ -35,11 +38,11 @@ describe("run metadata", () => {
   effect("lineage is walkable in SQL", () =>
     Effect.gen(function*() {
       const store = yield* RunStore.RunStore
-      const database = yield* Database
+      const sql = yield* Effect.service(SqlClient.SqlClient)
       yield* store.create("a", "{}")
       yield* store.create("b", "{}", { parentRunId: "a" })
       yield* store.create("c", "{}", { parentRunId: "b" })
-      const rows = yield* database.sql<{ readonly run_id: string }>`
+      const rows = yield* sql<{ readonly run_id: string }>`
         WITH RECURSIVE ancestry(run_id, parent_run_id) AS (
           SELECT run_id, parent_run_id FROM flows_runs WHERE run_id = 'c'
           UNION ALL

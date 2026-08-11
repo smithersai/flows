@@ -3,7 +3,7 @@ import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as SqlError from "effect/unstable/sql/SqlError"
 import { describe, expect, it } from "vitest"
-import * as Database from "../src/Database.ts"
+import * as DurableWriter from "../src/DurableWriter.ts"
 import * as WriteRetry from "../src/internal/WriteRetry.ts"
 import * as TestDatabase from "../src/test/TestDatabase.ts"
 
@@ -26,14 +26,15 @@ const retrySql = {
     Effect.provideService(effect, retryTransaction, [undefined as never, 0])
 } as SqlClient.SqlClient
 
-describe("Database", () => {
+describe("DurableWriter", () => {
   it("opens, queries, and commits a transaction through TestDatabase", async () => {
     const result = await Effect.runPromise(
       Effect.gen(function*() {
-        const database = yield* Database.Database
-        yield* database.sql`CREATE TABLE values_table (value INTEGER NOT NULL)`
-        yield* database.write(database.sql`INSERT INTO values_table (value) VALUES (${42})`)
-        const rows = yield* database.sql<{ readonly value: number }>`SELECT value FROM values_table`
+        const sql = yield* Effect.service(SqlClient.SqlClient)
+        const writer = yield* DurableWriter.DurableWriter
+        yield* sql`CREATE TABLE values_table (value INTEGER NOT NULL)`
+        yield* writer.write(sql`INSERT INTO values_table (value) VALUES (${42})`)
+        const rows = yield* sql<{ readonly value: number }>`SELECT value FROM values_table`
         return rows[0]?.value
       }).pipe(Effect.provide(TestDatabase.layer))
     )
@@ -44,10 +45,10 @@ describe("Database", () => {
   it("reads the affected-row count from either dialect's raw result", async () => {
     const counts = await Effect.runPromise(
       Effect.all([
-        Database.affectedRows({ changes: 3 }),
-        Database.affectedRows({ rowCount: 0 }),
+        DurableWriter.affectedRows({ changes: 3 }),
+        DurableWriter.affectedRows({ rowCount: 0 }),
         // A driver that reports both wins on the SQLite field it already used.
-        Database.affectedRows({ changes: 2, rowCount: 5 })
+        DurableWriter.affectedRows({ changes: 2, rowCount: 5 })
       ])
     )
 
@@ -65,35 +66,35 @@ describe("Database", () => {
       { rowCount: 1.5 }
     ]
     const failures = await Effect.runPromise(
-      Effect.forEach(shapes, (shape) => Effect.flip(Database.affectedRows(shape)))
+      Effect.forEach(shapes, (shape) => Effect.flip(DurableWriter.affectedRows(shape)))
     )
 
     expect(failures.map((failure) => failure.code)).toEqual(shapes.map(() => "unsupported"))
   })
 
   it("normalizes SQLite errors into stable DatabaseError codes", () => {
-    expect(Database.fromSqlError(sqliteError("SQLITE_BUSY"))).toMatchObject({ code: "busy" })
-    expect(Database.fromSqlError(sqliteError("SQLITE_CONSTRAINT"))).toMatchObject({ code: "constraint" })
-    expect(Database.fromSqlError(sqliteError("SQLITE_IOERR"))).toMatchObject({ code: "io" })
+    expect(DurableWriter.fromSqlError(sqliteError("SQLITE_BUSY"))).toMatchObject({ code: "busy" })
+    expect(DurableWriter.fromSqlError(sqliteError("SQLITE_CONSTRAINT"))).toMatchObject({ code: "constraint" })
+    expect(DurableWriter.fromSqlError(sqliteError("SQLITE_IOERR"))).toMatchObject({ code: "io" })
     expect(
-      Database.fromSqlError(
+      DurableWriter.fromSqlError(
         new SqlError.SqlError({
           reason: new SqlError.UniqueViolation({ cause: {}, constraint: "unique_key" })
         })
       )
     ).toMatchObject({ code: "constraint" })
-    expect(Database.fromSqlError(unknownSqlError("plain failure"))).toMatchObject({ code: "unknown" })
-    expect(Database.fromSqlError(unknownSqlError({}))).toMatchObject({ code: "unknown" })
-    expect(Database.fromSqlError(unknownSqlError({ code: 5, message: "disk I/O error" }))).toMatchObject({
+    expect(DurableWriter.fromSqlError(unknownSqlError("plain failure"))).toMatchObject({ code: "unknown" })
+    expect(DurableWriter.fromSqlError(unknownSqlError({}))).toMatchObject({ code: "unknown" })
+    expect(DurableWriter.fromSqlError(unknownSqlError({ code: 5, message: "disk I/O error" }))).toMatchObject({
       code: "io"
     })
-    expect(Database.fromSqlError(unknownSqlError({ cause: { code: "SQLITE_IOERR_NOMEM" } }))).toMatchObject({
+    expect(DurableWriter.fromSqlError(unknownSqlError({ cause: { code: "SQLITE_IOERR_NOMEM" } }))).toMatchObject({
       code: "io"
     })
 
     const cyclic: { cause?: unknown } = {}
     cyclic.cause = cyclic
-    expect(Database.fromSqlError(unknownSqlError(cyclic))).toMatchObject({ code: "unknown" })
+    expect(DurableWriter.fromSqlError(unknownSqlError(cyclic))).toMatchObject({ code: "unknown" })
   })
 
   it("recognizes only structured transient SQLite write failures", () => {
@@ -111,7 +112,7 @@ describe("Database", () => {
     expect(WriteRetry.isRetryableWriteError(unknownSqlError(cyclic))).toBe(false)
   })
 
-  // `Database.make` accepts any SqlClient, so a caller can already supply a
+  // `DurableWriter.make` accepts any SqlClient, so a caller can already supply a
   // Postgres or PGlite client. Classification keyed only off SQLite codes made
   // the retry silently inert there, so a serialization failure surfaced as a
   // hard write error instead of being replayed (issue #78).
@@ -135,16 +136,16 @@ describe("Database", () => {
   })
 
   it("normalizes transient Postgres failures into the busy code", () => {
-    expect(Database.fromSqlError(unknownSqlError({ code: "40001" }))).toMatchObject({ code: "busy" })
-    expect(Database.fromSqlError(unknownSqlError({ code: "40P01" }))).toMatchObject({ code: "busy" })
-    expect(Database.fromSqlError(unknownSqlError({ code: "42P01" }))).toMatchObject({ code: "unknown" })
+    expect(DurableWriter.fromSqlError(unknownSqlError({ code: "40001" }))).toMatchObject({ code: "busy" })
+    expect(DurableWriter.fromSqlError(unknownSqlError({ code: "40P01" }))).toMatchObject({ code: "busy" })
+    expect(DurableWriter.fromSqlError(unknownSqlError({ code: "42P01" }))).toMatchObject({ code: "unknown" })
   })
 
   it("retries a Postgres serialization failure through the same schedule", async () => {
     let attempts = 0
-    const database = Database.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
+    const writer = DurableWriter.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
     const program = Effect.gen(function*() {
-      const fiber = yield* database.write(
+      const fiber = yield* writer.write(
         Effect.suspend(() => {
           attempts += 1
           return attempts < 3 ? Effect.fail(unknownSqlError({ code: "40001" })) : Effect.succeed("written")
@@ -161,9 +162,9 @@ describe("Database", () => {
 
   it("retries transient write errors using TestClock", async () => {
     let attempts = 0
-    const database = Database.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
+    const writer = DurableWriter.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
     const program = Effect.gen(function*() {
-      const fiber = yield* database.write(
+      const fiber = yield* writer.write(
         Effect.suspend(() => {
           attempts += 1
           return attempts < 3 ? Effect.fail(sqliteError("SQLITE_BUSY")) : Effect.succeed("written")
@@ -184,7 +185,7 @@ describe("Database", () => {
       .toBe(false)
     expect(
       WriteRetry.isRetryableWriteError(
-        Database.fromSqlError(sqliteError("SQLITE_BUSY"))
+        DurableWriter.fromSqlError(sqliteError("SQLITE_BUSY"))
       )
     ).toBe(true)
   })
@@ -192,12 +193,12 @@ describe("Database", () => {
   it("does not retry a nested write; only the outermost transaction replays", async () => {
     let outerBodies = 0
     let innerBodies = 0
-    const database = Database.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
+    const writer = DurableWriter.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
     const program = Effect.gen(function*() {
-      const fiber = yield* database.write(
+      const fiber = yield* writer.write(
         Effect.suspend(() => {
           outerBodies += 1
-          return database.write(
+          return writer.write(
             Effect.suspend(() => {
               innerBodies += 1
               return innerBodies < 3 ? Effect.fail(sqliteError("SQLITE_BUSY")) : Effect.succeed("written")
@@ -219,9 +220,9 @@ describe("Database", () => {
 
   it("replays the outermost transaction when a domain error wraps the transient failure", async () => {
     let attempts = 0
-    const database = Database.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
+    const writer = DurableWriter.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
     const program = Effect.gen(function*() {
-      const fiber = yield* database.write(
+      const fiber = yield* writer.write(
         Effect.suspend(() => {
           attempts += 1
           return attempts < 3
@@ -240,9 +241,9 @@ describe("Database", () => {
 
   it("does not retry constraint failures", async () => {
     let attempts = 0
-    const database = Database.make(retrySql, { maxAttempts: 3 })
+    const writer = DurableWriter.make(retrySql, { maxAttempts: 3 })
     const exit = await Effect.runPromiseExit(
-      database.write(
+      writer.write(
         Effect.suspend(() => {
           attempts += 1
           return Effect.fail(sqliteError("SQLITE_CONSTRAINT"))
@@ -257,9 +258,9 @@ describe("Database", () => {
   it("layerNoop fails writes with unsupported", async () => {
     const exit = await Effect.runPromiseExit(
       Effect.gen(function*() {
-        const database = yield* Database.Database
-        return yield* database.write(Effect.void)
-      }).pipe(Effect.provide(Database.layerNoop))
+        const writer = yield* DurableWriter.DurableWriter
+        return yield* writer.write(Effect.void)
+      }).pipe(Effect.provide(DurableWriter.layerNoop))
     )
 
     expect(Exit.isFailure(exit)).toBe(true)
@@ -272,20 +273,16 @@ describe("Database", () => {
     }
   })
 
-  it("makeNoop fails SQL calls and SQL client methods with unsupported", async () => {
-    const database = Database.makeNoop()
-    const queryExit = await Effect.runPromiseExit(database.sql`SELECT 1`)
-    const transactionExit = await Effect.runPromiseExit(database.sql.withTransaction(Effect.void))
+  it("makeNoop fails writes with unsupported", async () => {
+    const writer = DurableWriter.makeNoop()
+    const exit = await Effect.runPromiseExit(writer.write(Effect.void))
 
-    const exits: ReadonlyArray<Exit.Exit<unknown, unknown>> = [queryExit, transactionExit]
-    for (const exit of exits) {
-      expect(Exit.isFailure(exit)).toBe(true)
-      if (Exit.isFailure(exit)) {
-        const found = Cause.findError(exit.cause)
-        expect(Result.isSuccess(found) && found.success instanceof Database.DatabaseError).toBe(true)
-        if (Result.isSuccess(found) && found.success instanceof Database.DatabaseError) {
-          expect(found.success.code).toBe("unsupported")
-        }
+    expect(Exit.isFailure(exit)).toBe(true)
+    if (Exit.isFailure(exit)) {
+      const found = Cause.findError(exit.cause)
+      expect(Result.isSuccess(found) && found.success instanceof DurableWriter.DatabaseError).toBe(true)
+      if (Result.isSuccess(found) && found.success instanceof DurableWriter.DatabaseError) {
+        expect(found.success.code).toBe("unsupported")
       }
     }
   })

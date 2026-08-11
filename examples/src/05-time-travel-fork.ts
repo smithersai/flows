@@ -10,7 +10,7 @@
  * `Activity.CurrentCacheEnvironment`; with no declaration the engine scopes
  * the key to the execution that produced it, and the fork would re-execute.
  */
-import { Database } from "@smthrs/database"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { Activity, Flow } from "@smthrs/engine"
 import { EngineStore } from "@smthrs/engine-store"
 import { Journal } from "@smthrs/journal"
@@ -73,7 +73,7 @@ export const main = (filename: string): Effect.Effect<Summary> =>
         yield* journal.flush
 
         // The frame to fork at: the last committed sequence for this run.
-        const { sql } = yield* Database.Database
+        const sql = yield* Effect.service(SqlClient.SqlClient)
         const rows = yield* sql<{ readonly seq: number | null }>`
           SELECT MAX(seq) AS seq FROM flows_journal_events WHERE run_id = 'analyse-1'
         `

@@ -13,12 +13,13 @@
  *
  * @since 0.1.0
  */
-import { Database, DatabaseError } from "@smthrs/database/Database"
+import { DatabaseError, DurableWriter } from "@smthrs/database/DurableWriter"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as SqlError from "effect/unstable/sql/SqlError"
 import type { OwnerId } from "./Ownership.ts"
 
@@ -402,10 +403,13 @@ const decodeRow = (input: unknown): Effect.Effect<Attempt, AttemptStoreError> =>
  * @category constructors
  * @since 0.1.0
  */
-export const makeWith = (options: Options = {}): Effect.Effect<Service, AttemptStoreError, Database> =>
+export const makeWith = (
+  options: Options = {}
+): Effect.Effect<Service, AttemptStoreError, DurableWriter | SqlClient.SqlClient> =>
   Effect.gen(function*() {
-    const database = yield* Database
-    const { sql } = database
+    const sql = yield* Effect.service(SqlClient.SqlClient)
+    const writer = yield* DurableWriter
+
     const inProgressStates = options.inProgressStates ?? defaultInProgressStates
     const maxCheckpointBytes = options.maxCheckpointBytes ?? defaultMaxCheckpointBytes
     const upsert = options.putMode === "upsert"
@@ -439,7 +443,7 @@ export const makeWith = (options: Options = {}): Effect.Effect<Service, AttemptS
         const attemptError = yield* encodeOptional(attempt.error, "error")
         const outcome = yield* encodeOptional(attempt.outcome, "outcome")
         const meta = yield* encode(attempt.meta, "meta")
-        return yield* database.write(
+        return yield* writer.write(
           Effect.gen(function*() {
             const inserted = yield* sql<{ readonly attempt: number }>`
             INSERT INTO flows_attempts (
@@ -553,7 +557,7 @@ export const makeWith = (options: Options = {}): Effect.Effect<Service, AttemptS
           return yield* Effect.fail(error("invalid_attempt", "nowMs must be a non-negative safe integer"))
         }
         const checkpoint = yield* encodeCheckpoint(checkpointValue)
-        return yield* database.write(
+        return yield* writer.write(
           Effect.gen(function*() {
             const updated = yield* sql<{ readonly attempt: number }>`
             UPDATE flows_attempts
@@ -610,7 +614,7 @@ export const makeWith = (options: Options = {}): Effect.Effect<Service, AttemptS
         const attemptError = yield* encodeOptional(attempt.error, "error")
         const outcome = yield* encodeOptional(attempt.outcome, "outcome")
         const meta = yield* encodeOptional(attempt.meta, "meta")
-        return yield* database.write(
+        return yield* writer.write(
           Effect.gen(function*() {
             const updated = yield* sql<{ readonly attempt: number }>`
             UPDATE flows_attempts
@@ -665,7 +669,7 @@ export const makeWith = (options: Options = {}): Effect.Effect<Service, AttemptS
         const attemptError = yield* encodeOptional(fields.error, "error")
         const outcome = yield* encodeOptional(fields.outcome, "outcome")
         const meta = yield* encodeOptional(fields.meta, "meta")
-        return yield* database.write(
+        return yield* writer.write(
           Effect.map(
             sql<{ readonly attempt: number }>`
             UPDATE flows_attempts
@@ -694,7 +698,7 @@ export const makeWith = (options: Options = {}): Effect.Effect<Service, AttemptS
  * @category constructors
  * @since 0.1.0
  */
-export const make: Effect.Effect<Service, never, Database> = Effect.orDie(makeWith())
+export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlClient> = Effect.orDie(makeWith())
 
 /**
  * Creates an attempt store from an implementation.
@@ -729,7 +733,9 @@ export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<Attempt
  * @category layers
  * @since 0.1.0
  */
-export const layer: Layer.Layer<AttemptStore, never, Database> = Layer.effect(AttemptStore)(make)
+export const layer: Layer.Layer<AttemptStore, never, DurableWriter | SqlClient.SqlClient> = Layer.effect(AttemptStore)(
+  make
+)
 
 /**
  * Provides the SQL-backed attempt store under an explicit policy.
@@ -737,5 +743,7 @@ export const layer: Layer.Layer<AttemptStore, never, Database> = Layer.effect(At
  * @category layers
  * @since 0.1.0
  */
-export const layerWith = (options: Options): Layer.Layer<AttemptStore, AttemptStoreError, Database> =>
+export const layerWith = (
+  options: Options
+): Layer.Layer<AttemptStore, AttemptStoreError, DurableWriter | SqlClient.SqlClient> =>
   Layer.effect(AttemptStore)(makeWith(options))

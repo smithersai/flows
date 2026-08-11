@@ -14,7 +14,8 @@
  * A frame is `{ lineageId, seq }`, and `rederive` folds only entries whose
  * `meta.lineageId` matches, so every entry below carries one.
  */
-import { Database } from "@smthrs/database"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
+import { DurableWriter } from "@smthrs/database"
 import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
 import * as Jj from "@smthrs/jj"
 import { CacheStore, Journal, JournalEvent, Migrations, type Ownership, RunStore, SqlJournal } from "@smthrs/journal"
@@ -47,7 +48,10 @@ const layer = (filename: string) =>
         RunStore.layer,
         SqlTimeTravelStore.layer
       ),
-      Layer.provideMerge(Migrations.layer, NodeDatabase.layer({ filename }))
+      Layer.provideMerge(
+        Migrations.layer,
+        Layer.provideMerge(DurableWriter.layer(), NodeDatabase.layer({ filename }))
+      )
     ),
     hostJj,
     EffectHandlerRegistry.layerNoop
@@ -101,7 +105,7 @@ export const main = (filename: string): Effect.Effect<Summary> =>
     })
 
     const remaining = yield* journal.entries({ runId: "ledger-1" as JournalEvent.RunId, limit: 100 })
-    const { sql } = yield* Database.Database
+    const sql = yield* Effect.service(SqlClient.SqlClient)
     const audits = yield* sql<{ readonly status: string }>`
       SELECT status FROM flows_time_travel_audits WHERE id = ${result.auditId}
     `

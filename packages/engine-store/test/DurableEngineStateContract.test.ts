@@ -1,9 +1,10 @@
-import { Database } from "@smthrs/database"
+import { DurableWriter } from "@smthrs/database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Migrations } from "@smthrs/journal"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import { describeContract, type Harness, type HarnessContext } from "./contract/DurableEngineStateContract.ts"
 import { runPromise } from "./Sha256.ts"
@@ -15,15 +16,17 @@ const sqlHarness: Harness = {
   run: (body) =>
     runPromise(
       Effect.gen(function*() {
-        const database = yield* Database.Database
+        const sql = yield* Effect.service(SqlClient.SqlClient)
+        const writer = yield* DurableWriter.DurableWriter
         const state = yield* DurableEngineState.make
         const context: HarnessContext = {
           state,
           restart: DurableEngineState.make.pipe(
-            Effect.provideService(Database.Database, database)
+            Effect.provideService(SqlClient.SqlClient, sql),
+            Effect.provideService(DurableWriter.DurableWriter, writer)
           ),
           seedRun: (runId, owner, status = "running", heartbeatAtMs = owner === null ? null : 0) =>
-            database.sql`
+            sql`
               INSERT INTO flows_runs (
                 run_id,
                 status,
@@ -45,13 +48,13 @@ const sqlHarness: Harness = {
               )
             `.pipe(Effect.orDie, Effect.asVoid),
           setCancelRequested: (runId, requestedAtMs) =>
-            database.sql`
+            sql`
               UPDATE flows_runs
               SET cancel_requested_at_ms = ${requestedAtMs}
               WHERE run_id = ${runId}
             `.pipe(Effect.orDie, Effect.asVoid),
           setStatus: (runId, status) =>
-            database.sql`
+            sql`
               UPDATE flows_runs
               SET
                 status = ${status},

@@ -1,7 +1,8 @@
-import { Database } from "@smthrs/database/Database"
+import { DurableWriter } from "@smthrs/database/DurableWriter"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Effect, Layer, Option } from "effect"
 import { TestClock } from "effect/testing"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as AttemptStore from "../src/AttemptStore.ts"
 import * as CacheStore from "../src/CacheStore.ts"
@@ -27,7 +28,7 @@ const input = (run: RunId, source: SourceId, eventType: string, payload: unknown
 const journalLayer = (options?: SqlJournal.SqlJournalOptions) =>
   SqlJournal.layer(options ?? { capacity: 8, overflow: "reject" }).pipe(
     Layer.provideMerge(Layer.provideMerge(Migrations.layer, TestDatabase.layer))
-  ) as Layer.Layer<Journal | Database>
+  ) as Layer.Layer<Journal | DurableWriter | SqlClient.SqlClient>
 
 const effect = <E>(name: string, body: () => Effect.Effect<void, E>) =>
   it(name, () => Effect.runPromise(body().pipe(Effect.provide(TestClock.layer()))))
@@ -130,7 +131,11 @@ describe("Redaction", () => {
   ).pipe(Layer.provideMerge(Layer.provideMerge(Migrations.layer, TestDatabase.layer)))
 
   const withStores = <A, E>(
-    body: Effect.Effect<A, E, RunStore.RunStore | AttemptStore.AttemptStore | CacheStore.CacheStore | Database>
+    body: Effect.Effect<
+      A,
+      E,
+      RunStore.RunStore | AttemptStore.AttemptStore | CacheStore.CacheStore | DurableWriter | SqlClient.SqlClient
+    >
   ) => Effect.runPromise(body.pipe(Effect.provide(storeLayers), Effect.provide(TestClock.layer())))
 
   it("round-trips a run's durable state verbatim", async () => {
@@ -145,8 +150,8 @@ describe("Redaction", () => {
 
   it("round-trips durable state written by transitionOwned verbatim", async () => {
     const stateJson = await withStores(Effect.gen(function*() {
-      const database = yield* Database
-      yield* database.sql`
+      const sql = yield* Effect.service(SqlClient.SqlClient)
+      yield* sql`
         INSERT INTO flows_runs (
           run_id, status, created_at_ms, owner_host_id, owner_pid, owner_nonce, heartbeat_at_ms, state_json
         ) VALUES ('run-transition', 'running', 1, 'host-a', 42, 'nonce-a', 1, '{}')
@@ -168,8 +173,8 @@ describe("Redaction", () => {
 
   it("round-trips attempt checkpoints, errors, outcomes, and meta verbatim", async () => {
     const attempt = await withStores(Effect.gen(function*() {
-      const database = yield* Database
-      yield* database.sql`
+      const sql = yield* Effect.service(SqlClient.SqlClient)
+      yield* sql`
         INSERT INTO flows_runs (
           run_id, status, created_at_ms, owner_host_id, owner_pid, owner_nonce, heartbeat_at_ms, state_json
         ) VALUES ('run-attempt', 'running', 1, 'host-a', 42, 'nonce-a', 1, '{}')
@@ -207,8 +212,8 @@ describe("Redaction", () => {
 
   it("round-trips attempt fields written by patch verbatim", async () => {
     const attempt = await withStores(Effect.gen(function*() {
-      const database = yield* Database
-      yield* database.sql`
+      const sql = yield* Effect.service(SqlClient.SqlClient)
+      yield* sql`
         INSERT INTO flows_runs (
           run_id, status, created_at_ms, owner_host_id, owner_pid, owner_nonce, heartbeat_at_ms, state_json
         ) VALUES ('run-patch', 'running', 1, 'host-a', 42, 'nonce-a', 1, '{}')

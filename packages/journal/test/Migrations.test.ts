@@ -1,7 +1,7 @@
-import { Database } from "@smthrs/database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as Migrations from "../src/Migrations.ts"
 
@@ -17,7 +17,7 @@ interface TableInfoRow {
 
 const run = <A, E>(effect: Effect.Effect<A, E, never>) => Effect.runPromise(effect)
 
-const migrated = <A, E>(effect: Effect.Effect<A, E, Database.Database>) =>
+const migrated = <A, E>(effect: Effect.Effect<A, E, SqlClient.SqlClient>) =>
   run(effect.pipe(Effect.provide(Migrations.layer), Effect.provide(TestDatabase.layer)))
 
 describe("journal migrations", () => {
@@ -30,8 +30,8 @@ describe("journal migrations", () => {
 
   it("creates the expected schema without interpreter columns", async () => {
     const schema = await migrated(Effect.gen(function*() {
-      const database = yield* Database.Database
-      const master = yield* database.sql<
+      const sql = yield* Effect.service(SqlClient.SqlClient)
+      const master = yield* sql<
         SqliteMasterRow
       >`SELECT name, type, sql FROM sqlite_master WHERE name LIKE 'flows_%'`
       const tables = Object.fromEntries(
@@ -39,7 +39,7 @@ describe("journal migrations", () => {
           master.filter((row) => row.type === "table"),
           (row) =>
             Effect.map(
-              database.sql<TableInfoRow>`PRAGMA table_info(${database.sql.literal(row.name)})`,
+              sql<TableInfoRow>`PRAGMA table_info(${sql.literal(row.name)})`,
               (columns) => [row.name, columns.map((column) => column.name).sort()] as const
             )
         )
@@ -170,15 +170,14 @@ describe("journal migrations", () => {
 
   it("rejects a half-populated owner tuple", async () => {
     await expect(migrated(Effect.gen(function*() {
-      const database = yield* Database.Database
-      yield* database
-        .sql`INSERT INTO flows_runs (run_id, status, owner_host_id, state_json) VALUES ('run', 'running', 'host', '{}')`
+      const sql = yield* Effect.service(SqlClient.SqlClient)
+      yield* sql`INSERT INTO flows_runs (run_id, status, owner_host_id, state_json) VALUES ('run', 'running', 'host', '{}')`
     }))).rejects.toBeDefined()
   })
 
   it("enforces every cache row invariant at the schema boundary", async () => {
     const outcomes = await migrated(Effect.gen(function*() {
-      const database = yield* Database.Database
+      const sql = yield* Effect.service(SqlClient.SqlClient)
       const invalidRows = [
         "('', '{}', '{}', 0, 'run', 0)",
         "('bad-result', 'not-json', '{}', 0, 'run', 0)",
@@ -192,7 +191,7 @@ describe("journal migrations", () => {
         "('unsafe-seq', '{}', '{}', 0, 'run', 9007199254740992)"
       ] as const
       return yield* Effect.forEach(invalidRows, (values) =>
-        Effect.exit(database.sql.unsafe(
+        Effect.exit(sql.unsafe(
           `INSERT INTO flows_step_cache (
             key_digest, result_json, meta_json, created_at_ms, recorded_run_id, recorded_event_seq
           ) VALUES ${values}`

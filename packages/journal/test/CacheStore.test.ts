@@ -1,9 +1,9 @@
-import { Database } from "@smthrs/database"
+import { DurableWriter } from "@smthrs/database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
-import type * as SqlClient from "effect/unstable/sql/SqlClient"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as SqlError from "effect/unstable/sql/SqlError"
 import { describe, expect, it } from "vitest"
 import { CacheStore } from "../src/CacheStore.ts"
@@ -12,7 +12,7 @@ import * as Migrations from "../src/Migrations.ts"
 
 const run = <A, E>(effect: Effect.Effect<A, E, never>) => Effect.runPromise(effect)
 
-const migrated = <A, E>(effect: Effect.Effect<A, E, Database.Database | CacheStore>) =>
+const migrated = <A, E>(effect: Effect.Effect<A, E, DurableWriter.DurableWriter | SqlClient.SqlClient | CacheStore>) =>
   run(
     effect.pipe(
       Effect.provide(CacheStoreLive.layer),
@@ -30,14 +30,15 @@ const entry = {
   recordedEventSeq: 7
 } as const
 
-const failingDatabase = (cause: unknown): Layer.Layer<Database.Database> => {
+const failingDatabase = (cause: unknown): Layer.Layer<DurableWriter.DurableWriter | SqlClient.SqlClient> => {
   const sql = new Proxy(
     () => Effect.fail(cause),
     { apply: () => Effect.fail(cause) }
   ) as unknown as SqlClient.SqlClient
-  const write: Database.DatabaseService["write"] = (effect) => effect
-  return Layer.succeed(Database.Database)(
-    Database.Database.of({ sql, write })
+  const write: DurableWriter.Service["write"] = (effect) => effect
+  return Layer.merge(
+    Layer.succeed(SqlClient.SqlClient)(sql),
+    Layer.succeed(DurableWriter.DurableWriter)(DurableWriter.DurableWriter.of({ write }))
   )
 }
 
@@ -47,12 +48,13 @@ const failingDatabase = (cause: unknown): Layer.Layer<Database.Database> => {
  */
 const postgresShapedDatabase = (
   results: ReadonlyArray<unknown>
-): Layer.Layer<Database.Database> => {
+): Layer.Layer<DurableWriter.DurableWriter | SqlClient.SqlClient> => {
   let next = 0
   const sql = (() => ({ raw: Effect.sync(() => results[next++]) })) as unknown as SqlClient.SqlClient
-  const write: Database.DatabaseService["write"] = (effect) => effect
-  return Layer.succeed(Database.Database)(
-    Database.Database.of({ sql, write })
+  const write: DurableWriter.Service["write"] = (effect) => effect
+  return Layer.merge(
+    Layer.succeed(SqlClient.SqlClient)(sql),
+    Layer.succeed(DurableWriter.DurableWriter)(DurableWriter.DurableWriter.of({ write }))
   )
 }
 
@@ -191,7 +193,7 @@ describe("CacheStore", () => {
 
   it("rejects every invalid provenance field before persistence", async () => {
     const result = await migrated(Effect.gen(function*() {
-      const database = yield* Database.Database
+      const sql = yield* Effect.service(SqlClient.SqlClient)
       const store = yield* CacheStore
       const invalidEntries: ReadonlyArray<CacheStoreLive.CacheEntry> = [
         { ...entry, createdAtMs: -1 },
@@ -203,7 +205,7 @@ describe("CacheStore", () => {
         { ...entry, recordedEventSeq: Number.MAX_SAFE_INTEGER + 1 }
       ]
       const failures = yield* Effect.forEach(invalidEntries, (invalid) => Effect.flip(store.put(invalid)))
-      const rows = yield* database.sql<{ readonly count: number }>`
+      const rows = yield* sql<{ readonly count: number }>`
         SELECT count(*) AS count FROM flows_step_cache
       `
       return { failures, count: rows[0]!.count }
@@ -217,22 +219,22 @@ describe("CacheStore", () => {
 
   it("reports decode_failed for corrupt durable cache JSON", async () => {
     const codes = await migrated(Effect.gen(function*() {
-      const database = yield* Database.Database
+      const sql = yield* Effect.service(SqlClient.SqlClient)
       const store = yield* CacheStore
       yield* store.put(entry)
-      yield* database.sql`PRAGMA ignore_check_constraints = ON`
+      yield* sql`PRAGMA ignore_check_constraints = ON`
       const codes: Array<string> = []
       for (const column of ["result_json", "meta_json"] as const) {
-        yield* database.sql.unsafe(
+        yield* sql.unsafe(
           `UPDATE flows_step_cache SET ${column} = 'not-json' WHERE key_digest = 'digest-1'`
         )
         const failure = yield* Effect.flip(store.get(entry.keyDigest))
         codes.push(failure.code)
-        yield* database.sql.unsafe(
+        yield* sql.unsafe(
           `UPDATE flows_step_cache SET ${column} = '{}' WHERE key_digest = 'digest-1'`
         )
       }
-      yield* database.sql`PRAGMA ignore_check_constraints = OFF`
+      yield* sql`PRAGMA ignore_check_constraints = OFF`
       return codes
     }))
 
@@ -241,10 +243,10 @@ describe("CacheStore", () => {
 
   it("decodes complete durable cache rows before exposing provenance", async () => {
     const codes = await migrated(Effect.gen(function*() {
-      const database = yield* Database.Database
+      const sql = yield* Effect.service(SqlClient.SqlClient)
       const store = yield* CacheStore
       yield* store.put(entry)
-      yield* database.sql`PRAGMA ignore_check_constraints = ON`
+      yield* sql`PRAGMA ignore_check_constraints = ON`
       const corruptions = [
         ["created_at_ms", "'bad'", "10"],
         ["recorded_run_id", "''", "'run-1'"],
@@ -252,16 +254,16 @@ describe("CacheStore", () => {
       ] as const
       const failures = yield* Effect.forEach(corruptions, ([column, value, restore]) =>
         Effect.gen(function*() {
-          yield* database.sql.unsafe(
+          yield* sql.unsafe(
             `UPDATE flows_step_cache SET ${column} = ${value} WHERE key_digest = 'digest-1'`
           )
           const failure = yield* Effect.flip(store.get(entry.keyDigest))
-          yield* database.sql.unsafe(
+          yield* sql.unsafe(
             `UPDATE flows_step_cache SET ${column} = ${restore} WHERE key_digest = 'digest-1'`
           )
           return failure.code
         }))
-      yield* database.sql`PRAGMA ignore_check_constraints = OFF`
+      yield* sql`PRAGMA ignore_check_constraints = OFF`
       return failures
     }))
 
@@ -281,7 +283,7 @@ describe("CacheStore", () => {
       new SqlError.SqlError({
         reason: new SqlError.UniqueViolation({ cause: new Error("unique"), constraint: "cache" })
       }),
-      new Database.DatabaseError({ code: "constraint" }),
+      new DurableWriter.DatabaseError({ code: "constraint" }),
       { code: "other" },
       {},
       null,

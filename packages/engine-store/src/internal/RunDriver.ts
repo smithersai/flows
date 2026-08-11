@@ -175,7 +175,7 @@ export const make = (
      * Commits a run-row transition and the decision describing it in ONE write
      * transaction, reporting the store outcome.
      *
-     * `RunStore` and the journal write through the same `Database`, so the CAS
+     * `RunStore` and the journal write through the same `DurableWriter`, so the CAS
      * becomes a savepoint of this transaction: a crash can no longer leave a
      * terminal run row whose `transitioned` decision never reached the
      * journal, nor a decision for a CAS that lost. Temporal commits mutable

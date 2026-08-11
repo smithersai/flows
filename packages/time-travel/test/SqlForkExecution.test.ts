@@ -1,5 +1,5 @@
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
-import { Database } from "@smthrs/database"
+import { DurableWriter } from "@smthrs/database"
 import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
 import { Activity, Flow } from "@smthrs/engine"
 import { DurableEngineState, EngineStore, StepBoundary } from "@smthrs/engine-store"
@@ -8,6 +8,7 @@ import { Jj } from "@smthrs/kernel"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -29,7 +30,7 @@ const jj = Jj.make({
 })
 
 const requirements = (filename: string) => {
-  const database = NodeDatabase.layer({ filename })
+  const database = Layer.provideMerge(DurableWriter.layer(), NodeDatabase.layer({ filename }))
   const migratedDatabase = Layer.provideMerge(Migrations.layer, database)
   const sqlServices = Layer.provideMerge(
     Layer.mergeAll(
@@ -88,7 +89,7 @@ describe("SQL fork execution", () => {
             })
             const journal = yield* Journal.Journal
             yield* journal.flush
-            const { sql } = yield* Database.Database
+            const sql = yield* Effect.service(SqlClient.SqlClient)
             const maximum = yield* sql<{ readonly seq: number | null }>`
               SELECT MAX(seq) AS seq
               FROM flows_journal_events

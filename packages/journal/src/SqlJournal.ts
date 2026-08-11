@@ -16,7 +16,7 @@
  *
  * @since 0.1.0
  */
-import { Database, DatabaseError } from "@smthrs/database/Database"
+import { DatabaseError, DurableWriter } from "@smthrs/database/DurableWriter"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
@@ -30,6 +30,7 @@ import * as Queue from "effect/Queue"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 import * as Stream from "effect/Stream"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import type * as SqlError from "effect/unstable/sql/SqlError"
 import {
   type EmitReceipt,
@@ -178,7 +179,7 @@ const error = (code: JournalError["code"], message: string, cause?: unknown): Jo
  *
  * `emitDurable` publishes an entry and records it in the in-process
  * source-event index only once the entry is really committed. Inside a
- * transaction the innermost `database.write` merely releases a savepoint, so
+ * transaction the innermost `writer.write` merely releases a savepoint, so
  * those two effects are parked here as thunks and replayed by the outermost
  * `transact` after COMMIT. The parked value is a closure, so several journal
  * instances sharing one transaction each settle their own PubSub and index.
@@ -256,13 +257,16 @@ const isJournalError = Schema.is(JournalError)
  * @category layers
  * @since 0.1.0
  */
-export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalError, Database> =>
+export const layer = (
+  options: SqlJournalOptions
+): Layer.Layer<Journal, JournalError, DurableWriter | SqlClient.SqlClient> =>
   Layer.effect(
     Journal,
     Effect.gen(function*() {
       const { batchSize, redact, sourceEventCache } = yield* validateOptions(options)
-      const database = yield* Database
-      const sql = database.sql
+      const sql = yield* Effect.service(SqlClient.SqlClient)
+      const writer = yield* DurableWriter
+
       const queue = yield* Queue.dropping<QueuedEntry>(options.capacity)
       const changes = yield* PubSub.sliding<Entry>(options.capacity)
       const wakes = new Map<RunId, Set<PubSub.PubSub<void>>>()
@@ -795,7 +799,7 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
       const persistBatch = (
         batch: ReadonlyArray<QueuedEntry>
       ): Effect.Effect<ReadonlyArray<Commit>, JournalError> =>
-        database.write(Effect.forEach(batch, (queued) => insertOne(queued))).pipe(
+        writer.write(Effect.forEach(batch, (queued) => insertOne(queued))).pipe(
           Effect.mapError((cause) =>
             isJournalError(cause)
               ? cause
@@ -844,7 +848,7 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
        * Stated deviation from smithers `packages/db/src/adapter.js`, which
        * allocates `MAX(seq) + 1` under `BEGIN IMMEDIATE`: Effect's SQL client
        * has no `beginTransaction` hook on the SQLite backends we ship
-       * (`@effect/sql-sqlite-node` never forwards one), so `Database.write`
+       * (`@effect/sql-sqlite-node` never forwards one), so `DurableWriter.write`
        * runs the default DEFERRED transaction. The read therefore takes a
        * shared lock and the later INSERT upgrades it. Under WAL — enabled by
        * `NodeDatabase` — a concurrent writer makes that upgrade fail with
@@ -896,7 +900,7 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
        * Opens (or joins) the write transaction that keeps the logical WAL
        * atomic with the executable state it describes.
        *
-       * The transaction body is re-entered verbatim when `Database.write`
+       * The transaction body is re-entered verbatim when `DurableWriter.write`
        * replays a transient conflict, so the settlement list is reset on each
        * attempt: an abandoned attempt's entries were rolled back with it and
        * must never be published or indexed.
@@ -906,7 +910,7 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
       ): Effect.Effect<A, E | JournalError, R> =>
         Effect.flatMap(Effect.serviceOption(Settlements), (enclosing) => {
           const write = <A2, E2, R2>(body: Effect.Effect<A2, E2, R2>) =>
-            database.write(body).pipe(
+            writer.write(body).pipe(
               Effect.catchIf(
                 (cause): cause is DatabaseError => cause instanceof DatabaseError,
                 (cause) => Effect.fail(error("sink_failed", "journal transaction failed", cause))
@@ -934,7 +938,7 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
       ) =>
         Effect.flatMap(Clock.currentTimeMillis, (emittedAtMs) =>
           Effect.flatMap(Effect.fromResult(prepare(input, emittedAtMs)), ({ metaJson, payloadJson, validated }) =>
-            database.write(
+            writer.write(
               Effect.gen(function*() {
                 const key = sourceKey(validated.runId, validated.sourceId)
                 const sourceSeq: SourceSeq = validated.sourceSeq ??
@@ -976,7 +980,7 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
               })
             ).pipe(
               /**
-               * `database.write` is a retrying transaction: its body replays on
+               * `writer.write` is a retrying transaction: its body replays on
                * `SQLITE_BUSY(_SNAPSHOT)` and can still abort at COMMIT after the
                * body succeeded. Cache mutation and publication therefore happen
                * strictly after the transaction returns, so subscribers never
@@ -1082,9 +1086,9 @@ export const layer = (options: SqlJournalOptions): Layer.Layer<Journal, JournalE
         )
       )
 
-      const writer = Effect.forever(writeBatch)
+      const drain = Effect.forever(writeBatch)
 
-      yield* Effect.forkScoped(writer)
+      yield* Effect.forkScoped(drain)
       yield* Effect.addFinalizer(() =>
         Effect.gen(function*() {
           // A scope finalizer runs once, and nothing else moves the status, so

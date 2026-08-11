@@ -1,6 +1,6 @@
 const assert = require("node:assert/strict")
 const root = require("../../dist/cjs/index.js")
-const Database = require("../../dist/cjs/Database.js")
+const DurableWriter = require("../../dist/cjs/DurableWriter.js")
 
-assert.strictEqual(root.Database.Database, Database.Database)
-assert.strictEqual(root.Database.DatabaseError, Database.DatabaseError)
+assert.strictEqual(root.DurableWriter.DurableWriter, DurableWriter.DurableWriter)
+assert.strictEqual(root.DurableWriter.DatabaseError, DurableWriter.DatabaseError)

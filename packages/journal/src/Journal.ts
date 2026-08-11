@@ -262,7 +262,7 @@ export interface Service {
    * This is the seam that makes the logical WAL crash-consistent with
    * executable state. The stores above the journal (`RunStore`,
    * `AttemptStore`, `CacheStore`, `DurableEngineState`) write through the same
-   * `Database`, so their writes join this transaction as savepoints: either
+   * `DurableWriter`, so their writes join this transaction as savepoints: either
    * the transition and its lifecycle entry both commit, or neither does. It is
    * the local analogue of Temporal closing mutable state into a mutation plus
    * event batches and submitting them as one persistence request

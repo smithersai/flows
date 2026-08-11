@@ -11,11 +11,12 @@
  * truth, and this test diffs the database's schema objects across `make` to
  * prove nothing is created that the inventory does not declare.
  */
-import { Database } from "@smthrs/database"
+import { DurableWriter } from "@smthrs/database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Migrations } from "@smthrs/journal"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStateSchema from "../src/internal/EngineStateSchema.ts"
@@ -24,7 +25,7 @@ import { runPromise } from "./Sha256.ts"
 const migratedDatabase = Layer.provideMerge(Migrations.layer, TestDatabase.layer)
 
 const schemaObjects = Effect.gen(function*() {
-  const { sql } = yield* Database.Database
+  const sql = yield* Effect.service(SqlClient.SqlClient)
   const rows = yield* sql<{ readonly name: string }>`
     SELECT name AS "name" FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'
   `.pipe(Effect.orDie)

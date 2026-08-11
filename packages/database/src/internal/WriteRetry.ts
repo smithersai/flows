@@ -7,12 +7,13 @@
  * retry only structured transient failures, bound exponential delay, and use
  * Effect scheduling so interruption and `TestClock` remain native.
  *
- * Classification is dialect-blind by construction. `Database.make` accepts any
- * `SqlClient`, so a caller can already hand it a Postgres or PGlite client;
- * keying only off SQLite codes made the retry silently inert there, and a
- * serialization failure — the normal, expected outcome of two drivers fencing
- * one run — surfaced as a hard write error (issue #78). Both vocabularies are
- * recognised, and a code from the wrong dialect simply never matches.
+ * Classification is dialect-blind by construction. `DurableWriter.make`
+ * accepts any `SqlClient`, so a caller can already hand it a Postgres or
+ * PGlite client; keying only off SQLite codes made the retry silently inert
+ * there, and a serialization failure — the normal, expected outcome of two
+ * drivers fencing one run — surfaced as a hard write error (issue #78). Both
+ * vocabularies are recognised, and a code from the wrong dialect simply never
+ * matches.
  *
  * @since 0.1.0
  */
@@ -78,7 +79,7 @@ const isRetryableMessage = (message: string): boolean =>
  * error, in either the SQLite or the Postgres vocabulary. The failure may be
  * the structured SQL error itself or a domain error wrapping one — the walk
  * follows `cause` chains (and a `SqlError`'s reason cause) either way, so the
- * outermost `Database.write` still replays a transaction whose failing
+ * outermost `DurableWriter.write` still replays a transaction whose failing
  * savepoint a nested store already normalized into its own error type.
  * Constraint, syntax, and arbitrary application errors are deliberately never
  * retried.

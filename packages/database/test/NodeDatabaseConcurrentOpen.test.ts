@@ -1,10 +1,10 @@
 import { Effect, Layer } from "effect"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { DatabaseSync } from "node:sqlite"
 import { describe, expect, it } from "vitest"
-import * as Database from "../src/Database.ts"
 import * as NodeDatabase from "../src/node/NodeDatabase.ts"
 
 const tempFile = (): string => join(mkdtempSync(join(tmpdir(), "flows-db-open-")), "open.sqlite")
@@ -51,10 +51,10 @@ describe("NodeDatabase concurrent open", () => {
           const context = yield* Layer.build(
             NodeDatabase.layer({ filename }) as unknown as Layer.Layer<never>
           )
-          const database = yield* (Effect.service(Database.Database).pipe(
+          const sql = yield* (Effect.service(SqlClient.SqlClient).pipe(
             Effect.provide(context as never)
-          ) as Effect.Effect<Database.DatabaseService>)
-          return yield* database.sql<{ readonly id: number }>`SELECT id FROM seeded`
+          ) as Effect.Effect<SqlClient.SqlClient>)
+          return yield* sql<{ readonly id: number }>`SELECT id FROM seeded`
         }))
       )
       expect(rows).toEqual([])

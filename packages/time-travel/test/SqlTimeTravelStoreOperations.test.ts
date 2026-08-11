@@ -1,8 +1,8 @@
-import { Database } from "@smthrs/database/Database"
-import * as DatabaseModule from "@smthrs/database/Database"
+import * as DatabaseModule from "@smthrs/database/DurableWriter"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import * as Migrations from "@smthrs/journal/Migrations"
 import * as Effect from "effect/Effect"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as SqlTimeTravelStore from "../src/SqlTimeTravelStore.ts"
 import type * as TimeTravelStore from "../src/TimeTravelStore.ts"
@@ -10,20 +10,20 @@ import type * as TimeTravelStore from "../src/TimeTravelStore.ts"
 const run = <A>(
   body: (
     store: TimeTravelStore.Service,
-    sql: DatabaseModule.DatabaseService["sql"]
-  ) => Effect.Effect<A, unknown, Database>
+    sql: SqlClient.SqlClient
+  ) => Effect.Effect<A, unknown, DatabaseModule.DurableWriter | SqlClient.SqlClient>
 ) =>
   Effect.runPromise(
     Effect.gen(function*() {
       yield* Migrations.run
-      const database = yield* Database
+      const sql = yield* Effect.service(SqlClient.SqlClient)
       const store = yield* SqlTimeTravelStore.make
-      return yield* body(store, database.sql)
+      return yield* body(store, sql)
     }).pipe(Effect.provide(TestDatabase.layer)) as Effect.Effect<A, unknown>
   )
 
 const insertRun = (
-  sql: DatabaseModule.DatabaseService["sql"],
+  sql: SqlClient.SqlClient,
   runId: string,
   options: {
     readonly status?: string
@@ -48,7 +48,7 @@ const insertRun = (
   `
 
 /** The run table constrains ownership columns, so a live run must be inserted whole. */
-const insertRunningRun = (sql: DatabaseModule.DatabaseService["sql"], runId: string) =>
+const insertRunningRun = (sql: SqlClient.SqlClient, runId: string) =>
   sql`
     INSERT INTO flows_runs
       (run_id, status, created_at_ms, state_json, owner_host_id, owner_pid, owner_nonce, heartbeat_at_ms)
@@ -302,8 +302,15 @@ describe("SqlTimeTravelStore audits", () => {
 
 describe("SqlTimeTravelStore construction", () => {
   it("dies before exposing a store when its migration cannot run", async () => {
+    const failingSql = new Proxy(
+      () => Effect.fail("no database"),
+      { apply: () => Effect.fail("no database") }
+    ) as unknown as SqlClient.SqlClient
     const exit = await Effect.runPromise(
-      Effect.exit(SqlTimeTravelStore.make.pipe(Effect.provide(DatabaseModule.layerNoop)))
+      Effect.exit(SqlTimeTravelStore.make.pipe(
+        Effect.provideService(SqlClient.SqlClient, failingSql),
+        Effect.provide(DatabaseModule.layerNoop)
+      ))
     )
 
     expect(exit._tag).toBe("Failure")

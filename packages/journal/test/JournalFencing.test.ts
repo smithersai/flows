@@ -1,7 +1,8 @@
-import { Database, type DatabaseService } from "@smthrs/database/Database"
+import { DurableWriter, type Service as WriterService } from "@smthrs/database/DurableWriter"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Deferred, Effect, Layer } from "effect"
 import { TestClock } from "effect/testing"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import { type DurableReceipt, Journal, type JournalError, makeNoop } from "../src/Journal.ts"
 import { Input, type RunId, type Seq, type SourceId, type SourceSeq } from "../src/JournalEvent.ts"
@@ -34,45 +35,48 @@ const input = (
     payload
   }, { disableChecks: true })
 
-const migratedDatabase = (database: Layer.Layer<Database> = TestDatabase.layer) =>
+const migratedDatabase = (database: Layer.Layer<DurableWriter | SqlClient.SqlClient> = TestDatabase.layer) =>
   Layer.provideMerge(Migrations.layer, database)
 
 const options: SqlJournal.SqlJournalOptions = { capacity: 8, overflow: "reject" }
 
 const journalLayer = (
   overrides: Partial<SqlJournal.SqlJournalOptions> = {},
-  database: Layer.Layer<Database> = TestDatabase.layer
+  database: Layer.Layer<DurableWriter | SqlClient.SqlClient> = TestDatabase.layer
 ) => SqlJournal.layer({ ...options, ...overrides }).pipe(Layer.provideMerge(migratedDatabase(database)))
 
 const withJournal = <A, E>(
-  body: Effect.Effect<A, E, Journal | Database>,
+  body: Effect.Effect<A, E, Journal | DurableWriter | SqlClient.SqlClient>,
   overrides: Partial<SqlJournal.SqlJournalOptions> = {},
-  database: Layer.Layer<Database> = TestDatabase.layer
+  database: Layer.Layer<DurableWriter | SqlClient.SqlClient> = TestDatabase.layer
 ) => Effect.scoped(body.pipe(Effect.provide(journalLayer(overrides, database))))
 
 /**
  * Lets the first `passthrough` writes commit immediately and parks every later
  * write behind the gate, so tests can hold the queue writer mid-batch.
  */
-const gateWrites = (gate: Deferred.Deferred<void>, passthrough = 0): Layer.Layer<Database> =>
-  Layer.effect(
-    Database,
-    Effect.gen(function*() {
-      const database = yield* Database
-      let seen = 0
-      const write: DatabaseService["write"] = (writeEffect) =>
-        Effect.suspend(() => {
-          seen += 1
-          return seen <= passthrough
-            ? database.write(writeEffect)
-            : Deferred.await(gate).pipe(Effect.andThen(database.write(writeEffect)))
-        })
-      return Database.of({ sql: database.sql, write })
-    })
-  ).pipe(Layer.provide(TestDatabase.layer))
+const gateWrites = (gate: Deferred.Deferred<void>, passthrough = 0): Layer.Layer<DurableWriter | SqlClient.SqlClient> =>
+  Layer.provideMerge(
+    Layer.effect(
+      DurableWriter,
+      Effect.gen(function*() {
+        const writer = yield* DurableWriter
+        let seen = 0
+        const write: WriterService["write"] = (writeEffect) =>
+          Effect.suspend(() => {
+            seen += 1
+            return seen <= passthrough
+              ? writer.write(writeEffect)
+              : Deferred.await(gate).pipe(Effect.andThen(writer.write(writeEffect)))
+          })
+        return DurableWriter.of({ write })
+      })
+    ),
+    TestDatabase.layer
+  )
 
-const activateRun = (database: Database["Service"], run: RunId, owner: OwnerId) =>
-  database.sql`
+const activateRun = (sql: SqlClient.SqlClient, run: RunId, owner: OwnerId) =>
+  sql`
     INSERT INTO flows_runs (
       run_id, status, created_at_ms, started_at_ms,
       owner_host_id, owner_pid, owner_nonce, heartbeat_at_ms, state_json
@@ -82,8 +86,8 @@ const activateRun = (database: Database["Service"], run: RunId, owner: OwnerId) 
     )
   `
 
-const reclaimRun = (database: Database["Service"], run: RunId, owner: OwnerId) =>
-  database.sql`
+const reclaimRun = (sql: SqlClient.SqlClient, run: RunId, owner: OwnerId) =>
+  sql`
     UPDATE flows_runs
     SET owner_host_id = ${owner.hostId},
       owner_pid = ${owner.pid},
@@ -91,9 +95,9 @@ const reclaimRun = (database: Database["Service"], run: RunId, owner: OwnerId) =
     WHERE run_id = ${run}
   `
 
-const seqsOf = (database: Database["Service"], run: RunId) =>
+const seqsOf = (sql: SqlClient.SqlClient, run: RunId) =>
   Effect.map(
-    database.sql<{ readonly seq: number }>`
+    sql<{ readonly seq: number }>`
       SELECT seq FROM flows_journal_events WHERE run_id = ${run} ORDER BY seq ASC
     `,
     (rows) => rows.map((row) => row.seq)
@@ -107,12 +111,12 @@ describe("SqlJournal ownership fencing", () => {
     withJournal(
       Effect.gen(function*() {
         const journal = yield* Journal
-        const database = yield* Database
+        const sql = yield* Effect.service(SqlClient.SqlClient)
         const run = runId("fenced")
-        yield* activateRun(database, run, ownerA)
+        yield* activateRun(sql, run, ownerA)
         const receipt = yield* journal.emitDurable(input(run, sourceId("s"), "created", 1), ownerA)
         expect(lifecycleTag(receipt)).toBe("Accepted")
-        expect(yield* seqsOf(database, run)).toEqual([receipt.seq])
+        expect(yield* seqsOf(sql, run)).toEqual([receipt.seq])
       })
     ))
 
@@ -120,20 +124,20 @@ describe("SqlJournal ownership fencing", () => {
     withJournal(
       Effect.gen(function*() {
         const journal = yield* Journal
-        const database = yield* Database
+        const sql = yield* Effect.service(SqlClient.SqlClient)
         const run = runId("reclaimed")
-        yield* activateRun(database, run, ownerA)
+        yield* activateRun(sql, run, ownerA)
         yield* journal.emitDurable(input(run, sourceId("a"), "first", 1), ownerA)
-        yield* reclaimRun(database, run, ownerB)
+        yield* reclaimRun(sql, run, ownerB)
         const failure = yield* Effect.flip(
           journal.emitDurable(input(run, sourceId("a"), "zombie", 2), ownerA)
         )
         expect((failure as JournalError).code).toBe("fence_lost")
         // The fenced-out entry must not reach the durable journal.
-        expect(yield* seqsOf(database, run)).toEqual([0])
+        expect(yield* seqsOf(sql, run)).toEqual([0])
         const next = yield* journal.emitDurable(input(run, sourceId("b"), "second", 3), ownerB)
         expect(next._tag).toBe("Accepted")
-        expect(yield* seqsOf(database, run)).toEqual([0, next.seq])
+        expect(yield* seqsOf(sql, run)).toEqual([0, next.seq])
       })
     ))
 
@@ -141,16 +145,16 @@ describe("SqlJournal ownership fencing", () => {
     withJournal(
       Effect.gen(function*() {
         const journal = yield* Journal
-        const database = yield* Database
+        const sql = yield* Effect.service(SqlClient.SqlClient)
         const run = runId("routed")
-        yield* activateRun(database, run, ownerA)
+        yield* activateRun(sql, run, ownerA)
         const receipt = yield* journal.emitDurable(input(run, sourceId("s"), "created", 1), ownerA)
         // Committed synchronously, without a flush: the fenced path is durable.
-        expect(yield* seqsOf(database, run)).toEqual([receipt.seq])
-        yield* reclaimRun(database, run, ownerB)
+        expect(yield* seqsOf(sql, run)).toEqual([receipt.seq])
+        yield* reclaimRun(sql, run, ownerB)
         const failure = yield* Effect.flip(journal.emitDurable(input(run, sourceId("s"), "zombie", 2), ownerA))
         expect((failure as JournalError).code).toBe("fence_lost")
-        expect(yield* seqsOf(database, run)).toEqual([receipt.seq])
+        expect(yield* seqsOf(sql, run)).toEqual([receipt.seq])
       })
     ))
 
@@ -158,16 +162,16 @@ describe("SqlJournal ownership fencing", () => {
     withJournal(
       Effect.gen(function*() {
         const journal = yield* Journal
-        const database = yield* Database
+        const sql = yield* Effect.service(SqlClient.SqlClient)
         const run = runId("external")
-        yield* activateRun(database, run, ownerA)
-        yield* reclaimRun(database, run, ownerB)
+        yield* activateRun(sql, run, ownerA)
+        yield* reclaimRun(sql, run, ownerB)
         // Deferred completions and other first-writer-wins admissions carry no
         // owner and must land regardless of who owns the run.
         yield* journal.emitDurable(input(run, sourceId("trigger"), "first", 1))
         const durable = yield* journal.emitDurable(input(run, sourceId("trigger"), "durable", 2))
         expect(durable._tag).toBe("Accepted")
-        expect(yield* seqsOf(database, run)).toEqual([0, 1])
+        expect(yield* seqsOf(sql, run)).toEqual([0, 1])
       })
     ))
 
@@ -175,14 +179,14 @@ describe("SqlJournal ownership fencing", () => {
     withJournal(
       Effect.gen(function*() {
         const journal = yield* Journal
-        const database = yield* Database
+        const sql = yield* Effect.service(SqlClient.SqlClient)
         const run = runId("retry")
-        yield* activateRun(database, run, ownerA)
+        yield* activateRun(sql, run, ownerA)
         const first = yield* journal.emitDurable(
           input(run, sourceId("s"), "created", 1, sourceSeq(0)),
           ownerA
         )
-        yield* reclaimRun(database, run, ownerB)
+        yield* reclaimRun(sql, run, ownerB)
         const retry = yield* journal.emitDurable(
           input(run, sourceId("s"), "created", 1, sourceSeq(0)),
           ownerA
@@ -200,7 +204,7 @@ describe("SqlJournal lossy and lifecycle channels", () => {
     return withJournal(
       Effect.gen(function*() {
         const journal = yield* Journal
-        const database = yield* Database
+        const sql = yield* Effect.service(SqlClient.SqlClient)
         yield* journal.emitLossy(input(run, source, "event", 0))
         yield* Effect.yieldNow
         yield* journal.emitLossy(input(run, source, "event", 1))
@@ -212,7 +216,7 @@ describe("SqlJournal lossy and lifecycle channels", () => {
         expect(lifecycleTag(durable)).toBe("Accepted")
         // The dropped telemetry admission consumed seq 2; the lifecycle entry
         // is allocated after it and always lands.
-        expect(yield* seqsOf(database, run)).toEqual([0, 1, durable.seq])
+        expect(yield* seqsOf(sql, run)).toEqual([0, 1, durable.seq])
       }).pipe(Effect.ensuring(Deferred.succeed(gate, undefined))),
       { capacity: 1, overflow: "drop-newest", batchSize: 1 },
       gateWrites(gate)
@@ -246,7 +250,7 @@ describe("SqlJournal lossy and lifecycle channels", () => {
     return withJournal(
       Effect.gen(function*() {
         const journal = yield* Journal
-        const database = yield* Database
+        const sql = yield* Effect.service(SqlClient.SqlClient)
         // Lifecycle entries never share the lossy queue: they are already
         // durable before any telemetry eviction can happen.
         const lifecycle = yield* journal.emitDurable(input(run, sourceId("lifecycle"), "started", 0))
@@ -260,7 +264,7 @@ describe("SqlJournal lossy and lifecycle channels", () => {
         })
         yield* Deferred.succeed(gate, undefined)
         yield* journal.flush
-        const seqs = yield* seqsOf(database, run)
+        const seqs = yield* seqsOf(sql, run)
         expect(seqs).toContain(lifecycle.seq)
         expect(seqs).toEqual([0, 1, 3])
       }).pipe(Effect.ensuring(Deferred.succeed(gate, undefined))),
@@ -273,12 +277,12 @@ describe("SqlJournal lossy and lifecycle channels", () => {
     withJournal(
       Effect.gen(function*() {
         const journal = yield* Journal
-        const database = yield* Database
+        const sql = yield* Effect.service(SqlClient.SqlClient)
         const run = runId("sql-lossy")
         const receipt = yield* journal.emitLossy(input(run, sourceId("telemetry"), "event", 0))
         expect(receipt._tag).toBe("Accepted")
         yield* journal.flush
-        expect(yield* seqsOf(database, run)).toEqual([0])
+        expect(yield* seqsOf(sql, run)).toEqual([0])
       })
     ))
 

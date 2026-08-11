@@ -1,12 +1,12 @@
 /**
- * Shared behavioural contract for every `Database` implementation's `write`.
+ * Shared behavioural contract for every `DurableWriter` implementation's `write`.
  *
  * Modeled on `packages/engine-store/test/contract/DurableEngineStateContract.ts`
- * and `packages/host/test/contract/HostContract.ts`: one suite, run against
+ * and `packages/kernel/src/test/HostContract.ts`: one suite, run against
  * every implementation, so a new backend cannot land without demonstrating the
  * property its consumers already depend on (issue #97).
  *
- * The property under test is the one `Database.write` states normatively: two
+ * The property under test is the one `DurableWriter.write` states normatively: two
  * concurrent write transactions are mutually serialized — they may not both
  * commit results computed from snapshots that exclude each other's writes.
  * SQLite gets this from its single-writer transaction lock; a PostgreSQL
@@ -20,18 +20,27 @@
 import * as Deferred from "effect/Deferred"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
+import type * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
-import type * as Database from "../../src/Database.ts"
-import { affectedRows } from "../../src/Database.ts"
+import type * as DurableWriter from "../../src/DurableWriter.ts"
+import { affectedRows } from "../../src/DurableWriter.ts"
 
 /**
- * Two `Database` services over one shared store. They are separate connections
+ * One connection's client paired with its durable writer.
+ */
+export interface ContractSide {
+  readonly sql: SqlClient.SqlClient
+  readonly write: DurableWriter.Service["write"]
+}
+
+/**
+ * Two client/writer pairs over one shared store. They are separate connections
  * where the implementation has connections; an implementation whose isolation
- * only exists in-process may hand back the same service twice.
+ * only exists in-process may hand back the same pair twice.
  */
 export interface ContractContext {
-  readonly a: Database.DatabaseService
-  readonly b: Database.DatabaseService
+  readonly a: ContractSide
+  readonly b: ContractSide
 }
 
 export interface Harness {
@@ -57,7 +66,7 @@ const reachedRead = (
   )
 
 export const describeContract = (harness: Harness): void => {
-  describe(`Database.write contract (${harness.label})`, () => {
+  describe(`DurableWriter.write contract (${harness.label})`, () => {
     it("does not lose an update when two writers read-modify-write one row concurrently", async () => {
       const result = await harness.run((context) =>
         Effect.gen(function*() {
@@ -67,7 +76,7 @@ export const describeContract = (harness: Harness): void => {
           const readA = yield* Deferred.make<void>()
           const readB = yield* Deferred.make<void>()
           const increment = (
-            database: Database.DatabaseService,
+            database: ContractSide,
             self: Deferred.Deferred<void>,
             peer: Deferred.Deferred<void>
           ) =>
@@ -107,7 +116,7 @@ export const describeContract = (harness: Harness): void => {
           // The cycle detector's shape in miniature: decide from a read, then
           // write on the strength of that decision, all inside one `write`.
           const claim = (
-            database: Database.DatabaseService,
+            database: ContractSide,
             self: Deferred.Deferred<void>,
             peer: Deferred.Deferred<void>
           ) =>

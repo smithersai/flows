@@ -1,17 +1,19 @@
 /**
- * Thin database service: an SQL client plus transaction-scoped write retries.
+ * Serialized, retryable write boundary for the durable flows stores.
  *
  * Governing persistence designs:
  * `docs/specs/Concepts/Journal Queue.md` and
  * `docs/specs/Concepts/Run Ownership.md`.
  *
- * The client/layer seam follows Effect SQL's SQLite node, Bun, and WASM
- * packages. Domain schema and operations remain in `@smthrs/journal`.
+ * The SQL client is Effect's own `SqlClient` service and is consumed
+ * directly for queries; this module adds only the write policy the durable
+ * stores share, plus the dialect-neutral error vocabulary. Domain schema and
+ * operations remain in `@smthrs/journal`.
  *
  * @since 0.1.0
  */
 import { Context, Effect, Layer, Option, Schema } from "effect"
-import type * as SqlClient from "effect/unstable/sql/SqlClient"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as SqlError from "effect/unstable/sql/SqlError"
 import * as WriteRetry from "./internal/WriteRetry.ts"
 
@@ -43,7 +45,19 @@ export class DatabaseError extends Schema.TaggedErrorClass<DatabaseError>()("flo
 }) {}
 
 /**
- * Generic database access, deliberately free of journal or Host knowledge.
+ * Runtime shape of the durable writer.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface Service {
+  readonly write: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E | DatabaseError, R>
+}
+
+/**
+ * The write boundary shared by the durable stores, deliberately free of
+ * journal or Host knowledge. Queries go through Effect's `SqlClient`
+ * directly; only writes come here.
  *
  * **The `write` contract.** `write` runs its effect inside one transaction
  * with transaction-scoped retries, and implementations MUST guarantee that
@@ -58,33 +72,19 @@ export class DatabaseError extends Schema.TaggedErrorClass<DatabaseError>()("flo
  * implementation must run write transactions at `SERIALIZABLE` (and retry
  * `40001`) — plain READ COMMITTED does not satisfy this contract.
  *
- * **Nesting.** A `write` inside another `write` joins the enclosing
- * transaction as a savepoint and does not retry: a transient conflict dooms
- * the enclosing transaction's snapshot, so replaying the savepoint alone can
- * never resolve it. Only the outermost `write` retries, replaying the whole
- * transaction body verbatim against the committed state. Its retry
- * classification follows `cause` chains, so a transient failure keeps
- * replaying the outermost transaction even after a nested store has wrapped
- * it in a domain error that preserves `cause`.
+ * **Nesting.** A `write` inside the client's open transaction joins it as a
+ * savepoint and does not retry: a transient conflict dooms the enclosing
+ * transaction's snapshot, so replaying the savepoint alone can never resolve
+ * it. Only the outermost `write` retries, replaying the whole transaction
+ * body verbatim against the committed state. Its retry classification
+ * follows `cause` chains, so a transient failure keeps replaying the
+ * outermost transaction even after a nested store has wrapped it in a domain
+ * error that preserves `cause`.
  *
  * @category services
  * @since 0.1.0
  */
-export class Database extends Context.Service<Database, {
-  readonly sql: SqlClient.SqlClient
-  readonly write: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E | DatabaseError, R>
-}>()("flows/database/Database") {}
-
-/**
- * Runtime implementation shape for the Database service.
- *
- * @category models
- * @since 0.1.0
- */
-export interface DatabaseService {
-  readonly sql: SqlClient.SqlClient
-  readonly write: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E | DatabaseError, R>
-}
+export class DurableWriter extends Context.Service<DurableWriter, Service>()("flows/database/DurableWriter") {}
 
 const causeCode = (cause: unknown): string | undefined => {
   if (typeof cause !== "object" || cause === null || !("code" in cause)) {
@@ -175,15 +175,14 @@ export const affectedRows = (raw: unknown): Effect.Effect<number, DatabaseError>
 }
 
 /**
- * Builds the database service around an existing SQL client.
+ * Builds the durable writer around an existing SQL client.
  *
  * @category constructors
  * @since 0.1.0
  */
-export const make = (sql: SqlClient.SqlClient, options?: WriteRetry.WriteRetryOptions | undefined): DatabaseService =>
-  Database.of({
-    sql,
-    write: Effect.fn("Database.write")(<A, E, R>(
+export const make = (sql: SqlClient.SqlClient, options?: WriteRetry.WriteRetryOptions | undefined): Service =>
+  DurableWriter.of({
+    write: Effect.fn("DurableWriter.write")(<A, E, R>(
       effect: Effect.Effect<A, E, R>
     ): Effect.Effect<A, E | DatabaseError, R> =>
       Effect.flatMap(Effect.serviceOption(sql.transactionService), (enclosing) =>
@@ -199,29 +198,35 @@ export const make = (sql: SqlClient.SqlClient, options?: WriteRetry.WriteRetryOp
     )
   })
 
-const unsupportedSql = new Proxy(
-  () => Effect.fail(new DatabaseError({ code: "unsupported" })),
-  {
-    get: () => () => Effect.fail(new DatabaseError({ code: "unsupported" }))
-  }
-) as unknown as SqlClient.SqlClient
-
 /**
- * Builds a database stub whose SQL and writes fail with `unsupported`.
- *
- * @category constructors
- * @since 0.1.0
- */
-export const makeNoop = (): DatabaseService =>
-  Database.of({
-    sql: unsupportedSql,
-    write: Effect.fn("Database.write")(() => Effect.fail(new DatabaseError({ code: "unsupported" })))
-  })
-
-/**
- * Provides the unsupported database stub.
+ * Provides the durable writer over the context's SQL client.
  *
  * @category layers
  * @since 0.1.0
  */
-export const layerNoop: Layer.Layer<Database> = Layer.succeed(Database)(makeNoop())
+export const layer = (
+  options?: WriteRetry.WriteRetryOptions | undefined
+): Layer.Layer<DurableWriter, never, SqlClient.SqlClient> =>
+  Layer.effect(
+    DurableWriter,
+    Effect.map(Effect.service(SqlClient.SqlClient), (sql) => make(sql, options))
+  )
+
+/**
+ * Builds a writer stub whose writes fail with `unsupported`.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const makeNoop = (): Service =>
+  DurableWriter.of({
+    write: Effect.fn("DurableWriter.write")(() => Effect.fail(new DatabaseError({ code: "unsupported" })))
+  })
+
+/**
+ * Provides the unsupported writer stub.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
+export const layerNoop: Layer.Layer<DurableWriter> = Layer.succeed(DurableWriter)(makeNoop())

@@ -14,7 +14,7 @@
  * `flows_runs` now prunes a deleted run's edges at the database level, so a
  * future retention/GC lane cannot silently leave ghosts in the cycle walk.
  */
-import { Database } from "@smthrs/database"
+import { DurableWriter } from "@smthrs/database"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import { Flow, type FlowEngine } from "@smthrs/engine"
 import { Migrations, RunStore, SqlJournal } from "@smthrs/journal"
@@ -25,6 +25,7 @@ import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
@@ -112,8 +113,9 @@ describe("run-parent edge atomicity (issues #80/#81)", () => {
   it("prunes a deleted run's edges at the database level, without any caller (issue #81)", async () => {
     const result = await run(Effect.gen(function*() {
       const state = yield* DurableEngineState.DurableEngineState
-      const database = yield* Database.Database
-      yield* database.write(database.sql`
+      const sql = yield* Effect.service(SqlClient.SqlClient)
+      const writer = yield* DurableWriter.DurableWriter
+      yield* writer.write(sql`
         INSERT INTO flows_runs (run_id, status, created_at_ms, state_json)
         VALUES ('gc-child', 'completed', 0, '{}')
       `).pipe(Effect.orDie)
@@ -122,7 +124,7 @@ describe("run-parent edge atomicity (issues #80/#81)", () => {
 
       // A retention lane that knows nothing about the edge table deletes
       // the run row directly.
-      yield* database.write(database.sql`
+      yield* writer.write(sql`
         DELETE FROM flows_runs WHERE run_id = 'gc-child'
       `).pipe(Effect.orDie)
 
@@ -140,7 +142,7 @@ describe("run-parent edge atomicity (issues #80/#81)", () => {
   it("turns storage failures inside a transaction into defects", async () => {
     const result = await run(Effect.gen(function*() {
       const state = yield* DurableEngineState.DurableEngineState
-      const { sql } = yield* Database.Database
+      const sql = yield* Effect.service(SqlClient.SqlClient)
       return yield* state.transaction(sql`INSERT INTO no_such_table VALUES (1)`).pipe(Effect.exit)
     }))
 

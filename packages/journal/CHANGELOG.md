@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- The stores and `SqlJournal` now require Effect's `SqlClient` service plus
+  `DurableWriter` (the renamed `Database` service) instead of the bundled
+  `Database` service.
+
 ### Changed
 
 - `RunStore.get` and the `claimAndOwn` snapshot-loss check run as plain reads

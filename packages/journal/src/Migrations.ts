@@ -7,11 +7,8 @@
  *
  * @since 0.1.0
  */
-import { Database } from "@smthrs/database"
-import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Migrator from "effect/unstable/sql/Migrator"
-import * as SqlClient from "effect/unstable/sql/SqlClient"
 import initial from "./migrations/0001_initial.ts"
 
 /** @private */
@@ -19,12 +16,9 @@ const migrations = {
   "0001_initial": initial
 }
 /** Creates the journal's authoritative durable schema. @category migrations @since 0.1.0 */
-export const run = Effect.gen(function*() {
-  const database = yield* Database.Database
-  return yield* Migrator.make({})({
-    loader: Migrator.fromRecord(migrations),
-    table: "flows_migrations"
-  }).pipe(Effect.provideService(SqlClient.SqlClient, database.sql))
+export const run = Migrator.make({})({
+  loader: Migrator.fromRecord(migrations),
+  table: "flows_migrations"
 })
 
 /**
