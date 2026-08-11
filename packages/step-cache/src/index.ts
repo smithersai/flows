@@ -25,7 +25,19 @@
 export * as CacheStore from "./CacheStore.ts"
 
 /**
+ * @category services
+ * @since 0.1.0
+ */
+export * as CombinedCacheStore from "./CombinedCacheStore.ts"
+
+/**
  * @category migrations
  * @since 0.1.0
  */
 export * as Migrations from "./Migrations.ts"
+
+/**
+ * @category services
+ * @since 0.1.0
+ */
+export * as RemoteCacheStore from "./RemoteCacheStore.ts"
