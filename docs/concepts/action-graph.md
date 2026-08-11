@@ -73,7 +73,9 @@ The existing contracts constrain a future planner:
 - key computation must remain above the encoded storage seam;
 - graph-local IDs must remain lookup addresses, not hash material;
 - Host implementation identities and capabilities must enter cache key input;
-- cache hits must still replay declared outputs through `StepBoundary`;
+- cache hits must still replay declared outputs through `StepBoundary`, and a
+  fresh execution must still reach the host only through `WorkspaceSandbox`'s
+  copy-back;
 - planning must not execute Host effects;
 - ordinal work must remain run-local.
 

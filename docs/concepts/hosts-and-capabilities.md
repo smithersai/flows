@@ -61,7 +61,37 @@ Pure path manipulation is not permission-checked. Filesystem access derived from
 
 `GrantStore` supports `once`, `run`, `remembered`, and `deny` resolutions. `JournalGrantStore` persists grant events in the engine journal. `makeNoop` is an explicit allow-all seam, and test grant layers provide scripted behavior; a production deployment should install a deliberate policy.
 
-The kernel is a capability check, not an operating-system sandbox. Hermetic execution also requires an implementation of the [`StepBoundary`](../reference/engine-store.md#stepboundary) contract that can observe and restrict actual reads and writes.
+The kernel is a capability check, not an operating-system sandbox.
+
+## Boundary capture: hermetic execution as a transaction
+
+Hermetic execution needs more than a capability check — it needs to know what a
+body *actually* read and wrote. Two contracts split that job:
+
+- [`StepBoundary`](../reference/engine-store.md#stepboundary) measures the
+  declared read set before the body runs, captures the declared write set's
+  post-state afterwards, and re-materializes those outputs on a cache hit. It
+  can only look at paths it was told about.
+- [`WorkspaceSandbox`](../reference/engine-store.md#workspacesandbox) runs the
+  body in an isolated **workspace transaction** instead. The transaction is
+  seeded with exactly the declared read set — an undeclared file is not there
+  to read, which is `docs/specs/Concepts/Effect Taxonomy.md`'s strong
+  enforcement tier — and the body's writes accumulate in the transaction rather
+  than on the host. Settlement is a whole-map diff, so "did this body write
+  outside its declared write set" is a comparison rather than an inference.
+
+The host is untouched until `materialize`, a compare-and-set on every changed
+file's pre-image that applies the whole diff bundle or none of it. That is why
+a sealed activity composed this way may enter the shared step cache: its
+evidence carries whole-tree write verification honestly. It is also why writes
+reach the host at exactly one place, which is where the human diff-review gate
+of `docs/specs/Concepts/Diff Review.md` will attach.
+
+The transaction is a **deterministic transaction model, not a security
+boundary**. A body that reaches the host through a service the transaction does
+not seed — a spawned native process, an undecorated socket — is outside it.
+Actually denying that ambient access is the VM/`SandboxProvider` provisioning
+story in `docs/specs/Concepts/Agent Adapters.md`, and it is future work.
 
 ## Adapter limitations
 
