@@ -23,8 +23,8 @@ import * as Layer from "effect/Layer"
 import type { Path } from "effect/Path"
 import * as EffectPath from "effect/Path"
 import type { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
-import * as BrowserChildProcessSpawner from "./BrowserChildProcessSpawner.ts"
-import * as BrowserFileSystem from "./BrowserFileSystem.ts"
+import * as BrowserChildProcessSpawner from "./BrowserChildProcessSpawner/index.ts"
+import * as BrowserFileSystem from "./BrowserFileSystem/index.ts"
 
 /**
  * The union of core services provided by the browser platform layer: child

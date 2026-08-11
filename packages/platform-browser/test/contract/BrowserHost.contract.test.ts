@@ -1,8 +1,8 @@
 import { runHostContract } from "@smthrs/kernel/test/contract"
 import * as TestHost from "@smthrs/kernel/test/TestHost"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
+import type * as BrowserChildProcessSpawner from "../../src/BrowserChildProcessSpawner/index.ts"
 import * as BrowserHost from "../../src/BrowserHost.ts"
-import type * as BrowserChildProcessSpawner from "../../src/BrowserChildProcessSpawner.ts"
 
 type BashResult = Awaited<ReturnType<BrowserChildProcessSpawner.JustBashLike["run"]>>
 
@@ -44,7 +44,6 @@ runHostContract(
       stdin: { expected: "failure", code: "BadArgument" },
       interruptCommand: ChildProcess.make("host-contract-interrupt")
     },
-    pty: { expected: "failure", code: "unsupported" },
     jj: { expected: "failure", code: "not_installed" },
     httpTransport: { expected: "failure", code: "TransportError" }
   }

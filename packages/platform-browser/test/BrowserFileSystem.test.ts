@@ -15,7 +15,7 @@ import * as NodeFsPromises from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
-import * as BrowserFileSystem from "../src/BrowserFileSystem.ts"
+import * as BrowserFileSystem from "../src/BrowserFileSystem/index.ts"
 
 const decoder = new TextDecoder()
 const encoder = new TextEncoder()

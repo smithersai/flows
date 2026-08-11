@@ -3,25 +3,23 @@
  *
  * `BrowserServices` covers the three services a platform package owes Effect —
  * `ChildProcessSpawner`, `FileSystem`, `Path`. This module is the layer above
- * it: the complete closed Host surface `flows` runs on, so the same six tags
+ * it: the complete closed Host surface `flows` runs on, so the same five tags
  * `NodeHost` and `BunHost` provide are present in a tab too.
  *
- * `Pty` and `Jj` have no browser implementation; their packages ship the
- * ticket-failing layers this bundle installs, so an absent capability is still
- * a capability with an answer rather than a missing tag.
+ * `Jj` has no browser implementation; its package ships the ticket-failing
+ * layer this bundle installs, so an absent capability is still a capability
+ * with an answer rather than a missing tag.
  *
  * @since 0.1.0
  */
 import type { Jj } from "@smthrs/jj"
 import * as BrowserJj from "@smthrs/jj/browser/BrowserJj"
 import type { HttpTransport } from "@smthrs/kernel/HttpTransport"
-import type { Pty } from "@smthrs/pty"
-import * as BrowserPty from "@smthrs/pty/browser/BrowserPty"
 import { Layer, Path } from "effect"
 import type { FileSystem } from "effect"
 import type { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
-import * as BrowserChildProcessSpawner from "./BrowserChildProcessSpawner.ts"
-import * as BrowserFileSystem from "./BrowserFileSystem.ts"
+import * as BrowserChildProcessSpawner from "./BrowserChildProcessSpawner/index.ts"
+import * as BrowserFileSystem from "./BrowserFileSystem/index.ts"
 import * as BrowserHttpTransport from "./BrowserHttpTransport.ts"
 
 /**
@@ -34,7 +32,6 @@ export type BrowserHost =
   | FileSystem.FileSystem
   | Path.Path
   | ChildProcessSpawner
-  | Pty
   | Jj
   | HttpTransport
 
@@ -58,7 +55,6 @@ export const layer = (options: {
     platform,
     Layer.provide(BrowserChildProcessSpawner.layer(options.bash), platform),
     BrowserHttpTransport.layer,
-    BrowserPty.layerUnsupported,
     BrowserJj.layerUnsupported
   )
 }

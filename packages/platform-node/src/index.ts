@@ -6,8 +6,8 @@
  * `@effect/platform-node` already ships `FileSystem`, `Path`, and
  * `ChildProcessSpawner` for Node, so this package adds only what `flows`
  * defines on top: the single-hop `HttpTransport`, and one `NodeHost.layer`
- * that composes the complete closed six-tag Host surface — including the Node
- * `Pty` and `Jj` adapters, which live in `@smthrs/pty` and `@smthrs/jj`.
+ * that composes the complete closed five-tag Host surface — including the
+ * Node `Jj` adapter, which lives in `@smthrs/jj`.
  *
  * ```ts
  * import { NodeHost } from "@smthrs/platform-node"

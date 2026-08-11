@@ -22,10 +22,10 @@
  */
 
 /** `ChildProcessSpawner` over an in-page bash interpreter. */
-export * as BrowserChildProcessSpawner from "./BrowserChildProcessSpawner.ts"
+export * as BrowserChildProcessSpawner from "./BrowserChildProcessSpawner/index.ts"
 
 /** `FileSystem` over a ZenFS-shaped promises API. */
-export * as BrowserFileSystem from "./BrowserFileSystem.ts"
+export * as BrowserFileSystem from "./BrowserFileSystem/index.ts"
 
 /** The complete closed Host bundle for a browser tab. */
 export * as BrowserHost from "./BrowserHost.ts"

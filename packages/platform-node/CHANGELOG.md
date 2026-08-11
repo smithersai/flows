@@ -5,9 +5,8 @@
 ### Added
 
 - Initial extraction from the dissolved `@smthrs/host`. `NodeHost` and
-  `NodeHttpTransport` moved here unchanged in behaviour; `NodeJj` and `NodePty`
-  had already moved to `@smthrs/jj` and `@smthrs/pty` and are composed from
-  there.
+  `NodeHttpTransport` moved here unchanged in behaviour; `NodeJj` had already
+  moved to `@smthrs/jj` and is composed from there.
 
 ### Removed
 

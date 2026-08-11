@@ -8,6 +8,7 @@
  * `node:fs/promises`, so the `cwd` validation path is exercised against a real
  * directory rather than a double.
  */
+import * as CommandLine from "@smthrs/kernel/CommandLine"
 import { Deferred, Effect, Exit, Fiber, Layer, Path, Sink, Stream } from "effect"
 import { ChildProcess } from "effect/unstable/process"
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
@@ -15,8 +16,8 @@ import { mkdtemp, rm } from "node:fs/promises"
 import * as NodeFsPromises from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
-import * as BrowserChildProcessSpawner from "../src/BrowserChildProcessSpawner.ts"
-import * as BrowserFileSystem from "../src/BrowserFileSystem.ts"
+import * as BrowserChildProcessSpawner from "../src/BrowserChildProcessSpawner/index.ts"
+import * as BrowserFileSystem from "../src/BrowserFileSystem/index.ts"
 
 interface Call {
   readonly command: string
@@ -74,16 +75,21 @@ const runExit = <A, E>(
 ) => Effect.runPromiseExit(Effect.provide(effect, layerOf(bash)))
 
 describe("BrowserChildProcessSpawner", () => {
-  it("quotes command and arguments so a spawn keeps argv semantics", async () => {
+  it("renders the line with the very renderer the kernel grants against", async () => {
     const { bash, calls } = stub(ok("hi\n"))
 
+    const command = ChildProcess.make("echo", ["a b", "it's"])
     const output = await run(
       bash,
-      Effect.flatMap(ChildProcessSpawner, (spawner) => spawner.string(ChildProcess.make("echo", ["a b", "it's"])))
+      Effect.flatMap(ChildProcessSpawner, (spawner) => spawner.string(command))
     )
 
     expect(output).toBe("hi\n")
-    expect(calls[0]?.command).toBe("'echo' 'a b' 'it'\\''s'")
+    // Argv semantics are kept by quoting only what needs it — and the string is
+    // `CommandLine.render`'s, the same one `proc:spawn` is checked against, so
+    // a grant cannot authorize a line different from the one that runs.
+    expect(calls[0]?.command).toBe("echo 'a b' 'it'\\''s'")
+    expect(calls[0]?.command).toBe(CommandLine.render(command))
   })
 
   it("passes the line through verbatim when `shell` is requested", async () => {
@@ -219,7 +225,7 @@ describe("BrowserChildProcessSpawner", () => {
 
     await run(bash, Effect.flatMap(ChildProcessSpawner, (spawner) => spawner.exitCode(ChildProcess.make("thing"))))
 
-    expect(calls[0]).toEqual({ command: "'thing'", cwd: undefined, env: undefined })
+    expect(calls[0]).toEqual({ command: "thing", cwd: undefined, env: undefined })
   })
 
   it("fails before running anything when cwd does not exist", async () => {

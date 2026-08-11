@@ -1,6 +1,6 @@
 import { Effect, Stream } from "effect"
 import { describe, expect, it } from "vitest"
-import * as BrowserFileSystem from "../src/BrowserFileSystem.ts"
+import * as BrowserFileSystem from "../src/BrowserFileSystem/index.ts"
 
 describe("BrowserFileSystem", () => {
   // Stream completion is the condition; a wall-clock limit only measures

@@ -33,7 +33,6 @@ runHostContract("NodeHost defaults", NodeHost.layer, {
   fileSystem: { expected: "success" },
   path: { expected: "success" },
   childProcess: { expected: "success" },
-  pty: { expected: "success" },
   jj: jjAvailable
     ? { expected: "success" }
     : { expected: "failure", code: "not_installed" },

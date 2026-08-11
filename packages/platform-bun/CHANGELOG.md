@@ -6,8 +6,7 @@
 
 - Initial extraction from the dissolved `@smthrs/host`. `BunHost`,
   `BunFileSystem`, and `BunHttpTransport` moved here unchanged in behaviour;
-  `BunJj` and `BunPty` had already moved to `@smthrs/jj` and `@smthrs/pty` and
-  are composed from there.
+  `BunJj` had already moved to `@smthrs/jj` and is composed from there.
 
 ### Removed
 

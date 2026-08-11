@@ -80,7 +80,6 @@
     "@smthrs/jj": "0.1.0",
     "@smthrs/kernel": "0.1.0",
     "@smthrs/platform-browser": "0.1.0",
-    "@smthrs/pty": "0.1.0",
     "effect": "4.0.0-beta.102"
   },
   "peerDependencies": {
