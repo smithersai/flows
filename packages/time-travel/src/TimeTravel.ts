@@ -154,11 +154,19 @@ const workspaceSlug = (position: Position): string =>
  * Browser-safe on purpose: `Clock` and `Random` are services, so this never
  * reaches for `process.pid` or `node:crypto` the way an engine incarnation
  * does.
+ *
+ * `hostId` is per-incarnation rather than a constant `"time-travel"`, and
+ * `pid` is 0 because there is no process behind this identity. Ownership
+ * doctrine lets a liveness probe inspect a local PID only when two owners
+ * share a `hostId` (`@smthrs/run-store`'s `Ownership.LivenessProbe`); a shared
+ * constant would make two services on two machines look same-host and invite a
+ * probe of PID 0. Two incarnations never claim the same host.
  */
 const mintOwner: Effect.Effect<OwnerId> = Effect.gen(function*() {
   const nowMs = yield* Clock.currentTimeMillis
   const entropy = yield* Random.nextIntBetween(0, 0x7fffffff)
-  return { hostId: "time-travel", pid: 0, nonce: `time-travel:${nowMs}:${entropy}` }
+  const incarnation = `${nowMs}:${entropy}`
+  return { hostId: `time-travel:${incarnation}`, pid: 0, nonce: `time-travel:${incarnation}` }
 })
 
 /**

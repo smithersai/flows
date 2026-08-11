@@ -48,6 +48,11 @@ Handler registration and compensation planning are internal: `rewind` resolves
 handlers, classifies each record as `revertible`, `warning`, or `blocking`, and
 records the rollback receipts on its audit itself.
 
+The registry `TimeTravel.layer` wires is empty today. Sealed effects are still
+classified from the cache, but any other crossed record resolves to no handler
+and is therefore `blocking`, so a rewind across one fails with `irreversible`.
+Supplying application handlers through the service is not wired yet.
+
 ## Errors
 
 `TimeTravelError` is the tagged failure type. `TimeTravelErrorCode` is `busy`, `live_parent`, `live_child`, `not_found`, `rate_limited`, `compensation_failed`, `irreversible`, or `unknown`. `error(code, message, cause?)` is the constructor helper.

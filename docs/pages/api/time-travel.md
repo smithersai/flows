@@ -84,7 +84,10 @@ a later rewind has something to assess. It stays public for that reason.
 | `EffectRecord`, `Description`, `EffectTier`, `EffectStatus` | shapes | `intended`, `succeeded`, `unknown` |
 
 Handler registration, compensation planning, and tier-aware retry are internal:
-`rewind` resolves them itself.
+`rewind` resolves them itself. The registry it resolves against is empty today,
+so a crossed record that is not sealed classifies as `blocking` and the rewind
+fails with `irreversible`; supplying application handlers through the service is
+not wired yet.
 
 ## TimeTravelError
 
