@@ -22,13 +22,13 @@ behind `@smthrs/kernel`'s grant check. There is no `flows` wrapper around
 
 ## Public API
 
-| Export                                    | Meaning                                                                                      |
-| ----------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `BrowserFileSystem.make`, `.layer`        | `FileSystem` over a ZenFS-shaped promises API.                                               |
-| `BrowserFileSystem.ZenFsPromisesLike`     | The structural slice of that API — no `@zenfs/core` dependency.                              |
-| `BrowserChildProcessSpawner.layer`        | `ChildProcessSpawner` over a just-bash interpreter.                                          |
-| `BrowserChildProcessSpawner.JustBashLike` | The structural slice of that interpreter — no `just-bash` dependency.                        |
-| `BrowserServices.layer`                   | The aggregate: spawner, filesystem, and `Path`, mirroring `NodeServices.layer`.              |
+| Export                                    | Meaning                                                                                                      |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `BrowserFileSystem.make`, `.layer`        | `FileSystem` over a ZenFS-shaped promises API.                                                               |
+| `BrowserFileSystem.ZenFsPromisesLike`     | The structural slice of that API — no `@zenfs/core` dependency.                                              |
+| `BrowserChildProcessSpawner.layer`        | `ChildProcessSpawner` over a just-bash interpreter.                                                          |
+| `BrowserChildProcessSpawner.JustBashLike` | The structural slice of that interpreter — no `just-bash` dependency.                                        |
+| `BrowserServices.layer`                   | The aggregate: spawner, filesystem, and `Path`, mirroring `NodeServices.layer`.                              |
 | `BrowserHost.layer`                       | The complete closed Host bundle: the above plus the wasm-backed `Jj` and Effect's fetch-backed `HttpClient`. |
 
 Every backend is an **argument, not an import**. The page owns which ZenFS
