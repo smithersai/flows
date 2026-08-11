@@ -45,6 +45,9 @@ interface Entry {
  * same `BrowserFileSystem` adapter the browser runs. A separate "test
  * FileSystem" would be a second implementation to keep honest; this way a bug in
  * the adapter shows up in tests.
+ *
+ * @category constructors
+ * @since 0.1.0
  */
 export const makeMemoryFs = (
   initial?: Readonly<Record<string, string>>
@@ -146,6 +149,9 @@ export const makeMemoryFs = (
  * unlisted command fails the way a real shell reports a missing binary. Tests
  * that need shell output declare it; tests that do not, cannot accidentally
  * depend on a host tool being installed.
+ *
+ * @category constructors
+ * @since 0.1.0
  */
 export const makeStubBash = (
   responses?: Readonly<
@@ -182,6 +188,9 @@ export const makeStubBash = (
  *
  * `Random.withSeed` exists but is an `Effect` combinator, and a Host bundle has
  * to be a `Layer` — so we provide the two-method `Random` reference directly.
+ *
+ * @category layers
+ * @since 0.1.0
  */
 export const layerSeededRandom = (seed = 42): Layer.Layer<never> =>
   Layer.succeed(Random.Random)(
@@ -226,6 +235,9 @@ export type TestHost =
  * The spawner is provided *over* the filesystem and path layers, exactly the
  * way `NodeChildProcessSpawner` is, so the interpreter and the `FileSystem`
  * service agree about what exists rather than each holding its own store.
+ *
+ * @category layers
+ * @since 0.1.0
  */
 export const layer = (options?: {
   readonly files?: Readonly<Record<string, string>>
@@ -253,5 +265,13 @@ export const layer = (options?: {
   )
 }
 
-/** The zero-config bundle: empty filesystem, no scripted commands, seed 42. */
+/**
+ * The zero-config bundle: empty filesystem, no scripted commands, seed 42.
+ *
+ * Reach for {@link layer} instead when a test needs seeded files, scripted
+ * commands, or a different PRNG seed.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
 export const TestHost: Layer.Layer<TestHost> = layer()

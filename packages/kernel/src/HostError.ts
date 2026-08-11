@@ -31,5 +31,6 @@ import type { JjError } from "@smthrs/jj"
  * `effect`'s platform surface.
  *
  * @category models
+ * @since 0.1.0
  */
 export type HostError = JjError

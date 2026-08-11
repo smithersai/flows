@@ -104,7 +104,16 @@ export const HostServiceIds = [
   "effect/HttpClient"
 ] as const
 
-/** Built-ins provided by Effect itself; listed by name only. @category models */
+/**
+ * Built-ins provided by Effect itself; listed by name only.
+ *
+ * They are named rather than tagged because the kernel never decorates them —
+ * a `Clock` or a `Random` carries no host authority to guard — but a step key
+ * still has to record that they were in the resolved service set.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const HostBuiltinNames = ["effect/Clock", "effect/Random"] as const
 
 /**
