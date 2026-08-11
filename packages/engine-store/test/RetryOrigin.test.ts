@@ -20,6 +20,7 @@ import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as Migrations from "../src/Migrations.ts"
+import * as OwnerIdentity from "../src/OwnerIdentity.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise } from "./Sha256.ts"
@@ -212,6 +213,7 @@ describe("durable schedule-to-close origin", () => {
         Effect.provideService(DurableEngineState.DurableEngineState, state),
         Effect.provideService(Jj.Jj, jj),
         Effect.provide(StepBoundary.layerTest()),
+        Effect.provide(OwnerIdentity.layer),
         Effect.provide(journalWithDatabase),
         Effect.provide(TestClock.layer())
       ) as unknown as Effect.Effect<{

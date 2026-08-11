@@ -9,7 +9,7 @@
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
 import { DurableWriter } from "@smthrs/database"
 import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
-import { DurableEngineState, EngineStore, StepBoundary } from "@smthrs/engine-store"
+import { DurableEngineState, EngineStore, OwnerIdentity, StepBoundary } from "@smthrs/engine-store"
 import * as Migrations from "@smthrs/engine-store/Migrations"
 import { AttemptStore, RunStore } from "@smthrs/run-store"
 import { CacheStore } from "@smthrs/step-cache"
@@ -57,9 +57,19 @@ export const storesLayer = (filename: string) => {
  * from a stale owner. Returning `false` means "that owner is gone, take the
  * run", which is correct for a single-process example and unsafe in a real
  * deployment.
+ *
+ * `OwnerIdentity.layer` is the default owner minter — the process id plus a
+ * fresh nonce. It is listed here rather than assumed because it is the seam a
+ * host with a better answer replaces.
  */
 export const requirements = (filename: string) =>
-  Layer.mergeAll(storesLayer(filename), StepBoundary.layerTest(), stubJj, NodeCrypto.layer)
+  Layer.mergeAll(
+    storesLayer(filename),
+    StepBoundary.layerTest(),
+    stubJj,
+    OwnerIdentity.layer,
+    NodeCrypto.layer
+  )
 
 /**
  * A durable `FlowEngine` over the SQLite file at `filename`.

@@ -19,15 +19,16 @@ import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import type * as Schedule from "effect/Schedule"
 import * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
-import { randomUUID } from "node:crypto"
 import * as DurableEngineState from "./DurableEngineState.ts"
 import * as ActivityPersistence from "./internal/ActivityPersistence.ts"
 import * as AttemptAdmission from "./internal/AttemptAdmission.ts"
 import * as AttemptProbe from "./internal/AttemptProbe.ts"
 import * as DeferredPersistence from "./internal/DeferredPersistence.ts"
 import * as RunDriver from "./internal/RunDriver.ts"
+import * as OwnerIdentity from "./OwnerIdentity.ts"
 import * as StepBoundary from "./StepBoundary.ts"
 
 /**
@@ -44,6 +45,15 @@ export interface Options {
   readonly isAlive: (
     owner: Ownership.OwnerId
   ) => Effect.Effect<boolean>
+  /**
+   * Redispatch policy for a durable clock whose fire failed. Defaults to
+   * {@link DeferredPersistence.defaultFireRetryPolicy} — exponential from
+   * 100ms, capped at 30s, forever. Same shape as the engine's
+   * `suspendedRetryPolicy` option: the built-in behavior is the default, and
+   * a deployment that wants a different backoff supplies one here rather than
+   * patching the store.
+   */
+  readonly clockFireRetryPolicy?: Schedule.Schedule<unknown, unknown> | undefined
 }
 
 type Requirements =
@@ -52,6 +62,7 @@ type Requirements =
   | DurableEngineState.DurableEngineState
   | Journal.Journal
   | Jj.Jj
+  | OwnerIdentity.OwnerIdentity
   | RunStore.RunStore
   | Scope.Scope
   | StepBoundary.Service
@@ -67,12 +78,6 @@ export class EngineCompositionError extends Schema.TaggedErrorClass<EngineCompos
 
 const isBoundaryMetadata = Schema.is(FileBoundary)
 
-const ownerId = (hostId: string): Ownership.OwnerId => ({
-  hostId,
-  pid: process.pid,
-  nonce: randomUUID()
-})
-
 /**
  * Constructs the production encoded composition.
  *
@@ -87,7 +92,8 @@ export const make = (
   options: Options
 ): Effect.Effect<FlowRuntime.FlowRuntime["Service"], never, Requirements> =>
   Effect.gen(function*() {
-    const owner = ownerId(options.owner.hostId)
+    const ownerIdentity = yield* OwnerIdentity.OwnerIdentity
+    const owner = yield* ownerIdentity.ownerId(options.owner.hostId)
     // One admission mutex per incarnation, shared by every dispatch this
     // store drives: `ActivityPersistence.make` runs per dispatch below, so a
     // per-make default would never contend and the same-key exclusion the
@@ -112,7 +118,10 @@ export const make = (
     const deferred = yield* DeferredPersistence.make({
       owner,
       journalSource: options.journalSource,
-      scheduleResume: (flowName, executionId, reason) => driver.scheduleResume(flowName, executionId, reason)
+      scheduleResume: (flowName, executionId, reason) => driver.scheduleResume(flowName, executionId, reason),
+      ...(options.clockFireRetryPolicy === undefined
+        ? {}
+        : { fireRetryPolicy: options.clockFireRetryPolicy })
     })
 
     const activityExecute = Effect.fn("FlowEngine.activityExecute")(function*(input: {

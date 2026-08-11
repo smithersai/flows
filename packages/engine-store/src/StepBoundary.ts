@@ -15,6 +15,7 @@ import * as Encoding from "effect/Encoding"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import * as Random from "effect/Random"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 
@@ -301,11 +302,27 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
    * instances) spilling the same digest would otherwise both write
    * `<blob>.tmp-0`, clobber each other's completed temp file, and publish
    * torn bytes at the canonical content address. The token never enters any
-   * persisted identity, so its randomness is invisible to replay, and it is
-   * plain `Math.random` rather than a host layer because it guards only
-   * filesystem scratch names, never durable state.
+   * persisted identity, so its randomness is invisible to replay.
+   *
+   * It is drawn from Effect's `Random` — the sanctioned swappable port for
+   * nondeterminism, named alongside `Clock` in the kernel's closed host list
+   * — rather than from ambient `Math.random`, so a deterministic composition
+   * (or a seeded test) controls it like every other draw. The draw is
+   * memoized on first spill: one token per service instance is the property
+   * issue #131 needs, and `makeFileSystem` itself stays synchronous.
    */
-  const tempToken = Math.random().toString(36).slice(2, 12).padEnd(10, "0")
+  let tempToken: string | undefined
+  const freshTempToken: Effect.Effect<string> = Effect.suspend(() =>
+    tempToken === undefined
+      ? Effect.map(
+        Random.nextIntBetween(0, Number.MAX_SAFE_INTEGER, { halfOpen: true }),
+        (drawn) => {
+          tempToken = drawn.toString(36).slice(0, 10).padEnd(10, "0")
+          return tempToken
+        }
+      )
+      : Effect.succeed(tempToken)
+  )
   let tempSequence = 0
   /**
    * Digests whose canonical blob this store has already verified — or
@@ -438,7 +455,7 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
       // blob is rewritten only when its bytes no longer match its address.
       yield* fs.makeDirectory(objectsDirectory, { recursive: true }).pipe(Effect.mapError(hostFailure))
       yield* sweepOrphanedTemps
-      const tempPath = `${blobPath}.tmp-${tempToken}-${tempSequence++}`
+      const tempPath = `${blobPath}.tmp-${yield* freshTempToken}-${tempSequence++}`
       // A failed publication removes its own scratch file (issue #138); a
       // crash cannot, which is what the sweep above reclaims.
       yield* fs.writeFile(tempPath, bytes).pipe(

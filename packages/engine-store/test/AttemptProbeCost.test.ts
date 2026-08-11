@@ -22,6 +22,7 @@ import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as Migrations from "../src/Migrations.ts"
+import * as OwnerIdentity from "../src/OwnerIdentity.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import { runPromise } from "./Sha256.ts"
 
@@ -66,7 +67,10 @@ describe("attempt probe cost over SQL durable state (issue #77)", () => {
       AttemptStore.layer,
       CacheStore.layer,
       DurableEngineState.layer
-    ).pipe(Layer.provideMerge(Layer.provideMerge(Migrations.layer, TestDatabase.layer)))
+    ).pipe(
+      Layer.provideMerge(Layer.provideMerge(Migrations.layer, TestDatabase.layer)),
+      Layer.merge(OwnerIdentity.layer)
+    )
 
     let gets = 0
     const result = await runPromise(

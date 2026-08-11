@@ -13,6 +13,7 @@ import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as Migrations from "../../src/Migrations.ts"
+import * as OwnerIdentity from "../../src/OwnerIdentity.ts"
 import { runPromise } from "../Sha256.ts"
 
 const mode = process.argv[2]
@@ -61,6 +62,7 @@ const sqlServices = Layer.provideMerge(
 const requirements = Layer.mergeAll(
   sqlServices,
   StepBoundary.layerTest(),
+  OwnerIdentity.layer,
   Layer.succeed(Jj.Jj, jj)
 )
 

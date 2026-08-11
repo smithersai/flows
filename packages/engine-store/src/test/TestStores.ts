@@ -20,6 +20,7 @@ import * as RunStore from "@smthrs/run-store/RunStore"
 import * as CacheStore from "@smthrs/step-cache/CacheStore"
 import * as Layer from "effect/Layer"
 import * as Migrations from "../Migrations.ts"
+import * as OwnerIdentity from "../OwnerIdentity.ts"
 
 /**
  * Options for the deterministic store bundle.
@@ -47,6 +48,11 @@ export const database = Layer.provideMerge(Migrations.layer, TestDatabase.layer)
  * over one in-memory database. Migrations run before any durable service is
  * exposed.
  *
+ * `OwnerIdentity.layer` rides along: it is not a store, but it is the other
+ * service `EngineStore.make` requires and has no in-memory variant to choose
+ * between. The default is used rather than a pinned one so a test observes
+ * the same fresh-per-incarnation owner the production composition mints.
+ *
  * @category layers
  * @since 0.1.0
  */
@@ -60,4 +66,4 @@ export const layer = (options?: TestStoresOptions) =>
     RunStore.layer,
     AttemptStore.layer,
     CacheStore.layer
-  ).pipe(Layer.provide(database))
+  ).pipe(Layer.provide(database), Layer.merge(OwnerIdentity.layer))

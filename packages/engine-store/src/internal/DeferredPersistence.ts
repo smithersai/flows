@@ -42,6 +42,13 @@ export interface Dependencies {
     executionId: string,
     reason: ResumeReason
   ) => Effect.Effect<void>
+  /**
+   * Redispatch policy for a durable clock whose fire failed. Defaults to
+   * {@link defaultFireRetryPolicy}; a composition supplies its own the way
+   * the engine's `suspendedRetryPolicy` option is supplied, rather than
+   * editing the constant.
+   */
+  readonly fireRetryPolicy?: FireRetryPolicy | undefined
 }
 
 /**
@@ -87,7 +94,16 @@ const clockKey = (row: DurableEngineState.ClockAddress): string =>
   JSON.stringify([row.flowName, row.executionId, row.clockName])
 
 /**
- * Redispatch policy for a durable clock whose fire failed.
+ * A clock-fire redispatch policy. The input is the sandboxed cause of a failed
+ * fire, so any schedule that recurs on an arbitrary input fits.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export type FireRetryPolicy = Schedule.Schedule<unknown, unknown>
+
+/**
+ * The default redispatch policy for a durable clock whose fire failed.
  *
  * Temporal redispatches timer-queue tasks with backoff until they are acked
  * (`reference/temporal` `service/history` timer queue + `common/backoff`); we
@@ -96,8 +112,11 @@ const clockKey = (row: DurableEngineState.ClockAddress): string =>
  * 30s, forever — the fire is idempotent (first-writer deferred completion,
  * deduplicated journal admission, CAS clock completion), so retrying an
  * arbitrary prefix is safe.
+ *
+ * @since 0.1.0
+ * @category constructors
  */
-const fireRetryPolicy = Schedule.min([
+export const defaultFireRetryPolicy: FireRetryPolicy = Schedule.min([
   Schedule.exponential("100 millis"),
   Schedule.spaced("30 seconds")
 ])
@@ -122,6 +141,7 @@ export const make = (
     const state = yield* DurableEngineState.DurableEngineState
     const journal = yield* Journal.Journal
     const timers = yield* FiberMap.make<string>()
+    const fireRetryPolicy = dependencies.fireRetryPolicy ?? defaultFireRetryPolicy
 
     // The durable channel commits inside `emitDurable`; the flush that
     // follows only pushes the *lossy* queue. Once the journal's lossy writer
