@@ -5,6 +5,7 @@
  *
  * @since 4.0.0
  */
+import * as Node from "@smthrs/plan/Node"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Effectable from "effect/Effectable"
@@ -16,7 +17,7 @@ import * as Flow from "../Flow/index.ts"
 import { FlowInstance } from "../FlowRuntime/FlowInstance.ts"
 import { FlowRuntime } from "../FlowRuntime/FlowRuntime.ts"
 import type * as RetryPolicy from "../RetryPolicy.ts"
-import type { Activity, IdempotencyKey, Tier } from "./Activity.ts"
+import type { Activity, Declared, IdempotencyKey, Tier } from "./Activity.ts"
 import { CurrentAttempt } from "./Context.ts"
 import { TypeId } from "./TypeId.ts"
 
@@ -27,7 +28,7 @@ import { TypeId } from "./TypeId.ts"
  * @category constructors
  * @since 4.0.0
  */
-export const make = <
+const makeInline = <
   R,
   Success extends Schema.Constraint = Schema.Void,
   Error extends Schema.Constraint = Schema.Never
@@ -72,13 +73,13 @@ export const make = <
     metadata: options.metadata,
     retryPolicy: options.retryPolicy,
     annotate(tag: Context.Key<any, any>, value: any) {
-      return make({
+      return makeInline({
         ...options,
         annotations: Context.add(self.annotations, tag, value)
       })
     },
     annotateMerge(context: Context.Context<any>) {
-      return make({
+      return makeInline({
         ...options,
         annotations: Context.merge(self.annotations, context)
       })
@@ -92,6 +93,125 @@ export const make = <
   execute = makeExecute(self)
   return self
 }
+
+const makeDeclared = <
+  const Tag extends string,
+  Payload extends Schema.Struct.Fields | Flow.AnyStructSchema,
+  Success extends Schema.Top = Schema.Void,
+  Error extends Schema.Top = Schema.Never
+>(tag: Tag, options: {
+  readonly payload: Payload
+  readonly success?: Success | undefined
+  readonly error?: Error | undefined
+  readonly tier?: Tier | undefined
+  readonly idempotencyKey?: IdempotencyKey | undefined
+  readonly annotations?: Context.Context<never> | undefined
+}): Declared<
+  Tag,
+  Payload extends Schema.Struct.Fields ? Schema.Struct<Payload> : Payload,
+  Success,
+  Error
+> => {
+  type PayloadSchema = Payload extends Schema.Struct.Fields ? Schema.Struct<Payload> : Payload
+  const payloadSchema = (Schema.isSchema(options.payload)
+    ? options.payload
+    : Schema.Struct(options.payload)) as PayloadSchema
+  const successSchema = options.success ?? (Schema.Void as unknown as Success)
+  const errorSchema = options.error ?? (Schema.Never as unknown as Error)
+  const annotations = options.annotations ?? Context.empty()
+  const self: Declared<Tag, PayloadSchema, Success, Error> = {
+    [TypeId]: TypeId,
+    name: tag,
+    payloadSchema,
+    successSchema,
+    errorSchema,
+    tier: options.tier ?? "sealed",
+    idempotencyKey: options.idempotencyKey,
+    annotations,
+    annotate(key: Context.Key<any, any>, value: any) {
+      return makeDeclared(tag, {
+        ...options,
+        annotations: Context.add(annotations, key, value)
+      })
+    },
+    annotateMerge(context: Context.Context<any>) {
+      return makeDeclared(tag, {
+        ...options,
+        annotations: Context.merge(annotations, context)
+      })
+    },
+    call(payload) {
+      return Node.activityCall<Success["Type"], Error["Type"]>(self, tag, payload)
+    },
+    toLayer(execute) {
+      const registration = Flow.make(tag, {
+        payload: payloadSchema,
+        success: successSchema,
+        error: errorSchema,
+        annotations
+      })
+      return registration.toLayer((payload) =>
+        makeInline({
+          name: tag,
+          success: successSchema,
+          error: errorSchema,
+          tier: self.tier,
+          idempotencyKey: self.idempotencyKey,
+          annotations,
+          execute: execute(payload)
+        })
+      )
+    }
+  }
+  return self
+}
+
+/**
+ * Creates either an inline executable activity or a named activity
+ * declaration, selected by whether the first argument is a string.
+ *
+ * @category constructors
+ * @since 4.0.0
+ */
+export const make: {
+  <
+    const Tag extends string,
+    Payload extends Schema.Struct.Fields | Flow.AnyStructSchema,
+    Success extends Schema.Top = Schema.Void,
+    Error extends Schema.Top = Schema.Never
+  >(tag: Tag, options: {
+    readonly payload: Payload
+    readonly success?: Success | undefined
+    readonly error?: Error | undefined
+    readonly tier?: Tier | undefined
+    readonly idempotencyKey?: IdempotencyKey | undefined
+    readonly annotations?: Context.Context<never> | undefined
+  }): Declared<
+    Tag,
+    Payload extends Schema.Struct.Fields ? Schema.Struct<Payload> : Payload,
+    Success,
+    Error
+  >
+  <
+    R,
+    Success extends Schema.Constraint = Schema.Void,
+    Error extends Schema.Constraint = Schema.Never
+  >(options: {
+    readonly name: string
+    readonly success?: Success | undefined
+    readonly error?: Error | undefined
+    readonly execute: Effect.Effect<Success["Type"], Error["Type"], R>
+    readonly tier?: Tier | undefined
+    readonly idempotencyKey?: IdempotencyKey | undefined
+    readonly metadata?: unknown
+    readonly interruptRetryPolicy?: Schedule.Schedule<any, unknown> | undefined
+    readonly retryPolicy?: RetryPolicy.RetryPolicy | undefined
+    readonly annotations?: Context.Context<never> | undefined
+  }): Activity<Success, Error, Exclude<R, FlowInstance | FlowRuntime | Scope>>
+} = ((first: string | Parameters<typeof makeInline>[0], second?: object) =>
+  typeof first === "string"
+    ? makeDeclared(first, second as Parameters<typeof makeDeclared>[1])
+    : makeInline(first)) as any
 
 const isInfraInterrupt = Predicate.isTagged("@smthrs/engine/InfraInterrupt")
 
