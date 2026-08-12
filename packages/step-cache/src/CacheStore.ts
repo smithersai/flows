@@ -9,6 +9,7 @@
  *
  * @since 0.1.0
  */
+import { Canonical } from "@smthrs/canonical/Canonical"
 import { affectedRows, DatabaseError, DurableWriter } from "@smthrs/database/DurableWriter"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
@@ -168,9 +169,21 @@ type CacheRow = typeof CacheRow.Type
 const error = (code: CacheStoreErrorCode, message: string, cause?: unknown): CacheStoreError =>
   new CacheStoreError({ code, message, ...(cause === undefined ? {} : { cause }) })
 
+/**
+ * Encodes a stored value as RFC 8785 canonical JSON.
+ *
+ * `put` decides `ExistingSame` versus `Conflict` by comparing `result_json`
+ * text. `JSON.stringify` output depends on key insertion order, so two
+ * structurally equal results built in different orders compared unequal, and
+ * `ActivityPersistence` routes `Conflict` to the `Inconsistency` receiver whose
+ * core default verdict is `fail` — the run failed with `CacheConflictDetected`
+ * naming a divergence that did not exist. Canonicalizing on the way in makes
+ * the text comparison a structural one, which is what `@smthrs/canonical`
+ * exists for.
+ */
 const encode = (value: unknown, field: string): Effect.Effect<string, CacheStoreError> =>
-  Schema.encodeEffect(Schema.UnknownFromJsonString)(value).pipe(
-    Effect.mapError((cause) => error("invalid_cache", `${field} must be JSON-serializable`, cause))
+  Schema.decodeUnknownEffect(Canonical)(value).pipe(
+    Effect.mapError((cause) => error("invalid_cache", `${field} must have a canonical JSON form`, cause))
   )
 
 const decode = (value: string, field: string): Effect.Effect<unknown, CacheStoreError> =>
