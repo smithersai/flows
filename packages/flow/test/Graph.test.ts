@@ -241,7 +241,7 @@ describe("Graph.build planned values", () => {
     expect(Graph.nodes(graph).map((observed) => [observed.id, observed.kind])).toEqual([
       ["root.flow.branch", "ActivityCall"],
       ["root.flow.then", "Succeed"],
-      ["root.flow.else", "Succeed"],
+      ["root.flow.else", "FlowCall"],
       ["root.flow", "Branch"],
       ["root", "FlowCall"]
     ])
@@ -255,7 +255,7 @@ describe("Graph.build planned values", () => {
       { _tag: "Pending", from: "root.flow.branch" }
     ])
     expect(material(graph, "root.flow.else").inputs).toEqual([
-      { _tag: "Literal", value: { _tag: "To", flow: "counter/count-to-100", payload: { path: "counter.txt" } } },
+      { _tag: "Literal", value: { path: "counter.txt" } },
       { _tag: "Pending", from: "root.flow.branch" }
     ])
   })

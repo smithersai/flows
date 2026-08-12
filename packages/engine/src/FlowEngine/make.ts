@@ -17,6 +17,7 @@ import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 import { activityKey, ordinalScope, uncanonicalKey } from "./ActivityKey.ts"
 import type { ActivityExecuteOptions, Encoded } from "./Encoded.ts"
+import * as Round from "./Round.ts"
 import { SnapshotBoundary, type SnapshotBoundaryOptions } from "./SnapshotBoundary.ts"
 
 const toJsonExit = Exit.map((value: any) => value ?? null)
@@ -37,11 +38,29 @@ const toJsonExit = Exit.map((value: any) => value ?? null)
  * @category constructors
  * @since 4.0.0
  */
-export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"] =>
-  FlowRuntime.FlowRuntime.of({
+export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"] => {
+  /**
+   * The declarations this engine has been told about, by tag. A handoff names
+   * its target by tag — it is serializable data that crossed a journal — so
+   * following the lineage needs the declaration back to decode the next
+   * round's payload and to read its round budget.
+   */
+  const declarations = new Map<string, Array<{ readonly flow: Flow.Any }>>()
+  return FlowRuntime.FlowRuntime.of({
     // Untraced because registering a flow recursively re-enters the engine.
     register: Effect.fnUntraced(function*(flow, execute) {
       const services = yield* Effect.context<FlowRuntime.FlowRuntime>()
+      const registration = { flow }
+      const existing = declarations.get(flow._tag)
+      const entries = existing ?? []
+      if (existing === undefined) declarations.set(flow._tag, entries)
+      entries.push(registration)
+      yield* Effect.addFinalizer(() =>
+        Effect.sync(() => {
+          entries.splice(entries.indexOf(registration), 1)
+          if (entries.length === 0) declarations.delete(flow._tag)
+        })
+      )
       yield* options.register(flow, (payload, executionId) =>
         Effect.suspend(() => execute(payload, executionId)).pipe(
           Effect.updateContext(
@@ -69,9 +88,14 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
     ) {
       const payload = opts.payload
       const executionId = opts.executionId
+      const lineageBudget = self.maxRounds
       const suspendedRetryPolicy = opts.suspendedRetryPolicy ?? RetryPolicy.defaultRetryPolicy
       yield* Effect.annotateCurrentSpan({ executionId })
       let result = Option.none<Flow.Result<Success["Type"], Error["Type"]>>()
+      let round = Round.initial(executionId)
+      let roundFlow = self as Flow.Any
+      let roundExecutionId = executionId
+      let roundPayload = payload as object
 
       // link interruption with parent flow
       const parentInstance = yield* Effect.serviceOption(FlowRuntime.FlowInstance)
@@ -81,33 +105,40 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
           if (!instance.interrupted || (Option.isSome(result) && result.value._tag === "Complete")) {
             return Effect.void
           }
-          return options.interrupt(self, executionId)
+          return options.interrupt(roundFlow, roundExecutionId)
         })
       }
-      const run = options.execute(self, {
-        executionId,
-        payload: payload as object,
-        discard: opts.discard ?? false,
-        parent: Option.getOrUndefined(parentInstance)
-      }) as Effect.Effect<Flow.Result<Success["Type"], Error["Type"]>>
+      const runRound = (
+        roundFlow: Flow.Any,
+        roundExecutionId: string,
+        roundPayload: object,
+        round: Round.Round & { readonly previousExecutionId?: string | undefined },
+        parent: FlowRuntime.FlowInstance["Service"] | undefined
+      ): Effect.Effect<Flow.Result<Success["Type"], Error["Type"]>> =>
+        options.execute(roundFlow, {
+          executionId: roundExecutionId,
+          payload: roundPayload,
+          discard: opts.discard ?? false,
+          parent,
+          round
+        }) as Effect.Effect<Flow.Result<Success["Type"], Error["Type"]>>
+      let current = runRound(
+        roundFlow,
+        roundExecutionId,
+        roundPayload,
+        round,
+        Option.getOrUndefined(parentInstance)
+      )
 
       if (opts.discard) {
-        yield* run
+        yield* current
         return executionId
       }
 
-      if (Option.isSome(parentInstance)) {
-        const wrapped = yield* Flow.wrapActivityResult(
-          run,
-          (result) => result._tag === "Suspended"
-        )
-        result = Option.some(wrapped)
-        if (wrapped._tag === "Suspended") {
-          return yield* Flow.suspend(parentInstance.value)
-        }
-        return yield* wrapped.exit
-      }
-
+      // The lineage this caller is following. Round 0 is the execution it
+      // asked for; every later round is a separate execution with its own
+      // journal, derived from the lineage and the ordinal so a restart lands
+      // on the same one (`docs/specs/Concepts/Trampoline Loops.md`).
       let resumeAttempt = 0
       // The expiration origin for the resume loop is in-process by design:
       // the loop itself only lives as long as this caller, and a restart
@@ -117,10 +148,62 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
       // polling a suspended execution.
       const resumeStartMs = yield* Clock.currentTimeMillis
       while (true) {
-        const wrapped = yield* run
+        const wrapped = Option.isSome(parentInstance)
+          ? yield* Flow.wrapActivityResult(
+            current,
+            (result) => result._tag === "Suspended"
+          )
+          : yield* current
         result = Option.some(wrapped)
         if (wrapped._tag === "Complete") {
           return yield* wrapped.exit as Exit.Exit<any>
+        }
+        if (wrapped._tag === "Handoff") {
+          // The round settled by naming the next one. Following it here is
+          // what makes the trampoline transparent to the caller: one
+          // `execute` answers with the LINEAGE's value, and each round keeps
+          // its own execution id and journal underneath.
+          // DECIDED (2026-08-11, pending review): `maxRounds` belongs to the
+          // lineage originator. A multi-flow handoff cannot reset or replace
+          // the budget by naming a target with a different declaration.
+          const advanced = yield* Round.next(round, {
+            flowName: self._tag,
+            maxRounds: lineageBudget
+          }).pipe(Effect.catch((error) => Effect.die(error)))
+          // DECIDED (2026-08-11, pending review): a caller that cannot
+          // resolve the target dies rather than answering with the raw
+          // handoff. The round is durable either way, so the lineage is not
+          // lost — what is wrong is this caller's wiring, and saying so is
+          // the same posture `execute` takes for an unregistered flow.
+          const target = declarations.get(wrapped.flow)?.at(-1)?.flow
+          if (target === undefined) {
+            return yield* Effect.die(
+              new Error(
+                `${roundFlow._tag} handed off to flow ${wrapped.flow}, which is not registered with this engine`
+              )
+            )
+          }
+          // A handoff payload travels encoded, so the next round's own schema
+          // is what turns it back into the payload that round is planned with.
+          const decoded = yield* Effect.orDie(
+            Schema.decodeUnknownEffect(Schema.toCodecJson(target.payloadSchema))(wrapped.payload)
+          ) as Effect.Effect<object>
+          const previousExecutionId = roundExecutionId
+          round = advanced.round
+          roundFlow = target
+          roundExecutionId = advanced.executionId
+          roundPayload = decoded
+          current = runRound(
+            roundFlow,
+            roundExecutionId,
+            roundPayload,
+            { ...round, previousExecutionId },
+            undefined
+          )
+          continue
+        }
+        if (Option.isSome(parentInstance)) {
+          return yield* Flow.suspend(parentInstance.value)
         }
         // The resume delay is derived from the attempt count (data policy) so
         // backoff survives a restart.
@@ -145,7 +228,15 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
         const sleep = Effect.sleep(delay.value)
         yield* (options.resumeSignal === undefined
           ? sleep
-          : Effect.raceFirst(sleep, options.resumeSignal(self, executionId)))
+          : Effect.raceFirst(sleep, options.resumeSignal(roundFlow, roundExecutionId)))
+        yield* options.resume(roundFlow, roundExecutionId)
+        current = runRound(
+          roundFlow,
+          roundExecutionId,
+          roundPayload,
+          round,
+          undefined
+        )
       }
     }),
     poll: options.poll,
@@ -304,7 +395,10 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
             Effect.provideService(Activity.CurrentAttempt, currentAttempt)
           )
         }
-        if (result._tag === "Suspended") {
+        // Suspension is the activity path's only non-exit settlement; the
+        // narrowing is written as "not complete" so the flow-only handoff
+        // variant needs no unreachable arm of its own.
+        if (result._tag !== "Complete") {
           return result
         }
         // The engine's single retry decision point. The delay is derived from
@@ -480,3 +574,4 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
       )
     )
   })
+}

@@ -15,6 +15,7 @@ import { Journal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
 import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
 import { CacheStore } from "@smthrs/step-cache"
+import type * as Crypto from "effect/Crypto"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -60,6 +61,13 @@ export interface Options {
 type Requirements =
   | AttemptStore.AttemptStore
   | CacheStore.CacheStore
+  // DECIDED (2026-08-11, pending review): hashing is a construction-time
+  // requirement of this composition rather than a per-call one.
+  // The run driver derives each trampoline round's execution id from
+  // (lineage, ordinal) with the injected SHA-256, on the coordinator's own
+  // fiber rather than a caller's, so hashing is a construction-time
+  // requirement of the composition (`docs/specs/Concepts/Trampoline Loops.md`).
+  | Crypto.Crypto
   | DurableEngineState.DurableEngineState
   | Journal.Journal
   | Jj.Jj

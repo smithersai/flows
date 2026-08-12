@@ -83,6 +83,8 @@ describe("RunStore", () => {
       claimedAtMs: null,
       parentRunId: null,
       cancelRequestedAtMs: null,
+      lineageId: null,
+      roundOrdinal: null,
       stateJson: "{\"cursor\":1}"
     })
   })

@@ -462,7 +462,7 @@ export const build = (
     readonly id: string
     readonly ast: Node.Ast
     readonly flow: string
-    readonly mode: "inline" | "boundary"
+    readonly mode: "inline" | "boundary" | "handoff"
     readonly declaration: Flow.Any | undefined
     readonly payload: unknown
     readonly capabilities: ReadonlyArray<string>

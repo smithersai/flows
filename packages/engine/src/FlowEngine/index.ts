@@ -15,4 +15,9 @@ export * from "./layerMemory.ts"
  */
 export * as Lineage from "./Lineage.ts"
 export * from "./make.ts"
+/**
+ * @category models
+ * @since 0.1.0
+ */
+export * as Round from "./Round.ts"
 export * from "./SnapshotBoundary.ts"

@@ -53,7 +53,13 @@ export const intoResult = <A, E, R>(
         : identity,
       Effect.scoped,
       Effect.matchCauseEffect({
-        onSuccess: (value) => Effect.succeed(new Complete({ exit: Exit.succeed(value) })),
+        // A body that handed off produced no answer of its own, so the slot
+        // the handoff was recorded in wins over the value the handler returned
+        // (`docs/specs/Concepts/Trampoline Loops.md`).
+        onSuccess: (value) =>
+          Effect.succeed(
+            instance.handoff ?? new Complete({ exit: Exit.succeed(value) })
+          ),
         onFailure: (cause): Effect.Effect<Result<A, E>> => {
           const [reasons, interrupts] = Arr.partition(
             cause.reasons,
@@ -75,6 +81,12 @@ export const intoResult = <A, E, R>(
             return Scope.close(instance.scope, exit)
           } else if (exit.value._tag === "Complete") {
             return Scope.close(instance.scope, exit.value.exit)
+          } else if (exit.value._tag === "Handoff") {
+            // A handoff ends this round for good — the next round is a separate
+            // execution with its own instance and its own scope — so the round's
+            // scope closes here exactly as a completion closes it. A suspension
+            // is the only settlement that keeps the scope open.
+            return Scope.close(instance.scope, Exit.void)
           }
           return Effect.void
         }, true),

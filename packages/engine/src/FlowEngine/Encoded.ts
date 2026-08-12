@@ -16,6 +16,7 @@ import type * as Effect from "effect/Effect"
 import type * as Exit from "effect/Exit"
 import type * as Option from "effect/Option"
 import type * as Scope from "effect/Scope"
+import type * as Round from "./Round.ts"
 
 /**
  * The identity and boundary information supplied to an encoded activity
@@ -54,6 +55,15 @@ export interface Encoded {
       readonly payload: object
       readonly discard: Discard
       readonly parent?: FlowRuntime.FlowInstance["Service"] | undefined
+      /**
+       * The execution's trampoline position. Later rounds name the preceding
+       * execution so durable stores can verify the continue-as-new chain.
+       */
+      readonly round?:
+        | (Round.Round & {
+          readonly previousExecutionId?: string | undefined
+        })
+        | undefined
     }
   ) => Effect.Effect<
     Discard extends true ? void : Flow.Result<unknown, unknown>,

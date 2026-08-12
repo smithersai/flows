@@ -67,7 +67,10 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
       const state = executions.get(executionId)
       if (!state) return
       const exit = state.fiber?.pollUnsafe()
-      if (exit && exit._tag === "Success" && exit.value._tag === "Complete") {
+      // Suspension is the only settlement a re-drive continues from: a round
+      // that completed has its answer, and one that handed off has already
+      // opened the next round, so re-running either would re-run its effects.
+      if (exit && exit._tag === "Success" && exit.value._tag !== "Suspended") {
         return
       } else if (state.fiber && !exit) {
         return

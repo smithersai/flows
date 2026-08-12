@@ -207,6 +207,14 @@ describe("internal/node call factories", () => {
       payload: { path: "counter.txt" }
     })
     expect(internal.declaration(ast)).toBe(declaration)
+
+    const handoff = Node.flowCall(declaration, "counter/count-to-100", "handoff", { value: 2 })
+    expect(handoff.ast).toMatchObject({
+      _tag: "FlowCall",
+      flow: "counter/count-to-100",
+      mode: "handoff",
+      payload: { value: 2 }
+    })
   })
 
   it("records an activity call with its payload and declaration", () => {

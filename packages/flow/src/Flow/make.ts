@@ -51,7 +51,8 @@ const Proto = {
       annotations: Context.add(this.annotations, tag, value),
       body: this.body,
       idempotencyKey: this.idempotencyKey,
-      suspendedRetryPolicy: this.suspendedRetryPolicy
+      suspendedRetryPolicy: this.suspendedRetryPolicy,
+      maxRounds: this.maxRounds
     })
   },
   annotateMerge(this: AnyWithProps, context: Context.Context<any>) {
@@ -63,18 +64,15 @@ const Proto = {
       annotations: Context.merge(this.annotations, context),
       body: this.body,
       idempotencyKey: this.idempotencyKey,
-      suspendedRetryPolicy: this.suspendedRetryPolicy
+      suspendedRetryPolicy: this.suspendedRetryPolicy,
+      maxRounds: this.maxRounds
     })
   },
   call(this: AnyWithProps, payload: unknown) {
     return Node.flowCall(this, this._tag, "inline", payload)
   },
   to(this: AnyWithProps, payload: unknown): Node.Node<To<unknown>> {
-    return Node.succeed({
-      _tag: "To",
-      flow: this._tag,
-      payload
-    })
+    return Node.flowCall(this, this._tag, "handoff", payload)
   },
   execute<const Discard extends boolean = false>(
     this: AnyWithProps,
@@ -162,6 +160,7 @@ const makeProto = <
   readonly body?: ((payload: Payload["Type"]) => Node.Node<unknown, unknown>) | undefined
   readonly idempotencyKey?: ((payload: Payload["Type"]) => string) | undefined
   readonly suspendedRetryPolicy?: RetryPolicy.RetryPolicy | undefined
+  readonly maxRounds?: number | undefined
 }): Flow<Tag, Payload, Success, Error> => {
   function Flow() {}
   Object.setPrototypeOf(Flow, Proto)
@@ -189,6 +188,10 @@ interface MakeOptions<
   readonly success?: Success
   readonly error?: Error
   readonly suspendedRetryPolicy?: RetryPolicy.RetryPolicy | undefined
+  /**
+   * The round budget a trampoline lineage started from this flow runs under.
+   */
+  readonly maxRounds?: number | undefined
   readonly annotations?: Context.Context<never>
 }
 
@@ -246,8 +249,14 @@ export const make: {
   Payload extends Schema.Struct.Fields | AnyStructSchema,
   Success extends Schema.Top = Schema.Void,
   Error extends Schema.Top = Schema.Never
->(tag: Tag, options: MakeOptions<Payload, Success, Error> & { readonly body?: Body<Payload> | undefined }) =>
-  makeProto<Tag, PayloadSchemaOf<Payload>, Success, Error>({
+>(tag: Tag, options: MakeOptions<Payload, Success, Error> & { readonly body?: Body<Payload> | undefined }) => {
+  if (
+    options.maxRounds !== undefined &&
+    (!Number.isSafeInteger(options.maxRounds) || options.maxRounds < 1)
+  ) {
+    throw new RangeError(`Flow "${tag}" maxRounds must be a positive safe integer`)
+  }
+  return makeProto<Tag, PayloadSchemaOf<Payload>, Success, Error>({
     _tag: tag,
     payloadSchema: (Schema.isSchema(options.payload)
       ? options.payload
@@ -259,5 +268,7 @@ export const make: {
       | ((payload: PayloadSchemaOf<Payload>["Type"]) => Node.Node<unknown, unknown>)
       | undefined,
     idempotencyKey: options.idempotencyKey as any,
-    suspendedRetryPolicy: options.suspendedRetryPolicy
-  })) as typeof make
+    suspendedRetryPolicy: options.suspendedRetryPolicy,
+    maxRounds: options.maxRounds
+  })
+}) as typeof make

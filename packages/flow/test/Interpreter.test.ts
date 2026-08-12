@@ -391,6 +391,25 @@ describe("Interpreter refusals", () => {
       }
     })
   })
+
+  it("refuses a detached handoff whose declaration cannot encode its payload", async () => {
+    const Target = Flow.make("interpreter/handoff-target", {
+      payload: { path: Schema.String },
+      success: Schema.Number
+    })
+    const lost = detached(
+      Node.flowCall<number>(Target, Target._tag, "handoff", { path: "p" })
+    )
+
+    expect(await refusal(Interpreter.interpret(lost))).toMatchObject({
+      error: {
+        _tag: "@smthrs/flow/InterpreterError",
+        code: "unsupported_call",
+        node: "root",
+        message: expect.stringContaining("lost its declaration")
+      }
+    })
+  })
 })
 
 describe("Flow.toLayer on a bodied flow", () => {

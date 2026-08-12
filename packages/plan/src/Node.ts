@@ -316,7 +316,7 @@ export const branch: {
 export const flowCall = <A = unknown, E = never>(
   declaration: unknown,
   flow: string,
-  mode: "inline" | "boundary",
+  mode: "inline" | "boundary" | "handoff",
   payload: unknown
 ): Node<A, E> => internal.makeNode<A, E>(internal.flowCall(declaration, flow, mode, payload))
 

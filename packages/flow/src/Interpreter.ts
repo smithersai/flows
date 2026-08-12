@@ -40,11 +40,17 @@ import * as Planned from "@smthrs/plan/Planned"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import * as Predicate from "effect/Predicate"
 import * as Schema from "effect/Schema"
 import { type Implementation, Implementations } from "./Activity/Implementations.ts"
-import type { AnyStructSchema, Flow } from "./Flow/Flow.ts"
-import type * as FlowInstance from "./FlowRuntime/FlowInstance.ts"
+import type { Any as AnyFlow, AnyStructSchema, Flow } from "./Flow/Flow.ts"
+import * as Outcome from "./Flow/Outcome.ts"
+import { Handoff } from "./Flow/Result.ts"
+import { suspend } from "./Flow/Runtime.ts"
+import { TypeId as FlowTypeId } from "./Flow/TypeId.ts"
+import { FlowInstance } from "./FlowRuntime/FlowInstance.ts"
 import { FlowRuntime } from "./FlowRuntime/FlowRuntime.ts"
+import { annotateWaiting } from "./FlowRuntime/WaitingAnnotation.ts"
 import * as Graph from "./Graph.ts"
 
 /**
@@ -95,7 +101,7 @@ export interface Interpretation {
  *
  * @private
  */
-type Services = FlowRuntime | FlowInstance.FlowInstance | Implementations
+type Services = FlowRuntime | FlowInstance | Implementations
 
 /**
  * Whether a value is a record to walk into. Everything a payload can carry
@@ -153,6 +159,7 @@ export const interpret = (
     // is resolved up front, including the ones only an untaken branch arm would
     // have reached, because the plan is the declared ceiling of what may run.
     const implementations = new Map<string, Implementation>()
+    const handoffDeclarations = new Map<string, AnyFlow>()
     for (const node of Graph.nodes(graph)) {
       for (const dependency of KeyMaterial.dependencies(node.draft.material)) {
         if (byId.has(dependency)) continue
@@ -161,6 +168,19 @@ export const interpret = (
           node.id,
           `Node "${node.id}" reads "${dependency}", which this graph does not hold.`
         )
+      }
+      if (node.ast._tag === "FlowCall" && node.ast.mode === "handoff") {
+        const declaration = Node.declaration(node.ast)
+        if (!Predicate.hasProperty(declaration, FlowTypeId)) {
+          return yield* refuse(
+            "unsupported_call",
+            node.id,
+            `Handoff to flow "${node.ast.flow}" at "${node.id}" lost its declaration. ` +
+              "Build and interpret the authored node in the same process so its payload can be encoded."
+          )
+        }
+        handoffDeclarations.set(node.id, declaration as unknown as AnyFlow)
+        continue
       }
       if (node.ast._tag !== "ActivityCall") continue
       const implementation = yield* table.get(node.ast.activity)
@@ -221,7 +241,6 @@ export const interpret = (
       return output
     }
 
-    // OPEN QUESTION (2026-08-11): PlanScheduler as the driver
     // Untraced because the walk re-enters itself once per node.
     const settle: (id: string) => Effect.Effect<unknown, unknown, Services> = Effect.fnUntraced(
       function*(id: string) {
@@ -278,6 +297,26 @@ export const interpret = (
           case "AndThen":
             return yield* settle(children[1]!)
           case "FlowCall": {
+            if (ast.mode === "handoff") {
+              const declaration = handoffDeclarations.get(node.id)!
+              // DECIDED (2026-08-11, pending review): a handoff target's schema
+              // services come from the context registration captured. A
+              // body's type cannot enumerate declarations hidden in its
+              // topology, so erase only that dynamic service parameter after
+              // resolving the concrete declaration here.
+              const payload = yield* Effect.flatMap(
+                Effect.orDie(declaration.payloadSchema.makeEffect(resolve(node.payload) as never)),
+                (decoded) =>
+                  Effect.orDie(
+                    Schema.encodeEffect(Schema.toCodecJson(declaration.payloadSchema))(decoded)
+                  )
+              ) as unknown as Effect.Effect<unknown, never, Services>
+              return {
+                _tag: "To",
+                flow: ast.flow,
+                payload
+              } satisfies Outcome.To<unknown>
+            }
             const spliced = children[0]
             if (spliced === undefined) {
               return yield* refuse(
@@ -300,6 +339,42 @@ export const interpret = (
       skipped: Graph.nodes(graph).filter((node) => !settled.has(node.id)).map((node) => node.id)
     }
   })
+
+/**
+ * Turns a body's root value into the settlement the engine acts on.
+ *
+ * Three of them exist, and only three (`docs/specs/Concepts/Trampoline
+ * Loops.md`): `done(value)` is the answer, so the value passes straight
+ * through; `Next.to(payload)` is the next round, recorded in the instance's
+ * handoff slot so `Flow.intoResult` answers `Flow.Handoff`; and `park(reason)`
+ * is a durable suspension, declared through the ordinary waiting vocabulary so
+ * a durable driver parks the run under the flow's own reason and wake token
+ * rather than the derived `timer`/`event` default. Anything else is an ordinary
+ * value and is the answer as it stands, which is what keeps a body that never
+ * heard of the trampoline working unchanged.
+ *
+ * @private
+ */
+const settle = (value: unknown): Effect.Effect<unknown, never, FlowInstance> => {
+  if (!Outcome.isOutcome(value)) return Effect.succeed(value)
+  switch (value._tag) {
+    case "Done":
+      return Effect.succeed(value.value)
+    case "To":
+      return Effect.flatMap(
+        FlowInstance,
+        (instance) =>
+          Effect.sync(() => {
+            instance.handoff = new Handoff({ flow: value.flow, payload: value.payload })
+          })
+      )
+    case "Park":
+      return Effect.andThen(
+        annotateWaiting(value.reason),
+        Effect.flatMap(FlowInstance, suspend)
+      )
+  }
+}
 
 /**
  * Registers a bodied flow with the runtime, driven by its body.
@@ -356,9 +431,9 @@ export const layer = <
     yield* runtime.register(
       flow,
       ((payload: Payload["Type"]) =>
-        Effect.map(
+        Effect.flatMap(
           interpret(flow, payload, options),
-          (interpretation) => interpretation.value
+          (interpretation) => settle(interpretation.value)
         )) as (payload: Payload["Type"], executionId: string) => Effect.Effect<
           Success["Type"],
           Error["Type"],

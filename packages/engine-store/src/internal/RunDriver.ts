@@ -10,11 +10,13 @@ import { Flow, FlowRuntime } from "@smthrs/flow"
 import { Journal } from "@smthrs/journal"
 import { Ownership, RunStore } from "@smthrs/run-store"
 import * as Clock from "effect/Clock"
+import type * as Crypto from "effect/Crypto"
 import * as Deferred from "effect/Deferred"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
+import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
 import * as DurableEngineState from "../DurableEngineState.ts"
@@ -145,7 +147,11 @@ export const make = (
 ): Effect.Effect<
   Service,
   never,
-  DurableEngineState.DurableEngineState | Journal.Journal | RunStore.RunStore | Scope.Scope
+  | Crypto.Crypto
+  | DurableEngineState.DurableEngineState
+  | Journal.Journal
+  | RunStore.RunStore
+  | Scope.Scope
 > =>
   Effect.gen(function*() {
     const journal = yield* Journal.Journal
@@ -196,13 +202,21 @@ export const make = (
       runId: string,
       payload: unknown
     ): Effect.Effect<void> =>
-      journal.emitDurable(
-        JournalRecords.runDecision({
-          runId,
-          lineageId: FlowEngine.Lineage.root(runId),
-          sourceId: dependencies.journalSource
-        }, payload)
-      ).pipe(Effect.asVoid, Effect.orDie)
+      store.get(runId).pipe(
+        Effect.map((row) => row.lineageId ?? FlowEngine.Lineage.root(runId)),
+        Effect.catch(() => Effect.succeed(FlowEngine.Lineage.root(runId))),
+        Effect.flatMap((lineageId) =>
+          journal.emitDurable(
+            JournalRecords.runDecision({
+              runId,
+              lineageId,
+              sourceId: dependencies.journalSource
+            }, payload)
+          )
+        ),
+        Effect.asVoid,
+        Effect.orDie
+      )
 
     /**
      * Commits a run-row transition and the decision describing it in ONE write
@@ -448,6 +462,88 @@ export const make = (
         Effect.flatMap((requested) => requested ? cancelOwned(runId, state) : releaseOwned(runId, state))
       )
 
+    const encodeResult = (
+      flow: Flow.Any,
+      result: Flow.Result<unknown, unknown>
+    ): Effect.Effect<unknown> =>
+      Schema.encodeEffect(
+        Schema.toCodecJson(Flow.Result({
+          success: flow.successSchema,
+          error: flow.errorSchema
+        }))
+      )(result).pipe(Effect.orDie) as Effect.Effect<unknown>
+
+    /**
+     * Re-encodes a handoff payload through the target flow's own codec, so the
+     * bytes the next round's row holds are the bytes `ensureRun` would write
+     * for the same invocation.
+     */
+    const normalizePayload = (
+      flow: Flow.Any,
+      payload: unknown
+    ): Effect.Effect<unknown> => {
+      const codec = Schema.toCodecJson(flow.payloadSchema)
+      return (Schema.decodeUnknownEffect(codec)(payload).pipe(
+        Effect.orDie,
+        Effect.flatMap((decoded) => Schema.encodeEffect(codec)(decoded)),
+        Effect.orDie
+      ) as Effect.Effect<unknown>)
+    }
+
+    /**
+     * Creates one run row, tolerating only an existing row with identical
+     * execution identity and encoded invocation data.
+     */
+    const ensureCreatedRun = (options: {
+      readonly flowName: string
+      readonly executionId: string
+      readonly stateJson: string
+      readonly payload: unknown
+      readonly lineageId: string
+      readonly roundOrdinal: number
+      readonly parentRunId?: string | undefined
+      readonly onCreated: Effect.Effect<void, never, never>
+    }): Effect.Effect<void, never, never> =>
+      Effect.gen(function*() {
+        const created = yield* store.create(options.executionId, options.stateJson, {
+          ...(options.parentRunId === undefined ? {} : { parentRunId: options.parentRunId }),
+          lineageId: options.lineageId,
+          roundOrdinal: options.roundOrdinal
+        }).pipe(Effect.exit)
+        if (Exit.isSuccess(created)) {
+          return yield* options.onCreated
+        }
+
+        const failure = Option.getOrThrow(Exit.findErrorOption(created))
+        if (!(failure instanceof RunStore.RunStoreError) || failure.code !== "constraint") {
+          return yield* Effect.die(failure)
+        }
+        const existing = yield* store.get(options.executionId).pipe(Effect.orDie)
+        const persisted = yield* decodeState(existing.stateJson)
+        // A pre-lineage round-0 row has null metadata. It remains an identical
+        // root create after the additive migration; later rounds must carry
+        // the exact chain metadata because no earlier build could create them.
+        const legacyRoot = options.roundOrdinal === 0 &&
+          existing.lineageId == null &&
+          existing.roundOrdinal == null
+        const sameRound = legacyRoot ||
+          (existing.lineageId === options.lineageId && existing.roundOrdinal === options.roundOrdinal)
+        const sameParent = options.parentRunId === undefined ||
+          existing.parentRunId === options.parentRunId
+        if (
+          persisted.flowName !== options.flowName ||
+          !samePayload(persisted.payload, options.payload) ||
+          !sameRound ||
+          !sameParent
+        ) {
+          return yield* Effect.die(
+            new Error(
+              `execution ${options.executionId} already belongs to a different flow tag or encoded payload, lineage, or round`
+            )
+          )
+        }
+      })
+
     const coordinatorDeferred = yield* Deferred.make<RunCoordinator.RunCoordinator<string, never>>()
 
     /**
@@ -472,7 +568,189 @@ export const make = (
         }
       })
 
-    const drive = (executionId: string): Effect.Effect<void> =>
+    /**
+     * What one handoff has to settle: the round that produced it, the row it
+     * runs under (which carries the lineage columns), the state it was
+     * activated with, its declaration, and the invocation it named.
+     */
+    interface HandoffSeam {
+      readonly executionId: string
+      readonly row: RunStore.RunRow
+      readonly state: RunState
+      readonly flow: Flow.Any
+      readonly handoff: Flow.Handoff
+    }
+
+    /**
+     * Opens the next round, and closes this one, in ONE transaction.
+     *
+     * `ensureRun`'s parent-edge/run-row pairing (issue #80) is the precedent
+     * and the reason: a crash between the two writes would leave a terminal
+     * round whose successor was never created, and nothing would ever look for
+     * it again — the lineage would end silently at a round that says it handed
+     * off. The stores' own writes become savepoints of this transaction, so
+     * either both commit or neither.
+     *
+     * The next round is a run row chained through the RESERVED
+     * `parent_run_id` column, not a `flows_run_parents` edge: that table is
+     * the subflow DAG cycle detection walks, and a round is the same run
+     * continuing rather than a child being spawned
+     * (`docs/specs/Concepts/Trampoline Loops.md`).
+     */
+    const continueLineage = (
+      seam: HandoffSeam,
+      advanced: { readonly round: FlowEngine.Round.Round; readonly executionId: string }
+    ): Effect.Effect<void> =>
+      Effect.gen(function*() {
+        // The handoff payload travels encoded, and the next round's row has to
+        // hold the same bytes `ensureRun` would write for it: the root caller
+        // re-enters `execute` for this round, and its identical-create check
+        // compares the ENCODED payload. Round-tripping through the target's own
+        // codec is what makes the two agree regardless of the key order the
+        // body's object literal happened to have.
+        //
+        // A target this process does not run has no codec to normalize
+        // through, and the round is still created with the payload verbatim —
+        // the same posture the wake path takes for an unregistered flow, and
+        // the reason a lineage survives a worker that only knows some of its
+        // legs.
+        const target = registrations.get(seam.handoff.flow)
+        const payload = target === undefined
+          ? seam.handoff.payload
+          : yield* normalizePayload(target.flow, seam.handoff.payload)
+        const nextStateJson = yield* encodeState({
+          version: 1,
+          flowName: seam.handoff.flow,
+          payload,
+          ...(seam.state.parentExecutionId === undefined
+            ? {}
+            : { parentExecutionId: seam.state.parentExecutionId }),
+          ...(seam.state.maxRounds === undefined ? {} : { maxRounds: seam.state.maxRounds })
+        })
+        const settledStateJson = yield* encodeState({
+          ...seam.state,
+          result: yield* encodeResult(seam.flow, seam.handoff)
+        })
+        const cancelled = { _tag: "HandoffCancelled" } as const
+        const fenceLost = { _tag: "HandoffFenceLost" } as const
+        const committed = yield* Effect.result(
+          engineState.transaction(Effect.gen(function*() {
+            // The next round's id is DERIVED from (lineage, ordinal), so a
+            // re-drive finds the exact row it already opened. Only an
+            // identical create is tolerated; a collision in flow, payload,
+            // parent, lineage, or ordinal is a defect.
+            yield* ensureCreatedRun({
+              flowName: seam.handoff.flow,
+              executionId: advanced.executionId,
+              stateJson: nextStateJson,
+              payload,
+              lineageId: advanced.round.lineageId,
+              roundOrdinal: advanced.round.ordinal,
+              parentRunId: seam.executionId,
+              onCreated: emitDecision(advanced.executionId, {
+                decision: "created",
+                state: JSON.parse(nextStateJson),
+                lineageId: advanced.round.lineageId,
+                roundOrdinal: advanced.round.ordinal,
+                parentExecutionId: seam.executionId
+              })
+            })
+            // DECIDED (2026-08-11, pending review): a handed-off round settles
+            // `completed`. The round did finish, and adding a `Continued`
+            // status would widen every status reader for a distinction the
+            // `handed-off` decision and lineage columns already record.
+            //
+            // DECIDED (2026-08-11, pending review): cancellation guards the
+            // handoff transition. If it raced the last poll, failing the outer
+            // transaction rolls successor creation back before the ordinary
+            // cancellation path closes the owned round.
+            const transitioned = yield* transitionAndRecord(
+              seam.executionId,
+              "completed",
+              settledStateJson,
+              {
+                decision: "handed-off",
+                status: "completed",
+                flow: seam.handoff.flow,
+                lineageId: advanced.round.lineageId,
+                roundOrdinal: advanced.round.ordinal,
+                nextExecutionId: advanced.executionId,
+                owner: dependencies.owner
+              },
+              { cancelRequested: "absent" }
+            )
+            if (transitioned._tag === "Transitioned") return
+            return yield* Effect.fail(
+              transitioned._tag === "GuardFailed" ? cancelled : fenceLost
+            )
+          }))
+        )
+        if (Result.isFailure(committed)) {
+          if (committed.failure._tag === "HandoffCancelled") {
+            yield* cancelOwned(seam.executionId, seam.state)
+          }
+          return
+        }
+        // The root caller follows the lineage itself, but a discarded (or
+        // orphaned) one does not exist to follow it, so the successor is woken
+        // here rather than left for a sweep that has no reason to look at it.
+        const activeCoordinator = yield* Deferred.await(coordinatorDeferred)
+        yield* activeCoordinator.wake(advanced.executionId)
+      })
+
+    /**
+     * Ends a lineage that asked for one round past its declared budget.
+     *
+     * The round itself ran to completion; what is refused is the handoff, so
+     * the round settles `failed` carrying the typed refusal and no successor
+     * is created (`docs/specs/Concepts/Trampoline Loops.md` §Budget).
+     */
+    const endLineage = (
+      seam: HandoffSeam,
+      error: Flow.MaxRoundsExceeded
+    ): Effect.Effect<void> =>
+      Effect.gen(function*() {
+        const stateJson = yield* encodeState({
+          ...seam.state,
+          result: yield* encodeResult(seam.flow, new Flow.Complete({ exit: Exit.die(error) }))
+        })
+        const transitioned = yield* transitionAndRecord(
+          seam.executionId,
+          "failed",
+          stateJson,
+          {
+            decision: "lineage-exhausted",
+            status: "failed",
+            lineageId: error.lineageId,
+            maxRounds: error.maxRounds,
+            owner: dependencies.owner
+          },
+          { cancelRequested: "absent" }
+        )
+        if (transitioned._tag === "GuardFailed") {
+          yield* cancelOwned(seam.executionId, seam.state)
+        }
+      })
+
+    /**
+     * The handoff seam: the one place a round's terminal settlement and its
+     * successor are decided together.
+     */
+    const handOff = (seam: HandoffSeam): Effect.Effect<void, never, Crypto.Crypto> =>
+      FlowEngine.Round.next(
+        {
+          lineageId: seam.row.lineageId ?? seam.executionId,
+          ordinal: seam.row.roundOrdinal ?? 0
+        },
+        // The origin persisted its budget into every round's state, so a
+        // multi-flow handoff cannot reset the lineage by changing targets.
+        { flowName: seam.flow._tag, maxRounds: seam.state.maxRounds }
+      ).pipe(
+        Effect.flatMap((advanced) => continueLineage(seam, advanced)),
+        Effect.catch((error) => endLineage(seam, error))
+      )
+
+    const drive = (executionId: string): Effect.Effect<void, never, Crypto.Crypto> =>
       Effect.gen(function*() {
         const initial = yield* store.get(executionId).pipe(
           Effect.catch((error) =>
@@ -565,7 +843,7 @@ export const make = (
         // sweeper wakes this reason, and an operator resumes the run after
         // restoring the evidence (or time-travelling past the attempt) by
         // re-driving it. A premature wake re-detects and re-parks — safe.
-        const quarantine = result._tag !== "Suspended" && Exit.isFailure(result.exit)
+        const quarantine = result._tag === "Complete" && Exit.isFailure(result.exit)
           ? ActivityPersistence.evidenceQuarantined(result.exit.cause)
           : undefined
         if (quarantine !== undefined) {
@@ -592,12 +870,20 @@ export const make = (
           return
         }
 
-        const encodedResult = yield* (Schema.encodeEffect(
-          Schema.toCodecJson(Flow.Result({
-            success: registration.flow.successSchema,
-            error: registration.flow.errorSchema
-          }))
-        )(result).pipe(Effect.orDie) as Effect.Effect<unknown>)
+        // A round that handed off settles through the seam instead: its
+        // terminal transition and its successor's creation are one write, so
+        // it cannot share the ordinary terminal path below.
+        if (result._tag === "Handoff") {
+          return yield* handOff({
+            executionId,
+            row: initial,
+            state: activeState,
+            flow: registration.flow,
+            handoff: result
+          })
+        }
+
+        const encodedResult = yield* encodeResult(registration.flow, result)
         const nextState: RunState = { ...activeState, result: encodedResult }
         const status: RunStore.RunStatus = result._tag === "Suspended"
           ? "suspended"
@@ -652,7 +938,7 @@ export const make = (
         }
       })
 
-    const coordinator = yield* RunCoordinator.make<string, never, never>({
+    const coordinator = yield* RunCoordinator.make<string, never, Crypto.Crypto>({
       drain: drive
     })
     yield* Deferred.succeed(coordinatorDeferred, coordinator)
@@ -756,6 +1042,11 @@ export const make = (
         readonly executionId: string
         readonly payload: object
         readonly parent?: FlowRuntime.FlowInstance["Service"] | undefined
+        readonly round?:
+          | (FlowEngine.Round.Round & {
+            readonly previousExecutionId?: string | undefined
+          })
+          | undefined
       }
     ): Effect.Effect<void, FlowCycleDetected> =>
       Effect.gen(function*() {
@@ -793,86 +1084,78 @@ export const make = (
               )
             )
           }
+          const round = options.round ?? FlowEngine.Round.initial(options.executionId)
+          const previousExecutionId = options.round?.previousExecutionId
           const state: RunState = {
             version: 1,
             flowName: flow._tag,
             payload,
             ...(options.parent === undefined
               ? {}
-              : { parentExecutionId: options.parent.executionId })
+              : { parentExecutionId: options.parent.executionId }),
+            ...(flow.maxRounds === undefined ? {} : { maxRounds: flow.maxRounds })
           }
           const createdStateJson = yield* encodeState(state)
-          const created = yield* store.create(
-            options.executionId,
-            createdStateJson
-          ).pipe(Effect.exit)
-          if (Exit.isSuccess(created)) {
-            // The run's opening frame. `store.create` used to be the one
-            // durable write with no journal record at all, which left the
-            // replay-derived state projection with no base to fold onto —
-            // `flowName` and `payload` exist nowhere else in the journal.
-            // The state travels ENCODED, exactly as every later decision
-            // carries it: `stateAt` folds these payloads and hands the winner
-            // back as the run row's own `state_json`, so a base recorded in the
-            // decoded shape would be a schema the caller cannot decode.
-            yield* emitDecision(options.executionId, {
-              decision: "created",
-              state: JSON.parse(createdStateJson),
-              ...(options.parent === undefined ? {} : { parentExecutionId: options.parent.executionId })
+          yield* ensureCreatedRun({
+            flowName: flow._tag,
+            executionId: options.executionId,
+            stateJson: createdStateJson,
+            payload,
+            lineageId: round.lineageId,
+            roundOrdinal: round.ordinal,
+            ...(previousExecutionId === undefined
+              ? {}
+              : { parentRunId: previousExecutionId }),
+            onCreated: Effect.gen(function*() {
+              // The run's opening frame. `store.create` used to be the one
+              // durable write with no journal record at all, which left the
+              // replay-derived state projection with no base to fold onto —
+              // `flowName` and `payload` exist nowhere else in the journal.
+              // The state travels ENCODED, exactly as every later decision
+              // carries it: `stateAt` folds these payloads and hands the winner
+              // back as the run row's own `state_json`, so a base recorded in the
+              // decoded shape would be a schema the caller cannot decode.
+              yield* emitDecision(options.executionId, {
+                decision: "created",
+                state: JSON.parse(createdStateJson),
+                ...(options.parent === undefined ? {} : { parentExecutionId: options.parent.executionId })
+              })
+              if (options.parent !== undefined) {
+                // A spawn is a lineage edge, and a DETACHED spawn is a tier-3
+                // effect: nothing the parent's rewind can undo, because the child
+                // is its own claim and its own journal
+                // (`docs/specs/Concepts/Subflows.md` §detached spawn). The record
+                // is boundary-shaped so the same assessment that classifies a
+                // sent webhook classifies an orphaned child, and it is emitted at
+                // `succeeded` because by this point the child run durably exists.
+                yield* journal.emitDurable(
+                  EffectRecords.boundary(
+                    {
+                      id: `${options.parent.executionId}:spawn:${options.executionId}`,
+                      kind: spawnEffectKind,
+                      tier: "irreversible",
+                      runId: options.parent.executionId,
+                      lineageId: FlowEngine.Lineage.root(options.parent.executionId),
+                      sourceId: dependencies.journalSource,
+                      attempt: 1,
+                      residue:
+                        `Child run ${options.executionId} exists and keeps its own journal; rewinding past its spawn orphans it.`
+                    },
+                    "succeeded",
+                    // `attached` is written even though it is always false: the
+                    // lineage-tree bridge in `@smthrs/time-travel` reads it off
+                    // this payload, and an absent field there would make "this
+                    // spawn is detached" indistinguishable from "this producer
+                    // predates the field". A run created with a parent is a
+                    // separate run row with its own claim, which is what detached
+                    // means (`docs/specs/Concepts/Subflows.md`); attached nesting
+                    // never reaches `create` because it is one journal.
+                    { childRunId: options.executionId, flowName: flow._tag, attached: false }
+                  )
+                ).pipe(Effect.orDie)
+              }
             })
-            if (options.parent !== undefined) {
-              // A spawn is a lineage edge, and a DETACHED spawn is a tier-3
-              // effect: nothing the parent's rewind can undo, because the child
-              // is its own claim and its own journal
-              // (`docs/specs/Concepts/Subflows.md` §detached spawn). The record
-              // is boundary-shaped so the same assessment that classifies a
-              // sent webhook classifies an orphaned child, and it is emitted at
-              // `succeeded` because by this point the child run durably exists.
-              yield* journal.emitDurable(
-                EffectRecords.boundary(
-                  {
-                    id: `${options.parent.executionId}:spawn:${options.executionId}`,
-                    kind: spawnEffectKind,
-                    tier: "irreversible",
-                    runId: options.parent.executionId,
-                    lineageId: FlowEngine.Lineage.root(options.parent.executionId),
-                    sourceId: dependencies.journalSource,
-                    attempt: 1,
-                    residue:
-                      `Child run ${options.executionId} exists and keeps its own journal; rewinding past its spawn orphans it.`
-                  },
-                  "succeeded",
-                  // `attached` is written even though it is always false: the
-                  // lineage-tree bridge in `@smthrs/time-travel` reads it off
-                  // this payload, and an absent field there would make "this
-                  // spawn is detached" indistinguishable from "this producer
-                  // predates the field". A run created with a parent is a
-                  // separate run row with its own claim, which is what detached
-                  // means (`docs/specs/Concepts/Subflows.md`); attached nesting
-                  // never reaches `create` because it is one journal.
-                  { childRunId: options.executionId, flowName: flow._tag, attached: false }
-                )
-              ).pipe(Effect.orDie)
-            }
-            return
-          }
-
-          const failure = Option.getOrThrow(Exit.findErrorOption(created))
-          if (!(failure instanceof RunStore.RunStoreError) || failure.code !== "constraint") {
-            return yield* Effect.die(failure)
-          }
-          const existing = yield* store.get(options.executionId).pipe(Effect.orDie)
-          const persisted = yield* decodeState(existing.stateJson)
-          if (
-            persisted.flowName !== flow._tag ||
-            !samePayload(persisted.payload, payload)
-          ) {
-            return yield* Effect.die(
-              new Error(
-                `execution ${options.executionId} already belongs to a different flow tag or encoded payload`
-              )
-            )
-          }
+          })
           // The row already exists; the durable edge recorded above is the
           // only place a diamond's second parent lives (issues #41/#48): a
           // driver-local side table would be invisible to other owners over
@@ -921,6 +1204,11 @@ export const make = (
           readonly payload: object
           readonly discard: Discard
           readonly parent?: FlowRuntime.FlowInstance["Service"] | undefined
+          readonly round?:
+            | (FlowEngine.Round.Round & {
+              readonly previousExecutionId?: string | undefined
+            })
+            | undefined
         }
       ) {
         if (!registrations.has(flow._tag)) {

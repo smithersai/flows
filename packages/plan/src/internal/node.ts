@@ -115,12 +115,13 @@ export interface Branch {
 
 /**
  * How a flow call joins the caller's plan: `inline` splices the callee's body
- * in, `boundary` makes it one node with its own execution.
+ * in, `boundary` makes it one child execution, and `handoff` names the next
+ * trampoline round.
  *
  * @since 0.1.0
  * @private
  */
-export type CallMode = "inline" | "boundary"
+export type CallMode = "inline" | "boundary" | "handoff"
 
 /**
  * A call to another flow. The AST keeps the callee's tag and the payload;

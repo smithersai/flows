@@ -66,20 +66,18 @@ describe("Flow trampoline outcomes", () => {
     expect(await roundTrip(value)).toEqual(value)
   })
 
-  it("constructs and round trips a typed next-flow invocation", async () => {
+  it("constructs a typed next-flow invocation as a visible handoff node", () => {
     const flow = Flow.make("Authoring/next", {
       payload: { count: Schema.NumberFromString }
     })
     const node = flow.to({ count: 2 })
-    const value = (node.ast as { readonly value: Flow.To<{ readonly count: number }> }).value
-
-    expectTypeOf(value.payload.count).toEqualTypeOf<number>()
-    expect(value).toEqual({
-      _tag: "To",
+    expectTypeOf(node).toEqualTypeOf<Node.Node<Flow.To<{ readonly count: number }>>>()
+    expect(node.ast).toEqual({
+      _tag: "FlowCall",
       flow: "Authoring/next",
+      mode: "handoff",
       payload: { count: 2 }
     })
-    expect(await roundTrip(value)).toEqual(value)
   })
 
   it("constructs and round trips park with the waiting reason vocabulary", async () => {

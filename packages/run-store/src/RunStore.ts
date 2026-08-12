@@ -109,21 +109,40 @@ export interface RunRow extends RunSnapshot {
   readonly claimedAtMs: number | null
   readonly parentRunId: string | null
   readonly cancelRequestedAtMs: number | null
+  /**
+   * The trampoline lineage this run is a round of, and which round it is
+   * (`docs/specs/Concepts/Trampoline Loops.md`). `null` on every run that is
+   * not part of a lineage, which reads as round 0 of a lineage of one.
+   *
+   * Optional on the interface so a caller that builds a `RunRow` by hand —
+   * a time-travel fixture, a recovery double — keeps compiling: the pair was
+   * added by an append-only migration, and every reader must already tolerate
+   * a row written before it.
+   */
+  readonly lineageId?: string | null | undefined
+  readonly roundOrdinal?: number | null | undefined
   readonly stateJson: string
 }
 
 /**
  * Metadata recorded when a run row is created.
  *
- * `parentRunId` is the lineage edge a fork, rewind, or continue-as-new child
- * carries. It is a column rather than a `state_json` field because ancestry is
- * walked in SQL.
+ * `parentRunId` is the ancestry edge a fork, rewind, child, or later
+ * trampoline round carries. It is a column rather than a `state_json` field
+ * because ancestry is walked in SQL.
+ *
+ * `lineageId` and `roundOrdinal` are the trampoline pair
+ * (`docs/specs/Concepts/Trampoline Loops.md`): which lineage a run is a round
+ * of, and which round. Both absent — the ordinary case — means the run is a
+ * lineage of one, and is read back as round 0 of itself.
  *
  * @since 0.1.0
  * @category models
  */
 export interface CreateOptions {
   readonly parentRunId?: string | undefined
+  readonly lineageId?: string | undefined
+  readonly roundOrdinal?: number | undefined
 }
 
 /**
@@ -366,6 +385,8 @@ const DatabaseRunRow = Schema.Struct({
   claimedAtMs: Schema.NullOr(Schema.Number),
   parentRunId: Schema.NullOr(Schema.String),
   cancelRequestedAtMs: Schema.NullOr(Schema.Number),
+  lineageId: Schema.NullOr(Schema.String),
+  roundOrdinal: Schema.NullOr(Schema.Number),
   stateJson: Schema.String
 })
 
@@ -446,6 +467,8 @@ const decodeRunRow = (method: string, input: unknown): Effect.Effect<RunRow, Run
         claimedAtMs: row.claimedAtMs,
         parentRunId: row.parentRunId,
         cancelRequestedAtMs: row.cancelRequestedAtMs,
+        lineageId: row.lineageId,
+        roundOrdinal: row.roundOrdinal,
         stateJson: row.stateJson
       })
     })
@@ -469,6 +492,8 @@ const selectRun = (sql: SqlClient.SqlClient, runId: string) =>
       claimed_at_ms AS "claimedAtMs",
       parent_run_id AS "parentRunId",
       cancel_requested_at_ms AS "cancelRequestedAtMs",
+      lineage_id AS "lineageId",
+      round_ordinal AS "roundOrdinal",
       state_json AS "stateJson"
     FROM flows_runs
     WHERE run_id = ${runId}
@@ -546,8 +571,20 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
   const create = Effect.fn("flows/journal/RunStore.create")(
     (runId: string, stateJson: string, options?: CreateOptions | undefined): Effect.Effect<void, RunStoreError> => {
       const parentRunId = options?.parentRunId ?? null
-      if (runId.length === 0 || !isJsonString(stateJson) || parentRunId?.length === 0) {
-        return Effect.fail(invalidRunError("create", { runId, stateJson, parentRunId }))
+      const lineageId = options?.lineageId ?? null
+      const roundOrdinal = options?.roundOrdinal ?? null
+      const invalidLineage = (lineageId === null) !== (roundOrdinal === null) ||
+        (lineageId !== null && lineageId.length === 0) ||
+        (roundOrdinal !== null && (!Number.isSafeInteger(roundOrdinal) || roundOrdinal < 0))
+      if (
+        runId.length === 0 ||
+        !isJsonString(stateJson) ||
+        parentRunId?.length === 0 ||
+        invalidLineage
+      ) {
+        return Effect.fail(
+          invalidRunError("create", { runId, stateJson, parentRunId, lineageId, roundOrdinal })
+        )
       }
       return Clock.currentTimeMillis.pipe(
         Effect.flatMap((createdAtMs) =>
@@ -569,6 +606,8 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
               claim_nonce,
               claimed_at_ms,
               parent_run_id,
+              lineage_id,
+              round_ordinal,
               state_json
             ) VALUES (
               ${runId},
@@ -585,6 +624,8 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
               NULL,
               NULL,
               ${parentRunId},
+              ${lineageId},
+              ${roundOrdinal},
               ${stateJson}
             )
           `.pipe(Effect.asVoid)

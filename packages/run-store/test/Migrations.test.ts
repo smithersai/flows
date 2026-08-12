@@ -40,6 +40,8 @@ describe("run-store migrations", () => {
     expect(indexes).toContain("flows_runs_parent_run_id_idx")
     expect(indexes).toContain("flows_runs_cancel_requested_idx")
     expect(indexes).toContain("flows_runs_waiting_reason_wake_at_idx")
+    expect(indexes).toContain("flows_runs_lineage_idx")
+    expect(master.find((row) => row.name === "flows_runs_lineage_idx")?.sql).toContain("UNIQUE INDEX")
     const runsSql = master.find((row) => row.name === "flows_runs")?.sql ?? ""
     const attemptsSql = master.find((row) => row.name === "flows_attempts")?.sql ?? ""
     expect(runsSql).toContain("status IN")
@@ -50,7 +52,7 @@ describe("run-store migrations", () => {
 
   it("reserves its own migration id block so ids cannot collide", async () => {
     const applied = await Effect.runPromise(Migrations.run.pipe(Effect.provide(TestDatabase.layer)))
-    expect(applied).toEqual([[1001, "run-store_initial"]])
+    expect(applied).toEqual([[1001, "run-store_initial"], [1002, "run-store_lineage"]])
   })
 
   it("rejects a half-populated owner tuple", async () => {

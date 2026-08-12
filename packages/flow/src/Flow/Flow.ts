@@ -61,6 +61,17 @@ export interface Flow<
   readonly body?: ((payload: Payload["Type"]) => Node.Node<unknown, unknown>) | undefined
   readonly idempotencyKey?: ((payload: Payload["Type"]) => string) | undefined
   readonly suspendedRetryPolicy?: RetryPolicy.RetryPolicy | undefined
+  /**
+   * How many rounds one trampoline lineage started from this flow may open.
+   *
+   * The bound is a BUDGET, not loop detection: identical consecutive rounds
+   * are legal, so `docs/specs/Concepts/Trampoline Loops.md` stops a runaway
+   * lineage by counting rounds instead of comparing them. Absent means
+   * unbounded, which is the right default for a lineage whose exit condition
+   * is its own branch. Exceeding it fails the lineage with
+   * {@link module:MaxRoundsExceeded.MaxRoundsExceeded}.
+   */
+  readonly maxRounds?: number | undefined
 
   /**
    * Describes an inline call to this flow without executing it.
@@ -300,6 +311,7 @@ export interface Any {
   readonly body?: ((payload: any) => Node.Node<unknown, unknown>) | undefined
   readonly idempotencyKey?: ((payload: any) => string) | undefined
   readonly suspendedRetryPolicy?: RetryPolicy.RetryPolicy | undefined
+  readonly maxRounds?: number | undefined
 }
 
 /**

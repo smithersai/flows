@@ -276,7 +276,11 @@ const makeExecute = Effect.fnUntraced(function*<
     engine.activityExecute(activity, attempt),
     (_) => _._tag === "Suspended"
   )
-  if (result._tag === "Suspended") {
+  // An activity settles with an exit or with a suspension; a handoff is a
+  // FLOW settlement, and the engine's activity path never produces one. The
+  // narrowing is written as "not complete" so the third result variant needs
+  // no unreachable arm of its own.
+  if (result._tag !== "Complete") {
     return yield* Flow.suspend(instance)
   }
   return yield* result.exit

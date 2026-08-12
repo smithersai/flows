@@ -37,6 +37,7 @@ export const makeInstance = (
     suspended: false,
     interrupted: false,
     waiting: undefined,
+    handoff: undefined,
     cause: undefined,
     activityState: {
       count: 0,
@@ -158,12 +159,15 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
             Fiber.join(state.fiber!) as Effect.Effect<Flow.Result<unknown, unknown>>,
             (result) => result._tag === "Suspended"
           )
-          if (wrapped._tag === "Suspended") return yield* Flow.suspend(parentInstance.value)
+          if (wrapped._tag !== "Complete") return yield* Flow.suspend(parentInstance.value)
           return yield* wrapped.exit
         }
         while (true) {
           const wrapped = yield* (Fiber.join(state.fiber!) as Effect.Effect<Flow.Result<unknown, unknown>>)
           if (wrapped._tag === "Complete") return yield* (wrapped.exit as unknown as Effect.Effect<any>)
+          // The port fixture does not follow a lineage — that is the engine's
+          // job — so a round that handed off settles as itself here.
+          if (wrapped._tag === "Handoff") return wrapped as never
           yield* Effect.sleep(1)
           yield* drive(options.executionId)
         }
@@ -211,7 +215,7 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
         const memo = activities.get(id)
         if (memo && !(memo._tag === "Success" && memo.value._tag === "Suspended")) {
           const replayed = yield* memo
-          if (replayed._tag === "Suspended") return replayed
+          if (replayed._tag !== "Complete") return replayed
           return new Flow.Complete({
             exit: yield* Effect.orDie(
               Schema.decodeEffect(activity.exitSchemaPartial)(toJsonExit(replayed.exit))
@@ -226,7 +230,7 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
           Effect.provideService(Activity.CurrentAttempt, attempt),
           Effect.onExit((exit: any) => Effect.sync(() => activities.set(id, exit)))
         ) as Effect.Effect<Flow.Result<unknown, unknown>>)) as Flow.Result<unknown, unknown>
-        if (result._tag === "Suspended") return result as any
+        if (result._tag !== "Complete") return result as never
         return new Flow.Complete({
           exit: yield* Effect.orDie(
             Schema.decodeEffect(activity.exitSchemaPartial)(toJsonExit(result.exit))

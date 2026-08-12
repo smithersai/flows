@@ -124,3 +124,17 @@ export const done = <A>(value: A): Node.Node<Done<A>> => Node.succeed({ _tag: "D
  * @since 0.1.0
  */
 export const park = (reason: WaitingAnnotation): Node.Node<Park> => Node.succeed({ _tag: "Park", reason })
+
+/**
+ * Whether a settled body value is one of the three trampoline settlements.
+ *
+ * A body's root node may settle with anything its author wrote; only these
+ * three shapes ask the engine for a settlement other than "this value is the
+ * answer", so this is the test the interpreter applies before it reaches for
+ * `_tag`. The check is structural on purpose: an outcome is pure data that
+ * crosses a plan, so it carries no brand to look for.
+ *
+ * @category refinements
+ * @since 0.1.0
+ */
+export const isOutcome: (value: unknown) => value is Outcome = Schema.is(Outcome)
