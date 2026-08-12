@@ -3,7 +3,7 @@ import { DurableWriter } from "@smthrs/database"
 import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
 import { DurableEngineState, EngineStore, OwnerIdentity, StepBoundary } from "@smthrs/engine-store"
 import * as Migrations from "@smthrs/engine-store/Migrations"
-import { Activity, Flow } from "@smthrs/flow"
+import { Activity, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
 import { Journal, SqlJournal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
 import { AttemptStore, RunStore } from "@smthrs/run-store"
@@ -18,9 +18,22 @@ import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import * as SqlTimeTravelStore from "../src/SqlTimeTravelStore.ts"
 
+/**
+ * The one sealed atom the fork replays. It is a DECLARED activity, so the same
+ * value addresses the recorded result in the parent's composition and in the
+ * restarted one; only the implementation is attached per composition.
+ */
+const ForkOnce = Activity.make("fork-once", {
+  payload: {},
+  success: Schema.String,
+  tier: "sealed",
+  idempotencyKey: "fork-execution-v1"
+})
+
 const ForkFlow = Flow.make("TimeTravel/ExecutableFork", {
   payload: {},
-  success: Schema.String
+  success: Schema.String,
+  body: (payload) => ForkOnce.call(payload)
 })
 
 const jj = Jj.make({
@@ -64,17 +77,20 @@ describe("SQL fork execution", () => {
     const directory = await mkdtemp(join(tmpdir(), "flows-fork-execution-"))
     const filename = join(directory, "fork.sqlite")
     let dispatches = 0
-    const activity = Activity.make({
-      name: "fork-once",
-      success: Schema.String,
-      tier: "sealed",
-      idempotencyKey: "fork-execution-v1",
-      execute: Effect.sync(() => {
-        dispatches++
-        return "activity-result"
-      })
-    })
-    const handler = () => activity
+    /** The implementation, plus the body that names it, over one table. */
+    const wiring = (engine: FlowRuntime.FlowRuntime["Service"]) =>
+      Layer.mergeAll(
+        ForkOnce.toLayer(() =>
+          Effect.sync(() => {
+            dispatches++
+            return "activity-result"
+          })
+        ),
+        Interpreter.layer(ForkFlow)
+      ).pipe(
+        Layer.provideMerge(Activity.layerImplementations),
+        Layer.provideMerge(Layer.succeed(FlowRuntime.FlowRuntime, engine))
+      )
 
     try {
       const created = await Effect.runPromise(
@@ -85,12 +101,9 @@ describe("SQL fork execution", () => {
               journalSource: "fork-execution",
               isAlive: () => Effect.succeed(false)
             })
-            yield* engine.register(ForkFlow, handler)
-            const parentResult = yield* engine.execute(ForkFlow, {
-              executionId: "fork-parent",
-              payload: {},
-              discard: false
-            })
+            const parentResult = yield* ForkFlow.execute({}, { executionId: "fork-parent" }).pipe(
+              Effect.provide(wiring(engine))
+            )
             const journal = yield* Journal.Journal
             yield* journal.flush
             const sql = yield* Effect.service(SqlClient.SqlClient)
@@ -153,12 +166,9 @@ describe("SQL fork execution", () => {
               journalSource: "fork-execution",
               isAlive: () => Effect.succeed(false)
             })
-            yield* engine.register(ForkFlow, handler)
-            const value = yield* engine.execute(ForkFlow, {
-              executionId: created.fork.runId,
-              payload: {},
-              discard: false
-            })
+            const value = yield* ForkFlow.execute({}, { executionId: created.fork.runId }).pipe(
+              Effect.provide(wiring(engine))
+            )
             const row = yield* (yield* RunStore.RunStore).get(created.fork.runId)
             return { value, row }
           }).pipe(Effect.provide(requirements(filename)))

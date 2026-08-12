@@ -7,7 +7,7 @@
  * advances `Activity.CurrentAttempt`, which is the attempt number the durable
  * store addresses each attempt row by.
  */
-import { Activity, Flow, RetryPolicy } from "@smthrs/flow"
+import { Activity, Flow, Interpreter, RetryPolicy } from "@smthrs/flow"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
@@ -38,9 +38,20 @@ export const fatalDecision = RetryPolicy.decide(policy, {
   error: { _tag: "examples/Fatal" }
 })
 
-export const Publish = Flow.make("examples/Publish", {
+/**
+ * The declared step the flow's body names. Its implementation is where the
+ * retry loop lives, because retrying is what the atom does; the plan shows one
+ * node either way.
+ */
+export const Release = Activity.make("examples/Release", {
   payload: { release: Schema.String },
   success: Schema.String
+})
+
+export const Publish = Flow.make("examples/Publish", {
+  payload: { release: Schema.String },
+  success: Schema.String,
+  body: (payload) => Release.call(payload)
 })
 
 export interface Summary {
@@ -69,7 +80,7 @@ export const main = (filename: string): Effect.Effect<Summary> =>
       })
     })
 
-    const handler = ({ release }: { readonly release: string }) =>
+    const publish = ({ release }: { readonly release: string }) =>
       Activity.retry(Upload, { times: 3 }).pipe(
         Effect.map((outcome) => `${release}:${outcome}`),
         Effect.catchTag("examples/Flaky", (error) => Effect.succeed(`${release}:failed:${error.message}`))
@@ -78,7 +89,10 @@ export const main = (filename: string): Effect.Effect<Summary> =>
     const result = yield* Effect.scoped(
       Publish.execute({ release: "v1" }, { executionId: "publish-1" }).pipe(
         Effect.provide(
-          Publish.toLayer(handler).pipe(Layer.provideMerge(durableEngine(filename, "retry-worker")))
+          Layer.mergeAll(Release.toLayer(publish), Interpreter.layer(Publish)).pipe(
+            Layer.provideMerge(Activity.layerImplementations),
+            Layer.provideMerge(durableEngine(filename, "retry-worker"))
+          )
         )
       )
     )

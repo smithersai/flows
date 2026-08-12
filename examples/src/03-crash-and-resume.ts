@@ -4,22 +4,30 @@
  * Each phase builds its own engine over the same SQLite file, which is what a
  * process restart looks like from the database's point of view. Phase one runs
  * until `DurableDeferred.await` finds no recorded completion, suspends, and
- * releases ownership. Phase two registers the same handler, completes the
+ * releases ownership. Phase two attaches the same implementation, completes the
  * deferred, and drives the run to a result.
  *
- * The counter proves the replay contract: the handler body runs twice, and the
+ * The flow is a body over one declared step, `Assess`. Its implementation is
+ * where the durable wait lives, which is what makes the counters below the
+ * replay contract: the step's implementation runs twice, and the sealed
  * activity in front of the suspension dispatches once.
  */
-import { Activity, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
+import { Activity, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import { durableEngine } from "./durable-layer.ts"
 
-export const Review = Flow.make("examples/Review", {
+export const Assess = Activity.make("examples/Assess", {
   payload: { document: Schema.String },
   success: Schema.String
+})
+
+export const Review = Flow.make("examples/Review", {
+  payload: { document: Schema.String },
+  success: Schema.String,
+  body: (payload) => Assess.call(payload)
 })
 
 export const Approval = DurableDeferred.make("examples/approval", {
@@ -29,13 +37,13 @@ export const Approval = DurableDeferred.make("examples/approval", {
 export interface Summary {
   readonly result: string
   readonly readDispatches: number
-  readonly handlerEntries: number
+  readonly stepEntries: number
 }
 
 export const main = (filename: string): Effect.Effect<Summary> =>
   Effect.gen(function*() {
     let readDispatches = 0
-    let handlerEntries = 0
+    let stepEntries = 0
 
     const ReadDocument = Activity.make({
       name: "examples/ReadDocument",
@@ -48,16 +56,19 @@ export const main = (filename: string): Effect.Effect<Summary> =>
       })
     })
 
-    const handler = ({ document }: { readonly document: string }) =>
+    const assess = ({ document }: { readonly document: string }) =>
       Effect.gen(function*() {
-        handlerEntries += 1
+        stepEntries += 1
         const body = yield* ReadDocument
         const verdict = yield* DurableDeferred.await(Approval)
         return `${document}:${body}:${verdict}`
       })
 
     const engine = (hostId: string) =>
-      Review.toLayer(handler).pipe(Layer.provideMerge(durableEngine(filename, hostId)))
+      Layer.mergeAll(Assess.toLayer(assess), Interpreter.layer(Review)).pipe(
+        Layer.provideMerge(Activity.layerImplementations),
+        Layer.provideMerge(durableEngine(filename, hostId))
+      )
 
     // Phase one: the run suspends at the deferred and releases its claim.
     yield* Effect.scoped(
@@ -80,5 +91,5 @@ export const main = (filename: string): Effect.Effect<Summary> =>
       }).pipe(Effect.provide(engine("worker-b")))
     )
 
-    return { result, readDispatches, handlerEntries }
+    return { result, readDispatches, stepEntries }
   }).pipe(Effect.orDie)
