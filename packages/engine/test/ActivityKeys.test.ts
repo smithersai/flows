@@ -1,7 +1,7 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 import { Activity, Flow, FlowRuntime } from "@smthrs/flow"
-import { Effect, Exit, Layer, Result, Schedule, Schema, Scope } from "effect"
+import { Effect, Exit, Layer, Result, Schedule, Schema, SchemaRepresentation, Scope } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
@@ -382,6 +382,66 @@ describe("activity execution keys", () => {
       expect(ordinal("run-a", 1)).not.toBe(ordinal("run-a", 2))
       expect(ordinal("run-a", 1)).not.toContain("activity-name")
     }))
+
+  effect("distinguishes a caller object that spells the string form's encoding (B3)", () => {
+    // The string form builds `{activity, idempotencyKey, declaration}` and the
+    // object form uses the caller's object verbatim. With no tag naming which
+    // form produced the input, a caller object that spells the string form's
+    // encoding — the shape a caller reaches for when copying the engine's own
+    // encoding to get a rename-stable key — digested byte-identically, shared
+    // one attempt row and one cache row, and replayed the string form's
+    // recorded outcome under its own schema. This is the fourth corner of the
+    // suite: name namespacing, schema folding, and rename stability are
+    // already covered above.
+    let declaredRuns = 0
+    let spelledRuns = 0
+    const success = Schema.String
+    const declaration = {
+      success: SchemaRepresentation.toJson(SchemaRepresentation.toRepresentation(success.ast)),
+      error: SchemaRepresentation.toJson(SchemaRepresentation.toRepresentation(Schema.Never.ast))
+    }
+    const declared = Activity.make({
+      name: "ActivityKeys/charge",
+      success,
+      idempotencyKey: "order-7",
+      execute: Effect.sync(() => {
+        declaredRuns++
+        return "declared"
+      })
+    })
+    const spelled = Activity.make({
+      name: "ActivityKeys/spells-the-string-form",
+      success,
+      idempotencyKey: {
+        activity: "ActivityKeys/charge",
+        idempotencyKey: "order-7",
+        declaration
+      },
+      execute: Effect.sync(() => {
+        spelledRuns++
+        return "spelled"
+      })
+    })
+    const flow = Flow.make("ActivityKeys/form-aliasing", {
+      payload: { run: Schema.String },
+      success: Schema.String
+    })
+    const layer = flow.toLayer(() =>
+      Effect.gen(function*() {
+        const first = yield* declared
+        const second = yield* spelled
+        return `${first}:${second}`
+      })
+    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+
+    return Effect.gen(function*() {
+      // Before the form tag this returned "declared:declared" with
+      // `spelledRuns === 0`: the second dispatch never ran.
+      expect(yield* flow.execute({ run: "one" }, { executionId: "run-form-aliasing" })).toBe("declared:spelled")
+      expect(declaredRuns).toBe(1)
+      expect(spelledRuns).toBe(1)
+    }).pipe(Effect.provide(layer))
+  })
 
   effect("classifies tagged infrastructure interrupts for retry exhaustion", () => {
     const activity = Activity.make({

@@ -17,7 +17,7 @@ import type * as Crypto from "effect/Crypto"
  * orders, which is exactly what a permuted interleaving produces. Each
  * activity must keep its own identity across both.
  */
-import { Activity, Flow, FlowRuntime } from "@smthrs/flow"
+import { Activity, Flow, FlowRuntime, StepIdentity } from "@smthrs/flow"
 import { Deferred, Effect, Exit, Layer, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
@@ -461,6 +461,35 @@ describe("same identity dispatched twice inside Activity.retry (issue #100)", ()
       expect(new Set(keys).size).toBe(2)
       expect(keys[0]).not.toBe(keys[1])
       expect(keys.slice(2)).toEqual([keys[0], keys[1], keys[0], keys[1]])
+    })
+  })
+})
+
+describe("idempotency form refines the allocation scope (StepIdentity.ts:88-89)", () => {
+  effect("a string key and a caller object that spells it derive distinct scopes", () => {
+    // The scope claims that "both idempotency forms canonicalize under
+    // distinct one-character tags so a string can never alias the object
+    // identity whose digest it happens to spell". Nothing asserted it. The
+    // persisted key had the same gap and did alias there (B3).
+    const name = "InvocationKeyStability/charge"
+    const base = `activity/${name.length}:${name}`
+    return Effect.gen(function*() {
+      const declared = yield* StepIdentity.allocationScope({
+        kind: "activity",
+        name,
+        idempotency: "order-7"
+      })
+      const callerOwned = yield* StepIdentity.allocationScope({
+        kind: "activity",
+        name,
+        idempotency: { activity: name, idempotencyKey: "order-7" }
+      })
+
+      expect(declared).not.toBe(callerOwned)
+      // Same base, so the tag is the only thing keeping the digest bodies
+      // from being free to coincide.
+      expect(declared.startsWith(`${base}/s:`)).toBe(true)
+      expect(callerOwned.startsWith(`${base}/c:`)).toBe(true)
     })
   })
 })
