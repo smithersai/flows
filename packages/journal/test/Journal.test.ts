@@ -193,12 +193,15 @@ const overrideInitialization = (
         apply(target, thisArgument, argumentsList) {
           const statement = Reflect.apply(target, thisArgument, argumentsList) as Statement.Statement<unknown>
           const [query] = statement.compile()
+          // The allocation floors are read one run at a time now, so the
+          // override answers the per-run `AS next` shape rather than the
+          // whole-table `GROUP BY` shape it used to intercept.
           if (query.includes("MAX(seq) + 1")) {
             if (override.failSequences === true) {
               return Effect.fail(new DatabaseError({ code: "io" }))
             }
             if (override.sequences !== undefined) {
-              return Effect.succeed(override.sequences)
+              return Effect.succeed(override.sequences.map((row) => ({ next: row.next_seq })))
             }
           }
           if (query.includes("MAX(source_seq) + 1")) {
@@ -206,7 +209,7 @@ const overrideInitialization = (
               return Effect.fail(new DatabaseError({ code: "io" }))
             }
             if (override.sourceSequences !== undefined) {
-              return Effect.succeed(override.sourceSequences)
+              return Effect.succeed(override.sourceSequences.map((row) => ({ next: row.next_source_seq })))
             }
           }
           if (
@@ -387,37 +390,14 @@ describe("Journal", () => {
           payload_json: "{}",
           meta_json: "null"
         })
+        // Only the bounded source-event seed runs at construction now. The
+        // allocation floors are read on first use, so their failures are
+        // emit-time and live in the cell below.
         const failures = yield* Effect.all([
-          acquire({ failSequences: true }),
-          acquire({ sequences: [], failSourceSequences: true }),
           acquire({
             sequences: [],
             sourceSequences: [],
             failSourceEvents: true
-          }),
-          acquire({
-            sequences: [{ run_id: "run", next_seq: Number.NaN }],
-            sourceSequences: []
-          }),
-          acquire({
-            sequences: [{ run_id: "run", next_seq: -1 }],
-            sourceSequences: []
-          }),
-          acquire({
-            sequences: [],
-            sourceSequences: [{
-              run_id: "run",
-              source_id: "source",
-              next_source_seq: Number.NaN
-            }]
-          }),
-          acquire({
-            sequences: [],
-            sourceSequences: [{
-              run_id: "run",
-              source_id: "source",
-              next_source_seq: -1
-            }]
           }),
           acquire({
             sequences: [],
@@ -443,18 +423,65 @@ describe("Journal", () => {
         expect(failures.every((failure) => failure instanceof JournalError)).toBe(true)
         expect(failures.map((failure) => failure instanceof JournalError ? failure.code : undefined)).toEqual([
           "sink_failed",
-          "sink_failed",
-          "sink_failed",
-          "decode_failed",
-          "decode_failed",
-          "decode_failed",
-          "decode_failed",
           "decode_failed",
           "decode_failed",
           "decode_failed",
           "decode_failed"
         ])
       })
+  )
+
+  effect(
+    "normalizes allocation-floor read failures and rejects invalid durable cursors at emit",
+    () => {
+      const emitWith = (override: InitializationOverride) =>
+        Effect.flip(
+          Effect.scoped(
+            Effect.gen(function*() {
+              const journal = yield* Journal
+              return yield* journal.emitLossy(input(runId("run"), sourceId("source"), "event", {}))
+            }).pipe(
+              Effect.provide(SqlJournal.layer({ capacity: 1, overflow: "reject" })),
+              Effect.provide(overrideInitialization(override)),
+              Effect.provide(migratedDatabase())
+            )
+          )
+        )
+      return Effect.gen(function*() {
+        const failures = yield* Effect.all([
+          emitWith({ failSequences: true }),
+          emitWith({ sequences: [{ run_id: "run", next_seq: 0 }], failSourceSequences: true }),
+          emitWith({
+            sequences: [{ run_id: "run", next_seq: Number.NaN }],
+            sourceSequences: []
+          }),
+          emitWith({
+            sequences: [{ run_id: "run", next_seq: -1 }],
+            sourceSequences: []
+          }),
+          emitWith({
+            sequences: [],
+            sourceSequences: [{ run_id: "run", source_id: "source", next_source_seq: Number.NaN }]
+          }),
+          emitWith({
+            sequences: [],
+            sourceSequences: [{ run_id: "run", source_id: "source", next_source_seq: -1 }]
+          })
+        ])
+        expect(failures.every((failure) => failure instanceof JournalError)).toBe(true)
+        // A database that cannot answer the floor read is a sink failure; a
+        // floor it answers with an unusable cursor is an invalid event, caught
+        // by the same bounds check every allocation already runs.
+        expect(failures.map((failure) => failure instanceof JournalError ? failure.code : undefined)).toEqual([
+          "sink_failed",
+          "sink_failed",
+          "invalid_event",
+          "invalid_event",
+          "invalid_event",
+          "invalid_event"
+        ])
+      })
+    }
   )
 
   effect("continues sequence allocation from valid durable cursors", () =>
@@ -1300,17 +1327,24 @@ describe("Journal", () => {
       Effect.gen(function*() {
         const sql = yield* Effect.service(SqlClient.SqlClient)
         const journal = yield* Journal
+        // The floor is read on first use, so a foreign row written before this
+        // process ever touched the run is simply seen. The conflict this cell
+        // is about needs the foreign write to land AFTER the floor is cached.
+        yield* journal.emitLossy(
+          input(runId("sequence-conflict"), sourceId("producer"), "first", {})
+        )
+        yield* journal.flush
         yield* sql`
           INSERT INTO flows_journal_events (
             run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
             event_type, payload_json, meta_json
           ) VALUES (
-            'sequence-conflict', 0, 'external', 'external', 0, 0,
+            'sequence-conflict', 1, 'external', 'external', 0, 0,
             'external', '{}', 'null'
           )
         `
         yield* journal.emitLossy(
-          input(runId("sequence-conflict"), sourceId("producer"), "event", {})
+          input(runId("sequence-conflict"), sourceId("other-producer"), "event", {})
         )
         expect((yield* Effect.flip(journal.flush)).code).toBe("sequence_conflict")
       }).pipe(

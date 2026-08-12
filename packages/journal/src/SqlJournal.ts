@@ -110,17 +110,6 @@ interface JournalRow {
   readonly meta_json: string
 }
 
-interface SourceSequenceRow {
-  readonly run_id: string
-  readonly source_id: string
-  readonly next_source_seq: number
-}
-
-interface SequenceRow {
-  readonly run_id: string
-  readonly next_seq: number
-}
-
 interface Prepared {
   readonly validated: Input
   readonly payloadJson: string
@@ -270,20 +259,6 @@ export const layer = (
       const queue = yield* Queue.dropping<QueuedEntry>(options.capacity)
       const changes = yield* PubSub.sliding<Entry>(options.capacity)
       const wakes = new Map<RunId, Set<PubSub.PubSub<void>>>()
-      const sequenceRows = yield* sql<SequenceRow>`
-        SELECT run_id, MAX(seq) + 1 AS next_seq
-        FROM flows_journal_events
-        GROUP BY run_id
-      `.pipe(
-        Effect.mapError((cause) => error("sink_failed", "could not initialize journal sequences", cause))
-      )
-      const sourceSequenceRows = yield* sql<SourceSequenceRow>`
-        SELECT run_id, source_id, MAX(source_seq) + 1 AS next_source_seq
-        FROM flows_journal_events
-        GROUP BY run_id, source_id
-      `.pipe(
-        Effect.mapError((cause) => error("sink_failed", "could not initialize journal source sequences", cause))
-      )
       /**
        * Only the most recent `sourceEventCache` events are decoded at startup.
        * Older events stay durable-only: their idempotency is enforced by the
@@ -302,29 +277,14 @@ export const layer = (
       const durableEntries = yield* Effect.forEach(sourceEventRows, decodeRow)
       const initialized = yield* Effect.fromResult(
         Result.gen(function*() {
+          // The two allocation floors start EMPTY and are filled one run at a
+          // time by `ensureFloors`. They used to be seeded by two unbounded
+          // `GROUP BY` aggregations — one entry per run that ever wrote an
+          // event, one per `(run_id, source_id)` pair — so layer construction
+          // scanned the whole table and built a map proportional to total
+          // history, which is exactly what the bound below exists to avoid.
           const sequences = new Map<RunId, number>()
-          for (const row of sequenceRows) {
-            const next = Number(row.next_seq)
-            if (!Number.isSafeInteger(next) || next < 0) {
-              return yield* Result.fail(
-                error("decode_failed", "durable sequence is outside the safe integer range")
-              )
-            }
-            sequences.set(row.run_id as RunId, next)
-          }
           const sourceSequences = new Map<string, number>()
-          for (const row of sourceSequenceRows) {
-            const next = Number(row.next_source_seq)
-            if (!Number.isSafeInteger(next) || next < 0) {
-              return yield* Result.fail(
-                error("decode_failed", "durable source sequence is outside the safe integer range")
-              )
-            }
-            sourceSequences.set(
-              sourceKey(row.run_id as RunId, row.source_id as SourceId),
-              next
-            )
-          }
           const sourceEvents = new Map<string, SourceEvent>()
           // Seeded oldest-first so the map's insertion order stays the
           // eviction order once `retain` starts adding newer events.
@@ -454,124 +414,130 @@ export const layer = (
 
       const queuedEmit: Service["emitLossy"] = Effect.fn("Journal.emitLossy")((input: Input) =>
         Effect.flatMap(Clock.currentTimeMillis, (emittedAtMs) =>
-          Effect.suspend(() =>
-            Effect.fromResult(
-              Result.gen(function*() {
-                const { metaJson, payloadJson, validated } = yield* prepare(input, emittedAtMs)
-                const key = sourceKey(validated.runId, validated.sourceId)
-                const nextSourceSeq = state.sourceSequences.get(key) ?? 0
-                const sourceSeq: SourceSeq = validated.sourceSeq ?? (nextSourceSeq as SourceSeq)
-                if (
-                  !Number.isSafeInteger(sourceSeq) ||
-                  sourceSeq < 0 ||
-                  sourceSeq === Number.MAX_SAFE_INTEGER
-                ) {
-                  return yield* Result.fail(
-                    error("invalid_event", "journal sequence is outside the allocatable safe integer range")
-                  )
-                }
-                const identity = sourceEventKey(validated.runId, validated.sourceId, sourceSeq)
-                const existing = state.sourceEvents.get(identity)
-                if (existing !== undefined) {
-                  if (
-                    existing.eventType !== validated.eventType ||
-                    existing.payloadJson !== payloadJson ||
-                    existing.metaJson !== metaJson
-                  ) {
-                    return yield* Result.fail(error(
-                      "idempotency_conflict",
-                      `source event ${validated.sourceId}:${sourceSeq} for run ${validated.runId} was reused with different content`
-                    ))
-                  }
-                  return {
-                    _tag: "Duplicate",
-                    seq: existing.seq,
-                    sourceSeq,
-                    status: existing.status
-                  } satisfies EmitReceipt
-                }
-                const nextSeq = state.sequences.get(validated.runId) ?? 0
-                if (
-                  !Number.isSafeInteger(nextSeq) ||
-                  nextSeq < 0 ||
-                  nextSeq === Number.MAX_SAFE_INTEGER
-                ) {
-                  return yield* Result.fail(
-                    error("invalid_event", "journal sequence is outside the allocatable safe integer range")
-                  )
-                }
-                const seq = nextSeq as Seq
-                state.sequences.set(validated.runId, nextSeq + 1)
-                state.sourceSequences.set(key, Math.max(nextSourceSeq, sourceSeq + 1))
+          Effect.flatMap(
+            Effect.suspend(() => Effect.fromResult(prepare(input, emittedAtMs))),
+            (prepared) =>
+              Effect.flatMap(
+                ensureFloors(prepared.validated.runId, prepared.validated.sourceId),
+                (floors) =>
+                  Effect.fromResult(
+                    Result.gen(function*() {
+                      const { metaJson, payloadJson, validated } = prepared
+                      const key = sourceKey(validated.runId, validated.sourceId)
+                      const nextSourceSeq = floors.sourceSeq
+                      const sourceSeq: SourceSeq = validated.sourceSeq ?? (nextSourceSeq as SourceSeq)
+                      if (
+                        !Number.isSafeInteger(sourceSeq) ||
+                        sourceSeq < 0 ||
+                        sourceSeq === Number.MAX_SAFE_INTEGER
+                      ) {
+                        return yield* Result.fail(
+                          error("invalid_event", "journal sequence is outside the allocatable safe integer range")
+                        )
+                      }
+                      const identity = sourceEventKey(validated.runId, validated.sourceId, sourceSeq)
+                      const existing = state.sourceEvents.get(identity)
+                      if (existing !== undefined) {
+                        if (
+                          existing.eventType !== validated.eventType ||
+                          existing.payloadJson !== payloadJson ||
+                          existing.metaJson !== metaJson
+                        ) {
+                          return yield* Result.fail(error(
+                            "idempotency_conflict",
+                            `source event ${validated.sourceId}:${sourceSeq} for run ${validated.runId} was reused with different content`
+                          ))
+                        }
+                        return {
+                          _tag: "Duplicate",
+                          seq: existing.seq,
+                          sourceSeq,
+                          status: existing.status
+                        } satisfies EmitReceipt
+                      }
+                      const nextSeq = floors.seq
+                      if (
+                        !Number.isSafeInteger(nextSeq) ||
+                        nextSeq < 0 ||
+                        nextSeq === Number.MAX_SAFE_INTEGER
+                      ) {
+                        return yield* Result.fail(
+                          error("invalid_event", "journal sequence is outside the allocatable safe integer range")
+                        )
+                      }
+                      const seq = nextSeq as Seq
+                      state.sequences.set(validated.runId, nextSeq + 1)
+                      state.sourceSequences.set(key, Math.max(nextSourceSeq, sourceSeq + 1))
 
-                const queued: QueuedEntry = {
-                  runId: validated.runId,
-                  seq,
-                  eventId: makeEventId(validated.runId, validated.sourceId, sourceSeq),
-                  sourceId: validated.sourceId,
-                  sourceSeq,
-                  emittedAtMs,
-                  eventType: validated.eventType,
-                  payloadJson,
-                  metaJson
-                }
-                let evicted: QueuedEntry | undefined
-                if (Queue.sizeUnsafe(queue) >= options.capacity && options.overflow === "drop-oldest") {
-                  const exit = Queue.takeUnsafe(queue)
-                  /* v8 ignore next -- size and take run synchronously while the journal and queue are open */
-                  if (exit === undefined || !Exit.isSuccess(exit)) {
-                    return yield* Result.fail(
-                      error("journal_closed", "journal admission queue is unavailable")
-                    )
-                  }
-                  evicted = exit.value
-                  const evictedIdentity = sourceEventKey(
-                    evicted.runId,
-                    evicted.sourceId,
-                    evicted.sourceSeq
-                  )
-                  state.sourceEvents.delete(evictedIdentity)
-                  state.pending = Math.max(0, state.pending - 1)
-                }
-                const accepted = Queue.offerUnsafe(queue, queued)
-                if (!accepted) {
-                  if (options.overflow === "reject") {
-                    return yield* Result.fail(error("queue_overflow", "journal admission queue is full"))
-                  }
-                  return {
-                    _tag: "Dropped",
-                    seq,
-                    sourceSeq,
-                    policy: "drop-newest"
-                  } satisfies EmitReceipt
-                }
+                      const queued: QueuedEntry = {
+                        runId: validated.runId,
+                        seq,
+                        eventId: makeEventId(validated.runId, validated.sourceId, sourceSeq),
+                        sourceId: validated.sourceId,
+                        sourceSeq,
+                        emittedAtMs,
+                        eventType: validated.eventType,
+                        payloadJson,
+                        metaJson
+                      }
+                      let evicted: QueuedEntry | undefined
+                      if (Queue.sizeUnsafe(queue) >= options.capacity && options.overflow === "drop-oldest") {
+                        const exit = Queue.takeUnsafe(queue)
+                        /* v8 ignore next -- size and take run synchronously while the journal and queue are open */
+                        if (exit === undefined || !Exit.isSuccess(exit)) {
+                          return yield* Result.fail(
+                            error("journal_closed", "journal admission queue is unavailable")
+                          )
+                        }
+                        evicted = exit.value
+                        const evictedIdentity = sourceEventKey(
+                          evicted.runId,
+                          evicted.sourceId,
+                          evicted.sourceSeq
+                        )
+                        state.sourceEvents.delete(evictedIdentity)
+                        state.pending = Math.max(0, state.pending - 1)
+                      }
+                      const accepted = Queue.offerUnsafe(queue, queued)
+                      if (!accepted) {
+                        if (options.overflow === "reject") {
+                          return yield* Result.fail(error("queue_overflow", "journal admission queue is full"))
+                        }
+                        return {
+                          _tag: "Dropped",
+                          seq,
+                          sourceSeq,
+                          policy: "drop-newest"
+                        } satisfies EmitReceipt
+                      }
 
-                retain(identity, {
-                  seq,
-                  eventType: validated.eventType,
-                  payloadJson,
-                  metaJson,
-                  status: "pending"
-                })
-                state.pending += 1
-                if (evicted !== undefined) {
-                  return {
-                    _tag: "Accepted",
-                    seq,
-                    sourceSeq,
-                    evicted: {
-                      policy: "drop-oldest",
-                      count: 1
-                    }
-                  } satisfies EmitReceipt
-                }
-                return {
-                  _tag: "Accepted",
-                  seq,
-                  sourceSeq
-                } satisfies EmitReceipt
-              })
-            )
+                      retain(identity, {
+                        seq,
+                        eventType: validated.eventType,
+                        payloadJson,
+                        metaJson,
+                        status: "pending"
+                      })
+                      state.pending += 1
+                      if (evicted !== undefined) {
+                        return {
+                          _tag: "Accepted",
+                          seq,
+                          sourceSeq,
+                          evicted: {
+                            policy: "drop-oldest",
+                            count: 1
+                          }
+                        } satisfies EmitReceipt
+                      }
+                      return {
+                        _tag: "Accepted",
+                        seq,
+                        sourceSeq
+                      } satisfies EmitReceipt
+                    })
+                  )
+              )
           ))
       )
 
@@ -878,6 +844,44 @@ export const layer = (
             `,
           (rows) => Number(rows[0]?.next ?? 0)
         )
+
+      /**
+       * Loads a run's allocation floors into the in-process index if they are
+       * not there yet.
+       *
+       * `emitLossy` allocates from the index alone — it queues rather than
+       * writing, so it cannot read the database mid-allocation — which is why
+       * the floors used to be seeded for every run at construction. Reading
+       * them on first use instead keeps the index proportional to the runs this
+       * process touches rather than to total history, and the durable read is
+       * the same `MAX(...) + 1` the seed computed.
+       *
+       * `emitDurable` needs nothing from this: it already takes the max of the
+       * durable floor and the index on every emit.
+       */
+      const ensureFloors = (
+        runId: RunId,
+        sourceId: SourceId
+      ): Effect.Effect<{ readonly seq: number; readonly sourceSeq: number }, JournalError> =>
+        Effect.suspend(() => {
+          const key = sourceKey(runId, sourceId)
+          const seq = state.sequences.get(runId)
+          const sourceSeq = state.sourceSequences.get(key)
+          if (seq !== undefined && sourceSeq !== undefined) {
+            return Effect.succeed({ seq, sourceSeq })
+          }
+          return Effect.all({
+            seq: seq === undefined ? nextDurable("seq", runId, undefined) : Effect.succeed(seq),
+            sourceSeq: nextDurable("source_seq", runId, sourceId)
+          }).pipe(
+            Effect.map((floors) => {
+              state.sequences.set(runId, floors.seq)
+              state.sourceSequences.set(key, floors.sourceSeq)
+              return floors
+            }),
+            Effect.mapError((cause) => error("sink_failed", "could not read journal allocation floor", cause))
+          )
+        })
 
       /**
        * Records a committed entry in the in-process index and publishes it —
