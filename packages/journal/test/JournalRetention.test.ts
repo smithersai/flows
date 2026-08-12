@@ -197,3 +197,77 @@ describe("SqlJournal source-event retention", () => {
       expect((failure as JournalError).code).toBe("invalid_event")
     }))
 })
+
+/**
+ * The JSDoc on `sourceEventCache` (SqlJournal.ts:60-71) states that bounding the
+ * in-process index is safe because "the writer's `insertOne` always re-checks
+ * `flows_journal_events` under the `(run_id, source_id, source_seq)` unique
+ * constraint, so an evicted entry re-emitted later is still deduplicated
+ * durably and still reports an `idempotency_conflict` on changed content."
+ *
+ * The neighbouring cells drive eviction and observe the in-memory miss. Neither
+ * drives the eviction and the re-emission *through the writer*, which is where
+ * that claim is actually implemented — so the bound's safety argument rested on
+ * an unasserted durable re-check.
+ */
+describe("SqlJournal durable dedup behind an evicted index entry", () => {
+  effect("deduplicates an evicted source event durably on re-emission", () =>
+    Effect.gen(function*() {
+      const total = yield* Effect.gen(function*() {
+        const service = yield* Journal
+        for (let index = 0; index < 5; index++) {
+          yield* service.emitLossy(input(index))
+        }
+        yield* service.flush
+        // Entry 0 is long past the two-entry window, so this is an in-memory
+        // miss: the receipt is `Accepted` and the entry reaches the queue.
+        const reEmitted = yield* service.emitLossy(input(0))
+        expect(reEmitted._tag).toBe("Accepted")
+        // The writer is what has to catch it. Flush so `insertOne` runs.
+        yield* service.flush
+        return yield* eventCount
+      }).pipe(
+        Effect.provide(journal({ capacity: 64, overflow: "reject", sourceEventCache: 2 })),
+        Effect.scoped
+      )
+
+      // No sixth row: the unique constraint re-check collapsed the accepted
+      // re-emission into the durable original.
+      expect(total).toBe(5)
+    }))
+
+  effect(
+    "reports idempotency_conflict for an evicted source event re-emitted with changed content",
+    () =>
+      Effect.gen(function*() {
+        const outcome = yield* Effect.gen(function*() {
+          const service = yield* Journal
+          for (let index = 0; index < 5; index++) {
+            yield* service.emitLossy(input(index))
+          }
+          yield* service.flush
+          // Same (run, source, sourceSeq) as entry 0, different payload.
+          yield* service.emitLossy(
+            new Input({
+              runId: run,
+              sourceId: source,
+              sourceSeq: sourceSeq(0),
+              eventType: "event",
+              payload: { value: "changed" }
+            }, { disableChecks: true })
+          )
+          const failure = yield* Effect.flip(service.flush)
+          return { failure, total: yield* eventCount }
+        }).pipe(
+          Effect.provide(journal({ capacity: 64, overflow: "reject", sourceEventCache: 2 })),
+          Effect.scoped
+        )
+
+        // The in-memory index could not answer, so the durable re-check is what
+        // detected the reuse — the second half of the bound's safety argument.
+        expect(outcome.failure).toBeInstanceOf(JournalError)
+        expect((outcome.failure as JournalError).code).toBe("idempotency_conflict")
+        expect(outcome.total).toBe(5)
+      })
+  )
+})
