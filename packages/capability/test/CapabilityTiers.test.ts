@@ -67,19 +67,35 @@ describe("Capability.tierOf containment boundaries", () => {
   })
 })
 
-describe("Capability.formatPattern", () => {
+describe("Capability.format over patterns", () => {
   it("renders a pattern as durable `action:resource` key input", () => {
     expect(
-      Capability.formatPattern(new Capability.CapabilityPattern({ action: "fs:*", resource: "/workspace/**" }))
+      Capability.format(new Capability.CapabilityPattern({ action: "fs:*", resource: "/workspace/**" }))
     ).toBe("fs:*:/workspace/**")
     expect(
-      Capability.formatPattern(new Capability.CapabilityPattern({ action: "*", resource: "**" }))
+      Capability.format(new Capability.CapabilityPattern({ action: "*", resource: "**" }))
     ).toBe("*:**")
   })
 
   it("distinguishes patterns that differ only in resource", () => {
     const left = new Capability.CapabilityPattern({ action: "fs:write", resource: "/a/**" })
     const right = new Capability.CapabilityPattern({ action: "fs:write", resource: "/b/**" })
-    expect(Capability.formatPattern(left)).not.toBe(Capability.formatPattern(right))
+    expect(Capability.format(left)).not.toBe(Capability.format(right))
+  })
+
+  it("renders a capability and a pattern with the same bytes (D9)", () => {
+    // `format`, the deleted `formatPattern`, and the inline copy in
+    // `JournalGrantStore` had byte-identical bodies over structurally
+    // identical records. Collapsing them to one renderer is only safe if the
+    // bytes do not move, and those bytes reach durable journal payloads — so
+    // they are pinned exactly here rather than left to a round trip.
+    expect(Capability.format(new Capability.Capability({ action: "fs:read", resource: "src/index.ts" })))
+      .toBe("fs:read:src/index.ts")
+    expect(Capability.format(new Capability.CapabilityPattern({ action: "fs:read", resource: "src/index.ts" })))
+      .toBe("fs:read:src/index.ts")
+    // A plain record renders identically, which is what lets one signature
+    // serve both classes.
+    expect(Capability.format({ action: "net:get", resource: "api.example.com" }))
+      .toBe("net:get:api.example.com")
   })
 })
