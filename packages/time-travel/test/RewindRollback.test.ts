@@ -593,3 +593,58 @@ describe("Rewind protocol fault matrix", () => {
     expect(store.state().audits[0]).toMatchObject({ status: "failed", detail: { phase: "rolled_back" } })
   })
 })
+
+describe("Rewind after the archive is committed", () => {
+  it("leaves the audit at archive_committed when the run fence is lost", async () => {
+    // Once the archive commits, the rewind cannot be rolled back: the whole
+    // compensation block at Rewind.ts:611-660 is skipped. The failure path from
+    // that point on was never driven, so nothing asserted what state it leaves
+    // for Recovery to pick up. It has to leave the audit at
+    // `archive_committed` — a rewind that archived and then lost the fence is
+    // half-applied, and an audit marked `failed` or `rolled_back` would tell
+    // Recovery there is nothing to finish.
+    const store = MemoryTimeTravelStore.make({
+      records: records(),
+      snapshots: [{ runId: "run", frame, changeId: "target" }]
+    })
+    const jj = makeJj()
+    // The post-archive transition to `suspended` is the step that loses the
+    // fence; every earlier transition still succeeds.
+    const runs = makeRuns(runRow(), {
+      transitionOwned: (_runId, _owner, status) =>
+        Effect.succeed(status === "suspended" ? { _tag: "FenceLost" as const } : { _tag: "Transitioned" as const })
+    })
+    const rollbacks: Array<string> = []
+    const registry = Effect.runSync(
+      EffectHandlerRegistry.make([{
+        kind: "send",
+        tier: "irreversible",
+        requiresIdempotencyKey: true,
+        residue: () => "message residue",
+        revert: () => Effect.succeed({ sent: true }),
+        rollback: () =>
+          Effect.sync(() => {
+            rollbacks.push("send")
+          })
+      }])
+    )
+
+    const failure = await Effect.runPromise(
+      Effect.flip(
+        provide(
+          Rewind.rewind({ runId: "run", frame, owner, auditId: "audit-fence-lost" }),
+          { store, runs, jj: jj.service, registry }
+        )
+      )
+    )
+
+    expect(failure.code).toBe("busy")
+    const audit = store.state().audits[0]
+    // Left for Recovery: the archive is durable and the audit says so.
+    expect(audit).toMatchObject({ id: "audit-fence-lost", detail: { phase: "archive_committed" } })
+    expect(audit?.status).not.toBe("failed")
+    // And no compensation ran: the archive is durable, so undoing the
+    // effect handlers would contradict it.
+    expect(rollbacks).toEqual([])
+  })
+})
