@@ -21,7 +21,11 @@
  * callee's body into this graph with the capabilities of the two declarations
  * intersected, and a flow that calls itself inline throws with the trampoline
  * (`docs/specs/Concepts/Trampoline Loops.md`) and the child boundary as the two
- * ways out. A branch expands BOTH arms, so the
+ * ways out. A callee whose declared placement the enclosing flow does not carry
+ * throws for the same reason and names the same way out, because inline
+ * expansion is the claim that these steps run in the caller's execution.
+ * `Other.child(payload)` is that boundary: one leaf node here, its own
+ * execution when the graph is driven. A branch expands BOTH arms, so the
  * exit condition and the handoff site are visible topology before anything
  * runs, and the predicate rides the branch's key material as a digest.
  *
@@ -333,6 +337,30 @@ const literal = (value: unknown): unknown => {
 }
 
 /**
+ * Whether an inline call would place the callee somewhere the enclosing flow
+ * cannot run it.
+ *
+ * A placement directive is opaque to this package — `Annotations.Placement` is
+ * `Schema.Unknown`, and interpreting it is a scheduler's job — so the only
+ * verdict available here is identity: the same directive is satisfiable, a
+ * different one is not. {@link literal} is the canonicalizer already used for
+ * hashed payloads, so two structurally equal directives compare equal whatever
+ * order their keys were written in.
+ *
+ * DECIDED (2026-08-11, pending review): an enclosing flow that declares NO
+ * placement is unconstrained and satisfies any callee, rather than satisfying
+ * only a callee that declares none. Inline expansion runs the callee's steps in
+ * the caller's execution, so the constraint that matters is the one the caller
+ * already carries; refusing an undeclared caller would make `Flow.Placement`
+ * mandatory on every flow in a call chain to keep `.call()` usable.
+ *
+ * @private
+ */
+const placementConflicts = (enclosing: unknown, callee: unknown): boolean =>
+  enclosing !== undefined && callee !== undefined &&
+  JSON.stringify(literal(enclosing)) !== JSON.stringify(literal(callee))
+
+/**
  * Collects the upstream results a payload consumes, in declaration order and
  * without duplicates.
  *
@@ -373,9 +401,9 @@ const payloadInputs = (payload: unknown): ReadonlyArray<KeyMaterial.InputRef> =>
 }
 
 /**
- * What one visit needs to know: where it is, what it may do, which node the
- * enclosing branch's subject stands for, which flows are already being
- * spliced, and the upstream node it continues from.
+ * What one visit needs to know: where it is, what it may do, where it runs,
+ * which node the enclosing branch's subject stands for, which flows are already
+ * being spliced, and the upstream node it continues from.
  *
  * @private
  */
@@ -383,6 +411,11 @@ interface Visit {
   readonly ast: Node.Ast
   readonly id: string
   readonly capabilities: ReadonlyArray<string>
+  /**
+   * The placement of the flow whose body this visit is inside, which an inline
+   * call has to be satisfiable under.
+   */
+  readonly placement: unknown
   readonly substitutions: ReadonlyMap<string, string>
   readonly stack: ReadonlyArray<Flow.Any>
   readonly prerequisite: string | undefined
@@ -466,6 +499,8 @@ export const build = (
     readonly declaration: Flow.Any | undefined
     readonly payload: unknown
     readonly capabilities: ReadonlyArray<string>
+    /** The placement of the flow this call is written inside. */
+    readonly placement: unknown
     readonly substitutions: ReadonlyMap<string, string>
     readonly stack: ReadonlyArray<Flow.Any>
     readonly dependencies: Array<string>
@@ -477,6 +512,22 @@ export const build = (
     const target = call.mode === "inline" ? call.declaration : undefined
     const body = target?.body
     const ceiling = sorted(Context.get(annotations, Annotations.Capabilities))
+    const placement = declaredPlacement(annotations)
+    // The placement refusal precedes the recursion one only in position: an
+    // inline call the caller cannot host is invalid whether or not the callee
+    // has a body to splice, because inline expansion is the claim that these
+    // steps run in the caller's execution.
+    if (call.mode === "inline" && placementConflicts(call.placement, placement)) {
+      throw new GraphBuildError({
+        code: "placement_requires_boundary",
+        node: call.id,
+        path: [],
+        message: `Flow "${call.flow}" is called inline at "${call.id}", but its declared placement ` +
+          `${JSON.stringify(literal(placement))} is not the enclosing flow's ` +
+          `${JSON.stringify(literal(call.placement))}. ` +
+          `An inline .call() runs in the caller's execution, so use ${call.flow}.child(payload) to give it its own.`
+      })
+    }
     if (target !== undefined && body !== undefined) {
       if (call.stack.includes(target)) {
         throw new GraphBuildError({
@@ -492,6 +543,10 @@ export const build = (
           ast: built.ast,
           id: `${call.id}.flow`,
           capabilities: ceiling.filter((capability) => call.capabilities.includes(capability)),
+          // Inside the spliced body the callee's own placement is the one to
+          // satisfy; a callee that declared none keeps running under the
+          // caller's.
+          placement: placement ?? call.placement,
           substitutions: call.substitutions,
           stack: [...call.stack, target],
           prerequisite: undefined
@@ -507,7 +562,7 @@ export const build = (
       dependencies,
       capabilities: call.capabilities,
       effects: declaredEffects(annotations),
-      placement: declaredPlacement(annotations),
+      placement,
       tier: "sealed",
       body: {
         _tag: "FlowCall",
@@ -571,7 +626,7 @@ export const build = (
   }
 
   const visit = (request: Visit): string => {
-    const { ast, capabilities, id, stack, substitutions } = request
+    const { ast, capabilities, id, placement, stack, substitutions } = request
     const dependencies: Array<string> = []
     const inputs: Array<KeyMaterial.InputRef> = []
     const depend = (from: string, reason: EdgeReason): void => {
@@ -587,6 +642,7 @@ export const build = (
         ast: childAst,
         id: childId,
         capabilities,
+        placement,
         substitutions: options.substitutions ?? substitutions,
         stack,
         prerequisite: options.prerequisite
@@ -604,6 +660,7 @@ export const build = (
           declaration: flowDeclaration(Node.declaration(ast)),
           payload: hydrate(ast.payload, substitutions),
           capabilities,
+          placement,
           substitutions,
           stack,
           dependencies,
@@ -739,6 +796,7 @@ export const build = (
       ast: (flowOrNode as Node.Any).ast,
       id: root,
       capabilities: [],
+      placement: undefined,
       substitutions: new Map(),
       stack: [],
       prerequisite: undefined
@@ -757,6 +815,9 @@ export const build = (
       declaration,
       payload: entry,
       capabilities: sorted(Context.get(declaration.annotations, Annotations.Capabilities)),
+      // Nothing encloses the entry, so its own declared placement is what the
+      // body it splices has to be satisfiable under, not a constraint on it.
+      placement: undefined,
       substitutions: new Map(),
       stack: [],
       dependencies: [],

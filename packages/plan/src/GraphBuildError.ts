@@ -24,7 +24,10 @@ import * as Schema from "effect/Schema"
  * `invalid_all_member` is a non-node handed to {@link module:Node.all};
  * `invalid_continuation` is a branch arm or continuation that did not return a
  * node; `recursion_requires_boundary` is a flow calling itself inline, which
- * has to become a trampoline handoff or an explicit child boundary.
+ * has to become a trampoline handoff or an explicit child boundary;
+ * `placement_requires_boundary` is an inline call whose callee declares a
+ * placement the enclosing flow cannot satisfy, which has to become that same
+ * explicit child boundary.
  *
  * @since 0.1.0
  * @category schemas
@@ -33,7 +36,8 @@ export const GraphBuildErrorCode = Schema.Literals([
   "planned_value_computed",
   "invalid_all_member",
   "invalid_continuation",
-  "recursion_requires_boundary"
+  "recursion_requires_boundary",
+  "placement_requires_boundary"
 ])
 
 /**

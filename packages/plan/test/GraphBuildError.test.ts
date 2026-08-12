@@ -20,7 +20,8 @@ describe("GraphBuildError", () => {
       "planned_value_computed",
       "invalid_all_member",
       "invalid_continuation",
-      "recursion_requires_boundary"
+      "recursion_requires_boundary",
+      "placement_requires_boundary"
     ])
   })
 })

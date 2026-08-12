@@ -118,6 +118,14 @@ export interface Branch {
  * in, `boundary` makes it one child execution, and `handoff` names the next
  * trampoline round.
  *
+ * DECIDED (2026-08-11, pending review): the child-call variant is
+ * `FlowCall{mode: "boundary"}`, not a second AST tag beside `FlowCall`. The
+ * three modes are one authoring construct — a call to a named flow with a
+ * payload — differing only in how the plan joins it, and every consumer
+ * (`Graph.build`'s expansion test, key material, the interpreter's dispatch)
+ * already switches on `mode`. A parallel `ChildCall` tag would duplicate the
+ * flow tag, payload, and declaration side table in every one of them.
+ *
  * @since 0.1.0
  * @private
  */

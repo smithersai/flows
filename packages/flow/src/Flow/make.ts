@@ -71,6 +71,9 @@ const Proto = {
   call(this: AnyWithProps, payload: unknown) {
     return Node.flowCall(this, this._tag, "inline", payload)
   },
+  child(this: AnyWithProps, payload: unknown) {
+    return Node.flowCall(this, this._tag, "boundary", payload)
+  },
   to(this: AnyWithProps, payload: unknown): Node.Node<To<unknown>> {
     return Node.flowCall(this, this._tag, "handoff", payload)
   },

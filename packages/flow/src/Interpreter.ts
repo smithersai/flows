@@ -20,7 +20,12 @@
  * shows and the run skipped, and it is reported as such rather than silently
  * absent. An `All` joins its members by name, a `Succeed` yields its value, and
  * an inline `FlowCall` was already flattened by graph building, so it settles
- * with the body spliced beneath it.
+ * with the body spliced beneath it. A `FlowCall` the author wrote as
+ * `.child(payload)` is the one node that is NOT flattened: it opens a real child
+ * execution under a deterministically derived id
+ * ({@link childExecutionId}), which is what gives it its own journal lineage and
+ * makes the parent's interruption and the child's suspension travel between
+ * them.
  *
  * Planned references are resolved the way the plan names them: a payload
  * placeholder carries the `Ref` `{from, path}` its key material recorded, so
@@ -35,15 +40,17 @@
  * @since 0.1.0
  */
 import * as KeyMaterial from "@smthrs/plan/KeyMaterial"
+import { Key } from "@smthrs/keys/Key"
 import * as Node from "@smthrs/plan/Node"
 import * as Planned from "@smthrs/plan/Planned"
 import * as Effect from "effect/Effect"
+import type * as Crypto from "effect/Crypto"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Predicate from "effect/Predicate"
 import * as Schema from "effect/Schema"
 import { type Implementation, Implementations } from "./Activity/Implementations.ts"
-import type { Any as AnyFlow, AnyStructSchema, Flow } from "./Flow/Flow.ts"
+import type { Any as AnyFlow, AnyStructSchema, AnyWithProps, Flow } from "./Flow/Flow.ts"
 import * as Outcome from "./Flow/Outcome.ts"
 import { Handoff } from "./Flow/Result.ts"
 import { suspend } from "./Flow/Runtime.ts"
@@ -113,6 +120,40 @@ type Services = FlowRuntime | FlowInstance | Implementations
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null
 
 /**
+ * The execution id a `.child()` boundary runs its child under.
+ *
+ * DECIDED (2026-08-11, pending review): the id is DERIVED from the parent
+ * execution and the child node's structural address, not minted. That is what
+ * makes a boundary at-most-once under replay, exactly as
+ * `docs/specs/Concepts/Trampoline Loops.md` requires of a round handoff: a
+ * parent that is re-driven re-derives the same id, so the engine lands on the
+ * child execution that already exists instead of starting a second copy of it.
+ * The canonical tuple includes the callee and a canonical payload digest, so
+ * delimiter splicing and a changed invocation cannot alias an earlier child.
+ * SHA-256 uses the same injected derivation services as the repository's
+ * other durable identities.
+ *
+ * @since 0.1.0
+ * @category constructors
+ */
+export const childExecutionId = (
+  parentExecutionId: string,
+  nodeId: string,
+  calleeTag: string,
+  payload: unknown
+): Effect.Effect<string, never, Crypto.Crypto> =>
+  Effect.gen(function*() {
+    const payloadDigest = yield* Schema.decodeUnknownEffect(Key)(payload).pipe(Effect.orDie)
+    const tupleDigest = yield* Schema.decodeUnknownEffect(Key)([
+      parentExecutionId,
+      nodeId,
+      calleeTag,
+      payloadDigest
+    ]).pipe(Effect.orDie)
+    return tupleDigest.slice("key1_".length)
+  })
+
+/**
  * Interprets a flow body, or a bare node, against real values.
  *
  * The graph is built first and in full — planning is a pure function of the
@@ -160,6 +201,7 @@ export const interpret = (
     // have reached, because the plan is the declared ceiling of what may run.
     const implementations = new Map<string, Implementation>()
     const handoffDeclarations = new Map<string, AnyFlow>()
+    const childDeclarations = new Map<string, AnyWithProps>()
     for (const node of Graph.nodes(graph)) {
       for (const dependency of KeyMaterial.dependencies(node.draft.material)) {
         if (byId.has(dependency)) continue
@@ -180,6 +222,23 @@ export const interpret = (
           )
         }
         handoffDeclarations.set(node.id, declaration as unknown as AnyFlow)
+        continue
+      }
+      if (node.ast._tag === "FlowCall" && node.ast.mode === "boundary") {
+        // A boundary is one node here and a real execution underneath, so what
+        // it needs resolved up front is the callee itself: the declaration is
+        // what `execute` is called on, and losing it is a wiring error rather
+        // than a run-time contingency, exactly like an unimplemented activity.
+        const declaration = Node.declaration(node.ast)
+        if (!Predicate.hasProperty(declaration, FlowTypeId)) {
+          return yield* refuse(
+            "unsupported_call",
+            node.id,
+            `Child boundary to flow "${node.ast.flow}" at "${node.id}" lost its declaration. ` +
+              "Build and interpret the authored node in the same process so the child can be executed."
+          )
+        }
+        childDeclarations.set(node.id, declaration as unknown as AnyWithProps)
         continue
       }
       if (node.ast._tag !== "ActivityCall") continue
@@ -317,13 +376,40 @@ export const interpret = (
                 payload
               } satisfies Outcome.To<unknown>
             }
+            if (ast.mode === "boundary") {
+              // The real boundary of `docs/specs/Concepts/Subflows.md`: an
+              // ordinary child execution, opened through the same `execute` a
+              // handler would call. The parent's `FlowInstance` is in scope, so
+              // the engine records the lineage edge, interrupts the child with
+              // the parent, and turns a suspended child into a suspended
+              // parent — genuine nesting, not a spliced imitation of it. It is
+              // deliberately NOT `Effect.scoped`: the interrupt link the engine
+              // installs is a finalizer of the PARENT's scope, and closing a
+              // scope of our own here would run it the moment the child
+              // settled. The same dynamic schema-service erasure the handoff
+              // above records applies to the cast: a body's type cannot
+              // enumerate the declarations hidden in its topology.
+              const declaration = childDeclarations.get(node.id)!
+              const instance = yield* FlowInstance
+              const childPayload = resolve(node.payload)
+              const executionId = yield* (childExecutionId(
+                instance.executionId,
+                node.id,
+                declaration._tag,
+                childPayload
+              ) as unknown as Effect.Effect<string, never, Services>)
+              return yield* (declaration.execute(childPayload, {
+                executionId
+              }) as Effect.Effect<unknown, unknown, Services>)
+            }
             const spliced = children[0]
             if (spliced === undefined) {
               return yield* refuse(
                 "unsupported_call",
                 node.id,
                 `Flow "${ast.flow}" is called at "${node.id}" as a leaf, which this interpreter does not drive. ` +
-                  "An inline .call() of a flow that has a body is spliced into the graph and driven with it."
+                  "An inline .call() of a flow that has a body is spliced into the graph and driven with it; " +
+                  `give ${ast.flow} a body, or call it as ${ast.flow}.child(payload) to run it as its own execution.`
               )
             }
             return yield* settle(spliced)

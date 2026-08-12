@@ -81,6 +81,22 @@ export interface Flow<
   ) => Node.Node<Success["Type"], Error["Type"]>
 
   /**
+   * Describes an explicit child boundary: ONE node in the caller's plan, and a
+   * real child execution when that node is driven.
+   *
+   * `.call()` splices this flow's body into the caller's plan, so every inner
+   * step is visible and individually keyed. `.child()` is the other choice
+   * `docs/specs/Concepts/Unified Flow Authoring.md` gives: the callee keeps its
+   * own execution, journal lineage, retry policy, and placement, and the caller
+   * sees one leaf. It is also the way out of the two build refusals inline
+   * expansion raises — a recursive `.call()` and a placement the caller cannot
+   * satisfy.
+   */
+  readonly child: (
+    payload: PlannedPayload<Payload["~type.make.in"]>
+  ) => Node.Node<Success["Type"], Error["Type"]>
+
+  /**
    * Describes a serializable invocation for the next trampoline round.
    */
   readonly to: (

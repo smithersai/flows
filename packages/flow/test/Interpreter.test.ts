@@ -374,20 +374,22 @@ describe("Interpreter refusals", () => {
     })
   })
 
-  it("refuses a call it keeps as a leaf, naming inline expansion as what it drives", async () => {
-    const Child = Flow.make("interpreter/child", {
+  it("refuses an inline call it keeps as a leaf, naming the body and the boundary as the fixes", async () => {
+    // A body-less callee has nothing to splice, so an inline call to it stays a
+    // leaf — and a leaf inline call is the one flow node with no behavior at
+    // all. `.child()` is a leaf too, but it has an execution underneath it.
+    const Bodyless = Flow.make("interpreter/leaf-callee", {
       payload: { path: Schema.String },
-      success: Schema.Number,
-      body: ({ path }) => Write.call({ path, value: 1 })
+      success: Schema.Number
     })
-    const boundary: Node.Node<number> = Node.flowCall(Child, "interpreter/child", "boundary", { path: "p" })
+    const inline: Node.Node<number> = Node.flowCall(Bodyless, "interpreter/leaf-callee", "inline", { path: "p" })
 
-    expect(await refusal(Interpreter.interpret(boundary))).toMatchObject({
+    expect(await refusal(Interpreter.interpret(inline))).toMatchObject({
       error: {
         _tag: "@smthrs/flow/InterpreterError",
         code: "unsupported_call",
         node: "root",
-        message: expect.stringContaining("interpreter/child")
+        message: expect.stringContaining("interpreter/leaf-callee.child(payload)")
       }
     })
   })
