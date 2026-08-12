@@ -8,6 +8,7 @@ import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
 import { Sha256 } from "@smthrs/crypto"
 import { FileBoundary } from "@smthrs/flow/FileBoundary"
 import { FileInput } from "@smthrs/flow/FileInput"
+import { Key } from "@smthrs/keys"
 import * as Context from "effect/Context"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
@@ -578,9 +579,13 @@ export const makeFileSystem = (
         inlinedBytes += captured.inlinedBytes
         outputs.push(captured.output)
       }
-      const diffIdentity = yield* Schema.decodeUnknownEffect(Sha256)(JSON.stringify(
-        outputs.map((output) => [output.path, output.digest])
-      )).pipe(Effect.orDie)
+      // Through `Key` — the repo's one hashing chokepoint — so the identity is
+      // a digest of the RFC 8785 canonical form rather than of whatever
+      // `JSON.stringify` happened to emit for this shape.
+      const diffIdentity = yield* Schema.decodeUnknownEffect(Key)({
+        kind: "diff-identity",
+        outputs: outputs.map((output) => [output.path, output.digest])
+      }).pipe(Effect.orDie)
       if (undeclared.length > 0 && prepared.descriptor.boundaryMode === "hard") {
         return yield* Effect.fail(
           new UndeclaredWrite({ code: "undeclared_write", paths: undeclared, diffIdentity })
