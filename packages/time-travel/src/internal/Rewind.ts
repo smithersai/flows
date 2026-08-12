@@ -659,6 +659,20 @@ export const rewind = (
             }
           }
 
+          // The protocol runs under `restore(...)` inside an uninterruptible
+          // mask, so an interrupt lands as an interrupt-only cause on
+          // `protocolExit` and the rollback above still runs to completion.
+          // Squashing that cause through `toFailure` produced
+          // `TimeTravelError{code:"unknown"}`, so a cancelled rewind reported
+          // as a *failed* rewind: a caller racing `rewind` against a
+          // supervisor observed a failure and kept running on the fiber it
+          // believed it had cancelled. Cancellation is fiber interruption
+          // (`CLAUDE.md`), so the cause is re-raised verbatim and an interrupt
+          // stays an interrupt. A cause carrying any `Fail` or `Die` reason
+          // still reports as the typed failure the callers match on.
+          if (Cause.hasInterruptsOnly(protocolExit.cause)) {
+            return yield* Effect.failCause(protocolExit.cause)
+          }
           return yield* Effect.fail(failure)
         })
       )
