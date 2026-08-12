@@ -55,4 +55,25 @@ describe("Key", () => {
     const key = decode({ operation: "compile" })
     expect(Effect.runSync(Effect.flip(Schema.encodeEffect(Keys.Key)(key)))._tag).toBe("SchemaError")
   })
+
+  it("refuses to encode a key back to its input through encodeUnknown", () => {
+    // `SchemaGetter.forbidden` is the only thing stopping a `Key` from being
+    // turned back into the value that produced it, and `Schema.encodeUnknown`
+    // is the entry point that reaches it without the caller already holding a
+    // typed `Key`. The cell above covers `encodeEffect`; this covers the
+    // untyped door, which is the one an outside caller finds first.
+    const key = decode({ operation: "compile" })
+
+    const typed = Effect.runSync(Effect.flip(Schema.encodeUnknownEffect(Keys.Key)(key)))
+    expect(typed._tag).toBe("SchemaError")
+    expect(typed.message).toContain("A key cannot be converted back into its input")
+
+    // A raw string in the key's storage form is refused the same way: the
+    // forbidden getter runs after the brand check, so nothing gets through by
+    // spelling a well-formed key.
+    const raw = Effect.runSync(
+      Effect.flip(Schema.encodeUnknownEffect(Keys.Key)(`key1_${"a".repeat(64)}`))
+    )
+    expect(raw._tag).toBe("SchemaError")
+  })
 })

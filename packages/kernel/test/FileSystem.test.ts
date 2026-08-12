@@ -303,6 +303,62 @@ describe("FileSystem", () => {
     )
   })
 
+  itEffect("does not check symlink's `from`, and denies a later read through the link", () => {
+    // `FileSystem.ts:321-323` guards only `to` on `symlink`, so creating a link
+    // that points outside the workspace is permitted. The composed argument
+    // that makes the unchecked `from` safe was never written down as a test:
+    // every later access resolves through `canonicalResource`, which follows
+    // existing symlinks BEFORE the capability check, so reading through the
+    // link requires authority over the real target. The gap is closed at
+    // access time, not at creation time.
+    const checks: Array<Capability.Capability> = []
+    let linked: { readonly from: string; readonly to: string } | undefined
+    let read = false
+    const host = hostFileSystem({
+      symlink: (from, to) =>
+        Effect.sync(() => {
+          linked = { from, to }
+        }),
+      // The link does not exist until `symlink` creates it, so canonical
+      // resolution only starts following it afterwards.
+      realPath: (path) =>
+        Effect.succeed(path === "/workspace/escape" && linked !== undefined ? "/outside/secret" : path),
+      stat: () =>
+        Effect.succeed({
+          type: "File",
+          nlink: Option.none()
+        } as unknown as EffectFileSystem.File.Info),
+      readFile: () =>
+        Effect.sync(() => {
+          read = true
+          return new Uint8Array()
+        })
+    })
+
+    return provide(
+      Effect.gen(function*() {
+        const fileSystem = yield* EffectFileSystem.FileSystem
+        // Creating the link succeeds: only `to` is checked, and it is inside.
+        yield* fileSystem.symlink("/outside/secret", "escape")
+        expect(linked).toEqual({ from: "/outside/secret", to: "/workspace/escape" })
+        expect(checks).toEqual([{ action: "fs:write", resource: "/workspace/escape" }])
+
+        // Reading through it is denied against the REAL target, which the
+        // workspace grant does not cover.
+        expect(denial(yield* Effect.flip(fileSystem.readFile("escape")))).toMatchObject({
+          code: "permission_denied",
+          capability: { action: "fs:read", resource: "/outside/secret" }
+        })
+        expect(read).toBe(false)
+        expect(checks[1]).toEqual({ action: "fs:read", resource: "/outside/secret" })
+      }),
+      host,
+      // Authority over the workspace path only. Nothing grants
+      // `fs:read:/outside/secret`, which is what the read resolves to.
+      scriptedStore(new Set(["fs:write:/workspace/escape", "fs:read:/workspace/escape"]), checks)
+    )
+  })
+
   itEffect("resolves a dangling symlink before an outside write creates its target", () => {
     const checks: Array<Capability.Capability> = []
     let invoked = false
