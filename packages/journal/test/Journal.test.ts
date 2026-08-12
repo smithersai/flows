@@ -1375,3 +1375,38 @@ describe("Journal", () => {
       )
     ))
 })
+
+describe("makeEventId injectivity (D5)", () => {
+  // `selectExisting` used to look a duplicate up by `event_id = X OR
+  // (run_id, source_id, source_seq) = (…)`. `makeEventId` is a pure function
+  // of exactly that triple, so the two predicates selected the same row and
+  // the `ORDER BY seq ASC LIMIT 1` tiebreak was unreachable. The disjunction
+  // is gone; the property it silently relied on is asserted here instead, and
+  // `UNIQUE (event_id)` in the migration remains the durable authority.
+  const id = (run: string, source: string, sequence: number) =>
+    makeEventId(runId(run), sourceId(source), sourceSeq(sequence))
+
+  it("maps distinct triples to distinct event ids", () => {
+    const triples: ReadonlyArray<readonly [string, string, number]> = [
+      ["run", "source", 0],
+      ["run", "source", 1],
+      ["run", "other", 0],
+      ["other", "source", 0],
+      // The separator-injection corners: a run id ending in what looks like a
+      // length prefix, and ids whose concatenation would otherwise coincide.
+      ["run:source", "", 0],
+      ["run", ":source", 0],
+      ["ru", "nsource", 0],
+      ["run1", "source", 0],
+      ["run", "source1", 0],
+      ["run", "source", 10]
+    ]
+    const ids = triples.map(([run, source, sequence]) => id(run, source, sequence))
+
+    expect(new Set(ids).size).toBe(triples.length)
+  })
+
+  it("is a pure function of the triple", () => {
+    expect(id("run", "source", 3)).toBe(id("run", "source", 3))
+  })
+})
