@@ -60,6 +60,14 @@ jobs:
         run: npm run lint
       - name: Circular-dependency guard
         run: npm run circular
+      # The gate roster here must stay a superset of ci.yml's. The browser
+      # guard and the release manifest unit test are the two that used to run
+      # only on the pull-request path, so a re-tag or a hotfix tag could
+      # publish without them. scripts/pack-release.test.mjs asserts that.
+      - name: Browser bundle guard
+        run: npm run browser
+      - name: Release manifest unit test
+        run: node --test scripts/pack-release.test.mjs
       - name: Build all workspaces from clean artifacts
         run: |
           find packages -type d -name dist -prune -exec rm -rf {} +
@@ -72,42 +80,29 @@ jobs:
         run: |
           node scripts/pack-release.mjs "$PACK_DIR"
           node scripts/smoke-release.mjs "$PACK_DIR"
+      # The package set and its order come from scripts/pack-release.mjs, which
+      # derives membership from packages/* and order from the workspace
+      # dependency edges. Reading manifest.json publishes exactly what the pack
+      # step produced, in the packed order, so the two lists cannot drift.
       - name: Publish packages in dependency order
         env:
           PACK_DIR: ${{ runner.temp }}/release-packs
+          PUBLISH_ORDER: ${{ runner.temp }}/publish-order.txt
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           release_version="${RELEASE_TAG#v}"
           publish_tag="latest"
           case "$release_version" in *-*) publish_tag="next" ;; esac
-          publish_if_missing() {
-            workspace="$1"
+          node -e '
+            const { readFileSync } = require("node:fs")
+            const packed = JSON.parse(readFileSync(process.env.PACK_DIR + "/manifest.json", "utf8"))
+            for (const entry of packed) console.log(entry.name + " " + entry.filename)
+          ' > "$PUBLISH_ORDER"
+          while read -r workspace tarball; do
             spec="$workspace@$release_version"
             if npm view "$spec" version --json >/dev/null 2>&1; then
               echo "$spec is already published; leaving the immutable version in place."
-              return
+              continue
             fi
-            tarball="${workspace#@}"
-            tarball="${tarball/\//-}-$release_version.tgz"
             npm publish "$PACK_DIR/$tarball" --provenance --access public --tag "$publish_tag"
-          }
-          publish_if_missing @smthrs/canonical
-          publish_if_missing @smthrs/capability
-          publish_if_missing @smthrs/crypto
-          publish_if_missing @smthrs/database
-          publish_if_missing @smthrs/keys
-          publish_if_missing @smthrs/jj
-          publish_if_missing @smthrs/journal
-          publish_if_missing @smthrs/run-store
-          publish_if_missing @smthrs/step-cache
-          publish_if_missing @smthrs/flow
-          publish_if_missing @smthrs/engine
-          publish_if_missing @smthrs/kernel
-          publish_if_missing @smthrs/platform-browser
-          publish_if_missing @smthrs/platform-node
-          publish_if_missing @smthrs/platform-bun
-          publish_if_missing @smthrs/sandbox
-          publish_if_missing @smthrs/sync
-          publish_if_missing @smthrs/engine-store
-          publish_if_missing @smthrs/time-travel
-          publish_if_missing @smthrs/flows
+          done < "$PUBLISH_ORDER"

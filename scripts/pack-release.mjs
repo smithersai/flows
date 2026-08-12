@@ -8,6 +8,7 @@
  * copy whose exports are rewritten to the already-built ESM/CJS artifacts.
  */
 import { spawn } from "node:child_process"
+import { existsSync, readFileSync, readdirSync } from "node:fs"
 import { access, cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { basename, dirname, join, relative, resolve, sep } from "node:path"
@@ -15,31 +16,96 @@ import { fileURLToPath, pathToFileURL } from "node:url"
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 
+const packagesRoot = join(repoRoot, "packages")
+
+/**
+ * Reads every publishable workspace under `packages/`, keyed by directory name.
+ *
+ * Membership is derived, never restated. A directory qualifies when it holds a
+ * `package.json` whose `private` is falsy. Directories a deleted package left
+ * behind carry no manifest and are skipped.
+ */
+export const readWorkspaceManifests = (root = packagesRoot) => {
+  const manifests = new Map()
+  for (const entry of readdirSync(root, { withFileTypes: true }).sort((a, b) => a.name < b.name ? -1 : 1)) {
+    if (!entry.isDirectory()) continue
+    const manifestPath = join(root, entry.name, "package.json")
+    if (!existsSync(manifestPath)) continue
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"))
+    if (manifest.private) continue
+    manifests.set(entry.name, manifest)
+  }
+  return manifests
+}
+
+/**
+ * Maps each workspace directory to the workspace directories it depends on.
+ *
+ * Only `@smthrs/*` edges resolving to a member of `manifests` are kept, so a
+ * dependency on something outside the release set cannot order the release.
+ */
+export const workspaceDependencies = (manifests) => {
+  const directoryOf = new Map(
+    [...manifests].map(([directory, manifest]) => [manifest.name, directory])
+  )
+  return new Map([...manifests].map(([directory, manifest]) => [
+    directory,
+    new Set(
+      Object.keys({ ...manifest.dependencies, ...manifest.peerDependencies })
+        .map((dependency) => directoryOf.get(dependency))
+        .filter((dependency) => dependency !== undefined)
+    )
+  ]))
+}
+
+const dependsOnItself = (node, dependencies, remaining) => {
+  const pending = [...dependencies.get(node)].filter((edge) => remaining.has(edge))
+  const seen = new Set()
+  while (pending.length > 0) {
+    const current = pending.pop()
+    if (current === node) return true
+    if (seen.has(current)) continue
+    seen.add(current)
+    for (const edge of dependencies.get(current)) {
+      if (remaining.has(edge)) pending.push(edge)
+    }
+  }
+  return false
+}
+
+/**
+ * Orders workspaces so a package follows every workspace dependency it declares.
+ *
+ * The graph is not acyclic. `@smthrs/kernel` publishes `kernel/test/TestHost`,
+ * which imports `@smthrs/platform-browser`, and `platform-browser` imports
+ * `@smthrs/kernel` back. So the order emits an unblocked workspace whenever one
+ * exists, and otherwise enters the remaining cycle at its alphabetically first
+ * member. Only a genuine cycle is ever broken; every other edge is respected.
+ */
+export const dependencyOrder = (dependencies) => {
+  const remaining = new Set([...dependencies.keys()].sort())
+  const ordered = []
+  while (remaining.size > 0) {
+    const unblocked = [...remaining].find((candidate) =>
+      [...dependencies.get(candidate)].every((edge) => !remaining.has(edge))
+    )
+    // Every remaining workspace is blocked, so the remaining subgraph has an
+    // out-edge everywhere and therefore contains a cycle to enter.
+    const next = unblocked ??
+      [...remaining].find((candidate) => dependsOnItself(candidate, dependencies, remaining))
+    if (next === undefined) {
+      throw new Error(`no orderable workspace among ${[...remaining].join(", ")}`)
+    }
+    ordered.push(next)
+    remaining.delete(next)
+  }
+  return ordered
+}
+
 /**
  * Dependency order used for release packing and publication.
  */
-export const workspaces = [
-  "canonical",
-  "capability",
-  "crypto",
-  "database",
-  "keys",
-  "jj",
-  "journal",
-  "run-store",
-  "step-cache",
-  "flow",
-  "engine",
-  "kernel",
-  "platform-browser",
-  "platform-node",
-  "platform-bun",
-  "sandbox",
-  "sync",
-  "engine-store",
-  "time-travel",
-  "flows"
-]
+export const workspaces = dependencyOrder(workspaceDependencies(readWorkspaceManifests()))
 
 const isRecord = (value) => typeof value === "object" && value !== null && !Array.isArray(value)
 

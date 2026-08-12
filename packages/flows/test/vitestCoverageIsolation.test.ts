@@ -258,7 +258,11 @@ describe("vitest coverage isolation conformance", () => {
     expect(releasePin?.[1]).toBe(ciPin?.[1])
     expect(release).toContain("npm publish \"$PACK_DIR/$tarball\"")
     expect(release).toContain("npm view \"$spec\" version")
-    expect(release).toContain("publish_if_missing")
+    // The published set and its order are read out of the pack manifest, so a
+    // restated package list cannot drift from what was packed. `scripts/
+    // pack-release.test.mjs` holds the rest of that conformance suite.
+    expect(release).toContain("manifest.json")
+    expect(release).not.toContain("publish_if_missing")
     const packScript = readFileSync(join(packagesDir, "..", "scripts", "pack-release.mjs"), "utf8")
     const smokeScript = readFileSync(join(packagesDir, "..", "scripts", "smoke-release.mjs"), "utf8")
     expect(packScript).toContain("publicationManifest(manifest)")
