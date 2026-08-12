@@ -76,6 +76,26 @@ const recordingDatabase = (queries: Array<string>): DatabaseDecorator =>
     keepWriter
   )
 
+/** Forces a scheduling boundary after each lazy allocation-floor read. */
+const yieldingFloorDatabase: DatabaseDecorator = Layer.merge(
+  Layer.effect(
+    SqlClient.SqlClient,
+    Effect.gen(function*() {
+      const base = yield* Effect.service(SqlClient.SqlClient)
+      return new Proxy(base, {
+        apply(target, thisArgument, argumentsList) {
+          const statement = Reflect.apply(target, thisArgument, argumentsList) as Statement.Statement<unknown>
+          if (typeof statement.compile !== "function" || !statement.compile()[0].includes("MAX(")) {
+            return statement
+          }
+          return statement.pipe(Effect.tap(() => Effect.yieldNow))
+        }
+      }) as SqlClient.SqlClient
+    })
+  ),
+  keepWriter
+)
+
 const journal = (
   options: SqlJournal.SqlJournalOptions,
   database?: DatabaseDecorator
@@ -245,5 +265,34 @@ describe("SqlJournal allocation-floor index bounds (B9)", () => {
       expect(receipts.second).toMatchObject({ seq: 4, sourceSeq: 4 })
       // And it is cached: the second emit on the same run re-reads nothing.
       expect(queries.filter((query) => query.includes("MAX(seq) + 1"))).toHaveLength(1)
+    }))
+
+  effect("serializes concurrent first-use allocation-floor reads", () =>
+    Effect.gen(function*() {
+      const result = yield* Effect.gen(function*() {
+        const service = yield* Journal
+        const receipts = yield* Effect.all(
+          [service.emitLossy(input(0)), service.emitLossy(input(1))],
+          { concurrency: "unbounded" }
+        )
+        yield* service.flush
+        const page = yield* service.entries({ runId: run, limit: 10 })
+        return { receipts, entries: page.entries }
+      }).pipe(
+        Effect.provide(
+          journal(
+            { capacity: 64, overflow: "reject", sourceEventCache: 2 },
+            yieldingFloorDatabase
+          )
+        ),
+        Effect.scoped
+      )
+
+      // Lazy initialization crosses an asynchronous SQL boundary. Without an
+      // allocation permit, both first emits can read seq 0 before either one
+      // raises the in-process floor, queue duplicate canonical sequences, and
+      // lose the batch to `sequence_conflict` at flush.
+      expect(result.receipts.map((receipt) => receipt.seq)).toEqual([0, 1])
+      expect(result.entries.map((entry) => entry.seq)).toEqual([0, 1])
     }))
 })

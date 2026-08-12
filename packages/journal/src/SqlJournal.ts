@@ -29,6 +29,7 @@ import * as PubSub from "effect/PubSub"
 import * as Queue from "effect/Queue"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
+import * as Semaphore from "effect/Semaphore"
 import * as Stream from "effect/Stream"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import type * as SqlError from "effect/unstable/sql/SqlError"
@@ -65,9 +66,12 @@ export interface SqlJournalOptions {
    * re-checks `flows_journal_events` under the `(run_id, source_id,
    * source_seq)` unique constraint, so an evicted entry re-emitted later is
    * still deduplicated durably and still reports an `idempotency_conflict` on
-   * changed content. Bounding it keeps startup decode and resident memory
-   * O(bound) rather than O(total events ever written), mirroring Temporal's
-   * refusal to hold unbounded history in a shard (`service/history`).
+   * changed content. Bounding it keeps startup decode and this cache's resident
+   * memory O(bound) rather than O(total events ever written), mirroring
+   * Temporal's refusal to hold unbounded history in a shard
+   * (`service/history`). The separate sequence-floor maps start empty and grow
+   * only with runs and producers this layer instance touches; they are lazy,
+   * not governed by this bound.
    */
   readonly sourceEventCache?: number | undefined
   /**
@@ -325,6 +329,10 @@ export const layer = (
         sourceEvents: initialized.sourceEvents,
         flushWaiters: new Set()
       }
+      // A lazy floor read yields to the SQL driver. Keep that read and the
+      // following in-memory allocation in one critical section, or two first
+      // emits can both observe the same durable floor before either raises it.
+      const allocation = yield* Semaphore.make(1)
 
       /**
        * Adds an entry to the bounded source-event index, evicting the
@@ -413,7 +421,7 @@ export const layer = (
         })
 
       const queuedEmit: Service["emitLossy"] = Effect.fn("Journal.emitLossy")((input: Input) =>
-        Effect.flatMap(Clock.currentTimeMillis, (emittedAtMs) =>
+        allocation.withPermit(Effect.flatMap(Clock.currentTimeMillis, (emittedAtMs) =>
           Effect.flatMap(
             Effect.suspend(() => Effect.fromResult(prepare(input, emittedAtMs))),
             (prepared) =>
@@ -538,7 +546,7 @@ export const layer = (
                     })
                   )
               )
-          ))
+          )))
       )
 
       const readPage: Service["entries"] = Effect.fn("Journal.entries")((pageOptions) =>
