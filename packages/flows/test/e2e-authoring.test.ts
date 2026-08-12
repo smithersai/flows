@@ -411,7 +411,9 @@ describe("a lineage survives the process that was driving it", () => {
     ])
     expect(observed.finished.map((row) => row.roundOrdinal)).toEqual([0, 1, 2])
   })
+})
 
+describe("a lineage may not open more rounds than it declared", () => {
   it("ends the lineage with the typed refusal when the round budget is spent", async () => {
     const calls: Array<number> = []
     const observed = await durable(Effect.gen(function*() {
@@ -497,6 +499,19 @@ describe("a body is refused for computing on a value that does not exist yet", (
         { value: 0 }
       )
     )
+    const stringified = refused(() =>
+      Graph.build(
+        Flow.make("e2e/trap-tostring", {
+          payload: { value: Schema.Number },
+          success: Schema.Number,
+          body: ({ value }) =>
+            Increment.call({ value }).pipe(
+              Node.andThen((next) => Node.succeed(Number((next as unknown as { toString: () => string }).toString())))
+            )
+        }),
+        { value: 0 }
+      )
+    )
     const applied = refused(() =>
       Graph.build(
         Flow.make("e2e/trap-apply", {
@@ -511,9 +526,41 @@ describe("a body is refused for computing on a value that does not exist yet", (
       )
     )
 
+    // The four named conversions plus application are the whole refusal set of
+    // `Planned`; a body that reaches any of them is computing, not referring.
     expect(method.message).toContain("valueOf")
+    expect(stringified.message).toContain("toString")
+    expect(stringified.node).toBe("root.flow.andThen")
     expect(applied.message).toContain("function application")
     expect(applied.node).toBe("root.flow.andThen")
+  })
+
+  it("names the field path the body reached through before it computed", () => {
+    const Shaped = Activity.make("e2e/shaped", {
+      payload: { value: Schema.Number },
+      success: Schema.Struct({ count: Schema.Number })
+    })
+    const error = refused(() =>
+      Graph.build(
+        Flow.make("e2e/trap-field", {
+          payload: { value: Schema.Number },
+          success: Schema.Number,
+          body: ({ value }) =>
+            Shaped.call({ value }).pipe(
+              Node.andThen((shaped) => Node.succeed((shaped.count as unknown as number) + 1))
+            )
+        }),
+        { value: 0 }
+      )
+    )
+
+    // Reaching the field is legal and records a reference path; computing on
+    // what it reached is not, and the refusal reports the whole reference
+    // rather than only the node that produced it.
+    expect(error.code).toBe("planned_value_computed")
+    expect(error.node).toBe("root.flow.andThen")
+    expect(error.path).toEqual(["count"])
+    expect(error.message).toContain("root.flow.andThen.count")
   })
 
   it("allows the same value to be passed, and reads the field it named", async () => {
@@ -625,8 +672,8 @@ describe("a child boundary is a real execution", () => {
   it("runs the child under its own derived id, with the parent edge recorded", async () => {
     const calls: Array<number> = []
     const replayed: Array<number> = []
-    const childId = Interpreter.childExecutionId("boundary-parent", "root.flow.map")
     const observed = await durable(Effect.gen(function*() {
+      const childId = yield* Interpreter.childExecutionId("boundary-parent", "root.flow.map", Child._tag, { value: 4 })
       const store = yield* RunStore.RunStore
       const state = yield* DurableEngineState.DurableEngineState
       const first = yield* incarnation({
@@ -671,8 +718,8 @@ describe("a child boundary is a real execution", () => {
   })
 
   it("suspends the parent behind a child that parked", async () => {
-    const childId = Interpreter.childExecutionId("gate-parent", "root.flow")
     const observed = await durable(Effect.gen(function*() {
+      const childId = yield* Interpreter.childExecutionId("gate-parent", "root.flow", Gate._tag, { value: 1 })
       const store = yield* RunStore.RunStore
       const state = yield* DurableEngineState.DurableEngineState
       const { wiring } = yield* incarnation({
