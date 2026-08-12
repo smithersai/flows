@@ -11,9 +11,10 @@
  */
 import { DurableWriter, fromSqlError } from "@smthrs/database/DurableWriter"
 import type { OwnerId } from "@smthrs/journal/OwnerId"
-import { Clock, Context, Effect, Layer, Schema } from "effect"
+import { Clock, Context, Duration, Effect, Layer, Schema } from "effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import type * as SqlError from "effect/unstable/sql/SqlError"
+import { heartbeatStaleAfter } from "./Heartbeat.ts"
 import type { LivenessEvidence } from "./Ownership.ts"
 
 /**
@@ -347,7 +348,12 @@ const fenceLost = { _tag: "FenceLost" } as const
 const transitioned = { _tag: "Transitioned" } as const
 const guardFailed = { _tag: "GuardFailed" } as const
 
-const heartbeatStaleAfterMs = 30_000
+/**
+ * The staleness cutoff in milliseconds, derived from the one definition rather
+ * than restated. `Ownership` imports `RunStore`, so the shared constants live
+ * in the `Heartbeat` leaf both can reach.
+ */
+const heartbeatStaleAfterMs = Duration.toMillis(heartbeatStaleAfter)
 const terminalStatuses: ReadonlySet<RunStatus> = new Set(["completed", "failed", "cancelled"])
 
 const DatabaseRunRow = Schema.Struct({
