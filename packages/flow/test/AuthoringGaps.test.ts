@@ -6,21 +6,34 @@
  * idempotency-key scoping forms, infrastructure-interrupt exhaustion, the
  * flow scope helpers, and the waiting annotation a durable driver reads.
  */
-import { Activity, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
+import { Activity, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
 import { Cause, Context, Effect, Exit, Layer, Option, Schedule, Schema, Scope } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
 import { runPromise } from "./Crypto.ts"
-import { layerMemory, makeInstance } from "./MemoryFlowRuntime.ts"
+import { layerWired, makeInstance } from "./MemoryFlowRuntime.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
   it(name, () => runPromise(body()))
 
+/** The one step the host flow is made of; each case supplies its body. */
+const Block = Activity.make("Gaps/Block", {
+  payload: { id: Schema.String },
+  success: Schema.Void
+})
+
 const Host = Flow.make("Gaps/Host", {
   payload: { id: Schema.String },
   success: Schema.Void,
-  idempotencyKey: ({ id }) => id
+  idempotencyKey: ({ id }) => id,
+  body: (payload) => Block.call(payload)
 })
+
+/** The host flow, wired to run `execute` as its single declared step. */
+const hosted = (
+  execute: () => Effect.Effect<void, never, FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance>
+): Layer.Layer<FlowRuntime.FlowRuntime | Activity.Implementations> =>
+  layerWired(Layer.mergeAll(Block.toLayer(execute), Interpreter.layer(Host)))
 
 describe("Activity.CacheEnvironment", () => {
   it("accepts a complete environment and rejects an empty capability name", () => {
@@ -82,9 +95,7 @@ describe("Activity infrastructure-interrupt retry", () => {
         return Effect.fail(new Activity.InfraInterrupt({ reason: "host lost" }))
       })
     })
-    const layer = Host.toLayer(() => Effect.asVoid(activity).pipe(Effect.orDie)).pipe(
-      Layer.provideMerge(layerMemory)
-    )
+    const layer = hosted(() => Effect.asVoid(activity).pipe(Effect.orDie))
     return Effect.gen(function*() {
       const exit = yield* Host.execute({ id: "infra" }).pipe(Effect.exit)
       expect(Exit.isFailure(exit)).toBe(true)
@@ -101,9 +112,7 @@ describe("Activity infrastructure-interrupt retry", () => {
       interruptRetryPolicy: Schedule.recurs(2),
       execute: Effect.fail("plain")
     })
-    const layer = Host.toLayer(() => Effect.asVoid(activity).pipe(Effect.orDie)).pipe(
-      Layer.provideMerge(layerMemory)
-    )
+    const layer = hosted(() => Effect.asVoid(activity).pipe(Effect.orDie))
     return Effect.gen(function*() {
       const exit = yield* Host.execute({ id: "other" }).pipe(Effect.exit)
       expect(Exit.isFailure(exit)).toBe(true)
@@ -115,7 +124,7 @@ describe("Activity infrastructure-interrupt retry", () => {
 describe("flow scope helpers", () => {
   effect("scope and provideScope expose the flow lifetime scope", () => {
     let finalized = 0
-    const layer = Host.toLayer(() =>
+    const layer = hosted(() =>
       Effect.gen(function*() {
         const flowScope = yield* Flow.scope
         expect(flowScope).toBeDefined()
@@ -125,10 +134,10 @@ describe("flow scope helpers", () => {
             (scope) => Scope.addFinalizer(scope, Effect.sync(() => void finalized++))
           )
         )
-        // the flow scope outlives the body: nothing has run yet
+        // the scope outlives the step that registered on it: nothing has run yet
         expect(finalized).toBe(0)
       })
-    ).pipe(Layer.provideMerge(layerMemory))
+    )
     return Effect.gen(function*() {
       yield* Host.execute({ id: "scope" })
       expect(finalized).toBe(1)
@@ -138,14 +147,19 @@ describe("flow scope helpers", () => {
 
 describe("Flow annotations", () => {
   effect("annotateMerge folds a context into the flow definition, and an uncaptured defect escapes", () => {
+    const Defective = Activity.make("Gaps/Uncaptured/step", {
+      payload: { id: Schema.String },
+      success: Schema.Void
+    })
     const Uncaptured = Flow.make("Gaps/Uncaptured", {
       payload: { id: Schema.String },
       success: Schema.Void,
-      idempotencyKey: ({ id }) => id
+      idempotencyKey: ({ id }) => id,
+      body: (payload) => Defective.call(payload)
     }).annotateMerge(Context.make(Flow.CaptureDefects, false))
     expect(Uncaptured._tag).toBe("Gaps/Uncaptured")
-    const layer = Uncaptured.toLayer(() => Effect.die("boom")).pipe(
-      Layer.provideMerge(layerMemory)
+    const layer = layerWired(
+      Layer.mergeAll(Defective.toLayer(() => Effect.die("boom")), Interpreter.layer(Uncaptured))
     )
     return Effect.gen(function*() {
       const exit = yield* Uncaptured.execute({ id: "defect" }).pipe(Effect.exit)
@@ -157,14 +171,14 @@ describe("Flow annotations", () => {
 describe("DurableDeferred.into", () => {
   effect("strips interrupt reasons from a mixed cause before recording it", () => {
     const gate = DurableDeferred.make("Gaps/mixed", { error: Schema.String })
-    const layer = Host.toLayer(() =>
+    const layer = hosted(() =>
       DurableDeferred.into(
         Effect.failCause(
           Cause.combine(Cause.fail("real"), Cause.interrupt(1))
         ) as Effect.Effect<void, string>,
         gate
       ).pipe(Effect.orDie)
-    ).pipe(Layer.provideMerge(layerMemory))
+    )
     return Effect.gen(function*() {
       const exit = yield* Host.execute({ id: "mixed" }).pipe(Effect.exit)
       expect(Exit.isFailure(exit)).toBe(true)
@@ -174,11 +188,11 @@ describe("DurableDeferred.into", () => {
 
   effect("a plain failure is recorded verbatim", () => {
     const gate = DurableDeferred.make("Gaps/plain", { error: Schema.String })
-    const layer = Host.toLayer(() =>
+    const layer = hosted(() =>
       DurableDeferred.into(Effect.fail("just failed") as Effect.Effect<void, string>, gate).pipe(
         Effect.orDie
       )
-    ).pipe(Layer.provideMerge(layerMemory))
+    )
     return Effect.gen(function*() {
       const exit = yield* Host.execute({ id: "plain-fail" }).pipe(Effect.exit)
       expect(Exit.isFailure(exit)).toBe(true)
@@ -188,11 +202,11 @@ describe("DurableDeferred.into", () => {
 
   effect("an interrupt-only cause without a suspension is still recorded", () => {
     const gate = DurableDeferred.make("Gaps/interrupted", { error: Schema.String })
-    const layer = Host.toLayer(() =>
+    const layer = hosted(() =>
       DurableDeferred.into(Effect.interrupt as Effect.Effect<void, string>, gate).pipe(
         Effect.orDie
       )
-    ).pipe(Layer.provideMerge(layerMemory))
+    )
     return Effect.gen(function*() {
       const exit = yield* Host.execute({ id: "interrupted" }).pipe(Effect.exit)
       expect(Exit.isFailure(exit)).toBe(true)

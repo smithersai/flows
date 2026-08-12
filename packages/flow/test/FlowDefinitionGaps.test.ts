@@ -1,11 +1,12 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, Flow } from "@smthrs/flow"
+import { Activity, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
 import { Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
+import type * as Scope from "effect/Scope"
 import { describe, expect, it } from "vitest"
 import { runPromise } from "./Crypto.ts"
-import { layerMemory } from "./MemoryFlowRuntime.ts"
+import { layerWired } from "./MemoryFlowRuntime.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
   it(name, () => runPromise(body()))
@@ -40,11 +41,15 @@ describe("Flow.make payload and schema defaults", () => {
   })
 
   effect("defaults success to Void and error to Never when neither is declared", () => {
-    const flow = Flow.make("Definition/defaults", {
+    const Step = Activity.make("Definition/defaults/step", {
       payload: { id: Schema.String }
     })
-    const layer = flow.toLayer(() => Effect.void).pipe(
-      Layer.provideMerge(layerMemory)
+    const flow = Flow.make("Definition/defaults", {
+      payload: { id: Schema.String },
+      body: (payload) => Step.call(payload)
+    })
+    const layer = layerWired(
+      Layer.mergeAll(Step.toLayer(() => Effect.void), Interpreter.layer(flow))
     )
     return Effect.gen(function*() {
       expect(flow.successSchema.ast).toBe(Schema.Void.ast)
@@ -54,13 +59,19 @@ describe("Flow.make payload and schema defaults", () => {
   })
 
   effect("keeps declared success and error schemas instead of the defaults", () => {
-    const flow = Flow.make("Definition/declared", {
+    const Step = Activity.make("Definition/declared/step", {
       payload: Schema.Struct({ id: Schema.String }),
       success: Schema.Number,
       error: Schema.String
     })
-    const layer = flow.toLayer(() => Effect.succeed(1)).pipe(
-      Layer.provideMerge(layerMemory)
+    const flow = Flow.make("Definition/declared", {
+      payload: Schema.Struct({ id: Schema.String }),
+      success: Schema.Number,
+      error: Schema.String,
+      body: (payload) => Step.call(payload)
+    })
+    const layer = layerWired(
+      Layer.mergeAll(Step.toLayer(() => Effect.succeed(1)), Interpreter.layer(flow))
     )
     return Effect.gen(function*() {
       expect(flow.successSchema.ast).toBe(Schema.Number.ast)
@@ -82,23 +93,48 @@ describe("Flow.make payload and schema defaults", () => {
   })
 })
 
+/**
+ * `Flow.Execution<Tag>` is a phantom marker no service ever provides; only
+ * `Flow.toLayer` discharges it, and the new authoring surface reaches a
+ * declared activity's implementation instead.
+ *
+ * DECIDED (2026-08-11, pending review): the definition-level combinator keeps
+ * its own coverage through this cast rather than the assertions moving to the
+ * module-level `Flow.withRollback`. A declared activity's implementation is
+ * exactly the position the marker stood for — inside a running execution, with
+ * the flow scope in context — so dropping the marker states what is true
+ * instead of silently retiring the combinator the definition still exposes.
+ */
+const inExecution = <A, E>(
+  effect: Effect.Effect<A, E, FlowRuntime.FlowInstance | Scope.Scope | Flow.Execution<string>>
+): Effect.Effect<A, E, FlowRuntime.FlowInstance> => effect as Effect.Effect<A, E, FlowRuntime.FlowInstance>
+
 describe("Flow definition combinators", () => {
   effect("withRollback is reachable from the definition as well as the module", () => {
     const rolledBack: Array<string> = []
-    const flow = Flow.make("Definition/rollback", {
+    const Step = Activity.make("Definition/rollback/step", {
       payload: { id: Schema.String },
       success: Schema.Void,
       error: Schema.String
     })
-    const layer = flow.toLayer(() =>
-      Effect.gen(function*() {
-        yield* flow.withRollback(
-          Effect.succeed("resource"),
-          (value: string) => Effect.sync(() => void rolledBack.push(`undo:${value}`))
-        )
-        return yield* Effect.fail("boom")
-      })
-    ).pipe(Layer.provideMerge(layerMemory))
+    const flow = Flow.make("Definition/rollback", {
+      payload: { id: Schema.String },
+      success: Schema.Void,
+      error: Schema.String,
+      body: (payload) => Step.call(payload)
+    })
+    const layer = layerWired(Layer.mergeAll(
+      Step.toLayer(() =>
+        Effect.gen(function*() {
+          yield* inExecution(flow.withRollback(
+            Effect.succeed("resource"),
+            (value: string) => Effect.sync(() => void rolledBack.push(`undo:${value}`))
+          ))
+          return yield* Effect.fail("boom")
+        })
+      ),
+      Interpreter.layer(flow)
+    ))
     return Effect.gen(function*() {
       const exit = yield* flow.execute({ id: "x" }, { executionId: "run" }).pipe(Effect.exit)
       expect(Exit.isFailure(exit)).toBe(true)
@@ -106,18 +142,26 @@ describe("Flow definition combinators", () => {
     }).pipe(Effect.provide(layer))
   })
 
-  effect("the definition-level combinator does not roll back a successful flow", () => {
+  effect("the definition-level combinator does not roll back a successful step", () => {
     const rolledBack: Array<string> = []
-    const flow = Flow.make("Definition/rollback-ok", {
+    const Step = Activity.make("Definition/rollback-ok/step", {
       payload: { id: Schema.String },
       success: Schema.String
     })
-    const layer = flow.toLayer(() =>
-      flow.withRollback(
-        Effect.succeed("kept"),
-        (value: string) => Effect.sync(() => void rolledBack.push(`undo:${value}`))
-      )
-    ).pipe(Layer.provideMerge(layerMemory))
+    const flow = Flow.make("Definition/rollback-ok", {
+      payload: { id: Schema.String },
+      success: Schema.String,
+      body: (payload) => Step.call(payload)
+    })
+    const layer = layerWired(Layer.mergeAll(
+      Step.toLayer(() =>
+        inExecution(flow.withRollback(
+          Effect.succeed("kept"),
+          (value: string) => Effect.sync(() => void rolledBack.push(`undo:${value}`))
+        ))
+      ),
+      Interpreter.layer(flow)
+    ))
     return Effect.gen(function*() {
       expect(yield* flow.execute({ id: "x" }, { executionId: "run" })).toBe("kept")
       expect(rolledBack).toEqual([])
@@ -145,16 +189,24 @@ describe("concurrent activity bookkeeping", () => {
         return "slow"
       })
     })
-    const flow = Flow.make("Definition/concurrent-pair", {
+    const Pair = Activity.make("Definition/concurrent-pair/step", {
       payload: { id: Schema.String },
       success: Schema.String
     })
-    const layer = flow.toLayer(() =>
-      Effect.map(
-        Effect.all([slow, quick], { concurrency: "unbounded" }),
-        ([a, b]) => `${a}+${b}`
-      )
-    ).pipe(Layer.provideMerge(layerMemory))
+    const flow = Flow.make("Definition/concurrent-pair", {
+      payload: { id: Schema.String },
+      success: Schema.String,
+      body: (payload) => Pair.call(payload)
+    })
+    const layer = layerWired(Layer.mergeAll(
+      Pair.toLayer(() =>
+        Effect.map(
+          Effect.all([slow, quick], { concurrency: "unbounded" }),
+          ([a, b]) => `${a}+${b}`
+        )
+      ),
+      Interpreter.layer(flow)
+    ))
     return Effect.gen(function*() {
       expect(yield* flow.execute({ id: "x" }, { executionId: "run-pair" })).toBe("slow+quick")
       // the quick activity settled first, while the slow one was still in flight
@@ -175,20 +227,29 @@ describe("concurrent activity bookkeeping", () => {
           return yield* Effect.fail(reason)
         })
       })
-    const flow = Flow.make("Definition/two-suspensions", {
+    const Both = Activity.make("Definition/two-suspensions/step", {
       payload: { id: Schema.String },
       success: Schema.String,
       error: Schema.String
+    })
+    const flow = Flow.make("Definition/two-suspensions", {
+      payload: { id: Schema.String },
+      success: Schema.String,
+      error: Schema.String,
+      body: (payload) => Both.call(payload)
     }).annotate(Flow.SuspendOnFailure, true)
-    const layer = flow.toLayer(() =>
-      Effect.map(
-        Effect.all([failing("Definition/f1", "first-boom", 1), failing("Definition/f2", "second-boom", 2)], {
-          concurrency: "unbounded",
-          mode: "result"
-        }),
-        () => "unreachable"
-      )
-    ).pipe(Layer.provideMerge(layerMemory))
+    const layer = layerWired(Layer.mergeAll(
+      Both.toLayer(() =>
+        Effect.map(
+          Effect.all([failing("Definition/f1", "first-boom", 1), failing("Definition/f2", "second-boom", 2)], {
+            concurrency: "unbounded",
+            mode: "result"
+          }),
+          () => "unreachable"
+        )
+      ),
+      Interpreter.layer(flow)
+    ))
     return Effect.gen(function*() {
       yield* flow.execute({ id: "x" }, { executionId: "run-two-suspend", discard: true })
       const suspended = yield* pollUntil(
@@ -233,24 +294,33 @@ describe("suspension while siblings are still running", () => {
         return "slow"
       })
     })
-    const flow = Flow.make("Definition/suspend-with-sibling", {
+    const Pair = Activity.make("Definition/suspend-with-sibling/step", {
       payload: { id: Schema.String },
       success: Schema.String,
       error: Schema.String
+    })
+    const flow = Flow.make("Definition/suspend-with-sibling", {
+      payload: { id: Schema.String },
+      success: Schema.String,
+      error: Schema.String,
+      body: (payload) => Pair.call(payload)
     }).annotate(Flow.SuspendOnFailure, true)
 
     let attempts = 0
-    const layer = flow.toLayer(() =>
-      Effect.suspend(() => {
-        attempts++
-        return attempts === 1
-          ? Effect.map(
-            Effect.all([failing, slow], { concurrency: "unbounded" }),
-            ([a, b]) => `${a}+${b}`
-          )
-          : Effect.succeed("recovered")
-      })
-    ).pipe(Layer.provideMerge(layerMemory))
+    const layer = layerWired(Layer.mergeAll(
+      Pair.toLayer(() =>
+        Effect.suspend(() => {
+          attempts++
+          return attempts === 1
+            ? Effect.map(
+              Effect.all([failing, slow], { concurrency: "unbounded" }),
+              ([a, b]) => `${a}+${b}`
+            )
+            : Effect.succeed("recovered")
+        })
+      ),
+      Interpreter.layer(flow)
+    ))
 
     return Effect.gen(function*() {
       yield* flow.execute({ id: "x" }, { executionId: "run-sibling", discard: true })

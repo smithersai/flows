@@ -267,6 +267,14 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
           Effect.onExit((exit: any) => Effect.sync(() => activities.set(id, exit)))
         ) as Effect.Effect<Flow.Result<unknown, unknown>>)) as Flow.Result<unknown, unknown>
         instance.waiting = activityInstance.waiting
+        // A recorded interruption is a durable OUTCOME, not a request to
+        // suspend (`DurableDeferred.await` sets the flag to say so). The flag
+        // is set on whichever instance is in scope, which for a declared
+        // activity's implementation is the dispatch's own — so it travels back
+        // to the flow, exactly as the waiting classification above does.
+        // Without it the flow sees an interrupt-only cause it never marked and
+        // classifies a terminal outcome as an external suspension.
+        if (activityInstance.interrupted) instance.interrupted = true
         if (result._tag !== "Complete") return result as never
         return new Flow.Complete({
           exit: yield* Effect.orDie(
@@ -309,6 +317,23 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
     return runtime
   })
 )
+
+/**
+ * Everything a bodied flow needs to run: the activity implementations and the
+ * flow registrations a case wires up, over ONE implementation table, over this
+ * runtime.
+ *
+ * The table goes UNDER the layers that file into it, because filing is a
+ * build-time effect: a table merged beside an implementation is not the table
+ * the interpreter reads.
+ */
+export const layerWired = (
+  registrations: Layer.Layer<never, never, FlowRuntime.FlowRuntime | Activity.Implementations>
+): Layer.Layer<FlowRuntime.FlowRuntime | Activity.Implementations> =>
+  registrations.pipe(
+    Layer.provideMerge(Activity.layerImplementations),
+    Layer.provideMerge(layerMemory)
+  )
 
 /** Re-exported for the suites that only need the deferred token helpers. */
 export const token = DurableDeferred.token

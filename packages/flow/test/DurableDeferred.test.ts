@@ -1,11 +1,11 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
+import { Activity, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
 import { Cause, Effect, Exit, Layer, Option, Schema, Scope } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
 import { runPromise } from "./Crypto.ts"
-import { layerMemory, makeInstance } from "./MemoryFlowRuntime.ts"
+import { layerWired, makeInstance } from "./MemoryFlowRuntime.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
   it(name, () => runPromise(body()))
@@ -39,6 +39,7 @@ const Gate = DurableDeferred.make("DurableDeferred/Gate", {
   error: Schema.String
 })
 
+/** One declared step, and the flow made of it, for a case's durable body. */
 const makeFlow = (
   tag: string,
   body: Effect.Effect<
@@ -47,15 +48,21 @@ const makeFlow = (
     FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance | Scope.Scope
   >
 ) => {
+  const step = Activity.make(`${tag}/step`, {
+    payload: { id: Schema.String },
+    success: Schema.String,
+    error: Schema.String
+  })
   const flow = Flow.make(tag, {
     payload: { id: Schema.String },
     success: Schema.String,
     error: Schema.String,
-    idempotencyKey: ({ id }) => id
+    idempotencyKey: ({ id }) => id,
+    body: (payload) => step.call(payload)
   })
   return {
     flow,
-    layer: flow.toLayer(() => body).pipe(Layer.provideMerge(layerMemory))
+    layer: layerWired(Layer.mergeAll(step.toLayer(() => body), Interpreter.layer(flow)))
   }
 }
 
@@ -216,33 +223,41 @@ describe("DurableDeferred", () => {
       success: Schema.Number,
       error: Schema.String
     })
+    const Step = Activity.make("DurableDeferred/into-mixed/step", {
+      payload: { id: Schema.String },
+      success: Schema.String
+    })
     const flow = Flow.make("DurableDeferred/into-mixed", {
       payload: { id: Schema.String },
       success: Schema.String,
-      idempotencyKey: ({ id }) => id
+      idempotencyKey: ({ id }) => id,
+      body: (payload) => Step.call(payload)
     })
     const mixedCause = Cause.fromReasons<string>([
       ...Cause.fail("boom").reasons,
       ...Cause.interrupt(7).reasons
     ])
-    const layer = flow.toLayer(() =>
-      Effect.gen(function*() {
-        const engine = yield* FlowRuntime.FlowRuntime
-        yield* DurableDeferred.into(
-          Effect.failCause(mixedCause) as Effect.Effect<number, string>,
-          Mixed
-        ).pipe(Effect.exit)
-        const persisted = yield* engine.deferredResult(Mixed)
-        expect(Option.isSome(persisted)).toBe(true)
-        if (Option.isNone(persisted)) return "missing"
-        const exit = persisted.value as Exit.Exit<number, string>
-        expect(Exit.isFailure(exit)).toBe(true)
-        if (!Exit.isFailure(exit)) return "not-a-failure"
-        // the interrupt reason is stripped; only the typed failure is durable
-        expect(exit.cause.reasons.some(Cause.isInterruptReason)).toBe(false)
-        return String(exit.cause.reasons.find(Cause.isFailReason)?.error)
-      })
-    ).pipe(Layer.provideMerge(layerMemory))
+    const layer = layerWired(Layer.mergeAll(
+      Step.toLayer(() =>
+        Effect.gen(function*() {
+          const engine = yield* FlowRuntime.FlowRuntime
+          yield* DurableDeferred.into(
+            Effect.failCause(mixedCause) as Effect.Effect<number, string>,
+            Mixed
+          ).pipe(Effect.exit)
+          const persisted = yield* engine.deferredResult(Mixed)
+          expect(Option.isSome(persisted)).toBe(true)
+          if (Option.isNone(persisted)) return "missing"
+          const exit = persisted.value as Exit.Exit<number, string>
+          expect(Exit.isFailure(exit)).toBe(true)
+          if (!Exit.isFailure(exit)) return "not-a-failure"
+          // the interrupt reason is stripped; only the typed failure is durable
+          expect(exit.cause.reasons.some(Cause.isInterruptReason)).toBe(false)
+          return String(exit.cause.reasons.find(Cause.isFailReason)?.error)
+        })
+      ),
+      Interpreter.layer(flow)
+    ))
     return Effect.gen(function*() {
       expect(yield* flow.execute({ id: "mixed" })).toBe("boom")
     }).pipe(Effect.provide(layer))
@@ -292,28 +307,37 @@ describe("DurableDeferred", () => {
       success: Schema.Number,
       error: Schema.String
     })
+    const Step = Activity.make("DurableDeferred/into/step", {
+      payload: { id: Schema.String },
+      success: Schema.Number,
+      error: Schema.String
+    })
     const flow = Flow.make("DurableDeferred/into", {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String,
-      idempotencyKey: ({ id }) => id
+      idempotencyKey: ({ id }) => id,
+      body: (payload) => Step.call(payload)
     })
-    const layer = flow.toLayer(() =>
-      Effect.gen(function*() {
-        const engine = yield* FlowRuntime.FlowRuntime
-        const first = yield* DurableDeferred.into(
-          Effect.sync(() => ++runs),
-          Recorded
-        )
-        const persisted = yield* engine.deferredResult(Recorded)
-        expect(Option.isSome(persisted)).toBe(true)
-        const second = yield* DurableDeferred.into(
-          Effect.sync(() => ++runs),
-          Recorded
-        )
-        return first + second
-      })
-    ).pipe(Layer.provideMerge(layerMemory))
+    const layer = layerWired(Layer.mergeAll(
+      Step.toLayer(() =>
+        Effect.gen(function*() {
+          const engine = yield* FlowRuntime.FlowRuntime
+          const first = yield* DurableDeferred.into(
+            Effect.sync(() => ++runs),
+            Recorded
+          )
+          const persisted = yield* engine.deferredResult(Recorded)
+          expect(Option.isSome(persisted)).toBe(true)
+          const second = yield* DurableDeferred.into(
+            Effect.sync(() => ++runs),
+            Recorded
+          )
+          return first + second
+        })
+      ),
+      Interpreter.layer(flow)
+    ))
     return Effect.gen(function*() {
       // `into` writes the exit once; the recorded exit is what a resumed flow reads
       expect(yield* flow.execute({ id: "i" })).toBe(3)
@@ -323,11 +347,17 @@ describe("DurableDeferred", () => {
 
   effect("raceAll returns the first result and replays it from the persisted exit", () => {
     let attempts = 0
+    const Step = Activity.make("DurableDeferred/raceAll/step", {
+      payload: { id: Schema.String },
+      success: Schema.String,
+      error: Schema.String
+    })
     const flow = Flow.make("DurableDeferred/raceAll", {
       payload: { id: Schema.String },
       success: Schema.String,
       error: Schema.String,
-      idempotencyKey: ({ id }) => id
+      idempotencyKey: ({ id }) => id,
+      body: (payload) => Step.call(payload)
     })
     const race = DurableDeferred.raceAll({
       name: "race",
@@ -341,13 +371,16 @@ describe("DurableDeferred", () => {
         Effect.never as Effect.Effect<string, string>
       ]
     })
-    const layer = flow.toLayer(() =>
-      Effect.gen(function*() {
-        const first = yield* race
-        const second = yield* race
-        return `${first}/${second}`
-      })
-    ).pipe(Layer.provideMerge(layerMemory))
+    const layer = layerWired(Layer.mergeAll(
+      Step.toLayer(() =>
+        Effect.gen(function*() {
+          const first = yield* race
+          const second = yield* race
+          return `${first}/${second}`
+        })
+      ),
+      Interpreter.layer(flow)
+    ))
     return Effect.gen(function*() {
       expect(yield* flow.execute({ id: "r" })).toBe("fast/fast")
       // the second call reads the persisted race exit instead of racing again
@@ -358,19 +391,27 @@ describe("DurableDeferred", () => {
   effect("raceAll over durable waits settles on the one branch that resolves", () => {
     const Fast = DurableDeferred.make("DurableDeferred/Race/Fast", { success: Schema.String })
     const Slow = DurableDeferred.make("DurableDeferred/Race/Slow", { success: Schema.String })
+    const Step = Activity.make("DurableDeferred/race-partial/step", {
+      payload: { id: Schema.String },
+      success: Schema.String
+    })
     const flow = Flow.make("DurableDeferred/race-partial", {
       payload: { id: Schema.String },
       success: Schema.String,
-      idempotencyKey: ({ id }) => id
+      idempotencyKey: ({ id }) => id,
+      body: (payload) => Step.call(payload)
     })
-    const layer = flow.toLayer(() =>
-      DurableDeferred.raceAll({
-        name: "either",
-        success: Schema.String,
-        error: Schema.Never,
-        effects: [DurableDeferred.await(Fast), DurableDeferred.await(Slow)]
-      })
-    ).pipe(Layer.provideMerge(layerMemory))
+    const layer = layerWired(Layer.mergeAll(
+      Step.toLayer(() =>
+        DurableDeferred.raceAll({
+          name: "either",
+          success: Schema.String,
+          error: Schema.Never,
+          effects: [DurableDeferred.await(Fast), DurableDeferred.await(Slow)]
+        })
+      ),
+      Interpreter.layer(flow)
+    ))
     return Effect.gen(function*() {
       const executionId = yield* flow.execute({ id: "rp" }, { discard: true })
       yield* Effect.yieldNow
@@ -412,21 +453,29 @@ describe("DurableDeferred", () => {
     const A = DurableDeferred.make("DurableDeferred/Concurrent/A", { success: Schema.String })
     const B = DurableDeferred.make("DurableDeferred/Concurrent/B", { success: Schema.String })
     let bodies = 0
+    const Step = Activity.make("DurableDeferred/concurrent/step", {
+      payload: { id: Schema.String },
+      success: Schema.String
+    })
     const flow = Flow.make("DurableDeferred/concurrent", {
       payload: { id: Schema.String },
       success: Schema.String,
-      idempotencyKey: ({ id }) => id
+      idempotencyKey: ({ id }) => id,
+      body: (payload) => Step.call(payload)
     })
-    const layer = flow.toLayer(() =>
-      Effect.gen(function*() {
-        bodies++
-        const [a, b] = yield* Effect.all(
-          [DurableDeferred.await(A), DurableDeferred.await(B)],
-          { concurrency: "unbounded" }
-        )
-        return `${a}+${b}`
-      })
-    ).pipe(Layer.provideMerge(layerMemory))
+    const layer = layerWired(Layer.mergeAll(
+      Step.toLayer(() =>
+        Effect.gen(function*() {
+          bodies++
+          const [a, b] = yield* Effect.all(
+            [DurableDeferred.await(A), DurableDeferred.await(B)],
+            { concurrency: "unbounded" }
+          )
+          return `${a}+${b}`
+        })
+      ),
+      Interpreter.layer(flow)
+    ))
     return Effect.gen(function*() {
       const executionId = yield* flow.execute({ id: "c" }, { discard: true })
       yield* Effect.yieldNow
@@ -460,21 +509,29 @@ describe("DurableDeferred", () => {
     const A = DurableDeferred.make("DurableDeferred/Precompleted/A", { success: Schema.String })
     const B = DurableDeferred.make("DurableDeferred/Precompleted/B", { success: Schema.String })
     let bodies = 0
+    const Step = Activity.make("DurableDeferred/precompleted/step", {
+      payload: { id: Schema.String },
+      success: Schema.String
+    })
     const flow = Flow.make("DurableDeferred/precompleted", {
       payload: { id: Schema.String },
       success: Schema.String,
-      idempotencyKey: ({ id }) => id
+      idempotencyKey: ({ id }) => id,
+      body: (payload) => Step.call(payload)
     })
-    const layer = flow.toLayer(() =>
-      Effect.gen(function*() {
-        bodies++
-        const [a, b] = yield* Effect.all(
-          [DurableDeferred.await(A), DurableDeferred.await(B)],
-          { concurrency: "unbounded" }
-        )
-        return `${a}+${b}`
-      })
-    ).pipe(Layer.provideMerge(layerMemory))
+    const layer = layerWired(Layer.mergeAll(
+      Step.toLayer(() =>
+        Effect.gen(function*() {
+          bodies++
+          const [a, b] = yield* Effect.all(
+            [DurableDeferred.await(A), DurableDeferred.await(B)],
+            { concurrency: "unbounded" }
+          )
+          return `${a}+${b}`
+        })
+      ),
+      Interpreter.layer(flow)
+    ))
     return Effect.gen(function*() {
       const executionId = yield* flow.executionId({ id: "pre" })
       // Both branches are completed before the flow ever runs.
@@ -499,18 +556,26 @@ describe("DurableDeferred", () => {
   effect("independent deferreds resume the flow as each one resolves", () => {
     const A = DurableDeferred.make("DurableDeferred/Parallel/A", { success: Schema.String })
     const B = DurableDeferred.make("DurableDeferred/Parallel/B", { success: Schema.String })
+    const Step = Activity.make("DurableDeferred/parallel/step", {
+      payload: { id: Schema.String },
+      success: Schema.String
+    })
     const flow = Flow.make("DurableDeferred/parallel", {
       payload: { id: Schema.String },
       success: Schema.String,
-      idempotencyKey: ({ id }) => id
+      idempotencyKey: ({ id }) => id,
+      body: (payload) => Step.call(payload)
     })
-    const layer = flow.toLayer(() =>
-      Effect.gen(function*() {
-        const a = yield* DurableDeferred.await(A)
-        const b = yield* DurableDeferred.await(B)
-        return `${a}+${b}`
-      })
-    ).pipe(Layer.provideMerge(layerMemory))
+    const layer = layerWired(Layer.mergeAll(
+      Step.toLayer(() =>
+        Effect.gen(function*() {
+          const a = yield* DurableDeferred.await(A)
+          const b = yield* DurableDeferred.await(B)
+          return `${a}+${b}`
+        })
+      ),
+      Interpreter.layer(flow)
+    ))
     return Effect.gen(function*() {
       const executionId = yield* flow.execute({ id: "p" }, { discard: true })
       yield* Effect.yieldNow

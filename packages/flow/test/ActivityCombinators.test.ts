@@ -1,11 +1,11 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, Flow } from "@smthrs/flow"
+import { Activity, Flow, Interpreter } from "@smthrs/flow"
 import { Context, Effect, Layer, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
 import { runPromise } from "./Crypto.ts"
-import { layerMemory } from "./MemoryFlowRuntime.ts"
+import { layerWired } from "./MemoryFlowRuntime.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
   it(name, () => runPromise(body()))
@@ -50,12 +50,19 @@ describe("Activity combinators", () => {
       idempotencyKey: "annotate/execute",
       execute: Effect.succeed(7)
     }).annotate(Label, "audited")
+    const Run = Activity.make("Annotate/execute/run", {
+      payload: { id: Schema.String },
+      success: Schema.Number
+    })
     const flow = Flow.make("Annotate/execute", {
       payload: { id: Schema.String },
       success: Schema.Number,
-      idempotencyKey: ({ id }) => id
+      idempotencyKey: ({ id }) => id,
+      body: (payload) => Run.call(payload)
     })
-    const layer = flow.toLayer(() => step).pipe(Layer.provideMerge(layerMemory))
+    const layer = layerWired(
+      Layer.mergeAll(Run.toLayer(() => step), Interpreter.layer(flow))
+    )
     return Effect.gen(function*() {
       expect(yield* flow.execute({ id: "a" })).toBe(7)
     }).pipe(Effect.provide(layer))
@@ -78,18 +85,26 @@ describe("Activity combinators", () => {
       idempotencyKey: "race/slow",
       execute: Effect.never as Effect.Effect<number>
     })
+    const Race = Activity.make("Race/all/run", {
+      payload: { id: Schema.String },
+      success: Schema.Number
+    })
     const flow = Flow.make("Race/all", {
       payload: { id: Schema.String },
       success: Schema.Number,
-      idempotencyKey: ({ id }) => id
+      idempotencyKey: ({ id }) => id,
+      body: (payload) => Race.call(payload)
     })
-    const layer = flow.toLayer(() =>
-      Effect.gen(function*() {
-        const first = yield* Activity.raceAll("winner", [fast, slow])
-        const second = yield* Activity.raceAll("winner", [fast, slow])
-        return first + second
-      })
-    ).pipe(Layer.provideMerge(layerMemory))
+    const layer = layerWired(Layer.mergeAll(
+      Race.toLayer(() =>
+        Effect.gen(function*() {
+          const first = yield* Activity.raceAll("winner", [fast, slow])
+          const second = yield* Activity.raceAll("winner", [fast, slow])
+          return first + second
+        })
+      ),
+      Interpreter.layer(flow)
+    ))
     return Effect.gen(function*() {
       expect(yield* flow.execute({ id: "r" })).toBe(2)
       // the second race reads the persisted deferred instead of racing again
@@ -112,15 +127,22 @@ describe("Activity combinators", () => {
       idempotencyKey: "race/pending",
       execute: Effect.succeed(5)
     })
+    const Race = Activity.make("Race/failure/run", {
+      payload: { id: Schema.String },
+      success: Schema.Number,
+      error: Schema.String
+    })
     const flow = Flow.make("Race/failure", {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String,
-      idempotencyKey: ({ id }) => id
+      idempotencyKey: ({ id }) => id,
+      body: (payload) => Race.call(payload)
     })
-    const layer = flow.toLayer(() => Activity.raceAll("loser", [failing, pending])).pipe(
-      Layer.provideMerge(layerMemory)
-    )
+    const layer = layerWired(Layer.mergeAll(
+      Race.toLayer(() => Activity.raceAll("loser", [failing, pending])),
+      Interpreter.layer(flow)
+    ))
     return Effect.gen(function*() {
       // Effect.raceAll only fails when every effect fails
       expect(yield* flow.execute({ id: "f" })).toBe(5)

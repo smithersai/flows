@@ -64,8 +64,8 @@ export interface DurableQueue<
  * **Example** (Defining a durable queue with workers)
  *
  * ```ts
- * import { Effect, Schema } from "effect"
- * import { DurableQueue, Flow } from "@smthrs/flow"
+ * import { Activity, DurableQueue, Flow, Interpreter } from "@smthrs/flow"
+ * import { Effect, Layer, Schema } from "effect"
  *
  * // Define a DurableQueue that can be used to derive workers and offer items for
  * // processing.
@@ -81,24 +81,38 @@ export interface DurableQueue<
  *   }
  * })
  *
- * const MyFlow = Flow.make("MyFlow", {
+ * // Offering an item is work, so it is a declared Activity: the declaration is
+ * // pure data, and the implementation attaches separately.
+ * const Offer = Activity.make("MyFlow/offer", {
  *   payload: {
  *     id: Schema.String
- *   },
- *   idempotencyKey: ({ id }) => id
+ *   }
  * })
  *
- * const MyFlowLayer = MyFlow.toLayer(
- *   Effect.fnUntraced(function*() {
+ * const OfferLive = Offer.toLayer(
+ *   Effect.fnUntraced(function*({ id }) {
  *     // Add an item to the DurableQueue defined above.
  *     //
  *     // When the worker has finished processing the item, the flow will
  *     // resume.
  *     //
- *     yield* DurableQueue.process(ApiQueue, { id: "api-call-1" })
+ *     yield* DurableQueue.process(ApiQueue, { id })
  *
  *     yield* Effect.log("Flow succeeded!")
  *   })
+ * )
+ *
+ * // The flow is the composite, and its body names the step it is made of.
+ * const MyFlow = Flow.make("MyFlow", {
+ *   payload: {
+ *     id: Schema.String
+ *   },
+ *   idempotencyKey: ({ id }) => id,
+ *   body: (payload) => Offer.call(payload)
+ * })
+ *
+ * const MyFlowLayer = Layer.mergeAll(OfferLive, Interpreter.layer(MyFlow)).pipe(
+ *   Layer.provideMerge(Activity.layerImplementations)
  * )
  *
  * // Define a worker layer that can process items from the DurableQueue.

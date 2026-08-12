@@ -7,20 +7,27 @@
  * attempt that first reached it. A nested block shares the enclosing block's
  * pinned ordinals and folds its own cursor positions back on exit.
  */
-import { Activity, Flow } from "@smthrs/flow"
+import { Activity, Flow, Interpreter } from "@smthrs/flow"
 import { Effect, Layer, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
 import { runPromise } from "./Crypto.ts"
-import { layerMemory } from "./MemoryFlowRuntime.ts"
+import { layerWired } from "./MemoryFlowRuntime.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
   it(name, () => runPromise(body()))
 
+/** The one step the host flow is made of; each case supplies its body. */
+const Block = Activity.make("Retry/Block", {
+  payload: { id: Schema.String },
+  success: Schema.Number
+})
+
 const Host = Flow.make("Retry/Host", {
   payload: { id: Schema.String },
   success: Schema.Number,
-  idempotencyKey: ({ id }) => id
+  idempotencyKey: ({ id }) => id,
+  body: (payload) => Block.call(payload)
 })
 
 const run = (
@@ -28,7 +35,9 @@ const run = (
   id: string
 ): Effect.Effect<number, never, Crypto.Crypto> =>
   Host.execute({ id }, { executionId: id }).pipe(
-    Effect.provide(Host.toLayer(() => body).pipe(Layer.provideMerge(layerMemory)))
+    Effect.provide(
+      layerWired(Layer.mergeAll(Block.toLayer(() => body), Interpreter.layer(Host)))
+    )
   ) as Effect.Effect<number, never, Crypto.Crypto>
 
 describe("Activity.retry", () => {
