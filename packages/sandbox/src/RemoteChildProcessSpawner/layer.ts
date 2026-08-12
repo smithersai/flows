@@ -114,12 +114,26 @@ const outputStream = (
 const rightmostOptions = (command: ChildProcess.Command): ChildProcess.CommandOptions =>
   command._tag === "StandardCommand" ? command.options : rightmostOptions(command.right)
 
-let nextPid = 1
+/**
+ * Allocates the `ProcessId` a handle reports.
+ *
+ * Scoped to one spawner, not to the module. A remote session has no local pid
+ * to report, so the number is only ever an intra-spawner handle
+ * discriminator — and a module-level `let nextPid = 1` made it process-global
+ * state in a repository whose rule is that host access goes through a Layer.
+ * Two spawner layers in one process shared a counter, so a handle's id
+ * depended on how many processes an unrelated spawner had started.
+ */
+const pidAllocator = (): () => ProcessId => {
+  let nextPid = 1
+  return () => ProcessId(nextPid++)
+}
 
 const handleOf = (
   command: string,
   child: ChildProcess.Command,
-  process: RemoteProcess
+  process: RemoteProcess,
+  allocatePid: () => ProcessId
 ): ChildProcessHandle => {
   let running = true
   const rawStdout = Stream.mapError(process.stdout, platformError("stdout", command))
@@ -128,7 +142,7 @@ const handleOf = (
   const stdout = outputStream(rawStdout, options.stdout)
   const stderr = outputStream(rawStderr, options.stderr)
   return makeHandle({
-    pid: ProcessId(nextPid++),
+    pid: allocatePid(),
     exitCode: process.exitCode.pipe(
       Effect.mapError(platformError("exitCode", command)),
       Effect.map((code) => {
@@ -171,8 +185,9 @@ export const layer = (provider: Provider): Layer.Layer<ChildProcessSpawner> =>
           makeSpawner((command: ChildProcess.Command) =>
             Effect.fail(platformError("open", CommandLine.render(command))(error))
           ),
-        onSuccess: () =>
-          makeSpawner(
+        onSuccess: () => {
+          const allocatePid = pidAllocator()
+          return makeSpawner(
             Effect.fnUntraced(function*(command: ChildProcess.Command) {
               yield* validateCommand(command)
               const rendered = CommandLine.render(command)
@@ -180,9 +195,10 @@ export const layer = (provider: Provider): Layer.Layer<ChildProcessSpawner> =>
                 cwd: CommandLine.cwd(command),
                 env: CommandLine.env(command)
               }).pipe(Effect.mapError(platformError("spawn", rendered)))
-              return handleOf(rendered, command, started)
+              return handleOf(rendered, command, started, allocatePid)
             })
           )
+        }
       })
     )
   )
