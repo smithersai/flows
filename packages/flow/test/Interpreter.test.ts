@@ -26,6 +26,12 @@ const Sum = Activity.make("interpreter/sum", {
   success: Schema.Number
 })
 
+const Fallible = Activity.make("interpreter/fallible", {
+  payload: { fail: Schema.Boolean, error: Schema.String },
+  success: Schema.Number,
+  error: Schema.String
+})
+
 /** The calls each activity received, in the order the walk dispatched them. */
 const calls: Array<string> = []
 
@@ -47,7 +53,8 @@ const implementations = Layer.mergeAll(
       calls.push(`sum:${label}`)
       return values.reduce((total, value) => total + value, 0)
     })
-  )
+  ),
+  Fallible.toLayer(({ error, fail }) => fail ? Effect.fail(error) : Effect.succeed(7))
 )
 
 /** What a layer under test may ask for: the table, and a runtime to register with. */
@@ -242,6 +249,81 @@ describe("Interpreter branches", () => {
     const lost = detached(
       Node.succeed(1).pipe(
         Node.branch({ if: (value) => value > 0, then: () => Node.succeed("yes"), else: () => Node.succeed("no") })
+      )
+    )
+
+    expect(await refusal(Interpreter.interpret(lost))).toMatchObject({
+      error: { _tag: "@smthrs/flow/InterpreterError", code: "missing_operation", node: "root" }
+    })
+  })
+})
+
+describe("Interpreter catches", () => {
+  it("takes a matching failure arm and binds the typed error", async () => {
+    const interpretation = await drive(Interpreter.interpret(
+      Fallible.call({ fail: true, error: "recoverable" }).pipe(
+        Node.catch({
+          error: Schema.Literal("recoverable"),
+          onFailure: (error) => Node.succeed({ recovered: error })
+        })
+      )
+    ))
+
+    expect(interpretation.value).toEqual({ recovered: "recoverable" })
+    expect(interpretation.settled.has("root.protected")).toBe(false)
+    expect(interpretation.failed.get("root.protected")).toBe("recoverable")
+    expect(interpretation.skipped).toEqual([])
+  })
+
+  it("passes through success and leaves the failure arm skipped", async () => {
+    const interpretation = await drive(Interpreter.interpret(
+      Fallible.call({ fail: false, error: "unused" }).pipe(
+        Node.catch({ onFailure: () => Node.succeed(0) })
+      )
+    ))
+
+    expect(interpretation.value).toBe(7)
+    expect(interpretation.skipped).toEqual(["root.failure"])
+  })
+
+  it("propagates an unmatched typed error", async () => {
+    expect(
+      await refusal(Interpreter.interpret(
+        Fallible.call({ fail: true, error: "fatal" }).pipe(
+          Node.catch({
+            error: Schema.Literal("recoverable"),
+            onFailure: () => Node.succeed(0)
+          })
+        )
+      ))
+    ).toMatchObject({ error: "fatal" })
+  })
+
+  it("allows an outer catch to recover an error unmatched by an inner catch", async () => {
+    const interpretation = await drive(Interpreter.interpret(
+      Fallible.call({ fail: true, error: "outer" }).pipe(
+        Node.catch({
+          error: Schema.Literal("inner"),
+          onFailure: () => Node.succeed(1)
+        }),
+        Node.catch({ onFailure: (error) => Node.succeed({ outer: error }) })
+      )
+    ))
+
+    expect(interpretation.value).toEqual({ outer: "outer" })
+    expect(interpretation.failed).toEqual(
+      new Map([
+        ["root.protected.protected", "outer"],
+        ["root.protected", "outer"]
+      ])
+    )
+    expect(interpretation.skipped).toEqual(["root.protected.failure"])
+  })
+
+  it("refuses when a serialized catch loses its schema filter", async () => {
+    const lost = detached(
+      Fallible.call({ fail: true, error: "recoverable" }).pipe(
+        Node.catch({ error: Schema.String, onFailure: () => Node.succeed(0) })
       )
     )
 

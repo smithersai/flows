@@ -25,6 +25,7 @@
 import { identity } from "effect/Function"
 import type * as Pipeable from "effect/Pipeable"
 import { pipeArguments } from "effect/Pipeable"
+import * as Schema from "effect/Schema"
 import type * as Types from "effect/Types"
 import * as Planned from "../Planned.ts"
 
@@ -114,6 +115,32 @@ export interface Branch {
 }
 
 /**
+ * A protected graph and its statically planned typed-failure continuation.
+ *
+ * DECIDED (2026-08-11, pending review): the symbolic error `subject` is minted
+ * per catch node rather than shared, mirroring {@link Branch}. Failure arms are
+ * built before the graph assigns ids, so a nested arm that captured an outer
+ * error would resolve it to the inner catch's protected node under one shared
+ * token.
+ *
+ * DECIDED (2026-08-11, pending review): an absent filter catches the entire
+ * typed error channel, while a present schema catches only values it accepts.
+ * This mirrors Effect's typed-error boundary and keeps defects outside normal
+ * recovery. The serializable AST carries the schema identity; the live schema
+ * remains in a side table beside the AST.
+ *
+ * @since 0.1.0
+ * @private
+ */
+export interface Catch {
+  readonly _tag: "Catch"
+  readonly subject: string
+  readonly protected: NodeAst
+  readonly failure: NodeAst
+  readonly filter?: unknown | undefined
+}
+
+/**
  * How a flow call joins the caller's plan: `inline` splices the callee's body
  * in, `boundary` makes it one child execution, and `handoff` names the next
  * trampoline round.
@@ -193,7 +220,7 @@ export interface PlannedReference {
  * @since 0.1.0
  * @private
  */
-export type NodeAst = Succeed | All | Map | AndThen | Branch | FlowCall | ActivityCall
+export type NodeAst = Succeed | All | Map | AndThen | Branch | Catch | FlowCall | ActivityCall
 
 type Operation = (value: unknown) => unknown
 
@@ -201,6 +228,7 @@ type Predicate = (value: unknown) => boolean
 
 const operations = new WeakMap<AndThen | Map, Operation>()
 const predicates = new WeakMap<Branch, Predicate>()
+const filters = new WeakMap<Catch, Schema.Top>()
 const declarations = new WeakMap<ActivityCall | FlowCall, unknown>()
 
 /**
@@ -383,6 +411,24 @@ export const branch = (
 }
 
 /**
+ * Constructs a {@link Catch} whose failure topology is already evaluated.
+ *
+ * @since 0.1.0
+ * @private
+ */
+export const catch_ = (subject: string, protectedAst: NodeAst, failure: NodeAst, filter?: Schema.Top): Catch => {
+  const ast: Catch = {
+    _tag: "Catch",
+    subject,
+    protected: protectedAst,
+    failure,
+    ...(filter === undefined ? {} : { filter: Schema.toJsonSchemaDocument(filter) })
+  }
+  if (filter !== undefined) filters.set(ast, filter)
+  return ast
+}
+
+/**
  * Constructs a {@link FlowCall}, filing the flow declaration beside it.
  *
  * @since 0.1.0
@@ -422,6 +468,14 @@ export const operation = (ast: AndThen | Map): Operation | undefined => operatio
  * @private
  */
 export const predicate = (ast: Branch): Predicate | undefined => predicates.get(ast)
+
+/**
+ * The optional error schema filter of a catch node.
+ *
+ * @since 0.1.0
+ * @private
+ */
+export const filter = (ast: Catch): Schema.Top | undefined => filters.get(ast)
 
 /**
  * The flow or activity declaration a call node names.

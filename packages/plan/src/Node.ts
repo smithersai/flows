@@ -24,6 +24,7 @@
 import { dual } from "effect/Function"
 import type * as Pipeable from "effect/Pipeable"
 import * as Predicate from "effect/Predicate"
+import type * as Schema from "effect/Schema"
 import type * as Types from "effect/Types"
 import { GraphBuildError } from "./GraphBuildError.ts"
 import * as internal from "./internal/node.ts"
@@ -118,6 +119,21 @@ export const branchSubject = "branch/subject"
 let branchOrdinal = 0
 
 /**
+ * The prefix of the node reference a catch failure arm's symbolic error
+ * carries. Each {@link catch_} mints its own token under this prefix, so an
+ * outer error captured inside a nested failure arm keeps naming the outer
+ * catch, and graph building rewrites each token to the node that catch
+ * protects.
+ *
+ * @since 0.1.0
+ * @category constants
+ */
+export const catchSubject = "catch/subject"
+
+/** @private */
+let catchOrdinal = 0
+
+/**
  * The two arms of a decision plus the predicate that chooses between them.
  *
  * `if` runs at RUN time on the real value. `then` and `else` run at PLAN time,
@@ -131,6 +147,18 @@ export interface BranchOptions<A, B1, E1, B2, E2> {
   readonly if: (value: A) => boolean
   readonly then: (value: Planned.Planned<A>) => Node<B1, E1>
   readonly else: (value: Planned.Planned<A>) => Node<B2, E2>
+}
+
+/**
+ * The statically planned recovery arm and optional schema selecting which
+ * typed failures it handles.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export interface CatchOptions<E, B, E2, Handled = E> {
+  readonly error?: Schema.Schema<Handled> | undefined
+  readonly onFailure: (error: Planned.Planned<Handled>) => Node<B, E2>
 }
 
 /**
@@ -307,6 +335,62 @@ export const branch: {
 )
 
 /**
+ * Recovers from matching typed failures with static failure topology.
+ *
+ * The protected graph and failure arm are both stored in the AST. The arm is
+ * built once at plan time against a strict planned error placeholder. With no
+ * schema the whole typed error channel is handled; a schema handles only the
+ * values it accepts and preserves the remainder in the resulting error type.
+ *
+ * @since 0.1.0
+ * @category sequencing
+ */
+const catch_: {
+  <Handled, B, E2>(
+    options: CatchOptions<unknown, B, E2, Handled> & {
+      readonly error: Schema.Schema<Handled>
+    }
+  ): <A, E>(self: Node<A, E>) => Node<A | B, Exclude<E, Handled> | E2>
+  <E, B, E2>(
+    options: CatchOptions<E, B, E2> & {
+      readonly error?: undefined
+    }
+  ): <A>(self: Node<A, E>) => Node<A | B, E2>
+  <A, E, Handled, B, E2>(
+    self: Node<A, E>,
+    options: CatchOptions<E, B, E2, Handled> & {
+      readonly error: Schema.Schema<Handled>
+    }
+  ): Node<A | B, Exclude<E, Handled> | E2>
+  <A, E, B, E2>(
+    self: Node<A, E>,
+    options: CatchOptions<E, B, E2> & {
+      readonly error?: undefined
+    }
+  ): Node<A | B, E2>
+} = dual(
+  2,
+  <A, E, Handled, B, E2>(
+    self: Node<A, E>,
+    options: CatchOptions<E, B, E2, Handled>
+  ): Node<A | B, Exclude<E, Handled> | E2> => {
+    const subjectToken = `${catchSubject}/${catchOrdinal++}`
+    const failure = options.onFailure(Planned.make<Handled>(subjectToken))
+    if (!isNode(failure)) {
+      throw new GraphBuildError({
+        code: "invalid_continuation",
+        node: catchSubject,
+        path: [],
+        message: "Node.catch expected its failure arm to return a Node"
+      })
+    }
+    return internal.makeNode(internal.catch_(subjectToken, self.ast, failure.ast, options.error))
+  }
+)
+
+export { catch_ as catch }
+
+/**
  * Constructs the flow-call node used by `@smthrs/flow` without making flow
  * calls part of the public authoring surface of this package.
  *
@@ -382,6 +466,14 @@ export const mapper = (ast: Ast): ((value: unknown) => unknown) | undefined =>
  */
 export const predicate = (ast: Ast): ((value: unknown) => boolean) | undefined =>
   ast._tag === "Branch" ? internal.predicate(ast) : undefined
+
+/**
+ * Reads the optional schema selecting failures handled by a {@link catch_}.
+ *
+ * @since 0.1.0
+ * @private
+ */
+export const catchFilter = (ast: Ast): Schema.Top | undefined => ast._tag === "Catch" ? internal.filter(ast) : undefined
 
 /**
  * Digests a plan-time function the AST does NOT store — a flow's `body` —

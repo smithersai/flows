@@ -1,3 +1,4 @@
+import * as Schema from "effect/Schema"
 import { describe, expect, it } from "vitest"
 import { GraphBuildError } from "../src/GraphBuildError.ts"
 import * as internal from "../src/internal/node.ts"
@@ -118,6 +119,58 @@ describe("Node", () => {
     expect(ast.else).toEqual({ _tag: "Succeed", value: "again" })
     expect(internal.predicate(ast)?.(100)).toBe(true)
     expect(internal.predicate(ast)?.(99)).toBe(false)
+  })
+
+  it("builds a catch failure arm once against its own symbolic error", () => {
+    const seen: Array<Planned.Reference | undefined> = []
+    let evaluated = 0
+    const build = () =>
+      Node.succeed(1).pipe(Node.catch({
+        onFailure: (error: Planned.Planned<string>) => {
+          evaluated++
+          seen.push(Planned.reference(error))
+          return Node.succeed(error)
+        }
+      }))
+    const ast = tagged(build().ast, "Catch")
+
+    expect(evaluated).toBe(1)
+    expect(seen).toEqual([{ node: ast.subject, path: [] }])
+    expect(ast.subject).toMatch(/^catch\/subject\/\d+$/)
+    expect(ast.protected).toEqual({ _tag: "Succeed", value: 1 })
+    expect(ast.failure).toEqual({
+      _tag: "Succeed",
+      value: { _tag: "PlannedReference", node: ast.subject, path: [] }
+    })
+    expect(ast.filter).toBeUndefined()
+    expect(Node.catchFilter(ast)).toBeUndefined()
+    expect(Node.catchFilter(Node.succeed(1).ast)).toBeUndefined()
+    // Each catch mints its own token, so a nested arm cannot rebind an outer
+    // one to the inner catch's protected node.
+    expect(tagged(build().ast, "Catch").subject).not.toBe(ast.subject)
+  })
+
+  it("records a catch schema identity and keeps the live filter beside the AST", () => {
+    const error = Schema.Literal("recoverable")
+    const ast = tagged(
+      Node.catch(Node.succeed(1), { error, onFailure: () => Node.succeed(0) }).ast,
+      "Catch"
+    )
+
+    expect(ast.filter).toEqual(Schema.toJsonSchemaDocument(error))
+    expect(Node.catchFilter(ast)).toBe(error)
+  })
+
+  it("refuses a catch failure arm that does not return a node", () => {
+    expect(() =>
+      Node.catch(Node.succeed(1), {
+        onFailure: () => 1 as unknown as Node.Node<number>
+      })
+    ).toThrow(expect.objectContaining({
+      code: "invalid_continuation",
+      node: Node.catchSubject,
+      message: "Node.catch expected its failure arm to return a Node"
+    }))
   })
 
   it("hands a driver the deferred mapper and the run-time predicate, and nothing else", () => {

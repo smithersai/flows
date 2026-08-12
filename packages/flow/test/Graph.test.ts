@@ -549,6 +549,55 @@ describe("Graph.build diagnostics", () => {
 })
 
 describe("Graph.build into a plan", () => {
+  it("shows protected and on-failure topology in the graph and compiled plan", async () => {
+    const graph = Graph.build(
+      Read.call({ path: "counter.txt" }).pipe(
+        Node.catch({ onFailure: (error) => Node.succeed({ recovered: error }) })
+      )
+    )
+    const plan = await compile("plan-catch", "catch", graph)
+
+    expect(Graph.nodes(graph).map((observed) => [observed.id, observed.kind])).toEqual([
+      ["root.protected", "ActivityCall"],
+      ["root.failure", "Succeed"],
+      ["root", "Catch"]
+    ])
+    expect(Graph.edges(graph)).toContainEqual({
+      from: "root.protected",
+      to: "root.failure",
+      reason: "failure"
+    })
+    expect(body(graph, "root")).toMatchObject({ _tag: "Catch" })
+    expect(plan.nodes.map((planned) => planned.id)).toEqual([
+      "root.protected",
+      "root.failure",
+      "root"
+    ])
+    expect(planNode(plan, "root.failure").dependsOn).toEqual(["root.protected"])
+  })
+
+  it("keeps a captured outer catch subject inside a nested catch arm", () => {
+    const graph = Graph.build(
+      Read.call({ path: "outer.txt" }).pipe(Node.catch({
+        onFailure: (outer: Planned.Planned<unknown>) =>
+          Read.call({ path: "inner.txt" }).pipe(Node.catch({
+            onFailure: () => Node.succeed({ outer })
+          }))
+      }))
+    )
+
+    expect(material(graph, "root.failure.failure").inputs).toContainEqual({
+      _tag: "Ref",
+      from: "root.protected",
+      path: []
+    })
+    expect(material(graph, "root.failure.failure").inputs).not.toContainEqual({
+      _tag: "Ref",
+      from: "root.failure.protected",
+      path: []
+    })
+  })
+
   it("compiles drafts into a keyed plan whose edges are the material references", async () => {
     const graph = Graph.build(Parent, { path: "counter.txt" })
     const plan = await compile("plan-parent", "counter/parent", graph)

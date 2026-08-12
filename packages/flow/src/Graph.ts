@@ -67,7 +67,7 @@ import { TypeId as FlowTypeId } from "./Flow/TypeId.ts"
  * @since 0.1.0
  * @category models
  */
-export type EdgeReason = "value" | "continuation"
+export type EdgeReason = "value" | "continuation" | "failure"
 
 /**
  * A dependency edge, pointing from the node that produces to the node that
@@ -306,8 +306,9 @@ const rebuild = (
 /**
  * Turns an AST payload back into what a body must see: real data where the
  * caller wrote data, strict placeholders where it passed a step result. The
- * substitution rewrites {@link module:Node.branchSubject} to the branch's own
- * upstream node, which is the arm's subject by construction.
+ * substitution rewrites a branch's own subject token to its upstream node, and
+ * a catch's own subject token to the node it protects, which are those arms'
+ * subjects by construction.
  *
  * @private
  */
@@ -781,6 +782,33 @@ export const build = (
           placement: undefined,
           tier: "sealed",
           body: { _tag: ast._tag, predicate: ast.predicate },
+          inputs,
+          ast,
+          payload: undefined
+        })
+      }
+      case "Catch": {
+        const protectedId = child(ast.protected, `${id}.protected`)
+        depend(protectedId, "value")
+        // DECIDED (2026-08-11, pending review): each Catch AST carries its own
+        // subject token, exactly as each Branch does. An outer error captured
+        // inside a nested failure arm must retain the outer binding; one shared
+        // token silently rebound it to the inner catch's protected node.
+        const recovery = new Map([...substitutions, [ast.subject, protectedId]])
+        const failureId = child(ast.failure, `${id}.failure`, { substitutions: recovery, prerequisite: protectedId })
+        dependencies.push(failureId)
+        observedEdges.push({ from: protectedId, to: failureId, reason: "failure" })
+        observedEdges.push({ from: failureId, to: id, reason: "value" })
+        inputs.push({ _tag: "Ref", from: failureId, path: [] })
+        return record({
+          id,
+          kind: ast._tag,
+          dependencies,
+          capabilities,
+          effects: undefined,
+          placement: undefined,
+          tier: "sealed",
+          body: { _tag: ast._tag, filter: ast.filter },
           inputs,
           ast,
           payload: undefined

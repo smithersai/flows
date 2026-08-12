@@ -39,12 +39,12 @@
  *
  * @since 0.1.0
  */
-import * as KeyMaterial from "@smthrs/plan/KeyMaterial"
 import { Key } from "@smthrs/keys/Key"
+import * as KeyMaterial from "@smthrs/plan/KeyMaterial"
 import * as Node from "@smthrs/plan/Node"
 import * as Planned from "@smthrs/plan/Planned"
-import * as Effect from "effect/Effect"
 import type * as Crypto from "effect/Crypto"
+import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Predicate from "effect/Predicate"
@@ -99,6 +99,8 @@ export class InterpreterError extends Schema.TaggedErrorClass<InterpreterError>(
 export interface Interpretation {
   readonly value: unknown
   readonly settled: ReadonlyMap<string, unknown>
+  /** Typed failures observed before a catch recovered them. */
+  readonly failed: ReadonlyMap<string, unknown>
   readonly skipped: ReadonlyArray<string>
 }
 
@@ -268,6 +270,7 @@ export const interpret = (
     }
 
     const settled = new Map<string, unknown>()
+    const failed = new Map<string, unknown>()
 
     /** Projects a settled value along the property path a `Ref` recorded. */
     const project = (value: unknown, path: ReadonlyArray<string>): unknown =>
@@ -285,7 +288,12 @@ export const interpret = (
      */
     const resolve = (value: unknown): unknown => {
       const reference = Planned.reference(value)
-      if (reference !== undefined) return project(settled.get(reference.node), reference.path)
+      if (reference !== undefined) {
+        return project(
+          settled.has(reference.node) ? settled.get(reference.node) : failed.get(reference.node),
+          reference.path
+        )
+      }
       if (Array.isArray(value)) return value.map((item) => resolve(item))
       if (!isRecord(value)) return value
       const output: Record<string, unknown> = Object.create(null) as Record<string, unknown>
@@ -304,7 +312,10 @@ export const interpret = (
     const settle: (id: string) => Effect.Effect<unknown, unknown, Services> = Effect.fnUntraced(
       function*(id: string) {
         if (settled.has(id)) return settled.get(id)
-        const value = yield* compute(byId.get(id)!)
+        const value = yield* compute(byId.get(id)!).pipe(Effect.catch((error) => {
+          failed.set(id, error)
+          return Effect.fail(error)
+        }))
         settled.set(id, value)
         return value
       }
@@ -325,11 +336,37 @@ export const interpret = (
           const subject = yield* settle(children[0]!)
           return yield* settle(decide(subject) ? children[1]! : children[2]!)
         }
+        if (ast._tag === "Catch") {
+          // DECIDED (2026-08-11, pending review): catch observes only typed
+          // failures from ordinary protected execution. Effect defects and
+          // compensation failures remain outside this interpreter's error
+          // channel, so recovery cannot conceal a broken invariant or weaken
+          // withRollback's compensation guarantees.
+          const protectedId = children[0]!
+          return yield* Effect.matchEffect(settle(protectedId), {
+            onFailure: (error) => {
+              const filter = Node.catchFilter(ast)
+              if (ast.filter !== undefined && filter === undefined) {
+                return refuse("missing_operation", node.id, `Catch at "${node.id}" lost its schema filter.`)
+              }
+              if (filter !== undefined && !Schema.is(filter)(error)) {
+                return Effect.fail(error)
+              }
+              // The failure arm's planned subject resolves through the
+              // protected node id. Filing the typed failure as that settlement
+              // also prevents its static failure edge from re-running the
+              // protected graph while the recovery arm is driven.
+              failed.set(protectedId, error)
+              return settle(children[1]!)
+            },
+            onSuccess: Effect.succeed
+          })
+        }
         // Dependency order, from the key material: the same `Ref` and `Pending`
         // inputs the plan turns into edges, settled before the node that reads
         // them.
         for (const dependency of KeyMaterial.dependencies(node.draft.material)) {
-          yield* settle(dependency)
+          if (!failed.has(dependency)) yield* settle(dependency)
         }
         switch (ast._tag) {
           case "ActivityCall":
@@ -422,7 +459,8 @@ export const interpret = (
     return {
       value,
       settled,
-      skipped: Graph.nodes(graph).filter((node) => !settled.has(node.id)).map((node) => node.id)
+      failed,
+      skipped: Graph.nodes(graph).filter((node) => !settled.has(node.id) && !failed.has(node.id)).map((node) => node.id)
     }
   })
 
