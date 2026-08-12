@@ -1,3 +1,4 @@
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
  * Issue #45: the schedule-to-close (`expirationMs`) budget is measured from
  * the durably recorded first attempt, so it survives park/resume and process
@@ -29,7 +30,7 @@ import { runPromise } from "./Sha256.ts"
 const OriginFlow = Flow.make("RetryOrigin/Flow", {
   payload: {},
   success: Schema.String,
-  body: () => Node.succeed(undefined)
+  body: opaqueHandlerBody
 })
 
 const jj = Jj.make({

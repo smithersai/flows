@@ -1,3 +1,4 @@
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
  * The lane this suite proves: an activity body runs in an isolated workspace
  * and returns a result, not a mutation.
@@ -374,7 +375,7 @@ describe("EngineStore composition", () => {
   const SandboxFlow = Flow.make("SandboxedActivity/Flow", {
     payload: {},
     success: Schema.String,
-    body: () => Node.succeed(undefined)
+    body: opaqueHandlerBody
   })
 
   it("carries the sandbox and the dispatch stage onto the engine's own fiber", async () => {

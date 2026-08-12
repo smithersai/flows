@@ -195,8 +195,8 @@ export interface Flow<
    * receives the effect's successful value and the flow's failure cause when
    * the flow scope closes.
    *
-   * This applies only to effects run directly in the flow handler. It does not
-   * attach rollback behavior to nested activities.
+   * This applies only to effects run directly inside the flow execution. It
+   * does not attach rollback behavior to nested activities.
    */
   readonly withRollback: {
     <A, R2>(

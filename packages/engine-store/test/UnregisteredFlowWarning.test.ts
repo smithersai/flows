@@ -1,3 +1,4 @@
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
  * Pins issue #62: the #39 reclaim wakes released rows through `drive()`, but
  * `drive()` used to return silently when the run's flow was not registered in
@@ -28,7 +29,7 @@ import { runPromise } from "./Sha256.ts"
 const TestFlow = Flow.make("UnregisteredFlowWarning/Test", {
   payload: {},
   success: Schema.String,
-  body: () => Node.succeed(undefined)
+  body: opaqueHandlerBody
 })
 
 const fakeEngine = {} as unknown as FlowRuntime.FlowRuntime["Service"]

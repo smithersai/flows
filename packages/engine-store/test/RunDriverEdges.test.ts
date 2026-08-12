@@ -16,24 +16,25 @@ import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as JournalRecords from "../src/internal/JournalRecords.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
 import * as TestStores from "../src/test/TestStores.ts"
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 import { runPromise } from "./Sha256.ts"
 
 const EdgeFlow = Flow.make("RunDriverEdges/Flow", {
   payload: {},
   success: Schema.String,
-  body: () => Node.succeed(undefined)
+  body: opaqueHandlerBody
 })
 
 const OtherFlow = Flow.make("RunDriverEdges/Other", {
   payload: {},
   success: Schema.String,
-  body: () => Node.succeed(undefined)
+  body: opaqueHandlerBody
 })
 
 const UnregisteredFlow = Flow.make("RunDriverEdges/Unregistered", {
   payload: {},
   success: Schema.String,
-  body: () => Node.succeed(undefined)
+  body: opaqueHandlerBody
 })
 
 const owner: Ownership.OwnerId = { hostId: "edge-host", pid: 7, nonce: "edge" }

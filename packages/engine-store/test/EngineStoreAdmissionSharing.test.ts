@@ -1,3 +1,4 @@
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
  * Issue #112: the whole #102 same-key exclusion argument rests on one
  * admission mutex per store incarnation — `EngineStore.make` builds it once
@@ -32,7 +33,7 @@ import { runPromise } from "./Sha256.ts"
 const AdmissionFlow = Flow.make("EngineStoreAdmission/Flow", {
   payload: {},
   success: Schema.String,
-  body: () => Node.succeed(undefined)
+  body: opaqueHandlerBody
 })
 
 const jj = Jj.make({

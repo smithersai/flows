@@ -1,3 +1,4 @@
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
  * Pins issue #11: a durably recorded cancellation request
  * (`RunStore.requestCancel` / `cancel_requested_at_ms`) must be observed by
@@ -25,7 +26,7 @@ import { runPromise } from "./Sha256.ts"
 const TestFlow = Flow.make("DurableCancel/Test", {
   payload: {},
   success: Schema.String,
-  body: () => Node.succeed(undefined)
+  body: opaqueHandlerBody
 })
 
 const ownerA: Ownership.OwnerId = {

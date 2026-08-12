@@ -1,3 +1,4 @@
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
  * Issue #171: corrupt recorded evidence on a SUCCEEDED attempt row under the
  * strict verdict is an OPERATOR event, not a terminal run failure. The row
@@ -35,7 +36,7 @@ import { runPromise } from "./Sha256.ts"
 const QuarantineFlow = Flow.make("AttemptQuarantine/Flow", {
   payload: {},
   success: Schema.String,
-  body: () => Node.succeed(undefined)
+  body: opaqueHandlerBody
 })
 
 const jj = Jj.make({
@@ -269,7 +270,7 @@ describe("succeeded-row corruption parks the run quarantined for an operator (is
 const CancelRaceFlow = Flow.make("AttemptQuarantine/CancelRace", {
   payload: {},
   success: Schema.String,
-  body: () => Node.succeed(undefined)
+  body: opaqueHandlerBody
 })
 
 const fakeEngine = {} as unknown as FlowRuntime.FlowRuntime["Service"]

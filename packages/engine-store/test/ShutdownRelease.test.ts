@@ -1,3 +1,4 @@
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
  * Pins issue #26: a drive-fiber interruption that is not an operator
  * cancellation — process shutdown closing the coordinator scope, or the
@@ -26,7 +27,7 @@ import { runPromise } from "./Sha256.ts"
 const TestFlow = Flow.make("ShutdownRelease/Test", {
   payload: {},
   success: Schema.String,
-  body: () => Node.succeed(undefined)
+  body: opaqueHandlerBody
 })
 
 const owner: Ownership.OwnerId = {

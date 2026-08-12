@@ -13,6 +13,7 @@ import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 import { runPromise } from "./Sha256.ts"
 
 const jj = Jj.make({
@@ -89,7 +90,7 @@ describe("durable deferred outcomes across a restart", () => {
         payload: {},
         success: Schema.String,
         error: Schema.String,
-        body: () => Node.succeed(undefined)
+        body: opaqueHandlerBody
       })
       const prefix = Activity.make({
         name: "prefix",
@@ -216,7 +217,7 @@ describe("partial dependency readiness across a restart", () => {
     const flow = Flow.make("DeferredRestart/partial", {
       payload: {},
       success: Schema.String,
-      body: () => Node.succeed(undefined)
+      body: opaqueHandlerBody
     })
     const prefix = Activity.make({
       name: "prefix",
@@ -315,7 +316,7 @@ describe("partial dependency readiness across a restart", () => {
     const flow = Flow.make("DeferredRestart/out-of-order", {
       payload: {},
       success: Schema.String,
-      body: () => Node.succeed(undefined)
+      body: opaqueHandlerBody
     })
     const handler = () =>
       Effect.gen(function*() {
@@ -383,7 +384,7 @@ describe("partial dependency readiness across a restart", () => {
     const flow = Flow.make("DeferredRestart/mid-resume", {
       payload: {},
       success: Schema.String,
-      body: () => Node.succeed(undefined)
+      body: opaqueHandlerBody
     })
 
     const result = await withRestart((makeEngine, store) =>

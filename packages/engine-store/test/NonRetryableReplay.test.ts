@@ -1,3 +1,4 @@
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
  * Issue #59: the retry verdict is durable. A persisted `failed` attempt row
  * replays by rethrowing the persisted domain failure — never by surfacing
@@ -36,7 +37,7 @@ const ReplayFlow = Flow.make("NonRetryableReplay/Flow", {
   payload: {},
   success: Schema.String,
   error: Schema.Struct({ _tag: Schema.Literal("FatalBoom"), detail: Schema.String }),
-  body: () => Node.succeed(undefined)
+  body: opaqueHandlerBody
 })
 
 const jj = Jj.make({

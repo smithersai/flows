@@ -14,12 +14,13 @@ import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 import { runPromise } from "./Sha256.ts"
 
 const LayerFlow = Flow.make("EngineStoreLayer/Flow", {
   payload: {},
   success: Schema.String,
-  body: () => Node.succeed(undefined)
+  body: opaqueHandlerBody
 })
 
 const otherOwner: Ownership.OwnerId = {
@@ -67,6 +68,10 @@ const baseLayers = (jj: Jj.Jj, state: DurableEngineState.Service) =>
   )
 
 describe("EngineStore.layer", () => {
+  it("names opaque-handler fixtures and refuses accidental body interpretation", () => {
+    expect(() => LayerFlow.body({})).toThrow("opaque-handler fixture bodies must not be interpreted")
+  })
+
   it("exposes a snapshot boundary that delegates to Jj with key- and attempt-labelled messages", async () => {
     const calls: Array<JjCall> = []
     const result = await runPromise(

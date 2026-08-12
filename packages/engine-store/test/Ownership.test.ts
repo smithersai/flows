@@ -14,12 +14,13 @@ import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
 import * as TestStores from "../src/test/TestStores.ts"
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 import { runPromise } from "./Sha256.ts"
 
 const TestFlow = Flow.make("Ownership/Test", {
   payload: {},
   success: Schema.String,
-  body: () => Node.succeed(undefined)
+  body: opaqueHandlerBody
 })
 
 const ownerA: Ownership.OwnerId = {

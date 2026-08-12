@@ -1,3 +1,4 @@
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
  * Pins the crash-consistency invariant: every engine-store lifecycle journal
  * entry commits in the SAME write transaction as the executable state
@@ -294,7 +295,7 @@ describe("lifecycle history is atomic with executable state", () => {
 const DriverFlow = Flow.make("WalAtomicity/Driver", {
   payload: {},
   success: Schema.String,
-  body: () => Node.succeed(undefined)
+  body: opaqueHandlerBody
 })
 
 const fakeEngine = {} as unknown as FlowRuntime.FlowRuntime["Service"]

@@ -1,3 +1,4 @@
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
  * Pins the failure-caching contract: what a fresh engine does with durable
  * evidence of a *failed* step, versus durable evidence of a successful one.
@@ -23,7 +24,7 @@ const FailFlow = Flow.make("FailureEvidence/Flow", {
   payload: {},
   success: Schema.String,
   error: Schema.String,
-  body: () => Node.succeed(undefined)
+  body: opaqueHandlerBody
 })
 
 const jj = Jj.make({

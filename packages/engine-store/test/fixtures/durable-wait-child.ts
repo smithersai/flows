@@ -16,6 +16,7 @@ import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as Migrations from "../../src/Migrations.ts"
 import * as OwnerIdentity from "../../src/OwnerIdentity.ts"
 import { runPromise } from "../Sha256.ts"
+import { opaqueHandlerBody } from "./OpaqueHandlerBody.ts"
 
 const mode = process.argv[2]
 const filename = process.argv[3]
@@ -28,13 +29,13 @@ if (mode === undefined || filename === undefined || executionId === undefined) {
 const WaitFlow = Flow.make("DurableWaiting/HardKill", {
   payload: {},
   success: Schema.String,
-  body: () => Node.succeed(undefined)
+  body: opaqueHandlerBody
 })
 
 const TimerFlow = Flow.make("DurableWaiting/FutureTimer", {
   payload: {},
   success: Schema.String,
-  body: () => Node.succeed(undefined)
+  body: opaqueHandlerBody
 })
 
 const deferred = DurableDeferred.make("answer", {

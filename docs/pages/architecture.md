@@ -135,7 +135,7 @@ sequenceDiagram
 
 Six things happen in that sequence, and each one is a decision you can inspect.
 
-**Definition and registration.** `Flow.make` produces a typed value carrying payload, success, and error schemas plus a stable tag. `flow.toLayer(handler)` registers the handler in the active `FlowEngine` scope. Registration is in memory even when the state is durable, so a restarted process must re-register its flows before it can drive stored runs.
+**Definition and registration.** `Flow.make` produces a typed value carrying payload, success, and error schemas, a stable tag, and the required pure `body` that is the flow's behavior. `Interpreter.layer(flow)` registers it in the active `FlowEngine` scope and drives that body; an activity attaches its own implementation with `Activity.toLayer`. Registration is in memory even when the state is durable, so a restarted process must re-register its flows before it can drive stored runs.
 
 **Execution identity.** The caller supplies `executionId`, or the flow derives one from an opt-in `idempotencyKey`. The driver persists the encoded payload under that identity, and a second request with the same identity must present the same flow tag and the same encoded payload.
 

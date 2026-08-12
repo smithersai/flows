@@ -91,9 +91,9 @@ describe("Activity.make declared overload", () => {
       tier: "sealed",
       idempotencyKey: "double"
     })
-    // The activity's flow form, written out: same tag, same schemas, one call.
-    // `toLayer` registers exactly this shape internally, which is what makes
-    // the activity executable as a durable execution of its own.
+    // Drive the public declared call through a composite body. This verifies
+    // the ActivityCall node, its payload decoding, and the registered
+    // implementation as one durable path.
     const invocation = Flow.make("Declared/execution", {
       payload: NumberPayload,
       success: Schema.Number,
@@ -106,6 +106,11 @@ describe("Activity.make declared overload", () => {
         return value * 2
       })
     ).pipe(Layer.provideMerge(layerMemory))
+
+    expect(Graph.nodes(Graph.build(invocation, { value: 21 }))[0]).toMatchObject({
+      kind: "ActivityCall",
+      payload: { value: 21 }
+    })
 
     const result = await runPromise(
       invocation.execute({ value: 21 }, { executionId: "declared-execution" }).pipe(

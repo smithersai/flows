@@ -5,7 +5,7 @@ import { Node } from "@smthrs/plan"
 import { Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import type * as Scope from "effect/Scope"
-import { describe, expect, it } from "vitest"
+import { describe, expect, expectTypeOf, it } from "vitest"
 import { runPromise } from "./Crypto.ts"
 import { layerWired } from "./MemoryFlowRuntime.ts"
 
@@ -95,10 +95,34 @@ describe("Flow.make payload and schema defaults", () => {
   })
 })
 
+describe("Flow.make requires a body", () => {
+  it("refuses a declaration with nothing to plan, at the type level", () => {
+    // The two nouns of `docs/specs/Concepts/Unified Flow Authoring.md` are
+    // stratified by the compiler, not by prose: a flow with nothing to plan is
+    // a category error, and the work it described is an Activity. The
+    // directive is the assertion — tsc fails the check when the call below
+    // compiles.
+    // @ts-expect-error -- `body` is a required field of Flow.make's options.
+    Flow.make("Definition/no-body", { payload: { id: Schema.String } })
+
+    const declared = Flow.make("Definition/required-body", {
+      payload: { id: Schema.String },
+      body: () => Node.succeed(undefined)
+    })
+    expectTypeOf(declared.body).toBeFunction()
+    expectTypeOf(declared.body).not.toBeNullable()
+    // The erased shape every engine helper reads is required too, so no
+    // consumer is left with an optional-body branch to write.
+    expectTypeOf<Flow.Any["body"]>().not.toBeNullable()
+    expect(typeof declared.body).toBe("function")
+  })
+})
+
 /**
- * `Flow.Execution<Tag>` is a phantom marker no service ever provides; only
- * `Flow.toLayer` discharges it, and the new authoring surface reaches a
- * declared activity's implementation instead.
+ * `Flow.Execution<Tag>` is a phantom marker no service ever provides. Nothing
+ * discharges it any more — the flow-level handler attachment that once did is
+ * gone with the handler — and the authoring surface reaches a declared
+ * activity's implementation instead.
  *
  * DECIDED (2026-08-11, pending review): the definition-level combinator keeps
  * its own coverage through this cast rather than the assertions moving to the

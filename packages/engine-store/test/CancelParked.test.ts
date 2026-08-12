@@ -1,3 +1,4 @@
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
  * Pins issue #27: a durable cancel request against a suspended (parked) run
  * must actually be delivered. The driver's cancel poll only exists while an
@@ -66,7 +67,7 @@ describe("cancel requests reach parked runs (issue #27)", () => {
     const EventFlow = Flow.make("CancelParked/Sweep", {
       payload: {},
       success: Schema.String,
-      body: () => Node.succeed(undefined)
+      body: opaqueHandlerBody
     })
     const gate = DurableDeferred.make("cancel-parked-gate", { success: Schema.String })
 
@@ -112,7 +113,7 @@ describe("cancel requests reach parked runs (issue #27)", () => {
     const EventFlow = Flow.make("CancelParked/Resume", {
       payload: {},
       success: Schema.String,
-      body: () => Node.succeed(undefined)
+      body: opaqueHandlerBody
     })
     const gate = DurableDeferred.make("cancel-resume-gate", { success: Schema.String })
     let bodyRuns = 0

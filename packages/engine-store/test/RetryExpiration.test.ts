@@ -1,3 +1,4 @@
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
  * Pins issue #45: a `RetryPolicy.expirationMs` (schedule-to-close) bound must
  * be measured from a durable origin — the persisted start of the first
@@ -73,7 +74,7 @@ describe("expirationMs survives a restart mid-retry (issue #45)", () => {
       payload: {},
       success: Schema.String,
       error: Schema.String,
-      body: () => Node.succeed(undefined)
+      body: opaqueHandlerBody
     })
     const flaky = Activity.make({
       name: "retry-expiration-flaky",

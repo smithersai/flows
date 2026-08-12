@@ -258,7 +258,8 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
         // the flow, one whose wait already has a persisted result clears it
         // (`deferredResult`), and one that touches neither leaves whatever the
         // body declared alone — seeded here, copied back below.
-        activityInstance.waiting = instance.waiting
+        const waitingBefore = instance.waiting
+        activityInstance.waiting = waitingBefore
         const result = (yield* (activity.executeEncoded.pipe(
           Flow.intoResult,
           Effect.provideService(FlowRuntime.FlowInstance, activityInstance),
@@ -266,7 +267,7 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
           Effect.provideService(Activity.CurrentInvocationKey, dispatch),
           Effect.onExit((exit: any) => Effect.sync(() => activities.set(id, exit)))
         ) as Effect.Effect<Flow.Result<unknown, unknown>>)) as Flow.Result<unknown, unknown>
-        instance.waiting = activityInstance.waiting
+        if (instance.waiting === waitingBefore) instance.waiting = activityInstance.waiting
         // A recorded interruption is a durable OUTCOME, not a request to
         // suspend (`DurableDeferred.await` sets the flag to say so). The flag
         // is set on whichever instance is in scope, which for a declared

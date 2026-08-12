@@ -212,8 +212,8 @@ export const addFinalizer: <R>(
  *
  * **Gotchas**
  *
- * This applies only to effects run directly in the flow handler. It does not
- * attach rollback behavior to nested activities. The rollback's typed error
+ * This applies only to effects run directly inside the flow execution. It does
+ * not attach rollback behavior to nested activities. The rollback's typed error
  * channel is `never`; handle expected rollback failures inside the callback.
  *
  * @category resource management

@@ -497,6 +497,24 @@ describe("a flow's behavior is its body", () => {
     expect("toLayer" in Bodied).toBe(false)
   })
 
+  it("kept nothing the optional-body stage needed", () => {
+    // `Flow.Bodied` described a flow that had a body, which is now every flow;
+    // `BodyDefinesBehavior` was the defect a bodied flow raised when a second,
+    // opaque behavior was attached to it; `missing_body` was the interpreter
+    // refusing a flow with nothing to interpret. None of the three has anything
+    // left to name.
+    // @ts-expect-error -- `Flow.Flow` is the type of a flow that has a body.
+    type _Bodied = Flow.Bodied
+    expect("BodyDefinesBehavior" in Flow).toBe(false)
+    expectTypeOf<Interpreter.InterpreterError["code"]>().toEqualTypeOf<
+      | "incomplete_graph"
+      | "unresolved_activity"
+      | "unresolved_reference"
+      | "unsupported_call"
+      | "missing_operation"
+    >()
+  })
+
   it("keeps that surface, and the body itself, across annotation", () => {
     const annotated = Bodied.annotate(Flow.Capabilities, ["fs"])
     const merged = Bodied.annotateMerge(Context.empty())

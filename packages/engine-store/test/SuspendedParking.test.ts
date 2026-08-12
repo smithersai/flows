@@ -1,3 +1,4 @@
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
  * Pins issue #12: a run that actually suspends through the execution path
  * must park — populating `waiting_reason`/`waiting_wake_at_ms` so
@@ -63,7 +64,7 @@ describe("suspended runs park with a waiting reason", () => {
     const EventFlow = Flow.make("Parking/Event", {
       payload: {},
       success: Schema.String,
-      body: () => Node.succeed(undefined)
+      body: opaqueHandlerBody
     })
     const gate = DurableDeferred.make("parking-gate", { success: Schema.String })
     const handler = () => Effect.map(DurableDeferred.await(gate), (value) => `gated:${value}`)
@@ -109,7 +110,7 @@ describe("suspended runs park with a waiting reason", () => {
     const TimerFlow = Flow.make("Parking/Timer", {
       payload: {},
       success: Schema.String,
-      body: () => Node.succeed(undefined)
+      body: opaqueHandlerBody
     })
     const handler = () =>
       DurableClock.sleep({ name: "parking-timer", duration: "5 minutes" }).pipe(

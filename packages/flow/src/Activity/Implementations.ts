@@ -66,9 +66,9 @@ export interface Implementation {
  * **When to use**
  *
  * Use when driving a flow body, whose activity calls name declarations rather
- * than carry code. A composition that only executes registered flow handlers
- * never needs it, which is why `toLayer` files an implementation here when the
- * service is present and skips it otherwise.
+ * than carry code. A composition that only drives behavior registered directly
+ * with the runtime never needs it, which is why `Activity.toLayer` files an
+ * implementation here when the service is present and skips it otherwise.
  *
  * @category services
  * @since 0.1.0

@@ -1,3 +1,4 @@
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
  * Pins issue #31: the production park path must be able to record `approval`
  * and `quota` waits (and the wake token), not only the derived
@@ -112,7 +113,7 @@ describe("annotated waiting reasons reach the parked row (issue #31)", () => {
     const ApprovalFlow = Flow.make("Annotated/Approval", {
       payload: {},
       success: Schema.String,
-      body: () => Node.succeed(undefined)
+      body: opaqueHandlerBody
     })
     const gate = DurableDeferred.make("annotated-approval-gate", { success: Schema.String })
 
@@ -166,7 +167,7 @@ describe("annotated waiting reasons reach the parked row (issue #31)", () => {
     const GatedFlow = Flow.make("Annotated/ActivityGate", {
       payload: {},
       success: Schema.String,
-      body: () => Node.succeed(undefined)
+      body: opaqueHandlerBody
     })
     const gate = DurableDeferred.make("annotated-activity-gate", { success: Schema.String })
     // The shape `WaitFor` ships: the wait is inside an ACTIVITY, so the
@@ -229,7 +230,7 @@ describe("annotated waiting reasons reach the parked row (issue #31)", () => {
     const QuotaFlow = Flow.make("Annotated/Quota", {
       payload: {},
       success: Schema.String,
-      body: () => Node.succeed(undefined)
+      body: opaqueHandlerBody
     })
     const gate = DurableDeferred.make("annotated-quota-gate", { success: Schema.String })
 
@@ -263,7 +264,7 @@ describe("annotated waiting reasons reach the parked row (issue #31)", () => {
     const TwoStageFlow = Flow.make("Annotated/TwoStage", {
       payload: {},
       success: Schema.String,
-      body: () => Node.succeed(undefined)
+      body: opaqueHandlerBody
     })
     const gate = DurableDeferred.make("annotated-two-stage-gate", { success: Schema.String })
 

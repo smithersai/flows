@@ -1,3 +1,4 @@
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
  * Pins issues #80 and #81: the run-parent edge table can never hold ghost
  * edges.
@@ -37,7 +38,7 @@ import { runPromise } from "./Sha256.ts"
 const AtomicFlow = Flow.make("RunParentAtomicity/Test", {
   payload: {},
   success: Schema.String,
-  body: () => Node.succeed(undefined)
+  body: opaqueHandlerBody
 })
 
 const fakeEngine = {} as unknown as FlowRuntime.FlowRuntime["Service"]

@@ -1,3 +1,4 @@
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
  * Pins issue #77: probing the surviving attempts for an activity key must
  * not cost up to 32 sequential `AttemptStore.get` point reads per fresh
@@ -30,7 +31,7 @@ import { runPromise } from "./Sha256.ts"
 const ProbeFlow = Flow.make("AttemptProbeCost/Flow", {
   payload: {},
   success: Schema.String,
-  body: () => Node.succeed(undefined)
+  body: opaqueHandlerBody
 })
 
 const jj = Jj.make({

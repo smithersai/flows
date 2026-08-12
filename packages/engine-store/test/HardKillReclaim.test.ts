@@ -1,3 +1,4 @@
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
  * Pins issue #53: a run whose owner dies without releasing it (SIGKILL, OOM,
  * power loss) stays `status='running'` with a frozen heartbeat and no waiting
@@ -34,7 +35,7 @@ import { runPromise } from "./Sha256.ts"
 const TestFlow = Flow.make("HardKillReclaim/Test", {
   payload: {},
   success: Schema.String,
-  body: () => Node.succeed(undefined)
+  body: opaqueHandlerBody
 })
 
 const fakeEngine = {} as unknown as FlowRuntime.FlowRuntime["Service"]

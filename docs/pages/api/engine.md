@@ -4,25 +4,27 @@ The runtime that executes flows: the low-level encoded engine contract, its type
 
 ```ts
 import { FlowEngine } from "@smthrs/engine"
-import { Activity, Flow } from "@smthrs/flow"
+import { Activity, Flow, Interpreter } from "@smthrs/flow"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 
+const Compile = Activity.make("example/Compile", {
+  payload: { target: Schema.String },
+  success: Schema.String,
+  tier: "sealed"
+})
+
 const Build = Flow.make("example/Build", {
   payload: { target: Schema.String },
-  success: Schema.String
-})
-
-const Compile = Activity.make({
-  name: "example/Compile",
   success: Schema.String,
-  tier: "sealed",
-  idempotencyKey: { operation: "compile/v1" },
-  execute: Effect.succeed("out.js")
+  body: (payload) => Compile.call(payload)
 })
 
-const layer = Build.toLayer(() => Compile).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+const layer = Layer.mergeAll(
+  Compile.toLayer(({ target }) => Effect.succeed(`${target}.js`)),
+  Interpreter.layer(Build)
+).pipe(Layer.provideMerge(Activity.layerImplementations), Layer.provideMerge(FlowEngine.layerMemory))
 ```
 
 ## Entry point
