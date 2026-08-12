@@ -9,12 +9,14 @@ import { FlowEngine } from "@smthrs/engine"
 import { Flow, FlowRuntime } from "@smthrs/flow"
 import { Journal } from "@smthrs/journal"
 import { Ownership, RunStore } from "@smthrs/run-store"
+import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Deferred from "effect/Deferred"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
+import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
 import * as DurableEngineState from "../DurableEngineState.ts"
@@ -840,9 +842,21 @@ export const make = (
             return
           }
 
-          const failure = Option.getOrThrow(Exit.findErrorOption(created))
-          if (!(failure instanceof RunStore.RunStoreError) || failure.code !== "constraint") {
-            return yield* Effect.die(failure)
+          // A cause carrying no `Fail` reason — an interrupt-only cause, or a
+          // bare defect — used to reach `Option.getOrThrow(Exit.findErrorOption(...))`,
+          // which threw a raw `NoSuchElementError` defect and discarded the
+          // original cause. A caller that interrupted the fiber while
+          // `store.create` was inside its write transaction saw a crash rather
+          // than the cancellation it asked for. `Cause.findFail` hands back
+          // that residual cause typed `Cause<never>`, so re-raising it verbatim
+          // keeps an interrupt an interrupt (issue #151).
+          const failure = Cause.findFail(created.cause)
+          if (Result.isFailure(failure)) {
+            return yield* Effect.failCause(failure.failure)
+          }
+          const error = failure.success.error
+          if (!(error instanceof RunStore.RunStoreError) || error.code !== "constraint") {
+            return yield* Effect.die(error)
           }
           const existing = yield* store.get(options.executionId).pipe(Effect.orDie)
           const persisted = yield* decodeState(existing.stateJson)
