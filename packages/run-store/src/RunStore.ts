@@ -643,6 +643,13 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
     write(
       "claim",
       Effect.gen(function*() {
+        // `claim` never admits a running run, so it needs no staleness
+        // disjunction. `status IN ('pending', 'suspended')` already excludes
+        // 'running', which made the preceding `status <> 'running'` redundant
+        // and the trailing `(status <> 'running' OR heartbeat IS NULL OR
+        // heartbeat < cutoff)` a tautology — its first branch was already
+        // known true. `claimAndOwn` is the method that genuinely needs the
+        // staleness test, because it does admit 'running'.
         const rows = yield* sql<{ readonly runId: string }>`
           UPDATE flows_runs
           SET
@@ -651,7 +658,6 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
             claim_nonce = ${claimant.nonce},
             claimed_at_ms = ${nowMs}
           WHERE run_id = ${runId}
-            AND status <> 'running'
             AND status IN ('pending', 'suspended')
             AND status = ${expected.status}
             AND owner_host_id IS ${expected.owner?.hostId ?? null}
@@ -662,11 +668,6 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
             AND claim_pid IS NULL
             AND claim_nonce IS NULL
             AND claimed_at_ms IS NULL
-            AND (
-              status <> 'running'
-              OR heartbeat_at_ms IS NULL
-              OR heartbeat_at_ms < ${nowMs - heartbeatStaleAfterMs}
-            )
           RETURNING run_id AS "runId"
         `
         if (rows.length > 0) return claimed(nowMs)
