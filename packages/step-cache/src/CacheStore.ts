@@ -315,12 +315,12 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
  */
 export const makeNoop = (overrides: Partial<Service> = {}): Service => {
   const unavailable = (method: string) => Effect.fail(error("unknown", `${method} is unavailable`))
-  return {
+  return CacheStore.of({
     get: Effect.fn("CacheStore.get")(() => unavailable("get")),
     put: Effect.fn("CacheStore.put")(() => unavailable("put")),
     evict: Effect.fn("CacheStore.evict")(() => unavailable("evict")),
     ...overrides
-  }
+  })
 }
 
 /**
