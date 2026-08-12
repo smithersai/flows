@@ -157,6 +157,25 @@ export const equals = (
   return true
 }
 
+/**
+ * The ambient ceiling, defaulting to {@link unrestricted} — a fiber that never
+ * passed through {@link attenuate} allows every capability.
+ *
+ * The default is `unrestricted` because it is the identity element of
+ * {@link intersect}, and `intersect` is the only way authority ever moves:
+ * this reference is module-private, {@link attenuate} is its only writer, and
+ * `attenuate` composes with the parent rather than replacing it. `none` is the
+ * absorbing element of the same operation, so defaulting to it would make the
+ * ceiling permanently closed — no exported operation could ever widen a fiber
+ * back to any authority at all. A fail-closed ceiling therefore needs a root
+ * grant primitive, not a different default.
+ *
+ * The ceiling is not what makes the kernel fail closed. `GrantStore.check`
+ * consults it first and then evaluates the ruleset, whose default verdict is
+ * `ask`; an unattended store turns `ask` into `PermissionRequired`. So the
+ * composed kernel refuses an ungranted capability on the ruleset, and the
+ * ceiling's job is to bound what a *scoped* fiber may ask for.
+ */
 const CurrentCapabilities: Context.Reference<CapabilitySet> = Context.Reference<CapabilitySet>(
   "@smthrs/kernel/CurrentCapabilities",
   { defaultValue: () => unrestricted }

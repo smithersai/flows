@@ -232,6 +232,32 @@ describe("CapabilitySet", () => {
     )).toBe(false)
   })
 
+  it("allows every capability on a fiber with no ambient capability set (B8)", () => {
+    // Recorded as intended, not merely observed. The default is `unrestricted`
+    // because it is the identity element of `intersect`, and `intersect` is the
+    // only way authority ever moves: `CurrentCapabilities` is module-private
+    // and `attenuate` is its only writer. `none` is the absorbing element of
+    // the same operation, so defaulting to it would close the ceiling
+    // permanently — the sibling cell below pins that no exported operation can
+    // widen a fiber back. A fail-closed ceiling needs a root grant primitive,
+    // not a different default.
+    //
+    // The ceiling is not what makes the kernel fail closed: `GrantStore.check`
+    // consults it and then evaluates the ruleset, whose default verdict is
+    // `ask`, which an unattended store turns into `PermissionRequired`.
+    const ambient = Effect.runSync(CapabilitySets.current)
+
+    for (const action of actions) {
+      for (const resource of capabilityResources) {
+        expect(CapabilitySets.allows(ambient, new Capability({ action, resource }))).toBe(true)
+      }
+    }
+    // It is the identity element: attenuating from it yields exactly the
+    // patterns attenuated with, so nothing is inherited from the default.
+    const scoped = CapabilitySets.intersect(ambient, CapabilitySets.fromPatterns([]))
+    expect(CapabilitySets.equals(scoped, CapabilitySets.none)).toBe(true)
+  })
+
   it("exports no authority-widening API", () => {
     expect(Object.keys(CapabilitySets).sort()).toEqual([
       "allows",
