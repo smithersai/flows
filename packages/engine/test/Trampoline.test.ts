@@ -64,9 +64,14 @@ const OriginBounded = Flow.make("trampoline/origin-bounded", {
   maxRounds: 1,
   body: ({ value }) => UnboundedTarget.to({ value })
 })
-const Parent = Flow.make("trampoline/parent", {
+const ParentActivityDeclaration = Activity.make("trampoline/parent/activity", {
   payload: { target: Schema.Number },
   success: Schema.Number
+})
+const Parent = Flow.make("trampoline/parent", {
+  payload: { target: Schema.Number },
+  success: Schema.Number,
+  body: (payload) => ParentActivityDeclaration.call(payload)
 })
 
 /** Every increment the lineage dispatched, in order. */
@@ -208,7 +213,14 @@ describe("a lineage on the memory engine", () => {
   it("follows every round of a lineage executed from a parent flow", async () => {
     const { calls, layer } = wire(
       Interpreter.layer(Counter),
-      Parent.toLayer(({ target }) => Counter.execute({ value: 0, target }, { executionId: "memory-child-lineage" }))
+      Layer.mergeAll(
+        ParentActivityDeclaration.toLayer(({ target }) =>
+          Counter.execute({ value: 0, target }, { executionId: "memory-child-lineage" })
+        ),
+        Interpreter.layer(Parent)
+      ).pipe(
+        Layer.provideMerge(Activity.layerImplementations)
+      )
     )
 
     const value = await runPromise(

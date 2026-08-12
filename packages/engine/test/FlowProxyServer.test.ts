@@ -1,6 +1,6 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { DurableDeferred, Flow } from "@smthrs/flow"
+import { Activity, DurableDeferred, Flow, Interpreter } from "@smthrs/flow"
 import { Effect, Exit, FileSystem, Layer, Option, Path, Schema, Scope } from "effect"
 import { Etag, HttpPlatform } from "effect/unstable/http"
 import { HttpApi, HttpApiTest } from "effect/unstable/httpapi"
@@ -12,19 +12,30 @@ import { runPromise } from "./Crypto.ts"
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Scope.Scope>) =>
   it(name, () => runPromise(Effect.scoped(body())))
 
+const EchoActivityDeclaration = Activity.make("Proxy/Echo/activity", {
+  payload: { value: Schema.Number },
+  success: Schema.Number,
+  error: Schema.Literal("invalid")
+})
 const Echo = Flow.make("Proxy/Echo", {
   payload: { value: Schema.Number },
   success: Schema.Number,
   error: Schema.Literal("invalid"),
-  idempotencyKey: ({ value }) => String(value)
+  idempotencyKey: ({ value }) => String(value),
+  body: (payload) => EchoActivityDeclaration.call(payload)
 })
 
 const Gate = DurableDeferred.make("Proxy/Gate", { success: Schema.Number })
 
+const SuspendsActivityDeclaration = Activity.make("Proxy/Suspends/activity", {
+  payload: { id: Schema.String },
+  success: Schema.Number
+})
 const Suspends = Flow.make("Proxy/Suspends", {
   payload: { id: Schema.String },
   success: Schema.Number,
-  idempotencyKey: ({ id }) => id
+  idempotencyKey: ({ id }) => id,
+  body: (payload) => SuspendsActivityDeclaration.call(payload)
 })
 
 const flows = [Echo, Suspends] as const
@@ -37,8 +48,13 @@ const makeLayer = (echo: (value: number) => Effect.Effect<number, "invalid">) =>
       return echo(value)
     })
   const layer = Layer.mergeAll(
-    Echo.toLayer(({ value }) => counted(value)),
-    Suspends.toLayer(() => DurableDeferred.await(Gate))
+    Layer.mergeAll(EchoActivityDeclaration.toLayer(({ value }) => counted(value)), Interpreter.layer(Echo)).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
+    ),
+    Layer.mergeAll(SuspendsActivityDeclaration.toLayer(() => DurableDeferred.await(Gate)), Interpreter.layer(Suspends))
+      .pipe(
+        Layer.provideMerge(Activity.layerImplementations)
+      )
   ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
   return { layer, calls: () => calls }
 }

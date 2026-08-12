@@ -1,6 +1,6 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow"
+import { Activity, Flow, FlowRuntime, Interpreter, RetryPolicy } from "@smthrs/flow"
 import { Clock, Effect, Exit, Fiber, Layer, Option, Random, Schema } from "effect"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
@@ -29,10 +29,16 @@ describe("expiration (issue #36)", () => {
         return Effect.fail("dependency-down")
       })
     })
-    const flow = Flow.make("RetryPolicy/expiring-flow", {
+    const flowActivityDeclaration = Activity.make("RetryPolicy/expiring-flow/activity", {
       payload: {},
       success: Schema.Number,
       error: Schema.String
+    })
+    const flow = Flow.make("RetryPolicy/expiring-flow", {
+      payload: {},
+      success: Schema.Number,
+      error: Schema.String,
+      body: (payload) => flowActivityDeclaration.call(payload)
     })
 
     const exit = await runPromise(
@@ -47,7 +53,9 @@ describe("expiration (issue #36)", () => {
         return result._tag === "Complete" ? result.exit : Exit.succeed("suspended" as never)
       }).pipe(
         Effect.provide(
-          flow.toLayer(() => Effect.succeed(0)).pipe(
+          Layer.mergeAll(flowActivityDeclaration.toLayer(() => Effect.succeed(0)), Interpreter.layer(flow)).pipe(
+            Layer.provideMerge(Activity.layerImplementations)
+          ).pipe(
             Layer.provideMerge(FlowEngine.layerMemory)
           )
         ),
@@ -71,21 +79,32 @@ describe("expiration (issue #36)", () => {
 describe("flow suspension policy", () => {
   it("preserves the policy through annotations and forwards it to execution", () => {
     const policy = RetryPolicy.make({ initialMs: 17, factor: 1, maxMs: 17 })
+    const suspendedActivityDeclaration = Activity.make("RetryPolicy/suspended/activity", {
+      payload: {},
+      success: Schema.Void
+    })
     const suspended = Flow.make("RetryPolicy/suspended", {
       payload: {},
       success: Schema.Void,
-      suspendedRetryPolicy: policy
+      suspendedRetryPolicy: policy,
+      body: (payload) => suspendedActivityDeclaration.call(payload)
     }).annotate(Flow.CaptureDefects, true)
     let attempts = 0
-    const layer = suspended.toLayer(() =>
-      Effect.gen(function*() {
-        attempts++
-        if (attempts === 1) {
-          const instance = yield* FlowRuntime.FlowInstance
-          return yield* Flow.suspend(instance)
-        }
-      })
-    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+    const layer = Layer.mergeAll(
+      suspendedActivityDeclaration.toLayer(() =>
+        Effect.gen(function*() {
+          attempts++
+          if (attempts === 1) {
+            const instance = yield* FlowRuntime.FlowInstance
+            return yield* Flow.suspend(instance)
+          }
+        })
+      ),
+      Interpreter.layer(suspended)
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(FlowEngine.layerMemory)
+    )
 
     expect(suspended.suspendedRetryPolicy).toBe(policy)
     return Effect.gen(function*() {

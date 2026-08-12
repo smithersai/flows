@@ -100,9 +100,14 @@ const OriginBounded = Flow.make("trampoline/origin-bounded", {
   body: ({ value }) => LegTwo.to({ value })
 })
 
-const Parent = Flow.make("trampoline/parent", {
+const ParentActivityDeclaration = Activity.make("trampoline/parent/activity", {
   payload: { target: Schema.Number },
   success: Schema.Number
+})
+const Parent = Flow.make("trampoline/parent", {
+  payload: { target: Schema.Number },
+  success: Schema.Number,
+  body: (payload) => ParentActivityDeclaration.call(payload)
 })
 
 /** A round that parks instead of answering. */
@@ -272,7 +277,14 @@ describe("a durable lineage", () => {
           })
         ),
         Interpreter.layer(Counter),
-        Parent.toLayer(({ target }) => Counter.execute({ value: 0, target }, { executionId: "durable-child-lineage" }))
+        Layer.mergeAll(
+          ParentActivityDeclaration.toLayer(({ target }) =>
+            Counter.execute({ value: 0, target }, { executionId: "durable-child-lineage" })
+          ),
+          Interpreter.layer(Parent)
+        ).pipe(
+          Layer.provideMerge(Activity.layerImplementations)
+        )
       ).pipe(
         Layer.provideMerge(Activity.layerImplementations),
         Layer.provideMerge(Layer.succeed(FlowRuntime.FlowRuntime, engine))

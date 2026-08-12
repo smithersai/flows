@@ -1,6 +1,6 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, Flow, FlowRuntime } from "@smthrs/flow"
+import { Activity, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
 import { Effect, Exit, Layer, Result, Schedule, Schema, Scope } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
@@ -56,16 +56,26 @@ describe("activity execution keys", () => {
         return "sent"
       })
     })
-    const flow = Flow.make("ActivityKeys/no-collision", {
+    const flowActivityDeclaration = Activity.make("ActivityKeys/no-collision/activity", {
       payload: { run: Schema.String },
       success: Schema.String
     })
-    const layer = flow.toLayer(() =>
-      Effect.gen(function*() {
-        const amount = yield* chargeCard
-        const receipt = yield* sendEmail
-        return `${amount}:${receipt}`
-      })
+    const flow = Flow.make("ActivityKeys/no-collision", {
+      payload: { run: Schema.String },
+      success: Schema.String,
+      body: (payload) => flowActivityDeclaration.call(payload)
+    })
+    const layer = Layer.mergeAll(
+      flowActivityDeclaration.toLayer(() =>
+        Effect.gen(function*() {
+          const amount = yield* chargeCard
+          const receipt = yield* sendEmail
+          return `${amount}:${receipt}`
+        })
+      ),
+      Interpreter.layer(flow)
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
 
     return Effect.gen(function*() {
@@ -84,11 +94,21 @@ describe("activity execution keys", () => {
         idempotencyKey: "sealed/caller-key",
         execute: Effect.sync(() => ++executions)
       })
-    const flow = Flow.make("ActivityKeys/replay", {
+    const flowActivityDeclaration = Activity.make("ActivityKeys/replay/activity", {
       payload: { run: Schema.String },
       success: Schema.Number
     })
-    const layer = flow.toLayer(() => Effect.andThen(activity(), activity())).pipe(
+    const flow = Flow.make("ActivityKeys/replay", {
+      payload: { run: Schema.String },
+      success: Schema.Number,
+      body: (payload) => flowActivityDeclaration.call(payload)
+    })
+    const layer = Layer.mergeAll(
+      flowActivityDeclaration.toLayer(() => Effect.andThen(activity(), activity())),
+      Interpreter.layer(flow)
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
+    ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
 
@@ -116,17 +136,27 @@ describe("activity execution keys", () => {
         },
         execute: Effect.sync(() => ++executions)
       })
-    const flow = Flow.make("ActivityKeys/boundary-invalidation", {
+    const flowActivityDeclaration = Activity.make("ActivityKeys/boundary-invalidation/activity", {
       payload: { run: Schema.String },
       success: Schema.Number
     })
-    const layer = flow.toLayer(() =>
-      Effect.gen(function*() {
-        // Same digest replays; the changed digest must re-execute.
-        yield* build("d1")
-        yield* build("d1")
-        return yield* build("d2")
-      })
+    const flow = Flow.make("ActivityKeys/boundary-invalidation", {
+      payload: { run: Schema.String },
+      success: Schema.Number,
+      body: (payload) => flowActivityDeclaration.call(payload)
+    })
+    const layer = Layer.mergeAll(
+      flowActivityDeclaration.toLayer(() =>
+        Effect.gen(function*() {
+          // Same digest replays; the changed digest must re-execute.
+          yield* build("d1")
+          yield* build("d1")
+          return yield* build("d2")
+        })
+      ),
+      Interpreter.layer(flow)
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
 
     return Effect.gen(function*() {
@@ -155,11 +185,21 @@ describe("activity execution keys", () => {
       idempotencyKey: identity,
       execute: Effect.sync(() => ++executions)
     })
-    const flow = Flow.make("ActivityKeys/rename-stable", {
+    const flowActivityDeclaration = Activity.make("ActivityKeys/rename-stable/activity", {
       payload: { run: Schema.String },
       success: Schema.Number
     })
-    const layer = flow.toLayer(() => Effect.andThen(first, renamed)).pipe(
+    const flow = Flow.make("ActivityKeys/rename-stable", {
+      payload: { run: Schema.String },
+      success: Schema.Number,
+      body: (payload) => flowActivityDeclaration.call(payload)
+    })
+    const layer = Layer.mergeAll(
+      flowActivityDeclaration.toLayer(() => Effect.andThen(first, renamed)),
+      Interpreter.layer(flow)
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
+    ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
 
@@ -192,17 +232,27 @@ describe("activity execution keys", () => {
           },
           execute: Effect.sync(() => ++executions)
         })
-      const flow = Flow.make("ActivityKeys/object-boundary-invalidation", {
+      const flowActivityDeclaration = Activity.make("ActivityKeys/object-boundary-invalidation/activity", {
         payload: { run: Schema.String },
         success: Schema.Number
       })
-      const layer = flow.toLayer(() =>
-        Effect.gen(function*() {
-          // Same digest replays; the changed digest must re-execute.
-          yield* build("d1")
-          yield* build("d1")
-          return yield* build("d2")
-        })
+      const flow = Flow.make("ActivityKeys/object-boundary-invalidation", {
+        payload: { run: Schema.String },
+        success: Schema.Number,
+        body: (payload) => flowActivityDeclaration.call(payload)
+      })
+      const layer = Layer.mergeAll(
+        flowActivityDeclaration.toLayer(() =>
+          Effect.gen(function*() {
+            // Same digest replays; the changed digest must re-execute.
+            yield* build("d1")
+            yield* build("d1")
+            return yield* build("d2")
+          })
+        ),
+        Interpreter.layer(flow)
+      ).pipe(
+        Layer.provideMerge(Activity.layerImplementations)
       ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
 
       return Effect.gen(function*() {
@@ -236,18 +286,28 @@ describe("activity execution keys", () => {
           },
           execute: Effect.sync(() => ++executions)
         })
-      const flow = Flow.make("ActivityKeys/pinned-hermetic-invalidation", {
+      const flowActivityDeclaration = Activity.make("ActivityKeys/pinned-hermetic-invalidation/activity", {
         payload: { run: Schema.String },
         success: Schema.Number
       })
-      const layer = flow.toLayer(() =>
-        Effect.gen(function*() {
-          // The pinned "frozen" digest never enters the key: same metadata
-          // digest replays, the changed digest re-executes.
-          yield* build("d1")
-          yield* build("d1")
-          return yield* build("d2")
-        })
+      const flow = Flow.make("ActivityKeys/pinned-hermetic-invalidation", {
+        payload: { run: Schema.String },
+        success: Schema.Number,
+        body: (payload) => flowActivityDeclaration.call(payload)
+      })
+      const layer = Layer.mergeAll(
+        flowActivityDeclaration.toLayer(() =>
+          Effect.gen(function*() {
+            // The pinned "frozen" digest never enters the key: same metadata
+            // digest replays, the changed digest re-executes.
+            yield* build("d1")
+            yield* build("d1")
+            return yield* build("d2")
+          })
+        ),
+        Interpreter.layer(flow)
+      ).pipe(
+        Layer.provideMerge(Activity.layerImplementations)
       ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
 
       return Effect.gen(function*() {
@@ -282,19 +342,29 @@ describe("activity execution keys", () => {
         return { a: 1, b: 2 }
       })
     })
-    const flow = Flow.make("ActivityKeys/schema-invalidation", {
+    const flowActivityDeclaration = Activity.make("ActivityKeys/schema-invalidation/activity", {
       payload: { run: Schema.String },
       success: Schema.Number
     })
-    const layer = flow.toLayer(() =>
-      Effect.gen(function*() {
-        // Same declaration replays; the changed success schema must miss and
-        // re-execute rather than decode v1's cached row as v2's shape.
-        yield* v1
-        yield* v1
-        const out = yield* v2
-        return out.b
-      })
+    const flow = Flow.make("ActivityKeys/schema-invalidation", {
+      payload: { run: Schema.String },
+      success: Schema.Number,
+      body: (payload) => flowActivityDeclaration.call(payload)
+    })
+    const layer = Layer.mergeAll(
+      flowActivityDeclaration.toLayer(() =>
+        Effect.gen(function*() {
+          // Same declaration replays; the changed success schema must miss and
+          // re-execute rather than decode v1's cached row as v2's shape.
+          yield* v1
+          yield* v1
+          const out = yield* v2
+          return out.b
+        })
+      ),
+      Interpreter.layer(flow)
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
 
     return Effect.gen(function*() {
@@ -326,21 +396,31 @@ describe("activity execution keys", () => {
         })
       const v1 = make(Schema.Struct({ reason: Schema.String }))
       const v2 = make(Schema.Struct({ reason: Schema.String, retriable: Schema.Boolean }))
-      const flow = Flow.make("ActivityKeys/error-schema-invalidation", {
+      const flowActivityDeclaration = Activity.make("ActivityKeys/error-schema-invalidation/activity", {
         payload: { run: Schema.String },
         success: Schema.Number
       })
-      const layer = flow.toLayer(() =>
-        Effect.gen(function*() {
-          // Same declaration replays; the changed error schema must miss and
-          // re-execute rather than replay v1's cached row under v2's key.
-          // The declared errors are unreachable here — `execute` only succeeds —
-          // so die on them to keep the flow's declared error channel empty.
-          yield* Effect.orDie(v1)
-          yield* Effect.orDie(v1)
-          const out = yield* Effect.orDie(v2)
-          return out.a
-        })
+      const flow = Flow.make("ActivityKeys/error-schema-invalidation", {
+        payload: { run: Schema.String },
+        success: Schema.Number,
+        body: (payload) => flowActivityDeclaration.call(payload)
+      })
+      const layer = Layer.mergeAll(
+        flowActivityDeclaration.toLayer(() =>
+          Effect.gen(function*() {
+            // Same declaration replays; the changed error schema must miss and
+            // re-execute rather than replay v1's cached row under v2's key.
+            // The declared errors are unreachable here — `execute` only succeeds —
+            // so die on them to keep the flow's declared error channel empty.
+            yield* Effect.orDie(v1)
+            yield* Effect.orDie(v1)
+            const out = yield* Effect.orDie(v2)
+            return out.a
+          })
+        ),
+        Interpreter.layer(flow)
+      ).pipe(
+        Layer.provideMerge(Activity.layerImplementations)
       ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
 
       return Effect.gen(function*() {
