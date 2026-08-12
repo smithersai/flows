@@ -1,4 +1,4 @@
-import { Effect, Fiber, PlatformError, Sink, Stream } from "effect"
+import { Deferred, Effect, Fiber, PlatformError, Sink, Stream } from "effect"
 import { ChildProcess } from "effect/unstable/process"
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
 import { describe, expect, it } from "vitest"
@@ -409,10 +409,20 @@ describe("RemoteChildProcessSpawner handle state", () => {
   })
 
   it("reports isRunning false after the process exits without awaiting exitCode first", async () => {
-    // The `running` flag flips only inside the `exitCode` effect, so a caller
-    // that never awaits it is told the process is still running forever.
-    const provider = RemoteChildProcessSpawner.TestRemote.make({
-      scripts: { greet: { stdout: "hello" } }
+    // The old `running` flag flipped only inside the handle's `exitCode`
+    // effect, so a caller that never awaited it was told the process was still
+    // running forever. A controlled provider lets the remote process exit
+    // without consuming the handle's exit effect.
+    const exited = Effect.runSync(Deferred.make<number>())
+    const provider = RemoteChildProcessSpawner.Provider.of({
+      session: "liveness",
+      open: () => Effect.void,
+      spawn: () =>
+        Effect.succeed({
+          stdout: Stream.empty,
+          stderr: Stream.empty,
+          exitCode: Deferred.await(exited)
+        })
     })
 
     const observed = await Effect.runPromise(
@@ -420,16 +430,16 @@ describe("RemoteChildProcessSpawner handle state", () => {
         const spawner = yield* ChildProcessSpawner
         const handle = yield* spawner.spawn(ChildProcess.make("greet"))
         const beforeExit = yield* handle.isRunning
-        yield* handle.exitCode
+        yield* Deferred.succeed(exited, 0)
+        yield* Effect.yieldNow
         const afterExit = yield* handle.isRunning
         return { beforeExit, afterExit }
       }).pipe(Effect.provide(RemoteChildProcessSpawner.layer(provider)), Effect.scoped)
     )
 
     expect(observed.beforeExit).toBe(true)
-    // Pinned as the current behaviour: `isRunning` is only accurate once
-    // `exitCode` has been awaited. A caller that needs liveness without
-    // consuming the exit has to await it.
+    // No `handle.exitCode` await occurred. The adapter observes the provider's
+    // completion in its own scoped fiber and updates liveness independently.
     expect(observed.afterExit).toBe(false)
   })
 })
