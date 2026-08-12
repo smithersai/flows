@@ -180,6 +180,14 @@ export type ClaimAndOwnOutcome =
   | { readonly _tag: "AlreadyClaimed" }
   | { readonly _tag: "HeartbeatFresh" }
   | { readonly _tag: "SnapshotChanged" }
+  /**
+   * The caller expected a running run owned by someone else and supplied no
+   * matching `LivenessEvidence`, so it was refused before any compare-and-swap
+   * ran. Re-reading and retrying cannot make progress; supply evidence, or use
+   * `steal`. This replaces the `SnapshotChanged` this path used to report,
+   * which asserted a comparison it never performed.
+   */
+  | { readonly _tag: "EvidenceRequired" }
 
 type ClaimLossOutcome = Exclude<ClaimOutcome, { readonly _tag: "Claimed" }>
 
@@ -335,6 +343,7 @@ const notFound = { _tag: "NotFound" } as const
 const alreadyClaimed = { _tag: "AlreadyClaimed" } as const
 const heartbeatFresh = { _tag: "HeartbeatFresh" } as const
 const snapshotChanged = { _tag: "SnapshotChanged" } as const
+const evidenceRequired = { _tag: "EvidenceRequired" } as const
 const activated = { _tag: "Activated" } as const
 const claimLost = { _tag: "ClaimLost" } as const
 const abandoned = { _tag: "Abandoned" } as const
@@ -689,7 +698,18 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
 
     if (!canReplaceExpectedOwner) {
       return read("claimAndOwn", selectRun(sql, runId)).pipe(
-        Effect.map((current) => classifyClaimLoss(current[0], nowMs))
+        Effect.map((current) => {
+          const loss = classifyClaimLoss(current[0], nowMs)
+          // No CAS ran on this path — the caller expected a running run owned
+          // by someone else and supplied no matching evidence, so it was
+          // refused before the write. `SnapshotChanged` therefore asserts
+          // something this branch never tested, and it is the one classification
+          // that misdirects: a recovery sweeper told its snapshot was wrong
+          // re-reads, gets the identical snapshot, and calls again, livelocking
+          // on a run that is genuinely recoverable. The other three still
+          // describe the row itself and are reported unchanged.
+          return loss === snapshotChanged ? evidenceRequired : loss
+        })
       )
     }
 
