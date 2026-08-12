@@ -811,6 +811,47 @@ describe("RunStore", () => {
     expect(alive).toBe(undefined)
   })
 
+  it("interrupts on the exact heartbeatWriteTolerance expiry tick", async () => {
+    // The existing cells assert the constant's ordering, the tolerance window
+    // minus one millisecond, and a flapping outage. None drives the boundary
+    // millisecond itself, which is the tick a fencing budget is judged on: the
+    // owner must be interrupted AT the budget, not one pulse after it, or it
+    // overlaps a peer that is already entitled to steal.
+    const broken = { value: true }
+    const result = await run(
+      Effect.scoped(Effect.gen(function*() {
+        const started = yield* Deferred.make<void>()
+        const owningFiber = yield* Effect.scoped(
+          Effect.gen(function*() {
+            yield* Deferred.succeed(started, undefined)
+            return yield* Effect.raceFirst(Effect.never, heartbeatLoop("run-heartbeat-exact", ownerA))
+          })
+        ).pipe(Effect.forkChild({ startImmediately: true }))
+
+        yield* Deferred.await(started)
+        // One millisecond inside the budget.
+        yield* TestClock.adjust(Duration.millis(Duration.toMillis(heartbeatWriteTolerance) - 1))
+        yield* Effect.yieldNow
+        const beforeExpiry = owningFiber.pollUnsafe()
+        // The boundary millisecond itself: the budget is spent, and the loop
+        // interrupts on this tick rather than one pulse later.
+        yield* TestClock.adjust(Duration.millis(1))
+        yield* Effect.yieldNow
+        return { beforeExpiry, atExpiry: owningFiber.pollUnsafe() }
+      })).pipe(
+        Effect.provide(flakyHeartbeatStore(broken)),
+        Effect.provide(TestClock.layer())
+      )
+    )
+
+    expect(result.beforeExpiry).toBe(undefined)
+    expect(
+      result.atExpiry !== undefined &&
+        Exit.isFailure(result.atExpiry) &&
+        Cause.hasInterruptsOnly(result.atExpiry.cause)
+    ).toBe(true)
+  })
+
   it("interrupts the owner at the write tolerance and admits a peer steal only once the persisted heartbeat is stale", async () => {
     // The whole point of the skew allowance is the ordering of two *observable*
     // events against one persisted heartbeat: the owner must have handed the
@@ -997,5 +1038,62 @@ describe("RunStore", () => {
       expect(row.owner).toBeNull()
       expect(row.heartbeatAtMs).toBeNull()
     }
+  })
+})
+
+/**
+ * The three run-store cases the 2026-08-12 review names as unpinned. Each drives
+ * a branch the existing suite reaches only incidentally, or not at all.
+ */
+describe("run-store fencing gaps", () => {
+  it("activate clears nothing it does not own after a third party recovered the claim", async () => {
+    // The compensating DELETE at RunStore.ts:776-788 runs only under
+    // `rowMatchesClaim`, and no case drove that branch with a FOREIGN claim
+    // present. Without the guard, a losing activation would strip the claim
+    // columns a recovery process had just written for itself.
+    const result = await migrated(Effect.gen(function*() {
+      const store = yield* RunStore
+      yield* store.create("run-foreign-claim", "{}")
+      const pending = snapshot(yield* store.get("run-foreign-claim"))
+      const claimed = yield* store.claim("run-foreign-claim", pending, ownerA, 0)
+      if (claimed._tag !== "Claimed") return yield* Effect.die(new Error("claim lost"))
+
+      // A third party recovers the run: ownerA's claim is released and ownerB
+      // takes its own, so the row now carries a claim ownerA does not own.
+      yield* store.abandonClaim("run-foreign-claim", ownerA, claimed.claimedAtMs)
+      const recovered = yield* store.claim("run-foreign-claim", pending, ownerB, 1)
+      if (recovered._tag !== "Claimed") return yield* Effect.die(new Error("recovery claim lost"))
+
+      // ownerA now activates against the claim it believes it holds.
+      const outcome = yield* store.activate("run-foreign-claim", ownerA, claimed.claimedAtMs, pending)
+      return { outcome, row: yield* store.get("run-foreign-claim") }
+    }))
+
+    expect(result.outcome).toEqual({ _tag: "ClaimLost" })
+    // ownerB's claim survives untouched: the losing activation cleared nothing.
+    expect(result.row.claim).toEqual(ownerB)
+    expect(result.row.status).toBe("pending")
+  })
+
+  it("heartbeat on a run suspended under the same owner reports FenceLost, not NotFound", async () => {
+    // The fenced UPDATE requires `status = 'running'`, so a suspension under
+    // the same owner fails it. The fallback distinguishes an absent row from a
+    // present one; nothing asserted which side a suspended run lands on, and
+    // `NotFound` would tell a supervisor to stop rather than to release.
+    const result = await migrated(Effect.gen(function*() {
+      const store = yield* RunStore
+      const running = yield* activateNew(store, "run-suspended-heartbeat", ownerA)
+      const suspended = yield* store.transitionOwned(running.runId, ownerA, "suspended")
+      if (suspended._tag !== "Transitioned") return yield* Effect.die(new Error("suspend lost"))
+
+      return {
+        beat: yield* store.heartbeat(running.runId, ownerA, 5),
+        absent: yield* store.heartbeat("run-never-created", ownerA, 5)
+      }
+    }))
+
+    expect(result.beat).toEqual({ _tag: "FenceLost" })
+    // The contrast that gives the assertion its meaning.
+    expect(result.absent).toEqual({ _tag: "NotFound" })
   })
 })
