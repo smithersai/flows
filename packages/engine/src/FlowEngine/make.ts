@@ -388,11 +388,25 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
           instance.activityState.snapshots.set(key, snapshot)
           result = yield* options.activityExecute(input).pipe(
             Effect.ensuring(Effect.asVoid(boundary.diff(snapshot, boundaryOptions))),
-            Effect.provideService(Activity.CurrentAttempt, currentAttempt)
+            Effect.provideService(Activity.CurrentAttempt, currentAttempt),
+            Effect.provideService(Activity.CurrentInvocationKey, key)
           )
         } else {
           result = yield* options.activityExecute(input).pipe(
-            Effect.provideService(Activity.CurrentAttempt, currentAttempt)
+            Effect.provideService(Activity.CurrentAttempt, currentAttempt),
+            // DECIDED (2026-08-11, pending review): the dispatch's own key is
+            // handed to the implementation rather than left engine-private. An
+            // implementation that names durable state of its own — `Sleep`
+            // names a `DurableClock` — needs identity that is stable across
+            // replays of one node and distinct between two identical calls,
+            // and this key already is both: it is allocated here on EVERY
+            // dispatch, including a replayed one, because the driver reached
+            // through `options.activityExecute` addresses the recorded outcome
+            // by it. Deriving a second identity in the implementation would
+            // duplicate the allocation and drift from it; the attempt is
+            // deliberately not folded in, so a retried wait rejoins the timer
+            // it already armed.
+            Effect.provideService(Activity.CurrentInvocationKey, key)
           )
         }
         // Suspension is the activity path's only non-exit settlement; the

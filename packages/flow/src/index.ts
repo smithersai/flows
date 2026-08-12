@@ -68,8 +68,22 @@ export * as Interpreter from "./Interpreter.ts"
 export * as RetryPolicy from "./RetryPolicy.ts"
 
 /**
+ * The system timer activity and its implementation layer.
+ *
+ * @since 0.1.0
+ */
+export * as Sleep from "./Sleep.ts"
+
+/**
  * Stable step identity construction.
  *
  * @since 4.0.0
  */
 export * as StepIdentity from "./Activity/StepIdentity.ts"
+
+/**
+ * The system wait-point activity and its implementation layer.
+ *
+ * @since 0.1.0
+ */
+export * as WaitFor from "./WaitFor.ts"

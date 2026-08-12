@@ -94,3 +94,33 @@ export const CurrentAttempt = Context.Reference<number>(
   "effect/flow/Activity/CurrentAttempt",
   { defaultValue: () => 1 }
 )
+
+/**
+ * Context reference carrying the persisted key of the dispatch an
+ * implementation is currently running under, when the runtime supplies one.
+ *
+ * **When to use**
+ *
+ * Use it in an activity implementation that has to name durable state of its
+ * own — `Sleep` names a `DurableClock` — so the name it derives belongs to
+ * THIS dispatch. The key is the identity the engine already allocated for the
+ * dispatch: its attempt rows, its recorded outcome, and its cache row are
+ * addressed by it, so it is stable across every replay of one node and
+ * distinct between two identical calls of the same declaration. Deriving from
+ * it is therefore the only way an implementation gets both properties without
+ * allocating a second identity beside the engine's.
+ *
+ * **Gotchas**
+ *
+ * A runtime that has not adopted the seam leaves the reference absent rather
+ * than substituting a placeholder, because a placeholder would silently alias
+ * every dispatch of one declaration onto one name. An implementation that
+ * needs durable identity refuses instead.
+ *
+ * @category idempotency
+ * @since 0.1.0
+ */
+export const CurrentInvocationKey = Context.Reference<string | undefined>(
+  "flows/engine/Activity/CurrentInvocationKey",
+  { defaultValue: () => undefined }
+)

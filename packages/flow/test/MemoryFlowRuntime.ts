@@ -55,6 +55,26 @@ export const makeInstance = (
 
 const toJsonExit = Exit.map((value: any) => value ?? null)
 
+/** The ordinal counter one declaration's dispatches are allocated from. */
+const ordinalScope = (activity: { readonly name: string; readonly idempotencyKey?: unknown }): string =>
+  `${activity.name}/${JSON.stringify(activity.idempotencyKey ?? null)}`
+
+/**
+ * The dispatch identity this fixture hands an implementation through
+ * `Activity.CurrentInvocationKey`: the `ordinal`-th dispatch of `activity`
+ * within `executionId`, counting from one.
+ *
+ * The real engine derives a digest here rather than a readable tuple. What the
+ * two share is what an implementation may rely on: one value per dispatch,
+ * re-derived identically on every replay of that dispatch, and distinct
+ * between two dispatches of the same declaration.
+ */
+export const dispatchKey = (
+  executionId: string,
+  activity: { readonly name: string; readonly idempotencyKey?: unknown },
+  ordinal: number
+): string => JSON.stringify([executionId, ordinalScope(activity), ordinal])
+
 type Handler = (
   payload: object,
   executionId: string
@@ -194,7 +214,7 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
       resume: (_flow, executionId) => drive(executionId) as Effect.Effect<void>,
       activityExecute: Effect.fnUntraced(function*(activity: any, attempt: number) {
         const instance = yield* FlowRuntime.FlowInstance
-        const scope = `${activity.name}/${JSON.stringify(activity.idempotencyKey ?? null)}`
+        const scope = ordinalScope(activity)
         const slot = yield* Activity.CurrentOrdinal
         let ordinal: number
         if (slot === undefined) {
@@ -211,7 +231,13 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
             slot.values.set(scope, pinned)
           }
         }
-        const id = JSON.stringify([instance.executionId, scope, ordinal, attempt])
+        // The dispatch's identity, and the memo slot within it. The engine
+        // allocates one key per dispatch and folds the attempt in nowhere, so
+        // an implementation reading `CurrentInvocationKey` gets the same value
+        // on every attempt and on every replay of one node; the memo is per
+        // (dispatch, attempt) because a retried attempt is its own recording.
+        const dispatch = dispatchKey(instance.executionId, activity, ordinal)
+        const id = JSON.stringify([dispatch, attempt])
         const memo = activities.get(id)
         if (memo && !(memo._tag === "Success" && memo.value._tag === "Suspended")) {
           const replayed = yield* memo
@@ -224,12 +250,23 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
         }
         const activityInstance = makeInstance(instance.flow, instance.executionId)
         activityInstance.interrupted = instance.interrupted
+        // A dispatch gets an instance of its own — here to keep attempt state
+        // apart, in the real engine to keep the dispatch's persistence apart —
+        // so the waiting classification is threaded in and back out rather than
+        // lost, exactly as `@smthrs/engine`'s drivers thread it. An
+        // implementation that declares one (`annotateWaiting`) has it travel to
+        // the flow, one whose wait already has a persisted result clears it
+        // (`deferredResult`), and one that touches neither leaves whatever the
+        // body declared alone — seeded here, copied back below.
+        activityInstance.waiting = instance.waiting
         const result = (yield* (activity.executeEncoded.pipe(
           Flow.intoResult,
           Effect.provideService(FlowRuntime.FlowInstance, activityInstance),
           Effect.provideService(Activity.CurrentAttempt, attempt),
+          Effect.provideService(Activity.CurrentInvocationKey, dispatch),
           Effect.onExit((exit: any) => Effect.sync(() => activities.set(id, exit)))
         ) as Effect.Effect<Flow.Result<unknown, unknown>>)) as Flow.Result<unknown, unknown>
+        instance.waiting = activityInstance.waiting
         if (result._tag !== "Complete") return result as never
         return new Flow.Complete({
           exit: yield* Effect.orDie(

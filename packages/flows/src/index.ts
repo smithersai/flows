@@ -107,8 +107,10 @@ export const namespaces = [
   "RetryPolicy",
   "RunStore",
   "Sandbox",
+  "Sleep",
   "StepCache",
   "StepIdentity",
   "Sync",
-  "TimeTravel"
+  "TimeTravel",
+  "WaitFor"
 ] as const

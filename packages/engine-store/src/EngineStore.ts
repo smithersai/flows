@@ -167,6 +167,18 @@ export const make = (
       )
       const flowEngine = yield* Deferred.await(engine)
       instance.interrupted = parent.interrupted
+      // DECIDED (2026-08-11, pending review): the waiting classification is
+      // threaded through the dispatch's instance and back, because the dispatch
+      // runs under an instance of its own while `annotateWaiting` is documented
+      // to reach the parked row. An implementation that declares one — `Sleep`
+      // under `timer`, `WaitFor` under `event` with its wake token — writes it
+      // here, so without the thread-back `RunDriver` would park on the derived
+      // default and an activity's declaration would be inert. It is seeded as
+      // well as copied back so a body that annotated before dispatching keeps
+      // its own declaration, and so the consumption `deferredResult` performs
+      // on a settled wait travels out the same way (issue #42).
+      const waitingBefore = parent.waiting
+      instance.waiting = waitingBefore
       return yield* ActivityPersistence.make({
         runId: parent.executionId,
         owner,
@@ -205,7 +217,10 @@ export const make = (
         (dispatch) =>
           Option.isNone(effectDispatcher)
             ? dispatch
-            : Effect.provideService(dispatch, WorkspaceSandbox.EffectDispatcher, effectDispatcher.value)
+            : Effect.provideService(dispatch, WorkspaceSandbox.EffectDispatcher, effectDispatcher.value),
+        Effect.ensuring(Effect.sync(() => {
+          if (parent.waiting === waitingBefore) parent.waiting = instance.waiting
+        }))
       )
     })
 

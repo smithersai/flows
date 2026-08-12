@@ -1,7 +1,7 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 import { Activity, DurableDeferred, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow"
-import { Cause, Effect, Exit, Fiber, Layer, Option, Schema } from "effect"
+import { Cause, Deferred, Effect, Exit, Fiber, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
@@ -143,6 +143,53 @@ describe("boundary descriptor identity", () => {
 })
 
 describe("annotateWaiting", () => {
+  effect("does not let a finishing sibling dispatch clobber a newer waiting declaration", () =>
+    Effect.gen(function*() {
+      const entered = yield* Deferred.make<void>()
+      const release = yield* Deferred.make<void>()
+      const slow = Activity.make({
+        name: "gaps-waiting-slow",
+        success: Schema.Void,
+        execute: Effect.gen(function*() {
+          yield* Deferred.succeed(entered, undefined)
+          yield* Deferred.await(release)
+        })
+      })
+      const parked = Activity.make({
+        name: "gaps-waiting-parked",
+        success: Schema.Void,
+        execute: FlowRuntime.annotateWaiting({ reason: "approval", token: "winner" })
+      })
+      const declaration = Activity.make("Gaps/waiting-race/activity", { payload: {}, success: Schema.Any })
+      const flow = Flow.make("Gaps/waiting-race", {
+        payload: {},
+        success: Schema.Any,
+        body: () => declaration.call({})
+      })
+      const layer = Layer.mergeAll(
+        declaration.toLayer(() =>
+          Effect.gen(function*() {
+            const instance = yield* FlowRuntime.FlowInstance
+            const slowFiber = yield* slow.pipe(Effect.forkChild)
+            yield* Deferred.await(entered)
+            yield* parked
+            yield* Deferred.succeed(release, undefined)
+            yield* Fiber.join(slowFiber)
+            return instance.waiting
+          })
+        ),
+        Interpreter.layer(flow)
+      ).pipe(
+        Layer.provideMerge(Activity.layerImplementations),
+        Layer.provideMerge(FlowEngine.layerMemory)
+      )
+
+      expect(yield* flow.execute({}, { executionId: "waiting-race" }).pipe(Effect.provide(layer))).toEqual({
+        reason: "approval",
+        token: "winner"
+      })
+    }))
+
   effect("records the declared waiting classification on the running instance", () => {
     const flow = Flow.make("Gaps/waiting", {
       payload: { id: Schema.String },
@@ -164,6 +211,49 @@ describe("annotateWaiting", () => {
       expect(result.during).toEqual({ reason: "approval", token: "req-1", wakeAt: 42 })
       // clearing the annotation returns the instance to the derived default
       expect(result.after).toBeUndefined()
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("threads a dispatch's own declaration back onto the flow's instance", () => {
+    // A dispatch runs under an instance of its own, so an implementation that
+    // declares how it waits — the shape `Sleep` and `WaitFor` ship — would have
+    // its declaration die with that instance unless the driver threads it. Both
+    // directions matter: the declaration travels out, and a body that annotated
+    // before dispatching is not clobbered by a dispatch that declares nothing.
+    const declaring = Activity.make({
+      name: "gaps-annotating",
+      success: Schema.String,
+      tier: "sealed",
+      idempotencyKey: "gaps-annotating-v1",
+      execute: Effect.as(
+        FlowRuntime.annotateWaiting({ reason: "approval", token: "req-2" }),
+        "declared"
+      )
+    })
+    const silent = Activity.make({
+      name: "gaps-silent",
+      success: Schema.String,
+      tier: "sealed",
+      idempotencyKey: "gaps-silent-v1",
+      execute: Effect.succeed("silent")
+    })
+    const flow = Flow.make("Gaps/waiting-activity", {
+      payload: { id: Schema.String },
+      success: Schema.Any
+    })
+    const layer = flow.toLayer(() =>
+      Effect.gen(function*() {
+        const instance = yield* FlowRuntime.FlowInstance
+        yield* declaring
+        const declared = instance.waiting
+        yield* silent
+        return { declared, preserved: instance.waiting }
+      })
+    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+    return Effect.gen(function*() {
+      const result = yield* flow.execute({ id: "x" }, { executionId: "run-waiting-activity" })
+      expect(result.declared).toEqual({ reason: "approval", token: "req-2" })
+      expect(result.preserved).toEqual({ reason: "approval", token: "req-2" })
     }).pipe(Effect.provide(layer))
   })
 })
