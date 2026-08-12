@@ -1,4 +1,4 @@
-import { Activity, Flow } from "@smthrs/flow"
+import { Activity, Flow, FlowRuntime, Graph } from "@smthrs/flow"
 import { Node, Planned } from "@smthrs/plan"
 import { Context, Effect, Layer, Schema } from "effect"
 import { describe, expect, it } from "vitest"
@@ -91,9 +91,13 @@ describe("Activity.make declared overload", () => {
       tier: "sealed",
       idempotencyKey: "double"
     })
+    // The activity's flow form, written out: same tag, same schemas, one call.
+    // `toLayer` registers exactly this shape internally, which is what makes
+    // the activity executable as a durable execution of its own.
     const invocation = Flow.make("Declared/execution", {
       payload: NumberPayload,
-      success: Schema.Number
+      success: Schema.Number,
+      body: (payload) => declared.call(payload)
     })
     const seen: Array<number> = []
     const layer = declared.toLayer(({ value }) =>
@@ -110,5 +114,39 @@ describe("Activity.make declared overload", () => {
     )
     expect(result).toBe(42)
     expect(seen).toEqual([21])
+  })
+
+  it("registers a flow whose body is the one call to the activity", async () => {
+    const declared = Activity.make("Declared/flow-form", {
+      payload: { value: Schema.Number },
+      success: Schema.Number
+    })
+    let registered: Flow.Any | undefined
+    // The registration seam is internal, so the only way to read what it files
+    // is to be the runtime it files with.
+    const capturing = Layer.succeed(FlowRuntime.FlowRuntime)(
+      {
+        register: (flow: Flow.Any) =>
+          Effect.sync(() => {
+            registered = flow
+          })
+      } as unknown as FlowRuntime.FlowRuntime["Service"]
+    )
+
+    await runPromise(
+      Effect.void.pipe(
+        Effect.provide(
+          declared.toLayer(({ value }) => Effect.succeed(value * 2)).pipe(Layer.provideMerge(capturing))
+        )
+      )
+    )
+
+    expect(registered?._tag).toBe("Declared/flow-form")
+    const graph = Graph.build(registered!, { value: 7 })
+    expect(Graph.nodes(graph).map((node) => [node.id, node.kind])).toEqual([
+      ["root.flow", "ActivityCall"],
+      ["root", "FlowCall"]
+    ])
+    expect(Graph.nodes(graph)[0]?.payload).toEqual({ value: 7 })
   })
 })

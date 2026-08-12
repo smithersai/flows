@@ -6,6 +6,7 @@
  */
 import { Flow, FlowRuntime } from "@smthrs/flow"
 import { Journal } from "@smthrs/journal"
+import { Node } from "@smthrs/plan"
 import { Ownership, RunStore } from "@smthrs/run-store"
 import * as Clock from "effect/Clock"
 import * as Duration from "effect/Duration"
@@ -23,7 +24,8 @@ import { runPromise } from "./Sha256.ts"
 
 const TestFlow = Flow.make("DurableCancel/Test", {
   payload: {},
-  success: Schema.String
+  success: Schema.String,
+  body: () => Node.succeed(undefined)
 })
 
 const ownerA: Ownership.OwnerId = {

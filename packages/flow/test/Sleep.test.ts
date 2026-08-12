@@ -53,7 +53,7 @@ const wired = (
   )
 
 /** A host flow for interpretations driven outside a registered execution. */
-const Host = Flow.make("sleep/host", { payload: {} })
+const Host = Flow.make("sleep/host", { payload: {}, body: () => Node.succeed(undefined) })
 
 /** The clock the `ordinal`-th sleep of an execution arms, as a test names it. */
 const clockOf = (executionId: string, ordinal: number) =>

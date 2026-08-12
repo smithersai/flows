@@ -1,6 +1,7 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 import { Activity, DurableClock, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Duration, Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
@@ -278,7 +279,8 @@ describe("DurableClock", () => {
       const flow = Flow.make("DurableClock/duplicate", {
         payload: { id: Schema.String },
         success: Schema.Void,
-        idempotencyKey: ({ id }) => id
+        idempotencyKey: ({ id }) => id,
+        body: () => Node.succeed(undefined)
       })
       const engine = yield* FlowRuntime.FlowRuntime
       const first = DurableClock.make({ name: "dup", duration: "10 minutes" })

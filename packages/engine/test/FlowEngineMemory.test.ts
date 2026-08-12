@@ -1,6 +1,7 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 import { Activity, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Cause, Context, Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
@@ -14,7 +15,8 @@ describe("memory engine execution surface", () => {
   effect("dies when executing a flow that was never registered", () => {
     const flow = Flow.make("Memory/unregistered", {
       payload: { id: Schema.String },
-      success: Schema.Void
+      success: Schema.Void,
+      body: () => Node.succeed(undefined)
     })
     return Effect.gen(function*() {
       const exit = yield* flow.execute({ id: "x" }, { executionId: "run" }).pipe(Effect.exit)
@@ -195,7 +197,8 @@ describe("flow definition surface", () => {
     const Other = Context.Service<{ readonly _: "Other" }, number>("Memory/Other")
     const flow = Flow.make("Memory/annotations", {
       payload: { id: Schema.String },
-      success: Schema.Void
+      success: Schema.Void,
+      body: () => Node.succeed(undefined)
     })
     const annotated = flow.annotate(Marker, "hello")
     const merged = annotated.annotateMerge(Context.make(Other, 4))
@@ -210,7 +213,8 @@ describe("flow definition surface", () => {
   effect("executionId dies with ExecutionIdRequired when the flow has no idempotency key", () => {
     const flow = Flow.make("Memory/no-key", {
       payload: { id: Schema.String },
-      success: Schema.Void
+      success: Schema.Void,
+      body: () => Node.succeed(undefined)
     })
     return Effect.gen(function*() {
       const exit = yield* flow.executionId({ id: "x" }).pipe(Effect.exit)

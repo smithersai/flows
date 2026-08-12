@@ -1,10 +1,10 @@
 /**
- * The body interpreter: what a bodied flow does when it runs.
+ * The body interpreter: what a flow does when it runs.
  *
- * A `Flow` with a `body` has no handler to register — the body IS the
- * behavior, per `docs/specs/Concepts/Unified Flow Authoring.md` — so something
- * has to turn the graph that body describes into execution. That is this
- * module. {@link layer} registers a bodied flow with the runtime, and the
+ * A `Flow` has no handler to register — its `body` IS the behavior, per
+ * `docs/specs/Concepts/Unified Flow Authoring.md` — so something has to turn
+ * the graph that body describes into execution. That is this
+ * module. {@link layer} registers a flow with the runtime, and the
  * handler it installs builds the graph with {@link module:Graph.build} and
  * walks it: each node settles once, in dependency order, and the root's value
  * is the flow's result.
@@ -63,10 +63,10 @@ import * as Graph from "./Graph.ts"
 /**
  * A graph the interpreter will not drive.
  *
- * Every code names something the run cannot recover from on its own: a flow
- * with nothing to interpret, a graph whose topology is incomplete, an activity
- * with no implementation wired up, a call the interpreter does not execute, and
- * a deferred function that did not survive serialization beside its AST.
+ * Every code names something the run cannot recover from on its own: a graph
+ * whose topology is incomplete, an activity with no implementation wired up, a
+ * call the interpreter does not execute, and a deferred function that did not
+ * survive serialization beside its AST.
  *
  * @category errors
  * @since 0.1.0
@@ -75,7 +75,6 @@ export class InterpreterError extends Schema.TaggedErrorClass<InterpreterError>(
   "@smthrs/flow/InterpreterError",
   {
     code: Schema.Literals([
-      "missing_body",
       "incomplete_graph",
       "unresolved_activity",
       "unresolved_reference",
@@ -445,8 +444,9 @@ export const interpret = (
                 "unsupported_call",
                 node.id,
                 `Flow "${ast.flow}" is called at "${node.id}" as a leaf, which this interpreter does not drive. ` +
-                  "An inline .call() of a flow that has a body is spliced into the graph and driven with it; " +
-                  `give ${ast.flow} a body, or call it as ${ast.flow}.child(payload) to run it as its own execution.`
+                  "An inline .call() is spliced into the graph with the callee's body and driven with it, and " +
+                  "only a call that lost its declaration has no body to splice. Build and interpret the authored " +
+                  `node in the same process, or call it as ${ast.flow}.child(payload) to run it as its own execution.`
               )
             }
             return yield* settle(spliced)
@@ -501,11 +501,13 @@ const settle = (value: unknown): Effect.Effect<unknown, never, FlowInstance> => 
 }
 
 /**
- * Registers a bodied flow with the runtime, driven by its body.
+ * Registers a flow with the runtime, driven by its body.
  *
- * This is the bodied counterpart of `toLayer`, and the reason `toLayer` refuses
- * a bodied flow: a flow has one behavior, and for this one it is the body.
- * Compose it beside the activity implementation layers the body calls, over the
+ * This is the only way a flow's behavior reaches the runtime, and the reason a
+ * flow has no `toLayer`: a flow has one behavior and it is the body, so there
+ * is no second, opaque one to attach. An Activity is what carries an
+ * implementation, and it attaches that implementation with its own `toLayer`.
+ * Compose this beside the activity implementation layers the body calls, over the
  * {@link module:Implementations.layerImplementations} table they file
  * themselves in — the table goes UNDER them, because filing happens while an
  * implementation layer is built:
@@ -540,17 +542,6 @@ export const layer = <
   | Error["EncodingServices"]
 > =>
   Layer.effectDiscard(Effect.gen(function*() {
-    if (flow.body === undefined) {
-      return yield* Effect.die(
-        new InterpreterError({
-          code: "missing_body",
-          flow: flow._tag,
-          node: options.root ?? "root",
-          message: `Flow "${flow._tag}" has no body to interpret. ` +
-            `Give it one, or register its behavior with ${flow._tag}.toLayer(execute).`
-        })
-      )
-    }
     const runtime = yield* FlowRuntime
     yield* runtime.register(
       flow,

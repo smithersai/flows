@@ -428,9 +428,9 @@ interface Visit {
  *
  * A flow is entered as a call to itself: the returned graph's `root` node is
  * that call, carrying the flow's declared effects, placement, and
- * capabilities, and its body — when it has one — is spliced beneath it. A flow
- * with no body is therefore a leaf, exactly like a body-less callee, rather
- * than a special case.
+ * capabilities, and its body spliced beneath it. Every flow has a body, so the
+ * only inline call this leaves as a leaf is one whose declaration did not
+ * survive serialization beside its AST.
  *
  * @since 0.1.0
  * @category constructors
@@ -511,13 +511,12 @@ export const build = (
     const dependencies = call.dependencies
     const inputs: Array<KeyMaterial.InputRef> = [...payloadInputs(call.payload), ...call.inputs]
     const target = call.mode === "inline" ? call.declaration : undefined
-    const body = target?.body
     const ceiling = sorted(Context.get(annotations, Annotations.Capabilities))
     const placement = declaredPlacement(annotations)
     // The placement refusal precedes the recursion one only in position: an
-    // inline call the caller cannot host is invalid whether or not the callee
-    // has a body to splice, because inline expansion is the claim that these
-    // steps run in the caller's execution.
+    // inline call the caller cannot host is invalid whether or not the callee's
+    // declaration survived to be spliced, because inline expansion is the claim
+    // that these steps run in the caller's execution.
     if (call.mode === "inline" && placementConflicts(call.placement, placement)) {
       throw new GraphBuildError({
         code: "placement_requires_boundary",
@@ -529,7 +528,7 @@ export const build = (
           `An inline .call() runs in the caller's execution, so use ${call.flow}.child(payload) to give it its own.`
       })
     }
-    if (target !== undefined && body !== undefined) {
+    if (target !== undefined) {
       if (call.stack.includes(target)) {
         throw new GraphBuildError({
           code: "recursion_requires_boundary",
@@ -539,7 +538,7 @@ export const build = (
             `Use ${call.flow}.to(payload) to hand off to the next round, or .child(payload) for an explicit boundary.`
         })
       } else {
-        const built = body(call.payload)
+        const built = target.body(call.payload)
         const spliced = visit({
           ast: built.ast,
           id: `${call.id}.flow`,
@@ -576,9 +575,9 @@ export const build = (
           capabilities: ceiling,
           // A spliced body re-keys this call through the `Ref` on the node it
           // produced. A call the graph keeps as a LEAF — an explicit boundary,
-          // a callee whose body is refused — has no such node, and its own
-          // digest is the only thing an edited body can move.
-          body: call.declaration.body === undefined ? undefined : Node.functionIdentity(call.declaration.body)
+          // a handoff — has no such node, and its own digest is the only thing
+          // an edited body can move.
+          body: Node.functionIdentity(call.declaration.body)
         }
       },
       inputs,

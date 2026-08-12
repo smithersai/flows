@@ -1,6 +1,7 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 import { Activity, DurableDeferred, Flow, Interpreter } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Effect, Fiber, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
@@ -16,7 +17,8 @@ describe("FlowProxy", () => {
     payload: { value: Schema.Number },
     success: Schema.Number,
     error: Schema.Literal("invalid"),
-    idempotencyKey: ({ value }) => String(value)
+    idempotencyKey: ({ value }) => String(value),
+    body: () => Node.succeed(undefined)
   })
 
   effect("uses an envelope that forwards executionId for execute and discard", () =>

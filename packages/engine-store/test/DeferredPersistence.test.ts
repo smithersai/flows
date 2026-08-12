@@ -1,6 +1,7 @@
 import { FlowEngine } from "@smthrs/engine"
 import { DurableClock, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
 import { Journal, JournalEvent } from "@smthrs/journal"
+import { Node } from "@smthrs/plan"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
@@ -20,7 +21,8 @@ const owner = {
 
 const TestFlow = Flow.make("DeferredPersistence/Test", {
   payload: {},
-  success: Schema.String
+  success: Schema.String,
+  body: () => Node.succeed(undefined)
 })
 
 const makeJournal = (events: Array<string>) =>

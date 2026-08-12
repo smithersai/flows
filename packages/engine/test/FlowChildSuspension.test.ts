@@ -1,6 +1,7 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 import { Activity, DurableDeferred, Flow, FlowRuntime, Interpreter, RetryPolicy } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Effect, Exit, Fiber, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
@@ -157,11 +158,13 @@ describe("child flow suspension and interruption", () => {
       const interruptCalls: Array<string> = []
       const child = Flow.make("Child/matrix-child", {
         payload: { n: Schema.Number },
-        success: Schema.Number
+        success: Schema.Number,
+        body: () => Node.succeed(undefined)
       })
       const parentFlow = Flow.make("Child/matrix-parent", {
         payload: { id: Schema.String },
-        success: Schema.Number
+        success: Schema.Number,
+        body: () => Node.succeed(undefined)
       })
       const scripted = FlowEngine.makeUnsafe({
         register: () => Effect.void,
@@ -260,7 +263,8 @@ describe("resumeSignal", () => {
         initialMs: 3_600_000,
         factor: 1,
         maxMs: 3_600_000
-      })
+      }),
+      body: () => Node.succeed(undefined)
     })
     let executions = 0
     let signals = 0
@@ -295,7 +299,8 @@ describe("resumeSignal", () => {
     const flow = Flow.make("Signal/no-waker", {
       payload: { id: Schema.String },
       success: Schema.String,
-      suspendedRetryPolicy: RetryPolicy.make({ initialMs: 1, factor: 1, maxMs: 1 })
+      suspendedRetryPolicy: RetryPolicy.make({ initialMs: 1, factor: 1, maxMs: 1 }),
+      body: () => Node.succeed(undefined)
     })
     let executions = 0
     const scripted = FlowEngine.makeUnsafe({

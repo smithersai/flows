@@ -2,6 +2,7 @@ import { FlowEngine } from "@smthrs/engine"
 import { Activity, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
 import { Journal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
+import { Node } from "@smthrs/plan"
 import { type Ownership, RunStore } from "@smthrs/run-store"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
@@ -17,7 +18,8 @@ import { runPromise } from "./Sha256.ts"
 
 const LayerFlow = Flow.make("EngineStoreLayer/Flow", {
   payload: {},
-  success: Schema.String
+  success: Schema.String,
+  body: () => Node.succeed(undefined)
 })
 
 const otherOwner: Ownership.OwnerId = {

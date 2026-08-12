@@ -1,6 +1,7 @@
 import { Activity, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
 import { Journal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
+import { Node } from "@smthrs/plan"
 import { RunStore } from "@smthrs/run-store"
 import * as Cause from "effect/Cause"
 import * as Deferred from "effect/Deferred"
@@ -87,7 +88,8 @@ describe("durable deferred outcomes across a restart", () => {
       const flow = Flow.make(`DeferredRestart/${name}`, {
         payload: {},
         success: Schema.String,
-        error: Schema.String
+        error: Schema.String,
+        body: () => Node.succeed(undefined)
       })
       const prefix = Activity.make({
         name: "prefix",
@@ -213,7 +215,8 @@ describe("partial dependency readiness across a restart", () => {
     let prefixDispatches = 0
     const flow = Flow.make("DeferredRestart/partial", {
       payload: {},
-      success: Schema.String
+      success: Schema.String,
+      body: () => Node.succeed(undefined)
     })
     const prefix = Activity.make({
       name: "prefix",
@@ -311,7 +314,8 @@ describe("partial dependency readiness across a restart", () => {
   it("accepts out-of-order resolution of concurrently awaited dependencies", async () => {
     const flow = Flow.make("DeferredRestart/out-of-order", {
       payload: {},
-      success: Schema.String
+      success: Schema.String,
+      body: () => Node.succeed(undefined)
     })
     const handler = () =>
       Effect.gen(function*() {
@@ -378,7 +382,8 @@ describe("partial dependency readiness across a restart", () => {
   it("consumes a second deferred completion that lands during an in-flight partial resume", async () => {
     const flow = Flow.make("DeferredRestart/mid-resume", {
       payload: {},
-      success: Schema.String
+      success: Schema.String,
+      body: () => Node.succeed(undefined)
     })
 
     const result = await withRestart((makeEngine, store) =>

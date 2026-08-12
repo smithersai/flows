@@ -8,6 +8,7 @@
  */
 import { Activity, DurableClock, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
 import { Jj } from "@smthrs/kernel"
+import { Node } from "@smthrs/plan"
 import { RunStore } from "@smthrs/run-store"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
@@ -110,7 +111,8 @@ describe("annotated waiting reasons reach the parked row (issue #31)", () => {
   it("a flow awaiting an approval parks as reason 'approval' with its token", async () => {
     const ApprovalFlow = Flow.make("Annotated/Approval", {
       payload: {},
-      success: Schema.String
+      success: Schema.String,
+      body: () => Node.succeed(undefined)
     })
     const gate = DurableDeferred.make("annotated-approval-gate", { success: Schema.String })
 
@@ -163,7 +165,8 @@ describe("annotated waiting reasons reach the parked row (issue #31)", () => {
   it("an activity's own declaration reaches the parked row, not the derived default", async () => {
     const GatedFlow = Flow.make("Annotated/ActivityGate", {
       payload: {},
-      success: Schema.String
+      success: Schema.String,
+      body: () => Node.succeed(undefined)
     })
     const gate = DurableDeferred.make("annotated-activity-gate", { success: Schema.String })
     // The shape `WaitFor` ships: the wait is inside an ACTIVITY, so the
@@ -225,7 +228,8 @@ describe("annotated waiting reasons reach the parked row (issue #31)", () => {
   it("a quota wait parks with its wake deadline", async () => {
     const QuotaFlow = Flow.make("Annotated/Quota", {
       payload: {},
-      success: Schema.String
+      success: Schema.String,
+      body: () => Node.succeed(undefined)
     })
     const gate = DurableDeferred.make("annotated-quota-gate", { success: Schema.String })
 
@@ -258,7 +262,8 @@ describe("annotated waiting reasons reach the parked row (issue #31)", () => {
   it("an annotation consumed by its resolved gate does not leak onto a later timer park (issue #42)", async () => {
     const TwoStageFlow = Flow.make("Annotated/TwoStage", {
       payload: {},
-      success: Schema.String
+      success: Schema.String,
+      body: () => Node.succeed(undefined)
     })
     const gate = DurableDeferred.make("annotated-two-stage-gate", { success: Schema.String })
 

@@ -1,6 +1,7 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 import { Activity, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Cause, Effect, Exit, Layer, Result, Schedule, Schema, Scope } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
@@ -12,7 +13,8 @@ const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Cr
 
 const hostFlow = Flow.make("IdentityGaps/host", {
   payload: { id: Schema.String },
-  success: Schema.Void
+  success: Schema.Void,
+  body: () => Node.succeed(undefined)
 })
 
 const provideHost = <A, E>(

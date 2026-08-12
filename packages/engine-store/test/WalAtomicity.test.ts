@@ -23,6 +23,7 @@ import { DurableClock, Flow, FlowRuntime } from "@smthrs/flow"
 import { Journal, type JournalEvent, SqlJournal } from "@smthrs/journal"
 import * as Notifying from "@smthrs/journal/test/Notifying"
 import { Jj } from "@smthrs/kernel"
+import { Node } from "@smthrs/plan"
 import { AttemptStore, Ownership, RunStore } from "@smthrs/run-store"
 import { CacheStore } from "@smthrs/step-cache"
 import * as Cause from "effect/Cause"
@@ -292,7 +293,8 @@ describe("lifecycle history is atomic with executable state", () => {
 
 const DriverFlow = Flow.make("WalAtomicity/Driver", {
   payload: {},
-  success: Schema.String
+  success: Schema.String,
+  body: () => Node.succeed(undefined)
 })
 
 const fakeEngine = {} as unknown as FlowRuntime.FlowRuntime["Service"]

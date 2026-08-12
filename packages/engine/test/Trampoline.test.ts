@@ -16,7 +16,7 @@ const Increment = Activity.make("trampoline/increment", {
 })
 
 /** The declaration shape every counter in this suite shares. */
-type CounterFlow = Flow.Bodied<
+type CounterFlow = Flow.Flow<
   string,
   Schema.Struct<{ value: typeof Schema.Number; target: typeof Schema.Number }>,
   typeof Schema.Number,
@@ -236,7 +236,8 @@ describe("a lineage on the memory engine", () => {
   it("refuses a handoff to a flow the engine was never told about", async () => {
     const Stranger = Flow.make("trampoline/stranger", {
       payload: { value: Schema.Number },
-      success: Schema.Number
+      success: Schema.Number,
+      body: () => Node.succeed(undefined)
     })
     const Orphan = Flow.make("trampoline/orphan", {
       payload: { value: Schema.Number },

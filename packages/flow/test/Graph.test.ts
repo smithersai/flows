@@ -60,11 +60,15 @@ const planNode = (plan: Plan.Plan, id: string): Plan.PlanNode => {
 const compile = (planId: string, flow: string, graph: Graph.Graph): Promise<Plan.Plan> =>
   runPromise(Plan.compile({ planId, flow, nodes: Graph.drafts(graph) }))
 
-/** An AST that crossed a serialization boundary, leaving its side tables behind. */
-const detached = <A>(built: Node.Node<A>): Node.Node<A> => ({
-  ...built,
-  ast: JSON.parse(JSON.stringify(built.ast)) as Node.Ast
-})
+/**
+ * An AST that crossed a serialization boundary, leaving its side tables behind.
+ * The node's own prototype is kept, because a rehydrated AST is still handed
+ * back as a node — only what lived beside it is gone.
+ */
+const detached = <A>(built: Node.Node<A>): Node.Node<A> =>
+  Object.assign(Object.create(Object.getPrototypeOf(built) as object) as Node.Node<A>, {
+    ast: JSON.parse(JSON.stringify(built.ast)) as Node.Ast
+  })
 
 describe("Graph.build topology", () => {
   it("expands every node variant, entering the flow as a call to itself", () => {
@@ -404,15 +408,14 @@ describe("Graph.build composition", () => {
     }))
   })
 
-  it("leaves a body-less callee and an explicit boundary as leaf nodes", () => {
-    const Leaf = Flow.make("counter/leaf", {
-      payload: { path: Schema.String },
-      success: Schema.Number
-    })
+  it("leaves an explicit boundary and a declaration-less inline call as leaf nodes", () => {
+    // Every flow has a body, so an inline call splices unless its declaration
+    // did not survive beside its AST. Those are the only two leaves left.
     const boundary: Node.Node<number> = Node.flowCall(Child, "counter/child", "boundary", { path: "p", seed: 1 })
+    const leaf = detached<number>(Node.flowCall(Child, "counter/child", "inline", { path: "p", seed: 1 }))
     const flow = Flow.make("counter/leaves", {
       payload: {},
-      body: () => Node.all({ boundary, leaf: Leaf.call({ path: "p" }) })
+      body: () => Node.all({ boundary, leaf })
     })
     const graph = Graph.build(flow, {})
 
@@ -423,6 +426,7 @@ describe("Graph.build composition", () => {
       ["root", "FlowCall"]
     ])
     expect(body(graph, "root.flow.all.boundary")).toMatchObject({ mode: "boundary", flow: "counter/child" })
+    expect(body(graph, "root.flow.all.leaf")).toMatchObject({ mode: "inline", declaration: undefined })
     expect(node(graph, "root.flow.all.leaf").dependencies).toEqual([])
   })
 
@@ -460,8 +464,10 @@ describe("Graph.build composition", () => {
     expect(digestOf(({ path }) => Write.call({ path, value: 1 }))).toEqual(one)
     expect(digestOf(({ path }) => Write.call({ path, value: 2 }))).not.toEqual(one)
 
-    const Bodyless = Flow.make("keys/bodyless", { payload: {}, success: Schema.Number })
-    expect(body(Graph.build(Bodyless, {}), "root").declaration).toMatchObject({ body: undefined })
+    // A call whose declaration did not survive has no digest to fold in at all,
+    // which is the only way a leaf call carries none.
+    const lost = detached<number>(Node.flowCall(Child, "counter/child", "inline", { path: "p", seed: 1 }))
+    expect(body(Graph.build(lost), "root").declaration).toBeUndefined()
   })
 })
 

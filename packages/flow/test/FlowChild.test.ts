@@ -122,7 +122,7 @@ describe("Graph.build keeps a child boundary as a leaf", () => {
   })
 
   it("is the way out of the recursion refusal an inline self-call raises", () => {
-    const Recursive: Flow.Bodied<
+    const Recursive: Flow.Flow<
       "child/recursive",
       Schema.Struct<{ depth: typeof Schema.Number }>,
       typeof Schema.Number,
@@ -338,7 +338,7 @@ describe("the interpreter drives a child boundary as a real execution", () => {
       Effect.exit(Interpreter.interpret(lost)).pipe(
         Effect.provideService(
           FlowRuntime.FlowInstance,
-          makeInstance(Flow.make("child/host", { payload: {} }), "child-host")
+          makeInstance(Flow.make("child/host", { payload: {}, body: () => Node.succeed(undefined) }), "child-host")
         ),
         Effect.provide(wired(Layer.empty))
       )

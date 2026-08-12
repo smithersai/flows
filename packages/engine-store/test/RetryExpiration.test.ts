@@ -8,6 +8,7 @@
 import { Activity, Flow, FlowRuntime, RetryPolicy, StepIdentity } from "@smthrs/flow"
 import { Journal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
+import { Node } from "@smthrs/plan"
 import { AttemptStore, RunStore } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -71,7 +72,8 @@ describe("expirationMs survives a restart mid-retry (issue #45)", () => {
     const flow = Flow.make("RetryExpiration/Restart", {
       payload: {},
       success: Schema.String,
-      error: Schema.String
+      error: Schema.String,
+      body: () => Node.succeed(undefined)
     })
     const flaky = Activity.make({
       name: "retry-expiration-flaky",

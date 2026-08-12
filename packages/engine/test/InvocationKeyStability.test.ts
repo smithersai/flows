@@ -18,6 +18,7 @@ import type * as Crypto from "effect/Crypto"
  * activity must keep its own identity across both.
  */
 import { Activity, Flow, FlowRuntime } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Deferred, Effect, Exit, Layer, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
@@ -28,7 +29,8 @@ const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Cr
 
 const flow = Flow.make("InvocationKeyStability/flow", {
   payload: { id: Schema.String },
-  success: Schema.Void
+  success: Schema.Void,
+  body: () => Node.succeed(undefined)
 })
 
 const chargeCard = Activity.make({

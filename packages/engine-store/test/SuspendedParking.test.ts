@@ -5,6 +5,7 @@
  */
 import { DurableClock, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
 import { Jj } from "@smthrs/kernel"
+import { Node } from "@smthrs/plan"
 import { RunStore } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -61,7 +62,8 @@ describe("suspended runs park with a waiting reason", () => {
   it("a flow suspending on a deferred parks with reason 'event' and wakes on resume", async () => {
     const EventFlow = Flow.make("Parking/Event", {
       payload: {},
-      success: Schema.String
+      success: Schema.String,
+      body: () => Node.succeed(undefined)
     })
     const gate = DurableDeferred.make("parking-gate", { success: Schema.String })
     const handler = () => Effect.map(DurableDeferred.await(gate), (value) => `gated:${value}`)
@@ -106,7 +108,8 @@ describe("suspended runs park with a waiting reason", () => {
   it("a flow suspending on a durable clock parks with reason 'timer' and its wake deadline", async () => {
     const TimerFlow = Flow.make("Parking/Timer", {
       payload: {},
-      success: Schema.String
+      success: Schema.String,
+      body: () => Node.succeed(undefined)
     })
     const handler = () =>
       DurableClock.sleep({ name: "parking-timer", duration: "5 minutes" }).pipe(

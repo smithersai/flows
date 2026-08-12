@@ -18,6 +18,7 @@ import type * as Crypto from "effect/Crypto"
  * cannot opt out of it.
  */
 import { Activity, Flow, FlowRuntime } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Effect, Exit, Layer, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
@@ -28,7 +29,8 @@ const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Cr
 
 const flow = Flow.make("CacheEnvironmentKeys/flow", {
   payload: { id: Schema.String },
-  success: Schema.Void
+  success: Schema.Void,
+  body: () => Node.succeed(undefined)
 })
 
 const hermeticMetadata = {

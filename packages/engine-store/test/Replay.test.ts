@@ -1,6 +1,7 @@
 import { Activity, DurableDeferred, Flow } from "@smthrs/flow"
 import { Journal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
+import { Node } from "@smthrs/plan"
 import { type Ownership, RunStore } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -14,7 +15,8 @@ import { runPromise } from "./Sha256.ts"
 
 const ReplayFlow = Flow.make("Replay/Flow", {
   payload: {},
-  success: Schema.String
+  success: Schema.String,
+  body: () => Node.succeed(undefined)
 })
 
 const gate = DurableDeferred.make("race-winner", {

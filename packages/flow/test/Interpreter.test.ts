@@ -6,7 +6,6 @@
 import { Activity, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
 import { Node, Planned } from "@smthrs/plan"
 import { Context, Effect, Exit, Layer, Schema } from "effect"
-import type * as Crypto from "effect/Crypto"
 import { describe, expect, expectTypeOf, it } from "vitest"
 import { runPromise } from "./Crypto.ts"
 import { layerMemory, makeInstance } from "./MemoryFlowRuntime.ts"
@@ -82,7 +81,10 @@ const drive = <A, E>(
     effect.pipe(
       Effect.provideService(
         FlowRuntime.FlowInstance,
-        makeInstance(Flow.make("interpreter/host", { payload: {} }), "interpretation")
+        makeInstance(
+          Flow.make("interpreter/host", { payload: {}, body: () => Node.succeed(undefined) }),
+          "interpretation"
+        )
       ),
       Effect.provide(layer)
     )
@@ -148,26 +150,6 @@ describe("Interpreter.layer", () => {
 
     expect(results).toEqual([2, 2])
     expect(calls).toEqual(["write:replay.txt:1"])
-  })
-
-  it("dies when the flow it is asked to register has no body", async () => {
-    const Bodyless = Flow.make("interpreter/bodyless", {
-      payload: { path: Schema.String },
-      success: Schema.Number
-    })
-    const exit = await runPromise(
-      Effect.exit(Effect.void.pipe(Effect.provide(wired(Interpreter.layer(Bodyless)))))
-    )
-
-    expect(Exit.isFailure(exit)).toBe(true)
-    expect(Exit.isFailure(exit) && exit.cause.reasons[0]).toMatchObject({
-      defect: {
-        _tag: "@smthrs/flow/InterpreterError",
-        code: "missing_body",
-        flow: "interpreter/bodyless",
-        node: "root"
-      }
-    })
   })
 })
 
@@ -456,15 +438,19 @@ describe("Interpreter refusals", () => {
     })
   })
 
-  it("refuses an inline call it keeps as a leaf, naming the body and the boundary as the fixes", async () => {
-    // A body-less callee has nothing to splice, so an inline call to it stays a
-    // leaf — and a leaf inline call is the one flow node with no behavior at
-    // all. `.child()` is a leaf too, but it has an execution underneath it.
-    const Bodyless = Flow.make("interpreter/leaf-callee", {
+  it("refuses an inline call it keeps as a leaf, naming the same process and the boundary as the fixes", async () => {
+    // Every flow has a body, so the only inline call with nothing to splice is
+    // one whose declaration did not survive beside its AST — and a leaf inline
+    // call is the one flow node with no behavior at all. `.child()` is a leaf
+    // too, but it has an execution underneath it.
+    const Callee = Flow.make("interpreter/leaf-callee", {
       payload: { path: Schema.String },
-      success: Schema.Number
+      success: Schema.Number,
+      body: ({ path }) => Write.call({ path, value: 1 })
     })
-    const inline: Node.Node<number> = Node.flowCall(Bodyless, "interpreter/leaf-callee", "inline", { path: "p" })
+    const inline = detached<number>(
+      Node.flowCall(Callee, "interpreter/leaf-callee", "inline", { path: "p" })
+    )
 
     expect(await refusal(Interpreter.interpret(inline))).toMatchObject({
       error: {
@@ -479,7 +465,8 @@ describe("Interpreter refusals", () => {
   it("refuses a detached handoff whose declaration cannot encode its payload", async () => {
     const Target = Flow.make("interpreter/handoff-target", {
       payload: { path: Schema.String },
-      success: Schema.Number
+      success: Schema.Number,
+      body: () => Node.succeed(undefined)
     })
     const lost = detached(
       Node.flowCall<number>(Target, Target._tag, "handoff", { path: "p" })
@@ -496,46 +483,41 @@ describe("Interpreter refusals", () => {
   })
 })
 
-describe("Flow.toLayer on a bodied flow", () => {
+describe("a flow's behavior is its body", () => {
   const Bodied = Flow.make("interpreter/bodied", {
     payload: { path: Schema.String },
     success: Schema.Number,
     body: ({ path }) => Write.call({ path, value: 1 })
   })
 
-  it("is not callable", () => {
-    expectTypeOf(Bodied.toLayer).toEqualTypeOf<never>()
+  it("has no handler attachment point, in the type or on the value", () => {
+    expectTypeOf(Bodied).not.toHaveProperty("toLayer")
+    // An erased `Flow.Any` and a JavaScript caller reach the same surface, so
+    // the refusal is the absence of the property rather than a run-time defect.
+    expect("toLayer" in Bodied).toBe(false)
   })
 
-  it("is still not callable after the flow is annotated", () => {
-    // `annotate` carries the body across, so the declaration it answers with is
-    // still bodied — and must still refuse a second behavior.
-    expectTypeOf(Bodied.annotate(Flow.Capabilities, ["fs"]).toLayer).toEqualTypeOf<never>()
-    expectTypeOf(Bodied.annotateMerge(Context.empty()).toLayer).toEqualTypeOf<never>()
+  it("keeps that surface, and the body itself, across annotation", () => {
+    const annotated = Bodied.annotate(Flow.Capabilities, ["fs"])
+    const merged = Bodied.annotateMerge(Context.empty())
+
+    expectTypeOf(annotated).not.toHaveProperty("toLayer")
+    expectTypeOf(merged).not.toHaveProperty("toLayer")
+    expect("toLayer" in annotated).toBe(false)
+    expect("toLayer" in merged).toBe(false)
+    expect(annotated.body).toBe(Bodied.body)
+    expect(merged.body).toBe(Bodied.body)
   })
 
-  it("dies naming the body as the behavior a bodied flow already has", async () => {
-    const erased = Bodied as unknown as {
-      readonly toLayer: (
-        execute: () => Effect.Effect<number>
-      ) => Layer.Layer<never, never, FlowRuntime.FlowRuntime>
-    }
-    const exit = await runPromise(
-      Effect.exit(
-        Effect.void.pipe(
-          Effect.provide(erased.toLayer(() => Effect.succeed(1)).pipe(Layer.provideMerge(layerMemory)))
-        )
-      ) as Effect.Effect<Exit.Exit<void, never>, never, Crypto.Crypto>
+  it("runs that body through the interpreter's registration layer", async () => {
+    calls.length = 0
+    const value = await runPromise(
+      Bodied.execute({ path: "bodied.txt" }, { executionId: "bodied-1" }).pipe(
+        Effect.provide(wired(Interpreter.layer(Bodied)))
+      )
     )
 
-    expect(Exit.isFailure(exit)).toBe(true)
-    expect(Exit.isFailure(exit) && exit.cause.reasons[0]).toMatchObject({
-      defect: {
-        _tag: "@smthrs/flow/BodyDefinesBehavior",
-        code: "body_defines_behavior",
-        flowName: "interpreter/bodied",
-        message: expect.stringContaining("Interpreter.layer(interpreter/bodied)")
-      }
-    })
+    expect(value).toBe(2)
+    expect(calls).toEqual(["write:bodied.txt:1"])
   })
 })

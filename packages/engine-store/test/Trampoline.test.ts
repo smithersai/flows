@@ -46,7 +46,7 @@ const Increment = Activity.make("trampoline/increment", {
 })
 
 /** The declaration shape every counter in this suite shares. */
-type CounterFlow = Flow.Bodied<
+type CounterFlow = Flow.Flow<
   string,
   Schema.Struct<{ value: typeof Schema.Number; target: typeof Schema.Number }>,
   typeof Schema.Number,

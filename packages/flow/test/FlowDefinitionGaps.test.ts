@@ -1,6 +1,7 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 import { Activity, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import type * as Scope from "effect/Scope"
@@ -27,10 +28,11 @@ const pollUntil = <A, E, R>(
 describe("Flow.make payload and schema defaults", () => {
   effect("accepts an already-built payload schema as well as a field record", () => {
     const fields = Flow.make("Definition/fields", {
-      payload: { id: Schema.String }
+      payload: { id: Schema.String },
+      body: () => Node.succeed(undefined)
     })
     const struct = Schema.Struct({ id: Schema.String })
-    const built = Flow.make("Definition/built", { payload: struct })
+    const built = Flow.make("Definition/built", { payload: struct, body: () => Node.succeed(undefined) })
     return Effect.sync(() => {
       // a field record is wrapped; a schema is adopted as-is
       expect(built.payloadSchema).toBe(struct)
@@ -84,7 +86,7 @@ describe("Flow.make payload and schema defaults", () => {
     // `makeProto` builds the definition on a function object so it mirrors
     // effect's `Workflow`. Invoking it is not part of the API: it must be a
     // no-op that neither throws nor mutates the definition.
-    const flow = Flow.make("Definition/proto", { payload: { id: Schema.String } })
+    const flow = Flow.make("Definition/proto", { payload: { id: Schema.String }, body: () => Node.succeed(undefined) })
     return Effect.sync(() => {
       expect(typeof flow).toBe("function")
       expect((flow as unknown as () => unknown)()).toBeUndefined()

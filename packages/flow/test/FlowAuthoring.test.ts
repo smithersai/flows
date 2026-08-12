@@ -23,7 +23,8 @@ describe("Flow body and calls", () => {
     const flow = Flow.make("Authoring/call", {
       payload: { count: Schema.Number },
       success: Schema.String,
-      error: Schema.Number
+      error: Schema.Number,
+      body: () => Node.succeed(undefined)
     })
     const count = Planned.make<number>("upstream")
 
@@ -68,7 +69,8 @@ describe("Flow trampoline outcomes", () => {
 
   it("constructs a typed next-flow invocation as a visible handoff node", () => {
     const flow = Flow.make("Authoring/next", {
-      payload: { count: Schema.NumberFromString }
+      payload: { count: Schema.NumberFromString },
+      body: () => Node.succeed(undefined)
     })
     const node = flow.to({ count: 2 })
     expectTypeOf(node).toEqualTypeOf<Node.Node<Flow.To<{ readonly count: number }>>>()
@@ -99,7 +101,7 @@ describe("Flow authoring annotations", () => {
       boundaryMode: "hard"
     }
     const placement: Flow.PlacementDirective = { host: "sandbox" }
-    const original = Flow.make("Authoring/annotations", { payload: {} })
+    const original = Flow.make("Authoring/annotations", { payload: {}, body: () => Node.succeed(undefined) })
     const annotated = original
       .annotate(Flow.Capabilities, ["fs:read"])
       .annotate(Flow.EffectsDeclaration, effects)

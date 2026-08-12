@@ -52,7 +52,7 @@ const wired = (
   )
 
 /** A host flow for interpretations driven outside a registered execution. */
-const Host = Flow.make("waitFor/host", { payload: {} })
+const Host = Flow.make("waitFor/host", { payload: {}, body: () => Node.succeed(undefined) })
 
 /** A second flow, so a token can name the running execution under a foreign flow. */
 const Other = Flow.make("waitFor/other", { payload: {}, body: () => Node.succeed(undefined) })

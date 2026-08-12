@@ -3,10 +3,16 @@
 /**
  * Defines typed durable flow declarations.
  *
- * A `Flow` has a stable tag, schemas for payload, success, and failure, and
- * an optional idempotency key used to derive execution ids when the caller does
- * not provide one. Flow definitions can be executed, discarded, polled,
- * interrupted, resumed, and registered with a handler layer.
+ * A `Flow` has a stable tag, schemas for payload, success, and failure, a
+ * REQUIRED pure `body`, and an optional idempotency key used to derive
+ * execution ids when the caller does not provide one. Flow definitions can be
+ * executed, discarded, polled, interrupted, and resumed.
+ *
+ * The two nouns of `docs/specs/Concepts/Unified Flow Authoring.md` divide the
+ * surface here: an Activity carries an implementation, attached separately as a
+ * Layer; a Flow carries a body, and never opaque executable code. There is
+ * therefore no handler to attach to a flow, and no `toLayer` on one to attach
+ * it with.
  *
  * @since 4.0.0
  */
@@ -14,7 +20,6 @@ import type * as Node from "@smthrs/plan/Node"
 import type * as Cause from "effect/Cause"
 import type * as Context from "effect/Context"
 import type * as Effect from "effect/Effect"
-import type * as Layer from "effect/Layer"
 import type * as Option from "effect/Option"
 import type * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
@@ -48,17 +53,19 @@ export interface Flow<
   readonly errorSchema: Error
   readonly annotations: Context.Context<never>
   /**
-   * Pure plan-time body for this flow.
+   * The pure plan-time body that IS this flow's behavior.
    *
    * The payload is decoded real data and the returned node only describes
-   * topology. This field is optional during the additive migration and will
-   * become required by `docs/specs/Concepts/Unified Flow Authoring.md`.
-   * Purity includes closure capture: the body must not read mutable module
-   * state, clocks, random values, services, or environment values captured
-   * outside `payload`; source-digest identity cannot observe those aliases
-   * changing. Work that genuinely wants opaque code is an Activity.
+   * topology. It is a FIELD rather than an injectable layer because there is
+   * exactly one of it, it is pure, and its digest enters the flow's content
+   * identity, so a flow cannot plan one way under one wiring and another way
+   * under another. Purity includes closure capture: the body must not read
+   * mutable module state, clocks, random values, services, or environment
+   * values captured outside `payload`; source-digest identity cannot observe
+   * those aliases changing. Work that genuinely wants opaque code is an
+   * Activity.
    */
-  readonly body?: ((payload: Payload["Type"]) => Node.Node<unknown, unknown>) | undefined
+  readonly body: (payload: Payload["Type"]) => Node.Node<unknown, unknown>
   readonly idempotencyKey?: ((payload: Payload["Type"]) => string) | undefined
   readonly suspendedRetryPolicy?: RetryPolicy.RetryPolicy | undefined
   /**
@@ -170,31 +177,6 @@ export interface Flow<
   ) => Effect.Effect<void, never, FlowRuntime>
 
   /**
-   * Create a layer that registers the flow and provides an effect to
-   * execute it.
-   */
-  readonly toLayer: <R>(
-    execute: (
-      payload: Payload["Type"],
-      executionId: string
-    ) => Effect.Effect<Success["Type"], Error["Type"], R>
-  ) => Layer.Layer<
-    never,
-    never,
-    | FlowRuntime
-    | Exclude<
-      R,
-      FlowRuntime | FlowInstance | Execution<Tag> | Scope.Scope
-    >
-    | Payload["DecodingServices"]
-    | Payload["EncodingServices"]
-    | Success["DecodingServices"]
-    | Success["EncodingServices"]
-    | Error["DecodingServices"]
-    | Error["EncodingServices"]
-  >
-
-  /**
    * For the given payload, compute the deterministic execution ID.
    *
    * This helper is valid only when the flow declares an `idempotencyKey`.
@@ -244,48 +226,6 @@ export interface Flow<
 }
 
 /**
- * A flow whose behavior is its `body`.
- *
- * `Flow.make` answers with this shape whenever a body is declared, and the one
- * thing it takes away is `toLayer`: a bodied flow already has exactly one
- * behavior, so attaching a second, opaque one is the attachment-decides
- * ambiguity `docs/specs/Concepts/Unified Flow Authoring.md` rejects. Calling it
- * is a compile error here and a `BodyDefinesBehavior` defect at run time. Drive
- * one with the body interpreter's registration layer instead.
- *
- * @category models
- * @since 0.1.0
- */
-export interface Bodied<
-  Tag extends string,
-  Payload extends AnyStructSchema,
-  Success extends Schema.Top,
-  Error extends Schema.Top
-> extends Flow<Tag, Payload, Success, Error> {
-  readonly body: (payload: Payload["Type"]) => Node.Node<unknown, unknown>
-
-  /**
-   * Not callable on a bodied flow: the body is the behavior.
-   */
-  readonly toLayer: never
-
-  /**
-   * Annotating carries the body across, so the refusal above carries with it.
-   */
-  annotate<I, S>(
-    key: Context.Key<I, S>,
-    value: S
-  ): Bodied<Tag, Payload, Success, Error>
-
-  /**
-   * Annotating carries the body across, so the refusal above carries with it.
-   */
-  annotateMerge<I>(
-    annotations: Context.Context<I>
-  ): Bodied<Tag, Payload, Success, Error>
-}
-
-/**
  * Schema constraint for flow payload schemas that expose struct fields.
  *
  * @category schemas
@@ -324,7 +264,7 @@ export interface Any {
   readonly successSchema: Schema.Top
   readonly errorSchema: Schema.Top
   readonly annotations: Context.Context<never>
-  readonly body?: ((payload: any) => Node.Node<unknown, unknown>) | undefined
+  readonly body: (payload: any) => Node.Node<unknown, unknown>
   readonly idempotencyKey?: ((payload: any) => string) | undefined
   readonly suspendedRetryPolicy?: RetryPolicy.RetryPolicy | undefined
   readonly maxRounds?: number | undefined

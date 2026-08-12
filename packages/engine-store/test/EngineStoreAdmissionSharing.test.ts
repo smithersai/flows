@@ -18,6 +18,7 @@
  */
 import { Activity, Flow } from "@smthrs/flow"
 import { Jj } from "@smthrs/kernel"
+import { Node } from "@smthrs/plan"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
@@ -30,7 +31,8 @@ import { runPromise } from "./Sha256.ts"
 
 const AdmissionFlow = Flow.make("EngineStoreAdmission/Flow", {
   payload: {},
-  success: Schema.String
+  success: Schema.String,
+  body: () => Node.succeed(undefined)
 })
 
 const jj = Jj.make({

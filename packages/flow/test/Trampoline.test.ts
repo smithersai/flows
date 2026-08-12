@@ -23,7 +23,7 @@ const Increment = Activity.make("trampoline/increment", {
 const increments = Increment.toLayer(({ value }) => Effect.succeed(value + 1))
 
 /** The declaration shape the recursive body names itself under. */
-type CounterFlow = Flow.Bodied<
+type CounterFlow = Flow.Flow<
   "trampoline/counter",
   Schema.Struct<{ value: typeof Schema.Number; target: typeof Schema.Number }>,
   typeof Schema.Number,
@@ -51,7 +51,8 @@ const Parking = Flow.make("trampoline/parking", {
 
 const EncodedTarget = Flow.make("trampoline/encoded-target", {
   payload: { count: Schema.NumberFromString },
-  success: Schema.Number
+  success: Schema.Number,
+  body: () => Node.succeed(undefined)
 })
 
 const EncodedSource = Flow.make("trampoline/encoded-source", {
@@ -234,7 +235,8 @@ describe("Flow.MaxRoundsExceeded", () => {
     const declare = (maxRounds: number) =>
       Flow.make("trampoline/invalid-budget", {
         payload: {},
-        maxRounds
+        maxRounds,
+        body: () => Node.succeed(undefined)
       })
 
     expect(() => declare(0)).toThrow(RangeError)

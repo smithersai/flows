@@ -1,6 +1,7 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 import { Activity, Flow, FlowRuntime, Interpreter, RetryPolicy } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Clock, Effect, Exit, Fiber, Layer, Option, Random, Schema } from "effect"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
@@ -128,7 +129,8 @@ describe("flow suspension policy", () => {
 
 const flow = Flow.make("RetryPolicy/test", {
   payload: {},
-  success: Schema.Void
+  success: Schema.Void,
+  body: () => Node.succeed(undefined)
 })
 
 const effect = (

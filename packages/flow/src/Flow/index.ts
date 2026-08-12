@@ -6,7 +6,6 @@
  * @since 4.0.0
  */
 export * from "./Annotations.ts"
-export * from "./BodyDefinesBehavior.ts"
 export * from "./ExecutionIdRequired.ts"
 export * from "./Flow.ts"
 export * from "./make.ts"

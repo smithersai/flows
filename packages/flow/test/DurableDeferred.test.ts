@@ -1,6 +1,7 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 import { Activity, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Cause, Effect, Exit, Layer, Option, Schema, Scope } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
@@ -91,7 +92,8 @@ describe("DurableDeferred", () => {
     const flow = Flow.make("DurableDeferred/token-payload", {
       payload: { id: Schema.String },
       success: Schema.Void,
-      idempotencyKey: ({ id }) => id
+      idempotencyKey: ({ id }) => id,
+      body: () => Node.succeed(undefined)
     })
     return Effect.gen(function*() {
       const executionId = yield* flow.executionId({ id: "abc" })

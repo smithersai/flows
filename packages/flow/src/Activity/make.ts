@@ -147,12 +147,24 @@ const makeDeclared = <
       return Node.activityCall<Success["Type"], Error["Type"]>(self, tag, payload)
     },
     toLayer(execute) {
+      // The flow form of this activity: same tag, same schemas, and a body that
+      // is the one call to it. Registering that flow is what lets a caller
+      // `execute` the activity as a durable execution of its own, and the body
+      // says truthfully what such an execution does. It stays INTERNAL — a flow
+      // carries a body and never a handler, so `Flow` has no `toLayer` for an
+      // author to reach this seam with.
+      //
+      // `Flow.make` answers with `PayloadSchemaOf<PayloadSchema>`, which is
+      // `PayloadSchema` itself for a payload that is already a schema rather
+      // than a field record. The compiler defers that conditional while the
+      // type parameter is unresolved, so the identity is asserted here.
       const registration = Flow.make(tag, {
         payload: payloadSchema,
         success: successSchema,
         error: errorSchema,
-        annotations
-      })
+        annotations,
+        body: (payload) => Node.activityCall<Success["Type"], Error["Type"]>(self, tag, payload)
+      }) as unknown as Flow.Flow<Tag, PayloadSchema, Success, Error>
       const activity = (payload: PayloadSchema["Type"]) =>
         makeInline({
           name: tag,
@@ -188,7 +200,12 @@ const makeDeclared = <
           ).pipe(Effect.updateContext((input) => Context.merge(services, input) as Context.Context<any>))
         yield* table.value.add({ name: tag, activity: provided as Implementation["activity"] })
       }))
-      return Layer.merge(registration.toLayer(activity), file)
+      return Layer.merge(
+        Layer.effectDiscard(
+          Effect.flatMap(FlowRuntime, (engine) => engine.register(registration, activity))
+        ),
+        file
+      )
     }
   }
   return self

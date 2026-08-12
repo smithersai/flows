@@ -1,6 +1,7 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 import { Activity, DurableDeferred, Flow, FlowRuntime, Interpreter, RetryPolicy } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Cause, Deferred, Effect, Exit, Fiber, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
@@ -318,7 +319,8 @@ describe("suspended resume policy", () => {
         factor: 1,
         maxMs: 100,
         expirationMs: 150
-      })
+      }),
+      body: () => Node.succeed(undefined)
     })
     let executions = 0
     const scripted = FlowEngine.makeUnsafe({
@@ -440,7 +442,8 @@ describe("activity retry give-up reasons", () => {
     const flow = Flow.make("Gaps/durable-retry-origin", {
       payload: { id: Schema.String },
       success: Schema.Number,
-      error: Schema.String
+      error: Schema.String,
+      body: () => Node.succeed(undefined)
     })
     let requestedKey: string | undefined
     const scripted = FlowEngine.makeUnsafe({

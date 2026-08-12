@@ -14,6 +14,7 @@ import { Activity, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow"
 import { Journal } from "@smthrs/journal"
 import * as Notifying from "@smthrs/journal/test/Notifying"
 import { Jj } from "@smthrs/kernel"
+import { Node } from "@smthrs/plan"
 import { AttemptStore, RunStore } from "@smthrs/run-store"
 import { CacheStore } from "@smthrs/step-cache"
 import * as Effect from "effect/Effect"
@@ -33,7 +34,8 @@ import { runPromise } from "./Sha256.ts"
 
 const QuarantineFlow = Flow.make("AttemptQuarantine/Flow", {
   payload: {},
-  success: Schema.String
+  success: Schema.String,
+  body: () => Node.succeed(undefined)
 })
 
 const jj = Jj.make({
@@ -266,7 +268,8 @@ describe("succeeded-row corruption parks the run quarantined for an operator (is
 
 const CancelRaceFlow = Flow.make("AttemptQuarantine/CancelRace", {
   payload: {},
-  success: Schema.String
+  success: Schema.String,
+  body: () => Node.succeed(undefined)
 })
 
 const fakeEngine = {} as unknown as FlowRuntime.FlowRuntime["Service"]

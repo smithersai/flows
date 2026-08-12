@@ -10,13 +10,11 @@ import * as Node from "@smthrs/plan/Node"
 import * as Context from "effect/Context"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
-import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import { FlowRuntime } from "../FlowRuntime/FlowRuntime.ts"
 import type * as RetryPolicy from "../RetryPolicy.ts"
-import { BodyDefinesBehavior } from "./BodyDefinesBehavior.ts"
 import { ExecutionIdRequired } from "./ExecutionIdRequired.ts"
-import type { AnyStructSchema, AnyWithProps, Bodied, Flow } from "./Flow.ts"
+import type { AnyStructSchema, AnyWithProps, Flow } from "./Flow.ts"
 import type { To } from "./Outcome.ts"
 import { withRollback } from "./Runtime.ts"
 import { TypeId } from "./TypeId.ts"
@@ -124,22 +122,6 @@ const Proto = {
       Effect.withSpan(`${this._tag}.resume`, { attributes: { executionId } }, { captureStackTrace: false })
     )
   },
-  toLayer(this: Flow<string, AnyStructSchema, Schema.Top, Schema.Top>, execute: any) {
-    // One behavior per flow. The type of a bodied flow already refuses this
-    // call; the defect is what a JavaScript caller, or an erased `Flow.Any`,
-    // gets instead of a flow that plans one way and runs another.
-    return this.body === undefined
-      ? Layer.effectDiscard(
-        Effect.flatMap(FlowRuntime, (engine) => engine.register(this, execute))
-      )
-      : Layer.effectDiscard(Effect.die(
-        new BodyDefinesBehavior({
-          flowName: this._tag,
-          message: `Flow "${this._tag}" declares a body, so its behavior is that body. ` +
-            `Register it with Interpreter.layer(${this._tag}) instead of toLayer, or drop the body and keep the handler.`
-        })
-      ))
-  },
   executionId(this: AnyWithProps, payload: any) {
     return Effect.flatMap(
       Effect.orDie(this.payloadSchema.makeEffect(payload)),
@@ -160,7 +142,7 @@ const makeProto = <
   readonly successSchema: Success
   readonly errorSchema: Error
   readonly annotations: Context.Context<never>
-  readonly body?: ((payload: Payload["Type"]) => Node.Node<unknown, unknown>) | undefined
+  readonly body: (payload: Payload["Type"]) => Node.Node<unknown, unknown>
   readonly idempotencyKey?: ((payload: Payload["Type"]) => string) | undefined
   readonly suspendedRetryPolicy?: RetryPolicy.RetryPolicy | undefined
   readonly maxRounds?: number | undefined
@@ -172,7 +154,7 @@ const makeProto = <
 }
 
 /**
- * The declaration data every flow takes, whether or not it has a body.
+ * The declaration data every flow takes beside its body.
  *
  * @private
  */
@@ -217,42 +199,27 @@ type PayloadSchemaOf<Payload extends Schema.Struct.Fields | AnyStructSchema> = P
   : Payload
 
 /**
- * Creates a durable flow definition with schemas, annotations, and either
- * caller-selected execution IDs or opt-in deterministic IDs derived from the
- * flow tag and idempotency key.
+ * Creates a durable flow definition with schemas, annotations, a required pure
+ * body, and either caller-selected execution IDs or opt-in deterministic IDs
+ * derived from the flow tag and idempotency key.
  *
- * Declaring a `body` answers with {@link module:Flow.Bodied}: the body is then
- * the flow's one behavior, so the returned declaration has no `toLayer` to
- * attach a second one with.
+ * The `body` is the flow's one behavior, evaluated at plan time only. A flow
+ * with nothing to plan is a category error under
+ * `docs/specs/Concepts/Unified Flow Authoring.md` — that work is an Activity,
+ * whose implementation attaches separately as a Layer.
  *
  * @category constructors
  * @since 4.0.0
  */
-export const make: {
-  <
-    const Tag extends string,
-    Payload extends Schema.Struct.Fields | AnyStructSchema,
-    Success extends Schema.Top = Schema.Void,
-    Error extends Schema.Top = Schema.Never
-  >(
-    tag: Tag,
-    options: MakeOptions<Payload, Success, Error> & { readonly body: Body<Payload> }
-  ): Bodied<Tag, PayloadSchemaOf<Payload>, Success, Error>
-  <
-    const Tag extends string,
-    Payload extends Schema.Struct.Fields | AnyStructSchema,
-    Success extends Schema.Top = Schema.Void,
-    Error extends Schema.Top = Schema.Never
-  >(
-    tag: Tag,
-    options: MakeOptions<Payload, Success, Error> & { readonly body?: undefined }
-  ): Flow<Tag, PayloadSchemaOf<Payload>, Success, Error>
-} = (<
+export const make = <
   const Tag extends string,
   Payload extends Schema.Struct.Fields | AnyStructSchema,
   Success extends Schema.Top = Schema.Void,
   Error extends Schema.Top = Schema.Never
->(tag: Tag, options: MakeOptions<Payload, Success, Error> & { readonly body?: Body<Payload> | undefined }) => {
+>(
+  tag: Tag,
+  options: MakeOptions<Payload, Success, Error> & { readonly body: Body<Payload> }
+): Flow<Tag, PayloadSchemaOf<Payload>, Success, Error> => {
   if (
     options.maxRounds !== undefined &&
     (!Number.isSafeInteger(options.maxRounds) || options.maxRounds < 1)
@@ -267,11 +234,9 @@ export const make: {
     successSchema: options.success ?? (Schema.Void as any),
     errorSchema: options.error ?? (Schema.Never as any),
     annotations: options.annotations ?? Context.empty(),
-    body: options.body as
-      | ((payload: PayloadSchemaOf<Payload>["Type"]) => Node.Node<unknown, unknown>)
-      | undefined,
+    body: options.body as (payload: PayloadSchemaOf<Payload>["Type"]) => Node.Node<unknown, unknown>,
     idempotencyKey: options.idempotencyKey as any,
     suspendedRetryPolicy: options.suspendedRetryPolicy,
     maxRounds: options.maxRounds
   })
-}) as typeof make
+}

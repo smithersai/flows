@@ -15,6 +15,7 @@ import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
 import { Activity, Flow } from "@smthrs/flow"
 import { Jj } from "@smthrs/kernel"
 import * as KernelWorkspace from "@smthrs/kernel/Workspace"
+import { Node } from "@smthrs/plan"
 import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
 import { CacheStore } from "@smthrs/step-cache"
 import * as Effect from "effect/Effect"
@@ -372,7 +373,8 @@ describe("sealed activities under the production composition", () => {
 describe("EngineStore composition", () => {
   const SandboxFlow = Flow.make("SandboxedActivity/Flow", {
     payload: {},
-    success: Schema.String
+    success: Schema.String,
+    body: () => Node.succeed(undefined)
   })
 
   it("carries the sandbox and the dispatch stage onto the engine's own fiber", async () => {
