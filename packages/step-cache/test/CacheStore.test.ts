@@ -1,10 +1,14 @@
 import { DurableWriter } from "@smthrs/database"
+import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as SqlError from "effect/unstable/sql/SqlError"
+import { mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import { CacheStore } from "../src/CacheStore.ts"
 import * as CacheStoreLive from "../src/CacheStore.ts"
@@ -103,6 +107,47 @@ describe("CacheStore", () => {
     expect(Option.getOrThrow(result.found).result).toEqual({ output: "ok" })
   })
 
+  it("reports ExistingSame for structurally equal results built in different key orders (B11)", async () => {
+    // `ExistingSame` versus `Conflict` is decided on `result_json` text. Under
+    // `JSON.stringify` that text depends on key insertion order, so a body that
+    // spreads a decoded record — or that reorders fields across a refactor —
+    // produced `Conflict` for a result that had not changed.
+    // `ActivityPersistence` routes `Conflict` to the `Inconsistency` receiver
+    // whose core default verdict is `fail`, so the run failed with
+    // `CacheConflictDetected` naming a divergence that did not exist.
+    const first = { a: 1, b: 2, nested: { x: "x", y: "y" } }
+    const reordered = { nested: { y: "y", x: "x" }, b: 2, a: 1 }
+    expect(JSON.stringify(first)).not.toBe(JSON.stringify(reordered))
+
+    const result = await migrated(Effect.gen(function*() {
+      const store = yield* CacheStore
+      yield* store.put({ ...entry, result: first })
+      const put = yield* store.put({ ...entry, result: reordered })
+      const found = yield* store.get(entry.keyDigest)
+      return { put, found }
+    }))
+
+    expect(result.put).toEqual({ _tag: "ExistingSame" })
+    expect(Option.getOrThrow(result.found).result).toEqual(first)
+  })
+
+  it("reports ExistingSame for an identical result with different meta, keeping the first writer's meta", async () => {
+    // Pinning the current behaviour, which was undocumented: `meta_json` is
+    // not compared, so a second writer agreeing on the result never conflicts
+    // and never overwrites. Meta is provenance about the recording, not part
+    // of the cached value, so the first writer's copy is the one the row keeps.
+    const result = await migrated(Effect.gen(function*() {
+      const store = yield* CacheStore
+      yield* store.put(entry)
+      const put = yield* store.put({ ...entry, meta: { source: "converged", extra: true } })
+      const found = yield* store.get(entry.keyDigest)
+      return { put, found }
+    }))
+
+    expect(result.put).toEqual({ _tag: "ExistingSame" })
+    expect(Option.getOrThrow(result.found).meta).toEqual({ source: "recorded" })
+  })
+
   it("evicts an entry", async () => {
     const result = await migrated(Effect.gen(function*() {
       const store = yield* CacheStore
@@ -153,6 +198,64 @@ describe("CacheStore", () => {
 
     expect(result.foreign).toBe(false)
     expect(Option.isSome(result.survived)).toBe(true)
+  })
+
+  it("is a no-op when a foreign process on another connection landed a fresher row", async () => {
+    // The two cells above drive the #119 fence through one connection, which
+    // cannot show what the fence is for: the window it closes is a *second
+    // process* recording under the same key between a poisoned read and the
+    // delete. Two connections over one file database is that window.
+    const directory = mkdtempSync(join(tmpdir(), "flows-step-cache-fence-"))
+    const filename = join(directory, "cache.db")
+    const connection = () =>
+      Layer.provideMerge(
+        CacheStoreLive.layer,
+        Layer.provideMerge(
+          Migrations.layer,
+          Layer.provideMerge(DurableWriter.layer(), NodeDatabase.layer({ filename }))
+        )
+      )
+
+    try {
+      const result = await run(
+        Effect.gen(function*() {
+          // The owning process records, then reads its provenance.
+          yield* Effect.scoped(
+            Effect.gen(function*() {
+              const store = yield* CacheStore
+              yield* store.put(entry)
+            }).pipe(Effect.provide(connection()))
+          )
+
+          // A foreign process on its own connection evicts and re-records.
+          yield* Effect.scoped(
+            Effect.gen(function*() {
+              const store = yield* CacheStore
+              yield* store.evict(entry.keyDigest)
+              yield* store.put({ ...entry, recordedRunId: "run-2", recordedEventSeq: 11 })
+            }).pipe(Effect.provide(connection()))
+          )
+
+          // The owner's fenced evict still names the provenance it read.
+          return yield* Effect.scoped(
+            Effect.gen(function*() {
+              const store = yield* CacheStore
+              const evicted = yield* store.evict(entry.keyDigest, {
+                ifRecordedBy: { runId: entry.recordedRunId, eventSeq: entry.recordedEventSeq }
+              })
+              const survivor = yield* store.get(entry.keyDigest)
+              return { evicted, survivor }
+            }).pipe(Effect.provide(connection()))
+          )
+        })
+      )
+
+      expect(result.evicted).toBe(false)
+      expect(Option.getOrThrow(result.survivor).recordedRunId).toBe("run-2")
+      expect(Option.getOrThrow(result.survivor).recordedEventSeq).toBe(11)
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
   })
 
   it("counts affected rows on a driver that reports rowCount rather than changes", async () => {
