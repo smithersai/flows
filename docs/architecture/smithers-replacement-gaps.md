@@ -27,7 +27,7 @@ an injected service or a constructor option — see
 | 5 | Continue-as-new lineage | missing | **partial** — lineage edge closed, `Continued` terminal missing |
 | 6 | Checkpoints / worktree lanes | partial | **still missing** (hook seam exists) |
 | 7 | Quota park / wake | missing | **partial** — store side closed, wake driver missing |
-| 8 | Supervisor sweep | missing | **still missing** (primitives ready) |
+| 8 | Supervisor sweep | missing | **closed** — shipped inside engine-store's run driver; no separate `Supervisor` layer is planned |
 | 9 | Fault-suite harness | partial | **closed as harness**; case parity accretes with features |
 
 ### 1. Waiting-reason taxonomy — closed
@@ -133,20 +133,38 @@ with `wakeAt` and a wake via the durable clock. Done = that classifier as an
 injected service at the wait/wake seam, with one park-then-wake fault case;
 nothing new in core.
 
-### 8. Supervisor sweep — still missing
+### 8. Supervisor sweep — closed, inside the run driver
 
-No `Supervisor` layer exists in `packages/engine`. But every primitive it
-needs landed: stale-lease steal in `claimAndOwn`, the `waitingRuns` due-run
-query, and the taxonomy index built for the sweeper (the migration's own
-docstring says so). Done = a scheduled Effect fiber — scan expired
-leases/due wakes **and `reason = 'released'` rows** → `claimAndOwn` → resume —
-as an opt-in `Supervisor.layer`. A released row (issue #39) has neither a held
-lease nor a `wakeAt`, so a supervisor that scans only expired leases and due
-wakes would strand released runs exactly as before #39 (issue #67): the
-released-reason scan is part of the Supervisor contract, not an optimization.
-It replaces smithers' `apps/cli/src/supervisor.js` claim-by-proxy process (the
-audit's explicit rejection of a separate CLI app stands). This is now a small
-task, not a subsystem.
+The sweep shipped. It is not a `Supervisor` layer: it runs in
+`packages/engine-store/src/internal/RunDriver.ts`, on the heartbeat cadence,
+in every process that drives runs. Four behaviours make up the contract the
+audit asked for:
+
+- **Stale-running re-drive** (issue #53). `sweepStaleRunning` enumerates rows
+  still marked `running` whose heartbeat fell outside
+  `Ownership.heartbeatStaleAfter` and re-drives them through the ordinary
+  claim/steal path, so a hard-killed owner (SIGKILL, OOM) no longer strands
+  its run. The batch is capped per tick, oldest heartbeat first (issue #79).
+- **Released-row scan** (issues #67, #68). A run parked with reason
+  `released` has neither a held lease nor a `wakeAt`, so scanning expired
+  leases and due wakes alone would strand it. `sweepCancelRequested` asks
+  `waitingRuns` for exactly the actionable rows — reason `released`, plus a
+  `cancelRequested` filter predicate — instead of scanning every parked run.
+- **Due wakes and cancel delivery.** The same sweep wakes parked runs whose
+  cancellation was durably requested, and durable clock rows re-arm on
+  restart, so a park always has something that comes back for it.
+- **Unregistered-flow warning** (issue #62). A wake for a flow this process
+  never registered logs a once-per-run structured warning and leaves the row
+  parked for a worker that does register it, rather than no-oping silently.
+
+**No separate `Supervisor` layer is planned** (maintainer decision,
+2026-08-13). Resumption requires a live process with the flows registered —
+a driver has to hold the body to re-drive it — so a sweeper that owns no
+registrations can only move a row from one parked state to another.
+No-process-no-progress is the correct contract for a library: the process
+that can make progress is the one that sweeps. Smithers'
+`apps/cli/src/supervisor.js` claim-by-proxy process is replaced by that, and
+the audit's explicit rejection of a separate CLI app stands.
 
 ### 9. Fault-suite harness — closed as harness
 
@@ -250,10 +268,10 @@ existing smithers CLI unchanged.
    on the old loop. Requires the packaged production layer and the
    registration-before-resume guarantee. Waiting states route through the
    taxonomy instead of `engine.js`'s inline cases.
-3. **Supervisor + RunControl (retire `supervisor.js`, `pause`, `cancel`
-   paths).** `Supervisor.layer` replaces the claim-by-proxy process;
-   `RunControl` replaces pause/cancel with attribution. The smithers CLI verbs
-   become thin RPC over the layer.
+3. **RunControl (retire `supervisor.js`, `pause`, `cancel` paths).** The
+   claim-by-proxy process is already replaced by the run driver's own sweep
+   (§8), so this stage is `RunControl`: pause/cancel with attribution. The
+   smithers CLI verbs become thin RPC over the layer.
 4. **Time travel + checkpoints last.** `snapshot-hook`, restore/revert/rewind,
    and worktree lanes move onto the `Checkpoint` capability and the
    time-travel stores. Last because it has the largest missing surface (§6)
@@ -294,13 +312,13 @@ supervisor, and the `Checkpoint` capability itself.
 
 ## Verdict
 
-Of the audit's nine areas, four are fully closed (taxonomy, liveness, journal
-fencing, fault harness), three are partial with the hard half done (control
-verbs, lineage, quota), and two remain (checkpoints, supervisor — the latter
-now trivial). The durability core is at or above smithers parity; what stands
-between here and cutover is integration, not invariants: put services behind
-the remaining seams, package the production layer, and ship the small `Supervisor`/`RunControl`
-layers, then begin stage 1 of the migration immediately — for a SQLite-backed
+Of the audit's nine areas, five are fully closed (taxonomy, liveness, journal
+fencing, fault harness, supervisor sweep), three are partial with the hard
+half done (control verbs, lineage, quota), and one remains (checkpoints). The
+durability core is at or above smithers parity; what stands between here and
+cutover is integration, not invariants: put services behind the remaining
+seams, package the production layer, and ship the small `RunControl` layer,
+then begin stage 1 of the migration immediately — for a SQLite-backed
 workspace the storage swap is already a strict upgrade. For a PGlite- or
 Postgres-backed one it is not yet available at all; that is new gap 4, an
 accepted gap with a written plan, not an oversight.
