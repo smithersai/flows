@@ -56,7 +56,8 @@ const layer = Layer.mergeAll(
 | `scope`, `provideScope`, `addFinalizer` | scope helpers | flow-scoped finalizers |
 | `withRollback` | combinator | undoes a successful effect if the enclosing flow later fails |
 | `CaptureDefects`, `SuspendOnFailure` | references | engine policy switches |
-| `ExecutionIdRequired` | class | fails when neither an id nor an idempotency key is supplied |
+| `ExecutionIdRequired` | class | fails when no identity source can name the invocation |
+| `ExecutionIdSource`, `CurrentExecutionIds`, `derived`, `layerExecutionIds` | interface + reference + source + layer | the ambient execution-id source, consulted when a call names no `executionId` and the flow declares no `idempotencyKey` |
 
 ## Activity
 

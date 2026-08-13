@@ -57,7 +57,7 @@ const Greeting = Flow.make("example/Greeting", {
 const executionId = yield* Greeting.executionId({ name: "Ada" })
 ```
 
-An explicit `executionId` always wins. Without either source, execution dies with `Flow.ExecutionIdRequired` before invoking the engine.
+An explicit `executionId` always wins. A flow that declares neither takes its ID from the ambient `Flow.CurrentExecutionIds` source, whose default derives one from the flow tag and the payload, so `yield* Greeting.execute({ name: "Ada" })` runs without naming an execution.
 
 ## Choose the next guide
 

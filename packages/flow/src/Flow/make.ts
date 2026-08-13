@@ -13,19 +13,28 @@ import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import { FlowRuntime } from "../FlowRuntime/FlowRuntime.ts"
 import type * as RetryPolicy from "../RetryPolicy.ts"
-import { ExecutionIdRequired } from "./ExecutionIdRequired.ts"
+import { CurrentExecutionIds } from "./ExecutionIds.ts"
 import type { AnyStructSchema, AnyWithProps, Flow } from "./Flow.ts"
 import type { To } from "./Outcome.ts"
 import { withRollback } from "./Runtime.ts"
 import { TypeId } from "./TypeId.ts"
 
+/**
+ * The identity of an invocation that named no `executionId`: the flow's own
+ * declared key when it has one, and the ambient source otherwise.
+ *
+ * A declared key wins over the ambient source because it is the narrower
+ * statement — this author said what makes two invocations of THIS flow the
+ * same — where the source is the host's blanket answer for every flow it
+ * drives.
+ */
 const makeExecutionIdFromPayload = (
   self: AnyWithProps,
   payload: unknown
 ): Effect.Effect<string, never, Crypto.Crypto> => {
   const idempotencyKey = self.idempotencyKey
   return idempotencyKey === undefined
-    ? Effect.die(new ExecutionIdRequired({ flowName: self._tag }))
+    ? Effect.flatMap(CurrentExecutionIds, (source) => source.mint(self, payload))
     : Schema.decodeUnknownEffect(Sha256)(`${self._tag}-${idempotencyKey(payload)}`).pipe(Effect.orDie)
 }
 
