@@ -58,9 +58,10 @@ const layer = CombinedArtifacts.layer({
   directory, are fsynced, and are renamed into place. Temp names fold a random
   per-instance token, so two processes publishing the same digest into one
   workspace never share a scratch path.
-- **Verification is once per digest per store lifetime**, memoized in a bounded
-  LRU. A failing read drops the entry, so the next `put` re-verifies and heals a
-  corrupt address instead of trusting stale proof.
+- **An existing blob is verified on every `put`.** The objects directory is
+  workspace-shared, so a remembered proof could outlive the bytes it proved; a
+  mismatch or failing read falls through to the atomic rewrite and heals the
+  address.
 - **The endpoint and its credentials are a capability, never an input.** They
   arrive as layer construction options: they are not hashed into a step key, not
   journaled, and not part of any recorded result

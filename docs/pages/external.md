@@ -13,7 +13,7 @@ What exists elsewhere, what this engine borrows from it, and what a deployment c
 | [Bazel](https://bazel.build) Skyframe | keyed, memoizing, parallel, incremental evaluation | content-addressed step keys, the cache-admission gate, and the `GraphTester`-shaped deterministic test harness |
 | [BAML](https://github.com/BoundaryML/baml) | schema-first prompting and evals as a language feature | the discipline of declaring a typed contract before the effect that satisfies it |
 
-The honest positioning is an embeddable, Effect-native durable-execution toolkit for applications that want durability as layers and typed services rather than a separate hosted control plane. Its differentiated combination is Effect schemas, errors and fibers; capability-checked host layers; declaration-aware and environment-aware cross-run content addressing; and explicit time-travel and compensation protocols. It does not have a multi-node service, an operational control plane, an ecosystem, production history, or an end-to-end deployment story.
+The honest positioning is an embeddable, Effect-native durable-execution toolkit for applications that want durability as layers and typed services rather than a separate hosted control plane. Its differentiated combination is Effect schemas, errors and fibers; capability-checked host layers; declaration-aware and environment-aware cross-run content addressing; and explicit time-travel and compensation protocols. It does not have a multi-node service, an operational control plane, an ecosystem, or production history. The operational surface an embedding deployment needs does ship: journal checkpointing and compaction, artifact-store garbage collection, backup/verify/restore tooling with an operator runbook ([disaster recovery](/disaster-recovery)), metric defaults with OTLP export layers ([telemetry](/telemetry)), event-driven in-process wake with polling and sweeps as the cross-process fallback, and a documented [SQLite operating envelope](/sqlite-operating-envelope). Composing those layers into a running service is still application work; no packaged production layer or hosted deployment ships here.
 
 ## Implementation status
 
@@ -44,6 +44,11 @@ The honest positioning is an embeddable, Effect-native durable-execution toolkit
 | Fault harness | `Notifying.wrap` and `layer` for interstitial crash and fence-loss injection, driven at every closed interstitial by `WalAtomicity.test.ts` |
 | Public error contract | `EngineStore.Errors` with stable `code` literals |
 | Time travel | replay projections, memory and SQL stores, fork, rewind, compensation, recovery, tier-aware retry |
+| Journal compaction | `Journal.checkpoint` captures replay state at a committed sequence; `Journal.compact` truncates below it atomically with the floor advance, refuses live in-process readers behind the boundary, and reads below the floor fail with a typed `compacted` resync signal; opt-in entry-count policy on `SqlJournal.layer` |
+| Artifact GC | explicit `ArtifactGc.gc()` marking roots from cache entries, attempt boundary evidence, attempt checkpoints, and pins, with grace-period and dry-run policy over the fenced host-local `ArtifactSweep` |
+| Disaster recovery | `DisasterRecovery` backup, verify, restore, `restoreAndFence`, and fence over `SqlClient`/`FileSystem`/`Crypto`, plus the `scripts/flows-backup.mjs` operator script and [runbook](/disaster-recovery) |
+| Observability | Effect `Metric` counters for journal writes, database write retries, run-store claims/fencing/state transitions, step-cache hits/misses/puts, and artifact puts/gets, with `@smthrs/observability-next` OTLP export layers |
+| Event-driven wake | the in-process `WakeBus` completes a suspended run's `resumeSignal` when runnability durably changes; polling and heartbeat sweeps remain the bounded cross-process fallback |
 
 ### Implemented contracts with no production implementation
 
@@ -59,8 +64,6 @@ The honest positioning is an embeddable, Effect-native durable-execution toolkit
 
 - Production hermetic action execution and output materialization for cross-run caching.
 - A packaged production layer composing database, migrations, journal stores, durable deferred and clock state, kernel, host, and engine. Nothing composes them today, so assembly is application work.
-- Event-driven `resumeSignal`. Suspension wake-up is polling and sweeps.
-- Journal checkpointing and compaction for unbounded histories.
 - Injectable seams for retry classification, shareability, and wait/wake. Cache-conflict verdicts and owner identity already have services; retry classification and shareability are still fixed engine behavior.
 - Graph-level failure policies such as quarantine or continue-on-failure.
 - Detached child flow construction and lifecycle policy.

@@ -150,7 +150,7 @@ Six things happen in that sequence, and each one is a decision you can inspect.
 
 **Replay and the frontier.** A resume invokes the handler from the top. At each recorded boundary the driver returns the stored result. The first boundary with no recorded state is the frontier, and that is where new work happens. Code between boundaries runs again, so it has to be deterministic.
 
-**Suspension.** `DurableDeferred.await` and long `DurableClock.sleep` calls return `Flow.Suspended` when no result exists. The driver parks the run with a reason, clears ownership, and waits for a wake. Wake-up today is polling and sweeps; an event-driven `resumeSignal` is Planned.
+**Suspension.** `DurableDeferred.await` and long `DurableClock.sleep` calls return `Flow.Suspended` when no result exists. The driver parks the run with a reason, clears ownership, and waits for a wake. The in-process `WakeBus` completes the engine's `resumeSignal` when runnability durably changes (a deferred completes, a clock fires, an operator resumes); polling and sweeps remain the bounded fallback for cross-process wake.
 
 **Terminal state.** A handler that returns stores its encoded `Flow.Result` and moves the row to `completed` or `failed`; interruption moves an owned run to `cancelled`. Every terminal transition clears ownership.
 

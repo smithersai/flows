@@ -75,10 +75,10 @@ These are known and unclosed. None of them is covered by an existing suite.
 | No Postgres or PGlite backend, so the write contract runs on SQLite only | dialect parity is asserted by classification code, not by execution |
 | No production whole-tree `StepBoundary`, so no suite exercises a genuine cross-run cache hit | admission is proven to be refused, and never proven to be correct when granted |
 | No automatic time-travel record creation from ordinary execution | the protocols are tested against records the suites write by hand |
-| No event-driven `resumeSignal` | suspension wake-up is covered through polling and sweeps only |
+| No cross-process event-driven wake | `EventDrivenWake.test.ts` proves the in-process `WakeBus` resumes a waiting caller without a poll tick; wake across processes is still covered through polling and sweeps only |
 | No multi-process ownership test spanning real operating-system processes | takeover is covered in-process with injected liveness evidence |
 | No Cloudflare or Vercel engine-store deployment | the hosted adapters live in a separate repository and are not gated here |
-| No journal checkpointing or compaction | retention is tested; unbounded-history behavior is not |
+| No compaction under a live cross-process follower | `JournalCompaction.test.ts` proves checkpoint/compact atomicity, the reader gate, and the typed `compacted` resync signal in-process; a follower in another OS process is not exercised |
 
 ## Adding a test
 

@@ -68,7 +68,7 @@ The engine store hashes that key again for its database address, confirms the ru
 2. emit its journal record on the durable channel (which commits it), then flush the lossy queue best-effort — a latched lossy-sink failure is logged, never fatal to delivery;
 3. schedule a claim-gated wake.
 
-The flow engine still uses polling as a fallback because `EngineStore` does not implement `resumeSignal`.
+`EngineStore` implements `resumeSignal` over the in-process `WakeBus`, so a wake published in this process resumes the waiting engine without a poll tick; the poll loop remains the bounded fallback for wakes published elsewhere.
 
 ## 7. Terminal state
 

@@ -38,9 +38,10 @@ Bazel's `DiskCacheClient` fanout — with a default directory of `.flows/objects
 Bytes land at a temp path in that directory, are fsynced where the host has
 writable file handles, and are renamed into place. Temp names fold a random
 per-instance token so two processes publishing one digest into a shared
-workspace never collide. Verification of an existing blob runs once per digest
-per store lifetime, memoized in a bounded LRU; a failing read drops the entry so
-the next `put` heals the address.
+workspace never collide. An existing blob is digest-verified on every
+`put` — the objects directory is workspace-shared, so a remembered proof could
+outlive the bytes it proved — and a mismatch or failing read falls through to
+the atomic rewrite, healing the address.
 
 ## RemoteArtifacts
 

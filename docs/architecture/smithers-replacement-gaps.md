@@ -302,8 +302,8 @@ supervisor, and the `Checkpoint` capability itself.
   depends on §6 plus jj lifecycle design; no near-term path.
 - **Cross-run hermetic caching / output materialization** and the static
   planner API: planned, not started.
-- **Event-driven `resumeSignal`**: polling remains the fallback.
-- **Journal compaction/checkpointing** for unbounded histories.
+- **Cross-process event-driven wake**: the in-process `WakeBus` completes
+  `resumeSignal` today; polling remains the fallback across processes.
 - **Edge/serverless deployment parity** (runnable Cloudflare engine-store,
   fully durable Vercel deferreds/clocks).
 - **Smithers' UI-adjacent engine features** (live gateway mirroring, eval
