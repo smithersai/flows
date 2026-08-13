@@ -614,22 +614,40 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
     return write(
       "requestCancel",
       Effect.gen(function*() {
-        const rows = yield* sql<{ readonly requestedAtMs: number }>`
+        const record = () =>
+          sql<{ readonly requestedAtMs: number }>`
           UPDATE flows_runs
           SET cancel_requested_at_ms = ${nowMs}
           WHERE run_id = ${runId}
             AND cancel_requested_at_ms IS NULL
           RETURNING cancel_requested_at_ms AS "requestedAtMs"
         `
+        const rows = yield* record()
         if (rows[0] !== undefined) {
           return { _tag: "CancelRequested", requestedAtMs: Number(rows[0].requestedAtMs) } as const
         }
         const current = yield* sql<{ readonly requestedAtMs: number | null }>`
           SELECT cancel_requested_at_ms AS "requestedAtMs" FROM flows_runs WHERE run_id = ${runId}
         `
-        return current[0]?.requestedAtMs == null
+        const row = current[0]
+        if (row === undefined) {
+          return notFound
+        }
+        if (row.requestedAtMs !== null) {
+          return { _tag: "AlreadyRequested", requestedAtMs: Number(row.requestedAtMs) } as const
+        }
+        // The row is present and the column is NULL. `row === undefined` and
+        // `requestedAtMs === null` used to collapse into one `== null` test, so
+        // a writer on another connection clearing the column between the UPDATE
+        // and this read made a live run report `NotFound` — and the caller
+        // skipped the retry it performs for a genuine race. The UPDATE's own
+        // precondition holds again, so re-run it. Only a row that is really
+        // gone reports `NotFound`.
+        const retried = yield* record()
+        const recorded = retried[0]
+        return recorded === undefined
           ? notFound
-          : { _tag: "AlreadyRequested", requestedAtMs: Number(current[0].requestedAtMs) } as const
+          : { _tag: "CancelRequested", requestedAtMs: Number(recorded.requestedAtMs) } as const
       })
     )
   })
