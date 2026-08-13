@@ -15,6 +15,7 @@ import type { Scope } from "effect/Scope"
 import type { AnyStructSchema } from "../Flow/Flow.ts"
 import type { FlowInstance, FlowRuntime } from "../FlowRuntime/index.ts"
 import type * as RetryPolicy from "../RetryPolicy.ts"
+import type { Implementation } from "./Implementations.ts"
 import type { TypeId } from "./TypeId.ts"
 
 /**
@@ -70,8 +71,33 @@ export type PlannedPayload<T> =
     : T)
 
 /**
+ * The requirement one declared activity mints for itself, identified by its
+ * tag.
+ *
+ * A declaration is data that travels everywhere and carries no code, so a body
+ * that calls it names an implementation it does not hold. This type is that
+ * "does not hold", stated to the compiler: `Charge.call(...)` produces a node
+ * requiring `Requirement<"payments/Charge">`, `Charge.toLayer(...)` produces a
+ * layer providing it, and `Flow.execute` is where the two have to meet. It is
+ * phantom — nothing reads it, and nothing about planning, keying, or replay
+ * changes with it.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface Requirement<Tag extends string> {
+  readonly _: unique symbol
+  readonly _tag: Tag
+}
+
+/**
  * A named activity declaration whose implementation is supplied separately
  * through a layer and whose calls only add nodes to a plan.
+ *
+ * `Requires` is what `.call()` puts in the requirement channel of the node it
+ * records. It is this activity's own {@link Requirement} for an ordinary
+ * declaration, and `never` for a system declaration the engine itself
+ * implements ({@link module:make.makeSystem}).
  *
  * @category models
  * @since 0.1.0
@@ -80,7 +106,8 @@ export interface Declared<
   Tag extends string,
   Payload extends AnyStructSchema,
   Success extends Schema.Top,
-  Error extends Schema.Top
+  Error extends Schema.Top,
+  Requires = Requirement<Tag>
 > {
   readonly [TypeId]: typeof TypeId
   readonly name: Tag
@@ -90,15 +117,25 @@ export interface Declared<
   readonly tier: Tier
   readonly idempotencyKey: IdempotencyKey | undefined
   readonly annotations: Context.Context<never>
-  annotate<I, S>(key: Context.Key<I, S>, value: S): Declared<Tag, Payload, Success, Error>
-  annotateMerge<I>(annotations: Context.Context<I>): Declared<Tag, Payload, Success, Error>
+  /**
+   * The context key this declaration's implementation is provided under, and
+   * the identity behind {@link Requirement}.
+   *
+   * `toLayer` provides it; a composition that would rather hand the runtime an
+   * implementation directly can provide it itself with `Layer.succeed`. Its
+   * string key is derived from the activity tag, so two declarations of one tag
+   * name one slot.
+   */
+  readonly requirement: Context.Service<Requirement<Tag>, Implementation>
+  annotate<I, S>(key: Context.Key<I, S>, value: S): Declared<Tag, Payload, Success, Error, Requires>
+  annotateMerge<I>(annotations: Context.Context<I>): Declared<Tag, Payload, Success, Error, Requires>
   readonly call: (
     payload: PlannedPayload<Payload["~type.make.in"]>
-  ) => Node.Node<Success["Type"], Error["Type"]>
+  ) => Node.Node<Success["Type"], Error["Type"], Requires>
   readonly toLayer: <R>(
     execute: (payload: Payload["Type"]) => Effect.Effect<Success["Type"], Error["Type"], R>
   ) => Layer.Layer<
-    never,
+    Requires,
     never,
     | FlowRuntime
     | Exclude<R, FlowRuntime | FlowInstance | Scope>

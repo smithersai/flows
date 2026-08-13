@@ -19,7 +19,7 @@ import * as Flow from "../Flow/index.ts"
 import { FlowInstance } from "../FlowRuntime/FlowInstance.ts"
 import { FlowRuntime } from "../FlowRuntime/FlowRuntime.ts"
 import type * as RetryPolicy from "../RetryPolicy.ts"
-import type { Activity, Declared, IdempotencyKey, Tier } from "./Activity.ts"
+import type { Activity, Declared, IdempotencyKey, Requirement, Tier } from "./Activity.ts"
 import { CurrentAttempt } from "./Context.ts"
 import { type Implementation, Implementations } from "./Implementations.ts"
 import { TypeId } from "./TypeId.ts"
@@ -122,6 +122,12 @@ const makeDeclared = <
   const successSchema = options.success ?? (Schema.Void as unknown as Success)
   const errorSchema = options.error ?? (Schema.Never as unknown as Error)
   const annotations = options.annotations ?? Context.empty()
+  // The requirement this declaration mints for itself. Context keys are
+  // compared by their string key, so re-minting one for an annotated copy of
+  // this declaration names the same slot the original does.
+  const requirement = Context.Service<Requirement<Tag>, Implementation>(
+    `@smthrs/flow-next/Activity/Requirement/${tag}`
+  )
   const self: Declared<Tag, PayloadSchema, Success, Error> = {
     [TypeId]: TypeId,
     name: tag,
@@ -131,6 +137,7 @@ const makeDeclared = <
     tier: options.tier ?? "sealed",
     idempotencyKey: options.idempotencyKey,
     annotations,
+    requirement,
     annotate(key: Context.Key<any, any>, value: any) {
       return makeDeclared(tag, {
         ...options,
@@ -175,15 +182,19 @@ const makeDeclared = <
           annotations,
           execute: execute(payload)
         })
-      // A driver that expands a body reaches the implementation by tag rather
-      // than by invoking the flow this registers, so the same implementation is
-      // filed in the table when a composition wired one up. The table is
-      // optional on purpose: a composition that only executes registered
-      // handlers has no use for it, and requiring it would change what every
+      // The implementation, provided under the requirement this declaration
+      // minted. That is the compile-time half: a body that called this activity
+      // produced a node requiring the tag, and this layer is the only thing
+      // that answers it, so a plan cannot reach `execute` without its code.
+      //
+      // The name-keyed table is the run-time half and stays exactly as it was.
+      // A driver expanding a persisted plan has no types left to consult and
+      // resolves by tag, so the same implementation is filed there when a
+      // composition wired a table up. The table is optional on purpose: a
+      // composition that only executes handlers registered directly with the
+      // runtime has no use for it, and requiring it would change what every
       // existing `toLayer` call site must provide.
-      const file = Layer.effectDiscard(Effect.gen(function*() {
-        const table = yield* Effect.serviceOption(Implementations)
-        if (Option.isNone(table)) return
+      const implement = Layer.effect(requirement)(Effect.gen(function*() {
         const services = yield* Effect.context<never>()
         // The captured context is what the runtime's own `register` captures
         // for the handler path: the services the implementation was wired with,
@@ -198,13 +209,19 @@ const makeDeclared = <
             Effect.orDie(payloadSchema.makeEffect(payload as never)),
             (decoded) => activity(decoded)
           ).pipe(Effect.updateContext((input) => Context.merge(services, input) as Context.Context<any>))
-        yield* table.value.add({ name: tag, activity: provided as Implementation["activity"] })
+        const implementation: Implementation = {
+          name: tag,
+          activity: provided as Implementation["activity"]
+        }
+        const table = yield* Effect.serviceOption(Implementations)
+        if (Option.isSome(table)) yield* table.value.add(implementation)
+        return implementation
       }))
       return Layer.merge(
         Layer.effectDiscard(
           Effect.flatMap(FlowRuntime, (engine) => engine.register(registration, activity))
         ),
-        file
+        implement
       )
     }
   }
@@ -257,6 +274,55 @@ export const make: {
   typeof first === "string"
     ? makeDeclared(first, second as Parameters<typeof makeDeclared>[1])
     : makeInline(first)) as any
+
+/**
+ * Declares a SYSTEM activity: one whose implementation ships with the engine
+ * rather than with the composition that calls it.
+ *
+ * It is {@link make}'s declared form in every respect except the requirement.
+ * A system declaration mints none, so `.call()` records a node that demands
+ * nothing and a body using {@link module:Sleep} or {@link module:WaitFor} does
+ * not push a layer obligation onto its callers. That is the whole difference,
+ * and it is a deliberate hole in the compile-time enforcement: the engine owns
+ * these implementations, so an author cannot be the one who forgot them.
+ *
+ * Everything else is unchanged — the layer still registers with the runtime and
+ * still files itself in {@link module:Implementations.Implementations}, so a
+ * driver resolves a system activity by tag exactly like any other.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const makeSystem = <
+  const Tag extends string,
+  Payload extends Schema.Struct.Fields | Flow.AnyStructSchema,
+  Success extends Schema.Top = Schema.Void,
+  Error extends Schema.Top = Schema.Never
+>(tag: Tag, options: {
+  readonly payload: Payload
+  readonly success?: Success | undefined
+  readonly error?: Error | undefined
+  readonly tier?: Tier | undefined
+  readonly idempotencyKey?: IdempotencyKey | undefined
+  readonly annotations?: Context.Context<never> | undefined
+}): Declared<
+  Tag,
+  Payload extends Schema.Struct.Fields ? Schema.Struct<Payload> : Payload,
+  Success,
+  Error,
+  never
+> =>
+  // The erasure IS the declaration: the value still provides its requirement
+  // from `toLayer`, and dropping it from `call` only means nothing asks for it.
+  // Providing a service no one requires is always sound; the reverse would not
+  // be, which is why this is the one place the channel is written off.
+  makeDeclared(tag, options) as unknown as Declared<
+    Tag,
+    Payload extends Schema.Struct.Fields ? Schema.Struct<Payload> : Payload,
+    Success,
+    Error,
+    never
+  >
 
 const isInfraInterrupt = Predicate.isTagged("@smthrs/engine-next/InfraInterrupt")
 
