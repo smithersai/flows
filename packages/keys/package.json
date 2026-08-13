@@ -78,11 +78,11 @@
   "dependencies": {
     "@smthrs/canonical-next": "0.1.0",
     "@smthrs/crypto-next": "0.1.0",
-    "effect": "4.0.0-beta.102"
+    "effect": "4.0.0-rc.108"
   },
   "devDependencies": {
     "@effect/language-service": "0.87.1",
-    "@effect/platform-node": "4.0.0-beta.102",
+    "@effect/platform-node": "4.0.0-rc.108",
     "@eslint/js": "9.39.1",
     "@types/node": "25.9.5",
     "@vitest/coverage-v8": "4.1.9",

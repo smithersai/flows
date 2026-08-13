@@ -94,7 +94,7 @@
   "dependencies": {
     "@smthrs/jj-next": "0.1.0",
     "@smthrs/kernel-next": "0.1.0",
-    "effect": "4.0.0-beta.102"
+    "effect": "4.0.0-rc.108"
   },
   "devDependencies": {
     "@effect/language-service": "0.87.1",

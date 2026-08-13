@@ -24,10 +24,10 @@
     "@smthrs/step-cache-next": "0.1.0",
     "@smthrs/sync-next": "0.1.0",
     "@smthrs/time-travel-next": "0.1.0",
-    "effect": "4.0.0-beta.102"
+    "effect": "4.0.0-rc.108"
   },
   "devDependencies": {
-    "@effect/platform-node": "4.0.0-beta.102",
+    "@effect/platform-node": "4.0.0-rc.108",
     "@types/node": "25.9.5",
     "esbuild": "0.28.1",
     "typescript": "6.0.3",

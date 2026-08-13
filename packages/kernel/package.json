@@ -86,7 +86,7 @@
     "@smthrs/jj-next": "0.1.0",
     "@smthrs/journal-next": "0.1.0",
     "@smthrs/platform-browser-next": "0.1.0",
-    "effect": "4.0.0-beta.102"
+    "effect": "4.0.0-rc.108"
   },
   "peerDependencies": {
     "vitest": "4.1.9"
