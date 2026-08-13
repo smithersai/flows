@@ -26,19 +26,19 @@ Executable state is deliberately outside that chokepoint. Run state, attempt che
 
 ## Tracing
 
-`@smthrs/engine-next` opens spans through Effect's tracer. No OpenTelemetry exporter ships here; provide one from your application and these spans appear in it.
+`@smthrs/flow-next` and `@smthrs/engine-next` open the spans below through Effect's tracer. No OpenTelemetry exporter ships here; provide one from your application and these spans appear in it.
 
 | Span | Attributes | Source |
 | --- | --- | --- |
-| `<FlowTag>.execute` | none | `Flow.ts` |
-| `<FlowTag>.poll` | `executionId` | `Flow.ts` |
-| `<FlowTag>.interrupt` | `executionId` | `Flow.ts` |
-| `<FlowTag>.resume` | `executionId` | `Flow.ts` |
-| `<activity name>` | none | `Activity.ts`, around every activity dispatch |
-| `FlowEngine.deferredResult` | `name` | `FlowEngine.ts` |
-| `FlowEngine.deferredDone` | `name`, `executionId` | `FlowEngine.ts` |
-| `FlowEngine.scheduleClock` | `executionId`, `name` | `FlowEngine.ts` |
-| `DurableQueue/<name>/worker` | parented to the offering span through `Tracer.externalSpan` | `DurableQueue.ts` |
+| `<FlowTag>.execute` | none | `@smthrs/flow-next` `Flow/make.ts` |
+| `<FlowTag>.poll` | `executionId` | `@smthrs/flow-next` `Flow/make.ts` |
+| `<FlowTag>.interrupt` | `executionId` | `@smthrs/flow-next` `Flow/make.ts` |
+| `<FlowTag>.resume` | `executionId` | `@smthrs/flow-next` `Flow/make.ts` |
+| `<activity name>` | none | `@smthrs/flow-next` `Activity/make.ts`, around every activity dispatch |
+| `FlowEngine.deferredResult` | `name` | `@smthrs/engine-next` `FlowEngine/make.ts` |
+| `FlowEngine.deferredDone` | `name`, `executionId` | `@smthrs/engine-next` `FlowEngine/make.ts` |
+| `FlowEngine.scheduleClock` | `executionId`, `name` | `@smthrs/engine-next` `FlowEngine/make.ts` |
+| `DurableQueue/<name>/worker` | parented to the offering span through `Tracer.externalSpan` | `@smthrs/flow-next` `DurableQueue.ts` |
 
 Every span sets `captureStackTrace: false`. The queue worker is the one place trace context crosses a durable boundary: the offer records `traceId`, `spanId`, and `sampled` on the item, and the worker reattaches to that external span, so a persisted queue item stays connected to the flow that offered it.
 
@@ -75,7 +75,7 @@ Log annotations are attached by `DurableQueue` (`package`, `module`, `fiber`, `q
 | --- | --- |
 | Metrics of any kind, including counters for claims, steals, attempts, or cache hits | Planned, no `Metric` usage exists in `src` |
 | A shipped OpenTelemetry or exporter layer | Planned; applications wire their own tracer |
-| Spans in `@smthrs/engine-store-next`, `@smthrs/journal-next`, `@smthrs/run-store-next`, `@smthrs/step-cache-next`, `@smthrs/sync-next`, and `@smthrs/time-travel-next` | Planned; only `@smthrs/engine-next` opens spans today |
+| Documented spans outside `@smthrs/flow-next` and `@smthrs/engine-next` | `@smthrs/database-next`, `@smthrs/journal-next`, `@smthrs/run-store-next`, `@smthrs/step-cache-next`, `@smthrs/plan-next`, `@smthrs/artifacts-next`, `@smthrs/engine-store-next`, `@smthrs/kernel-next`, `@smthrs/sync-next`, and `@smthrs/time-travel-next` each open one `Effect.fn` span per service operation, named after that operation and declaring no attributes; this page does not enumerate them |
 | A run inspector or dashboard | Planned; the journal and sync are the substrate one would build on |
 | Structured audit of permission decisions beyond the grant events | Planned |
 | Journal checkpointing or compaction for unbounded histories | Planned |
