@@ -18,7 +18,9 @@
  * @since 0.1.0
  */
 import * as Deferred from "effect/Deferred"
+import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
 import * as ArtifactStore from "./ArtifactStore.ts"
 
@@ -33,7 +35,22 @@ export interface Options {
   readonly local: ArtifactStore.Service
   /** The shared tier. Consulted only on a local miss; written through on put. */
   readonly remote: ArtifactStore.Service
+  /**
+   * How long a `put` waits for its opportunistic upload to the shared tier
+   * before abandoning it. The local digest is already in hand when the upload
+   * starts, so the deadline bounds only how long a stalled remote can delay
+   * the answer — an abandoned upload is dropped exactly like a refused one.
+   * Defaults to 60 seconds, Bazel's `--remote_timeout` default
+   * (`reference/bazel/.../remote/options/RemoteOptions.java`).
+   */
+  readonly uploadTimeout?: Duration.Input | undefined
 }
+
+/**
+ * The default deadline on the opportunistic upload. 60 seconds is Bazel's
+ * `--remote_timeout` default for its remote cache calls.
+ */
+const defaultUploadTimeout = Duration.seconds(60)
 
 /**
  * Composes a local and a remote artifact store.
@@ -43,6 +60,7 @@ export interface Options {
  */
 export const make = (options: Options): ArtifactStore.Service => {
   const { local, remote } = options
+  const uploadTimeout = options.uploadTimeout ?? defaultUploadTimeout
   /**
    * In-flight uploads, keyed by digest. Two settles in one process that spill
    * the same artifact would otherwise both push the same bytes over the
@@ -52,16 +70,41 @@ export const make = (options: Options): ArtifactStore.Service => {
    * rather than replaying a stale outcome.
    */
   const uploads = new Map<string, Deferred.Deferred<ArtifactStore.Digest, ArtifactStore.ArtifactStoreError>>()
+  const uploadInterrupted = (): ArtifactStore.ArtifactStoreError =>
+    new ArtifactStore.ArtifactStoreError({
+      code: "unavailable",
+      message: "the shared upload was interrupted before it settled"
+    })
   const uploadOnce = (digest: ArtifactStore.Digest, bytes: Uint8Array) =>
-    Effect.gen(function*() {
+    Effect.suspend(() => {
       const joined = uploads.get(digest)
-      if (joined !== undefined) return yield* Deferred.await(joined)
-      const deferred = yield* Deferred.make<ArtifactStore.Digest, ArtifactStore.ArtifactStoreError>()
-      uploads.set(digest, deferred)
-      const exit = yield* Effect.exit(remote.put(bytes))
-      uploads.delete(digest)
-      yield* Deferred.done(deferred, exit)
-      return yield* exit
+      if (joined !== undefined) return Deferred.await(joined)
+      // Registration and settlement are atomic against interruption. The
+      // upload itself stays interruptible — that is how the deadline in `put`
+      // cuts it short — but everything around it runs masked: interruption
+      // striking between registering the deferred and resolving it would
+      // otherwise orphan the entry, and every later `put` of the digest would
+      // join a deferred nobody will ever complete.
+      return Effect.uninterruptibleMask((restore) =>
+        Effect.gen(function*() {
+          const deferred = yield* Deferred.make<ArtifactStore.Digest, ArtifactStore.ArtifactStoreError>()
+          uploads.set(digest, deferred)
+          return yield* restore(remote.put(bytes)).pipe(
+            Effect.onExit((exit) => {
+              uploads.delete(digest)
+              // An interrupted upload resolves the deferred with a typed
+              // failure, never with the interruption itself: interruption
+              // would tear down every innocent waiter, while a typed refusal
+              // is exactly the outcome `put` already drops. The map entry is
+              // gone either way, so the next `put` of the digest retries
+              // with a fresh upload.
+              return Exit.hasInterrupts(exit)
+                ? Deferred.fail(deferred, uploadInterrupted())
+                : Deferred.done(deferred, exit)
+            })
+          )
+        })
+      )
     })
 
   const put: ArtifactStore.Service["put"] = Effect.fn("CombinedArtifacts.put")((bytes: Uint8Array) =>
@@ -77,8 +120,14 @@ export const make = (options: Options): ArtifactStore.Service => {
       // upload: what actually guarantees a shared cache entry's blobs are
       // durable is the publication protocol's `findMissing` → upload →
       // confirm, run before the entry is published. A dropped upload here
-      // costs that protocol one re-upload, never correctness.
-      yield* Effect.ignore(uploadOnce(digest, bytes))
+      // costs that protocol one re-upload, never correctness. The deadline
+      // keeps it opportunistic in time as well: a remote that stalls instead
+      // of refusing must not hold the local answer hostage, so the upload is
+      // interrupted after `uploadTimeout` and abandoned like any refusal.
+      yield* uploadOnce(digest, bytes).pipe(
+        Effect.timeout(uploadTimeout),
+        Effect.ignore
+      )
       return digest
     })
   )
@@ -134,10 +183,11 @@ export const make = (options: Options): ArtifactStore.Service => {
 export const layer = <EL, RL, ER, RR>(options: {
   readonly local: Effect.Effect<ArtifactStore.Service, EL, RL>
   readonly remote: Effect.Effect<ArtifactStore.Service, ER, RR>
+  readonly uploadTimeout?: Duration.Input | undefined
 }): Layer.Layer<ArtifactStore.ArtifactStore, EL | ER, RL | RR> =>
   Layer.effect(ArtifactStore.ArtifactStore)(
     Effect.map(
       Effect.all({ local: options.local, remote: options.remote }),
-      make
+      ({ local, remote }) => make({ local, remote, uploadTimeout: options.uploadTimeout })
     )
   )

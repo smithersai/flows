@@ -2,12 +2,15 @@
  * The filesystem artifact store's durability contract.
  *
  * These properties moved here from `@smthrs/engine-store-next`'s `StepBoundary`
- * along with the code (issues #117, #131, #132, #138, #143, #144, #145, #155):
- * atomic publication through temp+rename, unique temp paths per writer,
- * healing rewrites of a corrupt address, the once-per-lifetime verification
- * memo and its eviction, and the conservative orphan sweep. Two properties are
- * new, both from Bazel's `DiskCacheClient`: the two-hex fanout layout and the
- * fsync of the temp file before the rename.
+ * along with the code (issues #117, #131, #132, #138, #144, #145): atomic
+ * publication through temp+rename, unique temp paths per writer, healing
+ * rewrites of a corrupt address, and the conservative orphan sweep. Two
+ * properties are new, both from Bazel's `DiskCacheClient`: the two-hex fanout
+ * layout and the fsync of the temp file before the rename. The
+ * once-per-lifetime verification memo the code arrived with (issues #143,
+ * #155) is gone: the objects directory is workspace-shared, and a remembered
+ * proof let a `put` report success over a blob corrupted behind the store's
+ * back without healing it, so verification now runs on every put.
  */
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -207,7 +210,7 @@ describe("atomic publication (issues #117, #131, #138)", () => {
   })
 })
 
-describe("verification and healing (issues #132, #143, #144, #145)", () => {
+describe("verification and healing (issues #132, #144, #145)", () => {
   it("leaves a healthy existing blob unwritten", async () => {
     const host = memoryFs({ seed: { [blobPath]: artifact } })
     await runPromise(store(host).put(bytes(artifact)))
@@ -230,25 +233,42 @@ describe("verification and healing (issues #132, #143, #144, #145)", () => {
     expect(host.writes.filter((path) => path.includes(".tmp-"))).toHaveLength(1)
   })
 
-  it("verifies an existing blob once per store lifetime, not once per put", async () => {
+  it("digest-verifies an existing blob on every put, never trusting a stale proof", async () => {
     const host = memoryFs({ seed: { [blobPath]: artifact } })
     const artifacts = store(host)
     await runPromise(artifacts.put(bytes(artifact)))
     await runPromise(artifacts.put(bytes(artifact)))
-    expect(host.reads.filter((path) => path === blobPath)).toHaveLength(1)
+    expect(host.reads.filter((path) => path === blobPath)).toHaveLength(2)
     expect(host.writes).toEqual([])
   })
 
-  it("trusts its own atomic publication on the next put of the digest", async () => {
+  it("re-verifies even its own publication on the next put of the digest", async () => {
+    // The objects directory is workspace-shared: this store's own atomic
+    // rename proves nothing about what the blob holds by the time the next
+    // put arrives, so the proof is re-measured rather than remembered.
     const host = memoryFs()
     const artifacts = store(host)
     await runPromise(artifacts.put(bytes(artifact)))
     await runPromise(artifacts.put(bytes(artifact)))
-    expect(host.reads.filter((path) => path === blobPath)).toHaveLength(0)
+    expect(host.reads.filter((path) => path === blobPath)).toHaveLength(1)
     expect(host.writes.filter((path) => path.includes(".tmp-"))).toHaveLength(1)
   })
 
-  it("evicts the memo when a read finds corruption, so the next put heals", async () => {
+  it("heals a blob corrupted behind its back, even having verified the digest before", async () => {
+    // The regression that killed the verification memo: with a remembered
+    // proof, the third put reported success while the address kept serving
+    // corrupt bytes, and no put would ever repair it.
+    const host = memoryFs()
+    const artifacts = store(host)
+    await runPromise(artifacts.put(bytes(artifact)))
+    await runPromise(artifacts.put(bytes(artifact)))
+    host.files.set(blobPath, bytes("CORRUPTED"))
+    await runPromise(artifacts.put(bytes(artifact)))
+    expect(text(host.files.get(blobPath))).toBe(artifact)
+    expect(text(await runPromise(artifacts.get(digest)))).toBe(artifact)
+  })
+
+  it("heals on the put after a read found corruption", async () => {
     const host = memoryFs()
     const artifacts = store(host)
     await runPromise(artifacts.put(bytes(artifact)))
@@ -260,7 +280,7 @@ describe("verification and healing (issues #132, #143, #144, #145)", () => {
     expect(text(await runPromise(artifacts.get(digest)))).toBe(artifact)
   })
 
-  it("evicts the memo when the blob cannot be read", async () => {
+  it("rewrites on every put while the blob stays unreadable", async () => {
     const host = memoryFs({ failReadOf: blobPath })
     const artifacts = store(host)
     await runPromise(artifacts.put(bytes(artifact)))
@@ -269,7 +289,7 @@ describe("verification and healing (issues #132, #143, #144, #145)", () => {
     expect(host.writes.filter((path) => path.includes(".tmp-"))).toHaveLength(2)
   })
 
-  it("evicts the memo when the blob vanishes", async () => {
+  it("republishes when the blob vanishes behind its back", async () => {
     const host = memoryFs()
     const artifacts = store(host)
     await runPromise(artifacts.put(bytes(artifact)))
@@ -277,29 +297,6 @@ describe("verification and healing (issues #132, #143, #144, #145)", () => {
     expect(Exit.isFailure(await runPromise(artifacts.get(digest).pipe(Effect.exit)))).toBe(true)
     await runPromise(artifacts.put(bytes(artifact)))
     expect(host.writes.filter((path) => path.includes(".tmp-"))).toHaveLength(2)
-  })
-
-  it("bounds the memo, re-verifying the digest it evicted (issue #155)", async () => {
-    // The memo is a bounded LRU, so a long-lived host cannot grow it for the
-    // process lifetime. Correctness never depends on membership: an evicted
-    // digest simply re-pays its verification read.
-    const host = memoryFs()
-    const artifacts = store(host)
-    const first = bytes("artifact-0")
-    await runPromise(artifacts.put(first))
-    // 4096 further distinct artifacts push the first one out of the LRU.
-    await runPromise(
-      Effect.forEach(
-        Array.from({ length: 4096 }, (_unused, index) => bytes(`filler-${index}`)),
-        (payload) => artifacts.put(payload),
-        { discard: true }
-      )
-    )
-    const firstPath = `.flows/objects/${sha256(first).slice(0, 2)}/${sha256(first)}`
-    const before = host.reads.filter((path) => path === firstPath).length
-    await runPromise(artifacts.put(first))
-    // The evicted digest is verified again rather than trusted.
-    expect(host.reads.filter((path) => path === firstPath).length).toBe(before + 1)
   })
 })
 
