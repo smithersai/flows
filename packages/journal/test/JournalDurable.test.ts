@@ -276,13 +276,13 @@ describe("SqlJournal durable emission across connections", () => {
       (context) => Context.get(context, Journal) as Service
     )
 
-  // Expected failure: two real connections both hit BEGIN contention on the
-  // same SQLite file, and Effect's SqlClient.makeWithTransaction issues
-  // ROLLBACK even when BEGIN itself failed, raising "cannot rollback - no
-  // transaction is active" (Effect-TS/effect#7235, fixed unreleased by
-  // Effect-TS/effect#7236). Unmark once flows depends on an effect release
-  // that contains #7236.
-  it.fails(
+  // Two real connections both hit BEGIN contention on the same SQLite file,
+  // and Effect's SqlClient.makeWithTransaction issues ROLLBACK even when
+  // BEGIN itself failed, raising "cannot rollback - no transaction is active"
+  // (Effect-TS/effect#7235, fixed unreleased by Effect-TS/effect#7236).
+  // `withWriteRetry` classifies that defect as transient write contention and
+  // retries it, so this holds as a real assertion.
+  it(
     "emitDurable never collides when two connections write one run concurrently",
     () =>
       withTempFile((filename) =>

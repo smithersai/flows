@@ -45,16 +45,6 @@ export interface ContractContext {
 
 export interface Harness {
   readonly label: string
-  /**
-   * Set when this harness is known to trip an upstream defect in Effect's
-   * `SqlClient.makeWithTransaction`: a failed `BEGIN` (real connections
-   * contending for SQLite's write lock, as only a multi-connection harness
-   * can produce) still issues `ROLLBACK`, which fails with "cannot rollback
-   * - no transaction is active" (issue Effect-TS/effect#7235, fixed
-   * upstream by Effect-TS/effect#7236, unreleased). Unmark the affected
-   * cases below once flows depends on an effect release containing #7236.
-   */
-  readonly upstreamRollbackDefect?: boolean
   /** Runs `body` against a freshly created, empty store. */
   readonly run: <A>(body: (context: ContractContext) => Effect.Effect<A, any, never>) => Promise<A>
 }
@@ -77,11 +67,13 @@ const reachedRead = (
 
 export const describeContract = (harness: Harness): void => {
   describe(`DurableWriter.write contract (${harness.label})`, () => {
-    // Expected failure only on a harness flagged `upstreamRollbackDefect`:
-    // see the field's doc comment above for the error string, issue, and PR.
-    const concurrentIt = harness.upstreamRollbackDefect ? it.fails : it
-
-    concurrentIt("does not lose an update when two writers read-modify-write one row concurrently", async () => {
+    // Both concurrent cases run as real assertions on every harness. A
+    // multi-connection SQLite harness trips Effect's upstream `BEGIN`-failure
+    // rollback defect ("cannot rollback - no transaction is active",
+    // Effect-TS/effect#7235, fixed upstream by #7236, unreleased), but
+    // `withWriteRetry` classifies that defect as transient write contention
+    // and retries it, so the contract holds regardless.
+    it("does not lose an update when two writers read-modify-write one row concurrently", async () => {
       const result = await harness.run((context) =>
         Effect.gen(function*() {
           yield* context.a.sql`CREATE TABLE counter (id INTEGER PRIMARY KEY, value INTEGER NOT NULL)`
@@ -118,7 +110,7 @@ export const describeContract = (harness: Harness): void => {
       expect(result).toBe(2)
     })
 
-    concurrentIt("admits exactly one of two writers that each check for absence then insert", async () => {
+    it("admits exactly one of two writers that each check for absence then insert", async () => {
       const result = await harness.run((context) =>
         Effect.gen(function*() {
           // No unique index: the rule is enforced by the read-then-write
