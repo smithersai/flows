@@ -50,7 +50,7 @@ This page distinguishes usable source-backed behavior from contracts and planned
 
 ## Planned or incomplete integration
 
-- Artifact garbage collection (`.smithers/tickets/cas-garbage-collection.md`), chunked/resumable artifact transfer (`.smithers/tickets/cas-chunked-transfer.md`), and a Bazel-style remote download policy — a `RemoteOutputChecker` analogue with `all`/`toplevel`/`minimal` (`.smithers/tickets/remote-cache-download-policy.md`). Materialization is read-through today, so a metadata-only replay state is representable, but there is no dial to choose it.
+- Chunked/resumable artifact transfer (`.smithers/tickets/cas-chunked-transfer.md`) and a Bazel-style remote download policy — a `RemoteOutputChecker` analogue with `all`/`toplevel`/`minimal` (`.smithers/tickets/remote-cache-download-policy.md`). Materialization is read-through today, so a metadata-only replay state is representable, but there is no dial to choose it. Artifact garbage collection shipped as `@smthrs/engine-store-next` `ArtifactGc` over `@smthrs/artifacts-next` `ArtifactSweep` (`docs/pages/artifact-gc.md`).
 - The human diff-review gate: `docs/specs/Concepts/Diff Review.md` renders a pending copy-back as a `PermissionRequired` bundle a person accepts, whole or by hunk, before it reaches the host. The engine applies a settled bundle without that gate today (`.smithers/tickets/diff-review-gate.md`).
 - The transaction's `FileSystem` surface is deliberately partial — temp files, streams, sinks, and watches have no meaning over a functional map and refuse rather than lie (`.smithers/tickets/sandbox-filesystem-surface.md`).
 - A packaged production layer that composes database, migrations, journal stores, durable deferred/clock state, kernel, Host, and engine.

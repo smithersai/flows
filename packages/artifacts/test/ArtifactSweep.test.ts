@@ -1,0 +1,360 @@
+/**
+ * The sweep surface's contract, and the `put`-side freshening it depends on.
+ *
+ * The mechanics mirror the two references named in the module: Bazel's
+ * disk-cache collector walks the local directory and fences on mtime, and git
+ * freshens a loose object's mtime when a write deduplicates against it so
+ * `git prune`'s expiry window keeps protecting re-referenced bytes.
+ */
+import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
+import * as FileSystem from "effect/FileSystem"
+import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
+import { describe, expect, it } from "vitest"
+import * as ArtifactStore from "../src/ArtifactStore.ts"
+import * as ArtifactSweep from "../src/ArtifactSweep.ts"
+import { bytes, runPromise, sha256, text } from "./Crypto.ts"
+
+const artifact = "sweepable-artifact-content"
+const digest = sha256(bytes(artifact))
+const blobPath = `.flows/objects/${digest.slice(0, 2)}/${digest}`
+
+const other = "second-sweepable-artifact"
+const otherDigest = sha256(bytes(other))
+const otherPath = `.flows/objects/${otherDigest.slice(0, 2)}/${otherDigest}`
+
+/**
+ * An in-memory host filesystem tracking per-path mtimes, so the sweep's age
+ * fence and the store's freshening are observable without a real clock or
+ * disk. Writes and renames stamp the wall clock the way a real filesystem
+ * does; `utimes` re-stamps explicitly, which is the freshen.
+ */
+const memoryFs = (options: {
+  readonly seed?: Record<string, string>
+  readonly mtimes?: Record<string, number>
+  readonly withoutMtimeFor?: string
+  readonly utimesUnsupported?: boolean
+  readonly utimesVanishes?: boolean
+  /** Extra entries the directory listing reports as subdirectories. */
+  readonly directories?: ReadonlyArray<string>
+  /** Extra listed entries whose stat then fails — vanished between the two. */
+  readonly phantoms?: ReadonlyArray<string>
+  readonly failRemoveOf?: string
+  readonly failExists?: boolean
+  /** Existence probes succeed this many times, then start failing. */
+  readonly failExistsAfter?: number
+} = {}) => {
+  const files = new Map<string, Uint8Array>(
+    Object.entries(options.seed ?? {}).map(([path, content]) => [path, bytes(content)])
+  )
+  const mtimes = new Map<string, number>(Object.entries(options.mtimes ?? {}))
+  const writes: Array<string> = []
+  const utimesCalls: Array<string> = []
+  let existsCalls = 0
+  const hooks: { beforeRemove?: ((path: string) => Effect.Effect<void>) | undefined } = {}
+  const fs = FileSystem.makeNoop({
+    exists: ((path: string) =>
+      Effect.suspend(() => {
+        existsCalls++
+        const budget = options.failExistsAfter
+        if (options.failExists === true || (budget !== undefined && existsCalls > budget)) {
+          return Effect.fail(new Error(`EIO: ${path}`))
+        }
+        return Effect.succeed(files.has(path))
+      })) as never,
+    readFile: ((path: string) =>
+      Effect.suspend(() =>
+        files.has(path)
+          ? Effect.succeed(files.get(path)!)
+          : Effect.fail(new Error(`ENOENT: ${path}`))
+      )) as never,
+    makeDirectory: (() => Effect.void) as never,
+    readDirectory: ((directory: string) =>
+      Effect.suspend(() => {
+        const prefix = `${directory}/`
+        return Effect.succeed([
+          ...[...files.keys()].filter((path) => path.startsWith(prefix)).map((path) => path.slice(prefix.length)),
+          ...(options.directories ?? []),
+          ...(options.phantoms ?? [])
+        ])
+      })) as never,
+    stat: ((path: string) =>
+      Effect.suspend(() => {
+        const relative = path.startsWith(".flows/objects/") ? path.slice(".flows/objects/".length) : path
+        if (options.directories?.includes(relative) === true) {
+          return Effect.succeed({ type: "Directory", mtime: Option.some(new Date(0)), size: BigInt(0) })
+        }
+        return files.has(path)
+          ? Effect.succeed({
+            type: "File",
+            mtime: path === options.withoutMtimeFor
+              ? Option.none()
+              : Option.some(new Date(mtimes.get(path) ?? 0)),
+            size: BigInt(files.get(path)!.length)
+          })
+          : Effect.fail(new Error(`ENOENT: ${path}`))
+      })) as never,
+    utimes: ((path: string, _atime: Date | number, mtime: Date | number) =>
+      Effect.suspend(() => {
+        utimesCalls.push(path)
+        if (options.utimesVanishes === true) {
+          files.delete(path)
+          return Effect.fail(new Error(`ENOENT: ${path}`))
+        }
+        if (options.utimesUnsupported === true || !files.has(path)) {
+          return Effect.fail(new Error(`ENOTSUP: utimes ${path}`))
+        }
+        mtimes.set(path, typeof mtime === "number" ? mtime : mtime.getTime())
+        return Effect.void
+      })) as never,
+    writeFile: ((path: string, content: Uint8Array) =>
+      Effect.sync(() => {
+        writes.push(path)
+        files.set(path, content)
+        mtimes.set(path, Date.now())
+      })) as never,
+    rename: ((from: string, to: string) =>
+      Effect.suspend(() => {
+        const content = files.get(from)
+        if (content === undefined) return Effect.fail(new Error(`ENOENT: ${from}`))
+        files.set(to, content)
+        mtimes.set(to, Date.now())
+        files.delete(from)
+        return Effect.void
+      })) as never,
+    remove: ((path: string) =>
+      Effect.suspend(() => {
+        if (path === options.failRemoveOf) return Effect.fail(new Error(`EIO: ${path}`))
+        const hook = hooks.beforeRemove === undefined ? Effect.void : hooks.beforeRemove(path)
+        return hook.pipe(Effect.andThen(Effect.suspend(() =>
+          files.delete(path)
+            ? Effect.void
+            : Effect.fail(new Error(`ENOENT: ${path}`))
+        )))
+      })) as never
+  })
+  return { files, mtimes, writes, utimesCalls, hooks, fs }
+}
+
+describe("inventory", () => {
+  it("lists blobs with their age and size, and nothing else", async () => {
+    const host = memoryFs({
+      seed: {
+        [blobPath]: artifact,
+        [otherPath]: other,
+        // A crashed writer's scratch file, a foreign file, and a blob filed
+        // under the wrong fanout are all invisible to the sweep.
+        [`${blobPath}.tmp-abc123-0`]: "in-flight",
+        ".flows/objects/README": "not a blob",
+        [`.flows/objects/zz/${digest}`]: artifact
+      },
+      mtimes: { [blobPath]: 1_000, [otherPath]: 2_000 }
+    })
+    const listed = await runPromise(ArtifactSweep.makeFileSystem(host.fs).inventory)
+    expect(listed.map((blob) => [blob.digest, blob.modifiedAtMs, blob.sizeBytes])).toEqual([
+      [digest, 1_000, bytes(artifact).length],
+      [otherDigest, 2_000, bytes(other).length]
+    ])
+  })
+
+  it("reports an empty inventory when the store never published", async () => {
+    const host = memoryFs()
+    expect(await runPromise(ArtifactSweep.makeFileSystem(host.fs).inventory)).toEqual([])
+  })
+
+  it("reports an empty inventory when the objects directory cannot be read", async () => {
+    const failing = FileSystem.makeNoop({
+      readDirectory: (() => Effect.fail(new Error("ENOENT: no objects directory"))) as never
+    })
+    expect(await runPromise(ArtifactSweep.makeFileSystem(failing).inventory)).toEqual([])
+  })
+
+  it("excludes a blob whose age the host cannot measure", async () => {
+    // No mtime means no age evidence, and the sweep must never judge what it
+    // cannot measure — the same conservatism as the orphan-temp sweep.
+    const host = memoryFs({
+      seed: { [blobPath]: artifact },
+      withoutMtimeFor: blobPath
+    })
+    expect(await runPromise(ArtifactSweep.makeFileSystem(host.fs).inventory)).toEqual([])
+  })
+
+  it("skips nested paths, directories at blob addresses, and vanished entries", async () => {
+    const directoryShaped = `ab/ab${"c".repeat(62)}`
+    const host = memoryFs({
+      seed: {
+        [blobPath]: artifact,
+        // A path nested one level too deep is not in the fanout shape.
+        [`.flows/objects/${digest.slice(0, 2)}/extra/${digest}`]: artifact
+      },
+      mtimes: { [blobPath]: 1_000 },
+      // A directory that happens to sit at a blob-shaped path, and an entry
+      // removed between the listing and its stat.
+      directories: [directoryShaped],
+      phantoms: [`${otherDigest.slice(0, 2)}/${otherDigest}`]
+    })
+    const listed = await runPromise(ArtifactSweep.makeFileSystem(host.fs).inventory)
+    expect(listed.map((blob) => blob.digest)).toEqual([digest])
+  })
+})
+
+describe("fenced removal", () => {
+  it("removes a blob and reports the deletion", async () => {
+    const host = memoryFs({ seed: { [blobPath]: artifact }, mtimes: { [blobPath]: 1_000 } })
+    const sweep = ArtifactSweep.makeFileSystem(host.fs)
+    expect(await runPromise(sweep.remove(digest))).toBe(true)
+    expect(host.files.has(blobPath)).toBe(false)
+    // Removing what is already gone is a completed deletion, not a failure —
+    // a crashed sweep re-runs over its own progress.
+    expect(await runPromise(sweep.remove(digest))).toBe(false)
+  })
+
+  it("refuses the fence when the blob was freshened past the bound", async () => {
+    const host = memoryFs({ seed: { [blobPath]: artifact }, mtimes: { [blobPath]: 5_000 } })
+    const sweep = ArtifactSweep.makeFileSystem(host.fs)
+    expect(await runPromise(sweep.remove(digest, { ifUnmodifiedSinceMs: 4_000 }))).toBe(false)
+    expect(host.files.has(blobPath)).toBe(true)
+    expect(await runPromise(sweep.remove(digest, { ifUnmodifiedSinceMs: 5_000 }))).toBe(true)
+    expect(host.files.has(blobPath)).toBe(false)
+  })
+
+  it("refuses the fence when the blob's age cannot be measured", async () => {
+    const host = memoryFs({ seed: { [blobPath]: artifact }, withoutMtimeFor: blobPath })
+    const sweep = ArtifactSweep.makeFileSystem(host.fs)
+    expect(await runPromise(sweep.remove(digest, { ifUnmodifiedSinceMs: Number.MAX_SAFE_INTEGER }))).toBe(false)
+    expect(host.files.has(blobPath)).toBe(true)
+  })
+
+  it("refuses the fence when the blob is already gone", async () => {
+    const host = memoryFs()
+    const sweep = ArtifactSweep.makeFileSystem(host.fs)
+    expect(await runPromise(sweep.remove(digest, { ifUnmodifiedSinceMs: Number.MAX_SAFE_INTEGER }))).toBe(false)
+  })
+
+  it("rejects an address that is not usable as a path segment", async () => {
+    const host = memoryFs()
+    const exit = await runPromise(
+      ArtifactSweep.makeFileSystem(host.fs).remove("../escape").pipe(Effect.exit)
+    )
+    expect(Exit.isFailure(exit)).toBe(true)
+  })
+
+  it("fails when the host refuses to delete bytes that still exist", async () => {
+    const host = memoryFs({
+      seed: { [blobPath]: artifact },
+      mtimes: { [blobPath]: 1_000 },
+      failRemoveOf: blobPath
+    })
+    const exit = await runPromise(ArtifactSweep.makeFileSystem(host.fs).remove(digest).pipe(Effect.exit))
+    expect(Exit.isFailure(exit)).toBe(true)
+    expect(host.files.has(blobPath)).toBe(true)
+  })
+
+  it("treats an unverifiable refusal as a completed deletion", async () => {
+    // The removal failed and the existence probe failed too: the sweep cannot
+    // prove bytes remain, and a false "removed" would double-count at worst,
+    // while a spurious failure would wedge every later collection.
+    const host = memoryFs({
+      seed: { [blobPath]: artifact },
+      mtimes: { [blobPath]: 1_000 },
+      failRemoveOf: blobPath,
+      failExists: true
+    })
+    expect(await runPromise(ArtifactSweep.makeFileSystem(host.fs).remove(digest))).toBe(false)
+  })
+})
+
+describe("layers", () => {
+  it("provides the filesystem sweep through the service tag", async () => {
+    const host = memoryFs({ seed: { [blobPath]: artifact }, mtimes: { [blobPath]: 1_000 } })
+    const listed = await runPromise(
+      Effect.gen(function*() {
+        const sweep = yield* ArtifactSweep.ArtifactSweep
+        return yield* sweep.inventory
+      }).pipe(
+        Effect.provide(
+          ArtifactSweep.layerFileSystem().pipe(Layer.provide(Layer.succeed(FileSystem.FileSystem)(host.fs)))
+        )
+      )
+    )
+    expect(listed.map((blob) => blob.digest)).toEqual([digest])
+  })
+
+  it("fails every no-op operation while honouring overrides", async () => {
+    const overridden = ArtifactSweep.makeNoop({ inventory: Effect.succeed([]) })
+    expect(await runPromise(overridden.inventory)).toEqual([])
+    const noop = await runPromise(
+      Effect.gen(function*() {
+        const sweep = yield* ArtifactSweep.ArtifactSweep
+        const listed = yield* sweep.inventory.pipe(Effect.exit)
+        const removed = yield* sweep.remove(digest).pipe(Effect.exit)
+        return [Exit.isFailure(listed), Exit.isFailure(removed)]
+      }).pipe(Effect.provide(ArtifactSweep.layerNoop()))
+    )
+    expect(noop).toEqual([true, true])
+  })
+})
+
+describe("put freshens a deduplicated blob (git's loose-object freshening)", () => {
+  it("re-stamps the mtime instead of rewriting, so the grace fence protects it", async () => {
+    const host = memoryFs({ seed: { [blobPath]: artifact }, mtimes: { [blobPath]: 1_000 } })
+    const store = ArtifactStore.makeFileSystem(host.fs)
+    const before = Date.now()
+    await runPromise(store.put(bytes(artifact)))
+    expect(host.writes).toEqual([])
+    expect(host.utimesCalls).toEqual([blobPath])
+    expect(host.mtimes.get(blobPath)!).toBeGreaterThanOrEqual(before)
+    // The liveness half: a sweep that computed its bound before the freshen
+    // now fails its fence, exactly like a laggard's fenced cache evict.
+    const sweep = ArtifactSweep.makeFileSystem(host.fs)
+    expect(await runPromise(sweep.remove(digest, { ifUnmodifiedSinceMs: 1_000 }))).toBe(false)
+    expect(text(host.files.get(blobPath))).toBe(artifact)
+  })
+
+  it("keeps the dedupe skip on a host without utimes while the blob exists", async () => {
+    // The browser filesystem fails `utimes` rather than pretending. Such a
+    // host forgoes freshening — and accepts git's freshen-versus-prune race —
+    // but must not pay a rewrite on every deduplicated put.
+    const host = memoryFs({
+      seed: { [blobPath]: artifact },
+      mtimes: { [blobPath]: 1_000 },
+      utimesUnsupported: true
+    })
+    await runPromise(ArtifactStore.makeFileSystem(host.fs).put(bytes(artifact)))
+    expect(host.writes).toEqual([])
+    expect(host.mtimes.get(blobPath)).toBe(1_000)
+  })
+
+  it("keeps the dedupe skip when the freshen and the existence probe both fail", async () => {
+    // Neither call proves the blob is gone, so the verified proof stands —
+    // rewriting on a flaky probe would trade every dedupe on such a host for
+    // a spurious republication.
+    const host = memoryFs({
+      seed: { [blobPath]: artifact },
+      mtimes: { [blobPath]: 1_000 },
+      utimesUnsupported: true,
+      failExistsAfter: 1
+    })
+    await runPromise(ArtifactStore.makeFileSystem(host.fs).put(bytes(artifact)))
+    expect(host.writes).toEqual([])
+    expect(host.mtimes.get(blobPath)).toBe(1_000)
+  })
+
+  it("republishes when the blob vanished between verification and freshen", async () => {
+    // The sweep won the race: the blob existed at the dedupe check and was
+    // gone by the freshen. Trusting the stale proof would return a digest
+    // nothing can read; the failed freshen drops it and the atomic rewrite
+    // heals the address.
+    const host = memoryFs({
+      seed: { [blobPath]: artifact },
+      mtimes: { [blobPath]: 1_000 },
+      utimesVanishes: true
+    })
+    const published = await runPromise(ArtifactStore.makeFileSystem(host.fs).put(bytes(artifact)))
+    expect(published).toBe(digest)
+    expect(host.writes).toHaveLength(1)
+    expect(host.writes[0]!.includes(".tmp-")).toBe(true)
+    expect(text(host.files.get(blobPath))).toBe(artifact)
+  })
+})

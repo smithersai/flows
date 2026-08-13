@@ -37,6 +37,12 @@ export * as ArtifactStore from "./ArtifactStore.ts"
  * @category services
  * @since 0.1.0
  */
+export * as ArtifactSweep from "./ArtifactSweep.ts"
+
+/**
+ * @category services
+ * @since 0.1.0
+ */
 export * as CombinedArtifacts from "./CombinedArtifacts.ts"
 
 /**

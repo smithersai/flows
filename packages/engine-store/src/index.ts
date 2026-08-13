@@ -8,6 +8,12 @@
  * @since 0.1.0
  * @category services
  */
+export * as ArtifactGc from "./ArtifactGc.ts"
+
+/**
+ * @since 0.1.0
+ * @category services
+ */
 export * as ArtifactSync from "./ArtifactSync.ts"
 
 /**

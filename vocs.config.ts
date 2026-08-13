@@ -41,6 +41,7 @@ export default defineConfig({
     { text: "Internal details", link: "/internals" },
     { text: "Public API tests", link: "/api-tests" },
     { text: "Observability", link: "/observability" },
+    { text: "Artifact GC", link: "/artifact-gc" },
     { text: "Examples", link: "/examples" },
     { text: "Design decisions", link: "/design-decisions" },
     { text: "External", link: "/external" },

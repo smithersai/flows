@@ -114,6 +114,22 @@ Both services are optional. Without a sandbox the body runs against the host dir
 
 `publish` runs `findMissing` → upload the missing → re-probe to confirm, immediately **before** the transaction that records the cache entry and never inside it. That is Bazel's REAPI ordering constraint: the action result is uploaded after every blob it refers to.
 
+## ArtifactGc
+
+[src/ArtifactGc.ts](https://github.com/smithersai/flows/blob/main/packages/engine-store/src/ArtifactGc.ts)
+
+| Export | Kind | Notes |
+| --- | --- | --- |
+| `ArtifactGc` | service tag | explicit artifact garbage collection |
+| `Service` | interface | `gc(options)` — mark from the durable roots, sweep outside the live set and grace bound |
+| `GcOptions`, `GcReport` | interfaces | `graceMs`, `pins`, `dryRun`; `sweptDigests`, `reclaimedBytes`, `keptByGrace` |
+| `ArtifactGcPolicy`, `Policy`, `layerPolicy` | opt-in policy seam | default grace bound and pinned digests; configures, never schedules |
+| `ArtifactGcError`, `ArtifactGcErrorCode` | class + codes | `mark_failed`, `sweep_failed` |
+| `defaultGraceMs` | constant | two weeks, git's `gc.pruneExpire` default |
+| `make`, `MakeOptions`, `layer` | constructor + layer | needs `SqlClient` and [`@smthrs/artifacts-next`](/api/artifacts) `ArtifactSweep` |
+
+Collection never runs automatically — `gc()` is an explicit verb, and the mark is fail-safe: a root row carrying boundary evidence this build cannot decode aborts the collection rather than contributing nothing. Attempt checkpoints are also live roots, with digest-shaped strings retained conservatively. See [Artifact GC](/artifact-gc) for the algorithm and its concurrency argument.
+
 ## CacheSync
 
 [src/CacheSync.ts](https://github.com/smithersai/flows/blob/main/packages/engine-store/src/CacheSync.ts)
