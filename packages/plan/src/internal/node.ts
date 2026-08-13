@@ -290,13 +290,18 @@ export const functionIdentity = (operation: unknown): FunctionIdentity => {
 /**
  * The pipeable wrapper around an AST.
  *
+ * `R` is phantom. Nothing here reads it, stores it, or digests it: the AST is
+ * unchanged by it, so the plan a node describes and the key that plan hashes to
+ * are the same whether or not a caller tracks requirements.
+ *
  * @since 0.1.0
  * @private
  */
-export interface Node<out A, out E = never> extends Pipeable.Pipeable {
+export interface Node<out A, out E = never, out R = never> extends Pipeable.Pipeable {
   readonly [TypeId]: {
     readonly _A: Types.Covariant<A>
     readonly _E: Types.Covariant<E>
+    readonly _R: Types.Covariant<R>
   }
   readonly ast: NodeAst
 }
@@ -311,7 +316,8 @@ export interface Node<out A, out E = never> extends Pipeable.Pipeable {
 export const NodeProto = {
   [TypeId]: {
     _A: identity,
-    _E: identity
+    _E: identity,
+    _R: identity
   },
   pipe() {
     // eslint-disable-next-line prefer-rest-params -- `pipeArguments` takes the arguments object itself.
@@ -325,7 +331,7 @@ export const NodeProto = {
  * @since 0.1.0
  * @private
  */
-export const makeNode = <A = unknown, E = never>(ast: NodeAst): Node<A, E> =>
+export const makeNode = <A = unknown, E = never, R = never>(ast: NodeAst): Node<A, E, R> =>
   Object.assign(Object.create(NodeProto), { ast })
 
 /**

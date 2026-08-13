@@ -8,6 +8,13 @@
  * lives one level up, in what a flow settles with
  * (`docs/specs/Concepts/Trampoline Loops.md`).
  *
+ * A node also carries Effect's requirement channel, `R`, and carries it as a
+ * PHANTOM: building a plan demands nothing, and every combinator here unions
+ * `R` without ever reading it. What fills the channel is a call to something
+ * whose code lives elsewhere — an activity — so the type of a plan states which
+ * implementations executing it will need, and the place that executes it is
+ * where the compiler asks for them.
+ *
  * Control flow is structure. {@link branch} takes both arms and evaluates each
  * ONCE, symbolically, so the exit condition and the handoff site are visible
  * topology before anything runs; its predicate is digested and runs later on
@@ -67,26 +74,35 @@ export type FunctionIdentity = Extract<Ast, { readonly _tag: "Map" }>["mapper"]
 
 /**
  * A pure graph-building value, covariant in what it will succeed and fail
- * with. It is a description: holding one has run nothing.
+ * with and in what it will need to run. It is a description: holding one has
+ * run nothing.
+ *
+ * `R` is Effect's requirement channel, and it is PHANTOM here. Nothing at plan
+ * time reads it: the AST, the graph built from it, its key material, and every
+ * digest are identical whatever `R` says. It exists so a value that names an
+ * implementation it does not carry — an activity call — can say so in its type,
+ * and so the place that finally has to run that implementation can demand it.
+ * Building a plan therefore stays requirement-free; only executing one is not.
  *
  * @since 0.1.0
  * @category models
  */
-export interface Node<out A, out E = never> extends Pipeable.Pipeable {
+export interface Node<out A, out E = never, out R = never> extends Pipeable.Pipeable {
   readonly [TypeId]: {
     readonly _A: Types.Covariant<A>
     readonly _E: Types.Covariant<E>
+    readonly _R: Types.Covariant<R>
   }
   readonly ast: Ast
 }
 
 /**
- * Any node, whatever it succeeds or fails with.
+ * Any node, whatever it succeeds or fails with and whatever it requires.
  *
  * @since 0.1.0
  * @category models
  */
-export type Any = Node<unknown, unknown>
+export type Any = Node<unknown, unknown, any>
 
 /**
  * The success type of a node.
@@ -94,7 +110,7 @@ export type Any = Node<unknown, unknown>
  * @since 0.1.0
  * @category models
  */
-export type Success<N> = N extends Node<infer A, infer _E> ? A : never
+export type Success<N> = N extends Node<infer A, infer _E, infer _R> ? A : never
 
 /**
  * The error type of a node.
@@ -102,7 +118,16 @@ export type Success<N> = N extends Node<infer A, infer _E> ? A : never
  * @since 0.1.0
  * @category models
  */
-export type Error<N> = N extends Node<infer _A, infer E> ? E : never
+export type Error<N> = N extends Node<infer _A, infer E, infer _R> ? E : never
+
+/**
+ * The requirements of a node: what has to be provided wherever it is finally
+ * executed, and nothing that has to be provided to build it.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export type Services<N> = N extends Node<infer _A, infer _E, infer R> ? R : never
 
 /**
  * The node reference a branch arm's symbolic subject carries. Arms are built
@@ -143,10 +168,10 @@ let catchOrdinal = 0
  * @since 0.1.0
  * @category models
  */
-export interface BranchOptions<A, B1, E1, B2, E2> {
+export interface BranchOptions<A, B1, E1, R1, B2, E2, R2> {
   readonly if: (value: A) => boolean
-  readonly then: (value: Planned.Planned<A>) => Node<B1, E1>
-  readonly else: (value: Planned.Planned<A>) => Node<B2, E2>
+  readonly then: (value: Planned.Planned<A>) => Node<B1, E1, R1>
+  readonly else: (value: Planned.Planned<A>) => Node<B2, E2, R2>
 }
 
 /**
@@ -156,9 +181,9 @@ export interface BranchOptions<A, B1, E1, B2, E2> {
  * @since 0.1.0
  * @category models
  */
-export interface CatchOptions<E, B, E2, Handled = E> {
+export interface CatchOptions<E, B, E2, R2 = never, Handled = E> {
   readonly error?: Schema.Schema<Handled> | undefined
-  readonly onFailure: (error: Planned.Planned<Handled>) => Node<B, E2>
+  readonly onFailure: (error: Planned.Planned<Handled>) => Node<B, E2, R2>
 }
 
 /**
@@ -187,11 +212,12 @@ export const succeed = <A>(value: A): Node<A> => internal.makeNode<A>(internal.s
  * @since 0.1.0
  * @category constructors
  */
-export const all = <const R extends Readonly<Record<string, Any>>>(
-  nodes: R
+export const all = <const Nodes extends Readonly<Record<string, Any>>>(
+  nodes: Nodes
 ): Node<
-  Types.Simplify<{ readonly [K in keyof R]: Success<R[K]> }>,
-  Error<R[keyof R]>
+  Types.Simplify<{ readonly [K in keyof Nodes]: Success<Nodes[K]> }>,
+  Error<Nodes[keyof Nodes]>,
+  Services<Nodes[keyof Nodes]>
 > => {
   const asts: Record<string, Ast> = Object.create(null) as Record<string, Ast>
   for (const [member, node] of Object.entries(nodes)) {
@@ -224,12 +250,12 @@ export const all = <const R extends Readonly<Record<string, Any>>>(
  * @category mapping
  */
 export const map: {
-  <A, B>(f: (a: A) => B): <E>(self: Node<A, E>) => Node<B, E>
-  <A, E, B>(self: Node<A, E>, f: (a: A) => B): Node<B, E>
+  <A, B>(f: (a: A) => B): <E, R>(self: Node<A, E, R>) => Node<B, E, R>
+  <A, E, R, B>(self: Node<A, E, R>, f: (a: A) => B): Node<B, E, R>
 } = dual(
   2,
-  <A, E, B>(self: Node<A, E>, f: (a: A) => B): Node<B, E> =>
-    internal.makeNode<B, E>(internal.map(self.ast, (value) => f(value as A), f))
+  <A, E, R, B>(self: Node<A, E, R>, f: (a: A) => B): Node<B, E, R> =>
+    internal.makeNode<B, E, R>(internal.map(self.ast, (value) => f(value as A), f))
 )
 
 /**
@@ -244,16 +270,21 @@ export const map: {
  * @category sequencing
  */
 export const andThen: {
-  <A, B, E2>(f: (a: Planned.Planned<A>) => Node<B, E2>): <E>(self: Node<A, E>) => Node<B, E | E2>
-  <B, E2>(next: Node<B, E2>): <A, E>(self: Node<A, E>) => Node<B, E | E2>
-  <A, E, B, E2>(self: Node<A, E>, f: (a: Planned.Planned<A>) => Node<B, E2>): Node<B, E | E2>
-  <A, E, B, E2>(self: Node<A, E>, next: Node<B, E2>): Node<B, E | E2>
+  <A, B, E2, R2>(
+    f: (a: Planned.Planned<A>) => Node<B, E2, R2>
+  ): <E, R>(self: Node<A, E, R>) => Node<B, E | E2, R | R2>
+  <B, E2, R2>(next: Node<B, E2, R2>): <A, E, R>(self: Node<A, E, R>) => Node<B, E | E2, R | R2>
+  <A, E, R, B, E2, R2>(
+    self: Node<A, E, R>,
+    f: (a: Planned.Planned<A>) => Node<B, E2, R2>
+  ): Node<B, E | E2, R | R2>
+  <A, E, R, B, E2, R2>(self: Node<A, E, R>, next: Node<B, E2, R2>): Node<B, E | E2, R | R2>
 } = dual(
   2,
-  <A, E, B, E2>(
-    self: Node<A, E>,
-    next: Node<B, E2> | ((a: Planned.Planned<A>) => Node<B, E2>)
-  ): Node<B, E | E2> => {
+  <A, E, R, B, E2, R2>(
+    self: Node<A, E, R>,
+    next: Node<B, E2, R2> | ((a: Planned.Planned<A>) => Node<B, E2, R2>)
+  ): Node<B, E | E2, R | R2> => {
     if (typeof next !== "function" && !isNode(next)) {
       throw new GraphBuildError({
         code: "invalid_continuation",
@@ -262,7 +293,7 @@ export const andThen: {
         message: "Node.andThen expected its direct continuation to be a Node"
       })
     }
-    return internal.makeNode<B, E | E2>(
+    return internal.makeNode<B, E | E2, R | R2>(
       typeof next === "function"
         ? internal.andThen(self.ast, (value) => next(value as Planned.Planned<A>), next)
         : internal.andThenNode(self.ast, next.ast)
@@ -275,8 +306,8 @@ export const andThen: {
  *
  * @private
  */
-const arm = <A, B, E>(
-  build: (value: Planned.Planned<A>) => Node<B, E>,
+const arm = <A, B, E, R>(
+  build: (value: Planned.Planned<A>) => Node<B, E, R>,
   subject: Planned.Planned<A>,
   side: string
 ): Ast => {
@@ -302,26 +333,30 @@ const arm = <A, B, E>(
  * real value, which is why none of the plan-time placeholder machinery leaks
  * into control flow.
  *
+ * Both arms contribute their requirements, because both arms are topology the
+ * plan carries. A run takes one of them, but which one is not known until the
+ * predicate sees the real value, so an execution has to be able to take either.
+ *
  * @since 0.1.0
  * @category sequencing
  */
 export const branch: {
-  <A, B1, E1, B2, E2>(
-    options: BranchOptions<A, B1, E1, B2, E2>
-  ): <E>(self: Node<A, E>) => Node<B1 | B2, E | E1 | E2>
-  <A, E, B1, E1, B2, E2>(
-    self: Node<A, E>,
-    options: BranchOptions<A, B1, E1, B2, E2>
-  ): Node<B1 | B2, E | E1 | E2>
+  <A, B1, E1, R1, B2, E2, R2>(
+    options: BranchOptions<A, B1, E1, R1, B2, E2, R2>
+  ): <E, R>(self: Node<A, E, R>) => Node<B1 | B2, E | E1 | E2, R | R1 | R2>
+  <A, E, R, B1, E1, R1, B2, E2, R2>(
+    self: Node<A, E, R>,
+    options: BranchOptions<A, B1, E1, R1, B2, E2, R2>
+  ): Node<B1 | B2, E | E1 | E2, R | R1 | R2>
 } = dual(
   2,
-  <A, E, B1, E1, B2, E2>(
-    self: Node<A, E>,
-    options: BranchOptions<A, B1, E1, B2, E2>
-  ): Node<B1 | B2, E | E1 | E2> => {
+  <A, E, R, B1, E1, R1, B2, E2, R2>(
+    self: Node<A, E, R>,
+    options: BranchOptions<A, B1, E1, R1, B2, E2, R2>
+  ): Node<B1 | B2, E | E1 | E2, R | R1 | R2> => {
     const subjectToken = `${branchSubject}/${branchOrdinal++}`
     const subject = Planned.make<A>(subjectToken)
-    return internal.makeNode<B1 | B2, E | E1 | E2>(
+    return internal.makeNode<B1 | B2, E | E1 | E2, R | R1 | R2>(
       internal.branch(
         subjectToken,
         self.ast,
@@ -342,38 +377,42 @@ export const branch: {
  * schema the whole typed error channel is handled; a schema handles only the
  * values it accepts and preserves the remainder in the resulting error type.
  *
+ * The failure arm contributes its requirements to the node's, for the same
+ * reason a branch's arms do: it is topology the plan carries, and a run reaches
+ * it whenever the protected graph fails.
+ *
  * @since 0.1.0
  * @category sequencing
  */
 const catch_: {
-  <Handled, B, E2>(
-    options: CatchOptions<unknown, B, E2, Handled> & {
+  <Handled, B, E2, R2>(
+    options: CatchOptions<unknown, B, E2, R2, Handled> & {
       readonly error: Schema.Schema<Handled>
     }
-  ): <A, E>(self: Node<A, E>) => Node<A | B, Exclude<E, Handled> | E2>
-  <E, B, E2>(
-    options: CatchOptions<E, B, E2> & {
+  ): <A, E, R>(self: Node<A, E, R>) => Node<A | B, Exclude<E, Handled> | E2, R | R2>
+  <E, B, E2, R2>(
+    options: CatchOptions<E, B, E2, R2> & {
       readonly error?: undefined
     }
-  ): <A>(self: Node<A, E>) => Node<A | B, E2>
-  <A, E, Handled, B, E2>(
-    self: Node<A, E>,
-    options: CatchOptions<E, B, E2, Handled> & {
+  ): <A, R>(self: Node<A, E, R>) => Node<A | B, E2, R | R2>
+  <A, E, R, Handled, B, E2, R2>(
+    self: Node<A, E, R>,
+    options: CatchOptions<E, B, E2, R2, Handled> & {
       readonly error: Schema.Schema<Handled>
     }
-  ): Node<A | B, Exclude<E, Handled> | E2>
-  <A, E, B, E2>(
-    self: Node<A, E>,
-    options: CatchOptions<E, B, E2> & {
+  ): Node<A | B, Exclude<E, Handled> | E2, R | R2>
+  <A, E, R, B, E2, R2>(
+    self: Node<A, E, R>,
+    options: CatchOptions<E, B, E2, R2> & {
       readonly error?: undefined
     }
-  ): Node<A | B, E2>
+  ): Node<A | B, E2, R | R2>
 } = dual(
   2,
-  <A, E, Handled, B, E2>(
-    self: Node<A, E>,
-    options: CatchOptions<E, B, E2, Handled>
-  ): Node<A | B, Exclude<E, Handled> | E2> => {
+  <A, E, R, Handled, B, E2, R2>(
+    self: Node<A, E, R>,
+    options: CatchOptions<E, B, E2, R2, Handled>
+  ): Node<A | B, Exclude<E, Handled> | E2, R | R2> => {
     const subjectToken = `${catchSubject}/${catchOrdinal++}`
     const failure = options.onFailure(Planned.make<Handled>(subjectToken))
     if (!isNode(failure)) {
@@ -397,12 +436,12 @@ export { catch_ as catch }
  * @since 0.1.0
  * @private
  */
-export const flowCall = <A = unknown, E = never>(
+export const flowCall = <A = unknown, E = never, R = never>(
   declaration: unknown,
   flow: string,
   mode: "inline" | "boundary" | "handoff",
   payload: unknown
-): Node<A, E> => internal.makeNode<A, E>(internal.flowCall(declaration, flow, mode, payload))
+): Node<A, E, R> => internal.makeNode<A, E, R>(internal.flowCall(declaration, flow, mode, payload))
 
 /**
  * Constructs the activity-call node used by `@smthrs/flow-next` without making
@@ -411,11 +450,11 @@ export const flowCall = <A = unknown, E = never>(
  * @since 0.1.0
  * @private
  */
-export const activityCall = <A = unknown, E = never>(
+export const activityCall = <A = unknown, E = never, R = never>(
   declaration: unknown,
   activity: string,
   payload: unknown
-): Node<A, E> => internal.makeNode<A, E>(internal.activityCall(declaration, activity, payload))
+): Node<A, E, R> => internal.makeNode<A, E, R>(internal.activityCall(declaration, activity, payload))
 
 /**
  * Reads the flow or activity declaration a call node names, so `@smthrs/flow-next`
