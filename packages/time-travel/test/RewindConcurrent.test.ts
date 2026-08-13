@@ -184,4 +184,90 @@ describe("Rewind concurrency", () => {
       { id: "audit-first", status: "completed" }
     ])
   })
+
+  it("the loser of two rewinds at one frame observes busy and performs no compensation", async () => {
+    // The cell above pins that the second rewind reports `busy`. What it does
+    // not pin is that the loser is inert: refused at the claim, it must not
+    // restore the workspace, evict a cache row, or run an effect handler's
+    // rollback — those are the first rewind's to own, and a loser that
+    // compensated would undo the winner's work under it.
+    const store = MemoryTimeTravelStore.make({
+      records: [{
+        runId: "run",
+        seq: 0,
+        eventId: "event-0",
+        lineageId: "run/root",
+        payload: { eventType: "baseline", payload: {}, meta: { lineageId: "run/root" } }
+      }]
+    })
+    const runs = makeRuns()
+    const journal = Journal.makeNoop({
+      entries: () => Effect.succeed({ entries: [], hasMore: false })
+    })
+    const restores: Array<string> = []
+    const evictions: Array<string> = []
+    const jj = Jj.makeNoop({
+      snapshot: () => Effect.succeed({ changeId: "current" }),
+      restore: (changeId) =>
+        Effect.sync(() => {
+          restores.push(changeId)
+        })
+    })
+    const registry = Effect.runSync(EffectHandlerRegistry.make())
+    const entered = Effect.runSync(Deferred.make<void>())
+    const release = Effect.runSync(Deferred.make<void>())
+    const provide = <A, E, R>(program: Effect.Effect<A, E, R>) =>
+      program.pipe(
+        Effect.provide(Layer.succeed(TimeTravelStore, store)),
+        Effect.provide(Layer.succeed(RunStore.RunStore, runs)),
+        Effect.provide(Layer.succeed(Journal.Journal, journal)),
+        Effect.provide(CacheStore.layerNoop({
+          get: () => Effect.succeed(Option.none()),
+          evict: (keyDigest) =>
+            Effect.sync(() => {
+              evictions.push(keyDigest)
+              return true
+            })
+        })),
+        Effect.provide(Layer.succeed(Jj.Jj, jj)),
+        Effect.provide(Layer.succeed(EffectHandlerRegistry.EffectHandlerRegistry, registry))
+      )
+
+    const winner = Effect.runFork(
+      provide(
+        Rewind.rewind({
+          runId: "run",
+          frame,
+          owner: ownerA,
+          auditId: "audit-winner",
+          hooks: {
+            beforeStep: (step) =>
+              step === "claim-run"
+                ? Deferred.succeed(entered, undefined).pipe(Effect.andThen(Deferred.await(release)))
+                : Effect.void
+          }
+        })
+      )
+    )
+    await Effect.runPromise(Deferred.await(entered))
+
+    const loser = await Effect.runPromise(
+      Effect.flip(
+        provide(
+          Rewind.rewind({ runId: "run", frame, owner: ownerB, auditId: "audit-loser" })
+        )
+      )
+    )
+
+    expect(loser.code).toBe("busy")
+    // Inert: nothing restored, nothing evicted, and no audit of its own.
+    expect(restores).toEqual([])
+    expect(evictions).toEqual([])
+    expect(store.state().audits.map((audit) => audit.id)).not.toContain("audit-loser")
+
+    await Effect.runPromise(Deferred.succeed(release, undefined))
+    await Effect.runPromise(Fiber.join(winner))
+    // The winner still completes, unaffected by the refused peer.
+    expect(store.state().audits).toMatchObject([{ id: "audit-winner", status: "completed" }])
+  })
 })
