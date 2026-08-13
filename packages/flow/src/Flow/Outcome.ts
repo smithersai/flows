@@ -120,10 +120,28 @@ export const done = <A>(value: A): Node.Node<Done<A>> => Node.succeed({ _tag: "D
 /**
  * Constructs a durable parking request using the runtime waiting vocabulary.
  *
+ * The two forms describe the same wait. The record is the whole waiting
+ * vocabulary, and is what a park with a deadline needs; the positional form is
+ * the common case — a reason and the token a wake handler matches against —
+ * written the way an author says it out loud, `Flow.park("approval", requestId)`.
+ * A positional call with no token omits the field rather than parking under an
+ * empty one.
+ *
  * @category constructors
  * @since 0.1.0
  */
-export const park = (reason: WaitingAnnotation): Node.Node<Park> => Node.succeed({ _tag: "Park", reason })
+export const park: {
+  (reason: WaitingAnnotation): Node.Node<Park>
+  (reason: string, token?: string | undefined): Node.Node<Park>
+} = (reason: WaitingAnnotation | string, token?: string | undefined): Node.Node<Park> =>
+  Node.succeed({
+    _tag: "Park",
+    reason: typeof reason !== "string"
+      ? reason
+      : token === undefined
+      ? { reason }
+      : { reason, token }
+  })
 
 /**
  * Whether a settled body value is one of the three trampoline settlements.

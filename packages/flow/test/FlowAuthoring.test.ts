@@ -91,6 +91,31 @@ describe("Flow trampoline outcomes", () => {
     })
     expect(await roundTrip(value)).toEqual(value)
   })
+
+  it("constructs the same park from a positional reason and token", async () => {
+    const node = Flow.park("approval", "request-1")
+    const value = (node.ast as { readonly value: Flow.Park }).value
+    expect(value).toEqual({
+      _tag: "Park",
+      reason: { reason: "approval", token: "request-1" }
+    })
+    // The two forms are the same request, so the record spelling of this call
+    // produces the identical node.
+    expect(value).toEqual(
+      (Flow.park({ reason: "approval", token: "request-1" }).ast as { readonly value: Flow.Park }).value
+    )
+    expect(await roundTrip(value)).toEqual(value)
+  })
+
+  it("omits the token of a positional park that named none", async () => {
+    const node = Flow.park("quota")
+    const value = (node.ast as { readonly value: Flow.Park }).value
+    // Absent, not empty: a wake handler compares tokens, and `""` is a token
+    // that something could match.
+    expect(value).toEqual({ _tag: "Park", reason: { reason: "quota" } })
+    expect("token" in value.reason).toBe(false)
+    expect(await roundTrip(value)).toEqual(value)
+  })
 })
 
 describe("Flow authoring annotations", () => {
