@@ -9,6 +9,13 @@
  * matching flow operation, while the `FlowRuntime` and flow handler
  * services stay on the server side.
  *
+ * A handler here calls `flow.execute`, so both layers require what the served
+ * bodies require: `Flow.Requirements` of every flow, alongside the schema
+ * services `Flow.RequirementsHandler` names. Serving a flow is executing it,
+ * and the compile-time gate on a missing activity implementation has to hold
+ * on this side of an RPC boundary too — the client, which only encodes a
+ * payload and decodes a result, still requires nothing of the kind.
+ *
  * @since 4.0.0
  */
 import type { Flow, FlowRuntime } from "@smthrs/flow-next"
@@ -40,7 +47,9 @@ export const layerHttpApi = <
 ): Layer.Layer<
   HttpApiGroup.Service<ApiId, Identifier>,
   never,
-  FlowRuntime.FlowRuntime | Flow.RequirementsHandler<Flows[number]>
+  | FlowRuntime.FlowRuntime
+  | Flow.Requirements<Flows[number]>
+  | Flow.RequirementsHandler<Flows[number]>
 > =>
   HttpApiBuilder.group(
     api,
@@ -118,7 +127,9 @@ export const layerRpcHandlers = <
 }): Layer.Layer<
   RpcHandlers<Flows[number], Prefix>,
   never,
-  FlowRuntime.FlowRuntime | Flow.RequirementsHandler<Flows[number]>
+  | FlowRuntime.FlowRuntime
+  | Flow.Requirements<Flows[number]>
+  | Flow.RequirementsHandler<Flows[number]>
 > =>
   Layer.effectContext(Effect.gen(function*() {
     const context = yield* Effect.context<never>()

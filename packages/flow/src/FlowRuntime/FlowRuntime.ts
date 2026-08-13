@@ -9,6 +9,16 @@
  * nothing that implements it; `@smthrs/engine-next` supplies the implementation,
  * so the dependency runs one way only.
  *
+ * Every method here takes a flow whatever its requirement channel says, and
+ * demands none of it. The channel is a compile-time statement about which
+ * activity implementations a body names, and this port is below the place that
+ * statement is settled: a runtime resolves each call by the tag the node
+ * carries, which is the only thing left of a plan read back out of a journal.
+ * `Flow.execute` — written against this port, one level up — is where the
+ * requirements are collected, so the erasure is deliberate rather than a hole:
+ * a caller reaching the port directly has already been asked, or is replaying a
+ * persisted plan and has nothing to be asked about.
+ *
  * @since 4.0.0
  */
 import * as Context from "effect/Context"

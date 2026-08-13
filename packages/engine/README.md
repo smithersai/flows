@@ -97,3 +97,10 @@ const RpcLayer = RpcServer.layer(ReviewRpcs).pipe(
 )
 const HttpLayer = FlowProxyServer.layerHttpApi(ReviewApi, "flows", [Review])
 ```
+
+Both server layers drive the served bodies, so both require what those bodies
+require: `Flow.Requirements` of every flow, on top of the schema services
+`Flow.RequirementsHandler` names. Serving a flow is executing it, and a
+forgotten `Activity.toLayer` is a compile error on this side of the boundary
+too. The client side is unaffected — it encodes a payload and decodes a result,
+and requires no implementation at all.

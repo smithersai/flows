@@ -5,7 +5,7 @@ import { Effect, Exit, FileSystem, Layer, Option, Path, Schema, Scope } from "ef
 import { Etag, HttpPlatform } from "effect/unstable/http"
 import { HttpApi, HttpApiTest } from "effect/unstable/httpapi"
 import { RpcTest } from "effect/unstable/rpc"
-import { describe, expect, it } from "vitest"
+import { describe, expect, expectTypeOf, it } from "vitest"
 import { FlowEngine, FlowProxy, FlowProxyServer } from "../src/index.ts"
 import { runPromise } from "./Crypto.ts"
 
@@ -171,6 +171,49 @@ describe("FlowProxyServer.layerRpcHandlers", () => {
         FlowProxyServer.layerRpcHandlers(flows, { prefix: "v1/" }).pipe(Layer.provide(layer))
       )
     )
+  })
+})
+
+describe("serving a flow is executing it", () => {
+  // Serving happens on the side of the boundary that drives the body, so the
+  // compile-time gate on a missing activity implementation has to hold here
+  // too. A type test: `tsc -p tsconfig.test.json` in `npm run check` fails on
+  // a red assertion whether or not the suite is run.
+  it("requires the activity implementations of every flow it serves", () => {
+    type Served = Layer.Services<ReturnType<typeof FlowProxyServer.layerRpcHandlers<typeof flows>>>
+
+    expectTypeOf<Activity.Requirement<"Proxy/Echo/activity">>().toExtend<Served>()
+    expectTypeOf<Activity.Requirement<"Proxy/Suspends/activity">>().toExtend<Served>()
+
+    const engineOnly = Interpreter.layer(Echo).pipe(
+      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(FlowEngine.layerMemory)
+    )
+    const unmet = Effect.void.pipe(
+      Effect.provide(FlowProxyServer.layerRpcHandlers(flows).pipe(Layer.provide(engineOnly)))
+    )
+
+    // An engine and a table satisfy everything except the implementations, and
+    // those are exactly what is left over.
+    expectTypeOf<Effect.Services<typeof unmet>>().toEqualTypeOf<
+      Activity.Requirement<"Proxy/Echo/activity"> | Activity.Requirement<"Proxy/Suspends/activity">
+    >()
+
+    // Never invoked: the assertion is that this expression does not compile.
+    // @ts-expect-error -- the served bodies name two activities, and nothing in
+    // this composition implements either.
+    const unimplemented = () => Effect.runPromise(unmet)
+
+    expectTypeOf(unimplemented).toBeFunction()
+  })
+
+  it("has them erased by the composition the suites serve with", () => {
+    const { layer } = makeLayer((value) => Effect.succeed(value))
+    const served = Effect.void.pipe(
+      Effect.provide(FlowProxyServer.layerRpcHandlers(flows).pipe(Layer.provide(layer)))
+    )
+
+    expectTypeOf<Effect.Services<typeof served>>().toEqualTypeOf<never>()
   })
 })
 
