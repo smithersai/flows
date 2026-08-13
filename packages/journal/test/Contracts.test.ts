@@ -1,7 +1,7 @@
 import { Effect, Schema, Stream } from "effect"
 import { describe, expect, it } from "vitest"
 import * as Journal from "../src/Journal.ts"
-import type { Input, RunId } from "../src/JournalEvent.ts"
+import type { Input, RunId, Seq } from "../src/JournalEvent.ts"
 import * as OwnerId from "../src/OwnerId.ts"
 import * as Projection from "../src/Projection.ts"
 
@@ -36,6 +36,15 @@ describe("service contracts", () => {
         )).pipe(Effect.flip)).code
       ).toBe("journal_closed")
       expect((yield* Effect.flip(implementation.flush)).code).toBe("journal_closed")
+      expect(
+        (yield* Effect.flip(implementation.checkpoint({
+          runId: "run" as RunId,
+          seq: 0 as Seq,
+          state: null
+        }))).code
+      ).toBe("journal_closed")
+      expect((yield* Effect.flip(implementation.latestCheckpoint("run" as RunId))).code).toBe("journal_closed")
+      expect((yield* Effect.flip(implementation.compact({ runId: "run" as RunId }))).code).toBe("journal_closed")
       yield* implementation.changes
     })))
 

@@ -15,6 +15,7 @@
 import * as DatabaseMigrations from "@smthrs/database-next/Migrations"
 import * as Layer from "effect/Layer"
 import initial from "./migrations/0001_initial.ts"
+import checkpoints from "./migrations/0002_checkpoints.ts"
 
 /**
  * The journal's namespaced migration set, for composition with the other
@@ -27,7 +28,8 @@ export const set: DatabaseMigrations.MigrationSet = {
   namespace: "journal",
   idOffset: 0,
   migrations: {
-    "0001_initial": initial
+    "0001_initial": initial,
+    "0002_checkpoints": checkpoints
   }
 }
 

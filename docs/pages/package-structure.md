@@ -12,7 +12,7 @@ Twenty-two npm workspaces under `packages/`, one closed dependency set. This pag
 | `@smthrs/platform-browser-next` | `packages/platform-browser` | yes | no tables; browser `FileSystem` and `ChildProcessSpawner` implementations, and the `BrowserHost` bundle |
 | `@smthrs/platform-node-next` | `packages/platform-node` | yes | no tables; the `NodeHost` bundle over Effect's own Node adapters |
 | `@smthrs/platform-bun-next` | `packages/platform-bun` | yes | no tables; the Bun filesystem and the `BunHost` bundle |
-| `@smthrs/journal-next` | `packages/journal` | yes | `flows_journal_events` |
+| `@smthrs/journal-next` | `packages/journal` | yes | `flows_journal_events`, `flows_journal_checkpoints` |
 | `@smthrs/run-store-next` | `packages/run-store` | yes | `flows_runs`, `flows_attempts` |
 | `@smthrs/step-cache-next` | `packages/step-cache` | yes | `flows_step_cache` |
 | `@smthrs/database-next` | `packages/database` | yes | no tables; the `SqlClient` contract and write retry |
@@ -38,7 +38,7 @@ Six packages create schema, in three different ways. Knowing which is which keep
 
 | Owner | Mechanism | Tables |
 | --- | --- | --- |
-| `@smthrs/journal-next` | `0001_initial`, run by `Migrations.layer` | `flows_journal_events` |
+| `@smthrs/journal-next` | `0001_initial` and `0002_checkpoints`, run by `Migrations.layer` | `flows_journal_events`, `flows_journal_checkpoints` |
 | `@smthrs/run-store-next` | `0001_initial`, run by `Migrations.layer` | `flows_runs`, `flows_attempts` |
 | `@smthrs/step-cache-next` | `0001_initial`, run by `Migrations.layer` | `flows_step_cache` |
 | `@smthrs/plan-next` | `0001_initial`, run by `Migrations.layer`; append-only triggers created with the tables | `flows_plans`, `flows_plan_nodes`, `flows_plan_edges` |

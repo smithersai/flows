@@ -34,6 +34,10 @@ import * as Stream from "effect/Stream"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import type * as SqlError from "effect/unstable/sql/SqlError"
 import {
+  Checkpoint,
+  type CheckpointOptions,
+  type Compacted,
+  type CompactOptions,
   type EmitReceipt,
   type EntriesPage,
   Journal,
@@ -50,6 +54,32 @@ import * as Redaction from "./Redaction.ts"
 
 /** JSON text carrying an arbitrary decoded value. */
 const UnknownFromJsonString = Schema.fromJsonString(Schema.Unknown)
+
+/**
+ * Automatic checkpoint-and-compact policy for the SQL journal.
+ *
+ * Disabled unless set on {@link SqlJournalOptions}. Once a run's committed
+ * entry count reaches `entryThreshold`, the journal asks `capture` for the
+ * caller's replay state at the run's durable tail, writes it as a checkpoint
+ * at that sequence, and compacts the entries strictly below it.
+ *
+ * The attempt runs post-commit in the fiber that crossed the threshold, so
+ * keep `capture` to storage reads. It must not emit through this journal:
+ * the triggering durable emit still holds the allocation permit, and a
+ * nested emit would deadlock on it.
+ *
+ * A failed or refused attempt — a live stream behind the boundary, a
+ * capture failure — is logged at warning, damped for `entryThreshold`
+ * further committed entries, and never surfaced to the emit that triggered
+ * it.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface CompactionPolicy {
+  readonly entryThreshold: number
+  readonly capture: (runId: RunId, upTo: Seq) => Effect.Effect<unknown, unknown>
+}
 
 /**
  * SQL journal queue and batching options.
@@ -88,6 +118,12 @@ export interface SqlJournalOptions {
    * verbatim by choice.
    */
   readonly redact?: Redaction.Redactor | undefined
+  /**
+   * Automatic checkpoint-and-compact policy. Off by default: without it the
+   * journal never deletes an entry, and checkpointing stays a caller-driven
+   * `checkpoint` / `compact` call.
+   */
+  readonly compaction?: CompactionPolicy | undefined
 }
 
 /** Default retained window of the source-event index. */
@@ -115,6 +151,14 @@ interface JournalRow {
   readonly event_type: string
   readonly payload_json: string
   readonly meta_json: string
+}
+
+interface CheckpointRow {
+  readonly run_id: string
+  readonly seq: number
+  readonly state_json: string
+  readonly created_at_ms: number
+  readonly compacted_at_ms: number | null
 }
 
 interface Prepared {
@@ -220,6 +264,22 @@ const decodeRow = (row: JournalRow): Effect.Effect<Entry, JournalError> =>
     Effect.mapError((cause) => error("decode_failed", "could not decode a durable journal row", cause))
   )
 
+const decodeCheckpoint = Schema.decodeUnknownEffect(Checkpoint)
+
+const decodeCheckpointRow = (row: CheckpointRow): Effect.Effect<Checkpoint, JournalError> =>
+  Schema.decodeUnknownEffect(UnknownFromJsonString)(row.state_json).pipe(
+    Effect.flatMap((state) =>
+      decodeCheckpoint({
+        runId: row.run_id,
+        seq: Number(row.seq),
+        state,
+        createdAtMs: Number(row.created_at_ms),
+        compactedAtMs: row.compacted_at_ms === null ? null : Number(row.compacted_at_ms)
+      })
+    ),
+    Effect.mapError((cause) => error("decode_failed", "could not decode a durable checkpoint row", cause))
+  )
+
 interface ValidatedOptions {
   readonly batchSize: number
   readonly sourceEventCache: number
@@ -238,6 +298,12 @@ const validateOptions = (options: SqlJournalOptions): Effect.Effect<ValidatedOpt
     const sourceEventCache = options.sourceEventCache ?? defaultSourceEventCache
     if (!Number.isSafeInteger(sourceEventCache) || sourceEventCache <= 0) {
       return Effect.fail(error("invalid_event", "sourceEventCache must be a positive safe integer"))
+    }
+    if (
+      options.compaction !== undefined &&
+      (!Number.isSafeInteger(options.compaction.entryThreshold) || options.compaction.entryThreshold <= 0)
+    ) {
+      return Effect.fail(error("invalid_event", "compaction.entryThreshold must be a positive safe integer"))
     }
     return Effect.succeed({ batchSize, sourceEventCache, redact: options.redact ?? Redaction.make() })
   })
@@ -266,6 +332,16 @@ export const layer = (
       const queue = yield* Queue.dropping<QueuedEntry>(options.capacity)
       const changes = yield* PubSub.sliding<Entry>(options.capacity)
       const wakes = new Map<RunId, Set<PubSub.PubSub<void>>>()
+      /**
+       * The durable cursor of every live in-process stream, per run: the
+       * highest committed sequence the stream has read from the store, or its
+       * starting `afterSequence`. `compact` refuses to truncate below a
+       * registered cursor, so a live follower's next durable page is never
+       * deleted out from under it. Readers this process cannot see — pagers
+       * of `entries`, followers in other processes — are covered by the
+       * read-side `compacted` guard instead.
+       */
+      const readers = new Map<RunId, Set<{ cursor: number }>>()
       /**
        * Only the most recent `sourceEventCache` events are decoded at startup.
        * Older events stay durable-only: their idempotency is enforced by the
@@ -576,6 +652,23 @@ export const layer = (
           )))
       )
 
+      /**
+       * The run's compaction floor: the largest checkpoint sequence whose
+       * lower entries have been truncated, or `undefined` while the run has
+       * never been compacted.
+       */
+      const compactionFloor = (runId: RunId): Effect.Effect<number | undefined, SqlError.SqlError> =>
+        Effect.map(
+          sql<{ readonly floor: number | null }>`
+            SELECT MAX(seq) AS floor FROM flows_journal_checkpoints
+            WHERE run_id = ${runId} AND compacted_at_ms IS NOT NULL
+          `,
+          (rows) => {
+            const floor = rows[0]?.floor
+            return floor === null || floor === undefined ? undefined : Number(floor)
+          }
+        )
+
       const readPage: Service["entries"] = Effect.fn("Journal.entries")((pageOptions) =>
         Effect.gen(function*() {
           if (pageOptions.runId.length === 0) {
@@ -598,6 +691,24 @@ export const layer = (
           `.pipe(
             Effect.mapError((cause) => error("unknown", "durable journal read failed", cause))
           )
+          // The floor is read AFTER the page. Truncation and the floor
+          // advance commit atomically, so any deletion that could have
+          // shortened the page above is visible in this floor read, and a
+          // cursor at or above `floor - 1` therefore read a complete page.
+          // The converse order would let a compaction commit between the two
+          // reads and hand back a silently gapped history.
+          const floor = yield* compactionFloor(pageOptions.runId).pipe(
+            Effect.mapError((cause) => error("unknown", "durable journal read failed", cause))
+          )
+          if (floor !== undefined && after < floor - 1) {
+            return yield* Effect.fail(
+              new JournalError({
+                code: "compacted",
+                message: `run ${pageOptions.runId} is compacted through sequence ${floor}; resync from its checkpoint`,
+                checkpointSeq: floor as Seq
+              })
+            )
+          }
           const page = rows.slice(0, pageOptions.limit)
           const entries = yield* Effect.forEach(page, decodeRow)
           return {
@@ -633,7 +744,24 @@ export const layer = (
         Stream.unwrap(
           Effect.fn("Journal.stream")(function*() {
             const wake = yield* subscribeRun(streamOptions.runId)
-            let cursor: number = streamOptions.afterSequence ?? -1
+            // The cursor lives in a registered box for the stream's lifetime
+            // so `compact` can see how far every live follower has read.
+            const reader = { cursor: streamOptions.afterSequence ?? -1 }
+            yield* Effect.acquireRelease(
+              Effect.sync(() => {
+                const registered = readers.get(streamOptions.runId) ?? new Set()
+                registered.add(reader)
+                readers.set(streamOptions.runId, registered)
+              }),
+              () =>
+                Effect.sync(() => {
+                  const registered = readers.get(streamOptions.runId)
+                  registered?.delete(reader)
+                  if (registered?.size === 0) {
+                    readers.delete(streamOptions.runId)
+                  }
+                })
+            )
             // A live consumer is told about losses that happen while it is
             // following, and only about those: a loss it never overlapped is
             // already spent by the time it subscribes.
@@ -646,13 +774,13 @@ export const layer = (
                   while (true) {
                     const page = yield* readPage({
                       runId: streamOptions.runId,
-                      ...(cursor < 0 ? {} : { after: cursor as Seq }),
+                      ...(reader.cursor < 0 ? {} : { after: reader.cursor as Seq }),
                       limit: batchSize
                     })
                     all.push(...page.entries)
                     const last = page.entries.at(-1)
                     if (last !== undefined) {
-                      cursor = last.seq
+                      reader.cursor = last.seq
                     }
                     if (!page.hasMore) {
                       return all
@@ -951,7 +1079,8 @@ export const layer = (
       const settleCommit = (queued: QueuedEntry, commit: Commit): Effect.Effect<void> =>
         Effect.flatMap(Effect.serviceOption(Settlements), (enclosing) => {
           const settlement = Effect.sync(() => rememberCommitted(queued, commit.entry.seq)).pipe(
-            Effect.andThen(publish([commit]))
+            Effect.andThen(publish([commit])),
+            Effect.andThen(noteCommitted(queued.runId, commit.inserted ? 1 : 0))
           )
           return Option.isNone(enclosing)
             ? settlement
@@ -1086,6 +1215,296 @@ export const layer = (
 
       const emitLossy: Service["emitLossy"] = queuedEmit
 
+      /**
+       * Owner fence for checkpoint and compaction, evaluated inside the
+       * caller's write transaction. A guard SELECT is equivalent to the
+       * `WHERE EXISTS` predicate `insertOne` uses because `DurableWriter`
+       * serializes write transactions: no reclaim can commit between this
+       * read and the statements that follow it in the same transaction.
+       */
+      const fenceGuard = (
+        runId: RunId,
+        owner: OwnerId
+      ): Effect.Effect<void, JournalError | SqlError.SqlError> =>
+        Effect.gen(function*() {
+          const held = yield* sql<{ readonly ok: number }>`
+            SELECT 1 AS ok FROM flows_runs
+            WHERE run_id = ${runId}
+              AND status = 'running'
+              AND owner_host_id = ${owner.hostId}
+              AND owner_pid = ${owner.pid}
+              AND owner_nonce = ${owner.nonce}
+          `
+          if (held.length === 0) {
+            return yield* Effect.fail(
+              error("fence_lost", `run ${runId} is no longer owned by ${owner.hostId}:${owner.pid}:${owner.nonce}`)
+            )
+          }
+        })
+
+      const checkpoint: Service["checkpoint"] = Effect.fn("Journal.checkpoint")((
+        checkpointOptions: CheckpointOptions,
+        owner?: OwnerId
+      ) =>
+        Effect.gen(function*() {
+          if (checkpointOptions.runId.length === 0) {
+            return yield* Effect.fail(error("invalid_event", "runId must not be empty"))
+          }
+          if (!Number.isSafeInteger(checkpointOptions.seq) || checkpointOptions.seq < 0) {
+            return yield* Effect.fail(error("invalid_event", "seq must be a canonical committed sequence"))
+          }
+          // The state round-trips verbatim: it is replay input, so redaction
+          // deliberately does not apply — rewriting it would resume the run
+          // with the wrong data. A secret that must not persist belongs in a
+          // `Redacted` field of the caller's own state schema.
+          const stateJson = yield* Effect.fromResult(encodeJson(checkpointOptions.state, "state"))
+          const createdAtMs = yield* Clock.currentTimeMillis
+          return yield* writer.write(Effect.gen(function*() {
+            if (owner !== undefined) {
+              yield* fenceGuard(checkpointOptions.runId, owner)
+            }
+            // The target must be a committed entry: the surviving row is what
+            // keeps the run's durable `MAX(seq)` allocation floor at or above
+            // the compaction boundary, so a process restarted after
+            // compaction can never re-allocate a truncated sequence.
+            const target = yield* sql<{ readonly ok: number }>`
+              SELECT 1 AS ok FROM flows_journal_events
+              WHERE run_id = ${checkpointOptions.runId} AND seq = ${checkpointOptions.seq}
+            `
+            if (target.length === 0) {
+              return yield* Effect.fail(error(
+                "checkpoint_invalid",
+                `checkpoint sequence ${checkpointOptions.seq} names no committed entry of run ${checkpointOptions.runId}`
+              ))
+            }
+            const floor = yield* compactionFloor(checkpointOptions.runId)
+            if (floor !== undefined && checkpointOptions.seq <= floor) {
+              return yield* Effect.fail(
+                new JournalError({
+                  code: "checkpoint_invalid",
+                  message: `run ${checkpointOptions.runId} is already compacted through sequence ${floor}`,
+                  checkpointSeq: floor as Seq
+                })
+              )
+            }
+            yield* sql`
+              INSERT INTO flows_journal_checkpoints (run_id, seq, state_json, created_at_ms)
+              VALUES (${checkpointOptions.runId}, ${checkpointOptions.seq}, ${stateJson}, ${createdAtMs})
+              ON CONFLICT (run_id, seq) DO UPDATE SET
+                state_json = excluded.state_json,
+                created_at_ms = excluded.created_at_ms
+            `
+            return new Checkpoint({
+              runId: checkpointOptions.runId,
+              seq: checkpointOptions.seq,
+              state: checkpointOptions.state,
+              createdAtMs,
+              compactedAtMs: null
+            })
+          })).pipe(
+            Effect.mapError((cause) =>
+              isJournalError(cause) ? cause : error("sink_failed", "durable checkpoint write failed", cause)
+            )
+          )
+        })
+      )
+
+      const latestCheckpoint: Service["latestCheckpoint"] = Effect.fn("Journal.latestCheckpoint")((runId: RunId) =>
+        Effect.gen(function*() {
+          if (runId.length === 0) {
+            return yield* Effect.fail(error("invalid_event", "runId must not be empty"))
+          }
+          const rows = yield* sql<CheckpointRow>`
+            SELECT run_id, seq, state_json, created_at_ms, compacted_at_ms
+            FROM flows_journal_checkpoints
+            WHERE run_id = ${runId}
+            ORDER BY seq DESC
+            LIMIT 1
+          `.pipe(Effect.mapError((cause) =>
+            error("unknown", "durable checkpoint read failed", cause)
+          ))
+          const row = rows[0]
+          return row === undefined ? Option.none() : Option.some(yield* decodeCheckpointRow(row))
+        })
+      )
+
+      const compact: Service["compact"] = Effect.fn("Journal.compact")((
+        compactOptions: CompactOptions,
+        owner?: OwnerId
+      ) =>
+        Effect.gen(function*() {
+          if (compactOptions.runId.length === 0) {
+            return yield* Effect.fail(error("invalid_event", "runId must not be empty"))
+          }
+          const compactedAtMs = yield* Clock.currentTimeMillis
+          return yield* writer.write(Effect.gen(function*() {
+            if (owner !== undefined) {
+              yield* fenceGuard(compactOptions.runId, owner)
+            }
+            const upTo = compactOptions.upTo
+            const rows = upTo === undefined
+              ? yield* sql<CheckpointRow>`
+                SELECT run_id, seq, state_json, created_at_ms, compacted_at_ms
+                FROM flows_journal_checkpoints
+                WHERE run_id = ${compactOptions.runId}
+                ORDER BY seq DESC
+                LIMIT 1
+              `
+              : yield* sql<CheckpointRow>`
+                SELECT run_id, seq, state_json, created_at_ms, compacted_at_ms
+                FROM flows_journal_checkpoints
+                WHERE run_id = ${compactOptions.runId} AND seq = ${upTo}
+              `
+            const row = rows[0]
+            if (row === undefined) {
+              return yield* Effect.fail(error(
+                "checkpoint_invalid",
+                `run ${compactOptions.runId} has no checkpoint${
+                  upTo === undefined ? "" : ` at sequence ${upTo}`
+                } to compact to`
+              ))
+            }
+            const checkpointSeq = Number(row.seq) as Seq
+            if (row.compacted_at_ms !== null) {
+              // A retried compaction: the floor is already here and the rows
+              // below it are already gone.
+              return { runId: compactOptions.runId, checkpointSeq, deleted: 0 } satisfies Compacted
+            }
+            for (const reader of readers.get(compactOptions.runId) ?? []) {
+              if (reader.cursor < checkpointSeq - 1) {
+                return yield* Effect.fail(
+                  new JournalError({
+                    code: "reader_behind",
+                    message:
+                      `a live stream of run ${compactOptions.runId} still needs sequences below checkpoint ${checkpointSeq}`,
+                    checkpointSeq
+                  })
+                )
+              }
+            }
+            const doomed = yield* sql<{ readonly total: number }>`
+              SELECT COUNT(*) AS total FROM flows_journal_events
+              WHERE run_id = ${compactOptions.runId} AND seq < ${checkpointSeq}
+            `
+            // Strictly below the checkpoint: the checkpointed entry survives,
+            // holding the run's `MAX(seq)` allocation floor. Superseded
+            // checkpoints go with their entries; the truncation and the floor
+            // advance are one transaction, so a crash between them is
+            // unrepresentable.
+            yield* sql`
+              DELETE FROM flows_journal_events
+              WHERE run_id = ${compactOptions.runId} AND seq < ${checkpointSeq}
+            `
+            yield* sql`
+              DELETE FROM flows_journal_checkpoints
+              WHERE run_id = ${compactOptions.runId} AND seq < ${checkpointSeq}
+            `
+            yield* sql`
+              UPDATE flows_journal_checkpoints
+              SET compacted_at_ms = ${compactedAtMs}
+              WHERE run_id = ${compactOptions.runId} AND seq = ${checkpointSeq}
+            `
+            return {
+              runId: compactOptions.runId,
+              checkpointSeq,
+              deleted: Number(doomed[0]?.total ?? 0)
+            } satisfies Compacted
+          })).pipe(
+            Effect.mapError((cause) =>
+              isJournalError(cause) ? cause : error("sink_failed", "journal compaction failed", cause)
+            )
+          )
+        })
+      )
+
+      const compactionPolicy = options.compaction
+      const compactionCounts = new Map<RunId, number>()
+      const compactingRuns = new Set<RunId>()
+
+      const countEntries = (runId: RunId): Effect.Effect<number, SqlError.SqlError> =>
+        Effect.map(
+          sql<{ readonly total: number }>`
+            SELECT COUNT(*) AS total FROM flows_journal_events WHERE run_id = ${runId}
+          `,
+          (rows) => Number(rows[0]?.total ?? 0)
+        )
+
+      /**
+       * One automatic checkpoint-and-compact attempt at the run's durable
+       * tail. Runs post-commit; a failure or refusal is logged and damped —
+       * the counter restarts, so the next attempt waits for another
+       * `entryThreshold` commits — and is never surfaced to the emit whose
+       * settlement crossed the threshold.
+       */
+      const policyCompact = (policy: CompactionPolicy, runId: RunId): Effect.Effect<void> =>
+        Effect.gen(function*() {
+          const tail = yield* sql<{ readonly last: number | null }>`
+            SELECT MAX(seq) AS last FROM flows_journal_events WHERE run_id = ${runId}
+          `
+          const last = tail[0]?.last
+          if (last === null || last === undefined) {
+            return
+          }
+          const upTo = Number(last) as Seq
+          const captured = yield* policy.capture(runId, upTo)
+          yield* checkpoint({ runId, seq: upTo, state: captured })
+          yield* compact({ runId, upTo })
+          compactionCounts.set(runId, yield* countEntries(runId))
+        }).pipe(
+          Effect.catchCause((cause) =>
+            Cause.hasInterruptsOnly(cause)
+              ? Effect.failCause(cause as Cause.Cause<never>)
+              : Effect.sync(() => {
+                compactionCounts.set(runId, 0)
+              }).pipe(
+                Effect.andThen(
+                  Effect.logWarning("journal auto-compaction failed; retrying after the next threshold", cause)
+                )
+              )
+          )
+        )
+
+      /**
+       * Counts a run's committed entries toward the compaction policy and
+       * triggers an attempt at the threshold.
+       *
+       * The count is seeded lazily from the durable COUNT on the run's first
+       * committed entry in this process — mirroring `ensureFloors` — so a
+       * restarted process still compacts a long pre-existing history. The
+       * durable COUNT already includes the rows the caller is reporting: they
+       * committed before this settlement ran.
+       */
+      const noteCommitted = (runId: RunId, committed: number): Effect.Effect<void> => {
+        const policy = compactionPolicy
+        if (policy === undefined || committed <= 0) {
+          return Effect.void
+        }
+        return Effect.gen(function*() {
+          if (compactingRuns.has(runId)) {
+            return
+          }
+          const known = compactionCounts.get(runId)
+          const current = known === undefined ? yield* countEntries(runId) : known + committed
+          compactionCounts.set(runId, current)
+          if (current < policy.entryThreshold) {
+            return
+          }
+          compactingRuns.add(runId)
+          yield* Effect.ensuring(
+            policyCompact(policy, runId),
+            Effect.sync(() => {
+              compactingRuns.delete(runId)
+            })
+          )
+        }).pipe(
+          Effect.catchCause((cause) =>
+            Cause.hasInterruptsOnly(cause)
+              ? Effect.failCause(cause as Cause.Cause<never>)
+              : Effect.logWarning("journal compaction policy bookkeeping failed", cause)
+          )
+        )
+      }
+
       const recordCommits = (
         batch: ReadonlyArray<QueuedEntry>,
         commits: ReadonlyArray<Commit>
@@ -1141,10 +1560,24 @@ export const layer = (
       const writeBatch = Queue.takeBetween(queue, 1, batchSize).pipe(
         Effect.flatMap((batch) =>
           persistBatch(batch).pipe(
-            Effect.tap((commits) =>
-              Effect.sync(() => recordCommits(batch, commits))
-            ),
+            Effect.tap((commits) => Effect.sync(() => recordCommits(batch, commits))),
             Effect.tap(publish),
+            // The policy runs BEFORE the batch settles so a `flush` barrier
+            // does not return while an auto-compaction it triggered is still
+            // in flight.
+            Effect.tap((commits) => {
+              const perRun = new Map<RunId, number>()
+              commits.forEach((commit, index) => {
+                if (!commit.inserted) {
+                  return
+                }
+                const queued = batch[index]!
+                perRun.set(queued.runId, (perRun.get(queued.runId) ?? 0) + 1)
+              })
+              return Effect.forEach(perRun, ([runId, committed]) => noteCommitted(runId, committed), {
+                discard: true
+              })
+            }),
             Effect.tap(() => Effect.sync(() => settle(batch.length))),
             Effect.catch((cause) => Effect.sync(() => failSink(cause, batch.length))),
             // Defects only: an interruption is scope closure, and it must end
@@ -1220,7 +1653,10 @@ export const layer = (
         entries: readPage,
         changes: PubSub.subscribe(changes),
         project,
-        flush: Effect.fn("Journal.flush")(() => flushInternal)()
+        flush: Effect.fn("Journal.flush")(() => flushInternal)(),
+        checkpoint,
+        latestCheckpoint,
+        compact
       })
     })
   )
