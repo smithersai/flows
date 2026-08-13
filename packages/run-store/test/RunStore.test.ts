@@ -385,6 +385,31 @@ describe("RunStore", () => {
     expect(outcome).toEqual({ _tag: "HeartbeatFresh" })
   })
 
+  it("rejects an ordinary claim on a running run even once its heartbeat is stale (D4)", async () => {
+    // The invariant that makes `claim`'s staleness disjunction dead: `claim`
+    // admits only 'pending' and 'suspended', so a running run is refused
+    // whatever its heartbeat says. The neighbouring cell covers the fresh
+    // heartbeat; this one covers past the cutoff, where the deleted
+    // `(status <> 'running' OR heartbeat < cutoff)` branch would have been the
+    // only thing standing between the caller and the row.
+    const result = await migrated(Effect.gen(function*() {
+      const store = yield* RunStore
+      const running = yield* activateNew(store, "run-stale-ordinary-claim", ownerA)
+      const outcome = yield* store.claim(
+        running.runId,
+        snapshot(running),
+        ownerB,
+        Duration.toMillis(heartbeatStaleAfter) + 1
+      )
+      return { outcome, row: yield* store.get(running.runId) }
+    }))
+
+    expect(result.outcome).toEqual({ _tag: "SnapshotChanged" })
+    // Nothing was claimed: the claim columns are still empty.
+    expect(result.row.claim).toBeNull()
+    expect(result.row.owner).toEqual(ownerA)
+  })
+
   it("classifies missing and already-held claims", async () => {
     const outcomes = await migrated(Effect.gen(function*() {
       const store = yield* RunStore
