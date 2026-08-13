@@ -88,8 +88,9 @@ export const activity: Activity.Declared<
     readonly until: Schema.optional<Schema.Number>
   }>,
   typeof Schema.Void,
-  typeof SleepRequestInvalid
-> = Activity.make(tag, {
+  typeof SleepRequestInvalid,
+  never
+> = Activity.makeSystem(tag, {
   payload: {
     millis: Schema.optional(Schema.Number),
     until: Schema.optional(Schema.Number)

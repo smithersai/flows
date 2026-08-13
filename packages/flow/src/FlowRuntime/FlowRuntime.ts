@@ -47,7 +47,7 @@ export class FlowRuntime extends Context.Service<
       Error extends Schema.Top,
       R
     >(
-      flow: Flow.Flow<Name, Payload, Success, Error>,
+      flow: Flow.Flow<Name, Payload, Success, Error, any>,
       execute: (
         payload: Payload["Type"],
         executionId: string
@@ -81,7 +81,7 @@ export class FlowRuntime extends Context.Service<
       Error extends Schema.Top,
       const Discard extends boolean = false
     >(
-      flow: Flow.Flow<Name, Payload, Success, Error>,
+      flow: Flow.Flow<Name, Payload, Success, Error, any>,
       options: {
         readonly executionId: string
         readonly payload: Payload["Type"]
@@ -107,7 +107,7 @@ export class FlowRuntime extends Context.Service<
       Success extends Schema.Top,
       Error extends Schema.Top
     >(
-      flow: Flow.Flow<Name, Payload, Success, Error>,
+      flow: Flow.Flow<Name, Payload, Success, Error, any>,
       executionId: string
     ) => Effect.Effect<
       Option.Option<Flow.Result<Success["Type"], Error["Type"]>>,

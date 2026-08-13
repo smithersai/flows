@@ -169,6 +169,7 @@ export type RpcHandlers<Flows extends Flow.Any, Prefix extends string> = Flows e
   infer _Name,
   infer _Payload,
   infer _Success,
-  infer _Error
+  infer _Error,
+  infer _Requires
 > ? Rpc.Handler<`${Prefix}${_Name}`> | Rpc.Handler<`${Prefix}${_Name}Discard`> | Rpc.Handler<`${Prefix}${_Name}Resume`>
   : never

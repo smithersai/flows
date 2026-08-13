@@ -76,7 +76,7 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
       Error extends Schema.Top,
       const Discard extends boolean = false
     >(
-      self: Flow.Flow<Name, Payload, Success, Error>,
+      self: Flow.Flow<Name, Payload, Success, Error, any>,
       opts: {
         readonly executionId: string
         readonly payload: Payload["Type"]

@@ -42,7 +42,8 @@ export interface Flow<
   Tag extends string,
   Payload extends AnyStructSchema,
   Success extends Schema.Top,
-  Error extends Schema.Top
+  Error extends Schema.Top,
+  Requires = never
 > {
   new(_: never): {}
 
@@ -64,8 +65,12 @@ export interface Flow<
    * values captured outside `payload`; source-digest identity cannot observe
    * those aliases changing. Work that genuinely wants opaque code is an
    * Activity.
+   *
+   * `Requires` is read off this node. A body that names an activity names an
+   * implementation it does not carry, and that obligation travels with the flow
+   * until something executes it.
    */
-  readonly body: (payload: Payload["Type"]) => Node.Node<unknown, unknown>
+  readonly body: (payload: Payload["Type"]) => Node.Node<unknown, unknown, Requires>
   readonly idempotencyKey?: ((payload: Payload["Type"]) => string) | undefined
   readonly suspendedRetryPolicy?: RetryPolicy.RetryPolicy | undefined
   /**
@@ -82,10 +87,13 @@ export interface Flow<
 
   /**
    * Describes an inline call to this flow without executing it.
+   *
+   * The callee's steps join the caller's plan, so the callee's requirements are
+   * the caller's: `Requires` propagates.
    */
   readonly call: (
     payload: PlannedPayload<Payload["~type.make.in"]>
-  ) => Node.Node<Success["Type"], Error["Type"]>
+  ) => Node.Node<Success["Type"], Error["Type"], Requires>
 
   /**
    * Describes an explicit child boundary: ONE node in the caller's plan, and a
@@ -98,6 +106,10 @@ export interface Flow<
    * sees one leaf. It is also the way out of the two build refusals inline
    * expansion raises — a recursive `.call()` and a placement the caller cannot
    * satisfy.
+   *
+   * It is an execution boundary for requirements too, so `Requires` is DROPPED
+   * rather than propagated: the child runs under its own driver, which provides
+   * its own context, and the caller's plan holds one leaf naming it.
    */
   readonly child: (
     payload: PlannedPayload<Payload["~type.make.in"]>
@@ -105,6 +117,11 @@ export interface Flow<
 
   /**
    * Describes a serializable invocation for the next trampoline round.
+   *
+   * A handoff ends this execution and names the next one, so `Requires` is
+   * DROPPED here as well. That is also what keeps a self-loop's type finite: a
+   * body that hands off to its own flow would otherwise have to name its own
+   * requirements inside them.
    */
   readonly to: (
     payload: PlannedPayload<Payload["~type.make.in"]>
@@ -116,17 +133,22 @@ export interface Flow<
   annotate<I, S>(
     key: Context.Key<I, S>,
     value: S
-  ): Flow<Tag, Payload, Success, Error>
+  ): Flow<Tag, Payload, Success, Error, Requires>
 
   /**
    * Merge multiple annotations into the flow.
    */
   annotateMerge<I>(
     annotations: Context.Context<I>
-  ): Flow<Tag, Payload, Success, Error>
+  ): Flow<Tag, Payload, Success, Error, Requires>
 
   /**
    * Execute the flow with the given payload.
+   *
+   * This is where `Requires` is collected. Planning is requirement-free by
+   * design, so a body that names an activity nobody implemented is a legal plan
+   * right up to here; asking to RUN it is what makes the missing layer a
+   * compile error rather than a run that dies partway through.
    */
   readonly execute: <const Discard extends boolean = false>(
     payload: Payload["~type.make.in"],
@@ -138,6 +160,7 @@ export interface Flow<
     Discard extends true ? string : Success["Type"],
     Discard extends true ? never : Error["Type"],
     | FlowRuntime
+    | Requires
     | Payload["EncodingServices"]
     | Success["DecodingServices"]
     | Error["DecodingServices"]
@@ -171,6 +194,13 @@ export interface Flow<
    *
    * This does not resume an execution cancelled by `interrupt`, and it is not
    * needed for an execution that is already running or complete.
+   *
+   * It does NOT collect `Requires`, even though it re-drives the body. The
+   * runtime captures the context a flow was REGISTERED under and merges it
+   * beneath whatever a run supplies, so the implementations that made the first
+   * round possible are the ones a re-driven round reaches; a resumer holding an
+   * execution id is not the party that has them. `execute` remains the one
+   * place a plan's requirements are asked for.
    */
   readonly resume: (
     executionId: string
@@ -264,7 +294,7 @@ export interface Any {
   readonly successSchema: Schema.Top
   readonly errorSchema: Schema.Top
   readonly annotations: Context.Context<never>
-  readonly body: (payload: any) => Node.Node<unknown, unknown>
+  readonly body: (payload: any) => Node.Node<unknown, unknown, any>
   readonly idempotencyKey?: ((payload: any) => string) | undefined
   readonly suspendedRetryPolicy?: RetryPolicy.RetryPolicy | undefined
   readonly maxRounds?: number | undefined
@@ -306,8 +336,25 @@ export type PayloadSchema<W> = W extends Flow<
   infer _Name,
   infer _Payload,
   infer _Success,
-  infer _Error
+  infer _Error,
+  infer _Requires
 > ? _Payload
+  : never
+
+/**
+ * Extracts the requirement channel of a `Flow`: the activity implementations
+ * its body names and does not carry.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type Requirements<W> = W extends Flow<
+  infer _Name,
+  infer _Payload,
+  infer _Success,
+  infer _Error,
+  infer _Requires
+> ? _Requires
   : never
 
 /**
@@ -321,7 +368,8 @@ export type RequirementsClient<Flows extends Any> = Flows extends Flow<
   infer _Name,
   infer _Payload,
   infer _Success,
-  infer _Error
+  infer _Error,
+  infer _Requires
 > ?
     | _Payload["EncodingServices"]
     | _Success["DecodingServices"]
@@ -339,7 +387,8 @@ export type RequirementsHandler<Flows extends Any> = Flows extends Flow<
   infer _Name,
   infer _Payload,
   infer _Success,
-  infer _Error
+  infer _Error,
+  infer _Requires
 > ?
     | _Payload["DecodingServices"]
     | _Payload["EncodingServices"]

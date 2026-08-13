@@ -103,8 +103,9 @@ export const activity: Activity.Declared<
     readonly name: Schema.optional<Schema.String>
   }>,
   typeof Schema.Json,
-  typeof WaitForRequestInvalid
-> = Activity.make(tag, {
+  typeof WaitForRequestInvalid,
+  never
+> = Activity.makeSystem(tag, {
   payload: {
     token: Schema.optional(Schema.String),
     name: Schema.optional(Schema.String)

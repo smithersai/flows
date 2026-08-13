@@ -109,7 +109,8 @@ export type ConvertRpcs<Flows extends Flow.Any, Prefix extends string> = Flows e
   infer _Name,
   infer _Payload,
   infer _Success,
-  infer _Error
+  infer _Error,
+  infer _Requires
 > ?
     | Rpc.Rpc<`${Prefix}${_Name}`, ExecutePayload<_Payload>, _Success, _Error>
     | Rpc.Rpc<`${Prefix}${_Name}Discard`, ExecutePayload<_Payload>>
@@ -197,7 +198,8 @@ export type ConvertHttpApi<Flows extends Flow.Any> = Flows extends Flow.Flow<
   infer _Name,
   infer _Payload,
   infer _Success,
-  infer _Error
+  infer _Error,
+  infer _Requires
 > ?
     | HttpApiEndpoint.HttpApiEndpoint<
       _Name,

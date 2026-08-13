@@ -518,6 +518,12 @@ const settle = (value: unknown): Effect.Effect<unknown, never, FlowInstance> => 
  * )
  * ```
  *
+ * It accepts a flow whatever its requirement channel says, and requires only
+ * the table. Registering a body is not running one: the handler installed here
+ * resolves each call by tag when the run reaches it, which is the same thing a
+ * driver does for a plan read back out of a journal. `Flow.execute` is where
+ * the requirements are asked for.
+ *
  * @since 0.1.0
  * @category layers
  */
@@ -527,7 +533,7 @@ export const layer = <
   Success extends Schema.Top,
   Error extends Schema.Top
 >(
-  flow: Flow<Tag, Payload, Success, Error>,
+  flow: Flow<Tag, Payload, Success, Error, any>,
   options: Graph.BuildOptions = {}
 ): Layer.Layer<
   never,
