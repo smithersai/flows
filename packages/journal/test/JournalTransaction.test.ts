@@ -153,3 +153,30 @@ describe("Journal.transact", () => {
       expect(yield* closed.transact(Effect.succeed(7))).toBe(7)
     }))
 })
+
+describe("Journal.emitLossy against an open transaction", () => {
+  effect(
+    "does not collide with a seq a still-open transact already allocated (B6)",
+    () =>
+      withStack(Effect.gen(function*() {
+        const journal = yield* Journal
+        const sql = yield* Effect.service(SqlClient.SqlClient)
+        const run = runId("lossy-vs-open-transact")
+
+        yield* journal.emitDurable(input(run, sourceId("durable-a"), "first", { value: 0 }))
+
+        // The lossy emit allocates its seq from `state.sequences` alone, while
+        // the durable emit inside the open transact has already consumed that
+        // value and parks `rememberCommitted` until the outermost COMMIT.
+        yield* journal.transact(Effect.gen(function*() {
+          yield* journal.emitDurable(input(run, sourceId("durable-b"), "second", { value: 1 }))
+          yield* journal.emitLossy(input(run, sourceId("telemetry"), "lossy", { value: 2 }))
+        }))
+        yield* journal.flush
+
+        const rows = yield* rowsOf(sql, run)
+        expect(rows.map((row) => row.event_type)).toEqual(["first", "second", "lossy"])
+        expect(rows.map((row) => row.seq)).toEqual([0, 1, 2])
+      }))
+  )
+})

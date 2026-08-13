@@ -367,6 +367,24 @@ export const layer = (
       }
 
       /**
+       * Raises the in-process seq allocation floor for a run.
+       *
+       * Both emit paths call this at the moment they allocate, so the floor
+       * never names a seq some writer has already taken. It used to move only
+       * in `rememberCommitted`, which `settleCommit` parks until the outermost
+       * COMMIT — so a durable emit inside an open `transact` left the floor
+       * behind, `emitLossy` allocated the same seq from it, and the lossy
+       * INSERT hit `PRIMARY KEY (run_id, seq)`.
+       *
+       * The floor only ever rises. `insertOne` can settle on a raced duplicate
+       * whose row was written by another process at a higher seq, and that
+       * still has to raise the floor here.
+       */
+      const raiseSequenceFloor = (runId: RunId, seq: number): void => {
+        state.sequences.set(runId, Math.max(state.sequences.get(runId) ?? 0, seq + 1))
+      }
+
+      /**
        * Adds an entry to the bounded source-event index, evicting the
        * least-recently added *committed* entry when the bound is exceeded.
        *
@@ -501,7 +519,7 @@ export const layer = (
                   )
                 }
                 const seq = nextSeq as Seq
-                state.sequences.set(validated.runId, nextSeq + 1)
+                raiseSequenceFloor(validated.runId, seq)
                 state.sourceSequences.set(key, Math.max(nextSourceSeq, sourceSeq + 1))
 
                 const queued: QueuedEntry = {
@@ -836,7 +854,7 @@ export const layer = (
           metaJson: queued.metaJson,
           status: "committed"
         })
-        state.sequences.set(queued.runId, Math.max(state.sequences.get(queued.runId) ?? 0, seq + 1))
+        raiseSequenceFloor(queued.runId, seq)
         const key = sourceKey(queued.runId, queued.sourceId)
         state.sourceSequences.set(key, Math.max(state.sourceSequences.get(key) ?? 0, queued.sourceSeq + 1))
       }
@@ -964,6 +982,14 @@ export const layer = (
                     error("invalid_event", "journal sequence is outside the allocatable safe integer range")
                   )
                 }
+                // Claim the seq NOW, not at commit: a concurrent `emitLossy`
+                // allocates from this floor alone, and `settleCommit` parks
+                // the commit-time raise until the outermost COMMIT.
+                // Re-entering the transaction body is idempotent because the
+                // floor only rises. An abandoned attempt leaves the number
+                // unused, which is a gap: allocation is `MAX(seq) + 1` and
+                // replay is `ORDER BY seq`, so neither reads a gap as anything.
+                raiseSequenceFloor(validated.runId, seq)
                 const queued: QueuedEntry = {
                   runId: validated.runId,
                   seq,
