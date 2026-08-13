@@ -52,6 +52,10 @@ jobs:
         run: npm run browser
       - name: Release manifest unit test
         run: node --test scripts/pack-release.test.mjs
+      # The operator's backup/verify/restore entry point, driven the way an
+      # operator drives it: spawned invocations against a real migrated store.
+      - name: Disaster-recovery script test
+        run: node --test scripts/flows-backup.test.mjs
       # Package vitest configs with `coverage.enabled: true` compute and
       # enforce their coverage thresholds on every run — a red gate fails CI.
       - name: Test all workspaces
