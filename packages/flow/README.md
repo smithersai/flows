@@ -72,6 +72,41 @@ Provide a runtime — `FlowEngine.layerMemory` from `@smthrs/engine-next` in tes
 the durable engine from `@smthrs/engine-store-next` in production — and execute the
 flow.
 
+### Planning is requirement-free; executing is not
+
+`Render.call(payload)` records a node and runs nothing, so building the plan a
+body describes asks for no service. What it does do is put a requirement in the
+node's type — one minted by `Activity.make` and keyed by the activity tag — and
+`Flow.make` reads the union of those off the node its body returns:
+
+```ts
+Greet.execute({ name: "Ada" }, { executionId: "greet-ada" })
+// Effect<string, never, FlowRuntime | Activity.Requirement<"render">>
+```
+
+`Render.toLayer(...)` provides that requirement, so the composition above erases
+it and the wrong composition does not compile. **Forgetting an implementation is
+an error at the call site rather than a run that dies partway through.** Three
+rules follow from where a plan actually goes:
+
+- `.call()` propagates the channel: an inline callee's steps join the caller's
+  plan, so its obligations are the caller's.
+- `.child()` and `.to()` drop it. Each opens a new execution whose driver
+  provides its own context, and dropping it at `.to()` is also what keeps a
+  self-looping lineage's type finite.
+- `.poll()`, `.interrupt()`, and `.resume()` do not collect it. The first two
+  never drive a body, and a re-drive runs under the context the flow was
+  REGISTERED with, not the resumer's.
+
+`Sleep` and `WaitFor` are declared with `Activity.makeSystem` and mint no
+requirement: the engine implements them, so an author cannot be the one who
+forgot them.
+
+The name-keyed `Activity.Implementations` table is unchanged and is still how a
+run resolves an activity, because a driver expanding a plan read back out of a
+journal has no types left to consult. `toLayer` does both — provides the tag,
+and files into the table when a composition wired one up.
+
 ## Dependency direction
 
 `@smthrs/flow-next` depends on no package that executes flows. `FlowRuntime` is the
@@ -86,8 +121,8 @@ The root exports these namespaces, also available from matching
 
 | Namespace         | Public exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Flow`            | `Flow` plus erased/schema helper types `AnyStructSchema`, `Execution`, `Any`, `AnyWithProps`, `PayloadSchema`, `RequirementsClient`, and `RequirementsHandler`; `make`, whose `body` is required; result guard/schema/models `isResult`, `Result`, `ResultEncoded`, `CompleteEncoded`, `CompleteSchema`, `Complete` (including `Complete.Schema`), and `Suspended`; runtime helpers `intoResult`, `wrapActivityResult`, `scope`, `provideScope`, `addFinalizer`, `withRollback`, and `suspend`; annotations `CaptureDefects` and `SuspendOnFailure`; `ExecutionIdRequired`. A flow value exposes `body`, `call`, `child`, `to`, `execute`, `poll`, `interrupt`, `resume`, `executionId`, annotation methods, and `withRollback`. |
-| `Activity`        | `Activity`, `Any`, and `AnyWithProps`; durability `Tier` and `IdempotencyKey`; `make`, `retry`, `idempotencyKey`, and `raceAll`; attempt references `CurrentAttempt` and `CurrentOrdinal`; errors `InfraInterrupt` and `IrreversibleRetryRequiresIdempotencyKey`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `Flow`            | `Flow` plus erased/schema helper types `AnyStructSchema`, `Execution`, `Any`, `AnyWithProps`, `PayloadSchema`, `Requirements`, `RequirementsClient`, and `RequirementsHandler`; `make`, whose `body` is required; result guard/schema/models `isResult`, `Result`, `ResultEncoded`, `CompleteEncoded`, `CompleteSchema`, `Complete` (including `Complete.Schema`), and `Suspended`; runtime helpers `intoResult`, `wrapActivityResult`, `scope`, `provideScope`, `addFinalizer`, `withRollback`, and `suspend`; annotations `CaptureDefects` and `SuspendOnFailure`; `ExecutionIdRequired`. A flow value exposes `body`, `call`, `child`, `to`, `execute`, `poll`, `interrupt`, `resume`, `executionId`, annotation methods, and `withRollback`. |
+| `Activity`        | `Activity`, `Declared`, `Requirement`, `Any`, and `AnyWithProps`; durability `Tier` and `IdempotencyKey`; `make`, `makeSystem`, `retry`, `idempotencyKey`, and `raceAll`; declared-activity resolution `Implementations`, `Implementation`, and `layerImplementations`; attempt references `CurrentAttempt` and `CurrentOrdinal`; errors `InfraInterrupt` and `IrreversibleRetryRequiresIdempotencyKey`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `DurableDeferred` | `DurableDeferred`, `Any`, and `AnyWithProps`; `make`, `await`, `into`, and `raceAll`; token API `TokenTypeId`, `Token`, `TokenParsed` (`FromString`, `fromString`, `encode`, `asToken`), `token`, `tokenFromExecutionId`, and `tokenFromPayload`; external completion `done`, `succeed`, `fail`, and `failCause`.                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `DurableClock`    | `DurableClock`, `make({ name, duration })`, and threshold-aware `sleep(options)`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `DurableQueue`    | `TypeId`, `DurableQueue`, `make`, flow-side `process`, worker effect `makeWorker`, and worker `layer` constructor `worker`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
@@ -110,7 +145,8 @@ The root exports these namespaces, also available from matching
 ### Activity source layout
 
 - `Activity.ts` defines the data structure and schemas.
-- `make.ts` constructs executable activities.
+- `make.ts` constructs executable activities and mints each declaration's requirement.
+- `Implementations.ts` holds the name-keyed table a driver resolves a persisted plan through.
 - `Context.ts` carries attempt and cache state during execution.
 - `retry.ts` retries operations while preserving durable identity.
 - `StepIdentity.ts` and `idempotencyKey.ts` derive recorded execution keys.

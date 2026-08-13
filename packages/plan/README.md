@@ -58,7 +58,19 @@ yield* store.record(plan, Date.now())
 | `PlanStore`   | Append-only SQL persistence — migration block `4000`, enforced by triggers rather than by convention |
 | `Migrations`  | The namespaced migration set, composed by `@smthrs/engine-store-next`'s `Migrations.sets`            |
 
-## The three rules this package exists to keep
+## The four rules this package exists to keep
+
+**Planning demands nothing.** A `Node` carries Effect's requirement channel,
+`R`, and carries it as a phantom: no combinator here reads it, and the AST, the
+graph, the key material, and every digest are identical whatever it says.
+Building a plan therefore asks for no service at all. What fills the channel is
+a call to something whose code lives elsewhere — an activity — so a plan's type
+states which implementations running it will need, and the place that runs it
+(`Flow.execute`, in `@smthrs/flow-next`) is where the compiler asks for them.
+Each combinator unions its parts: `all` over its members, `map` and `andThen`
+along the chain, `branch` over BOTH arms and `catch` over its failure arm,
+because both arms of a decision are topology the plan carries and a run has to
+be able to take either.
 
 **Planning performs no I/O.** Nothing here reads a file, a clock, or a network.
 A node's declared `effects` carry read and write _paths_, never digests —
