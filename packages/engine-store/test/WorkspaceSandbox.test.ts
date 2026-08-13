@@ -1,9 +1,11 @@
+import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
 import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
 import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
 import * as KernelWorkspace from "@smthrs/kernel-next/Workspace"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
+import * as PlatformError from "effect/PlatformError"
 import { describe, expect, it } from "vitest"
 import * as WorkspaceSandbox from "../src/WorkspaceSandbox.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
@@ -23,6 +25,15 @@ const text = (files: ReadonlyArray<WorkspaceSandbox.HostFile>, path: string): st
   const file = files.find((candidate) => candidate.path === path)
   return file === undefined ? undefined : decoder.decode(file.content)
 }
+
+const injected = (path: string) =>
+  PlatformError.systemError({
+    _tag: "Unknown",
+    module: "FileSystem",
+    method: "writeFile",
+    pathOrDescriptor: path,
+    description: "injected device failure"
+  })
 
 /**
  * The eight behaviors the `engine-harness` proof of concept documented, ported
@@ -727,5 +738,337 @@ describe("WorkspaceSandbox filesystem host", () => {
     const accepted = await runPromise(program)
     if (accepted._tag !== "Accepted") throw new Error("expected accepted execution")
     expect(accepted.result.files.map((change) => change.path)).toEqual(["out/copy.txt"])
+  })
+})
+
+/**
+ * Copy-back is all-or-nothing on the failure path too: every precondition
+ * runs before the first byte lands, and a host refusal mid-apply restores
+ * every path the loop already touched from the pre-image journal.
+ */
+describe("WorkspaceSandbox filesystem host atomicity", () => {
+  const faultLayer = (files: Map<string, Uint8Array>, failOn: (call: number) => boolean) => {
+    let calls = 0
+    const fs = FileSystem.makeNoop({
+      exists: (path) => Effect.succeed(files.has(String(path))),
+      readFile: (path) => Effect.succeed(files.get(String(path))!),
+      writeFile: (path, data) => {
+        calls = calls + 1
+        return failOn(calls)
+          ? Effect.fail(injected(String(path)))
+          : Effect.sync(() => void files.set(String(path), data))
+      },
+      remove: (path) => Effect.sync(() => void files.delete(String(path))),
+      makeDirectory: () => Effect.void
+    })
+    return ArtifactStore.layerMemory.pipe(Layer.provideMerge(Layer.succeed(FileSystem.FileSystem)(fs)))
+  }
+
+  it("restores every applied change when the host refuses the Nth write", async () => {
+    const files = new Map<string, Uint8Array>([
+      ["/w/0del.txt", encoder.encode("DEL-OLD")],
+      ["/w/a.txt", encoder.encode("A-OLD")]
+    ])
+    // Apply order is path-sorted: remove 0del.txt, overwrite a.txt (write 1),
+    // create b.txt (write 2, refused). Rollback then re-creates b.txt's
+    // absence, restores a.txt's pre-image, and re-writes the removed file.
+    const program = Effect.gen(function*() {
+      const sandbox = WorkspaceSandbox.makeFileSystem(
+        yield* FileSystem.FileSystem,
+        yield* ArtifactStore.ArtifactStore,
+        "/w"
+      )
+      const accepted = yield* sandbox.execute({
+        descriptor: descriptor({
+          readSet: [read("a.txt", "A-OLD"), read("0del.txt", "DEL-OLD")],
+          writeSet: ["a.txt", "b.txt", "0del.txt"]
+        }),
+        workflow: Effect.gen(function*() {
+          const workspace = yield* WorkspaceSandbox.Workspace
+          yield* workspace.removeFile("0del.txt")
+          yield* workspace.writeFile("a.txt", encoder.encode("A-NEW"))
+          yield* workspace.writeFile("b.txt", encoder.encode("B-NEW"))
+          return null
+        })
+      })
+      if (accepted._tag !== "Accepted") throw new Error("expected accepted execution")
+      return yield* Effect.flip(sandbox.materialize(accepted))
+    }).pipe(Effect.provide(faultLayer(files, (call) => call === 2)))
+
+    const refused = await runPromise(program)
+    expect(refused).toMatchObject({ _tag: "flows/engine-store/WorkspaceError", code: "host_unavailable" })
+    expect(refused.message).toContain("injected")
+    expect([...files.keys()].sort()).toEqual(["/w/0del.txt", "/w/a.txt"])
+    expect(decoder.decode(files.get("/w/0del.txt"))).toBe("DEL-OLD")
+    expect(decoder.decode(files.get("/w/a.txt"))).toBe("A-OLD")
+  })
+
+  it("keeps the host untouched when a later change's retained bytes cannot be resolved", async () => {
+    // The first change carries its bytes inline and would have landed under a
+    // fetch-as-you-apply loop; resolution happens before any byte does.
+    const files = new Map<string, Uint8Array>()
+    const program = Effect.gen(function*() {
+      const sandbox = WorkspaceSandbox.makeFileSystem(
+        yield* FileSystem.FileSystem,
+        yield* ArtifactStore.ArtifactStore,
+        "/w"
+      )
+      return yield* Effect.flip(sandbox.materialize({
+        _tag: "Accepted",
+        cache: { status: "disabled" },
+        violations: [],
+        result: {
+          output: null,
+          effects: [],
+          provenance: { baseRevision: "r", inputs: [], outputs: [] },
+          files: [
+            {
+              path: "aa.txt",
+              beforeDigest: undefined,
+              afterDigest: sha256("landed"),
+              after: encoder.encode("landed")
+            },
+            { path: "bb.txt", beforeDigest: undefined, afterDigest: sha256("gone") }
+          ]
+        }
+      }))
+    }).pipe(Effect.provide(faultLayer(files, () => false)))
+
+    await expect(runPromise(program)).resolves.toMatchObject({ code: "not_found" })
+    expect(files.size).toBe(0)
+  })
+
+  it("reports both refusals when rollback itself fails", async () => {
+    const files = new Map<string, Uint8Array>([
+      ["/w/a.txt", encoder.encode("A-OLD")],
+      ["/w/b.txt", encoder.encode("B-OLD")]
+    ])
+    // Write 2 (b.txt) is refused, and so is write 3 — the rollback's attempt
+    // to restore b.txt's pre-image.
+    const program = Effect.gen(function*() {
+      const sandbox = WorkspaceSandbox.makeFileSystem(
+        yield* FileSystem.FileSystem,
+        yield* ArtifactStore.ArtifactStore,
+        "/w"
+      )
+      const accepted = yield* sandbox.execute({
+        descriptor: descriptor({
+          readSet: [read("a.txt", "A-OLD"), read("b.txt", "B-OLD")],
+          writeSet: ["a.txt", "b.txt"]
+        }),
+        workflow: Effect.gen(function*() {
+          const workspace = yield* WorkspaceSandbox.Workspace
+          yield* workspace.writeFile("a.txt", encoder.encode("A-NEW"))
+          yield* workspace.writeFile("b.txt", encoder.encode("B-NEW"))
+          return null
+        })
+      })
+      if (accepted._tag !== "Accepted") throw new Error("expected accepted execution")
+      return yield* Effect.flip(sandbox.materialize(accepted))
+    }).pipe(Effect.provide(faultLayer(files, (call) => call === 2 || call === 3)))
+
+    const refused = await runPromise(program)
+    expect(refused).toMatchObject({ code: "host_unavailable" })
+    expect(refused.message).toContain("rollback could not restore")
+    expect(refused.message).toContain("injected")
+  })
+})
+
+/**
+ * Confinement and the rollback journal against a real filesystem: symlinks
+ * only exist here, and so does the directory tree the journal must restore.
+ */
+describe("WorkspaceSandbox filesystem host confinement", () => {
+  const nodeLayer = ArtifactStore.layerMemory.pipe(Layer.provideMerge(NodeFileSystem.layer))
+
+  const temp = Effect.gen(function*() {
+    const fs = yield* FileSystem.FileSystem
+    const root = yield* fs.makeTempDirectoryScoped({ prefix: "wsx-root-" })
+    const outside = yield* fs.makeTempDirectoryScoped({ prefix: "wsx-out-" })
+    return { fs, root, outside }
+  })
+
+  const write = (
+    sandbox: WorkspaceSandbox.Service,
+    writes: ReadonlyArray<readonly [path: string, content: string]>,
+    writeSet: ReadonlyArray<string>
+  ) =>
+    Effect.gen(function*() {
+      const accepted = yield* sandbox.execute({
+        descriptor: descriptor({ writeSet: [...writeSet] }),
+        workflow: Effect.gen(function*() {
+          const workspace = yield* WorkspaceSandbox.Workspace
+          for (const [path, content] of writes) {
+            yield* workspace.writeFile(path, encoder.encode(content))
+          }
+          return null
+        })
+      })
+      if (accepted._tag !== "Accepted") throw new Error("expected accepted execution")
+      return accepted
+    })
+
+  it("refuses to write through a file symlink whose target escapes the root", async () => {
+    const program = Effect.scoped(Effect.gen(function*() {
+      const { fs, outside, root } = yield* temp
+      yield* fs.writeFileString(`${outside}/notes.txt`, "OUTSIDE-ORIGINAL")
+      yield* fs.symlink(`${outside}/notes.txt`, `${root}/notes.txt`)
+      const sandbox = WorkspaceSandbox.makeFileSystem(fs, yield* ArtifactStore.ArtifactStore, root)
+      const accepted = yield* write(sandbox, [["notes.txt", "PWNED"]], ["notes.txt"])
+      const refused = yield* Effect.flip(sandbox.materialize(accepted))
+      return {
+        refused,
+        outsideContent: yield* fs.readFileString(`${outside}/notes.txt`),
+        stillLink: (yield* fs.readLink(`${root}/notes.txt`)) === `${outside}/notes.txt`
+      }
+    })).pipe(Effect.provide(nodeLayer))
+
+    const { outsideContent, refused, stillLink } = await runPromise(program)
+    expect(refused).toMatchObject({
+      _tag: "flows/engine-store/WorkspaceError",
+      code: "path_escapes_workspace"
+    })
+    expect(outsideContent).toBe("OUTSIDE-ORIGINAL")
+    expect(stillLink).toBe(true)
+  })
+
+  it("refuses a write redirected by a directory symlink and creates nothing outside", async () => {
+    const program = Effect.scoped(Effect.gen(function*() {
+      const { fs, outside, root } = yield* temp
+      yield* fs.makeDirectory(`${outside}/dir`)
+      yield* fs.symlink(`${outside}/dir`, `${root}/out`)
+      const sandbox = WorkspaceSandbox.makeFileSystem(fs, yield* ArtifactStore.ArtifactStore, root)
+      const accepted = yield* write(sandbox, [["out/planted.txt", "PWNED"]], ["out/**"])
+      const refused = yield* Effect.flip(sandbox.materialize(accepted))
+      return { refused, outsideEntries: yield* fs.readDirectory(`${outside}/dir`) }
+    })).pipe(Effect.provide(nodeLayer))
+
+    const { outsideEntries, refused } = await runPromise(program)
+    expect(refused).toMatchObject({ code: "path_escapes_workspace" })
+    expect(outsideEntries).toEqual([])
+  })
+
+  it("refuses a dangling symlink whose referent would land outside the root", async () => {
+    const program = Effect.scoped(Effect.gen(function*() {
+      const { fs, outside, root } = yield* temp
+      yield* fs.symlink(`${outside}/newfile.txt`, `${root}/dangle.txt`)
+      const sandbox = WorkspaceSandbox.makeFileSystem(fs, yield* ArtifactStore.ArtifactStore, root)
+      const accepted = yield* write(sandbox, [["dangle.txt", "PWNED"]], ["dangle.txt"])
+      const refused = yield* Effect.flip(sandbox.materialize(accepted))
+      return { refused, created: yield* fs.exists(`${outside}/newfile.txt`) }
+    })).pipe(Effect.provide(nodeLayer))
+
+    const { created, refused } = await runPromise(program)
+    expect(refused).toMatchObject({ code: "path_escapes_workspace" })
+    expect(created).toBe(false)
+  })
+
+  it("refuses a dangling symlink that climbs above the filesystem root", async () => {
+    const program = Effect.scoped(Effect.gen(function*() {
+      const { fs, root } = yield* temp
+      yield* fs.symlink(`${"../".repeat(40)}escape.txt`, `${root}/up.txt`)
+      const sandbox = WorkspaceSandbox.makeFileSystem(fs, yield* ArtifactStore.ArtifactStore, root)
+      const accepted = yield* write(sandbox, [["up.txt", "PWNED"]], ["up.txt"])
+      return yield* Effect.flip(sandbox.materialize(accepted))
+    })).pipe(Effect.provide(nodeLayer))
+
+    await expect(runPromise(program)).resolves.toMatchObject({ code: "path_escapes_workspace" })
+  })
+
+  it("refuses an unresolvable chain of dangling symlinks", async () => {
+    const program = Effect.scoped(Effect.gen(function*() {
+      const { fs, root } = yield* temp
+      for (let index = 1; index <= 10; index++) {
+        yield* fs.symlink(`link${index + 1}.txt`, `${root}/link${index}.txt`)
+      }
+      const sandbox = WorkspaceSandbox.makeFileSystem(fs, yield* ArtifactStore.ArtifactStore, root)
+      const accepted = yield* write(sandbox, [["link1.txt", "PWNED"]], ["link1.txt"])
+      return yield* Effect.flip(sandbox.materialize(accepted))
+    })).pipe(Effect.provide(nodeLayer))
+
+    await expect(runPromise(program)).resolves.toMatchObject({ code: "path_escapes_workspace" })
+  })
+
+  it("materializes through symlinks that stay inside the root", async () => {
+    const program = Effect.scoped(Effect.gen(function*() {
+      const { fs, root } = yield* temp
+      yield* fs.writeFileString(`${root}/real.txt`, "old")
+      yield* fs.symlink("real.txt", `${root}/link.txt`)
+      // A dangling link whose referent normalizes to a path inside the root:
+      // writing through it creates the referent, still inside the tree.
+      yield* fs.makeDirectory(`${root}/sub`)
+      yield* fs.symlink("./sub/../fresh.txt", `${root}/l2.txt`)
+      const sandbox = WorkspaceSandbox.makeFileSystem(fs, yield* ArtifactStore.ArtifactStore, root)
+      const accepted = yield* write(
+        sandbox,
+        [
+          ["link.txt", "via-link"],
+          ["l2.txt", "via-dangle"],
+          ["sub/inside.txt", "inside"],
+          ["plain/new.txt", "plain"]
+        ],
+        ["link.txt", "l2.txt", "sub/**", "plain/**"]
+      )
+      yield* sandbox.materialize(accepted)
+      return {
+        real: yield* fs.readFileString(`${root}/real.txt`),
+        stillLink: yield* fs.readLink(`${root}/link.txt`),
+        fresh: yield* fs.readFileString(`${root}/fresh.txt`),
+        inside: yield* fs.readFileString(`${root}/sub/inside.txt`),
+        plain: yield* fs.readFileString(`${root}/plain/new.txt`)
+      }
+    })).pipe(Effect.provide(nodeLayer))
+
+    const { fresh, inside, plain, real, stillLink } = await runPromise(program)
+    expect(real).toBe("via-link")
+    expect(stillLink).toBe("real.txt")
+    expect(fresh).toBe("via-dangle")
+    expect(inside).toBe("inside")
+    expect(plain).toBe("plain")
+  })
+
+  it("rolls back files and created directories when a real write fails mid-apply", async () => {
+    const program = Effect.scoped(Effect.gen(function*() {
+      const { fs, root } = yield* temp
+      yield* fs.writeFileString(`${root}/a.txt`, "old-a")
+      yield* fs.makeDirectory(`${root}/sub`)
+      yield* fs.writeFileString(`${root}/sub/keep.txt`, "keep")
+      const failing: FileSystem.FileSystem = {
+        ...fs,
+        writeFile: (path, data, options) =>
+          path.endsWith("poison.txt")
+            ? Effect.fail(injected(path))
+            : fs.writeFile(path, data, options)
+      }
+      const sandbox = WorkspaceSandbox.makeFileSystem(failing, yield* ArtifactStore.ArtifactStore, root)
+      const accepted = yield* write(
+        sandbox,
+        [
+          ["a.txt", "new-a"],
+          ["b.txt", "new-b"],
+          ["q/deep/poison.txt", "never"],
+          ["sub/inside.txt", "never"]
+        ],
+        ["a.txt", "b.txt", "q/**", "sub/**"]
+      )
+      const refused = yield* Effect.flip(sandbox.materialize(accepted))
+      return {
+        refused,
+        a: yield* fs.readFileString(`${root}/a.txt`),
+        bExists: yield* fs.exists(`${root}/b.txt`),
+        qExists: yield* fs.exists(`${root}/q`),
+        keep: yield* fs.readFileString(`${root}/sub/keep.txt`),
+        insideExists: yield* fs.exists(`${root}/sub/inside.txt`)
+      }
+    })).pipe(Effect.provide(nodeLayer))
+
+    const { a, bExists, insideExists, keep, qExists, refused } = await runPromise(program)
+    expect(refused).toMatchObject({ code: "host_unavailable" })
+    expect(refused.message).toContain("injected")
+    expect(a).toBe("old-a")
+    expect(bExists).toBe(false)
+    expect(qExists).toBe(false)
+    expect(keep).toBe("keep")
+    expect(insideExists).toBe(false)
   })
 })

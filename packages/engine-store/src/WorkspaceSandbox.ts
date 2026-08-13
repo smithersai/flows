@@ -26,7 +26,10 @@
  * through a service this module does not seed (a spawned native process, an
  * undecorated socket) is outside the transaction. Actually denying that
  * ambient access is the VM/`SandboxProvider` provisioning story in
- * `docs/specs/Concepts/Agent Adapters.md`, and it is future work.
+ * `docs/specs/Concepts/Agent Adapters.md`, and it is future work. The one host
+ * write this module *does* perform is confined, however: copy-back resolves
+ * symlinks before it lands a byte and refuses any target whose canonical
+ * location escapes the workspace root.
  *
  * Governing designs: `docs/specs/Concepts/Diff Review.md` (sandbox writes reach
  * the host only via copy-back of a selected, content-addressed, journaled
@@ -39,9 +42,11 @@ import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
 import { Sha256 } from "@smthrs/crypto-next"
 import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
 import { Workspace as KernelWorkspace } from "@smthrs/kernel-next/Workspace"
+import * as Cause from "effect/Cause"
 import * as Context from "effect/Context"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as PlatformError from "effect/PlatformError"
@@ -296,7 +301,8 @@ export type ExecutionResult<Output = unknown> = Accepted<Output> | Invalidated
 export const WorkspaceErrorCode = Schema.Literals([
   "invalid_path",
   "not_found",
-  "host_unavailable"
+  "host_unavailable",
+  "path_escapes_workspace"
 ])
 
 /**
@@ -510,6 +516,28 @@ const parentDirectory = (path: string): string | undefined => {
   return index <= 0 ? undefined : path.slice(0, index)
 }
 
+/** Whether `path` is `root` itself or lies beneath it. Both sides canonical. */
+const contained = (root: string, path: string): boolean => `${path}/`.startsWith(`${root}/`)
+
+/**
+ * Collapses `.` and `..` segments in an absolute slash path without touching
+ * the filesystem. `undefined` when the path climbs above the filesystem root —
+ * a symlink referent that does so cannot be inside any workspace.
+ */
+const collapseDots = (path: string): string | undefined => {
+  const segments: Array<string> = []
+  for (const segment of path.split("/")) {
+    if (segment === "" || segment === ".") continue
+    if (segment === "..") {
+      if (segments.length === 0) return undefined
+      segments.pop()
+      continue
+    }
+    segments.push(segment)
+  }
+  return `/${segments.join("/")}`
+}
+
 // -----------------------------------------------------------------------------
 // the host seam
 // -----------------------------------------------------------------------------
@@ -569,7 +597,9 @@ export interface Host {
   ) => Effect.Effect<Uint8Array | undefined, WorkspaceError, Crypto.Crypto>
   /**
    * Applies the diff to the host, all-or-nothing, as a compare-and-set on
-   * every `beforeDigest`.
+   * every `beforeDigest`. All-or-nothing binds the failure path too: a commit
+   * that refuses mid-apply must restore every path it already touched before
+   * it surfaces the refusal.
    */
   readonly commit: (
     changes: ReadonlyArray<FileChange>
@@ -707,26 +737,32 @@ const changes = Effect.fn("WorkspaceSandbox.changes")(function*(
 })
 
 /**
- * The compare-and-set every copy-back runs before it writes a single byte.
+ * The compare-and-set every copy-back runs before it writes a single byte,
+ * capturing each target's pre-image while it looks.
  *
  * Both hosts share it, so "all-or-nothing" cannot drift between the in-memory
  * conformance implementation and the filesystem one: a bundle whose base moved
- * is refused whole, and the tree is left exactly as it was found.
+ * is refused whole, and the tree is left exactly as it was found. The captured
+ * pre-images are the rollback journal the filesystem host restores from when a
+ * mid-apply refusal would otherwise strand a half-written tree.
  */
-const conflicts = Effect.fn("WorkspaceSandbox.conflicts")(function*(
+const preflight = Effect.fn("WorkspaceSandbox.preflight")(function*(
   changes: ReadonlyArray<FileChange>,
   current: (path: string) => Effect.Effect<Uint8Array | undefined, WorkspaceError, Crypto.Crypto>
 ) {
   const conflicting: Array<string> = []
+  const before = new Map<string, Uint8Array | undefined>()
   for (const change of changes) {
     const content = yield* current(change.path)
+    before.set(change.path, content)
     const digest = content === undefined ? undefined : yield* digestOf(content)
     conflicting.push(...(digest === change.beforeDigest ? [] : [change.path]))
   }
-  return conflicting.length === 0 ? undefined : new MaterializationConflict({
+  const conflict = conflicting.length === 0 ? undefined : new MaterializationConflict({
     paths: conflicting,
     message: "Workspace state changed after the transaction's base snapshot was taken"
   })
+  return { conflict, before }
 })
 
 const revisionOf = Effect.fn("WorkspaceSandbox.revision")(function*(base: ReadonlyMap<string, Uint8Array>) {
@@ -908,7 +944,7 @@ export const makeMemory = (
       retain: (bytes) => Effect.succeed(bytes.slice()),
       commit: Effect.fn("WorkspaceSandbox.commit")(function*(changes) {
         const current = yield* Ref.get(host)
-        const conflict = yield* conflicts(changes, (path) => Effect.succeed(current.get(path)))
+        const { conflict } = yield* preflight(changes, (path) => Effect.succeed(current.get(path)))
         if (conflict !== undefined) return yield* Effect.fail(conflict)
         const next = new Map(current)
         for (const change of changes) {
@@ -964,6 +1000,12 @@ const artifactFailure = (cause: { readonly message: string }): WorkspaceError =>
     message: `the artifact store could not serve the workspace transaction: ${cause.message}`
   })
 
+const escapesWorkspace = (path: string, resolved: string): WorkspaceError =>
+  new WorkspaceError({
+    code: "path_escapes_workspace",
+    message: `materializing ${path} would write outside the workspace root, at ${resolved}`
+  })
+
 /**
  * Builds the filesystem-backed workspace sandbox.
  *
@@ -976,6 +1018,18 @@ const artifactFailure = (cause: { readonly message: string }): WorkspaceError =>
  * detection-by-diff tier; and the OS-level overlay that would fix that is not
  * reachable through Effect's `FileSystem` tag, so it could not run in a
  * browser. Seeding costs a copy of the declared reads and buys both.
+ *
+ * **Copy-back is confined and journaled.** Materialization refuses any change
+ * whose canonical location — after resolving symlinks — escapes the workspace
+ * root, so a pre-existing link inside the tree cannot redirect the one host
+ * write this module performs to a path outside it. And every precondition
+ * that can refuse runs before the first byte lands, while the apply loop
+ * itself keeps each target's pre-image: a host refusal on the Nth write
+ * restores the N − 1 already applied instead of stranding a half-materialized
+ * tree. A staged-rename commit was rejected for this seam because `rename` is
+ * not part of the surface every host implements — the in-memory conformance
+ * hosts and a browser filesystem have no atomic rename to offer — and a
+ * multi-file rename sequence is not atomic anyway.
  *
  * @category constructors
  * @since 0.1.0
@@ -993,6 +1047,86 @@ export const makeFileSystem = (
     const present = yield* fs.exists(path).pipe(Effect.mapError(hostFailure))
     if (!present) return undefined
     return yield* fs.readFile(path).pipe(Effect.mapError(hostFailure))
+  })
+  const realPathIfPresent = (path: string): Effect.Effect<string | undefined, WorkspaceError> =>
+    fs.realPath(path).pipe(
+      Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed(undefined)),
+      Effect.mapError(hostFailure)
+    )
+  // `readLink` succeeds exactly when the path is a symlink; every refusal —
+  // a regular file, a missing path, a host without links at all — is the
+  // same "nothing to resolve" answer.
+  const symlinkTarget = (path: string): Effect.Effect<string | undefined> =>
+    fs.readLink(path).pipe(Effect.catch(() => Effect.succeed(undefined)))
+  const canonicalRoot = fs.realPath(root).pipe(
+    Effect.map((resolved) => resolved.replaceAll(/\/+$/g, "")),
+    Effect.catchReason("PlatformError", "NotFound", () => Effect.succeed(undefined)),
+    Effect.mapError(hostFailure)
+  )
+  /**
+   * Fully resolves one change path and refuses it unless its canonical
+   * location stays inside the workspace root.
+   *
+   * `realPath` resolves every symlink in an existing path; a target that does
+   * not exist yet is anchored on its deepest existing ancestor instead, which
+   * is exactly where a directory symlink would redirect the write. The one
+   * shape `realPath` cannot see is a dangling symlink at the final component —
+   * its referent does not exist — so that is probed with `readLink` and the
+   * referent resolved recursively, fuel-bounded against link cycles. The check
+   * and the write are separate host calls, so a symlink planted between them
+   * is not excluded; closing that window needs an O_NOFOLLOW open, which
+   * Effect's `FileSystem` surface does not carry.
+   */
+  const confine = (
+    canonical: string,
+    path: string,
+    fuel: number
+  ): Effect.Effect<void, WorkspaceError> =>
+    Effect.gen(function*() {
+      const target = hostPath(path)
+      const resolved = yield* realPathIfPresent(target)
+      if (resolved !== undefined) {
+        if (!contained(canonical, resolved)) return yield* Effect.fail(escapesWorkspace(path, resolved))
+        return
+      }
+      const segments = path.split("/")
+      let anchor = canonical
+      let remaining = path
+      for (let index = segments.length - 1; index >= 1; index--) {
+        const ancestor = yield* realPathIfPresent(hostPath(segments.slice(0, index).join("/")))
+        if (ancestor !== undefined) {
+          anchor = ancestor
+          remaining = segments.slice(index).join("/")
+          break
+        }
+      }
+      const speculative = `${anchor}/${remaining}`
+      if (!contained(canonical, speculative)) return yield* Effect.fail(escapesWorkspace(path, speculative))
+      const link = yield* symlinkTarget(target)
+      if (link === undefined) return
+      if (fuel <= 0) return yield* Effect.fail(escapesWorkspace(path, link))
+      // `speculative` is absolute, so the final component always has a parent.
+      const referent = collapseDots(link.startsWith("/") ? link : `${parentDirectory(speculative)!}/${link}`)
+      if (referent === undefined || !contained(canonical, referent)) {
+        return yield* Effect.fail(escapesWorkspace(path, referent ?? link))
+      }
+      return yield* confine(canonical, referent.slice(canonical.length + 1), fuel - 1)
+    })
+  const assertConfined = Effect.fn("WorkspaceSandbox.assertConfined")(function*(
+    changes: ReadonlyArray<FileChange>
+  ) {
+    // An unrooted host names host paths verbatim; there is no boundary to
+    // confine them to.
+    if (root === "") return
+    const resolvedRoot = yield* canonicalRoot
+    // A root that does not resolve holds nothing beneath it, so no symlink
+    // can redirect a write. Hosts without `realPath` at all — the in-memory
+    // conformance hosts, a browser filesystem — land here too, and for them
+    // lexical confinement is exact because they cannot represent a symlink.
+    if (resolvedRoot === undefined) return
+    for (const change of changes) {
+      yield* confine(resolvedRoot, change.path, 8)
+    }
   })
   return makeHosted({
     root,
@@ -1021,22 +1155,20 @@ export const makeFileSystem = (
         ? Effect.succeed(bytes)
         : artifacts.put(bytes).pipe(Effect.mapError(artifactFailure), Effect.as(undefined)),
     commit: Effect.fn("WorkspaceSandbox.commit")(function*(changes) {
-      // PRECONDITIONS FIRST, WRITES SECOND. Every `beforeDigest` is compared
-      // against the live host before any byte lands, so a conflicting bundle
-      // leaves the tree exactly as it found it and the engine's retry starts
-      // from a clean base.
-      const conflict = yield* conflicts(changes, (path) => readIfPresent(hostPath(path)))
+      // PRECONDITIONS FIRST, WRITES SECOND — and the writes are journaled.
+      // Confinement, the compare-and-set, artifact resolution, and the
+      // directory plan all run before any byte lands, so every refusal they
+      // raise leaves the tree exactly as it was found; the apply loop then
+      // restores from the journal when the host refuses mid-sequence, which
+      // is what makes this commit all-or-nothing rather than
+      // conflict-checked-then-hopeful. A process killed mid-apply is the one
+      // failure no in-process journal can undo.
+      yield* assertConfined(changes)
+      const { before, conflict } = yield* preflight(changes, (path) => readIfPresent(hostPath(path)))
       if (conflict !== undefined) return yield* Effect.fail(conflict)
+      const resolved = new Map<string, Uint8Array>()
       for (const change of changes) {
-        const target = hostPath(change.path)
-        if (change.afterDigest === undefined) {
-          yield* fs.remove(target).pipe(Effect.mapError(hostFailure))
-          continue
-        }
-        const parent = parentDirectory(target)
-        if (parent !== undefined) {
-          yield* fs.makeDirectory(parent, { recursive: true }).pipe(Effect.mapError(hostFailure))
-        }
+        if (change.afterDigest === undefined) continue
         const bytes = change.after ?? (yield* artifacts.get(`${change.afterDigest}`).pipe(
           Effect.mapError((error) =>
             error._tag === "@smthrs/artifacts-next/ArtifactStoreError"
@@ -1047,8 +1179,87 @@ export const makeFileSystem = (
               })
           )
         ))
-        yield* fs.writeFile(target, bytes).pipe(Effect.mapError(hostFailure))
+        resolved.set(change.path, bytes)
       }
+      const createdDirectories: Array<string> = []
+      const present = new Map<string, boolean>()
+      for (const change of changes) {
+        if (change.afterDigest === undefined) continue
+        const ancestors: Array<string> = []
+        for (
+          let directory = parentDirectory(hostPath(change.path));
+          directory !== undefined && directory !== root;
+          directory = parentDirectory(directory)
+        ) {
+          ancestors.unshift(directory)
+        }
+        for (const directory of ancestors) {
+          if (present.has(directory)) continue
+          const exists = yield* fs.exists(directory).pipe(Effect.mapError(hostFailure))
+          present.set(directory, exists)
+          if (!exists) createdDirectories.push(directory)
+        }
+      }
+      const applied: Array<FileChange> = []
+      const apply = Effect.gen(function*() {
+        for (const change of changes) {
+          // Journal the change before touching its target: a write that
+          // fails halfway may still have mutated the file it was writing.
+          applied.push(change)
+          const target = hostPath(change.path)
+          if (change.afterDigest === undefined) {
+            yield* fs.remove(target).pipe(Effect.mapError(hostFailure))
+            continue
+          }
+          const parent = parentDirectory(target)
+          if (parent !== undefined) {
+            yield* fs.makeDirectory(parent, { recursive: true }).pipe(Effect.mapError(hostFailure))
+          }
+          yield* fs.writeFile(target, resolved.get(change.path)!).pipe(Effect.mapError(hostFailure))
+        }
+      })
+      const rollback = Effect.gen(function*() {
+        for (const change of [...applied].reverse()) {
+          const target = hostPath(change.path)
+          const previous = before.get(change.path)
+          if (previous === undefined) {
+            yield* fs.remove(target, { force: true }).pipe(Effect.mapError(hostFailure))
+          } else {
+            yield* fs.writeFile(target, previous).pipe(Effect.mapError(hostFailure))
+          }
+        }
+        // Deepest first, and files before directories, so every directory
+        // this commit created is empty again by the time it is removed.
+        // `recursive` is required because the host's `rm` refuses a directory
+        // without it, empty or not — nothing can be inside except what this
+        // commit put there, and that is already gone.
+        for (const directory of [...createdDirectories].reverse()) {
+          yield* fs.remove(directory, { force: true, recursive: true }).pipe(Effect.mapError(hostFailure))
+        }
+      })
+      yield* apply.pipe(
+        Effect.catchCause((cause) =>
+          Effect.gen(function*() {
+            const restored = yield* Effect.exit(rollback)
+            if (Exit.isSuccess(restored)) return yield* Effect.failCause(cause)
+            const reasons = restored.cause.reasons
+              .filter(Cause.isFailReason)
+              .map((reason) => reason.error.message)
+            return yield* Effect.fail(
+              new WorkspaceError({
+                code: "host_unavailable",
+                message: `copy-back failed mid-apply and rollback could not restore the workspace: ${
+                  reasons.join("; ")
+                }`
+              })
+            )
+          })
+        ),
+        // Interruption inside the apply window is a mid-sequence abort the
+        // journal exists to prevent; the window is bounded local work, so it
+        // closes before the fiber answers the interrupt.
+        Effect.uninterruptible
+      )
     })
   })
 }
