@@ -349,10 +349,10 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
    * step is best-effort — a missing directory or failing host never fails the
    * publication.
    *
-   * This is a sweep, not garbage collection. Reclaiming *published* artifacts
-   * is an explicit `release` verb per
-   * `docs/specs/Concepts/Reconciliation.md`, and is ticketed
-   * (`.smithers/tickets/cas-garbage-collection.md`), never folded in here.
+   * This is a sweep of scratch files, not garbage collection. Reclaiming
+   * *published* artifacts is `ArtifactSweep` driven by an explicit
+   * `ArtifactGc.gc()` call in `@smthrs/engine-store-next` — an explicit verb per
+   * `docs/specs/Concepts/Reconciliation.md`, never folded in here.
    */
   let sweepDone = false
   const sweepOrphanedTemps = Effect.gen(function*() {
@@ -408,12 +408,34 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
       // enough. Corruption introduced behind the store's back afterwards is
       // exactly what `get`'s digest check still refuses, and a failing read
       // evicts the memo entry so the next `put` re-verifies and heals.
-      const verified = stored &&
+      let verified = stored &&
         (verifiedDigestSeen(digest) ||
           (yield* fs.readFile(blob.path).pipe(
             Effect.flatMap((existing) => Effect.map(measure(existing), (measured) => measured === digest)),
             Effect.catch(() => Effect.succeed(false))
           )))
+      if (verified) {
+        // Freshen the blob's mtime on a dedupe hit — git's loose-object
+        // freshening, and the touch Bazel's `DiskCacheClient` performs on a
+        // cache hit. The mtime is the age evidence a mark/sweep collector
+        // fences its deletions on (`ArtifactSweep`), so a re-publication of
+        // old bytes must read as a recent reference or the grace period
+        // cannot protect the entry recorded moments later. Best-effort on
+        // hosts without `utimes` (the browser filesystem): a failed freshen
+        // over a blob that still exists keeps the dedupe skip and accepts
+        // git's freshen-versus-prune race; a failed freshen over a blob that
+        // VANISHED — a sweep won it — drops the stale proof and falls through
+        // to the atomic rewrite below, healing the address.
+        const now = yield* Clock.currentTimeMillis
+        const alive = yield* fs.utimes(blob.path, now, now).pipe(
+          Effect.as(true),
+          Effect.catch(() => fs.exists(blob.path).pipe(Effect.catch(() => Effect.succeed(true))))
+        )
+        if (!alive) {
+          verifiedDigests.delete(digest)
+          verified = false
+        }
+      }
       if (!verified) {
         // Atomic publication: a plain write to the canonical address could be
         // observed — or survive a crash — as a partial file that every later

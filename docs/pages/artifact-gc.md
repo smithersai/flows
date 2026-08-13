@@ -1,0 +1,70 @@
+# Artifact GC
+
+Explicit mark/sweep garbage collection for the content-addressed artifact store. It ships in two halves: `@smthrs/engine-store-next` `ArtifactGc` computes the live set from the durable roots and drives the collection, and `@smthrs/artifacts-next` `ArtifactSweep` enumerates and deletes blobs on the host. Nothing runs automatically; `gc()` is a verb a caller invokes.
+
+## Scope
+
+The composition has two content-addressed stores. Only one accumulates garbage.
+
+| Store | Grows how | Collected here |
+| --- | --- | --- |
+| Artifact store (`.flows/objects`, `@smthrs/artifacts-next`) | Every output over the inline bound is spilled as a blob; nothing deletes a published blob | Yes |
+| Step cache (`flows_step_cache`, `@smthrs/step-cache-next`) | One bounded row per step key | No — its rows are the roots of this graph and never become unreachable; removing one is the eviction policy `CacheStore.evict` already serves |
+
+The remote artifact tier is also out of scope: a shared tier can neither be enumerated nor safely swept by one client, so it owns its own retention. Bazel draws the same line — its disk-cache collector is client-side while the remote cache keeps its own policy.
+
+## The algorithm
+
+1. **Mark.** Page through every `flows_step_cache` entry and every `flows_attempts` row, decode each row's boundary evidence, and collect the digests it references (`StepBoundary.referencedDigests`). Attempt checkpoints are also roots: because their JSON is executable state, the marker conservatively keeps any digest-shaped string found there. Every run present in `flows_runs` is a root — there is no deleted-run state, and the attempt table's foreign key guarantees each attempt's run exists. Caller and policy pins join the live set.
+2. **Sweep.** Enumerate the objects directory. A blob is deleted only when it is outside the live set AND older than the grace period, and the deletion itself is fenced on the blob's mtime (`ArtifactSweep.remove`'s `ifUnmodifiedSinceMs`), so a blob freshened after the mark survives.
+
+The grace period is git's model (`gc.pruneExpire`, two weeks by default): a blob spilled by a running step is unreferenced until its attempt row lands, and the grace bound is what protects it in that window. The fence is closed from the write side too — a deduplicated `ArtifactStore.put` freshens the existing blob's mtime (git's loose-object freshening), and if the freshen finds the blob already swept, the put falls through to an atomic republication.
+
+## Usage
+
+```ts
+import { ArtifactSweep } from "@smthrs/artifacts-next"
+import { ArtifactGc } from "@smthrs/engine-store-next"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+
+// ArtifactGc.layer needs SqlClient (the composition's database) and
+// ArtifactSweep (the host-local objects directory).
+const layer = ArtifactGc.layer().pipe(
+  Layer.provide(ArtifactSweep.layerFileSystem())
+)
+
+const collect = Effect.gen(function*() {
+  const collector = yield* ArtifactGc.ArtifactGc
+  // Preview first: deletion is the irreversible direction.
+  const preview = yield* collector.gc({ dryRun: true })
+  const report = yield* collector.gc({ graceMs: 7 * 24 * 60 * 60 * 1000 })
+  return { preview, report }
+})
+```
+
+`gc()` returns a report: `scannedBlobs`, `liveDigests`, `sweptDigests`, `reclaimedBytes`, `keptByGrace`, and `dryRun`.
+
+### The policy hook
+
+`ArtifactGc.layerPolicy` installs an opt-in `ArtifactGcPolicy`: a default `graceMs` and a `pins` effect resolving digests that stay live regardless of reachability (an external index, an export a human wants kept). Explicit `gc()` options override the policy; the policy overrides the defaults. The policy configures collections — it never schedules one.
+
+```ts
+const policy = ArtifactGc.layerPolicy({
+  graceMs: 7 * 24 * 60 * 60 * 1000,
+  pins: Effect.succeed(["<digest an external system still references>"])
+})
+```
+
+## Failure semantics
+
+- **Fail-safe mark.** A root row whose boundary evidence cannot be decoded aborts the collection (`mark_failed`) instead of contributing nothing — reading such a row as "references no artifacts" is exactly how a live blob would be collected. Metadata with no `boundary` key is the ordinary case and contributes nothing.
+- **Checkpoint roots.** Checkpoints are opaque JSON, so GC does not guess a product-specific schema. It keeps digest-shaped strings found anywhere in a live attempt checkpoint; this may retain an unrelated 64-hex string, but it cannot delete bytes a retry still needs.
+- **Crash mid-sweep.** The live set is computed before any deletion, and each deletion is an independent fenced remove, so an interrupted sweep has deleted only garbage. Re-running converges; a blob already gone reports a completed deletion rather than an error.
+- **Concurrent writers.** A blob published during the sweep carries a fresh mtime and is inside the grace bound. A blob re-referenced during the sweep is freshened by the dedupe `put` and fails the deletion fence. Neither needs a lock.
+
+## Limits
+
+- The mark reads boundary evidence recorded by this engine's `StepBoundary`. Evidence recorded by a foreign boundary implementation with a decodable shape contributes the digests it names; a foreign shape that claims a `boundary` but does not decode aborts the collection.
+- The in-memory artifact store is not swept: its lifetime is the process, so nothing durable accumulates.
+- Hosts without `utimes` (the browser filesystem) forgo freshening and accept git's freshen-versus-prune race; the grace period is the remaining protection there.

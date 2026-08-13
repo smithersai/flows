@@ -42,6 +42,7 @@ export default defineConfig({
     { text: "Public API tests", link: "/api-tests" },
     { text: "Observability", link: "/observability" },
     { text: "Checkpoints and compaction", link: "/compaction" },
+    { text: "Artifact GC", link: "/artifact-gc" },
     { text: "Examples", link: "/examples" },
     { text: "Design decisions", link: "/design-decisions" },
     { text: "External", link: "/external" },
