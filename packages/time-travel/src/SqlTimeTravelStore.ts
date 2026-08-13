@@ -100,7 +100,7 @@ export const migrate: Effect.Effect<void, unknown, SqlClient.SqlClient> = Effect
     PRIMARY KEY (run_id, seq)
   )`
 })
-const Json = Schema.UnknownFromJsonString
+const Json = Schema.fromJsonString(Schema.Unknown)
 const RunStateJson = Schema.fromJsonString(RunState)
 const mapError = (cause: unknown) =>
   cause instanceof TimeTravelError ? cause : error("unknown", "time-travel persistence failed", cause)

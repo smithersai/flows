@@ -54,7 +54,7 @@ export type JjErrorCode = typeof JjErrorCode.Type
  * @category errors
  * @since 0.1.0
  */
-export class JjError extends Schema.TaggedErrorClass<JjError>()("@smthrs/jj-next/JjError", {
+export class JjError extends Schema.TaggedError<JjError>()("@smthrs/jj-next/JjError", {
   code: JjErrorCode,
   module: Schema.optional(Schema.String),
   method: Schema.optional(Schema.String),

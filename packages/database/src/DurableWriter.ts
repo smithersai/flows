@@ -39,7 +39,7 @@ export type DatabaseErrorCode = typeof DatabaseErrorCode.Type
  * @category errors
  * @since 0.1.0
  */
-export class DatabaseError extends Schema.TaggedErrorClass<DatabaseError>()("flows/database/DatabaseError", {
+export class DatabaseError extends Schema.TaggedError<DatabaseError>()("flows/database/DatabaseError", {
   code: DatabaseErrorCode,
   cause: Schema.optional(Schema.Defect())
 }) {}

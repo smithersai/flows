@@ -14,7 +14,6 @@
 import * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Encoding from "effect/Encoding"
-import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as SchemaGetter from "effect/SchemaGetter"
 import * as SchemaIssue from "effect/SchemaIssue"
@@ -50,12 +49,12 @@ const encoder = new TextEncoder()
 export const Sha256 = Object.assign(
   Schema.Union([Schema.String, Schema.Uint8Array]).pipe(
     Schema.decodeTo(Digest, {
-      decode: SchemaGetter.transformOrFail((input) =>
+      decode: SchemaGetter.transformOrFail((input, parseOptions) =>
         Effect.gen(function*() {
           const crypto = yield* Crypto.Crypto
           const bytes = typeof input === "string" ? encoder.encode(input) : input
           const digest = yield* crypto.digest("SHA-256", bytes).pipe(
-            Effect.mapError((error) => new SchemaIssue.InvalidValue(Option.some(input), { message: String(error) }))
+            Effect.mapError((error) => new SchemaIssue.InvalidValue({ message: String(error) }, input, parseOptions))
           )
           return Encoding.encodeHex(digest)
         })

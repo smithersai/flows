@@ -135,7 +135,7 @@ export type BoundaryEvidence = typeof BoundaryEvidence.Type
  * @since 0.1.0
  * @category errors
  */
-export class UndeclaredWrite extends Schema.TaggedErrorClass<UndeclaredWrite>()(
+export class UndeclaredWrite extends Schema.TaggedError<UndeclaredWrite>()(
   "flows/engine-store/UndeclaredWrite",
   {
     code: Schema.Literal("undeclared_write"),
@@ -156,7 +156,7 @@ export class UndeclaredWrite extends Schema.TaggedErrorClass<UndeclaredWrite>()(
  * @since 0.1.0
  * @category errors
  */
-export class UnsupportedBoundary extends Schema.TaggedErrorClass<UnsupportedBoundary>()(
+export class UnsupportedBoundary extends Schema.TaggedError<UnsupportedBoundary>()(
   "flows/engine-store/UnsupportedBoundary",
   {
     code: Schema.Literal("unsupported_boundary"),
@@ -174,7 +174,7 @@ export class UnsupportedBoundary extends Schema.TaggedErrorClass<UnsupportedBoun
  * @since 0.1.0
  * @category errors
  */
-export class BoundaryCorruption extends Schema.TaggedErrorClass<BoundaryCorruption>()(
+export class BoundaryCorruption extends Schema.TaggedError<BoundaryCorruption>()(
   "flows/engine-store/BoundaryCorruption",
   {
     code: Schema.Literal("boundary_corruption"),
@@ -195,7 +195,7 @@ export class BoundaryCorruption extends Schema.TaggedErrorClass<BoundaryCorrupti
  * @since 0.1.0
  * @category errors
  */
-export class MissingArtifact extends Schema.TaggedErrorClass<MissingArtifact>()(
+export class MissingArtifact extends Schema.TaggedError<MissingArtifact>()(
   "flows/engine-store/MissingArtifact",
   {
     code: Schema.Literal("missing_artifact"),

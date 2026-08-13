@@ -71,7 +71,7 @@ import * as Graph from "./Graph.ts"
  * @category errors
  * @since 0.1.0
  */
-export class InterpreterError extends Schema.TaggedErrorClass<InterpreterError>()(
+export class InterpreterError extends Schema.TaggedError<InterpreterError>()(
   "@smthrs/flow-next/InterpreterError",
   {
     code: Schema.Literals([

@@ -127,7 +127,7 @@ import { FlowEngine } from "@smthrs/engine-next"
 import { Activity, Flow, Interpreter } from "@smthrs/flow-next"
 import { Effect, Layer, Option, Schema } from "effect"
 
-class ReviewFailed extends Schema.TaggedErrorClass<ReviewFailed>()(
+class ReviewFailed extends Schema.TaggedError<ReviewFailed>()(
   "ReviewFailed",
   { reason: Schema.String }
 ) {}

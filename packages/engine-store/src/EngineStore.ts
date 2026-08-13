@@ -87,7 +87,7 @@ type Requirements =
  * @since 0.1.0
  * @category errors
  */
-export class EngineCompositionError extends Schema.TaggedErrorClass<EngineCompositionError>()(
+export class EngineCompositionError extends Schema.TaggedError<EngineCompositionError>()(
   "flows/engine-store/EngineCompositionError",
   {
     code: Schema.Literal("engine_not_composed"),

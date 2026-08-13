@@ -155,8 +155,8 @@ const effect = (
       )
     ))
 
-class Flaky extends Schema.TaggedErrorClass<Flaky>()("RetryPolicy/Flaky", {}) {}
-class Fatal extends Schema.TaggedErrorClass<Fatal>()("RetryPolicy/Fatal", {}) {}
+class Flaky extends Schema.TaggedError<Flaky>()("RetryPolicy/Flaky", {}) {}
+class Fatal extends Schema.TaggedError<Fatal>()("RetryPolicy/Fatal", {}) {}
 
 describe("engine retry decision point", () => {
   effect("retries a failing activity with policy-derived backoff", () =>

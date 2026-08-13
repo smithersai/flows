@@ -314,7 +314,7 @@ export type WorkspaceErrorCode = typeof WorkspaceErrorCode.Type
  * @category errors
  * @since 0.1.0
  */
-export class WorkspaceError extends Schema.TaggedErrorClass<WorkspaceError>()(
+export class WorkspaceError extends Schema.TaggedError<WorkspaceError>()(
   "flows/engine-store/WorkspaceError",
   {
     code: WorkspaceErrorCode,
@@ -334,7 +334,7 @@ export class WorkspaceError extends Schema.TaggedErrorClass<WorkspaceError>()(
  * @category errors
  * @since 0.1.0
  */
-export class MaterializationConflict extends Schema.TaggedErrorClass<MaterializationConflict>()(
+export class MaterializationConflict extends Schema.TaggedError<MaterializationConflict>()(
   "flows/engine-store/MaterializationConflict",
   {
     paths: Schema.Array(Schema.String),

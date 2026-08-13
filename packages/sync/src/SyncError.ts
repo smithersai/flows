@@ -42,7 +42,7 @@ export type ErrorCode = typeof ErrorCode.Type
  * @category errors
  * @since 0.1.0
  */
-export class SyncError extends Schema.TaggedErrorClass<SyncError>()("flows/sync/SyncError", {
+export class SyncError extends Schema.TaggedError<SyncError>()("flows/sync/SyncError", {
   code: ErrorCode,
   message: Schema.String,
   cause: Schema.optional(Schema.Unknown)
@@ -62,7 +62,7 @@ export class SyncError extends Schema.TaggedErrorClass<SyncError>()("flows/sync/
  * @category errors
  * @since 0.1.0
  */
-export class SyncGapError extends Schema.TaggedErrorClass<SyncGapError>()("flows/sync/SyncGapError", {
+export class SyncGapError extends Schema.TaggedError<SyncGapError>()("flows/sync/SyncGapError", {
   runId: JournalEvent.RunId,
   expectedFrom: JournalEvent.Seq,
   receivedFrom: JournalEvent.Seq

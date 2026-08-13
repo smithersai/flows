@@ -26,6 +26,9 @@
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 
+/** JSON text carrying an arbitrary decoded value. */
+const UnknownFromJsonString = Schema.fromJsonString(Schema.Unknown)
+
 /**
  * A textual redaction rule.
  *
@@ -175,9 +178,9 @@ export const make = (options?: Options): Redactor => (value) => redact(value, op
  * @category redaction
  */
 export const redactJsonString = (json: string, redactor: Redactor): string => {
-  const decoded = Schema.decodeUnknownResult(Schema.UnknownFromJsonString)(json)
+  const decoded = Schema.decodeUnknownResult(UnknownFromJsonString)(json)
   if (Result.isFailure(decoded)) return json
-  const encoded = Schema.encodeUnknownResult(Schema.UnknownFromJsonString)(redactor(decoded.success))
+  const encoded = Schema.encodeUnknownResult(UnknownFromJsonString)(redactor(decoded.success))
   return Result.isSuccess(encoded) ? encoded.success : json
 }
 

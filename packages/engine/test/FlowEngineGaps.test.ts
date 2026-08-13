@@ -529,7 +529,7 @@ describe("activity retry give-up reasons", () => {
 
   effect("a nonRetryable error propagates the original typed failure, not a retry defect", () => {
     let attempts = 0
-    class Fatal extends Schema.ErrorClass<Fatal>("Gaps/Fatal")({
+    class Fatal extends Schema.Error<Fatal>("Gaps/Fatal")({
       _tag: Schema.tag("Fatal"),
       message: Schema.String
     }) {}

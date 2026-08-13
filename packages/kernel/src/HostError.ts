@@ -10,7 +10,7 @@
  *
  *  - the normalized reason lives in a `code` field rather than a nested
  *    `reason._tag`, because ours is a small closed set per service; and
- *  - the classes are `Schema.TaggedErrorClass`, not `Data.TaggedError`, because
+ *  - the classes are `Schema.TaggedError`, not `Data.TaggedError`, because
  *    Host failures cross the durability boundary and must round-trip.
  *
  * Codes are a STABLE public contract: callers branch on them, step keys digest

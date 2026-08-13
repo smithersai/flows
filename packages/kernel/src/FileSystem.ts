@@ -204,7 +204,6 @@ export const layer: Layer.Layer<
     }
     const wrapFile = (file: EffectFileSystem.File, value: string): EffectFileSystem.File => ({
       [EffectFileSystem.FileTypeId]: EffectFileSystem.FileTypeId,
-      fd: file.fd,
       stat: Effect.fn("FileSystem.File.stat")(() =>
         Effect.suspend(() => read(value).pipe(Effect.andThen(file.stat)))
       )(),

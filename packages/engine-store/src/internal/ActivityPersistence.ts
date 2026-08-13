@@ -73,7 +73,7 @@ export interface ActivityInput {
  * @since 0.1.0
  * @category errors
  */
-export class AttemptSuspended extends Schema.TaggedErrorClass<AttemptSuspended>()(
+export class AttemptSuspended extends Schema.TaggedError<AttemptSuspended>()(
   "flows/engine-store/AttemptSuspended",
   {
     code: Schema.Literal("attempt_suspended"),
@@ -96,7 +96,7 @@ export class AttemptSuspended extends Schema.TaggedErrorClass<AttemptSuspended>(
  * @category errors
  */
 export class IrreversibleRetryRequiresIdempotencyKey
-  extends Schema.TaggedErrorClass<IrreversibleRetryRequiresIdempotencyKey>()(
+  extends Schema.TaggedError<IrreversibleRetryRequiresIdempotencyKey>()(
     "flows/engine-store/IrreversibleRetryRequiresIdempotencyKey",
     {
       code: Schema.Literal("irreversible_retry_requires_idempotency_key"),
@@ -115,7 +115,7 @@ export class IrreversibleRetryRequiresIdempotencyKey
  * @since 0.1.0
  * @category errors
  */
-export class AttemptAdmissionRejected extends Schema.TaggedErrorClass<AttemptAdmissionRejected>()(
+export class AttemptAdmissionRejected extends Schema.TaggedError<AttemptAdmissionRejected>()(
   "flows/engine-store/AttemptAdmissionRejected",
   {
     code: Schema.Literal("attempt_admission_rejected"),
@@ -135,7 +135,7 @@ export class AttemptAdmissionRejected extends Schema.TaggedErrorClass<AttemptAdm
  * @since 0.1.0
  * @category errors
  */
-export class CacheConflictDetected extends Schema.TaggedErrorClass<CacheConflictDetected>()(
+export class CacheConflictDetected extends Schema.TaggedError<CacheConflictDetected>()(
   "flows/engine-store/CacheConflictDetected",
   {
     code: Schema.Literal("cache_conflict_detected"),
@@ -154,7 +154,7 @@ export class CacheConflictDetected extends Schema.TaggedErrorClass<CacheConflict
  * @since 0.1.0
  * @category errors
  */
-export class CacheCorruptionDetected extends Schema.TaggedErrorClass<CacheCorruptionDetected>()(
+export class CacheCorruptionDetected extends Schema.TaggedError<CacheCorruptionDetected>()(
   "flows/engine-store/CacheCorruptionDetected",
   {
     code: Schema.Literal("cache_corruption_detected"),
@@ -182,7 +182,7 @@ export class CacheCorruptionDetected extends Schema.TaggedErrorClass<CacheCorrup
  * @since 0.1.0
  * @category errors
  */
-export class AttemptEvidenceQuarantined extends Schema.TaggedErrorClass<AttemptEvidenceQuarantined>()(
+export class AttemptEvidenceQuarantined extends Schema.TaggedError<AttemptEvidenceQuarantined>()(
   "flows/engine-store/AttemptEvidenceQuarantined",
   {
     code: Schema.Literal("attempt_evidence_quarantined"),

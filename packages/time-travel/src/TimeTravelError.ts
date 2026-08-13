@@ -51,7 +51,7 @@ export type TimeTravelErrorCode = typeof TimeTravelErrorCode.Type
  * @since 0.1.0
  * @category errors
  */
-export class TimeTravelError extends Schema.TaggedErrorClass<TimeTravelError>()("flows/time-travel/TimeTravelError", {
+export class TimeTravelError extends Schema.TaggedError<TimeTravelError>()("flows/time-travel/TimeTravelError", {
   code: TimeTravelErrorCode,
   message: Schema.String,
   cause: Schema.optional(Schema.Unknown)

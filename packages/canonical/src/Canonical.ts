@@ -17,7 +17,6 @@
  * @since 0.1.0
  */
 import * as Effect from "effect/Effect"
-import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as SchemaGetter from "effect/SchemaGetter"
 import * as SchemaIssue from "effect/SchemaIssue"
@@ -54,7 +53,7 @@ export type Canonical = typeof Canonical.Type
  */
 export const Canonical = Schema.Unknown.pipe(
   Schema.decodeTo(CanonicalString, {
-    decode: SchemaGetter.transformOrFail((value) =>
+    decode: SchemaGetter.transformOrFail((value, parseOptions) =>
       Effect.gen(function*() {
         yield* validateUnicode(value, new WeakSet()).pipe(
           Effect.mapError((error) => error.issue)
@@ -69,9 +68,11 @@ export const Canonical = Schema.Unknown.pipe(
             return result
           },
           catch: (cause) =>
-            new SchemaIssue.InvalidValue(Option.some(value), {
-              message: cause instanceof Error ? cause.message : String(cause)
-            })
+            new SchemaIssue.InvalidValue(
+              { message: cause instanceof Error ? cause.message : String(cause) },
+              value,
+              parseOptions
+            )
         })
       })
     ),

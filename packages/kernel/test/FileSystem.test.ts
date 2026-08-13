@@ -215,9 +215,8 @@ describe("FileSystem", () => {
     let reads = 0
     const handle: EffectFileSystem.File = {
       [EffectFileSystem.FileTypeId]: EffectFileSystem.FileTypeId,
-      fd: EffectFileSystem.FileDescriptor(1),
       stat: Effect.die("not used"),
-      seek: () => Effect.void,
+      seek: () => Effect.succeed(EffectFileSystem.Size(0)),
       sync: Effect.void,
       read: () => Effect.sync(() => EffectFileSystem.Size(++reads)),
       readAlloc: () => Effect.succeed(Option.none()),

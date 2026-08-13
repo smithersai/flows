@@ -15,7 +15,7 @@ import * as Schema from "effect/Schema"
  * @category errors
  * @since 0.1.0
  */
-export class ExecutionIdRequired extends Schema.TaggedErrorClass<ExecutionIdRequired>()(
+export class ExecutionIdRequired extends Schema.TaggedError<ExecutionIdRequired>()(
   "@smthrs/engine-next/ExecutionIdRequired",
   {
     code: Schema.Literal("execution_id_required").pipe(

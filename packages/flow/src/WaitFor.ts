@@ -42,7 +42,7 @@ import { annotateWaiting } from "./FlowRuntime/WaitingAnnotation.ts"
  * @category errors
  * @since 0.1.0
  */
-export class WaitForRequestInvalid extends Schema.TaggedErrorClass<WaitForRequestInvalid>()(
+export class WaitForRequestInvalid extends Schema.TaggedError<WaitForRequestInvalid>()(
   "@smthrs/flow-next/WaitForRequestInvalid",
   {
     code: Schema.Literals([

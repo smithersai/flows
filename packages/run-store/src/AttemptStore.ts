@@ -23,6 +23,9 @@ import * as Schema from "effect/Schema"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as SqlError from "effect/unstable/sql/SqlError"
 
+/** JSON text carrying an arbitrary decoded value. */
+const UnknownFromJsonString = Schema.fromJsonString(Schema.Unknown)
+
 /**
  * Stable error codes returned by attempt persistence operations.
  *
@@ -55,7 +58,7 @@ export type AttemptStoreErrorCode = typeof AttemptStoreErrorCode.Type
  * @category errors
  * @since 0.1.0
  */
-export class AttemptStoreError extends Schema.TaggedErrorClass<AttemptStoreError>()(
+export class AttemptStoreError extends Schema.TaggedError<AttemptStoreError>()(
   "flows/journal/AttemptStoreError",
   {
     code: AttemptStoreErrorCode,
@@ -320,7 +323,7 @@ const error = (code: AttemptStoreErrorCode, message: string, cause?: unknown): A
 // verbatim as the replayed result, so nothing rewrites them on the way
 // through (issue #72).
 const encode = (value: unknown, field: string): Effect.Effect<string, AttemptStoreError> =>
-  Schema.encodeEffect(Schema.UnknownFromJsonString)(value).pipe(
+  Schema.encodeEffect(UnknownFromJsonString)(value).pipe(
     Effect.mapError((cause) => error("invalid_attempt", `${field} must be JSON-serializable`, cause))
   )
 
@@ -350,7 +353,7 @@ const encodeCheckpointWith = (
 const decode = (value: string | null, field: string): Effect.Effect<unknown | undefined, AttemptStoreError> =>
   value === null
     ? Effect.succeed(undefined)
-    : Schema.decodeUnknownEffect(Schema.UnknownFromJsonString)(value).pipe(
+    : Schema.decodeUnknownEffect(UnknownFromJsonString)(value).pipe(
       Effect.mapError((cause) => error("decode_failed", `could not decode ${field}`, cause))
     )
 

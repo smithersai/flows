@@ -85,7 +85,7 @@ export type ArtifactStoreErrorCode = typeof ArtifactStoreErrorCode.Type
  * @category errors
  * @since 0.1.0
  */
-export class ArtifactStoreError extends Schema.TaggedErrorClass<ArtifactStoreError>()(
+export class ArtifactStoreError extends Schema.TaggedError<ArtifactStoreError>()(
   "@smthrs/artifacts-next/ArtifactStoreError",
   {
     code: ArtifactStoreErrorCode,
@@ -104,7 +104,7 @@ export class ArtifactStoreError extends Schema.TaggedErrorClass<ArtifactStoreErr
  * @category errors
  * @since 0.1.0
  */
-export class ArtifactMissing extends Schema.TaggedErrorClass<ArtifactMissing>()(
+export class ArtifactMissing extends Schema.TaggedError<ArtifactMissing>()(
   "@smthrs/artifacts-next/ArtifactMissing",
   {
     code: Schema.Literal("artifact_missing"),
@@ -122,7 +122,7 @@ export class ArtifactMissing extends Schema.TaggedErrorClass<ArtifactMissing>()(
  * @category errors
  * @since 0.1.0
  */
-export class ArtifactCorruption extends Schema.TaggedErrorClass<ArtifactCorruption>()(
+export class ArtifactCorruption extends Schema.TaggedError<ArtifactCorruption>()(
   "@smthrs/artifacts-next/ArtifactCorruption",
   {
     code: Schema.Literal("artifact_corruption"),

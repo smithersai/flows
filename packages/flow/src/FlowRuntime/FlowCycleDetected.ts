@@ -25,7 +25,7 @@ import * as Schema from "effect/Schema"
  * @category errors
  * @since 0.1.0
  */
-export class FlowCycleDetected extends Schema.TaggedErrorClass<FlowCycleDetected>()(
+export class FlowCycleDetected extends Schema.TaggedError<FlowCycleDetected>()(
   "flows/engine/FlowCycleDetected",
   {
     /** Stable public error code. */

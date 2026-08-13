@@ -230,7 +230,7 @@ export type Requirements =
  * @since 0.1.0
  * @category errors
  */
-export class SchedulerError extends Schema.TaggedErrorClass<SchedulerError>()("flows/engine-store/SchedulerError", {
+export class SchedulerError extends Schema.TaggedError<SchedulerError>()("flows/engine-store/SchedulerError", {
   code: Schema.Literals(["boundary_unavailable", "key_uncomputable", "elaboration_failed", "store_failed"]),
   message: Schema.String,
   cause: Schema.optional(Schema.Unknown)

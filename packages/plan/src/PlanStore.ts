@@ -51,7 +51,7 @@ export type PlanStoreErrorCode = typeof PlanStoreErrorCode.Type
  * @since 0.1.0
  * @category errors
  */
-export class PlanStoreError extends Schema.TaggedErrorClass<PlanStoreError>()("flows/plan/PlanStoreError", {
+export class PlanStoreError extends Schema.TaggedError<PlanStoreError>()("flows/plan/PlanStoreError", {
   code: PlanStoreErrorCode,
   message: Schema.String,
   cause: Schema.optional(Schema.Unknown)

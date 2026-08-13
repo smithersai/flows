@@ -17,6 +17,9 @@ import type * as SqlError from "effect/unstable/sql/SqlError"
 import { heartbeatStaleAfter } from "./Heartbeat.ts"
 import type { LivenessEvidence } from "./Ownership.ts"
 
+/** JSON text carrying an arbitrary decoded value. */
+const UnknownFromJsonString = Schema.fromJsonString(Schema.Unknown)
+
 /**
  * Stable run states understood by the durability layer.
  *
@@ -76,7 +79,7 @@ export type RunStoreErrorCode = typeof RunStoreErrorCode.Type
  * @since 0.1.0
  * @category errors
  */
-export class RunStoreError extends Schema.TaggedErrorClass<RunStoreError>()("flows/journal/RunStoreError", {
+export class RunStoreError extends Schema.TaggedError<RunStoreError>()("flows/journal/RunStoreError", {
   code: RunStoreErrorCode,
   method: Schema.String,
   message: Schema.String,
@@ -431,7 +434,7 @@ const invalidRunError = (method: string, cause: unknown): RunStoreError =>
   runStoreError(method, "invalid_run", "run input is invalid", cause)
 
 const isJsonString = (value: string): boolean =>
-  Schema.decodeUnknownResult(Schema.UnknownFromJsonString)(value)._tag === "Success"
+  Schema.decodeUnknownResult(UnknownFromJsonString)(value)._tag === "Success"
 
 const ownerFromColumns = (
   hostId: string | null,

@@ -22,7 +22,7 @@ import { Capability, CapabilityPattern, type EffectTier, format, matches } from 
  * @category errors
  * @since 0.1.0
  */
-export class PermissionRequired extends Schema.TaggedErrorClass<PermissionRequired>()(
+export class PermissionRequired extends Schema.TaggedError<PermissionRequired>()(
   "@smthrs/capability-next/PermissionRequired",
   {
     code: Schema.Literal("permission_required"),
@@ -51,7 +51,7 @@ export class PermissionRequired extends Schema.TaggedErrorClass<PermissionRequir
  * @category errors
  * @since 0.1.0
  */
-export class PermissionDenied extends Schema.TaggedErrorClass<PermissionDenied>()(
+export class PermissionDenied extends Schema.TaggedError<PermissionDenied>()(
   "@smthrs/capability-next/PermissionDenied",
   {
     code: Schema.Literal("permission_denied"),
@@ -99,7 +99,7 @@ export type GrantStoreErrorCode = typeof GrantStoreErrorCode.Type
  * @category errors
  * @since 0.1.0
  */
-export class GrantStoreError extends Schema.TaggedErrorClass<GrantStoreError>()(
+export class GrantStoreError extends Schema.TaggedError<GrantStoreError>()(
   "@smthrs/capability-next/GrantStoreError",
   {
     code: GrantStoreErrorCode,

@@ -42,7 +42,7 @@ import * as Schema from "effect/Schema"
  * @since 0.1.0
  * @category errors
  */
-export class ArtifactPublicationFailed extends Schema.TaggedErrorClass<ArtifactPublicationFailed>()(
+export class ArtifactPublicationFailed extends Schema.TaggedError<ArtifactPublicationFailed>()(
   "flows/engine-store/ArtifactPublicationFailed",
   {
     code: Schema.Literal("artifact_publication_failed"),

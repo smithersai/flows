@@ -19,6 +19,9 @@ import * as Schema from "effect/Schema"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as SqlError from "effect/unstable/sql/SqlError"
 
+/** JSON text carrying an arbitrary decoded value. */
+const UnknownFromJsonString = Schema.fromJsonString(Schema.Unknown)
+
 /**
  * Stable error codes returned by cache persistence operations.
  *
@@ -51,7 +54,7 @@ export type CacheStoreErrorCode = typeof CacheStoreErrorCode.Type
  * @category errors
  * @since 0.1.0
  */
-export class CacheStoreError extends Schema.TaggedErrorClass<CacheStoreError>()(
+export class CacheStoreError extends Schema.TaggedError<CacheStoreError>()(
   "flows/journal/CacheStoreError",
   {
     code: CacheStoreErrorCode,
@@ -187,7 +190,7 @@ const encode = (value: unknown, field: string): Effect.Effect<string, CacheStore
   )
 
 const decode = (value: string, field: string): Effect.Effect<unknown, CacheStoreError> =>
-  Schema.decodeUnknownEffect(Schema.UnknownFromJsonString)(value).pipe(
+  Schema.decodeUnknownEffect(UnknownFromJsonString)(value).pipe(
     Effect.mapError((cause) => error("decode_failed", `could not decode ${field}`, cause))
   )
 

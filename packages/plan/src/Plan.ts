@@ -201,7 +201,7 @@ export interface NodeDraft {
  * @since 0.1.0
  * @category errors
  */
-export class PlanError extends Schema.TaggedErrorClass<PlanError>()("flows/plan/PlanError", {
+export class PlanError extends Schema.TaggedError<PlanError>()("flows/plan/PlanError", {
   code: Schema.Literals(["cycle", "unknown_dependency", "duplicate_node", "overlap_forbidden"]),
   message: Schema.String
 }) {}

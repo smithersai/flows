@@ -20,6 +20,9 @@ import * as Schema from "effect/Schema"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as EngineStateSchema from "./internal/EngineStateSchema.ts"
 
+/** JSON text carrying an arbitrary decoded value. */
+const UnknownFromJsonString = Schema.fromJsonString(Schema.Unknown)
+
 /** @private */
 const NonNegativeSafeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
 
@@ -330,7 +333,7 @@ export type AttemptSurvivors = typeof AttemptSurvivors.Type
  * @since 0.1.0
  * @category errors
  */
-export class RunParentCycleError extends Schema.TaggedErrorClass<RunParentCycleError>()(
+export class RunParentCycleError extends Schema.TaggedError<RunParentCycleError>()(
   "flows/engine-store/RunParentCycleError",
   {
     path: Schema.Array(Schema.String)
@@ -601,13 +604,13 @@ const findCyclePath = (
 const DeferredAddressDatabaseRow = DeferredAddress
 
 const encodeJson = (value: unknown, field: string): Effect.Effect<string> =>
-  Schema.encodeEffect(Schema.UnknownFromJsonString)(value).pipe(
+  Schema.encodeEffect(UnknownFromJsonString)(value).pipe(
     Effect.mapError((cause) => new Error(`${field} must be JSON-serializable`, { cause })),
     Effect.orDie
   )
 
 const decodeJson = (value: string, field: string): Effect.Effect<unknown> =>
-  Schema.decodeUnknownEffect(Schema.UnknownFromJsonString)(value).pipe(
+  Schema.decodeUnknownEffect(UnknownFromJsonString)(value).pipe(
     Effect.mapError((cause) => new Error(`could not decode ${field}`, { cause })),
     Effect.orDie
   )

@@ -54,7 +54,7 @@ export type JournalErrorCode = typeof JournalErrorCode.Type
  * @category errors
  * @since 0.1.0
  */
-export class JournalError extends Schema.TaggedErrorClass<JournalError>()("flows/journal/JournalError", {
+export class JournalError extends Schema.TaggedError<JournalError>()("flows/journal/JournalError", {
   code: JournalErrorCode,
   message: Schema.String,
   cause: Schema.optional(Schema.Unknown)

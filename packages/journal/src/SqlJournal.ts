@@ -48,6 +48,9 @@ import type { OwnerId } from "./OwnerId.ts"
 import type { Projection } from "./Projection.ts"
 import * as Redaction from "./Redaction.ts"
 
+/** JSON text carrying an arbitrary decoded value. */
+const UnknownFromJsonString = Schema.fromJsonString(Schema.Unknown)
+
 /**
  * SQL journal queue and batching options.
  *
@@ -190,7 +193,7 @@ const sourceEventKey = (runId: RunId, sourceId: SourceId, sourceSeq: SourceSeq):
   `${sourceKey(runId, sourceId)}:${sourceSeq}`
 
 const encodeJson = (value: unknown, field: string): Result.Result<string, JournalError> =>
-  Schema.encodeUnknownResult(Schema.UnknownFromJsonString)(value).pipe(
+  Schema.encodeUnknownResult(UnknownFromJsonString)(value).pipe(
     Result.mapError((cause) => error("invalid_event", `${field} must be JSON-serializable`, cause))
   )
 
@@ -199,8 +202,8 @@ const decodeEntry = Schema.decodeUnknownEffect(Entry)
 
 const decodeRow = (row: JournalRow): Effect.Effect<Entry, JournalError> =>
   Effect.all({
-    payload: Schema.decodeUnknownEffect(Schema.UnknownFromJsonString)(row.payload_json),
-    meta: Schema.decodeUnknownEffect(Schema.UnknownFromJsonString)(row.meta_json)
+    payload: Schema.decodeUnknownEffect(UnknownFromJsonString)(row.payload_json),
+    meta: Schema.decodeUnknownEffect(UnknownFromJsonString)(row.meta_json)
   }).pipe(
     Effect.map(({ meta, payload }) => ({
       runId: row.run_id as RunId,

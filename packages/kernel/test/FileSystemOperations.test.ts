@@ -31,7 +31,6 @@ const scriptedStore = (
 
 const file = (calls: Array<string>): EffectFileSystem.File => ({
   [EffectFileSystem.FileTypeId]: EffectFileSystem.FileTypeId,
-  fd: 3 as EffectFileSystem.File.Descriptor,
   stat: Effect.sync(() => {
     calls.push("file.stat")
     return {} as EffectFileSystem.File.Info
@@ -385,7 +384,6 @@ describe("FileSystem operation guards", () => {
               yield* handle.write(new Uint8Array(1))
               yield* handle.writeAll(new Uint8Array(1))
               yield* handle.seek(0, "current")
-              return handle.fd
             })
           ),
         hostFileSystem(calls),

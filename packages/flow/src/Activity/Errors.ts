@@ -21,7 +21,7 @@ import * as Schema from "effect/Schema"
  * @category errors
  * @since 0.1.0
  */
-export class InfraInterrupt extends Schema.TaggedErrorClass<InfraInterrupt>()(
+export class InfraInterrupt extends Schema.TaggedError<InfraInterrupt>()(
   "@smthrs/engine-next/InfraInterrupt",
   {
     code: Schema.Literal("infra_interrupt").pipe(
@@ -39,7 +39,7 @@ export class InfraInterrupt extends Schema.TaggedErrorClass<InfraInterrupt>()(
  * @since 0.1.0
  */
 export class IrreversibleRetryRequiresIdempotencyKey
-  extends Schema.TaggedErrorClass<IrreversibleRetryRequiresIdempotencyKey>()(
+  extends Schema.TaggedError<IrreversibleRetryRequiresIdempotencyKey>()(
     "@smthrs/engine-next/IrreversibleRetryRequiresIdempotencyKey",
     {
       code: Schema.Literal("irreversible_retry_requires_idempotency_key").pipe(
@@ -67,7 +67,7 @@ export class IrreversibleRetryRequiresIdempotencyKey
  * @category errors
  * @since 0.1.0
  */
-export class ConcurrentKeylessDispatch extends Schema.TaggedErrorClass<ConcurrentKeylessDispatch>()(
+export class ConcurrentKeylessDispatch extends Schema.TaggedError<ConcurrentKeylessDispatch>()(
   "@smthrs/engine-next/ConcurrentKeylessDispatch",
   {
     code: Schema.Literal("concurrent_keyless_dispatch").pipe(
@@ -86,7 +86,7 @@ export class ConcurrentKeylessDispatch extends Schema.TaggedErrorClass<Concurren
  * @category errors
  * @since 0.1.0
  */
-export class UncanonicalIdempotencyKey extends Schema.TaggedErrorClass<UncanonicalIdempotencyKey>()(
+export class UncanonicalIdempotencyKey extends Schema.TaggedError<UncanonicalIdempotencyKey>()(
   "@smthrs/engine-next/UncanonicalIdempotencyKey",
   {
     code: Schema.Literal("uncanonical_idempotency_key").pipe(

@@ -8,7 +8,6 @@
 import * as Data from "effect/Data"
 import * as Effect from "effect/Effect"
 import type * as Exit from "effect/Exit"
-import * as Option from "effect/Option"
 import * as Predicate from "effect/Predicate"
 import * as Schema from "effect/Schema"
 import * as SchemaIssue from "effect/SchemaIssue"
@@ -114,16 +113,21 @@ export class Complete<A, E> extends Data.TaggedClass("Complete")<{
       [Schema.Exit(options.success, options.error, Schema.Defect())],
       ([exit]) => (input, ast, options) => {
         if (!(isResult(input) && input._tag === "Complete")) {
-          return Effect.fail(new SchemaIssue.InvalidType(ast, Option.some(input)))
+          return Effect.fail(new SchemaIssue.InvalidType(ast, input, options))
         }
         return Effect.mapBothEager(
           SchemaParser.decodeEffect(exit)(input.exit, options),
           {
             onSuccess: (exit) => new Complete({ exit }),
             onFailure: (issue) =>
-              new SchemaIssue.Composite(ast, Option.some(input), [
-                new SchemaIssue.Pointer(["exit"], issue)
-              ])
+              new SchemaIssue.Composite(
+                ast,
+                [
+                  new SchemaIssue.Pointer(["exit"], issue)
+                ],
+                input,
+                options
+              )
           }
         )
       },

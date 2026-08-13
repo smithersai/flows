@@ -14,7 +14,7 @@ import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import { durableEngine } from "./durable-layer.ts"
 
-class Flaky extends Schema.TaggedErrorClass<Flaky>()("examples/Flaky", {
+class Flaky extends Schema.TaggedError<Flaky>()("examples/Flaky", {
   message: Schema.String
 }) {}
 
