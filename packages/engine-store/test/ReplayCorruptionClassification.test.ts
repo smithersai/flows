@@ -11,20 +11,28 @@
  * transient host errors stay retryable and never reach the receiver. Both
  * classes journal their `reason` on the `replay_failed` provenance record.
  */
+import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
+import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
 import { Journal } from "@smthrs/journal-next"
 import { Jj } from "@smthrs/kernel-next"
+import * as KernelWorkspace from "@smthrs/kernel-next/Workspace"
 import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store-next"
 import { CacheStore } from "@smthrs/step-cache-next"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
+import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import { mkdtempSync, rmSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import * as Inconsistency from "../src/Inconsistency.ts"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
+import * as WorkspaceSandbox from "../src/WorkspaceSandbox.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "corruption-host", pid: 91, nonce: "corruption-process" }
@@ -530,6 +538,141 @@ describe("replay-failed classification (issue #150)", () => {
       result: "fresh",
       recordedRunId: "corruption-fence-fresh"
     })
+  })
+
+  it("heals a genuinely truncated artifact through corruption eviction and clean replay (issue #174)", async () => {
+    const root = mkdtempSync(join(tmpdir(), "flows-corruption-heal-"))
+    const key = "corruption/real-truncated-blob"
+    const keyDigest = sha256(key)
+    const inputPath = join(root, "src/input.txt")
+    const outputPath = join(root, "dist/artifact.bin")
+    const objectsDirectory = join(root, ".flows/objects")
+    const artifact = new TextEncoder().encode("clean-artifact".repeat(100_000))
+    const artifactDigest = sha256(artifact)
+    const artifactPath = join(objectsDirectory, artifactDigest.slice(0, 2), artifactDigest)
+    const metadata: ActivityPersistence.BoundaryMetadata = {
+      readSet: [{ path: inputPath, digest: sha256("source") }],
+      writeSet: [outputPath],
+      boundaryMode: "hard"
+    }
+    const host = NodeFileSystem.layer
+    const artifacts = ArtifactStore.layerFileSystem({ directory: objectsDirectory }).pipe(
+      Layer.provideMerge(host)
+    )
+    const production = Layer.merge(
+      StepBoundary.layer.pipe(Layer.provide(artifacts)),
+      WorkspaceSandbox.layerFileSystem().pipe(
+        Layer.provide(artifacts),
+        Layer.provide(KernelWorkspace.layer(root))
+      )
+    ).pipe(Layer.provideMerge(artifacts))
+
+    try {
+      const outcome = await runPromise(
+        Effect.gen(function*() {
+          const cache = yield* CacheStore.CacheStore
+          const fs = yield* FileSystem.FileSystem
+          yield* fs.makeDirectory(join(root, "src"), { recursive: true })
+          yield* fs.writeFileString(inputPath, "source")
+          let executions = 0
+          const execute = () =>
+            Effect.gen(function*() {
+              executions++
+              const sandboxFs = yield* FileSystem.FileSystem
+              yield* sandboxFs.writeFile(outputPath, artifact)
+              return "recorded"
+            }).pipe(Effect.orDie) as unknown as Effect.Effect<unknown, unknown>
+          const realDispatch = (runId: string) =>
+            ActivityPersistence.make({ runId, owner, sourceId: `corruption-${runId}`, execute })({
+              activity: {},
+              attempt: 1,
+              key,
+              tier: "sealed",
+              metadata
+            })
+
+          yield* activate("corruption-real-first")
+          yield* realDispatch("corruption-real-first")
+          const poisoned = yield* cache.get(keyDigest)
+          if (Option.isNone(poisoned)) return yield* Effect.die(new Error("poisoned row missing"))
+          expect(yield* fs.exists(artifactPath)).toBe(true)
+
+          // Damage the actual content-addressed file after capture. The next
+          // replay must discover this through ArtifactStore's digest check.
+          yield* fs.writeFileString(artifactPath, "truncated")
+          yield* fs.remove(outputPath)
+
+          let evictionResult: boolean | undefined
+          let cacheAbsentAtEvict = false
+          const observingCache: CacheStore.Service = {
+            ...cache,
+            evict: (digest, options) =>
+              Effect.gen(function*() {
+                evictionResult = yield* cache.evict(digest, options)
+                cacheAbsentAtEvict = Option.isNone(yield* cache.get(digest))
+                return evictionResult
+              })
+          }
+          yield* activate("corruption-real-second")
+          const healed = yield* realDispatch("corruption-real-second").pipe(
+            Effect.provide(Inconsistency.layerTolerant),
+            Effect.provideService(CacheStore.CacheStore, observingCache)
+          )
+          const recorded = yield* cache.get(keyDigest)
+          const provenance = yield* records("corruption-real-second", "flows.engine.cache-provenance")
+          const corruption = yield* records("corruption-real-second", "flows.engine.cache-corruption")
+          const healedBlob = yield* fs.readFile(artifactPath)
+
+          // Remove the materialized output once more. The third run must be a
+          // clean cache hit that restores it without executing the body.
+          yield* fs.remove(outputPath)
+          yield* activate("corruption-real-third")
+          const replayed = yield* realDispatch("corruption-real-third")
+          const replayedOutput = yield* fs.readFile(outputPath)
+          const hit = yield* records("corruption-real-third", "flows.engine.cache-provenance")
+          return {
+            cacheAbsentAtEvict,
+            corruption,
+            evictionResult,
+            executions,
+            healed,
+            healedBlob,
+            hit,
+            provenance,
+            recorded,
+            replayed,
+            replayedOutput
+          }
+        }).pipe(
+          Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer, production)),
+          Effect.scoped
+        )
+      )
+
+      expect(outcome.evictionResult).toBe(true)
+      expect(outcome.cacheAbsentAtEvict).toBe(true)
+      expect(outcome.healed).toBe("recorded")
+      expect(outcome.executions).toBe(2)
+      expect(Option.getOrThrow(outcome.recorded).recordedRunId).toBe("corruption-real-second")
+      expect(sha256(outcome.healedBlob)).toBe(artifactDigest)
+      expect(outcome.provenance.find((payload) => payload.action === "replay_failed")?.reason)
+        .toBe("corruption")
+      expect(outcome.corruption).toEqual([
+        expect.objectContaining({
+          keyDigest,
+          path: outputPath,
+          recordedDigest: artifactDigest,
+          measuredDigest: sha256("truncated")
+        })
+      ])
+      expect(outcome.replayed).toBe("recorded")
+      expect(sha256(outcome.replayedOutput)).toBe(artifactDigest)
+      expect(outcome.hit).toEqual([
+        expect.objectContaining({ keyDigest, recordedRunId: "corruption-real-second" })
+      ])
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 
   it("replaces the poisoned row when a tolerant receiver falls back to re-execution (issue #164)", async () => {
