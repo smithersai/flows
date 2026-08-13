@@ -11,7 +11,7 @@
  */
 import { DurableWriter } from "@smthrs/database/DurableWriter"
 import * as TestDatabase from "@smthrs/database/test/TestDatabase"
-import { Effect, Layer, PubSub } from "effect"
+import { Deferred, Effect, Fiber, Layer, PubSub } from "effect"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
@@ -41,6 +41,19 @@ const input = (
     payload
   }, { disableChecks: true })
 
+const allocatedInput = (
+  run: RunId,
+  source: SourceId,
+  eventType: string,
+  payload: unknown
+): Input =>
+  new Input({
+    runId: run,
+    sourceId: source,
+    eventType,
+    payload
+  })
+
 const migratedDatabase = Layer.provideMerge(Migrations.layer, TestDatabase.layer)
 
 const stack = SqlJournal.layer({ capacity: 8, overflow: "reject" }).pipe(
@@ -52,8 +65,8 @@ const withStack = <A, E>(
 ) => Effect.scoped(body.pipe(Effect.provide(stack)))
 
 const rowsOf = (sql: SqlClient.SqlClient, run: RunId) =>
-  sql<{ readonly seq: number; readonly event_type: string }>`
-    SELECT seq, event_type FROM flows_journal_events WHERE run_id = ${run} ORDER BY seq ASC
+  sql<{ readonly seq: number; readonly source_seq: number; readonly event_type: string }>`
+    SELECT seq, source_seq, event_type FROM flows_journal_events WHERE run_id = ${run} ORDER BY seq ASC
   `
 
 class Rejected extends Error {
@@ -177,6 +190,37 @@ describe("Journal.emitLossy against an open transaction", () => {
         const rows = yield* rowsOf(sql, run)
         expect(rows.map((row) => row.event_type)).toEqual(["first", "second", "lossy"])
         expect(rows.map((row) => row.seq)).toEqual([0, 1, 2])
+      }))
+  )
+
+  effect(
+    "reserves a durable producer sequence before an open transaction commits",
+    () =>
+      withStack(Effect.gen(function*() {
+        const journal = yield* Journal
+        const sql = yield* Effect.service(SqlClient.SqlClient)
+        const run = runId("lossy-source-vs-open-transact")
+        const source = sourceId("shared-producer")
+        const release = yield* Deferred.make<void>()
+        const ready = yield* Deferred.make<void>()
+        const lossy = yield* Effect.gen(function*() {
+          yield* Deferred.succeed(ready, undefined)
+          yield* Deferred.await(release)
+          return yield* journal.emitLossy(allocatedInput(run, source, "lossy", { value: 2 }))
+        }).pipe(Effect.forkChild({ startImmediately: true }))
+
+        yield* Deferred.await(ready)
+        yield* journal.transact(Effect.gen(function*() {
+          yield* journal.emitDurable(allocatedInput(run, source, "durable", { value: 1 }))
+          yield* Deferred.succeed(release, undefined)
+          yield* Fiber.join(lossy)
+        }))
+        yield* journal.flush
+
+        const rows = yield* rowsOf(sql, run)
+        expect(rows.map((row) => row.event_type)).toEqual(["durable", "lossy"])
+        expect(rows.map((row) => row.seq)).toEqual([0, 1])
+        expect(rows.map((row) => row.source_seq)).toEqual([0, 1])
       }))
   )
 })

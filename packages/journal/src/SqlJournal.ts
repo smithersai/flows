@@ -352,6 +352,12 @@ export const layer = (
         state.sequences.set(runId, Math.max(state.sequences.get(runId) ?? 0, seq + 1))
       }
 
+      /** Raises the in-process producer-sequence allocation floor. */
+      const raiseSourceSequenceFloor = (runId: RunId, sourceId: SourceId, sourceSeq: number): void => {
+        const key = sourceKey(runId, sourceId)
+        state.sourceSequences.set(key, Math.max(state.sourceSequences.get(key) ?? 0, sourceSeq + 1))
+      }
+
       /**
        * Adds an entry to the bounded source-event index, evicting the
        * least-recently added *committed* entry when the bound is exceeded.
@@ -843,8 +849,7 @@ export const layer = (
           status: "committed"
         })
         raiseSequenceFloor(queued.runId, seq)
-        const key = sourceKey(queued.runId, queued.sourceId)
-        state.sourceSequences.set(key, Math.max(state.sourceSequences.get(key) ?? 0, queued.sourceSeq + 1))
+        raiseSourceSequenceFloor(queued.runId, queued.sourceId, queued.sourceSeq)
       }
 
       /**
@@ -914,12 +919,24 @@ export const layer = (
             seq: seq === undefined ? nextDurable("seq", runId, undefined) : Effect.succeed(seq),
             sourceSeq: nextDurable("source_seq", runId, sourceId)
           }).pipe(
-            Effect.map((floors) => {
-              state.sequences.set(runId, floors.seq)
-              state.sourceSequences.set(key, floors.sourceSeq)
-              return floors
-            }),
-            Effect.mapError((cause) => error("sink_failed", "could not read journal allocation floor", cause))
+            Effect.mapError((cause) => error("sink_failed", "could not read journal allocation floor", cause)),
+            Effect.flatMap((floors) => {
+              if (
+                !Number.isSafeInteger(floors.seq) ||
+                floors.seq < 0 ||
+                !Number.isSafeInteger(floors.sourceSeq) ||
+                floors.sourceSeq < 0
+              ) {
+                return Effect.fail(
+                  error("invalid_event", "journal sequence is outside the allocatable safe integer range")
+                )
+              }
+              const currentSeq = Math.max(floors.seq, state.sequences.get(runId) ?? 0)
+              const currentSourceSeq = Math.max(floors.sourceSeq, state.sourceSequences.get(key) ?? 0)
+              state.sequences.set(runId, currentSeq)
+              state.sourceSequences.set(key, currentSourceSeq)
+              return Effect.succeed({ seq: currentSeq, sourceSeq: currentSourceSeq })
+            })
           )
         })
 
@@ -980,7 +997,7 @@ export const layer = (
         input: Input,
         owner?: OwnerId
       ) =>
-        Effect.flatMap(Clock.currentTimeMillis, (emittedAtMs) =>
+        allocation.withPermit(Effect.flatMap(Clock.currentTimeMillis, (emittedAtMs) =>
           Effect.flatMap(Effect.fromResult(prepare(input, emittedAtMs)), ({ metaJson, payloadJson, validated }) =>
             writer.write(
               Effect.gen(function*() {
@@ -1016,6 +1033,11 @@ export const layer = (
                 // unused, which is a gap: allocation is `MAX(seq) + 1` and
                 // replay is `ORDER BY seq`, so neither reads a gap as anything.
                 raiseSequenceFloor(validated.runId, seq)
+                // Claim the producer sequence at the same allocation seam.
+                // Without this, a lossy emit from the same producer can read
+                // the pre-transaction source floor and reuse this identity
+                // while an enclosing `transact` is still open.
+                raiseSourceSequenceFloor(validated.runId, validated.sourceId, sourceSeq)
                 const queued: QueuedEntry = {
                   runId: validated.runId,
                   seq,
@@ -1056,7 +1078,7 @@ export const layer = (
               Effect.mapError((cause) =>
                 isJournalError(cause) ? cause : error("sink_failed", "durable journal write failed", cause)
               )
-            )))
+            ))))
       )
 
       const emitLossy: Service["emitLossy"] = queuedEmit
@@ -1117,9 +1139,7 @@ export const layer = (
         Effect.flatMap((batch) =>
           persistBatch(batch).pipe(
             Effect.tap((commits) =>
-              Effect.sync(() =>
-                recordCommits(batch, commits)
-              )
+              Effect.sync(() => recordCommits(batch, commits))
             ),
             Effect.tap(publish),
             Effect.tap(() => Effect.sync(() => settle(batch.length))),
