@@ -315,3 +315,35 @@ describe("unsupported value boundaries", () => {
     expect(serialize([() => undefined])).toBe("[]")
   })
 })
+
+describe("Canonical repeated-reference validation", () => {
+  it("validates both occurrences of an object that appears twice", () => {
+    // `validateUnicode` carries a `WeakSet` of visited objects and skips
+    // repeats, which is correct only because the FIRST visit validated them.
+    // Nothing asserted that, so a future change that made the skip happen
+    // before validation — or that seeded the set from the wrong place — would
+    // let a lone surrogate through on its second appearance and produce a
+    // digest another host disagrees with.
+    const invalid = { text: "lone \ud800 surrogate" }
+
+    // Reached first through `a`, skipped at `b`: the rejection must come from
+    // the first visit.
+    expect(failure({ a: invalid, b: invalid })).toEqual(expect.objectContaining({ _tag: "SchemaError" }))
+    // And the same object repeated inside an array, where the skip is the
+    // second element rather than a sibling key.
+    expect(failure([invalid, invalid])).toEqual(expect.objectContaining({ _tag: "SchemaError" }))
+    // A valid object repeated is not rejected by the skip either — the set
+    // suppresses re-walking, not the result.
+    const shared = { text: "fine" }
+    expect(serialize({ a: shared, b: shared })).toBe("{\"a\":{\"text\":\"fine\"},\"b\":{\"text\":\"fine\"}}")
+  })
+
+  it("rejects a value whose only invalid occurrence is the repeated one", () => {
+    // The ordering half: the invalid object is visited first at `a`, so the
+    // `seen` skip at `b` can never be what decides validity.
+    const invalid = { text: "\udfff" }
+    expect(failure({ a: { nested: invalid }, b: invalid })).toEqual(
+      expect.objectContaining({ _tag: "SchemaError" })
+    )
+  })
+})
