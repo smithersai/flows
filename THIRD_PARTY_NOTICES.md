@@ -15,7 +15,7 @@ changed are documented in `packages/engine/VENDOR.md`:
 - Upstream repository: `Effect-TS/effect`
 - Upstream commit: `23e176a4f05ed3e81cc13a5d70111099692ea9a5`
 - Upstream package: `effect@4.0.0-beta.102`
-- Upstream source: `packages/effect/src/unstable/flow`
+- Upstream source: `packages/effect/src/unstable/workflow`
 - Vendored modules: `Flow.ts`, `Activity.ts`, `FlowEngine.ts`,
   `DurableClock.ts`, `DurableDeferred.ts`, `DurableQueue.ts`, `FlowProxy.ts`,
   `FlowProxyServer.ts`, and `index.ts`
@@ -49,3 +49,25 @@ SOFTWARE.
 
 Every `@smthrs/*` package also depends on Effect at runtime, so the notice
 above applies to those dependencies as well as to the vendored engine source.
+
+## jj (`jj-vcs/jj`)
+
+`@smthrs/jj-next` ships `wasm/flows_jj.wasm`, a `wasm32-wasip1` build of
+`crates/flows-jj` that statically links `jj-lib` — vendored as the
+`vendor/jj` git submodule, a fork of Jujutsu pinned via `.gitmodules` — and
+jj-lib's transitive Rust dependency closure.
+
+- Upstream repository: `jj-vcs/jj` (<https://github.com/jj-vcs/jj>)
+- Vendored fork: `git@github.com:smithersai/jj.git`, branch `flows-wasm`
+  (`.gitmodules`), checked out as the `vendor/jj` git submodule
+- Crates statically linked: `jj-lib` and `jj-lib-proc-macros`, version
+  0.44.0, both Apache-2.0
+- Copyright 2020–2026 The Jujutsu Authors
+
+jj-lib is distributed under the Apache License, Version 2.0, which requires
+that redistributions carry a copy of the license text. The full Apache-2.0
+text, the jj-lib attribution, and the license/copyright of every crate
+statically linked into `wasm/flows_jj.wasm` — enumerated from `cargo
+metadata`/`cargo tree` against `crates/flows-jj` and grouped by license —
+are reproduced in `packages/jj/THIRD_PARTY_NOTICES.md`, which ships inside
+that package's published npm tarball.
