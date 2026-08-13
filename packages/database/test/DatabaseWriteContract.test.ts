@@ -31,6 +31,10 @@ const fileLayer = (filename: string): Layer.Layer<DurableWriter.DurableWriter | 
  */
 const nodeFileHarness: Harness = {
   label: "NodeDatabase, two connections over one file",
+  // Its two real connections contend for SQLite's write lock, tripping the
+  // upstream rollback-after-failed-BEGIN defect the memory harness cannot
+  // reach; see `Harness.upstreamRollbackDefect`'s doc comment.
+  upstreamRollbackDefect: true,
   run: (body) => {
     const filename = join(mkdtempSync(join(tmpdir(), "flows-db-contract-")), "contract.sqlite")
     return Effect.runPromise(
