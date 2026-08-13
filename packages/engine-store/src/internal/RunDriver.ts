@@ -188,36 +188,28 @@ export const make = (
      * replay skips an entry whose `meta.lineageId` names a different lineage.
      * The run row's `lineageId` column is a different space — the TRAMPOLINE
      * lineage of `docs/specs/Concepts/Trampoline Loops.md`, round 0's execution
-     * id — so on a run that is a later round of a lineage the persisted value
-     * read here is NOT a journal lineage id, and the decisions of that round
-     * address a lineage its own attempt records do not.
+     * id.
      *
-     * DECIDED (2026-08-11, pending review): documented rather than changed
-     * here. Which space the decisions of a later round belong to is a
-     * behavioral question — one journal lineage per round, or one per
-     * trampoline lineage so a UI can walk the whole run — and answering it
-     * moves persisted frame addresses, so it belongs to a change of its own
-     * rather than to this docs clarification.
+     * DECIDED (2026-08-12): decisions address the journal lineage of the run
+     * that records them, one per round, the same lineage that run's attempt
+     * and snapshot records already carry. Reading the run row's trampoline
+     * lineage here put a run's decisions in a lineage its own attempts do not
+     * address, so a rewind of that run skipped them. The trampoline lineage is
+     * not lost: `created` and `handed-off` carry `lineageId` and
+     * `roundOrdinal` in the decision payload, which is what walks a whole
+     * trampoline chain.
      */
     const emitDecision = (
       runId: string,
       payload: unknown
     ): Effect.Effect<void> =>
-      store.get(runId).pipe(
-        Effect.map((row) => row.lineageId ?? FlowEngine.Lineage.root(runId)),
-        Effect.catch(() => Effect.succeed(FlowEngine.Lineage.root(runId))),
-        Effect.flatMap((lineageId) =>
-          journal.emitDurable(
-            JournalRecords.runDecision({
-              runId,
-              lineageId,
-              sourceId: dependencies.journalSource
-            }, payload)
-          )
-        ),
-        Effect.asVoid,
-        Effect.orDie
-      )
+      journal.emitDurable(
+        JournalRecords.runDecision({
+          runId,
+          lineageId: FlowEngine.Lineage.root(runId),
+          sourceId: dependencies.journalSource
+        }, payload)
+      ).pipe(Effect.asVoid, Effect.orDie)
 
     /**
      * Commits a run-row transition and the decision describing it in ONE write

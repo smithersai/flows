@@ -253,9 +253,15 @@ describe("a durable lineage", () => {
     // A round is the same run continuing, not a spawned child, so the subflow
     // edge table the cycle walk reads stays empty.
     expect(observed.edges).toEqual([[], [], []])
+    // A round's decisions address that round's own JOURNAL lineage — the same
+    // one its attempt and snapshot records carry, so a rewind of the round
+    // does not skip the decisions that describe it. The trampoline lineage is
+    // the run row's `lineageId` above, and it travels in the `created` and
+    // `handed-off` decision payloads.
     expect(
-      observed.journalLineages.every((lineages) =>
-        lineages.length > 0 && lineages.every((lineage) => lineage === "durable-lineage")
+      observed.journalLineages.every((lineages, index) =>
+        lineages.length > 0 &&
+        lineages.every((lineage) => lineage === `${observed.rows[index]?.runId}/root`)
       )
     ).toBe(true)
   })
