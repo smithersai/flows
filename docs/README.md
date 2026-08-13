@@ -75,4 +75,4 @@ documented in the [plugins repository](https://github.com/smithersai/plugins).
 
 ## Documentation conventions
 
-“Implemented” means the behavior exists in `packages/*/src` and is exercised by the repository’s package tests. “Planned” means the source contains only a contract, test double, TODO, or no API at all. Examples use the repository’s current `effect@4.0.0-beta.102` APIs and the public `@smthrs/*` package exports.
+“Implemented” means the behavior exists in `packages/*/src` and is exercised by the repository’s package tests. “Planned” means the source contains only a contract, test double, TODO, or no API at all. Examples use the repository’s current `effect@4.0.0-rc.108` APIs and the public `@smthrs/*` package exports.

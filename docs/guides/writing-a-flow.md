@@ -8,7 +8,7 @@ This guide shows how to define schemas, execute named activities, suspend on dur
 import { Activity, DurableDeferred, Flow } from "@smthrs/flow-next"
 import { Effect, Schema } from "effect"
 
-class BuildFailure extends Schema.TaggedErrorClass<BuildFailure>()(
+class BuildFailure extends Schema.TaggedError<BuildFailure>()(
   "example/BuildFailure",
   { message: Schema.String }
 ) {}

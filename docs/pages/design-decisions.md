@@ -94,9 +94,9 @@ Cost: an attribution obligation, discharged by `packages/engine/THIRD_PARTY_NOTI
 
 ## D12. Effect v4, with no `@effect/*` ecosystem packages
 
-The runtime is `effect@4.0.0-beta.*`. Most of the former `@effect/*` ecosystem now lives at `effect/unstable/*`, and the AI, RPC, cluster, persistence, and workflow surfaces are imported from there. `@effect/sql-sqlite-node` is a dependency because it is a driver, not a rewritten core module.
+The runtime is `effect@4.0.0-rc.*`. Most of the former `@effect/*` ecosystem now lives at `effect/unstable/*`, and the AI, RPC, cluster, persistence, and workflow surfaces are imported from there. `@effect/sql-sqlite-node` is a dependency because it is a driver, not a rewritten core module.
 
-Cost: a beta pin, exact at `4.0.0-beta.102` across every manifest, and Effect 3 documentation does not apply.
+Cost: a release-candidate pin, exact at `4.0.0-rc.108` across every manifest, and Effect 3 documentation does not apply.
 
 ## D13. No pseudo-terminal service in core
 

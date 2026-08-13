@@ -30,7 +30,7 @@ Twenty-two npm workspaces under `packages/`, one closed dependency set. This pag
 | `@smthrs/time-travel-next` | `packages/time-travel` | yes | `flows_time_travel_snapshots`, `_edges`, `_audits`, `_receipts`, `_archive` |
 | `@smthrs/examples` | `examples` | no | the runnable example suite |
 
-Every published manifest is `0.1.0`, every internal production range is an exact `0.1.0`, and `effect` is pinned to exact `4.0.0-beta.102`.
+Every published manifest is `0.1.0`, every internal production range is an exact `0.1.0`, and `effect` is pinned to exact `4.0.0-rc.108`.
 
 ## Who owns which data
 
