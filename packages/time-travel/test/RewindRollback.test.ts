@@ -4,8 +4,10 @@ import type * as JournalEvent from "@smthrs/journal/JournalEvent"
 import { RunStore } from "@smthrs/run-store"
 import type { OwnerId } from "@smthrs/run-store/Ownership"
 import { CacheStore } from "@smthrs/step-cache"
+import * as Cause from "effect/Cause"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
 import * as Fiber from "effect/Fiber"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
@@ -590,6 +592,46 @@ describe("Rewind protocol fault matrix", () => {
     expect(exit._tag).toBe("Failure")
     expect(runs.state()).toEqual(runRow())
     expect(store.state().records).toEqual(records())
+    expect(store.state().audits[0]).toMatchObject({ status: "failed", detail: { phase: "rolled_back" } })
+  })
+
+  it("leaves an interrupted rewind interrupted rather than failing with code unknown (B5)", async () => {
+    // The case above asserts the rollback side effects. Nothing asserted the
+    // Exit itself, and it was wrong: `toFailure` squashed the interrupt-only
+    // cause into `TimeTravelError{code:"unknown"}`, so a cancelled rewind
+    // reported as a failed rewind and the interruption never propagated.
+    const store = MemoryTimeTravelStore.make({ records: records() })
+    const runs = makeRuns(runRow())
+    const jj = makeJj()
+    const entered = Effect.runSync(Deferred.make<void>())
+    const release = Effect.runSync(Deferred.make<void>())
+    const fiber = Effect.runFork(
+      provide(
+        Rewind.rewind({
+          runId: "run",
+          frame,
+          owner,
+          auditId: "audit-interrupt-propagates",
+          hooks: {
+            beforeStep: (step) =>
+              step === "load-suffix"
+                ? Deferred.succeed(entered, undefined).pipe(Effect.andThen(Deferred.await(release)))
+                : Effect.void
+          }
+        }),
+        { store, runs, jj: jj.service }
+      )
+    )
+
+    await Effect.runPromise(Deferred.await(entered))
+    await Effect.runPromise(Fiber.interrupt(fiber))
+    await Effect.runPromise(Deferred.succeed(release, undefined))
+    const exit = await Effect.runPromise(Fiber.await(fiber))
+
+    expect(Exit.isFailure(exit)).toBe(true)
+    expect(Exit.isFailure(exit) && Cause.hasInterruptsOnly(exit.cause)).toBe(true)
+    expect(Exit.isFailure(exit) && Cause.hasFails(exit.cause)).toBe(false)
+    // The rollback still completes; the interruption is what the caller sees.
     expect(store.state().audits[0]).toMatchObject({ status: "failed", detail: { phase: "rolled_back" } })
   })
 })
