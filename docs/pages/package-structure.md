@@ -1,6 +1,6 @@
 # Package structure
 
-Twenty npm workspaces under `packages/`, one closed dependency set. This page is the map: who owns which data, which package may import which, and which entry points bundle for a browser.
+Twenty-two npm workspaces under `packages/`, one closed dependency set. This page is the map: who owns which data, which package may import which, and which entry points bundle for a browser.
 
 ## Workspaces
 
@@ -21,6 +21,8 @@ Twenty npm workspaces under `packages/`, one closed dependency set. This page is
 | `@smthrs/canonical-next` | `packages/canonical` | yes | no tables; RFC 8785 canonical JSON |
 | `@smthrs/crypto-next` | `packages/crypto` | yes | no tables; injected cryptographic operations |
 | `@smthrs/keys-next` | `packages/keys` | yes | no tables; canonical flow keys |
+| `@smthrs/plan-next` | `packages/plan` | yes | `flows_plans`, `flows_plan_nodes`, `flows_plan_edges` |
+| `@smthrs/artifacts-next` | `packages/artifacts` | yes | no tables; bytes addressed by their own SHA-256 digest |
 | `@smthrs/flow-next` | `packages/flow` | yes | no tables; flow, activity, and durable-primitive definitions plus the runtime port |
 | `@smthrs/engine-next` | `packages/engine` | yes | no tables; the engine that executes them, and the RPC/HTTP façades |
 | `@smthrs/engine-store-next` | `packages/engine-store` | yes | `flows_deferred_completions`, `flows_clock_deadlines`, `flows_run_parents` |
@@ -32,18 +34,19 @@ Every published manifest is `0.1.0`, every internal production range is an exact
 
 ## Who owns which data
 
-Five packages create schema, in three different ways. Knowing which is which keeps a table in its owning package.
+Six packages create schema, in three different ways. Knowing which is which keeps a table in its owning package.
 
 | Owner | Mechanism | Tables |
 | --- | --- | --- |
 | `@smthrs/journal-next` | `0001_initial`, run by `Migrations.layer` | `flows_journal_events` |
 | `@smthrs/run-store-next` | `0001_initial`, run by `Migrations.layer` | `flows_runs`, `flows_attempts` |
 | `@smthrs/step-cache-next` | `0001_initial`, run by `Migrations.layer` | `flows_step_cache` |
-| `@smthrs/engine-store-next` | `0001_initial`; its `Migrations.layer` composes every set above | `flows_deferred_completions`, `flows_clock_deadlines` |
+| `@smthrs/plan-next` | `0001_initial`, run by `Migrations.layer`; append-only triggers created with the tables | `flows_plans`, `flows_plan_nodes`, `flows_plan_edges` |
+| `@smthrs/engine-store-next` | `0001_initial`; its `Migrations.layer` composes every set in this table except time travel's, with plan's last | `flows_deferred_completions`, `flows_clock_deadlines` |
 | `@smthrs/engine-store-next` | statements issued by `DurableEngineState.make` at construction | `flows_run_parents`, its index, the `flows_run_parents_gc` trigger, the stale-running partial index |
 | `@smthrs/time-travel-next` | `SqlTimeTravelStore.migrate` | snapshots, lineage edges, audits, receipts, archive |
 
-Each storage package exports its migration set from its own `Migrations` module, and `@smthrs/database-next`'s `Migrations` composes them over one `flows_migrations` table: a set declares a `namespace` that prefixes its migration names and an `idOffset` that reserves a block of migration ids, so two packages' `0001_initial` land on distinct identities and a mis-declared package fails the migration instead of silently shadowing a table. `@smthrs/engine-store-next/Migrations` is the composed list an engine installs.
+Each storage package exports its migration set from its own `Migrations` module, and `@smthrs/database-next`'s `Migrations` composes them over one `flows_migrations` table: a set declares a `namespace` that prefixes its migration names and an `idOffset` that reserves a block of migration ids, so two packages' `0001_initial` land on distinct identities and a mis-declared package fails the migration instead of silently shadowing a table. The blocks are journal `0`, run store `1000`, step cache `2000`, engine store `3000`, and plan `4000`. `@smthrs/engine-store-next/Migrations` is the composed list an engine installs, and it puts the plan set last because a `Migrator` decides what to run from a single high-water mark, so a set whose ids sit below an already-applied one would be assumed done.
 
 The engine-store statements sit outside its migration deliberately, because the package creates them when its layer is built. They are inventoried in `packages/engine-store/src/internal/EngineStateSchema.ts` with the dialects each one is known to accept, and a catalog-diff test fails when new DDL appears without an inventory entry.
 
@@ -70,6 +73,8 @@ flowchart LR
   PN["@smthrs/platform-node-next"]
   PBUN["@smthrs/platform-bun-next"]
   KEYS["@smthrs/keys-next"]
+  PLAN["@smthrs/plan-next"]
+  ART["@smthrs/artifacts-next"]
   CRYPTO["@smthrs/crypto-next"]
   CANONICAL["@smthrs/canonical-next"]
   CAP["@smthrs/capability-next"]
@@ -86,6 +91,8 @@ flowchart LR
   FLOWS --> STEPCACHE
   FLOWS --> KERNEL
   FLOWS --> KEYS
+  FLOWS --> PLAN
+  FLOWS --> ART
   FLOWS --> CRYPTO
   FLOWS --> CANONICAL
   FLOWS --> FLOW
@@ -97,6 +104,7 @@ flowchart LR
   RUNSTORE --> DB
   RUNSTORE --> JOURNAL
   STEPCACHE --> DB
+  STEPCACHE --> CANONICAL
   SANDBOX --> KERNEL
   KERNEL --> JJ
   KERNEL --> PB
@@ -109,13 +117,21 @@ flowchart LR
   PBUN --> JJ
   FLOW --> KEYS
   FLOW --> CRYPTO
+  FLOW --> PLAN
   ENGINE --> FLOW
   ENGINE --> KEYS
   KEYS --> CANONICAL
   KEYS --> CRYPTO
+  PLAN --> DB
+  PLAN --> KEYS
+  ART --> CRYPTO
   ES --> FLOW
   ES --> ENGINE
   ES --> CRYPTO
+  ES --> DB
+  ES --> KEYS
+  ES --> PLAN
+  ES --> ART
   ES --> JOURNAL
   ES --> RUNSTORE
   ES --> STEPCACHE
@@ -131,23 +147,25 @@ flowchart LR
 
 | Package | Depends on | Depended on by |
 | --- | --- | --- |
-| `@smthrs/canonical-next` | nothing in the workspace | `keys`, `flows` |
-| `@smthrs/crypto-next` | nothing in the workspace | `keys`, `flow`, `engine-store`, `flows` |
-| `@smthrs/keys-next` | `canonical`, `crypto` | `flow`, `engine`, `flows` |
+| `@smthrs/canonical-next` | nothing in the workspace | `keys`, `step-cache`, `flows` |
+| `@smthrs/crypto-next` | nothing in the workspace | `artifacts`, `keys`, `flow`, `engine-store`, `flows` |
+| `@smthrs/keys-next` | `canonical`, `crypto` | `plan`, `flow`, `engine`, `engine-store`, `flows` |
 | `@smthrs/capability-next` | nothing in the workspace | `jj`, `kernel`, `flows` |
 | `@smthrs/jj-next` | `capability` | `kernel`, `platform-*`, `time-travel`, `flows` |
 | `@smthrs/platform-browser-next` | `jj`, `kernel` | `kernel` (test bundle only) |
 | `@smthrs/platform-node-next` | `jj`, `kernel` | nothing |
 | `@smthrs/platform-bun-next` | `jj`, `kernel` | nothing |
 | `@smthrs/sandbox-next` | `kernel` | `flows` |
-| `@smthrs/database-next` | nothing in the workspace | `journal`, `run-store`, `step-cache`, `time-travel`, `flows` |
+| `@smthrs/artifacts-next` | `crypto` | `engine-store`, `flows` |
+| `@smthrs/database-next` | nothing in the workspace | `journal`, `run-store`, `step-cache`, `plan`, `engine-store`, `time-travel`, `flows` |
 | `@smthrs/journal-next` | `database` | `kernel`, `run-store`, `engine-store`, `sync`, `time-travel`, `flows` |
 | `@smthrs/run-store-next` | `database`, `journal` | `engine-store`, `time-travel`, `flows` |
-| `@smthrs/step-cache-next` | `database` | `engine-store`, `time-travel`, `flows` |
-| `@smthrs/kernel-next` | `capability`, `jj`, `journal`, `platform-browser` | `engine-store`, `platform-*`, `sandbox`, `time-travel`, `flows` |
-| `@smthrs/flow-next` | `crypto`, `keys` | `engine`, `engine-store`, `flows` |
+| `@smthrs/step-cache-next` | `canonical`, `database` | `engine-store`, `time-travel`, `flows` |
+| `@smthrs/kernel-next` | `capability`, `jj`, `journal`, `platform-browser` | `engine-store`, `platform-*`, `sandbox`, `flows` |
+| `@smthrs/plan-next` | `database`, `keys` | `flow`, `engine-store`, `flows` |
+| `@smthrs/flow-next` | `crypto`, `keys`, `plan` | `engine`, `engine-store`, `flows` |
 | `@smthrs/engine-next` | `flow`, `keys` | `engine-store`, `flows` |
-| `@smthrs/engine-store-next` | `crypto`, `flow`, `engine`, `journal`, `run-store`, `step-cache`, `kernel` | `time-travel`, `flows` |
+| `@smthrs/engine-store-next` | `artifacts`, `crypto`, `database`, `engine`, `flow`, `journal`, `kernel`, `keys`, `plan`, `run-store`, `step-cache` | `time-travel`, `flows` |
 | `@smthrs/sync-next` | `journal` | `flows` |
 | `@smthrs/time-travel-next` | `database`, `engine-store`, `jj`, `journal`, `run-store`, `step-cache` | `flows` |
 | `@smthrs/flows-next` | every package except the three `platform-*` bundles | nothing |
@@ -178,6 +196,8 @@ A package root exports contracts. A platform implementation lives under a subpat
 | `@smthrs/canonical-next` | yes | yes | RFC 8785 canonical JSON schema |
 | `@smthrs/crypto-next` | yes | yes | injected cryptographic schemas |
 | `@smthrs/keys-next` | yes | yes | canonical flow-key schema |
+| `@smthrs/plan-next` | yes | yes | plan compilation, the authoring AST, the diff, and the plan store over the `DurableWriter` contract |
+| `@smthrs/artifacts-next` | yes | yes | the content-addressed artifact store, local and remote |
 | `@smthrs/database-next` | yes | yes | the driver-neutral contract only |
 | `@smthrs/database-next/node/NodeDatabase` | no | yes | `node:sqlite` through `@effect/sql-sqlite-node` |
 | `@smthrs/database-next/test/TestDatabase` | no | yes | in-memory SQLite through the same driver |
@@ -194,13 +214,13 @@ A package root exports contracts. A platform implementation lives under a subpat
 | `@smthrs/time-travel-next` | yes | yes | frames, replay, fork, rewind, compensation, recovery |
 | `@smthrs/flows-next` | yes | yes | re-exports every engine package |
 
-Twenty entry points bundle for the browser. Bundling is a weaker claim than running: `@smthrs/journal-next`, `@smthrs/run-store-next`, and `@smthrs/step-cache-next` bundle because they depend on the `DurableWriter` contract, and a browser application still has to supply a browser SQL client, such as Effect's sqlite-wasm OPFS worker, to that contract. No such layer ships here.
+Twenty-two entry points bundle for the browser. Bundling is a weaker claim than running: `@smthrs/journal-next`, `@smthrs/run-store-next`, `@smthrs/step-cache-next`, and `@smthrs/plan-next` bundle because they depend on the `DurableWriter` contract, and a browser application still has to supply a browser SQL client, such as Effect's sqlite-wasm OPFS worker, to that contract. No such layer ships here.
 
-The accurate sentence is that canonical JSON, crypto, the host contracts, `BrowserHost`, keys, capability, kernel, database, journal, run store, step cache, flow, engine, engine-store, the barrel, sync, and time travel bundle for the browser, and the durable engine composition is still SQLite-on-Node first because no browser SQL client layer ships here. `@smthrs/engine-store-next`'s last two `node:`-flavoured reads — `process.pid` and `node:crypto` `randomUUID` — moved behind the `OwnerIdentity` service, which closed issue #114.
+The accurate sentence is that canonical JSON, crypto, the host contracts, `BrowserHost`, keys, plan, artifacts, capability, kernel, database, journal, run store, step cache, flow, engine, engine-store, the barrel, sync, and time travel bundle for the browser, and the durable engine composition is still SQLite-on-Node first because no browser SQL client layer ships here. `@smthrs/engine-store-next`'s last two `node:`-flavoured reads — `process.pid` and `node:crypto` `randomUUID` — moved behind the `OwnerIdentity` service, which closed issue #114.
 
 ## Build shape
 
-Every published package builds a dual module surface: `dist/esm/index.js`, `dist/esm/index.d.ts`, and `dist/cjs/index.js`, named by a conditional `publishConfig.exports` map with `./internal/*` blocked. `scripts/pack-release.mjs` packs and publishes all twenty workspaces from one dependency-ordered list, so a package cannot be published before something it depends on. Every package ships a byte-identical `LICENSE` in its `files` whitelist. `packages/flow` and `packages/engine` additionally ship `THIRD_PARTY_NOTICES.md`, because they carry the two halves of a fork of Effect's unstable workflow surface; `packages/engine` also ships the `VENDOR.md` that records the fork for both.
+Every published package builds a dual module surface: `dist/esm/index.js`, `dist/esm/index.d.ts`, and `dist/cjs/index.js`, named by a conditional `publishConfig.exports` map with `./internal/*` blocked. `scripts/pack-release.mjs` packs and publishes all twenty-two workspaces from one dependency-ordered list, so a package cannot be published before something it depends on. Every package ships a byte-identical `LICENSE` in its `files` whitelist. `packages/flow` and `packages/engine` additionally ship `THIRD_PARTY_NOTICES.md`, because they carry the two halves of a fork of Effect's unstable workflow surface; `packages/engine` also ships the `VENDOR.md` that records the fork for both.
 
 New package modules mirror the Effect repository: file structure, module layout, `make` and `layer` naming, error conventions, and `@since` and `@category` JSDoc.
 

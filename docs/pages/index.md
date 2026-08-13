@@ -86,6 +86,8 @@ That engine keeps its state in the process. To survive a crash, drive the same f
 | `@smthrs/kernel-next` | capability sets, grants, and permission-decorated host services |
 | `@smthrs/crypto-next` | injected cryptographic schema transformations |
 | `@smthrs/keys-next` | canonical flow keys |
+| `@smthrs/plan-next` | the keyed action graph, its authoring AST, its append-only store, and its diff |
+| `@smthrs/artifacts-next` | the content-addressed artifact store, local and remote |
 | `@smthrs/flow-next` | flow definitions, activities, durable primitives, retry policy |
 | `@smthrs/engine-next` | the engine that executes them, plus the RPC and HTTP façades |
 | `@smthrs/engine-store-next` | the durable engine: claims, fences, and persists runs over the journal |

@@ -13,13 +13,16 @@ Everything durable in Smithers Flows is one of a small number of shapes. This pa
 | Deferred completion | `flows_deferred_completions` | `0001_initial` | `@smthrs/engine-store-next` |
 | Clock deadline | `flows_clock_deadlines` | `0001_initial` | `@smthrs/engine-store-next` |
 | Run-parent edge | `flows_run_parents` | created by `DurableEngineState.make` | `@smthrs/engine-store-next` |
+| Plan row | `flows_plans` | `0001_initial` | `@smthrs/plan-next` |
+| Plan node | `flows_plan_nodes` | `0001_initial` | `@smthrs/plan-next` |
+| Plan edge | `flows_plan_edges` | `0001_initial` | `@smthrs/plan-next` |
 | Frame snapshot | `flows_time_travel_snapshots` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel-next` |
 | Lineage edge | `flows_time_travel_edges` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel-next` |
 | Rewind audit | `flows_time_travel_audits` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel-next` |
 | Compensation receipt | `flows_time_travel_receipts` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel-next` |
 | Archived entry | `flows_time_travel_archive` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel-next` |
 
-Two shapes are in-memory only: step keys, which are recomputed on every replay, and sync frames, which exist on the wire.
+Two shapes are in-memory only: the activity step keys the engine derives, which are recomputed on every replay, and sync frames, which exist on the wire. A compiled plan's node keys are different — they are computed once at plan time and persisted in `flows_plan_nodes`.
 
 ## Journal entries
 

@@ -188,7 +188,7 @@ Every `code` literal is part of the public API. Consumers may switch on `code` o
 | Export | Kind | Notes |
 | --- | --- | --- |
 | `set` | `MigrationSet` | the namespaced set for `flows_deferred_completions` and `flows_clock_deadlines`, in id block `3000` |
-| `sets` | `ReadonlyArray<MigrationSet>` | journal, run-store, step-cache, then this package — the whole durable engine schema, in dependency order |
+| `sets` | `ReadonlyArray<MigrationSet>` | journal, run-store, step-cache, this package, then [`@smthrs/plan-next`](/api/plan) — the whole durable engine schema, in dependency order |
 | `run` | effect | apply every set |
 | `layer` | layer | applies every set at construction |
 

@@ -46,6 +46,8 @@ This entry point bundles for the browser: it re-exports only package roots, each
 | `StepCache` | `@smthrs/step-cache-next` | [StepCache](/api/step-cache) |
 | `Kernel` | `@smthrs/kernel-next` | [Kernel](/api/kernel) |
 | `Keys` | `@smthrs/keys-next` | [Keys](/api/keys) |
+| `Plan` | `@smthrs/plan-next` | [Plan](/api/plan) |
+| `Artifacts` | `@smthrs/artifacts-next` | [Artifacts](/api/artifacts) |
 | `Sandbox` | `@smthrs/sandbox-next` | [Sandbox](/api/sandbox) |
 | `Sync` | `@smthrs/sync-next` | [Sync](/api/sync) |
 | `TimeTravel` | `@smthrs/time-travel-next` (the service key, re-exported flat) | [TimeTravel](/api/time-travel) |

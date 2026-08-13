@@ -30,6 +30,7 @@ export default defineConfig({
         { text: "@smthrs/canonical-next", link: "/api/canonical" },
         { text: "@smthrs/crypto-next", link: "/api/crypto" },
         { text: "@smthrs/keys-next", link: "/api/keys" },
+        { text: "@smthrs/plan-next", link: "/api/plan" },
         { text: "@smthrs/flow-next", link: "/api/flow" },
         { text: "@smthrs/engine-next", link: "/api/engine" },
         { text: "@smthrs/engine-store-next", link: "/api/engine-store" },

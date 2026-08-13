@@ -15,6 +15,7 @@ flowchart TB
     FLOW["@smthrs/flow-next<br/>Flow, Activity, DurableDeferred,<br/>DurableClock, DurableQueue, RetryPolicy"]
     ENGINE["@smthrs/engine-next<br/>FlowEngine, FlowProxy"]
     KEYS["@smthrs/keys-next<br/>canonical Key"]
+    PLAN["@smthrs/plan-next<br/>Node AST, Planned, KeyMaterial,<br/>StepKey, Plan, PlanDiff, PlanStore"]
     CRYPTO["@smthrs/crypto-next<br/>injected SHA-256"]
     CANONICAL["@smthrs/canonical-next<br/>RFC 8785 JSON"]
   end
@@ -56,6 +57,9 @@ flowchart TB
   BARREL -.re-exports.-> TT
   FLOW --> KEYS
   FLOW --> CRYPTO
+  FLOW --> PLAN
+  PLAN --> KEYS
+  PLAN --> DB
   ENGINE --> KEYS
   KEYS --> CANONICAL
   KEYS --> CRYPTO
@@ -65,6 +69,7 @@ flowchart TB
   STORE --> STEPCACHE
   STORE --> CRYPTO
   STORE --> KERNEL
+  STORE --> PLAN
   JOURNAL --> DB
   RUNSTORE --> JOURNAL
   RUNSTORE --> DB
@@ -94,9 +99,11 @@ Ask what would break if a boundary were removed, and its purpose becomes clear.
 
 The **host boundary** exists so flow code can run in a browser. `@smthrs/kernel-next` declares a closed set of five service tags and nothing else; every platform implementation lives in its own package — `@smthrs/platform-node-next`, `@smthrs/platform-bun-next`, `@smthrs/platform-browser-next`. Four of those five tags are Effect's own: `FileSystem`, `Path`, `ChildProcessSpawner`, and `HttpClient` are contracts `effect` already declares, so `flows` supplies implementations rather than wrappers. One more — `Jj` — is a contract of `@smthrs/jj-next`, whose tag the kernel decorates in place rather than shadowing with a second one, so a consumer that needs only that capability does not take the whole host surface. A module that depends only on the kernel root never statically resolves a `node:` built-in, which is what makes browser bundling possible at all. `@smthrs/kernel-next` sits in front of that surface and decorates each service with a grant check, so a flow that asks for a file it was never granted fails in the error channel rather than reading the file.
 
-The **database and journal** split separates the storage driver from the shapes stored in it. `@smthrs/database-next` owns no domain tables; it wraps any Effect `SqlClient` and adds the transactional write retry that the rest of the system assumes. `@smthrs/journal-next`, `@smthrs/run-store-next`, `@smthrs/step-cache-next`, and `@smthrs/engine-store-next` each own their own tables and the migration set that creates them, composed over one migrations table. Swap the driver and every shape survives.
+The **database and journal** split separates the storage driver from the shapes stored in it. `@smthrs/database-next` owns no domain tables; it wraps any Effect `SqlClient` and adds the transactional write retry that the rest of the system assumes. `@smthrs/journal-next`, `@smthrs/run-store-next`, `@smthrs/step-cache-next`, `@smthrs/plan-next`, and `@smthrs/engine-store-next` each own their own tables and the migration set that creates them, composed over one migrations table. Swap the driver and every shape survives.
 
 The **canonical, crypto, keys, and engine** chain decides identity before storage sees anything. `@smthrs/canonical-next` owns RFC 8785 JSON, `@smthrs/crypto-next` owns injected hashing, `@smthrs/keys-next` owns the canonical flow-key transformation, and `@smthrs/engine-next` owns activity-key policy above the seam. The engine computes a key before it calls `FlowEngine.Encoded.activityExecute`, so storage never implements key policy.
+
+The **plan** boundary separates describing work from doing it. `@smthrs/plan-next` holds the authoring AST a flow body builds, the key material a planner declares, the step-key compiler, the compiled graph, its diff, and its append-only store. Planning performs no I/O, so nothing in it reads a file, a clock, or a network: declared effects carry read and write paths, never digests. A node's key is a function of what it consumes, which is the whole invalidation mechanism — an edited declaration re-keys that node and its dependent cone and nothing else, so there is no reverse-dependency index. Driving a compiled plan is `@smthrs/engine-store-next`'s `PlanScheduler`.
 
 The **flow, engine, and engine-store** chain separates what a durable program is from what runs it and from where it is written. `@smthrs/flow-next` defines flows, activities, durable deferreds, durable clocks, durable queues, and retry policy as typed values, written against the `FlowRuntime` port it declares. `@smthrs/engine-next` implements that port and puts an encoded seam beneath it. `@smthrs/engine-store-next` implements that seam over the journal: it claims a run row before driving it, fences continuing work with a heartbeat, admits and finishes attempt rows, and commits each lifecycle entry in the same transaction as the state transition it describes.
 
