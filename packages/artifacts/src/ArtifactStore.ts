@@ -243,15 +243,6 @@ const defaultDirectory = ".flows/objects"
 const staleTempMs = 60 * 60 * 1000
 
 /**
- * The fixed capacity of the verified-digest LRU. One 64-hex digest per
- * distinct blob this store recently published or verified; 4096 entries bound
- * the memo near half a megabyte while still covering far more distinct
- * in-flight blobs than any realistic working set, so eviction on a healthy
- * host is rare and costs only a re-verification.
- */
-const verifiedDigestCapacity = 4096
-
-/**
  * Bazel's `DiskCacheClient.toPath` layout: a two-hex-prefix subdirectory
  * "to bypass possible folder file count limits"
  * (`reference/bazel/.../remote/disk/DiskCacheClient.java`). The store moved out
@@ -305,39 +296,6 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
       : Effect.succeed(tempToken)
   )
   let tempSequence = 0
-  /**
-   * Digests whose canonical blob this store has already verified — or
-   * published itself — this lifetime. Membership lets a repeat `put` of a
-   * known digest skip the O(blob size) read+hash that verification otherwise
-   * pays on every publication.
-   *
-   * A bounded LRU over an insertion-ordered `Map`, capped at
-   * {@link verifiedDigestCapacity} so a long-lived server host publishing
-   * artifacts across hundreds of thousands of steps cannot grow it
-   * monotonically for the process lifetime. A hit refreshes recency; inserting
-   * past capacity evicts the least-recently-used digest, whose next `put`
-   * simply re-verifies (correctness never depends on membership). Any failing
-   * read over a digest — missing, unreadable, or mismatching — drops its entry
-   * so the next `put` re-verifies and heals instead of trusting stale proof.
-   */
-  const verifiedDigests = new Map<string, true>()
-  const verifiedDigestSeen = (digest: string): boolean => {
-    if (!verifiedDigests.has(digest)) return false
-    // Refresh recency: re-insertion moves the digest to the newest end of the
-    // Map's insertion order.
-    verifiedDigests.delete(digest)
-    verifiedDigests.set(digest, true)
-    return true
-  }
-  const verifiedDigestRecord = (digest: string): void => {
-    verifiedDigests.delete(digest)
-    verifiedDigests.set(digest, true)
-    if (verifiedDigests.size > verifiedDigestCapacity) {
-      // The size guard guarantees a non-empty Map, so the iterator always
-      // yields the least-recently-used digest.
-      verifiedDigests.delete(verifiedDigests.keys().next().value!)
-    }
-  }
   /**
    * Best-effort reclamation of temp files orphaned by a crash between the temp
    * write and the rename: nothing else ever observes them — reads resolve only
@@ -399,21 +357,21 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
       // writer or by disk corruption would otherwise be trusted forever at
       // write time while `get` digest-verifies and refuses — a permanent
       // failure with no repair path even though this process holds the correct
-      // bytes. The existing blob is digest-verified here (an unreadable blob
-      // counts as corrupt), and only a verified match skips the write; a
-      // mismatch falls through to the atomic rewrite below, healing the
-      // address. Verification runs ONCE per digest per store lifetime: a full
-      // read+hash on every `put` made the dedupe fast path O(blob size), and
-      // one verified match — or this store's own atomic publication — is proof
-      // enough. Corruption introduced behind the store's back afterwards is
-      // exactly what `get`'s digest check still refuses, and a failing read
-      // evicts the memo entry so the next `put` re-verifies and heals.
+      // bytes. The existing blob is digest-verified on EVERY put (an
+      // unreadable blob counts as corrupt), and only a verified match skips
+      // the write; a mismatch falls through to the atomic rewrite below,
+      // healing the address. Verification is deliberately not memoized: the
+      // objects directory is workspace-shared, so a blob can change behind
+      // this store's back, and a remembered proof let a later `put` report
+      // success over corrupt bytes without repairing them — `get` would then
+      // refuse the digest forever even though every `put` held the cure.
+      // Re-verifying costs a constant factor, never a new asymptote: a `put`
+      // already pays one O(blob size) hash to measure its own input.
       const verified = stored &&
-        (verifiedDigestSeen(digest) ||
-          (yield* fs.readFile(blob.path).pipe(
-            Effect.flatMap((existing) => Effect.map(measure(existing), (measured) => measured === digest)),
-            Effect.catch(() => Effect.succeed(false))
-          )))
+        (yield* fs.readFile(blob.path).pipe(
+          Effect.flatMap((existing) => Effect.map(measure(existing), (measured) => measured === digest)),
+          Effect.catch(() => Effect.succeed(false))
+        ))
       if (!verified) {
         // Atomic publication: a plain write to the canonical address could be
         // observed — or survive a crash — as a partial file that every later
@@ -433,10 +391,6 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
           Effect.onError(() => fs.remove(tempPath).pipe(Effect.ignore))
         )
       }
-      // Reaching here means the address holds verified bytes: either the
-      // existing blob matched its digest, or this store just published them
-      // atomically. Later puts of the digest trust that proof.
-      verifiedDigestRecord(digest)
       return digest
     })
   )
@@ -447,21 +401,11 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
       const blob = fanout(directory, digest)
       const present = yield* fs.exists(blob.path).pipe(Effect.mapError(hostFailure))
       if (!present) {
-        // The blob vanished behind the store's back, so any cached
-        // verification of it is stale: dropping the memo entry lets the next
-        // `put` republish instead of trusting the proof.
-        verifiedDigests.delete(digest)
         return yield* Effect.fail(new ArtifactMissing({ code: "artifact_missing", digest }))
       }
-      const bytes = yield* fs.readFile(blob.path).pipe(
-        // An unreadable blob invalidates its cached verification too: the memo
-        // must never outlive the proof it caches.
-        Effect.tapError(() => Effect.sync(() => verifiedDigests.delete(digest))),
-        Effect.mapError(hostFailure)
-      )
+      const bytes = yield* fs.readFile(blob.path).pipe(Effect.mapError(hostFailure))
       const measured = yield* measure(bytes)
       if (measured !== digest) {
-        verifiedDigests.delete(digest)
         return yield* Effect.fail(
           new ArtifactCorruption({
             code: "artifact_corruption",
@@ -510,8 +454,10 @@ export const layerFileSystem = (
  * durable filesystem yet.
  *
  * Reads are not digest-verified here, and that is not an oversight: the map is
- * keyed by the digest this store measured when it accepted the bytes, and
- * nothing else can write to it, so there is no window in which the address and
+ * keyed by the digest this store measured when it accepted the bytes, and both
+ * boundaries copy — `put` stores a copy of the caller's array and `get` hands
+ * out a copy of the stored one — so no reference a caller can still mutate
+ * aliases the stored content, and there is no window in which the address and
  * the content can disagree. The filesystem and remote implementations verify
  * because their address spaces are genuinely shared.
  *
@@ -528,7 +474,10 @@ export const makeMemory = (): Service => {
   return {
     put: Effect.fn("ArtifactStore.put")((bytes: Uint8Array) =>
       Effect.map(measure(bytes), (digest) => {
-        blobs.set(digest, bytes)
+        // A defensive copy, never the caller's reference: the caller is free
+        // to reuse its buffer after `put` returns, and an aliased array would
+        // let that mutation corrupt the stored content for its digest.
+        blobs.set(digest, bytes.slice())
         return digest
       })
     ),
@@ -539,7 +488,10 @@ export const makeMemory = (): Service => {
         if (bytes === undefined) {
           return yield* Effect.fail(new ArtifactMissing({ code: "artifact_missing", digest }))
         }
-        return bytes
+        // A copy for the same reason `put` stores one: handing out the stored
+        // array would let one reader's mutation corrupt every later read of
+        // the digest.
+        return bytes.slice()
       })
     ),
     has,

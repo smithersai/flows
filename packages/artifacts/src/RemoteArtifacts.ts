@@ -26,9 +26,11 @@
  */
 import { Sha256 } from "@smthrs/crypto-next"
 import type * as Crypto from "effect/Crypto"
+import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
+import * as Stream from "effect/Stream"
 import * as HttpClient from "effect/unstable/http/HttpClient"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
 import type * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"
@@ -54,7 +56,41 @@ export interface Options {
    * everywhere the journal goes.
    */
   readonly headers?: Record<string, string> | undefined
+  /**
+   * The deadline on a single download, from the request leaving to the last
+   * body byte arriving. A shared tier that stops answering must fail the read
+   * rather than park it forever — the combined composition treats a remote
+   * failure as a miss it can live with, but it can do nothing with a read
+   * that never returns. Defaults to 60 seconds, Bazel's `--remote_timeout`
+   * default for the same REST protocol
+   * (`reference/bazel/.../remote/options/RemoteOptions.java`: "For the REST
+   * cache, this is both the connect and the read timeout").
+   */
+  readonly downloadTimeout?: Duration.Input | undefined
+  /**
+   * The largest download this client will buffer, in bytes. The body is read
+   * incrementally and abandoned the moment it exceeds the bound — and refused
+   * outright when `Content-Length` already declares the excess — so a
+   * mis-serving or hostile cache cannot make this process buffer and hash an
+   * arbitrarily large body before the digest check refuses it. Defaults to
+   * 256 MiB.
+   */
+  readonly maxDownloadBytes?: number | undefined
 }
+
+/**
+ * The default download deadline. 60 seconds is Bazel's `--remote_timeout`
+ * default, governing the same dumb-HTTP cache protocol.
+ */
+const defaultDownloadTimeout = Duration.seconds(60)
+
+/**
+ * The default bound on a downloaded blob: 256 MiB. Artifacts are spilled step
+ * values, not media libraries; a body past this size is far more likely a
+ * mis-serving cache than a legitimate blob, and the dial is per-store for a
+ * deployment that knows better.
+ */
+const defaultMaxDownloadBytes = 256 * 1024 * 1024
 
 const transportFailure = (operation: string, cause: unknown): ArtifactStore.ArtifactStoreError =>
   new ArtifactStore.ArtifactStoreError({
@@ -107,6 +143,67 @@ export const make = (
       client.execute(authorize(request)).pipe(Effect.mapError((cause) => transportFailure(operation, cause)))
     const measure = (bytes: Uint8Array): Effect.Effect<ArtifactStore.Digest, never, Crypto.Crypto> =>
       Schema.decodeUnknownEffect(Sha256)(bytes).pipe(Effect.orDie)
+    const downloadDeadline = Duration.fromInputUnsafe(options.downloadTimeout ?? defaultDownloadTimeout)
+    const maxDownloadBytes = options.maxDownloadBytes ?? defaultMaxDownloadBytes
+    const downloadTooLarge = (received: number): ArtifactStore.ArtifactStoreError =>
+      new ArtifactStore.ArtifactStoreError({
+        code: "transport_failed",
+        message:
+          `the remote artifact tier answered a download with ${received} bytes, past the ${maxDownloadBytes}-byte bound`
+      })
+    const downloadTimedOut = (): ArtifactStore.ArtifactStoreError =>
+      new ArtifactStore.ArtifactStoreError({
+        code: "transport_failed",
+        message: `the remote artifact tier did not finish a download within ${Duration.format(downloadDeadline)}`
+      })
+    /**
+     * Reads a download body incrementally, refusing it the moment it exceeds
+     * the size bound; a `Content-Length` that already declares the excess is
+     * refused before a single body byte is read. Streaming instead of
+     * buffering the whole body means the guard fires at most one chunk past
+     * the bound, never after an arbitrarily large response is in memory.
+     */
+    const readBounded = (response: HttpClientResponse.HttpClientResponse) =>
+      Effect.gen(function*() {
+        const declared = response.headers["content-length"]
+        if (declared !== undefined && Number(declared) > maxDownloadBytes) {
+          return yield* Effect.fail(downloadTooLarge(Number(declared)))
+        }
+        const chunks: Array<Uint8Array> = []
+        let received = 0
+        yield* Stream.runForEach(response.stream, (chunk: Uint8Array) =>
+          Effect.suspend(() => {
+            received += chunk.byteLength
+            if (received > maxDownloadBytes) return Effect.fail(downloadTooLarge(received))
+            chunks.push(chunk)
+            return Effect.void
+          })).pipe(
+            Effect.catchTag("HttpClientError", (cause) =>
+              // An absent body is zero bytes, not a transport refusal: the
+              // digest check in `get` is the arbiter of whether empty content
+              // is the requested artifact.
+              cause.reason._tag === "EmptyBodyError"
+                ? Effect.void
+                : Effect.fail(transportFailure("a download body", cause)))
+          )
+        const bytes = new Uint8Array(received)
+        let offset = 0
+        for (const chunk of chunks) {
+          bytes.set(chunk, offset)
+          offset += chunk.byteLength
+        }
+        return bytes
+      })
+    /** The network half of `get`: request, status split, bounded body read. */
+    const download = (digest: string) =>
+      Effect.gen(function*() {
+        const response = yield* send("a download", HttpClientRequest.get(casUrl(digest)))
+        if (response.status === 404) {
+          return yield* Effect.fail(new ArtifactStore.ArtifactMissing({ code: "artifact_missing", digest }))
+        }
+        if (!isOk(response)) return yield* Effect.fail(unexpectedStatus("a download", response.status))
+        return yield* readBounded(response)
+      })
 
     const put: ArtifactStore.Service["put"] = Effect.fn("RemoteArtifacts.put")((bytes: Uint8Array) =>
       Effect.gen(function*() {
@@ -125,15 +222,13 @@ export const make = (
     const get: ArtifactStore.Service["get"] = Effect.fn("RemoteArtifacts.get")((digest: string) =>
       Effect.gen(function*() {
         yield* ArtifactStore.validateDigest(digest)
-        const response = yield* send("a download", HttpClientRequest.get(casUrl(digest)))
-        if (response.status === 404) {
-          return yield* Effect.fail(new ArtifactStore.ArtifactMissing({ code: "artifact_missing", digest }))
-        }
-        if (!isOk(response)) return yield* Effect.fail(unexpectedStatus("a download", response.status))
-        const buffer = yield* response.arrayBuffer.pipe(
-          Effect.mapError((cause) => transportFailure("a download body", cause))
+        // The deadline covers the whole exchange — request, headers, body —
+        // because a tier that stalls mid-body is exactly as unanswering as
+        // one that never accepts the connection.
+        const bytes = yield* download(digest).pipe(
+          Effect.timeout(downloadDeadline),
+          Effect.catchTag("TimeoutError", () => Effect.fail(downloadTimedOut()))
         )
-        const bytes = new Uint8Array(buffer)
         // The shared tier is the least trusted store there is: it is written
         // by machines this one has never met. Verifying the address here means
         // a mis-serving or compromised cache can waste a round trip but can

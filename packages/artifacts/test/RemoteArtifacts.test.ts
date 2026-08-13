@@ -136,6 +136,72 @@ describe("downloads", () => {
     expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
   })
 
+  it("fails a download that exceeds its deadline instead of waiting forever", async () => {
+    // Headers arrive but the body never does. The deadline covers the whole
+    // exchange, so the read fails typed instead of parking forever on a tier
+    // that stopped answering.
+    const tier = remote(
+      () => new Response(new ReadableStream({ start() {} })),
+      { downloadTimeout: "50 millis" }
+    )
+    const exit = await runPromise(Effect.flatMap(tier.store, (store) => store.get(digest)).pipe(Effect.exit))
+    expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
+  })
+
+  it("refuses a body that exceeds the size bound without buffering it whole", async () => {
+    let pulls = 0
+    const tier = remote(
+      () =>
+        new Response(
+          new ReadableStream({
+            pull(controller) {
+              pulls++
+              controller.enqueue(new Uint8Array(1024))
+            }
+          })
+        ),
+      { maxDownloadBytes: 4096 }
+    )
+    const exit = await runPromise(Effect.flatMap(tier.store, (store) => store.get(digest)).pipe(Effect.exit))
+    expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
+    // The endless body was abandoned one chunk past the bound, not slurped:
+    // the guard runs against the stream, not against a completed buffer.
+    expect(pulls).toBeLessThan(64)
+  })
+
+  it("refuses a declared oversize before reading a single body byte", async () => {
+    let pulls = 0
+    const tier = remote(
+      () =>
+        new Response(
+          // A zero high-water mark keeps the stream from priming its queue at
+          // construction, so a pull can only come from an actual body read.
+          new ReadableStream(
+            {
+              pull(controller) {
+                pulls++
+                controller.enqueue(new Uint8Array(8))
+              }
+            },
+            { highWaterMark: 0 }
+          ),
+          { headers: { "content-length": "1048576" } }
+        ),
+      { maxDownloadBytes: 1024 }
+    )
+    const exit = await runPromise(Effect.flatMap(tier.store, (store) => store.get(digest)).pipe(Effect.exit))
+    expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
+    expect(pulls).toBe(0)
+  })
+
+  it("treats an empty 2xx body as empty content, refused by the digest check", async () => {
+    const tier = remote(() => new Response(null, { status: 200 }))
+    const exit = await runPromise(Effect.flatMap(tier.store, (store) => store.get(digest)).pipe(Effect.exit))
+    const failure = errorOf(exit) as ArtifactStore.ArtifactCorruption
+    expect(failure._tag).toBe("@smthrs/artifacts-next/ArtifactCorruption")
+    expect(failure.measuredDigest).toBe(sha256(bytes("")))
+  })
+
   it("fails when the response body cannot be read", async () => {
     const tier = remote(() =>
       new Response(

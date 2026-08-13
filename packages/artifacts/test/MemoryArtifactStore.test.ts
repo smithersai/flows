@@ -24,6 +24,27 @@ describe("makeMemory", () => {
     expect(await runPromise(artifacts.has(digest))).toBe(true)
   })
 
+  it("is immune to a caller mutating the array it put", async () => {
+    // The map is keyed by the digest measured at accept time, so an aliased
+    // input array would let a later caller mutation corrupt the stored
+    // content for its address. `put` stores a defensive copy instead.
+    const artifacts = ArtifactStore.makeMemory()
+    const input = bytes(artifact)
+    const stored = await runPromise(artifacts.put(input))
+    input[0] = 0x58
+    expect(text(await runPromise(artifacts.get(stored)))).toBe(artifact)
+  })
+
+  it("is immune to a caller mutating the array it got", async () => {
+    // `get` hands out a copy for the same reason: the stored array must never
+    // be reachable through a reference a caller can still write to.
+    const artifacts = ArtifactStore.makeMemory()
+    await runPromise(artifacts.put(bytes(artifact)))
+    const first = await runPromise(artifacts.get(digest))
+    first[0] = 0x58
+    expect(text(await runPromise(artifacts.get(digest)))).toBe(artifact)
+  })
+
   it("reports a typed miss for an address it never accepted", async () => {
     const artifacts = ArtifactStore.makeMemory()
     const exit = await runPromise(artifacts.get(digest).pipe(Effect.exit))

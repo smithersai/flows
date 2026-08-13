@@ -5,6 +5,7 @@
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
+import * as Fiber from "effect/Fiber"
 import { describe, expect, it } from "vitest"
 import * as ArtifactStore from "../src/ArtifactStore.ts"
 import * as CombinedArtifacts from "../src/CombinedArtifacts.ts"
@@ -122,6 +123,84 @@ describe("writes", () => {
     expect(await running).toEqual([digest, digest])
     // The second caller joined the first upload instead of repeating it.
     expect(uploads).toHaveLength(1)
+  })
+
+  it("starts a fresh upload after an interrupted one, instead of joining a dead deferred", async () => {
+    // Interruption striking mid-upload — the deadline firing, the caller's
+    // scope closing — must not orphan the shared deferred: on the defective
+    // code the entry stayed registered forever and every later put of the
+    // digest joined a deferred nobody would ever complete.
+    const uploads: Array<string> = []
+    const gate = await Effect.runPromise(Deferred.make<void>())
+    const started = await Effect.runPromise(Deferred.make<void>())
+    const remote = ArtifactStore.makeNoop({
+      put: (payload) =>
+        Effect.gen(function*() {
+          uploads.push("put")
+          if (uploads.length === 1) {
+            yield* Deferred.succeed(started, undefined)
+            yield* Deferred.await(gate)
+          }
+          return yield* ArtifactStore.makeMemory().put(payload)
+        })
+    })
+    const combined = CombinedArtifacts.make({ local: ArtifactStore.makeMemory(), remote })
+    const published = await runPromise(
+      Effect.gen(function*() {
+        const leader = yield* combined.put(bytes(artifact)).pipe(Effect.forkChild({ startImmediately: true }))
+        yield* Deferred.await(started)
+        yield* Fiber.interrupt(leader)
+        return yield* combined.put(bytes(artifact)).pipe(Effect.timeout("2 seconds"))
+      })
+    )
+    expect(published).toBe(digest)
+    expect(uploads).toHaveLength(2)
+  })
+
+  it("releases a joined waiter when the shared upload is interrupted", async () => {
+    // The waiter joined the leader's deferred; the leader's interruption must
+    // resolve it — as the typed refusal `put` already drops — rather than
+    // leave the waiter parked on it forever.
+    const uploads: Array<string> = []
+    const gate = await Effect.runPromise(Deferred.make<void>())
+    const started = await Effect.runPromise(Deferred.make<void>())
+    const remote = ArtifactStore.makeNoop({
+      put: (payload) =>
+        Effect.gen(function*() {
+          uploads.push("put")
+          if (uploads.length === 1) {
+            yield* Deferred.succeed(started, undefined)
+            yield* Deferred.await(gate)
+          }
+          return yield* ArtifactStore.makeMemory().put(payload)
+        })
+    })
+    const combined = CombinedArtifacts.make({ local: ArtifactStore.makeMemory(), remote })
+    const published = await runPromise(
+      Effect.gen(function*() {
+        const leader = yield* combined.put(bytes(artifact)).pipe(Effect.forkChild({ startImmediately: true }))
+        yield* Deferred.await(started)
+        const waiter = yield* combined.put(bytes(artifact)).pipe(Effect.forkChild({ startImmediately: true }))
+        yield* Effect.sleep("20 millis")
+        yield* Fiber.interrupt(leader)
+        return yield* Fiber.join(waiter).pipe(Effect.timeout("2 seconds"))
+      })
+    )
+    expect(published).toBe(digest)
+  })
+
+  it("bounds the opportunistic upload with the configured deadline", async () => {
+    // A remote that stalls instead of refusing must not hold the local answer
+    // hostage: the upload is abandoned at the deadline like any refusal, and
+    // the put answers with the local digest it already holds.
+    const gate = await Effect.runPromise(Deferred.make<void>())
+    const remote = ArtifactStore.makeNoop({
+      put: (payload) => Effect.andThen(Deferred.await(gate), ArtifactStore.makeMemory().put(payload))
+    })
+    const local = countingMemory()
+    const combined = CombinedArtifacts.make({ local: local.store, remote, uploadTimeout: "50 millis" })
+    expect(await runPromise(combined.put(bytes(artifact)))).toBe(digest)
+    expect(await runPromise(local.store.has(digest))).toBe(true)
   })
 
   it("starts a fresh upload once the in-flight one has settled", async () => {
