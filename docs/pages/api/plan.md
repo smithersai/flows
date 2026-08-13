@@ -197,7 +197,7 @@ The refusals a plan-time build raises instead of producing a wrong plan. Each ca
 | `PlanDiff` | interface | `added`, `removed`, `rekeyed`, `unchanged` |
 | `Rekeyed` | interface | `id`, `from`, `to`, and the `changed` field labels |
 
-The verdict is the key: two nodes with the same id and the same key are the same step. The attribution — `changed: ["body", "input[1]"]` — is a report for a human, derived by comparing declarations field by field, and is deliberately part of no digest. Labels are `body`, `layers`, `capabilities`, `effects`, `version`, and `input[n]`, including `input[n]` entries whose referenced node itself re-keyed. It is empty when nothing local changed, which is the honest answer for a node re-keyed purely by an upstream edit behind an unprojected `Pending`.
+The verdict is the key: two nodes with the same id and the same key are the same step. The attribution — `changed: ["body", "input[1]"]` — is a report for a human, derived by comparing declarations field by field, and is deliberately part of no digest. Labels are `body`, `layers`, `capabilities`, `effects`, `version`, and `input[n]`, including `input[n]` entries whose declaration is unchanged but whose referenced node itself re-keyed. A node re-keyed purely by an upstream edit is therefore attributed to the input position that references it, even behind an unprojected `Pending`, rather than reported as nothing changed.
 
 ## PlanStore
 
