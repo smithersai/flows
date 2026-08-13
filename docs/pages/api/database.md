@@ -62,10 +62,10 @@ The shipped offsets are `journal` at `0`, `run-store` at `idBlock`, `step-cache`
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `NodeDatabaseOptions` | interface | `filename`, optional `sqlite` config, plus write-retry options |
+| `NodeDatabaseOptions` | interface | `filename`, optional `sqlite` config |
 | `layer` | layer | `node:sqlite` through `@effect/sql-sqlite-node`, WAL enabled |
 
-`layer` retries connection opening while SQLite reports the file locked, because the driver issues `PRAGMA journal_mode = WAL` inside its constructor with no busy timeout.
+`layer` retries connection opening while SQLite reports the file locked, because the driver issues `PRAGMA journal_mode = WAL` inside its constructor and WAL conversion or recovery can race another opener. The current driver also sets `PRAGMA busy_timeout` and uses `BEGIN IMMEDIATE` for writable transactions; see [SQLite operating envelope](/sqlite-operating-envelope) for the operator-facing limits.
 
 ## TestDatabase
 
@@ -77,4 +77,4 @@ The shipped offsets are `journal` at `0`, `run-store` at `idBlock`, `step-cache`
 
 ## Dialect status
 
-SQLite is the shipped backend, in both the Node file form and the in-memory test form. Postgres and PGlite layers, and a dialect-parameterized migration ladder, are Planned.
+SQLite is the shipped backend, in both the Node file form and the in-memory test form. The package root bundles for browsers as a contract, but no browser SQL client layer ships here. Postgres and PGlite layers, and a dialect-parameterized migration ladder, are Planned.
