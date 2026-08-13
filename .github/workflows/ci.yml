@@ -70,3 +70,168 @@ jobs:
         run: |
           node scripts/pack-release.mjs "$PACK_DIR"
           node scripts/smoke-release.mjs "$PACK_DIR"
+
+  # rust-toolchain.toml pins the toolchain for the two Rust jobs; a bare
+  # `rustup toolchain install` reads it, so the pin cannot drift from what CI
+  # runs. It also pins the wasm32-wasip1 target and the rustfmt and clippy
+  # components.
+  rust:
+    name: rust fmt + clippy + test
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install
+      # Registry state and compiled dependencies, keyed on Cargo.lock. The
+      # native jj-lib build dominates this job's time without it.
+      - uses: Swatinem/rust-cache@v2
+      - name: Format
+        run: cargo fmt --check
+      - name: Clippy
+        run: cargo clippy --all-targets --locked -- -D warnings
+      - name: Test
+        run: cargo test --locked
+
+  # The committed packages/jj/wasm/flows_jj.wasm is a reproducibility
+  # contract: rebuilding it from source with the pinned toolchain must give
+  # the same bytes. build-wasm.mjs remaps every machine-specific source
+  # prefix (checkout path, CARGO_HOME, toolchain sysroot) to fixed tokens,
+  # which is what makes the comparison meaningful across machines. No build
+  # cache here on purpose — the rebuild is the point.
+  wasm-repro:
+    name: wasm reproducibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.19.0
+      - name: Install pinned Rust toolchain
+        run: rustup toolchain install
+      - name: Build-script unit tests
+        run: node --test crates/flows-jj/build-wasm.test.mjs
+      - name: Rebuild flows_jj.wasm from source
+        env:
+          # A scratch target dir keeps the rebuild clean-room and exercises
+          # the script's CARGO_TARGET_DIR handling.
+          CARGO_TARGET_DIR: ${{ runner.temp }}/wasm-target
+        run: |
+          cp packages/jj/wasm/flows_jj.wasm "$RUNNER_TEMP/flows_jj.committed.wasm"
+          node crates/flows-jj/build-wasm.mjs
+      - name: Byte-compare against the committed artifact
+        run: |
+          if ! cmp "$RUNNER_TEMP/flows_jj.committed.wasm" packages/jj/wasm/flows_jj.wasm; then
+            echo "packages/jj/wasm/flows_jj.wasm does not reproduce from source." >&2
+            echo "Rebuild it with the pinned toolchain and commit the result:" >&2
+            echo "  node crates/flows-jj/build-wasm.mjs" >&2
+            exit 1
+          fi
+
+  # Runtime-compatibility check: the suites below pass under bun today
+  # (verified locally on bun 1.4.0, 2026-08-13). Coverage is disabled because
+  # @vitest/coverage-v8 needs V8's inspector and bun runs JavaScriptCore; the
+  # Node `test` job stays the coverage gate.
+  #
+  # Excluded suites, with the failure that keeps each one out:
+  # - database, engine-store, flows, journal, kernel, plan, run-store,
+  #   step-cache, sync, time-travel (and examples): bun's node:sqlite binds
+  #   the host SQLite, built with SQLITE_OMIT_LOAD_EXTENSION, which the
+  #   @effect/sql-sqlite-node layer requires.
+  # - jj: NodeJjClassification expects spawn failures to classify as
+  #   'unknown'; bun's child_process error shape classifies as
+  #   'not_installed'.
+  # - platform-node: the Node host contract suite asserts Node-host
+  #   behavior and is not expected to pass on bun.
+  bun:
+    name: test on bun
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.19.0
+          cache: npm
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - run: npm ci --ignore-scripts
+      # Same jj setup as the Node job: the Bun host contract exercises a
+      # successful `jj status` when the binary is present.
+      - name: Install jj
+        uses: taiki-e/install-action@v2
+        with:
+          tool: jj-cli@0.39.0
+      - name: Initialize colocated jj repository
+        run: jj git init --colocate
+      - name: Test bun-compatible suites
+        run: |
+          for pkg in artifacts canonical capability crypto engine flow keys platform-browser platform-bun sandbox; do
+            (cd "packages/$pkg" && bun ../../node_modules/vitest/vitest.mjs run --coverage.enabled=false)
+          done
+
+  # The browser contract as its own gate. scripts/browser-check.mjs bundles
+  # every browser entry point and pins the documented Node-only ones. No real
+  # browser-runner suite exists in this repo yet (no playwright, webdriverio,
+  # or @vitest/browser tests); when one lands, run it here instead of
+  # inventing a new harness.
+  browser:
+    name: browser bundle gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.19.0
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Browser bundle guard
+        run: npm run browser
+
+  # Advisory OS coverage for the Node suite. Both jobs become required (drop
+  # continue-on-error) once they prove a stable green streak. Windows path
+  # pitfalls are expected and are not chased in this lane.
+  node-macos:
+    name: node suite (macOS, advisory)
+    runs-on: macos-latest
+    continue-on-error: true
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.19.0
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Install jj
+        uses: taiki-e/install-action@v2
+        with:
+          tool: jj-cli@0.39.0
+      - name: Initialize colocated jj repository
+        run: jj git init --colocate
+      - name: Test all workspaces
+        run: npm test
+
+  node-windows:
+    name: node suite (Windows, advisory)
+    runs-on: windows-latest
+    continue-on-error: true
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.19.0
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Install jj
+        uses: taiki-e/install-action@v2
+        with:
+          tool: jj-cli@0.39.0
+      - name: Initialize colocated jj repository
+        run: jj git init --colocate
+      - name: Test all workspaces
+        run: npm test
