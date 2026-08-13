@@ -39,11 +39,11 @@ The root exports these namespaces, also available from matching
 `@smthrs/engine-next/*` subpaths. The flow-authoring namespaces live in
 [`@smthrs/flow-next`](../flow/README.md).
 
-| Namespace         | Public exports                                                                                                                                                                                                                                                                                    |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Namespace         | Public exports                                                                                                                                                                                                                                                                                         |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `FlowEngine`      | Implementation boundary `Encoded` and `ActivityExecuteOptions`; `makeUnsafe`, which adapts an `Encoded` implementation into `@smthrs/flow-next`'s `FlowRuntime`; in-memory `layerMemory`; per-run state constructor `makeInstance`; compensable-step `SnapshotBoundaryOptions` and `SnapshotBoundary`. |
-| `FlowProxy`       | `toRpcGroup` / `ConvertRpcs` and `toHttpApiGroup` / `ConvertHttpApi` derive execute, discard, and resume transports from flows.                                                                                                                                                                   |
-| `FlowProxyServer` | `layerRpcHandlers`, `layerHttpApi`, and `RpcHandlers` implement the derived transports.                                                                                                                                                                                                           |
+| `FlowProxy`       | `toRpcGroup` / `ConvertRpcs` and `toHttpApiGroup` / `ConvertHttpApi` derive execute, discard, and resume transports from flows.                                                                                                                                                                        |
+| `FlowProxyServer` | `layerRpcHandlers`, `layerHttpApi`, and `RpcHandlers` implement the derived transports.                                                                                                                                                                                                                |
 
 ## Reference implementation
 

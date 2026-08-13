@@ -17,7 +17,7 @@ The package name says what it stores, per the naming rule in
 
 | Export                                             | Meaning                                                            |
 | -------------------------------------------------- | ------------------------------------------------------------------ |
-| `ArtifactStore.ArtifactStore`                      | The service tag. Identity `@smthrs/artifacts-next/ArtifactStore`        |
+| `ArtifactStore.ArtifactStore`                      | The service tag. Identity `@smthrs/artifacts-next/ArtifactStore`   |
 | `ArtifactStore.Service`                            | `put(bytes)`, `get(digest)`, `has(digest)`, `findMissing(digests)` |
 | `ArtifactStore.ArtifactMissing`                    | The typed miss — the answer a read-through composition acts on     |
 | `ArtifactStore.ArtifactCorruption`                 | Bytes at an address no longer hash to it                           |

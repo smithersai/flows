@@ -15,8 +15,8 @@ import { Engine, EngineStore, Journal, Kernel } from "@smthrs/flows-next"
 
 ## Public API
 
-| Namespace                                                                                                           | Re-exported package                                   |
-| ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Namespace                                                                                                           | Re-exported package                                        |
+| ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
 | `Canonical`                                                                                                         | `@smthrs/canonical-next`                                   |
 | `Capability`                                                                                                        | `@smthrs/capability-next`                                  |
 | `Crypto`                                                                                                            | `@smthrs/crypto-next`                                      |
