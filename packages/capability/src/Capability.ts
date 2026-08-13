@@ -82,20 +82,25 @@ export class Capability extends Schema.Class<Capability>("@smthrs/capability/Cap
 export const make = (action: Action, resource: string): Capability => new Capability({ action, resource })
 
 /**
- * Formats an exact capability for storage and display.
+ * Formats a capability or a capability pattern for storage, display, and
+ * durable key input.
+ *
+ * The one renderer for both. `Capability` and `CapabilityPattern` are
+ * structurally identical `{action, resource}` records and rendered by
+ * byte-identical bodies, so `format` and a separate `formatPattern` were two
+ * names for one function — and a third, inline copy in
+ * `@smthrs/kernel`'s `JournalGrantStore` was the one actually writing patterns
+ * into durable journal payloads. Security-relevant strings get exactly one
+ * renderer; folding them together is what keeps the bytes identical after the
+ * next edit.
  *
  * @since 0.1.0
  * @category formatting
  */
-export const format = (capability: Capability): string => `${capability.action}:${capability.resource}`
-
-/**
- * Formats a capability pattern for durable key input.
- *
- * @since 0.1.0
- * @category formatting
- */
-export const formatPattern = (pattern: CapabilityPattern): string => `${pattern.action}:${pattern.resource}`
+export const format = (capability: {
+  readonly action: string
+  readonly resource: string
+}): string => `${capability.action}:${capability.resource}`
 
 /**
  * Parses an exact capability. The action is the first two colon-separated

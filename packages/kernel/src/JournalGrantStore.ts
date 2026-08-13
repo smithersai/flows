@@ -7,7 +7,7 @@
  *
  * @since 0.1.0
  */
-import type { CapabilityPattern } from "@smthrs/capability/Capability"
+import { type CapabilityPattern, format } from "@smthrs/capability/Capability"
 import { GrantStoreError, Rule } from "@smthrs/capability/Permission"
 import * as JournalModule from "@smthrs/journal/Journal"
 import * as JournalEvent from "@smthrs/journal/JournalEvent"
@@ -92,7 +92,7 @@ const envelopeSignature = (
   JSON.stringify({
     planDigest,
     scope,
-    patterns: patterns.map((pattern) => `${pattern.action}:${pattern.resource}`).sort()
+    patterns: patterns.map(format).sort()
   })
 
 const replayRememberedRules = (
