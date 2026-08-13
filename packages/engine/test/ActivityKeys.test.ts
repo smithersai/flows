@@ -504,17 +504,29 @@ describe("activity execution keys", () => {
         return "spelled"
       })
     })
-    const flow = Flow.make("ActivityKeys/form-aliasing", {
+    const flowActivityDeclaration = Activity.make("ActivityKeys/form-aliasing/activity", {
       payload: { run: Schema.String },
       success: Schema.String
     })
-    const layer = flow.toLayer(() =>
-      Effect.gen(function*() {
-        const first = yield* declared
-        const second = yield* spelled
-        return `${first}:${second}`
-      })
-    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+    const flow = Flow.make("ActivityKeys/form-aliasing", {
+      payload: { run: Schema.String },
+      success: Schema.String,
+      body: (payload) => flowActivityDeclaration.call(payload)
+    })
+    const layer = Layer.mergeAll(
+      flowActivityDeclaration.toLayer(() =>
+        Effect.gen(function*() {
+          const first = yield* declared
+          const second = yield* spelled
+          return `${first}:${second}`
+        })
+      ),
+      Interpreter.layer(flow)
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
+    ).pipe(
+      Layer.provideMerge(FlowEngine.layerMemory)
+    )
 
     return Effect.gen(function*() {
       // Before the form tag this returned "declared:declared" with
