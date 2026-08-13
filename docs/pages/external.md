@@ -74,7 +74,7 @@ The honest positioning is an embeddable, Effect-native durable-execution toolkit
 
 | Limit | Detail |
 | --- | --- |
-| SQLite only | both shipped SQL backends are SQLite, `@effect/sql-sqlite-node` on Node and sqlite-wasm OPFS in the browser, and the journal migration ladder is SQLite-flavoured DDL. Postgres and PGlite parity is an accepted gap, issue #78 |
+| SQLite only | the shipped production SQL backend is `@effect/sql-sqlite-node` on Node, with an in-memory SQLite test layer. No browser SQL client layer ships here, and the journal migration ladder is SQLite-flavoured DDL. Postgres and PGlite parity is an accepted gap, issue #78 |
 | No browser SQL layer | the journal bundles for the browser against the `DurableWriter` contract, and no browser SQL client layer ships here |
 | Durable engine bundles, does not yet run, in a browser | `@smthrs/engine-store-next` and the `@smthrs/flows-next` barrel are browser entry points — owner identity moved behind the `OwnerIdentity` service and closed issue #114 — but running the composition still needs a browser SQL client behind `DurableWriter`, which is the row above |
 | Registration before resume | flow registrations and active fibers are in-memory, so a restarted process must re-register handlers before driving stored runs |
