@@ -306,6 +306,42 @@ describe("RunStore", () => {
     expect(result.row.heartbeatAtMs).toBe(0)
   })
 
+  it("reports a distinguishable refusal when no liveness evidence was supplied (B12)", async () => {
+    // The recovery-sweeper case: a run whose owner died, so the heartbeat is
+    // stale and the run is genuinely recoverable, claimed without evidence.
+    // The refusal used to come back as `SnapshotChanged`, which asserts the
+    // caller's snapshot was wrong. It was not — the sweeper re-read, got the
+    // identical snapshot, and called again, livelocking on a recoverable run
+    // with no outcome value naming the real reason.
+    const result = await migrated(Effect.gen(function*() {
+      const store = yield* RunStore
+      const running = yield* activateNew(store, "run-no-evidence", ownerA)
+      const expectedSnapshot = snapshot(running)
+      // Past the staleness cutoff, so `HeartbeatFresh` is not the answer.
+      const outcome = yield* store.claimAndOwn(
+        running.runId,
+        expectedSnapshot,
+        ownerB,
+        Duration.toMillis(heartbeatStaleAfter) + 1
+      )
+      // A second call sees the identical snapshot: retrying cannot help, which
+      // is exactly what the outcome now says.
+      const again = yield* store.claimAndOwn(
+        running.runId,
+        expectedSnapshot,
+        ownerB,
+        Duration.toMillis(heartbeatStaleAfter) + 1
+      )
+      return { outcome, again, row: yield* store.get(running.runId) }
+    }))
+
+    expect(result.outcome).toEqual({ _tag: "EvidenceRequired" })
+    expect(result.again).toEqual({ _tag: "EvidenceRequired" })
+    // Nothing was taken: the run still belongs to the dead owner.
+    expect(result.row.owner).toEqual(ownerA)
+    expect(result.row.status).toBe("running")
+  })
+
   it("refuses claim-and-own when the expected snapshot has changed", async () => {
     const result = await migrated(Effect.gen(function*() {
       const store = yield* RunStore
