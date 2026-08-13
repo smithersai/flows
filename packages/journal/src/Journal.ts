@@ -12,6 +12,7 @@
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import type * as Option from "effect/Option"
 import * as PubSub from "effect/PubSub"
 import * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
@@ -37,6 +38,9 @@ export const JournalErrorCode = Schema.Literals([
   "sink_failed",
   "decode_failed",
   "projection_failed",
+  "checkpoint_invalid",
+  "reader_behind",
+  "compacted",
   "unknown"
 ])
 
@@ -51,13 +55,19 @@ export type JournalErrorCode = typeof JournalErrorCode.Type
 /**
  * Error raised by journal admission, persistence, replay, or projection.
  *
+ * `checkpointSeq` is set on the compaction-aware codes: on `compacted` it is
+ * the run's compaction floor — the checkpoint sequence a reader must resync
+ * from — and on `reader_behind` it is the checkpoint a compaction refused to
+ * truncate below.
+ *
  * @category errors
  * @since 0.1.0
  */
 export class JournalError extends Schema.TaggedError<JournalError>()("flows/journal/JournalError", {
   code: JournalErrorCode,
   message: Schema.String,
-  cause: Schema.optional(Schema.Unknown)
+  cause: Schema.optional(Schema.Unknown),
+  checkpointSeq: Schema.optional(Seq)
 }) {}
 
 /**
@@ -245,6 +255,106 @@ export const EntriesPage = Schema.Struct({
 export type EntriesPage = typeof EntriesPage.Type
 
 /**
+ * A durable checkpoint: the caller-captured state that replays a run from
+ * `seq` without the entries before it.
+ *
+ * `state` is the caller's own replay snapshot and round-trips verbatim — the
+ * journal never interprets it, and redaction deliberately does not apply,
+ * exactly as it does not apply to executable state. A checkpoint at `seq`
+ * must subsume every entry with a sequence at or below `seq`: replay is
+ * `state` plus `stream({ runId, afterSequence: seq })`.
+ *
+ * `compactedAtMs` is `null` until a compaction has truncated the entries
+ * strictly below `seq`. The largest compacted `seq` for a run is its
+ * compaction floor.
+ *
+ * Prior art: Temporal's mutable state — a durable snapshot pinned to a
+ * history offset, with history below it never replayed
+ * (`reference/temporal/common/persistence/data_interfaces.go`,
+ * `WorkflowSnapshot`).
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export class Checkpoint extends Schema.Class<Checkpoint>("flows/journal/Journal/Checkpoint")({
+  runId: RunId,
+  seq: Seq,
+  state: Schema.Unknown,
+  createdAtMs: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+  compactedAtMs: Schema.NullOr(Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)))
+}) {}
+
+/**
+ * Arguments for writing a checkpoint.
+ *
+ * `seq` must name a committed entry of the run: the surviving row is what
+ * keeps the run's durable `MAX(seq)` allocation floor at or above the
+ * compaction boundary, so a process restarted after compaction can never
+ * re-allocate a truncated sequence.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export const CheckpointOptions = Schema.Struct({
+  runId: RunId,
+  seq: Seq,
+  state: Schema.Unknown
+})
+
+/**
+ * Arguments for writing a checkpoint.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type CheckpointOptions = typeof CheckpointOptions.Type
+
+/**
+ * Arguments for compacting a run.
+ *
+ * `upTo` selects the checkpoint to truncate below; omitted, the run's latest
+ * checkpoint is used.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export const CompactOptions = Schema.Struct({
+  runId: RunId,
+  upTo: Schema.optionalKey(Seq)
+})
+
+/**
+ * Arguments for compacting a run.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type CompactOptions = typeof CompactOptions.Type
+
+/**
+ * Receipt for a completed compaction.
+ *
+ * `deleted` is `0` when the checkpoint was already the compaction floor — a
+ * retried compaction is idempotent.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export const Compacted = Schema.Struct({
+  runId: RunId,
+  checkpointSeq: Seq,
+  deleted: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0))
+})
+
+/**
+ * Receipt for a completed compaction.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type Compacted = typeof Compacted.Type
+
+/**
  * Journal operations.
  *
  * There are two sequence domains:
@@ -338,6 +448,42 @@ export interface Service {
     options: StreamOptions
   ) => Stream.Stream<S, JournalError, R>
   readonly flush: Effect.Effect<void, JournalError>
+  /**
+   * Durably records the state that replays the run from `options.seq`.
+   *
+   * The write shares `transact`'s discipline: it runs through the same
+   * `DurableWriter`, so inside an open `transact` it joins the caller's
+   * transaction as a savepoint and rolls back with it. `options.seq` must
+   * name a committed entry and must lie above the run's compaction floor;
+   * otherwise the write fails with `checkpoint_invalid`. Re-checkpointing an
+   * uncompacted `seq` replaces its state — last writer wins.
+   *
+   * Passing an `owner` fences the write on the run's persisted ownership,
+   * exactly as `emitDurable` does: a reclaimed run fails with `fence_lost`.
+   */
+  readonly checkpoint: (options: CheckpointOptions, owner?: OwnerId) => Effect.Effect<Checkpoint, JournalError>
+  /**
+   * Reads the run's most recent checkpoint, compacted or not.
+   *
+   * A reader that fails with `compacted` resyncs here: apply
+   * `checkpoint.state`, then continue from
+   * `stream({ runId, afterSequence: checkpoint.seq })`.
+   */
+  readonly latestCheckpoint: (runId: RunId) => Effect.Effect<Option.Option<Checkpoint>, JournalError>
+  /**
+   * Deletes the run's entries strictly below a checkpoint, atomically with
+   * advancing the run's compaction floor.
+   *
+   * Refusals are typed: `checkpoint_invalid` when the run has no checkpoint
+   * to truncate below, `reader_behind` when a live in-process stream still
+   * needs a sequence the truncation would delete, and `fence_lost` when the
+   * supplied `owner` no longer holds the run. Readers this process cannot
+   * see — pollers of `entries` and followers in other processes — are
+   * protected by the read-side guard instead: any read whose cursor starts
+   * below the floor fails with `compacted` and the floor to resync from,
+   * never a silently shortened history.
+   */
+  readonly compact: (options: CompactOptions, owner?: OwnerId) => Effect.Effect<Compacted, JournalError>
 }
 
 /**
@@ -397,7 +543,10 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service => {
             Effect.succeed(Stream.fail(unavailable("project")))
         )(projection, options)
       ),
-    flush: Effect.fn("Journal.flush")(() => Effect.fail(unavailable("flush")))()
+    flush: Effect.fn("Journal.flush")(() => Effect.fail(unavailable("flush")))(),
+    checkpoint: Effect.fn("Journal.checkpoint")(() => Effect.fail(unavailable("checkpoint"))),
+    latestCheckpoint: Effect.fn("Journal.latestCheckpoint")(() => Effect.fail(unavailable("latestCheckpoint"))),
+    compact: Effect.fn("Journal.compact")(() => Effect.fail(unavailable("compact")))
   }
   return Journal.of({ ...service, ...overrides })
 }

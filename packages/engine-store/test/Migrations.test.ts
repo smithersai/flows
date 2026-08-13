@@ -51,6 +51,7 @@ describe("durable engine migrations", () => {
       "flows_attempts",
       "flows_clock_deadlines",
       "flows_deferred_completions",
+      "flows_journal_checkpoints",
       "flows_journal_events",
       "flows_migrations",
       "flows_plan_edges",
@@ -90,6 +91,13 @@ describe("durable engine migrations", () => {
         "exit_json",
         "flow_name",
         "metadata_json"
+      ],
+      flows_journal_checkpoints: [
+        "compacted_at_ms",
+        "created_at_ms",
+        "run_id",
+        "seq",
+        "state_json"
       ],
       flows_journal_events: [
         "emitted_at_ms",
