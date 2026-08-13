@@ -1,16 +1,18 @@
 # Smithers Flows
 
-Smithers Flows is an Effect-based durable-execution engine: typed flows that record every side effect to a journal, so a crashed process resumes from its recorded steps instead of starting over.
+Smithers Flows is a durable-execution engine built on Effect. A flow is a typed program whose side effects are recorded in a journal as they happen; when the process running it dies, the next process reads the journal and continues where the record stops.
 
-You declare an activity once with Schema-typed payload, success, and error, attach its implementation as a layer, and write a flow whose pure body names it. The engine persists run state in SQLite through the journal, computes a content-addressed key for each activity, and stores each attempt's encoded result. When a process restarts, it claims the run, re-plans the flow and drives it from the top, and replays every recorded step; the first step without a record is where new work happens. A capability kernel bounds what flow code can reach on the host, read-only sync streams journal entries to followers, and time travel forks and rewinds run history.
+Effect ships a workflow package of its own; this engine vendors that surface rather than depending on it, and then diverges by being stricter and more cacheable. Upstream derives a run's identity by hashing the flow tag and payload, so unrelated runs with equal payloads silently join; here the caller chooses the execution ID, derivation is opt-in, and a flow with neither dies with a structured defect. Upstream derives a step's identity from its activity's name, so renaming an activity corrupts replay; here step keys are content-addressed over canonical JSON, and a step is keyed by its content, not its name. Upstream retries any interruption ten times by default; here cancellation propagates at once, and only an interrupt explicitly marked as infrastructure consumes a retry policy.
 
 ## Quick start
 
-Requires Node.js 22.19 or later.
+You will need Node.js 22.19 or later.
 
 ```sh
-npm install @smthrs/flow-next @smthrs/engine-next effect
+npm install @smthrs/flow-next @smthrs/engine-next effect@4.0.0-rc.108 @effect/platform-node@4.0.0-rc.108
 ```
+
+The only way to learn a new system is to write programs in it. The first program to write is the same as it has always been: print a greeting.
 
 ```ts
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
@@ -21,13 +23,13 @@ import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 
 // The atom that does the work: schemas and a tag, no code.
-export const Greet = Activity.make("example/Greet", {
+export const Greet = Activity.make("examples/Greet", {
   payload: { name: Schema.String },
   success: Schema.String
 })
 
 // The composite: a pure body that names the atom instead of calling it.
-export const Greeting = Flow.make("example/Greeting", {
+export const Greeting = Flow.make("examples/Greeting", {
   payload: { name: Schema.String },
   success: Schema.String,
   body: (payload) => Greet.call(payload)
@@ -40,6 +42,7 @@ const GreetingLayer = Layer.mergeAll(
 ).pipe(
   Layer.provideMerge(Activity.layerImplementations),
   Layer.provideMerge(FlowEngine.layerMemory),
+  // Step identity is a derived hash, so the engine needs a Crypto even in memory.
   Layer.provideMerge(NodeCrypto.layer)
 )
 
@@ -52,21 +55,35 @@ Effect.runPromise(program).then(console.log)
 // "Hello, Ada."
 ```
 
-The in-memory engine above keeps state in the process. For a run that survives a crash, drive the same flow with `EngineStore.layer` over SQLite; `examples/src/02-run-durably.ts` and `examples/src/03-crash-and-resume.ts` show the full wiring, and `npm run test:examples` executes every example against the real packages.
+The engine above keeps its state in the process, which is fine for a first program and no help in a crash. To survive one, drive the same flow, unchanged, with `EngineStore.layer` over SQLite; the examples below show the wiring.
+
+## Examples
+
+There are nine, in [`examples/src`](examples/src), numbered in reading order. `npm run test:examples` runs every one against the real packages.
+
+- [`01-define-and-run.ts`](examples/src/01-define-and-run.ts) — define a typed flow and run it on the in-memory engine
+- [`02-run-durably.ts`](examples/src/02-run-durably.ts) — run a flow on the durable engine and read the journal it wrote
+- [`03-crash-and-resume.ts`](examples/src/03-crash-and-resume.ts) — suspend a run, drop the engine, and resume from durable state
+- [`04-retry-policy.ts`](examples/src/04-retry-policy.ts) — retry a flaky activity, and read the policy that decides when to stop
+- [`05-time-travel-fork.ts`](examples/src/05-time-travel-fork.ts) — fork a finished run at a journal frame and drive the copy
+- [`06-time-travel-rewind.ts`](examples/src/06-time-travel-rewind.ts) — rewind a run to an earlier frame and re-derive a view
+- [`07-sync-follower.ts`](examples/src/07-sync-follower.ts) — follow a run's journal from a second process
+- [`08-host-adapters.ts`](examples/src/08-host-adapters.ts) — run the same host program against two adapters
+- [`09-browser-use.ts`](examples/src/09-browser-use.ts) — use the library from a browser bundle
 
 ## Features
 
-- Typed flows and activities with Schema-encoded payloads, successes, and expected errors (`Flow.make`, `Activity.make`).
-- Journal-backed durability: run rows, attempt rows, cache rows, and their lifecycle events commit in one transaction.
-- Fenced run ownership with heartbeats, liveness-gated takeover, and self-interrupting zombie owners.
-- Durable deferreds, clocks, and queues that re-arm across restarts.
-- Retry policies whose schedule-to-close origin persists across park, resume, and process death.
-- Content-addressed step keys over canonical serialization, with invocation keys for run-local work.
-- A capability kernel that decorates host services with grant-checked permissions.
-- Host adapters for Node, Bun, browser, and tests behind one closed service surface.
-- Read-only catch-up and follow sync of journal entries over Effect RPC.
-- Time travel over run history: frame-addressed replay, fork, rewind, compensation, recovery.
-- Extension by dependency injection: every replaceable behavior is an Effect service or a constructor option with a default, so a `Layer` swaps it.
+- Schema-typed payloads, successes, and errors.
+- One transaction per step.
+- Fenced ownership; zombie owners interrupt themselves.
+- Durable deferreds, clocks, and queues.
+- Retry deadlines survive restarts.
+- Content-addressed step keys.
+- Grant-checked host access.
+- Node, Bun, browser, and test hosts.
+- Read-only follower sync.
+- Replay, fork, rewind, compensate, recover.
+- Layers, not hooks.
 
 ## Packages
 
@@ -82,11 +99,13 @@ The in-memory engine above keeps state in the process. For a run that survives a
 | `@smthrs/journal-next` | Logical WAL, migrations, projections, redaction, the `OwnerId` fence |
 | `@smthrs/run-store-next` | Run and attempt stores, ownership arbitration, migrations |
 | `@smthrs/step-cache-next` | Sealed step result cache and its migration |
+| `@smthrs/artifacts-next` | Content-addressed artifact store, local and remote |
 | `@smthrs/database-next` | Driver-neutral SQL contract with transactional write retry |
 | `@smthrs/capability-next` | Capability vocabulary and typed permission failures, shared by the kernel and `@smthrs/jj-next` |
 | `@smthrs/kernel-next` | The closed host service list, capability sets, grants, and permission-decorated host services |
 | `@smthrs/crypto-next` | Injected cryptographic schema transformations |
 | `@smthrs/keys-next` | Canonical flow keys |
+| `@smthrs/plan-next` | The persisted plan: a keyed action graph, its append-only store, and its diff |
 | `@smthrs/flow-next` | Flow definitions, activities, durable primitives, retry policy, and the `FlowRuntime` port |
 | `@smthrs/engine-next` | The runtime that executes flows, plus the RPC and HTTP façades |
 | `@smthrs/engine-store-next` | The durable engine: claims, fences, and persists runs over the journal |
@@ -95,12 +114,4 @@ The in-memory engine above keeps state in the process. For a run that survives a
 
 ## Documentation
 
-Serve the docs site locally with `npx vocs dev`. Start with [Architecture](docs/pages/architecture.md) and [Data structures](docs/pages/data-structures.md), then the per-package API pages under [docs/pages/api](docs/pages/api). [Design decisions](docs/pages/design-decisions.md) records why the engine looks this way, and [External](docs/pages/external.md) lists deployment limits and implementation status.
-
-## Status and compatibility
-
-Packages are pre-1.0 at 0.1.0 in lockstep. The shipped database backends are SQLite (Node and in-memory); Postgres and PGlite parity is an accepted, documented gap. Every package root bundles for the browser, including `@smthrs/engine-store-next` and the `@smthrs/flows-next` barrel; only the platform bundles, the jj and SQLite drivers, and the test hosts are Node-only. Bundling is not running — no browser SQL client layer ships here yet.
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md). Before opening a pull request, run `npm run check`, `npm test`, `npm run lint`, `npm run circular`, and `npm run browser`.
+`npx vocs dev` serves the documentation site locally; the pages are under [docs/pages](docs/pages).
