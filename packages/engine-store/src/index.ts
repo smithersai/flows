@@ -24,6 +24,12 @@ export * as CacheSync from "./CacheSync.ts"
 
 /**
  * @since 0.1.0
+ * @category operations
+ */
+export * as DisasterRecovery from "./DisasterRecovery.ts"
+
+/**
+ * @since 0.1.0
  * @category services
  */
 export * as DurableEngineState from "./DurableEngineState.ts"
