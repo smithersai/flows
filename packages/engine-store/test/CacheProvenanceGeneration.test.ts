@@ -13,17 +13,22 @@
  */
 import type { FileInput } from "@smthrs/flow/FileInput"
 import { Journal } from "@smthrs/journal"
+import * as SqlJournal from "@smthrs/journal/SqlJournal"
 import { Jj } from "@smthrs/kernel"
+import * as PlanStore from "@smthrs/plan/PlanStore"
 import { type Ownership, RunStore } from "@smthrs/run-store"
+import * as AttemptStore from "@smthrs/run-store/AttemptStore"
 import { CacheStore } from "@smthrs/step-cache"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as OwnerIdentity from "../src/OwnerIdentity.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
-import { runPromise, sha256 } from "./Sha256.ts"
+import { key, runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "generation-host", pid: 29, nonce: "generation-process" }
 
@@ -275,5 +280,129 @@ describe("identical-content re-records collapse into the original provenance", (
     // documented lost-hit residual, pinned as a lost hit and nothing more.
     expect(outcome.laggardDeleted).toBe(true)
     expect(outcome.survivorPresent).toBe(false)
+  })
+})
+
+/**
+ * B7: the `generation` identity was `Sha256(JSON.stringify({meta, result}))`,
+ * whose "byte stable across the round trip" argument held only because the two
+ * paths happened to emit the same key order. The fresh path spreads an object;
+ * the convergence path decodes through `Schema.decodeUnknownEffect(AttemptMeta)`,
+ * which emits keys in schema declaration order. The cases below permute the
+ * PERSISTED `meta_json` so the two orders cannot coincide, which is what makes
+ * the latent break observable.
+ */
+describe("the generation digest is canonical, not key-order-coincident (B7)", () => {
+  // Composed here rather than through `TestStores.layer()` so `SqlClient` for
+  // the SAME in-memory database stays reachable: that layer provides its
+  // database inward, which hides the client the meta rewrite below needs.
+  const services = Layer.mergeAll(
+    SqlJournal.layer({ capacity: 1024, overflow: "reject" }),
+    RunStore.layer,
+    AttemptStore.layer,
+    CacheStore.layer,
+    PlanStore.layer,
+    OwnerIdentity.layer,
+    jjLayer
+  ).pipe(Layer.provideMerge(TestStores.database))
+
+  /** Rewrites the run's persisted attempt meta, keeping the fields, changing the order. */
+  const rewriteMeta = (runId: string, transform: (meta: Record<string, unknown>) => Record<string, unknown>) =>
+    Effect.gen(function*() {
+      const sql = yield* Effect.service(SqlClient.SqlClient)
+      const rows = yield* sql<{ readonly meta_json: string }>`
+        SELECT meta_json FROM flows_attempts WHERE run_id = ${runId}
+      `
+      const original = rows[0]?.meta_json
+      if (original === undefined) return yield* Effect.die(new Error("attempt row missing"))
+      const rewritten = JSON.stringify(transform(JSON.parse(original) as Record<string, unknown>))
+      yield* sql`UPDATE flows_attempts SET meta_json = ${rewritten} WHERE run_id = ${runId}`
+      return { original, rewritten }
+    })
+
+  const driveConvergence = (
+    runId: string,
+    key: string,
+    transform: (meta: Record<string, unknown>) => Record<string, unknown>
+  ) =>
+    runPromise(
+      Effect.gen(function*() {
+        const cache = yield* CacheStore.CacheStore
+        const journal = yield* Journal.Journal
+        yield* activate(runId)
+        const execute = ActivityPersistence.make({
+          runId,
+          owner,
+          sourceId: `generation-${runId}`,
+          execute: () => Effect.succeed("recorded")
+        })
+        const dispatch = execute({ activity: {}, attempt: 1, key, tier: "sealed", metadata: declared }).pipe(
+          Effect.provide(StepBoundary.layerTest({ readSnapshot: declared.readSet }))
+        )
+        yield* dispatch
+        const rewrite = yield* rewriteMeta(runId, transform)
+        // The crash window #124 converges from: provenance journalled, cache
+        // row gone, so the next dispatch re-records from the persisted row.
+        yield* cache.evict(sha256(key))
+        yield* dispatch
+        yield* journal.flush
+        const page = yield* journal.entries({ runId: runId as never, limit: 100 })
+        const recorded = page.entries.filter((entry) =>
+          entry.eventType === "flows.engine.cache-provenance" &&
+          (entry.payload as { readonly action?: string }).action === "recorded"
+        )
+        return { recorded, rewrite }
+      }).pipe(Effect.provide(services), Effect.scoped)
+    )
+
+  it("derives the same generation digest when the decoded AttemptMeta reorders keys", async () => {
+    const outcome = await driveConvergence(
+      "generation-key-order",
+      "generation/key-order",
+      (meta) => Object.fromEntries(Object.entries(meta).reverse())
+    )
+
+    // The permutation has to be a real one, or the case proves nothing.
+    expect(outcome.rewrite.rewritten).not.toBe(outcome.rewrite.original)
+    expect(JSON.parse(outcome.rewrite.rewritten)).toEqual(JSON.parse(outcome.rewrite.original))
+    // One recorded row: the convergence collapsed into a journal Duplicate.
+    // Under `JSON.stringify` the reordered meta digests differently, so the
+    // re-record appended a second row — the unbounded append issue #124 closed.
+    expect(outcome.recorded).toHaveLength(1)
+  })
+
+  it("digests the generation identity independently of meta key order", () => {
+    // The discriminating case. The two end-to-end cells below cannot fail
+    // today: `Schema.decodeUnknownEffect(AttemptMeta)` re-emits keys in schema
+    // declaration order whatever order the row was persisted in, and that
+    // order currently coincides with the spread order the fresh emission uses.
+    // That coincidence is the whole of B7 — it is latent, not live. This cell
+    // pins the property the coincidence was standing in for, at the shape the
+    // call site builds.
+    const meta = { tier: "sealed", boundary: { b: "B", a: "A" }, readSetVerified: true }
+    const reordered = Object.fromEntries(Object.entries(meta).reverse())
+
+    expect(key({ kind: "cache-generation", meta, result: "recorded" }))
+      .toBe(key({ kind: "cache-generation", meta: reordered, result: "recorded" }))
+    // And the digest the identity used to be taken over does NOT have that
+    // property, which is what adding one optional field to `AttemptMeta` above
+    // an existing one would have exposed.
+    expect(JSON.stringify({ meta, result: "recorded" }))
+      .not.toBe(JSON.stringify({ meta: reordered, result: "recorded" }))
+  })
+
+  it("converges when the persisted AttemptMeta carries an unexpected extra field", async () => {
+    const outcome = await driveConvergence(
+      "generation-extra-field",
+      "generation/extra-field",
+      (meta) => ({ unexpectedFutureField: "written by a newer writer", ...meta })
+    )
+
+    expect(JSON.parse(outcome.rewrite.rewritten)).toHaveProperty("unexpectedFutureField")
+    // `AttemptMeta` strips the unknown field on decode, so the convergence
+    // digests the same fields as the original emission — in declaration order
+    // rather than the persisted order. Only a canonical digest makes that a
+    // Duplicate rather than a fresh provenance row.
+    expect(outcome.recorded).toHaveLength(1)
   })
 })

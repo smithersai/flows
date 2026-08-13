@@ -13,6 +13,7 @@ import type { Activity } from "@smthrs/flow"
 import type { FileBoundary } from "@smthrs/flow/FileBoundary"
 import { Journal, type JournalEvent } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
+import { Key } from "@smthrs/keys"
 import { AttemptStore, Ownership, RunStore } from "@smthrs/run-store"
 import { CacheStore } from "@smthrs/step-cache"
 import * as Cause from "effect/Cause"
@@ -544,9 +545,25 @@ export const make = (deps: Dependencies) => {
           // evicted generation's shares its provenance by design: the two
           // rows are indistinguishable, so a fenced evict of one is exactly
           // a fenced evict of the other.
-          const generation = yield* Schema.decodeUnknownEffect(Sha256)(
-            JSON.stringify({ meta: options.meta, result: options.result })
-          ).pipe(Effect.orDie)
+          //
+          // The digest goes through `Key`, which is the repo's one hashing
+          // chokepoint: RFC 8785 canonical JSON, then SHA-256. Hashing
+          // `JSON.stringify` output made "byte stable" depend on key order,
+          // and the two paths do not build `meta` the same way — the fresh
+          // path spreads an object, the convergence path decodes through
+          // `Schema.decodeUnknownEffect(AttemptMeta)`, which emits keys in
+          // schema declaration order. Today the two orders coincide, so the
+          // break was latent; adding one optional field to `AttemptMeta` or
+          // `BoundaryEvidence` above an existing one, or reordering the spread
+          // at line 1405, would have made the convergence re-record compute a
+          // different `generation`, append fresh provenance on every later
+          // dispatch, and reopen the unbounded-append regression issue #124
+          // closed. Canonical JSON makes the stability structural.
+          const generation = yield* Schema.decodeUnknownEffect(Key)({
+            kind: "cache-generation",
+            meta: options.meta,
+            result: options.result
+          }).pipe(Effect.orDie)
           // The provenance record and the row it describes commit together:
           // the row carries the record's canonical seq as its provenance, so a
           // crash between them left either a row pointing at a sequence that

@@ -83,6 +83,7 @@
     "@smthrs/flow": "0.1.0",
     "@smthrs/journal": "0.1.0",
     "@smthrs/kernel": "0.1.0",
+    "@smthrs/keys": "0.1.0",
     "@smthrs/plan": "0.1.0",
     "@smthrs/run-store": "0.1.0",
     "@smthrs/step-cache": "0.1.0",

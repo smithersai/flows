@@ -203,7 +203,10 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
         return yield* boundary.settle(prepared)
       }).pipe(Effect.provide(producer.layer))
     )
-    expect(evidence.diffIdentity).toMatch(/^[0-9a-f]{64}$/)
+    // `diffIdentity` is a `Key` now, not a bare Sha256 hex: it goes through
+    // the repo's one hashing chokepoint, so it carries the `key1_` version
+    // marker its derivation is named by.
+    expect(evidence.diffIdentity).toMatch(/^key1_[0-9a-f]{64}$/)
 
     // A different workspace that never ran the step, plus stale garbage at a
     // path the evidence records as absent.
