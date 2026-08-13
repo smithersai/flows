@@ -163,16 +163,20 @@ export const make = (options: MakeOptions): Service => ({
           {
             runId: event.runId,
             lineageId: FlowEngine.Lineage.root(event.runId),
-            // The producer identity is the corruption's cache key (issue
-            // #156): a caller re-observing the identical corrupt row — a
-            // retry, or a converging replay — re-emits an exact producer
-            // duplicate the journal collapses, instead of appending one
-            // durable corruption record per attempt. A record already landed
-            // by another lineage under this identity surfaces as an
-            // idempotency conflict; either way the evidence exists exactly
-            // once, so the conflict converges below.
+            // The producer identity is the corruption evidence plus the
+            // recorded row generation (issues #156, #172): a caller
+            // re-observing the same corrupt row re-emits an exact producer
+            // duplicate the journal collapses, while an identically corrupt
+            // row recorded after eviction and healing has new provenance and
+            // lands as a distinct incident. Attempt-row evidence has no cache
+            // provenance, so its explicit local markers retain same-row
+            // convergence. A record already landed by another lineage under
+            // this identity surfaces as an idempotency conflict; either way
+            // evidence for that row generation exists exactly once.
             sourceId:
-              `flows/engine-store/inconsistency:corruption:${event.keyDigest}:${event.path}:${event.recordedDigest}:${event.measuredDigest}`,
+              `flows/engine-store/inconsistency:corruption:${event.keyDigest}:${event.path}:${event.recordedDigest}:${event.measuredDigest}:${
+                event.recordedRunId ?? "local"
+              }:${event.recordedEventSeq ?? "local"}`,
             sourceSeq: 0
           },
           {

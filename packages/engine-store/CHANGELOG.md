@@ -16,6 +16,9 @@
   journalling the inconsistency, so a later resume returns the durable outcome
   without re-executing the activity
   ([#171](https://github.com/smithersai/flows/issues/171)).
+- Included recorded-row provenance in corruption journal identities so an
+  identically re-corrupted row records a new incident after healing
+  ([#172](https://github.com/smithersai/flows/issues/172)).
 
 ## [0.1.0] - 2026-08-05
 

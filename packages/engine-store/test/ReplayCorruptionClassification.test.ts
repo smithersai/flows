@@ -59,10 +59,10 @@ const activate = (runId: string) =>
     if (activated._tag !== "Activated") return yield* Effect.die(new Error("activation lost"))
   })
 
-const dispatch = (runId: string, key: string, execute: () => Effect.Effect<unknown, unknown>) =>
+const dispatch = (runId: string, key: string, execute: () => Effect.Effect<unknown, unknown>, attempt = 1) =>
   ActivityPersistence.make({ runId, owner, sourceId: `corruption-${runId}`, execute })({
     activity: {},
-    attempt: 1,
+    attempt,
     key,
     tier: "sealed",
     metadata: declared
@@ -499,6 +499,74 @@ describe("replay-failed classification (issue #150)", () => {
     // run's corrupt row in place; the healing re-execution must own the row.
     expect(Option.isSome(outcome)).toBe(true)
     expect(Option.map(outcome, (entry) => entry.recordedRunId)).toEqual(Option.some("corruption-replace-second"))
+  })
+
+  it("journals identical corruption after healing as a distinct record (issue #172)", async () => {
+    const key = "corruption/re-corrupted-record"
+    const runId = "corruption-recorrupt"
+    const outcome = await runPromise(
+      Effect.gen(function*() {
+        yield* activate(runId)
+        yield* dispatch(runId, key, () => Effect.succeed("recorded"), 1).pipe(
+          Effect.provide(failingReplay(corruptionError))
+        )
+
+        // Both detections hit the shared cache before succeeded-attempt lookup,
+        // so issue #171's attempt-evidence quarantine cannot mask this cell.
+        // The first detection evicts before attempt 2 is admitted; healing can
+        // therefore execute attempt 2 and publish a new row generation, which
+        // attempt 3 observes with the same corruption evidence.
+        const firstFailure = yield* dispatch(
+          runId,
+          key,
+          () => Effect.die("must not execute poisoned row"),
+          2
+        ).pipe(Effect.provide(failingReplay(corruptionError)), Effect.flip)
+
+        let executions = 0
+        const healed = yield* dispatch(runId, key, () =>
+          Effect.sync(() => {
+            executions++
+            return "healed"
+          }), 2).pipe(Effect.provide(StepBoundary.layerTest()))
+
+        const secondFailure = yield* dispatch(
+          runId,
+          key,
+          () => Effect.die("must not execute re-corrupted row"),
+          3
+        ).pipe(Effect.provide(failingReplay(corruptionError)), Effect.flip)
+
+        return {
+          firstFailure,
+          secondFailure,
+          healed,
+          executions,
+          corruption: yield* records(runId, "flows.engine.cache-corruption")
+        }
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
+    )
+
+    expect(outcome.firstFailure).toBeInstanceOf(ActivityPersistence.CacheCorruptionDetected)
+    expect(outcome.secondFailure).toBeInstanceOf(ActivityPersistence.CacheCorruptionDetected)
+    expect(outcome.healed).toBe("healed")
+    expect(outcome.executions).toBe(1)
+    expect(outcome.corruption).toHaveLength(2)
+    expect(outcome.corruption).toEqual([
+      expect.objectContaining({
+        path: corruptionError.path,
+        recordedDigest: corruptionError.recordedDigest,
+        measuredDigest: corruptionError.measuredDigest,
+        recordedRunId: runId
+      }),
+      expect.objectContaining({
+        path: corruptionError.path,
+        recordedDigest: corruptionError.recordedDigest,
+        measuredDigest: corruptionError.measuredDigest,
+        recordedRunId: runId
+      })
+    ])
+    expect(outcome.corruption[0]!.recordedEventSeq).not.toBe(outcome.corruption[1]!.recordedEventSeq)
   })
 
   it("journals distinct corruptions of the same key as distinct records (issue #167)", async () => {
