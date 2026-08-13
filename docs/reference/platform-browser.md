@@ -1,4 +1,4 @@
-# `@smthrs/platform-browser`
+# `@smthrs/platform-browser-next`
 
 This page is the public API reference for the browser implementations of two
 `effect` platform services: `FileSystem` and `ChildProcessSpawner`.
@@ -18,13 +18,13 @@ backend is mounted and this package never pins one.
 
 | Import | Exports |
 | --- | --- |
-| `@smthrs/platform-browser` | the three namespaces below |
-| `@smthrs/platform-browser/BrowserFileSystem` | `ZenFsPromisesLike`, `ZenFsFileHandleLike`, `ZenFsStatsLike`, `make`, `layer` |
-| `@smthrs/platform-browser/BrowserChildProcessSpawner` | `JustBashLike`, `layer` |
-| `@smthrs/platform-browser/BrowserServices` | `BrowserServices`, `layer` |
+| `@smthrs/platform-browser-next` | the three namespaces below |
+| `@smthrs/platform-browser-next/BrowserFileSystem` | `ZenFsPromisesLike`, `ZenFsFileHandleLike`, `ZenFsStatsLike`, `make`, `layer` |
+| `@smthrs/platform-browser-next/BrowserChildProcessSpawner` | `JustBashLike`, `layer` |
+| `@smthrs/platform-browser-next/BrowserServices` | `BrowserServices`, `layer` |
 
 ```ts
-import { BrowserServices } from "@smthrs/platform-browser"
+import { BrowserServices } from "@smthrs/platform-browser-next"
 ```
 
 ## The layers are functions
@@ -105,10 +105,10 @@ runs, which is why the layer requires both.
 
 ## Browser support
 
-`@smthrs/platform-browser` is gated as a browser entry point by
+`@smthrs/platform-browser-next` is gated as a browser entry point by
 `scripts/browser-check.mjs` (`npm run browser`, and one CI step). Nothing in the
 package resolves a `node:` built-in.
 
 See [browser support](../architecture/browser-support.md), the
-[`@smthrs/kernel` reference](kernel.md) — whose closed list this package's `BrowserHost` bundle composes
+[`@smthrs/kernel-next` reference](kernel.md) — whose closed list this package's `BrowserHost` bundle composes
 `BrowserFileSystem` — and [Hosts and capabilities](../concepts/hosts-and-capabilities.md).

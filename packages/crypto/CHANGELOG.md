@@ -1,4 +1,4 @@
-# @smthrs/crypto
+# @smthrs/crypto-next
 
 ## [Unreleased]
 

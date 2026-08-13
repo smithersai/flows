@@ -79,7 +79,7 @@ export interface Service {
  * @category services
  * @since 0.1.0
  */
-export class BranchShare extends Context.Service<BranchShare, Service>()("@smthrs/sync/BranchShare") {}
+export class BranchShare extends Context.Service<BranchShare, Service>()("@smthrs/sync-next/BranchShare") {}
 
 /**
  * Constructs a share authority from an implementation.

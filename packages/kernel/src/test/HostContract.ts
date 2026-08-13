@@ -2,13 +2,13 @@
  * Shared contract suite for complete Host bundles.
  *
  * This module is emitted as ESM, CJS, and declarations and exported from
- * `@smthrs/kernel/test/contract`. It intentionally has a Vitest peer because
+ * `@smthrs/kernel-next/test/contract`. It intentionally has a Vitest peer because
  * it registers a reusable behavioral contract for third-party Host bundles.
  *
  * @since 0.1.0
  */
-import * as JjService from "@smthrs/jj"
-import type { Jj, JjErrorCode } from "@smthrs/jj"
+import * as JjService from "@smthrs/jj-next"
+import type { Jj, JjErrorCode } from "@smthrs/jj-next"
 import { Effect, Fiber, FileSystem, type Layer, Path, Stream } from "effect"
 import { HttpClient } from "effect/unstable/http/HttpClient"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"

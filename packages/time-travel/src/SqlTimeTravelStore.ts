@@ -15,8 +15,8 @@
  *
  * @since 0.1.0
  */
-import { DurableWriter } from "@smthrs/database/DurableWriter"
-import { RunState } from "@smthrs/engine-store/RunState"
+import { DurableWriter } from "@smthrs/database-next/DurableWriter"
+import { RunState } from "@smthrs/engine-store-next/RunState"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -181,7 +181,7 @@ const descendantsFrom = (
 /**
  * The kind an engine child spawn is journaled under.
  *
- * `@smthrs/engine-store` writes a boundary-shaped record naming the child at
+ * `@smthrs/engine-store-next` writes a boundary-shaped record naming the child at
  * the parent's spawn seq. Reading it here is the BRIDGE decision: rather than
  * teach the engine to write `flows_time_travel_edges` (it must not depend on
  * this package) or leave three parallel stores of the same tree, fork edges

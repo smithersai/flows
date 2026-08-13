@@ -1,7 +1,7 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, DurableDeferred, Flow, FlowRuntime, Interpreter, RetryPolicy } from "@smthrs/flow"
-import { Node } from "@smthrs/plan"
+import { Activity, DurableDeferred, Flow, FlowRuntime, Interpreter, RetryPolicy } from "@smthrs/flow-next"
+import { Node } from "@smthrs/plan-next"
 import { Cause, Deferred, Effect, Exit, Fiber, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
@@ -466,7 +466,7 @@ describe("activity retry give-up reasons", () => {
       if (result._tag === "Complete") {
         expect(Exit.isFailure(result.exit)).toBe(true)
         expect(Exit.isFailure(result.exit) && Cause.squash(result.exit.cause)).toMatchObject({
-          _tag: "@smthrs/engine/RetryPolicyExpired",
+          _tag: "@smthrs/engine-next/RetryPolicyExpired",
           activityName: "Gaps/durable-retry-origin",
           attempt: 1,
           expirationMs: 1,
@@ -518,7 +518,7 @@ describe("activity retry give-up reasons", () => {
       expect(Exit.isFailure(exit)).toBe(true)
       const defect = Exit.isFailure(exit) ? Cause.squash(exit.cause) : undefined
       expect((defect as RetryPolicy.RetryAttemptsExhausted)._tag).toBe(
-        "@smthrs/engine/RetryAttemptsExhausted"
+        "@smthrs/engine-next/RetryAttemptsExhausted"
       )
       expect((defect as RetryPolicy.RetryAttemptsExhausted).attempt).toBe(1)
       expect((defect as RetryPolicy.RetryAttemptsExhausted).maxAttempts).toBe(1)

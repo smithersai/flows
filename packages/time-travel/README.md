@@ -1,18 +1,18 @@
-# @smthrs/time-travel
+# @smthrs/time-travel-next
 
 One injectable `TimeTravel` service — inspect, fork, rewind — over the journal
 and engine-store contracts. It owns both in-memory and SQL state stores and
 records effect-boundary evidence used to make time-travel decisions.
 
 ```sh
-npm install @smthrs/time-travel
+npm install @smthrs/time-travel-next
 ```
 
 ## Public API
 
 Time travel is ONE injectable service. `TimeTravel` is exported flat — the
 service key is the door — beside the namespaces you inject or integrate with,
-also available from matching `@smthrs/time-travel/*` subpaths.
+also available from matching `@smthrs/time-travel-next/*` subpaths.
 
 | Export                  | Public surface                                                                                                                                                                                                                                                                                       |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -30,7 +30,7 @@ the package `exports` map. Recovery is never a call: building `TimeTravel.layer`
 finishes or rolls back any rewind a crash interrupted.
 
 ```ts
-import { TimeTravel } from "@smthrs/time-travel"
+import { TimeTravel } from "@smthrs/time-travel-next"
 import { Effect } from "effect"
 
 const rewound = Effect.gen(function*() {

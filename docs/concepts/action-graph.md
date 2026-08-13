@@ -38,7 +38,7 @@ A sealed activity is reusable only when it has an idempotency key, a complete ca
 
 ## Hermeticity is an evidence gate
 
-The derived `Key` identifies an action but does not enforce hermeticity. Cache admission in `@smthrs/engine-store` additionally requires:
+The derived `Key` identifies an action but does not enforce hermeticity. Cache admission in `@smthrs/engine-store-next` additionally requires:
 
 1. activity tier `sealed`;
 2. metadata that decodes as `FileBoundary`;
@@ -52,7 +52,7 @@ Without that host layer, the durable engine can still replay an attempt within o
 
 ## Graph planning
 
-Resolving graph-local dependency references into digests is [`@smthrs/plan`](../reference/plan.md). `Plan.compile` walks drafts in topological order and substitutes each dependency's already-computed key for its `Ref`/`Pending` reference, so a node's key is a function of what it consumes. The declarations and references live with the planner rather than in `@smthrs/keys`, which stays the single hashing transformation.
+Resolving graph-local dependency references into digests is [`@smthrs/plan-next`](../reference/plan.md). `Plan.compile` walks drafts in topological order and substitutes each dependency's already-computed key for its `Ref`/`Pending` reference, so a node's key is a function of what it consumes. The declarations and references live with the planner rather than in `@smthrs/keys-next`, which stays the single hashing transformation.
 
 Two properties fall out and are the reason the package exists:
 

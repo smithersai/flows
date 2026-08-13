@@ -7,7 +7,7 @@ own `LICENSE`.
 
 ## Effect (`Effect-TS/effect`)
 
-`@smthrs/flow` carries the flow-authoring half of a fork of Effect's unstable
+`@smthrs/flow-next` carries the flow-authoring half of a fork of Effect's unstable
 durable-flow runtime and
 contains substantial portions of that source. The fork point, upstream package
 version, and a module-by-module record of what was vendored and how it was

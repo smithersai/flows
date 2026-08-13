@@ -8,10 +8,10 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * durable `requestCancel`. The release must park with a durable reason so
  * the run is re-drivable and cancellable.
  */
-import { Flow, FlowRuntime } from "@smthrs/flow"
-import type { Journal } from "@smthrs/journal"
-import { Node } from "@smthrs/plan"
-import { Ownership, RunStore } from "@smthrs/run-store"
+import { Flow, FlowRuntime } from "@smthrs/flow-next"
+import type { Journal } from "@smthrs/journal-next"
+import { Node } from "@smthrs/plan-next"
+import { Ownership, RunStore } from "@smthrs/run-store-next"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"

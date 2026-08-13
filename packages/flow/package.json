@@ -1,5 +1,5 @@
 {
-  "name": "@smthrs/flow",
+  "name": "@smthrs/flow-next",
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
@@ -125,9 +125,9 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@smthrs/crypto": "0.1.0",
-    "@smthrs/keys": "0.1.0",
-    "@smthrs/plan": "0.1.0",
+    "@smthrs/crypto-next": "0.1.0",
+    "@smthrs/keys-next": "0.1.0",
+    "@smthrs/plan-next": "0.1.0",
     "effect": "4.0.0-beta.102"
   },
   "devDependencies": {

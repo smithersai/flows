@@ -16,7 +16,7 @@
  *
  * @since 4.0.0
  */
-import type * as Node from "@smthrs/plan/Node"
+import type * as Node from "@smthrs/plan-next/Node"
 import type * as Cause from "effect/Cause"
 import type * as Context from "effect/Context"
 import type * as Effect from "effect/Effect"

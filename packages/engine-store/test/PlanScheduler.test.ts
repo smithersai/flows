@@ -5,10 +5,10 @@
  * interleaving of two concurrently admitted nodes — rather than from the
  * `DeterministicHelper` the vault rejected. Nothing here sleeps.
  */
-import { Journal } from "@smthrs/journal"
-import { Jj } from "@smthrs/kernel"
-import { KeyMaterial, Plan, PlanStore } from "@smthrs/plan"
-import { type Ownership, RunStore } from "@smthrs/run-store"
+import { Journal } from "@smthrs/journal-next"
+import { Jj } from "@smthrs/kernel-next"
+import { KeyMaterial, Plan, PlanStore } from "@smthrs/plan-next"
+import { type Ownership, RunStore } from "@smthrs/run-store-next"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"

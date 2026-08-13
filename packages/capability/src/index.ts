@@ -1,11 +1,11 @@
 /**
  * @since 0.1.0
  *
- * `@smthrs/capability` — the leaf vocabulary of the permission kernel.
+ * `@smthrs/capability-next` — the leaf vocabulary of the permission kernel.
  *
  * Capability values and permission failures live here, apart from the kernel
  * that enforces them, so a protected Host service can declare the failures its
- * guarded interface adds without depending on `@smthrs/kernel`.
+ * guarded interface adds without depending on `@smthrs/kernel-next`.
  */
 
 /**

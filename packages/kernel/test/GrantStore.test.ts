@@ -1,5 +1,5 @@
-import { Capability, CapabilityPattern } from "@smthrs/capability/Capability"
-import { GrantStoreError, PermissionDenied, PermissionRequired, Rule } from "@smthrs/capability/Permission"
+import { Capability, CapabilityPattern } from "@smthrs/capability-next/Capability"
+import { GrantStoreError, PermissionDenied, PermissionRequired, Rule } from "@smthrs/capability-next/Permission"
 import { Deferred, Effect, Fiber } from "effect"
 import { describe, expect, it } from "vitest"
 import { attenuate } from "../src/CapabilitySet.ts"

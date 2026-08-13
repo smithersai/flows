@@ -13,9 +13,9 @@
  *
  * @since 0.1.0
  */
-import * as Journal from "@smthrs/journal/Journal"
-import type { Entry, RunId, Seq } from "@smthrs/journal/JournalEvent"
-import * as CacheStore from "@smthrs/step-cache/CacheStore"
+import * as Journal from "@smthrs/journal-next/Journal"
+import type { Entry, RunId, Seq } from "@smthrs/journal-next/JournalEvent"
+import * as CacheStore from "@smthrs/step-cache-next/CacheStore"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"

@@ -3,19 +3,19 @@
  *
  * Every import in this file comes from an entry point that the repository's
  * browser gate (`npm run browser`) bundles with esbuild `platform: "browser"`:
- * the `@smthrs/engine`, `@smthrs/keys`, `@smthrs/journal`, and
- * `@smthrs/platform-browser` roots never statically resolve a `node:`
+ * the `@smthrs/engine-next`, `@smthrs/keys-next`, `@smthrs/journal-next`, and
+ * `@smthrs/platform-browser-next` roots never statically resolve a `node:`
  * built-in, because platform access lives in layers, and the Node and Bun
  * bundles are their own packages.
  *
- * The barrel `@smthrs/flows` and `@smthrs/engine-store` are Node entry points,
+ * The barrel `@smthrs/flows-next` and `@smthrs/engine-store-next` are Node entry points,
  * so a browser app imports the per-package roots, as this file does. The test
  * for this example bundles the file itself for the browser and fails if a
  * Node-only import ever sneaks in.
  */
-import { FlowEngine } from "@smthrs/engine"
-import { Activity, Flow, Interpreter } from "@smthrs/flow"
-import { Key } from "@smthrs/keys"
+import { FlowEngine } from "@smthrs/engine-next"
+import { Activity, Flow, Interpreter } from "@smthrs/flow-next"
+import { Key } from "@smthrs/keys-next"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"

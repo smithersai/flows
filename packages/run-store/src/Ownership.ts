@@ -3,7 +3,7 @@
  * supervision.
  *
  * The identity being arbitrated — {@link OwnerId} — is defined by
- * `@smthrs/journal`, because it is the fencing token the journal accepts on
+ * `@smthrs/journal-next`, because it is the fencing token the journal accepts on
  * durable appends. It is re-exported here so ownership callers keep reading it
  * as one vocabulary.
  *
@@ -12,7 +12,7 @@
  *
  * @since 0.1.0
  */
-import { OwnerId } from "@smthrs/journal/OwnerId"
+import { OwnerId } from "@smthrs/journal-next/OwnerId"
 import { Clock, Duration, Effect, Schema } from "effect"
 import { heartbeatInterval, heartbeatWriteTolerance } from "./Heartbeat.ts"
 import { RunStore } from "./RunStore.ts"
@@ -20,7 +20,7 @@ import { RunStore } from "./RunStore.ts"
 export {
   /**
    * A process identity scoped to a host and a unique ownership nonce, defined
-   * by `@smthrs/journal` as the fence on durable appends.
+   * by `@smthrs/journal-next` as the fence on durable appends.
    *
    * @since 0.1.0
    * @category models

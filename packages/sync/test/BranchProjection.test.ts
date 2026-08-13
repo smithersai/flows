@@ -1,4 +1,4 @@
-import { JournalEvent } from "@smthrs/journal"
+import { JournalEvent } from "@smthrs/journal-next"
 import { describe, expect, it } from "vitest"
 import * as BranchProjection from "../src/BranchProjection.ts"
 import * as BranchProtocol from "../src/BranchProtocol.ts"

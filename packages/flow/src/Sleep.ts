@@ -48,7 +48,7 @@ import { annotateWaiting } from "./FlowRuntime/WaitingAnnotation.ts"
  * @since 0.1.0
  */
 export class SleepRequestInvalid extends Schema.TaggedErrorClass<SleepRequestInvalid>()(
-  "@smthrs/flow/SleepRequestInvalid",
+  "@smthrs/flow-next/SleepRequestInvalid",
   {
     code: Schema.Literals(["missing_deadline", "ambiguous_deadline"]),
     message: Schema.String

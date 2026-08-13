@@ -20,10 +20,10 @@
  *
  * @since 0.1.0
  */
-import { FlowEngine } from "@smthrs/engine"
-import { Journal } from "@smthrs/journal"
-import type { Ownership } from "@smthrs/run-store"
-import type { CacheStore } from "@smthrs/step-cache"
+import { FlowEngine } from "@smthrs/engine-next"
+import { Journal } from "@smthrs/journal-next"
+import type { Ownership } from "@smthrs/run-store-next"
+import type { CacheStore } from "@smthrs/step-cache-next"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"

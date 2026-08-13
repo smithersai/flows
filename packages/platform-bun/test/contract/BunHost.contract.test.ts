@@ -8,7 +8,7 @@
  * re-exported, so process spawning is literally the same implementation on
  * both runtimes and needs no separate Bun fake.
  */
-import { runHostContract } from "@smthrs/kernel/test/contract"
+import { runHostContract } from "@smthrs/kernel-next/test/contract"
 import { spawnSync } from "node:child_process"
 import * as BunHost from "../../src/BunHost.ts"
 

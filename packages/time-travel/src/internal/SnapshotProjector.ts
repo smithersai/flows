@@ -5,8 +5,8 @@
  * current when its seq was journaled and the plan digest in force, because
  * replay cannot derive either. The engine emits both facts as ordinary journal
  * records — it has to, it is the only thing that knows them — but the engine
- * must NOT write `flows_time_travel_snapshots` itself: `@smthrs/time-travel`
- * already depends on `@smthrs/engine-store`, so an engine that wrote this
+ * must NOT write `flows_time_travel_snapshots` itself: `@smthrs/time-travel-next`
+ * already depends on `@smthrs/engine-store-next`, so an engine that wrote this
  * package's tables would close a dependency cycle.
  *
  * A projector is the seam that keeps the arrow one-way. It reads the journal
@@ -17,9 +17,9 @@
  *
  * @since 0.1.0
  */
-import * as Journal from "@smthrs/journal/Journal"
-import type * as JournalEvent from "@smthrs/journal/JournalEvent"
-import type * as Projection from "@smthrs/journal/Projection"
+import * as Journal from "@smthrs/journal-next/Journal"
+import type * as JournalEvent from "@smthrs/journal-next/JournalEvent"
+import type * as Projection from "@smthrs/journal-next/Projection"
 import * as Effect from "effect/Effect"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
@@ -108,7 +108,7 @@ export const projection = (
 /**
  * Folds one run's committed journal into its frame anchors, up to the head.
  *
- * The fold is {@link projection}, a plain `@smthrs/journal` `Projection` that
+ * The fold is {@link projection}, a plain `@smthrs/journal-next` `Projection` that
  * `Journal.project` runs unchanged — that is the reusable artifact, and a live
  * follower should use exactly that. What this driver does NOT do is call
  * `Journal.project` itself, because that stream replays a run and then FOLLOWS

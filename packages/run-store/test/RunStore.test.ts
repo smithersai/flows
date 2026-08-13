@@ -1,5 +1,5 @@
-import type { DurableWriter } from "@smthrs/database"
-import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import type { DurableWriter } from "@smthrs/database-next"
+import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import { Cause, Clock, Deferred, Duration, Effect, Exit, Fiber } from "effect"
 import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"

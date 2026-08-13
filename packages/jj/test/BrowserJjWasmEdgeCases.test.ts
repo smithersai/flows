@@ -34,7 +34,7 @@ if (wasmBytes === undefined) {
   // eslint-disable-next-line no-console
   console.warn(
     "[BrowserJjWasmEdgeCases] packages/jj/wasm/flows_jj.wasm is not built — the edge-case "
-      + "suite is SKIPPED. Build it with `npm run build:wasm -w @smthrs/jj`."
+      + "suite is SKIPPED. Build it with `npm run build:wasm -w @smthrs/jj-next`."
   )
 }
 

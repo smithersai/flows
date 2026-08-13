@@ -10,14 +10,14 @@
  * the round budget terminates a lineage with a typed failure instead of
  * running forever.
  */
-import * as TestDatabase from "@smthrs/database/test/TestDatabase"
-import { Activity, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
-import { Journal, SqlJournal } from "@smthrs/journal"
-import * as Notifying from "@smthrs/journal/test/Notifying"
-import { Jj } from "@smthrs/kernel"
-import { Node } from "@smthrs/plan"
-import { AttemptStore, RunStore } from "@smthrs/run-store"
-import { CacheStore } from "@smthrs/step-cache"
+import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
+import { Activity, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
+import { Journal, SqlJournal } from "@smthrs/journal-next"
+import * as Notifying from "@smthrs/journal-next/test/Notifying"
+import { Jj } from "@smthrs/kernel-next"
+import { Node } from "@smthrs/plan-next"
+import { AttemptStore, RunStore } from "@smthrs/run-store-next"
+import { CacheStore } from "@smthrs/step-cache-next"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"

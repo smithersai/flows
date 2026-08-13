@@ -1,4 +1,4 @@
-import type { JjError } from "@smthrs/jj"
+import type { JjError } from "@smthrs/jj-next"
 import { Effect, PlatformError, Stream } from "effect"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import { describe, expect, it } from "vitest"

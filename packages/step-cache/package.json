@@ -1,5 +1,5 @@
 {
-  "name": "@smthrs/step-cache",
+  "name": "@smthrs/step-cache-next",
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
@@ -76,8 +76,8 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@smthrs/canonical": "0.1.0",
-    "@smthrs/database": "0.1.0",
+    "@smthrs/canonical-next": "0.1.0",
+    "@smthrs/database-next": "0.1.0",
     "effect": "4.0.0-beta.102"
   },
   "devDependencies": {

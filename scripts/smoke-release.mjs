@@ -57,19 +57,19 @@ try {
   )
   await run(
     "node",
-    ["--input-type=module", "--eval", "await import('@smthrs/flows')"],
+    ["--input-type=module", "--eval", "await import('@smthrs/flows-next')"],
     smokeRoot
   )
   await run(
     "node",
-    ["--eval", "require('@smthrs/flows')"],
+    ["--eval", "require('@smthrs/flows-next')"],
     smokeRoot
   )
   await writeFile(
     join(smokeRoot, "smoke.mts"),
     [
-      'import * as Flows from "@smthrs/flows"',
-      'import { runHostContract } from "@smthrs/kernel/test/contract"',
+      'import * as Flows from "@smthrs/flows-next"',
+      'import { runHostContract } from "@smthrs/kernel-next/test/contract"',
       "",
       "const publicApi: typeof Flows = Flows",
       "void publicApi",

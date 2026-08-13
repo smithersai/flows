@@ -5,8 +5,8 @@
  *
  * `FlowRuntime` is the port: the smallest service a `Flow`, an `Activity`, a
  * `DurableDeferred`, or a `DurableClock` needs in order to be executed,
- * polled, suspended, and resumed. `@smthrs/flow` declares it and depends on
- * nothing that implements it; `@smthrs/engine` supplies the implementation,
+ * polled, suspended, and resumed. `@smthrs/flow-next` declares it and depends on
+ * nothing that implements it; `@smthrs/engine-next` supplies the implementation,
  * so the dependency runs one way only.
  *
  * @since 4.0.0

@@ -12,12 +12,12 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * persisted failure after a restart — the failure itself is durable, not
  * just the fact that an attempt happened.
  */
-import { Activity, Flow, RetryPolicy } from "@smthrs/flow"
-import { Journal } from "@smthrs/journal"
-import * as Notifying from "@smthrs/journal/test/Notifying"
-import { Jj } from "@smthrs/kernel"
-import { Node } from "@smthrs/plan"
-import { AttemptStore, RunStore } from "@smthrs/run-store"
+import { Activity, Flow, RetryPolicy } from "@smthrs/flow-next"
+import { Journal } from "@smthrs/journal-next"
+import * as Notifying from "@smthrs/journal-next/test/Notifying"
+import { Jj } from "@smthrs/kernel-next"
+import { Node } from "@smthrs/plan-next"
+import { AttemptStore, RunStore } from "@smthrs/run-store-next"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"

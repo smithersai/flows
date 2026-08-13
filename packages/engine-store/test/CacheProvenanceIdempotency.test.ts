@@ -8,9 +8,9 @@
  * while a genuinely new observation (against a different recorded row) still
  * journals.
  */
-import { Journal } from "@smthrs/journal"
-import { Jj } from "@smthrs/kernel"
-import { type Ownership, RunStore } from "@smthrs/run-store"
+import { Journal } from "@smthrs/journal-next"
+import { Jj } from "@smthrs/kernel-next"
+import { type Ownership, RunStore } from "@smthrs/run-store-next"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"

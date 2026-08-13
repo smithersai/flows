@@ -6,10 +6,10 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * silently for the rest of the process lifetime. The sweep gets the same
  * sandbox-and-log hardening `armClock` received.
  */
-import { DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
-import { Jj } from "@smthrs/kernel"
-import { Node } from "@smthrs/plan"
-import { Ownership, RunStore } from "@smthrs/run-store"
+import { DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow-next"
+import { Jj } from "@smthrs/kernel-next"
+import { Node } from "@smthrs/plan-next"
+import { Ownership, RunStore } from "@smthrs/run-store-next"
 import * as Clock from "effect/Clock"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"

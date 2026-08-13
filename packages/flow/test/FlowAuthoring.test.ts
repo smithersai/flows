@@ -1,5 +1,5 @@
-import { Flow } from "@smthrs/flow"
-import { Node, Planned } from "@smthrs/plan"
+import { Flow } from "@smthrs/flow-next"
+import { Node, Planned } from "@smthrs/plan-next"
 import { Context, Effect, Schema } from "effect"
 import { describe, expect, expectTypeOf, it } from "vitest"
 

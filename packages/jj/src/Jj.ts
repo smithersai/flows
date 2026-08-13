@@ -10,14 +10,14 @@
  * The error lives here rather than in a shared host error module so that a
  * consumer who only snapshots a working copy does not pull in a process
  * spawner or an HTTP client. The one thing this package does import is
- * `@smthrs/capability`, the leaf that names the permission failures a guarded
+ * `@smthrs/capability-next`, the leaf that names the permission failures a guarded
  * `Jj` adds; it depends on nothing but `effect` either.
  *
  * The tag key and the error `_tag` are durable identity: step keys digest the
  * resolved service set, and `JjError` round-trips through the journal, so
  * renaming either invalidates recorded runs.
  */
-import type * as Permission from "@smthrs/capability/Permission"
+import type * as Permission from "@smthrs/capability-next/Permission"
 import { Context, Effect, Layer, Schema } from "effect"
 import type { PlatformError } from "effect/PlatformError"
 
@@ -54,7 +54,7 @@ export type JjErrorCode = typeof JjErrorCode.Type
  * @category errors
  * @since 0.1.0
  */
-export class JjError extends Schema.TaggedErrorClass<JjError>()("@smthrs/jj/JjError", {
+export class JjError extends Schema.TaggedErrorClass<JjError>()("@smthrs/jj-next/JjError", {
   code: JjErrorCode,
   module: Schema.optional(Schema.String),
   method: Schema.optional(Schema.String),
@@ -96,7 +96,7 @@ export const jjError = (options: {
  * @since 0.1.0
  */
 export const isJjError = (error: unknown): error is JjError =>
-  typeof error === "object" && error !== null && "_tag" in error && error._tag === "@smthrs/jj/JjError"
+  typeof error === "object" && error !== null && "_tag" in error && error._tag === "@smthrs/jj-next/JjError"
 
 /**
  * A jj change id — the durable handle a run uses to name workspace state.
@@ -116,10 +116,10 @@ export type ChangeId = string
  * `flows` runs jj behind the capability kernel, so the honest error channel of
  * this contract is jj's own failure *plus* the three the kernel adds. The
  * interface declares them here, in the package that owns the service, rather
- * than being redeclared and re-tagged by `@smthrs/kernel`: one interface, one
+ * than being redeclared and re-tagged by `@smthrs/kernel-next`: one interface, one
  * tag, and a caller that holds `Jj` cannot forget a snapshot may be denied.
  *
- * `@smthrs/capability` is a leaf that depends on nothing but `effect`, so
+ * `@smthrs/capability-next` is a leaf that depends on nothing but `effect`, so
  * naming these here keeps this package browser-bundleable and keeps the
  * kernel → jj dependency acyclic.
  *
@@ -170,7 +170,7 @@ export interface Jj {
  * @category services
  * @since 0.1.0
  */
-export const Jj: Context.Service<Jj, Jj> = Context.Service("@smthrs/jj/Jj")
+export const Jj: Context.Service<Jj, Jj> = Context.Service("@smthrs/jj-next/Jj")
 
 /**
  * Brands an implementation as the {@link Jj} service, so a new backend is

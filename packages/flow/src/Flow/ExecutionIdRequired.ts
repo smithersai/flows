@@ -16,7 +16,7 @@ import * as Schema from "effect/Schema"
  * @since 0.1.0
  */
 export class ExecutionIdRequired extends Schema.TaggedErrorClass<ExecutionIdRequired>()(
-  "@smthrs/engine/ExecutionIdRequired",
+  "@smthrs/engine-next/ExecutionIdRequired",
   {
     code: Schema.Literal("execution_id_required").pipe(
       Schema.withConstructorDefault(Effect.succeed("execution_id_required"))

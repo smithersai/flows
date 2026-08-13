@@ -8,10 +8,10 @@
  *
  * @since 0.1.0
  */
-import { type Capability, type CapabilityPattern, matches } from "@smthrs/capability/Capability"
+import { type Capability, type CapabilityPattern, matches } from "@smthrs/capability-next/Capability"
 import { Context, Effect } from "effect"
 
-const CapabilitySetTypeId: unique symbol = Symbol.for("@smthrs/kernel/CapabilitySet")
+const CapabilitySetTypeId: unique symbol = Symbol.for("@smthrs/kernel-next/CapabilitySet")
 
 /**
  * A normalized conjunction of any-of capability-pattern groups.
@@ -177,7 +177,7 @@ export const equals = (
  * ceiling's job is to bound what a *scoped* fiber may ask for.
  */
 const CurrentCapabilities: Context.Reference<CapabilitySet> = Context.Reference<CapabilitySet>(
-  "@smthrs/kernel/CurrentCapabilities",
+  "@smthrs/kernel-next/CurrentCapabilities",
   { defaultValue: () => unrestricted }
 )
 

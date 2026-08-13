@@ -4,11 +4,11 @@
  *
  * @since 0.1.0
  */
-import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
-import { Sha256 } from "@smthrs/crypto"
-import { FileBoundary } from "@smthrs/flow/FileBoundary"
-import { FileInput } from "@smthrs/flow/FileInput"
-import { Key } from "@smthrs/keys"
+import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
+import { Sha256 } from "@smthrs/crypto-next"
+import { FileBoundary } from "@smthrs/flow-next/FileBoundary"
+import { FileInput } from "@smthrs/flow-next/FileInput"
+import { Key } from "@smthrs/keys-next"
 import * as Context from "effect/Context"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
@@ -430,7 +430,7 @@ export const referencedDigests = (evidence: BoundaryEvidence): ReadonlyArray<str
  *
  * The blob mechanics — content addressing, atomic publication, digest
  * verification, dedupe — belong to `artifacts` and were extracted into
- * `@smthrs/artifacts` (`docs/specs/Concepts/Remote Cache.md`). What stays here
+ * `@smthrs/artifacts-next` (`docs/specs/Concepts/Remote Cache.md`). What stays here
  * is the *policy* that decides which outputs become blobs at all: the
  * inline-versus-spill budgets are a property of how large an evidence row may
  * get, not of how bytes are stored.
@@ -476,7 +476,7 @@ export const makeFileSystem = (
     // artifact store and the persisted row carries only the reference. Every
     // property that used to live here — atomic publication, verify-once
     // dedupe, healing rewrite of a corrupt address — is now the store's, and
-    // is tested there (`@smthrs/artifacts`).
+    // is tested there (`@smthrs/artifacts-next`).
     yield* artifacts.put(bytes).pipe(Effect.mapError(artifactFailure))
     return { output: { path, digest, sizeBytes: bytes.length } satisfies MaterializedOutput, inlinedBytes: 0 }
   })
@@ -514,14 +514,14 @@ export const makeFileSystem = (
           // shared artifact tier may still hold it, so the caller gets a
           // typed, repairable failure and fetches before falling back to a
           // real execution (issue #172).
-          "@smthrs/artifacts/ArtifactMissing": (missing) =>
+          "@smthrs/artifacts-next/ArtifactMissing": (missing) =>
             Effect.fail(
               new MissingArtifact({ code: "missing_artifact", path: output.path, digest: missing.digest })
             ),
           // Corruption is a distinct typed failure from a transient host
           // error (issue #150): the caller routes it to the Inconsistency
           // receiver instead of treating it as an ordinary retryable refusal.
-          "@smthrs/artifacts/ArtifactCorruption": (corrupt) =>
+          "@smthrs/artifacts-next/ArtifactCorruption": (corrupt) =>
             Effect.fail(
               new BoundaryCorruption({
                 code: "boundary_corruption",
@@ -530,7 +530,7 @@ export const makeFileSystem = (
                 measuredDigest: corrupt.measuredDigest
               })
             ),
-          "@smthrs/artifacts/ArtifactStoreError": (failure) => Effect.fail(artifactFailure(failure))
+          "@smthrs/artifacts-next/ArtifactStoreError": (failure) => Effect.fail(artifactFailure(failure))
         })
       )
     }
@@ -637,7 +637,7 @@ export const makeFileSystem = (
  * Host access arrives through Effect's `FileSystem` tag, which the capability
  * kernel decorates in place — the same seam every host implementation (node,
  * bun, browser, sandbox) already provides. Blob storage arrives through
- * `@smthrs/artifacts`, so the same boundary runs over a purely local store or
+ * `@smthrs/artifacts-next`, so the same boundary runs over a purely local store or
  * over a local-plus-shared composition without knowing which it got.
  *
  * @since 0.1.0

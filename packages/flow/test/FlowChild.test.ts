@@ -7,8 +7,8 @@
  * the boundary loudly at build time: a recursive `.call()`, and a placement the
  * caller cannot satisfy. Both refusals and the boundary they point at are here.
  */
-import { Activity, DurableDeferred, Flow, FlowRuntime, Graph, Interpreter } from "@smthrs/flow"
-import { Node } from "@smthrs/plan"
+import { Activity, DurableDeferred, Flow, FlowRuntime, Graph, Interpreter } from "@smthrs/flow-next"
+import { Node } from "@smthrs/plan-next"
 import { Effect, Exit, Layer, Option, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { runPromise } from "./Crypto.ts"
@@ -347,7 +347,7 @@ describe("the interpreter drives a child boundary as a real execution", () => {
     expect(Exit.isFailure(exit)).toBe(true)
     expect(Exit.isFailure(exit) && exit.cause.reasons[0]).toMatchObject({
       error: {
-        _tag: "@smthrs/flow/InterpreterError",
+        _tag: "@smthrs/flow-next/InterpreterError",
         code: "unsupported_call",
         node: "root",
         message: expect.stringContaining("lost its declaration")

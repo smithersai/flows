@@ -10,11 +10,11 @@
  * is where that stops being a claim.
  */
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
-import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
-import { Jj } from "@smthrs/kernel"
-import * as KernelWorkspace from "@smthrs/kernel/Workspace"
-import { KeyMaterial, Plan } from "@smthrs/plan"
-import { type Ownership, RunStore } from "@smthrs/run-store"
+import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
+import { Jj } from "@smthrs/kernel-next"
+import * as KernelWorkspace from "@smthrs/kernel-next/Workspace"
+import { KeyMaterial, Plan } from "@smthrs/plan-next"
+import { type Ownership, RunStore } from "@smthrs/run-store-next"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"

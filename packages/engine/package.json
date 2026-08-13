@@ -1,9 +1,9 @@
 {
-  "name": "@smthrs/engine",
+  "name": "@smthrs/engine-next",
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
-  "description": "The runtime that executes @smthrs/flow flows, plus HTTP and RPC transport projections",
+  "description": "The runtime that executes @smthrs/flow-next flows, plus HTTP and RPC transport projections",
   "homepage": "https://github.com/smithersai/flows",
   "repository": {
     "type": "git",
@@ -86,8 +86,8 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@smthrs/flow": "0.1.0",
-    "@smthrs/keys": "0.1.0",
+    "@smthrs/flow-next": "0.1.0",
+    "@smthrs/keys-next": "0.1.0",
     "effect": "4.0.0-beta.102"
   },
   "devDependencies": {

@@ -4,7 +4,7 @@
  * normalizer must not invent a code, and the failure assertion must not let a
  * capability declared unsupported quietly succeed.
  */
-import { JjError } from "@smthrs/jj"
+import { JjError } from "@smthrs/jj-next"
 import { Effect } from "effect"
 import { tmpdir } from "node:os"
 import { isAbsolute, relative, sep } from "node:path"

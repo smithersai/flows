@@ -6,7 +6,7 @@
  * never diverge silently (issue #23 — memory `park` used to drop the owner
  * fence the SQL layer enforces).
  */
-import type { Ownership } from "@smthrs/run-store"
+import type { Ownership } from "@smthrs/run-store-next"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"

@@ -1,4 +1,4 @@
-import * as FlowPackage from "@smthrs/flow"
+import * as FlowPackage from "@smthrs/flow-next"
 import * as Effect from "effect/Effect"
 import { readdirSync, statSync } from "node:fs"
 import { join, resolve } from "node:path"
@@ -39,7 +39,7 @@ const namespaceName = (directory: string) =>
 const isPlatformBundle = (name: string) => name.startsWith("platform-")
 const packageNames = readdirSync(packagesDir)
   .filter((name) => isFile(join(packagesDir, name, "package.json")))
-// `@smthrs/flow` is the one package re-exported FLAT rather than as a single
+// `@smthrs/flow-next` is the one package re-exported FLAT rather than as a single
 // namespace: writing a flow is the point of the library, so `Flow`,
 // `Activity`, `RetryPolicy`, and their siblings sit at the top level. Its
 // contribution is therefore derived from the package's own exports, not from
@@ -103,7 +103,7 @@ describe("barrel", () => {
       return timeTravel
     })
     expect(program).toBeDefined()
-    expect(Flows.TimeTravel.key).toBe("@smthrs/time-travel/TimeTravel")
+    expect(Flows.TimeTravel.key).toBe("@smthrs/time-travel-next/TimeTravel")
     expect(Flows.TimeTravel.layer).toBeDefined()
   })
 })

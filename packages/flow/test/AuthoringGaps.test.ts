@@ -6,7 +6,7 @@
  * idempotency-key scoping forms, infrastructure-interrupt exhaustion, the
  * flow scope helpers, and the waiting annotation a durable driver reads.
  */
-import { Activity, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
+import { Activity, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
 import { Cause, Context, Effect, Exit, Layer, Option, Schedule, Schema, Scope } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"

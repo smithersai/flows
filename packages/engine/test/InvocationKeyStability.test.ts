@@ -17,8 +17,8 @@ import type * as Crypto from "effect/Crypto"
  * orders, which is exactly what a permuted interleaving produces. Each
  * activity must keep its own identity across both.
  */
-import { Activity, Flow, FlowRuntime, StepIdentity } from "@smthrs/flow"
-import { Node } from "@smthrs/plan"
+import { Activity, Flow, FlowRuntime, StepIdentity } from "@smthrs/flow-next"
+import { Node } from "@smthrs/plan-next"
 import { Deferred, Effect, Exit, Layer, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"

@@ -1,9 +1,9 @@
-# @smthrs/canonical
+# @smthrs/canonical-next
 
 RFC 8785 canonical JSON as an Effect Schema, backed by the well-tested [`canonicalize`](https://www.npmjs.com/package/canonicalize) package.
 
 ```typescript
-import { Canonical } from "@smthrs/canonical"
+import { Canonical } from "@smthrs/canonical-next"
 import { Schema } from "effect"
 
 const document = Schema.decodeUnknownSync(Canonical)({ b: 2, a: 1 })

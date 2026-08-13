@@ -29,7 +29,7 @@ export interface Service {
  * @category services
  * @since 0.1.0
  */
-export class Workspace extends Context.Service<Workspace, Service>()("@smthrs/kernel/Workspace") {}
+export class Workspace extends Context.Service<Workspace, Service>()("@smthrs/kernel-next/Workspace") {}
 
 /**
  * Constructs workspace-root configuration.

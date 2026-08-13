@@ -6,11 +6,11 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * Parity: Bazel Skyframe `MemoizingEvaluatorTest.java:3542` (transient versus
  * persistent cached error reevaluation).
  */
-import { Activity, Flow } from "@smthrs/flow"
-import { Journal } from "@smthrs/journal"
-import { Jj } from "@smthrs/kernel"
-import { Node } from "@smthrs/plan"
-import { RunStore } from "@smthrs/run-store"
+import { Activity, Flow } from "@smthrs/flow-next"
+import { Journal } from "@smthrs/journal-next"
+import { Jj } from "@smthrs/kernel-next"
+import { Node } from "@smthrs/plan-next"
+import { RunStore } from "@smthrs/run-store-next"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import { describe, expect, it } from "vitest"

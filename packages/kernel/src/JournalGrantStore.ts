@@ -7,10 +7,10 @@
  *
  * @since 0.1.0
  */
-import { type CapabilityPattern, format } from "@smthrs/capability/Capability"
-import { GrantStoreError, Rule } from "@smthrs/capability/Permission"
-import * as JournalModule from "@smthrs/journal/Journal"
-import * as JournalEvent from "@smthrs/journal/JournalEvent"
+import { type CapabilityPattern, format } from "@smthrs/capability-next/Capability"
+import { GrantStoreError, Rule } from "@smthrs/capability-next/Permission"
+import * as JournalModule from "@smthrs/journal-next/Journal"
+import * as JournalEvent from "@smthrs/journal-next/JournalEvent"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"

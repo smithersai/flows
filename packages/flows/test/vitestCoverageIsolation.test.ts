@@ -268,8 +268,8 @@ describe("vitest coverage isolation conformance", () => {
     expect(packScript).toContain("publicationManifest(manifest)")
     expect(packScript).toContain("\"npm\",")
     expect(packScript).toContain("\"pack\"")
-    expect(smokeScript).toContain("await import('@smthrs/flows')")
-    expect(smokeScript).toContain("require('@smthrs/flows')")
+    expect(smokeScript).toContain("await import('@smthrs/flows-next')")
+    expect(smokeScript).toContain("require('@smthrs/flows-next')")
     // Validation after publish cannot protect the release that was just
     // exposed. The smoke check and publication live in the same gated job.
     expect(release).not.toMatch(/^\s+smoke:\s*$/m)

@@ -15,12 +15,12 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * `flows_runs` now prunes a deleted run's edges at the database level, so a
  * future retention/GC lane cannot silently leave ghosts in the cycle walk.
  */
-import { DurableWriter } from "@smthrs/database"
-import * as TestDatabase from "@smthrs/database/test/TestDatabase"
-import { Flow, FlowRuntime } from "@smthrs/flow"
-import { SqlJournal } from "@smthrs/journal"
-import { Node } from "@smthrs/plan"
-import { RunStore } from "@smthrs/run-store"
+import { DurableWriter } from "@smthrs/database-next"
+import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
+import { Flow, FlowRuntime } from "@smthrs/flow-next"
+import { SqlJournal } from "@smthrs/journal-next"
+import { Node } from "@smthrs/plan-next"
+import { RunStore } from "@smthrs/run-store-next"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"

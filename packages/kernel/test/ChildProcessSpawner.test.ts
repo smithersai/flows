@@ -1,5 +1,5 @@
-import * as Capability from "@smthrs/capability/Capability"
-import * as Permission from "@smthrs/capability/Permission"
+import * as Capability from "@smthrs/capability-next/Capability"
+import * as Permission from "@smthrs/capability-next/Permission"
 import { Effect, Option, type PlatformError, Sink, Stream } from "effect"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import {

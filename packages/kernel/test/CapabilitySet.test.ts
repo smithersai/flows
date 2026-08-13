@@ -1,4 +1,4 @@
-import { Capability, CapabilityPattern } from "@smthrs/capability/Capability"
+import { Capability, CapabilityPattern } from "@smthrs/capability-next/Capability"
 import { Effect } from "effect"
 import { FastCheck } from "effect/testing"
 import { describe, expect, it } from "vitest"

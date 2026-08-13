@@ -7,7 +7,7 @@
  * result references must be present before the result itself is published, or
  * a sibling machine gets a hit it cannot materialize.
  */
-import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
+import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"

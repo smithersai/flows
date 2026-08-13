@@ -18,7 +18,7 @@
  *
  * @since 0.1.0
  */
-import * as JournalEvent from "@smthrs/journal/JournalEvent"
+import * as JournalEvent from "@smthrs/journal-next/JournalEvent"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import {

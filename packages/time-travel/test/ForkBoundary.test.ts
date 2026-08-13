@@ -7,11 +7,11 @@
  * pin the disclosure wording, the paging of a long suffix, and what a fork says
  * when the frame has no pointer to restore.
  */
-import * as Jj from "@smthrs/jj"
-import * as Journal from "@smthrs/journal/Journal"
-import type * as JournalEvent from "@smthrs/journal/JournalEvent"
-import * as RunStore from "@smthrs/run-store/RunStore"
-import * as CacheStore from "@smthrs/step-cache/CacheStore"
+import * as Jj from "@smthrs/jj-next"
+import * as Journal from "@smthrs/journal-next/Journal"
+import type * as JournalEvent from "@smthrs/journal-next/JournalEvent"
+import * as RunStore from "@smthrs/run-store-next/RunStore"
+import * as CacheStore from "@smthrs/step-cache-next/CacheStore"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"

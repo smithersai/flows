@@ -15,15 +15,15 @@
  * borrowing a browser package to get at `fetch`. The one thing configured here
  * is `redirect: "manual"`, so the runtime never walks to a second origin
  * behind the capability kernel's back; following a redirect is
- * `@smthrs/kernel`'s guarded `HttpClient.layer`, which rechecks every hop.
+ * `@smthrs/kernel-next`'s guarded `HttpClient.layer`, which rechecks every hop.
  *
  * @since 0.1.0
  */
 import * as BunChildProcessSpawner from "@effect/platform-bun/BunChildProcessSpawner"
 import * as BunHttpClient from "@effect/platform-bun/BunHttpClient"
-import type { Jj } from "@smthrs/jj"
-import * as BunJj from "@smthrs/jj/bun/BunJj"
-import { HostServiceIds } from "@smthrs/kernel/HostServices"
+import type { Jj } from "@smthrs/jj-next"
+import * as BunJj from "@smthrs/jj-next/bun/BunJj"
+import { HostServiceIds } from "@smthrs/kernel-next/HostServices"
 import type { FileSystem } from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Path from "effect/Path"
@@ -34,7 +34,7 @@ import * as BunFileSystem from "./BunFileSystem.ts"
 /**
  * Bun platform modules for selectively providing individual services.
  *
- * `BunJj` is deliberately absent: it belongs to `@smthrs/jj` and is imported
+ * `BunJj` is deliberately absent: it belongs to `@smthrs/jj-next` and is imported
  * from there, never re-exported here.
  *
  * @category re-exports
@@ -64,10 +64,10 @@ export type BunHost = FileSystem | Path.Path | ChildProcessSpawner | Jj | HttpCl
  * @since 0.1.0
  */
 export const implementationIds: Readonly<Record<(typeof HostServiceIds)[number], string>> = {
-  [HostServiceIds[0]]: "@smthrs/platform-bun/BunFileSystem",
+  [HostServiceIds[0]]: "@smthrs/platform-bun-next/BunFileSystem",
   [HostServiceIds[1]]: "effect/Path",
   [HostServiceIds[2]]: "@effect/platform-bun/BunChildProcessSpawner",
-  [HostServiceIds[3]]: "@smthrs/jj/bun/BunJj",
+  [HostServiceIds[3]]: "@smthrs/jj-next/bun/BunJj",
   [HostServiceIds[4]]: "@effect/platform-bun/BunHttpClient"
 }
 

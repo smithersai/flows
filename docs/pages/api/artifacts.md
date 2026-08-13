@@ -1,9 +1,9 @@
-# @smthrs/artifacts
+# @smthrs/artifacts-next
 
-The content-addressed artifact store: bytes addressed by their own SHA-256 digest. The other half of the cache — [`@smthrs/step-cache`](/api/step-cache) maps a step key to a recorded result, and a recorded result references its large outputs by digest. It depends on `effect` and `@smthrs/crypto` and nothing else, so the package root bundles for the browser.
+The content-addressed artifact store: bytes addressed by their own SHA-256 digest. The other half of the cache — [`@smthrs/step-cache-next`](/api/step-cache) maps a step key to a recorded result, and a recorded result references its large outputs by digest. It depends on `effect` and `@smthrs/crypto-next` and nothing else, so the package root bundles for the browser.
 
 ```ts
-import { ArtifactStore, CombinedArtifacts, RemoteArtifacts } from "@smthrs/artifacts"
+import { ArtifactStore, CombinedArtifacts, RemoteArtifacts } from "@smthrs/artifacts-next"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 
@@ -17,7 +17,7 @@ const layer = CombinedArtifacts.layer({
 
 | Import | Source | Platform |
 | --- | --- | --- |
-| `@smthrs/artifacts` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/artifacts/src/index.ts) | any |
+| `@smthrs/artifacts-next` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/artifacts/src/index.ts) | any |
 
 ## ArtifactStore
 
@@ -26,7 +26,7 @@ const layer = CombinedArtifacts.layer({
 | Export | Kind | Notes |
 | --- | --- | --- |
 | `ArtifactStore` | service tag | `put`, `get`, `has`, `findMissing` |
-| `Digest` | schema + type | 64 lowercase hex characters, branded by `@smthrs/crypto` |
+| `Digest` | schema + type | 64 lowercase hex characters, branded by `@smthrs/crypto-next` |
 | `ArtifactMissing` | error | the typed miss a read-through composition acts on |
 | `ArtifactCorruption` | error | stored bytes no longer hash to their address |
 | `ArtifactStoreError`, `ArtifactStoreErrorCode` | class + codes | `invalid_digest`, `unavailable`, `transport_failed` |

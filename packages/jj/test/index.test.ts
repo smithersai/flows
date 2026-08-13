@@ -13,7 +13,7 @@ import * as Index from "../src/index.ts"
 import { Jj } from "../src/Jj.ts"
 import * as NodeJj from "../src/node/NodeJj.ts"
 
-describe("@smthrs/jj barrel", () => {
+describe("@smthrs/jj-next barrel", () => {
   it("re-exports the contract flat", () => {
     expect(Object.keys(Index).sort()).toEqual(
       ["Jj", "JjError", "JjErrorCode", "isJjError", "jjError", "layerNoop", "make", "makeNoop"].sort()
@@ -25,8 +25,8 @@ describe("@smthrs/jj barrel", () => {
    * through the journal, so renames here invalidate recorded runs.
    */
   it("pins the identity strings the step-key digest depends on", () => {
-    expect(Jj.key).toBe("@smthrs/jj/Jj")
-    expect(new Index.JjError({ code: "unknown", message: "x" })._tag).toBe("@smthrs/jj/JjError")
+    expect(Jj.key).toBe("@smthrs/jj-next/Jj")
+    expect(new Index.JjError({ code: "unknown", message: "x" })._tag).toBe("@smthrs/jj-next/JjError")
   })
 })
 

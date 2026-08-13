@@ -40,27 +40,27 @@ Read [implementation status](architecture/implementation-status.md) before choos
 
 ## Package reference
 
-- [`@smthrs/flows`](reference/flows.md) — barrel package re-exporting everything below
-- [`@smthrs/database`](reference/database.md)
-- [`@smthrs/jj`](reference/jj.md)
-- [`@smthrs/sandbox`](reference/sandbox.md)
-- [`@smthrs/platform-browser`](reference/platform-browser.md)
-- `@smthrs/platform-node` and `@smthrs/platform-bun` — the Node and Bun Host bundles; see the [platform-node](pages/api/platform-node.md) and [platform-bun](pages/api/platform-bun.md) API pages
-- [`@smthrs/journal`](reference/journal.md)
-- [`@smthrs/run-store`](reference/run-store.md)
-- [`@smthrs/step-cache`](reference/step-cache.md)
-- [`@smthrs/artifacts`](reference/artifacts.md)
-- [`@smthrs/capability`](reference/capability.md)
-- [`@smthrs/kernel`](reference/kernel.md)
-- [`@smthrs/canonical`](reference/canonical.md)
-- [`@smthrs/crypto`](reference/crypto.md)
-- [`@smthrs/keys`](reference/keys.md)
-- [`@smthrs/plan`](reference/plan.md)
-- [`@smthrs/flow`](reference/flow.md)
-- [`@smthrs/engine`](reference/engine.md)
-- [`@smthrs/engine-store`](reference/engine-store.md)
-- [`@smthrs/sync`](reference/sync.md)
-- [`@smthrs/time-travel`](reference/time-travel.md)
+- [`@smthrs/flows-next`](reference/flows.md) — barrel package re-exporting everything below
+- [`@smthrs/database-next`](reference/database.md)
+- [`@smthrs/jj-next`](reference/jj.md)
+- [`@smthrs/sandbox-next`](reference/sandbox.md)
+- [`@smthrs/platform-browser-next`](reference/platform-browser.md)
+- `@smthrs/platform-node-next` and `@smthrs/platform-bun-next` — the Node and Bun Host bundles; see the [platform-node](pages/api/platform-node.md) and [platform-bun](pages/api/platform-bun.md) API pages
+- [`@smthrs/journal-next`](reference/journal.md)
+- [`@smthrs/run-store-next`](reference/run-store.md)
+- [`@smthrs/step-cache-next`](reference/step-cache.md)
+- [`@smthrs/artifacts-next`](reference/artifacts.md)
+- [`@smthrs/capability-next`](reference/capability.md)
+- [`@smthrs/kernel-next`](reference/kernel.md)
+- [`@smthrs/canonical-next`](reference/canonical.md)
+- [`@smthrs/crypto-next`](reference/crypto.md)
+- [`@smthrs/keys-next`](reference/keys.md)
+- [`@smthrs/plan-next`](reference/plan.md)
+- [`@smthrs/flow-next`](reference/flow.md)
+- [`@smthrs/engine-next`](reference/engine.md)
+- [`@smthrs/engine-store-next`](reference/engine-store.md)
+- [`@smthrs/sync-next`](reference/sync.md)
+- [`@smthrs/time-travel-next`](reference/time-travel.md)
 
 Vendor host adapters (`@smthrs/host-cloudflare`, `@smthrs/host-vercel`) are
 documented in the [plugins repository](https://github.com/smithersai/plugins).

@@ -4,11 +4,11 @@
  * `docs/specs/Concepts/Time Travel Compensation.md` requires one durable entry
  * before the adapter begins and a terminal entry after it settles, for tier-3
  * work only. These cases pin both halves and the shape the decoder in
- * `@smthrs/time-travel` reads them under.
+ * `@smthrs/time-travel-next` reads them under.
  */
-import { Journal } from "@smthrs/journal"
-import { Jj } from "@smthrs/kernel"
-import { type Ownership, RunStore } from "@smthrs/run-store"
+import { Journal } from "@smthrs/journal-next"
+import { Jj } from "@smthrs/kernel-next"
+import { type Ownership, RunStore } from "@smthrs/run-store-next"
 import { Effect, Layer } from "effect"
 import { describe, expect, it } from "vitest"
 import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"

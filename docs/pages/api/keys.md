@@ -1,4 +1,4 @@
-# @smthrs/keys
+# @smthrs/keys-next
 
 An Effect schema for canonical flow keys.
 
@@ -14,4 +14,4 @@ export const Key: Schema<
 >
 ```
 
-`Key` is a one-way transformation. Canonical serialization comes from `@smthrs/canonical`; hashing comes from `@smthrs/crypto`.
+`Key` is a one-way transformation. Canonical serialization comes from `@smthrs/canonical-next`; hashing comes from `@smthrs/crypto-next`.

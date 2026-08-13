@@ -1,4 +1,4 @@
-# @smthrs/platform-browser
+# @smthrs/platform-browser-next
 
 ## [Unreleased]
 
@@ -24,7 +24,7 @@
   fills a kernel-owned slot.
 
 - `BrowserChildProcessSpawner` now renders a command with
-  `@smthrs/kernel`'s `CommandLine.render` instead of its own always-quoting
+  `@smthrs/kernel-next`'s `CommandLine.render` instead of its own always-quoting
   helper. The two had to agree and did not: the kernel writes the rendered line
   as the `proc:spawn` capability resource, so a grant read `ls` while the tab
   ran `'ls'`.

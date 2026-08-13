@@ -1,4 +1,4 @@
-# @smthrs/sandbox
+# @smthrs/sandbox-next
 
 Provider-neutral remote process execution and sandbox liveness for flows.
 Provider packages adapt their SDK sessions to
@@ -6,7 +6,7 @@ Provider packages adapt their SDK sessions to
 Effect's `ChildProcessSpawner` contract and the sandbox health taxonomy.
 
 ```sh
-npm install @smthrs/sandbox
+npm install @smthrs/sandbox-next
 ```
 
 ## Public API
@@ -29,7 +29,7 @@ owns no host access of its own. `npm run browser` at the repository root pins
 that property.
 
 ```ts
-import { RemoteChildProcessSpawner } from "@smthrs/sandbox"
+import { RemoteChildProcessSpawner } from "@smthrs/sandbox-next"
 import { Effect } from "effect"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"

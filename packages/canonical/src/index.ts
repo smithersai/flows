@@ -5,7 +5,7 @@
  * over.
  *
  * ```ts
- * import { Canonical } from "@smthrs/canonical"
+ * import { Canonical } from "@smthrs/canonical-next"
  * import * as Schema from "effect/Schema"
  *
  * const document = Schema.decodeUnknownSync(Canonical)({ b: 1, a: 2 })

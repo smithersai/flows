@@ -1,10 +1,10 @@
-# @smthrs/database
+# @smthrs/database-next
 
 A driver-neutral SQL contract with a bounded write-retry seam. The package owns no domain tables.
 
 ```ts
-import { DurableWriter } from "@smthrs/database"
-import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
+import { DurableWriter } from "@smthrs/database-next"
+import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
 
 const layer = NodeDatabase.layer({ filename: "runs.sqlite" })
 ```
@@ -15,9 +15,9 @@ The root is the contract, so it bundles for the browser. The SQLite drivers are 
 
 | Import | Source | Platform |
 | --- | --- | --- |
-| `@smthrs/database` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/database/src/index.ts) | any |
-| `@smthrs/database/node/NodeDatabase` | [src/node/NodeDatabase.ts](https://github.com/smithersai/flows/blob/main/packages/database/src/node/NodeDatabase.ts) | Node |
-| `@smthrs/database/test/TestDatabase` | [src/test/TestDatabase.ts](https://github.com/smithersai/flows/blob/main/packages/database/src/test/TestDatabase.ts) | Node |
+| `@smthrs/database-next` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/database/src/index.ts) | any |
+| `@smthrs/database-next/node/NodeDatabase` | [src/node/NodeDatabase.ts](https://github.com/smithersai/flows/blob/main/packages/database/src/node/NodeDatabase.ts) | Node |
+| `@smthrs/database-next/test/TestDatabase` | [src/test/TestDatabase.ts](https://github.com/smithersai/flows/blob/main/packages/database/src/test/TestDatabase.ts) | Node |
 
 ## DurableWriter
 

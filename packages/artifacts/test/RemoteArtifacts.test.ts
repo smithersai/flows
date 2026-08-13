@@ -117,7 +117,7 @@ describe("downloads", () => {
   it("reports a typed miss on 404", async () => {
     const tier = remote(() => new Response(null, { status: 404 }))
     const exit = await runPromise(Effect.flatMap(tier.store, (store) => store.get(digest)).pipe(Effect.exit))
-    expect((errorOf(exit) as ArtifactStore.ArtifactMissing)._tag).toBe("@smthrs/artifacts/ArtifactMissing")
+    expect((errorOf(exit) as ArtifactStore.ArtifactMissing)._tag).toBe("@smthrs/artifacts-next/ArtifactMissing")
   })
 
   it("refuses content that does not hash to the requested address", async () => {
@@ -126,7 +126,7 @@ describe("downloads", () => {
     const tier = remote(() => new Response("something else entirely"))
     const exit = await runPromise(Effect.flatMap(tier.store, (store) => store.get(digest)).pipe(Effect.exit))
     const failure = errorOf(exit) as ArtifactStore.ArtifactCorruption
-    expect(failure._tag).toBe("@smthrs/artifacts/ArtifactCorruption")
+    expect(failure._tag).toBe("@smthrs/artifacts-next/ArtifactCorruption")
     expect(failure.recordedDigest).toBe(digest)
   })
 

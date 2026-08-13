@@ -391,7 +391,7 @@ const catch_: {
 export { catch_ as catch }
 
 /**
- * Constructs the flow-call node used by `@smthrs/flow` without making flow
+ * Constructs the flow-call node used by `@smthrs/flow-next` without making flow
  * calls part of the public authoring surface of this package.
  *
  * @since 0.1.0
@@ -405,7 +405,7 @@ export const flowCall = <A = unknown, E = never>(
 ): Node<A, E> => internal.makeNode<A, E>(internal.flowCall(declaration, flow, mode, payload))
 
 /**
- * Constructs the activity-call node used by `@smthrs/flow` without making
+ * Constructs the activity-call node used by `@smthrs/flow-next` without making
  * activity calls part of the public authoring surface of this package.
  *
  * @since 0.1.0
@@ -418,7 +418,7 @@ export const activityCall = <A = unknown, E = never>(
 ): Node<A, E> => internal.makeNode<A, E>(internal.activityCall(declaration, activity, payload))
 
 /**
- * Reads the flow or activity declaration a call node names, so `@smthrs/flow`
+ * Reads the flow or activity declaration a call node names, so `@smthrs/flow-next`
  * can expand a call it recorded. It is `undefined` for an AST that was
  * rehydrated from JSON, because the declaration lives beside the AST rather
  * than inside it — a graph built from such an AST keeps the call as a leaf.

@@ -1,5 +1,5 @@
-import { Flow } from "@smthrs/flow"
-import { Node } from "@smthrs/plan"
+import { Flow } from "@smthrs/flow-next"
+import { Node } from "@smthrs/plan-next"
 import * as Schema from "effect/Schema"
 import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"

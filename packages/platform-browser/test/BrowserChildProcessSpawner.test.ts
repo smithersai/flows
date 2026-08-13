@@ -8,7 +8,7 @@
  * `node:fs/promises`, so the `cwd` validation path is exercised against a real
  * directory rather than a double.
  */
-import * as CommandLine from "@smthrs/kernel/CommandLine"
+import * as CommandLine from "@smthrs/kernel-next/CommandLine"
 import { Deferred, Effect, Exit, Fiber, Layer, Path, Sink, Stream } from "effect"
 import { ChildProcess } from "effect/unstable/process"
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"

@@ -1,9 +1,9 @@
-# `@smthrs/artifacts`
+# `@smthrs/artifacts-next`
 
 The content-addressed artifact store: bytes addressed by their own SHA-256
 digest.
 
-This is the second half of the cache. `@smthrs/step-cache` maps a step key to a
+This is the second half of the cache. `@smthrs/step-cache-next` maps a step key to a
 recorded result; a recorded result references its large outputs **by digest**
 rather than inlining them, and those bytes live here. `docs/specs/Specs/Object
 Model.md` names both halves as the `Cache` service's job; `docs/specs/Specs/Input.md`
@@ -11,13 +11,13 @@ is where "large values enter by digest" comes from.
 
 The package name says what it stores, per the naming rule in
 `docs/specs/Concepts/Journal Split.md`. It depends on `effect` and
-`@smthrs/crypto` and nothing else, owns no SQL, and bundles for the browser.
+`@smthrs/crypto-next` and nothing else, owns no SQL, and bundles for the browser.
 
 ## Public API
 
 | Export                                             | Meaning                                                            |
 | -------------------------------------------------- | ------------------------------------------------------------------ |
-| `ArtifactStore.ArtifactStore`                      | The service tag. Identity `@smthrs/artifacts/ArtifactStore`        |
+| `ArtifactStore.ArtifactStore`                      | The service tag. Identity `@smthrs/artifacts-next/ArtifactStore`        |
 | `ArtifactStore.Service`                            | `put(bytes)`, `get(digest)`, `has(digest)`, `findMissing(digests)` |
 | `ArtifactStore.ArtifactMissing`                    | The typed miss — the answer a read-through composition acts on     |
 | `ArtifactStore.ArtifactCorruption`                 | Bytes at an address no longer hash to it                           |
@@ -29,7 +29,7 @@ The package name says what it stores, per the naming rule in
 | `CombinedArtifacts.make`, `.layer`                 | Local-first, remote-second, with local write-back                  |
 
 ```ts
-import { ArtifactStore, CombinedArtifacts, RemoteArtifacts } from "@smthrs/artifacts"
+import { ArtifactStore, CombinedArtifacts, RemoteArtifacts } from "@smthrs/artifacts-next"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 

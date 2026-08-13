@@ -1,5 +1,5 @@
-import { Activity, Flow, FlowRuntime, Graph } from "@smthrs/flow"
-import { Node, Planned } from "@smthrs/plan"
+import { Activity, Flow, FlowRuntime, Graph } from "@smthrs/flow-next"
+import { Node, Planned } from "@smthrs/plan-next"
 import { Context, Effect, Layer, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { runPromise } from "./Crypto.ts"

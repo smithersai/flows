@@ -7,15 +7,15 @@
  *
  * @since 0.1.0
  */
-import { Sha256 } from "@smthrs/crypto"
-import { FlowEngine } from "@smthrs/engine"
-import type { Activity } from "@smthrs/flow"
-import type { FileBoundary } from "@smthrs/flow/FileBoundary"
-import { Journal, type JournalEvent } from "@smthrs/journal"
-import { Jj } from "@smthrs/kernel"
-import { Key } from "@smthrs/keys"
-import { AttemptStore, Ownership, RunStore } from "@smthrs/run-store"
-import { CacheStore } from "@smthrs/step-cache"
+import { Sha256 } from "@smthrs/crypto-next"
+import { FlowEngine } from "@smthrs/engine-next"
+import type { Activity } from "@smthrs/flow-next"
+import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
+import { Journal, type JournalEvent } from "@smthrs/journal-next"
+import { Jj } from "@smthrs/kernel-next"
+import { Key } from "@smthrs/keys-next"
+import { AttemptStore, Ownership, RunStore } from "@smthrs/run-store-next"
+import { CacheStore } from "@smthrs/step-cache-next"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
@@ -35,7 +35,7 @@ import * as SandboxedExecution from "./SandboxedExecution.ts"
  * The boundary declaration an activity may carry alongside its input.
  *
  * Aliased to `FileBoundary` rather than re-declared so the dispatch path and
- * the `@smthrs/flow` declaration cannot drift apart; it is a distinct name only
+ * the `@smthrs/flow-next` declaration cannot drift apart; it is a distinct name only
  * because "metadata" is how the activity input refers to it.
  *
  * @since 0.1.0

@@ -3,7 +3,7 @@
  * migration, and the inventory of what porting them to another
  * dialect costs.
  *
- * The canonical `flows_*` migrations live in `@smthrs/journal`; these
+ * The canonical `flows_*` migrations live in `@smthrs/journal-next`; these
  * statements are engine-store-owned storage created idempotently at
  * construction instead (issues #40/#41/#79/#81). That is a deliberate lane
  * boundary, not an oversight — but it left the statements invisible to the
@@ -15,7 +15,7 @@
  *
  * @since 0.1.0
  */
-import type { Service as WriterService } from "@smthrs/database/DurableWriter"
+import type { Service as WriterService } from "@smthrs/database-next/DurableWriter"
 import * as Effect from "effect/Effect"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"
 

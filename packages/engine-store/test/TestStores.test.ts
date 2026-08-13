@@ -3,11 +3,11 @@
  * database — see `docs/specs/Concepts/Journal Split.md`. This pins that the
  * bundle really is one database with one migrated schema.
  */
-import { Journal } from "@smthrs/journal/Journal"
-import { type RunId, type SourceId } from "@smthrs/journal/JournalEvent"
-import { AttemptStore } from "@smthrs/run-store/AttemptStore"
-import { RunStore } from "@smthrs/run-store/RunStore"
-import { CacheStore } from "@smthrs/step-cache/CacheStore"
+import { Journal } from "@smthrs/journal-next/Journal"
+import { type RunId, type SourceId } from "@smthrs/journal-next/JournalEvent"
+import { AttemptStore } from "@smthrs/run-store-next/AttemptStore"
+import { RunStore } from "@smthrs/run-store-next/RunStore"
+import { CacheStore } from "@smthrs/step-cache-next/CacheStore"
 import { Effect, Option } from "effect"
 import { describe, expect, it } from "vitest"
 import * as TestStores from "../src/test/TestStores.ts"

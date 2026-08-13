@@ -4,7 +4,7 @@
  *
  * @since 0.1.0
  */
-import { Journal, JournalEvent } from "@smthrs/journal"
+import { Journal, JournalEvent } from "@smthrs/journal-next"
 import { Effect, Exit, Fiber, Layer, Stream } from "effect"
 import * as RpcClient from "effect/unstable/rpc/RpcClient"
 import * as RpcSerialization from "effect/unstable/rpc/RpcSerialization"

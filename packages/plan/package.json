@@ -1,5 +1,5 @@
 {
-  "name": "@smthrs/plan",
+  "name": "@smthrs/plan-next",
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
@@ -94,8 +94,8 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@smthrs/database": "0.1.0",
-    "@smthrs/keys": "0.1.0",
+    "@smthrs/database-next": "0.1.0",
+    "@smthrs/keys-next": "0.1.0",
     "effect": "4.0.0-beta.102"
   },
   "devDependencies": {

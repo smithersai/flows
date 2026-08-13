@@ -1,13 +1,13 @@
-# @smthrs/journal
+# @smthrs/journal-next
 
 The flows event journal: the immutable history of what happened, and nothing
-else. It owns `flows_journal_events` above `@smthrs/database`, bounded journal
+else. It owns `flows_journal_events` above `@smthrs/database-next`, bounded journal
 admission, the `OwnerId` fence its durable channel accepts, and the records
 consumed by engine-store and sync.
 
-Run and attempt state live in [`@smthrs/run-store`](../run-store), sealed step
-results in [`@smthrs/step-cache`](../step-cache), and the durable
-deferred/clock tables in [`@smthrs/engine-store`](../engine-store) — see
+Run and attempt state live in [`@smthrs/run-store-next`](../run-store), sealed step
+results in [`@smthrs/step-cache-next`](../step-cache), and the durable
+deferred/clock tables in [`@smthrs/engine-store-next`](../engine-store) — see
 [`docs/specs/Concepts/Journal Split.md`](../../../docs/specs/Concepts/Journal%20Split.md).
 
 The journal is flows' own **logical (domain) write-ahead log**, intended to
@@ -24,13 +24,13 @@ Committing locally is not remote atomicity — external effects still need
 idempotency keys, fencing tokens, or compensation.
 
 ```sh
-npm install @smthrs/journal
+npm install @smthrs/journal-next
 ```
 
 ## Public API
 
 The root exports these namespaces, also available from matching
-`@smthrs/journal/*` subpaths.
+`@smthrs/journal-next/*` subpaths.
 
 | Namespace      | Public exports                                                                                                                                                                                                             |
 | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -39,27 +39,27 @@ The root exports these namespaces, also available from matching
 | `SqlJournal`   | `SqlJournalOptions` and database-backed `layer(options)` with explicit lossy and durable channels.                                                                                                                         |
 | `Projection`   | Reproducible `Projection` model and identity constructor `make`.                                                                                                                                                           |
 | `Redaction`    | The payload redaction applied to journal entries before they are written.                                                                                                                                                  |
-| `OwnerId`      | `OwnerId` — `hostId`, `pid`, `nonce` — the fencing token `emitDurable` accepts. Defined here because the journal is what it fences; `@smthrs/run-store`'s `Ownership` re-exports it alongside the arbitration built on it. |
+| `OwnerId`      | `OwnerId` — `hostId`, `pid`, `nonce` — the fencing token `emitDurable` accepts. Defined here because the journal is what it fences; `@smthrs/run-store-next`'s `Ownership` re-exports it alongside the arbitration built on it. |
 | `Migrations`   | `set` (the namespaced migration set for `flows_journal_events`), `run`, and prerequisite `layer`.                                                                                                                          |
 
-The root is written against the driver-neutral `@smthrs/database` contract
+The root is written against the driver-neutral `@smthrs/database-next` contract
 and bundles for the browser. The test doubles bind a Node SQLite database, so
 they live under explicit subpaths:
 
 | Import                             | Public exports                                                                                                                                                                                                                                                                      |
 | ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@smthrs/journal/test/TestJournal` | **Node only.** `TestJournalOptions` and `layer(options?)`, providing a migrated in-memory `Journal`. `@smthrs/run-store/test/TestRunStore` and `@smthrs/step-cache/test/TestCacheStore` provide theirs; `@smthrs/engine-store/test/TestStores` provides all four over ONE database. |
-| `@smthrs/journal/test/Notifying`   | `Order`, `Hook`, `wrap`, and `layer` inject before/after notifications around Effect-valued service operations.                                                                                                                                                                     |
+| `@smthrs/journal-next/test/TestJournal` | **Node only.** `TestJournalOptions` and `layer(options?)`, providing a migrated in-memory `Journal`. `@smthrs/run-store-next/test/TestRunStore` and `@smthrs/step-cache-next/test/TestCacheStore` provide theirs; `@smthrs/engine-store-next/test/TestStores` provides all four over ONE database. |
+| `@smthrs/journal-next/test/Notifying`   | `Order`, `Hook`, `wrap`, and `layer` inject before/after notifications around Effect-valued service operations.                                                                                                                                                                     |
 
 The single `migrations/0001_initial` module creates this package's table.
 `Migrations.run` and `Migrations.layer` install it alone; an application that
 also needs run, cache, or engine tables composes `Migrations.set` with the
-other packages' sets through `@smthrs/database`'s `Migrations`, which is what
-`@smthrs/engine-store/Migrations` already does.
+other packages' sets through `@smthrs/database-next`'s `Migrations`, which is what
+`@smthrs/engine-store-next/Migrations` already does.
 
 ```ts
-import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
-import { Journal, JournalEvent, Migrations, SqlJournal } from "@smthrs/journal"
+import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
+import { Journal, JournalEvent, Migrations, SqlJournal } from "@smthrs/journal-next"
 import { Effect, Layer } from "effect"
 
 const database = NodeDatabase.layer({ filename: "flows.db" })
@@ -82,8 +82,8 @@ const program = Effect.gen(function*() {
 retries. Rejected and dropped admissions may consume either sequence, so gaps
 are valid.
 
-`@smthrs/run-store`'s `RunStore` and `AttemptStore` (with `DurableEngineState`
-in `@smthrs/engine-store`) hold the executable authoritative state today; it is
+`@smthrs/run-store-next`'s `RunStore` and `AttemptStore` (with `DurableEngineState`
+in `@smthrs/engine-store-next`) hold the executable authoritative state today; it is
 not derived from journal entries. `transact` is what keeps the two halves
 consistent across the package boundary: it runs a state projection and the
 `emitDurable` calls describing it in ONE write transaction — the stores write
@@ -94,9 +94,9 @@ lifecycle entry are both durable, or neither is. See
 
 One coupling outlives the split at the SQL level: a fenced `emitDurable` gates
 its insert on a `flows_runs` row still naming the given owner, so the journal
-reads a table `@smthrs/run-store` owns. `test/JournalFence.test.ts` pins that
+reads a table `@smthrs/run-store-next` owns. `test/JournalFence.test.ts` pins that
 contract here against a fixture of the columns the fence reads;
-`@smthrs/engine-store` pins it against the real migrated schema.
+`@smthrs/engine-store-next` pins it against the real migrated schema.
 
 See the [journal reference](../../docs/reference/journal.md) and
 [journal concepts](../../docs/concepts/journal.md).

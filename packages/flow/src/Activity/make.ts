@@ -5,7 +5,7 @@
  *
  * @since 4.0.0
  */
-import * as Node from "@smthrs/plan/Node"
+import * as Node from "@smthrs/plan-next/Node"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Effectable from "effect/Effectable"
@@ -258,7 +258,7 @@ export const make: {
     ? makeDeclared(first, second as Parameters<typeof makeDeclared>[1])
     : makeInline(first)) as any
 
-const isInfraInterrupt = Predicate.isTagged("@smthrs/engine/InfraInterrupt")
+const isInfraInterrupt = Predicate.isTagged("@smthrs/engine-next/InfraInterrupt")
 
 const retryInfraInterrupt = (
   name: string,

@@ -5,7 +5,7 @@ This guide shows how to define schemas, execute named activities, suspend on dur
 ## Define the durable interface
 
 ```ts
-import { Activity, DurableDeferred, Flow } from "@smthrs/flow"
+import { Activity, DurableDeferred, Flow } from "@smthrs/flow-next"
 import { Effect, Schema } from "effect"
 
 class BuildFailure extends Schema.TaggedErrorClass<BuildFailure>()(

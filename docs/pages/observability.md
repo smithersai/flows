@@ -11,7 +11,7 @@ Most of what you would want from an observability stack is already a durable row
 | what happened to this run, in order | `Journal.entries({ runId, limit })` |
 | what is happening now | `Journal.stream({ runId, afterSequence })` |
 | a derived view over history | `Journal.project(projection, options)` |
-| the same from another process | `@smthrs/sync` `Read` and `Subscribe` |
+| the same from another process | `@smthrs/sync-next` `Read` and `Subscribe` |
 | the state at a past point | `TimeTravel.inspect(position, projection)` |
 
 The engine event types are listed in [Data structures](/data-structures). Filtering on `event_type` is indexed.
@@ -26,7 +26,7 @@ Executable state is deliberately outside that chokepoint. Run state, attempt che
 
 ## Tracing
 
-`@smthrs/engine` opens spans through Effect's tracer. No OpenTelemetry exporter ships here; provide one from your application and these spans appear in it.
+`@smthrs/engine-next` opens spans through Effect's tracer. No OpenTelemetry exporter ships here; provide one from your application and these spans appear in it.
 
 | Span | Attributes | Source |
 | --- | --- | --- |
@@ -59,14 +59,14 @@ Log annotations are attached by `DurableQueue` (`package`, `module`, `fiber`, `q
 
 | Aid | Where | Use |
 | --- | --- | --- |
-| `Notifying.wrap` and `Notifying.layer` | `@smthrs/journal/test/Notifying` | inject a crash or fence loss at a chosen interstitial around any Effect service |
-| `TestHost.layer` | `@smthrs/kernel/test/TestHost` | in-memory filesystem, scripted command interpreter, seeded random, deterministic clock |
-| `TestJournal.layer()` | `@smthrs/journal/test/TestJournal` | the SQL journal over in-memory SQLite |
-| `TestStores.layer()` | `@smthrs/engine-store/test/TestStores` | the four SQL stores over ONE in-memory SQLite database |
-| `TestDatabase.layer` | `@smthrs/database/test/TestDatabase` | in-memory SQLite |
-| `TestSocket.makePair` | `@smthrs/sync/test/TestSocket` | a fault-injecting socket pair for sync |
-| `DurableEngineState.layerMemory` | `@smthrs/engine-store` | deterministic waits with no database |
-| `Inconsistency.layerStrict` | `@smthrs/engine-store` | fail the run on a cache conflict rather than continuing |
+| `Notifying.wrap` and `Notifying.layer` | `@smthrs/journal-next/test/Notifying` | inject a crash or fence loss at a chosen interstitial around any Effect service |
+| `TestHost.layer` | `@smthrs/kernel-next/test/TestHost` | in-memory filesystem, scripted command interpreter, seeded random, deterministic clock |
+| `TestJournal.layer()` | `@smthrs/journal-next/test/TestJournal` | the SQL journal over in-memory SQLite |
+| `TestStores.layer()` | `@smthrs/engine-store-next/test/TestStores` | the four SQL stores over ONE in-memory SQLite database |
+| `TestDatabase.layer` | `@smthrs/database-next/test/TestDatabase` | in-memory SQLite |
+| `TestSocket.makePair` | `@smthrs/sync-next/test/TestSocket` | a fault-injecting socket pair for sync |
+| `DurableEngineState.layerMemory` | `@smthrs/engine-store-next` | deterministic waits with no database |
+| `Inconsistency.layerStrict` | `@smthrs/engine-store-next` | fail the run on a cache conflict rather than continuing |
 | stable error codes | `EngineStore.Errors` | switch on `code` or `_tag` when triaging |
 
 ## What is missing
@@ -75,7 +75,7 @@ Log annotations are attached by `DurableQueue` (`package`, `module`, `fiber`, `q
 | --- | --- |
 | Metrics of any kind, including counters for claims, steals, attempts, or cache hits | Planned, no `Metric` usage exists in `src` |
 | A shipped OpenTelemetry or exporter layer | Planned; applications wire their own tracer |
-| Spans in `@smthrs/engine-store`, `@smthrs/journal`, `@smthrs/run-store`, `@smthrs/step-cache`, `@smthrs/sync`, and `@smthrs/time-travel` | Planned; only `@smthrs/engine` opens spans today |
+| Spans in `@smthrs/engine-store-next`, `@smthrs/journal-next`, `@smthrs/run-store-next`, `@smthrs/step-cache-next`, `@smthrs/sync-next`, and `@smthrs/time-travel-next` | Planned; only `@smthrs/engine-next` opens spans today |
 | A run inspector or dashboard | Planned; the journal and sync are the substrate one would build on |
 | Structured audit of permission decisions beyond the grant events | Planned |
 | Journal checkpointing or compaction for unbounded histories | Planned |

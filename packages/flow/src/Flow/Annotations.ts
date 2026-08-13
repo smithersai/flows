@@ -52,7 +52,7 @@ export type PlacementDirective = typeof PlacementDirective.Type
  * @since 0.1.0
  */
 export const Capabilities = Context.Reference<ReadonlyArray<string>>(
-  "@smthrs/flow/Flow/Capabilities",
+  "@smthrs/flow-next/Flow/Capabilities",
   { defaultValue: () => [] }
 )
 
@@ -62,7 +62,7 @@ export const Capabilities = Context.Reference<ReadonlyArray<string>>(
  * @category annotations
  * @since 0.1.0
  */
-export const EffectsDeclaration = Context.Service<Effects>("@smthrs/flow/Flow/EffectsDeclaration")
+export const EffectsDeclaration = Context.Service<Effects>("@smthrs/flow-next/Flow/EffectsDeclaration")
 
 /**
  * Required annotation key for a flow's schema-encodable placement directive.
@@ -70,7 +70,7 @@ export const EffectsDeclaration = Context.Service<Effects>("@smthrs/flow/Flow/Ef
  * @category annotations
  * @since 0.1.0
  */
-export const Placement = Context.Service<PlacementDirective>("@smthrs/flow/Flow/Placement")
+export const Placement = Context.Service<PlacementDirective>("@smthrs/flow-next/Flow/Placement")
 
 /**
  * Captures defects for a flow and includes them in the result of the flow or its activities.

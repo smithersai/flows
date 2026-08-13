@@ -13,7 +13,7 @@
  *
  * @since 0.1.0
  */
-import { affectedRows, DatabaseError, DurableWriter } from "@smthrs/database/DurableWriter"
+import { affectedRows, DatabaseError, DurableWriter } from "@smthrs/database-next/DurableWriter"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"

@@ -1,11 +1,11 @@
-# @smthrs/kernel
+# @smthrs/kernel-next
 
 ## [Unreleased]
 
 ### Changed
 
 - **`HttpTransport` is gone; network access is Effect's own `HttpClient`**
-  (maintainer directive, 2026-08-10). `@smthrs/kernel/HttpTransport` — the
+  (maintainer directive, 2026-08-10). `@smthrs/kernel-next/HttpTransport` — the
   raw one-hop port — is deleted, and `HttpClient` is now middleware over
   `effect/unstable/http`'s `HttpClient` tag rather than a kernel-owned service
   projected off that port. The kernel declares no HTTP interface, no HTTP tag,
@@ -27,7 +27,7 @@
     _above_ the guard, so each hop re-enters the guarded `postprocess` and is
     authorized independently.
   - `HostServices` slot 5 is now Effect's `HttpClient` tag and its
-    `HostServiceIds` entry changes from `@smthrs/kernel/HttpTransport` to
+    `HostServiceIds` entry changes from `@smthrs/kernel-next/HttpTransport` to
     `effect/HttpClient`. **This changes step-key identity**: every cached step
     that named the network slot is invalidated, which is the intent.
 
@@ -43,7 +43,7 @@
     Effect's are the ones to use. `FileSystem` keeps `canonicalResource` and
     `layer`; `ChildProcessSpawner` keeps `layer` plus a `NotFound`-reporting
     `makeNoop` / `layerNoop` stub, and re-exports Effect's tag and `make`.
-  - `Jj` no longer redeclares `@smthrs/jj`'s interface. It re-exports that
+  - `Jj` no longer redeclares `@smthrs/jj-next`'s interface. It re-exports that
     package's tag, `make`, `makeNoop`, and `layerNoop`, and adds `layer`.
   - `HostServices` collapses to one closed list: `ProtectedHostService` and
     `ProtectedHostServiceTags` are gone. `HostServiceIds` is unchanged — the
@@ -56,13 +56,13 @@
   `Permission.fromPlatformError` reads it back, so the attended surface and
   unattended reporting lose nothing.
 - `Capability` and `Permission` moved to the new leaf package
-  `@smthrs/capability` and are re-exported from the root barrel unchanged;
-  only the deep imports move (`@smthrs/kernel/Capability` →
-  `@smthrs/capability/Capability`, same for `Permission`). The split exists
-  so `@smthrs/jj` can
+  `@smthrs/capability-next` and are re-exported from the root barrel unchanged;
+  only the deep imports move (`@smthrs/kernel-next/Capability` →
+  `@smthrs/capability-next/Capability`, same for `Permission`). The split exists
+  so `@smthrs/jj-next` can
   declare the permission failures its guarded interface adds without depending
   on the kernel that already depends on it. Every schema id is frozen and
-  unchanged (`@smthrs/kernel/Capability`, `@smthrs/kernel/PermissionDenied`, …)
+  unchanged (`@smthrs/kernel-next/Capability`, `@smthrs/kernel-next/PermissionDenied`, …)
   because they round-trip through the grant journal.
 - `GrantStore`, `CapabilitySet`, `GrantEvent`, and `JournalGrantStore`
   semantics are untouched: attended suspension on a `Deferred`, unattended
@@ -84,8 +84,8 @@
   Effect's tag, so a `Command` run as a plain `Effect` is checked too.
 - Absorbed the dissolved `@smthrs/host`: `HostError`, `HttpTransport`, the
   closed `HostServices` list, the shared contract suite (now
-  `@smthrs/kernel/test/contract`), and the deterministic `TestHost` bundle
-  (`@smthrs/kernel/test/TestHost`, Node-only) live here.
+  `@smthrs/kernel-next/test/contract`), and the deterministic `TestHost` bundle
+  (`@smthrs/kernel-next/test/TestHost`, Node-only) live here.
 
 ### Removed
 

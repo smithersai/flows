@@ -115,7 +115,7 @@ The largest remaining functional gap versus smithers' Tier-1 durability
 snapshots (`snapshot-hook`), restore/revert/rewind, and `smithers worktree`
 lanes. What exists on our side: the `checkpoint` hook (sequential) in the
 catalog, the time-travel package's fork/rewind/replay over stored state, and
-`Jj` in `@smthrs/jj`. What is missing: a `Checkpoint` host capability (layer-gated,
+`Jj` in `@smthrs/jj-next`. What is missing: a `Checkpoint` host capability (layer-gated,
 `makeNoop` for browser) that actually snapshots agent-session/worktree state at
 step boundaries, and any worktree-lane lifecycle. `StepBoundary` now ships a
 filesystem-backed production layer (read-set measurement, output
@@ -151,7 +151,7 @@ task, not a subsystem.
 ### 9. Fault-suite harness — closed as harness
 
 The P0 harness the audit demanded exists: `Notifying.wrap`/`layer`
-(`@smthrs/journal/test/Notifying`)
+(`@smthrs/journal-next/test/Notifying`)
 injects interstitial crashes and fence loss around any Effect service, and
 `FaultMatrix.test.ts` (9 it-blocks: 7 fault injections — 3 interstitial
 crashes, 4 fence losses — plus 2 tests of the `Notifying` wrapper itself)
@@ -167,7 +167,7 @@ case 16's N-subscriber bounded-memory/consistency assertions ship in
 `packages/sync/test/ServerSoak.test.ts` (identical frames to every concurrent
 subscriber, per-subscriber stream release, bounded retained heap). And
 the sandbox health taxonomy (case 02, issue #49) now ships as a host
-primitive (`@smthrs/sandbox`'s `SandboxHealth` probe) but has no engine-level fault case yet. Cases
+primitive (`@smthrs/sandbox-next`'s `SandboxHealth` probe) but has no engine-level fault case yet. Cases
 accrete as §§4–7 and those issues land; the harness itself is no longer a
 gap.
 

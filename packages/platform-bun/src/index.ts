@@ -1,7 +1,7 @@
 /**
  * @since 0.1.0
  *
- * `@smthrs/platform-bun` — the Bun Host bundle.
+ * `@smthrs/platform-bun-next` — the Bun Host bundle.
  *
  * Bun runs the `@effect/platform-node` adapters unchanged for the filesystem
  * and the child-process spawner, and Effect's own fetch-backed `HttpClient`
@@ -10,7 +10,7 @@
  * Host surface.
  *
  * ```ts
- * import { BunHost } from "@smthrs/platform-bun"
+ * import { BunHost } from "@smthrs/platform-bun-next"
  * ```
  *
  * **Node-only by construction.** The bundle falls back to the

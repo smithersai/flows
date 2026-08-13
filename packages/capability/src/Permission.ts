@@ -23,7 +23,7 @@ import { Capability, CapabilityPattern, type EffectTier, format, matches } from 
  * @since 0.1.0
  */
 export class PermissionRequired extends Schema.TaggedErrorClass<PermissionRequired>()(
-  "@smthrs/capability/PermissionRequired",
+  "@smthrs/capability-next/PermissionRequired",
   {
     code: Schema.Literal("permission_required"),
     requestId: Schema.String,
@@ -52,7 +52,7 @@ export class PermissionRequired extends Schema.TaggedErrorClass<PermissionRequir
  * @since 0.1.0
  */
 export class PermissionDenied extends Schema.TaggedErrorClass<PermissionDenied>()(
-  "@smthrs/capability/PermissionDenied",
+  "@smthrs/capability-next/PermissionDenied",
   {
     code: Schema.Literal("permission_denied"),
     capability: Capability,
@@ -100,7 +100,7 @@ export type GrantStoreErrorCode = typeof GrantStoreErrorCode.Type
  * @since 0.1.0
  */
 export class GrantStoreError extends Schema.TaggedErrorClass<GrantStoreError>()(
-  "@smthrs/capability/GrantStoreError",
+  "@smthrs/capability-next/GrantStoreError",
   {
     code: GrantStoreErrorCode,
     message: Schema.optional(Schema.String),
@@ -124,7 +124,7 @@ const RuleEffect = Schema.Literals(["allow", "deny", "ask"])
  * @category models
  * @since 0.1.0
  */
-export class Rule extends Schema.Class<Rule>("@smthrs/capability/Permission/Rule")({
+export class Rule extends Schema.Class<Rule>("@smthrs/capability-next/Permission/Rule")({
   effect: RuleEffect,
   pattern: CapabilityPattern
 }) {}
@@ -221,9 +221,9 @@ export type PermissionError = PermissionRequired | PermissionDenied | GrantStore
  */
 export const isPermissionError = (input: unknown): input is PermissionError =>
   typeof input === "object" && input !== null && "_tag" in input &&
-  (input._tag === "@smthrs/capability/PermissionRequired" ||
-    input._tag === "@smthrs/capability/PermissionDenied" ||
-    input._tag === "@smthrs/capability/GrantStoreError")
+  (input._tag === "@smthrs/capability-next/PermissionRequired" ||
+    input._tag === "@smthrs/capability-next/PermissionDenied" ||
+    input._tag === "@smthrs/capability-next/GrantStoreError")
 
 /**
  * Renders a permission failure as the one-line `description` a `SystemError`
@@ -234,11 +234,11 @@ export const isPermissionError = (input: unknown): input is PermissionError =>
  */
 export const formatError = (error: PermissionError): string => {
   switch (error._tag) {
-    case "@smthrs/capability/PermissionRequired":
+    case "@smthrs/capability-next/PermissionRequired":
       return `${error.code}: ${format(error.capability)} (tier ${error.tier}, request ${error.requestId})`
-    case "@smthrs/capability/PermissionDenied":
+    case "@smthrs/capability-next/PermissionDenied":
       return `${error.code}: ${format(error.capability)}: ${error.reason}`
-    case "@smthrs/capability/GrantStoreError":
+    case "@smthrs/capability-next/GrantStoreError":
       // `message` is optional in the schema, but the `Error` base always
       // materializes it — an unset one is the empty string, not `undefined`.
       return `grant store ${error.code}${error.message ? `: ${error.message}` : ""}`

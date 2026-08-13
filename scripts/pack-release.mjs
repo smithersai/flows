@@ -76,9 +76,9 @@ const dependsOnItself = (node, dependencies, remaining) => {
 /**
  * Orders workspaces so a package follows every workspace dependency it declares.
  *
- * The graph is not acyclic. `@smthrs/kernel` publishes `kernel/test/TestHost`,
- * which imports `@smthrs/platform-browser`, and `platform-browser` imports
- * `@smthrs/kernel` back. So the order emits an unblocked workspace whenever one
+ * The graph is not acyclic. `@smthrs/kernel-next` publishes `kernel/test/TestHost`,
+ * which imports `@smthrs/platform-browser-next`, and `platform-browser` imports
+ * `@smthrs/kernel-next` back. So the order emits an unblocked workspace whenever one
  * exists, and otherwise enters the remaining cycle at its alphabetically first
  * member. Only a genuine cycle is ever broken; every other edge is respected.
  */

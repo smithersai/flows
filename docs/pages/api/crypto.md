@@ -1,4 +1,4 @@
-# @smthrs/crypto
+# @smthrs/crypto-next
 
 Effect schemas for injected cryptographic operations.
 

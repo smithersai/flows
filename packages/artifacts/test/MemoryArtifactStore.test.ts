@@ -27,7 +27,7 @@ describe("makeMemory", () => {
   it("reports a typed miss for an address it never accepted", async () => {
     const artifacts = ArtifactStore.makeMemory()
     const exit = await runPromise(artifacts.get(digest).pipe(Effect.exit))
-    expect((errorOf(exit) as ArtifactStore.ArtifactMissing)._tag).toBe("@smthrs/artifacts/ArtifactMissing")
+    expect((errorOf(exit) as ArtifactStore.ArtifactMissing)._tag).toBe("@smthrs/artifacts-next/ArtifactMissing")
     expect(await runPromise(artifacts.has(digest))).toBe(false)
   })
 

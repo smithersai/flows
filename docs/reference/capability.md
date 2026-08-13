@@ -1,8 +1,8 @@
-# `@smthrs/capability`
+# `@smthrs/capability-next`
 
-This page is the public API reference for the capability vocabulary: capability values, wildcard patterns, effect tiers, policy rules, and the typed permission failures a guarded Host call can add. Enforcement — the `GrantStore`, the decorating layers, the journal — lives in [`@smthrs/kernel`](kernel.md).
+This page is the public API reference for the capability vocabulary: capability values, wildcard patterns, effect tiers, policy rules, and the typed permission failures a guarded Host call can add. Enforcement — the `GrantStore`, the decorating layers, the journal — lives in [`@smthrs/kernel-next`](kernel.md).
 
-The package is a leaf: it depends on `effect` alone, so both `@smthrs/kernel` and `@smthrs/jj` can depend on it without a cycle, and a protected service names permission failures in its own interface. Schema ids (`@smthrs/capability/Capability`, `@smthrs/capability/PermissionDenied`, …) are digested into step keys and round-trip through the grant journal, so renaming one invalidates recorded runs.
+The package is a leaf: it depends on `effect` alone, so both `@smthrs/kernel-next` and `@smthrs/jj-next` can depend on it without a cycle, and a protected service names permission failures in its own interface. Schema ids (`@smthrs/capability-next/Capability`, `@smthrs/capability-next/PermissionDenied`, …) are digested into step keys and round-trip through the grant journal, so renaming one invalidates recorded runs.
 
 ## Namespaces
 
@@ -12,7 +12,7 @@ The package is a leaf: it depends on `effect` alone, so both `@smthrs/kernel` an
 | `Permission` | `Rule`, `RuleEffect`, `evaluate`, `PermissionRequired`, `PermissionDenied`, `GrantStoreError`, `GrantStoreErrorCode`, the `PermissionError` union, `permissionRequired`, `permissionDenied`, `isPermissionError`, `formatError`, `toPlatformError`, `fromPlatformError` |
 
 ```ts
-import { Capability, Permission } from "@smthrs/capability"
+import { Capability, Permission } from "@smthrs/capability-next"
 
 const decision = Permission.evaluate(
   [[

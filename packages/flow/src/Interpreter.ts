@@ -39,10 +39,10 @@
  *
  * @since 0.1.0
  */
-import { Key } from "@smthrs/keys/Key"
-import * as KeyMaterial from "@smthrs/plan/KeyMaterial"
-import * as Node from "@smthrs/plan/Node"
-import * as Planned from "@smthrs/plan/Planned"
+import { Key } from "@smthrs/keys-next/Key"
+import * as KeyMaterial from "@smthrs/plan-next/KeyMaterial"
+import * as Node from "@smthrs/plan-next/Node"
+import * as Planned from "@smthrs/plan-next/Planned"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -72,7 +72,7 @@ import * as Graph from "./Graph.ts"
  * @since 0.1.0
  */
 export class InterpreterError extends Schema.TaggedErrorClass<InterpreterError>()(
-  "@smthrs/flow/InterpreterError",
+  "@smthrs/flow-next/InterpreterError",
   {
     code: Schema.Literals([
       "incomplete_graph",

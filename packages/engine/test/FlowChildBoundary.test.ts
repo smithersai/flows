@@ -5,8 +5,8 @@
  * stands for is genuine, so the parent's interruption and the child's
  * suspension travel between them.
  */
-import { Activity, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
-import { Node } from "@smthrs/plan"
+import { Activity, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
+import { Node } from "@smthrs/plan-next"
 import { Effect, Exit, Fiber, Layer, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"

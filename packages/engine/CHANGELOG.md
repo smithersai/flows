@@ -1,17 +1,17 @@
-# @smthrs/engine
+# @smthrs/engine-next
 
 ## [Unreleased]
 
 ### Breaking Changes
 
-- Split the flow authoring model out into `@smthrs/flow`. `Flow`, `Activity`,
+- Split the flow authoring model out into `@smthrs/flow-next`. `Flow`, `Activity`,
   `RetryPolicy`, `DurableDeferred`, `DurableClock`, `DurableQueue`, and
-  `StepIdentity` are no longer exported here; import them from `@smthrs/flow`.
+  `StepIdentity` are no longer exported here; import them from `@smthrs/flow-next`.
 - The `FlowEngine.FlowEngine` service and `FlowEngine.FlowInstance` moved to
-  `@smthrs/flow` as `FlowRuntime.FlowRuntime` and `FlowRuntime.FlowInstance`,
+  `@smthrs/flow-next` as `FlowRuntime.FlowRuntime` and `FlowRuntime.FlowInstance`,
   together with `annotateWaiting`, `WaitingAnnotation`, and
-  `FlowCycleDetected`. `@smthrs/engine` implements that port; the dependency
-  direction is now `@smthrs/flow` ← `@smthrs/engine`, with no cycle.
+  `FlowCycleDetected`. `@smthrs/engine-next` implements that port; the dependency
+  direction is now `@smthrs/flow-next` ← `@smthrs/engine-next`, with no cycle.
 - `FlowEngine.FlowInstance.initial(flow, executionId)` is now
   `FlowEngine.makeInstance(flow, executionId)`.
 
@@ -24,7 +24,7 @@
 - Renamed `Flow.withCompensation` to the clearer `Flow.withRollback`.
 - Moved `BoundaryMode` beside the `Activity` model it configures.
 - Split the `Flow` module into focused definition, result, runtime, annotation,
-  constructor, and error files without changing the `@smthrs/engine/Flow`
+  constructor, and error files without changing the `@smthrs/engine-next/Flow`
   import.
 - Split `Activity` and its identity, boundary, retry, context, constructor, and
   error code into focused files without changing its public import paths.

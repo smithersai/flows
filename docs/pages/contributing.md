@@ -56,7 +56,7 @@ Use explicit pathspecs for every commit. Do not use `git add -A`, `git commit -a
 | Epic | Commits | Depends on |
 | --- | --- | --- |
 | `vocs-scaffold` | the Vocs devDependency and `vocs.config.ts`; the sidebar in reading order; the package barrel export docs | nothing |
-| `api-reference` | one commit per package page, in sidebar order: host, journal, database, kernel, keys, engine, engine-store, sync, time-travel, then the `@smthrs/flows` barrel | `vocs-scaffold` |
+| `api-reference` | one commit per package page, in sidebar order: host, journal, database, kernel, keys, engine, engine-store, sync, time-travel, then the `@smthrs/flows-next` barrel | `vocs-scaffold` |
 | `internals` | the public API test inventory; observability; internal details; data structures | `api-reference` |
 | `architecture` | the mermaid devDependency; the architecture page; package structure | `internals` |
 | `narrative` | examples; design decisions; external; this page; the introduction | `architecture` |
@@ -69,7 +69,7 @@ Each of these closes a gap named in [External](/external). They are listed in de
 
 | Epic | Intended commits | Depends on |
 | --- | --- | --- |
-| `production-layer` | a `@smthrs/flows` layer composing database, migrations, journal stores, durable deferred and clock state, kernel, a platform bundle, and engine; a durable getting-started example that survives a restart; the manifest and gate updates | nothing |
+| `production-layer` | a `@smthrs/flows-next` layer composing database, migrations, journal stores, durable deferred and clock state, kernel, a platform bundle, and engine; a durable getting-started example that survives a restart; the manifest and gate updates | nothing |
 | `injectable-seams` | put a service or a defaulted option in front of `resolveRetry`, then `classifyError`, then `resolveShareability`, then `waitStart` and `wake`, one seam per commit with a suite proving a provided `Layer` changes engine behavior | `production-layer` |
 | `supervisor` | `Supervisor.layer` scanning expired leases, due wakes, and `released` rows; a fault case for each scan class | `production-layer` |
 | `run-control` | a `RunControl` service journalling attributed pause, cancel, and hijack with actor and reason; the run-row columns; hijack as an alternative `RunControl` implementation | `injectable-seams` |

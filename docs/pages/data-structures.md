@@ -6,18 +6,18 @@ Everything durable in Smithers Flows is one of a small number of shapes. This pa
 
 | Shape | Table | Migration | Package |
 | --- | --- | --- | --- |
-| Journal entry | `flows_journal_events` | `0001_initial` | `@smthrs/journal` |
-| Run row | `flows_runs` | `0001_initial` | `@smthrs/run-store` |
-| Attempt row | `flows_attempts` | `0001_initial` | `@smthrs/run-store` |
-| Cache row | `flows_step_cache` | `0001_initial` | `@smthrs/step-cache` |
-| Deferred completion | `flows_deferred_completions` | `0001_initial` | `@smthrs/engine-store` |
-| Clock deadline | `flows_clock_deadlines` | `0001_initial` | `@smthrs/engine-store` |
-| Run-parent edge | `flows_run_parents` | created by `DurableEngineState.make` | `@smthrs/engine-store` |
-| Frame snapshot | `flows_time_travel_snapshots` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel` |
-| Lineage edge | `flows_time_travel_edges` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel` |
-| Rewind audit | `flows_time_travel_audits` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel` |
-| Compensation receipt | `flows_time_travel_receipts` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel` |
-| Archived entry | `flows_time_travel_archive` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel` |
+| Journal entry | `flows_journal_events` | `0001_initial` | `@smthrs/journal-next` |
+| Run row | `flows_runs` | `0001_initial` | `@smthrs/run-store-next` |
+| Attempt row | `flows_attempts` | `0001_initial` | `@smthrs/run-store-next` |
+| Cache row | `flows_step_cache` | `0001_initial` | `@smthrs/step-cache-next` |
+| Deferred completion | `flows_deferred_completions` | `0001_initial` | `@smthrs/engine-store-next` |
+| Clock deadline | `flows_clock_deadlines` | `0001_initial` | `@smthrs/engine-store-next` |
+| Run-parent edge | `flows_run_parents` | created by `DurableEngineState.make` | `@smthrs/engine-store-next` |
+| Frame snapshot | `flows_time_travel_snapshots` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel-next` |
+| Lineage edge | `flows_time_travel_edges` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel-next` |
+| Rewind audit | `flows_time_travel_audits` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel-next` |
+| Compensation receipt | `flows_time_travel_receipts` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel-next` |
+| Archived entry | `flows_time_travel_archive` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel-next` |
 
 Two shapes are in-memory only: step keys, which are recomputed on every replay, and sync frames, which exist on the wire.
 
@@ -75,7 +75,7 @@ An `Accepted` receipt from the lossy queue means the event entered the writer qu
 
 The writer is one scoped fiber inside `SqlJournal.layer`, persisting batches through `DurableWriter.write`. Published entries reach the general `changes` subscription and the per-run wake channels that `stream` follows, and publication is deferred until the outermost transaction commits.
 
-Readers: `Journal.entries` pages history, `Journal.stream` replays then follows, `Journal.project` folds a stream through a deterministic reducer with no separate durable state, `@smthrs/sync` replicates entries to followers, and `@smthrs/time-travel` reads suffixes and archives them.
+Readers: `Journal.entries` pages history, `Journal.stream` replays then follows, `Journal.project` folds a stream through a deterministic reducer with no separate durable state, `@smthrs/sync-next` replicates entries to followers, and `@smthrs/time-travel-next` reads suffixes and archives them.
 
 ### Event types the engine writes
 
@@ -162,7 +162,7 @@ A `Conflict` is journalled as `flows.engine.cache-conflict` and handed to `Incon
 
 ## Step keys
 
-A step key is `key1_` followed by a lowercase SHA-256 digest. It is computed in `@smthrs/engine` above the encoded storage seam, so the memory and durable engines receive the same identity.
+A step key is `key1_` followed by a lowercase SHA-256 digest. It is computed in `@smthrs/engine-next` above the encoded storage seam, so the memory and durable engines receive the same identity.
 
 ### Canonical serialization
 
@@ -174,7 +174,7 @@ Decoding through `Canonical` produces RFC 8785 JSON. The wrapped `canonicalize` 
 yield* Schema.decodeUnknownEffect(Key)({ operation: "compile", version: 3 })
 ```
 
-A sealed activity key changes when its caller identity, complete cache environment, or filesystem boundary changes. The engine owns that combined input; `@smthrs/keys` only hashes it.
+A sealed activity key changes when its caller identity, complete cache environment, or filesystem boundary changes. The engine owns that combined input; `@smthrs/keys-next` only hashes it.
 
 A string `idempotencyKey` folds in the activity name and declared schemas. An object identity is caller-owned and rename-stable.
 

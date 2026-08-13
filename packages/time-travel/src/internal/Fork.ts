@@ -9,11 +9,11 @@
  *
  * @since 0.1.0
  */
-import { Jj } from "@smthrs/jj"
-import * as Journal from "@smthrs/journal/Journal"
-import type * as JournalEvent from "@smthrs/journal/JournalEvent"
-import * as RunStore from "@smthrs/run-store/RunStore"
-import type * as CacheStore from "@smthrs/step-cache/CacheStore"
+import { Jj } from "@smthrs/jj-next"
+import * as Journal from "@smthrs/journal-next/Journal"
+import type * as JournalEvent from "@smthrs/journal-next/JournalEvent"
+import * as RunStore from "@smthrs/run-store-next/RunStore"
+import type * as CacheStore from "@smthrs/step-cache-next/CacheStore"
 import * as Effect from "effect/Effect"
 import type * as Scope from "effect/Scope"
 import * as EffectBoundary from "../EffectBoundary.ts"
@@ -155,7 +155,7 @@ export const fork = (
        * it to, which is exactly what the fork's warning channel is for. Pinning
        * needs a workspace-scoped provisioning verb (`jj workspace add
        * --revision`, `.smithers/tickets/fork-workspace-revision.md`), which
-       * reaches into `@smthrs/jj`'s node, browser, and wasm layers alike.
+       * reaches into `@smthrs/jj-next`'s node, browser, and wasm layers alike.
        */
       return {
         ...result,

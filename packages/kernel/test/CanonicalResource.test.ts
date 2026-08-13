@@ -1,4 +1,4 @@
-import * as Permission from "@smthrs/capability/Permission"
+import * as Permission from "@smthrs/capability-next/Permission"
 import {
   Effect,
   FileSystem as EffectFileSystem,

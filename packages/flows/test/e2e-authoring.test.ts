@@ -13,13 +13,13 @@
  * and what a plan-time mistake costs, are exactly the facts a double cannot
  * establish (`docs/pages/contributing.md`, "Adding a test").
  *
- * The host seams come from the program, not the library. `@smthrs/flows`
+ * The host seams come from the program, not the library. `@smthrs/flows-next`
  * deliberately re-exports no `platform-*` bundle — a platform is chosen by the
  * program that runs — so this suite supplies the two host services it needs
  * itself: SHA-256 over `node:crypto`, and the in-memory SQLite database every
  * store binds to.
  */
-import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"

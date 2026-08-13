@@ -1,4 +1,4 @@
-# @smthrs/database
+# @smthrs/database-next
 
 ## [Unreleased]
 

@@ -4,10 +4,10 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * must park — populating `waiting_reason`/`waiting_wake_at_ms` so
  * `waitingRuns` sweepers can find it — and a resume must wake it.
  */
-import { DurableClock, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
-import { Jj } from "@smthrs/kernel"
-import { Node } from "@smthrs/plan"
-import { RunStore } from "@smthrs/run-store"
+import { DurableClock, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow-next"
+import { Jj } from "@smthrs/kernel-next"
+import { Node } from "@smthrs/plan-next"
+import { RunStore } from "@smthrs/run-store-next"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"

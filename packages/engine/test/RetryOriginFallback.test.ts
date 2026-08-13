@@ -7,8 +7,8 @@
  * budget restarts (with a logged warning) instead of failing the run — so
  * the #45 fix cannot silently regress into an untested branch.
  */
-import { Activity, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow"
-import { Node } from "@smthrs/plan"
+import { Activity, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow-next"
+import { Node } from "@smthrs/plan-next"
 import { Cause, Effect, Exit, Fiber, Layer, Logger, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
@@ -92,7 +92,7 @@ describe("retry origin fallback when the durable hook yields none", () => {
         expect(Exit.isFailure(result.exit)).toBe(true)
         if (Exit.isFailure(result.exit)) {
           expect(Cause.squash(result.exit.cause)).toMatchObject({
-            _tag: "@smthrs/engine/RetryPolicyExpired",
+            _tag: "@smthrs/engine-next/RetryPolicyExpired",
             activityName: "RetryOriginFallback/pruned",
             expirationMs: 1,
             lastError: "still-failing"

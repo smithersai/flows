@@ -5,8 +5,8 @@
  *
  * @since 0.1.0
  */
-import { Journal } from "@smthrs/journal"
-import * as TestJournal from "@smthrs/journal/test/TestJournal"
+import { Journal } from "@smthrs/journal-next"
+import * as TestJournal from "@smthrs/journal-next/test/TestJournal"
 import { Deferred, Effect, Fiber, Layer, Option, Queue, type Scope, Stream } from "effect"
 import { TestClock } from "effect/testing"
 import * as RpcClient from "effect/unstable/rpc/RpcClient"

@@ -31,7 +31,7 @@
  *
  * @since 0.1.0
  */
-import type { CacheStore } from "@smthrs/step-cache"
+import type { CacheStore } from "@smthrs/step-cache-next"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"

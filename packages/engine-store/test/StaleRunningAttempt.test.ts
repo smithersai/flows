@@ -11,8 +11,8 @@
  * attempt is gone and the work must re-execute under its original attempt
  * number, then finish through the ordinary fenced transition.
  */
-import { Jj } from "@smthrs/kernel"
-import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
+import { Jj } from "@smthrs/kernel-next"
+import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store-next"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"

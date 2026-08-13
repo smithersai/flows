@@ -1,12 +1,12 @@
-# @smthrs/flow
+# @smthrs/flow-next
 
 The flow authoring model. It defines typed flows, activities, durable waits
 and queues, retry policy, step identity, and the runtime port those APIs are
-executed against. `@smthrs/engine` implements that port; `@smthrs/engine-store`
+executed against. `@smthrs/engine-next` implements that port; `@smthrs/engine-store-next`
 makes it durable.
 
 ```sh
-npm install @smthrs/flow
+npm install @smthrs/flow-next
 ```
 
 ## Mental model
@@ -27,7 +27,7 @@ Flow
    records, suspends, and resumes
              ▲
              │
-   @smthrs/engine  (the implementation)
+   @smthrs/engine-next  (the implementation)
 ```
 
 | Source               | Role                                                                                                                      |
@@ -47,7 +47,7 @@ An `Activity` carries an implementation, attached separately as a layer. A
 `Flow` carries a `body`, and never opaque code.
 
 ```ts
-import { Activity, Flow, Interpreter } from "@smthrs/flow"
+import { Activity, Flow, Interpreter } from "@smthrs/flow-next"
 import { Effect, Layer, Schema } from "effect"
 
 const Render = Activity.make("render", {
@@ -68,21 +68,21 @@ const GreetLayer = Layer.mergeAll(
 ).pipe(Layer.provideMerge(Activity.layerImplementations))
 ```
 
-Provide a runtime — `FlowEngine.layerMemory` from `@smthrs/engine` in tests, or
-the durable engine from `@smthrs/engine-store` in production — and execute the
+Provide a runtime — `FlowEngine.layerMemory` from `@smthrs/engine-next` in tests, or
+the durable engine from `@smthrs/engine-store-next` in production — and execute the
 flow.
 
 ## Dependency direction
 
-`@smthrs/flow` depends on no package that executes flows. `FlowRuntime` is the
+`@smthrs/flow-next` depends on no package that executes flows. `FlowRuntime` is the
 seam: authoring APIs are written against the port, and an engine supplies it.
 There is deliberately no dependency, type-only or otherwise, from this package
-back to `@smthrs/engine`.
+back to `@smthrs/engine-next`.
 
 ## Public API
 
 The root exports these namespaces, also available from matching
-`@smthrs/flow/*` subpaths.
+`@smthrs/flow-next/*` subpaths.
 
 | Namespace         | Public exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -123,8 +123,8 @@ The root exports these namespaces, also available from matching
 ### Flow — define, handle, run, observe
 
 ```ts
-import { FlowEngine } from "@smthrs/engine"
-import { Activity, Flow, Interpreter } from "@smthrs/flow"
+import { FlowEngine } from "@smthrs/engine-next"
+import { Activity, Flow, Interpreter } from "@smthrs/flow-next"
 import { Effect, Layer, Option, Schema } from "effect"
 
 class ReviewFailed extends Schema.TaggedErrorClass<ReviewFailed>()(
@@ -198,7 +198,7 @@ is no `toLayer` on a flow to attach a second one with.
 ### Activity — durable steps, tiers, retries, races
 
 ```ts
-import { Activity, RetryPolicy } from "@smthrs/flow"
+import { Activity, RetryPolicy } from "@smthrs/flow-next"
 import { Effect, Schema } from "effect"
 
 // Tiers: "sealed" (default), "compensable" (requires a
@@ -231,7 +231,7 @@ const fastest = Activity.raceAll("fastest-charge", [charge, resilient])
 ### DurableClock — durable sleep
 
 ```ts
-import { DurableClock } from "@smthrs/flow"
+import { DurableClock } from "@smthrs/flow-next"
 
 // Short sleeps run in memory; anything past inMemoryThreshold (default
 // 60s) schedules a durable clock and suspends the flow.
@@ -248,7 +248,7 @@ const clock = DurableClock.make({ name: "cooldown", duration: "2 days" })
 ### DurableDeferred — external completion
 
 ```ts
-import { DurableDeferred } from "@smthrs/flow"
+import { DurableDeferred } from "@smthrs/flow-next"
 import { Effect, Exit, Schema } from "effect"
 
 const Approval = DurableDeferred.make("Approval", {
@@ -271,7 +271,7 @@ const winner = DurableDeferred.raceAll({
 // Tokens identify a deferred from outside the flow. Inside a flow:
 const tokenInFlow = DurableDeferred.token(Approval)
 // Outside, derive it from the flow + executionId or payload:
-declare const Review: import("@smthrs/engine").Flow.Any
+declare const Review: import("@smthrs/engine-next").Flow.Any
 const token = DurableDeferred.tokenFromExecutionId(Approval, {
   flow: Review,
   executionId: "run-17"
@@ -293,7 +293,7 @@ const settle = DurableDeferred.done(Approval, { token, exit: Exit.succeed(true) 
 ### DurableQueue — durable work queues
 
 ```ts
-import { DurableQueue } from "@smthrs/flow"
+import { DurableQueue } from "@smthrs/flow-next"
 import { Effect, Schema } from "effect"
 
 const Renders = DurableQueue.make({
@@ -318,7 +318,7 @@ const RendersWorker = DurableQueue.worker(
 ### RetryPolicy — declarative retry decisions
 
 ```ts
-import { RetryPolicy } from "@smthrs/flow"
+import { RetryPolicy } from "@smthrs/flow-next"
 
 const policy = RetryPolicy.make({
   initialMs: 100,

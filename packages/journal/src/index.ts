@@ -1,18 +1,18 @@
 /**
  * Durable journal services — the immutable event history and nothing else.
  *
- * Run and attempt state live in `@smthrs/run-store`, sealed step results in
- * `@smthrs/step-cache`, and the durable deferred/clock tables in
- * `@smthrs/engine-store`; see `docs/specs/Concepts/Journal Split.md`.
+ * Run and attempt state live in `@smthrs/run-store-next`, sealed step results in
+ * `@smthrs/step-cache-next`, and the durable deferred/clock tables in
+ * `@smthrs/engine-store-next`; see `docs/specs/Concepts/Journal Split.md`.
  *
  * This entry point is browser-bundleable: every service here is written
- * against the driver-neutral `@smthrs/database` contract. The test doubles,
+ * against the driver-neutral `@smthrs/database-next` contract. The test doubles,
  * which bind a Node SQLite database, live under explicit subpaths:
  *
  * ```ts
- * import { Journal, SqlJournal } from "@smthrs/journal"
- * import * as TestJournal from "@smthrs/journal/test/TestJournal"
- * import * as Notifying from "@smthrs/journal/test/Notifying"
+ * import { Journal, SqlJournal } from "@smthrs/journal-next"
+ * import * as TestJournal from "@smthrs/journal-next/test/TestJournal"
+ * import * as Notifying from "@smthrs/journal-next/test/Notifying"
  * ```
  *
  * @since 0.1.0

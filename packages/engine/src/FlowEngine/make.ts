@@ -2,11 +2,11 @@
 
 /**
  * Adapts a low-level `Encoded` implementation into the typed `FlowRuntime`
- * port `@smthrs/flow` declares.
+ * port `@smthrs/flow-next` declares.
  *
  * @since 4.0.0
  */
-import { Activity, type DurableDeferred, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow"
+import { Activity, type DurableDeferred, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow-next"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"

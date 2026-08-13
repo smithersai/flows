@@ -1,5 +1,5 @@
-import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
-import type { FileBoundary } from "@smthrs/flow/FileBoundary"
+import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
+import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
@@ -8,7 +8,7 @@ import * as StepBoundary from "../src/StepBoundary.ts"
 
 /**
  * The production boundary now needs an `ArtifactStore` as well as a
- * `FileSystem`: blob mechanics moved to `@smthrs/artifacts`.
+ * `FileSystem`: blob mechanics moved to `@smthrs/artifacts-next`.
  */
 const hostLayer = (fs: FileSystem.FileSystem) =>
   ArtifactStore.layerFileSystem().pipe(Layer.provideMerge(Layer.succeed(FileSystem.FileSystem)(fs)))

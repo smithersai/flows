@@ -9,13 +9,13 @@ You declare an activity once with Schema-typed payload, success, and error, atta
 Requires Node.js 22.19 or later.
 
 ```sh
-npm install @smthrs/flow @smthrs/engine effect
+npm install @smthrs/flow-next @smthrs/engine-next effect
 ```
 
 ```ts
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
-import { FlowEngine } from "@smthrs/engine"
-import { Activity, Flow, Interpreter } from "@smthrs/flow"
+import { FlowEngine } from "@smthrs/engine-next"
+import { Activity, Flow, Interpreter } from "@smthrs/flow-next"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
@@ -72,26 +72,26 @@ The in-memory engine above keeps state in the process. For a run that survives a
 
 | Package | Role |
 | --- | --- |
-| `@smthrs/flows` | Umbrella barrel re-exporting the engine packages below as namespaces; the `platform-*` bundles are deliberately excluded |
-| `@smthrs/canonical` | RFC 8785 canonical JSON as an Effect Schema |
-| `@smthrs/platform-node` | The Node Host bundle: Effect's Node platform services, the Undici transport, and the Node jj adapter |
-| `@smthrs/platform-bun` | The same bundle for Bun, over `@effect/platform-bun` |
-| `@smthrs/jj` | Jujutsu snapshot, restore, diff, and workspace operations as a host service |
-| `@smthrs/sandbox` | Remote `ChildProcessSpawner` implementation and the sandbox liveness probe |
-| `@smthrs/platform-browser` | Browser `FileSystem` and `ChildProcessSpawner` over ZenFS and just-bash, plus the `BrowserHost` bundle |
-| `@smthrs/journal` | Logical WAL, migrations, projections, redaction, the `OwnerId` fence |
-| `@smthrs/run-store` | Run and attempt stores, ownership arbitration, migrations |
-| `@smthrs/step-cache` | Sealed step result cache and its migration |
-| `@smthrs/database` | Driver-neutral SQL contract with transactional write retry |
-| `@smthrs/capability` | Capability vocabulary and typed permission failures, shared by the kernel and `@smthrs/jj` |
-| `@smthrs/kernel` | The closed host service list, capability sets, grants, and permission-decorated host services |
-| `@smthrs/crypto` | Injected cryptographic schema transformations |
-| `@smthrs/keys` | Canonical flow keys |
-| `@smthrs/flow` | Flow definitions, activities, durable primitives, retry policy, and the `FlowRuntime` port |
-| `@smthrs/engine` | The runtime that executes flows, plus the RPC and HTTP façades |
-| `@smthrs/engine-store` | The durable engine: claims, fences, and persists runs over the journal |
-| `@smthrs/sync` | Read-only journal replication for followers |
-| `@smthrs/time-travel` | Replay, fork, rewind, compensation, and recovery protocols |
+| `@smthrs/flows-next` | Umbrella barrel re-exporting the engine packages below as namespaces; the `platform-*` bundles are deliberately excluded |
+| `@smthrs/canonical-next` | RFC 8785 canonical JSON as an Effect Schema |
+| `@smthrs/platform-node-next` | The Node Host bundle: Effect's Node platform services, the Undici transport, and the Node jj adapter |
+| `@smthrs/platform-bun-next` | The same bundle for Bun, over `@effect/platform-bun` |
+| `@smthrs/jj-next` | Jujutsu snapshot, restore, diff, and workspace operations as a host service |
+| `@smthrs/sandbox-next` | Remote `ChildProcessSpawner` implementation and the sandbox liveness probe |
+| `@smthrs/platform-browser-next` | Browser `FileSystem` and `ChildProcessSpawner` over ZenFS and just-bash, plus the `BrowserHost` bundle |
+| `@smthrs/journal-next` | Logical WAL, migrations, projections, redaction, the `OwnerId` fence |
+| `@smthrs/run-store-next` | Run and attempt stores, ownership arbitration, migrations |
+| `@smthrs/step-cache-next` | Sealed step result cache and its migration |
+| `@smthrs/database-next` | Driver-neutral SQL contract with transactional write retry |
+| `@smthrs/capability-next` | Capability vocabulary and typed permission failures, shared by the kernel and `@smthrs/jj-next` |
+| `@smthrs/kernel-next` | The closed host service list, capability sets, grants, and permission-decorated host services |
+| `@smthrs/crypto-next` | Injected cryptographic schema transformations |
+| `@smthrs/keys-next` | Canonical flow keys |
+| `@smthrs/flow-next` | Flow definitions, activities, durable primitives, retry policy, and the `FlowRuntime` port |
+| `@smthrs/engine-next` | The runtime that executes flows, plus the RPC and HTTP façades |
+| `@smthrs/engine-store-next` | The durable engine: claims, fences, and persists runs over the journal |
+| `@smthrs/sync-next` | Read-only journal replication for followers |
+| `@smthrs/time-travel-next` | Replay, fork, rewind, compensation, and recovery protocols |
 
 ## Documentation
 
@@ -99,7 +99,7 @@ Serve the docs site locally with `npx vocs dev`. Start with [Architecture](docs/
 
 ## Status and compatibility
 
-Packages are pre-1.0 at 0.1.0 in lockstep. The shipped database backends are SQLite (Node and in-memory); Postgres and PGlite parity is an accepted, documented gap. Every package root bundles for the browser, including `@smthrs/engine-store` and the `@smthrs/flows` barrel; only the platform bundles, the jj and SQLite drivers, and the test hosts are Node-only. Bundling is not running — no browser SQL client layer ships here yet.
+Packages are pre-1.0 at 0.1.0 in lockstep. The shipped database backends are SQLite (Node and in-memory); Postgres and PGlite parity is an accepted, documented gap. Every package root bundles for the browser, including `@smthrs/engine-store-next` and the `@smthrs/flows-next` barrel; only the platform bundles, the jj and SQLite drivers, and the test hosts are Node-only. Bundling is not running — no browser SQL client layer ships here yet.
 
 ## Contributing
 

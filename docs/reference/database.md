@@ -1,15 +1,15 @@
-# `@smthrs/database`
+# `@smthrs/database-next`
 
-This page is the public API reference for the durable write boundary. `@smthrs/database` owns driver composition, the shared write policy, and normalized database failures; domain tables and queries belong to the packages that read them — `@smthrs/journal`, `@smthrs/run-store`, `@smthrs/step-cache`, and `@smthrs/engine-store`. Queries use Effect's own `SqlClient` service directly — this package adds only the write policy on top of it.
+This page is the public API reference for the durable write boundary. `@smthrs/database-next` owns driver composition, the shared write policy, and normalized database failures; domain tables and queries belong to the packages that read them — `@smthrs/journal-next`, `@smthrs/run-store-next`, `@smthrs/step-cache-next`, and `@smthrs/engine-store-next`. Queries use Effect's own `SqlClient` service directly — this package adds only the write policy on top of it.
 
 ## Import
 
 The root is the driver-neutral contract and bundles for the browser; the SQLite drivers are Node-only and live under their own subpaths (see [browser support](../architecture/browser-support.md)).
 
 ```ts
-import { DurableWriter } from "@smthrs/database"
-import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
-import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import { DurableWriter } from "@smthrs/database-next"
+import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
+import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 ```
 
 ## `DurableWriter`
@@ -47,7 +47,7 @@ const save = Effect.gen(function*() {
 
 ## `NodeDatabase`
 
-**Node only** — `@smthrs/database/node/NodeDatabase`, not a root export.
+**Node only** — `@smthrs/database-next/node/NodeDatabase`, not a root export.
 
 `NodeDatabase.layer({ filename, sqlite? })` provides Effect's `SqlClient` over `@effect/sql-sqlite-node` — connection options only; retry tuning belongs to `DurableWriter.layer(options)`, composed on top with `Layer.provideMerge(DurableWriter.layer(), NodeDatabase.layer({ filename }))`. The underlying client enables WAL by default unless its configuration overrides that behavior.
 
@@ -61,7 +61,7 @@ const DatabaseLayer = NodeDatabase.layer({
 
 ## `TestDatabase`
 
-**Node only** — `@smthrs/database/test/TestDatabase`, not a root export. `TestDatabase.layer` is `DurableWriter.layer()` over `NodeDatabase.layer({ filename: ":memory:" })`, providing both the client and the writer. It is deterministic within one layer scope and has no restart durability.
+**Node only** — `@smthrs/database-next/test/TestDatabase`, not a root export. `TestDatabase.layer` is `DurableWriter.layer()` over `NodeDatabase.layer({ filename: ":memory:" })`, providing both the client and the writer. It is deterministic within one layer scope and has no restart durability.
 
 ## Runtime notes
 
@@ -71,6 +71,6 @@ The database service does not run domain migrations. Compose [`Journal.Migration
 
 ## Migrations
 
-`Migrations` composes those packages' migration sets over one `flows_migrations` table. A `MigrationSet` declares a `namespace` that prefixes its migration names and an `idOffset` — a multiple of `idBlock` (1000) — that reserves a block of migration ids, so two packages that both ship an `0001_initial` land on distinct identities instead of colliding or, worse, silently shadowing one another through a merged record. `loader(sets)` rejects a duplicate namespace, a duplicate offset, a malformed key, and any id collision the offsets failed to prevent; `run(sets)` and `layer(sets)` apply them in id order. It also rejects the second way a block scheme can lose a table: Effect's `Migrator` decides what to run from a single high-water mark, so a migration whose id sits at or below the highest id the database already applied would be assumed done and never run — migrating a database with the `2000` block alone and then composing every set would otherwise leave the `0` and `1000` blocks' tables uncreated. That fails loudly instead. `@smthrs/engine-store/Migrations` is the composed list a durable engine installs.
+`Migrations` composes those packages' migration sets over one `flows_migrations` table. A `MigrationSet` declares a `namespace` that prefixes its migration names and an `idOffset` — a multiple of `idBlock` (1000) — that reserves a block of migration ids, so two packages that both ship an `0001_initial` land on distinct identities instead of colliding or, worse, silently shadowing one another through a merged record. `loader(sets)` rejects a duplicate namespace, a duplicate offset, a malformed key, and any id collision the offsets failed to prevent; `run(sets)` and `layer(sets)` apply them in id order. It also rejects the second way a block scheme can lose a table: Effect's `Migrator` decides what to run from a single high-water mark, so a migration whose id sits at or below the highest id the database already applied would be assumed done and never run — migrating a database with the `2000` block alone and then composing every set would otherwise leave the `0` and `1000` blocks' tables uncreated. That fails loudly instead. `@smthrs/engine-store-next/Migrations` is the composed list a durable engine installs.
 
-See [Assembling a durable engine](../guides/durable-engine.md) and the [`@smthrs/journal`](journal.md), [`@smthrs/run-store`](run-store.md), and [`@smthrs/step-cache`](step-cache.md) references.
+See [Assembling a durable engine](../guides/durable-engine.md) and the [`@smthrs/journal-next`](journal.md), [`@smthrs/run-store-next`](run-store.md), and [`@smthrs/step-cache-next`](step-cache.md) references.

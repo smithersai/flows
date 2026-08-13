@@ -9,8 +9,8 @@
  *
  * @since 0.1.0
  */
-import { DurableWriter, fromSqlError } from "@smthrs/database/DurableWriter"
-import type { OwnerId } from "@smthrs/journal/OwnerId"
+import { DurableWriter, fromSqlError } from "@smthrs/database-next/DurableWriter"
+import type { OwnerId } from "@smthrs/journal-next/OwnerId"
 import { Clock, Context, Duration, Effect, Layer, Schema } from "effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import type * as SqlError from "effect/unstable/sql/SqlError"
@@ -350,7 +350,7 @@ export interface Service {
  * `docs/specs/Concepts/Step Keys.md`, "frozen strings, not module paths". The
  * split moved this implementation byte for byte, so by that rule it is the
  * same implementation and therefore the same step. New identities in new
- * modules do equal their module path (`@smthrs/artifacts/ArtifactStore`); only
+ * modules do equal their module path (`@smthrs/artifacts-next/ArtifactStore`); only
  * these three survivors of `docs/specs/Concepts/Journal Split.md` do not.
  *
  * @since 0.1.0

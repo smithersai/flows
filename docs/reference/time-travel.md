@@ -1,4 +1,4 @@
-# `@smthrs/time-travel`
+# `@smthrs/time-travel-next`
 
 This page is the public API reference for the `TimeTravel` service and the stores it reads through. The service is not part of every engine composition, but its evidence is: an ordinary `EngineStore` run stamps `meta.lineageId` on every record, journals a tier-2 anchor per attempt, and writes effect-boundary records, so a journal is inspectable, forkable, and rewindable without the application emitting anything by hand.
 

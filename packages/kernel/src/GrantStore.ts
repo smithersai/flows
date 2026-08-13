@@ -14,7 +14,7 @@ import {
   matches,
   subsumes,
   tierOf
-} from "@smthrs/capability/Capability"
+} from "@smthrs/capability-next/Capability"
 import {
   evaluate,
   GrantStoreError,
@@ -23,7 +23,7 @@ import {
   type PermissionRequired,
   permissionRequired,
   Rule
-} from "@smthrs/capability/Permission"
+} from "@smthrs/capability-next/Permission"
 import { Context, Deferred, Effect, Layer, type Scope, Semaphore } from "effect"
 import { allows, type CapabilitySet, current } from "./CapabilitySet.ts"
 import { DeniedGrant, EnvelopeGrant, type GrantEvent, OnceGrant, RememberedGrant, RunGrant } from "./GrantEvent.ts"
@@ -88,7 +88,7 @@ export interface Service {
  * @category services
  * @since 0.1.0
  */
-export class GrantStore extends Context.Service<GrantStore, Service>()("@smthrs/kernel/GrantStore") {}
+export class GrantStore extends Context.Service<GrantStore, Service>()("@smthrs/kernel-next/GrantStore") {}
 
 /**
  * A hook that durably records a grant decision before it becomes active.

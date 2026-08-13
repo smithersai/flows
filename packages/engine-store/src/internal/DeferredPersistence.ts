@@ -3,10 +3,10 @@
  *
  * @since 0.1.0
  */
-import { FlowEngine } from "@smthrs/engine"
-import { type DurableClock, type DurableDeferred, type Flow, FlowRuntime } from "@smthrs/flow"
-import { Journal } from "@smthrs/journal"
-import type { Ownership } from "@smthrs/run-store"
+import { FlowEngine } from "@smthrs/engine-next"
+import { type DurableClock, type DurableDeferred, type Flow, FlowRuntime } from "@smthrs/flow-next"
+import { Journal } from "@smthrs/journal-next"
+import type { Ownership } from "@smthrs/run-store-next"
 import * as Clock from "effect/Clock"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"

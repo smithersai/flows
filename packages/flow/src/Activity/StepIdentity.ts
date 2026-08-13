@@ -24,8 +24,8 @@
  *
  * @since 0.1.0
  */
-import { Sha256 } from "@smthrs/crypto"
-import { Key, type Key as KeyType } from "@smthrs/keys"
+import { Sha256 } from "@smthrs/crypto-next"
+import { Key, type Key as KeyType } from "@smthrs/keys-next"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"

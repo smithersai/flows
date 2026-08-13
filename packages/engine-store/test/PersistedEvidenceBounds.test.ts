@@ -6,10 +6,10 @@
  * boundary cannot observe the whole tree, so its evidence must not enter the
  * shared cache even when the declared output capture succeeds.
  */
-import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
-import { Jj } from "@smthrs/kernel"
-import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
-import { CacheStore } from "@smthrs/step-cache"
+import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
+import { Jj } from "@smthrs/kernel-next"
+import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store-next"
+import { CacheStore } from "@smthrs/step-cache-next"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"

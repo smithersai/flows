@@ -11,7 +11,7 @@
  * There is no Node HTTP module either: outgoing requests are Effect's
  * `HttpClient`, and `@effect/platform-node` already ships the Undici-backed
  * implementation. Undici follows no redirect unless a redirect interceptor is
- * installed, so every hop stays visible to `@smthrs/kernel`'s decorator.
+ * installed, so every hop stays visible to `@smthrs/kernel-next`'s decorator.
  *
  * There is no Node shell module: running a command is Effect's
  * `ChildProcessSpawner`, and `@effect/platform-node` already ships the
@@ -22,8 +22,8 @@
 import * as NodeChildProcessSpawner from "@effect/platform-node/NodeChildProcessSpawner"
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
 import * as NodeHttpClient from "@effect/platform-node/NodeHttpClient"
-import type { Jj } from "@smthrs/jj"
-import * as NodeJj from "@smthrs/jj/node/NodeJj"
+import type { Jj } from "@smthrs/jj-next"
+import * as NodeJj from "@smthrs/jj-next/node/NodeJj"
 import type { FileSystem } from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Path from "effect/Path"
@@ -33,7 +33,7 @@ import type { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSp
 /**
  * The Node platform modules Effect ships, re-exported so a program that wants
  * only part of the host has one place to reach for them. `NodeJj` belongs to
- * `@smthrs/jj`; import it from there.
+ * `@smthrs/jj-next`; import it from there.
  *
  * @category re-exports
  * @since 0.1.0

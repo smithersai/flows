@@ -1,12 +1,12 @@
-# @smthrs/run-store
+# @smthrs/run-store-next
 
 ## [Unreleased]
 
 ### Added
 
-- Split out of `@smthrs/journal`: `RunStore`, `AttemptStore`, and `Ownership`
+- Split out of `@smthrs/journal-next`: `RunStore`, `AttemptStore`, and `Ownership`
   now live here, and the package owns the `flows_runs` and `flows_attempts`
   migrations. No schema or behavioural change — see
   `docs/specs/Concepts/Journal Split.md`.
-- `Ownership` re-exports the `OwnerId` schema, which `@smthrs/journal` now
+- `Ownership` re-exports the `OwnerId` schema, which `@smthrs/journal-next` now
   defines because it is the fence `emitDurable` accepts.

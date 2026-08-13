@@ -3,7 +3,7 @@
  *
  * @since 0.1.0
  */
-import { Journal, JournalEvent } from "@smthrs/journal"
+import { Journal, JournalEvent } from "@smthrs/journal-next"
 import { Effect, Fiber, type Scope, Stream } from "effect"
 import { describe, expect, it } from "vitest"
 import * as SyncClient from "../src/SyncClient.ts"

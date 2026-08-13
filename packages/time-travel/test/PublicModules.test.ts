@@ -1,7 +1,7 @@
-import * as Jj from "@smthrs/jj"
-import * as Journal from "@smthrs/journal/Journal"
-import * as RunStore from "@smthrs/run-store/RunStore"
-import * as CacheStore from "@smthrs/step-cache/CacheStore"
+import * as Jj from "@smthrs/jj-next"
+import * as Journal from "@smthrs/journal-next/Journal"
+import * as RunStore from "@smthrs/run-store-next/RunStore"
+import * as CacheStore from "@smthrs/step-cache-next/CacheStore"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
@@ -88,7 +88,7 @@ describe("public time-travel modules", () => {
   })
 
   it("exposes the service key as a yieldable tag carrying its own layer", () => {
-    expect(TimeTravel.TimeTravel.key).toBe("@smthrs/time-travel/TimeTravel")
+    expect(TimeTravel.TimeTravel.key).toBe("@smthrs/time-travel-next/TimeTravel")
     expect(Object.keys(TimeTravel.TimeTravel)).toContain("layer")
   })
 

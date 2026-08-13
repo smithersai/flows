@@ -1,13 +1,13 @@
 # Journal synchronization
 
-This page defines the current journal replication protocol in `@smthrs/sync`: cursor-based reads and credit-bounded subscriptions over Effect RPC. It does not describe bidirectional event writes.
+This page defines the current journal replication protocol in `@smthrs/sync-next`: cursor-based reads and credit-bounded subscriptions over Effect RPC. It does not describe bidirectional event writes.
 
 ## Scopes and cursors
 
 A client reads either one run or every run in a workspace:
 
 ```ts
-import { SyncProtocol } from "@smthrs/sync"
+import { SyncProtocol } from "@smthrs/sync-next"
 import { Schema } from "effect"
 
 const scope = Schema.decodeUnknownSync(SyncProtocol.RunScope)({
@@ -48,4 +48,4 @@ The request includes a credit count. Credit is a hard limit on frames emitted by
 
 Current RPCs are read-only: `Read` and `Subscribe`. Client-to-server event submission, bidirectional reconciliation, acknowledgement windows, and resumable transport sessions are **Planned**.
 
-See [Journal](journal.md) and the [`@smthrs/sync` reference](../reference/sync.md).
+See [Journal](journal.md) and the [`@smthrs/sync-next` reference](../reference/sync.md).

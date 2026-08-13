@@ -1,4 +1,4 @@
-import { runHostContract } from "@smthrs/kernel/test/contract"
+import { runHostContract } from "@smthrs/kernel-next/test/contract"
 import { spawnSync } from "node:child_process"
 import * as NodeHost from "../../src/NodeHost.ts"
 

@@ -1,11 +1,11 @@
 /**
  * Executable state must survive the durable round trip verbatim: journal
  * payloads are redacted, but the stores that hold resumable state are not.
- * Split out of `@smthrs/journal`'s redaction suite when the stores moved into
+ * Split out of `@smthrs/journal-next`'s redaction suite when the stores moved into
  * their own packages — see `docs/specs/Concepts/Journal Split.md`.
  */
-import { DurableWriter } from "@smthrs/database/DurableWriter"
-import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import { DurableWriter } from "@smthrs/database-next/DurableWriter"
+import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import { Effect, Layer, Option } from "effect"
 import { TestClock } from "effect/testing"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"

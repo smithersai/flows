@@ -15,11 +15,11 @@
  *
  * @since 0.1.0
  */
-import * as DatabaseMigrations from "@smthrs/database/Migrations"
-import * as JournalMigrations from "@smthrs/journal/Migrations"
-import * as PlanMigrations from "@smthrs/plan/Migrations"
-import * as RunStoreMigrations from "@smthrs/run-store/Migrations"
-import * as StepCacheMigrations from "@smthrs/step-cache/Migrations"
+import * as DatabaseMigrations from "@smthrs/database-next/Migrations"
+import * as JournalMigrations from "@smthrs/journal-next/Migrations"
+import * as PlanMigrations from "@smthrs/plan-next/Migrations"
+import * as RunStoreMigrations from "@smthrs/run-store-next/Migrations"
+import * as StepCacheMigrations from "@smthrs/step-cache-next/Migrations"
 import * as Layer from "effect/Layer"
 import initial from "./migrations/0001_initial.ts"
 

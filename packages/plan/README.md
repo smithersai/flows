@@ -1,4 +1,4 @@
-# @smthrs/plan
+# @smthrs/plan-next
 
 The persisted plan: a keyed action graph, its append-only store, its diff, and
 the step-key compiler that gives every node its identity.
@@ -6,10 +6,10 @@ the step-key compiler that gives every node its identity.
 A plan is "a `Node` graph with every key computed, produced by the plan phase
 and inert until run". This package is that value made durable — and nothing
 more. It performs no I/O beyond the database and never executes anything;
-driving a plan is `@smthrs/engine-store`'s `PlanScheduler`.
+driving a plan is `@smthrs/engine-store-next`'s `PlanScheduler`.
 
 ```ts
-import { Plan, PlanStore } from "@smthrs/plan"
+import { Plan, PlanStore } from "@smthrs/plan-next"
 import * as Effect from "effect/Effect"
 
 const plan = yield* Plan.compile({
@@ -52,11 +52,11 @@ yield* store.record(plan, Date.now())
 | Module        | Role                                                                                                 |
 | ------------- | ---------------------------------------------------------------------------------------------------- |
 | `KeyMaterial` | What a planner declares about a node: body, tagged input references, layers, capabilities, effects   |
-| `StepKey`     | The compiler that turns material plus resolved dependency digests into an `@smthrs/keys` `Key`       |
+| `StepKey`     | The compiler that turns material plus resolved dependency digests into an `@smthrs/keys-next` `Key`       |
 | `Plan`        | `compile`, `append`, the node/edge/conflict schemas, and the digest an approval binds to             |
 | `PlanDiff`    | `flows plan --diff` as a value: added, removed, re-keyed (with attribution), unchanged               |
 | `PlanStore`   | Append-only SQL persistence — migration block `4000`, enforced by triggers rather than by convention |
-| `Migrations`  | The namespaced migration set, composed by `@smthrs/engine-store`'s `Migrations.sets`                 |
+| `Migrations`  | The namespaced migration set, composed by `@smthrs/engine-store-next`'s `Migrations.sets`                 |
 
 ## The three rules this package exists to keep
 

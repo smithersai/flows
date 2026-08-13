@@ -1,5 +1,5 @@
-import type * as Capability from "@smthrs/capability/Capability"
-import { permissionDenied } from "@smthrs/capability/Permission"
+import type * as Capability from "@smthrs/capability-next/Capability"
+import { permissionDenied } from "@smthrs/capability-next/Permission"
 import { Effect, FileSystem as EffectFileSystem, Path as EffectPath, Sink, Stream } from "effect"
 import { describe, expect, it } from "vitest"
 import * as FileSystem from "../src/FileSystem.ts"

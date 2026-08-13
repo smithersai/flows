@@ -11,7 +11,7 @@
  *
  * @since 4.0.0
  */
-import type { Flow, FlowRuntime } from "@smthrs/flow"
+import type { Flow, FlowRuntime } from "@smthrs/flow-next"
 import type { NonEmptyReadonlyArray } from "effect/Array"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"

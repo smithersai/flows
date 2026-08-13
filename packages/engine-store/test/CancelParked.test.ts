@@ -7,10 +7,10 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * re-activation transition so a resumed cancel-requested run cancels instead
  * of re-executing flow side effects.
  */
-import { DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
-import { Jj } from "@smthrs/kernel"
-import { Node } from "@smthrs/plan"
-import { Ownership, RunStore } from "@smthrs/run-store"
+import { DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow-next"
+import { Jj } from "@smthrs/kernel-next"
+import { Node } from "@smthrs/plan-next"
+import { Ownership, RunStore } from "@smthrs/run-store-next"
 import * as Clock from "effect/Clock"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"

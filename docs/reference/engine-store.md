@@ -1,10 +1,10 @@
-# `@smthrs/engine-store`
+# `@smthrs/engine-store-next`
 
 This page is the public API reference for the journal-backed `FlowEngine` composition, deferred/clock state contract, and hermetic boundary contract. The composition bundles anywhere; the shipped storage beneath it is still SQLite-on-Node.
 
 ## Bundles for the browser
 
-`@smthrs/engine-store` is a **browser entry point**, and the repository's browser gate treats it as one. The two host reads it once made directly — `process.pid` and `randomUUID` from `node:crypto` — moved behind the injectable `OwnerIdentity` service (`packages/engine-store/src/OwnerIdentity.ts`), which closed issue #114: the default reads a process id off `globalThis` where the platform has one and draws an incarnation number from `Random` where it does not, and `layerConstant` pins the whole token. Everything it composes — `@smthrs/crypto`, `@smthrs/flow`, `@smthrs/journal`, `@smthrs/run-store`, `@smthrs/step-cache`, `@smthrs/database`, `@smthrs/kernel`, and `@smthrs/engine` — is browser-bundleable too. Bundling is still not running: the only `DurableWriter` backing shipped here is `node:sqlite`, so do not describe the durable engine as browser-*ready* until a browser SQL client layer exists. `npm run browser` bundles this entry point and fails the build if it regresses. See [browser support](../architecture/browser-support.md).
+`@smthrs/engine-store-next` is a **browser entry point**, and the repository's browser gate treats it as one. The two host reads it once made directly — `process.pid` and `randomUUID` from `node:crypto` — moved behind the injectable `OwnerIdentity` service (`packages/engine-store/src/OwnerIdentity.ts`), which closed issue #114: the default reads a process id off `globalThis` where the platform has one and draws an incarnation number from `Random` where it does not, and `layerConstant` pins the whole token. Everything it composes — `@smthrs/crypto-next`, `@smthrs/flow-next`, `@smthrs/journal-next`, `@smthrs/run-store-next`, `@smthrs/step-cache-next`, `@smthrs/database-next`, `@smthrs/kernel-next`, and `@smthrs/engine-next` — is browser-bundleable too. Bundling is still not running: the only `DurableWriter` backing shipped here is `node:sqlite`, so do not describe the durable engine as browser-*ready* until a browser SQL client layer exists. `npm run browser` bundles this entry point and fails the build if it regresses. See [browser support](../architecture/browser-support.md).
 
 ## `EngineStore`
 
@@ -16,7 +16,7 @@ const layer = EngineStore.layer({
 })
 ```
 
-`Options` contains `owner.hostId`, `journalSource`, required `isAlive`, and the optional `clockFireRetryPolicy` — the redispatch `Schedule` for a durable clock whose fire failed, defaulting to exponential from 100ms capped at 30s, forever. It is the same option shape as the engine's `suspendedRetryPolicy`: the built-in behavior is the default, and a deployment supplies its own rather than patching the store. `make(options)` returns a `FlowRuntime` service — the port `@smthrs/flow` declares; `layer(options)` provides both `FlowRuntime` and `FlowEngine.SnapshotBoundary`. The liveness probe is mandatory because silently treating an unknown owner as alive can strand recovery forever.
+`Options` contains `owner.hostId`, `journalSource`, required `isAlive`, and the optional `clockFireRetryPolicy` — the redispatch `Schedule` for a durable clock whose fire failed, defaulting to exponential from 100ms capped at 30s, forever. It is the same option shape as the engine's `suspendedRetryPolicy`: the built-in behavior is the default, and a deployment supplies its own rather than patching the store. `make(options)` returns a `FlowRuntime` service — the port `@smthrs/flow-next` declares; `layer(options)` provides both `FlowRuntime` and `FlowEngine.SnapshotBoundary`. The liveness probe is mandatory because silently treating an unknown owner as alive can strand recovery forever.
 
 Required services are `Journal`, `RunStore`, `AttemptStore`, `CacheStore`, `DurableEngineState`, kernel `Jj`, `StepBoundary`, `OwnerIdentity`, and `Scope`. `EngineCompositionError` represents an engine that was invoked without a complete composition.
 
@@ -66,7 +66,7 @@ semantics) rather than being lost until process restart.
 
 <a id="stepboundary"></a>
 
-`FileBoundary` from `@smthrs/flow`'s `Activity` namespace contains `readSet`, `writeSet`, and `boundaryMode` (`hard` or `expected`). A service implements:
+`FileBoundary` from `@smthrs/flow-next`'s `Activity` namespace contains `readSet`, `writeSet`, and `boundaryMode` (`hard` or `expected`). A service implements:
 
 ```ts
 interface Service {
@@ -80,7 +80,7 @@ interface Service {
 
 `MissingArtifact` is the one replay refusal a shared artifact tier can repair — the bytes are simply not on this host — so it is a distinct tag from a corrupt address or a host that refused outright. `referencedDigests(evidence)` names the digests evidence references rather than inlines; that is the set `ArtifactSync` publishes and fetches.
 
-`make(service)` wraps an implementation. `layer` is the filesystem-backed production boundary over the kernel `FileSystem` seam and the `@smthrs/artifacts` `ArtifactStore`, which owns the blob mechanics (content addressing, atomic publication, digest verification, dedupe); what stays here is the policy that decides which outputs become blobs at all — the `maxInlineBytes` / `maxTotalInlineBytes` inline-versus-spill budgets. Concretely: `prepare` measures the declared read set's real digests, `settle` detects declared reads mutated outside the declared write set and captures the write set's post-state as materializable outputs, and `replayOutputs` re-materializes them. It cannot detect writes elsewhere in the tree, so it never claims the whole-tree proof itself — that claim now comes from running the body somewhere else, which is [`WorkspaceSandbox`](#workspacesandbox). A composition with a boundary but no sandbox keeps the old, honest outcome: run-local results only. `layerTest(options?)` is deterministic and supports changed-path/deviation/replay/`readSnapshot` assertions, but it does not enforce a real sandbox.
+`make(service)` wraps an implementation. `layer` is the filesystem-backed production boundary over the kernel `FileSystem` seam and the `@smthrs/artifacts-next` `ArtifactStore`, which owns the blob mechanics (content addressing, atomic publication, digest verification, dedupe); what stays here is the policy that decides which outputs become blobs at all — the `maxInlineBytes` / `maxTotalInlineBytes` inline-versus-spill budgets. Concretely: `prepare` measures the declared read set's real digests, `settle` detects declared reads mutated outside the declared write set and captures the write set's post-state as materializable outputs, and `replayOutputs` re-materializes them. It cannot detect writes elsewhere in the tree, so it never claims the whole-tree proof itself — that claim now comes from running the body somewhere else, which is [`WorkspaceSandbox`](#workspacesandbox). A composition with a boundary but no sandbox keeps the old, honest outcome: run-local results only. `layerTest(options?)` is deterministic and supports changed-path/deviation/replay/`readSnapshot` assertions, but it does not enforce a real sandbox.
 
 ## `WorkspaceSandbox`
 
@@ -101,7 +101,7 @@ interface Service {
 
 `QueuedEffect`s are deliberately not dispatched inside the transaction: a speculative send has already reached the world when its execution turns out invalid, and reaches it twice when a copy-back loses a race. The optional `EffectDispatcher` stage runs after copy-back settles, deduplicated by idempotency key. The journal records `diff-bundle-captured` and `copy-back-settled`.
 
-`makeMemory` is the deterministic, browser-safe conformance implementation (it seeds the whole tree, so an undeclared read is observable); `makeFileSystem` / `layerFileSystem` back the transaction with the kernel `FileSystem`, the kernel `Workspace` root, and `@smthrs/artifacts` for products too large to carry inline. Both are `makeHosted` over one `Host`, so the transaction, the diff, the violation check, and the provenance cannot drift between them.
+`makeMemory` is the deterministic, browser-safe conformance implementation (it seeds the whole tree, so an undeclared read is observable); `makeFileSystem` / `layerFileSystem` back the transaction with the kernel `FileSystem`, the kernel `Workspace` root, and `@smthrs/artifacts-next` for products too large to carry inline. Both are `makeHosted` over one `Host`, so the transaction, the diff, the violation check, and the provenance cannot drift between them.
 
 It is a **deterministic transaction model, not a security boundary**. A body reaching the host through a service the transaction does not seed is outside it; denying that ambient access is the VM/`SandboxProvider` story in `docs/specs/Concepts/Agent Adapters.md`. The human diff-review gate of `docs/specs/Concepts/Diff Review.md` is not implemented — a settled bundle is applied without it (`.smithers/tickets/diff-review-gate.md`) — and the transaction's `FileSystem` surface is deliberately partial (`.smithers/tickets/sandbox-filesystem-surface.md`).
 
@@ -109,7 +109,7 @@ It is a **deterministic transaction model, not a security boundary**. A body rea
 
 <a id="planscheduler"></a>
 
-The node scheduler: it drives a persisted [`@smthrs/plan`](plan.md) `Plan` to completion. `record` persists generation 0 and journals `plan-recorded`, `append` persists the newest generation and journals `subgraph-appended`, and `run` walks the graph.
+The node scheduler: it drives a persisted [`@smthrs/plan-next`](plan.md) `Plan` to completion. `record` persists generation 0 and journals `plan-recorded`, `append` persists the newest generation and journals `subgraph-appended`, and `run` walks the graph.
 
 ```ts
 interface Service {
@@ -183,19 +183,19 @@ See [Assembling a durable engine](../guides/durable-engine.md), [Implementation 
 
 ## Migrations and internal scheduling
 
-`@smthrs/engine-store` owns `flows_deferred_completions` and
+`@smthrs/engine-store-next` owns `flows_deferred_completions` and
 `flows_clock_deadlines` — the persisted `DurableDeferred`/`DurableClock` state
 `internal/DeferredPersistence` operates and no other package reads — and
 reserves migration id block `3000`. Because it composes every storage package,
 `Migrations.sets` is also the complete durable engine schema in dependency
 order (journal, run store, step cache, then its own) and `Migrations.layer`
-installs all of it. See [`@smthrs/database`](database.md) for how the
+installs all of it. See [`@smthrs/database-next`](database.md) for how the
 namespaced sets compose without colliding.
 
 `internal/RunCoordinator` lives here rather than in a storage package because
 it is in-memory scheduling, not persistence: `make({ drain })` deduplicates
 in-process work by key and exposes `active`, `run`, `wake`, and `interrupt`
 around scoped fibers. `RunDriver` is its only consumer. It is not distributed
-ownership; that is [`@smthrs/run-store`](run-store.md)'s `RunStore`. The shape
+ownership; that is [`@smthrs/run-store-next`](run-store.md)'s `RunStore`. The shape
 is adapted from opencode's `packages/core/src/session/run-coordinator.ts`,
 which also lives in the session layer.

@@ -8,8 +8,8 @@ import type * as Crypto from "effect/Crypto"
  * failed attempts keep their numbering: the backoff ladder is not re-slept
  * and the retry decision sees the true attempt count.
  */
-import { Activity, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow"
-import { Node } from "@smthrs/plan"
+import { Activity, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow-next"
+import { Node } from "@smthrs/plan-next"
 import { Cause, Effect, Exit, Layer, Option, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"

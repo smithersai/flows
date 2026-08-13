@@ -5,7 +5,7 @@
  *
  * @since 0.1.0
  */
-import type { Flow } from "@smthrs/flow"
+import type { Flow } from "@smthrs/flow-next"
 import * as Context from "effect/Context"
 import type * as Effect from "effect/Effect"
 
@@ -26,7 +26,7 @@ export interface SnapshotBoundaryOptions {
 /**
  * Minimal host snapshot boundary required by compensable activities.
  *
- * TODO(piece-6): bind to @smthrs/kernel Jj in @smthrs/engine-store.
+ * TODO(piece-6): bind to @smthrs/kernel-next Jj in @smthrs/engine-store-next.
  *
  * @category services
  * @since 0.1.0

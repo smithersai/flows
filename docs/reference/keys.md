@@ -1,4 +1,4 @@
-# `@smthrs/keys`
+# `@smthrs/keys-next`
 
 The package turns canonical JSON into a validated flow key.
 
@@ -14,4 +14,4 @@ export const Key: Schema<
 >
 ```
 
-`Key` serializes through [RFC 8785 canonical JSON](https://www.rfc-editor.org/rfc/rfc8785.html), then delegates hashing to `@smthrs/crypto`. It is irreversible and returns invalid input or crypto failures as `SchemaError`.
+`Key` serializes through [RFC 8785 canonical JSON](https://www.rfc-editor.org/rfc/rfc8785.html), then delegates hashing to `@smthrs/crypto-next`. It is irreversible and returns invalid input or crypto failures as `SchemaError`.

@@ -1,7 +1,7 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, DurableClock, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
-import { Node } from "@smthrs/plan"
+import { Activity, DurableClock, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
+import { Node } from "@smthrs/plan-next"
 import { Duration, Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"

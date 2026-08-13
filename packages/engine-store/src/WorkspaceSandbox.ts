@@ -35,10 +35,10 @@
  *
  * @since 0.1.0
  */
-import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
-import { Sha256 } from "@smthrs/crypto"
-import type { FileBoundary } from "@smthrs/flow/FileBoundary"
-import { Workspace as KernelWorkspace } from "@smthrs/kernel/Workspace"
+import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
+import { Sha256 } from "@smthrs/crypto-next"
+import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
+import { Workspace as KernelWorkspace } from "@smthrs/kernel-next/Workspace"
 import * as Context from "effect/Context"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
@@ -1039,7 +1039,7 @@ export const makeFileSystem = (
         }
         const bytes = change.after ?? (yield* artifacts.get(`${change.afterDigest}`).pipe(
           Effect.mapError((error) =>
-            error._tag === "@smthrs/artifacts/ArtifactStoreError"
+            error._tag === "@smthrs/artifacts-next/ArtifactStoreError"
               ? artifactFailure(error)
               : new WorkspaceError({
                 code: "not_found",
@@ -1058,7 +1058,7 @@ export const makeFileSystem = (
  *
  * Host access arrives through Effect's `FileSystem` tag — the same tag the
  * capability kernel decorates in place — and blob retention through
- * `@smthrs/artifacts`, so the same sandbox runs over a purely local store or a
+ * `@smthrs/artifacts-next`, so the same sandbox runs over a purely local store or a
  * local-plus-shared composition without knowing which it got. The workspace
  * root arrives through the kernel's `Workspace` service, so absolute paths a
  * body resolved for itself still land inside the transaction.

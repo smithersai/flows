@@ -10,10 +10,10 @@
  * `FileSystem`/bash and the tmpdir behind jj may diverge here; a real page
  * must hand all three the same mount (see `BrowserHost.layer`'s doc).
  */
-import { Jj } from "@smthrs/jj"
-import type { SyncFsLike } from "@smthrs/jj/browser/WasiFs"
-import { runHostContract } from "@smthrs/kernel/test/contract"
-import * as TestHost from "@smthrs/kernel/test/TestHost"
+import { Jj } from "@smthrs/jj-next"
+import type { SyncFsLike } from "@smthrs/jj-next/browser/WasiFs"
+import { runHostContract } from "@smthrs/kernel-next/test/contract"
+import * as TestHost from "@smthrs/kernel-next/test/TestHost"
 import * as Effect from "effect/Effect"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import * as fsModule from "node:fs"
@@ -77,7 +77,7 @@ if (wasmBytes === undefined) {
   console.warn(
     "[BrowserHost.contract] packages/jj/wasm/flows_jj.wasm is not built — the jj capability "
       + "is asserted as the instantiation failure instead of the real-wasm contract. Build it "
-      + "with `npm run build:wasm -w @smthrs/jj`."
+      + "with `npm run build:wasm -w @smthrs/jj-next`."
   )
 }
 

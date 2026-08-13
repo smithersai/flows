@@ -1,6 +1,6 @@
-import { DatabaseError, DurableWriter, layer as writerLayer } from "@smthrs/database/DurableWriter"
-import * as NodeDatabase from "@smthrs/database/node/NodeDatabase"
-import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import { DatabaseError, DurableWriter, layer as writerLayer } from "@smthrs/database-next/DurableWriter"
+import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
+import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import { Context, Effect, Layer, PubSub } from "effect"
 import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
@@ -252,7 +252,7 @@ describe("SqlJournal durable emission", () => {
 /**
  * These cases need a real file and a real Clock: the deferred-transaction
  * allocation documented in `docs/specs/Concepts/Journal Queue.md` relies on the
- * SQLite busy/snapshot retry in `@smthrs/database`, whose backoff sleeps.
+ * SQLite busy/snapshot retry in `@smthrs/database-next`, whose backoff sleeps.
  */
 describe("SqlJournal durable emission across connections", () => {
   const withTempFile = async <A>(body: (filename: string) => Promise<A>): Promise<A> => {

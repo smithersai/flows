@@ -7,8 +7,8 @@
  * span: every cache mutation and read-verify-materialize step happens under
  * the per-key admission permit, and a verified hit returns from inside it.
  */
-import { Jj } from "@smthrs/kernel"
-import { type Ownership, RunStore } from "@smthrs/run-store"
+import { Jj } from "@smthrs/kernel-next"
+import { type Ownership, RunStore } from "@smthrs/run-store-next"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"

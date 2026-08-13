@@ -11,10 +11,10 @@
  * transient host errors stay retryable and never reach the receiver. Both
  * classes journal their `reason` on the `replay_failed` provenance record.
  */
-import { Journal } from "@smthrs/journal"
-import { Jj } from "@smthrs/kernel"
-import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
-import { CacheStore } from "@smthrs/step-cache"
+import { Journal } from "@smthrs/journal-next"
+import { Jj } from "@smthrs/kernel-next"
+import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store-next"
+import { CacheStore } from "@smthrs/step-cache-next"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"

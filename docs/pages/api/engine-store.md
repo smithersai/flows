@@ -1,9 +1,9 @@
-# @smthrs/engine-store
+# @smthrs/engine-store-next
 
-The durable `FlowEngine`. It claims a run before driving it, fences every write against the current owner, and persists attempts, waits, and terminal results through [`@smthrs/journal`](/api/journal), [`@smthrs/run-store`](/api/run-store), and [`@smthrs/step-cache`](/api/step-cache). It owns the durable deferred/clock tables and composes every package's migration set.
+The durable `FlowEngine`. It claims a run before driving it, fences every write against the current owner, and persists attempts, waits, and terminal results through [`@smthrs/journal-next`](/api/journal), [`@smthrs/run-store-next`](/api/run-store), and [`@smthrs/step-cache-next`](/api/step-cache). It owns the durable deferred/clock tables and composes every package's migration set.
 
 ```ts
-import { EngineStore, StepBoundary } from "@smthrs/engine-store"
+import { EngineStore, StepBoundary } from "@smthrs/engine-store-next"
 import * as Effect from "effect/Effect"
 
 const engine = EngineStore.layer({
@@ -19,7 +19,7 @@ This entry point bundles for the browser. The two host reads it once made direct
 
 | Import | Source | Platform |
 | --- | --- | --- |
-| `@smthrs/engine-store` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/engine-store/src/index.ts) | Node and browser |
+| `@smthrs/engine-store-next` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/engine-store/src/index.ts) | Node and browser |
 
 ## EngineStore
 
@@ -64,12 +64,12 @@ Required services: `Journal`, `RunStore`, `AttemptStore`, `CacheStore`, `Durable
 | --- | --- | --- |
 | `StepBoundary` | service tag | prepare and settle around an activity |
 | `Service`, `PreparedBoundary` | interfaces | |
-| `FileBoundary`, `FileInput` | schemas + types from `@smthrs/flow/FileBoundary` | the declared filesystem boundary |
-| `Activity.BoundaryMode` | schema + type from `@smthrs/flow/Activity` | `hard` or `expected` enforcement |
+| `FileBoundary`, `FileInput` | schemas + types from `@smthrs/flow-next/FileBoundary` | the declared filesystem boundary |
+| `Activity.BoundaryMode` | schema + type from `@smthrs/flow-next/Activity` | `hard` or `expected` enforcement |
 | `BoundaryEvidence`, `BoundaryDeviation`, `readSetMatches` | schemas + predicate | settle evidence |
 | `referencedDigests` | accessor | the digests evidence references rather than inlines |
 | `make` | constructor | from an implementation |
-| `makeFileSystem`, `FileSystemOptions`, `layer` | filesystem implementation | measures declared read sets, materializes declared outputs through the [`@smthrs/artifacts`](/api/artifacts) `ArtifactStore` |
+| `makeFileSystem`, `FileSystemOptions`, `layer` | filesystem implementation | measures declared read sets, materializes declared outputs through the [`@smthrs/artifacts-next`](/api/artifacts) `ArtifactStore` |
 | `layerTest`, `TestOptions` | test layer | simplified descriptor for suites |
 | `UndeclaredWrite`, `UnsupportedBoundary`, `BoundaryCorruption`, `MissingArtifact` | classes | boundary failures |
 
@@ -92,7 +92,7 @@ Required services: `Journal`, `RunStore`, `AttemptStore`, `CacheStore`, `Durable
 | `violations` | accessor | what a declaration failed to predict |
 | `make`, `layer`, `makeHosted` | constructors | from an implementation or a `Host` |
 | `makeMemory`, `InitialFiles`, `MemorySandbox`, `HostFile` | in-memory implementation | deterministic, browser-safe, the conformance suite's host |
-| `makeFileSystem`, `FileSystemOptions`, `layerFileSystem` | filesystem implementation | kernel `FileSystem` + `Workspace` root + [`@smthrs/artifacts`](/api/artifacts) for oversized products |
+| `makeFileSystem`, `FileSystemOptions`, `layerFileSystem` | filesystem implementation | kernel `FileSystem` + `Workspace` root + [`@smthrs/artifacts-next`](/api/artifacts) for oversized products |
 | `Dispatcher`, `EffectDispatcher`, `layerDispatcher` | optional dispatch stage | runs after copy-back settles, deduplicated by idempotency key |
 | `WorkspaceError`, `WorkspaceErrorCode`, `MaterializationConflict` | classes + schema | transaction and copy-back failures |
 
@@ -194,7 +194,7 @@ Every `code` literal is part of the public API. Consumers may switch on `code` o
 
 ## Internal scheduling
 
-`internal/RunCoordinator` deduplicates in-process work by key and exposes `active`, `run`, `wake`, and `interrupt` around scoped fibers. It is in-memory scheduling, not persistence, and is not exported: distributed ownership is `@smthrs/run-store`'s `RunStore`.
+`internal/RunCoordinator` deduplicates in-process work by key and exposes `active`, `run`, `wake`, and `interrupt` around scoped fibers. It is in-memory scheduling, not persistence, and is not exported: distributed ownership is `@smthrs/run-store-next`'s `RunStore`.
 
 ## Test layers
 

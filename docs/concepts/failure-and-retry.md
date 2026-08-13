@@ -19,7 +19,7 @@ Each durable attempt is addressed by:
 `Activity.retry` increments `Activity.CurrentAttempt` and delegates scheduling to Effect:
 
 ```ts
-import { Activity } from "@smthrs/flow"
+import { Activity } from "@smthrs/flow-next"
 const result = yield* Activity.retry(
   WriteArtifact,
   { times: 4 }
@@ -46,7 +46,7 @@ The default heartbeat interval is one second and the stale threshold is 30 secon
 
 ## Recovery utilities
 
-`@smthrs/time-travel` exposes one injectable service, `TimeTravel`, and the recovery machinery sits behind it:
+`@smthrs/time-travel-next` exposes one injectable service, `TimeTravel`, and the recovery machinery sits behind it:
 
 - `TimeTravel.rewind` performs a fenced, audited rewind protocol, including the bounded retry that blocks unsafe irreversible reattempts.
 - Compensation assesses and invokes registered rollback handlers as part of that protocol.

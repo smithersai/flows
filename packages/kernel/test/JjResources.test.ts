@@ -1,5 +1,5 @@
-import type * as Capability from "@smthrs/capability/Capability"
-import * as HostJj from "@smthrs/jj"
+import type * as Capability from "@smthrs/capability-next/Capability"
+import * as HostJj from "@smthrs/jj-next"
 import { Effect, FileSystem as EffectFileSystem, Path } from "effect"
 import { describe, expect, it } from "vitest"
 import { GrantStore } from "../src/GrantStore.ts"

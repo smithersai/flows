@@ -15,8 +15,8 @@
  *
  * @since 0.1.0
  */
-import { Canonical } from "@smthrs/canonical/Canonical"
-import { Sha256 } from "@smthrs/crypto"
+import { Canonical } from "@smthrs/canonical-next/Canonical"
+import { Sha256 } from "@smthrs/crypto-next"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import * as SchemaGetter from "effect/SchemaGetter"

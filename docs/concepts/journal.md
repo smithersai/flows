@@ -1,6 +1,6 @@
 # Journal
 
-This page explains the durable event journal in `@smthrs/journal` and the adjacent run, attempt, and cache stores in `@smthrs/run-store` and `@smthrs/step-cache`. It focuses on semantics and invariants; the [package reference](../reference/journal.md) lists exact exported types.
+This page explains the durable event journal in `@smthrs/journal-next` and the adjacent run, attempt, and cache stores in `@smthrs/run-store-next` and `@smthrs/step-cache-next`. It focuses on semantics and invariants; the [package reference](../reference/journal.md) lists exact exported types.
 
 ## Open event envelope
 
@@ -89,7 +89,7 @@ Attempt heartbeats may include a JSON checkpoint up to 1 MiB. Omitting a checkpo
 - different content → `Conflict`;
 - no row → `Inserted`.
 
-`@smthrs/engine-store` decodes the step key through the injected `Sha256` transformation to obtain the cache address. It admits only hard, deviation-free sealed boundaries.
+`@smthrs/engine-store-next` decodes the step key through the injected `Sha256` transformation to obtain the cache address. It admits only hard, deviation-free sealed boundaries.
 
 ## Migrations
 
@@ -103,7 +103,7 @@ Attempt heartbeats may include a JSON checkpoint up to 1 MiB. Omitting a checkpo
 - `flows_clock_deadlines`;
 - migration bookkeeping.
 
-Time-travel tables use a separate migration in `@smthrs/time-travel`.
+Time-travel tables use a separate migration in `@smthrs/time-travel-next`.
 
 ## State authority, and how the log stays consistent with it
 

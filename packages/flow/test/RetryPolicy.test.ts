@@ -3,9 +3,9 @@
 /**
  * `RetryPolicy` is pure data: every delay, give-up, and classification below
  * is derived without a runtime. The engine's use of these decisions — the
- * retry loop itself — is tested in `@smthrs/engine`.
+ * retry loop itself — is tested in `@smthrs/engine-next`.
  */
-import { RetryPolicy } from "@smthrs/flow"
+import { RetryPolicy } from "@smthrs/flow-next"
 import { Effect, Option, Random } from "effect"
 import { describe, expect, it } from "vitest"
 import { runPromise } from "./Crypto.ts"

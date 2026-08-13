@@ -1,22 +1,22 @@
-# @smthrs/engine
+# @smthrs/engine-next
 
-The runtime that executes `@smthrs/flow` flows, plus the transport
+The runtime that executes `@smthrs/flow-next` flows, plus the transport
 projections that expose them. It implements `FlowRuntime` — the port
-`@smthrs/flow` declares — over a low-level encoded contract, and ships a
-volatile in-memory implementation of it; `@smthrs/engine-store` supplies
+`@smthrs/flow-next` declares — over a low-level encoded contract, and ships a
+volatile in-memory implementation of it; `@smthrs/engine-store-next` supplies
 durable persistence over the same seam.
 
 ```sh
-npm install @smthrs/engine @smthrs/flow
+npm install @smthrs/engine-next @smthrs/flow-next
 ```
 
 ## Mental model
 
 A `Flow` is the durable program and `Activity` values are its recorded
-operations — both defined in `@smthrs/flow`. This package is what runs them.
+operations — both defined in `@smthrs/flow-next`. This package is what runs them.
 
 ```text
-@smthrs/flow                    @smthrs/engine
+@smthrs/flow-next                    @smthrs/engine-next
   Flow, Activity,   ── port ──▶   FlowEngine
   DurableDeferred,  FlowRuntime   records, suspends, resumes
   DurableClock,                        │
@@ -36,12 +36,12 @@ operations — both defined in `@smthrs/flow`. This package is what runs them.
 ## Public API
 
 The root exports these namespaces, also available from matching
-`@smthrs/engine/*` subpaths. The flow-authoring namespaces live in
-[`@smthrs/flow`](../flow/README.md).
+`@smthrs/engine-next/*` subpaths. The flow-authoring namespaces live in
+[`@smthrs/flow-next`](../flow/README.md).
 
 | Namespace         | Public exports                                                                                                                                                                                                                                                                                    |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `FlowEngine`      | Implementation boundary `Encoded` and `ActivityExecuteOptions`; `makeUnsafe`, which adapts an `Encoded` implementation into `@smthrs/flow`'s `FlowRuntime`; in-memory `layerMemory`; per-run state constructor `makeInstance`; compensable-step `SnapshotBoundaryOptions` and `SnapshotBoundary`. |
+| `FlowEngine`      | Implementation boundary `Encoded` and `ActivityExecuteOptions`; `makeUnsafe`, which adapts an `Encoded` implementation into `@smthrs/flow-next`'s `FlowRuntime`; in-memory `layerMemory`; per-run state constructor `makeInstance`; compensable-step `SnapshotBoundaryOptions` and `SnapshotBoundary`. |
 | `FlowProxy`       | `toRpcGroup` / `ConvertRpcs` and `toHttpApiGroup` / `ConvertHttpApi` derive execute, discard, and resume transports from flows.                                                                                                                                                                   |
 | `FlowProxyServer` | `layerRpcHandlers`, `layerHttpApi`, and `RpcHandlers` implement the derived transports.                                                                                                                                                                                                           |
 
@@ -53,12 +53,12 @@ namespace.
 ### FlowEngine — the engine contract
 
 ```ts
-import { FlowEngine } from "@smthrs/engine"
+import { FlowEngine } from "@smthrs/engine-next"
 import { Effect } from "effect"
 
 // FlowEngine is the service the flow/activity/deferred/clock/queue APIs
 // talk to. layerMemory is the in-memory implementation;
-// @smthrs/engine-store provides the durable one. makeUnsafe builds a
+// @smthrs/engine-store-next provides the durable one. makeUnsafe builds a
 // FlowEngine from an Encoded implementation (the persistence boundary).
 const program = Effect.gen(function*() {
   const engine = yield* FlowEngine
@@ -76,12 +76,12 @@ const program = Effect.gen(function*() {
 ### FlowProxy / FlowProxyServer — derived transports
 
 ```ts
-import { FlowProxy, FlowProxyServer } from "@smthrs/engine"
+import { FlowProxy, FlowProxyServer } from "@smthrs/engine-next"
 import { Layer } from "effect"
 import { HttpApi } from "effect/unstable/http"
 import { RpcServer } from "effect/unstable/rpc"
 
-declare const Review: import("@smthrs/engine").Flow.Any
+declare const Review: import("@smthrs/engine-next").Flow.Any
 
 // Each flow derives Execute / Discard / Resume endpoints
 // (ConvertRpcs / ConvertHttpApi describe the derived types).

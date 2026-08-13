@@ -11,14 +11,14 @@
  * generation with fresh provenance, while the #124 convergence re-record
  * (identical content) still collapses into a `Duplicate`.
  */
-import type { FileInput } from "@smthrs/flow/FileInput"
-import { Journal } from "@smthrs/journal"
-import * as SqlJournal from "@smthrs/journal/SqlJournal"
-import { Jj } from "@smthrs/kernel"
-import * as PlanStore from "@smthrs/plan/PlanStore"
-import { type Ownership, RunStore } from "@smthrs/run-store"
-import * as AttemptStore from "@smthrs/run-store/AttemptStore"
-import { CacheStore } from "@smthrs/step-cache"
+import type { FileInput } from "@smthrs/flow-next/FileInput"
+import { Journal } from "@smthrs/journal-next"
+import * as SqlJournal from "@smthrs/journal-next/SqlJournal"
+import { Jj } from "@smthrs/kernel-next"
+import * as PlanStore from "@smthrs/plan-next/PlanStore"
+import { type Ownership, RunStore } from "@smthrs/run-store-next"
+import * as AttemptStore from "@smthrs/run-store-next/AttemptStore"
+import { CacheStore } from "@smthrs/step-cache-next"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"

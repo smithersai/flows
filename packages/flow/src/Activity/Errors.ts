@@ -3,7 +3,7 @@
 /**
  * Defines typed activity execution and identity failures.
  *
- * The `_tag` strings below keep the `@smthrs/engine/` prefix they were minted
+ * The `_tag` strings below keep the `@smthrs/engine-next/` prefix they were minted
  * with. A tag is wire format: durable stores persist encoded exits carrying
  * it, so renaming one to match this package would make every stored row
  * decode as an unknown error on replay. The owning package moved; the tag did
@@ -22,7 +22,7 @@ import * as Schema from "effect/Schema"
  * @since 0.1.0
  */
 export class InfraInterrupt extends Schema.TaggedErrorClass<InfraInterrupt>()(
-  "@smthrs/engine/InfraInterrupt",
+  "@smthrs/engine-next/InfraInterrupt",
   {
     code: Schema.Literal("infra_interrupt").pipe(
       Schema.withConstructorDefault(Effect.succeed("infra_interrupt"))
@@ -40,7 +40,7 @@ export class InfraInterrupt extends Schema.TaggedErrorClass<InfraInterrupt>()(
  */
 export class IrreversibleRetryRequiresIdempotencyKey
   extends Schema.TaggedErrorClass<IrreversibleRetryRequiresIdempotencyKey>()(
-    "@smthrs/engine/IrreversibleRetryRequiresIdempotencyKey",
+    "@smthrs/engine-next/IrreversibleRetryRequiresIdempotencyKey",
     {
       code: Schema.Literal("irreversible_retry_requires_idempotency_key").pipe(
         Schema.withConstructorDefault(Effect.succeed("irreversible_retry_requires_idempotency_key"))
@@ -68,7 +68,7 @@ export class IrreversibleRetryRequiresIdempotencyKey
  * @since 0.1.0
  */
 export class ConcurrentKeylessDispatch extends Schema.TaggedErrorClass<ConcurrentKeylessDispatch>()(
-  "@smthrs/engine/ConcurrentKeylessDispatch",
+  "@smthrs/engine-next/ConcurrentKeylessDispatch",
   {
     code: Schema.Literal("concurrent_keyless_dispatch").pipe(
       Schema.withConstructorDefault(Effect.succeed("concurrent_keyless_dispatch"))
@@ -87,7 +87,7 @@ export class ConcurrentKeylessDispatch extends Schema.TaggedErrorClass<Concurren
  * @since 0.1.0
  */
 export class UncanonicalIdempotencyKey extends Schema.TaggedErrorClass<UncanonicalIdempotencyKey>()(
-  "@smthrs/engine/UncanonicalIdempotencyKey",
+  "@smthrs/engine-next/UncanonicalIdempotencyKey",
   {
     code: Schema.Literal("uncanonical_idempotency_key").pipe(
       Schema.withConstructorDefault(Effect.succeed("uncanonical_idempotency_key"))

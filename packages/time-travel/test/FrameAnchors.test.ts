@@ -7,8 +7,8 @@
  * write. These cases pin the fold, its carried-pointer resolution, and the
  * store contract both implementations answer.
  */
-import * as Journal from "@smthrs/journal/Journal"
-import type * as JournalEvent from "@smthrs/journal/JournalEvent"
+import * as Journal from "@smthrs/journal-next/Journal"
+import type * as JournalEvent from "@smthrs/journal-next/JournalEvent"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"

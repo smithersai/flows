@@ -3,7 +3,7 @@
  *
  * @since 0.1.0
  */
-import type { JournalEvent } from "@smthrs/journal"
+import type { JournalEvent } from "@smthrs/journal-next"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -13,7 +13,7 @@ import * as Stream from "effect/Stream"
 /**
  * Workspace run enumeration operations.
  *
- * // TODO(port): supplied by Gateway/host until @smthrs/journal exposes a workspace list/watch contract.
+ * // TODO(port): supplied by Gateway/host until @smthrs/journal-next exposes a workspace list/watch contract.
  *
  * @category models
  * @since 0.1.0
@@ -29,7 +29,7 @@ export interface Service {
  * @category services
  * @since 0.1.0
  */
-export class RunCatalog extends Context.Service<RunCatalog, Service>()("@smthrs/sync/RunCatalog") {}
+export class RunCatalog extends Context.Service<RunCatalog, Service>()("@smthrs/sync-next/RunCatalog") {}
 
 /**
  * Constructs a run catalog service from an implementation.

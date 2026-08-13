@@ -2,7 +2,7 @@
  * The run store owns `flows_runs` and `flows_attempts` and reserves migration
  * id block 1000 — see `docs/specs/Concepts/Journal Split.md`.
  */
-import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import * as Effect from "effect/Effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"

@@ -10,7 +10,7 @@
  * never alias, and identical declarations are stable across repeated
  * derivation.
  */
-import { StepIdentity } from "@smthrs/flow"
+import { StepIdentity } from "@smthrs/flow-next"
 import { Effect, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { runSync } from "./Crypto.ts"

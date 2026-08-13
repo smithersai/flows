@@ -13,12 +13,12 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * because the hard-kill evidence (a `running` row with a stale
  * `heartbeat_at_ms`) lives in `flows_runs` itself.
  */
-import { DurableWriter } from "@smthrs/database"
-import * as TestDatabase from "@smthrs/database/test/TestDatabase"
-import { Flow, FlowRuntime } from "@smthrs/flow"
-import { SqlJournal } from "@smthrs/journal"
-import { Node } from "@smthrs/plan"
-import { Ownership, RunStore } from "@smthrs/run-store"
+import { DurableWriter } from "@smthrs/database-next"
+import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
+import { Flow, FlowRuntime } from "@smthrs/flow-next"
+import { SqlJournal } from "@smthrs/journal-next"
+import { Node } from "@smthrs/plan-next"
+import { Ownership, RunStore } from "@smthrs/run-store-next"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"

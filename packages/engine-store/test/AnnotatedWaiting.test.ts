@@ -7,10 +7,10 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * parks the run with exactly that payload so reason-specific sweeps
  * (`WHERE waiting_reason = 'approval'`) see it.
  */
-import { Activity, DurableClock, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
-import { Jj } from "@smthrs/kernel"
-import { Node } from "@smthrs/plan"
-import { RunStore } from "@smthrs/run-store"
+import { Activity, DurableClock, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow-next"
+import { Jj } from "@smthrs/kernel-next"
+import { Node } from "@smthrs/plan-next"
+import { RunStore } from "@smthrs/run-store-next"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"

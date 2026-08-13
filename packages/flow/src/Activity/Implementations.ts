@@ -91,7 +91,7 @@ export class Implementations extends Context.Service<
      */
     readonly get: (name: string) => Effect.Effect<Option.Option<Implementation>>
   }
->()("@smthrs/flow/Activity/Implementations") {}
+>()("@smthrs/flow-next/Activity/Implementations") {}
 
 /**
  * Layer providing an implementation table scoped to the composition that

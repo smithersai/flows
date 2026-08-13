@@ -1,4 +1,4 @@
-# `@smthrs/plan`
+# `@smthrs/plan-next`
 
 This page is the public API reference for the **persisted plan**: a keyed
 action graph, its append-only store, its diff, and the step-key compiler that
@@ -8,9 +8,9 @@ gives every node its identity.
 every key computed, produced by the plan phase and inert until run". That is
 exactly what this package is, and no more: it performs no I/O beyond the
 database and executes nothing. Driving a plan is
-[`@smthrs/engine-store`](engine-store.md)'s `PlanScheduler`.
+[`@smthrs/engine-store-next`](engine-store.md)'s `PlanScheduler`.
 
-The package depends on `@smthrs/database`, `@smthrs/keys`, and `effect`. It is
+The package depends on `@smthrs/database-next`, `@smthrs/keys-next`, and `effect`. It is
 browser-safe.
 
 ## KeyMaterial
@@ -42,8 +42,8 @@ namespace rather than merged into the caller's, so
 `caller{fs:["a"]} + env{fs:["b"]}` cannot alias `caller{fs:["a","b"]} + env{}`.
 
 Two deliberate deviations from the module this revives (deleted at `f5f3dda`):
-it lives above `@smthrs/keys` rather than inside it, and it produces
-`@smthrs/keys` `Key` values instead of a second `sk1_` digest format. The
+it lives above `@smthrs/keys-next` rather than inside it, and it produces
+`@smthrs/keys-next` `Key` values instead of a second `sk1_` digest format. The
 engine dispatches under `Key`, so a plan whose node keys were a different
 string format could never be the thing the cache is consulted against.
 
@@ -115,6 +115,6 @@ The package owns `flows_plans`, `flows_plan_nodes`, and `flows_plan_edges`, and
 reserves migration id block `4000` — the next free block after the journal
 (`0`), run store (`1000`), step cache (`2000`), and engine store (`3000`). It
 is the last set in
-[`@smthrs/engine-store`](engine-store.md)'s `Migrations.sets`, because
+[`@smthrs/engine-store-next`](engine-store.md)'s `Migrations.sets`, because
 `Migrator` decides what to run from one high-water mark and a set below an
 applied id would be assumed done.

@@ -4,15 +4,15 @@
  * `SqlTimeTravelStore.make` has always created its tables on build with
  * `CREATE TABLE IF NOT EXISTS`, which is fine for a store standing on its own
  * but is a second door into the schema for a composition that already runs
- * `@smthrs/engine-store`'s migrator. This set is that composition's door: the
+ * `@smthrs/engine-store-next`'s migrator. This set is that composition's door: the
  * same DDL, run in the ordered ladder with the rest of the durable schema, and
  * recorded in `flows_migrations` like every other package's.
  *
- * ## Why the lineage index ships here and not in `@smthrs/journal`
+ * ## Why the lineage index ships here and not in `@smthrs/journal-next`
  *
  * The index this set adds is over `flows_journal_events.meta_json`, and the
  * journal owns that table — so the obvious home is a second journal migration.
- * It cannot be. `@smthrs/database`'s `Migrations.rejectSkipped` refuses any
+ * It cannot be. `@smthrs/database-next`'s `Migrations.rejectSkipped` refuses any
  * migration whose id sits below the high-water mark the database already
  * applied, because `Migrator` runs from a single mark and would silently skip
  * it. The journal's reserved id block is `0`–`999` and the plan's is `4000`, so
@@ -23,15 +23,15 @@
  *
  * @since 0.1.0
  */
-import * as DatabaseMigrations from "@smthrs/database/Migrations"
-import * as EngineStoreMigrations from "@smthrs/engine-store/Migrations"
+import * as DatabaseMigrations from "@smthrs/database-next/Migrations"
+import * as EngineStoreMigrations from "@smthrs/engine-store-next/Migrations"
 import * as Layer from "effect/Layer"
 import { migrate } from "./SqlTimeTravelStore.ts"
 
 /**
  * Time travel's namespaced migration set.
  *
- * The block is `5000` — above `@smthrs/plan`'s `4000`, which is what keeps the
+ * The block is `5000` — above `@smthrs/plan-next`'s `4000`, which is what keeps the
  * set runnable on a database the engine ladder already migrated.
  *
  * @category migrations
@@ -47,7 +47,7 @@ export const set: DatabaseMigrations.MigrationSet = {
 
 /**
  * The full durable schema an engine WITH time travel needs, in dependency
- * order: everything `@smthrs/engine-store` composes, then this.
+ * order: everything `@smthrs/engine-store-next` composes, then this.
  *
  * @category migrations
  * @since 0.1.0

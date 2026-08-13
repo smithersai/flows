@@ -1,6 +1,6 @@
 # Assembling a durable engine
 
-This guide describes the services required by `@smthrs/engine-store` and gives a local SQL-backed composition pattern. It also identifies which services must be replaced before a multi-process deployment is durable.
+This guide describes the services required by `@smthrs/engine-store-next` and gives a local SQL-backed composition pattern. It also identifies which services must be replaced before a multi-process deployment is durable.
 
 ## Required services
 
@@ -15,9 +15,9 @@ This guide describes the services required by `@smthrs/engine-store` and gives a
 `TestStores.layer()` supplies the four SQL services — journal, run, attempt, and cache — over ONE in-memory SQLite database. It is useful for integration tests, not restart durability:
 
 ```ts
-import { DurableEngineState, EngineStore, StepBoundary } from "@smthrs/engine-store"
-import * as TestStores from "@smthrs/engine-store/test/TestStores"
-import { Jj } from "@smthrs/kernel"
+import { DurableEngineState, EngineStore, StepBoundary } from "@smthrs/engine-store-next"
+import * as TestStores from "@smthrs/engine-store-next/test/TestStores"
+import { Jj } from "@smthrs/kernel-next"
 import { Effect, Layer } from "effect"
 
 const jj = Jj.make({
@@ -82,4 +82,4 @@ Give each worker a stable `hostId`; the engine adds process identity and a rando
 
 Deferred and clock completion schedule a resume. A committed journal-driven `resumeSignal` is not implemented, so suspended execution can also rely on the flow engine’s polling schedule.
 
-See the [`@smthrs/engine-store` reference](../reference/engine-store.md), [Journal](../concepts/journal.md), and [Implementation status](../architecture/implementation-status.md).
+See the [`@smthrs/engine-store-next` reference](../reference/engine-store.md), [Journal](../concepts/journal.md), and [Implementation status](../architecture/implementation-status.md).

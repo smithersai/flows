@@ -1,6 +1,6 @@
-# `@smthrs/engine`
+# `@smthrs/engine-next`
 
-This page is the public API reference for the runtime that executes flows: the low-level encoded engine contract, its typed adapter onto `@smthrs/flow`'s `FlowRuntime` port, execution-instance state, the in-memory implementation, and the generated RPC/HTTP flow façades. The authoring model it runs is documented in [`@smthrs/flow`](flow.md).
+This page is the public API reference for the runtime that executes flows: the low-level encoded engine contract, its typed adapter onto `@smthrs/flow-next`'s `FlowRuntime` port, execution-instance state, the in-memory implementation, and the generated RPC/HTTP flow façades. The authoring model it runs is documented in [`@smthrs/flow-next`](flow.md).
 
 ## `FlowEngine`
 

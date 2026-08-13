@@ -1,6 +1,6 @@
-import * as ArtifactStore from "@smthrs/artifacts/ArtifactStore"
-import type { FileBoundary } from "@smthrs/flow/FileBoundary"
-import * as KernelWorkspace from "@smthrs/kernel/Workspace"
+import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
+import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
+import * as KernelWorkspace from "@smthrs/kernel-next/Workspace"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
@@ -27,8 +27,8 @@ const text = (files: ReadonlyArray<WorkspaceSandbox.HostFile>, path: string): st
 /**
  * The eight behaviors the `engine-harness` proof of concept documented, ported
  * onto this side's declaration vocabulary (`FileBoundary` rather than
- * `Effects.Declaration`) and its identity surfaces (`@smthrs/crypto` rather
- * than the deleted `@smthrs/keys` digest module).
+ * `Effects.Declaration`) and its identity surfaces (`@smthrs/crypto-next` rather
+ * than the deleted `@smthrs/keys-next` digest module).
  */
 describe("WorkspaceSandbox conformance", () => {
   it("returns functional files and queued effects without changing the host before materialization", async () => {

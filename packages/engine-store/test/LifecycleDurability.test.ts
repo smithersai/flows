@@ -3,11 +3,11 @@
  * the journal's durable (undroppable) channel, fenced to the owning process
  * where the write is owned — never the optimistic lossy queue.
  */
-import { Journal, type JournalEvent } from "@smthrs/journal"
-import * as Notifying from "@smthrs/journal/test/Notifying"
-import { Jj } from "@smthrs/kernel"
-import { AttemptStore, Ownership, RunStore } from "@smthrs/run-store"
-import { CacheStore } from "@smthrs/step-cache"
+import { Journal, type JournalEvent } from "@smthrs/journal-next"
+import * as Notifying from "@smthrs/journal-next/test/Notifying"
+import { Jj } from "@smthrs/kernel-next"
+import { AttemptStore, Ownership, RunStore } from "@smthrs/run-store-next"
+import { CacheStore } from "@smthrs/step-cache-next"
 import * as Clock from "effect/Clock"
 import type * as Crypto from "effect/Crypto"
 import * as Duration from "effect/Duration"

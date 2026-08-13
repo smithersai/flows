@@ -1,7 +1,7 @@
 /**
  * Composition of per-package SQL migration sets over one migrations table.
  *
- * Every storage package above `@smthrs/database` owns its own tables and
+ * Every storage package above `@smthrs/database-next` owns its own tables and
  * therefore its own migrations, but they all migrate ONE database and record
  * their progress in ONE `flows_migrations` table. Effect's `Migrator` keys a
  * migration by a numeric id, so two packages that both ship an `0001_initial`

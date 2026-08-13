@@ -1,7 +1,7 @@
 /**
  * @since 0.1.0
  *
- * `@smthrs/kernel` — capability enforcement at the Host boundary.
+ * `@smthrs/kernel-next` — capability enforcement at the Host boundary.
  */
 
 /**
@@ -10,7 +10,7 @@
  * @category namespace exports
  * @since 0.1.0
  */
-export * as Capability from "@smthrs/capability/Capability"
+export * as Capability from "@smthrs/capability-next/Capability"
 
 /**
  * Monotone ambient authority and intersection.
@@ -89,7 +89,7 @@ export * as HostServices from "./HostServices.ts"
 export * as HttpClient from "./HttpClient.ts"
 
 /**
- * The jj capability middleware over `@smthrs/jj`'s own `Jj` tag.
+ * The jj capability middleware over `@smthrs/jj-next`'s own `Jj` tag.
  *
  * @category namespace exports
  * @since 0.1.0
@@ -118,7 +118,7 @@ export * as Path from "./Path.ts"
  * @category namespace exports
  * @since 0.1.0
  */
-export * as Permission from "@smthrs/capability/Permission"
+export * as Permission from "@smthrs/capability-next/Permission"
 
 /**
  * The shared workspace-root service.

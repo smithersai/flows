@@ -1,7 +1,7 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
-import { Key, type Key as KeyType } from "@smthrs/keys"
+import { Key, type Key as KeyType } from "@smthrs/keys-next"
 import { Crypto, Effect, Schema } from "effect"
 
 /** Runs a test Effect with concrete Node cryptography. */

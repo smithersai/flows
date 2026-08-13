@@ -6,9 +6,9 @@
  *
  * Two callers need the same string and must agree on it exactly:
  *
- *  1. `@smthrs/kernel/ChildProcessSpawner` uses it as the `proc:spawn`
+ *  1. `@smthrs/kernel-next/ChildProcessSpawner` uses it as the `proc:spawn`
  *     capability resource, so a grant reads the way an operator wrote it; and
- *  2. `@smthrs/platform-browser/BrowserChildProcessSpawner` uses it as the line
+ *  2. `@smthrs/platform-browser-next/BrowserChildProcessSpawner` uses it as the line
  *     it hands to the in-browser bash interpreter, which has no `argv` to spawn
  *     with.
  *

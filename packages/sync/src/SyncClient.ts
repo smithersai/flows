@@ -3,7 +3,7 @@
  *
  * @since 0.1.0
  */
-import type * as JournalEvent from "@smthrs/journal/JournalEvent"
+import type * as JournalEvent from "@smthrs/journal-next/JournalEvent"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -48,7 +48,7 @@ export interface Service {
  * @category services
  * @since 0.1.0
  */
-export class Sync extends Context.Service<Sync, Service>()("@smthrs/sync/Sync") {}
+export class Sync extends Context.Service<Sync, Service>()("@smthrs/sync-next/Sync") {}
 
 /**
  * Constructs a closed sync stub, optionally overriding individual operations.

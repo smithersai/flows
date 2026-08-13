@@ -3,7 +3,7 @@
  *
  * This package owns `flows_plans`, `flows_plan_nodes`, and `flows_plan_edges`
  * and reserves migration id block `4000`, so this migration is id `4001` — see
- * `@smthrs/database`'s `Migrations` for how the blocks compose (the journal,
+ * `@smthrs/database-next`'s `Migrations` for how the blocks compose (the journal,
  * run store, step cache, and engine store hold `0`, `1000`, `2000`, `3000`).
  *
  * **Append-only is enforced in the schema, not by convention.**

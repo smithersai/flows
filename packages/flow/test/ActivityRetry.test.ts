@@ -7,7 +7,7 @@
  * attempt that first reached it. A nested block shares the enclosing block's
  * pinned ordinals and folds its own cursor positions back on exit.
  */
-import { Activity, Flow, Interpreter } from "@smthrs/flow"
+import { Activity, Flow, Interpreter } from "@smthrs/flow-next"
 import { Effect, Layer, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"

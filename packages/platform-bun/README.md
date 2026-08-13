@@ -1,4 +1,4 @@
-# @smthrs/platform-bun
+# @smthrs/platform-bun-next
 
 The Bun Host bundle for `flows`.
 
@@ -6,10 +6,10 @@ The Bun Host bundle for `flows`.
 child-process spawner unchanged and ships Effect's fetch-backed `HttpClient`,
 so this package adds no implementation of its own: it composes the complete
 closed five-tag Host surface, including the Bun `Jj` adapter from
-`@smthrs/jj`.
+`@smthrs/jj-next`.
 
 ```ts
-import { BunHost } from "@smthrs/platform-bun"
+import { BunHost } from "@smthrs/platform-bun-next"
 import { Effect } from "effect"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
@@ -31,7 +31,7 @@ There is no HTTP service either. An outgoing request is Effect's `HttpClient`,
 and the bundle provides `@effect/platform-bun`'s own fetch-backed layer with
 `RequestInit { redirect: "manual" }`, so nothing walks to a second origin
 behind the capability kernel's back. Bun does **not** depend on
-`@smthrs/platform-browser` to reach `fetch`.
+`@smthrs/platform-browser-next` to reach `fetch`.
 
 ## Modules
 

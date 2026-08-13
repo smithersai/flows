@@ -1,4 +1,4 @@
-import { Capability } from "@smthrs/capability/Capability"
+import { Capability } from "@smthrs/capability-next/Capability"
 import { Effect } from "effect"
 import { describe, expect, it } from "vitest"
 import { GrantStore } from "../src/GrantStore.ts"

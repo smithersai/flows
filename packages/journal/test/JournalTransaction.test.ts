@@ -2,15 +2,15 @@
  * Pins the WAL side of the atomicity seam: `Journal.transact` runs its body
  * and the lifecycle entries describing it in ONE write transaction, and
  * publishes those entries only once that transaction has committed. The
- * cross-package half — a `@smthrs/run-store` state write committing or rolling
- * back with its entry — lives in `@smthrs/engine-store`, which composes both.
+ * cross-package half — a `@smthrs/run-store-next` state write committing or rolling
+ * back with its entry — lives in `@smthrs/engine-store-next`, which composes both.
  *
  * Prior art: `reference/temporal/service/history/workflow/transaction_impl.go`
  * submits the mutable-state mutation and its event batches as one persistence
  * request.
  */
-import { DurableWriter } from "@smthrs/database/DurableWriter"
-import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import { DurableWriter } from "@smthrs/database-next/DurableWriter"
+import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import { Deferred, Effect, Fiber, Layer, PubSub } from "effect"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"

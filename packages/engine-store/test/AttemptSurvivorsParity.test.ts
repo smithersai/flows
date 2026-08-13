@@ -6,9 +6,9 @@
  * leading attempts, so the same run restored its retry origin under SQL
  * state and silently restarted its expiration budget under the fallback.
  */
-import { DurableWriter } from "@smthrs/database"
-import * as TestDatabase from "@smthrs/database/test/TestDatabase"
-import { AttemptStore, type Ownership } from "@smthrs/run-store"
+import { DurableWriter } from "@smthrs/database-next"
+import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
+import { AttemptStore, type Ownership } from "@smthrs/run-store-next"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"

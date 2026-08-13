@@ -1,5 +1,5 @@
 /**
- * Durable `FlowEngine.Encoded` composition over `@smthrs/journal`.
+ * Durable `FlowEngine.Encoded` composition over `@smthrs/journal-next`.
  *
  * Governing designs: `docs/specs/Concepts/Run Ownership.md`,
  * `docs/specs/Concepts/Step Keys.md`, and
@@ -7,14 +7,14 @@
  *
  * @since 0.1.0
  */
-import { Sha256 } from "@smthrs/crypto"
-import { FlowEngine } from "@smthrs/engine"
-import { type Activity, Flow, FlowRuntime } from "@smthrs/flow"
-import { FileBoundary } from "@smthrs/flow/FileBoundary"
-import { Journal } from "@smthrs/journal"
-import { Jj } from "@smthrs/kernel"
-import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store"
-import { CacheStore } from "@smthrs/step-cache"
+import { Sha256 } from "@smthrs/crypto-next"
+import { FlowEngine } from "@smthrs/engine-next"
+import { type Activity, Flow, FlowRuntime } from "@smthrs/flow-next"
+import { FileBoundary } from "@smthrs/flow-next/FileBoundary"
+import { Journal } from "@smthrs/journal-next"
+import { Jj } from "@smthrs/kernel-next"
+import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store-next"
+import { CacheStore } from "@smthrs/step-cache-next"
 import type * as Crypto from "effect/Crypto"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"

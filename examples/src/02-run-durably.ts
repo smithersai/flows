@@ -8,8 +8,8 @@
  * activity attempt, and commits each lifecycle event in the same transaction as
  * the state transition it describes.
  */
-import { Activity, Flow, Interpreter } from "@smthrs/flow"
-import { Journal, type JournalEvent } from "@smthrs/journal"
+import { Activity, Flow, Interpreter } from "@smthrs/flow-next"
+import { Journal, type JournalEvent } from "@smthrs/journal-next"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"

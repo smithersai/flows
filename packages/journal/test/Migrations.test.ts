@@ -1,9 +1,9 @@
 /**
  * The journal owns exactly one table family. The composed whole-schema
  * assertion — every table every storage package contributes — lives with the
- * composition, in `@smthrs/engine-store`.
+ * composition, in `@smthrs/engine-store-next`.
  */
-import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import * as Effect from "effect/Effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"

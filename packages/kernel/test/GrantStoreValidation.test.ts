@@ -1,5 +1,5 @@
-import { Capability, CapabilityPattern } from "@smthrs/capability/Capability"
-import type { Rule } from "@smthrs/capability/Permission"
+import { Capability, CapabilityPattern } from "@smthrs/capability-next/Capability"
+import type { Rule } from "@smthrs/capability-next/Permission"
 import { Effect, Fiber } from "effect"
 import { describe, expect, it } from "vitest"
 import type { GrantEvent } from "../src/GrantEvent.ts"

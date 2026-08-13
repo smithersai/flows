@@ -13,5 +13,5 @@ import type { Service } from "./Service.ts"
  * @since 0.1.0
  */
 export const SandboxHealth: Context.Service<Service, Service> = Context.Service(
-  "@smthrs/sandbox/SandboxHealth"
+  "@smthrs/sandbox-next/SandboxHealth"
 )

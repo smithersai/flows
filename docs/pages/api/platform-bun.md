@@ -1,13 +1,13 @@
-# @smthrs/platform-bun
+# @smthrs/platform-bun-next
 
 The Bun Host bundle: one layer that provides all five tags in the closed host list, backed by `@effect/platform-bun`.
 
-`@effect/platform-bun` re-exports the `@effect/platform-node` filesystem and child-process spawner unchanged and ships Effect's fetch-backed `HttpClient`, so this package adds no implementation of its own: it composes those with the Bun `Jj` adapter from [@smthrs/jj](/api/jj). Bun no longer depends on [@smthrs/platform-browser](/api/platform-browser) to reach `fetch`.
+`@effect/platform-bun` re-exports the `@effect/platform-node` filesystem and child-process spawner unchanged and ships Effect's fetch-backed `HttpClient`, so this package adds no implementation of its own: it composes those with the Bun `Jj` adapter from [@smthrs/jj-next](/api/jj). Bun no longer depends on [@smthrs/platform-browser-next](/api/platform-browser) to reach `fetch`.
 
 There is no shell service, and — because Bun's spawner *is* the Node one — no runtime detection either. The bundle works unchanged under Node, which is what vitest and CI run. See [design decisions](/design-decisions) for why the old `Shell` wrapper and its hand-rolled `Bun.spawn` detection were deleted together.
 
 ```ts
-import { BunHost } from "@smthrs/platform-bun"
+import { BunHost } from "@smthrs/platform-bun-next"
 import * as Effect from "effect/Effect"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
@@ -24,9 +24,9 @@ This entry point is Node-only by construction: it falls back to the `@effect/pla
 
 | Import | Source | Platform |
 | --- | --- | --- |
-| `@smthrs/platform-bun` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/platform-bun/src/index.ts) | Bun, Node |
-| `@smthrs/platform-bun/BunHost` | [src/BunHost.ts](https://github.com/smithersai/flows/blob/main/packages/platform-bun/src/BunHost.ts) | Bun, Node |
-| `@smthrs/platform-bun/BunFileSystem` | [src/BunFileSystem.ts](https://github.com/smithersai/flows/blob/main/packages/platform-bun/src/BunFileSystem.ts) | Bun, Node |
+| `@smthrs/platform-bun-next` | [src/index.ts](https://github.com/smithersai/flows/blob/main/packages/platform-bun/src/index.ts) | Bun, Node |
+| `@smthrs/platform-bun-next/BunHost` | [src/BunHost.ts](https://github.com/smithersai/flows/blob/main/packages/platform-bun/src/BunHost.ts) | Bun, Node |
+| `@smthrs/platform-bun-next/BunFileSystem` | [src/BunFileSystem.ts](https://github.com/smithersai/flows/blob/main/packages/platform-bun/src/BunFileSystem.ts) | Bun, Node |
 
 ## Exports
 
@@ -41,8 +41,8 @@ This entry point is Node-only by construction: it falls back to the `@effect/pla
 
 ## Conformance
 
-The package runs the shared suite from [`@smthrs/kernel/test/contract`](/api/kernel) against `BunHost.layer`. Under vitest that exercises the Node fallback, which is not a gap: process spawning is literally the same module on both runtimes, so there is no Bun-only spawn path left to fake.
+The package runs the shared suite from [`@smthrs/kernel-next/test/contract`](/api/kernel) against `BunHost.layer`. Under vitest that exercises the Node fallback, which is not a gap: process spawning is literally the same module on both runtimes, so there is no Bun-only spawn path left to fake.
 
 ## Reading next
 
-[@smthrs/kernel](/api/kernel) owns the closed list and decorates these same tags with capability checks. [@smthrs/platform-node](/api/platform-node) and [@smthrs/platform-browser](/api/platform-browser) are the sibling bundles.
+[@smthrs/kernel-next](/api/kernel) owns the closed list and decorates these same tags with capability checks. [@smthrs/platform-node-next](/api/platform-node) and [@smthrs/platform-browser-next](/api/platform-browser) are the sibling bundles.

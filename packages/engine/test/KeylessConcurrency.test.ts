@@ -12,8 +12,8 @@ import type * as Crypto from "effect/Crypto"
  * with `ConcurrentKeylessDispatch`, and declaring an `idempotencyKey` is the
  * sanctioned way to run distinguishable invocations concurrently.
  */
-import { Activity, Flow, FlowRuntime } from "@smthrs/flow"
-import { Node } from "@smthrs/plan"
+import { Activity, Flow, FlowRuntime } from "@smthrs/flow-next"
+import { Node } from "@smthrs/plan-next"
 import { Cause, Deferred, Effect, Exit, Fiber, Layer, Scheduler, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"

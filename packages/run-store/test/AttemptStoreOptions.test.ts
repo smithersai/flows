@@ -1,5 +1,5 @@
-import { DurableWriter } from "@smthrs/database/DurableWriter"
-import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import { DurableWriter } from "@smthrs/database-next/DurableWriter"
+import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import { Effect, Layer, Option } from "effect"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"

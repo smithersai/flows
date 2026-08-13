@@ -1,6 +1,6 @@
-# @smthrs/sync
+# @smthrs/sync-next
 
-Browser-safe, read-only replication of canonical `@smthrs/journal` entries.
+Browser-safe, read-only replication of canonical `@smthrs/journal-next` entries.
 It defines the wire protocol, RPC group, server, and replay-then-follow client;
 journal mutation remains outside this package.
 
@@ -13,13 +13,13 @@ key; every operation authorizes through a signed, expiring, branch-scoped share
 capability.
 
 ```sh
-npm install @smthrs/sync
+npm install @smthrs/sync-next
 ```
 
 ## Public API
 
 The root exports these namespaces, also available from matching
-`@smthrs/sync/*` subpaths.
+`@smthrs/sync-next/*` subpaths.
 
 | Namespace          | Public exports                                                                                                                                                                                                                                                |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -36,12 +36,12 @@ The root exports these namespaces, also available from matching
 | `BranchIds`        | `BranchIds` / `Service` with `fresh`, the port `BranchServer.layerHandlers` mints branch and capability ids through; `make`, `makeWebCrypto`, `layer` (Web Crypto UUIDs), and `layerSequential(prefix)` for deterministic tests.                              |
 | `BranchProjection` | `State`, `Message`, `AppliedCommand`, `Field`; `empty`, `apply`, `project`, and the explicit `resolveField` conflict policy.                                                                                                                                  |
 
-Public test subpaths are `@smthrs/sync/test/TestSocket` (`FrameFilter`,
-`TestFaults`, `Pair`, `makePair`) and `@smthrs/sync/test/TestSync`
+Public test subpaths are `@smthrs/sync-next/test/TestSocket` (`FrameFilter`,
+`TestFaults`, `Pair`, `makePair`) and `@smthrs/sync-next/test/TestSync`
 (`layerTest`, `layerNoop`, `connect`).
 
 ```ts
-import { RunCatalog, SyncServer } from "@smthrs/sync"
+import { RunCatalog, SyncServer } from "@smthrs/sync-next"
 import { Effect, Layer } from "effect"
 
 const serverLayer = SyncServer.layer.pipe(

@@ -31,7 +31,7 @@ export interface Service {
  * @category services
  * @since 0.1.0
  */
-export class BranchIds extends Context.Service<BranchIds, Service>()("@smthrs/sync/BranchIds") {}
+export class BranchIds extends Context.Service<BranchIds, Service>()("@smthrs/sync-next/BranchIds") {}
 
 /**
  * Constructs an identifier source from an implementation.

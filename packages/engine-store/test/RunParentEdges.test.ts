@@ -1,5 +1,5 @@
-import { DurableWriter } from "@smthrs/database"
-import * as TestDatabase from "@smthrs/database/test/TestDatabase"
+import { DurableWriter } from "@smthrs/database-next"
+import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"

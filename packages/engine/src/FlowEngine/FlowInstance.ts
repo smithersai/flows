@@ -5,8 +5,8 @@
  *
  * @since 4.0.0
  */
-import type { Flow } from "@smthrs/flow"
-import { FlowRuntime } from "@smthrs/flow"
+import type { Flow } from "@smthrs/flow-next"
+import { FlowRuntime } from "@smthrs/flow-next"
 import * as Latch from "effect/Latch"
 import * as Scope from "effect/Scope"
 import * as Lineage from "./Lineage.ts"

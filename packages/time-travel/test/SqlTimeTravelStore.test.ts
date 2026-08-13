@@ -1,5 +1,5 @@
-import * as TestDatabase from "@smthrs/database/test/TestDatabase"
-import * as Migrations from "@smthrs/engine-store/Migrations"
+import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
+import * as Migrations from "@smthrs/engine-store-next/Migrations"
 import * as Effect from "effect/Effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"

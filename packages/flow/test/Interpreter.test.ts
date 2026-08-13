@@ -3,8 +3,8 @@
  * what each node variant does when it is driven with real values, and what the
  * interpreter refuses.
  */
-import { Activity, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
-import { Node, Planned } from "@smthrs/plan"
+import { Activity, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
+import { Node, Planned } from "@smthrs/plan-next"
 import { Context, Effect, Exit, Layer, Schema } from "effect"
 import { describe, expect, expectTypeOf, it } from "vitest"
 import { runPromise } from "./Crypto.ts"
@@ -235,7 +235,7 @@ describe("Interpreter branches", () => {
     )
 
     expect(await refusal(Interpreter.interpret(lost))).toMatchObject({
-      error: { _tag: "@smthrs/flow/InterpreterError", code: "missing_operation", node: "root" }
+      error: { _tag: "@smthrs/flow-next/InterpreterError", code: "missing_operation", node: "root" }
     })
   })
 })
@@ -310,7 +310,7 @@ describe("Interpreter catches", () => {
     )
 
     expect(await refusal(Interpreter.interpret(lost))).toMatchObject({
-      error: { _tag: "@smthrs/flow/InterpreterError", code: "missing_operation", node: "root" }
+      error: { _tag: "@smthrs/flow-next/InterpreterError", code: "missing_operation", node: "root" }
     })
   })
 })
@@ -371,7 +371,7 @@ describe("Interpreter node variants", () => {
       )
     ).toMatchObject({
       error: {
-        _tag: "@smthrs/flow/InterpreterError",
+        _tag: "@smthrs/flow-next/InterpreterError",
         code: "unresolved_reference",
         node: "round-1.flow",
         message: expect.stringContaining("round-0")
@@ -396,7 +396,7 @@ describe("Interpreter refusals", () => {
 
     expect(await refusal(Interpreter.interpret(Orphan, { path: "counter.txt" }))).toMatchObject({
       error: {
-        _tag: "@smthrs/flow/InterpreterError",
+        _tag: "@smthrs/flow-next/InterpreterError",
         code: "unresolved_activity",
         flow: "interpreter/orphan",
         node: "root.flow",
@@ -426,7 +426,7 @@ describe("Interpreter refusals", () => {
     const lost = detached(Node.succeed(1).pipe(Node.andThen(() => Node.succeed(2))))
 
     expect(await refusal(Interpreter.interpret(lost))).toMatchObject({
-      error: { _tag: "@smthrs/flow/InterpreterError", code: "incomplete_graph", flow: "node", node: "root" }
+      error: { _tag: "@smthrs/flow-next/InterpreterError", code: "incomplete_graph", flow: "node", node: "root" }
     })
   })
 
@@ -434,7 +434,7 @@ describe("Interpreter refusals", () => {
     const lost = detached(Node.succeed(1).pipe(Node.map((value) => value + 1)))
 
     expect(await refusal(Interpreter.interpret(lost))).toMatchObject({
-      error: { _tag: "@smthrs/flow/InterpreterError", code: "missing_operation", node: "root" }
+      error: { _tag: "@smthrs/flow-next/InterpreterError", code: "missing_operation", node: "root" }
     })
   })
 
@@ -454,7 +454,7 @@ describe("Interpreter refusals", () => {
 
     expect(await refusal(Interpreter.interpret(inline))).toMatchObject({
       error: {
-        _tag: "@smthrs/flow/InterpreterError",
+        _tag: "@smthrs/flow-next/InterpreterError",
         code: "unsupported_call",
         node: "root",
         message: expect.stringContaining("interpreter/leaf-callee.child(payload)")
@@ -474,7 +474,7 @@ describe("Interpreter refusals", () => {
 
     expect(await refusal(Interpreter.interpret(lost))).toMatchObject({
       error: {
-        _tag: "@smthrs/flow/InterpreterError",
+        _tag: "@smthrs/flow-next/InterpreterError",
         code: "unsupported_call",
         node: "root",
         message: expect.stringContaining("lost its declaration")

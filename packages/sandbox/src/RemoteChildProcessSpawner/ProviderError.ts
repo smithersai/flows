@@ -41,7 +41,7 @@ export type ProviderErrorCode = typeof ProviderErrorCode.Type
  * @since 0.1.0
  */
 export class ProviderError extends Schema.TaggedErrorClass<ProviderError>()(
-  "@smthrs/sandbox/RemoteChildProcessSpawner/ProviderError",
+  "@smthrs/sandbox-next/RemoteChildProcessSpawner/ProviderError",
   {
     code: ProviderErrorCode,
     message: Schema.String,

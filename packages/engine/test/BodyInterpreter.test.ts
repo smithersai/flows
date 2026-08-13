@@ -4,8 +4,8 @@
  * value, what a duplicate execute of an in-flight execution id does, and what a
  * body re-driven after a park does with the effects it already ran.
  */
-import { Activity, Flow, Interpreter } from "@smthrs/flow"
-import { Node } from "@smthrs/plan"
+import { Activity, Flow, Interpreter } from "@smthrs/flow-next"
+import { Node } from "@smthrs/plan-next"
 import { Deferred, Effect, Exit, Fiber, Layer, Option, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"

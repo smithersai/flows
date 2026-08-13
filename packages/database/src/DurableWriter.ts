@@ -8,7 +8,7 @@
  * The SQL client is Effect's own `SqlClient` service and is consumed
  * directly for queries; this module adds only the write policy the durable
  * stores share, plus the dialect-neutral error vocabulary. Domain schema and
- * operations remain in `@smthrs/journal`.
+ * operations remain in `@smthrs/journal-next`.
  *
  * @since 0.1.0
  */

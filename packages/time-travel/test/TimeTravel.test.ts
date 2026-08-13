@@ -8,11 +8,11 @@
  * rewind is resolved while the layer is being built rather than by a call the
  * user has to remember to make.
  */
-import * as Jj from "@smthrs/jj"
-import { Journal } from "@smthrs/journal"
-import type * as JournalEvent from "@smthrs/journal/JournalEvent"
-import { RunStore } from "@smthrs/run-store"
-import { CacheStore } from "@smthrs/step-cache"
+import * as Jj from "@smthrs/jj-next"
+import { Journal } from "@smthrs/journal-next"
+import type * as JournalEvent from "@smthrs/journal-next/JournalEvent"
+import { RunStore } from "@smthrs/run-store-next"
+import { CacheStore } from "@smthrs/step-cache-next"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"

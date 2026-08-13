@@ -5,8 +5,8 @@
  *
  * @since 4.0.0
  */
-import { Sha256 } from "@smthrs/crypto"
-import * as Node from "@smthrs/plan/Node"
+import { Sha256 } from "@smthrs/crypto-next"
+import * as Node from "@smthrs/plan-next/Node"
 import * as Context from "effect/Context"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"

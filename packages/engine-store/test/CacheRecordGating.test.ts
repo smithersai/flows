@@ -9,9 +9,9 @@
  * match the declaration the key was derived from, on both the fresh
  * completion path and the succeeded-attempt convergence replay (#24).
  */
-import { Jj } from "@smthrs/kernel"
-import { type Ownership, RunStore } from "@smthrs/run-store"
-import { CacheStore } from "@smthrs/step-cache"
+import { Jj } from "@smthrs/kernel-next"
+import { type Ownership, RunStore } from "@smthrs/run-store-next"
+import { CacheStore } from "@smthrs/step-cache-next"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"

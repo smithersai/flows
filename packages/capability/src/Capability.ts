@@ -68,7 +68,7 @@ const actions: ReadonlySet<string> = new Set([
  * @since 0.1.0
  * @category models
  */
-export class Capability extends Schema.Class<Capability>("@smthrs/capability/Capability")({
+export class Capability extends Schema.Class<Capability>("@smthrs/capability-next/Capability")({
   action: Action,
   resource: Schema.String
 }) {}
@@ -89,7 +89,7 @@ export const make = (action: Action, resource: string): Capability => new Capabi
  * structurally identical `{action, resource}` records and rendered by
  * byte-identical bodies, so `format` and a separate `formatPattern` were two
  * names for one function — and a third, inline copy in
- * `@smthrs/kernel`'s `JournalGrantStore` was the one actually writing patterns
+ * `@smthrs/kernel-next`'s `JournalGrantStore` was the one actually writing patterns
  * into durable journal payloads. Security-relevant strings get exactly one
  * renderer; folding them together is what keeps the bytes identical after the
  * next edit.
@@ -166,7 +166,7 @@ const PatternAction = Schema.Literals(
  * @since 0.1.0
  * @category models
  */
-export class CapabilityPattern extends Schema.Class<CapabilityPattern>("@smthrs/capability/CapabilityPattern")({
+export class CapabilityPattern extends Schema.Class<CapabilityPattern>("@smthrs/capability-next/CapabilityPattern")({
   action: PatternAction,
   resource: Schema.String
 }) {}

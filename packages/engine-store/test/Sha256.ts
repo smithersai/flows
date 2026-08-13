@@ -1,6 +1,6 @@
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
-import { Sha256 } from "@smthrs/crypto"
-import { Key, type Key as KeyType } from "@smthrs/keys"
+import { Sha256 } from "@smthrs/crypto-next"
+import { Key, type Key as KeyType } from "@smthrs/keys-next"
 import { Crypto, Effect, Schema } from "effect"
 
 /** Hashes test fixtures with the concrete Node crypto layer. */

@@ -2,8 +2,8 @@
  * The system sleep activity: what it puts in a plan, how it parks, and what a
  * settled wait does on replay.
  */
-import { Activity, DurableClock, DurableDeferred, Flow, FlowRuntime, Graph, Interpreter, Sleep } from "@smthrs/flow"
-import { Node } from "@smthrs/plan"
+import { Activity, DurableClock, DurableDeferred, Flow, FlowRuntime, Graph, Interpreter, Sleep } from "@smthrs/flow-next"
+import { Node } from "@smthrs/plan-next"
 import { Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
@@ -335,7 +335,7 @@ describe("Sleep refusals", () => {
   it("refuses a payload that names no deadline", async () => {
     expect(await refusal(Sleep.activity.call({}))).toMatchObject({
       error: {
-        _tag: "@smthrs/flow/SleepRequestInvalid",
+        _tag: "@smthrs/flow-next/SleepRequestInvalid",
         code: "missing_deadline",
         message: expect.stringContaining("neither")
       }
@@ -345,7 +345,7 @@ describe("Sleep refusals", () => {
   it("refuses a payload that names both a duration and a deadline", async () => {
     expect(await refusal(Sleep.activity.call({ millis: 1_000, until: 5_000 }))).toMatchObject({
       error: {
-        _tag: "@smthrs/flow/SleepRequestInvalid",
+        _tag: "@smthrs/flow-next/SleepRequestInvalid",
         code: "ambiguous_deadline",
         message: expect.stringContaining("one deadline")
       }

@@ -7,7 +7,7 @@
  *
  * @since 0.1.0
  */
-import * as Node from "@smthrs/plan/Node"
+import * as Node from "@smthrs/plan-next/Node"
 import * as Schema from "effect/Schema"
 import type { WaitingAnnotation } from "../FlowRuntime/WaitingAnnotation.ts"
 

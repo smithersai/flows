@@ -5,10 +5,10 @@
  * `Rewind`, `Retry`, `Recovery`, `Compensation`, and the effect-handler
  * registry are machinery under `src/internal/` — the same way every other
  * package here hides the modules a caller should never name — and the package
- * blocks `@smthrs/time-travel/internal/*` at its `exports` map.
+ * blocks `@smthrs/time-travel-next/internal/*` at its `exports` map.
  *
  * ```ts
- * import { MemoryTimeTravelStore, TimeTravel } from "@smthrs/time-travel"
+ * import { MemoryTimeTravelStore, TimeTravel } from "@smthrs/time-travel-next"
  * import * as Effect from "effect/Effect"
  *
  * const program = Effect.gen(function*() {
@@ -18,7 +18,7 @@
  * ```
  *
  * `TimeTravel` is exported FLAT rather than as a namespace, the way
- * `@smthrs/jj` exports its service module: the service key is the door, so
+ * `@smthrs/jj-next` exports its service module: the service key is the door, so
  * `yield* TimeTravel` — and `yield* Flows.TimeTravel` from the umbrella —
  * is the whole onboarding. `TimeTravel.layer` provides it.
  *

@@ -11,8 +11,8 @@ import type * as Crypto from "effect/Crypto"
  * through `StepIdentity.invocationKey`, which preserves the typed error for the
  * impossible invariant violation instead of discarding it.
  */
-import { Activity, Flow, Interpreter } from "@smthrs/flow"
-import * as StepIdentity from "@smthrs/flow/StepIdentity"
+import { Activity, Flow, Interpreter } from "@smthrs/flow-next"
+import * as StepIdentity from "@smthrs/flow-next/StepIdentity"
 import { Cause, Effect, Exit, Layer, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"

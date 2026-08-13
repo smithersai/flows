@@ -17,9 +17,9 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * (double execution or an AttemptAdmissionRejected conflict); with it the
  * loser waits out the winner's span and replays its terminal row.
  */
-import { Activity, Flow } from "@smthrs/flow"
-import { Jj } from "@smthrs/kernel"
-import { Node } from "@smthrs/plan"
+import { Activity, Flow } from "@smthrs/flow-next"
+import { Jj } from "@smthrs/kernel-next"
+import { Node } from "@smthrs/plan-next"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"

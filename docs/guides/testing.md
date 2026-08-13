@@ -28,7 +28,7 @@ Select explicit execution IDs so failures are reproducible.
 `TestHost.layer` supplies an in-memory filesystem, a scripted command interpreter, seeded Random, a Jujutsu service, and Effect's `HttpClient` tag filled by `HttpClient.layerNoop()` — a stub that fails every request with a `TransportError`, so a test that needs real responses provides its own client over the bundle. Configure only the seams a test exercises:
 
 ```ts
-import * as TestHost from "@smthrs/kernel/test/TestHost"
+import * as TestHost from "@smthrs/kernel-next/test/TestHost"
 
 const HostLayer = TestHost.layer({
   files: { "/workspace/input.txt": "hello" },
@@ -39,7 +39,7 @@ const HostLayer = TestHost.layer({
 })
 ```
 
-`TestHost` is imported from its subpath rather than the `@smthrs/kernel` root, which stays browser-safe ([browser support](../architecture/browser-support.md)); `effect/testing`'s `TestClock` reaches for `node:assert`, so the bundle itself is Node-only. Consult the actual `TestHost.layer` option types when extending a fixture; the filesystem and interpreter helpers deliberately implement only the host contracts used by tests.
+`TestHost` is imported from its subpath rather than the `@smthrs/kernel-next` root, which stays browser-safe ([browser support](../architecture/browser-support.md)); `effect/testing`'s `TestClock` reaches for `node:assert`, so the bundle itself is Node-only. Consult the actual `TestHost.layer` option types when extending a fixture; the filesystem and interpreter helpers deliberately implement only the host contracts used by tests.
 
 For kernel tests, `TestGrantStore.layerAllow`, `layerDeny`, and `layerScripted` provide explicit authorization behavior.
 
@@ -47,10 +47,10 @@ For kernel tests, `TestGrantStore.layerAllow`, `layerDeny`, and `layerScripted` 
 
 Combine:
 
-- `TestJournal.layer()` (from `@smthrs/journal/test/TestJournal`) for a migrated in-memory SQLite journal, `TestRunStore.layer` and `TestCacheStore.layer` for the run and cache stores, or `TestStores.layer()` (from `@smthrs/engine-store/test/TestStores`) for all four over one database,
+- `TestJournal.layer()` (from `@smthrs/journal-next/test/TestJournal`) for a migrated in-memory SQLite journal, `TestRunStore.layer` and `TestCacheStore.layer` for the run and cache stores, or `TestStores.layer()` (from `@smthrs/engine-store-next/test/TestStores`) for all four over one database,
 - `DurableEngineState.makeMemory()` for deferred/clock state,
 - `StepBoundary.layerTest()` for deterministic boundary evidence,
-- a stub `Jj` (`@smthrs/jj/browser/BrowserJj`'s `layerUnsupported`).
+- a stub `Jj` (`@smthrs/jj-next/browser/BrowserJj`'s `layerUnsupported`).
 
 Create a second `EngineStore.make` within the same service scope to simulate engine restart. Register the same handler, complete a deferred or call `resume`, and assert that completed activity code was not dispatched twice.
 
@@ -83,4 +83,4 @@ Run all package checks with:
 npm run check
 ```
 
-See [Determinism and replay](../concepts/determinism-and-replay.md) and the package references for [`@smthrs/kernel`](../reference/kernel.md), [`@smthrs/journal`](../reference/journal.md), [`@smthrs/run-store`](../reference/run-store.md), and [`@smthrs/step-cache`](../reference/step-cache.md).
+See [Determinism and replay](../concepts/determinism-and-replay.md) and the package references for [`@smthrs/kernel-next`](../reference/kernel.md), [`@smthrs/journal-next`](../reference/journal.md), [`@smthrs/run-store-next`](../reference/run-store.md), and [`@smthrs/step-cache-next`](../reference/step-cache.md).

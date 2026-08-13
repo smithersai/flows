@@ -9,8 +9,8 @@
  *
  * @since 0.1.0
  */
-import { Canonical } from "@smthrs/canonical/Canonical"
-import { affectedRows, DatabaseError, DurableWriter } from "@smthrs/database/DurableWriter"
+import { Canonical } from "@smthrs/canonical-next/Canonical"
+import { affectedRows, DatabaseError, DurableWriter } from "@smthrs/database-next/DurableWriter"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -147,7 +147,7 @@ export interface Service {
  * `docs/specs/Concepts/Step Keys.md`, "frozen strings, not module paths". The
  * split moved this implementation byte for byte, so by that rule it is the
  * same implementation and therefore the same step. New identities in new
- * modules do equal their module path (`@smthrs/artifacts/ArtifactStore`); only
+ * modules do equal their module path (`@smthrs/artifacts-next/ArtifactStore`); only
  * these three survivors of `docs/specs/Concepts/Journal Split.md` do not.
  *
  * @category services
@@ -178,7 +178,7 @@ const error = (code: CacheStoreErrorCode, message: string, cause?: unknown): Cac
  * `ActivityPersistence` routes `Conflict` to the `Inconsistency` receiver whose
  * core default verdict is `fail` — the run failed with `CacheConflictDetected`
  * naming a divergence that did not exist. Canonicalizing on the way in makes
- * the text comparison a structural one, which is what `@smthrs/canonical`
+ * the text comparison a structural one, which is what `@smthrs/canonical-next`
  * exists for.
  */
 const encode = (value: unknown, field: string): Effect.Effect<string, CacheStoreError> =>

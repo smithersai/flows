@@ -1,4 +1,4 @@
-# `@smthrs/crypto`
+# `@smthrs/crypto-next`
 
 The package provides Effect schemas for injected cryptographic operations.
 

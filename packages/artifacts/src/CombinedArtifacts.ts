@@ -91,8 +91,8 @@ export const make = (options: Options): ArtifactStore.Service => {
       // the mismatched blob and atomically rewrites it, so a read-through
       // heals a corrupt local address instead of failing on it forever.
       Effect.catchTags({
-        "@smthrs/artifacts/ArtifactMissing": () => Effect.void,
-        "@smthrs/artifacts/ArtifactCorruption": () => Effect.void
+        "@smthrs/artifacts-next/ArtifactMissing": () => Effect.void,
+        "@smthrs/artifacts-next/ArtifactCorruption": () => Effect.void
       }),
       Effect.flatMap((cached) =>
         cached === undefined

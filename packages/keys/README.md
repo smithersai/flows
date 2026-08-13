@@ -1,14 +1,14 @@
-# @smthrs/keys
+# @smthrs/keys-next
 
 An Effect schema for canonical flow keys.
 
 ```sh
-npm install @smthrs/keys
+npm install @smthrs/keys-next
 ```
 
 ```ts
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
-import { Key } from "@smthrs/keys"
+import { Key } from "@smthrs/keys-next"
 import { Effect, Schema } from "effect"
 
 const key = Effect.runSync(
