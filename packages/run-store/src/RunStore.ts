@@ -1097,7 +1097,7 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service => {
  * @category layers
  */
 export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<RunStore> =>
-  Layer.succeed(RunStore, makeNoop(overrides))
+  Layer.succeed(RunStore)(makeNoop(overrides))
 
 /**
  * Provides the database-backed `RunStore`.
