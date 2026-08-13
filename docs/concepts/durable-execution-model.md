@@ -62,12 +62,23 @@ Flow registrations, active fibers, the flow handler function, and the run coordi
 
 ## Execution IDs
 
-`Flow.execute` needs one of:
+`Flow.execute` takes its ID from the first of three sources that has one:
 
-- an explicit `executionId` supplied by the caller; or
-- an `idempotencyKey(payload)` declared by the flow.
+1. an explicit `executionId` supplied by the caller;
+2. an `idempotencyKey(payload)` declared by the flow;
+3. the ambient `Flow.CurrentExecutionIds` source.
 
-An explicit ID wins. Without either, execution dies with `Flow.ExecutionIdRequired` before the engine is invoked. Reusing an ID with a different flow tag or encoded payload is rejected as a defect by the durable driver.
+The default source derives the ID from the flow tag and the payload's RFC 8785 canonical form, so `yield* Flow.execute(payload)` runs without naming an ID and a re-drive of the same invocation lands on the same execution. It dies with `Flow.ExecutionIdRequired` before the engine is invoked when the payload has no canonical form.
+
+A host for which two equal payloads are two unrelated pieces of work installs its own source:
+
+```ts
+const layer = Flow.layerExecutionIds({
+  mint: (flow, payload) => Effect.map(currentSessionId, (session) => `${session}/${flow._tag}`)
+})
+```
+
+Reusing an ID with a different flow tag or encoded payload is rejected as a defect by the durable driver.
 
 ## Durability is boundary-based
 

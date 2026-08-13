@@ -149,6 +149,11 @@ export interface Flow<
    * design, so a body that names an activity nobody implemented is a legal plan
    * right up to here; asking to RUN it is what makes the missing layer a
    * compile error rather than a run that dies partway through.
+   *
+   * Identity comes from the first source that has one: the `executionId`
+   * option, the flow's declared `idempotencyKey`, then the ambient
+   * `CurrentExecutionIds` source, whose default derives an id from the flow
+   * tag and the payload's canonical form.
    */
   readonly execute: <const Discard extends boolean = false>(
     payload: Payload["~type.make.in"],
@@ -207,10 +212,13 @@ export interface Flow<
   ) => Effect.Effect<void, never, FlowRuntime>
 
   /**
-   * For the given payload, compute the deterministic execution ID.
+   * For the given payload, compute the execution ID `execute` would run under
+   * when the caller names none.
    *
-   * This helper is valid only when the flow declares an `idempotencyKey`.
-   * Otherwise it dies with `ExecutionIdRequired`.
+   * That is the flow's `idempotencyKey` when it declares one, and the ambient
+   * `CurrentExecutionIds` source otherwise. It dies with `ExecutionIdRequired`
+   * when the source cannot name the invocation — the default source cannot
+   * when the payload has no canonical form.
    */
   readonly executionId: (
     payload: Payload["~type.make.in"]

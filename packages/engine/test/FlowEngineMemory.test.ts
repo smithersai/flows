@@ -210,16 +210,24 @@ describe("flow definition surface", () => {
     })
   })
 
-  effect("executionId dies with ExecutionIdRequired when the flow has no idempotency key", () => {
+  effect("executionId falls back to the ambient source when the flow has no idempotency key", () => {
     const flow = Flow.make("Memory/no-key", {
       payload: { id: Schema.String },
       success: Schema.Void,
       body: () => Node.succeed(undefined)
     })
     return Effect.gen(function*() {
-      const exit = yield* flow.executionId({ id: "x" }).pipe(Effect.exit)
-      expect(Exit.isFailure(exit)).toBe(true)
-      expect(Exit.isFailure(exit) && exit.cause.toString()).toContain("ExecutionIdRequired")
+      // The default source derives from the tag and the payload, so a flow
+      // that declares no key still names its execution.
+      const first = yield* flow.executionId({ id: "x" })
+      const second = yield* flow.executionId({ id: "x" })
+      const other = yield* flow.executionId({ id: "y" })
+      expect(first).toBe(second)
+      expect(first).not.toBe(other)
+      const hosted = yield* flow.executionId({ id: "x" }).pipe(
+        Effect.provide(Flow.layerExecutionIds({ mint: () => Effect.succeed("host-selected") }))
+      )
+      expect(hosted).toBe("host-selected")
     })
   })
 

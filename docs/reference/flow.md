@@ -14,7 +14,7 @@ This page is the public API reference for the flow authoring model: typed flows,
 - `annotate` and `annotateMerge`
 - `withRollback`
 
-`ExecutionIdRequired` is raised as a defect when neither explicit nor derived identity exists. Result exports include `Complete`, `Suspended`, `Result`, encoded schemas, `intoResult`, and `wrapActivityResult`. Scope helpers are `scope`, `provideScope`, `addFinalizer`, `withRollback`, and `suspend`. Policy references are `CaptureDefects` and `SuspendOnFailure`.
+`CurrentExecutionIds` is the ambient source consulted when a call names no `executionId` and the flow declares no `idempotencyKey`; `derived` is its default and `layerExecutionIds(source)` replaces it. `ExecutionIdRequired` is raised as a defect when no source can name the invocation. Result exports include `Complete`, `Suspended`, `Result`, encoded schemas, `intoResult`, and `wrapActivityResult`. Scope helpers are `scope`, `provideScope`, `addFinalizer`, `withRollback`, and `suspend`. Policy references are `CaptureDefects` and `SuspendOnFailure`.
 
 ## `Activity`
 

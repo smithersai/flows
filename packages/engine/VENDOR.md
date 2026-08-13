@@ -50,15 +50,23 @@ and discard requests contain the flow payload directly.
 Flows makes `Flow.make({ idempotencyKey })` optional and adds
 `executionId?: string` to `Flow.execute`. An explicit value always wins. If
 it is absent, an opt-in idempotency key is decoded through the injected
-`@smthrs/crypto-next` `Sha256` transformation. If neither exists, the flow dies with the structured
-`ExecutionIdRequired` defect before reading `FlowEngine`. The
-`Flow.executionId` helper has the same opt-in precondition. RPC and HTTP
-execute/discard schemas carry `{ payload, executionId? }`, and both server
-adapters forward the optional ID.
+`@smthrs/crypto-next` `Sha256` transformation. If neither exists, the ambient
+`Flow.CurrentExecutionIds` source names the invocation before `FlowEngine` is
+read; the structured `ExecutionIdRequired` defect is what a source raises when
+it cannot. The `Flow.executionId` helper resolves identity the same three
+ways. RPC and HTTP execute/discard schemas carry `{ payload, executionId? }`,
+and both server adapters forward the optional ID.
 
-This prevents unrelated coding-agent runs with equal payloads from permanently
-joining while retaining deterministic identity for flows that deliberately
-request it.
+The point of the divergence is that identity is _chosen_, not imposed by the
+library: upstream's unconditional payload-key derivation gives a caller no way
+to keep two runs apart, and the `executionId` option is that way. Which runs
+are "the same" beyond that is a host question, not a flow-definition question —
+a coding agent running one request per user is the case where equal payloads
+must NOT permanently join — so `Flow.layerExecutionIds` is where a host answers
+it once for every flow it drives. The default source derives from the flow tag
+and the payload's canonical form, which keeps an unnamed execution
+crash-resumable; a host that needs equal payloads kept apart scopes the minted
+ID to whatever separates them there.
 
 Upstream references:
 
