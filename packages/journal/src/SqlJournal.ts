@@ -660,6 +660,16 @@ export const layer = (
           })()
         )
 
+      /**
+       * Reads the row a duplicate emit collides with.
+       *
+       * `makeEventId` is a pure, injective function of exactly
+       * `(run_id, source_id, source_seq)`, so a second predicate on that triple
+       * selected the same row and the `ORDER BY seq ASC LIMIT 1` tiebreak was
+       * unreachable. `UNIQUE (event_id)` in the migration is the authority
+       * either way, and `JournalEvent`'s test pins the injectivity here rather
+       * than paying for it on every insert.
+       */
       const selectExisting = (
         queued: QueuedEntry
       ): Effect.Effect<Commit | undefined, JournalError | SqlError.SqlError> =>
@@ -669,13 +679,6 @@ export const layer = (
               event_type, payload_json, meta_json
             FROM flows_journal_events
             WHERE event_id = ${queued.eventId}
-              OR (
-                run_id = ${queued.runId}
-                AND source_id = ${queued.sourceId}
-                AND source_seq = ${queued.sourceSeq}
-              )
-            ORDER BY seq ASC
-            LIMIT 1
           `
           if (existing.length === 0) {
             return undefined
