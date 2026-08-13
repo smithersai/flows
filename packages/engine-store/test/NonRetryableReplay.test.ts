@@ -1,3 +1,4 @@
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
  * Issue #59: the retry verdict is durable. A persisted `failed` attempt row
  * replays by rethrowing the persisted domain failure — never by surfacing
@@ -15,6 +16,7 @@ import { Activity, Flow, RetryPolicy } from "@smthrs/flow"
 import { Journal } from "@smthrs/journal"
 import * as Notifying from "@smthrs/journal/test/Notifying"
 import { Jj } from "@smthrs/kernel"
+import { Node } from "@smthrs/plan"
 import { AttemptStore, RunStore } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -34,7 +36,8 @@ import { key, runPromise, sha256 } from "./Sha256.ts"
 const ReplayFlow = Flow.make("NonRetryableReplay/Flow", {
   payload: {},
   success: Schema.String,
-  error: Schema.Struct({ _tag: Schema.Literal("FatalBoom"), detail: Schema.String })
+  error: Schema.Struct({ _tag: Schema.Literal("FatalBoom"), detail: Schema.String }),
+  body: opaqueHandlerBody
 })
 
 const jj = Jj.make({

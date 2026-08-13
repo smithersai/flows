@@ -1,11 +1,11 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, DurableDeferred, Flow } from "@smthrs/flow"
+import { Activity, DurableDeferred, Flow, Interpreter } from "@smthrs/flow"
 import { Cause, Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
 import { runPromise } from "./Crypto.ts"
-import { layerMemory } from "./MemoryFlowRuntime.ts"
+import { layerWired } from "./MemoryFlowRuntime.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
   it(name, () => runPromise(body()))
@@ -28,20 +28,29 @@ const isComplete = (result: Flow.Result<any, any>) => result._tag === "Complete"
 
 describe("SuspendOnFailure", () => {
   effect("a failing flow suspends instead of completing, carrying the cause as a defect", () => {
+    const Step = Activity.make("Suspend/on-failure/step", {
+      payload: { id: Schema.String },
+      success: Schema.String,
+      error: Schema.String
+    })
     const flow = Flow.make("Suspend/on-failure", {
       payload: { id: Schema.String },
       success: Schema.String,
       error: Schema.String,
-      idempotencyKey: ({ id }) => id
+      idempotencyKey: ({ id }) => id,
+      body: (payload) => Step.call(payload)
     }).annotate(Flow.SuspendOnFailure, true)
 
     let attempts = 0
-    const layer = flow.toLayer(() =>
-      Effect.suspend(() => {
-        attempts++
-        return attempts === 1 ? Effect.fail("nope") : Effect.succeed("ok")
-      })
-    ).pipe(Layer.provideMerge(layerMemory))
+    const layer = layerWired(Layer.mergeAll(
+      Step.toLayer(() =>
+        Effect.suspend(() => {
+          attempts++
+          return attempts === 1 ? Effect.fail("nope") : Effect.succeed("ok")
+        })
+      ),
+      Interpreter.layer(flow)
+    ))
 
     return Effect.gen(function*() {
       const executionId = yield* flow.execute({ id: "f" }, { discard: true })
@@ -66,14 +75,20 @@ describe("SuspendOnFailure", () => {
   })
 
   effect("without the annotation the same failure completes as a typed failure", () => {
+    const Step = Activity.make("Suspend/no-annotation/step", {
+      payload: { id: Schema.String },
+      success: Schema.String,
+      error: Schema.String
+    })
     const flow = Flow.make("Suspend/no-annotation", {
       payload: { id: Schema.String },
       success: Schema.String,
       error: Schema.String,
-      idempotencyKey: ({ id }) => id
+      idempotencyKey: ({ id }) => id,
+      body: (payload) => Step.call(payload)
     })
-    const layer = flow.toLayer(() => Effect.fail("nope")).pipe(
-      Layer.provideMerge(layerMemory)
+    const layer = layerWired(
+      Layer.mergeAll(Step.toLayer(() => Effect.fail("nope")), Interpreter.layer(flow))
     )
     return Effect.gen(function*() {
       const exit = yield* flow.execute({ id: "g" }).pipe(Effect.exit)
@@ -83,14 +98,20 @@ describe("SuspendOnFailure", () => {
   })
 
   effect("interrupting a suspend-on-failure flow discards the execution rather than suspending it", () => {
+    const Step = Activity.make("Suspend/interrupted/step", {
+      payload: { id: Schema.String },
+      success: Schema.String
+    })
     const flow = Flow.make("Suspend/interrupted", {
       payload: { id: Schema.String },
       success: Schema.String,
-      idempotencyKey: ({ id }) => id
+      idempotencyKey: ({ id }) => id,
+      body: (payload) => Step.call(payload)
     }).annotate(Flow.SuspendOnFailure, true)
-    const layer = flow.toLayer(() => Effect.never as Effect.Effect<string>).pipe(
-      Layer.provideMerge(layerMemory)
-    )
+    const layer = layerWired(Layer.mergeAll(
+      Step.toLayer(() => Effect.never as Effect.Effect<string>),
+      Interpreter.layer(flow)
+    ))
     return Effect.gen(function*() {
       const executionId = yield* flow.execute({ id: "h" }, { discard: true })
       yield* Effect.yieldNow
@@ -121,19 +142,28 @@ describe("concurrent activity suspension", () => {
       })
     })
 
+    const Step = Activity.make("Suspend/concurrent/step", {
+      payload: { id: Schema.String },
+      success: Schema.String,
+      error: Schema.String
+    })
     const flow = Flow.make("Suspend/concurrent", {
       payload: { id: Schema.String },
       success: Schema.String,
       error: Schema.String,
-      idempotencyKey: ({ id }) => id
+      idempotencyKey: ({ id }) => id,
+      body: (payload) => Step.call(payload)
     })
 
-    const layer = flow.toLayer(() =>
-      Effect.map(
-        Effect.all([DurableDeferred.await(Gate), slow], { concurrency: "unbounded" }),
-        ([gated, slowValue]) => `${gated}+${slowValue}`
-      )
-    ).pipe(Layer.provideMerge(layerMemory))
+    const layer = layerWired(Layer.mergeAll(
+      Step.toLayer(() =>
+        Effect.map(
+          Effect.all([DurableDeferred.await(Gate), slow], { concurrency: "unbounded" }),
+          ([gated, slowValue]) => `${gated}+${slowValue}`
+        )
+      ),
+      Interpreter.layer(flow)
+    ))
 
     return Effect.gen(function*() {
       const executionId = yield* flow.execute({ id: "c" }, { discard: true })
@@ -179,28 +209,37 @@ describe("concurrent activity suspension", () => {
         return yield* Effect.fail("chain-boom")
       })
     })
-    const flow = Flow.make("Edge/chain", {
+    const Chain = Activity.make("Edge/chain/step", {
       payload: { id: Schema.String },
       success: Schema.String,
       error: Schema.String
+    })
+    const flow = Flow.make("Edge/chain", {
+      payload: { id: Schema.String },
+      success: Schema.String,
+      error: Schema.String,
+      body: (payload) => Chain.call(payload)
     }).annotate(Flow.SuspendOnFailure, true)
-    const layer = flow.toLayer(() =>
-      Effect.map(
-        Effect.all([
-          failing,
-          Effect.gen(function*() {
-            yield* step("Edge/chain-a")
-            yield* Effect.yieldNow
-            yield* step("Edge/chain-b")
-            yield* Effect.yieldNow
-            yield* Effect.yieldNow
-            yield* step("Edge/chain-c")
-            return "chain"
-          })
-        ], { concurrency: "unbounded" }),
-        ([a, b]) => `${a}+${b}`
-      )
-    ).pipe(Layer.provideMerge(layerMemory))
+    const layer = layerWired(Layer.mergeAll(
+      Chain.toLayer(() =>
+        Effect.map(
+          Effect.all([
+            failing,
+            Effect.gen(function*() {
+              yield* step("Edge/chain-a")
+              yield* Effect.yieldNow
+              yield* step("Edge/chain-b")
+              yield* Effect.yieldNow
+              yield* Effect.yieldNow
+              yield* step("Edge/chain-c")
+              return "chain"
+            })
+          ], { concurrency: "unbounded" }),
+          ([a, b]) => `${a}+${b}`
+        )
+      ),
+      Interpreter.layer(flow)
+    ))
 
     return Effect.gen(function*() {
       yield* flow.execute({ id: "x" }, { executionId: "run-chain", discard: true })

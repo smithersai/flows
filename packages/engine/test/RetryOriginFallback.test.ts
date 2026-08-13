@@ -8,6 +8,7 @@
  * the #45 fix cannot silently regress into an untested branch.
  */
 import { Activity, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Cause, Effect, Exit, Fiber, Layer, Logger, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
@@ -21,7 +22,8 @@ const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Cr
 const flow = Flow.make("RetryOriginFallback/flow", {
   payload: { id: Schema.String },
   success: Schema.Number,
-  error: Schema.String
+  error: Schema.String,
+  body: () => Node.succeed(undefined)
 })
 
 describe("retry origin fallback when the durable hook yields none", () => {

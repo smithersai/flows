@@ -1,3 +1,4 @@
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
  * Pins the failure-caching contract: what a fresh engine does with durable
  * evidence of a *failed* step, versus durable evidence of a successful one.
@@ -8,6 +9,7 @@
 import { Activity, Flow } from "@smthrs/flow"
 import { Journal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
+import { Node } from "@smthrs/plan"
 import { RunStore } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
@@ -21,7 +23,8 @@ import { runPromise } from "./Sha256.ts"
 const FailFlow = Flow.make("FailureEvidence/Flow", {
   payload: {},
   success: Schema.String,
-  error: Schema.String
+  error: Schema.String,
+  body: opaqueHandlerBody
 })
 
 const jj = Jj.make({

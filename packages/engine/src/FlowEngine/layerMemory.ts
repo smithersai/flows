@@ -67,7 +67,10 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
       const state = executions.get(executionId)
       if (!state) return
       const exit = state.fiber?.pollUnsafe()
-      if (exit && exit._tag === "Success" && exit.value._tag === "Complete") {
+      // Suspension is the only settlement a re-drive continues from: a round
+      // that completed has its answer, and one that handed off has already
+      // opened the next round, so re-running either would re-run its effects.
+      if (exit && exit._tag === "Success" && exit.value._tag !== "Suspended") {
         return
       } else if (state.fiber && !exit) {
         return
@@ -172,13 +175,29 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
         }
         const activityInstance = makeInstance(instance.flow, instance.executionId)
         activityInstance.interrupted = instance.interrupted
+        // DECIDED (2026-08-11, pending review): the waiting classification is
+        // threaded through the dispatch's instance and back, because a driver
+        // gives an activity its own instance while `annotateWaiting` is
+        // documented to reach the parked run. An implementation that declares
+        // one — `Sleep` under `timer`, `WaitFor` under `event` with its wake
+        // token — writes it here, so without the thread-back the driver would
+        // park on the derived default and the declaration would be inert for
+        // every activity. It is seeded as well as copied back so a body that
+        // annotated before dispatching keeps its own declaration, and so the
+        // consumption `deferredResult` performs on a settled wait travels out
+        // the same way (issue #42).
+        const waitingBefore = instance.waiting
+        activityInstance.waiting = waitingBefore
         return yield* activity.executeEncoded.pipe(
           Flow.intoResult,
           Effect.provideService(FlowRuntime.FlowInstance, activityInstance),
           Effect.onExit((exit) => {
             state.exit = exit
             return Effect.void
-          })
+          }),
+          Effect.ensuring(Effect.sync(() => {
+            if (instance.waiting === waitingBefore) instance.waiting = activityInstance.waiting
+          }))
         )
       }),
       poll: (_flow, executionId) =>

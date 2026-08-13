@@ -1,0 +1,906 @@
+/**
+ * Graph building: a flow declaration plus a real payload, walked once into the
+ * drafts a plan is compiled from.
+ *
+ * This is the plan phase of `docs/specs/Concepts/Build Phases.md` and nothing
+ * else — no I/O, no execution, no elaboration. {@link build} evaluates the
+ * body with the REAL payload, because a body's own payload is data
+ * (`docs/specs/Concepts/Unified Flow Authoring.md`), and evaluates every
+ * continuation and branch arm exactly once against a STRICT
+ * {@link module:Planned.Planned} placeholder, because a step result does not
+ * exist yet. A body that computes on a placeholder therefore fails here,
+ * naming the node, rather than baking `NaN` into a plan.
+ *
+ * Fatal refusals stay fatal. Computing on a planned value throws its
+ * `GraphBuildError` immediately, as does recursively expanding an inline
+ * `.call()`, because either case makes the requested graph invalid. Recoverable
+ * topology loss, such as a missing or invalid continuation, is reported in
+ * {@link Graph.diagnostics} so the remaining graph can still be inspected.
+ *
+ * Composition follows the same note: `Other.call(payload)` splices the
+ * callee's body into this graph with the capabilities of the two declarations
+ * intersected, and a flow that calls itself inline throws with the trampoline
+ * (`docs/specs/Concepts/Trampoline Loops.md`) and the child boundary as the two
+ * ways out. A callee whose declared placement the enclosing flow does not carry
+ * throws for the same reason and names the same way out, because inline
+ * expansion is the claim that these steps run in the caller's execution.
+ * `Other.child(payload)` is that boundary: one leaf node here, its own
+ * execution when the graph is driven. A branch expands BOTH arms, so the
+ * exit condition and the handoff site are visible topology before anything
+ * runs, and the predicate rides the branch's key material as a digest.
+ *
+ * What comes out is `@smthrs/plan` shaped: {@link Graph.drafts} feeds
+ * `Plan.compile` and `Plan.append` unchanged, and the `Ref`/`Pending` inputs a
+ * node's key material names are what the compiler turns into dependency
+ * digests and the plan turns into edges. Structural node ids are lookup
+ * addresses only and never enter a hashed value, so renaming a node re-keys
+ * nothing and editing a mapper re-keys exactly what reads it.
+ *
+ * Adapted from the agent repo's `@smthrs/core` `Graph.ts`. The lenient
+ * placeholder, the model-shaped `Dynamic` node, the lane-merge elaboration,
+ * and the conflict pass do not come across: the placeholder is strict here,
+ * a model call is an ordinary activity, and write overlap is resolved by
+ * `Plan.compile`, which owns that verdict.
+ *
+ * @since 0.1.0
+ */
+import { GraphBuildError } from "@smthrs/plan/GraphBuildError"
+import * as KeyMaterial from "@smthrs/plan/KeyMaterial"
+import * as Node from "@smthrs/plan/Node"
+import type * as Plan from "@smthrs/plan/Plan"
+import * as Planned from "@smthrs/plan/Planned"
+import * as Context from "effect/Context"
+import * as Option from "effect/Option"
+import * as Predicate from "effect/Predicate"
+import * as Schema from "effect/Schema"
+import type * as Activity from "./Activity/Activity.ts"
+import { TypeId as ActivityTypeId } from "./Activity/TypeId.ts"
+import * as Annotations from "./Flow/Annotations.ts"
+import type * as Flow from "./Flow/Flow.ts"
+import { TypeId as FlowTypeId } from "./Flow/TypeId.ts"
+
+/**
+ * Why one node depends on another: `value` consumes a result, `continuation`
+ * is the sequencing edge a builder or a branch arm records against the
+ * upstream node it was evaluated with.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export type EdgeReason = "value" | "continuation" | "failure"
+
+/**
+ * A dependency edge, pointing from the node that produces to the node that
+ * consumes.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export interface Edge {
+  readonly from: string
+  readonly to: string
+  readonly reason: EdgeReason
+}
+
+/**
+ * One observed node: its structural address, the AST variant it came from, and
+ * the {@link module:Plan.NodeDraft} the plan is compiled from.
+ *
+ * `kind` is the authoring variant, not the plan's node kind — every draft a
+ * graph produces is a plan `step`.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export interface GraphNode {
+  readonly id: string
+  readonly kind: Node.Ast["_tag"]
+  readonly dependencies: ReadonlyArray<string>
+  readonly capabilities: ReadonlyArray<string>
+  readonly placement: unknown
+  readonly draft: Plan.NodeDraft
+  /**
+   * The authoring node this graph node was observed at.
+   *
+   * Key material digests a mapper, a predicate, and a callee's schemas; it
+   * cannot carry them, because a digest is not a function. A driver that has
+   * the real values in hand needs the functions themselves, so the AST rides
+   * along: {@link module:Node.mapper}, {@link module:Node.predicate}, and the
+   * member names of an `All` are read off it. The entry node a flow is entered
+   * as is the call the graph synthesized, carrying the real payload rather than
+   * the inert form an authored call records.
+   */
+  readonly ast: Node.Ast
+  /**
+   * What this node passes on, hydrated: real data where the author wrote data,
+   * and a {@link module:Planned.Planned} placeholder where a step result goes.
+   * It is the call payload of an `ActivityCall` or a `FlowCall`, the value of a
+   * `Succeed`, and `undefined` for every other variant, which passes nothing of
+   * its own.
+   */
+  readonly payload: unknown
+}
+
+/**
+ * What a pure per-node layer resolver is told. It is the identity of the
+ * implementation a node would run against — hosts, services, permission
+ * implementations — never a layer value or a runtime handle.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export interface LayerRequest {
+  readonly nodeId: string
+  readonly kind: Node.Ast["_tag"]
+  readonly capabilities: ReadonlyArray<string>
+  readonly effects: Annotations.Effects | undefined
+  readonly placement: unknown
+}
+
+/**
+ * The knobs {@link build} takes. `resolveLayers` is invoked once per node and
+ * must be pure: planning performs no I/O, and a resolver that read the world
+ * would make a plan a function of more than its declarations.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export interface BuildOptions {
+  readonly resolveLayers?: ((request: LayerRequest) => Iterable<string>) | undefined
+  /**
+   * The address the entry node is recorded under, `root` by default. A plan
+   * grows by appending, and `Plan.append` refuses an id it already holds, so an
+   * elaboration built for an existing plan names its own root.
+   */
+  readonly root?: string | undefined
+}
+
+/**
+ * A built graph: the nodes in dependency order, the edges between them, and the
+ * refusals that were recoverable enough to report rather than throw.
+ *
+ * DECIDED (2026-08-11, pending review): the drafts are NOT a field here. They
+ * are derived from `nodes`, and the derivation carries a refusal — a graph with
+ * diagnostics is inspectable but not compilable — so {@link drafts} is the only
+ * way to ask for them. A field beside the accessor was a second, silent answer
+ * to the same question: reading `graph.drafts` handed back the truncated drafts
+ * of an incomplete graph while `Graph.drafts(graph)` threw on it. Effect keeps
+ * data interfaces plain and puts the policy in the accessor, so the field goes
+ * rather than growing a getter that throws from inside a `readonly` record.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export interface Graph {
+  readonly nodes: ReadonlyArray<GraphNode>
+  readonly edges: ReadonlyArray<Edge>
+  readonly diagnostics: ReadonlyArray<GraphBuildError>
+}
+
+/**
+ * The declared-activity fields graph building reads. Only `Activity.make`'s
+ * declared form produces an `ActivityCall`, so a call node's declaration is
+ * one of these whenever the side table still holds it.
+ *
+ * @private
+ */
+interface ActivityDeclaration {
+  readonly name: string
+  readonly payloadSchema: Schema.Top
+  readonly successSchema: Schema.Top
+  readonly errorSchema: Schema.Top
+  readonly tier: Activity.Tier
+  readonly annotations: Context.Context<never>
+}
+
+/**
+ * The inert record `Node`'s AST keeps where a planned placeholder was.
+ *
+ * @private
+ */
+interface PlannedRecord {
+  readonly node: string
+  readonly path: ReadonlyArray<string>
+}
+
+/**
+ * What a node that declared nothing contributes: it claims no path either way.
+ *
+ * @private
+ */
+// OPEN QUESTION (2026-08-11): the boundary mode a node with no declared effects defaults to
+const emptyEffects: Plan.NodeEffects = { reads: [], writes: [], boundaryMode: "expected" }
+
+/** @private */
+const sorted = (values: Iterable<string>): ReadonlyArray<string> => [...new Set(values)].sort()
+
+/** @private */
+const flowDeclaration = (value: unknown): Flow.Any | undefined =>
+  Predicate.hasProperty(value, FlowTypeId) ? value as unknown as Flow.Any : undefined
+
+/** @private */
+const activityDeclaration = (value: unknown): ActivityDeclaration | undefined =>
+  Predicate.hasProperty(value, ActivityTypeId) ? value as unknown as ActivityDeclaration : undefined
+
+/** @private */
+const declaredEffects = (annotations: Context.Context<never>): Annotations.Effects | undefined =>
+  Option.getOrUndefined(Context.getOption(annotations, Annotations.EffectsDeclaration))
+
+/** @private */
+const declaredPlacement = (annotations: Context.Context<never>): unknown =>
+  Option.getOrUndefined(Context.getOption(annotations, Annotations.Placement))
+
+/**
+ * The declaration identity that enters a call node's hashed body: what the
+ * callee accepts and produces, so a schema change re-keys the call.
+ *
+ * @private
+ */
+const schemaIdentity = (schema: Schema.Top): unknown => Schema.toJsonSchemaDocument(schema)
+
+/** @private */
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null &&
+  (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)
+
+/**
+ * The reference a value stands for, whether it is a live placeholder — a real
+ * payload may carry one, naming a node an earlier generation already planned —
+ * or the inert record an AST payload kept.
+ *
+ * @private
+ */
+const referenceOf = (value: unknown): PlannedRecord | undefined => {
+  const live = Planned.reference(value)
+  if (live !== undefined) return live
+  return Predicate.hasProperty(value, "_tag") && value._tag === "PlannedReference"
+    ? value as unknown as PlannedRecord
+    : undefined
+}
+
+/**
+ * Rebuilds the strict placeholder a reference names, so a spliced body sees
+ * the same refusals an inline body does.
+ *
+ * @private
+ */
+const placeholder = (reference: PlannedRecord, node: string): unknown =>
+  reference.path.reduce<unknown>(
+    (value, key) => (value as Record<string, unknown>)[key],
+    Planned.make<unknown>(node)
+  )
+
+/**
+ * Rebuilds a plain object under a mapped value per key, keeping every own key
+ * as data.
+ *
+ * `output[key] = …` on an object literal is not a copy for one key: `__proto__`
+ * routes through `Object.prototype`'s accessor, so an own `__proto__` field
+ * whose value is a primitive is silently DROPPED and one whose value is an
+ * object reparents the clone instead of being recorded on it. A payload may
+ * carry that key — `JSON.parse` produces it as an own data property — and both
+ * outcomes are wrong here: a hydrated payload would be planned and run with a
+ * field its author wrote missing, and two payloads that differ only in that
+ * field would hash to one key. `@smthrs/plan`'s AST cloner answers this with a
+ * null-prototype target and `defineProperty`, and this is the same answer.
+ *
+ * @private
+ */
+const rebuild = (
+  value: Record<string, unknown>,
+  keys: ReadonlyArray<string>,
+  map: (member: unknown) => unknown
+): Record<string, unknown> => {
+  const output: Record<string, unknown> = Object.create(null) as Record<string, unknown>
+  for (const key of keys) {
+    Object.defineProperty(output, key, {
+      configurable: true,
+      enumerable: true,
+      value: map(value[key]),
+      writable: true
+    })
+  }
+  return output
+}
+
+/**
+ * Turns an AST payload back into what a body must see: real data where the
+ * caller wrote data, strict placeholders where it passed a step result. The
+ * substitution rewrites a branch's own subject token to its upstream node, and
+ * a catch's own subject token to the node it protects, which are those arms'
+ * subjects by construction.
+ *
+ * @private
+ */
+const hydrate = (value: unknown, substitutions: ReadonlyMap<string, string>): unknown => {
+  const reference = referenceOf(value)
+  if (reference !== undefined) return placeholder(reference, substitutions.get(reference.node) ?? reference.node)
+  if (Array.isArray(value)) return value.map((item) => hydrate(item, substitutions))
+  if (!isPlainObject(value)) return value
+  return rebuild(value, Object.keys(value), (member) => hydrate(member, substitutions))
+}
+
+/**
+ * The hashed form of a payload: placeholders keep their property path and drop
+ * the node they came from, because the node id is a lookup address and the
+ * dependency itself is named by a separate `Ref`. Values that are not plain
+ * data pass through to the key canonicalizer, which is the one component
+ * entitled to refuse them.
+ *
+ * @private
+ */
+const literal = (value: unknown): unknown => {
+  const reference = Planned.reference(value)
+  if (reference !== undefined) return { _tag: "PlannedInput", path: [...reference.path] }
+  if (Array.isArray(value)) return value.map((item) => literal(item))
+  if (!isPlainObject(value)) return value
+  return rebuild(value, Object.keys(value).sort(), literal)
+}
+
+/**
+ * Whether an inline call would place the callee somewhere the enclosing flow
+ * cannot run it.
+ *
+ * A placement directive is opaque to this package — `Annotations.Placement` is
+ * `Schema.Unknown`, and interpreting it is a scheduler's job — so the only
+ * verdict available here is identity: the same directive is satisfiable, a
+ * different one is not. {@link literal} is the canonicalizer already used for
+ * hashed payloads, so two structurally equal directives compare equal whatever
+ * order their keys were written in.
+ *
+ * DECIDED (2026-08-11, pending review): an enclosing flow that declares NO
+ * placement is unconstrained and satisfies any callee, rather than satisfying
+ * only a callee that declares none. Inline expansion runs the callee's steps in
+ * the caller's execution, so the constraint that matters is the one the caller
+ * already carries; refusing an undeclared caller would make `Flow.Placement`
+ * mandatory on every flow in a call chain to keep `.call()` usable.
+ *
+ * @private
+ */
+const placementConflicts = (enclosing: unknown, callee: unknown): boolean =>
+  enclosing !== undefined && callee !== undefined &&
+  JSON.stringify(literal(enclosing)) !== JSON.stringify(literal(callee))
+
+/**
+ * Collects the upstream results a payload consumes, in declaration order and
+ * without duplicates.
+ *
+ * @private
+ */
+const references = (value: unknown, into: Array<PlannedRecord>): void => {
+  const reference = Planned.reference(value)
+  if (reference !== undefined) {
+    into.push(reference)
+    return
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) references(item, into)
+    return
+  }
+  if (!isPlainObject(value)) return
+  for (const key of Object.keys(value).sort()) references(value[key], into)
+}
+
+/**
+ * The `Literal` a payload hashes as, followed by one `Ref` per distinct
+ * upstream result it reads.
+ *
+ * @private
+ */
+const payloadInputs = (payload: unknown): ReadonlyArray<KeyMaterial.InputRef> => {
+  const found: Array<PlannedRecord> = []
+  references(payload, found)
+  const inputs: Array<KeyMaterial.InputRef> = [{ _tag: "Literal", value: literal(payload) }]
+  const seen = new Set<string>()
+  for (const reference of found) {
+    const identity = JSON.stringify([reference.node, ...reference.path])
+    if (seen.has(identity)) continue
+    seen.add(identity)
+    inputs.push({ _tag: "Ref", from: reference.node, path: [...reference.path] })
+  }
+  return inputs
+}
+
+/**
+ * What one visit needs to know: where it is, what it may do, where it runs,
+ * which node the enclosing branch's subject stands for, which flows are already
+ * being spliced, and the upstream node it continues from.
+ *
+ * @private
+ */
+interface Visit {
+  readonly ast: Node.Ast
+  readonly id: string
+  readonly capabilities: ReadonlyArray<string>
+  /**
+   * The placement of the flow whose body this visit is inside, which an inline
+   * call has to be satisfiable under.
+   */
+  readonly placement: unknown
+  readonly substitutions: ReadonlyMap<string, string>
+  readonly stack: ReadonlyArray<Flow.Any>
+  readonly prerequisite: string | undefined
+}
+
+/**
+ * Builds the graph of a flow declaration, or of a bare node, by walking the
+ * AST once.
+ *
+ * A flow is entered as a call to itself: the returned graph's `root` node is
+ * that call, carrying the flow's declared effects, placement, and
+ * capabilities, and its body spliced beneath it. Every flow has a body, so the
+ * only inline call this leaves as a leaf is one whose declaration did not
+ * survive serialization beside its AST.
+ *
+ * @since 0.1.0
+ * @category constructors
+ */
+export const build = (
+  flowOrNode: Flow.Any | Node.Any,
+  payload?: unknown,
+  options: BuildOptions = {}
+): Graph => {
+  const observed: Array<GraphNode> = []
+  const observedEdges: Array<Edge> = []
+  const observedDiagnostics: Array<GraphBuildError> = []
+
+  const record = (entry: {
+    readonly id: string
+    readonly kind: Node.Ast["_tag"]
+    readonly dependencies: ReadonlyArray<string>
+    readonly capabilities: ReadonlyArray<string>
+    readonly effects: Annotations.Effects | undefined
+    readonly placement: unknown
+    readonly tier: KeyMaterial.KeyMaterial["kind"]
+    readonly body: unknown
+    readonly inputs: ReadonlyArray<KeyMaterial.InputRef>
+    readonly ast: Node.Ast
+    readonly payload: unknown
+  }): string => {
+    const material: KeyMaterial.KeyMaterial = {
+      version: KeyMaterial.version,
+      kind: entry.tier,
+      body: entry.body,
+      inputs: entry.inputs,
+      layers: sorted(
+        options.resolveLayers?.({
+          nodeId: entry.id,
+          kind: entry.kind,
+          capabilities: entry.capabilities,
+          effects: entry.effects,
+          placement: entry.placement
+        }) ?? []
+      ),
+      capabilities: entry.capabilities,
+      ...(entry.effects === undefined ? {} : { effects: entry.effects }),
+      ...(entry.placement === undefined ? {} : { placement: entry.placement })
+    }
+    observed.push({
+      id: entry.id,
+      kind: entry.kind,
+      dependencies: entry.dependencies,
+      capabilities: entry.capabilities,
+      placement: entry.placement,
+      draft: { id: entry.id, material, effects: entry.effects ?? emptyEffects },
+      ast: entry.ast,
+      payload: entry.payload
+    })
+    return entry.id
+  }
+
+  /**
+   * The node a flow call becomes, shared by the entry point and by every
+   * `FlowCall` in a body.
+   */
+  const flowNode = (call: {
+    readonly id: string
+    readonly ast: Node.Ast
+    readonly flow: string
+    readonly mode: "inline" | "boundary" | "handoff"
+    readonly declaration: Flow.Any | undefined
+    readonly payload: unknown
+    readonly capabilities: ReadonlyArray<string>
+    /** The placement of the flow this call is written inside. */
+    readonly placement: unknown
+    readonly substitutions: ReadonlyMap<string, string>
+    readonly stack: ReadonlyArray<Flow.Any>
+    readonly dependencies: Array<string>
+    readonly inputs: ReadonlyArray<KeyMaterial.InputRef>
+  }): string => {
+    const annotations = call.declaration?.annotations ?? Context.empty()
+    const dependencies = call.dependencies
+    const inputs: Array<KeyMaterial.InputRef> = [...payloadInputs(call.payload), ...call.inputs]
+    const target = call.mode === "inline" ? call.declaration : undefined
+    const ceiling = sorted(Context.get(annotations, Annotations.Capabilities))
+    const placement = declaredPlacement(annotations)
+    // The placement refusal precedes the recursion one only in position: an
+    // inline call the caller cannot host is invalid whether or not the callee's
+    // declaration survived to be spliced, because inline expansion is the claim
+    // that these steps run in the caller's execution.
+    if (call.mode === "inline" && placementConflicts(call.placement, placement)) {
+      throw new GraphBuildError({
+        code: "placement_requires_boundary",
+        node: call.id,
+        path: [],
+        message: `Flow "${call.flow}" is called inline at "${call.id}", but its declared placement ` +
+          `${JSON.stringify(literal(placement))} is not the enclosing flow's ` +
+          `${JSON.stringify(literal(call.placement))}. ` +
+          `An inline .call() runs in the caller's execution, so use ${call.flow}.child(payload) to give it its own.`
+      })
+    }
+    if (target !== undefined) {
+      if (call.stack.includes(target)) {
+        throw new GraphBuildError({
+          code: "recursion_requires_boundary",
+          node: call.id,
+          path: [],
+          message: `Flow "${call.flow}" calls itself inline at "${call.id}". ` +
+            `Use ${call.flow}.to(payload) to hand off to the next round, or .child(payload) for an explicit boundary.`
+        })
+      } else {
+        const built = target.body(call.payload)
+        const spliced = visit({
+          ast: built.ast,
+          id: `${call.id}.flow`,
+          capabilities: ceiling.filter((capability) => call.capabilities.includes(capability)),
+          // Inside the spliced body the callee's own placement is the one to
+          // satisfy; a callee that declared none keeps running under the
+          // caller's.
+          placement: placement ?? call.placement,
+          substitutions: call.substitutions,
+          stack: [...call.stack, target],
+          prerequisite: undefined
+        })
+        dependencies.push(spliced)
+        observedEdges.push({ from: spliced, to: call.id, reason: "value" })
+        inputs.push({ _tag: "Ref", from: spliced, path: [] })
+      }
+    }
+    return record({
+      id: call.id,
+      kind: "FlowCall",
+      dependencies,
+      capabilities: call.capabilities,
+      effects: declaredEffects(annotations),
+      placement,
+      tier: "sealed",
+      body: {
+        _tag: "FlowCall",
+        flow: call.flow,
+        mode: call.mode,
+        declaration: call.declaration === undefined ? undefined : {
+          payload: schemaIdentity(call.declaration.payloadSchema),
+          success: schemaIdentity(call.declaration.successSchema),
+          error: schemaIdentity(call.declaration.errorSchema),
+          capabilities: ceiling,
+          // A spliced body re-keys this call through the `Ref` on the node it
+          // produced. A call the graph keeps as a LEAF — an explicit boundary,
+          // a handoff — has no such node, and its own digest is the only thing
+          // an edited body can move.
+          body: Node.functionIdentity(call.declaration.body)
+        }
+      },
+      inputs,
+      ast: call.ast,
+      payload: call.payload
+    })
+  }
+
+  /**
+   * The continuation of an `AndThen`, evaluated exactly once against the
+   * placeholder standing for its upstream result. A continuation that is gone
+   * — an AST that crossed a serialization boundary — or that answered with
+   * something other than a node leaves the remainder out and says so, because
+   * a graph missing that recoverable step is still worth inspecting. Computing
+   * on the placeholder is a fatal build refusal and propagates unchanged.
+   */
+  const continuation = (
+    ast: Extract<Node.Ast, { readonly _tag: "AndThen" }>,
+    id: string,
+    subject: string
+  ): Node.Ast | undefined => {
+    const builder = Node.continuation(ast)
+    if (builder === undefined) {
+      observedDiagnostics.push(
+        new GraphBuildError({
+          code: "invalid_continuation",
+          node: id,
+          path: [],
+          message: `Node.andThen at "${id}" no longer holds its continuation builder, so its continuation is ` +
+            "missing from the graph. An AST that crossed a serialization boundary left that side table behind."
+        })
+      )
+      return undefined
+    }
+    const built = builder(Planned.make<unknown>(subject))
+    if (Node.isNode(built)) return built.ast
+    observedDiagnostics.push(
+      new GraphBuildError({
+        code: "invalid_continuation",
+        node: id,
+        path: [],
+        message: `Node.andThen at "${id}" did not produce a Node, so its continuation is missing from the graph.`
+      })
+    )
+    return undefined
+  }
+
+  const visit = (request: Visit): string => {
+    const { ast, capabilities, id, placement, stack, substitutions } = request
+    const dependencies: Array<string> = []
+    const inputs: Array<KeyMaterial.InputRef> = []
+    const depend = (from: string, reason: EdgeReason): void => {
+      dependencies.push(from)
+      observedEdges.push({ from, to: id, reason })
+      inputs.push(reason === "continuation" ? { _tag: "Pending", from } : { _tag: "Ref", from, path: [] })
+    }
+    const child = (childAst: Node.Ast, childId: string, options: {
+      readonly substitutions?: ReadonlyMap<string, string>
+      readonly prerequisite?: string | undefined
+    } = {}): string =>
+      visit({
+        ast: childAst,
+        id: childId,
+        capabilities,
+        placement,
+        substitutions: options.substitutions ?? substitutions,
+        stack,
+        prerequisite: options.prerequisite
+      })
+
+    if (request.prerequisite !== undefined) depend(request.prerequisite, "continuation")
+
+    switch (ast._tag) {
+      case "FlowCall": {
+        return flowNode({
+          id,
+          ast,
+          flow: ast.flow,
+          mode: ast.mode,
+          declaration: flowDeclaration(Node.declaration(ast)),
+          payload: hydrate(ast.payload, substitutions),
+          capabilities,
+          placement,
+          substitutions,
+          stack,
+          dependencies,
+          inputs
+        })
+      }
+      case "ActivityCall": {
+        const declared = activityDeclaration(Node.declaration(ast))
+        const annotations = declared?.annotations ?? Context.empty()
+        const payload = hydrate(ast.payload, substitutions)
+        return record({
+          id,
+          kind: ast._tag,
+          dependencies,
+          capabilities,
+          effects: declaredEffects(annotations),
+          placement: declaredPlacement(annotations),
+          tier: declared?.tier ?? "sealed",
+          body: {
+            _tag: "ActivityCall",
+            activity: ast.activity,
+            tier: declared?.tier ?? "sealed",
+            declaration: declared === undefined ? undefined : {
+              payload: schemaIdentity(declared.payloadSchema),
+              success: schemaIdentity(declared.successSchema),
+              error: schemaIdentity(declared.errorSchema)
+            }
+          },
+          inputs: [...payloadInputs(payload), ...inputs],
+          ast,
+          payload
+        })
+      }
+      case "Succeed": {
+        const value = hydrate(ast.value, substitutions)
+        return record({
+          id,
+          kind: ast._tag,
+          dependencies,
+          capabilities,
+          effects: undefined,
+          placement: undefined,
+          tier: "sealed",
+          body: { _tag: ast._tag },
+          inputs: [...payloadInputs(value), ...inputs],
+          ast,
+          payload: value
+        })
+      }
+      case "All": {
+        const members = Object.keys(ast.nodes)
+        for (const member of members) depend(child(ast.nodes[member]!, `${id}.all.${member}`), "value")
+        return record({
+          id,
+          kind: ast._tag,
+          dependencies,
+          capabilities,
+          effects: undefined,
+          placement: undefined,
+          tier: "sealed",
+          body: { _tag: ast._tag, members },
+          inputs,
+          ast,
+          payload: undefined
+        })
+      }
+      case "Map": {
+        depend(child(ast.first, `${id}.map`), "value")
+        return record({
+          id,
+          kind: ast._tag,
+          dependencies,
+          capabilities,
+          effects: undefined,
+          placement: undefined,
+          tier: "sealed",
+          body: { _tag: ast._tag, mapper: ast.mapper },
+          inputs,
+          ast,
+          payload: undefined
+        })
+      }
+      case "AndThen": {
+        const first = child(ast.first, `${id}.andThen`)
+        depend(first, "value")
+        const next = ast.next ?? continuation(ast, id, first)
+        if (next !== undefined) depend(child(next, `${id}.then`, { prerequisite: first }), "value")
+        return record({
+          id,
+          kind: ast._tag,
+          dependencies,
+          capabilities,
+          effects: undefined,
+          placement: undefined,
+          tier: "sealed",
+          body: { _tag: ast._tag, continuation: ast.continuation, static: ast.next !== undefined },
+          inputs,
+          ast,
+          payload: undefined
+        })
+      }
+      case "Branch": {
+        const first = child(ast.first, `${id}.branch`)
+        depend(first, "value")
+        // DECIDED (2026-08-11, pending review): each Branch AST carries its own
+        // subject token. An outer subject captured inside a nested arm must
+        // retain the outer binding; one shared token silently rebound it to
+        // the inner branch's subject.
+        const arms = new Map([...substitutions, [ast.subject, first]])
+        depend(child(ast.then, `${id}.then`, { substitutions: arms, prerequisite: first }), "value")
+        depend(child(ast.else, `${id}.else`, { substitutions: arms, prerequisite: first }), "value")
+        return record({
+          id,
+          kind: ast._tag,
+          dependencies,
+          capabilities,
+          effects: undefined,
+          placement: undefined,
+          tier: "sealed",
+          body: { _tag: ast._tag, predicate: ast.predicate },
+          inputs,
+          ast,
+          payload: undefined
+        })
+      }
+      case "Catch": {
+        const protectedId = child(ast.protected, `${id}.protected`)
+        depend(protectedId, "value")
+        // DECIDED (2026-08-11, pending review): each Catch AST carries its own
+        // subject token, exactly as each Branch does. An outer error captured
+        // inside a nested failure arm must retain the outer binding; one shared
+        // token silently rebound it to the inner catch's protected node.
+        const recovery = new Map([...substitutions, [ast.subject, protectedId]])
+        const failureId = child(ast.failure, `${id}.failure`, { substitutions: recovery, prerequisite: protectedId })
+        dependencies.push(failureId)
+        observedEdges.push({ from: protectedId, to: failureId, reason: "failure" })
+        observedEdges.push({ from: failureId, to: id, reason: "value" })
+        inputs.push({ _tag: "Ref", from: failureId, path: [] })
+        return record({
+          id,
+          kind: ast._tag,
+          dependencies,
+          capabilities,
+          effects: undefined,
+          placement: undefined,
+          tier: "sealed",
+          body: { _tag: ast._tag, filter: ast.filter },
+          inputs,
+          ast,
+          payload: undefined
+        })
+      }
+    }
+  }
+
+  const declaration = flowDeclaration(flowOrNode)
+  const root = options.root ?? "root"
+  if (declaration === undefined) {
+    visit({
+      ast: (flowOrNode as Node.Any).ast,
+      id: root,
+      capabilities: [],
+      placement: undefined,
+      substitutions: new Map(),
+      stack: [],
+      prerequisite: undefined
+    })
+  } else {
+    const entry = hydrate(payload, new Map())
+    flowNode({
+      id: root,
+      // The entry is a call to the flow itself that no author wrote, so its
+      // AST is synthesized here rather than recorded by `Node.flowCall`, which
+      // would replace a payload's non-JSON values with their plain-object
+      // copies. What a body was planned with stays what the entry node shows.
+      ast: { _tag: "FlowCall", flow: declaration._tag, mode: "inline", payload: entry },
+      flow: declaration._tag,
+      mode: "inline",
+      declaration,
+      payload: entry,
+      capabilities: sorted(Context.get(declaration.annotations, Annotations.Capabilities)),
+      // Nothing encloses the entry, so its own declared placement is what the
+      // body it splices has to be satisfiable under, not a constraint on it.
+      placement: undefined,
+      substitutions: new Map(),
+      stack: [],
+      dependencies: [],
+      inputs: []
+    })
+  }
+
+  return {
+    nodes: observed,
+    edges: observedEdges,
+    diagnostics: observedDiagnostics
+  }
+}
+
+/**
+ * The observed nodes, children before the parents that consume them.
+ *
+ * @since 0.1.0
+ * @category accessors
+ */
+export const nodes = (graph: Graph): ReadonlyArray<GraphNode> => graph.nodes
+
+/**
+ * The dependency edges, in the order they were observed.
+ *
+ * @since 0.1.0
+ * @category accessors
+ */
+export const edges = (graph: Graph): ReadonlyArray<Edge> => graph.edges
+
+/**
+ * The drafts, in node order, ready for `Plan.compile` or `Plan.append`
+ * unchanged.
+ *
+ * A graph with diagnostics is inspectable but intentionally not compilable:
+ * returning its partial drafts would turn missing topology into a valid plan.
+ * This accessor therefore throws the first typed build refusal, and it is the
+ * ONLY way to reach the drafts — the built graph holds nodes, and a draft is
+ * the node's own {@link GraphNode.draft}.
+ *
+ * @since 0.1.0
+ * @category accessors
+ */
+export const drafts = (graph: Graph): ReadonlyArray<Plan.NodeDraft> => {
+  const refusal = graph.diagnostics[0]
+  if (refusal !== undefined) throw refusal
+  return graph.nodes.map((node) => node.draft)
+}
+
+/**
+ * Recoverable topology issues recorded during the build, such as a missing
+ * continuation builder or a continuation that did not produce a node. Fatal
+ * refusals, including computing on a planned value and recursive inline
+ * `.call()`, throw from {@link build} and never appear here.
+ *
+ * @since 0.1.0
+ * @category accessors
+ */
+export const diagnostics = (graph: Graph): ReadonlyArray<GraphBuildError> => graph.diagnostics

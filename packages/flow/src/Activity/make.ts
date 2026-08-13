@@ -5,9 +5,12 @@
  *
  * @since 4.0.0
  */
+import * as Node from "@smthrs/plan/Node"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Effectable from "effect/Effectable"
+import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
 import * as Predicate from "effect/Predicate"
 import type * as Schedule from "effect/Schedule"
 import * as Schema from "effect/Schema"
@@ -16,8 +19,9 @@ import * as Flow from "../Flow/index.ts"
 import { FlowInstance } from "../FlowRuntime/FlowInstance.ts"
 import { FlowRuntime } from "../FlowRuntime/FlowRuntime.ts"
 import type * as RetryPolicy from "../RetryPolicy.ts"
-import type { Activity, IdempotencyKey, Tier } from "./Activity.ts"
+import type { Activity, Declared, IdempotencyKey, Tier } from "./Activity.ts"
 import { CurrentAttempt } from "./Context.ts"
+import { type Implementation, Implementations } from "./Implementations.ts"
 import { TypeId } from "./TypeId.ts"
 
 /**
@@ -27,7 +31,7 @@ import { TypeId } from "./TypeId.ts"
  * @category constructors
  * @since 4.0.0
  */
-export const make = <
+const makeInline = <
   R,
   Success extends Schema.Constraint = Schema.Void,
   Error extends Schema.Constraint = Schema.Never
@@ -72,13 +76,13 @@ export const make = <
     metadata: options.metadata,
     retryPolicy: options.retryPolicy,
     annotate(tag: Context.Key<any, any>, value: any) {
-      return make({
+      return makeInline({
         ...options,
         annotations: Context.add(self.annotations, tag, value)
       })
     },
     annotateMerge(context: Context.Context<any>) {
-      return make({
+      return makeInline({
         ...options,
         annotations: Context.merge(self.annotations, context)
       })
@@ -92,6 +96,167 @@ export const make = <
   execute = makeExecute(self)
   return self
 }
+
+const makeDeclared = <
+  const Tag extends string,
+  Payload extends Schema.Struct.Fields | Flow.AnyStructSchema,
+  Success extends Schema.Top = Schema.Void,
+  Error extends Schema.Top = Schema.Never
+>(tag: Tag, options: {
+  readonly payload: Payload
+  readonly success?: Success | undefined
+  readonly error?: Error | undefined
+  readonly tier?: Tier | undefined
+  readonly idempotencyKey?: IdempotencyKey | undefined
+  readonly annotations?: Context.Context<never> | undefined
+}): Declared<
+  Tag,
+  Payload extends Schema.Struct.Fields ? Schema.Struct<Payload> : Payload,
+  Success,
+  Error
+> => {
+  type PayloadSchema = Payload extends Schema.Struct.Fields ? Schema.Struct<Payload> : Payload
+  const payloadSchema = (Schema.isSchema(options.payload)
+    ? options.payload
+    : Schema.Struct(options.payload)) as PayloadSchema
+  const successSchema = options.success ?? (Schema.Void as unknown as Success)
+  const errorSchema = options.error ?? (Schema.Never as unknown as Error)
+  const annotations = options.annotations ?? Context.empty()
+  const self: Declared<Tag, PayloadSchema, Success, Error> = {
+    [TypeId]: TypeId,
+    name: tag,
+    payloadSchema,
+    successSchema,
+    errorSchema,
+    tier: options.tier ?? "sealed",
+    idempotencyKey: options.idempotencyKey,
+    annotations,
+    annotate(key: Context.Key<any, any>, value: any) {
+      return makeDeclared(tag, {
+        ...options,
+        annotations: Context.add(annotations, key, value)
+      })
+    },
+    annotateMerge(context: Context.Context<any>) {
+      return makeDeclared(tag, {
+        ...options,
+        annotations: Context.merge(annotations, context)
+      })
+    },
+    call(payload) {
+      return Node.activityCall<Success["Type"], Error["Type"]>(self, tag, payload)
+    },
+    toLayer(execute) {
+      // The flow form of this activity: same tag, same schemas, and a body that
+      // is the one call to it. Registering that flow is what lets a caller
+      // `execute` the activity as a durable execution of its own, and the body
+      // says truthfully what such an execution does. It stays INTERNAL — a flow
+      // carries a body and never a handler, so `Flow` has no `toLayer` for an
+      // author to reach this seam with.
+      //
+      // `Flow.make` answers with `PayloadSchemaOf<PayloadSchema>`, which is
+      // `PayloadSchema` itself for a payload that is already a schema rather
+      // than a field record. The compiler defers that conditional while the
+      // type parameter is unresolved, so the identity is asserted here.
+      const registration = Flow.make(tag, {
+        payload: payloadSchema,
+        success: successSchema,
+        error: errorSchema,
+        annotations,
+        body: (payload) => Node.activityCall<Success["Type"], Error["Type"]>(self, tag, payload)
+      }) as unknown as Flow.Flow<Tag, PayloadSchema, Success, Error>
+      const activity = (payload: PayloadSchema["Type"]) =>
+        makeInline({
+          name: tag,
+          success: successSchema,
+          error: errorSchema,
+          tier: self.tier,
+          idempotencyKey: self.idempotencyKey,
+          annotations,
+          execute: execute(payload)
+        })
+      // A driver that expands a body reaches the implementation by tag rather
+      // than by invoking the flow this registers, so the same implementation is
+      // filed in the table when a composition wired one up. The table is
+      // optional on purpose: a composition that only executes registered
+      // handlers has no use for it, and requiring it would change what every
+      // existing `toLayer` call site must provide.
+      const file = Layer.effectDiscard(Effect.gen(function*() {
+        const table = yield* Effect.serviceOption(Implementations)
+        if (Option.isNone(table)) return
+        const services = yield* Effect.context<never>()
+        // The captured context is what the runtime's own `register` captures
+        // for the handler path: the services the implementation was wired with,
+        // overridable by whatever the run provides on top of them.
+        const provided = (payload: unknown) =>
+          Effect.flatMap(
+            // A driver assembles this payload from plan values rather than from
+            // a typed call site, so the declaration validates it exactly as
+            // `Flow.execute` validates a caller's. The cast is the erasure that
+            // hands an unknown to the constructor; `makeEffect` is what decides
+            // whether it was one.
+            Effect.orDie(payloadSchema.makeEffect(payload as never)),
+            (decoded) => activity(decoded)
+          ).pipe(Effect.updateContext((input) => Context.merge(services, input) as Context.Context<any>))
+        yield* table.value.add({ name: tag, activity: provided as Implementation["activity"] })
+      }))
+      return Layer.merge(
+        Layer.effectDiscard(
+          Effect.flatMap(FlowRuntime, (engine) => engine.register(registration, activity))
+        ),
+        file
+      )
+    }
+  }
+  return self
+}
+
+/**
+ * Creates either an inline executable activity or a named activity
+ * declaration, selected by whether the first argument is a string.
+ *
+ * @category constructors
+ * @since 4.0.0
+ */
+export const make: {
+  <
+    const Tag extends string,
+    Payload extends Schema.Struct.Fields | Flow.AnyStructSchema,
+    Success extends Schema.Top = Schema.Void,
+    Error extends Schema.Top = Schema.Never
+  >(tag: Tag, options: {
+    readonly payload: Payload
+    readonly success?: Success | undefined
+    readonly error?: Error | undefined
+    readonly tier?: Tier | undefined
+    readonly idempotencyKey?: IdempotencyKey | undefined
+    readonly annotations?: Context.Context<never> | undefined
+  }): Declared<
+    Tag,
+    Payload extends Schema.Struct.Fields ? Schema.Struct<Payload> : Payload,
+    Success,
+    Error
+  >
+  <
+    R,
+    Success extends Schema.Constraint = Schema.Void,
+    Error extends Schema.Constraint = Schema.Never
+  >(options: {
+    readonly name: string
+    readonly success?: Success | undefined
+    readonly error?: Error | undefined
+    readonly execute: Effect.Effect<Success["Type"], Error["Type"], R>
+    readonly tier?: Tier | undefined
+    readonly idempotencyKey?: IdempotencyKey | undefined
+    readonly metadata?: unknown
+    readonly interruptRetryPolicy?: Schedule.Schedule<any, unknown> | undefined
+    readonly retryPolicy?: RetryPolicy.RetryPolicy | undefined
+    readonly annotations?: Context.Context<never> | undefined
+  }): Activity<Success, Error, Exclude<R, FlowInstance | FlowRuntime | Scope>>
+} = ((first: string | Parameters<typeof makeInline>[0], second?: object) =>
+  typeof first === "string"
+    ? makeDeclared(first, second as Parameters<typeof makeDeclared>[1])
+    : makeInline(first)) as any
 
 const isInfraInterrupt = Predicate.isTagged("@smthrs/engine/InfraInterrupt")
 
@@ -128,7 +293,11 @@ const makeExecute = Effect.fnUntraced(function*<
     engine.activityExecute(activity, attempt),
     (_) => _._tag === "Suspended"
   )
-  if (result._tag === "Suspended") {
+  // An activity settles with an exit or with a suspension; a handoff is a
+  // FLOW settlement, and the engine's activity path never produces one. The
+  // narrowing is written as "not complete" so the third result variant needs
+  // no unreachable arm of its own.
+  if (result._tag !== "Complete") {
     return yield* Flow.suspend(instance)
   }
   return yield* result.exit

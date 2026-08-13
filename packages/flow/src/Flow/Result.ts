@@ -29,13 +29,13 @@ export const isResult = <A = unknown, E = unknown>(
 ): u is Result<A, E> => Predicate.hasProperty(u, ResultTypeId)
 
 /**
- * Result of a flow execution, either a completed exit or a suspended
- * flow state.
+ * Result of a flow execution: a completed exit, a suspended flow state, or a
+ * handoff to the next round of a trampoline lineage.
  *
  * @category results
  * @since 4.0.0
  */
-export type Result<A, E> = Complete<A, E> | Suspended
+export type Result<A, E> = Complete<A, E> | Suspended | Handoff
 
 /**
  * Encoded representation of a flow `Result`.
@@ -46,6 +46,7 @@ export type Result<A, E> = Complete<A, E> | Suspended
 export type ResultEncoded<A, E> =
   | CompleteEncoded<A, E>
   | typeof Suspended.Encoded
+  | typeof Handoff.Encoded
 
 /**
  * Encoded representation of a completed flow result containing an encoded
@@ -173,6 +174,45 @@ export class Suspended extends Schema.Class<Suspended>(
 }
 
 /**
+ * Represents a flow round that ended by handing off to the next round of its
+ * trampoline lineage.
+ *
+ * A round settles this way when its body's root value is a `to` invocation
+ * (`docs/specs/Concepts/Trampoline Loops.md`): the round produced no answer of
+ * its own, it produced the NEXT flow to run. `flow` is the target's tag, so the
+ * value survives the journal and the run row unchanged.
+ *
+ * DECIDED (2026-08-11, pending review): `payload` is the target's payload in
+ * ENCODED form. The target's `to` method accepts its ordinary constructor
+ * shape so authoring stays aligned with `call` and `execute`; the body
+ * interpreter resolves planned references and encodes the invocation through
+ * the target declaration before constructing `Handoff`. The receiving round
+ * decodes those bytes through the same schema.
+ *
+ * It is a third settlement rather than a `Complete` carrying a magic value
+ * because the engine has to tell "this run answered" from "this run continues
+ * elsewhere" without decoding against a success schema the handoff never
+ * satisfies.
+ *
+ * @category results
+ * @since 0.1.0
+ */
+export class Handoff extends Schema.Class<Handoff>(
+  "effect/flow/Flow/Handoff"
+)({
+  _tag: Schema.tag("Handoff"),
+  flow: Schema.NonEmptyString,
+  payload: Schema.Unknown
+}) {
+  /**
+   * Marks this value as a flow result for runtime guards.
+   *
+   * @since 0.1.0
+   */
+  readonly [ResultTypeId] = ResultTypeId
+}
+
+/**
  * Creates a schema for flow results using the supplied success and error
  * schemas.
  *
@@ -185,7 +225,7 @@ export const Result = <
 >(options: {
   readonly success: Success
   readonly error: Error
-}) => Schema.Union([Complete.Schema(options), Suspended])
+}) => Schema.Union([Complete.Schema(options), Suspended, Handoff])
 
 const AnyOrVoid = Schema.Union([Schema.Any, Schema.Void])
 

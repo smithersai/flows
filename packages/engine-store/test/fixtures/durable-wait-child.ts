@@ -4,6 +4,7 @@ import { DurableEngineState, EngineStore, StepBoundary } from "@smthrs/engine-st
 import { DurableClock, DurableDeferred, Flow } from "@smthrs/flow"
 import { SqlJournal } from "@smthrs/journal"
 import { Jj } from "@smthrs/kernel"
+import { Node } from "@smthrs/plan"
 import { AttemptStore, RunStore } from "@smthrs/run-store"
 import { CacheStore } from "@smthrs/step-cache"
 import * as Effect from "effect/Effect"
@@ -15,6 +16,7 @@ import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as Migrations from "../../src/Migrations.ts"
 import * as OwnerIdentity from "../../src/OwnerIdentity.ts"
 import { runPromise } from "../Sha256.ts"
+import { opaqueHandlerBody } from "./OpaqueHandlerBody.ts"
 
 const mode = process.argv[2]
 const filename = process.argv[3]
@@ -26,12 +28,14 @@ if (mode === undefined || filename === undefined || executionId === undefined) {
 
 const WaitFlow = Flow.make("DurableWaiting/HardKill", {
   payload: {},
-  success: Schema.String
+  success: Schema.String,
+  body: opaqueHandlerBody
 })
 
 const TimerFlow = Flow.make("DurableWaiting/FutureTimer", {
   payload: {},
-  success: Schema.String
+  success: Schema.String,
+  body: opaqueHandlerBody
 })
 
 const deferred = DurableDeferred.make("answer", {

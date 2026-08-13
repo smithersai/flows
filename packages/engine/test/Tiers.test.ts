@@ -1,6 +1,6 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, Flow } from "@smthrs/flow"
+import { Activity, Flow, Interpreter } from "@smthrs/flow"
 import { Effect, Layer, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
@@ -20,11 +20,21 @@ describe("activity durability tiers", () => {
       idempotencyKey: "sealed/replay",
       execute: Effect.sync(() => ++calls)
     })
-    const flow = Flow.make("Tiers/sealed", {
+    const flowActivityDeclaration = Activity.make("Tiers/sealed/activity", {
       payload: { id: Schema.String },
       success: Schema.Number
     })
-    const layer = flow.toLayer(() => Effect.andThen(step, step)).pipe(
+    const flow = Flow.make("Tiers/sealed", {
+      payload: { id: Schema.String },
+      success: Schema.Number,
+      body: (payload) => flowActivityDeclaration.call(payload)
+    })
+    const layer = Layer.mergeAll(
+      flowActivityDeclaration.toLayer(() => Effect.andThen(step, step)),
+      Interpreter.layer(flow)
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
+    ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
     return Effect.gen(function*() {
@@ -57,12 +67,23 @@ describe("activity durability tiers", () => {
       error: Schema.String,
       execute: Effect.fail("retry")
     })
-    const flow = Flow.make("Tiers/irreversible-no-key", {
+    const flowActivityDeclaration = Activity.make("Tiers/irreversible-no-key/activity", {
       payload: { id: Schema.String },
       success: Schema.Void,
       error: Schema.String
     })
-    const layer = flow.toLayer(() => Activity.retry(step, { times: 1 })).pipe(
+    const flow = Flow.make("Tiers/irreversible-no-key", {
+      payload: { id: Schema.String },
+      success: Schema.Void,
+      error: Schema.String,
+      body: (payload) => flowActivityDeclaration.call(payload)
+    })
+    const layer = Layer.mergeAll(
+      flowActivityDeclaration.toLayer(() => Activity.retry(step, { times: 1 })),
+      Interpreter.layer(flow)
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
+    ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
     return Effect.gen(function*() {
@@ -82,12 +103,23 @@ describe("activity durability tiers", () => {
       error: Schema.String,
       execute: Effect.suspend(() => ++attempts === 1 ? Effect.fail("retry") : Effect.succeed(2))
     })
-    const flow = Flow.make("Tiers/irreversible-keyed", {
+    const flowActivityDeclaration = Activity.make("Tiers/irreversible-keyed/activity", {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String
     })
-    const layer = flow.toLayer(() => Activity.retry(step, { times: 1 })).pipe(
+    const flow = Flow.make("Tiers/irreversible-keyed", {
+      payload: { id: Schema.String },
+      success: Schema.Number,
+      error: Schema.String,
+      body: (payload) => flowActivityDeclaration.call(payload)
+    })
+    const layer = Layer.mergeAll(
+      flowActivityDeclaration.toLayer(() => Activity.retry(step, { times: 1 })),
+      Interpreter.layer(flow)
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
+    ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
     return Effect.gen(function*() {

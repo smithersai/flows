@@ -41,6 +41,7 @@ export const makeInstance = (
     suspended: false,
     interrupted: false,
     waiting: undefined,
+    handoff: undefined,
     cause: undefined,
     activityState: {
       count: 0,

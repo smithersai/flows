@@ -13,6 +13,7 @@ import type * as Crypto from "effect/Crypto"
  * sanctioned way to run distinguishable invocations concurrently.
  */
 import { Activity, Flow, FlowRuntime } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Cause, Deferred, Effect, Exit, Fiber, Layer, Scheduler, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
@@ -23,7 +24,8 @@ const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Cr
 
 const flow = Flow.make("KeylessConcurrency/flow", {
   payload: { id: Schema.String },
-  success: Schema.Void
+  success: Schema.Void,
+  body: () => Node.succeed(undefined)
 })
 
 const keylessFetch = Activity.make({

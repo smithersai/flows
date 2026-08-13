@@ -1,3 +1,4 @@
+import * as Schema from "effect/Schema"
 import { describe, expect, it } from "vitest"
 import { GraphBuildError } from "../src/GraphBuildError.ts"
 import * as internal from "../src/internal/node.ts"
@@ -109,15 +110,85 @@ describe("Node", () => {
     }))
     const ast = tagged(node.ast, "Branch")
     expect(evaluated).toBe(2)
-    expect(seen).toEqual([
-      { node: Node.branchSubject, path: [] },
-      { node: Node.branchSubject, path: [] }
-    ])
+    expect(seen).toHaveLength(2)
+    expect(seen[0]?.node).toBe(ast.subject)
+    expect(seen[1]?.node).toBe(ast.subject)
+    expect(ast.subject).toMatch(/^branch\/subject\/\d+$/)
     expect(ast.first).toEqual({ _tag: "Succeed", value: 1 })
     expect(ast.then).toEqual({ _tag: "Succeed", value: "done" })
     expect(ast.else).toEqual({ _tag: "Succeed", value: "again" })
     expect(internal.predicate(ast)?.(100)).toBe(true)
     expect(internal.predicate(ast)?.(99)).toBe(false)
+  })
+
+  it("builds a catch failure arm once against its own symbolic error", () => {
+    const seen: Array<Planned.Reference | undefined> = []
+    let evaluated = 0
+    const build = () =>
+      Node.succeed(1).pipe(Node.catch({
+        onFailure: (error: Planned.Planned<string>) => {
+          evaluated++
+          seen.push(Planned.reference(error))
+          return Node.succeed(error)
+        }
+      }))
+    const ast = tagged(build().ast, "Catch")
+
+    expect(evaluated).toBe(1)
+    expect(seen).toEqual([{ node: ast.subject, path: [] }])
+    expect(ast.subject).toMatch(/^catch\/subject\/\d+$/)
+    expect(ast.protected).toEqual({ _tag: "Succeed", value: 1 })
+    expect(ast.failure).toEqual({
+      _tag: "Succeed",
+      value: { _tag: "PlannedReference", node: ast.subject, path: [] }
+    })
+    expect(ast.filter).toBeUndefined()
+    expect(Node.catchFilter(ast)).toBeUndefined()
+    expect(Node.catchFilter(Node.succeed(1).ast)).toBeUndefined()
+    // Each catch mints its own token, so a nested arm cannot rebind an outer
+    // one to the inner catch's protected node.
+    expect(tagged(build().ast, "Catch").subject).not.toBe(ast.subject)
+  })
+
+  it("records a catch schema identity and keeps the live filter beside the AST", () => {
+    const error = Schema.Literal("recoverable")
+    const ast = tagged(
+      Node.catch(Node.succeed(1), { error, onFailure: () => Node.succeed(0) }).ast,
+      "Catch"
+    )
+
+    expect(ast.filter).toEqual(Schema.toJsonSchemaDocument(error))
+    expect(Node.catchFilter(ast)).toBe(error)
+  })
+
+  it("refuses a catch failure arm that does not return a node", () => {
+    expect(() =>
+      Node.catch(Node.succeed(1), {
+        onFailure: () => 1 as unknown as Node.Node<number>
+      })
+    ).toThrow(expect.objectContaining({
+      code: "invalid_continuation",
+      node: Node.catchSubject,
+      message: "Node.catch expected its failure arm to return a Node"
+    }))
+  })
+
+  it("hands a driver the deferred mapper and the run-time predicate, and nothing else", () => {
+    const mapped = Node.succeed(2).pipe(Node.map((value) => value + 1))
+    const decided = Node.succeed(2).pipe(
+      Node.branch({ if: (value) => value >= 100, then: () => Node.succeed("done"), else: () => Node.succeed("again") })
+    )
+
+    expect(Node.mapper(mapped.ast)?.(2)).toBe(3)
+    expect(Node.predicate(decided.ast)?.(100)).toBe(true)
+    expect(Node.predicate(decided.ast)?.(99)).toBe(false)
+    // Each accessor answers for its own variant only, so a driver switching on
+    // the AST tag never has to guard the lookup itself.
+    expect(Node.mapper(decided.ast)).toBeUndefined()
+    expect(Node.predicate(mapped.ast)).toBeUndefined()
+    // A rehydrated AST left its side tables behind.
+    expect(Node.mapper(JSON.parse(JSON.stringify(mapped.ast)) as Node.Ast)).toBeUndefined()
+    expect(Node.predicate(JSON.parse(JSON.stringify(decided.ast)) as Node.Ast)).toBeUndefined()
   })
 
   it("refuses a branch arm that does not return a node", () => {
@@ -189,6 +260,14 @@ describe("internal/node call factories", () => {
       payload: { path: "counter.txt" }
     })
     expect(internal.declaration(ast)).toBe(declaration)
+
+    const handoff = Node.flowCall(declaration, "counter/count-to-100", "handoff", { value: 2 })
+    expect(handoff.ast).toMatchObject({
+      _tag: "FlowCall",
+      flow: "counter/count-to-100",
+      mode: "handoff",
+      payload: { value: 2 }
+    })
   })
 
   it("records an activity call with its payload and declaration", () => {
@@ -244,5 +323,27 @@ describe("internal/node call factories", () => {
     expect(Object.getPrototypeOf(cloned)).toBeNull()
     expect(Object.hasOwn(cloned, "__proto__")).toBe(true)
     expect(cloned.__proto__).toBe("safe")
+  })
+
+  it("reads back the declaration and the continuation a graph builder needs", () => {
+    const declaration = { tag: "counter/read" }
+    const activity = Node.activityCall(declaration, "counter/read", { path: "counter.txt" })
+    const flow = Node.flowCall(declaration, "counter/next", "inline", { path: "counter.txt" })
+    expect(Node.declaration(tagged(activity.ast, "ActivityCall"))).toBe(declaration)
+    expect(Node.declaration(tagged(flow.ast, "FlowCall"))).toBe(declaration)
+
+    const built = Node.andThen(Node.succeed(1), (value: Planned.Planned<number>) => Node.succeed(value))
+    const continued = Node.continuation(tagged(built.ast, "AndThen"))?.(Planned.make<number>("upstream"))
+    expect(Node.isNode(continued)).toBe(true)
+    const supplied = Node.andThen(Node.succeed(1), Node.succeed(2))
+    expect(Node.continuation(tagged(supplied.ast, "AndThen"))).toBeUndefined()
+  })
+
+  it("digests a function the AST does not store the same way it digests one it does", () => {
+    const mapper = (value: number): number => value + 1
+    const identity: Node.FunctionIdentity = Node.functionIdentity(mapper)
+
+    expect(identity).toEqual(tagged(Node.map(Node.succeed(1), mapper).ast, "Map").mapper)
+    expect(Node.functionIdentity((value: number): number => value + 2)).not.toEqual(identity)
   })
 })

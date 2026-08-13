@@ -3,22 +3,30 @@
 /**
  * Defines typed durable flow declarations.
  *
- * A `Flow` has a stable tag, schemas for payload, success, and failure, and
- * an optional idempotency key used to derive execution ids when the caller does
- * not provide one. Flow definitions can be executed, discarded, polled,
- * interrupted, resumed, and registered with a handler layer.
+ * A `Flow` has a stable tag, schemas for payload, success, and failure, a
+ * REQUIRED pure `body`, and an optional idempotency key used to derive
+ * execution ids when the caller does not provide one. Flow definitions can be
+ * executed, discarded, polled, interrupted, and resumed.
+ *
+ * The two nouns of `docs/specs/Concepts/Unified Flow Authoring.md` divide the
+ * surface here: an Activity carries an implementation, attached separately as a
+ * Layer; a Flow carries a body, and never opaque executable code. There is
+ * therefore no handler to attach to a flow, and no `toLayer` on one to attach
+ * it with.
  *
  * @since 4.0.0
  */
+import type * as Node from "@smthrs/plan/Node"
 import type * as Cause from "effect/Cause"
 import type * as Context from "effect/Context"
 import type * as Effect from "effect/Effect"
-import type * as Layer from "effect/Layer"
 import type * as Option from "effect/Option"
 import type * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
+import type { PlannedPayload } from "../Activity/Activity.ts"
 import type { FlowInstance, FlowRuntime } from "../FlowRuntime/index.ts"
 import type * as RetryPolicy from "../RetryPolicy.ts"
+import type { To } from "./Outcome.ts"
 import type { Result } from "./Result.ts"
 import type { TypeId } from "./TypeId.ts"
 
@@ -44,8 +52,63 @@ export interface Flow<
   readonly successSchema: Success
   readonly errorSchema: Error
   readonly annotations: Context.Context<never>
+  /**
+   * The pure plan-time body that IS this flow's behavior.
+   *
+   * The payload is decoded real data and the returned node only describes
+   * topology. It is a FIELD rather than an injectable layer because there is
+   * exactly one of it, it is pure, and its digest enters the flow's content
+   * identity, so a flow cannot plan one way under one wiring and another way
+   * under another. Purity includes closure capture: the body must not read
+   * mutable module state, clocks, random values, services, or environment
+   * values captured outside `payload`; source-digest identity cannot observe
+   * those aliases changing. Work that genuinely wants opaque code is an
+   * Activity.
+   */
+  readonly body: (payload: Payload["Type"]) => Node.Node<unknown, unknown>
   readonly idempotencyKey?: ((payload: Payload["Type"]) => string) | undefined
   readonly suspendedRetryPolicy?: RetryPolicy.RetryPolicy | undefined
+  /**
+   * How many rounds one trampoline lineage started from this flow may open.
+   *
+   * The bound is a BUDGET, not loop detection: identical consecutive rounds
+   * are legal, so `docs/specs/Concepts/Trampoline Loops.md` stops a runaway
+   * lineage by counting rounds instead of comparing them. Absent means
+   * unbounded, which is the right default for a lineage whose exit condition
+   * is its own branch. Exceeding it fails the lineage with
+   * {@link module:MaxRoundsExceeded.MaxRoundsExceeded}.
+   */
+  readonly maxRounds?: number | undefined
+
+  /**
+   * Describes an inline call to this flow without executing it.
+   */
+  readonly call: (
+    payload: PlannedPayload<Payload["~type.make.in"]>
+  ) => Node.Node<Success["Type"], Error["Type"]>
+
+  /**
+   * Describes an explicit child boundary: ONE node in the caller's plan, and a
+   * real child execution when that node is driven.
+   *
+   * `.call()` splices this flow's body into the caller's plan, so every inner
+   * step is visible and individually keyed. `.child()` is the other choice
+   * `docs/specs/Concepts/Unified Flow Authoring.md` gives: the callee keeps its
+   * own execution, journal lineage, retry policy, and placement, and the caller
+   * sees one leaf. It is also the way out of the two build refusals inline
+   * expansion raises — a recursive `.call()` and a placement the caller cannot
+   * satisfy.
+   */
+  readonly child: (
+    payload: PlannedPayload<Payload["~type.make.in"]>
+  ) => Node.Node<Success["Type"], Error["Type"]>
+
+  /**
+   * Describes a serializable invocation for the next trampoline round.
+   */
+  readonly to: (
+    payload: PlannedPayload<Payload["~type.make.in"]>
+  ) => Node.Node<To<Payload["Type"]>>
 
   /**
    * Add an annotation to the flow.
@@ -114,31 +177,6 @@ export interface Flow<
   ) => Effect.Effect<void, never, FlowRuntime>
 
   /**
-   * Create a layer that registers the flow and provides an effect to
-   * execute it.
-   */
-  readonly toLayer: <R>(
-    execute: (
-      payload: Payload["Type"],
-      executionId: string
-    ) => Effect.Effect<Success["Type"], Error["Type"], R>
-  ) => Layer.Layer<
-    never,
-    never,
-    | FlowRuntime
-    | Exclude<
-      R,
-      FlowRuntime | FlowInstance | Execution<Tag> | Scope.Scope
-    >
-    | Payload["DecodingServices"]
-    | Payload["EncodingServices"]
-    | Success["DecodingServices"]
-    | Success["EncodingServices"]
-    | Error["DecodingServices"]
-    | Error["EncodingServices"]
-  >
-
-  /**
    * For the given payload, compute the deterministic execution ID.
    *
    * This helper is valid only when the flow declares an `idempotencyKey`.
@@ -157,8 +195,8 @@ export interface Flow<
    * receives the effect's successful value and the flow's failure cause when
    * the flow scope closes.
    *
-   * This applies only to effects run directly in the flow handler. It does not
-   * attach rollback behavior to nested activities.
+   * This applies only to effects run directly inside the flow execution. It
+   * does not attach rollback behavior to nested activities.
    */
   readonly withRollback: {
     <A, R2>(
@@ -226,8 +264,10 @@ export interface Any {
   readonly successSchema: Schema.Top
   readonly errorSchema: Schema.Top
   readonly annotations: Context.Context<never>
+  readonly body: (payload: any) => Node.Node<unknown, unknown>
   readonly idempotencyKey?: ((payload: any) => string) | undefined
   readonly suspendedRetryPolicy?: RetryPolicy.RetryPolicy | undefined
+  readonly maxRounds?: number | undefined
 }
 
 /**

@@ -2,27 +2,31 @@
 
 The flow authoring model: typed flow and activity definitions, durable primitives, step identity, retry policy, and the runtime port they execute against. The whole package bundles for the browser; durability comes from whichever runtime you provide.
 
+An `Activity` carries an implementation, attached separately as a layer. A `Flow` carries a required pure `body`, and `Interpreter.layer` drives it.
+
 ```ts
-import { Activity, Flow } from "@smthrs/flow"
+import { Activity, Flow, Interpreter } from "@smthrs/flow"
 import { FlowEngine } from "@smthrs/engine"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 
+const Compile = Activity.make("example/Compile", {
+  payload: { target: Schema.String },
+  success: Schema.String,
+  tier: "sealed"
+})
+
 const Build = Flow.make("example/Build", {
   payload: { target: Schema.String },
-  success: Schema.String
-})
-
-const Compile = Activity.make({
-  name: "example/Compile",
   success: Schema.String,
-  tier: "sealed",
-  idempotencyKey: { operation: "compile/v1" },
-  execute: Effect.succeed("out.js")
+  body: (payload) => Compile.call(payload)
 })
 
-const layer = Build.toLayer(() => Compile).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+const layer = Layer.mergeAll(
+  Compile.toLayer(({ target }) => Effect.succeed(`${target}.js`)),
+  Interpreter.layer(Build)
+).pipe(Layer.provideMerge(Activity.layerImplementations), Layer.provideMerge(FlowEngine.layerMemory))
 ```
 
 ## Entry point
@@ -37,8 +41,8 @@ const layer = Build.toLayer(() => Compile).pipe(Layer.provideMerge(FlowEngine.la
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `make` | constructor | `Flow.make(tag, { payload, success, error?, idempotencyKey? })` |
-| `Flow` | interface | carries `execute`, `executionId`, `toLayer`, `poll`, `interrupt`, `resume` |
+| `make` | constructor | `Flow.make(tag, { payload, body, success, error?, idempotencyKey? })`; `body` is required |
+| `Flow` | interface | carries `body`, `call`, `child`, `to`, `execute`, `executionId`, `poll`, `interrupt`, `resume` |
 | `Execution` | interface | one invocation identified by `executionId` |
 | `Any`, `AnyWithProps`, `AnyStructSchema` | interfaces | variance helpers |
 | `PayloadSchema`, `RequirementsClient`, `RequirementsHandler` | types | derived schema and requirement types |

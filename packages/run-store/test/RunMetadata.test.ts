@@ -34,6 +34,26 @@ describe("run metadata", () => {
       expect(parent.parentRunId).toBeNull()
       expect(parent.cancelRequestedAtMs).toBeNull()
       expect(child.parentRunId).toBe("parent")
+      // Absent lineage columns read back as null: an ordinary run is a
+      // lineage of one, and every row written before the append-only
+      // migration decodes the same way.
+      expect(parent.lineageId).toBeNull()
+      expect(parent.roundOrdinal).toBeNull()
+    }))
+
+  effect("create records the trampoline lineage pair and exposes it on the row", () =>
+    Effect.gen(function*() {
+      const store = yield* RunStore.RunStore
+      yield* store.create("round-0", "{}")
+      yield* store.create("round-1", "{}", {
+        parentRunId: "round-0",
+        lineageId: "round-0",
+        roundOrdinal: 1
+      })
+      const round = yield* store.get("round-1")
+      expect(round.parentRunId).toBe("round-0")
+      expect(round.lineageId).toBe("round-0")
+      expect(round.roundOrdinal).toBe(1)
     }))
 
   effect("lineage is walkable in SQL", () =>
@@ -136,6 +156,27 @@ describe("run metadata", () => {
       const store = yield* RunStore.RunStore
       const failure = yield* Effect.flip(store.create("run", "{}", { parentRunId: "" }))
       expect(failure.code).toBe("invalid_run")
+    }))
+
+  effect("create rejects incomplete or invalid trampoline metadata", () =>
+    Effect.gen(function*() {
+      const store = yield* RunStore.RunStore
+      expect(
+        (yield* Effect.flip(store.create("missing-ordinal", "{}", {
+          lineageId: "lineage"
+        }))).code
+      ).toBe("invalid_run")
+      expect(
+        (yield* Effect.flip(store.create("missing-lineage", "{}", {
+          roundOrdinal: 1
+        }))).code
+      ).toBe("invalid_run")
+      expect(
+        (yield* Effect.flip(store.create("negative-ordinal", "{}", {
+          lineageId: "lineage",
+          roundOrdinal: -1
+        }))).code
+      ).toBe("invalid_run")
     }))
 
   effect("requestCancel rejects an invalid timestamp", () =>

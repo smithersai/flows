@@ -1,6 +1,7 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 import { Activity, Flow, FlowRuntime } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Clock, Effect, Exit, Fiber, Schedule, Schema } from "effect"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
@@ -10,7 +11,8 @@ import { runPromise } from "./Crypto.ts"
 
 const flow = Flow.make("RetryOnInterrupt/test", {
   payload: {},
-  success: Schema.Void
+  success: Schema.Void,
+  body: () => Node.succeed(undefined)
 })
 const instance = FlowEngine.makeInstance(flow, "retry-on-interrupt")
 

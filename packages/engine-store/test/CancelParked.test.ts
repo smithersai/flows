@@ -1,3 +1,4 @@
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
  * Pins issue #27: a durable cancel request against a suspended (parked) run
  * must actually be delivered. The driver's cancel poll only exists while an
@@ -8,6 +9,7 @@
  */
 import { DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
 import { Jj } from "@smthrs/kernel"
+import { Node } from "@smthrs/plan"
 import { Ownership, RunStore } from "@smthrs/run-store"
 import * as Clock from "effect/Clock"
 import * as Duration from "effect/Duration"
@@ -64,7 +66,8 @@ describe("cancel requests reach parked runs (issue #27)", () => {
   it("the sweeper cancels a run parked on a deferred that never completes", async () => {
     const EventFlow = Flow.make("CancelParked/Sweep", {
       payload: {},
-      success: Schema.String
+      success: Schema.String,
+      body: opaqueHandlerBody
     })
     const gate = DurableDeferred.make("cancel-parked-gate", { success: Schema.String })
 
@@ -109,7 +112,8 @@ describe("cancel requests reach parked runs (issue #27)", () => {
   it("a resumed cancel-requested run cancels without re-executing flow side effects", async () => {
     const EventFlow = Flow.make("CancelParked/Resume", {
       payload: {},
-      success: Schema.String
+      success: Schema.String,
+      body: opaqueHandlerBody
     })
     const gate = DurableDeferred.make("cancel-resume-gate", { success: Schema.String })
     let bodyRuns = 0

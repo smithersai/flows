@@ -1,6 +1,7 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { DurableDeferred, Flow } from "@smthrs/flow"
+import { Activity, DurableDeferred, Flow, Interpreter } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Effect, Fiber, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
@@ -16,7 +17,8 @@ describe("FlowProxy", () => {
     payload: { value: Schema.Number },
     success: Schema.Number,
     error: Schema.Literal("invalid"),
-    idempotencyKey: ({ value }) => String(value)
+    idempotencyKey: ({ value }) => String(value),
+    body: () => Node.succeed(undefined)
   })
 
   effect("uses an envelope that forwards executionId for execute and discard", () =>
@@ -46,12 +48,22 @@ describe("FlowProxy", () => {
 
   effect("polling fallback wakes a suspended flow under TestClock", () => {
     const signal = DurableDeferred.make("FlowProxy/poll-signal", { success: Schema.Number })
+    const suspendedActivityDeclaration = Activity.make("FlowProxy/suspended/activity", {
+      payload: { id: Schema.String },
+      success: Schema.Number
+    })
     const suspended = Flow.make("FlowProxy/suspended", {
       payload: { id: Schema.String },
       success: Schema.Number,
-      idempotencyKey: ({ id }) => id
+      idempotencyKey: ({ id }) => id,
+      body: (payload) => suspendedActivityDeclaration.call(payload)
     })
-    const layer = suspended.toLayer(() => DurableDeferred.await(signal)).pipe(
+    const layer = Layer.mergeAll(
+      suspendedActivityDeclaration.toLayer(() => DurableDeferred.await(signal)),
+      Interpreter.layer(suspended)
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
+    ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
     return Effect.gen(function*() {

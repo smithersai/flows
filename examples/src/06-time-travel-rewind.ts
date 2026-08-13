@@ -4,7 +4,7 @@
  * Both operations hang off one injectable service:
  *
  * `inspect` folds committed journal entries up to a frame through a pure
- * reducer. It reads; it never invokes a flow handler or an activity.
+ * reducer. It reads; it never plans a flow body or runs an activity.
  *
  * `rewind` is the mutating protocol. Behind the one call it claims the run,
  * records an audit, assesses external effects recorded on the journal, restores
@@ -24,7 +24,7 @@
  * ownership claim like any driver and refuses a live run. Phase one below parks
  * the run at a `DurableDeferred.await`, which is what makes it rewindable.
  */
-import { Activity, DurableDeferred, Flow } from "@smthrs/flow"
+import { Activity, DurableDeferred, Flow, Interpreter } from "@smthrs/flow"
 import { Journal, JournalEvent } from "@smthrs/journal"
 import { SqlTimeTravelStore, TimeTravel } from "@smthrs/time-travel"
 import * as Effect from "effect/Effect"
@@ -33,9 +33,16 @@ import * as Schema from "effect/Schema"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { durableEngine } from "./durable-layer.ts"
 
-export const Ledger = Flow.make("examples/Ledger", {
+/** The declared step the flow's body names; the wait lives in its implementation. */
+export const Post = Activity.make("examples/Post", {
   payload: {},
   success: Schema.String
+})
+
+export const Ledger = Flow.make("examples/Ledger", {
+  payload: {},
+  success: Schema.String,
+  body: (payload) => Post.call(payload)
 })
 
 export const Settlement = DurableDeferred.make("examples/settlement", {
@@ -53,7 +60,8 @@ const lineageId = "ledger-1/root"
  * call below.
  */
 const layer = (filename: string) =>
-  Ledger.toLayer(handler).pipe(
+  Layer.mergeAll(Post.toLayer(post), Interpreter.layer(Ledger)).pipe(
+    Layer.provideMerge(Activity.layerImplementations),
     Layer.provideMerge(TimeTravel.layer),
     Layer.provideMerge(SqlTimeTravelStore.layer),
     Layer.provideMerge(durableEngine(filename, "ledger"))
@@ -75,7 +83,7 @@ const Credit = Activity.make({
   execute: Effect.succeed(30)
 })
 
-const handler = () =>
+const post = () =>
   Effect.gen(function*() {
     const amount = yield* Credit
     const settlement = yield* DurableDeferred.await(Settlement)

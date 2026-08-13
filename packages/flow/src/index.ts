@@ -47,6 +47,20 @@ export * as Flow from "./Flow/index.ts"
 export * as FlowRuntime from "./FlowRuntime/index.ts"
 
 /**
+ * Plan-time graph building from flow declarations.
+ *
+ * @since 0.1.0
+ */
+export * as Graph from "./Graph.ts"
+
+/**
+ * Execution of a flow body, and the layer that registers it.
+ *
+ * @since 0.1.0
+ */
+export * as Interpreter from "./Interpreter.ts"
+
+/**
  * Retry policy models and constructors.
  *
  * @since 4.0.0
@@ -54,8 +68,22 @@ export * as FlowRuntime from "./FlowRuntime/index.ts"
 export * as RetryPolicy from "./RetryPolicy.ts"
 
 /**
+ * The system timer activity and its implementation layer.
+ *
+ * @since 0.1.0
+ */
+export * as Sleep from "./Sleep.ts"
+
+/**
  * Stable step identity construction.
  *
  * @since 4.0.0
  */
 export * as StepIdentity from "./Activity/StepIdentity.ts"
+
+/**
+ * The system wait-point activity and its implementation layer.
+ *
+ * @since 0.1.0
+ */
+export * as WaitFor from "./WaitFor.ts"

@@ -9,7 +9,7 @@
  * suspension live in `@smthrs/flow`'s suite. What is asserted here is the
  * engine's side of the same interaction.
  */
-import { DurableClock, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
+import { Activity, DurableClock, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
 import { Effect, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
@@ -47,14 +47,24 @@ const pollComplete = <A, E, R>(
   })
 
 describe("FlowEngine.layerMemory durable waits", () => {
+  const ParkedActivityDeclaration = Activity.make("Memory/Parked/activity", {
+    payload: { id: Schema.String },
+    success: Schema.String
+  })
   const Parked = Flow.make("Memory/Parked", {
     payload: { id: Schema.String },
     success: Schema.String,
-    idempotencyKey: ({ id }) => id
+    idempotencyKey: ({ id }) => id,
+    body: (payload) => ParkedActivityDeclaration.call(payload)
   })
   const gate = DurableDeferred.make("Memory/gate", { success: Schema.String })
 
-  const ParkedLayer = Parked.toLayer(() => DurableDeferred.await(gate)).pipe(
+  const ParkedLayer = Layer.mergeAll(
+    ParkedActivityDeclaration.toLayer(() => DurableDeferred.await(gate)),
+    Interpreter.layer(Parked)
+  ).pipe(
+    Layer.provideMerge(Activity.layerImplementations)
+  ).pipe(
     Layer.provideMerge(FlowEngine.layerMemory)
   )
 

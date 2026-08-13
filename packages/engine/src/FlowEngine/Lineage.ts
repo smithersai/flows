@@ -16,6 +16,16 @@
  * exists so a nested-node lineage lands here rather than being invented at a
  * call site when one appears.
  *
+ * Two different ids in this tree are called a lineage, and this is the JOURNAL
+ * one. What {@link module:Round.Round} carries as `lineageId`, and what
+ * `RunStore` persists in the `lineage_id` column, is the TRAMPOLINE lineage of
+ * `docs/specs/Concepts/Trampoline Loops.md`: round 0's execution id, naming the
+ * chain of round executions rather than a journal position. The shapes differ
+ * — a journal lineage id is a run id extended with a `/root` segment, a
+ * trampoline one is a bare execution id — so a value from one space is not an
+ * address in the other, and `meta.lineageId` on an engine record means this
+ * space.
+ *
  * @since 0.1.0
  */
 

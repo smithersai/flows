@@ -14,6 +14,9 @@
  */
 import * as Schema from "effect/Schema"
 
+/** @private */
+const PositiveSafeInt = Schema.Int.check(Schema.isGreaterThanOrEqualTo(1))
+
 /**
  * The versioned state stored for a durable flow run: which flow it is, the
  * encoded `payload` it was started with, and — as they arrive — its
@@ -30,6 +33,7 @@ export const RunState = Schema.Struct({
   flowName: Schema.NonEmptyString,
   payload: Schema.Unknown,
   parentExecutionId: Schema.optionalKey(Schema.NonEmptyString),
+  maxRounds: Schema.optionalKey(PositiveSafeInt),
   result: Schema.optionalKey(Schema.Unknown),
   cancellation: Schema.optionalKey(Schema.Struct({
     interruptedAtMs: Schema.Number.check(Schema.isGreaterThanOrEqualTo(0))

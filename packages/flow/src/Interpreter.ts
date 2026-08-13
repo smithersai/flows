@@ -1,0 +1,558 @@
+/**
+ * The body interpreter: what a flow does when it runs.
+ *
+ * A `Flow` has no handler to register — its `body` IS the behavior, per
+ * `docs/specs/Concepts/Unified Flow Authoring.md` — so something has to turn
+ * the graph that body describes into execution. That is this
+ * module. {@link layer} registers a flow with the runtime, and the
+ * handler it installs builds the graph with {@link module:Graph.build} and
+ * walks it: each node settles once, in dependency order, and the root's value
+ * is the flow's result.
+ *
+ * What each variant does is the run-time half of what the AST recorded. An
+ * `ActivityCall` runs its declaration's implementation — looked up by tag in
+ * {@link module:Implementations.Implementations} before the walk starts — as
+ * the ordinary durable activity `toLayer` built, so a node driven here takes
+ * the same invocation key, attempt journal, retry policy, and tier as the same
+ * activity called from a handler. A `Map` applies its deferred function to the real
+ * upstream value. A `Branch` evaluates its digested predicate on the real
+ * subject and settles ONLY the arm it took: the other arm is topology the plan
+ * shows and the run skipped, and it is reported as such rather than silently
+ * absent. An `All` joins its members by name, a `Succeed` yields its value, and
+ * an inline `FlowCall` was already flattened by graph building, so it settles
+ * with the body spliced beneath it. A `FlowCall` the author wrote as
+ * `.child(payload)` is the one node that is NOT flattened: it opens a real child
+ * execution under a deterministically derived id
+ * ({@link childExecutionId}), which is what gives it its own journal lineage and
+ * makes the parent's interruption and the child's suspension travel between
+ * them.
+ *
+ * Planned references are resolved the way the plan names them: a payload
+ * placeholder carries the `Ref` `{from, path}` its key material recorded, so
+ * `result.files` reads `files` off the settled value of the node that produced
+ * it.
+ *
+ * The walk is demand-driven from the root rather than a sweep over the node
+ * list, because dependency order puts BOTH branch arms before the branch that
+ * chooses between them, and executing an arm to discover it was not taken is
+ * exactly what static topology exists to avoid.
+ *
+ * @since 0.1.0
+ */
+import { Key } from "@smthrs/keys/Key"
+import * as KeyMaterial from "@smthrs/plan/KeyMaterial"
+import * as Node from "@smthrs/plan/Node"
+import * as Planned from "@smthrs/plan/Planned"
+import type * as Crypto from "effect/Crypto"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
+import * as Predicate from "effect/Predicate"
+import * as Schema from "effect/Schema"
+import { type Implementation, Implementations } from "./Activity/Implementations.ts"
+import type { Any as AnyFlow, AnyStructSchema, AnyWithProps, Flow } from "./Flow/Flow.ts"
+import * as Outcome from "./Flow/Outcome.ts"
+import { Handoff } from "./Flow/Result.ts"
+import { suspend } from "./Flow/Runtime.ts"
+import { TypeId as FlowTypeId } from "./Flow/TypeId.ts"
+import { FlowInstance } from "./FlowRuntime/FlowInstance.ts"
+import { FlowRuntime } from "./FlowRuntime/FlowRuntime.ts"
+import { annotateWaiting } from "./FlowRuntime/WaitingAnnotation.ts"
+import * as Graph from "./Graph.ts"
+
+/**
+ * A graph the interpreter will not drive.
+ *
+ * Every code names something the run cannot recover from on its own: a graph
+ * whose topology is incomplete, an activity with no implementation wired up, a
+ * call the interpreter does not execute, and a deferred function that did not
+ * survive serialization beside its AST.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
+export class InterpreterError extends Schema.TaggedErrorClass<InterpreterError>()(
+  "@smthrs/flow/InterpreterError",
+  {
+    code: Schema.Literals([
+      "incomplete_graph",
+      "unresolved_activity",
+      "unresolved_reference",
+      "unsupported_call",
+      "missing_operation"
+    ]),
+    flow: Schema.String,
+    node: Schema.String,
+    message: Schema.String
+  }
+) {}
+
+/**
+ * What one interpretation produced: the root's value, every node that settled
+ * with the value it settled with, and the nodes the run never reached because
+ * a branch went the other way.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface Interpretation {
+  readonly value: unknown
+  readonly settled: ReadonlyMap<string, unknown>
+  /** Typed failures observed before a catch recovered them. */
+  readonly failed: ReadonlyMap<string, unknown>
+  readonly skipped: ReadonlyArray<string>
+}
+
+/**
+ * The services a driven node needs: the runtime that executes an activity, and
+ * the execution it is part of.
+ *
+ * @private
+ */
+type Services = FlowRuntime | FlowInstance | Implementations
+
+/**
+ * Whether a value is a record to walk into. Everything a payload can carry
+ * here came out of the AST, which holds JSON and placeholders only, so an
+ * object that is not an array is a record.
+ *
+ * @private
+ */
+const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null
+
+/**
+ * The execution id a `.child()` boundary runs its child under.
+ *
+ * DECIDED (2026-08-11, pending review): the id is DERIVED from the parent
+ * execution and the child node's structural address, not minted. That is what
+ * makes a boundary at-most-once under replay, exactly as
+ * `docs/specs/Concepts/Trampoline Loops.md` requires of a round handoff: a
+ * parent that is re-driven re-derives the same id, so the engine lands on the
+ * child execution that already exists instead of starting a second copy of it.
+ * The canonical tuple includes the callee and a canonical payload digest, so
+ * delimiter splicing and a changed invocation cannot alias an earlier child.
+ * SHA-256 uses the same injected derivation services as the repository's
+ * other durable identities.
+ *
+ * @since 0.1.0
+ * @category constructors
+ */
+export const childExecutionId = (
+  parentExecutionId: string,
+  nodeId: string,
+  calleeTag: string,
+  payload: unknown
+): Effect.Effect<string, never, Crypto.Crypto> =>
+  Effect.gen(function*() {
+    const payloadDigest = yield* Schema.decodeUnknownEffect(Key)(payload).pipe(Effect.orDie)
+    const tupleDigest = yield* Schema.decodeUnknownEffect(Key)([
+      parentExecutionId,
+      nodeId,
+      calleeTag,
+      payloadDigest
+    ]).pipe(Effect.orDie)
+    return tupleDigest.slice("key1_".length)
+  })
+
+/**
+ * Interprets a flow body, or a bare node, against real values.
+ *
+ * The graph is built first and in full — planning is a pure function of the
+ * declarations and the payload, so the whole shape of the round is known before
+ * the first activity runs — and then driven.
+ *
+ * @since 0.1.0
+ * @category constructors
+ */
+export const interpret = (
+  flowOrNode: Parameters<typeof Graph.build>[0],
+  payload?: unknown,
+  options: Graph.BuildOptions = {}
+): Effect.Effect<Interpretation, unknown, Services> =>
+  Effect.gen(function*() {
+    const table = yield* Implementations
+    const name = "_tag" in flowOrNode ? flowOrNode._tag : "node"
+    const graph = Graph.build(flowOrNode, payload, options)
+    const refuse = (
+      code: InterpreterError["code"],
+      node: string,
+      message: string
+    ): Effect.Effect<never, InterpreterError> => Effect.fail(new InterpreterError({ code, flow: name, node, message }))
+
+    if (graph.diagnostics.length > 0) {
+      const first = graph.diagnostics[0]!
+      return yield* refuse(
+        "incomplete_graph",
+        first.node,
+        `Graph of "${name}" is missing topology and cannot be driven: ${first.message}`
+      )
+    }
+
+    const byId = new Map(Graph.nodes(graph).map((node) => [node.id, node] as const))
+    // Everything the walk needs that the built graph can be asked for before it
+    // runs, is asked for here — so neither refusal can surface halfway through a
+    // body with the activities ahead of it already committed.
+    //
+    // A reference out of the graph is the first: a round may be PLANNED against
+    // a node an earlier generation settled — `Plan.append` exists for exactly
+    // that — but one interpretation settles one graph, so there is nothing to
+    // read it from. A missing implementation is the second, and it is a wiring
+    // error rather than a run-time contingency: every activity the graph names
+    // is resolved up front, including the ones only an untaken branch arm would
+    // have reached, because the plan is the declared ceiling of what may run.
+    const implementations = new Map<string, Implementation>()
+    const handoffDeclarations = new Map<string, AnyFlow>()
+    const childDeclarations = new Map<string, AnyWithProps>()
+    for (const node of Graph.nodes(graph)) {
+      for (const dependency of KeyMaterial.dependencies(node.draft.material)) {
+        if (byId.has(dependency)) continue
+        return yield* refuse(
+          "unresolved_reference",
+          node.id,
+          `Node "${node.id}" reads "${dependency}", which this graph does not hold.`
+        )
+      }
+      if (node.ast._tag === "FlowCall" && node.ast.mode === "handoff") {
+        const declaration = Node.declaration(node.ast)
+        if (!Predicate.hasProperty(declaration, FlowTypeId)) {
+          return yield* refuse(
+            "unsupported_call",
+            node.id,
+            `Handoff to flow "${node.ast.flow}" at "${node.id}" lost its declaration. ` +
+              "Build and interpret the authored node in the same process so its payload can be encoded."
+          )
+        }
+        handoffDeclarations.set(node.id, declaration as unknown as AnyFlow)
+        continue
+      }
+      if (node.ast._tag === "FlowCall" && node.ast.mode === "boundary") {
+        // A boundary is one node here and a real execution underneath, so what
+        // it needs resolved up front is the callee itself: the declaration is
+        // what `execute` is called on, and losing it is a wiring error rather
+        // than a run-time contingency, exactly like an unimplemented activity.
+        const declaration = Node.declaration(node.ast)
+        if (!Predicate.hasProperty(declaration, FlowTypeId)) {
+          return yield* refuse(
+            "unsupported_call",
+            node.id,
+            `Child boundary to flow "${node.ast.flow}" at "${node.id}" lost its declaration. ` +
+              "Build and interpret the authored node in the same process so the child can be executed."
+          )
+        }
+        childDeclarations.set(node.id, declaration as unknown as AnyWithProps)
+        continue
+      }
+      if (node.ast._tag !== "ActivityCall") continue
+      const implementation = yield* table.get(node.ast.activity)
+      if (Option.isNone(implementation)) {
+        return yield* refuse(
+          "unresolved_activity",
+          node.id,
+          `Activity "${node.ast.activity}" has no implementation. ` +
+            `Provide ONE Activity.layerImplementations under both ${node.ast.activity}.toLayer(execute) and ` +
+            "this interpreter layer: an implementation files itself with the table that is in scope " +
+            "while IT is built, so a table merged beside it, or a second one built above it, is not the " +
+            "table this driver reads."
+        )
+      }
+      implementations.set(node.ast.activity, implementation.value)
+    }
+    // The children a node settles with, in the order graph building recorded
+    // them: `first` then the arms of a branch, `first` then the continuation of
+    // a sequence, the members of a combination, the spliced body of an inline
+    // call. Payload references are NOT here — they are named by the key
+    // material, and settled from it.
+    const sources = new Map<string, Array<string>>()
+    for (const edge of Graph.edges(graph)) {
+      if (edge.reason !== "value") continue
+      sources.set(edge.to, [...sources.get(edge.to) ?? [], edge.from])
+    }
+
+    const settled = new Map<string, unknown>()
+    const failed = new Map<string, unknown>()
+
+    /** Projects a settled value along the property path a `Ref` recorded. */
+    const project = (value: unknown, path: ReadonlyArray<string>): unknown =>
+      path.reduce<unknown>((current, key) => (current as Record<string, unknown>)[key], value)
+
+    /**
+     * Replaces every placeholder in a hydrated payload with what it stands for.
+     *
+     * The record is rebuilt with a null prototype and `defineProperty`, for the
+     * reason {@link module:Graph.build}'s cloners are: `output[key] = …` on an
+     * object literal routes `__proto__` through `Object.prototype`'s accessor,
+     * which drops an own `__proto__` field carrying a primitive and reparents
+     * the clone when it carries an object. A graph hydrates that field as data,
+     * so the value handed to an activity has to keep it as data too.
+     */
+    const resolve = (value: unknown): unknown => {
+      const reference = Planned.reference(value)
+      if (reference !== undefined) {
+        return project(
+          settled.has(reference.node) ? settled.get(reference.node) : failed.get(reference.node),
+          reference.path
+        )
+      }
+      if (Array.isArray(value)) return value.map((item) => resolve(item))
+      if (!isRecord(value)) return value
+      const output: Record<string, unknown> = Object.create(null) as Record<string, unknown>
+      for (const key of Object.keys(value)) {
+        Object.defineProperty(output, key, {
+          configurable: true,
+          enumerable: true,
+          value: resolve(value[key]),
+          writable: true
+        })
+      }
+      return output
+    }
+
+    // Untraced because the walk re-enters itself once per node.
+    const settle: (id: string) => Effect.Effect<unknown, unknown, Services> = Effect.fnUntraced(
+      function*(id: string) {
+        if (settled.has(id)) return settled.get(id)
+        const value = yield* compute(byId.get(id)!).pipe(Effect.catch((error) => {
+          failed.set(id, error)
+          return Effect.fail(error)
+        }))
+        settled.set(id, value)
+        return value
+      }
+    )
+
+    const compute: (node: Graph.GraphNode) => Effect.Effect<unknown, unknown, Services> = Effect.fnUntraced(
+      function*(node: Graph.GraphNode) {
+        const children = sources.get(node.id) ?? []
+        const ast = node.ast
+        if (ast._tag === "Branch") {
+          // The predicate decides on the REAL value, and only the arm it chose
+          // is settled. Both arms are still in the plan; the untaken one is
+          // reported as skipped.
+          const decide = Node.predicate(ast)
+          if (decide === undefined) {
+            return yield* refuse("missing_operation", node.id, `Branch at "${node.id}" lost its predicate.`)
+          }
+          const subject = yield* settle(children[0]!)
+          return yield* settle(decide(subject) ? children[1]! : children[2]!)
+        }
+        if (ast._tag === "Catch") {
+          // DECIDED (2026-08-11, pending review): catch observes only typed
+          // failures from ordinary protected execution. Effect defects and
+          // compensation failures remain outside this interpreter's error
+          // channel, so recovery cannot conceal a broken invariant or weaken
+          // withRollback's compensation guarantees.
+          const protectedId = children[0]!
+          return yield* Effect.matchEffect(settle(protectedId), {
+            onFailure: (error) => {
+              const filter = Node.catchFilter(ast)
+              if (ast.filter !== undefined && filter === undefined) {
+                return refuse("missing_operation", node.id, `Catch at "${node.id}" lost its schema filter.`)
+              }
+              if (filter !== undefined && !Schema.is(filter)(error)) {
+                return Effect.fail(error)
+              }
+              // The failure arm's planned subject resolves through the
+              // protected node id. Filing the typed failure as that settlement
+              // also prevents its static failure edge from re-running the
+              // protected graph while the recovery arm is driven.
+              failed.set(protectedId, error)
+              return settle(children[1]!)
+            },
+            onSuccess: Effect.succeed
+          })
+        }
+        // Dependency order, from the key material: the same `Ref` and `Pending`
+        // inputs the plan turns into edges, settled before the node that reads
+        // them.
+        for (const dependency of KeyMaterial.dependencies(node.draft.material)) {
+          if (!failed.has(dependency)) yield* settle(dependency)
+        }
+        switch (ast._tag) {
+          case "ActivityCall":
+            // Resolved by the pre-pass above, which refuses the whole graph
+            // when an activity it names has no implementation.
+            return yield* implementations.get(ast.activity)!.activity(resolve(node.payload))
+          case "Succeed":
+            return resolve(node.payload)
+          case "Map": {
+            const transform = Node.mapper(ast)
+            if (transform === undefined) {
+              return yield* refuse("missing_operation", node.id, `Map at "${node.id}" lost its mapper.`)
+            }
+            return transform(yield* settle(children[0]!))
+          }
+          case "All": {
+            const joined: Record<string, unknown> = {}
+            const members = Object.keys(ast.nodes)
+            for (let index = 0; index < members.length; index++) {
+              joined[members[index]!] = yield* settle(children[index]!)
+            }
+            return joined
+          }
+          case "AndThen":
+            return yield* settle(children[1]!)
+          case "FlowCall": {
+            if (ast.mode === "handoff") {
+              const declaration = handoffDeclarations.get(node.id)!
+              // DECIDED (2026-08-11, pending review): a handoff target's schema
+              // services come from the context registration captured. A
+              // body's type cannot enumerate declarations hidden in its
+              // topology, so erase only that dynamic service parameter after
+              // resolving the concrete declaration here.
+              const payload = yield* Effect.flatMap(
+                Effect.orDie(declaration.payloadSchema.makeEffect(resolve(node.payload) as never)),
+                (decoded) =>
+                  Effect.orDie(
+                    Schema.encodeEffect(Schema.toCodecJson(declaration.payloadSchema))(decoded)
+                  )
+              ) as unknown as Effect.Effect<unknown, never, Services>
+              return {
+                _tag: "To",
+                flow: ast.flow,
+                payload
+              } satisfies Outcome.To<unknown>
+            }
+            if (ast.mode === "boundary") {
+              // The real boundary of `docs/specs/Concepts/Subflows.md`: an
+              // ordinary child execution, opened through the same `execute` a
+              // handler would call. The parent's `FlowInstance` is in scope, so
+              // the engine records the lineage edge, interrupts the child with
+              // the parent, and turns a suspended child into a suspended
+              // parent — genuine nesting, not a spliced imitation of it. It is
+              // deliberately NOT `Effect.scoped`: the interrupt link the engine
+              // installs is a finalizer of the PARENT's scope, and closing a
+              // scope of our own here would run it the moment the child
+              // settled. The same dynamic schema-service erasure the handoff
+              // above records applies to the cast: a body's type cannot
+              // enumerate the declarations hidden in its topology.
+              const declaration = childDeclarations.get(node.id)!
+              const instance = yield* FlowInstance
+              const childPayload = resolve(node.payload)
+              const executionId = yield* (childExecutionId(
+                instance.executionId,
+                node.id,
+                declaration._tag,
+                childPayload
+              ) as unknown as Effect.Effect<string, never, Services>)
+              return yield* (declaration.execute(childPayload, {
+                executionId
+              }) as Effect.Effect<unknown, unknown, Services>)
+            }
+            const spliced = children[0]
+            if (spliced === undefined) {
+              return yield* refuse(
+                "unsupported_call",
+                node.id,
+                `Flow "${ast.flow}" is called at "${node.id}" as a leaf, which this interpreter does not drive. ` +
+                  "An inline .call() is spliced into the graph with the callee's body and driven with it, and " +
+                  "only a call that lost its declaration has no body to splice. Build and interpret the authored " +
+                  `node in the same process, or call it as ${ast.flow}.child(payload) to run it as its own execution.`
+              )
+            }
+            return yield* settle(spliced)
+          }
+        }
+      }
+    )
+
+    const value = yield* settle(options.root ?? "root")
+    return {
+      value,
+      settled,
+      failed,
+      skipped: Graph.nodes(graph).filter((node) => !settled.has(node.id) && !failed.has(node.id)).map((node) => node.id)
+    }
+  })
+
+/**
+ * Turns a body's root value into the settlement the engine acts on.
+ *
+ * Three of them exist, and only three (`docs/specs/Concepts/Trampoline
+ * Loops.md`): `done(value)` is the answer, so the value passes straight
+ * through; `Next.to(payload)` is the next round, recorded in the instance's
+ * handoff slot so `Flow.intoResult` answers `Flow.Handoff`; and `park(reason)`
+ * is a durable suspension, declared through the ordinary waiting vocabulary so
+ * a durable driver parks the run under the flow's own reason and wake token
+ * rather than the derived `timer`/`event` default. Anything else is an ordinary
+ * value and is the answer as it stands, which is what keeps a body that never
+ * heard of the trampoline working unchanged.
+ *
+ * @private
+ */
+const settle = (value: unknown): Effect.Effect<unknown, never, FlowInstance> => {
+  if (!Outcome.isOutcome(value)) return Effect.succeed(value)
+  switch (value._tag) {
+    case "Done":
+      return Effect.succeed(value.value)
+    case "To":
+      return Effect.flatMap(
+        FlowInstance,
+        (instance) =>
+          Effect.sync(() => {
+            instance.handoff = new Handoff({ flow: value.flow, payload: value.payload })
+          })
+      )
+    case "Park":
+      return Effect.andThen(
+        annotateWaiting(value.reason),
+        Effect.flatMap(FlowInstance, suspend)
+      )
+  }
+}
+
+/**
+ * Registers a flow with the runtime, driven by its body.
+ *
+ * This is the only way a flow's behavior reaches the runtime, and the reason a
+ * flow has no `toLayer`: a flow has one behavior and it is the body, so there
+ * is no second, opaque one to attach. An Activity is what carries an
+ * implementation, and it attaches that implementation with its own `toLayer`.
+ * Compose this beside the activity implementation layers the body calls, over the
+ * {@link module:Implementations.layerImplementations} table they file
+ * themselves in — the table goes UNDER them, because filing happens while an
+ * implementation layer is built:
+ *
+ * ```ts
+ * Layer.mergeAll(Read.toLayer(read), Write.toLayer(write), Interpreter.layer(Pipeline)).pipe(
+ *   Layer.provideMerge(Activity.layerImplementations)
+ * )
+ * ```
+ *
+ * @since 0.1.0
+ * @category layers
+ */
+export const layer = <
+  Tag extends string,
+  Payload extends AnyStructSchema,
+  Success extends Schema.Top,
+  Error extends Schema.Top
+>(
+  flow: Flow<Tag, Payload, Success, Error>,
+  options: Graph.BuildOptions = {}
+): Layer.Layer<
+  never,
+  never,
+  | FlowRuntime
+  | Implementations
+  | Payload["DecodingServices"]
+  | Payload["EncodingServices"]
+  | Success["DecodingServices"]
+  | Success["EncodingServices"]
+  | Error["DecodingServices"]
+  | Error["EncodingServices"]
+> =>
+  Layer.effectDiscard(Effect.gen(function*() {
+    const runtime = yield* FlowRuntime
+    yield* runtime.register(
+      flow,
+      ((payload: Payload["Type"]) =>
+        Effect.flatMap(
+          interpret(flow, payload, options),
+          (interpretation) => settle(interpretation.value)
+        )) as (payload: Payload["Type"], executionId: string) => Effect.Effect<
+          Success["Type"],
+          Error["Type"],
+          Implementations
+        >
+    )
+  }))

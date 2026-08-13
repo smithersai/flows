@@ -83,6 +83,18 @@ export class FlowInstance extends Context.Service<
     waiting: WaitingAnnotation | undefined
 
     /**
+     * The next-round invocation this round settled with, when its body's root
+     * value was a `to` rather than a `done`.
+     *
+     * A handoff is a settlement, not a failure and not a suspension, so it
+     * cannot travel out through the effect's exit; `Flow.intoResult` reads the
+     * slot and answers `Flow.Handoff` instead of `Flow.Complete`. The engine
+     * then opens the next round under the same lineage
+     * (`docs/specs/Concepts/Trampoline Loops.md`).
+     */
+    handoff: Flow.Handoff | undefined
+
+    /**
      * When SuspendOnFailure is triggered, the cause of the failure is stored
      * here.
      */

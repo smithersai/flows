@@ -1,3 +1,4 @@
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
  * Pins issue #44: the parked-run cancel sweeper (the issue #27 delivery
  * mechanism) must survive a transient defect from `waitingRuns()` — e.g. a
@@ -7,6 +8,7 @@
  */
 import { DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
 import { Jj } from "@smthrs/kernel"
+import { Node } from "@smthrs/plan"
 import { Ownership, RunStore } from "@smthrs/run-store"
 import * as Clock from "effect/Clock"
 import * as Duration from "effect/Duration"
@@ -77,7 +79,8 @@ describe("the cancel sweeper survives transient defects (issue #44)", () => {
 
     const EventFlow = Flow.make("SweeperResilience/Cancel", {
       payload: {},
-      success: Schema.String
+      success: Schema.String,
+      body: opaqueHandlerBody
     })
     const gate = DurableDeferred.make("sweeper-resilience-gate", { success: Schema.String })
 
@@ -143,7 +146,8 @@ describe("the cancel sweeper survives transient defects (issue #44)", () => {
     // the sweeper for the process lifetime with the suite green.
     const EventFlow = Flow.make("SweeperResilience/WakeDefect", {
       payload: {},
-      success: Schema.String
+      success: Schema.String,
+      body: opaqueHandlerBody
     })
     const gate = DurableDeferred.make("sweeper-wake-defect-gate", { success: Schema.String })
 

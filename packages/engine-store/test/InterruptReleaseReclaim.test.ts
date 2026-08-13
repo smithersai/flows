@@ -1,3 +1,4 @@
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
  * Pins issue #39: a run released by a non-cancel interruption (process
  * shutdown, heartbeat self-interrupt) must remain reachable. The #26 release
@@ -9,6 +10,7 @@
  */
 import { Flow, FlowRuntime } from "@smthrs/flow"
 import type { Journal } from "@smthrs/journal"
+import { Node } from "@smthrs/plan"
 import { Ownership, RunStore } from "@smthrs/run-store"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
@@ -26,7 +28,8 @@ import { runPromise } from "./Sha256.ts"
 
 const TestFlow = Flow.make("InterruptReleaseReclaim/Test", {
   payload: {},
-  success: Schema.String
+  success: Schema.String,
+  body: opaqueHandlerBody
 })
 
 const fakeEngine = {} as unknown as FlowRuntime.FlowRuntime["Service"]

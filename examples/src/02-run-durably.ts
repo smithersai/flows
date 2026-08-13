@@ -1,27 +1,47 @@
 /**
  * Run a flow on the durable engine and read the journal it wrote.
  *
- * The flow body is identical to the in-memory example. What changes is the
- * engine underneath: `EngineStore` claims a run row, fences it with a
- * heartbeat, persists every activity attempt, and commits each lifecycle
- * event in the same transaction as the state transition it describes.
+ * The authoring model is the one example 01 introduces: `Bundle` is the
+ * declared atom the flow's `body` names, and `Compile` is the sealed activity
+ * that atom's implementation runs. What changes here is the engine underneath:
+ * `EngineStore` claims a run row, fences it with a heartbeat, persists every
+ * activity attempt, and commits each lifecycle event in the same transaction as
+ * the state transition it describes.
  */
-import { Activity, Flow } from "@smthrs/flow"
+import { Activity, Flow, Interpreter } from "@smthrs/flow"
 import { Journal, type JournalEvent } from "@smthrs/journal"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import { durableEngine } from "./durable-layer.ts"
 
-export const Build = Flow.make("examples/Build", {
+/**
+ * The declared atom the body names. Declaration and implementation are
+ * separate: this value is pure data and travels anywhere, and the layer below
+ * attaches the code on a host that can run it.
+ */
+export const Bundle = Activity.make("examples/Bundle", {
   payload: { target: Schema.String },
   success: Schema.String
+})
+
+export const Build = Flow.make("examples/Build", {
+  payload: { target: Schema.String },
+  success: Schema.String,
+  body: (payload) => Bundle.call(payload)
 })
 
 /**
  * A sealed activity with a cache key input. The identity is what makes the
  * recorded result addressable across runs; without it the activity would fall
  * back to a run-local invocation key.
+ *
+ * DECIDED (2026-08-11, pending review): the target stays OUT of this
+ * declaration and is stamped on by the caller. A sealed key is built from the
+ * activity name, its declared `idempotencyKey`, and its schemas — never from
+ * the payload — so moving `target` in here would make two targets share one
+ * cache row. Inputs that vary per call belong in the calling step, or in an
+ * `idempotencyKey` that names them.
  */
 export const Compile = Activity.make({
   name: "examples/Compile",
@@ -49,9 +69,13 @@ export const main = (filename: string): Effect.Effect<Summary> =>
     }
   }).pipe(
     Effect.provide(
-      Build.toLayer(({ target }) =>
-        Effect.map(Compile, (artifact) => `${artifact}?target=${target}`)
-      ).pipe(Layer.provideMerge(durableEngine(filename, "examples-worker")))
+      Layer.mergeAll(
+        Bundle.toLayer(({ target }) => Effect.map(Compile, (artifact) => `${artifact}?target=${target}`)),
+        Interpreter.layer(Build)
+      ).pipe(
+        Layer.provideMerge(Activity.layerImplementations),
+        Layer.provideMerge(durableEngine(filename, "examples-worker"))
+      )
     ),
     Effect.scoped,
     Effect.orDie

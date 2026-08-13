@@ -18,7 +18,7 @@
  * `Activity.CurrentCacheEnvironment`; with no declaration the engine scopes
  * the key to the execution that produced it, and the fork would re-execute.
  */
-import { Activity, Flow } from "@smthrs/flow"
+import { Activity, Flow, Interpreter } from "@smthrs/flow"
 import { EngineStore } from "@smthrs/engine-store"
 import { Journal } from "@smthrs/journal"
 import { SqlTimeTravelStore, TimeTravel } from "@smthrs/time-travel"
@@ -27,9 +27,24 @@ import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import { requirements } from "./durable-layer.ts"
 
+/**
+ * The sealed atom the fork replays instead of dispatching again.
+ *
+ * The declaration is pure data, so it is the same value in the parent's
+ * composition and the child's; the implementation is attached per composition
+ * below. That split is what lets both engines address one recorded result.
+ */
+export const Measure = Activity.make("examples/Measure", {
+  payload: {},
+  success: Schema.String,
+  tier: "sealed",
+  idempotencyKey: "examples/measure/v1"
+})
+
 export const Analyse = Flow.make("examples/Analyse", {
   payload: {},
-  success: Schema.String
+  success: Schema.String,
+  body: (payload) => Measure.call(payload)
 })
 
 export interface Summary {
@@ -74,18 +89,17 @@ export const main = (filename: string): Effect.Effect<Summary> =>
   Effect.gen(function*() {
     let dispatches = 0
 
-    const Measure = Activity.make({
-      name: "examples/Measure",
-      success: Schema.String,
-      tier: "sealed",
-      idempotencyKey: "examples/measure/v1",
-      execute: Effect.sync(() => {
+    const measured = Measure.toLayer(() =>
+      Effect.sync(() => {
         dispatches += 1
         return "42"
       })
-    })
+    )
 
-    const handler = () => Measure
+    /** The implementation and the body that names it, over one table. */
+    const analyseLayer = Layer.mergeAll(measured, Interpreter.layer(Analyse)).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
+    )
 
     const forked = yield* Effect.scoped(
       Effect.gen(function*() {
@@ -106,7 +120,7 @@ export const main = (filename: string): Effect.Effect<Summary> =>
         return { parentResult, forkRunId: fork.runId, parentEntryCount: page.entries.length }
       }).pipe(
         Effect.provide(
-          Analyse.toLayer(handler).pipe(Layer.provideMerge(timeTravelLayer(filename, "fork-parent")))
+          analyseLayer.pipe(Layer.provideMerge(timeTravelLayer(filename, "fork-parent")))
         )
       )
     )
@@ -114,7 +128,7 @@ export const main = (filename: string): Effect.Effect<Summary> =>
     // A fresh engine drives the fork. The copied attempt rows replay.
     const forkResult = yield* Effect.scoped(
       Analyse.execute({}, { executionId: forked.forkRunId }).pipe(
-        Effect.provide(Analyse.toLayer(handler).pipe(Layer.provideMerge(engineLayer(filename, "fork-child"))))
+        Effect.provide(analyseLayer.pipe(Layer.provideMerge(engineLayer(filename, "fork-child"))))
       )
     )
 

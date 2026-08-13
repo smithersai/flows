@@ -24,6 +24,7 @@
 import { dual } from "effect/Function"
 import type * as Pipeable from "effect/Pipeable"
 import * as Predicate from "effect/Predicate"
+import type * as Schema from "effect/Schema"
 import type * as Types from "effect/Types"
 import { GraphBuildError } from "./GraphBuildError.ts"
 import * as internal from "./internal/node.ts"
@@ -53,6 +54,16 @@ export type TypeId = "~flows/plan/Node"
  * @category models
  */
 export type Ast = internal.NodeAst
+
+/**
+ * The serializable stand-in an AST keeps for a plan-time function: a digest of
+ * its normalized source, hashed in place of a closure that could not be
+ * shipped, stored, or compared.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export type FunctionIdentity = Extract<Ast, { readonly _tag: "Map" }>["mapper"]
 
 /**
  * A pure graph-building value, covariant in what it will succeed and fail
@@ -104,6 +115,24 @@ export type Error<N> = N extends Node<infer _A, infer E> ? E : never
  */
 export const branchSubject = "branch/subject"
 
+/** @private */
+let branchOrdinal = 0
+
+/**
+ * The prefix of the node reference a catch failure arm's symbolic error
+ * carries. Each {@link catch_} mints its own token under this prefix, so an
+ * outer error captured inside a nested failure arm keeps naming the outer
+ * catch, and graph building rewrites each token to the node that catch
+ * protects.
+ *
+ * @since 0.1.0
+ * @category constants
+ */
+export const catchSubject = "catch/subject"
+
+/** @private */
+let catchOrdinal = 0
+
 /**
  * The two arms of a decision plus the predicate that chooses between them.
  *
@@ -118,6 +147,18 @@ export interface BranchOptions<A, B1, E1, B2, E2> {
   readonly if: (value: A) => boolean
   readonly then: (value: Planned.Planned<A>) => Node<B1, E1>
   readonly else: (value: Planned.Planned<A>) => Node<B2, E2>
+}
+
+/**
+ * The statically planned recovery arm and optional schema selecting which
+ * typed failures it handles.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export interface CatchOptions<E, B, E2, Handled = E> {
+  readonly error?: Schema.Schema<Handled> | undefined
+  readonly onFailure: (error: Planned.Planned<Handled>) => Node<B, E2>
 }
 
 /**
@@ -278,9 +319,11 @@ export const branch: {
     self: Node<A, E>,
     options: BranchOptions<A, B1, E1, B2, E2>
   ): Node<B1 | B2, E | E1 | E2> => {
-    const subject = Planned.make<A>(branchSubject)
+    const subjectToken = `${branchSubject}/${branchOrdinal++}`
+    const subject = Planned.make<A>(subjectToken)
     return internal.makeNode<B1 | B2, E | E1 | E2>(
       internal.branch(
+        subjectToken,
         self.ast,
         (value) => options.if(value as A),
         options.if,
@@ -292,6 +335,62 @@ export const branch: {
 )
 
 /**
+ * Recovers from matching typed failures with static failure topology.
+ *
+ * The protected graph and failure arm are both stored in the AST. The arm is
+ * built once at plan time against a strict planned error placeholder. With no
+ * schema the whole typed error channel is handled; a schema handles only the
+ * values it accepts and preserves the remainder in the resulting error type.
+ *
+ * @since 0.1.0
+ * @category sequencing
+ */
+const catch_: {
+  <Handled, B, E2>(
+    options: CatchOptions<unknown, B, E2, Handled> & {
+      readonly error: Schema.Schema<Handled>
+    }
+  ): <A, E>(self: Node<A, E>) => Node<A | B, Exclude<E, Handled> | E2>
+  <E, B, E2>(
+    options: CatchOptions<E, B, E2> & {
+      readonly error?: undefined
+    }
+  ): <A>(self: Node<A, E>) => Node<A | B, E2>
+  <A, E, Handled, B, E2>(
+    self: Node<A, E>,
+    options: CatchOptions<E, B, E2, Handled> & {
+      readonly error: Schema.Schema<Handled>
+    }
+  ): Node<A | B, Exclude<E, Handled> | E2>
+  <A, E, B, E2>(
+    self: Node<A, E>,
+    options: CatchOptions<E, B, E2> & {
+      readonly error?: undefined
+    }
+  ): Node<A | B, E2>
+} = dual(
+  2,
+  <A, E, Handled, B, E2>(
+    self: Node<A, E>,
+    options: CatchOptions<E, B, E2, Handled>
+  ): Node<A | B, Exclude<E, Handled> | E2> => {
+    const subjectToken = `${catchSubject}/${catchOrdinal++}`
+    const failure = options.onFailure(Planned.make<Handled>(subjectToken))
+    if (!isNode(failure)) {
+      throw new GraphBuildError({
+        code: "invalid_continuation",
+        node: catchSubject,
+        path: [],
+        message: "Node.catch expected its failure arm to return a Node"
+      })
+    }
+    return internal.makeNode(internal.catch_(subjectToken, self.ast, failure.ast, options.error))
+  }
+)
+
+export { catch_ as catch }
+
+/**
  * Constructs the flow-call node used by `@smthrs/flow` without making flow
  * calls part of the public authoring surface of this package.
  *
@@ -301,7 +400,7 @@ export const branch: {
 export const flowCall = <A = unknown, E = never>(
   declaration: unknown,
   flow: string,
-  mode: "inline" | "boundary",
+  mode: "inline" | "boundary" | "handoff",
   payload: unknown
 ): Node<A, E> => internal.makeNode<A, E>(internal.flowCall(declaration, flow, mode, payload))
 
@@ -317,3 +416,72 @@ export const activityCall = <A = unknown, E = never>(
   activity: string,
   payload: unknown
 ): Node<A, E> => internal.makeNode<A, E>(internal.activityCall(declaration, activity, payload))
+
+/**
+ * Reads the flow or activity declaration a call node names, so `@smthrs/flow`
+ * can expand a call it recorded. It is `undefined` for an AST that was
+ * rehydrated from JSON, because the declaration lives beside the AST rather
+ * than inside it — a graph built from such an AST keeps the call as a leaf.
+ *
+ * @since 0.1.0
+ * @private
+ */
+export const declaration = (
+  ast: Extract<Ast, { readonly _tag: "ActivityCall" | "FlowCall" }>
+): unknown => internal.declaration(ast)
+
+/**
+ * Reads the continuation builder of a sequenced node, which graph building
+ * evaluates once against a placeholder. It is `undefined` when the author
+ * supplied a node directly — the topology is already in `next` — and for a
+ * rehydrated AST, whose side table did not survive serialization.
+ *
+ * @since 0.1.0
+ * @private
+ */
+export const continuation = (
+  ast: Extract<Ast, { readonly _tag: "AndThen" }>
+): ((value: Planned.Planned<unknown>) => unknown) | undefined => internal.operation(ast)
+
+/**
+ * Reads the deferred mapper of a {@link map} node, which a driver applies to
+ * the real upstream value once it has one. It is `undefined` for every other
+ * variant, and for a rehydrated AST whose side table did not survive
+ * serialization.
+ *
+ * @since 0.1.0
+ * @private
+ */
+export const mapper = (ast: Ast): ((value: unknown) => unknown) | undefined =>
+  ast._tag === "Map" ? internal.operation(ast) : undefined
+
+/**
+ * Reads the run-time predicate of a {@link branch} node, which a driver
+ * evaluates on the real subject value to choose an arm. It is `undefined` for
+ * every other variant, and for a rehydrated AST whose side table did not
+ * survive serialization.
+ *
+ * @since 0.1.0
+ * @private
+ */
+export const predicate = (ast: Ast): ((value: unknown) => boolean) | undefined =>
+  ast._tag === "Branch" ? internal.predicate(ast) : undefined
+
+/**
+ * Reads the optional schema selecting failures handled by a {@link catch_}.
+ *
+ * @since 0.1.0
+ * @private
+ */
+export const catchFilter = (ast: Ast): Schema.Top | undefined => ast._tag === "Catch" ? internal.filter(ast) : undefined
+
+/**
+ * Digests a plan-time function the AST does NOT store — a flow's `body` —
+ * exactly as the AST digests the mapper and the continuation it does store.
+ * A call that keeps its callee as a leaf still has to re-key when that
+ * callee's body is edited, and this is the identity it folds in.
+ *
+ * @since 0.1.0
+ * @private
+ */
+export const functionIdentity = (operation: unknown): FunctionIdentity => internal.functionIdentity(operation)

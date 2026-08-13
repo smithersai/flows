@@ -1,3 +1,4 @@
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
  * Pins issue #11: a durably recorded cancellation request
  * (`RunStore.requestCancel` / `cancel_requested_at_ms`) must be observed by
@@ -6,6 +7,7 @@
  */
 import { Flow, FlowRuntime } from "@smthrs/flow"
 import { Journal } from "@smthrs/journal"
+import { Node } from "@smthrs/plan"
 import { Ownership, RunStore } from "@smthrs/run-store"
 import * as Clock from "effect/Clock"
 import * as Duration from "effect/Duration"
@@ -23,7 +25,8 @@ import { runPromise } from "./Sha256.ts"
 
 const TestFlow = Flow.make("DurableCancel/Test", {
   payload: {},
-  success: Schema.String
+  success: Schema.String,
+  body: opaqueHandlerBody
 })
 
 const ownerA: Ownership.OwnerId = {

@@ -11,7 +11,7 @@ import type * as Crypto from "effect/Crypto"
  * through `StepIdentity.invocationKey`, which preserves the typed error for the
  * impossible invariant violation instead of discarding it.
  */
-import { Activity, Flow } from "@smthrs/flow"
+import { Activity, Flow, Interpreter } from "@smthrs/flow"
 import * as StepIdentity from "@smthrs/flow/StepIdentity"
 import { Cause, Effect, Exit, Layer, Schema } from "effect"
 import { describe, expect, it } from "vitest"
@@ -41,11 +41,18 @@ const runRejected = (tier: "sealed" | "compensable", body: unknown) => {
       return 1
     })
   })
-  const flow = Flow.make(`Uncanonical/${tier}-flow`, {
+  const flowActivityDeclaration = Activity.make(`Uncanonical/${tier}-flow` + "/activity", {
     payload: { id: Schema.String },
     success: Schema.Number
   })
-  const layer = flow.toLayer(() => activity).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+  const flow = Flow.make(`Uncanonical/${tier}-flow`, {
+    payload: { id: Schema.String },
+    success: Schema.Number,
+    body: (payload) => flowActivityDeclaration.call(payload)
+  })
+  const layer = Layer.mergeAll(flowActivityDeclaration.toLayer(() => activity), Interpreter.layer(flow)).pipe(
+    Layer.provideMerge(Activity.layerImplementations)
+  ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
   return Effect.gen(function*() {
     const exit = yield* flow.execute({ id: "x" }, { executionId: `run-${tier}` }).pipe(Effect.exit)
     return { exit, executions }

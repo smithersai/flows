@@ -1,7 +1,8 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, DurableDeferred, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow"
-import { Cause, Effect, Exit, Fiber, Layer, Option, Schema } from "effect"
+import { Activity, DurableDeferred, Flow, FlowRuntime, Interpreter, RetryPolicy } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
+import { Cause, Deferred, Effect, Exit, Fiber, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
@@ -71,11 +72,21 @@ describe("boundary descriptor identity", () => {
         metadata: metadata as any,
         execute: Effect.sync(() => ++executions)
       })
-      const flow = Flow.make("Gaps/boundary-malformed", {
+      const flowActivityDeclaration = Activity.make("Gaps/boundary-malformed/activity", {
         payload: { id: Schema.String },
         success: Schema.Number
       })
-      const layer = flow.toLayer(() => Effect.andThen(plain, junk)).pipe(
+      const flow = Flow.make("Gaps/boundary-malformed", {
+        payload: { id: Schema.String },
+        success: Schema.Number,
+        body: (payload) => flowActivityDeclaration.call(payload)
+      })
+      const layer = Layer.mergeAll(
+        flowActivityDeclaration.toLayer(() => Effect.andThen(plain, junk)),
+        Interpreter.layer(flow)
+      ).pipe(
+        Layer.provideMerge(Activity.layerImplementations)
+      ).pipe(
         Layer.provideMerge(FlowEngine.layerMemory)
       )
       return Effect.gen(function*() {
@@ -95,16 +106,26 @@ describe("boundary descriptor identity", () => {
         metadata: { readSet: [], writeSet: [], boundaryMode },
         execute: Effect.sync(() => ++executions)
       })
-    const flow = Flow.make("Gaps/boundary-modes", {
+    const flowActivityDeclaration = Activity.make("Gaps/boundary-modes/activity", {
       payload: { id: Schema.String },
       success: Schema.Number
     })
-    const layer = flow.toLayer(() =>
-      Effect.gen(function*() {
-        yield* build("hard")
-        yield* build("expected")
-        return yield* build("hard")
-      })
+    const flow = Flow.make("Gaps/boundary-modes", {
+      payload: { id: Schema.String },
+      success: Schema.Number,
+      body: (payload) => flowActivityDeclaration.call(payload)
+    })
+    const layer = Layer.mergeAll(
+      flowActivityDeclaration.toLayer(() =>
+        Effect.gen(function*() {
+          yield* build("hard")
+          yield* build("expected")
+          return yield* build("hard")
+        })
+      ),
+      Interpreter.layer(flow)
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
     return Effect.gen(function*() {
       // "hard" replays its own earlier result; "expected" is a distinct key
@@ -127,11 +148,21 @@ describe("boundary descriptor identity", () => {
         },
         execute: Effect.sync(() => ++executions)
       })
-    const flow = Flow.make("Gaps/unsealed-boundary", {
+    const flowActivityDeclaration = Activity.make("Gaps/unsealed-boundary/activity", {
       payload: { id: Schema.String },
       success: Schema.Number
     })
-    const layer = flow.toLayer(() => Effect.andThen(build("d1"), build("d1"))).pipe(
+    const flow = Flow.make("Gaps/unsealed-boundary", {
+      payload: { id: Schema.String },
+      success: Schema.Number,
+      body: (payload) => flowActivityDeclaration.call(payload)
+    })
+    const layer = Layer.mergeAll(
+      flowActivityDeclaration.toLayer(() => Effect.andThen(build("d1"), build("d1"))),
+      Interpreter.layer(flow)
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
+    ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
     return Effect.gen(function*() {
@@ -143,20 +174,77 @@ describe("boundary descriptor identity", () => {
 })
 
 describe("annotateWaiting", () => {
+  effect("does not let a finishing sibling dispatch clobber a newer waiting declaration", () =>
+    Effect.gen(function*() {
+      const entered = yield* Deferred.make<void>()
+      const release = yield* Deferred.make<void>()
+      const slow = Activity.make({
+        name: "gaps-waiting-slow",
+        success: Schema.Void,
+        execute: Effect.gen(function*() {
+          yield* Deferred.succeed(entered, undefined)
+          yield* Deferred.await(release)
+        })
+      })
+      const parked = Activity.make({
+        name: "gaps-waiting-parked",
+        success: Schema.Void,
+        execute: FlowRuntime.annotateWaiting({ reason: "approval", token: "winner" })
+      })
+      const declaration = Activity.make("Gaps/waiting-race/activity", { payload: {}, success: Schema.Any })
+      const flow = Flow.make("Gaps/waiting-race", {
+        payload: {},
+        success: Schema.Any,
+        body: () => declaration.call({})
+      })
+      const layer = Layer.mergeAll(
+        declaration.toLayer(() =>
+          Effect.gen(function*() {
+            const instance = yield* FlowRuntime.FlowInstance
+            const slowFiber = yield* slow.pipe(Effect.forkChild)
+            yield* Deferred.await(entered)
+            yield* parked
+            yield* Deferred.succeed(release, undefined)
+            yield* Fiber.join(slowFiber)
+            return instance.waiting
+          })
+        ),
+        Interpreter.layer(flow)
+      ).pipe(
+        Layer.provideMerge(Activity.layerImplementations),
+        Layer.provideMerge(FlowEngine.layerMemory)
+      )
+
+      expect(yield* flow.execute({}, { executionId: "waiting-race" }).pipe(Effect.provide(layer))).toEqual({
+        reason: "approval",
+        token: "winner"
+      })
+    }))
+
   effect("records the declared waiting classification on the running instance", () => {
-    const flow = Flow.make("Gaps/waiting", {
+    const flowActivityDeclaration = Activity.make("Gaps/waiting/activity", {
       payload: { id: Schema.String },
       success: Schema.Any
     })
-    const layer = flow.toLayer(() =>
-      Effect.gen(function*() {
-        const instance = yield* FlowRuntime.FlowInstance
-        const before = instance.waiting
-        yield* FlowRuntime.annotateWaiting({ reason: "approval", token: "req-1", wakeAt: 42 })
-        const during = instance.waiting
-        yield* FlowRuntime.annotateWaiting(undefined)
-        return { before, during, after: instance.waiting }
-      })
+    const flow = Flow.make("Gaps/waiting", {
+      payload: { id: Schema.String },
+      success: Schema.Any,
+      body: (payload) => flowActivityDeclaration.call(payload)
+    })
+    const layer = Layer.mergeAll(
+      flowActivityDeclaration.toLayer(() =>
+        Effect.gen(function*() {
+          const instance = yield* FlowRuntime.FlowInstance
+          const before = instance.waiting
+          yield* FlowRuntime.annotateWaiting({ reason: "approval", token: "req-1", wakeAt: 42 })
+          const during = instance.waiting
+          yield* FlowRuntime.annotateWaiting(undefined)
+          return { before, during, after: instance.waiting }
+        })
+      ),
+      Interpreter.layer(flow)
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
     return Effect.gen(function*() {
       const result = yield* flow.execute({ id: "x" }, { executionId: "run-waiting" })
@@ -164,6 +252,59 @@ describe("annotateWaiting", () => {
       expect(result.during).toEqual({ reason: "approval", token: "req-1", wakeAt: 42 })
       // clearing the annotation returns the instance to the derived default
       expect(result.after).toBeUndefined()
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("threads a dispatch's own declaration back onto the flow's instance", () => {
+    // A dispatch runs under an instance of its own, so an implementation that
+    // declares how it waits — the shape `Sleep` and `WaitFor` ship — would have
+    // its declaration die with that instance unless the driver threads it. Both
+    // directions matter: the declaration travels out, and a body that annotated
+    // before dispatching is not clobbered by a dispatch that declares nothing.
+    const declaring = Activity.make({
+      name: "gaps-annotating",
+      success: Schema.String,
+      tier: "sealed",
+      idempotencyKey: "gaps-annotating-v1",
+      execute: Effect.as(
+        FlowRuntime.annotateWaiting({ reason: "approval", token: "req-2" }),
+        "declared"
+      )
+    })
+    const silent = Activity.make({
+      name: "gaps-silent",
+      success: Schema.String,
+      tier: "sealed",
+      idempotencyKey: "gaps-silent-v1",
+      execute: Effect.succeed("silent")
+    })
+    const flowActivityDeclaration = Activity.make("Gaps/waiting-activity/activity", {
+      payload: { id: Schema.String },
+      success: Schema.Any
+    })
+    const flow = Flow.make("Gaps/waiting-activity", {
+      payload: { id: Schema.String },
+      success: Schema.Any,
+      body: (payload) => flowActivityDeclaration.call(payload)
+    })
+    const layer = Layer.mergeAll(
+      flowActivityDeclaration.toLayer(() =>
+        Effect.gen(function*() {
+          const instance = yield* FlowRuntime.FlowInstance
+          yield* declaring
+          const declared = instance.waiting
+          yield* silent
+          return { declared, preserved: instance.waiting }
+        })
+      ),
+      Interpreter.layer(flow)
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
+    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+    return Effect.gen(function*() {
+      const result = yield* flow.execute({ id: "x" }, { executionId: "run-waiting-activity" })
+      expect(result.declared).toEqual({ reason: "approval", token: "req-2" })
+      expect(result.preserved).toEqual({ reason: "approval", token: "req-2" })
     }).pipe(Effect.provide(layer))
   })
 })
@@ -178,7 +319,8 @@ describe("suspended resume policy", () => {
         factor: 1,
         maxMs: 100,
         expirationMs: 150
-      })
+      }),
+      body: () => Node.succeed(undefined)
     })
     let executions = 0
     const scripted = FlowEngine.makeUnsafe({
@@ -217,6 +359,10 @@ describe("suspended resume policy", () => {
     const Gate = DurableDeferred.make("Gaps/never-resolved", {
       success: Schema.String
     })
+    const flowActivityDeclaration = Activity.make("Gaps/suspend-exhausted/activity", {
+      payload: { id: Schema.String },
+      success: Schema.String
+    })
     const flow = Flow.make("Gaps/suspend-exhausted", {
       payload: { id: Schema.String },
       success: Schema.String,
@@ -226,9 +372,15 @@ describe("suspended resume policy", () => {
         factor: 1,
         maxMs: 1,
         maxAttempts: 1
-      })
+      }),
+      body: (payload) => flowActivityDeclaration.call(payload)
     })
-    const layer = flow.toLayer(() => DurableDeferred.await(Gate)).pipe(
+    const layer = Layer.mergeAll(
+      flowActivityDeclaration.toLayer(() => DurableDeferred.await(Gate)),
+      Interpreter.layer(flow)
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
+    ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
     return Effect.gen(function*() {
@@ -242,12 +394,22 @@ describe("suspended resume policy", () => {
     const Gate = DurableDeferred.make("Gaps/late-resolved", {
       success: Schema.String
     })
+    const flowActivityDeclaration = Activity.make("Gaps/suspend-resumes/activity", {
+      payload: { id: Schema.String },
+      success: Schema.String
+    })
     const flow = Flow.make("Gaps/suspend-resumes", {
       payload: { id: Schema.String },
       success: Schema.String,
-      suspendedRetryPolicy: RetryPolicy.make({ initialMs: 1, factor: 1, maxMs: 1 })
+      suspendedRetryPolicy: RetryPolicy.make({ initialMs: 1, factor: 1, maxMs: 1 }),
+      body: (payload) => flowActivityDeclaration.call(payload)
     })
-    const layer = flow.toLayer(() => DurableDeferred.await(Gate)).pipe(
+    const layer = Layer.mergeAll(
+      flowActivityDeclaration.toLayer(() => DurableDeferred.await(Gate)),
+      Interpreter.layer(flow)
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
+    ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
     return Effect.gen(function*() {
@@ -280,7 +442,8 @@ describe("activity retry give-up reasons", () => {
     const flow = Flow.make("Gaps/durable-retry-origin", {
       payload: { id: Schema.String },
       success: Schema.Number,
-      error: Schema.String
+      error: Schema.String,
+      body: () => Node.succeed(undefined)
     })
     let requestedKey: string | undefined
     const scripted = FlowEngine.makeUnsafe({
@@ -334,12 +497,20 @@ describe("activity retry give-up reasons", () => {
         return Effect.fail("nope")
       })
     })
-    const flow = Flow.make("Gaps/exhausted-no-max", {
+    const flowActivityDeclaration = Activity.make("Gaps/exhausted-no-max/activity", {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String
     })
-    const layer = flow.toLayer(() => activity).pipe(
+    const flow = Flow.make("Gaps/exhausted-no-max", {
+      payload: { id: Schema.String },
+      success: Schema.Number,
+      error: Schema.String,
+      body: (payload) => flowActivityDeclaration.call(payload)
+    })
+    const layer = Layer.mergeAll(flowActivityDeclaration.toLayer(() => activity), Interpreter.layer(flow)).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
+    ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
     return Effect.gen(function*() {
@@ -377,12 +548,20 @@ describe("activity retry give-up reasons", () => {
         return Effect.fail(new Fatal({ message: "no retry" }))
       })
     })
-    const flow = Flow.make("Gaps/nonretryable", {
+    const flowActivityDeclaration = Activity.make("Gaps/nonretryable/activity", {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Fatal
     })
-    const layer = flow.toLayer(() => activity).pipe(
+    const flow = Flow.make("Gaps/nonretryable", {
+      payload: { id: Schema.String },
+      success: Schema.Number,
+      error: Fatal,
+      body: (payload) => flowActivityDeclaration.call(payload)
+    })
+    const layer = Layer.mergeAll(flowActivityDeclaration.toLayer(() => activity), Interpreter.layer(flow)).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
+    ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
     return Effect.gen(function*() {
@@ -396,11 +575,18 @@ describe("activity retry give-up reasons", () => {
 
 describe("memory engine lifecycle", () => {
   effect("interruptUnsafe on an unknown execution id is a no-op", () => {
-    const flow = Flow.make("Gaps/interrupt-unknown", {
+    const flowActivityDeclaration = Activity.make("Gaps/interrupt-unknown/activity", {
       payload: { id: Schema.String },
       success: Schema.Void
     })
-    const layer = flow.toLayer(() => Effect.void).pipe(
+    const flow = Flow.make("Gaps/interrupt-unknown", {
+      payload: { id: Schema.String },
+      success: Schema.Void,
+      body: (payload) => flowActivityDeclaration.call(payload)
+    })
+    const layer = Layer.mergeAll(flowActivityDeclaration.toLayer(() => Effect.void), Interpreter.layer(flow)).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
+    ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
     return Effect.gen(function*() {
@@ -412,13 +598,21 @@ describe("memory engine lifecycle", () => {
   })
 
   effect("polling a flow whose defect escaped capture surfaces the defect", () => {
-    const flow = Flow.make("Gaps/uncaptured-defect", {
+    const flowActivityDeclaration = Activity.make("Gaps/uncaptured-defect/activity", {
       payload: { id: Schema.String },
       success: Schema.Void
+    })
+    const flow = Flow.make("Gaps/uncaptured-defect", {
+      payload: { id: Schema.String },
+      success: Schema.Void,
+      body: (payload) => flowActivityDeclaration.call(payload)
     }).annotate(Flow.CaptureDefects, false)
-    const layer = flow.toLayer(() => Effect.die("boom")).pipe(
-      Layer.provideMerge(FlowEngine.layerMemory)
-    )
+    const layer = Layer.mergeAll(flowActivityDeclaration.toLayer(() => Effect.die("boom")), Interpreter.layer(flow))
+      .pipe(
+        Layer.provideMerge(Activity.layerImplementations)
+      ).pipe(
+        Layer.provideMerge(FlowEngine.layerMemory)
+      )
     return Effect.gen(function*() {
       yield* flow.execute({ id: "x" }, { executionId: "run-defect", discard: true }).pipe(Effect.exit)
       let polled = yield* flow.poll("run-defect").pipe(Effect.exit)
@@ -432,13 +626,21 @@ describe("memory engine lifecycle", () => {
   })
 
   effect("captures the same defect as a Complete failure exit by default", () => {
-    const flow = Flow.make("Gaps/captured-defect", {
+    const flowActivityDeclaration = Activity.make("Gaps/captured-defect/activity", {
       payload: { id: Schema.String },
       success: Schema.Void
     })
-    const layer = flow.toLayer(() => Effect.die("boom")).pipe(
-      Layer.provideMerge(FlowEngine.layerMemory)
-    )
+    const flow = Flow.make("Gaps/captured-defect", {
+      payload: { id: Schema.String },
+      success: Schema.Void,
+      body: (payload) => flowActivityDeclaration.call(payload)
+    })
+    const layer = Layer.mergeAll(flowActivityDeclaration.toLayer(() => Effect.die("boom")), Interpreter.layer(flow))
+      .pipe(
+        Layer.provideMerge(Activity.layerImplementations)
+      ).pipe(
+        Layer.provideMerge(FlowEngine.layerMemory)
+      )
     return Effect.gen(function*() {
       yield* flow.execute({ id: "x" }, { executionId: "run-captured", discard: true })
       let polled = yield* flow.poll("run-captured")

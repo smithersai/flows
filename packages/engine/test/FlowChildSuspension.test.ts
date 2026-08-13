@@ -1,6 +1,7 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, DurableDeferred, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow"
+import { Activity, DurableDeferred, Flow, FlowRuntime, Interpreter, RetryPolicy } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Effect, Exit, Fiber, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
@@ -40,11 +41,21 @@ describe("activity suspension", () => {
         return yield* DurableDeferred.await(Gate)
       })
     })
-    const flow = Flow.make("Child/activity-suspends", {
+    const flowActivityDeclaration = Activity.make("Child/activity-suspends/activity", {
       payload: { id: Schema.String },
       success: Schema.String
     })
-    const layer = flow.toLayer(() => Effect.map(gated, (value) => `got:${value}`)).pipe(
+    const flow = Flow.make("Child/activity-suspends", {
+      payload: { id: Schema.String },
+      success: Schema.String,
+      body: (payload) => flowActivityDeclaration.call(payload)
+    })
+    const layer = Layer.mergeAll(
+      flowActivityDeclaration.toLayer(() => Effect.map(gated, (value) => `got:${value}`)),
+      Interpreter.layer(flow)
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
+    ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
 
@@ -75,17 +86,37 @@ describe("activity suspension", () => {
 describe("child flow suspension and interruption", () => {
   effect("a suspended child suspends its parent until the child's gate opens", () => {
     const Gate = DurableDeferred.make("Child/child-gate", { success: Schema.Number })
+    const childActivityDeclaration = Activity.make("Child/gated-child/activity", {
+      payload: { n: Schema.Number },
+      success: Schema.Number
+    })
     const child = Flow.make("Child/gated-child", {
       payload: { n: Schema.Number },
+      success: Schema.Number,
+      body: (payload) => childActivityDeclaration.call(payload)
+    })
+    const parentActivityDeclaration = Activity.make("Child/waiting-parent/activity", {
+      payload: { id: Schema.String },
       success: Schema.Number
     })
     const parent = Flow.make("Child/waiting-parent", {
       payload: { id: Schema.String },
-      success: Schema.Number
+      success: Schema.Number,
+      body: (payload) => parentActivityDeclaration.call(payload)
     })
     const layer = Layer.mergeAll(
-      child.toLayer(() => DurableDeferred.await(Gate)),
-      parent.toLayer(() => Effect.map(child.execute({ n: 1 }, { executionId: "child-gated" }), (n) => n + 1))
+      Layer.mergeAll(childActivityDeclaration.toLayer(() => DurableDeferred.await(Gate)), Interpreter.layer(child))
+        .pipe(
+          Layer.provideMerge(Activity.layerImplementations)
+        ),
+      Layer.mergeAll(
+        parentActivityDeclaration.toLayer(() =>
+          Effect.map(child.execute({ n: 1 }, { executionId: "child-gated" }), (n) => n + 1)
+        ),
+        Interpreter.layer(parent)
+      ).pipe(
+        Layer.provideMerge(Activity.layerImplementations)
+      )
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
 
     return Effect.gen(function*() {
@@ -127,11 +158,13 @@ describe("child flow suspension and interruption", () => {
       const interruptCalls: Array<string> = []
       const child = Flow.make("Child/matrix-child", {
         payload: { n: Schema.Number },
-        success: Schema.Number
+        success: Schema.Number,
+        body: () => Node.succeed(undefined)
       })
       const parentFlow = Flow.make("Child/matrix-parent", {
         payload: { id: Schema.String },
-        success: Schema.Number
+        success: Schema.Number,
+        body: () => Node.succeed(undefined)
       })
       const scripted = FlowEngine.makeUnsafe({
         register: () => Effect.void,
@@ -174,21 +207,41 @@ describe("child flow suspension and interruption", () => {
 
   effect("a completed child is not interrupted when the parent is torn down", () => {
     const interrupted: Array<string> = []
+    const childActivityDeclaration = Activity.make("Child/quick-child/activity", {
+      payload: { n: Schema.Number },
+      success: Schema.Number
+    })
     const child = Flow.make("Child/quick-child", {
       payload: { n: Schema.Number },
+      success: Schema.Number,
+      body: (payload) => childActivityDeclaration.call(payload)
+    })
+    const parentActivityDeclaration = Activity.make("Child/quick-parent/activity", {
+      payload: { id: Schema.String },
       success: Schema.Number
     })
     const parent = Flow.make("Child/quick-parent", {
       payload: { id: Schema.String },
-      success: Schema.Number
+      success: Schema.Number,
+      body: (payload) => parentActivityDeclaration.call(payload)
     })
     const layer = Layer.mergeAll(
-      child.toLayer((payload) =>
-        Effect.succeed(payload.n).pipe(
-          Effect.onInterrupt(() => Effect.sync(() => void interrupted.push("child")))
-        )
+      Layer.mergeAll(
+        childActivityDeclaration.toLayer((payload) =>
+          Effect.succeed(payload.n).pipe(
+            Effect.onInterrupt(() => Effect.sync(() => void interrupted.push("child")))
+          )
+        ),
+        Interpreter.layer(child)
+      ).pipe(
+        Layer.provideMerge(Activity.layerImplementations)
       ),
-      parent.toLayer(() => child.execute({ n: 5 }, { executionId: "child-quick" }))
+      Layer.mergeAll(
+        parentActivityDeclaration.toLayer(() => child.execute({ n: 5 }, { executionId: "child-quick" })),
+        Interpreter.layer(parent)
+      ).pipe(
+        Layer.provideMerge(Activity.layerImplementations)
+      )
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
 
     return Effect.gen(function*() {
@@ -210,7 +263,8 @@ describe("resumeSignal", () => {
         initialMs: 3_600_000,
         factor: 1,
         maxMs: 3_600_000
-      })
+      }),
+      body: () => Node.succeed(undefined)
     })
     let executions = 0
     let signals = 0
@@ -245,7 +299,8 @@ describe("resumeSignal", () => {
     const flow = Flow.make("Signal/no-waker", {
       payload: { id: Schema.String },
       success: Schema.String,
-      suspendedRetryPolicy: RetryPolicy.make({ initialMs: 1, factor: 1, maxMs: 1 })
+      suspendedRetryPolicy: RetryPolicy.make({ initialMs: 1, factor: 1, maxMs: 1 }),
+      body: () => Node.succeed(undefined)
     })
     let executions = 0
     const scripted = FlowEngine.makeUnsafe({

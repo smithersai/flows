@@ -1,6 +1,6 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, DurableDeferred, Flow, FlowRuntime, RetryPolicy, StepIdentity } from "@smthrs/flow"
+import { Activity, DurableDeferred, Flow, FlowRuntime, Interpreter, RetryPolicy, StepIdentity } from "@smthrs/flow"
 import { Cause, Effect, Exit, Layer, Option, Result, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
@@ -62,12 +62,23 @@ describe("Activity.retry outside a flow", () => {
         })
       )
     )
-    const flow = Flow.make("Edge/retry-ordinal", {
+    const flowActivityDeclaration = Activity.make("Edge/retry-ordinal/activity", {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String
     })
-    const layer = flow.toLayer(() => Activity.retry(body, { times: 5 })).pipe(
+    const flow = Flow.make("Edge/retry-ordinal", {
+      payload: { id: Schema.String },
+      success: Schema.Number,
+      error: Schema.String,
+      body: (payload) => flowActivityDeclaration.call(payload)
+    })
+    const layer = Layer.mergeAll(
+      flowActivityDeclaration.toLayer(() => Activity.retry(body, { times: 5 })),
+      Interpreter.layer(flow)
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
+    ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
     return Effect.gen(function*() {
@@ -84,21 +95,32 @@ describe("DurableDeferred.into", () => {
       success: Schema.Number,
       error: Schema.String
     })
-    const flow = Flow.make("Edge/into-failure", {
+    const flowActivityDeclaration = Activity.make("Edge/into-failure/activity", {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String
     })
+    const flow = Flow.make("Edge/into-failure", {
+      payload: { id: Schema.String },
+      success: Schema.Number,
+      error: Schema.String,
+      body: (payload) => flowActivityDeclaration.call(payload)
+    })
     let bodyRuns = 0
-    const layer = flow.toLayer(() =>
-      Effect.gen(function*() {
-        bodyRuns++
-        // the second pass observes the persisted failure without re-running
-        return yield* DurableDeferred.into(
-          Effect.suspend(() => bodyRuns === 1 ? Effect.fail("into-boom") : Effect.succeed(99)),
-          Result_
-        )
-      })
+    const layer = Layer.mergeAll(
+      flowActivityDeclaration.toLayer(() =>
+        Effect.gen(function*() {
+          bodyRuns++
+          // the second pass observes the persisted failure without re-running
+          return yield* DurableDeferred.into(
+            Effect.suspend(() => bodyRuns === 1 ? Effect.fail("into-boom") : Effect.succeed(99)),
+            Result_
+          )
+        })
+      ),
+      Interpreter.layer(flow)
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
 
     return Effect.gen(function*() {
@@ -120,12 +142,23 @@ describe("DurableDeferred.into", () => {
       success: Schema.Number,
       error: Schema.String
     })
-    const flow = Flow.make("Edge/into-success", {
+    const flowActivityDeclaration = Activity.make("Edge/into-success/activity", {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String
     })
-    const layer = flow.toLayer(() => DurableDeferred.into(Effect.succeed(7), Result_)).pipe(
+    const flow = Flow.make("Edge/into-success", {
+      payload: { id: Schema.String },
+      success: Schema.Number,
+      error: Schema.String,
+      body: (payload) => flowActivityDeclaration.call(payload)
+    })
+    const layer = Layer.mergeAll(
+      flowActivityDeclaration.toLayer(() => DurableDeferred.into(Effect.succeed(7), Result_)),
+      Interpreter.layer(flow)
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
+    ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
     return Effect.gen(function*() {
@@ -157,12 +190,20 @@ describe("retry decisions on defects", () => {
         return Effect.die("kaboom")
       })
     })
-    const flow = Flow.make("Edge/dying", {
+    const flowActivityDeclaration = Activity.make("Edge/dying/activity", {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String
     })
-    const layer = flow.toLayer(() => activity).pipe(
+    const flow = Flow.make("Edge/dying", {
+      payload: { id: Schema.String },
+      success: Schema.Number,
+      error: Schema.String,
+      body: (payload) => flowActivityDeclaration.call(payload)
+    })
+    const layer = Layer.mergeAll(flowActivityDeclaration.toLayer(() => activity), Interpreter.layer(flow)).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
+    ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
     return Effect.gen(function*() {
@@ -185,12 +226,20 @@ describe("retry decisions on defects", () => {
         return Effect.fail("again")
       })
     })
-    const flow = Flow.make("Edge/failing", {
+    const flowActivityDeclaration = Activity.make("Edge/failing/activity", {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String
     })
-    const layer = flow.toLayer(() => activity).pipe(
+    const flow = Flow.make("Edge/failing", {
+      payload: { id: Schema.String },
+      success: Schema.Number,
+      error: Schema.String,
+      body: (payload) => flowActivityDeclaration.call(payload)
+    })
+    const layer = Layer.mergeAll(flowActivityDeclaration.toLayer(() => activity), Interpreter.layer(flow)).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
+    ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
     return Effect.gen(function*() {
@@ -219,17 +268,27 @@ describe("in-flight activity identity", () => {
         return executions
       })
     })
-    const flow = Flow.make("Edge/concurrent-keyed", {
+    const flowActivityDeclaration = Activity.make("Edge/concurrent-keyed/activity", {
       payload: { id: Schema.String },
       success: Schema.Number
     })
-    const layer = flow.toLayer(() =>
-      Effect.gen(function*() {
-        yield* Effect.all([keyed, keyed], { concurrency: "unbounded" })
-        const inFlight = executions
-        expect(inFlight).toBe(2)
-        return yield* keyed
-      })
+    const flow = Flow.make("Edge/concurrent-keyed", {
+      payload: { id: Schema.String },
+      success: Schema.Number,
+      body: (payload) => flowActivityDeclaration.call(payload)
+    })
+    const layer = Layer.mergeAll(
+      flowActivityDeclaration.toLayer(() =>
+        Effect.gen(function*() {
+          yield* Effect.all([keyed, keyed], { concurrency: "unbounded" })
+          const inFlight = executions
+          expect(inFlight).toBe(2)
+          return yield* keyed
+        })
+      ),
+      Interpreter.layer(flow)
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
     return Effect.gen(function*() {
       const replayed = yield* flow.execute({ id: "x" }, { executionId: "run-concurrent" })
@@ -262,16 +321,27 @@ describe("waitForZero", () => {
         return "slow"
       })
     })
-    const flow = Flow.make("Edge/wait-for-zero", {
+    const flowActivityDeclaration = Activity.make("Edge/wait-for-zero/activity", {
       payload: { id: Schema.String },
       success: Schema.String,
       error: Schema.String
+    })
+    const flow = Flow.make("Edge/wait-for-zero", {
+      payload: { id: Schema.String },
+      success: Schema.String,
+      error: Schema.String,
+      body: (payload) => flowActivityDeclaration.call(payload)
     }).annotate(Flow.SuspendOnFailure, true)
-    const layer = flow.toLayer(() =>
-      Effect.map(
-        Effect.all([failing, verySlow], { concurrency: "unbounded" }),
-        ([a, b]) => `${a}+${b}`
-      )
+    const layer = Layer.mergeAll(
+      flowActivityDeclaration.toLayer(() =>
+        Effect.map(
+          Effect.all([failing, verySlow], { concurrency: "unbounded" }),
+          ([a, b]) => `${a}+${b}`
+        )
+      ),
+      Interpreter.layer(flow)
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations)
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
 
     return Effect.gen(function*() {

@@ -1,3 +1,4 @@
+import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
  * Issue #112: the whole #102 same-key exclusion argument rests on one
  * admission mutex per store incarnation — `EngineStore.make` builds it once
@@ -18,6 +19,7 @@
  */
 import { Activity, Flow } from "@smthrs/flow"
 import { Jj } from "@smthrs/kernel"
+import { Node } from "@smthrs/plan"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
@@ -30,7 +32,8 @@ import { runPromise } from "./Sha256.ts"
 
 const AdmissionFlow = Flow.make("EngineStoreAdmission/Flow", {
   payload: {},
-  success: Schema.String
+  success: Schema.String,
+  body: opaqueHandlerBody
 })
 
 const jj = Jj.make({

@@ -1,12 +1,13 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, DurableClock, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow"
+import { Activity, DurableClock, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow"
+import { Node } from "@smthrs/plan"
 import { Duration, Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import { runPromise } from "./Crypto.ts"
-import { layerMemory, makeInstance } from "./MemoryFlowRuntime.ts"
+import { layerMemory, layerWired, makeInstance } from "./MemoryFlowRuntime.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
   it(name, () => runPromise(body().pipe(Effect.provide(TestClock.layer()))))
@@ -34,17 +35,25 @@ describe("DurableClock", () => {
     }))
 
   effect("a zero duration sleep returns without waiting on the clock", () => {
+    const Step = Activity.make("DurableClock/zero/step", {
+      payload: { id: Schema.String },
+      success: Schema.String
+    })
     const flow = Flow.make("DurableClock/zero", {
       payload: { id: Schema.String },
       success: Schema.String,
-      idempotencyKey: ({ id }) => id
+      idempotencyKey: ({ id }) => id,
+      body: (payload) => Step.call(payload)
     })
-    const layer = flow.toLayer(() =>
-      Effect.gen(function*() {
-        yield* DurableClock.sleep({ name: "zero", duration: 0 })
-        return "immediate"
-      })
-    ).pipe(Layer.provideMerge(layerMemory))
+    const layer = layerWired(Layer.mergeAll(
+      Step.toLayer(() =>
+        Effect.gen(function*() {
+          yield* DurableClock.sleep({ name: "zero", duration: 0 })
+          return "immediate"
+        })
+      ),
+      Interpreter.layer(flow)
+    ))
     return Effect.gen(function*() {
       // no TestClock.adjust: a zero sleep must not wait for time to pass
       expect(yield* flow.execute({ id: "z" }, { executionId: "zero" })).toBe("immediate")
@@ -52,17 +61,25 @@ describe("DurableClock", () => {
   })
 
   effect("sleeps at or below the in-memory threshold never suspend the flow", () => {
+    const Step = Activity.make("DurableClock/in-memory/step", {
+      payload: { id: Schema.String },
+      success: Schema.String
+    })
     const flow = Flow.make("DurableClock/in-memory", {
       payload: { id: Schema.String },
       success: Schema.String,
-      idempotencyKey: ({ id }) => id
+      idempotencyKey: ({ id }) => id,
+      body: (payload) => Step.call(payload)
     })
-    const layer = flow.toLayer(() =>
-      Effect.as(
-        DurableClock.sleep({ name: "short", duration: "1 second" }),
-        "slept"
-      )
-    ).pipe(Layer.provideMerge(layerMemory))
+    const layer = layerWired(Layer.mergeAll(
+      Step.toLayer(() =>
+        Effect.as(
+          DurableClock.sleep({ name: "short", duration: "1 second" }),
+          "slept"
+        )
+      ),
+      Interpreter.layer(flow)
+    ))
     return Effect.gen(function*() {
       const executionId = yield* flow.execute({ id: "s" }, { discard: true })
       const pending = yield* flow.poll(executionId)
@@ -79,21 +96,29 @@ describe("DurableClock", () => {
   })
 
   effect("the in-memory threshold boundary is inclusive and configurable", () => {
+    const Step = Activity.make("DurableClock/threshold/step", {
+      payload: { id: Schema.String },
+      success: Schema.String
+    })
     const flow = Flow.make("DurableClock/threshold", {
       payload: { id: Schema.String },
       success: Schema.String,
-      idempotencyKey: ({ id }) => id
+      idempotencyKey: ({ id }) => id,
+      body: (payload) => Step.call(payload)
     })
-    const layer = flow.toLayer(() =>
-      Effect.as(
-        DurableClock.sleep({
-          name: "boundary",
-          duration: "2 minutes",
-          inMemoryThreshold: "2 minutes"
-        }),
-        "slept"
-      )
-    ).pipe(Layer.provideMerge(layerMemory))
+    const layer = layerWired(Layer.mergeAll(
+      Step.toLayer(() =>
+        Effect.as(
+          DurableClock.sleep({
+            name: "boundary",
+            duration: "2 minutes",
+            inMemoryThreshold: "2 minutes"
+          }),
+          "slept"
+        )
+      ),
+      Interpreter.layer(flow)
+    ))
     return Effect.gen(function*() {
       const executionId = yield* flow.execute({ id: "b" }, { discard: true })
       // a duration equal to the configured threshold stays in memory (default
@@ -107,21 +132,29 @@ describe("DurableClock", () => {
   })
 
   effect("sleeps above the threshold suspend the flow until the durable clock fires", () => {
+    const Step = Activity.make("DurableClock/durable/step", {
+      payload: { id: Schema.String },
+      success: Schema.String
+    })
     const flow = Flow.make("DurableClock/durable", {
       payload: { id: Schema.String },
       success: Schema.String,
-      idempotencyKey: ({ id }) => id
+      idempotencyKey: ({ id }) => id,
+      body: (payload) => Step.call(payload)
     })
-    const layer = flow.toLayer(() =>
-      Effect.gen(function*() {
-        yield* DurableClock.sleep({
-          name: "long",
-          duration: "10 minutes",
-          inMemoryThreshold: "1 second"
+    const layer = layerWired(Layer.mergeAll(
+      Step.toLayer(() =>
+        Effect.gen(function*() {
+          yield* DurableClock.sleep({
+            name: "long",
+            duration: "10 minutes",
+            inMemoryThreshold: "1 second"
+          })
+          return "woke"
         })
-        return "woke"
-      })
-    ).pipe(Layer.provideMerge(layerMemory))
+      ),
+      Interpreter.layer(flow)
+    ))
     return Effect.gen(function*() {
       const executionId = yield* flow.execute({ id: "d" }, { discard: true })
       yield* TestClock.adjust("9 minutes")
@@ -138,36 +171,44 @@ describe("DurableClock", () => {
   })
 
   effect("sequential durable sleeps each wake at their own deadline", () => {
+    const Step = Activity.make("DurableClock/sequential/step", {
+      payload: { id: Schema.String },
+      success: Schema.Number
+    })
     const flow = Flow.make("DurableClock/sequential", {
       payload: { id: Schema.String },
       success: Schema.Number,
-      idempotencyKey: ({ id }) => id
+      idempotencyKey: ({ id }) => id,
+      body: (payload) => Step.call(payload)
     })
     const marks: Array<string> = []
-    const layer = flow.toLayer(() =>
-      Effect.gen(function*() {
-        yield* DurableClock.sleep({
-          name: "first",
-          duration: "5 minutes",
-          inMemoryThreshold: "1 second"
-        })
-        yield* Activity.make({
-          name: "sequential/mark-first",
-          tier: "sealed",
-          idempotencyKey: "sequential/mark-first",
-          success: Schema.Void,
-          execute: Effect.sync(() => {
-            marks.push("first")
+    const layer = layerWired(Layer.mergeAll(
+      Step.toLayer(() =>
+        Effect.gen(function*() {
+          yield* DurableClock.sleep({
+            name: "first",
+            duration: "5 minutes",
+            inMemoryThreshold: "1 second"
           })
+          yield* Activity.make({
+            name: "sequential/mark-first",
+            tier: "sealed",
+            idempotencyKey: "sequential/mark-first",
+            success: Schema.Void,
+            execute: Effect.sync(() => {
+              marks.push("first")
+            })
+          })
+          yield* DurableClock.sleep({
+            name: "second",
+            duration: "5 minutes",
+            inMemoryThreshold: "1 second"
+          })
+          return marks.length
         })
-        yield* DurableClock.sleep({
-          name: "second",
-          duration: "5 minutes",
-          inMemoryThreshold: "1 second"
-        })
-        return marks.length
-      })
-    ).pipe(Layer.provideMerge(layerMemory))
+      ),
+      Interpreter.layer(flow)
+    ))
     return Effect.gen(function*() {
       const executionId = yield* flow.execute({ id: "q" }, { discard: true })
       yield* TestClock.adjust("5 minutes")
@@ -186,22 +227,30 @@ describe("DurableClock", () => {
   })
 
   effect("an early wake wins the race against the armed timer, which then fires into a no-op", () => {
+    const Step = Activity.make("DurableClock/early-wake/step", {
+      payload: { id: Schema.String },
+      success: Schema.Number
+    })
     const flow = Flow.make("DurableClock/early-wake", {
       payload: { id: Schema.String },
       success: Schema.Number,
-      idempotencyKey: ({ id }) => id
+      idempotencyKey: ({ id }) => id,
+      body: (payload) => Step.call(payload)
     })
     let bodiesPastSleep = 0
-    const layer = flow.toLayer(() =>
-      Effect.gen(function*() {
-        yield* DurableClock.sleep({
-          name: "wakeable",
-          duration: "10 minutes",
-          inMemoryThreshold: "1 second"
+    const layer = layerWired(Layer.mergeAll(
+      Step.toLayer(() =>
+        Effect.gen(function*() {
+          yield* DurableClock.sleep({
+            name: "wakeable",
+            duration: "10 minutes",
+            inMemoryThreshold: "1 second"
+          })
+          return ++bodiesPastSleep
         })
-        return ++bodiesPastSleep
-      })
-    ).pipe(Layer.provideMerge(layerMemory))
+      ),
+      Interpreter.layer(flow)
+    ))
     return Effect.gen(function*() {
       const executionId = yield* flow.execute({ id: "e" }, { discard: true })
       yield* TestClock.adjust("1 minute")
@@ -230,7 +279,8 @@ describe("DurableClock", () => {
       const flow = Flow.make("DurableClock/duplicate", {
         payload: { id: Schema.String },
         success: Schema.Void,
-        idempotencyKey: ({ id }) => id
+        idempotencyKey: ({ id }) => id,
+        body: () => Node.succeed(undefined)
       })
       const engine = yield* FlowRuntime.FlowRuntime
       const first = DurableClock.make({ name: "dup", duration: "10 minutes" })

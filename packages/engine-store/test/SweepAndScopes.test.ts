@@ -1,5 +1,6 @@
 import { DurableClock, Flow } from "@smthrs/flow"
 import { Journal, JournalEvent } from "@smthrs/journal"
+import { Node } from "@smthrs/plan"
 import { type Ownership } from "@smthrs/run-store"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -13,8 +14,8 @@ import { runPromise } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "sweep-test", pid: 3, nonce: "sweep" }
 
-const FlowA = Flow.make("Sweep/FlowA", { payload: {}, success: Schema.String })
-const FlowB = Flow.make("Sweep/FlowB", { payload: {}, success: Schema.String })
+const FlowA = Flow.make("Sweep/FlowA", { payload: {}, success: Schema.String, body: () => Node.succeed(undefined) })
+const FlowB = Flow.make("Sweep/FlowB", { payload: {}, success: Schema.String, body: () => Node.succeed(undefined) })
 
 const makeJournal = (events: Array<string>, options: { readonly flushFails?: boolean } = {}) => {
   let seq = 0

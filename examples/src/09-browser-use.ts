@@ -14,20 +14,35 @@
  * Node-only import ever sneaks in.
  */
 import { FlowEngine } from "@smthrs/engine"
-import { Flow } from "@smthrs/flow"
+import { Activity, Flow, Interpreter } from "@smthrs/flow"
 import { Key } from "@smthrs/keys"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import type * as Crypto from "effect/Crypto"
 
+/**
+ * The declared atom. A declaration is pure data, so it bundles for the browser
+ * whether or not this bundle also carries an implementation for it — which is
+ * the placement half of the declaration/implementation split.
+ */
+export const CompileTarget = Activity.make("examples/CompileTarget", {
+  payload: { target: Schema.String },
+  success: Schema.String
+})
+
 export const Compile = Flow.make("examples/Compile", {
   payload: { target: Schema.String },
   success: Schema.String,
-  idempotencyKey: ({ target }) => target
+  idempotencyKey: ({ target }) => target,
+  body: (payload) => CompileTarget.call(payload)
 })
 
-const CompileLayer = Compile.toLayer(({ target }) => Effect.succeed(`built ${target}`)).pipe(
+const CompileLayer = Layer.mergeAll(
+  CompileTarget.toLayer(({ target }) => Effect.succeed(`built ${target}`)),
+  Interpreter.layer(Compile)
+).pipe(
+  Layer.provideMerge(Activity.layerImplementations),
   Layer.provideMerge(FlowEngine.layerMemory)
 )
 

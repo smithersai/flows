@@ -5,14 +5,19 @@ The umbrella barrel. It re-exports the engine packages as namespaces, so one dep
 The `@smthrs/platform-*` bundles are deliberately absent, for the same reason `effect`'s index does not re-export `@effect/platform-node`: a platform bundle is chosen by the program that runs, not by the library it depends on. Import [`@smthrs/platform-node`](/api/platform-node), [`@smthrs/platform-bun`](/api/platform-bun), or [`@smthrs/platform-browser`](/api/platform-browser) directly.
 
 ```ts
-import { Flow, Kernel, RunStore } from "@smthrs/flows"
+import { Activity, Flow, Kernel, RunStore } from "@smthrs/flows"
 import * as Schema from "effect/Schema"
 
 const jj = Kernel.Jj.layerNoop({})
 const runs = RunStore.RunStore.layer
-const Build = Flow.make("example/Build", {
+const Compile = Activity.make("example/Compile", {
   payload: { target: Schema.String },
   success: Schema.String
+})
+const Build = Flow.make("example/Build", {
+  payload: { target: Schema.String },
+  success: Schema.String,
+  body: (payload) => Compile.call(payload)
 })
 ```
 

@@ -1,6 +1,6 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { DurableQueue, Flow } from "@smthrs/flow"
+import { Activity, DurableQueue, Flow, Interpreter } from "@smthrs/flow"
 import { Cause, Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
@@ -35,16 +35,24 @@ describe("DurableQueue", () => {
     error: Schema.String,
     idempotencyKey: ({ id }) => id
   })
+  const Offer = Activity.make("DurableQueue/SuppliedKey/offer", {
+    payload: { id: Schema.String, value: Schema.Number },
+    success: Schema.Number,
+    error: Schema.String
+  })
   const Flow_ = Flow.make("DurableQueue/SuppliedKey", {
     payload: { id: Schema.String, value: Schema.Number },
     success: Schema.Number,
     error: Schema.String,
-    idempotencyKey: ({ id }) => id
+    idempotencyKey: ({ id }) => id,
+    body: (payload) => Offer.call(payload)
   })
   const successLayer = Layer.mergeAll(
-    Flow_.toLayer(({ id, value }) => DurableQueue.process(Queue, { id, value })),
+    Offer.toLayer(({ id, value }) => DurableQueue.process(Queue, { id, value })),
+    Interpreter.layer(Flow_),
     DurableQueue.worker(Queue, ({ value }) => Effect.succeed(value + 1))
   ).pipe(
+    Layer.provideMerge(Activity.layerImplementations),
     Layer.provideMerge(layerMemory),
     Layer.provideMerge(PersistedQueueLayer)
   )
@@ -60,16 +68,27 @@ describe("DurableQueue", () => {
     }).pipe(Effect.provide(successLayer)))
 
   effect("propagates queue worker failures", () => {
+    const Offer = Activity.make("DurableQueue/Failure/offer", {
+      payload: { id: Schema.String },
+      success: Schema.Void,
+      error: Schema.String
+    })
     const Failure = Flow.make("DurableQueue/Failure", {
       payload: { id: Schema.String },
       success: Schema.Void,
       error: Schema.String,
-      idempotencyKey: ({ id }) => id
+      idempotencyKey: ({ id }) => id,
+      body: (payload) => Offer.call(payload)
     })
     const layer = Layer.mergeAll(
-      Failure.toLayer(({ id }) => DurableQueue.process(Queue, { id, value: 0 }).pipe(Effect.asVoid)),
+      Offer.toLayer(({ id }) => DurableQueue.process(Queue, { id, value: 0 }).pipe(Effect.asVoid)),
+      Interpreter.layer(Failure),
       DurableQueue.worker(Queue, () => Effect.fail("boom"))
-    ).pipe(Layer.provideMerge(layerMemory), Layer.provideMerge(PersistedQueueLayer))
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(layerMemory),
+      Layer.provideMerge(PersistedQueueLayer)
+    )
 
     return Effect.gen(function*() {
       const executionId = yield* Failure.execute({ id: "failure" }, { discard: true })
@@ -94,16 +113,27 @@ describe("DurableQueue", () => {
     })
     expect(SchemaQueue.payloadSchema).toBe(payloadSchema)
 
+    const Offer = Activity.make("DurableQueue/SchemaPayload/offer", {
+      payload: { id: Schema.String, value: Schema.Number },
+      success: Schema.Number,
+      error: Schema.String
+    })
     const SchemaFlow = Flow.make("DurableQueue/SchemaPayload", {
       payload: { id: Schema.String, value: Schema.Number },
       success: Schema.Number,
       error: Schema.String,
-      idempotencyKey: ({ id }) => id
+      idempotencyKey: ({ id }) => id,
+      body: (payload) => Offer.call(payload)
     })
     const layer = Layer.mergeAll(
-      SchemaFlow.toLayer(({ id, value }) => DurableQueue.process(SchemaQueue, { id, value })),
+      Offer.toLayer(({ id, value }) => DurableQueue.process(SchemaQueue, { id, value })),
+      Interpreter.layer(SchemaFlow),
       DurableQueue.worker(SchemaQueue, ({ value }) => Effect.succeed(value * 2))
-    ).pipe(Layer.provideMerge(layerMemory), Layer.provideMerge(PersistedQueueLayer))
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(layerMemory),
+      Layer.provideMerge(PersistedQueueLayer)
+    )
 
     return Effect.gen(function*() {
       const executionId = yield* SchemaFlow.execute({ id: "schema", value: 21 }, { discard: true })
@@ -123,21 +153,32 @@ describe("DurableQueue", () => {
       error: Schema.String,
       idempotencyKey: ({ id }) => id
     })
+    const Offer = Activity.make("DurableQueue/Idle/offer", {
+      payload: { id: Schema.String },
+      success: Schema.Void,
+      error: Schema.String
+    })
     const IdleFlow = Flow.make("DurableQueue/Idle", {
       payload: { id: Schema.String },
       success: Schema.Void,
       error: Schema.String,
-      idempotencyKey: ({ id }) => id
+      idempotencyKey: ({ id }) => id,
+      body: (payload) => Offer.call(payload)
     })
     let handled = 0
     const layer = Layer.mergeAll(
-      IdleFlow.toLayer(({ id }) => DurableQueue.process(IdleQueue, { id }).pipe(Effect.asVoid)),
+      Offer.toLayer(({ id }) => DurableQueue.process(IdleQueue, { id }).pipe(Effect.asVoid)),
+      Interpreter.layer(IdleFlow),
       DurableQueue.worker(
         IdleQueue,
         () => Effect.sync(() => void handled++),
         { concurrency: 0 }
       )
-    ).pipe(Layer.provideMerge(layerMemory), Layer.provideMerge(PersistedQueueLayer))
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(layerMemory),
+      Layer.provideMerge(PersistedQueueLayer)
+    )
 
     return Effect.gen(function*() {
       const executionId = yield* IdleFlow.execute({ id: "idle" }, { discard: true })

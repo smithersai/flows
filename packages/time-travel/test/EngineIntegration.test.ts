@@ -18,7 +18,7 @@ import * as EngineStore from "@smthrs/engine-store/EngineStore"
 import * as EngineMigrations from "@smthrs/engine-store/Migrations"
 import * as OwnerIdentity from "@smthrs/engine-store/OwnerIdentity"
 import * as StepBoundary from "@smthrs/engine-store/StepBoundary"
-import { Activity, DurableDeferred, Flow } from "@smthrs/flow"
+import { Activity, DurableDeferred, Flow, Interpreter } from "@smthrs/flow"
 import * as Jj from "@smthrs/jj"
 import * as Journal from "@smthrs/journal/Journal"
 import type * as JournalEvent from "@smthrs/journal/JournalEvent"
@@ -36,7 +36,23 @@ import * as SqlTimeTravelStore from "../src/SqlTimeTravelStore.ts"
 import { TimeTravel } from "../src/TimeTravel.ts"
 import type { TimeTravelError } from "../src/TimeTravelError.ts"
 
-const Ledger = Flow.make("time-travel/Ledger", { payload: {}, success: Schema.String })
+/**
+ * The declared step the flow's body names.
+ *
+ * DECIDED (2026-08-11, pending review): the composite handler this suite always
+ * had becomes ONE declared activity rather than four body nodes. What is under
+ * test is time travel over an engine-written journal, so the fixture keeps the
+ * activity mix and the ordering the evidence assertions are written against;
+ * decomposing it would rewrite the evidence rather than migrate the authoring
+ * shape. The body still names an activity instead of carrying code, which is
+ * the migration `docs/specs/Concepts/Unified Flow Authoring.md` asks for.
+ */
+const Post = Activity.make("time-travel/Post", { payload: {}, success: Schema.String })
+const Ledger = Flow.make("time-travel/Ledger", {
+  payload: {},
+  success: Schema.String,
+  body: (payload) => Post.call(payload)
+})
 const Settled = DurableDeferred.make("time-travel/settled", { success: Schema.String })
 
 /** The irreversible activity whose boundary records a rewind has to assess. */
@@ -104,7 +120,7 @@ const engineLayer = (harness: Harness, handlers: ReadonlyArray<CompensationHandl
     idempotencyKey: "time-travel/stage/v1",
     execute: Effect.succeed("staged")
   })
-  const handler = () =>
+  const post = () =>
     Effect.gen(function*() {
       yield* Stage
       const amount = yield* Credit
@@ -121,7 +137,8 @@ const engineLayer = (harness: Harness, handlers: ReadonlyArray<CompensationHandl
     DurableEngineState.layer
   ).pipe(Layer.provideMerge(Layer.effectDiscard(EngineMigrations.run)))
 
-  return Ledger.toLayer(handler).pipe(
+  return Layer.mergeAll(Post.toLayer(post), Interpreter.layer(Ledger)).pipe(
+    Layer.provideMerge(Activity.layerImplementations),
     Layer.provideMerge(TimeTravel.layer),
     Layer.provideMerge(CompensationHandlers.layer(handlers)),
     Layer.provideMerge(SqlTimeTravelStore.layer),
@@ -204,10 +221,11 @@ describe("time travel over an engine-written journal", () => {
 
     // The engine minted one lineage for the run and stamped it on every record.
     expect(result.lineages).toEqual(["ledger-1/root"])
-    // Both activities dispatched, and the fold saw them.
-    expect(result.attempts).toBe(3)
+    // Four dispatches, and the fold saw them: the body's own step, then the
+    // three activities its implementation runs before the deferred parks it.
+    expect(result.attempts).toBe(4)
     // Every frame carries a tier-2 anchor, not just the compensable one.
-    expect(result.anchored).toBe(3)
+    expect(result.anchored).toBe(4)
   })
 
   it("forks at a frame with the state and attempts of THAT frame, and spares the parent's tree", async () => {
@@ -244,10 +262,11 @@ describe("time travel over an engine-written journal", () => {
     // The child's state is the state AT the frame, so it differs from the
     // parent's current state (which the parent kept driving past).
     expect(result.childState).not.toBe(result.parentState)
-    // The parent ran three activities; the child inherits only the two its
-    // copied prefix can explain.
-    expect(result.parentAttempts).toBe(3)
-    expect(result.childAttempts).toBe(2)
+    // The parent recorded four attempts — the body's step and the three
+    // activities under it; the child inherits only the ones its copied prefix
+    // can explain.
+    expect(result.parentAttempts).toBe(4)
+    expect(result.childAttempts).toBe(3)
     // The fork gets its OWN workspace and leaves the parent's tree alone:
     // `Jj.restore` acts on the one working copy the layer is rooted at, so a
     // fork that called it would restore the parent — forbidden by

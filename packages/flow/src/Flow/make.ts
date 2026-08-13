@@ -6,15 +6,16 @@
  * @since 4.0.0
  */
 import { Sha256 } from "@smthrs/crypto"
+import * as Node from "@smthrs/plan/Node"
 import * as Context from "effect/Context"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
-import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import { FlowRuntime } from "../FlowRuntime/FlowRuntime.ts"
 import type * as RetryPolicy from "../RetryPolicy.ts"
 import { ExecutionIdRequired } from "./ExecutionIdRequired.ts"
 import type { AnyStructSchema, AnyWithProps, Flow } from "./Flow.ts"
+import type { To } from "./Outcome.ts"
 import { withRollback } from "./Runtime.ts"
 import { TypeId } from "./TypeId.ts"
 
@@ -46,8 +47,10 @@ const Proto = {
       successSchema: this.successSchema,
       errorSchema: this.errorSchema,
       annotations: Context.add(this.annotations, tag, value),
+      body: this.body,
       idempotencyKey: this.idempotencyKey,
-      suspendedRetryPolicy: this.suspendedRetryPolicy
+      suspendedRetryPolicy: this.suspendedRetryPolicy,
+      maxRounds: this.maxRounds
     })
   },
   annotateMerge(this: AnyWithProps, context: Context.Context<any>) {
@@ -57,9 +60,20 @@ const Proto = {
       successSchema: this.successSchema,
       errorSchema: this.errorSchema,
       annotations: Context.merge(this.annotations, context),
+      body: this.body,
       idempotencyKey: this.idempotencyKey,
-      suspendedRetryPolicy: this.suspendedRetryPolicy
+      suspendedRetryPolicy: this.suspendedRetryPolicy,
+      maxRounds: this.maxRounds
     })
+  },
+  call(this: AnyWithProps, payload: unknown) {
+    return Node.flowCall(this, this._tag, "inline", payload)
+  },
+  child(this: AnyWithProps, payload: unknown) {
+    return Node.flowCall(this, this._tag, "boundary", payload)
+  },
+  to(this: AnyWithProps, payload: unknown): Node.Node<To<unknown>> {
+    return Node.flowCall(this, this._tag, "handoff", payload)
   },
   execute<const Discard extends boolean = false>(
     this: AnyWithProps,
@@ -108,11 +122,6 @@ const Proto = {
       Effect.withSpan(`${this._tag}.resume`, { attributes: { executionId } }, { captureStackTrace: false })
     )
   },
-  toLayer(this: Flow<string, AnyStructSchema, Schema.Top, Schema.Top>, execute: any) {
-    return Layer.effectDiscard(
-      Effect.flatMap(FlowRuntime, (engine) => engine.register(this, execute))
-    )
-  },
   executionId(this: AnyWithProps, payload: any) {
     return Effect.flatMap(
       Effect.orDie(this.payloadSchema.makeEffect(payload)),
@@ -133,8 +142,10 @@ const makeProto = <
   readonly successSchema: Success
   readonly errorSchema: Error
   readonly annotations: Context.Context<never>
+  readonly body: (payload: Payload["Type"]) => Node.Node<unknown, unknown>
   readonly idempotencyKey?: ((payload: Payload["Type"]) => string) | undefined
   readonly suspendedRetryPolicy?: RetryPolicy.RetryPolicy | undefined
+  readonly maxRounds?: number | undefined
 }): Flow<Tag, Payload, Success, Error> => {
   function Flow() {}
   Object.setPrototypeOf(Flow, Proto)
@@ -143,19 +154,15 @@ const makeProto = <
 }
 
 /**
- * Creates a durable flow definition with schemas, annotations, and either
- * caller-selected execution IDs or opt-in deterministic IDs derived from the
- * flow tag and idempotency key.
+ * The declaration data every flow takes beside its body.
  *
- * @category constructors
- * @since 4.0.0
+ * @private
  */
-export const make = <
-  const Tag extends string,
+interface MakeOptions<
   Payload extends Schema.Struct.Fields | AnyStructSchema,
-  Success extends Schema.Top = Schema.Void,
-  Error extends Schema.Top = Schema.Never
->(tag: Tag, options: {
+  Success extends Schema.Top,
+  Error extends Schema.Top
+> {
   readonly payload: Payload
   readonly idempotencyKey?:
     | ((
@@ -166,22 +173,70 @@ export const make = <
   readonly success?: Success
   readonly error?: Error
   readonly suspendedRetryPolicy?: RetryPolicy.RetryPolicy | undefined
+  /**
+   * The round budget a trampoline lineage started from this flow runs under.
+   */
+  readonly maxRounds?: number | undefined
   readonly annotations?: Context.Context<never>
-}): Flow<
-  Tag,
-  Payload extends Schema.Struct.Fields ? Schema.Struct<Payload> : Payload,
-  Success,
-  Error
-> =>
-  makeProto<Tag, Payload extends Schema.Struct.Fields ? Schema.Struct<Payload> : Payload, Success, Error>({
+}
+
+/**
+ * The pure plan-time body, typed with the decoded payload.
+ *
+ * @private
+ */
+type Body<Payload extends Schema.Struct.Fields | AnyStructSchema> = (
+  payload: Payload extends Schema.Struct.Fields ? Schema.Struct.Type<Payload> : Payload["Type"]
+) => Node.Node<unknown, unknown>
+
+/**
+ * The payload schema a declaration's `payload` field stands for.
+ *
+ * @private
+ */
+type PayloadSchemaOf<Payload extends Schema.Struct.Fields | AnyStructSchema> = Payload extends Schema.Struct.Fields
+  ? Schema.Struct<Payload>
+  : Payload
+
+/**
+ * Creates a durable flow definition with schemas, annotations, a required pure
+ * body, and either caller-selected execution IDs or opt-in deterministic IDs
+ * derived from the flow tag and idempotency key.
+ *
+ * The `body` is the flow's one behavior, evaluated at plan time only. A flow
+ * with nothing to plan is a category error under
+ * `docs/specs/Concepts/Unified Flow Authoring.md` — that work is an Activity,
+ * whose implementation attaches separately as a Layer.
+ *
+ * @category constructors
+ * @since 4.0.0
+ */
+export const make = <
+  const Tag extends string,
+  Payload extends Schema.Struct.Fields | AnyStructSchema,
+  Success extends Schema.Top = Schema.Void,
+  Error extends Schema.Top = Schema.Never
+>(
+  tag: Tag,
+  options: MakeOptions<Payload, Success, Error> & { readonly body: Body<Payload> }
+): Flow<Tag, PayloadSchemaOf<Payload>, Success, Error> => {
+  if (
+    options.maxRounds !== undefined &&
+    (!Number.isSafeInteger(options.maxRounds) || options.maxRounds < 1)
+  ) {
+    throw new RangeError(`Flow "${tag}" maxRounds must be a positive safe integer`)
+  }
+  return makeProto<Tag, PayloadSchemaOf<Payload>, Success, Error>({
     _tag: tag,
     payloadSchema: (Schema.isSchema(options.payload)
       ? options.payload
-      : Schema.Struct(options.payload as any)) as Payload extends Schema.Struct.Fields ? Schema.Struct<Payload>
-        : Payload,
+      : Schema.Struct(options.payload as any)) as PayloadSchemaOf<Payload>,
     successSchema: options.success ?? (Schema.Void as any),
     errorSchema: options.error ?? (Schema.Never as any),
     annotations: options.annotations ?? Context.empty(),
+    body: options.body as (payload: PayloadSchemaOf<Payload>["Type"]) => Node.Node<unknown, unknown>,
     idempotencyKey: options.idempotencyKey as any,
-    suspendedRetryPolicy: options.suspendedRetryPolicy
+    suspendedRetryPolicy: options.suspendedRetryPolicy,
+    maxRounds: options.maxRounds
   })
+}

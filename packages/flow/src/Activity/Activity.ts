@@ -5,10 +5,14 @@
  *
  * @since 4.0.0
  */
+import type * as Node from "@smthrs/plan/Node"
+import type * as Planned from "@smthrs/plan/Planned"
 import type * as Context from "effect/Context"
 import type * as Effect from "effect/Effect"
+import type * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import type { Scope } from "effect/Scope"
+import type { AnyStructSchema } from "../Flow/Flow.ts"
 import type { FlowInstance, FlowRuntime } from "../FlowRuntime/index.ts"
 import type * as RetryPolicy from "../RetryPolicy.ts"
 import type { TypeId } from "./TypeId.ts"
@@ -51,6 +55,61 @@ export const IdempotencyKey = Schema.Union([
  * @since 0.1.0
  */
 export type IdempotencyKey = typeof IdempotencyKey.Type
+
+/**
+ * Recursively permits planned references wherever a declared activity payload
+ * accepts a concrete value.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type PlannedPayload<T> =
+  | Planned.Planned<T>
+  | ([T] extends [ReadonlyArray<infer Value>] ? ReadonlyArray<PlannedPayload<Value>>
+    : [T] extends [object] ? { readonly [Key in keyof T]: PlannedPayload<T[Key]> }
+    : T)
+
+/**
+ * A named activity declaration whose implementation is supplied separately
+ * through a layer and whose calls only add nodes to a plan.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface Declared<
+  Tag extends string,
+  Payload extends AnyStructSchema,
+  Success extends Schema.Top,
+  Error extends Schema.Top
+> {
+  readonly [TypeId]: typeof TypeId
+  readonly name: Tag
+  readonly payloadSchema: Payload
+  readonly successSchema: Success
+  readonly errorSchema: Error
+  readonly tier: Tier
+  readonly idempotencyKey: IdempotencyKey | undefined
+  readonly annotations: Context.Context<never>
+  annotate<I, S>(key: Context.Key<I, S>, value: S): Declared<Tag, Payload, Success, Error>
+  annotateMerge<I>(annotations: Context.Context<I>): Declared<Tag, Payload, Success, Error>
+  readonly call: (
+    payload: PlannedPayload<Payload["~type.make.in"]>
+  ) => Node.Node<Success["Type"], Error["Type"]>
+  readonly toLayer: <R>(
+    execute: (payload: Payload["Type"]) => Effect.Effect<Success["Type"], Error["Type"], R>
+  ) => Layer.Layer<
+    never,
+    never,
+    | FlowRuntime
+    | Exclude<R, FlowRuntime | FlowInstance | Scope>
+    | Payload["DecodingServices"]
+    | Payload["EncodingServices"]
+    | Success["DecodingServices"]
+    | Success["EncodingServices"]
+    | Error["DecodingServices"]
+    | Error["EncodingServices"]
+  >
+}
 
 /**
  * Durable flow activity that behaves as an `Effect` and records its name,
