@@ -76,6 +76,26 @@ const recordingDatabase = (queries: Array<string>): DatabaseDecorator =>
     keepWriter
   )
 
+/** Forces a scheduling boundary after each lazy allocation-floor read. */
+const yieldingFloorDatabase: DatabaseDecorator = Layer.merge(
+  Layer.effect(
+    SqlClient.SqlClient,
+    Effect.gen(function*() {
+      const base = yield* Effect.service(SqlClient.SqlClient)
+      return new Proxy(base, {
+        apply(target, thisArgument, argumentsList) {
+          const statement = Reflect.apply(target, thisArgument, argumentsList) as Statement.Statement<unknown>
+          if (typeof statement.compile !== "function" || !statement.compile()[0].includes("MAX(")) {
+            return statement
+          }
+          return statement.pipe(Effect.tap(() => Effect.yieldNow))
+        }
+      }) as SqlClient.SqlClient
+    })
+  ),
+  keepWriter
+)
+
 const journal = (
   options: SqlJournal.SqlJournalOptions,
   database?: DatabaseDecorator
@@ -195,5 +215,84 @@ describe("SqlJournal source-event retention", () => {
       )
       expect(failure).toBeInstanceOf(JournalError)
       expect((failure as JournalError).code).toBe("invalid_event")
+    }))
+})
+
+describe("SqlJournal allocation-floor index bounds (B9)", () => {
+  effect("aggregates no run history at construction", () =>
+    Effect.gen(function*() {
+      yield* seed(6, { capacity: 64, overflow: "reject" })
+      const queries: Array<string> = []
+      const atConstruction = yield* Effect.gen(function*() {
+        yield* Journal
+        return [...queries]
+      }).pipe(
+        Effect.provide(journal({ capacity: 64, overflow: "reject", sourceEventCache: 2 }, recordingDatabase(queries))),
+        Effect.scoped
+      )
+
+      // The `sequences` and `sourceSequences` floors used to be seeded by two
+      // unbounded `GROUP BY` aggregations — one entry per run that ever wrote
+      // an event, one per (run, source) pair — so construction scanned the
+      // whole table and built a map proportional to total history whatever
+      // `sourceEventCache` said. The startup load is now the bounded
+      // source-event window and nothing else.
+      expect(atConstruction.filter((query) => query.includes("GROUP BY"))).toEqual([])
+      const load = atConstruction.filter((query) => query.includes("FROM flows_journal_events"))
+      expect(load).toHaveLength(1)
+      expect(load[0]).toContain("LIMIT")
+    }))
+
+  effect("reads a run's allocation floor on first use, and only once", () =>
+    Effect.gen(function*() {
+      yield* seed(3, { capacity: 64, overflow: "reject" })
+      const queries: Array<string> = []
+      const receipts = yield* Effect.gen(function*() {
+        const service = yield* Journal
+        return {
+          first: yield* service.emitLossy(input(3)),
+          second: yield* service.emitLossy(input(4))
+        }
+      }).pipe(
+        Effect.provide(journal({ capacity: 64, overflow: "reject", sourceEventCache: 2 }, recordingDatabase(queries))),
+        Effect.scoped
+      )
+
+      // Dropping the seed cannot restart allocation at zero: the floor the
+      // aggregation used to precompute is read from the same durable
+      // `MAX(...) + 1` on first use.
+      expect(receipts.first).toMatchObject({ seq: 3, sourceSeq: 3 })
+      expect(receipts.second).toMatchObject({ seq: 4, sourceSeq: 4 })
+      // And it is cached: the second emit on the same run re-reads nothing.
+      expect(queries.filter((query) => query.includes("MAX(seq) + 1"))).toHaveLength(1)
+    }))
+
+  effect("serializes concurrent first-use allocation-floor reads", () =>
+    Effect.gen(function*() {
+      const result = yield* Effect.gen(function*() {
+        const service = yield* Journal
+        const receipts = yield* Effect.all(
+          [service.emitLossy(input(0)), service.emitLossy(input(1))],
+          { concurrency: "unbounded" }
+        )
+        yield* service.flush
+        const page = yield* service.entries({ runId: run, limit: 10 })
+        return { receipts, entries: page.entries }
+      }).pipe(
+        Effect.provide(
+          journal(
+            { capacity: 64, overflow: "reject", sourceEventCache: 2 },
+            yieldingFloorDatabase
+          )
+        ),
+        Effect.scoped
+      )
+
+      // Lazy initialization crosses an asynchronous SQL boundary. Without an
+      // allocation permit, both first emits can read seq 0 before either one
+      // raises the in-process floor, queue duplicate canonical sequences, and
+      // lose the batch to `sequence_conflict` at flush.
+      expect(result.receipts.map((receipt) => receipt.seq)).toEqual([0, 1])
+      expect(result.entries.map((entry) => entry.seq)).toEqual([0, 1])
     }))
 })
