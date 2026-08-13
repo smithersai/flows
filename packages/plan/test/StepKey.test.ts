@@ -128,6 +128,68 @@ describe("StepKey", () => {
     expect(new Set([pending, plain, projected, literal]).size).toBe(4)
   })
 
+  it("keeps a literal that spells a digest reference distinct from the reference (D7)", async () => {
+    // `fromKeyMaterial` now builds `DigestInput` values and lets
+    // `normalizeInputs` be the single normalizer, instead of hand-building
+    // `{kind: "ref", digest}` objects that were then wrapped a second time as
+    // `{kind: "literal", value: <that object>}`. The double wrap was what made
+    // this collision impossible before; the nominal `DigestInputTypeId` brand
+    // is what makes it impossible now. A literal value can spell the digest
+    // reference's normalized form exactly and still cannot be mistaken for it.
+    const digests = { upstream: "key1_upstream" }
+    const reference = await runPromise(
+      StepKey.fromKeyMaterial(material({ inputs: [{ _tag: "Ref", from: "upstream", path: [] }] }), digests)
+    )
+    const impostor = await runPromise(
+      StepKey.fromKeyMaterial(
+        material({
+          inputs: [{ _tag: "Literal", value: { kind: "digest", digest: "key1_upstream", reference: "ref" } }]
+        }),
+        digests
+      )
+    )
+    const projectedImpostor = await runPromise(
+      StepKey.fromKeyMaterial(
+        material({
+          inputs: [{
+            _tag: "Literal",
+            value: { kind: "digest", digest: "key1_upstream", reference: "ref-projected", path: ["a"] }
+          }]
+        }),
+        digests
+      )
+    )
+    const projected = await runPromise(
+      StepKey.fromKeyMaterial(material({ inputs: [{ _tag: "Ref", from: "upstream", path: ["a"] }] }), digests)
+    )
+
+    expect(new Set([reference, impostor, projected, projectedImpostor]).size).toBe(4)
+  })
+
+  it("keeps an untagged digest input distinct from a graph reference (D7)", async () => {
+    // A caller-supplied `digestInput(d)` carries no `reference`, so it must not
+    // collide with the `ref` variant `fromKeyMaterial` produces for the same
+    // digest. This is the corner the new discriminator opens.
+    const untagged = await runPromise(
+      StepKey.content({
+        body: { version: 1, declaration: "step" },
+        inputs: { "0": StepKey.digestInput("key1_upstream") },
+        layers: [],
+        capabilities: { declared: [] }
+      })
+    )
+    const tagged = await runPromise(
+      StepKey.content({
+        body: { version: 1, declaration: "step" },
+        inputs: { "0": StepKey.digestInput("key1_upstream", { reference: "ref" }) },
+        layers: [],
+        capabilities: { declared: [] }
+      })
+    )
+
+    expect(untagged).not.toBe(tagged)
+  })
+
   it("folds effects, placement, and the material version into the body", async () => {
     const base = await runPromise(StepKey.fromKeyMaterial(material(), {}))
     const withEffects = await runPromise(StepKey.fromKeyMaterial(material({ effects: { net: true } }), {}))

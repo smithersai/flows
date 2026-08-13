@@ -62,6 +62,20 @@ const DigestInputTypeId: unique symbol = Symbol.for("@smthrs/plan/StepKey/Digest
 export interface DigestInput {
   readonly [DigestInputTypeId]: typeof DigestInputTypeId
   readonly digest: string
+  /**
+   * Which kind of graph reference resolved to this digest.
+   *
+   * `fromKeyMaterial` used to hand-build `{kind: "ref" | "pending" |
+   * "ref-projected", ...}` objects that `normalizeInputs` then wrapped a second
+   * time as `{kind: "literal", value: <the object just built>}`. Injectivity
+   * survived — both sides get the outer wrap — but the module's own
+   * `DigestInputTypeId` argument read as if it applied on that path, and it did
+   * not. Carrying the discriminator here lets `normalizeInputs` be the single
+   * normalizer while keeping the variants mutually distinct.
+   */
+  readonly reference?: "ref" | "pending" | "ref-projected"
+  /** The projection applied to the referenced result, for `ref-projected`. */
+  readonly path?: ReadonlyArray<string>
 }
 
 /**
@@ -71,7 +85,18 @@ export interface DigestInput {
  * @since 0.1.0
  * @category constructors
  */
-export const digestInput = (digest: string): DigestInput => ({ [DigestInputTypeId]: DigestInputTypeId, digest })
+export const digestInput = (
+  digest: string,
+  reference?: {
+    readonly reference: "ref" | "pending" | "ref-projected"
+    readonly path?: ReadonlyArray<string>
+  }
+): DigestInput => ({
+  [DigestInputTypeId]: DigestInputTypeId,
+  digest,
+  ...(reference === undefined ? {} : { reference: reference.reference }),
+  ...(reference?.path === undefined ? {} : { path: reference.path })
+})
 
 /**
  * Type guard for values produced by {@link digestInput}.
@@ -164,7 +189,14 @@ const normalizeInputs = (inputs: ContentIdentity["inputs"]): Record<string, unkn
   Object.fromEntries(
     Object.entries(inputs).map(([name, value]) => [
       name,
-      isDigestInput(value) ? { kind: "digest", digest: value.digest } : { kind: "literal", value }
+      isDigestInput(value)
+        ? {
+          kind: "digest",
+          digest: value.digest,
+          ...(value.reference === undefined ? {} : { reference: value.reference }),
+          ...(value.path === undefined ? {} : { path: value.path })
+        }
+        : { kind: "literal", value }
     ])
   )
 
@@ -255,7 +287,9 @@ export const fromKeyMaterial = (
   for (let index = 0; index < material.inputs.length; index++) {
     const input = material.inputs[index]!
     if (input._tag === "Literal") {
-      inputs[String(index)] = { kind: "literal", value: input.value }
+      // Raw, so `normalizeInputs` applies the one literal wrap. Building
+      // `{kind: "literal", value}` here got wrapped a second time.
+      inputs[String(index)] = input.value
       continue
     }
     const digest = dependencyDigests[input.from]
@@ -268,10 +302,10 @@ export const fromKeyMaterial = (
       )
     }
     inputs[String(index)] = input._tag === "Pending"
-      ? { kind: "pending", digest }
+      ? digestInput(digest, { reference: "pending" })
       : input.path.length > 0
-      ? { kind: "ref-projected", dependencyDigest: digest, path: input.path }
-      : { kind: "ref", digest }
+      ? digestInput(digest, { reference: "ref-projected", path: input.path })
+      : digestInput(digest, { reference: "ref" })
   }
   return content({
     body: {
