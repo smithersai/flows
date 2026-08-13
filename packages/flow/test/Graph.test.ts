@@ -65,8 +65,8 @@ const compile = (planId: string, flow: string, graph: Graph.Graph): Promise<Plan
  * The node's own prototype is kept, because a rehydrated AST is still handed
  * back as a node — only what lived beside it is gone.
  */
-const detached = <A>(built: Node.Node<A>): Node.Node<A> =>
-  Object.assign(Object.create(Object.getPrototypeOf(built) as object) as Node.Node<A>, {
+const detached = <A, E = never, R = never>(built: Node.Node<A, E, R>): Node.Node<A, E, R> =>
+  Object.assign(Object.create(Object.getPrototypeOf(built) as object) as Node.Node<A, E, R>, {
     ast: JSON.parse(JSON.stringify(built.ast)) as Node.Ast
   })
 
@@ -231,7 +231,7 @@ describe("Graph.build planned values", () => {
     const CountTo100 = Flow.make("counter/count-to-100", {
       payload: { path: Schema.String },
       success: Schema.Number,
-      body: ({ path }): Node.Node<unknown> =>
+      body: ({ path }): Node.Node<unknown, never, Activity.Requirement<"counter/increment">> =>
         Increment.call({ path }).pipe(
           Node.branch({
             if: (value) => value >= 100,
@@ -449,7 +449,11 @@ describe("Graph.build composition", () => {
   })
 
   it("folds the callee's own body digest into a call the graph keeps as a leaf", () => {
-    const digestOf = (calleeBody: (payload: { readonly path: string }) => Node.Node<number>): unknown => {
+    const digestOf = (
+      calleeBody: (
+        payload: { readonly path: string }
+      ) => Node.Node<number, never, Activity.Requirement<"counter/write">>
+    ): unknown => {
       const Callee = Flow.make("keys/callee", {
         payload: { path: Schema.String },
         success: Schema.Number,

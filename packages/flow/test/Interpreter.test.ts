@@ -62,7 +62,9 @@ type Wiring = Layer.Layer<never, never, FlowRuntime.FlowRuntime | Activity.Imple
 /** Everything a driven body needs: the table, the implementations, a runtime. */
 const wired = (
   registration: Wiring = Layer.empty
-): Layer.Layer<FlowRuntime.FlowRuntime | Activity.Implementations> =>
+): Layer.Layer<
+  Layer.Success<typeof implementations> | FlowRuntime.FlowRuntime | Activity.Implementations
+> =>
   Layer.merge(implementations, registration).pipe(
     Layer.provideMerge(Activity.layerImplementations),
     Layer.provideMerge(layerMemory)
@@ -91,7 +93,7 @@ const drive = <A, E>(
   )
 
 /** An AST that crossed a serialization boundary, leaving its side tables behind. */
-const detached = <A>(built: Node.Node<A>): Node.Node<A> => ({
+const detached = <A, E = never, R = never>(built: Node.Node<A, E, R>): Node.Node<A, E, R> => ({
   ...built,
   ast: JSON.parse(JSON.stringify(built.ast)) as Node.Ast
 })
@@ -192,7 +194,7 @@ describe("Interpreter branches", () => {
   const Decide = Flow.make("interpreter/decide", {
     payload: { path: Schema.String, target: Schema.Number },
     success: Schema.Unknown,
-    body: ({ path, target }): Node.Node<unknown> =>
+    body: ({ path, target }): Node.Node<unknown, never, Activity.Requirement<"interpreter/increment">> =>
       Increment.call({ path }).pipe(
         Node.branch({
           if: (value) => value >= target,

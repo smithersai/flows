@@ -36,7 +36,9 @@ const marks: Array<string> = []
 
 const wired = (
   registration: Layer.Layer<never, never, FlowRuntime.FlowRuntime | Activity.Implementations> = Layer.empty
-): Layer.Layer<FlowRuntime.FlowRuntime | Activity.Implementations> =>
+): Layer.Layer<
+  Activity.Requirement<"waitFor/mark"> | FlowRuntime.FlowRuntime | Activity.Implementations
+> =>
   Layer.mergeAll(
     WaitFor.layer,
     Mark.toLayer(({ label }) =>

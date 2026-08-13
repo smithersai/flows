@@ -50,7 +50,10 @@ type CounterFlow = Flow.Flow<
   string,
   Schema.Struct<{ value: typeof Schema.Number; target: typeof Schema.Number }>,
   typeof Schema.Number,
-  typeof Schema.Never
+  typeof Schema.Never,
+  // `.to()` drops the callee's requirements, so a lineage that hands off to
+  // itself names only what one round calls and the type stays finite.
+  Activity.Requirement<"trampoline/increment">
 >
 
 /** The recursion edge a body cannot name inside its own declaration. */

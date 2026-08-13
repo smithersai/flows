@@ -175,7 +175,7 @@ describe("bodied flow on the memory engine", () => {
     const Gated = Flow.make("body/gated", {
       payload: { path: Schema.String },
       success: Schema.Number,
-      body: ({ path }): Node.Node<unknown> =>
+      body: ({ path }): Node.Node<unknown, never, Activity.Requirement<"body/read">> =>
         Read.call({ path }).pipe(
           Node.andThen((result): Node.Node<unknown> =>
             approved ? Flow.done(result.value) : Flow.park({ reason: "approval", token: "body-gate" })

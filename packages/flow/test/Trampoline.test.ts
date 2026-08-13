@@ -27,7 +27,10 @@ type CounterFlow = Flow.Flow<
   "trampoline/counter",
   Schema.Struct<{ value: typeof Schema.Number; target: typeof Schema.Number }>,
   typeof Schema.Number,
-  typeof Schema.Never
+  typeof Schema.Never,
+  // The self-handoff drops its requirements, so the lineage names only the
+  // activity its own round calls and the type stays finite.
+  Activity.Requirement<"trampoline/increment">
 >
 
 const Counter: CounterFlow = Flow.make("trampoline/counter", {
@@ -63,7 +66,9 @@ const EncodedSource = Flow.make("trampoline/encoded-source", {
 
 const wired = (
   registration: Layer.Layer<never, never, FlowRuntime.FlowRuntime | Activity.Implementations>
-): Layer.Layer<FlowRuntime.FlowRuntime | Activity.Implementations> =>
+): Layer.Layer<
+  Layer.Success<typeof increments> | FlowRuntime.FlowRuntime | Activity.Implementations
+> =>
   Layer.merge(increments, registration).pipe(
     Layer.provideMerge(Activity.layerImplementations),
     Layer.provideMerge(layerMemory)

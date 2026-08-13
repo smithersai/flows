@@ -359,20 +359,24 @@ describe("flow definition surface", () => {
       success: Schema.Number,
       body: (payload) => parentActivityDeclaration.call(payload)
     })
+    // The parent's implementation executes the child, so the child's wiring goes
+    // UNDER the parent's rather than beside it: that is what answers the child
+    // flow's requirement where the parent's implementation asks for it.
     const layer = Layer.mergeAll(
-      Layer.mergeAll(
-        childActivityDeclaration.toLayer((payload) => Effect.succeed(payload.n + 1)),
-        Interpreter.layer(child)
-      ).pipe(
-        Layer.provideMerge(Activity.layerImplementations)
+      parentActivityDeclaration.toLayer(() => child.execute({ n: 1 }, { executionId: "child-run" })),
+      Interpreter.layer(parent)
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(
+        Layer.mergeAll(
+          childActivityDeclaration.toLayer((payload) => Effect.succeed(payload.n + 1)),
+          Interpreter.layer(child)
+        ).pipe(
+          Layer.provideMerge(Activity.layerImplementations)
+        )
       ),
-      Layer.mergeAll(
-        parentActivityDeclaration.toLayer(() => child.execute({ n: 1 }, { executionId: "child-run" })),
-        Interpreter.layer(parent)
-      ).pipe(
-        Layer.provideMerge(Activity.layerImplementations)
-      )
-    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+      Layer.provideMerge(FlowEngine.layerMemory)
+    )
     return Effect.gen(function*() {
       expect(yield* parent.execute({ id: "x" }, { executionId: "parent-run" })).toBe(2)
     }).pipe(Effect.provide(layer))
@@ -401,17 +405,24 @@ describe("flow definition surface", () => {
       error: Schema.String,
       body: (payload) => parentActivityDeclaration.call(payload)
     })
+    // The parent's implementation executes the child, so the child's wiring goes
+    // UNDER the parent's rather than beside it: that is what answers the child
+    // flow's requirement where the parent's implementation asks for it.
     const layer = Layer.mergeAll(
-      Layer.mergeAll(childActivityDeclaration.toLayer(() => Effect.fail("child-broke")), Interpreter.layer(child)).pipe(
-        Layer.provideMerge(Activity.layerImplementations)
+      parentActivityDeclaration.toLayer(() => child.execute({ n: 1 }, { executionId: "child-run-f" })),
+      Interpreter.layer(parent)
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(
+        Layer.mergeAll(
+          childActivityDeclaration.toLayer(() => Effect.fail("child-broke")),
+          Interpreter.layer(child)
+        ).pipe(
+          Layer.provideMerge(Activity.layerImplementations)
+        )
       ),
-      Layer.mergeAll(
-        parentActivityDeclaration.toLayer(() => child.execute({ n: 1 }, { executionId: "child-run-f" })),
-        Interpreter.layer(parent)
-      ).pipe(
-        Layer.provideMerge(Activity.layerImplementations)
-      )
-    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+      Layer.provideMerge(FlowEngine.layerMemory)
+    )
     return Effect.gen(function*() {
       const exit = yield* parent.execute({ id: "x" }, { executionId: "parent-run-f" }).pipe(Effect.exit)
       expect(Exit.isFailure(exit)).toBe(true)

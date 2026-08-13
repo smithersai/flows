@@ -32,8 +32,9 @@ const Host = Flow.make("Gaps/Host", {
 /** The host flow, wired to run `execute` as its single declared step. */
 const hosted = (
   execute: () => Effect.Effect<void, never, FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance>
-): Layer.Layer<FlowRuntime.FlowRuntime | Activity.Implementations> =>
-  layerWired(Layer.mergeAll(Block.toLayer(execute), Interpreter.layer(Host)))
+): Layer.Layer<
+  Activity.Requirement<"Gaps/Block"> | FlowRuntime.FlowRuntime | Activity.Implementations
+> => layerWired(Layer.mergeAll(Block.toLayer(execute), Interpreter.layer(Host)))
 
 describe("Activity.CacheEnvironment", () => {
   it("accepts a complete environment and rejects an empty capability name", () => {

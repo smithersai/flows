@@ -49,7 +49,9 @@ const node = (graph: Graph.Graph, id: string): Graph.GraphNode =>
 
 const wired = (
   registration: Layer.Layer<never, never, FlowRuntime.FlowRuntime | Activity.Implementations>
-): Layer.Layer<FlowRuntime.FlowRuntime | Activity.Implementations> =>
+): Layer.Layer<
+  Layer.Success<typeof bumps> | FlowRuntime.FlowRuntime | Activity.Implementations
+> =>
   Layer.merge(bumps, registration).pipe(
     Layer.provideMerge(Activity.layerImplementations),
     Layer.provideMerge(layerMemory)

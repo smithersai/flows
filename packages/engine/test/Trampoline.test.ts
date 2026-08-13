@@ -20,7 +20,10 @@ type CounterFlow = Flow.Flow<
   string,
   Schema.Struct<{ value: typeof Schema.Number; target: typeof Schema.Number }>,
   typeof Schema.Number,
-  typeof Schema.Never
+  typeof Schema.Never,
+  // `.to()` drops the callee's requirements, so a lineage that hands off to
+  // itself names only what one round calls and the type stays finite.
+  Activity.Requirement<"trampoline/increment">
 >
 
 /**
@@ -75,21 +78,33 @@ const Parent = Flow.make("trampoline/parent", {
 })
 
 /** Every increment the lineage dispatched, in order. */
-const wire = (
-  ...registrations: ReadonlyArray<
-    Layer.Layer<never, never, FlowRuntime.FlowRuntime | Activity.Implementations>
+const wire = <
+  const Registrations extends ReadonlyArray<
+    Layer.Layer<
+      never,
+      never,
+      // A registration may execute a counter itself — the parent-flow case
+      // below does — so it is allowed to ask for the increment this wiring
+      // provides.
+      | FlowRuntime.FlowRuntime
+      | Activity.Implementations
+      | Activity.Requirement<"trampoline/increment">
+    >
   >
-) => {
+>(...registrations: Registrations) => {
   const calls: Array<number> = []
-  const layer = Layer.mergeAll(
-    Increment.toLayer(({ value }) =>
-      Effect.sync(() => {
-        calls.push(value)
-        return value + 1
-      })
+  // The increment goes UNDER the registrations rather than beside them: a
+  // registration whose implementation executes a counter asks for it, and a
+  // sibling layer answers nobody.
+  const layer = Layer.mergeAll(Layer.empty, ...registrations).pipe(
+    Layer.provideMerge(
+      Increment.toLayer(({ value }) =>
+        Effect.sync(() => {
+          calls.push(value)
+          return value + 1
+        })
+      )
     ),
-    ...registrations
-  ).pipe(
     Layer.provideMerge(Activity.layerImplementations),
     Layer.provideMerge(FlowEngine.layerMemory)
   )

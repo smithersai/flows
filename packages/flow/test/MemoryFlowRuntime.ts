@@ -328,9 +328,9 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
  * build-time effect: a table merged beside an implementation is not the table
  * the interpreter reads.
  */
-export const layerWired = (
-  registrations: Layer.Layer<never, never, FlowRuntime.FlowRuntime | Activity.Implementations>
-): Layer.Layer<FlowRuntime.FlowRuntime | Activity.Implementations> =>
+export const layerWired = <Implemented = never>(
+  registrations: Layer.Layer<Implemented, never, FlowRuntime.FlowRuntime | Activity.Implementations>
+): Layer.Layer<Implemented | FlowRuntime.FlowRuntime | Activity.Implementations> =>
   registrations.pipe(
     Layer.provideMerge(Activity.layerImplementations),
     Layer.provideMerge(layerMemory)

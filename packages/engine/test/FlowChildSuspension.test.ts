@@ -104,20 +104,24 @@ describe("child flow suspension and interruption", () => {
       success: Schema.Number,
       body: (payload) => parentActivityDeclaration.call(payload)
     })
+    // The parent's implementation executes the child, so the child's wiring goes
+    // UNDER the parent's rather than beside it: that is what answers the child
+    // flow's requirement where the parent's implementation asks for it.
     const layer = Layer.mergeAll(
-      Layer.mergeAll(childActivityDeclaration.toLayer(() => DurableDeferred.await(Gate)), Interpreter.layer(child))
-        .pipe(
-          Layer.provideMerge(Activity.layerImplementations)
-        ),
-      Layer.mergeAll(
-        parentActivityDeclaration.toLayer(() =>
-          Effect.map(child.execute({ n: 1 }, { executionId: "child-gated" }), (n) => n + 1)
-        ),
-        Interpreter.layer(parent)
-      ).pipe(
-        Layer.provideMerge(Activity.layerImplementations)
-      )
-    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+      parentActivityDeclaration.toLayer(() =>
+        Effect.map(child.execute({ n: 1 }, { executionId: "child-gated" }), (n) => n + 1)
+      ),
+      Interpreter.layer(parent)
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(
+        Layer.mergeAll(childActivityDeclaration.toLayer(() => DurableDeferred.await(Gate)), Interpreter.layer(child))
+          .pipe(
+            Layer.provideMerge(Activity.layerImplementations)
+          )
+      ),
+      Layer.provideMerge(FlowEngine.layerMemory)
+    )
 
     return Effect.gen(function*() {
       yield* parent.execute({ id: "x" }, { executionId: "parent-gated", discard: true })
@@ -225,24 +229,28 @@ describe("child flow suspension and interruption", () => {
       success: Schema.Number,
       body: (payload) => parentActivityDeclaration.call(payload)
     })
+    // The parent's implementation executes the child, so the child's wiring goes
+    // UNDER the parent's rather than beside it: that is what answers the child
+    // flow's requirement where the parent's implementation asks for it.
     const layer = Layer.mergeAll(
-      Layer.mergeAll(
-        childActivityDeclaration.toLayer((payload) =>
-          Effect.succeed(payload.n).pipe(
-            Effect.onInterrupt(() => Effect.sync(() => void interrupted.push("child")))
-          )
-        ),
-        Interpreter.layer(child)
-      ).pipe(
-        Layer.provideMerge(Activity.layerImplementations)
+      parentActivityDeclaration.toLayer(() => child.execute({ n: 5 }, { executionId: "child-quick" })),
+      Interpreter.layer(parent)
+    ).pipe(
+      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(
+        Layer.mergeAll(
+          childActivityDeclaration.toLayer((payload) =>
+            Effect.succeed(payload.n).pipe(
+              Effect.onInterrupt(() => Effect.sync(() => void interrupted.push("child")))
+            )
+          ),
+          Interpreter.layer(child)
+        ).pipe(
+          Layer.provideMerge(Activity.layerImplementations)
+        )
       ),
-      Layer.mergeAll(
-        parentActivityDeclaration.toLayer(() => child.execute({ n: 5 }, { executionId: "child-quick" })),
-        Interpreter.layer(parent)
-      ).pipe(
-        Layer.provideMerge(Activity.layerImplementations)
-      )
-    ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+      Layer.provideMerge(FlowEngine.layerMemory)
+    )
 
     return Effect.gen(function*() {
       expect(yield* parent.execute({ id: "x" }, { executionId: "parent-quick" })).toBe(5)
