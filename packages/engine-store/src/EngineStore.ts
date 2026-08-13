@@ -31,6 +31,7 @@ import * as DeferredPersistence from "./internal/DeferredPersistence.ts"
 import * as RunDriver from "./internal/RunDriver.ts"
 import * as OwnerIdentity from "./OwnerIdentity.ts"
 import * as StepBoundary from "./StepBoundary.ts"
+import * as WakeBus from "./WakeBus.ts"
 import * as WorkspaceSandbox from "./WorkspaceSandbox.ts"
 
 /**
@@ -138,13 +139,23 @@ export const make = (
     const effectDispatcher = yield* Effect.serviceOption(WorkspaceSandbox.EffectDispatcher)
     const engineState = yield* DurableEngineState.DurableEngineState
     const attemptSurvivors = engineState.attemptSurvivors
+    /**
+     * Resolved like the sandbox lane above: OPTIONAL, at composition time. A
+     * host that provides `WakeBus.layer` shares one bus between this engine
+     * and its own wake sources; a composition given none builds a private
+     * bus, which is complete for the in-process seam because every wake
+     * source below (driver, deferred persistence) publishes through it.
+     */
+    const providedWakeBus = yield* Effect.serviceOption(WakeBus.WakeBus)
+    const wakeBus = Option.getOrElse(providedWakeBus, WakeBus.makeUnsafe)
 
     const engine = yield* Deferred.make<FlowRuntime.FlowRuntime["Service"]>()
     const driver = yield* RunDriver.make({
       owner,
       journalSource: options.journalSource,
       isAlive: options.isAlive,
-      engine: Deferred.await(engine)
+      engine: Deferred.await(engine),
+      wakeBus
     })
     const deferred = yield* DeferredPersistence.make({
       owner,
@@ -274,10 +285,16 @@ export const make = (
       }),
       deferredResult: deferred.deferredResult,
       deferredDone: deferred.deferredDone,
-      scheduleClock: deferred.scheduleClock
-      // TODO(piece-6): resumeSignal remains unimplemented until Journal Queue
-      // exposes a committed event-driven wake subscription. The flow
-      // engine's suspension polling schedule remains the fallback.
+      scheduleClock: deferred.scheduleClock,
+      // The engine races this against its suspension backoff sleep, so an
+      // IN-PROCESS wake — deferred completed, clock fired, operator resume,
+      // run settled — resumes the waiting caller immediately, with the
+      // polling schedule as the bounded fallback. The bus is edge-triggered
+      // and miss-tolerant (`WakeBus.ts`); a wake published before the caller
+      // re-subscribes only costs one poll interval. Cross-process wakes stay
+      // on the polling schedule and the heartbeat sweeps until the journal
+      // exposes a committed event-driven subscription (piece-6).
+      resumeSignal: (_flow, executionId) => wakeBus.awaitWake(executionId)
     }
     const service = FlowEngine.makeUnsafe(encoded)
     yield* Deferred.succeed(engine, service)

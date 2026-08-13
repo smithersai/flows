@@ -22,6 +22,7 @@ import * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
 import * as DurableEngineState from "../DurableEngineState.ts"
 import { RunState } from "../RunState.ts"
+import * as WakeBus from "../WakeBus.ts"
 import * as ActivityPersistence from "./ActivityPersistence.ts"
 import * as EffectRecords from "./EffectRecords.ts"
 import * as JournalRecords from "./JournalRecords.ts"
@@ -66,6 +67,14 @@ export interface Dependencies {
   readonly journalSource: string
   readonly isAlive: (owner: Ownership.OwnerId) => Effect.Effect<boolean>
   readonly engine: Effect.Effect<FlowRuntime.FlowRuntime["Service"]>
+  /**
+   * In-process wake bus announced to whenever a durable write makes a run
+   * runnable — a scheduled resume (deferred, clock, operator) and a run
+   * settling terminally. Optional so a direct construction without one keeps
+   * the pre-existing polling-only behavior: the default drops every wake,
+   * which the engine's suspension polling schedule already covers.
+   */
+  readonly wakeBus?: WakeBus.Service | undefined
 }
 
 /**
@@ -158,6 +167,7 @@ export const make = (
     const journal = yield* Journal.Journal
     const store = yield* RunStore.RunStore
     const engineState = yield* DurableEngineState.DurableEngineState
+    const wakeBus = dependencies.wakeBus ?? WakeBus.makeNoop()
     const registrations = new Map<string, Registration>()
     /**
      * Runs already warned about waking without a registered flow (issue
@@ -932,12 +942,16 @@ export const make = (
           return yield* cancelOwned(executionId, activeState)
         }
         if (transitioned._tag !== "Transitioned") return
-        if (
-          status !== "suspended" &&
-          activeState.parentExecutionId !== undefined
-        ) {
-          const activeCoordinator = yield* Deferred.await(coordinatorDeferred)
-          yield* activeCoordinator.wake(activeState.parentExecutionId)
+        if (status !== "suspended") {
+          // The settle is durable; tell any in-process caller parked on this
+          // run's poll loop, so a run driven to completion by a sweep or a
+          // coordinator wake is observed now rather than on the next tick.
+          yield* wakeBus.wake(executionId)
+          if (activeState.parentExecutionId !== undefined) {
+            const activeCoordinator = yield* Deferred.await(coordinatorDeferred)
+            yield* activeCoordinator.wake(activeState.parentExecutionId)
+            yield* wakeBus.wake(activeState.parentExecutionId)
+          }
         }
       })
 
@@ -1272,6 +1286,11 @@ export const make = (
           reason
         })
         yield* coordinator.wake(executionId)
+        // The runnability change (deferred completed, clock fired, operator
+        // resume) is already durable — the caller commits before scheduling —
+        // so announcing after the coordinator enqueues the re-drive lets an
+        // in-process waiter skip the rest of its poll sleep.
+        yield* wakeBus.wake(executionId)
       })
     )
 
