@@ -129,6 +129,18 @@ export const activityKey = Effect.fn("FlowEngine.activityKey")(function*(
     // from before this fix; those keys were unsafe to replay across schema
     // changes, so the break is intentional (same precedent as the
     // name-namespacing fix).
+    // The two forms build `input` from different material, so the form itself
+    // is key input. Without it a caller object that spells the string form's
+    // `{activity, idempotencyKey, declaration}` encoding — the shape a caller
+    // reaches for when copying the engine's own encoding to get a
+    // rename-stable key — digests byte-identically to the string form, shares
+    // one attempt row and one cache row, and replays the string form's
+    // recorded outcome under its own schema. `StepIdentity.allocationScope`
+    // already tags the same aliasing `/s:` and `/c:` (StepIdentity.ts:88-89);
+    // the persisted key omitted it. The tag is a sibling of `input`, not a
+    // member of it, so the caller-owned object stays verbatim and
+    // rename-stability is untouched.
+    const form = typeof activity.idempotencyKey === "string" ? "declared" : "caller"
     const input: Schema.JsonObject = typeof activity.idempotencyKey === "string"
       ? {
         activity: activity.name,
@@ -150,6 +162,7 @@ export const activityKey = Effect.fn("FlowEngine.activityKey")(function*(
     // (issue #151) instead of being discarded through `Result.getOrThrow`.
     return yield* Schema.decodeUnknownEffect(Key)({
       kind: environment === undefined ? "run" : "cache",
+      form,
       input,
       ...(environment === undefined ? { runId: executionId } : { environment }),
       ...(boundary === undefined ? {} : { boundary })

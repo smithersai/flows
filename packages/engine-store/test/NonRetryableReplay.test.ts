@@ -75,9 +75,12 @@ const declaration = {
   ))
 }
 const environment = { layers: [], capabilities: {} } satisfies Activity.CacheEnvironment
+// `form` names which idempotency-key form built `input`, so a caller object
+// that spells the string form's encoding cannot alias it (B3).
 const activityKey = (name: string, idempotencyKey: string) =>
   key({
     kind: "cache",
+    form: "declared",
     input: { activity: name, idempotencyKey, declaration },
     environment
   })
