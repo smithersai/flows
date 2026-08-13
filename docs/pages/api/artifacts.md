@@ -52,6 +52,17 @@ A digest reaches a read straight out of a durable row, so every implementation v
 
 The sweep half of [Artifact GC](/artifact-gc), deliberately not part of `ArtifactStore.Service`: a remote tier can neither enumerate its address space nor accept a delete, so only the host-local filesystem store implements it. `remove`'s fence refuses a blob freshened past the bound, which is how a concurrent `put` re-referencing old bytes survives a sweep.
 
+## ArtifactStoreMetrics
+
+[src/ArtifactStoreMetrics.ts](https://github.com/smithersai/flows/blob/main/packages/artifacts/src/ArtifactStoreMetrics.ts)
+
+| Export | Kind | Notes |
+| --- | --- | --- |
+| `puts` | counter | `flows_artifact_puts`; successful puts, deduplicated ones included |
+| `gets` | counter | `flows_artifact_gets`; successful digest-verified gets — typed misses are error evidence, not throughput |
+
+The local implementations update them, so a `CombinedArtifacts` stack counts once per tier it actually touched.
+
 ## RemoteArtifacts
 
 [src/RemoteArtifacts.ts](https://github.com/smithersai/flows/blob/main/packages/artifacts/src/RemoteArtifacts.ts)

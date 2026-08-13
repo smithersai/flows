@@ -45,6 +45,17 @@ const layer = Layer.mergeAll(RunStore.layer, AttemptStore.layer).pipe(
 | `transitionOwned(runId, owner, toStatus, stateJson?, guard?)` | owned status change |
 | `steal(runId, expected, claimant, nowMs, evidence)` | takeover with liveness evidence |
 
+## RunStoreMetrics
+
+[src/RunStoreMetrics.ts](https://github.com/smithersai/flows/blob/main/packages/run-store/src/RunStoreMetrics.ts)
+
+| Export | Kind | Notes |
+| --- | --- | --- |
+| `claims` | counter | `flows_run_claims`, dimensioned by `op` and `outcome` |
+| `heartbeats` | counter | `flows_run_heartbeats`, dimensioned by `outcome`; `fence_lost` is the fencing event |
+| `transitions` | counter | `flows_run_transitions`, dimensioned by `outcome` and target status `to` |
+| `claim`, `claimAndOwn`, `activate`, `steal`, `heartbeat`, `transition` | attributed views | keyed by each operation's outcome `_tag`; `RunStore` updates them as compare-and-swaps resolve |
+
 ## Ownership
 
 [src/Ownership.ts](https://github.com/smithersai/flows/blob/main/packages/run-store/src/Ownership.ts)

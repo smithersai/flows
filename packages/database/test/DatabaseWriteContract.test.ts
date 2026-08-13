@@ -1,4 +1,4 @@
-import { Effect, Layer } from "effect"
+import { Duration, Effect, Layer } from "effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -22,7 +22,10 @@ const connect = (layer: Layer.Layer<DurableWriter.DurableWriter | SqlClient.SqlC
   })
 
 const fileLayer = (filename: string): Layer.Layer<DurableWriter.DurableWriter | SqlClient.SqlClient> =>
-  Layer.provideMerge(DurableWriter.layer(), NodeDatabase.layer({ filename }))
+  Layer.provideMerge(
+    DurableWriter.layer(),
+    NodeDatabase.layer({ filename, sqlite: { busyTimeout: Duration.millis(25) } })
+  )
 
 /**
  * The production Node path: two independent connections over one database

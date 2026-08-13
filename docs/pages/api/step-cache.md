@@ -30,6 +30,17 @@ const layer = CacheStore.layer.pipe(Layer.provideMerge(Migrations.layer))
 | `make`, `makeNoop` | constructors | |
 | `layer`, `layerNoop` | layers | |
 
+## CacheStoreMetrics
+
+[src/CacheStoreMetrics.ts](https://github.com/smithersai/flows/blob/main/packages/step-cache/src/CacheStoreMetrics.ts)
+
+| Export | Kind | Notes |
+| --- | --- | --- |
+| `lookups` | counter | `flows_step_cache_lookups`, dimensioned by `outcome` |
+| `hit`, `miss` | attributed views | `CacheStore.get` updates one per lookup |
+| `puts` | counter | `flows_step_cache_puts`, dimensioned by `outcome` |
+| `put` | attributed views | keyed by the `PutResult` tag; `conflict` is the signal `Inconsistency` receivers act on |
+
 ## RemoteCacheStore
 
 [src/RemoteCacheStore.ts](https://github.com/smithersai/flows/blob/main/packages/step-cache/src/RemoteCacheStore.ts)

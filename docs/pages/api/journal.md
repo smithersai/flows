@@ -74,6 +74,16 @@ Reads below a run's compaction floor fail with `compacted`; see [Checkpoints and
 | `SqlJournalOptions` | interface | `capacity`, `overflow`, `batchSize`, `sourceEventCache`, `redact`, `compaction` |
 | `CompactionPolicy` | interface | opt-in threshold-driven checkpoint-and-compact; off by default |
 | `layer` | layer | scoped writer over `DurableWriter` |
+
+## JournalMetrics
+
+[src/JournalMetrics.ts](https://github.com/smithersai/flows/blob/main/packages/journal/src/JournalMetrics.ts)
+
+| Export | Kind | Notes |
+| --- | --- | --- |
+| `writes` | counter | `flows_journal_writes`, dimensioned by `channel` and `receipt` |
+| `durable`, `lossy` | attributed views | keyed by the receipt tag each channel resolves; `SqlJournal` updates them once per emission receipt |
+
 ## OwnerId
 
 [src/OwnerId.ts](https://github.com/smithersai/flows/blob/main/packages/journal/src/OwnerId.ts)

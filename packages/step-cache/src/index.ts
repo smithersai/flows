@@ -25,6 +25,12 @@
 export * as CacheStore from "./CacheStore.ts"
 
 /**
+ * @category metrics
+ * @since 0.1.0
+ */
+export * as CacheStoreMetrics from "./CacheStoreMetrics.ts"
+
+/**
  * @category services
  * @since 0.1.0
  */

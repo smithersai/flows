@@ -47,6 +47,7 @@ const BROWSER_SAFE = [
   { name: "@smthrs/engine-next", entry: "packages/engine/src/index.ts" },
   { name: "@smthrs/engine-store-next", entry: "packages/engine-store/src/index.ts" },
   { name: "@smthrs/flows-next", entry: "packages/flows/src/index.ts" },
+  { name: "@smthrs/observability-next", entry: "packages/observability/src/index.ts" },
   { name: "@smthrs/sync-next", entry: "packages/sync/src/index.ts" },
   { name: "@smthrs/time-travel-next", entry: "packages/time-travel/src/index.ts" }
 ]

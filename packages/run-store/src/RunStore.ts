@@ -11,11 +11,12 @@
  */
 import { DurableWriter, fromSqlError } from "@smthrs/database-next/DurableWriter"
 import type { OwnerId } from "@smthrs/journal-next/OwnerId"
-import { Clock, Context, Duration, Effect, Layer, Schema } from "effect"
+import { Clock, Context, Duration, Effect, Layer, Metric, Schema } from "effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import type * as SqlError from "effect/unstable/sql/SqlError"
 import { heartbeatStaleAfter } from "./Heartbeat.ts"
 import type { LivenessEvidence } from "./Ownership.ts"
+import * as RunStoreMetrics from "./RunStoreMetrics.ts"
 
 /** JSON text carrying an arbitrary decoded value. */
 const UnknownFromJsonString = Schema.fromJsonString(Schema.Unknown)
@@ -751,7 +752,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
         const current = yield* selectRun(sql, runId)
         return classifyClaimLoss(current[0], nowMs)
       })
-    )
+    ).pipe(Effect.tap((outcome) => Metric.update(RunStoreMetrics.claim[outcome._tag], 1)))
   )
 
   const claimAndOwn = Effect.fn("flows/journal/RunStore.claimAndOwn")((
@@ -778,7 +779,8 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
           // on a run that is genuinely recoverable. The other three still
           // describe the row itself and are reported unchanged.
           return loss === snapshotChanged ? evidenceRequired : loss
-        })
+        }),
+        Effect.tap((outcome) => Metric.update(RunStoreMetrics.claimAndOwn[outcome._tag], 1))
       )
     }
 
@@ -817,7 +819,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
         const current = yield* selectRun(sql, runId)
         return classifyClaimLoss(current[0], nowMs)
       })
-    )
+    ).pipe(Effect.tap((outcome) => Metric.update(RunStoreMetrics.claimAndOwn[outcome._tag], 1)))
   })
 
   const activate = Effect.fn("flows/journal/RunStore.activate")((
@@ -878,7 +880,8 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
             return snapshotChanged
           })
         )
-      )
+      ),
+      Effect.tap((outcome) => Metric.update(RunStoreMetrics.activate[outcome._tag], 1))
     )
   )
 
@@ -971,7 +974,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
         const current = yield* selectRun(sql, runId)
         return current.length === 0 ? notFound : fenceLost
       })
-    )
+    ).pipe(Effect.tap((outcome) => Metric.update(RunStoreMetrics.heartbeat[outcome._tag], 1)))
   )
 
   const transitionOwned = Effect.fn("flows/journal/RunStore.transitionOwned")((
@@ -1048,6 +1051,9 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
             return ownsRow ? guardFailed : fenceLost
           })
         )
+      ),
+      Effect.tap((outcome) =>
+        Metric.update(Metric.withAttributes(RunStoreMetrics.transition[outcome._tag], { to: toStatus }), 1)
       )
     )
   })
@@ -1060,7 +1066,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
     evidence: LivenessEvidence
   ): Effect.Effect<ClaimOutcome, RunStoreError> => {
     if (!evidenceMatches(expected, claimant, nowMs, evidence)) {
-      return Effect.succeed(snapshotChanged)
+      return Effect.as(Metric.update(RunStoreMetrics.steal.SnapshotChanged, 1), snapshotChanged)
     }
     const expectedOwner = expected.owner!
     return write(
@@ -1090,7 +1096,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
         const current = yield* selectRun(sql, runId)
         return classifyClaimLoss(current[0], nowMs)
       })
-    )
+    ).pipe(Effect.tap((outcome) => Metric.update(RunStoreMetrics.steal[outcome._tag], 1)))
   })
 
   return RunStore.of({

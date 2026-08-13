@@ -35,7 +35,8 @@ export default defineConfig({
         { text: "@smthrs/engine-next", link: "/api/engine" },
         { text: "@smthrs/engine-store-next", link: "/api/engine-store" },
         { text: "@smthrs/sync-next", link: "/api/sync" },
-        { text: "@smthrs/time-travel-next", link: "/api/time-travel" }
+        { text: "@smthrs/time-travel-next", link: "/api/time-travel" },
+        { text: "@smthrs/observability-next", link: "/api/observability" }
       ]
     },
     { text: "Internal details", link: "/internals" },
@@ -44,6 +45,7 @@ export default defineConfig({
     { text: "Checkpoints and compaction", link: "/compaction" },
     { text: "Artifact GC", link: "/artifact-gc" },
     { text: "Disaster recovery", link: "/disaster-recovery" },
+    { text: "Telemetry", link: "/telemetry" },
     { text: "Examples", link: "/examples" },
     { text: "Design decisions", link: "/design-decisions" },
     { text: "External", link: "/external" },

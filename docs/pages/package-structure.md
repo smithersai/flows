@@ -1,6 +1,6 @@
 # Package structure
 
-Twenty-two npm workspaces under `packages/`, one closed dependency set. This page is the map: who owns which data, which package may import which, and which entry points bundle for a browser.
+Twenty-three npm workspaces under `packages/`, one closed dependency set. This page is the map: who owns which data, which package may import which, and which entry points bundle for a browser.
 
 ## Workspaces
 
@@ -28,6 +28,7 @@ Twenty-two npm workspaces under `packages/`, one closed dependency set. This pag
 | `@smthrs/engine-store-next` | `packages/engine-store` | yes | `flows_deferred_completions`, `flows_clock_deadlines`, `flows_run_parents` |
 | `@smthrs/sync-next` | `packages/sync` | yes | no tables; a wire protocol over journal entries |
 | `@smthrs/time-travel-next` | `packages/time-travel` | yes | `flows_time_travel_snapshots`, `_edges`, `_audits`, `_receipts`, `_archive` |
+| `@smthrs/observability-next` | `packages/observability` | yes | no tables; the default OTLP exporter layer over Effect's own observability modules |
 | `@smthrs/examples` | `examples` | no | the runnable example suite |
 
 Every published manifest is `0.1.0`, every internal production range is an exact `0.1.0`, and `effect` is pinned to exact `4.0.0-rc.108`.
@@ -78,6 +79,7 @@ flowchart LR
   CRYPTO["@smthrs/crypto-next"]
   CANONICAL["@smthrs/canonical-next"]
   CAP["@smthrs/capability-next"]
+  OBS["@smthrs/observability-next"]
 
   KERNEL --> CAP
   JJ --> CAP
@@ -168,6 +170,7 @@ flowchart LR
 | `@smthrs/engine-store-next` | `artifacts`, `crypto`, `database`, `engine`, `flow`, `journal`, `kernel`, `keys`, `plan`, `run-store`, `step-cache` | `time-travel`, `flows` |
 | `@smthrs/sync-next` | `journal` | `flows` |
 | `@smthrs/time-travel-next` | `database`, `engine-store`, `jj`, `journal`, `run-store`, `step-cache` | `flows` |
+| `@smthrs/observability-next` | nothing in the workspace | nothing; an application composes it beside the engine, the way it composes a `platform-*` bundle |
 | `@smthrs/flows-next` | every package except the three `platform-*` bundles | nothing |
 
 `npm run circular` fails the build on an import cycle, within a package or across them.
@@ -212,15 +215,16 @@ A package root exports contracts. A platform implementation lives under a subpat
 | `@smthrs/engine-store-next` | yes | yes | the durable engine; owner identity enters through `OwnerIdentity` |
 | `@smthrs/sync-next` | yes | yes | protocol and client and server over RPC |
 | `@smthrs/time-travel-next` | yes | yes | frames, replay, fork, rewind, compensation, recovery |
+| `@smthrs/observability-next` | yes | yes | OTLP logs, metrics, and traces layers over Effect's `HttpClient`; the fetch variant binds the host's global `fetch` |
 | `@smthrs/flows-next` | yes | yes | re-exports every engine package |
 
-Twenty-two entry points bundle for the browser. Bundling is a weaker claim than running: `@smthrs/journal-next`, `@smthrs/run-store-next`, `@smthrs/step-cache-next`, and `@smthrs/plan-next` bundle because they depend on the `DurableWriter` contract, and a browser application still has to supply a browser SQL client, such as Effect's sqlite-wasm OPFS worker, to that contract. No such layer ships here.
+Twenty-three entry points bundle for the browser. Bundling is a weaker claim than running: `@smthrs/journal-next`, `@smthrs/run-store-next`, `@smthrs/step-cache-next`, and `@smthrs/plan-next` bundle because they depend on the `DurableWriter` contract, and a browser application still has to supply a browser SQL client, such as Effect's sqlite-wasm OPFS worker, to that contract. No such layer ships here.
 
-The accurate sentence is that canonical JSON, crypto, the host contracts, `BrowserHost`, keys, plan, artifacts, capability, kernel, sandbox, database, journal, run store, step cache, flow, engine, engine-store, the barrel, sync, and time travel bundle for the browser, and the durable engine composition is still SQLite-on-Node first because no browser SQL client layer ships here. `@smthrs/engine-store-next`'s last two `node:`-flavoured reads — `process.pid` and `node:crypto` `randomUUID` — moved behind the `OwnerIdentity` service, which closed issue #114.
+The accurate sentence is that canonical JSON, crypto, the host contracts, `BrowserHost`, keys, plan, artifacts, capability, kernel, sandbox, database, journal, run store, step cache, flow, engine, engine-store, the barrel, sync, time travel, and the OTLP exporter bundle for the browser, and the durable engine composition is still SQLite-on-Node first because no browser SQL client layer ships here. `@smthrs/engine-store-next`'s last two `node:`-flavoured reads — `process.pid` and `node:crypto` `randomUUID` — moved behind the `OwnerIdentity` service, which closed issue #114.
 
 ## Build shape
 
-Every published package builds a dual module surface: `dist/esm/index.js`, `dist/esm/index.d.ts`, and `dist/cjs/index.js`, named by a conditional `publishConfig.exports` map with `./internal/*` blocked. `scripts/pack-release.mjs` packs and publishes all twenty-two workspaces from one dependency-ordered list, so a package cannot be published before something it depends on. Every package ships a byte-identical `LICENSE` in its `files` whitelist. `packages/flow` and `packages/engine` additionally ship `THIRD_PARTY_NOTICES.md`, because they carry the two halves of a fork of Effect's unstable workflow surface; `packages/engine` also ships the `VENDOR.md` that records the fork for both.
+Every published package builds a dual module surface: `dist/esm/index.js`, `dist/esm/index.d.ts`, and `dist/cjs/index.js`, named by a conditional `publishConfig.exports` map with `./internal/*` blocked. `scripts/pack-release.mjs` packs and publishes all twenty-three publishable workspaces from one dependency-ordered list, so a package cannot be published before something it depends on. Every package ships a byte-identical `LICENSE` in its `files` whitelist. `packages/flow` and `packages/engine` additionally ship `THIRD_PARTY_NOTICES.md`, because they carry the two halves of a fork of Effect's unstable workflow surface; `packages/engine` also ships the `VENDOR.md` that records the fork for both.
 
 New package modules mirror the Effect repository: file structure, module layout, `make` and `layer` naming, error conventions, and `@since` and `@category` JSDoc.
 

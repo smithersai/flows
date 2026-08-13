@@ -1,14 +1,14 @@
 {
-  "name": "@smthrs/flows-next",
+  "name": "@smthrs/observability-next",
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
-  "description": "Barrel package re-exporting the whole @smthrs durable flow engine",
+  "description": "Default OTLP export wiring for flows telemetry",
   "homepage": "https://github.com/smithersai/flows",
   "repository": {
     "type": "git",
     "url": "https://github.com/smithersai/flows.git",
-    "directory": "packages/flows"
+    "directory": "packages/observability"
   },
   "bugs": {
     "url": "https://github.com/smithersai/flows/issues"
@@ -16,14 +16,14 @@
   "tags": [
     "typescript",
     "effect",
-    "flow",
-    "durable-execution"
+    "observability",
+    "opentelemetry"
   ],
   "keywords": [
     "typescript",
     "effect",
-    "flow",
-    "durable-execution"
+    "observability",
+    "opentelemetry"
   ],
   "engines": {
     "node": ">=22.19.0"
@@ -32,20 +32,13 @@
   "exports": {
     "./package.json": "./package.json",
     ".": "./src/index.ts",
-    "./*": "./src/*.ts",
-    "./internal/*": null,
-    "./*/index": null
+    "./*": "./src/*.ts"
   },
   "files": [
     "src/**/*.ts",
-    "dist/**/*.js",
-    "dist/**/*.js.map",
-    "dist/**/*.d.ts",
-    "dist/**/*.d.ts.map",
-    "dist/**/package.json",
+    "dist/**/*",
     "LICENSE",
-    "README.md",
-    "CHANGELOG.md"
+    "README.md"
   ],
   "publishConfig": {
     "access": "public",
@@ -61,9 +54,7 @@
         "types": "./dist/esm/*.d.ts",
         "import": "./dist/esm/*.js",
         "require": "./dist/cjs/*.js"
-      },
-      "./internal/*": null,
-      "./*/index": null
+      }
     }
   },
   "scripts": {
@@ -76,25 +67,6 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
-    "@smthrs/artifacts-next": "0.1.0",
-    "@smthrs/canonical-next": "0.1.0",
-    "@smthrs/capability-next": "0.1.0",
-    "@smthrs/crypto-next": "0.1.0",
-    "@smthrs/database-next": "0.1.0",
-    "@smthrs/engine-next": "0.1.0",
-    "@smthrs/engine-store-next": "0.1.0",
-    "@smthrs/flow-next": "0.1.0",
-    "@smthrs/jj-next": "0.1.0",
-    "@smthrs/journal-next": "0.1.0",
-    "@smthrs/kernel-next": "0.1.0",
-    "@smthrs/keys-next": "0.1.0",
-    "@smthrs/observability-next": "0.1.0",
-    "@smthrs/plan-next": "0.1.0",
-    "@smthrs/run-store-next": "0.1.0",
-    "@smthrs/sandbox-next": "0.1.0",
-    "@smthrs/step-cache-next": "0.1.0",
-    "@smthrs/sync-next": "0.1.0",
-    "@smthrs/time-travel-next": "0.1.0",
     "effect": "4.0.0-rc.108"
   },
   "devDependencies": {
@@ -111,6 +83,7 @@
     "eslint-plugin-unicorn": "61.0.2",
     "madge": "8.0.0",
     "typescript": "6.0.3",
+    "typescript-eslint": "8.65.0",
     "vitest": "4.1.9"
   }
 }

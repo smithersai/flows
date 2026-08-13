@@ -24,9 +24,11 @@ import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
+import * as Metric from "effect/Metric"
 import * as Option from "effect/Option"
 import * as Random from "effect/Random"
 import * as Schema from "effect/Schema"
+import * as ArtifactStoreMetrics from "./ArtifactStoreMetrics.ts"
 
 /**
  * Schema for a content address: exactly 64 lowercase hexadecimal SHA-256
@@ -459,6 +461,7 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
       // existing blob matched its digest, or this store just published them
       // atomically. Later puts of the digest trust that proof.
       verifiedDigestRecord(digest)
+      yield* Metric.update(ArtifactStoreMetrics.puts, 1)
       return digest
     })
   )
@@ -492,6 +495,7 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
           })
         )
       }
+      yield* Metric.update(ArtifactStoreMetrics.gets, 1)
       return bytes
     })
   )
@@ -552,7 +556,7 @@ export const makeMemory = (): Service => {
       Effect.map(measure(bytes), (digest) => {
         blobs.set(digest, bytes)
         return digest
-      })
+      }).pipe(Effect.tap(() => Metric.update(ArtifactStoreMetrics.puts, 1)))
     ),
     get: Effect.fn("ArtifactStore.get")((digest: string) =>
       Effect.gen(function*() {
@@ -561,6 +565,7 @@ export const makeMemory = (): Service => {
         if (bytes === undefined) {
           return yield* Effect.fail(new ArtifactMissing({ code: "artifact_missing", digest }))
         }
+        yield* Metric.update(ArtifactStoreMetrics.gets, 1)
         return bytes
       })
     ),
