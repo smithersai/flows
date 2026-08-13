@@ -42,7 +42,7 @@ Six packages create schema, in three different ways. Knowing which is which keep
 | `@smthrs/run-store-next` | `0001_initial`, run by `Migrations.layer` | `flows_runs`, `flows_attempts` |
 | `@smthrs/step-cache-next` | `0001_initial`, run by `Migrations.layer` | `flows_step_cache` |
 | `@smthrs/plan-next` | `0001_initial`, run by `Migrations.layer`; append-only triggers created with the tables | `flows_plans`, `flows_plan_nodes`, `flows_plan_edges` |
-| `@smthrs/engine-store-next` | `0001_initial`; its `Migrations.layer` composes every set in this table except time travel's, with plan's last | `flows_deferred_completions`, `flows_clock_deadlines` |
+| `@smthrs/engine-store-next` | `0001_initial`; its `Migrations.layer` composes the journal, run-store, step-cache, and plan sets with its own, plan's last | `flows_deferred_completions`, `flows_clock_deadlines` |
 | `@smthrs/engine-store-next` | statements issued by `DurableEngineState.make` at construction | `flows_run_parents`, its index, the `flows_run_parents_gc` trigger, the stale-running partial index |
 | `@smthrs/time-travel-next` | `SqlTimeTravelStore.migrate` | snapshots, lineage edges, audits, receipts, archive |
 
