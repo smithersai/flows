@@ -479,6 +479,59 @@ describe("replay-failed classification (issue #150)", () => {
     expect(Option.isSome(outcome.recorded)).toBe(true)
   })
 
+  it("keeps a fresh competing row when corruption quarantine reaches its fenced evict (issue #173)", async () => {
+    const key = "corruption/quarantine-fenced"
+    const keyDigest = sha256(key)
+    const outcome = await runPromise(
+      Effect.gen(function*() {
+        const cache = yield* CacheStore.CacheStore
+        yield* activate("corruption-fence-first")
+        yield* dispatch("corruption-fence-first", key, () => Effect.succeed("poisoned")).pipe(
+          Effect.provide(failingReplay(corruptionError))
+        )
+        const poisoned = yield* cache.get(keyDigest)
+        if (Option.isNone(poisoned)) return yield* Effect.die(new Error("poisoned row missing"))
+        const fresh = {
+          ...poisoned.value,
+          result: "fresh",
+          recordedRunId: "corruption-fence-fresh",
+          recordedEventSeq: poisoned.value.recordedEventSeq + 1
+        }
+        let replacementLanded = false
+        const racingCache: CacheStore.Service = {
+          ...cache,
+          evict: (digest, options) =>
+            Effect.gen(function*() {
+              // A sibling run replaces the poisoned generation after this
+              // dispatch read it but before its quarantine delete lands.
+              yield* cache.evict(digest)
+              const put = yield* cache.put(fresh)
+              replacementLanded = put._tag === "Inserted"
+              return yield* cache.evict(digest, options)
+            })
+        }
+        yield* activate("corruption-fence-second")
+        const failed = yield* dispatch(
+          "corruption-fence-second",
+          key,
+          () => Effect.die("must not execute")
+        ).pipe(
+          Effect.provide(failingReplay(corruptionError)),
+          Effect.provideService(CacheStore.CacheStore, racingCache),
+          Effect.flip
+        )
+        return { failed, replacementLanded, survivor: yield* cache.get(keyDigest) }
+      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
+    )
+
+    expect(outcome.failed).toBeInstanceOf(ActivityPersistence.CacheCorruptionDetected)
+    expect(outcome.replacementLanded).toBe(true)
+    expect(Option.getOrThrow(outcome.survivor)).toMatchObject({
+      result: "fresh",
+      recordedRunId: "corruption-fence-fresh"
+    })
+  })
+
   it("replaces the poisoned row when a tolerant receiver falls back to re-execution (issue #164)", async () => {
     const key = "corruption/quarantine-replaces"
     const outcome = await runPromise(
