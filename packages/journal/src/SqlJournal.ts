@@ -663,12 +663,16 @@ export const layer = (
       /**
        * Reads the row a duplicate emit collides with.
        *
-       * `makeEventId` is a pure, injective function of exactly
-       * `(run_id, source_id, source_seq)`, so a second predicate on that triple
-       * selected the same row and the `ORDER BY seq ASC LIMIT 1` tiebreak was
-       * unreachable. `UNIQUE (event_id)` in the migration is the authority
-       * either way, and `JournalEvent`'s test pins the injectivity here rather
-       * than paying for it on every insert.
+       * The lookup covers BOTH unique constraints the insert can conflict on:
+       * `UNIQUE (event_id)` and `UNIQUE (run_id, source_id, source_seq)`. It is
+       * tempting to keep only the first, because `makeEventId` is injective in
+       * exactly that triple — but that argument holds only for rows this
+       * journal minted. `TimeTravelStore.createFork` copies a parent's rows
+       * under the child's `run_id` with `'fork:' || run_id || ':' || event_id`,
+       * so a forked run carries rows whose triple is live and whose event id it
+       * will never mint. Looking those up by event id alone finds nothing, and
+       * the caller reports the resulting empty insert as `fence_lost` — a
+       * healthy fork failing with "someone else owns this run".
        */
       const selectExisting = (
         queued: QueuedEntry
@@ -679,6 +683,13 @@ export const layer = (
               event_type, payload_json, meta_json
             FROM flows_journal_events
             WHERE event_id = ${queued.eventId}
+              OR (
+                run_id = ${queued.runId}
+                AND source_id = ${queued.sourceId}
+                AND source_seq = ${queued.sourceSeq}
+              )
+            ORDER BY seq ASC
+            LIMIT 1
           `
           if (existing.length === 0) {
             return undefined

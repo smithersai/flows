@@ -1411,12 +1411,12 @@ describe("Journal", () => {
 })
 
 describe("makeEventId injectivity (D5)", () => {
-  // `selectExisting` used to look a duplicate up by `event_id = X OR
-  // (run_id, source_id, source_seq) = (…)`. `makeEventId` is a pure function
-  // of exactly that triple, so the two predicates selected the same row and
-  // the `ORDER BY seq ASC LIMIT 1` tiebreak was unreachable. The disjunction
-  // is gone; the property it silently relied on is asserted here instead, and
-  // `UNIQUE (event_id)` in the migration remains the durable authority.
+  // `makeEventId` is a pure function of exactly `(run_id, source_id,
+  // source_seq)`, so for rows this journal minted, `UNIQUE (event_id)` and
+  // `UNIQUE (run_id, source_id, source_seq)` reject the same second insert.
+  // `selectExisting` still queries both, because a forked run also carries
+  // rows whose event id `createFork` rewrote — the property asserted here is
+  // what makes the two predicates agree everywhere else.
   const id = (run: string, source: string, sequence: number) =>
     makeEventId(runId(run), sourceId(source), sourceSeq(sequence))
 
