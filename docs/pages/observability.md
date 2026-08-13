@@ -13,10 +13,11 @@ Most of what you would want from an observability stack is already a durable row
 | a derived view over history | `Journal.project(projection, options)` |
 | the same from another process | `@smthrs/sync-next` `Read` and `Subscribe` |
 | the state at a past point | `TimeTravel.inspect(position, projection)` |
+| the resync point of a compacted run | `Journal.latestCheckpoint(runId)` |
 
 The engine event types are listed in [Data structures](/data-structures). Filtering on `event_type` is indexed.
 
-Two properties matter when you build on this. Entries publish after COMMIT, so a subscriber never sees an entry that later rolls back. Sequences may have holes, so a reader follows cursors rather than assuming adjacency.
+Three properties matter when you build on this. Entries publish after COMMIT, so a subscriber never sees an entry that later rolls back. Sequences may have holes, so a reader follows cursors rather than assuming adjacency. And a compacted run reports itself: a read whose cursor starts below the compaction floor fails with a `compacted` error carrying the checkpoint to resync from — see [Checkpoints and compaction](/compaction).
 
 ## Redaction
 
@@ -52,6 +53,7 @@ Logging is sparse and deliberate. The engine logs where an operator needs to kno
 | sweeper defect | warning | a transient failure escaping the sweep, retried next tick |
 | deferred persistence failure | warning | a lossy-sink failure after the durable completion already committed |
 | queue worker failure | warning | a worker handler cause, before the loop continues |
+| journal auto-compaction failure | warning | a compaction-policy attempt failed or was refused; damped and retried after the next threshold |
 
 Log annotations are attached by `DurableQueue` (`package`, `module`, `fiber`, `queueName`) and by `FlowProxyServer` around its handlers. Everything else inherits whatever annotations the caller has set.
 
@@ -78,4 +80,5 @@ Log annotations are attached by `DurableQueue` (`package`, `module`, `fiber`, `q
 | Documented spans outside `@smthrs/flow-next` and `@smthrs/engine-next` | `@smthrs/database-next`, `@smthrs/journal-next`, `@smthrs/run-store-next`, `@smthrs/step-cache-next`, `@smthrs/plan-next`, `@smthrs/artifacts-next`, `@smthrs/engine-store-next`, `@smthrs/kernel-next`, `@smthrs/sync-next`, and `@smthrs/time-travel-next` each open one `Effect.fn` span per service operation, named after that operation and declaring no attributes; this page does not enumerate them |
 | A run inspector or dashboard | Planned; the journal and sync are the substrate one would build on |
 | Structured audit of permission decisions beyond the grant events | Planned |
-| Journal checkpointing or compaction for unbounded histories | Planned |
+
+Journal checkpointing and compaction, formerly listed here as planned, shipped in `@smthrs/journal-next`: [Checkpoints and compaction](/compaction).

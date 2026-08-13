@@ -40,12 +40,14 @@ const layer = SqlJournal.layer({ capacity: 1024, overflow: "reject" }).pipe(
 | `Service` | interface | the methods below |
 | `make`, `makeNoop` | constructors | |
 | `layerNoop` | layer | |
-| `JournalError` | class | carries a `JournalErrorCode` |
-| `JournalErrorCode` | const + type | includes `queue_overflow`, `idempotency_conflict`, `journal_closed` |
+| `JournalError` | class | carries a `JournalErrorCode`; `checkpointSeq` names the resync point on the compaction-aware codes |
+| `JournalErrorCode` | const + type | includes `queue_overflow`, `idempotency_conflict`, `journal_closed`, `compacted`, `reader_behind`, `checkpoint_invalid` |
 | `OverflowPolicy` | type | `reject`, `drop-newest`, `drop-oldest` |
 | `Accepted`, `Duplicate`, `Dropped` | interfaces | receipt variants |
 | `EmitReceipt`, `DurableReceipt` | types | receipt unions |
 | `StreamOptions`, `EntriesOptions`, `EntriesPage` | interfaces | read arguments and page shape |
+| `Checkpoint` | class | replay state pinned to a committed sequence; `compactedAtMs` non-null once it is the floor |
+| `CheckpointOptions`, `CompactOptions`, `Compacted` | interfaces | checkpoint and compaction arguments and receipt |
 
 | Method | Returns | Behavior |
 | --- | --- | --- |
@@ -57,6 +59,11 @@ const layer = SqlJournal.layer({ capacity: 1024, overflow: "reject" }).pipe(
 | `changes` | `PubSub.Subscription<Entry>` | post-commit publication |
 | `project(projection, options)` | `Stream<S>` | folds `stream` through a deterministic reducer |
 | `flush` | `void` | barrier for the lossy queue |
+| `checkpoint(options, owner?)` | `Checkpoint` | durably captures replay state at a committed sequence, in `transact`'s discipline |
+| `latestCheckpoint(runId)` | `Option<Checkpoint>` | the resync point for a compacted run |
+| `compact(options, owner?)` | `Compacted` | truncates strictly below a checkpoint, atomically with the floor advance |
+
+Reads below a run's compaction floor fail with `compacted`; see [Checkpoints and compaction](/compaction).
 
 ## SqlJournal
 
@@ -64,7 +71,8 @@ const layer = SqlJournal.layer({ capacity: 1024, overflow: "reject" }).pipe(
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `SqlJournalOptions` | interface | `capacity`, `overflow`, `batchSize`, `sourceEventCache`, `redact` |
+| `SqlJournalOptions` | interface | `capacity`, `overflow`, `batchSize`, `sourceEventCache`, `redact`, `compaction` |
+| `CompactionPolicy` | interface | opt-in threshold-driven checkpoint-and-compact; off by default |
 | `layer` | layer | scoped writer over `DurableWriter` |
 ## OwnerId
 
@@ -80,7 +88,7 @@ const layer = SqlJournal.layer({ capacity: 1024, overflow: "reject" }).pipe(
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `set` | `MigrationSet` | the namespaced set for `flows_journal_events`, in id block `0` |
+| `set` | `MigrationSet` | the namespaced set for `flows_journal_events` and `flows_journal_checkpoints`, in id block `0` |
 | `run` | effect | apply the journal schema |
 | `layer` | layer | applies the journal schema at construction |
 

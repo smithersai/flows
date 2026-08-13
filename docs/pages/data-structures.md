@@ -7,6 +7,7 @@ Everything durable in Smithers Flows is one of a small number of shapes. This pa
 | Shape | Table | Migration | Package |
 | --- | --- | --- | --- |
 | Journal entry | `flows_journal_events` | `0001_initial` | `@smthrs/journal-next` |
+| Journal checkpoint | `flows_journal_checkpoints` | `0002_checkpoints` | `@smthrs/journal-next` |
 | Run row | `flows_runs` | `0001_initial` | `@smthrs/run-store-next` |
 | Attempt row | `flows_attempts` | `0001_initial` | `@smthrs/run-store-next` |
 | Cache row | `flows_step_cache` | `0001_initial` | `@smthrs/step-cache-next` |
