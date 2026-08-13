@@ -1,4 +1,4 @@
-import { Effect, Fiber, PlatformError, Sink, Stream } from "effect"
+import { Deferred, Effect, Fiber, PlatformError, Sink, Stream } from "effect"
 import { ChildProcess } from "effect/unstable/process"
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
 import { describe, expect, it } from "vitest"
@@ -373,5 +373,73 @@ describe("RemoteChildProcessSpawner test double scripting", () => {
     )
 
     expect(observed).toEqual({ before: true, exitCode: 3, after: false })
+  })
+})
+
+describe("RemoteChildProcessSpawner handle state", () => {
+  it("does not share observable pid state between two spawner layers (D8)", async () => {
+    // `layer.ts:117` was a module-level `let nextPid = 1`: process-global
+    // mutable state in a repository whose rule is that host access goes
+    // through a Layer. Two spawners in one process shared the counter, so a
+    // handle's id depended on how many processes an unrelated spawner had
+    // started — and on test ordering.
+    const spawn = () =>
+      Effect.gen(function*() {
+        const spawner = yield* ChildProcessSpawner
+        const first = yield* spawner.spawn(ChildProcess.make("greet"))
+        const second = yield* spawner.spawn(ChildProcess.make("greet"))
+        return [first.pid, second.pid]
+      }).pipe(
+        Effect.provide(
+          RemoteChildProcessSpawner.layer(
+            RemoteChildProcessSpawner.TestRemote.make({ scripts: { greet: { stdout: "hello" } } })
+          )
+        ),
+        Effect.scoped
+      )
+
+    const left = await Effect.runPromise(spawn())
+    const right = await Effect.runPromise(spawn())
+
+    // Distinct handles within one spawner still get distinct ids.
+    expect(left[0]).not.toBe(left[1])
+    // And the second spawner starts over rather than continuing the first's
+    // count, which is what "does not share state" means here.
+    expect(right).toEqual(left)
+  })
+
+  it("reports isRunning false after the process exits without awaiting exitCode first", async () => {
+    // The old `running` flag flipped only inside the handle's `exitCode`
+    // effect, so a caller that never awaited it was told the process was still
+    // running forever. A controlled provider lets the remote process exit
+    // without consuming the handle's exit effect.
+    const exited = Effect.runSync(Deferred.make<number>())
+    const provider = RemoteChildProcessSpawner.Provider.of({
+      session: "liveness",
+      open: () => Effect.void,
+      spawn: () =>
+        Effect.succeed({
+          stdout: Stream.empty,
+          stderr: Stream.empty,
+          exitCode: Deferred.await(exited)
+        })
+    })
+
+    const observed = await Effect.runPromise(
+      Effect.gen(function*() {
+        const spawner = yield* ChildProcessSpawner
+        const handle = yield* spawner.spawn(ChildProcess.make("greet"))
+        const beforeExit = yield* handle.isRunning
+        yield* Deferred.succeed(exited, 0)
+        yield* Effect.yieldNow
+        const afterExit = yield* handle.isRunning
+        return { beforeExit, afterExit }
+      }).pipe(Effect.provide(RemoteChildProcessSpawner.layer(provider)), Effect.scoped)
+    )
+
+    expect(observed.beforeExit).toBe(true)
+    // No `handle.exitCode` await occurred. The adapter observes the provider's
+    // completion in its own scoped fiber and updates liveness independently.
+    expect(observed.afterExit).toBe(false)
   })
 })

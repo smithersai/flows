@@ -11,9 +11,11 @@
  * @since 0.1.0
  */
 import * as CommandLine from "@smthrs/kernel/CommandLine"
+import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as PlatformError from "effect/PlatformError"
+import type * as Scope from "effect/Scope"
 import * as Sink from "effect/Sink"
 import * as Stream from "effect/Stream"
 import type * as ChildProcess from "effect/unstable/process/ChildProcess"
@@ -114,39 +116,60 @@ const outputStream = (
 const rightmostOptions = (command: ChildProcess.Command): ChildProcess.CommandOptions =>
   command._tag === "StandardCommand" ? command.options : rightmostOptions(command.right)
 
-let nextPid = 1
+/**
+ * Allocates the `ProcessId` a handle reports.
+ *
+ * Scoped to one spawner, not to the module. A remote session has no local pid
+ * to report, so the number is only ever an intra-spawner handle
+ * discriminator — and a module-level `let nextPid = 1` made it process-global
+ * state in a repository whose rule is that host access goes through a Layer.
+ * Two spawner layers in one process shared a counter, so a handle's id
+ * depended on how many processes an unrelated spawner had started.
+ */
+const pidAllocator = (): () => ProcessId => {
+  let nextPid = 1
+  return () => ProcessId(nextPid++)
+}
 
 const handleOf = (
   command: string,
   child: ChildProcess.Command,
-  process: RemoteProcess
-): ChildProcessHandle => {
-  let running = true
-  const rawStdout = Stream.mapError(process.stdout, platformError("stdout", command))
-  const rawStderr = Stream.mapError(process.stderr, platformError("stderr", command))
-  const options = rightmostOptions(child)
-  const stdout = outputStream(rawStdout, options.stdout)
-  const stderr = outputStream(rawStderr, options.stderr)
-  return makeHandle({
-    pid: ProcessId(nextPid++),
-    exitCode: process.exitCode.pipe(
+  process: RemoteProcess,
+  allocatePid: () => ProcessId
+): Effect.Effect<ChildProcessHandle, never, Scope.Scope> =>
+  Effect.gen(function*() {
+    let running = true
+    const rawStdout = Stream.mapError(process.stdout, platformError("stdout", command))
+    const rawStderr = Stream.mapError(process.stderr, platformError("stderr", command))
+    const options = rightmostOptions(child)
+    const stdout = outputStream(rawStdout, options.stdout)
+    const stderr = outputStream(rawStderr, options.stderr)
+    const completed = yield* Deferred.make<ExitCode, PlatformError.PlatformError>()
+    const observeExit = process.exitCode.pipe(
       Effect.mapError(platformError("exitCode", command)),
       Effect.map((code) => {
         running = false
         return ExitCode(code)
       })
-    ),
-    isRunning: Effect.sync(() => running),
-    kill: () => Effect.fail(noKill(command)),
-    stdin: Sink.fail(noStdin(command)),
-    stdout,
-    stderr,
-    all: Stream.merge(stdout, stderr),
-    getInputFd: () => Sink.drain,
-    getOutputFd: () => Stream.empty,
-    unref: Effect.succeed(Effect.void)
+    )
+    // Observe completion independently of whether a caller awaits `exitCode`.
+    // The Deferred memoizes the one provider observation for every waiter, and
+    // the scoped fiber cannot outlive the remote session that owns it.
+    yield* Effect.forkScoped(Deferred.into(observeExit, completed))
+    return makeHandle({
+      pid: allocatePid(),
+      exitCode: Deferred.await(completed),
+      isRunning: Effect.sync(() => running),
+      kill: () => Effect.fail(noKill(command)),
+      stdin: Sink.fail(noStdin(command)),
+      stdout,
+      stderr,
+      all: Stream.merge(stdout, stderr),
+      getInputFd: () => Sink.drain,
+      getOutputFd: () => Stream.empty,
+      unref: Effect.succeed(Effect.void)
+    })
   })
-}
 
 /**
  * Adapts a configured provider to Effect's `ChildProcessSpawner`.
@@ -171,8 +194,9 @@ export const layer = (provider: Provider): Layer.Layer<ChildProcessSpawner> =>
           makeSpawner((command: ChildProcess.Command) =>
             Effect.fail(platformError("open", CommandLine.render(command))(error))
           ),
-        onSuccess: () =>
-          makeSpawner(
+        onSuccess: () => {
+          const allocatePid = pidAllocator()
+          return makeSpawner(
             Effect.fnUntraced(function*(command: ChildProcess.Command) {
               yield* validateCommand(command)
               const rendered = CommandLine.render(command)
@@ -180,9 +204,10 @@ export const layer = (provider: Provider): Layer.Layer<ChildProcessSpawner> =>
                 cwd: CommandLine.cwd(command),
                 env: CommandLine.env(command)
               }).pipe(Effect.mapError(platformError("spawn", rendered)))
-              return handleOf(rendered, command, started)
+              return yield* handleOf(rendered, command, started, allocatePid)
             })
           )
+        }
       })
     )
   )
