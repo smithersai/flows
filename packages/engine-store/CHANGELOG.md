@@ -12,6 +12,10 @@
 
 - Required explicit whole-tree write verification before admitting a sealed
   result to the cross-run cache.
+- Quarantined corrupt boundary evidence off succeeded attempt rows after
+  journalling the inconsistency, so a later resume returns the durable outcome
+  without re-executing the activity
+  ([#171](https://github.com/smithersai/flows/issues/171)).
 
 ## [0.1.0] - 2026-08-05
 

@@ -154,10 +154,10 @@ export type CompleteClockOutcome =
  * - `quarantine` — parked because a SUCCEEDED attempt row's recorded
  *   evidence measured corrupt under the strict verdict (issue #171). The
  *   row cannot be evicted/re-executed like a cache row (its side effects
- *   already ran), so the run waits for an OPERATOR: restore the evidence
- *   bytes, time-travel past the attempt, or repair the attempt row, then
- *   wake the run. No sweeper may auto-wake this reason — a premature wake
- *   merely re-detects and re-parks, but it is never progress.
+ *   already ran), so the corrupt boundary evidence is quarantined off the
+ *   row while its durable outcome stays intact. No sweeper auto-wakes this
+ *   reason: the strict integrity verdict remains visible until an explicit
+ *   resume, which completes from the recorded outcome without re-execution.
  *
  * Left open (`string & {}`) so a plugin can park on a reason the core
  * taxonomy has not named yet — the store persists whatever it is given

@@ -288,19 +288,18 @@ export const errorTag = (error: unknown): string | undefined => {
 /**
  * Error tags that are non-retryable by type, under every policy (issue #156).
  *
- * These failures are deterministic: retrying re-runs the identical decision
- * against identical durable state, so every attempt re-fails the same way
- * while re-journalling its evidence — cache corruption is the canonical
- * case, where each retry re-reads the same corrupt row and re-detects the
- * identical corruption. No per-callsite or per-policy opt-out exists;
- * the tags are matched by string so the classification does not invert the
- * package dependency direction.
+ * These failures are integrity verdicts that must reach the driver without an
+ * activity-level retry hiding the first detection. Their persistence seams
+ * take a quarantine state action before raising them, so a later dispatch can
+ * heal, but the detecting dispatch remains a non-retryable failure. No
+ * per-callsite or per-policy opt-out exists; the tags are matched by string so
+ * the classification does not invert the package dependency direction.
  *
  * `AttemptEvidenceQuarantined` (issue #171) is the succeeded-attempt-row
- * counterpart: the corrupt row is deliberately never repaired in-band, so
- * retrying is deterministic re-detection. It must reach the driver
- * unretried, which parks the run in the `quarantine` waiting state for an
- * operator instead of failing it.
+ * counterpart: the corrupt boundary evidence is removed while the completed
+ * outcome stays durable. It reaches the driver unretried, which parks the
+ * first detection in the `quarantine` waiting state; the next explicit resume
+ * returns the recorded outcome without re-executing the activity.
  *
  * @category attempts
  * @since 0.1.0

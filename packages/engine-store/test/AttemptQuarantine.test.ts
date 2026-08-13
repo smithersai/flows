@@ -1,15 +1,12 @@
 import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
  * Issue #171: corrupt recorded evidence on a SUCCEEDED attempt row under the
- * strict verdict is an OPERATOR event, not a terminal run failure. The row
- * cannot be evicted and re-executed like a corrupt cache row (#164) — its
- * side effects already ran, so blind repair would break exactly-once — but
- * settling the run `failed` made the corruption a permanent opaque terminal:
- * every resume re-read the same row, re-detected the identical corruption,
- * and re-failed forever. The driver now parks the run in the `quarantine`
- * waiting state (no sweeper wakes it), with the corruption journalled, and
- * an operator resumes it after restoring the evidence bytes or
- * time-travelling past the attempt.
+ * strict verdict is an OPERATOR event, not a terminal run failure. The attempt
+ * cannot be evicted and re-executed like a corrupt cache row (#164) — its side
+ * effects already ran, so blind re-execution would break exactly-once. Instead,
+ * the corrupt boundary evidence is journalled and quarantined off the succeeded
+ * row. The first resume parks visibly; the next returns the durable outcome
+ * without touching the poisoned evidence or re-running the activity.
  */
 import { Activity, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow-next"
 import { Journal } from "@smthrs/journal-next"
@@ -55,7 +52,7 @@ const corruptionError = new StepBoundary.BoundaryCorruption({
   measuredDigest: "bb".repeat(32)
 })
 
-describe("succeeded-row corruption parks the run quarantined for an operator (issue #171)", () => {
+describe("succeeded-row corruption quarantines its evidence and heals on resume (issue #171)", () => {
   it("classifies the real AttemptEvidenceQuarantined instance non-retryable under every policy", () => {
     // Same cross-package seam pin as issue #165 for CacheCorruptionDetected:
     // the engine matches by tag string, so nothing else stops a rename from
@@ -75,7 +72,7 @@ describe("succeeded-row corruption parks the run quarantined for an operator (is
     expect(RetryPolicy.isNonRetryable(policy, quarantined)).toBe(true)
   })
 
-  it("parks the run as reason 'quarantine' instead of failing it, and an operator wake over restored evidence completes it", async () => {
+  it("parks once, then resumes from the durable outcome while the evidence remains corrupt", async () => {
     let dispatches = 0
     const sealed = Activity.make({
       name: "AttemptQuarantine/sealed",
@@ -239,10 +236,10 @@ describe("succeeded-row corruption parks the run quarantined for an operator (is
     expect(parked.releasedSweep).toEqual([])
     expect(dispatches).toBe(1)
 
-    // Operator action: the evidence bytes are restored (healthy boundary),
-    // and the run is explicitly re-driven. It completes from the durable
-    // outcome without ever re-executing the sealed body.
-    evidenceCorrupt = false
+    // No operator repairs the bytes. The first detection must have quarantined
+    // only the poisoned replay evidence off the succeeded row, so the next
+    // resume completes from the durable outcome without re-reading that
+    // evidence or re-executing the sealed body.
     const resumed = await run(
       Effect.gen(function*() {
         const engine = yield* makeEngine
@@ -253,15 +250,22 @@ describe("succeeded-row corruption parks the run quarantined for an operator (is
           discard: true
         })
         const store = yield* RunStore.RunStore
+        const attempts = yield* AttemptStore.AttemptStore
         return {
           row: yield* store.get("quarantine-run"),
-          waiting: yield* state.waiting("quarantine-run")
+          waiting: yield* state.waiting("quarantine-run"),
+          attempt: yield* attempts.get(attemptId)
         }
       }).pipe(Effect.scoped)
     )
 
     expect(resumed.row.status).toBe("completed")
     expect(Option.isNone(resumed.waiting)).toBe(true)
+    expect(Option.getOrThrow(resumed.attempt).meta).toMatchObject({
+      tier: "sealed",
+      boundaryQuarantined: true
+    })
+    expect(Option.getOrThrow(resumed.attempt).meta).not.toHaveProperty("boundary")
     expect(dispatches).toBe(1)
     await runtime.dispose()
   })

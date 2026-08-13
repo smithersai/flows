@@ -838,16 +838,14 @@ export const make = (
           return yield* cancelOwned(executionId, activeState)
         }
 
-        // Corrupt evidence on a SUCCEEDED attempt row is an operator event,
-        // not a run failure (issue #171): the row cannot be evicted and
-        // re-executed like a corrupt cache row (#164) without breaking
-        // exactly-once, and settling the run `failed` made the corruption a
-        // permanent opaque terminal — every resume re-read the same row and
-        // re-failed forever. Park the run `quarantine` instead: the
-        // corruption is already journalled by the Inconsistency receiver, no
-        // sweeper wakes this reason, and an operator resumes the run after
-        // restoring the evidence (or time-travelling past the attempt) by
-        // re-driving it. A premature wake re-detects and re-parks — safe.
+        // Corrupt evidence on a SUCCEEDED attempt row is an operator-visible
+        // event, not a terminal run failure (issue #171): the row cannot be
+        // evicted and re-executed like a corrupt cache row (#164) without
+        // breaking exactly-once. ActivityPersistence has already journalled
+        // the corruption and quarantined only its boundary evidence off the
+        // row. Park this first strict detection so it remains visible; the
+        // next explicit resume returns the durable outcome without replaying
+        // the poison or re-executing the activity.
         const quarantine = result._tag === "Complete" && Exit.isFailure(result.exit)
           ? ActivityPersistence.evidenceQuarantined(result.exit.cause)
           : undefined

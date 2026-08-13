@@ -235,7 +235,7 @@ describe("replay-failed classification (issue #150)", () => {
     expect(refused?.reason).toBe("host")
   })
 
-  it("quarantines corruption on a succeeded attempt's replay under the strict verdict (issue #171)", async () => {
+  it("quarantines corrupt succeeded-row evidence so the next dispatch heals (issue #171)", async () => {
     const key = "corruption/succeeded-row"
     const outcome = await runPromise(
       Effect.gen(function*() {
@@ -252,15 +252,15 @@ describe("replay-failed classification (issue #150)", () => {
             Effect.provide(failingReplay(corruptionError))
           )
         )
-        // A second dispatch of the same corrupt row must neither re-execute
-        // the body (exactly-once: the side effects already ran) nor repair
-        // the row in-band — it re-detects and re-fails with the SAME typed
-        // quarantine error, and the journal still holds exactly one
-        // corruption record.
-        const refailed = yield* Effect.exit(
-          dispatch("corruption-row", key, () => Effect.die("must not re-execute")).pipe(
-            Effect.provide(failingReplay(corruptionError))
-          )
+        // The first detection quarantines only the corrupt boundary evidence.
+        // A second dispatch returns the durable outcome without replaying the
+        // poison or re-executing the already-succeeded activity.
+        const healed = yield* dispatch(
+          "corruption-row",
+          key,
+          () => Effect.die("must not re-execute")
+        ).pipe(
+          Effect.provide(failingReplay(corruptionError))
         )
         const provenance = yield* records("corruption-row", "flows.engine.cache-provenance")
         const corruption = yield* records("corruption-row", "flows.engine.cache-corruption")
@@ -270,7 +270,7 @@ describe("replay-failed classification (issue #150)", () => {
           stepKeyDigest: sha256(key),
           attempt: 1
         })
-        return { failed, refailed, provenance, corruption, row }
+        return { failed, healed, provenance, corruption, row }
       }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
     // The failure is the TYPED quarantine error, not the evictable-cache
@@ -282,11 +282,15 @@ describe("replay-failed classification (issue #150)", () => {
     ) as ActivityPersistence.AttemptEvidenceQuarantined
     expect(failure.code).toBe("attempt_evidence_quarantined")
     expect(failure.keyDigest).toBe(sha256(key))
-    expect(Exit.isFailure(outcome.refailed) && Cause.squash(outcome.refailed.cause))
-      .toBeInstanceOf(ActivityPersistence.AttemptEvidenceQuarantined)
-    // The succeeded row is never mutated, evicted, or downgraded: repair is
-    // an explicit operator action, never an in-band side effect.
+    expect(outcome.healed).toBe("durable-outcome")
+    // The completion and its outcome remain durable; only the poisoned replay
+    // evidence is removed and marked quarantined.
     expect(Option.getOrThrow(outcome.row).state).toBe("succeeded")
+    expect(Option.getOrThrow(outcome.row).meta).toMatchObject({
+      tier: "sealed",
+      boundaryQuarantined: true
+    })
+    expect(Option.getOrThrow(outcome.row).meta).not.toHaveProperty("boundary")
     const refused = outcome.provenance.find((payload) => payload.action === "replay_failed")
     expect(refused?.reason).toBe("corruption")
     // Attempt-row evidence carries no cache provenance; the record says so
@@ -294,6 +298,61 @@ describe("replay-failed classification (issue #150)", () => {
     expect(outcome.corruption).toHaveLength(1)
     expect(outcome.corruption[0]).toMatchObject({ recordedRunId: null, recordedEventSeq: null })
   })
+
+  it.each(["fence", "row"] as const)(
+    "interrupts when the %s changes before succeeded-row evidence quarantine",
+    async (failure) => {
+      const runId = `corruption-quarantine-${failure}`
+      const key = `corruption/quarantine-${failure}`
+      const outcome = await runPromise(
+        Effect.gen(function*() {
+          const cache = yield* CacheStore.CacheStore
+          const runs = yield* RunStore.RunStore
+          const attempts = yield* AttemptStore.AttemptStore
+          yield* activate(runId)
+          yield* dispatch(runId, key, () => Effect.succeed("durable-outcome")).pipe(
+            Effect.provide(failingReplay(corruptionError))
+          )
+          yield* cache.evict(sha256(key))
+
+          let heartbeats = 0
+          const guardedRuns: RunStore.Service = {
+            ...runs,
+            heartbeat: (heartbeatRunId, heartbeatOwner, nowMs) => {
+              heartbeats++
+              return failure === "fence" && heartbeats === 2
+                ? Effect.succeed({ _tag: "FenceLost" } as const)
+                : runs.heartbeat(heartbeatRunId, heartbeatOwner, nowMs)
+            }
+          }
+          const guardedAttempts: AttemptStore.Service = {
+            ...attempts,
+            patch: failure === "row"
+              ? () => Effect.succeed({ _tag: "NotFound" } as const)
+              : attempts.patch
+          }
+          const interrupted = yield* dispatch(
+            runId,
+            key,
+            () => Effect.die("must not re-execute")
+          ).pipe(
+            Effect.provide(failingReplay(corruptionError)),
+            Effect.provideService(RunStore.RunStore, guardedRuns),
+            Effect.provideService(AttemptStore.AttemptStore, guardedAttempts),
+            Effect.exit
+          )
+          return {
+            interrupted,
+            row: yield* attempts.get({ runId, stepKeyDigest: sha256(key), attempt: 1 })
+          }
+        }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
+      )
+
+      expect(Exit.isFailure(outcome.interrupted) && Cause.hasInterruptsOnly(outcome.interrupted.cause)).toBe(true)
+      expect(Option.getOrThrow(outcome.row).meta).toHaveProperty("boundary")
+      expect(Option.getOrThrow(outcome.row).meta).not.toHaveProperty("boundaryQuarantined")
+    }
+  )
 
   it("returns the durable outcome when a tolerant receiver accepts succeeded-row corruption", async () => {
     const key = "corruption/succeeded-tolerated"

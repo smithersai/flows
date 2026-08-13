@@ -173,12 +173,11 @@ export class CacheCorruptionDetected extends Schema.TaggedErrorClass<CacheCorrup
  * cache row is evictable — the next dispatch re-executes and re-captures
  * cleanly (issue #164) — but a succeeded attempt row records that this run's
  * side effects already ran, so eviction/re-execution would violate
- * exactly-once for irreversible activities. The row is therefore never
- * repaired automatically: the driver parks the run in the `quarantine`
- * waiting state (never re-driven by any sweeper) and an operator resolves it
- * — restore the evidence bytes, time-travel past the attempt, or repair the
- * attempt row — before waking the run. See
- * `docs/architecture/implementation-status.md`, "Quarantined runs".
+ * exactly-once for irreversible activities. The corrupt boundary evidence is
+ * quarantined off the succeeded row instead: the driver parks the first
+ * detection in the `quarantine` waiting state, and the next explicit resume
+ * returns the durable outcome without re-materializing the poisoned evidence
+ * or re-executing the activity.
  *
  * @since 0.1.0
  * @category errors
@@ -309,6 +308,13 @@ const AttemptMeta = Schema.Struct({
    * a later, genuinely accurate run the wrong value as a verified hit.
    */
   readSetVerified: Schema.optional(Schema.Literal(true)),
+  /**
+   * The row's boundary evidence failed integrity verification and was removed
+   * after its detailed corruption record reached the journal (issue #171).
+   * The succeeded outcome remains authoritative, but this row may never be
+   * converged into the shared cache again.
+   */
+  boundaryQuarantined: Schema.optional(Schema.Literal(true)),
   /**
    * The failed row records a boundary violation (a prepare or settle
    * failure), so the failed replay branch can re-emit the `hardViolation`
@@ -937,19 +943,40 @@ export const make = (deps: Dependencies) => {
                       recordedDigest: corruption.recordedDigest,
                       measuredDigest: corruption.measuredDigest
                     })
+                    // Quarantine is journal AND take a state action (issues
+                    // #164, #171). Unlike a shared cache row, this succeeded
+                    // attempt cannot be evicted: its side effects already ran,
+                    // so a miss would re-execute potentially irreversible work.
+                    // Remove only the corrupt boundary evidence and mark the
+                    // row quarantined. The durable outcome stays intact and the
+                    // next dispatch returns it without materializing the poison
+                    // or publishing the row back into the shared cache.
+                    //
+                    // The owner heartbeat and patch share one write
+                    // transaction. AttemptStore.patch is intentionally
+                    // lifecycle-unfenced, so the heartbeat is what prevents a
+                    // process that lost the run fence from mutating the row.
+                    const quarantinedMeta: AttemptMeta = {
+                      ...meta,
+                      boundary: undefined,
+                      boundaryQuarantined: true
+                    }
+                    const quarantined = yield* atomically(Effect.gen(function*() {
+                      const quarantineAtMs = yield* Clock.currentTimeMillis
+                      const fence = yield* runs.heartbeat(deps.runId, deps.owner, quarantineAtMs)
+                      if (fence._tag !== "Updated") return false
+                      const patched = yield* attempts.patch(attemptId, { meta: quarantinedMeta })
+                      return patched._tag === "Patched"
+                    }))
+                    if (!quarantined) return yield* Effect.interrupt
                     if (verdict === "fail") {
-                      // NOT the #164 quarantine (issue #171): this row is the
-                      // durable record that the attempt's side effects already
-                      // ran, so it is never evicted or re-executed — blind
-                      // repair would break exactly-once for irreversible
-                      // work. The typed failure below routes the run into the
-                      // driver's `quarantine` park (an operator event, not a
-                      // terminal failure): the corruption is journalled above
-                      // and the run stays resumable once an operator restores
-                      // the evidence or time-travels past the attempt. This
-                      // is a defect, not a declared activity business error:
-                      // routing it through the failure channel would make the
-                      // activity's error schema replace it with a SchemaError.
+                      // The strict verdict still makes the integrity violation
+                      // visible by parking this dispatch. The row repair above
+                      // is what makes the park resumable without an out-of-band
+                      // byte repair. This is a defect, not a declared activity
+                      // business error: routing it through the failure channel
+                      // would make the activity's error schema replace it with
+                      // a SchemaError.
                       return yield* Effect.die(
                         new AttemptEvidenceQuarantined({
                           code: "attempt_evidence_quarantined",
