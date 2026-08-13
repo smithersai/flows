@@ -174,6 +174,38 @@ Upstream references:
 - `DurableClock.ts:100-104`, internal short-sleep activity
 - `DurableQueue.ts:203-226`, internal name-derived queue identity
 
+### 6. Deferred wakeups use `resume`, and `into` records no interrupt-only exit
+
+Upstream (rc.108) registers each awaited deferred name in
+`instance.awaitedDeferreds` before reading, and its memory engine's
+`deferredDone` preempts a live run that awaits the completed deferred by
+marking it suspended and interrupting its fiber, so the replay observes the
+completion.
+
+Flows has no `awaitedDeferreds` set. `FlowInstance` carries only
+`suspended` and `interrupted`, and the runtime port exposes
+`resume(flow, executionId)` instead: `layerMemory.deferredDone` records the
+exit first-writer-wins and then calls `resume`, which re-drives an execution
+only when its last settlement was `Suspended`. A live run is never preempted
+by a completion; the awaiter suspends first and is re-driven.
+
+Because persisted deferred results are first-writer-wins, `into` must never
+record an interrupt-only exit that is not a suspension. The fork's baseline
+(beta.102) recorded the non-interrupt partition of such a cause — an empty
+cause — which permanently poisoned replay of that deferred with
+`Error: Empty cause`. `into` now records nothing for any interrupt-only exit
+and only propagates `suspended` to the parent instance, matching upstream
+rc.108. The interrupt-only region of `into` therefore diverges from the
+beta.102 fork point; the token encoding and external completion surface cited
+under "Deliberate non-changes" are unaffected.
+
+Upstream references (rc.108):
+
+- `DurableDeferred.ts:148`, await-side registration in `awaitedDeferreds`
+- `WorkflowEngine.ts:265`, the `awaitedDeferreds` instance field
+- `WorkflowEngine.ts:350-372`, completion preempting a live awaiting run
+- `DurableDeferred.ts:225-240`, interrupt-only exits record nothing
+
 ## Deliberate non-changes
 
 - `Flow.annotations` remains `Context.Context<never>`; open metadata does

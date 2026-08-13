@@ -231,8 +231,15 @@ export const into: {
                 Filter.fromPredicate(Cause.isInterruptReason)
               )
               const hasInterruptsOnly = interrupts.length === exit.cause.reasons.length
-              if (hasInterruptsOnly && instance.suspended) {
-                parentInstance.suspended = true
+              if (hasInterruptsOnly) {
+                // An interrupt-only exit is never a result: the effect was
+                // suspended, preempted, or interrupted, so record nothing.
+                // Recording here would durably persist the empty non-interrupt
+                // partition, and first-writer-wins would replay that empty
+                // cause forever instead of the real completion.
+                if (instance.suspended) {
+                  parentInstance.suspended = true
+                }
                 return
               } else if (interrupts.length > 0) {
                 exit = Exit.failCause(Cause.fromReasons(reasons))

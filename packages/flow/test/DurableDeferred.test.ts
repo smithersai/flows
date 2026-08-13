@@ -2,7 +2,7 @@
 
 import { Activity, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
-import { Cause, Effect, Exit, Layer, Option, Schema, Scope } from "effect"
+import { Cause, Effect, Exit, Fiber, Latch, Layer, Option, Schema, Scope } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
 import { runPromise } from "./Crypto.ts"
@@ -262,6 +262,55 @@ describe("DurableDeferred", () => {
     ))
     return Effect.gen(function*() {
       expect(yield* flow.execute({ id: "mixed" })).toBe("boom")
+    }).pipe(Effect.provide(layer))
+  })
+
+  effect("an interrupted into that never suspended records nothing durable", () => {
+    const Guarded = DurableDeferred.make("DurableDeferred/Guarded", {
+      success: Schema.Number,
+      error: Schema.String
+    })
+    const Step = Activity.make("DurableDeferred/interrupted-into/step", {
+      payload: { id: Schema.String },
+      success: Schema.Number,
+      error: Schema.String
+    })
+    const flow = Flow.make("DurableDeferred/interrupted-into", {
+      payload: { id: Schema.String },
+      success: Schema.Number,
+      error: Schema.String,
+      idempotencyKey: ({ id }) => id,
+      body: (payload) => Step.call(payload)
+    })
+    const layer = layerWired(Layer.mergeAll(
+      Step.toLayer(() =>
+        Effect.gen(function*() {
+          const engine = yield* FlowRuntime.FlowRuntime
+          // Interrupt an awaiter mid-`into` without a suspension: the wrapped
+          // effect dies with an interrupt-only cause while `suspended` stays
+          // false. This is a driver interruption, not a durable outcome.
+          const entered = yield* Latch.make()
+          const awaiter = yield* Effect.forkChild(DurableDeferred.into(
+            entered.open.pipe(Effect.andThen(Effect.never)),
+            Guarded
+          ))
+          yield* entered.await
+          yield* Fiber.interrupt(awaiter)
+          // The interrupted awaiter must not have recorded anything durable —
+          // an empty-cause failure here would win first-writer-wins and
+          // permanently poison every replay of this deferred.
+          expect(Option.isNone(yield* engine.deferredResult(Guarded))).toBe(true)
+          // The real completion still lands...
+          const token = yield* DurableDeferred.token(Guarded)
+          yield* DurableDeferred.succeed(Guarded, { token, value: 42 })
+          // ...and the replay read returns it, not `Error: Empty cause`.
+          return yield* DurableDeferred.await(Guarded)
+        })
+      ),
+      Interpreter.layer(flow)
+    ))
+    return Effect.gen(function*() {
+      expect(yield* flow.execute({ id: "int" })).toBe(42)
     }).pipe(Effect.provide(layer))
   })
 
