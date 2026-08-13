@@ -338,6 +338,32 @@ describe("RunDriver execute preconditions", () => {
     expect(((Exit.isFailure(exit) ? Cause.squash(exit.cause) : undefined) as RunStore.RunStoreError).code)
       .toBe("persistence_failed")
   })
+
+  it("stays interrupted when run creation is interrupted rather than failing (B4)", async () => {
+    // `store.create` runs under `Effect.exit`, so an interrupt-only cause is
+    // captured as an Exit carrying no `Fail` reason.
+    // `Option.getOrThrow(Exit.findErrorOption(created))` threw a raw
+    // `NoSuchElementError` on that cause and discarded the original, so a
+    // caller that cancelled the fiber mid-write saw a crash instead of the
+    // cancellation it asked for (issue #151).
+    const exit = await runPromise(provideJournal(Effect.gen(function*() {
+      const base = yield* RunStore.RunStore
+      const interrupting = RunStore.makeNoop({
+        ...base,
+        create: () => Effect.interrupt
+      })
+      const driver = yield* makeDriver().pipe(Effect.provideService(RunStore.RunStore, interrupting))
+      yield* driver.register(EdgeFlow, () => Effect.succeed("done"))
+      return yield* Effect.exit(driver.execute(EdgeFlow, {
+        executionId: "create-interrupted",
+        payload: {},
+        discard: true
+      }))
+    })))
+
+    expect(Exit.isFailure(exit) && Cause.hasInterrupts(exit.cause)).toBe(true)
+    expect(Exit.isFailure(exit) && Cause.hasDies(exit.cause)).toBe(false)
+  })
 })
 
 describe("RunDriver scheduleResume", () => {
