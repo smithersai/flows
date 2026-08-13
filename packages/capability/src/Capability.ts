@@ -157,6 +157,12 @@ const PatternAction = Schema.Literals(
  * An action and resource glob used to grant or deny a family of capabilities.
  * Resource globs are slash-normalized and matched against the whole resource.
  *
+ * `*` compiles to `.*` and therefore crosses path separators, so
+ * `fs:read src/*.ts` matches `src/nested/Capability.ts`. {@link subsumes}
+ * recognises only `**` as recursive, so a grant written with `*` can never be
+ * *proven* to cover anything and an envelope built from `*` patterns re-prompts
+ * forever. Write `**` for a grant that has to be provable.
+ *
  * @since 0.1.0
  * @category models
  */

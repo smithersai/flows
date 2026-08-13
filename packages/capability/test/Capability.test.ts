@@ -70,6 +70,25 @@ describe("Capability", () => {
     expect(Capability.subsumes(left, right)).toBe(expected)
   })
 
+  it("records the `*`-crosses-separators asymmetry between matches and subsumes (D10)", () => {
+    // `*` compiles to `.*`, so it crosses path separators and `matches` accepts
+    // a nested path. `resourceSubsumes` recognises only `**` as recursive, so
+    // `subsumes` cannot prove the same coverage and errs closed.
+    //
+    // Not a bug — `subsumes` is deliberately conservative — but the consequence
+    // is invisible at the place a grant is written: a `*` grant can never be
+    // *proven* to cover anything, so an envelope built from `*` patterns
+    // re-prompts forever. Recorded here rather than rediscovered, alongside the
+    // sentence now on `CapabilityPattern`.
+    const grant = pattern("fs:read", "src/*")
+    const wanted = capability("fs:read", "src/a/b")
+
+    expect(Capability.matches(grant, wanted)).toBe(true)
+    expect(Capability.subsumes(grant, pattern("fs:read", "src/a/b"))).toBe(false)
+    // The provable form of the same intent.
+    expect(Capability.subsumes(pattern("fs:read", "src/**"), pattern("fs:read", "src/a/b"))).toBe(true)
+  })
+
   it.each([
     [capability("fs:read", "anything"), "sealed"],
     [capability("net:get", "example.test"), "sealed"],
