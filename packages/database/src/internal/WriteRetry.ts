@@ -17,8 +17,9 @@
  *
  * @since 0.1.0
  */
-import { Duration, Effect, Schedule } from "effect"
+import { Cause, Duration, Effect, Metric, Result, Schedule } from "effect"
 import * as SqlError from "effect/unstable/sql/SqlError"
+import * as DatabaseMetrics from "../DatabaseMetrics.ts"
 
 /**
  * Configuration for write retries.
@@ -70,6 +71,7 @@ const isRetryableCode = (code: string | undefined): boolean =>
 const isRetryableMessage = (message: string): boolean =>
   message.includes("database is locked") ||
   message.includes("database is busy") ||
+  message.includes("cannot rollback - no transaction is active") ||
   message.includes("disk i/o error") ||
   message.includes("could not serialize access") ||
   message.includes("deadlock detected")
@@ -106,6 +108,15 @@ export const isRetryableWriteError = (error: unknown): boolean => {
   return false
 }
 
+const retryableFromCause = <E>(cause: Cause.Cause<E>): E | undefined => {
+  const failure = Result.getOrUndefined(Cause.findError(cause))
+  if (isRetryableWriteError(failure)) {
+    return failure
+  }
+  const defect = Result.getOrUndefined(Cause.findDefect(cause))
+  return isRetryableWriteError(defect) ? defect as E : undefined
+}
+
 /**
  * Retries recognized transient write errors using exponential backoff and
  * jitter. Delays use Effect's Clock and therefore work with TestClock.
@@ -125,7 +136,15 @@ export const withWriteRetry = <A, E, R>(
       Effect.succeed(Duration.millis(Math.min(maxDelayMs, Duration.toMillis(duration))))
     ),
     Schedule.jittered,
-    Schedule.upTo({ times: maxAttempts - 1 })
+    Schedule.upTo({ times: maxAttempts - 1 }),
+    // The tap sits after `upTo`, so it fires once per step that actually
+    // schedules a replay and never for the exhausted attempt that surfaces
+    // the error instead.
+    Schedule.tap(() => Metric.update(DatabaseMetrics.writeRetries, 1))
   )
-  return Effect.retry(effect, { schedule, while: isRetryableWriteError })
+  const retryableEffect = Effect.catchCause(effect, (cause) => {
+    const retryable = retryableFromCause(cause)
+    return retryable === undefined ? Effect.failCause(cause) : Effect.fail(retryable)
+  })
+  return Effect.retry(retryableEffect, { schedule, while: isRetryableWriteError })
 }

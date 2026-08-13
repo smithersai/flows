@@ -59,6 +59,7 @@ export * as Jj from "@smthrs/jj-next"
 export * as Journal from "@smthrs/journal-next"
 export * as Kernel from "@smthrs/kernel-next"
 export * as Keys from "@smthrs/keys-next"
+export * as Observability from "@smthrs/observability-next"
 export * as Plan from "@smthrs/plan-next"
 export * as RunStore from "@smthrs/run-store-next"
 export * as Sandbox from "@smthrs/sandbox-next"
@@ -103,6 +104,7 @@ export const namespaces = [
   "Journal",
   "Kernel",
   "Keys",
+  "Observability",
   "Plan",
   "RetryPolicy",
   "RunStore",

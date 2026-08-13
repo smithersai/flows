@@ -14,10 +14,12 @@ import { affectedRows, DatabaseError, DurableWriter } from "@smthrs/database-nex
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as Metric from "effect/Metric"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as SqlError from "effect/unstable/sql/SqlError"
+import * as CacheStoreMetrics from "./CacheStoreMetrics.ts"
 
 /** JSON text carrying an arbitrary decoded value. */
 const UnknownFromJsonString = Schema.fromJsonString(Schema.Unknown)
@@ -258,7 +260,13 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
         SELECT key_digest, result_json, meta_json, created_at_ms, recorded_run_id, recorded_event_seq
         FROM flows_step_cache WHERE key_digest = ${keyDigest}
       `.pipe(Effect.mapError(mapPersistenceError))
-      return rows.length === 0 ? Option.none() : yield* Effect.map(decodeRow(rows[0]!), Option.some)
+      if (rows.length === 0) {
+        yield* Metric.update(CacheStoreMetrics.miss, 1)
+        return Option.none()
+      }
+      const entry = yield* decodeRow(rows[0]!)
+      yield* Metric.update(CacheStoreMetrics.hit, 1)
+      return Option.some(entry)
     })
   )
 
@@ -290,7 +298,10 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
             ? { _tag: "ExistingSame" } as const
             : { _tag: "Conflict" } as const
         })
-      ).pipe(Effect.mapError(mapPersistenceError))
+      ).pipe(
+        Effect.mapError(mapPersistenceError),
+        Effect.tap((outcome) => Metric.update(CacheStoreMetrics.put[outcome._tag], 1))
+      )
     })
   )
 

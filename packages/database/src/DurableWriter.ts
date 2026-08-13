@@ -121,6 +121,7 @@ const hasBusyCause = (cause: unknown): boolean =>
     cause,
     (code, message) =>
       (code !== undefined && busyPostgresStates.has(code)) ||
+      message.includes("cannot rollback - no transaction is active") ||
       message.includes("could not serialize access") ||
       message.includes("deadlock detected")
   )

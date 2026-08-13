@@ -37,6 +37,17 @@ const layer = CombinedArtifacts.layer({
 
 A digest reaches a read straight out of a durable row, so every implementation validates it before interpolating it into a location — a path under the objects directory, a `/cas/{digest}` URL. The 64-hex *shape* is deliberately not enforced: refusing to look up an unfamiliar address would reclassify an ordinary miss as a caller error, and the digest verification on read is the check that actually protects the caller.
 
+## ArtifactStoreMetrics
+
+[src/ArtifactStoreMetrics.ts](https://github.com/smithersai/flows/blob/main/packages/artifacts/src/ArtifactStoreMetrics.ts)
+
+| Export | Kind | Notes |
+| --- | --- | --- |
+| `puts` | counter | `flows_artifact_puts`; successful puts, deduplicated ones included |
+| `gets` | counter | `flows_artifact_gets`; successful digest-verified gets — typed misses are error evidence, not throughput |
+
+The local implementations update them, so a `CombinedArtifacts` stack counts once per tier it actually touched.
+
 ## RemoteArtifacts
 
 [src/RemoteArtifacts.ts](https://github.com/smithersai/flows/blob/main/packages/artifacts/src/RemoteArtifacts.ts)

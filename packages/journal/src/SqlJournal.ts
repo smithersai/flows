@@ -24,6 +24,7 @@ import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
+import * as Metric from "effect/Metric"
 import * as Option from "effect/Option"
 import * as PubSub from "effect/PubSub"
 import * as Queue from "effect/Queue"
@@ -44,6 +45,7 @@ import {
   type StreamOptions
 } from "./Journal.ts"
 import { Entry, Input, makeEventId, type RunId, type Seq, type SourceId, type SourceSeq } from "./JournalEvent.ts"
+import * as JournalMetrics from "./JournalMetrics.ts"
 import type { OwnerId } from "./OwnerId.ts"
 import type { Projection } from "./Projection.ts"
 import * as Redaction from "./Redaction.ts"
@@ -573,7 +575,7 @@ export const layer = (
                     })
                   )
               )
-          )))
+          ))).pipe(Effect.tap((receipt) => Metric.update(JournalMetrics.lossy[receipt._tag], 1)))
       )
 
       const readPage: Service["entries"] = Effect.fn("Journal.entries")((pageOptions) =>
@@ -1077,6 +1079,9 @@ export const layer = (
                 commit.inserted
                   ? { _tag: "Accepted", seq: commit.entry.seq, sourceSeq } as const
                   : { _tag: "Duplicate", seq: commit.entry.seq, sourceSeq, status: "committed" } as const
+              ),
+              Effect.tap((receipt) =>
+                Metric.update(JournalMetrics.durable[receipt._tag], 1)
               ),
               Effect.mapError((cause) =>
                 isJournalError(cause) ? cause : error("sink_failed", "durable journal write failed", cause)

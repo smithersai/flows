@@ -66,6 +66,16 @@ const layer = SqlJournal.layer({ capacity: 1024, overflow: "reject" }).pipe(
 | --- | --- | --- |
 | `SqlJournalOptions` | interface | `capacity`, `overflow`, `batchSize`, `sourceEventCache`, `redact` |
 | `layer` | layer | scoped writer over `DurableWriter` |
+
+## JournalMetrics
+
+[src/JournalMetrics.ts](https://github.com/smithersai/flows/blob/main/packages/journal/src/JournalMetrics.ts)
+
+| Export | Kind | Notes |
+| --- | --- | --- |
+| `writes` | counter | `flows_journal_writes`, dimensioned by `channel` and `receipt` |
+| `durable`, `lossy` | attributed views | keyed by the receipt tag each channel resolves; `SqlJournal` updates them once per emission receipt |
+
 ## OwnerId
 
 [src/OwnerId.ts](https://github.com/smithersai/flows/blob/main/packages/journal/src/OwnerId.ts)

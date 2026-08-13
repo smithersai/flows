@@ -39,6 +39,14 @@ The root is the contract, so it bundles for the browser. The SQLite drivers are 
 
 A backend must run write transactions serializably. `packages/database/test/contract/DatabaseWriteContract.ts` is the conformance suite for that requirement.
 
+## DatabaseMetrics
+
+[src/DatabaseMetrics.ts](https://github.com/smithersai/flows/blob/main/packages/database/src/DatabaseMetrics.ts)
+
+| Export | Kind | Notes |
+| --- | --- | --- |
+| `writeRetries` | counter | `flows_db_write_retries`; one increment per scheduled replay of a transient conflict, so every store writing through `DurableWriter` lands in the same counter |
+
 ## Migrations
 
 [src/Migrations.ts](https://github.com/smithersai/flows/blob/main/packages/database/src/Migrations.ts)

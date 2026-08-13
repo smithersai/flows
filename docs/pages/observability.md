@@ -26,7 +26,7 @@ Executable state is deliberately outside that chokepoint. Run state, attempt che
 
 ## Tracing
 
-`@smthrs/flow-next` and `@smthrs/engine-next` open the spans below through Effect's tracer. No OpenTelemetry exporter ships here; provide one from your application and these spans appear in it.
+`@smthrs/flow-next` and `@smthrs/engine-next` open the spans below through Effect's tracer. These packages install no exporter; provide one from your application — `@smthrs/observability-next` is the shipped default, wired on [Telemetry](/telemetry) — and these spans appear in it.
 
 | Span | Attributes | Source |
 | --- | --- | --- |
@@ -41,6 +41,10 @@ Executable state is deliberately outside that chokepoint. Run state, attempt che
 | `DurableQueue/<name>/worker` | parented to the offering span through `Tracer.externalSpan` | `@smthrs/flow-next` `DurableQueue.ts` |
 
 Every span sets `captureStackTrace: false`. The queue worker is the one place trace context crosses a durable boundary: the offer records `traceId`, `spanId`, and `sampled` on the item, and the worker reattaches to that external span, so a persisted queue item stays connected to the flow that offered it.
+
+## Metrics
+
+The store packages define `Metric` counters beside the code that updates them, one `<Service>Metrics` module per package: journal write receipts, durable write replays, run claim and heartbeat and transition outcomes (fencing events included), step-cache lookups and recordings, artifact puts and gets. [Telemetry](/telemetry) tables every counter with its attributes and shows the export wiring; the handles themselves are exported, so a program can read them with `Metric.value` without any exporter.
 
 ## Logging
 
@@ -73,8 +77,7 @@ Log annotations are attached by `DurableQueue` (`package`, `module`, `fiber`, `q
 
 | Surface | Status |
 | --- | --- |
-| Metrics of any kind, including counters for claims, steals, attempts, or cache hits | Planned, no `Metric` usage exists in `src` |
-| A shipped OpenTelemetry or exporter layer | Planned; applications wire their own tracer |
+| Latency histograms or gauges; the shipped metrics are counters over outcomes | Planned |
 | Documented spans outside `@smthrs/flow-next` and `@smthrs/engine-next` | `@smthrs/database-next`, `@smthrs/journal-next`, `@smthrs/run-store-next`, `@smthrs/step-cache-next`, `@smthrs/plan-next`, `@smthrs/artifacts-next`, `@smthrs/engine-store-next`, `@smthrs/kernel-next`, `@smthrs/sync-next`, and `@smthrs/time-travel-next` each open one `Effect.fn` span per service operation, named after that operation and declaring no attributes; this page does not enumerate them |
 | A run inspector or dashboard | Planned; the journal and sync are the substrate one would build on |
 | Structured audit of permission decisions beyond the grant events | Planned |

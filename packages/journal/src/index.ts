@@ -37,6 +37,12 @@ export * as Journal from "./Journal.ts"
 export * as SqlJournal from "./SqlJournal.ts"
 
 /**
+ * @category metrics
+ * @since 0.1.0
+ */
+export * as JournalMetrics from "./JournalMetrics.ts"
+
+/**
  * @category redaction
  * @since 0.1.0
  */

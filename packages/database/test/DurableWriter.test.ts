@@ -103,6 +103,9 @@ describe("DurableWriter", () => {
     expect(WriteRetry.isRetryableWriteError(unknownSqlError({ code: 5, message: "database is locked" })))
       .toBe(true)
     expect(WriteRetry.isRetryableWriteError(unknownSqlError({ message: "database is busy" }))).toBe(true)
+    expect(
+      WriteRetry.isRetryableWriteError(unknownSqlError({ message: "cannot rollback - no transaction is active" }))
+    ).toBe(true)
     expect(WriteRetry.isRetryableWriteError(unknownSqlError({ message: "disk I/O error" }))).toBe(true)
     expect(WriteRetry.isRetryableWriteError(unknownSqlError({ cause: { code: "SQLITE_LOCKED_SHAREDCACHE" } })))
       .toBe(true)
@@ -138,6 +141,8 @@ describe("DurableWriter", () => {
   it("normalizes transient Postgres failures into the busy code", () => {
     expect(DurableWriter.fromSqlError(unknownSqlError({ code: "40001" }))).toMatchObject({ code: "busy" })
     expect(DurableWriter.fromSqlError(unknownSqlError({ code: "40P01" }))).toMatchObject({ code: "busy" })
+    expect(DurableWriter.fromSqlError(unknownSqlError({ message: "cannot rollback - no transaction is active" })))
+      .toMatchObject({ code: "busy" })
     expect(DurableWriter.fromSqlError(unknownSqlError({ code: "42P01" }))).toMatchObject({ code: "unknown" })
   })
 
@@ -170,6 +175,30 @@ describe("DurableWriter", () => {
           return attempts < 3 ? Effect.fail(sqliteError("SQLITE_BUSY")) : Effect.succeed("written")
         })
       ).pipe(Effect.forkChild({ startImmediately: true }))
+      yield* Effect.yieldNow
+      yield* TestClock.adjust("1 second")
+      return yield* Fiber.join(fiber)
+    }).pipe(Effect.provide(TestClock.layer()))
+
+    await expect(Effect.runPromise(program)).resolves.toBe("written")
+    expect(attempts).toBe(3)
+  })
+
+  it("retries retryable driver defects through the same schedule", async () => {
+    let attempts = 0
+    const defectSql = {
+      ...retrySql,
+      withTransaction: <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+        Effect.suspend(() => {
+          attempts += 1
+          return attempts < 3
+            ? Effect.die(unknownSqlError({ message: "cannot rollback - no transaction is active" }))
+            : retrySql.withTransaction(effect)
+        })
+    } as SqlClient.SqlClient
+    const writer = DurableWriter.make(defectSql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
+    const program = Effect.gen(function*() {
+      const fiber = yield* writer.write(Effect.succeed("written")).pipe(Effect.forkChild({ startImmediately: true }))
       yield* Effect.yieldNow
       yield* TestClock.adjust("1 second")
       return yield* Fiber.join(fiber)

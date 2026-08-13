@@ -1,0 +1,82 @@
+# Telemetry
+
+How an application exports what the stores already measure. The spans and counters described in [Observability](/observability) exist whether or not anything exports them; this page is the wiring that sends them to an OpenTelemetry collector.
+
+## One layer
+
+`@smthrs/observability-next` composes Effect's own OTLP logger, metrics exporter, and tracer (`effect/unstable/observability`) into one layer with the flows service identity as the default resource. It depends on `effect` alone: no OpenTelemetry SDK is involved, and nothing in it resolves a `node:` built-in, so the same entry point bundles for Node and for the browser.
+
+```typescript
+import * as Otlp from "@smthrs/observability-next/Otlp"
+import { Effect } from "effect"
+
+const Telemetry = Otlp.layerFetch({
+  baseUrl: "http://localhost:4318",
+  serviceName: "my-harness", // defaults to "flows"
+  serviceVersion: "1.2.3"
+})
+
+const main = program.pipe(Effect.provide(Telemetry))
+```
+
+That is the whole wiring. Spans opened through `Effect.fn` and `Effect.withSpan` reach `/v1/traces`, `Metric` counters reach `/v1/metrics` on the export interval and on shutdown, and log lines reach `/v1/logs`. The layer's scope owns the export fibers, so closing the application scope flushes and stops them — there is no unsubscribe to remember.
+
+Three layers cover the deployment shapes:
+
+| Layer | Use |
+| --- | --- |
+| `Otlp.layerFetch(options)` | the default: export over the host's global `fetch` (Node 22, every browser) |
+| `Otlp.layer(options)` | the same wiring minus the HTTP client, for a host that provides its own `HttpClient` — for example Undici via `@smthrs/platform-node-next`'s `NodeHttpClient` |
+| `Otlp.layerNoop` | no collector: provides nothing, so wiring code switches layers rather than branches |
+
+### Options
+
+| Option | Meaning | Default |
+| --- | --- | --- |
+| `baseUrl` | collector endpoint; signals post to `/v1/logs`, `/v1/metrics`, `/v1/traces` below it | required |
+| `serviceName` | the `service.name` resource attribute | `"flows"` |
+| `serviceVersion` | the `service.version` resource attribute | the flows release version |
+| `attributes` | extra resource attributes on every signal | none |
+| `headers` | headers on every export request, for example vendor auth | none |
+| `exportInterval` | export cadence for all three signals | Effect's per-signal defaults |
+| `shutdownTimeout` | bound on the shutdown flush | Effect's default |
+
+Operators who configure through the standard `OTEL_*` environment variables can use Effect's `Otlp.layerFromConfig` from `effect/unstable/observability` directly — it reads `OTEL_EXPORTER_OTLP_ENDPOINT`, per-signal endpoints, and `OTEL_SDK_DISABLED`, and requires `OTEL_{LOGS,METRICS,TRACES}_EXPORTER=otlp` to enable each signal. Provide it an `HttpClient` (for example `FetchHttpClient.layer`) and pass the same resource options.
+
+## What arrives
+
+Traces are the spans listed in [Observability](/observability): every store operation, flow lifecycle step, and engine dispatch, connected across the durable queue boundary.
+
+Metrics are the hot-path counters the store packages define beside the code that updates them, one `<Service>Metrics` module per package:
+
+| Counter | Attributes | Updated by |
+| --- | --- | --- |
+| `flows_journal_writes` | `channel` = `durable` \| `lossy`; `receipt` = `accepted` \| `duplicate` \| `dropped` | `@smthrs/journal-next` `SqlJournal`, once per emission receipt |
+| `flows_db_write_retries` | none | `@smthrs/database-next` `DurableWriter`, once per scheduled transaction replay after a transient conflict |
+| `flows_run_claims` | `op` = `claim` \| `claim_and_own` \| `activate` \| `steal`; `outcome` = the operation's result tag in snake case | `@smthrs/run-store-next` `RunStore` |
+| `flows_run_heartbeats` | `outcome` = `updated` \| `fence_lost` \| `not_found` | `RunStore.heartbeat`; `fence_lost` is the fencing event |
+| `flows_run_transitions` | `outcome` = `transitioned` \| `fence_lost` \| `not_found` \| `guard_failed`; `to` = target status | `RunStore.transitionOwned` |
+| `flows_step_cache_lookups` | `outcome` = `hit` \| `miss` | `@smthrs/step-cache-next` `CacheStore.get` |
+| `flows_step_cache_puts` | `outcome` = `inserted` \| `existing_same` \| `conflict` | `CacheStore.put`, after the write transaction returns |
+| `flows_artifact_puts` | none | `@smthrs/artifacts-next` local stores, once per successful put, dedupe included |
+| `flows_artifact_gets` | none | once per successful digest-verified get; typed misses are error evidence, not throughput |
+
+The handles are exported (`JournalMetrics`, `RunStoreMetrics`, `CacheStoreMetrics`, `ArtifactStoreMetrics`, `DatabaseMetrics`), so a program can read them with `Metric.value` without an exporter at all.
+
+## Testing without a network
+
+Updates resolve the metric registry from the running Effect context, so a test provides a fresh registry and reads it back — no exporter, no network:
+
+```typescript
+import { CacheStoreMetrics } from "@smthrs/step-cache-next"
+import { Effect, Metric } from "effect"
+
+const hits = await Effect.runPromise(
+  program.pipe(
+    Effect.andThen(Metric.value(CacheStoreMetrics.hit)),
+    Effect.provideService(Metric.MetricRegistry, new Map())
+  )
+)
+```
+
+The exporter itself is testable the same way: `Otlp.layerFetch` reads its `fetch` from the `FetchHttpClient.Fetch` reference, so a test provides a recording stub and asserts on the OTLP request bodies. `packages/observability/test/Otlp.test.ts` does exactly this.
