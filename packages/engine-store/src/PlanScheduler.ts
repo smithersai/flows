@@ -437,6 +437,7 @@ export const make = (options: Options): Service => {
       let plan = initial
       const states = new Map<string, NodeState>()
       const results = new Map<string, unknown>()
+      const digestMemo = StepKey.makeDigestMemo()
       const verdicts: Array<{ nodeId: string; verdict: Reconciliation.Verdict }> = []
       const appended: Array<string> = []
       /** Ordering edges reconciliation discovered; live for this run only. */
@@ -604,7 +605,12 @@ export const make = (options: Options): Service => {
       const dispatchKeyFor = (node: Plan.PlanNode, boundary: FileBoundary) =>
         StepKey.dispatchIdentity({
           material: node.material,
-          results: Object.fromEntries(results),
+          results: Object.fromEntries(
+            node.material.inputs.flatMap((input) =>
+              input._tag === "Ref" ? [[input.from, results.get(input.from)] as const] : []
+            )
+          ),
+          digestMemo,
           hermetic: {
             ...boundary,
             readSet: StepBoundary.exactReads(boundary)

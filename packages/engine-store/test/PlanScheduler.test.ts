@@ -212,51 +212,71 @@ describe("PlanScheduler over a static graph", () => {
     expect(seen).toEqual([[{ from: "source", path: ["nested", "field"], value: "projected" }]])
   })
 
-  it("re-keys one leaf and re-runs only its cone — every unchanged branch is a cache hit", async () => {
-    const graph = (seed: number) => [
-      draft("source", { body: { seed } }),
-      draft("derived", { inputs: [{ _tag: "Ref", from: "source", path: [] }] }),
-      draft("sibling"),
-      draft("sibling-child", { inputs: [{ _tag: "Pending", from: "sibling" }] })
-    ]
-    const before = await runPromise(compile(graph(1)))
-    const after = await runPromise(compile(graph(2)))
+  it("preserves every dispatch key in a diamond plan", async () => {
+    const plan = await runPromise(compile([
+      draft("producer"),
+      draft("left", { inputs: [{ _tag: "Ref", from: "producer", path: [] }] }),
+      draft("right", { inputs: [{ _tag: "Ref", from: "producer", path: [] }] })
+    ], "diamond-plan"))
     const executor: PlanScheduler.Executor = { execute: ({ node }) => Effect.succeed({ ran: node.id }) }
-    const stores = TestStores.layer()
-    const program = Effect.gen(function*() {
-      yield* activate("run-rekey")
-      const service = scheduler({ runId: "run-rekey", executor })
-      yield* service.record(before)
-      const first = yield* service.run(before)
-      const second = yield* service.run(after)
-      return { first, second }
-    }).pipe(Effect.provide(harness({ runId: "run-rekey", executor })), Effect.provide(stores))
-
-    const { first, second } = await runPromise(program)
-    expect(outcomes(first)).toEqual({
-      source: "built",
-      derived: "built",
-      sibling: "built",
-      "sibling-child": "built"
-    })
-    // THE BAZEL-SHAPED PROMISE: the edited leaf re-ran and the branch nothing
-    // touched was served from the content-addressed cache.
-    //
-    // `derived` is `clean` here, and that is the early cutoff working. The
-    // edit changed `source`'s declaration, so `source` re-ran — but this
-    // executor returns `{ran: node.id}` for either seed, so the value
-    // `derived` consumes is byte-identical to what it consumed before. A
-    // dispatch key that folded the upstream PLAN key would have re-run it
-    // anyway; `StepKey.dispatchIdentity` folds the upstream's settled output
-    // instead, so invalidation stops at unchanged content the way Bazel's
-    // `ActionCacheChecker` does.
-    expect(outcomes(second)).toEqual({
-      source: "built",
-      derived: "clean",
-      sibling: "clean",
-      "sibling-child": "clean"
+    const report = await runPromise(
+      Effect.gen(function*() {
+        yield* activate("run-diamond")
+        return yield* scheduler({ runId: "run-diamond", executor }).run(plan)
+      }).pipe(Effect.provide(harness({ runId: "run-diamond", executor })), Effect.provide(TestStores.layer()))
+    )
+    expect(Object.fromEntries(report.settlements.map(({ dispatchKey, nodeId }) => [nodeId, dispatchKey]))).toEqual({
+      producer: "key1_a2f7c76258f4ab3fa6df7e1668397e17ad3ec97158279b24b8f0f7688cfb50e8",
+      left: "key1_e9e2811e03fa18cf7e5ddae49b3e6a52354f87de283b8a244c02090549c4b623",
+      right: "key1_b556bfd989cf1c299166399064880ded26b2abc2ea43398c6bcc6110352c5002"
     })
   })
+
+  it("re-keys one leaf and re-runs only its cone — every unchanged branch is a cache hit", async () => {
+  const graph = (seed: number) => [
+    draft("source", { body: { seed } }),
+    draft("derived", { inputs: [{ _tag: "Ref", from: "source", path: [] }] }),
+    draft("sibling"),
+    draft("sibling-child", { inputs: [{ _tag: "Pending", from: "sibling" }] })
+  ]
+  const before = await runPromise(compile(graph(1)))
+  const after = await runPromise(compile(graph(2)))
+  const executor: PlanScheduler.Executor = { execute: ({ node }) => Effect.succeed({ ran: node.id }) }
+  const stores = TestStores.layer()
+  const program = Effect.gen(function*() {
+    yield* activate("run-rekey")
+    const service = scheduler({ runId: "run-rekey", executor })
+    yield* service.record(before)
+    const first = yield* service.run(before)
+    const second = yield* service.run(after)
+    return { first, second }
+  }).pipe(Effect.provide(harness({ runId: "run-rekey", executor })), Effect.provide(stores))
+
+  const { first, second } = await runPromise(program)
+  expect(outcomes(first)).toEqual({
+    source: "built",
+    derived: "built",
+    sibling: "built",
+    "sibling-child": "built"
+  })
+  // THE BAZEL-SHAPED PROMISE: the edited leaf re-ran and the branch nothing
+  // touched was served from the content-addressed cache.
+  //
+  // `derived` is `clean` here, and that is the early cutoff working. The
+  // edit changed `source`'s declaration, so `source` re-ran — but this
+  // executor returns `{ran: node.id}` for either seed, so the value
+  // `derived` consumes is byte-identical to what it consumed before. A
+  // dispatch key that folded the upstream PLAN key would have re-run it
+  // anyway; `StepKey.dispatchIdentity` folds the upstream's settled output
+  // instead, so invalidation stops at unchanged content the way Bazel's
+  // `ActionCacheChecker` does.
+  expect(outcomes(second)).toEqual({
+    source: "built",
+    derived: "clean",
+    sibling: "clean",
+    "sibling-child": "clean"
+  })
+})
 
   it("carries declared removals into the measured boundary and orders readers behind them", async () => {
     // A removal moves a path's content exactly as a write does, so the plan
