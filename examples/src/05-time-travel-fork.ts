@@ -15,10 +15,10 @@
  * sequence, so the fork inherits everything.
  *
  * The environment declaration matters. A sealed cache key is computed under
- * `Activity.CurrentCacheEnvironment`; with no declaration the engine scopes
+ * `Action.CurrentCacheEnvironment`; with no declaration the engine scopes
  * the key to the execution that produced it, and the fork would re-execute.
  */
-import { Activity, Flow, Interpreter } from "@smthrs/flow-next"
+import { Action, Flow, Interpreter } from "@smthrs/flow-next"
 import { EngineStore } from "@smthrs/engine-store-next"
 import { Journal } from "@smthrs/journal-next"
 import { SqlTimeTravelStore, TimeTravel } from "@smthrs/time-travel-next"
@@ -34,7 +34,7 @@ import { requirements } from "./durable-layer.ts"
  * composition and the child's; the implementation is attached per composition
  * below. That split is what lets both engines address one recorded result.
  */
-export const Measure = Activity.make("examples/Measure", {
+export const Measure = Action.make("examples/Measure", {
   payload: {},
   success: Schema.String,
   tier: "sealed",
@@ -66,7 +66,7 @@ const engineLayer = (filename: string, hostId: string) =>
         requirements(filename),
         // Declaring the environment is what lets a sealed identity cross the
         // fork boundary.
-        Activity.layerCacheEnvironment({ layers: [], capabilities: {} })
+        Action.layerCacheEnvironment({ layers: [], capabilities: {} })
       )
     )
   )
@@ -98,7 +98,7 @@ export const main = (filename: string): Effect.Effect<Summary> =>
 
     /** The implementation and the body that names it, over one table. */
     const analyseLayer = Layer.mergeAll(measured, Interpreter.layer(Analyse)).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     )
 
     const forked = yield* Effect.scoped(

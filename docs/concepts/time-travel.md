@@ -56,11 +56,11 @@ uses the parent's current persisted snapshot and attempts; automatic
 frame-addressed engine snapshots remain planned integration.
 
 A cloned attempt row is addressed by its sealed cache key, and a cache key
-computed under an undeclared `Activity.CurrentCacheEnvironment` is scoped to
+computed under an undeclared `Action.CurrentCacheEnvironment` is scoped to
 the execution that produced it (see [step keys](step-keys.md)). A fork
 therefore replays its parent's sealed attempts only when the composition
-declares its environment through `Activity.layerCacheEnvironment`. Without a
-declaration the fork re-executes those activities rather than reusing rows it
+declares its environment through `Action.layerCacheEnvironment`. Without a
+declaration the fork re-executes those actions rather than reusing rows it
 cannot prove were produced under the same layers and capabilities. The
 declaration is complete only when `Kernel.make` also receives
 `options.cacheEnvironment`; a capability list alone deliberately leaves the

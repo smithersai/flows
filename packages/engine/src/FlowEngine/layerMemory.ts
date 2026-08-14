@@ -57,10 +57,10 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
     }
     const executions = new Map<string, ExecutionState>()
 
-    type ActivityState = {
+    type ActionState = {
       exit: Exit.Exit<Flow.Result<unknown, unknown>> | undefined
     }
-    const activities = new Map<string, ActivityState>()
+    const actions = new Map<string, ActionState>()
 
     // Untraced because resume recursively drives suspended executions.
     const resume = Effect.fnUntraced(function*(executionId: string): Effect.fn.Return<void> {
@@ -156,12 +156,12 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
       resume(_flow, executionId) {
         return resume(executionId)
       },
-      // Untraced because activity execution is a retry-loop hot path.
-      activityExecute: Effect.fnUntraced(function*(options) {
-        const activity = options.activity
+      // Untraced because action execution is a retry-loop hot path.
+      actionExecute: Effect.fnUntraced(function*(options) {
+        const action = options.action
         const instance = yield* FlowRuntime.FlowInstance
-        const activityId = JSON.stringify([options.key, options.attempt])
-        let state = activities.get(activityId)
+        const actionId = JSON.stringify([options.key, options.attempt])
+        let state = actions.get(actionId)
         if (state) {
           const exit = state.exit
           if (exit && exit._tag === "Success" && exit.value._tag === "Suspended") {
@@ -171,32 +171,32 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
           }
         } else {
           state = { exit: undefined }
-          activities.set(activityId, state)
+          actions.set(actionId, state)
         }
-        const activityInstance = makeInstance(instance.flow, instance.executionId)
-        activityInstance.interrupted = instance.interrupted
+        const actionInstance = makeInstance(instance.flow, instance.executionId)
+        actionInstance.interrupted = instance.interrupted
         // DECIDED (2026-08-11, pending review): the waiting classification is
         // threaded through the dispatch's instance and back, because a driver
-        // gives an activity its own instance while `annotateWaiting` is
+        // gives an action its own instance while `annotateWaiting` is
         // documented to reach the parked run. An implementation that declares
         // one — `Sleep` under `timer`, `WaitFor` under `event` with its wake
         // token — writes it here, so without the thread-back the driver would
         // park on the derived default and the declaration would be inert for
-        // every activity. It is seeded as well as copied back so a body that
+        // every action. It is seeded as well as copied back so a body that
         // annotated before dispatching keeps its own declaration, and so the
         // consumption `deferredResult` performs on a settled wait travels out
         // the same way (issue #42).
         const waitingBefore = instance.waiting
-        activityInstance.waiting = waitingBefore
-        return yield* activity.executeEncoded.pipe(
+        actionInstance.waiting = waitingBefore
+        return yield* action.executeEncoded.pipe(
           Flow.intoResult,
-          Effect.provideService(FlowRuntime.FlowInstance, activityInstance),
+          Effect.provideService(FlowRuntime.FlowInstance, actionInstance),
           Effect.onExit((exit) => {
             state.exit = exit
             return Effect.void
           }),
           Effect.ensuring(Effect.sync(() => {
-            if (instance.waiting === waitingBefore) instance.waiting = activityInstance.waiting
+            if (instance.waiting === waitingBefore) instance.waiting = actionInstance.waiting
           }))
         )
       }),

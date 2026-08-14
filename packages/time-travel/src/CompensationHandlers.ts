@@ -69,7 +69,7 @@ export type {
  * @category models
  */
 export interface Handler {
-  /** The effect kind this compensates — the activity name the engine journaled. */
+  /** The effect kind this compensates — the action name the engine journaled. */
   readonly kind: string
   /** The tier this handler is valid for. A mismatch assesses as blocking. */
   readonly tier: EffectTier

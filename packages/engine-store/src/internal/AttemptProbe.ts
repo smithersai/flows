@@ -1,5 +1,5 @@
 /**
- * Survivor discovery for an activity key's attempt rows.
+ * Survivor discovery for an action key's attempt rows.
  *
  * Two implementations answer the same question — the durable state's single
  * ordered range read (issue #77) and the point-probe walk against
@@ -36,7 +36,7 @@ import type * as DurableEngineState from "../DurableEngineState.ts"
 export const prunedPrefixScanLimit = 32
 
 /**
- * Finds the surviving attempt rows for an activity key: the earliest row's
+ * Finds the surviving attempt rows for an action key: the earliest row's
  * start time — the durable retry origin when attempt 1 itself was pruned
  * (issue #69) — and the highest attempt number contiguous from it, from
  * which the engine resumes the attempt counter (issue #59). `Option.none()`

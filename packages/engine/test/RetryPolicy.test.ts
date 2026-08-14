@@ -1,6 +1,6 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, Flow, FlowRuntime, Interpreter, RetryPolicy } from "@smthrs/flow-next"
+import { Action, Flow, FlowRuntime, Interpreter, RetryPolicy } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Clock, Effect, Exit, Fiber, Layer, Option, Random, Schema } from "effect"
 import type * as Scope from "effect/Scope"
@@ -13,9 +13,9 @@ const some = (value: number) => Option.some(value)
 const none = Option.none()
 
 describe("expiration (issue #36)", () => {
-  it("an expressible wall-clock bound stops an activity retrying against a dead dependency", async () => {
+  it("an expressible wall-clock bound stops an action retrying against a dead dependency", async () => {
     let attempts = 0
-    const activity = Activity.make({
+    const action = Action.make({
       name: "RetryPolicy/expires",
       success: Schema.Number,
       error: Schema.String,
@@ -30,7 +30,7 @@ describe("expiration (issue #36)", () => {
         return Effect.fail("dependency-down")
       })
     })
-    const flowActivityDeclaration = Activity.make("RetryPolicy/expiring-flow/activity", {
+    const flowActionDeclaration = Action.make("RetryPolicy/expiring-flow/action", {
       payload: {},
       success: Schema.Number,
       error: Schema.String
@@ -39,13 +39,13 @@ describe("expiration (issue #36)", () => {
       payload: {},
       success: Schema.Number,
       error: Schema.String,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
 
     const exit = await runPromise(
       Effect.gen(function*() {
         const engine = yield* FlowRuntime.FlowRuntime
-        const fiber = yield* engine.activityExecute(activity, 1).pipe(Effect.forkChild)
+        const fiber = yield* engine.actionExecute(action, 1).pipe(Effect.forkChild)
         yield* Effect.yieldNow
         // Attempts at t=0, 100, 200; the delay to t=300 crosses the 250ms
         // expiration, so the sequence stops with a die.
@@ -54,8 +54,8 @@ describe("expiration (issue #36)", () => {
         return result._tag === "Complete" ? result.exit : Exit.succeed("suspended" as never)
       }).pipe(
         Effect.provide(
-          Layer.mergeAll(flowActivityDeclaration.toLayer(() => Effect.succeed(0)), Interpreter.layer(flow)).pipe(
-            Layer.provideMerge(Activity.layerImplementations)
+          Layer.mergeAll(flowActionDeclaration.toLayer(() => Effect.succeed(0)), Interpreter.layer(flow)).pipe(
+            Layer.provideMerge(Action.layerImplementations)
           ).pipe(
             Layer.provideMerge(FlowEngine.layerMemory)
           )
@@ -80,7 +80,7 @@ describe("expiration (issue #36)", () => {
 describe("flow suspension policy", () => {
   it("preserves the policy through annotations and forwards it to execution", () => {
     const policy = RetryPolicy.make({ initialMs: 17, factor: 1, maxMs: 17 })
-    const suspendedActivityDeclaration = Activity.make("RetryPolicy/suspended/activity", {
+    const suspendedActionDeclaration = Action.make("RetryPolicy/suspended/action", {
       payload: {},
       success: Schema.Void
     })
@@ -88,11 +88,11 @@ describe("flow suspension policy", () => {
       payload: {},
       success: Schema.Void,
       suspendedRetryPolicy: policy,
-      body: (payload) => suspendedActivityDeclaration.call(payload)
+      body: (payload) => suspendedActionDeclaration.call(payload)
     }).annotate(Flow.CaptureDefects, true)
     let attempts = 0
     const layer = Layer.mergeAll(
-      suspendedActivityDeclaration.toLayer(() =>
+      suspendedActionDeclaration.toLayer(() =>
         Effect.gen(function*() {
           attempts++
           if (attempts === 1) {
@@ -103,7 +103,7 @@ describe("flow suspension policy", () => {
       ),
       Interpreter.layer(suspended)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(Action.layerImplementations),
       Layer.provideMerge(FlowEngine.layerMemory)
     )
 
@@ -159,10 +159,10 @@ class Flaky extends Schema.TaggedError<Flaky>()("RetryPolicy/Flaky", {}) {}
 class Fatal extends Schema.TaggedError<Fatal>()("RetryPolicy/Fatal", {}) {}
 
 describe("engine retry decision point", () => {
-  effect("retries a failing activity with policy-derived backoff", () =>
+  effect("retries a failing action with policy-derived backoff", () =>
     Effect.gen(function*() {
       const timestamps: Array<number> = []
-      const activity = Activity.make({
+      const action = Action.make({
         name: "RetryPolicy/backoff",
         success: Schema.Number,
         error: Flaky,
@@ -174,7 +174,7 @@ describe("engine retry decision point", () => {
             : yield* Effect.fail(new Flaky())
         })
       })
-      const fiber = yield* activity.pipe(Effect.forkChild)
+      const fiber = yield* action.pipe(Effect.forkChild)
       yield* Effect.yieldNow
       // attempts at t=0, 100, 300 (=100+200), 700 (=300+400)
       yield* TestClock.adjust(700)
@@ -186,7 +186,7 @@ describe("engine retry decision point", () => {
   effect("maxAttempts exhaustion fails with a typed RetryAttemptsExhausted defect", () =>
     Effect.gen(function*() {
       let attempts = 0
-      const activity = Activity.make({
+      const action = Action.make({
         name: "RetryPolicy/exhausted",
         success: Schema.Void,
         error: Flaky,
@@ -201,7 +201,7 @@ describe("engine retry decision point", () => {
           return Effect.fail(new Flaky())
         })
       })
-      const fiber = yield* activity.pipe(Effect.exit, Effect.forkChild)
+      const fiber = yield* action.pipe(Effect.exit, Effect.forkChild)
       yield* Effect.yieldNow
       yield* TestClock.adjust(300)
       const exit = yield* Fiber.join(fiber)
@@ -226,7 +226,7 @@ describe("engine retry decision point", () => {
   effect("the exhaustion defect carries the *final* failure, not the first one", () =>
     Effect.gen(function*() {
       let attempts = 0
-      const activity = Activity.make({
+      const action = Action.make({
         name: "RetryPolicy/exhausted-last-error",
         success: Schema.Void,
         error: Schema.String,
@@ -238,7 +238,7 @@ describe("engine retry decision point", () => {
         }),
         execute: Effect.suspend(() => Effect.fail(`failure-${++attempts}`))
       })
-      const fiber = yield* activity.pipe(Effect.exit, Effect.forkChild)
+      const fiber = yield* action.pipe(Effect.exit, Effect.forkChild)
       yield* Effect.yieldNow
       yield* TestClock.adjust(300)
       const exit = yield* Fiber.join(fiber)
@@ -256,7 +256,7 @@ describe("engine retry decision point", () => {
       Effect.gen(function*() {
         let attempts = 0
         const before = yield* Clock.currentTimeMillis
-        const activity = Activity.make({
+        const action = Action.make({
           name: "RetryPolicy/nonRetryable",
           success: Schema.Void,
           error: Fatal,
@@ -271,17 +271,17 @@ describe("engine retry decision point", () => {
             return Effect.fail(new Fatal())
           })
         })
-        const exit = yield* activity.pipe(Effect.exit)
+        const exit = yield* action.pipe(Effect.exit)
         expect(attempts).toBe(1)
         expect(Exit.isFailure(exit)).toBe(true)
         expect(yield* Clock.currentTimeMillis).toBe(before)
       })
   )
 
-  effect("without a retryPolicy a failing activity is not retried", () =>
+  effect("without a retryPolicy a failing action is not retried", () =>
     Effect.gen(function*() {
       let attempts = 0
-      const activity = Activity.make({
+      const action = Action.make({
         name: "RetryPolicy/none",
         success: Schema.Void,
         error: Flaky,
@@ -290,7 +290,7 @@ describe("engine retry decision point", () => {
           return Effect.fail(new Flaky())
         })
       })
-      const exit = yield* activity.pipe(Effect.exit)
+      const exit = yield* action.pipe(Effect.exit)
       expect(attempts).toBe(1)
       expect(Exit.isFailure(exit)).toBe(true)
     }))
@@ -306,13 +306,13 @@ describe("restart resume", () => {
     // Shared "durable store": the attempt numbers each engine executed.
     const attemptLog: Array<{ attempt: number; at: number }> = []
     const policy = RetryPolicy.make({ initialMs: 100, factor: 2, maxMs: 10000 })
-    const activity = Activity.make({
+    const action = Action.make({
       name: "RetryPolicy/restart",
       success: Schema.Number,
       error: Flaky,
       retryPolicy: policy,
       execute: Effect.gen(function*() {
-        const attempt = yield* Activity.CurrentAttempt
+        const attempt = yield* Action.CurrentAttempt
         const at = yield* Clock.currentTimeMillis
         attemptLog.push({ attempt, at })
         return attemptLog.length >= 4 ? attempt : yield* Effect.fail(new Flaky())
@@ -341,7 +341,7 @@ describe("restart resume", () => {
     // Engine A: attempts 1 and 2 fail, then the process dies mid-backoff.
     await runIn(Effect.gen(function*() {
       const engine = yield* FlowRuntime.FlowRuntime
-      const fiber = yield* engine.activityExecute(activity, 1).pipe(
+      const fiber = yield* engine.actionExecute(action, 1).pipe(
         Effect.forkChild
       )
       yield* Effect.yieldNow
@@ -355,7 +355,7 @@ describe("restart resume", () => {
     await runIn(Effect.gen(function*() {
       const engine = yield* FlowRuntime.FlowRuntime
       const fiber = yield* engine
-        .activityExecute(activity, persisted + 1)
+        .actionExecute(action, persisted + 1)
         .pipe(Effect.forkChild)
       yield* Effect.yieldNow
       // Attempt 3 runs immediately and fails; the delay before attempt 4

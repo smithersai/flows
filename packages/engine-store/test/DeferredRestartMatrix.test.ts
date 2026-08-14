@@ -1,4 +1,4 @@
-import { Activity, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow-next"
+import { Action, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow-next"
 import { Journal } from "@smthrs/journal-next"
 import { Jj } from "@smthrs/kernel-next"
 import { Node } from "@smthrs/plan-next"
@@ -92,7 +92,7 @@ describe("durable deferred outcomes across a restart", () => {
         error: Schema.String,
         body: opaqueHandlerBody
       })
-      const prefix = Activity.make({
+      const prefix = Action.make({
         name: "prefix",
         success: Schema.String,
         tier: "sealed",
@@ -219,7 +219,7 @@ describe("partial dependency readiness across a restart", () => {
       success: Schema.String,
       body: opaqueHandlerBody
     })
-    const prefix = Activity.make({
+    const prefix = Action.make({
       name: "prefix",
       success: Schema.String,
       tier: "sealed",

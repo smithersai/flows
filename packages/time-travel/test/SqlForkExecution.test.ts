@@ -3,7 +3,7 @@ import { DurableWriter } from "@smthrs/database-next"
 import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
 import { DurableEngineState, EngineStore, OwnerIdentity, StepBoundary } from "@smthrs/engine-store-next"
 import * as Migrations from "@smthrs/engine-store-next/Migrations"
-import { Activity, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
+import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
 import { Journal, SqlJournal } from "@smthrs/journal-next"
 import { Jj } from "@smthrs/kernel-next"
 import { AttemptStore, RunStore } from "@smthrs/run-store-next"
@@ -19,11 +19,11 @@ import { describe, expect, it } from "vitest"
 import * as SqlTimeTravelStore from "../src/SqlTimeTravelStore.ts"
 
 /**
- * The one sealed atom the fork replays. It is a DECLARED activity, so the same
+ * The one sealed atom the fork replays. It is a DECLARED action, so the same
  * value addresses the recorded result in the parent's composition and in the
  * restarted one; only the implementation is attached per composition.
  */
-const ForkOnce = Activity.make("fork-once", {
+const ForkOnce = Action.make("fork-once", {
   payload: {},
   success: Schema.String,
   tier: "sealed",
@@ -68,7 +68,7 @@ const requirements = (filename: string) => {
     // addressed by sealed cache key. An undeclared environment pins that key
     // to one execution, so the fork would re-dispatch instead of replaying;
     // declaring the environment is what lets identity cross the fork boundary.
-    Activity.layerCacheEnvironment({ layers: [], capabilities: {} })
+    Action.layerCacheEnvironment({ layers: [], capabilities: {} })
   )
 }
 
@@ -83,12 +83,12 @@ describe("SQL fork execution", () => {
         ForkOnce.toLayer(() =>
           Effect.sync(() => {
             dispatches++
-            return "activity-result"
+            return "action-result"
           })
         ),
         Interpreter.layer(ForkFlow)
       ).pipe(
-        Layer.provideMerge(Activity.layerImplementations),
+        Layer.provideMerge(Action.layerImplementations),
         Layer.provideMerge(Layer.succeed(FlowRuntime.FlowRuntime, engine))
       )
 
@@ -141,10 +141,10 @@ describe("SQL fork execution", () => {
       const parentState = JSON.parse(
         created.states.find((row) => row.run_id === "fork-parent")!.state_json
       ) as Record<string, unknown>
-      expect(created.parentResult).toBe("activity-result")
+      expect(created.parentResult).toBe("action-result")
       expect(parentState.result).toEqual({
         _tag: "Complete",
-        exit: { _tag: "Success", value: "activity-result" }
+        exit: { _tag: "Success", value: "action-result" }
       })
       expect(childState).toMatchObject({
         version: 1,
@@ -175,7 +175,7 @@ describe("SQL fork execution", () => {
         )
       )
 
-      expect(restarted.value).toBe("activity-result")
+      expect(restarted.value).toBe("action-result")
       expect(restarted.row.status).toBe("completed")
       expect(dispatches).toBe(1)
     } finally {

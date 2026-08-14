@@ -56,7 +56,7 @@ const draft = (id: string, options: DraftOptions = {}): Plan.NodeDraft => ({
   material: {
     version: KeyMaterial.version,
     kind: "sealed",
-    body: options.body ?? { activity: id },
+    body: options.body ?? { action: id },
     inputs: options.inputs ?? [],
     layers: [],
     capabilities: []

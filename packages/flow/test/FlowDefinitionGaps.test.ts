@@ -1,6 +1,6 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
+import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
@@ -43,7 +43,7 @@ describe("Flow.make payload and schema defaults", () => {
   })
 
   effect("defaults success to Void and error to Never when neither is declared", () => {
-    const Step = Activity.make("Definition/defaults/step", {
+    const Step = Action.make("Definition/defaults/step", {
       payload: { id: Schema.String }
     })
     const flow = Flow.make("Definition/defaults", {
@@ -61,7 +61,7 @@ describe("Flow.make payload and schema defaults", () => {
   })
 
   effect("keeps declared success and error schemas instead of the defaults", () => {
-    const Step = Activity.make("Definition/declared/step", {
+    const Step = Action.make("Definition/declared/step", {
       payload: Schema.Struct({ id: Schema.String }),
       success: Schema.Number,
       error: Schema.String
@@ -99,7 +99,7 @@ describe("Flow.make requires a body", () => {
   it("refuses a declaration with nothing to plan, at the type level", () => {
     // The two nouns of `docs/specs/Concepts/Unified Flow Authoring.md` are
     // stratified by the compiler, not by prose: a flow with nothing to plan is
-    // a category error, and the work it described is an Activity. The
+    // a category error, and the work it described is an Action. The
     // directive is the assertion — tsc fails the check when the call below
     // compiles.
     // @ts-expect-error -- `body` is a required field of Flow.make's options.
@@ -122,11 +122,11 @@ describe("Flow.make requires a body", () => {
  * `Flow.Execution<Tag>` is a phantom marker no service ever provides. Nothing
  * discharges it any more — the flow-level handler attachment that once did is
  * gone with the handler — and the authoring surface reaches a declared
- * activity's implementation instead.
+ * action's implementation instead.
  *
  * DECIDED (2026-08-11, pending review): the definition-level combinator keeps
  * its own coverage through this cast rather than the assertions moving to the
- * module-level `Flow.withRollback`. A declared activity's implementation is
+ * module-level `Flow.withRollback`. A declared action's implementation is
  * exactly the position the marker stood for — inside a running execution, with
  * the flow scope in context — so dropping the marker states what is true
  * instead of silently retiring the combinator the definition still exposes.
@@ -138,7 +138,7 @@ const inExecution = <A, E>(
 describe("Flow definition combinators", () => {
   effect("withRollback is reachable from the definition as well as the module", () => {
     const rolledBack: Array<string> = []
-    const Step = Activity.make("Definition/rollback/step", {
+    const Step = Action.make("Definition/rollback/step", {
       payload: { id: Schema.String },
       success: Schema.Void,
       error: Schema.String
@@ -170,7 +170,7 @@ describe("Flow definition combinators", () => {
 
   effect("the definition-level combinator does not roll back a successful step", () => {
     const rolledBack: Array<string> = []
-    const Step = Activity.make("Definition/rollback-ok/step", {
+    const Step = Action.make("Definition/rollback-ok/step", {
       payload: { id: Schema.String },
       success: Schema.String
     })
@@ -195,10 +195,10 @@ describe("Flow definition combinators", () => {
   })
 })
 
-describe("concurrent activity bookkeeping", () => {
-  effect("an activity finishing while a sibling still runs does not release the suspension latch", () => {
+describe("concurrent action bookkeeping", () => {
+  effect("an action finishing while a sibling still runs does not release the suspension latch", () => {
     const events: Array<string> = []
-    const quick = Activity.make({
+    const quick = Action.make({
       name: "Definition/quick",
       success: Schema.String,
       execute: Effect.sync(() => {
@@ -206,7 +206,7 @@ describe("concurrent activity bookkeeping", () => {
         return "quick"
       })
     })
-    const slow = Activity.make({
+    const slow = Action.make({
       name: "Definition/slow-sibling",
       success: Schema.String,
       execute: Effect.gen(function*() {
@@ -215,7 +215,7 @@ describe("concurrent activity bookkeeping", () => {
         return "slow"
       })
     })
-    const Pair = Activity.make("Definition/concurrent-pair/step", {
+    const Pair = Action.make("Definition/concurrent-pair/step", {
       payload: { id: Schema.String },
       success: Schema.String
     })
@@ -235,16 +235,16 @@ describe("concurrent activity bookkeeping", () => {
     ))
     return Effect.gen(function*() {
       expect(yield* flow.execute({ id: "x" }, { executionId: "run-pair" })).toBe("slow+quick")
-      // the quick activity settled first, while the slow one was still in flight
+      // the quick action settled first, while the slow one was still in flight
       expect(events).toEqual(["quick", "slow"])
     }).pipe(Effect.provide(layer))
   })
 
-  effect("combines the causes of several activities that suspend together", () => {
-    // Two activities suspend with a cause each: the instance must accumulate
+  effect("combines the causes of several actions that suspend together", () => {
+    // Two actions suspend with a cause each: the instance must accumulate
     // both, not drop the first.
     const failing = (name: string, reason: string, delay: number) =>
-      Activity.make({
+      Action.make({
         name,
         success: Schema.String,
         error: Schema.String,
@@ -253,7 +253,7 @@ describe("concurrent activity bookkeeping", () => {
           return yield* Effect.fail(reason)
         })
       })
-    const Both = Activity.make("Definition/two-suspensions/step", {
+    const Both = Action.make("Definition/two-suspensions/step", {
       payload: { id: Schema.String },
       success: Schema.String,
       error: Schema.String
@@ -293,13 +293,13 @@ describe("concurrent activity bookkeeping", () => {
 })
 
 describe("suspension while siblings are still running", () => {
-  effect("carries the suspending activity's cause and waits for the running sibling", () => {
-    // `wrapActivityResult` must (1) merge the cause reported by a suspended
-    // activity onto the instance and (2) hold suspension open until every
-    // concurrently running activity has settled — otherwise a sibling is
+  effect("carries the suspending action's cause and waits for the running sibling", () => {
+    // `wrapActionResult` must (1) merge the cause reported by a suspended
+    // action onto the instance and (2) hold suspension open until every
+    // concurrently running action has settled — otherwise a sibling is
     // abandoned mid-flight and re-runs on resume.
     const events: Array<string> = []
-    const failing = Activity.make({
+    const failing = Action.make({
       name: "Definition/failing",
       success: Schema.String,
       error: Schema.String,
@@ -310,7 +310,7 @@ describe("suspension while siblings are still running", () => {
         return yield* Effect.fail("gate-closed")
       })
     })
-    const slow = Activity.make({
+    const slow = Action.make({
       name: "Definition/slow",
       success: Schema.String,
       execute: Effect.gen(function*() {
@@ -320,7 +320,7 @@ describe("suspension while siblings are still running", () => {
         return "slow"
       })
     })
-    const Pair = Activity.make("Definition/suspend-with-sibling/step", {
+    const Pair = Action.make("Definition/suspend-with-sibling/step", {
       payload: { id: Schema.String },
       success: Schema.String,
       error: Schema.String

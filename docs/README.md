@@ -18,7 +18,7 @@ Read [implementation status](architecture/implementation-status.md) before choos
 
 ## Concepts
 
-- [Durable execution model](concepts/durable-execution-model.md) — executions, activities, suspension, ownership, and recovery.
+- [Durable execution model](concepts/durable-execution-model.md) — executions, actions, suspension, ownership, and recovery.
 - [Flows and the action graph](concepts/action-graph.md) — dependency structure and the current limit of Bazel-like planning.
 - [Determinism and replay](concepts/determinism-and-replay.md) — replay-safe flow bodies and recorded effect boundaries.
 - [Journal](concepts/journal.md) — the logical WAL, its durable and lossy channels, durable order, projections, and run state.

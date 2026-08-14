@@ -815,7 +815,7 @@ describe("RunStore", () => {
         const survivedInsideBudget = owningFiber.pollUnsafe()
         // A peer judges staleness by the *persisted* heartbeat, so the owner
         // must already be interrupted by the time that timestamp crosses
-        // `heartbeatStaleAfter` — otherwise both execute the same activity.
+        // `heartbeatStaleAfter` — otherwise both execute the same action.
         yield* TestClock.adjust(
           Duration.millis(
             Duration.toMillis(heartbeatStaleAfter) - Duration.toMillis(heartbeatWriteTolerance)

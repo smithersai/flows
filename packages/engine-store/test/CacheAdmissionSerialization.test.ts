@@ -12,14 +12,14 @@ import { type Ownership, RunStore } from "@smthrs/run-store-next"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"
-import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "cache-serial-host", pid: 47, nonce: "cache-serial-process" }
 
-const declared: ActivityPersistence.BoundaryMetadata = {
+const declared: ActionPersistence.BoundaryMetadata = {
   readSet: [{ path: "config.json", digest: "D1" }],
   writeSet: ["output.txt"],
   boundaryMode: "hard"
@@ -90,12 +90,12 @@ describe("the cache-hit block runs under the per-key admission permit (issue #11
       Effect.gen(function*() {
         // First run records the shared row under a healthy boundary.
         yield* activate("cache-serial-first")
-        yield* ActivityPersistence.make({
+        yield* ActionPersistence.make({
           runId: "cache-serial-first",
           owner,
           sourceId: "cache-serial-first",
           execute: () => Effect.succeed("recorded")
-        })({ activity: {}, attempt: 1, key, tier: "sealed", metadata: declared }).pipe(
+        })({ action: {}, attempt: 1, key, tier: "sealed", metadata: declared }).pipe(
           Effect.provide(StepBoundary.layerTest({ readSnapshot: declared.readSet }))
         )
         // Second run dispatches the same key twice, concurrently, through one
@@ -103,13 +103,13 @@ describe("the cache-hit block runs under the per-key admission permit (issue #11
         // path; their prepare/replayOutputs spans must never overlap.
         yield* activate("cache-serial-second")
         const boundary = observableBoundary()
-        const execute = ActivityPersistence.make({
+        const execute = ActionPersistence.make({
           runId: "cache-serial-second",
           owner,
           sourceId: "cache-serial-second",
           execute: () => Effect.die("must not execute: both dispatches are verified hits")
         })
-        const dispatch = execute({ activity: {}, attempt: 1, key, tier: "sealed", metadata: declared }).pipe(
+        const dispatch = execute({ action: {}, attempt: 1, key, tier: "sealed", metadata: declared }).pipe(
           Effect.provide(boundary.layer)
         )
         const results = yield* Effect.all([dispatch, dispatch], { concurrency: 2 })
@@ -132,24 +132,24 @@ describe("the cache-hit block runs under the per-key admission permit (issue #11
     const outcome = await runPromise(
       Effect.gen(function*() {
         yield* activate("cache-serial-skew-first")
-        yield* ActivityPersistence.make({
+        yield* ActionPersistence.make({
           runId: "cache-serial-skew-first",
           owner,
           sourceId: "cache-serial-skew-first",
           execute: () => Effect.succeed("recorded")
-        })({ activity: {}, attempt: 1, key, tier: "sealed", metadata: declared }).pipe(
+        })({ action: {}, attempt: 1, key, tier: "sealed", metadata: declared }).pipe(
           Effect.provide(StepBoundary.layerTest({ readSnapshot: declared.readSet }))
         )
         yield* activate("cache-serial-skew-second")
         const boundary = observableBoundary()
-        const execute = ActivityPersistence.make({
+        const execute = ActionPersistence.make({
           runId: "cache-serial-skew-second",
           owner,
           sourceId: "cache-serial-skew-second",
           execute: () => Effect.die("must not execute: both dispatches are verified hits")
         })
         const dispatchAt = (attempt: number) =>
-          execute({ activity: {}, attempt, key, tier: "sealed", metadata: declared }).pipe(
+          execute({ action: {}, attempt, key, tier: "sealed", metadata: declared }).pipe(
             Effect.provide(boundary.layer)
           )
         const results = yield* Effect.all([dispatchAt(1), dispatchAt(2)], { concurrency: 2 })

@@ -1,6 +1,6 @@
 /**
  * The automated restore drill: a live durable engine takes real writes, a hot
- * backup is captured mid-activity over a second connection, the backup is
+ * backup is captured mid-action over a second connection, the backup is
  * restored into a fresh directory, and the restored store both fences the
  * pre-backup owner out and resumes the run under a new owner.
  *
@@ -20,7 +20,7 @@ import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
 import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
 import { DurableWriter } from "@smthrs/database-next"
 import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
-import { Activity, Flow } from "@smthrs/flow-next"
+import { Action, Flow } from "@smthrs/flow-next"
 import { Journal, type JournalEvent, SqlJournal } from "@smthrs/journal-next"
 import { Input, type RunId, type SourceId, type SourceSeq } from "@smthrs/journal-next/JournalEvent"
 import { Jj } from "@smthrs/kernel-next"
@@ -36,7 +36,7 @@ import { describe, expect, it } from "vitest"
 import * as DisasterRecovery from "../src/DisasterRecovery.ts"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
-import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as Migrations from "../src/Migrations.ts"
 import * as OwnerIdentity from "../src/OwnerIdentity.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
@@ -53,7 +53,7 @@ const claimedRunId = "drill-claimed-run"
 const encoder = new TextEncoder()
 const engineRunId = "drill-flow-run"
 
-const boundary: ActivityPersistence.BoundaryMetadata = {
+const boundary: ActionPersistence.BoundaryMetadata = {
   readSet: [],
   writeSet: ["output.txt"],
   boundaryMode: "hard"
@@ -99,12 +99,12 @@ const dispatch = (options: {
   readonly key: string
   readonly execute: Effect.Effect<unknown>
 }) =>
-  ActivityPersistence.make({
+  ActionPersistence.make({
     runId,
     owner: options.owner,
     sourceId: `drill-${runId}`,
     execute: () => options.execute
-  })({ activity: {}, attempt: 1, key: options.key, tier: "sealed", metadata: boundary })
+  })({ action: {}, attempt: 1, key: options.key, tier: "sealed", metadata: boundary })
 
 const counted = (counter: { count: number }, result: string): Effect.Effect<unknown> =>
   Effect.sync(() => {
@@ -134,7 +134,7 @@ const snapshotOf = (row: RunStore.RunRow): RunStore.RunSnapshot => ({
 })
 
 describe("restore drill", () => {
-  it("restores and resumes a real registered flow from a mid-activity hot backup", async () => {
+  it("restores and resumes a real registered flow from a mid-action hot backup", async () => {
     const base = mkdtempSync(join(tmpdir(), "flows-drill-engine-"))
     mkdirSync(join(base, "live"), { recursive: true })
     const liveDatabase = join(base, "live", DisasterRecovery.databaseFileName)
@@ -145,7 +145,7 @@ describe("restore drill", () => {
     let mode: "live" | "restored" = "live"
     let liveGate: Deferred.Deferred<void>
 
-    const recorded = Activity.make({
+    const recorded = Action.make({
       name: "restore-drill-recorded",
       success: Schema.String,
       tier: "sealed",
@@ -155,7 +155,7 @@ describe("restore drill", () => {
         return "recorded-live"
       })
     })
-    const inflight = Activity.make({
+    const inflight = Action.make({
       name: "restore-drill-inflight",
       success: Schema.String,
       tier: "sealed",
@@ -273,7 +273,7 @@ describe("restore drill", () => {
     expect(counters).toEqual({ recorded: 1, inflightLive: 1, inflightRestored: 1 })
   })
 
-  it("hot-backs-up mid-activity, fences the pre-backup owner, and resumes on the restored store", async () => {
+  it("hot-backs-up mid-action, fences the pre-backup owner, and resumes on the restored store", async () => {
     const base = mkdtempSync(join(tmpdir(), "flows-drill-"))
     mkdirSync(join(base, "live"), { recursive: true })
     const liveDatabase = join(base, "live", DisasterRecovery.databaseFileName)
@@ -282,7 +282,7 @@ describe("restore drill", () => {
     const targetDirectory = join(base, "restored")
 
     // Phase 1 — a live engine takes real writes, and the backup is captured
-    // mid-activity from a second connection to the same file.
+    // mid-action from a second connection to the same file.
     const live = await runPromise(
       Effect.gen(function*() {
         const runs = yield* RunStore.RunStore

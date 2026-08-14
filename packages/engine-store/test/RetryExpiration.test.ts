@@ -4,9 +4,9 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * be measured from a durable origin — the persisted start of the first
  * attempt — so it survives a process death mid-retry. An engine rebuilt over
  * the same stores must give up with `retry_policy_expired` once the
- * wall-clock budget is exhausted, without re-dispatching the activity body.
+ * wall-clock budget is exhausted, without re-dispatching the action body.
  */
-import { Activity, Flow, FlowRuntime, RetryPolicy, StepIdentity } from "@smthrs/flow-next"
+import { Action, Flow, FlowRuntime, RetryPolicy, StepIdentity } from "@smthrs/flow-next"
 import { Journal } from "@smthrs/journal-next"
 import { Jj } from "@smthrs/kernel-next"
 import { Node } from "@smthrs/plan-next"
@@ -76,7 +76,7 @@ describe("expirationMs survives a restart mid-retry (issue #45)", () => {
       error: Schema.String,
       body: opaqueHandlerBody
     })
-    const flaky = Activity.make({
+    const flaky = Action.make({
       name: "retry-expiration-flaky",
       success: Schema.String,
       error: Schema.String,
@@ -91,22 +91,22 @@ describe("expirationMs survives a restart mid-retry (issue #45)", () => {
         return Effect.fail("boom")
       })
     })
-    // Yield the activity itself (it is Effectable): that is the engine
+    // Yield the action itself (it is Effectable): that is the engine
     // dispatch path; `.execute` would be the raw body.
     const handler = () =>
       Effect.gen(function*() {
         return yield* flaky
       })
 
-    // The activity carries no idempotency key, so its step key is the first
-    // invocation key allocated in the activity's own name scope (issue #73) —
+    // The action carries no idempotency key, so its step key is the first
+    // invocation key allocated in the action's own name scope (issue #73) —
     // recomputable here to observe the persisted attempt row directly.
     const attemptId = {
       runId: "retry-expiration-run",
       stepKeyDigest: sha256(invocationKey({
         runId: "retry-expiration-run",
         parentScope: runSync(StepIdentity.allocationScope({
-          kind: "activity",
+          kind: "action",
           name: "retry-expiration-flaky"
         })),
         ordinal: 1,
@@ -177,7 +177,7 @@ describe("expirationMs survives a restart mid-retry (issue #45)", () => {
     expect(result.released.status).toBe("suspended")
     expect(result.row.status).toBe("failed")
     // Flow-result JSON preserves the engine defect's public identity rather
-    // than the journal error-code spelling used at the activity boundary.
+    // than the journal error-code spelling used at the action boundary.
     // Decode the persisted shape so this asserts the terminal reason, not a
     // coincidental serialization fragment.
     const persisted = JSON.parse(result.row.stateJson) as {
@@ -196,7 +196,7 @@ describe("expirationMs survives a restart mid-retry (issue #45)", () => {
       cause._tag === "Die" &&
       cause.defect.name === "@smthrs/engine-next/RetryPolicyExpired"
     )).toBe(true)
-    // The rebuilt engine never re-dispatched the activity body: the budget
+    // The rebuilt engine never re-dispatched the action body: the budget
     // was already spent according to the durable origin.
     expect(bodyRuns).toBe(1)
   })

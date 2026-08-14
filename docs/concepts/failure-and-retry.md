@@ -1,6 +1,6 @@
 # Failure and retry
 
-This page describes the retry and terminal-failure rules implemented by flows, activities, run ownership, and time-travel recovery. It does not define a flow-wide graph failure scheduler, which is planned.
+This page describes the retry and terminal-failure rules implemented by flows, actions, run ownership, and time-travel recovery. It does not define a flow-wide graph failure scheduler, which is planned.
 
 ## Flow outcomes
 
@@ -8,7 +8,7 @@ A handler completes with an encoded success or expected failure, or returns `Flo
 
 `Flow.SuspendOnFailure` can convert a handler failure into suspension. `Flow.CaptureDefects` controls whether defects are captured into the flow result. These references should be set centrally; changing them between replays changes runtime policy.
 
-## Activity attempts
+## Action attempts
 
 Each durable attempt is addressed by:
 
@@ -16,11 +16,11 @@ Each durable attempt is addressed by:
 (runId, Sha256(stepKey), attempt)
 ```
 
-`Activity.retry` increments `Activity.CurrentAttempt` and delegates scheduling to Effect:
+`Action.retry` increments `Action.CurrentAttempt` and delegates scheduling to Effect:
 
 ```ts
-import { Activity } from "@smthrs/flow-next"
-const result = yield* Activity.retry(
+import { Action } from "@smthrs/flow-next"
+const result = yield* Action.retry(
   WriteArtifact,
   { times: 4 }
 )

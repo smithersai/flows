@@ -1,22 +1,22 @@
 /**
- * A bodied flow driven end to end by the real in-memory engine: the activity
+ * A bodied flow driven end to end by the real in-memory engine: the action
  * path a call node takes, the tier it takes it at, the branch decided on a real
  * value, what a duplicate execute of an in-flight execution id does, and what a
  * body re-driven after a park does with the effects it already ran.
  */
-import { Activity, Flow, Interpreter } from "@smthrs/flow-next"
+import { Action, Flow, Interpreter } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Deferred, Effect, Exit, Fiber, Layer, Option, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
 import { runPromise } from "./Crypto.ts"
 
-const Read = Activity.make("body/read", {
+const Read = Action.make("body/read", {
   payload: { path: Schema.String },
   success: Schema.Struct({ value: Schema.Number, files: Schema.Array(Schema.String) })
 })
 
-const Double = Activity.make("body/double", {
+const Double = Action.make("body/double", {
   payload: { value: Schema.Number },
   success: Schema.Number
 })
@@ -46,7 +46,7 @@ const Decide = Flow.make("body/decide", {
     )
 })
 
-/** The activity invocations one case saw, in dispatch order. */
+/** The action invocations one case saw, in dispatch order. */
 const wire = (value: number) => {
   const calls: Array<string> = []
   const layer = Layer.mergeAll(
@@ -65,7 +65,7 @@ const wire = (value: number) => {
     Interpreter.layer(Pipeline),
     Interpreter.layer(Decide)
   ).pipe(
-    Layer.provideMerge(Activity.layerImplementations),
+    Layer.provideMerge(Action.layerImplementations),
     Layer.provideMerge(FlowEngine.layerMemory)
   )
   return { calls, layer }
@@ -86,7 +86,7 @@ const pollUntil = <A, E, R>(
   })
 
 describe("bodied flow on the memory engine", () => {
-  it("runs each activity call through the engine's activity path and settles the root", async () => {
+  it("runs each action call through the engine's action path and settles the root", async () => {
     const { calls, layer } = wire(21)
 
     const value = await runPromise(
@@ -122,7 +122,7 @@ describe("bodied flow on the memory engine", () => {
 
   it("dedupes a duplicate execute of an in-flight execution id onto the one running body", async () => {
     // Both calls name one execution id while the body is parked inside its
-    // second activity, so the engine joins the second onto the fiber already
+    // second action, so the engine joins the second onto the fiber already
     // running rather than driving the body twice. Nothing is replayed here:
     // there is one drive, and both callers read its answer.
     const calls: Array<string> = []
@@ -146,7 +146,7 @@ describe("bodied flow on the memory engine", () => {
         ),
         Interpreter.layer(Pipeline)
       ).pipe(
-        Layer.provideMerge(Activity.layerImplementations),
+        Layer.provideMerge(Action.layerImplementations),
         Layer.provideMerge(FlowEngine.layerMemory)
       )
       const program = Pipeline.execute({ path: "counter.txt" }, { executionId: "body-duplicate" })
@@ -164,10 +164,10 @@ describe("bodied flow on the memory engine", () => {
     expect(calls).toEqual(["read:counter.txt", "double:21"])
   })
 
-  it("re-drives a body after a park without rerunning the activity that already settled", async () => {
+  it("re-drives a body after a park without rerunning the action that already settled", async () => {
     // The genuine re-drive the case above does NOT cover: the first drive
     // settles `Read`, parks, and ends; `resume` builds and walks the body a
-    // second time. The settled activity replays from its recorded outcome
+    // second time. The settled action replays from its recorded outcome
     // because a re-driven instance re-derives the same invocation key, so the
     // round finishes on the second pass having read once.
     const calls: Array<string> = []
@@ -175,7 +175,7 @@ describe("bodied flow on the memory engine", () => {
     const Gated = Flow.make("body/gated", {
       payload: { path: Schema.String },
       success: Schema.Number,
-      body: ({ path }): Node.Node<unknown, never, Activity.Requirement<"body/read">> =>
+      body: ({ path }): Node.Node<unknown, never, Action.Requirement<"body/read">> =>
         Read.call({ path }).pipe(
           Node.andThen((result): Node.Node<unknown> =>
             approved ? Flow.done(result.value) : Flow.park({ reason: "approval", token: "body-gate" })
@@ -191,7 +191,7 @@ describe("bodied flow on the memory engine", () => {
       ),
       Interpreter.layer(Gated)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(Action.layerImplementations),
       Layer.provideMerge(FlowEngine.layerMemory)
     )
 
@@ -213,15 +213,15 @@ describe("bodied flow on the memory engine", () => {
       Option.isSome(observed.woken) && observed.woken.value._tag === "Complete" &&
         Exit.isSuccess(observed.woken.value.exit) && observed.woken.value.exit.value
     ).toBe(21)
-    // One read across both drives: the re-drive replayed the settled activity.
+    // One read across both drives: the re-drive replayed the settled action.
     expect(calls).toEqual(["read:counter.txt"])
   })
 
   it("dispatches a call node at the tier its declaration carries", async () => {
-    // A compensable activity is the tier the engine cannot run without a
+    // A compensable action is the tier the engine cannot run without a
     // snapshot boundary, so its refusal is proof the node's declared tier
     // reached the engine rather than a default.
-    const Compensable = Activity.make("body/compensable", {
+    const Compensable = Action.make("body/compensable", {
       payload: { path: Schema.String },
       success: Schema.Void,
       tier: "compensable"
@@ -235,7 +235,7 @@ describe("bodied flow on the memory engine", () => {
       Compensable.toLayer(() => Effect.void),
       Interpreter.layer(Risky)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(Action.layerImplementations),
       Layer.provideMerge(FlowEngine.layerMemory)
     )
 

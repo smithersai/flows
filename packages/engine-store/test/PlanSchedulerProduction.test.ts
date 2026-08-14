@@ -110,7 +110,7 @@ const graph = (root: string): ReadonlyArray<Plan.NodeDraft> => [
     material: {
       version: KeyMaterial.version,
       kind: "sealed" as const,
-      body: { activity: "render" },
+      body: { action: "render" },
       inputs: [{ _tag: "Literal" as const, value: "a" }],
       layers: [],
       capabilities: []
@@ -126,7 +126,7 @@ const graph = (root: string): ReadonlyArray<Plan.NodeDraft> => [
     material: {
       version: KeyMaterial.version,
       kind: "sealed" as const,
-      body: { activity: "render" },
+      body: { action: "render" },
       inputs: [{ _tag: "Literal" as const, value: "b" }],
       layers: [],
       capabilities: []
@@ -142,7 +142,7 @@ const graph = (root: string): ReadonlyArray<Plan.NodeDraft> => [
     material: {
       version: KeyMaterial.version,
       kind: "sealed" as const,
-      body: { activity: "combine" },
+      body: { action: "combine" },
       inputs: [
         { _tag: "Ref" as const, from: "render-a", path: [] },
         { _tag: "Ref" as const, from: "render-b", path: [] }

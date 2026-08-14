@@ -56,8 +56,8 @@ const provideJournal = <A, E, R>(
     Exclude<R, Journal.Journal | RunStore.RunStore | DurableEngineState.DurableEngineState | Scope.Scope>
   >
 
-/** Interrupts a run mid-activity via driver-scope close (process shutdown). */
-const releaseMidActivity = (executionId: string) =>
+/** Interrupts a run mid-action via driver-scope close (process shutdown). */
+const releaseMidAction = (executionId: string) =>
   Effect.gen(function*() {
     const driverScope = yield* Scope.make()
     const driver = yield* makeDriver("owner-1").pipe(Scope.provide(driverScope))
@@ -83,7 +83,7 @@ describe("unregistered-flow reclaim is loud, not silent (issue #62)", () => {
       Effect.gen(function*() {
         const store = yield* RunStore.RunStore
         const state = yield* DurableEngineState.DurableEngineState
-        yield* releaseMidActivity("unregistered-release")
+        yield* releaseMidAction("unregistered-release")
 
         // A fresh worker over the same store that has NOT registered the flow:
         // its sweep re-drives the released row every heartbeat.

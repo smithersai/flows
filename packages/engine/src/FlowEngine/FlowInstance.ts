@@ -17,7 +17,7 @@ import * as Lineage from "./Lineage.ts"
  * **When to use**
  *
  * Use when a runtime starts — or restarts, on resume — a flow run and needs
- * the mutable state its suspension, interruption, and activity coordination
+ * the mutable state its suspension, interruption, and action coordination
  * are tracked in.
  *
  * @category constructors
@@ -28,7 +28,7 @@ export const makeInstance = (
   executionId: string
 ): FlowRuntime.FlowInstance["Service"] => {
   // Ordinals are counted per allocation scope, not per run: the engine
-  // scopes activity dispatches by activity name so a permuted fiber
+  // scopes action dispatches by action name so a permuted fiber
   // interleaving cannot renumber them across a replay (issue #73).
   const ordinals = new Map<string, number>()
   return FlowRuntime.FlowInstance.of({
@@ -43,7 +43,7 @@ export const makeInstance = (
     waiting: undefined,
     handoff: undefined,
     cause: undefined,
-    activityState: {
+    actionState: {
       count: 0,
       latch: Latch.makeUnsafe(),
       nextOrdinal: (scope: string) => {

@@ -1,11 +1,11 @@
 # Writing a flow
 
-This guide shows how to define schemas, execute named activities, suspend on durable primitives, and register a handler. It focuses on code that can replay safely.
+This guide shows how to define schemas, execute named actions, suspend on durable primitives, and register a handler. It focuses on code that can replay safely.
 
 ## Define the durable interface
 
 ```ts
-import { Activity, DurableDeferred, Flow } from "@smthrs/flow-next"
+import { Action, DurableDeferred, Flow } from "@smthrs/flow-next"
 import { Effect, Schema } from "effect"
 
 class BuildFailure extends Schema.TaggedError<BuildFailure>()(
@@ -25,10 +25,10 @@ const Build = Flow.make("example/Build", {
 
 Tags and encoded schemas are persistence contracts. Change them with the same care as a database schema.
 
-## Put side effects behind activities
+## Put side effects behind actions
 
 ```ts
-const Compile = Activity.make({
+const Compile = Action.make({
   name: "example/Compile",
   success: Schema.String,
   error: BuildFailure,
@@ -55,7 +55,7 @@ const Compile = Activity.make({
 })
 ```
 
-The idempotency identity creates the step key. `metadata` is separately decoded as `FileBoundary` by `EngineStore`; malformed or absent metadata means the production boundary cannot prove the activity cacheable.
+The idempotency identity creates the step key. `metadata` is separately decoded as `FileBoundary` by `EngineStore`; malformed or absent metadata means the production boundary cannot prove the action cacheable.
 
 The built-in `StepBoundary.layerTest` accepts a simplified descriptor and is for tests only. A production boundary implementation is application-supplied today.
 
@@ -84,12 +84,12 @@ const Approval = DurableDeferred.make("example/input-ready", {
 const value = yield* DurableDeferred.await(Approval)
 ```
 
-The handler re-runs from the beginning after wake. Completed activities and durable primitives return recorded results, so code before the frontier must be deterministic and safe to evaluate again.
+The handler re-runs from the beginning after wake. Completed actions and durable primitives return recorded results, so code before the frontier must be deterministic and safe to evaluate again.
 
 ## Retry deliberately
 
 ```ts
-const artifact = yield* Activity.retry(Compile, { times: 2 })
+const artifact = yield* Action.retry(Compile, { times: 2 })
 ```
 
 Use `tier: "irreversible"` for effects that cannot be rolled back, and give them an idempotency key before allowing retries. Use `tier: "compensable"` only when snapshot and restore are meaningful for the supplied `Jj` implementation.

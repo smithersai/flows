@@ -1,7 +1,7 @@
 /**
- * Functional workspace transactions for activity execution.
+ * Functional workspace transactions for action execution.
  *
- * An activity body normally mutates the host tree in place, which leaves the
+ * An action body normally mutates the host tree in place, which leaves the
  * engine two bad options: trust the declaration, or diff the whole repository
  * after the fact. This module takes the third one. The body runs against an
  * **isolated workspace** seeded with exactly its declared read set; its writes
@@ -144,7 +144,7 @@ export interface QueuedEffect {
  * The generic functional result of one isolated execution.
  *
  * `output` is the body's ordinary return value and stays schema-typed — the
- * engine persists it as the activity's recorded result, so it must be
+ * engine persists it as the action's recorded result, so it must be
  * JSON-encodable. It is deliberately not bytes: file products travel in
  * {@link FileChange}, which is content-addressed and can spill to the artifact
  * store, and folding them into the output would defeat both.

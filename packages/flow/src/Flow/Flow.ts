@@ -9,7 +9,7 @@
  * executed, discarded, polled, interrupted, and resumed.
  *
  * The two nouns of `docs/specs/Concepts/Unified Flow Authoring.md` divide the
- * surface here: an Activity carries an implementation, attached separately as a
+ * surface here: an Action carries an implementation, attached separately as a
  * Layer; a Flow carries a body, and never opaque executable code. There is
  * therefore no handler to attach to a flow, and no `toLayer` on one to attach
  * it with.
@@ -23,7 +23,7 @@ import type * as Effect from "effect/Effect"
 import type * as Option from "effect/Option"
 import type * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
-import type { PlannedPayload } from "../Activity/Activity.ts"
+import type { PlannedPayload } from "../Action/Action.ts"
 import type { FlowInstance, FlowRuntime } from "../FlowRuntime/index.ts"
 import type * as RetryPolicy from "../RetryPolicy.ts"
 import type { To } from "./Outcome.ts"
@@ -64,9 +64,9 @@ export interface Flow<
    * mutable module state, clocks, random values, services, or environment
    * values captured outside `payload`; source-digest identity cannot observe
    * those aliases changing. Work that genuinely wants opaque code is an
-   * Activity.
+   * Action.
    *
-   * `Requires` is read off this node. A body that names an activity names an
+   * `Requires` is read off this node. A body that names an action names an
    * implementation it does not carry, and that obligation travels with the flow
    * until something executes it.
    */
@@ -146,7 +146,7 @@ export interface Flow<
    * Execute the flow with the given payload.
    *
    * This is where `Requires` is collected. Planning is requirement-free by
-   * design, so a body that names an activity nobody implemented is a legal plan
+   * design, so a body that names an action nobody implemented is a legal plan
    * right up to here; asking to RUN it is what makes the missing layer a
    * compile error rather than a run that dies partway through.
    *
@@ -234,7 +234,7 @@ export interface Flow<
    * the flow scope closes.
    *
    * This applies only to effects run directly inside the flow execution. It
-   * does not attach rollback behavior to nested activities.
+   * does not attach rollback behavior to nested actions.
    */
   readonly withRollback: {
     <A, R2>(
@@ -350,7 +350,7 @@ export type PayloadSchema<W> = W extends Flow<
   : never
 
 /**
- * Extracts the requirement channel of a `Flow`: the activity implementations
+ * Extracts the requirement channel of a `Flow`: the action implementations
  * its body names and does not carry.
  *
  * @category models

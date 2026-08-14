@@ -17,13 +17,13 @@ The only way to learn a new system is to write programs in it. The first program
 ```ts
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
 import { FlowEngine } from "@smthrs/engine-next"
-import { Activity, Flow, Interpreter } from "@smthrs/flow-next"
+import { Action, Flow, Interpreter } from "@smthrs/flow-next"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 
 // The atom that does the work: schemas and a tag, no code.
-export const Greet = Activity.make("examples/Greet", {
+export const Greet = Action.make("examples/Greet", {
   payload: { name: Schema.String },
   success: Schema.String
 })
@@ -40,7 +40,7 @@ const GreetingLayer = Layer.mergeAll(
   Greet.toLayer(({ name }) => Effect.succeed(`Hello, ${name}.`)),
   Interpreter.layer(Greeting)
 ).pipe(
-  Layer.provideMerge(Activity.layerImplementations),
+  Layer.provideMerge(Action.layerImplementations),
   Layer.provideMerge(FlowEngine.layerMemory),
   // Step identity is a derived hash, so the engine needs a Crypto even in memory.
   Layer.provideMerge(NodeCrypto.layer)
@@ -64,7 +64,7 @@ There are nine, in [`examples/src`](examples/src), numbered in reading order. `n
 - [`01-define-and-run.ts`](examples/src/01-define-and-run.ts) — define a typed flow and run it on the in-memory engine
 - [`02-run-durably.ts`](examples/src/02-run-durably.ts) — run a flow on the durable engine and read the journal it wrote
 - [`03-crash-and-resume.ts`](examples/src/03-crash-and-resume.ts) — suspend a run, drop the engine, and resume from durable state
-- [`04-retry-policy.ts`](examples/src/04-retry-policy.ts) — retry a flaky activity, and read the policy that decides when to stop
+- [`04-retry-policy.ts`](examples/src/04-retry-policy.ts) — retry a flaky action, and read the policy that decides when to stop
 - [`05-time-travel-fork.ts`](examples/src/05-time-travel-fork.ts) — fork a finished run at a journal frame and drive the copy
 - [`06-time-travel-rewind.ts`](examples/src/06-time-travel-rewind.ts) — rewind a run to an earlier frame and re-derive a view
 - [`07-sync-follower.ts`](examples/src/07-sync-follower.ts) — follow a run's journal from a second process
@@ -106,7 +106,7 @@ There are nine, in [`examples/src`](examples/src), numbered in reading order. `n
 | `@smthrs/crypto-next` | Injected cryptographic schema transformations |
 | `@smthrs/keys-next` | Canonical flow keys |
 | `@smthrs/plan-next` | The persisted plan: a keyed action graph, its append-only store, and its diff |
-| `@smthrs/flow-next` | Flow definitions, activities, durable primitives, retry policy, and the `FlowRuntime` port |
+| `@smthrs/flow-next` | Flow definitions, actions, durable primitives, retry policy, and the `FlowRuntime` port |
 | `@smthrs/engine-next` | The runtime that executes flows, plus the RPC and HTTP façades |
 | `@smthrs/engine-store-next` | The durable engine: claims, fences, and persists runs over the journal |
 | `@smthrs/sync-next` | Read-only journal replication for followers |

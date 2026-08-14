@@ -1,6 +1,6 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
+import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Cause, Context, Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
@@ -26,17 +26,17 @@ describe("memory engine execution surface", () => {
   })
 
   effect("polls None for an unknown execution id", () => {
-    const flowActivityDeclaration = Activity.make("Memory/poll-none/activity", {
+    const flowActionDeclaration = Action.make("Memory/poll-none/action", {
       payload: { id: Schema.String },
       success: Schema.Void
     })
     const flow = Flow.make("Memory/poll-none", {
       payload: { id: Schema.String },
       success: Schema.Void,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
-    const layer = Layer.mergeAll(flowActivityDeclaration.toLayer(() => Effect.void), Interpreter.layer(flow)).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+    const layer = Layer.mergeAll(flowActionDeclaration.toLayer(() => Effect.void), Interpreter.layer(flow)).pipe(
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
@@ -46,18 +46,18 @@ describe("memory engine execution surface", () => {
   })
 
   effect("discard execution returns the execution id without awaiting the result", () => {
-    const flowActivityDeclaration = Activity.make("Memory/discard/activity", {
+    const flowActionDeclaration = Action.make("Memory/discard/action", {
       payload: { id: Schema.String },
       success: Schema.Number
     })
     const flow = Flow.make("Memory/discard", {
       payload: { id: Schema.String },
       success: Schema.Number,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
-    const layer = Layer.mergeAll(flowActivityDeclaration.toLayer(() => Effect.succeed(7)), Interpreter.layer(flow))
+    const layer = Layer.mergeAll(flowActionDeclaration.toLayer(() => Effect.succeed(7)), Interpreter.layer(flow))
       .pipe(
-        Layer.provideMerge(Activity.layerImplementations)
+        Layer.provideMerge(Action.layerImplementations)
       ).pipe(
         Layer.provideMerge(FlowEngine.layerMemory)
       )
@@ -74,17 +74,17 @@ describe("memory engine execution surface", () => {
   })
 
   effect("interruptUnsafe interrupts the fiber established before discard returns", () => {
-    const flowActivityDeclaration = Activity.make("Memory/interrupt-unsafe/activity", {
+    const flowActionDeclaration = Action.make("Memory/interrupt-unsafe/action", {
       payload: { id: Schema.String },
       success: Schema.Void
     })
     const flow = Flow.make("Memory/interrupt-unsafe", {
       payload: { id: Schema.String },
       success: Schema.Void,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
-    const layer = Layer.mergeAll(flowActivityDeclaration.toLayer(() => Effect.never), Interpreter.layer(flow)).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+    const layer = Layer.mergeAll(flowActionDeclaration.toLayer(() => Effect.never), Interpreter.layer(flow)).pipe(
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
@@ -104,24 +104,24 @@ describe("memory engine execution surface", () => {
 })
 
 describe("compensable snapshot boundary", () => {
-  effect("dies when a compensable activity runs without a SnapshotBoundary", () => {
-    const step = Activity.make({
+  effect("dies when a compensable action runs without a SnapshotBoundary", () => {
+    const step = Action.make({
       name: "Memory/compensable-missing-boundary",
       tier: "compensable",
       success: Schema.Void,
       execute: Effect.void
     })
-    const flowActivityDeclaration = Activity.make("Memory/compensable-missing/activity", {
+    const flowActionDeclaration = Action.make("Memory/compensable-missing/action", {
       payload: { id: Schema.String },
       success: Schema.Void
     })
     const flow = Flow.make("Memory/compensable-missing", {
       payload: { id: Schema.String },
       success: Schema.Void,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
-    const layer = Layer.mergeAll(flowActivityDeclaration.toLayer(() => step), Interpreter.layer(flow)).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+    const layer = Layer.mergeAll(flowActionDeclaration.toLayer(() => step), Interpreter.layer(flow)).pipe(
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
@@ -135,7 +135,7 @@ describe("compensable snapshot boundary", () => {
   effect("snapshots before each attempt, restores before retry, and diffs after run", () => {
     const events: Array<string> = []
     let attempts = 0
-    const step = Activity.make({
+    const step = Action.make({
       name: "Memory/compensable-retry",
       tier: "compensable",
       success: Schema.Number,
@@ -146,7 +146,7 @@ describe("compensable snapshot boundary", () => {
         return attempts === 1 ? Effect.fail("try-again") : Effect.succeed(attempts)
       })
     })
-    const flowActivityDeclaration = Activity.make("Memory/compensable-retry/activity", {
+    const flowActionDeclaration = Action.make("Memory/compensable-retry/action", {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String
@@ -155,7 +155,7 @@ describe("compensable snapshot boundary", () => {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
     const boundary = FlowEngine.SnapshotBoundary.of({
       snapshot: (options) => Effect.sync(() => (events.push(`snapshot:${options.attempt}`), "snap")),
@@ -168,10 +168,10 @@ describe("compensable snapshot boundary", () => {
         })
     })
     const layer = Layer.mergeAll(
-      flowActivityDeclaration.toLayer(() => Activity.retry(step, { times: 1 })),
+      flowActionDeclaration.toLayer(() => Action.retry(step, { times: 1 })),
       Interpreter.layer(flow)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory),
       Layer.provideMerge(Layer.succeed(FlowEngine.SnapshotBoundary)(boundary))
@@ -233,7 +233,7 @@ describe("flow definition surface", () => {
 
   effect("runs rollbacks only on failure exits", () => {
     const rolledBack: Array<string> = []
-    const flowFailActivityDeclaration = Activity.make("Memory/rollback-fail/activity", {
+    const flowFailActionDeclaration = Action.make("Memory/rollback-fail/action", {
       payload: { id: Schema.String },
       success: Schema.Void,
       error: Schema.String
@@ -242,20 +242,20 @@ describe("flow definition surface", () => {
       payload: { id: Schema.String },
       success: Schema.Void,
       error: Schema.String,
-      body: (payload) => flowFailActivityDeclaration.call(payload)
+      body: (payload) => flowFailActionDeclaration.call(payload)
     })
-    const flowOkActivityDeclaration = Activity.make("Memory/rollback-ok/activity", {
+    const flowOkActionDeclaration = Action.make("Memory/rollback-ok/action", {
       payload: { id: Schema.String },
       success: Schema.String
     })
     const flowOk = Flow.make("Memory/rollback-ok", {
       payload: { id: Schema.String },
       success: Schema.String,
-      body: (payload) => flowOkActivityDeclaration.call(payload)
+      body: (payload) => flowOkActionDeclaration.call(payload)
     })
     const layer = Layer.mergeAll(
       Layer.mergeAll(
-        flowFailActivityDeclaration.toLayer(() =>
+        flowFailActionDeclaration.toLayer(() =>
           Effect.gen(function*() {
             yield* Flow.withRollback(
               Effect.succeed("resource"),
@@ -266,10 +266,10 @@ describe("flow definition surface", () => {
         ),
         Interpreter.layer(flowFail)
       ).pipe(
-        Layer.provideMerge(Activity.layerImplementations)
+        Layer.provideMerge(Action.layerImplementations)
       ),
       Layer.mergeAll(
-        flowOkActivityDeclaration.toLayer(() =>
+        flowOkActionDeclaration.toLayer(() =>
           Flow.withRollback(
             Effect.succeed("kept"),
             (value) => Effect.sync(() => void rolledBack.push(`undo:${value}`))
@@ -277,7 +277,7 @@ describe("flow definition surface", () => {
         ),
         Interpreter.layer(flowOk)
       ).pipe(
-        Layer.provideMerge(Activity.layerImplementations)
+        Layer.provideMerge(Action.layerImplementations)
       )
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
     return Effect.gen(function*() {
@@ -290,17 +290,17 @@ describe("flow definition surface", () => {
 
   effect("addFinalizer observes the flow's final exit", () => {
     const exits: Array<string> = []
-    const flowActivityDeclaration = Activity.make("Memory/finalizer/activity", {
+    const flowActionDeclaration = Action.make("Memory/finalizer/action", {
       payload: { id: Schema.String },
       success: Schema.Number
     })
     const flow = Flow.make("Memory/finalizer", {
       payload: { id: Schema.String },
       success: Schema.Number,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
     const layer = Layer.mergeAll(
-      flowActivityDeclaration.toLayer(() =>
+      flowActionDeclaration.toLayer(() =>
         Effect.gen(function*() {
           yield* Flow.addFinalizer((exit) => Effect.sync(() => void exits.push(exit._tag)))
           return 3
@@ -308,7 +308,7 @@ describe("flow definition surface", () => {
       ),
       Interpreter.layer(flow)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
     return Effect.gen(function*() {
       expect(yield* flow.execute({ id: "x" }, { executionId: "run" })).toBe(3)
@@ -318,17 +318,17 @@ describe("flow definition surface", () => {
 
   effect("provideScope keeps scoped resources open for the flow lifetime", () => {
     const events: Array<string> = []
-    const flowActivityDeclaration = Activity.make("Memory/scoped/activity", {
+    const flowActionDeclaration = Action.make("Memory/scoped/action", {
       payload: { id: Schema.String },
       success: Schema.Void
     })
     const flow = Flow.make("Memory/scoped", {
       payload: { id: Schema.String },
       success: Schema.Void,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
     const layer = Layer.mergeAll(
-      flowActivityDeclaration.toLayer(() =>
+      flowActionDeclaration.toLayer(() =>
         Flow.provideScope(
           Effect.acquireRelease(
             Effect.sync(() => void events.push("acquire")),
@@ -338,7 +338,7 @@ describe("flow definition surface", () => {
       ),
       Interpreter.layer(flow)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
     return Effect.gen(function*() {
       yield* flow.execute({ id: "x" }, { executionId: "run" })
@@ -349,38 +349,38 @@ describe("flow definition surface", () => {
   })
 
   effect("child flow completion propagates into the parent flow", () => {
-    const childActivityDeclaration = Activity.make("Memory/child/activity", {
+    const childActionDeclaration = Action.make("Memory/child/action", {
       payload: { n: Schema.Number },
       success: Schema.Number
     })
     const child = Flow.make("Memory/child", {
       payload: { n: Schema.Number },
       success: Schema.Number,
-      body: (payload) => childActivityDeclaration.call(payload)
+      body: (payload) => childActionDeclaration.call(payload)
     })
-    const parentActivityDeclaration = Activity.make("Memory/parent/activity", {
+    const parentActionDeclaration = Action.make("Memory/parent/action", {
       payload: { id: Schema.String },
       success: Schema.Number
     })
     const parent = Flow.make("Memory/parent", {
       payload: { id: Schema.String },
       success: Schema.Number,
-      body: (payload) => parentActivityDeclaration.call(payload)
+      body: (payload) => parentActionDeclaration.call(payload)
     })
     // The parent's implementation executes the child, so the child's wiring goes
     // UNDER the parent's rather than beside it: that is what answers the child
     // flow's requirement where the parent's implementation asks for it.
     const layer = Layer.mergeAll(
-      parentActivityDeclaration.toLayer(() => child.execute({ n: 1 }, { executionId: "child-run" })),
+      parentActionDeclaration.toLayer(() => child.execute({ n: 1 }, { executionId: "child-run" })),
       Interpreter.layer(parent)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(Action.layerImplementations),
       Layer.provideMerge(
         Layer.mergeAll(
-          childActivityDeclaration.toLayer((payload) => Effect.succeed(payload.n + 1)),
+          childActionDeclaration.toLayer((payload) => Effect.succeed(payload.n + 1)),
           Interpreter.layer(child)
         ).pipe(
-          Layer.provideMerge(Activity.layerImplementations)
+          Layer.provideMerge(Action.layerImplementations)
         )
       ),
       Layer.provideMerge(FlowEngine.layerMemory)
@@ -391,7 +391,7 @@ describe("flow definition surface", () => {
   })
 
   effect("child flow failures carry their cause to the parent", () => {
-    const childActivityDeclaration = Activity.make("Memory/child-fail/activity", {
+    const childActionDeclaration = Action.make("Memory/child-fail/action", {
       payload: { n: Schema.Number },
       success: Schema.Number,
       error: Schema.String
@@ -400,9 +400,9 @@ describe("flow definition surface", () => {
       payload: { n: Schema.Number },
       success: Schema.Number,
       error: Schema.String,
-      body: (payload) => childActivityDeclaration.call(payload)
+      body: (payload) => childActionDeclaration.call(payload)
     })
-    const parentActivityDeclaration = Activity.make("Memory/parent-fail/activity", {
+    const parentActionDeclaration = Action.make("Memory/parent-fail/action", {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String
@@ -411,22 +411,22 @@ describe("flow definition surface", () => {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String,
-      body: (payload) => parentActivityDeclaration.call(payload)
+      body: (payload) => parentActionDeclaration.call(payload)
     })
     // The parent's implementation executes the child, so the child's wiring goes
     // UNDER the parent's rather than beside it: that is what answers the child
     // flow's requirement where the parent's implementation asks for it.
     const layer = Layer.mergeAll(
-      parentActivityDeclaration.toLayer(() => child.execute({ n: 1 }, { executionId: "child-run-f" })),
+      parentActionDeclaration.toLayer(() => child.execute({ n: 1 }, { executionId: "child-run-f" })),
       Interpreter.layer(parent)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(Action.layerImplementations),
       Layer.provideMerge(
         Layer.mergeAll(
-          childActivityDeclaration.toLayer(() => Effect.fail("child-broke")),
+          childActionDeclaration.toLayer(() => Effect.fail("child-broke")),
           Interpreter.layer(child)
         ).pipe(
-          Layer.provideMerge(Activity.layerImplementations)
+          Layer.provideMerge(Action.layerImplementations)
         )
       ),
       Layer.provideMerge(FlowEngine.layerMemory)

@@ -1,17 +1,8 @@
 /**
- * The system sleep activity: what it puts in a plan, how it parks, and what a
+ * The system sleep action: what it puts in a plan, how it parks, and what a
  * settled wait does on replay.
  */
-import {
-  Activity,
-  DurableClock,
-  DurableDeferred,
-  Flow,
-  FlowRuntime,
-  Graph,
-  Interpreter,
-  Sleep
-} from "@smthrs/flow-next"
+import { Action, DurableClock, DurableDeferred, Flow, FlowRuntime, Graph, Interpreter, Sleep } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
@@ -37,7 +28,7 @@ const pollComplete = <A, E, R>(
   })
 
 /** The steps around a wait, so a replay that re-ran one would be visible. */
-const Mark = Activity.make("sleep/mark", {
+const Mark = Action.make("sleep/mark", {
   payload: { label: Schema.String },
   success: Schema.String
 })
@@ -45,9 +36,9 @@ const Mark = Activity.make("sleep/mark", {
 const marks: Array<string> = []
 
 const wired = (
-  registration: Layer.Layer<never, never, FlowRuntime.FlowRuntime | Activity.Implementations> = Layer.empty
+  registration: Layer.Layer<never, never, FlowRuntime.FlowRuntime | Action.Implementations> = Layer.empty
 ): Layer.Layer<
-  Activity.Requirement<"sleep/mark"> | FlowRuntime.FlowRuntime | Activity.Implementations
+  Action.Requirement<"sleep/mark"> | FlowRuntime.FlowRuntime | Action.Implementations
 > =>
   Layer.mergeAll(
     Sleep.layer,
@@ -59,7 +50,7 @@ const wired = (
     ),
     registration
   ).pipe(
-    Layer.provideMerge(Activity.layerImplementations),
+    Layer.provideMerge(Action.layerImplementations),
     Layer.provideMerge(layerMemory)
   )
 
@@ -69,7 +60,7 @@ const Host = Flow.make("sleep/host", { payload: {}, body: () => Node.succeed(und
 /** The clock the `ordinal`-th sleep of an execution arms, as a test names it. */
 const clockOf = (executionId: string, ordinal: number) =>
   DurableClock.make({
-    name: `Sleep/${dispatchKey(executionId, Sleep.activity, ordinal)}`,
+    name: `Sleep/${dispatchKey(executionId, Sleep.action, ordinal)}`,
     duration: "10 minutes"
   })
 
@@ -89,32 +80,32 @@ describe("Sleep as a plan node", () => {
   const Timed = Flow.make("sleep/plan", {
     payload: { millis: Schema.Number },
     success: Schema.Void,
-    body: ({ millis }) => Sleep.activity.call({ millis })
+    body: ({ millis }) => Sleep.action.call({ millis })
   })
 
-  it("is an ordinary declared activity", () => {
+  it("is an ordinary declared action", () => {
     expect(Sleep.tag).toBe("system/sleep")
-    expect(Sleep.activity.name).toBe("system/sleep")
-    expect(Sleep.activity.tier).toBe("sealed")
+    expect(Sleep.action.name).toBe("system/sleep")
+    expect(Sleep.action.tier).toBe("sealed")
   })
 
-  it("appears in a built graph as a keyed activity-call node", () => {
+  it("appears in a built graph as a keyed action-call node", () => {
     const graph = Graph.build(Timed, { millis: 600_000 })
-    const node = Graph.nodes(graph).find((observed) => observed.kind === "ActivityCall")
+    const node = Graph.nodes(graph).find((observed) => observed.kind === "ActionCall")
 
     expect(graph.diagnostics).toEqual([])
     expect(node?.id).toBe("root.flow")
     expect(node?.ast).toEqual({
-      _tag: "ActivityCall",
-      activity: "system/sleep",
+      _tag: "ActionCall",
+      action: "system/sleep",
       payload: { millis: 600_000 }
     })
     expect(node?.payload).toEqual({ millis: 600_000 })
     // The plan the wait is compiled from names it like every other step.
     expect(Graph.drafts(graph).map((draft) => draft.id)).toContain("root.flow")
     expect(node?.draft.material.body).toMatchObject({
-      _tag: "ActivityCall",
-      activity: "system/sleep",
+      _tag: "ActionCall",
+      action: "system/sleep",
       tier: "sealed"
     })
   })
@@ -128,7 +119,7 @@ describe("Sleep parks", () => {
       success: Schema.String,
       body: ({ millis }) =>
         Mark.call({ label: "before" }).pipe(
-          Node.andThen(() => Sleep.activity.call({ millis })),
+          Node.andThen(() => Sleep.action.call({ millis })),
           Node.andThen(() => Mark.call({ label: "after" }))
         )
     })
@@ -165,8 +156,8 @@ describe("Sleep parks", () => {
       payload: {},
       success: Schema.String,
       body: () =>
-        Sleep.activity.call({ millis: 600_000 }).pipe(
-          Node.andThen(() => Sleep.activity.call({ millis: 600_000 })),
+        Sleep.action.call({ millis: 600_000 }).pipe(
+          Node.andThen(() => Sleep.action.call({ millis: 600_000 })),
           Node.andThen(() => Mark.call({ label: "done" }))
         )
     })
@@ -208,7 +199,7 @@ describe("Sleep parks", () => {
       success: Schema.String,
       body: () =>
         Mark.call({ label: "before" }).pipe(
-          Node.andThen(() => Sleep.activity.call({ millis: 600_000 })),
+          Node.andThen(() => Sleep.action.call({ millis: 600_000 })),
           Node.andThen(() => Mark.call({ label: "after" }))
         )
     })
@@ -256,7 +247,7 @@ describe("Sleep parks", () => {
       // The test clock starts at 0, so an absolute `until` is still ahead.
       // `intoResult` is what turns the suspension interrupt into a settlement
       // rather than interrupting this fiber with it.
-      const result = yield* Flow.intoResult(Interpreter.interpret(Sleep.activity.call({ until: 5_000 })))
+      const result = yield* Flow.intoResult(Interpreter.interpret(Sleep.action.call({ until: 5_000 })))
       expect(result._tag).toBe("Suspended")
       expect(instance.suspended).toBe(true)
       expect(instance.waiting).toEqual({ reason: "timer", wakeAt: 5_000 })
@@ -281,7 +272,7 @@ describe("Sleep replays", () => {
         })
         yield* DurableDeferred.succeed(clock.deferred, { token, value: undefined })
 
-        const interpretation = yield* Interpreter.interpret(Sleep.activity.call({ millis: 600_000 }))
+        const interpretation = yield* Interpreter.interpret(Sleep.action.call({ millis: 600_000 }))
         expect(interpretation.value).toBeUndefined()
       }).pipe(
         Effect.provideService(FlowRuntime.FlowInstance, instance),
@@ -298,7 +289,7 @@ describe("Sleep replays", () => {
     const instance = makeInstance(Host, "sleep-past")
     await runPromise(
       Effect.gen(function*() {
-        const interpretation = yield* Interpreter.interpret(Sleep.activity.call({ until: 0 }))
+        const interpretation = yield* Interpreter.interpret(Sleep.action.call({ until: 0 }))
         expect(interpretation.value).toBeUndefined()
       }).pipe(
         Effect.provideService(FlowRuntime.FlowInstance, instance),
@@ -321,13 +312,13 @@ describe("Sleep refusals", () => {
         // timer named without it would collapse onto every other sleep.
         const unidentified = FlowRuntime.FlowRuntime.of({
           ...engine,
-          activityExecute: ((activity: Activity.Any) =>
+          actionExecute: ((action: Action.Any) =>
             Effect.map(
-              Effect.exit(activity.executeEncoded),
+              Effect.exit(action.executeEncoded),
               (settled) => new Flow.Complete({ exit: settled })
-            )) as FlowRuntime.FlowRuntime["Service"]["activityExecute"]
+            )) as FlowRuntime.FlowRuntime["Service"]["actionExecute"]
         })
-        return yield* Effect.exit(Interpreter.interpret(Sleep.activity.call({ millis: 600_000 }))).pipe(
+        return yield* Effect.exit(Interpreter.interpret(Sleep.action.call({ millis: 600_000 }))).pipe(
           Effect.provideService(FlowRuntime.FlowRuntime, unidentified)
         )
       }).pipe(
@@ -344,7 +335,7 @@ describe("Sleep refusals", () => {
   })
 
   it("refuses a payload that names no deadline", async () => {
-    expect(await refusal(Sleep.activity.call({}))).toMatchObject({
+    expect(await refusal(Sleep.action.call({}))).toMatchObject({
       error: {
         _tag: "@smthrs/flow-next/SleepRequestInvalid",
         code: "missing_deadline",
@@ -354,7 +345,7 @@ describe("Sleep refusals", () => {
   })
 
   it("refuses a payload that names both a duration and a deadline", async () => {
-    expect(await refusal(Sleep.activity.call({ millis: 1_000, until: 5_000 }))).toMatchObject({
+    expect(await refusal(Sleep.action.call({ millis: 1_000, until: 5_000 }))).toMatchObject({
       error: {
         _tag: "@smthrs/flow-next/SleepRequestInvalid",
         code: "ambiguous_deadline",

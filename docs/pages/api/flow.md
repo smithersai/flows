@@ -1,17 +1,17 @@
 # @smthrs/flow-next
 
-The flow authoring model: typed flow and activity definitions, durable primitives, step identity, retry policy, and the runtime port they execute against. The whole package bundles for the browser; durability comes from whichever runtime you provide.
+The flow authoring model: typed flow and action definitions, durable primitives, step identity, retry policy, and the runtime port they execute against. The whole package bundles for the browser; durability comes from whichever runtime you provide.
 
-An `Activity` carries an implementation, attached separately as a layer. A `Flow` carries a required pure `body`, and `Interpreter.layer` drives it.
+An `Action` carries an implementation, attached separately as a layer. A `Flow` carries a required pure `body`, and `Interpreter.layer` drives it.
 
 ```ts
-import { Activity, Flow, Interpreter } from "@smthrs/flow-next"
+import { Action, Flow, Interpreter } from "@smthrs/flow-next"
 import { FlowEngine } from "@smthrs/engine-next"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 
-const Compile = Activity.make("example/Compile", {
+const Compile = Action.make("example/Compile", {
   payload: { target: Schema.String },
   success: Schema.String,
   tier: "sealed"
@@ -26,7 +26,7 @@ const Build = Flow.make("example/Build", {
 const layer = Layer.mergeAll(
   Compile.toLayer(({ target }) => Effect.succeed(`${target}.js`)),
   Interpreter.layer(Build)
-).pipe(Layer.provideMerge(Activity.layerImplementations), Layer.provideMerge(FlowEngine.layerMemory))
+).pipe(Layer.provideMerge(Action.layerImplementations), Layer.provideMerge(FlowEngine.layerMemory))
 ```
 
 ## Entry point
@@ -51,7 +51,7 @@ const layer = Layer.mergeAll(
 | `Result`, `ResultEncoded` | type + schema | the result union and its codec |
 | `isResult` | guard | |
 | `intoResult` | combinator | turns a suspension interrupt into `Suspended` |
-| `wrapActivityResult` | combinator | encodes an activity exit for storage |
+| `wrapActionResult` | combinator | encodes an action exit for storage |
 | `suspend` | effect | suspends the current flow |
 | `scope`, `provideScope`, `addFinalizer` | scope helpers | flow-scoped finalizers |
 | `withRollback` | combinator | undoes a successful effect if the enclosing flow later fails |
@@ -59,25 +59,25 @@ const layer = Layer.mergeAll(
 | `ExecutionIdRequired` | class | fails when no identity source can name the invocation |
 | `ExecutionIdSource`, `CurrentExecutionIds`, `derived`, `layerExecutionIds` | interface + reference + source + layer | the ambient execution-id source, consulted when a call names no `executionId` and the flow declares no `idempotencyKey` |
 
-## Activity
+## Action
 
-[src/Activity/](https://github.com/smithersai/flows/tree/main/packages/flow/src/Activity)
+[src/Action/](https://github.com/smithersai/flows/tree/main/packages/flow/src/Action)
 
 | Export | Kind | Notes |
 | --- | --- | --- |
 | `make` | constructor | `name`, `success`, `error?`, `tier`, `idempotencyKey?`, `execute`, `metadata?`, `interruptRetryPolicy?` |
-| `Activity`, `Any`, `AnyWithProps` | interfaces | |
+| `Action`, `Any`, `AnyWithProps` | interfaces | |
 | `Tier` | type | `sealed`, `compensable`, `irreversible` |
 | `IdempotencyKey` | schema + type | a string, or a caller-owned JSON object |
 | `idempotencyKey` | function | resolves the declared key for a payload |
 | `retry` | combinator | increments `CurrentAttempt` and delegates scheduling to Effect |
-| `raceAll` | combinator | races activities, persisting one winner |
+| `raceAll` | combinator | races actions, persisting one winner |
 | `CurrentAttempt` | reference | the one-based durable attempt |
 | `CurrentOrdinal`, `OrdinalSlot` | reference + interface | the per-scope ordinal used for invocation keys |
 | `CacheEnvironment`, `CurrentCacheEnvironment`, `layerCacheEnvironment` | interface + reference + layer | declared layers and capability identity folded into cache keys |
 | `InfraInterrupt` | class | infrastructure interruption, retried only under `interruptRetryPolicy` |
 | `IrreversibleRetryRequiresIdempotencyKey` | class | irreversible retry without a key |
-| `ConcurrentKeylessDispatch` | class | two live dispatches of one keyless activity |
+| `ConcurrentKeylessDispatch` | class | two live dispatches of one keyless action |
 | `UncanonicalIdempotencyKey` | class | a key that canonical serialization rejects |
 
 ## Durable primitives
@@ -107,11 +107,11 @@ const layer = Layer.mergeAll(
 
 ## StepIdentity
 
-[src/Activity/StepIdentity.ts](https://github.com/smithersai/flows/blob/main/packages/flow/src/Activity/StepIdentity.ts)
+[src/Action/StepIdentity.ts](https://github.com/smithersai/flows/blob/main/packages/flow/src/Action/StepIdentity.ts)
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `AllocationIdentity` | interface | activity name refined by a declared string key |
+| `AllocationIdentity` | interface | action name refined by a declared string key |
 | `allocationScope` | function | the scope an ordinal is allocated from |
 | `invocationKey` | function | builds the run-local ordinal step key |
 
@@ -123,8 +123,8 @@ The execution contract the authoring APIs are written against. This package decl
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `FlowRuntime` | service | Register, execute, poll, interrupt, resume, execute activities, read and complete deferreds, schedule clocks |
-| `FlowInstance` | service | One execution's mutable frontier state: execution id, flow, scope, suspension/interruption flags, waiting annotation, activity coordination |
+| `FlowRuntime` | service | Register, execute, poll, interrupt, resume, execute actions, read and complete deferreds, schedule clocks |
+| `FlowInstance` | service | One execution's mutable frontier state: execution id, flow, scope, suspension/interruption flags, waiting annotation, action coordination |
 | `annotateWaiting` | combinator | Declares how the flow is about to wait, so a durable driver parks the run under that reason and token |
 | `WaitingAnnotation` | model | `{ reason, wakeAt?, token? }` |
 | `FlowCycleDetected` | error | Executing a flow would close a cycle in the persisted parent chain; part of the `execute` contract |

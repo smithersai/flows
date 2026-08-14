@@ -221,7 +221,7 @@ export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<Inconsi
 
 /**
  * Journals every cache conflict and fails the run. This is the default
- * receiver for engine wiring: a non-hermetic sealed hard-boundary activity is
+ * receiver for engine wiring: a non-hermetic sealed hard-boundary action is
  * a defect, not a condition to paper over.
  *
  * @category layers

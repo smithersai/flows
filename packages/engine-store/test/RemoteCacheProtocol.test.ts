@@ -26,14 +26,14 @@ import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as ArtifactSync from "../src/ArtifactSync.ts"
 import * as CacheSync from "../src/CacheSync.ts"
-import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "remote-cache-host", pid: 42, nonce: "remote-cache-process" }
 
-const declared: ActivityPersistence.BoundaryMetadata = {
+const declared: ActionPersistence.BoundaryMetadata = {
   readSet: [{ path: "input.txt", digest: "D1" }],
   writeSet: ["artifact.bin"],
   boundaryMode: "hard"
@@ -93,8 +93,8 @@ const activate = (runId: string) =>
   })
 
 const dispatch = (runId: string, key: string, execute: () => Effect.Effect<unknown, unknown>) =>
-  ActivityPersistence.make({ runId, owner, sourceId: `remote-cache-${runId}`, execute })({
-    activity: {},
+  ActionPersistence.make({ runId, owner, sourceId: `remote-cache-${runId}`, execute })({
+    action: {},
     attempt: 1,
     key,
     tier: "sealed",

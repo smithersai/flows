@@ -2,8 +2,8 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
  * Issue #112: the whole #102 same-key exclusion argument rests on one
  * admission mutex per store incarnation — `EngineStore.make` builds it once
- * and threads it into every per-dispatch `ActivityPersistence.make`, while a
- * bare `ActivityPersistence.make` gets a private default that never
+ * and threads it into every per-dispatch `ActionPersistence.make`, while a
+ * bare `ActionPersistence.make` gets a private default that never
  * contends. Nothing exercised that wiring: the only concurrency test
  * hand-built a single persistence closure, so deleting the `admission` field
  * from EngineStore's wiring (or moving the mutex into the per-dispatch path)
@@ -17,7 +17,7 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * (double execution or an AttemptAdmissionRejected conflict); with it the
  * loser waits out the winner's span and replays its terminal row.
  */
-import { Activity, Flow } from "@smthrs/flow-next"
+import { Action, Flow } from "@smthrs/flow-next"
 import { Jj } from "@smthrs/kernel-next"
 import { Node } from "@smthrs/plan-next"
 import * as Effect from "effect/Effect"
@@ -55,10 +55,10 @@ const baseLayers = Layer.mergeAll(
 describe("EngineStore shares one admission mutex across dispatches (issue #112)", () => {
   it("runs a concurrently double-dispatched sealed key's body exactly once", async () => {
     let dispatches = 0
-    // A sealed activity with a string idempotencyKey takes the content-key
+    // A sealed action with a string idempotencyKey takes the content-key
     // path, so both concurrent invocations below share ONE step key — and
     // therefore one admission permit, if the store threads it.
-    const charge = Activity.make({
+    const charge = Action.make({
       name: "EngineStoreAdmission/charge",
       tier: "sealed",
       idempotencyKey: "charge-once",

@@ -5,7 +5,7 @@
  *
  * `make` creates a `DurableClock` with a name, duration, and deferred wake-up
  * signal. `sleep` ignores zero durations, runs short sleeps through an
- * in-memory activity, and schedules longer sleeps through the `FlowRuntime`
+ * in-memory action, and schedules longer sleeps through the `FlowRuntime`
  * before awaiting the durable deferred tied to the clock.
  *
  * @since 4.0.0
@@ -13,7 +13,7 @@
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import type * as Schema from "effect/Schema"
-import * as Activity from "./Activity/index.ts"
+import * as Action from "./Action/index.ts"
 import * as DurableDeferred from "./DurableDeferred.ts"
 import { FlowInstance } from "./FlowRuntime/FlowInstance.ts"
 import { FlowRuntime } from "./FlowRuntime/FlowRuntime.ts"
@@ -52,7 +52,7 @@ export const make = (options: {
 })
 
 /**
- * Waits inside a flow, using an in-memory activity for durations at or
+ * Waits inside a flow, using an in-memory action for durations at or
  * below the threshold and scheduling a durable clock for longer durations.
  *
  * @category sleeping
@@ -91,7 +91,7 @@ export const sleep: (
       : defaultInMemoryThreshold
 
     if (Duration.isLessThanOrEqualTo(duration, inMemoryThreshold)) {
-      return yield* Activity.make({
+      return yield* Action.make({
         name: `DurableClock/${options.name}`,
         tier: "sealed",
         execute: Effect.sleep(duration)

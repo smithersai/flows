@@ -1,5 +1,5 @@
 import { FlowEngine } from "@smthrs/engine-next"
-import { Activity, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow-next"
+import { Action, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow-next"
 import { Journal } from "@smthrs/journal-next"
 import { Jj } from "@smthrs/kernel-next"
 import { Node } from "@smthrs/plan-next"
@@ -105,8 +105,8 @@ describe("EngineStore.layer", () => {
     expect(result.snapshot).toBe("change-1")
     expect(result.diff).toBe("diff-body")
     expect(calls).toEqual([
-      { op: "snapshot", argument: "flows activity step/one attempt 2" },
-      { op: "snapshot", argument: "flows activity step/one attempt 2 settled" },
+      { op: "snapshot", argument: "flows action step/one attempt 2" },
+      { op: "snapshot", argument: "flows action step/one attempt 2 settled" },
       { op: "diff", argument: "change-1->change-2" },
       { op: "restore", argument: "change-1" }
     ])
@@ -235,10 +235,10 @@ describe("EngineStore.make liveness", () => {
     expect(decisions).toContain("steal-refused-owner-alive")
   })
 
-  it("replays an activity that declares no idempotency key from its own run journal", async () => {
+  it("replays an action that declares no idempotency key from its own run journal", async () => {
     const state = DurableEngineState.makeMemory()
     let dispatches = 0
-    const unkeyed = Activity.make({
+    const unkeyed = Action.make({
       name: "unkeyed",
       success: Schema.String,
       tier: "sealed",
@@ -303,7 +303,7 @@ describe("EngineStore boundary metadata", () => {
   it("forwards a hermetic boundary descriptor so a sealed result is shared across runs", async () => {
     const state = DurableEngineState.makeMemory()
     let dispatches = 0
-    const hermetic = Activity.make({
+    const hermetic = Action.make({
       name: "hermetic",
       success: Schema.String,
       tier: "sealed",
@@ -342,7 +342,7 @@ describe("EngineStore boundary metadata", () => {
             // environment its sealed keys were computed under: an undeclared
             // environment pins the key to its own execution, so the two runs
             // would address distinct rows and never share.
-            Activity.layerCacheEnvironment({ layers: [], capabilities: {} })
+            Action.layerCacheEnvironment({ layers: [], capabilities: {} })
           )
         )
       )
@@ -362,7 +362,7 @@ describe("EngineStore boundary metadata", () => {
     // and capabilities as the first.
     const state = DurableEngineState.makeMemory()
     let dispatches = 0
-    const hermetic = Activity.make({
+    const hermetic = Action.make({
       name: "hermetic-undeclared",
       success: Schema.String,
       tier: "sealed",

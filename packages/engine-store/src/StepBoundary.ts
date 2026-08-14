@@ -595,7 +595,7 @@ export const makeFileSystem = (
         declaredOutputs: { outputs },
         diffIdentity,
         // This filesystem-only boundary cannot observe writes elsewhere in
-        // the tree. Omission is deliberate: ActivityPersistence treats the
+        // the tree. Omission is deliberate: ActionPersistence treats the
         // result as run-local and will not publish it to the shared cache.
         ...(undeclared.length === 0
           ? {}

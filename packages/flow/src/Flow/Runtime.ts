@@ -95,19 +95,19 @@ export const intoResult = <A, E, R>(
   })
 
 /**
- * Wraps an activity-like effect so flow suspension waits for currently
- * running activities to finish or suspend.
+ * Wraps an action-like effect so flow suspension waits for currently
+ * running actions to finish or suspend.
  *
  * @category results
  * @since 4.0.0
  */
-export const wrapActivityResult = <A, E, R>(
+export const wrapActionResult = <A, E, R>(
   effect: Effect.Effect<A, E, R>,
   isSuspend: (value: A) => boolean
 ): Effect.Effect<A, E, R | FlowInstance> =>
   Effect.contextWith((context: Context.Context<FlowInstance>) => {
     const instance = Context.get(context, FlowInstance)
-    const state = instance.activityState
+    const state = instance.actionState
     if (state.count === 0) state.latch.closeUnsafe()
     state.count++
     return Effect.onExit(effect, (exit) => {
@@ -133,7 +133,7 @@ export const wrapActivityResult = <A, E, R>(
 
 // Untraced because this latch loop is a flow scheduler hot path.
 const waitForZero = Effect.fnUntraced(function*(instance: FlowInstance["Service"]) {
-  const state = instance.activityState
+  const state = instance.actionState
   while (true) {
     if (state.count > 0) {
       yield* state.latch.await
@@ -213,7 +213,7 @@ export const addFinalizer: <R>(
  * **Gotchas**
  *
  * This applies only to effects run directly inside the flow execution. It does
- * not attach rollback behavior to nested activities. The rollback's typed error
+ * not attach rollback behavior to nested actions. The rollback's typed error
  * channel is `never`; handle expected rollback failures inside the callback.
  *
  * @category resource management

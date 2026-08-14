@@ -7,7 +7,7 @@ import { runFailure, runPromise } from "./Crypto.ts"
 const material = (overrides: Partial<KeyMaterial.KeyMaterial> = {}): KeyMaterial.KeyMaterial => ({
   version: KeyMaterial.version,
   kind: "sealed",
-  body: { activity: "render" },
+  body: { action: "render" },
   inputs: [],
   layers: [],
   capabilities: [],

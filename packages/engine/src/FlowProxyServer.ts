@@ -12,7 +12,7 @@
  * A handler here calls `flow.execute`, so both layers require what the served
  * bodies require: `Flow.Requirements` of every flow, alongside the schema
  * services `Flow.RequirementsHandler` names. Serving a flow is executing it,
- * and the compile-time gate on a missing activity implementation has to hold
+ * and the compile-time gate on a missing action implementation has to hold
  * on this side of an RPC boundary too — the client, which only encodes a
  * payload and decodes a result, still requires nothing of the kind.
  *

@@ -1,6 +1,6 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
+import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Cause, Effect, Exit, Layer, Result, Schedule, Schema, Scope } from "effect"
 import type * as Crypto from "effect/Crypto"
@@ -41,28 +41,28 @@ const invocationKey = (runId: string, ordinal: number, parentScope?: string) =>
     ...(parentScope === undefined ? {} : { parentScope })
   })
 
-describe("Activity.idempotencyKey scoping", () => {
+describe("Action.idempotencyKey scoping", () => {
   effect("allocates run-local ordinals and never folds the diagnostic name into identity", () => {
-    const flowActivityDeclaration = Activity.make("IdentityGaps/ordinals/activity", {
+    const flowActionDeclaration = Action.make("IdentityGaps/ordinals/action", {
       payload: { id: Schema.String },
       success: Schema.Array(Schema.String)
     })
     const flow = Flow.make("IdentityGaps/ordinals", {
       payload: { id: Schema.String },
       success: Schema.Array(Schema.String),
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
     const layer = Layer.mergeAll(
-      flowActivityDeclaration.toLayer(() =>
+      flowActionDeclaration.toLayer(() =>
         Effect.gen(function*() {
-          const first = yield* Activity.idempotencyKey("first-name")
-          const second = yield* Activity.idempotencyKey("second-name")
+          const first = yield* Action.idempotencyKey("first-name")
+          const second = yield* Action.idempotencyKey("second-name")
           return [first, second] as const
         })
       ),
       Interpreter.layer(flow)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
 
     return Effect.gen(function*() {
@@ -75,27 +75,27 @@ describe("Activity.idempotencyKey scoping", () => {
   })
 
   effect("scopes the key by the current attempt only when includeAttempt is set", () => {
-    const flowActivityDeclaration = Activity.make("IdentityGaps/include-attempt/activity", {
+    const flowActionDeclaration = Action.make("IdentityGaps/include-attempt/action", {
       payload: { id: Schema.String },
       success: Schema.Array(Schema.String)
     })
     const flow = Flow.make("IdentityGaps/include-attempt", {
       payload: { id: Schema.String },
       success: Schema.Array(Schema.String),
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
     const layer = Layer.mergeAll(
-      flowActivityDeclaration.toLayer(() =>
+      flowActionDeclaration.toLayer(() =>
         Effect.gen(function*() {
-          const plain = yield* Activity.idempotencyKey("op")
-          const scoped = yield* Activity.idempotencyKey("op", { includeAttempt: true })
-          const off = yield* Activity.idempotencyKey("op", { includeAttempt: false })
+          const plain = yield* Action.idempotencyKey("op")
+          const scoped = yield* Action.idempotencyKey("op", { includeAttempt: true })
+          const off = yield* Action.idempotencyKey("op", { includeAttempt: false })
           return [plain, scoped, off] as const
-        }).pipe(Effect.provideService(Activity.CurrentAttempt, 7))
+        }).pipe(Effect.provideService(Action.CurrentAttempt, 7))
       ),
       Interpreter.layer(flow)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
 
     return Effect.gen(function*() {
@@ -111,24 +111,24 @@ describe("Activity.idempotencyKey scoping", () => {
   })
 
   effect("an explicit parentScope wins over includeAttempt", () => {
-    const flowActivityDeclaration = Activity.make("IdentityGaps/parent-scope/activity", {
+    const flowActionDeclaration = Action.make("IdentityGaps/parent-scope/action", {
       payload: { id: Schema.String },
       success: Schema.String
     })
     const flow = Flow.make("IdentityGaps/parent-scope", {
       payload: { id: Schema.String },
       success: Schema.String,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
     const layer = Layer.mergeAll(
-      flowActivityDeclaration.toLayer(() =>
-        Activity.idempotencyKey("op", { parentScope: "queue:orders", includeAttempt: true }).pipe(
-          Effect.provideService(Activity.CurrentAttempt, 4)
+      flowActionDeclaration.toLayer(() =>
+        Action.idempotencyKey("op", { parentScope: "queue:orders", includeAttempt: true }).pipe(
+          Effect.provideService(Action.CurrentAttempt, 4)
         )
       ),
       Interpreter.layer(flow)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
 
     return Effect.gen(function*() {
@@ -139,26 +139,26 @@ describe("Activity.idempotencyKey scoping", () => {
   })
 
   effect("keys allocated under the same attempt scope stay distinct per ordinal", () => {
-    const flowActivityDeclaration = Activity.make("IdentityGaps/same-scope/activity", {
+    const flowActionDeclaration = Action.make("IdentityGaps/same-scope/action", {
       payload: { id: Schema.String },
       success: Schema.Array(Schema.String)
     })
     const flow = Flow.make("IdentityGaps/same-scope", {
       payload: { id: Schema.String },
       success: Schema.Array(Schema.String),
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
     const layer = Layer.mergeAll(
-      flowActivityDeclaration.toLayer(() =>
+      flowActionDeclaration.toLayer(() =>
         Effect.gen(function*() {
-          const a = yield* Activity.idempotencyKey("op", { includeAttempt: true })
-          const b = yield* Activity.idempotencyKey("op", { includeAttempt: true })
+          const a = yield* Action.idempotencyKey("op", { includeAttempt: true })
+          const b = yield* Action.idempotencyKey("op", { includeAttempt: true })
           return [a, b] as const
         })
       ),
       Interpreter.layer(flow)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
 
     return Effect.gen(function*() {
@@ -178,28 +178,28 @@ describe("Activity.idempotencyKey scoping", () => {
     // persisted queue had never seen, duplicating the work item and leaving
     // the original await watching a deferred nothing resolves. With the
     // counter scoped per declared parent, arrival order is immaterial.
-    const flowActivityDeclaration = Activity.make("IdentityGaps/arrival-order/activity", {
+    const flowActionDeclaration = Action.make("IdentityGaps/arrival-order/action", {
       payload: { order: Schema.Array(Schema.String) },
       success: Schema.Record(Schema.String, Schema.String)
     })
     const flow = Flow.make("IdentityGaps/arrival-order", {
       payload: { order: Schema.Array(Schema.String) },
       success: Schema.Record(Schema.String, Schema.String),
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
     const layer = Layer.mergeAll(
-      flowActivityDeclaration.toLayer(({ order }) =>
+      flowActionDeclaration.toLayer(({ order }) =>
         Effect.gen(function*() {
           const keys: Record<string, string> = {}
           for (const parent of order) {
-            keys[parent] = yield* Activity.idempotencyKey("offer", { parentScope: parent })
+            keys[parent] = yield* Action.idempotencyKey("offer", { parentScope: parent })
           }
           return keys
         })
       ),
       Interpreter.layer(flow)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
 
     return Effect.gen(function*() {
@@ -226,7 +226,7 @@ describe("infrastructure interrupt retry", () => {
     // The `while: isInfraInterrupt` retry wrapper must not convert an ordinary
     // typed failure into a defect just because a policy is installed.
     let attempts = 0
-    const activity = Activity.make({
+    const action = Action.make({
       name: "IdentityGaps/typed-failure",
       error: Schema.String,
       interruptRetryPolicy: Schedule.recurs(3),
@@ -237,7 +237,7 @@ describe("infrastructure interrupt retry", () => {
     })
 
     return Effect.gen(function*() {
-      const exit = yield* activity.execute.pipe(Effect.exit)
+      const exit = yield* action.execute.pipe(Effect.exit)
       expect(Exit.isFailure(exit) && Cause.hasFails(exit.cause)).toBe(true)
       expect(Exit.isFailure(exit) && Cause.squash(exit.cause)).toBe("business-error")
       // a typed failure is never retried by the infra-interrupt policy
@@ -247,18 +247,18 @@ describe("infrastructure interrupt retry", () => {
 
   effect("retries an infrastructure interrupt until the policy is exhausted, then dies", () => {
     let attempts = 0
-    const activity = Activity.make({
+    const action = Action.make({
       name: "IdentityGaps/infra-exhausted",
       error: Schema.Unknown,
       interruptRetryPolicy: Schedule.recurs(2),
       execute: Effect.suspend(() => {
         attempts++
-        return Effect.fail(new Activity.InfraInterrupt({ reason: "host-lost" }))
+        return Effect.fail(new Action.InfraInterrupt({ reason: "host-lost" }))
       })
     })
 
     return Effect.gen(function*() {
-      const exit = yield* activity.execute.pipe(Effect.exit)
+      const exit = yield* action.execute.pipe(Effect.exit)
       expect(Exit.isFailure(exit) && Cause.hasDies(exit.cause)).toBe(true)
       expect(Exit.isFailure(exit) && String(exit.cause)).toContain(
         "infrastructure interrupt retry attempts exhausted"
@@ -270,7 +270,7 @@ describe("infrastructure interrupt retry", () => {
 
   effect("recovers when a retried infrastructure interrupt later succeeds", () => {
     let attempts = 0
-    const activity = Activity.make({
+    const action = Action.make({
       name: "IdentityGaps/infra-recovers",
       success: Schema.Number,
       error: Schema.Unknown,
@@ -278,28 +278,28 @@ describe("infrastructure interrupt retry", () => {
       execute: Effect.suspend(() => {
         attempts++
         return attempts < 3
-          ? Effect.fail(new Activity.InfraInterrupt({ reason: "host-lost" }))
+          ? Effect.fail(new Action.InfraInterrupt({ reason: "host-lost" }))
           : Effect.succeed(attempts)
       })
     })
 
     return Effect.gen(function*() {
-      expect(yield* activity.execute).toBe(3)
+      expect(yield* action.execute).toBe(3)
     }).pipe(provideHost)
   })
 
   effect("without a policy an infrastructure interrupt surfaces as its own typed failure", () => {
-    const activity = Activity.make({
+    const action = Action.make({
       name: "IdentityGaps/infra-unpolicied",
       error: Schema.Unknown,
-      execute: Effect.fail(new Activity.InfraInterrupt({ reason: "host-lost" }))
+      execute: Effect.fail(new Action.InfraInterrupt({ reason: "host-lost" }))
     })
 
     return Effect.gen(function*() {
-      const exit = yield* activity.execute.pipe(Effect.exit)
+      const exit = yield* action.execute.pipe(Effect.exit)
       expect(Exit.isFailure(exit) && Cause.hasFails(exit.cause)).toBe(true)
       expect(
-        Exit.isFailure(exit) && (Cause.squash(exit.cause) as Activity.InfraInterrupt)._tag
+        Exit.isFailure(exit) && (Cause.squash(exit.cause) as Action.InfraInterrupt)._tag
       ).toBe("@smthrs/engine-next/InfraInterrupt")
     }).pipe(provideHost)
   })

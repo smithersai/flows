@@ -1,6 +1,6 @@
 # Concurrency
 
-This page explains concurrency that exists in flow handlers, activities, durable queues, ownership, and journal admission. It separates those mechanisms from the planned static graph scheduler.
+This page explains concurrency that exists in flow handlers, actions, durable queues, ownership, and journal admission. It separates those mechanisms from the planned static graph scheduler.
 
 ## Handler concurrency
 
@@ -15,11 +15,11 @@ const [checked, tested] = yield* Effect.all(
 
 The enclosing flow handler does not complete until both effects complete. Error and interruption behavior follows `Effect.all`; Smithers Flows does not add an implicit “continue unrelated nodes” policy.
 
-Activities receive ordinals from a counter scoped to the activity's **name**, not from one per-run counter bumped in fiber-arrival order (issue #73), and the name is folded into the ordinal step key. Two distinct activities running concurrently — `Effect.all([chargeCard, sendEmail], { concurrency: "unbounded" })` — therefore keep their identities no matter how a replay interleaves them. What remains order-sensitive: repeated invocations of the *same* activity in one run are numbered in allocation order, and changing branch structure before an activity can still change which invocation occupies which number. For cross-run cache reuse, or to pin identity across concurrent invocations of one activity, declare a cache key input instead of relying on an ordinal.
+Actions receive ordinals from a counter scoped to the action's **name**, not from one per-run counter bumped in fiber-arrival order (issue #73), and the name is folded into the ordinal step key. Two distinct actions running concurrently — `Effect.all([chargeCard, sendEmail], { concurrency: "unbounded" })` — therefore keep their identities no matter how a replay interleaves them. What remains order-sensitive: repeated invocations of the *same* action in one run are numbered in allocation order, and changing branch structure before an action can still change which invocation occupies which number. For cross-run cache reuse, or to pin identity across concurrent invocations of one action, declare a cache key input instead of relying on an ordinal.
 
 ## Durable races
 
-`Activity.raceAll` and `DurableDeferred.raceAll` preserve the flow abstractions while racing alternatives. They are distinct from a planned graph-level race node. Use them only when every loser has acceptable interruption semantics.
+`Action.raceAll` and `DurableDeferred.raceAll` preserve the flow abstractions while racing alternatives. They are distinct from a planned graph-level race node. Use them only when every loser has acceptable interruption semantics.
 
 ## Queue workers
 
@@ -40,7 +40,7 @@ Queue persistence comes from Effect’s `PersistedQueueFactory`. The flow offers
 Two storage protocols prevent concurrent duplicate ownership:
 
 - `RunStore` fences a run using a claim, owner identity, and heartbeat.
-- `AttemptStore` claims an individual `(runId, stepKey, attempt)` before an activity executes.
+- `AttemptStore` claims an individual `(runId, stepKey, attempt)` before an action executes.
 
 The protocols reject mismatched owners and stale snapshots. They do not provide distributed locking for arbitrary application resources.
 

@@ -30,7 +30,7 @@ export interface AttemptContext {
 }
 
 /**
- * A typed reason retry cannot safely invoke the activity.
+ * A typed reason retry cannot safely invoke the action.
  *
  * @since 0.1.0
  * @category models

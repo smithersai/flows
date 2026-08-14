@@ -1,6 +1,6 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, DurableDeferred, Flow, FlowRuntime, Interpreter, RetryPolicy } from "@smthrs/flow-next"
+import { Action, DurableDeferred, Flow, FlowRuntime, Interpreter, RetryPolicy } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Effect, Exit, Fiber, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
@@ -27,51 +27,51 @@ const pollUntil = <A, E, R>(
 const isSuspended = (result: Flow.Result<any, any>) => result._tag === "Suspended"
 const isComplete = (result: Flow.Result<any, any>) => result._tag === "Complete"
 
-describe("activity suspension", () => {
-  effect("an activity that waits on an unresolved deferred suspends the flow and replays once resolved", () => {
-    const Gate = DurableDeferred.make("Child/activity-gate", {
+describe("action suspension", () => {
+  effect("an action that waits on an unresolved deferred suspends the flow and replays once resolved", () => {
+    const Gate = DurableDeferred.make("Child/action-gate", {
       success: Schema.String
     })
     let bodyRuns = 0
-    const gated = Activity.make({
-      name: "Child/gated-activity",
+    const gated = Action.make({
+      name: "Child/gated-action",
       success: Schema.String,
       execute: Effect.gen(function*() {
         bodyRuns++
         return yield* DurableDeferred.await(Gate)
       })
     })
-    const flowActivityDeclaration = Activity.make("Child/activity-suspends/activity", {
+    const flowActionDeclaration = Action.make("Child/action-suspends/action", {
       payload: { id: Schema.String },
       success: Schema.String
     })
-    const flow = Flow.make("Child/activity-suspends", {
+    const flow = Flow.make("Child/action-suspends", {
       payload: { id: Schema.String },
       success: Schema.String,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
     const layer = Layer.mergeAll(
-      flowActivityDeclaration.toLayer(() => Effect.map(gated, (value) => `got:${value}`)),
+      flowActionDeclaration.toLayer(() => Effect.map(gated, (value) => `got:${value}`)),
       Interpreter.layer(flow)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
 
     return Effect.gen(function*() {
-      yield* flow.execute({ id: "x" }, { executionId: "run-activity-gate", discard: true })
-      const suspended = yield* pollUntil(flow.poll("run-activity-gate"), isSuspended)
+      yield* flow.execute({ id: "x" }, { executionId: "run-action-gate", discard: true })
+      const suspended = yield* pollUntil(flow.poll("run-action-gate"), isSuspended)
       expect(Option.isSome(suspended)).toBe(true)
       expect(bodyRuns).toBe(1)
 
       const token = DurableDeferred.tokenFromExecutionId(Gate, {
         flow,
-        executionId: "run-activity-gate"
+        executionId: "run-action-gate"
       })
       yield* DurableDeferred.succeed(Gate, { token, value: "open" })
 
-      const done = yield* pollUntil(flow.poll("run-activity-gate"), isComplete)
+      const done = yield* pollUntil(flow.poll("run-action-gate"), isComplete)
       expect(
         Option.isSome(done) && done.value._tag === "Complete" && Exit.isSuccess(done.value.exit) &&
           done.value.exit.value
@@ -86,38 +86,38 @@ describe("activity suspension", () => {
 describe("child flow suspension and interruption", () => {
   effect("a suspended child suspends its parent until the child's gate opens", () => {
     const Gate = DurableDeferred.make("Child/child-gate", { success: Schema.Number })
-    const childActivityDeclaration = Activity.make("Child/gated-child/activity", {
+    const childActionDeclaration = Action.make("Child/gated-child/action", {
       payload: { n: Schema.Number },
       success: Schema.Number
     })
     const child = Flow.make("Child/gated-child", {
       payload: { n: Schema.Number },
       success: Schema.Number,
-      body: (payload) => childActivityDeclaration.call(payload)
+      body: (payload) => childActionDeclaration.call(payload)
     })
-    const parentActivityDeclaration = Activity.make("Child/waiting-parent/activity", {
+    const parentActionDeclaration = Action.make("Child/waiting-parent/action", {
       payload: { id: Schema.String },
       success: Schema.Number
     })
     const parent = Flow.make("Child/waiting-parent", {
       payload: { id: Schema.String },
       success: Schema.Number,
-      body: (payload) => parentActivityDeclaration.call(payload)
+      body: (payload) => parentActionDeclaration.call(payload)
     })
     // The parent's implementation executes the child, so the child's wiring goes
     // UNDER the parent's rather than beside it: that is what answers the child
     // flow's requirement where the parent's implementation asks for it.
     const layer = Layer.mergeAll(
-      parentActivityDeclaration.toLayer(() =>
+      parentActionDeclaration.toLayer(() =>
         Effect.map(child.execute({ n: 1 }, { executionId: "child-gated" }), (n) => n + 1)
       ),
       Interpreter.layer(parent)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(Action.layerImplementations),
       Layer.provideMerge(
-        Layer.mergeAll(childActivityDeclaration.toLayer(() => DurableDeferred.await(Gate)), Interpreter.layer(child))
+        Layer.mergeAll(childActionDeclaration.toLayer(() => DurableDeferred.await(Gate)), Interpreter.layer(child))
           .pipe(
-            Layer.provideMerge(Activity.layerImplementations)
+            Layer.provideMerge(Action.layerImplementations)
           )
       ),
       Layer.provideMerge(FlowEngine.layerMemory)
@@ -182,7 +182,7 @@ describe("child flow suspension and interruption", () => {
         interrupt: (_flow, executionId) => Effect.sync(() => void interruptCalls.push(executionId)),
         interruptUnsafe: () => Effect.void,
         resume: () => Effect.void,
-        activityExecute: () => Effect.succeed(new Flow.Complete({ exit: Exit.void })),
+        actionExecute: () => Effect.succeed(new Flow.Complete({ exit: Exit.void })),
         deferredResult: () => Effect.succeedNone,
         deferredDone: () => Effect.void,
         scheduleClock: () => Effect.void
@@ -211,42 +211,42 @@ describe("child flow suspension and interruption", () => {
 
   effect("a completed child is not interrupted when the parent is torn down", () => {
     const interrupted: Array<string> = []
-    const childActivityDeclaration = Activity.make("Child/quick-child/activity", {
+    const childActionDeclaration = Action.make("Child/quick-child/action", {
       payload: { n: Schema.Number },
       success: Schema.Number
     })
     const child = Flow.make("Child/quick-child", {
       payload: { n: Schema.Number },
       success: Schema.Number,
-      body: (payload) => childActivityDeclaration.call(payload)
+      body: (payload) => childActionDeclaration.call(payload)
     })
-    const parentActivityDeclaration = Activity.make("Child/quick-parent/activity", {
+    const parentActionDeclaration = Action.make("Child/quick-parent/action", {
       payload: { id: Schema.String },
       success: Schema.Number
     })
     const parent = Flow.make("Child/quick-parent", {
       payload: { id: Schema.String },
       success: Schema.Number,
-      body: (payload) => parentActivityDeclaration.call(payload)
+      body: (payload) => parentActionDeclaration.call(payload)
     })
     // The parent's implementation executes the child, so the child's wiring goes
     // UNDER the parent's rather than beside it: that is what answers the child
     // flow's requirement where the parent's implementation asks for it.
     const layer = Layer.mergeAll(
-      parentActivityDeclaration.toLayer(() => child.execute({ n: 5 }, { executionId: "child-quick" })),
+      parentActionDeclaration.toLayer(() => child.execute({ n: 5 }, { executionId: "child-quick" })),
       Interpreter.layer(parent)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(Action.layerImplementations),
       Layer.provideMerge(
         Layer.mergeAll(
-          childActivityDeclaration.toLayer((payload) =>
+          childActionDeclaration.toLayer((payload) =>
             Effect.succeed(payload.n).pipe(
               Effect.onInterrupt(() => Effect.sync(() => void interrupted.push("child")))
             )
           ),
           Interpreter.layer(child)
         ).pipe(
-          Layer.provideMerge(Activity.layerImplementations)
+          Layer.provideMerge(Action.layerImplementations)
         )
       ),
       Layer.provideMerge(FlowEngine.layerMemory)
@@ -290,7 +290,7 @@ describe("resumeSignal", () => {
       interruptUnsafe: () => Effect.void,
       resume: () => Effect.void,
       resumeSignal: () => Effect.sync(() => void signals++),
-      activityExecute: () => Effect.succeed(new Flow.Complete({ exit: Exit.void })),
+      actionExecute: () => Effect.succeed(new Flow.Complete({ exit: Exit.void })),
       deferredResult: () => Effect.succeedNone,
       deferredDone: () => Effect.void,
       scheduleClock: () => Effect.void
@@ -324,7 +324,7 @@ describe("resumeSignal", () => {
       interrupt: () => Effect.void,
       interruptUnsafe: () => Effect.void,
       resume: () => Effect.void,
-      activityExecute: () => Effect.succeed(new Flow.Complete({ exit: Exit.void })),
+      actionExecute: () => Effect.succeed(new Flow.Complete({ exit: Exit.void })),
       deferredResult: () => Effect.succeedNone,
       deferredDone: () => Effect.void,
       scheduleClock: () => Effect.void

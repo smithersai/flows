@@ -3,7 +3,7 @@
 /**
  * Issues #98/#100/#101: the canonical allocation-scope derivation.
  *
- * Activity identity has produced residuals for three review rounds because
+ * Action identity has produced residuals for three review rounds because
  * each surface (string keys, object keys, internal operations) derived its
  * scope its own way. `StepIdentity.allocationScope` is now the single path,
  * and these property tests pin its two contracts: distinct declarations
@@ -47,7 +47,7 @@ describe("StepIdentity.allocationScope", () => {
     const rand = mulberry32(7)
     for (let i = 0; i < 200; i++) {
       const identity: StepIdentity.AllocationIdentity = {
-        kind: rand() < 0.5 ? "activity" : "internal",
+        kind: rand() < 0.5 ? "action" : "internal",
         name: randomName(rand),
         idempotency: rand() < 0.34
           ? undefined
@@ -84,9 +84,9 @@ describe("StepIdentity.allocationScope", () => {
     }
     for (let i = 0; i < 1000; i++) {
       const name = randomName(rand)
-      record({ kind: rand() < 0.5 ? "activity" : "internal", name })
-      record({ kind: "activity", name, idempotency: randomName(rand) })
-      record({ kind: "activity", name, idempotency: content({ i: Math.floor(rand() * 50) }) })
+      record({ kind: rand() < 0.5 ? "action" : "internal", name })
+      record({ kind: "action", name, idempotency: randomName(rand) })
+      record({ kind: "action", name, idempotency: content({ i: Math.floor(rand() * 50) }) })
       record({ kind: "internal", name: "idempotency", idempotency: name })
     }
     expect(seen.size).toBeGreaterThan(1000)
@@ -99,17 +99,17 @@ describe("StepIdentity.allocationScope", () => {
     const pairs: ReadonlyArray<
       readonly [StepIdentity.AllocationIdentity, StepIdentity.AllocationIdentity]
     > = [
-      [{ kind: "activity", name: "a/1:b" }, { kind: "activity", name: "b" }],
+      [{ kind: "action", name: "a/1:b" }, { kind: "action", name: "b" }],
       [
-        { kind: "activity", name: `pay/s:${key}` },
-        { kind: "activity", name: "pay", idempotency: key }
+        { kind: "action", name: `pay/s:${key}` },
+        { kind: "action", name: "pay", idempotency: key }
       ],
       [
-        { kind: "activity", name: "pay", idempotency: "a" },
-        { kind: "activity", name: "pay", idempotency: "b" }
+        { kind: "action", name: "pay", idempotency: "a" },
+        { kind: "action", name: "pay", idempotency: "b" }
       ],
       [
-        { kind: "activity", name: "pay" },
+        { kind: "action", name: "pay" },
         { kind: "internal", name: "pay" }
       ]
     ]
@@ -121,14 +121,14 @@ describe("StepIdentity.allocationScope", () => {
   it("keeps the string form and the object form disjoint even when the string spells the object's digest", () => {
     const object = content({ payload: "x" })
     const objectScope = allocationScope({
-      kind: "activity",
+      kind: "action",
       name: "pay",
       idempotency: object
     })
     // Extract the object component's digest and replay it as a string key.
     const digest = objectScope.slice(objectScope.lastIndexOf("c:") + 2)
     const stringScope = allocationScope({
-      kind: "activity",
+      kind: "action",
       name: "pay",
       idempotency: digest
     })
@@ -137,9 +137,9 @@ describe("StepIdentity.allocationScope", () => {
 
   it("refines the scope for distinct object identities (issue #101)", () => {
     const scopes = [
-      allocationScope({ kind: "activity", name: "notify", idempotency: content({ user: "a" }) }),
-      allocationScope({ kind: "activity", name: "notify", idempotency: content({ user: "b" }) }),
-      allocationScope({ kind: "activity", name: "notify" })
+      allocationScope({ kind: "action", name: "notify", idempotency: content({ user: "a" }) }),
+      allocationScope({ kind: "action", name: "notify", idempotency: content({ user: "b" }) }),
+      allocationScope({ kind: "action", name: "notify" })
     ]
     expect(new Set(scopes).size).toBe(3)
   })

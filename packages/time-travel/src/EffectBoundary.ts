@@ -90,7 +90,7 @@ export const EffectRecord = Schema.Struct({
 export type EffectRecord = typeof EffectRecord.Type
 
 /**
- * Description supplied before an activity crosses its effect boundary.
+ * Description supplied before an action crosses its effect boundary.
  *
  * @since 0.1.0
  * @category models
@@ -197,11 +197,11 @@ const emit = (
 }
 
 /**
- * Runs an activity between durable `intended` and terminal boundary records.
+ * Runs an action between durable `intended` and terminal boundary records.
  *
  * Interruption, defects, and typed failures all settle the boundary as
  * `unknown` before their original cause is re-raised. The settlement section
- * is uninterruptible so cancellation cannot strand an in-memory activity
+ * is uninterruptible so cancellation cannot strand an in-memory action
  * after it has crossed the boundary without attempting the terminal record.
  *
  * @since 0.1.0
@@ -209,20 +209,20 @@ const emit = (
  */
 export const guard = <A, E, R>(
   description: Description,
-  activity: Effect.Effect<A, E, R>
+  action: Effect.Effect<A, E, R>
 ): Effect.Effect<A, E | TimeTravelError, R | Journal.Journal> =>
   Effect.gen(function*() {
     const journal = yield* Journal.Journal
     return yield* Effect.uninterruptibleMask((restore) =>
       Effect.gen(function*() {
         yield* emit(journal, description, "intended")
-        const activityExit = yield* Effect.exit(restore(activity))
-        if (Exit.isSuccess(activityExit)) {
-          yield* emit(journal, description, "succeeded", activityExit.value)
-          return activityExit.value
+        const actionExit = yield* Effect.exit(restore(action))
+        if (Exit.isSuccess(actionExit)) {
+          yield* emit(journal, description, "succeeded", actionExit.value)
+          return actionExit.value
         }
         yield* Effect.ignore(emit(journal, description, "unknown"))
-        return yield* Effect.failCause(activityExit.cause)
+        return yield* Effect.failCause(actionExit.cause)
       })
     )
   })

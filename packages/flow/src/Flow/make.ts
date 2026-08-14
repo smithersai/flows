@@ -215,7 +215,7 @@ type PayloadSchemaOf<Payload extends Schema.Struct.Fields | AnyStructSchema> = P
  *
  * The `body` is the flow's one behavior, evaluated at plan time only. A flow
  * with nothing to plan is a category error under
- * `docs/specs/Concepts/Unified Flow Authoring.md` — that work is an Activity,
+ * `docs/specs/Concepts/Unified Flow Authoring.md` — that work is an Action,
  * whose implementation attaches separately as a Layer.
  *
  * @category constructors

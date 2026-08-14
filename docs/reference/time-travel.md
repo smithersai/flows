@@ -45,7 +45,7 @@ Cancelling a detached child under `detachedChildren: "cancel"` is terminal and h
 
 `EffectBoundary.guard` records an external effect’s intended and terminal status using the journal. `fromEntry` and `fromEntries` decode those records. `eventType` is the stable journal event name.
 
-The engine writes these records itself: an irreversible activity dispatch is
+The engine writes these records itself: an irreversible action dispatch is
 wrapped in an `intended` record before the body runs and a `succeeded` or
 `unknown` record after it settles, and a child spawn is journaled as one too.
 

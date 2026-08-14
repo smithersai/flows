@@ -17,7 +17,7 @@ import * as Option from "effect/Option"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
-import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
@@ -25,7 +25,7 @@ import { runPromise, sha256 } from "./Sha256.ts"
 const ownerA: Ownership.OwnerId = { hostId: "fault-host-a", pid: 1, nonce: "fault-owner-a" }
 const ownerB: Ownership.OwnerId = { hostId: "fault-host-b", pid: 2, nonce: "fault-owner-b" }
 
-const boundary: ActivityPersistence.BoundaryMetadata = {
+const boundary: ActionPersistence.BoundaryMetadata = {
   readSet: [],
   writeSet: ["output.txt"],
   boundaryMode: "hard"
@@ -122,7 +122,7 @@ const makeExecutor = (options: {
   readonly body?: Effect.Effect<void>
 }): Executor => {
   let dispatches = 0
-  const executor = ActivityPersistence.make({
+  const executor = ActionPersistence.make({
     runId: options.runId,
     owner: options.owner,
     sourceId: `fault-matrix-${options.owner.nonce}`,
@@ -136,7 +136,7 @@ const makeExecutor = (options: {
     dispatches: () => dispatches,
     execute: (attempt) =>
       executor({
-        activity: {},
+        action: {},
         attempt,
         key: options.key,
         tier: "sealed",
@@ -462,7 +462,7 @@ describe("FaultMatrix", () => {
         yield* Deferred.await(started)
 
         // Owner B claims the run while A is mid-execute, then completes the
-        // activity under its own fence.
+        // action under its own fence.
         yield* takeover(runs, "claim-takeover", ownerB)
         const winner = makeExecutor({ runId: "claim-takeover", owner: ownerB, key, result: "b-result" })
         const value = yield* winner.execute(2)

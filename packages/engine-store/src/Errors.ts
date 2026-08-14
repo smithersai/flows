@@ -4,7 +4,7 @@
  * Every error here carries a `code` literal that is part of the public API:
  * consumers may switch on `code` (or `_tag`) and the strings will not change
  * without a major version. The classes themselves are declared next to the
- * logic that raises them (`internal/ActivityPersistence.ts`,
+ * logic that raises them (`internal/ActionPersistence.ts`,
  * `@smthrs/flow-next`'s `FlowRuntime/`); this module is the barrel-exported
  * surface so that `internal/` never has to be imported by consumers.
  *
@@ -22,4 +22,4 @@ export {
   AttemptEvidenceQuarantined,
   CacheConflictDetected,
   CacheCorruptionDetected
-} from "./internal/ActivityPersistence.ts"
+} from "./internal/ActionPersistence.ts"

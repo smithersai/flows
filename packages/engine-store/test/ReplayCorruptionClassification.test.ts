@@ -29,7 +29,7 @@ import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import * as Inconsistency from "../src/Inconsistency.ts"
-import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
 import * as WorkspaceSandbox from "../src/WorkspaceSandbox.ts"
@@ -37,7 +37,7 @@ import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "corruption-host", pid: 91, nonce: "corruption-process" }
 
-const declared: ActivityPersistence.BoundaryMetadata = {
+const declared: ActionPersistence.BoundaryMetadata = {
   readSet: [{ path: "config.json", digest: "D1" }],
   writeSet: ["dist/manifest.json"],
   boundaryMode: "hard"
@@ -68,8 +68,8 @@ const activate = (runId: string) =>
   })
 
 const dispatch = (runId: string, key: string, execute: () => Effect.Effect<unknown, unknown>, attempt = 1) =>
-  ActivityPersistence.make({ runId, owner, sourceId: `corruption-${runId}`, execute })({
-    activity: {},
+  ActionPersistence.make({ runId, owner, sourceId: `corruption-${runId}`, execute })({
+    action: {},
     attempt,
     key,
     tier: "sealed",
@@ -141,8 +141,8 @@ describe("replay-failed classification (issue #150)", () => {
         return { failed, provenance, corruption }
       }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
-    expect(outcome.failed).toBeInstanceOf(ActivityPersistence.CacheCorruptionDetected)
-    const failure = outcome.failed as ActivityPersistence.CacheCorruptionDetected
+    expect(outcome.failed).toBeInstanceOf(ActionPersistence.CacheCorruptionDetected)
+    const failure = outcome.failed as ActionPersistence.CacheCorruptionDetected
     expect(failure.code).toBe("cache_corruption_detected")
     expect(failure.path).toBe("dist/manifest.json")
     // The refusal record names its class — never an undifferentiated row.
@@ -262,7 +262,7 @@ describe("replay-failed classification (issue #150)", () => {
         )
         // The first detection quarantines only the corrupt boundary evidence.
         // A second dispatch returns the durable outcome without replaying the
-        // poison or re-executing the already-succeeded activity.
+        // poison or re-executing the already-succeeded action.
         const healed = yield* dispatch(
           "corruption-row",
           key,
@@ -284,10 +284,10 @@ describe("replay-failed classification (issue #150)", () => {
     // The failure is the TYPED quarantine error, not the evictable-cache
     // corruption class: the driver keys the operator park off it.
     expect(Exit.isFailure(outcome.failed) && Cause.squash(outcome.failed.cause))
-      .toBeInstanceOf(ActivityPersistence.AttemptEvidenceQuarantined)
+      .toBeInstanceOf(ActionPersistence.AttemptEvidenceQuarantined)
     const failure = Cause.squash(
       (outcome.failed as Exit.Failure<never, never>).cause
-    ) as ActivityPersistence.AttemptEvidenceQuarantined
+    ) as ActionPersistence.AttemptEvidenceQuarantined
     expect(failure.code).toBe("attempt_evidence_quarantined")
     expect(failure.keyDigest).toBe(sha256(key))
     expect(outcome.healed).toBe("durable-outcome")
@@ -480,7 +480,7 @@ describe("replay-failed classification (issue #150)", () => {
         return { failed, evicted, healed, executions, recorded }
       }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
-    expect(outcome.failed).toBeInstanceOf(ActivityPersistence.CacheCorruptionDetected)
+    expect(outcome.failed).toBeInstanceOf(ActionPersistence.CacheCorruptionDetected)
     expect(Option.isNone(outcome.evicted)).toBe(true)
     expect(outcome.healed).toBe("healed")
     expect(outcome.executions).toBe(1)
@@ -532,7 +532,7 @@ describe("replay-failed classification (issue #150)", () => {
       }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
 
-    expect(outcome.failed).toBeInstanceOf(ActivityPersistence.CacheCorruptionDetected)
+    expect(outcome.failed).toBeInstanceOf(ActionPersistence.CacheCorruptionDetected)
     expect(outcome.replacementLanded).toBe(true)
     expect(Option.getOrThrow(outcome.survivor)).toMatchObject({
       result: "fresh",
@@ -550,7 +550,7 @@ describe("replay-failed classification (issue #150)", () => {
     const artifact = new TextEncoder().encode("clean-artifact".repeat(100_000))
     const artifactDigest = sha256(artifact)
     const artifactPath = join(objectsDirectory, artifactDigest.slice(0, 2), artifactDigest)
-    const metadata: ActivityPersistence.BoundaryMetadata = {
+    const metadata: ActionPersistence.BoundaryMetadata = {
       readSet: [{ path: inputPath, digest: sha256("source") }],
       writeSet: [outputPath],
       boundaryMode: "hard"
@@ -583,8 +583,8 @@ describe("replay-failed classification (issue #150)", () => {
               return "recorded"
             }).pipe(Effect.orDie) as unknown as Effect.Effect<unknown, unknown>
           const realDispatch = (runId: string) =>
-            ActivityPersistence.make({ runId, owner, sourceId: `corruption-${runId}`, execute })({
-              activity: {},
+            ActionPersistence.make({ runId, owner, sourceId: `corruption-${runId}`, execute })({
+              action: {},
               attempt: 1,
               key,
               tier: "sealed",
@@ -743,8 +743,8 @@ describe("replay-failed classification (issue #150)", () => {
       }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
     )
 
-    expect(outcome.firstFailure).toBeInstanceOf(ActivityPersistence.CacheCorruptionDetected)
-    expect(outcome.secondFailure).toBeInstanceOf(ActivityPersistence.CacheCorruptionDetected)
+    expect(outcome.firstFailure).toBeInstanceOf(ActionPersistence.CacheCorruptionDetected)
+    expect(outcome.secondFailure).toBeInstanceOf(ActionPersistence.CacheCorruptionDetected)
     expect(outcome.healed).toBe("healed")
     expect(outcome.executions).toBe(1)
     expect(outcome.corruption).toHaveLength(2)
@@ -825,13 +825,13 @@ describe("replay-failed classification (issue #150)", () => {
         const poisoned = yield* cache.get(sha256(key))
         if (Option.isNone(poisoned)) return yield* Effect.die(new Error("row missing"))
         for (let attempt = 1; attempt <= 2; attempt++) {
-          yield* ActivityPersistence.make({
+          yield* ActionPersistence.make({
             runId: "corruption-dedupe-second",
             owner,
             sourceId: "corruption-corruption-dedupe-second",
             execute: () => Effect.die("must not execute")
           })({
-            activity: {},
+            action: {},
             // The attempt number varies across the two observations (issue
             // #168): folding it into either durable identity would restore
             // per-attempt journal growth while a constant-attempt cell

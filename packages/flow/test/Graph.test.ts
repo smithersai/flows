@@ -1,25 +1,25 @@
-import { Activity, Flow, Graph } from "@smthrs/flow-next"
+import { Action, Flow, Graph } from "@smthrs/flow-next"
 import { KeyMaterial, Node, Plan, Planned } from "@smthrs/plan-next"
 import { Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { runPromise } from "./Crypto.ts"
 
-const Read = Activity.make("counter/read", {
+const Read = Action.make("counter/read", {
   payload: { path: Schema.String },
   success: Schema.Struct({ value: Schema.Number, files: Schema.Array(Schema.String) })
 })
 
-const Increment = Activity.make("counter/increment", {
+const Increment = Action.make("counter/increment", {
   payload: { path: Schema.String },
   success: Schema.Number
 })
 
-const Write = Activity.make("counter/write", {
+const Write = Action.make("counter/write", {
   payload: { path: Schema.String, value: Schema.Number },
   success: Schema.Number
 })
 
-const Sum = Activity.make("counter/sum", {
+const Sum = Action.make("counter/sum", {
   payload: { values: Schema.Array(Schema.Number) },
   success: Schema.Number
 })
@@ -75,11 +75,11 @@ describe("Graph.build topology", () => {
     const graph = Graph.build(Parent, { path: "counter.txt" })
 
     expect(Graph.nodes(graph).map((observed) => [observed.id, observed.kind])).toEqual([
-      ["root.flow.andThen.map.all.left", "ActivityCall"],
+      ["root.flow.andThen.map.all.left", "ActionCall"],
       ["root.flow.andThen.map.all.right", "Succeed"],
       ["root.flow.andThen.map", "All"],
       ["root.flow.andThen", "Map"],
-      ["root.flow.then.flow", "ActivityCall"],
+      ["root.flow.then.flow", "ActionCall"],
       ["root.flow.then", "FlowCall"],
       ["root.flow", "AndThen"],
       ["root", "FlowCall"]
@@ -112,8 +112,8 @@ describe("Graph.build topology", () => {
     expect(body(graph, "root.flow")).toMatchObject({ _tag: "AndThen", static: false })
     expect(body(graph, "root.flow.then")).toMatchObject({ _tag: "FlowCall", flow: "counter/child", mode: "inline" })
     expect(body(graph, "root.flow.then.flow")).toMatchObject({
-      _tag: "ActivityCall",
-      activity: "counter/write",
+      _tag: "ActionCall",
+      action: "counter/write",
       tier: "sealed"
     })
 
@@ -231,7 +231,7 @@ describe("Graph.build planned values", () => {
     const CountTo100 = Flow.make("counter/count-to-100", {
       payload: { path: Schema.String },
       success: Schema.Number,
-      body: ({ path }): Node.Node<unknown, never, Activity.Requirement<"counter/increment">> =>
+      body: ({ path }): Node.Node<unknown, never, Action.Requirement<"counter/increment">> =>
         Increment.call({ path }).pipe(
           Node.branch({
             if: (value) => value >= 100,
@@ -243,7 +243,7 @@ describe("Graph.build planned values", () => {
     const graph = Graph.build(CountTo100, { path: "counter.txt" })
 
     expect(Graph.nodes(graph).map((observed) => [observed.id, observed.kind])).toEqual([
-      ["root.flow.branch", "ActivityCall"],
+      ["root.flow.branch", "ActionCall"],
       ["root.flow.then", "Succeed"],
       ["root.flow.else", "FlowCall"],
       ["root.flow", "Branch"],
@@ -452,7 +452,7 @@ describe("Graph.build composition", () => {
     const digestOf = (
       calleeBody: (
         payload: { readonly path: string }
-      ) => Node.Node<number, never, Activity.Requirement<"counter/write">>
+      ) => Node.Node<number, never, Action.Requirement<"counter/write">>
     ): unknown => {
       const Callee = Flow.make("keys/callee", {
         payload: { path: Schema.String },
@@ -479,7 +479,7 @@ describe("Graph.build annotations", () => {
   it("carries declared effects, placement, tier, and resolved layers into the material", () => {
     const effects: Flow.Effects = { reads: ["counter.txt"], writes: ["counter.txt"], boundaryMode: "hard" }
     const placement: Flow.PlacementDirective = { host: "sandbox" }
-    const Risky = Activity.make("counter/risky", {
+    const Risky = Action.make("counter/risky", {
       payload: { path: Schema.String },
       success: Schema.Number,
       tier: "irreversible"
@@ -491,7 +491,7 @@ describe("Graph.build annotations", () => {
       body: () => Risky.call({ path: "counter.txt" })
     })
     const graph = Graph.build(flow, {}, {
-      resolveLayers: (request) => request.kind === "ActivityCall" ? ["host:sandbox", "host:sandbox"] : []
+      resolveLayers: (request) => request.kind === "ActionCall" ? ["host:sandbox", "host:sandbox"] : []
     })
     const risky = node(graph, "root.flow")
 
@@ -541,8 +541,8 @@ describe("Graph.build diagnostics", () => {
     expect(Graph.diagnostics(graph)).toHaveLength(1)
     expect(Graph.diagnostics(graph)[0]).toMatchObject({ code: "invalid_continuation", node: "root" })
     expect(body(graph, "root.andThen")).toEqual({
-      _tag: "ActivityCall",
-      activity: "counter/read",
+      _tag: "ActionCall",
+      action: "counter/read",
       tier: "sealed",
       declaration: undefined
     })
@@ -568,7 +568,7 @@ describe("Graph.build into a plan", () => {
     const plan = await compile("plan-catch", "catch", graph)
 
     expect(Graph.nodes(graph).map((observed) => [observed.id, observed.kind])).toEqual([
-      ["root.protected", "ActivityCall"],
+      ["root.protected", "ActionCall"],
       ["root.failure", "Succeed"],
       ["root", "Catch"]
     ])

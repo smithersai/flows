@@ -10,11 +10,11 @@
  * is the flow's result.
  *
  * What each variant does is the run-time half of what the AST recorded. An
- * `ActivityCall` runs its declaration's implementation — looked up by tag in
+ * `ActionCall` runs its declaration's implementation — looked up by tag in
  * {@link module:Implementations.Implementations} before the walk starts — as
- * the ordinary durable activity `toLayer` built, so a node driven here takes
+ * the ordinary durable action `toLayer` built, so a node driven here takes
  * the same invocation key, attempt journal, retry policy, and tier as the same
- * activity called from a handler. A `Map` applies its deferred function to the real
+ * action called from a handler. A `Map` applies its deferred function to the real
  * upstream value. A `Branch` evaluates its digested predicate on the real
  * subject and settles ONLY the arm it took: the other arm is topology the plan
  * shows and the run skipped, and it is reported as such rather than silently
@@ -49,7 +49,7 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Predicate from "effect/Predicate"
 import * as Schema from "effect/Schema"
-import { type Implementation, Implementations } from "./Activity/Implementations.ts"
+import { type Implementation, Implementations } from "./Action/Implementations.ts"
 import type { Any as AnyFlow, AnyStructSchema, AnyWithProps, Flow } from "./Flow/Flow.ts"
 import * as Outcome from "./Flow/Outcome.ts"
 import { Handoff } from "./Flow/Result.ts"
@@ -64,7 +64,7 @@ import * as Graph from "./Graph.ts"
  * A graph the interpreter will not drive.
  *
  * Every code names something the run cannot recover from on its own: a graph
- * whose topology is incomplete, an activity with no implementation wired up, a
+ * whose topology is incomplete, an action with no implementation wired up, a
  * call the interpreter does not execute, and a deferred function that did not
  * survive serialization beside its AST.
  *
@@ -76,7 +76,7 @@ export class InterpreterError extends Schema.TaggedError<InterpreterError>()(
   {
     code: Schema.Literals([
       "incomplete_graph",
-      "unresolved_activity",
+      "unresolved_action",
       "unresolved_reference",
       "unsupported_call",
       "missing_operation"
@@ -104,7 +104,7 @@ export interface Interpretation {
 }
 
 /**
- * The services a driven node needs: the runtime that executes an activity, and
+ * The services a driven node needs: the runtime that executes an action, and
  * the execution it is part of.
  *
  * @private
@@ -159,7 +159,7 @@ export const childExecutionId = (
  *
  * The graph is built first and in full — planning is a pure function of the
  * declarations and the payload, so the whole shape of the round is known before
- * the first activity runs — and then driven.
+ * the first action runs — and then driven.
  *
  * @since 0.1.0
  * @category constructors
@@ -191,13 +191,13 @@ export const interpret = (
     const byId = new Map(Graph.nodes(graph).map((node) => [node.id, node] as const))
     // Everything the walk needs that the built graph can be asked for before it
     // runs, is asked for here — so neither refusal can surface halfway through a
-    // body with the activities ahead of it already committed.
+    // body with the actions ahead of it already committed.
     //
     // A reference out of the graph is the first: a round may be PLANNED against
     // a node an earlier generation settled — `Plan.append` exists for exactly
     // that — but one interpretation settles one graph, so there is nothing to
     // read it from. A missing implementation is the second, and it is a wiring
-    // error rather than a run-time contingency: every activity the graph names
+    // error rather than a run-time contingency: every action the graph names
     // is resolved up front, including the ones only an untaken branch arm would
     // have reached, because the plan is the declared ceiling of what may run.
     const implementations = new Map<string, Implementation>()
@@ -229,7 +229,7 @@ export const interpret = (
         // A boundary is one node here and a real execution underneath, so what
         // it needs resolved up front is the callee itself: the declaration is
         // what `execute` is called on, and losing it is a wiring error rather
-        // than a run-time contingency, exactly like an unimplemented activity.
+        // than a run-time contingency, exactly like an unimplemented action.
         const declaration = Node.declaration(node.ast)
         if (!Predicate.hasProperty(declaration, FlowTypeId)) {
           return yield* refuse(
@@ -242,20 +242,20 @@ export const interpret = (
         childDeclarations.set(node.id, declaration as unknown as AnyWithProps)
         continue
       }
-      if (node.ast._tag !== "ActivityCall") continue
-      const implementation = yield* table.get(node.ast.activity)
+      if (node.ast._tag !== "ActionCall") continue
+      const implementation = yield* table.get(node.ast.action)
       if (Option.isNone(implementation)) {
         return yield* refuse(
-          "unresolved_activity",
+          "unresolved_action",
           node.id,
-          `Activity "${node.ast.activity}" has no implementation. ` +
-            `Provide ONE Activity.layerImplementations under both ${node.ast.activity}.toLayer(execute) and ` +
+          `Action "${node.ast.action}" has no implementation. ` +
+            `Provide ONE Action.layerImplementations under both ${node.ast.action}.toLayer(execute) and ` +
             "this interpreter layer: an implementation files itself with the table that is in scope " +
             "while IT is built, so a table merged beside it, or a second one built above it, is not the " +
             "table this driver reads."
         )
       }
-      implementations.set(node.ast.activity, implementation.value)
+      implementations.set(node.ast.action, implementation.value)
     }
     // The children a node settles with, in the order graph building recorded
     // them: `first` then the arms of a branch, `first` then the continuation of
@@ -283,7 +283,7 @@ export const interpret = (
      * object literal routes `__proto__` through `Object.prototype`'s accessor,
      * which drops an own `__proto__` field carrying a primitive and reparents
      * the clone when it carries an object. A graph hydrates that field as data,
-     * so the value handed to an activity has to keep it as data too.
+     * so the value handed to an action has to keep it as data too.
      */
     const resolve = (value: unknown): unknown => {
       const reference = Planned.reference(value)
@@ -368,10 +368,10 @@ export const interpret = (
           if (!failed.has(dependency)) yield* settle(dependency)
         }
         switch (ast._tag) {
-          case "ActivityCall":
+          case "ActionCall":
             // Resolved by the pre-pass above, which refuses the whole graph
-            // when an activity it names has no implementation.
-            return yield* implementations.get(ast.activity)!.activity(resolve(node.payload))
+            // when an action it names has no implementation.
+            return yield* implementations.get(ast.action)!.action(resolve(node.payload))
           case "Succeed":
             return resolve(node.payload)
           case "Map": {
@@ -505,16 +505,16 @@ const settle = (value: unknown): Effect.Effect<unknown, never, FlowInstance> => 
  *
  * This is the only way a flow's behavior reaches the runtime, and the reason a
  * flow has no `toLayer`: a flow has one behavior and it is the body, so there
- * is no second, opaque one to attach. An Activity is what carries an
+ * is no second, opaque one to attach. An Action is what carries an
  * implementation, and it attaches that implementation with its own `toLayer`.
- * Compose this beside the activity implementation layers the body calls, over the
+ * Compose this beside the action implementation layers the body calls, over the
  * {@link module:Implementations.layerImplementations} table they file
  * themselves in — the table goes UNDER them, because filing happens while an
  * implementation layer is built:
  *
  * ```ts
  * Layer.mergeAll(Read.toLayer(read), Write.toLayer(write), Interpreter.layer(Pipeline)).pipe(
- *   Layer.provideMerge(Activity.layerImplementations)
+ *   Layer.provideMerge(Action.layerImplementations)
  * )
  * ```
  *

@@ -1,5 +1,5 @@
 /**
- * Failure and hard-boundary-violation paths of the activity executor
+ * Failure and hard-boundary-violation paths of the action executor
  * (issue #21): failed execute, prepare/settle boundary failures, suspended
  * attempt rows, and the fence guard on the failed-attempt finish path.
  */
@@ -19,7 +19,7 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import type * as Scope from "effect/Scope"
 import { describe, expect, it } from "vitest"
-import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
@@ -27,7 +27,7 @@ import { runPromise, sha256 } from "./Sha256.ts"
 const ownerA: Ownership.OwnerId = { hostId: "failure-host-a", pid: 1, nonce: "failure-owner-a" }
 const ownerB: Ownership.OwnerId = { hostId: "failure-host-b", pid: 2, nonce: "failure-owner-b" }
 
-const hardBoundary: ActivityPersistence.BoundaryMetadata = {
+const hardBoundary: ActionPersistence.BoundaryMetadata = {
   readSet: [],
   writeSet: ["declared.txt"],
   boundaryMode: "hard"
@@ -97,15 +97,15 @@ const executor = (options: {
   readonly owner?: Ownership.OwnerId
   readonly execute?: () => Effect.Effect<unknown, unknown>
 }) =>
-  ActivityPersistence.make({
+  ActionPersistence.make({
     runId: options.runId,
     owner: options.owner ?? ownerA,
     sourceId: `failure-paths-${options.runId}`,
-    execute: options.execute ?? (() => Effect.fail(new ExecuteFailed("activity execute failed")))
+    execute: options.execute ?? (() => Effect.fail(new ExecuteFailed("action execute failed")))
   })
 
-const input = (key: string, attempt = 1): ActivityPersistence.ActivityInput => ({
-  activity: {},
+const input = (key: string, attempt = 1): ActionPersistence.ActionInput => ({
+  action: {},
   attempt,
   key,
   tier: "sealed",
@@ -120,7 +120,7 @@ const journalState = (runId: string) =>
     return entries.entries.map((entry) => ({ eventType: entry.eventType, payload: entry.payload }))
   })
 
-describe("activity executor failure paths", () => {
+describe("action executor failure paths", () => {
   it("records a failed finish and journals a failed attempt-finished when execute fails", async () => {
     const key = "failure/execute"
     const result = await run(Effect.gen(function*() {
@@ -145,7 +145,7 @@ describe("activity executor failure paths", () => {
     const row = Option.getOrThrow(result.row)
     expect(row.state).toBe("failed")
     expect(row.finishedAtMs).toBeDefined()
-    // A failed activity never populates the sealed cache.
+    // A failed action never populates the sealed cache.
     expect(Option.isNone(result.cached)).toBe(true)
     const finished = result.events.filter((event) => event.eventType === "flows.engine.attempt-finished")
     expect(finished).toHaveLength(1)
@@ -276,7 +276,7 @@ describe("activity executor failure paths", () => {
       return { exit, row, events }
     }))
 
-    // The fenced owner self-interrupts instead of surfacing the activity
+    // The fenced owner self-interrupts instead of surfacing the action
     // failure under a lost fence.
     expect(Exit.isFailure(result.exit) && Cause.hasInterruptsOnly(result.exit.cause)).toBe(true)
     // The failed finish never seals under the lost fence.

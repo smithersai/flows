@@ -2,7 +2,7 @@
  * The in-process attempt admission mutex.
  *
  * One instance lives per store incarnation (per `EngineStore.make`, alongside
- * the owner nonce). Every durable activity dispatch holds the key's permit
+ * the owner nonce). Every durable action dispatch holds the key's permit
  * for its whole admission-execute-finish span, so at most one fiber of this
  * process can be driving a given `(runId, stepKeyDigest, attempt)` at a time.
  *

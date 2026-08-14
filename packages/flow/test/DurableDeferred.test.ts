@@ -1,6 +1,6 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
+import { Action, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Cause, Effect, Exit, Fiber, Latch, Layer, Option, Schema, Scope } from "effect"
 import type * as Crypto from "effect/Crypto"
@@ -49,7 +49,7 @@ const makeFlow = (
     FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance | Scope.Scope
   >
 ) => {
-  const step = Activity.make(`${tag}/step`, {
+  const step = Action.make(`${tag}/step`, {
     payload: { id: Schema.String },
     success: Schema.String,
     error: Schema.String
@@ -225,7 +225,7 @@ describe("DurableDeferred", () => {
       success: Schema.Number,
       error: Schema.String
     })
-    const Step = Activity.make("DurableDeferred/into-mixed/step", {
+    const Step = Action.make("DurableDeferred/into-mixed/step", {
       payload: { id: Schema.String },
       success: Schema.String
     })
@@ -270,7 +270,7 @@ describe("DurableDeferred", () => {
       success: Schema.Number,
       error: Schema.String
     })
-    const Step = Activity.make("DurableDeferred/interrupted-into/step", {
+    const Step = Action.make("DurableDeferred/interrupted-into/step", {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String
@@ -358,7 +358,7 @@ describe("DurableDeferred", () => {
       success: Schema.Number,
       error: Schema.String
     })
-    const Step = Activity.make("DurableDeferred/into/step", {
+    const Step = Action.make("DurableDeferred/into/step", {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String
@@ -398,7 +398,7 @@ describe("DurableDeferred", () => {
 
   effect("raceAll returns the first result and replays it from the persisted exit", () => {
     let attempts = 0
-    const Step = Activity.make("DurableDeferred/raceAll/step", {
+    const Step = Action.make("DurableDeferred/raceAll/step", {
       payload: { id: Schema.String },
       success: Schema.String,
       error: Schema.String
@@ -442,7 +442,7 @@ describe("DurableDeferred", () => {
   effect("raceAll over durable waits settles on the one branch that resolves", () => {
     const Fast = DurableDeferred.make("DurableDeferred/Race/Fast", { success: Schema.String })
     const Slow = DurableDeferred.make("DurableDeferred/Race/Slow", { success: Schema.String })
-    const Step = Activity.make("DurableDeferred/race-partial/step", {
+    const Step = Action.make("DurableDeferred/race-partial/step", {
       payload: { id: Schema.String },
       success: Schema.String
     })
@@ -490,12 +490,12 @@ describe("DurableDeferred", () => {
     }).pipe(Effect.provide(layer))
   })
 
-  effect("withActivityAttempt scopes the deferred name to the current attempt", () =>
+  effect("withActionAttempt scopes the deferred name to the current attempt", () =>
     Effect.gen(function*() {
-      const scoped = yield* Gate.withActivityAttempt
+      const scoped = yield* Gate.withActionAttempt
       expect(scoped.name).toBe(`${Gate.name}/1`)
-      const retryScoped = yield* Gate.withActivityAttempt.pipe(
-        Effect.provideService(Activity.CurrentAttempt, 3)
+      const retryScoped = yield* Gate.withActionAttempt.pipe(
+        Effect.provideService(Action.CurrentAttempt, 3)
       )
       expect(retryScoped.name).toBe(`${Gate.name}/3`)
     }))
@@ -504,7 +504,7 @@ describe("DurableDeferred", () => {
     const A = DurableDeferred.make("DurableDeferred/Concurrent/A", { success: Schema.String })
     const B = DurableDeferred.make("DurableDeferred/Concurrent/B", { success: Schema.String })
     let bodies = 0
-    const Step = Activity.make("DurableDeferred/concurrent/step", {
+    const Step = Action.make("DurableDeferred/concurrent/step", {
       payload: { id: Schema.String },
       success: Schema.String
     })
@@ -560,7 +560,7 @@ describe("DurableDeferred", () => {
     const A = DurableDeferred.make("DurableDeferred/Precompleted/A", { success: Schema.String })
     const B = DurableDeferred.make("DurableDeferred/Precompleted/B", { success: Schema.String })
     let bodies = 0
-    const Step = Activity.make("DurableDeferred/precompleted/step", {
+    const Step = Action.make("DurableDeferred/precompleted/step", {
       payload: { id: Schema.String },
       success: Schema.String
     })
@@ -607,7 +607,7 @@ describe("DurableDeferred", () => {
   effect("independent deferreds resume the flow as each one resolves", () => {
     const A = DurableDeferred.make("DurableDeferred/Parallel/A", { success: Schema.String })
     const B = DurableDeferred.make("DurableDeferred/Parallel/B", { success: Schema.String })
-    const Step = Activity.make("DurableDeferred/parallel/step", {
+    const Step = Action.make("DurableDeferred/parallel/step", {
       payload: { id: Schema.String },
       success: Schema.String
     })

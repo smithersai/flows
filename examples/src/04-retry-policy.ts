@@ -1,13 +1,13 @@
 /**
- * Retry a flaky activity, and read the policy that decides when to stop.
+ * Retry a flaky action, and read the policy that decides when to stop.
  *
  * `RetryPolicy` is data. `nextDelay` and `decide` are pure functions over that
  * data, so a deployment can inspect a backoff ladder without running anything.
- * `Activity.retry` is the runtime side: it re-dispatches the activity and
- * advances `Activity.CurrentAttempt`, which is the attempt number the durable
+ * `Action.retry` is the runtime side: it re-dispatches the action and
+ * advances `Action.CurrentAttempt`, which is the attempt number the durable
  * store addresses each attempt row by.
  */
-import { Activity, Flow, Interpreter, RetryPolicy } from "@smthrs/flow-next"
+import { Action, Flow, Interpreter, RetryPolicy } from "@smthrs/flow-next"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
@@ -43,7 +43,7 @@ export const fatalDecision = RetryPolicy.decide(policy, {
  * retry loop lives, because retrying is what the atom does; the plan shows one
  * node either way.
  */
-export const Release = Activity.make("examples/Release", {
+export const Release = Action.make("examples/Release", {
   payload: { release: Schema.String },
   success: Schema.String
 })
@@ -65,13 +65,13 @@ export const main = (filename: string): Effect.Effect<Summary> =>
     let dispatches = 0
     const attempts: Array<number> = []
 
-    const Upload = Activity.make({
+    const Upload = Action.make({
       name: "examples/Upload",
       success: Schema.String,
       error: Flaky,
       tier: "sealed",
       execute: Effect.gen(function*() {
-        const attempt = yield* Activity.CurrentAttempt
+        const attempt = yield* Action.CurrentAttempt
         attempts.push(attempt)
         dispatches += 1
         return attempt < 3
@@ -81,7 +81,7 @@ export const main = (filename: string): Effect.Effect<Summary> =>
     })
 
     const publish = ({ release }: { readonly release: string }) =>
-      Activity.retry(Upload, { times: 3 }).pipe(
+      Action.retry(Upload, { times: 3 }).pipe(
         Effect.map((outcome) => `${release}:${outcome}`),
         Effect.catchTag("examples/Flaky", (error) => Effect.succeed(`${release}:failed:${error.message}`))
       )
@@ -90,7 +90,7 @@ export const main = (filename: string): Effect.Effect<Summary> =>
       Publish.execute({ release: "v1" }, { executionId: "publish-1" }).pipe(
         Effect.provide(
           Layer.mergeAll(Release.toLayer(publish), Interpreter.layer(Publish)).pipe(
-            Layer.provideMerge(Activity.layerImplementations),
+            Layer.provideMerge(Action.layerImplementations),
             Layer.provideMerge(durableEngine(filename, "retry-worker"))
           )
         )

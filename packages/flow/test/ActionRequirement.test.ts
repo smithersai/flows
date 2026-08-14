@@ -3,7 +3,7 @@
  * the gap between them.
  *
  * The rule this suite buys is one sentence: PLANNING is requirement-free and
- * EXECUTING is not. A body that names an activity records a node and nothing
+ * EXECUTING is not. A body that names an action records a node and nothing
  * else, so building, keying, and diffing a plan never ask for an
  * implementation; asking to RUN that plan is what makes a forgotten
  * `toLayer` a compile error instead of a run that dies partway through.
@@ -13,32 +13,32 @@
  * `tsc -p tsconfig.test.json` in `npm run check`, so a red type assertion
  * fails the gate whether or not the suite is run.
  */
-import { Activity, Flow, FlowRuntime, Graph, Interpreter, Sleep, WaitFor } from "@smthrs/flow-next"
+import { Action, Flow, FlowRuntime, Graph, Interpreter, Sleep, WaitFor } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Effect, Layer, Option, Schema } from "effect"
 import { describe, expect, expectTypeOf, it } from "vitest"
 import { runPromise } from "./Crypto.ts"
 import { layerMemory } from "./MemoryFlowRuntime.ts"
 
-const Charge = Activity.make("requirement/charge", {
+const Charge = Action.make("requirement/charge", {
   payload: { cents: Schema.Number },
   success: Schema.Number,
   error: Schema.String
 })
 
-const Refund = Activity.make("requirement/refund", {
+const Refund = Action.make("requirement/refund", {
   payload: { cents: Schema.Number },
   success: Schema.Number
 })
 
-const Audit = Activity.make("requirement/audit", {
+const Audit = Action.make("requirement/audit", {
   payload: { note: Schema.String },
   success: Schema.String
 })
 
-type ChargeNeeded = Activity.Requirement<"requirement/charge">
-type RefundNeeded = Activity.Requirement<"requirement/refund">
-type AuditNeeded = Activity.Requirement<"requirement/audit">
+type ChargeNeeded = Action.Requirement<"requirement/charge">
+type RefundNeeded = Action.Requirement<"requirement/refund">
+type AuditNeeded = Action.Requirement<"requirement/audit">
 
 const charges = Charge.toLayer(({ cents }) => Effect.succeed(cents))
 const refunds = Refund.toLayer(({ cents }) => Effect.succeed(-cents))
@@ -58,7 +58,7 @@ describe("planning is requirement-free", () => {
     const graph = Graph.build(Paying, { cents: 100 })
 
     expect(Graph.diagnostics(graph)).toEqual([])
-    expect(Graph.nodes(graph).map((observed) => observed.kind)).toEqual(["ActivityCall", "FlowCall"])
+    expect(Graph.nodes(graph).map((observed) => observed.kind)).toEqual(["ActionCall", "FlowCall"])
     expectTypeOf(graph).not.toBeNever()
   })
 
@@ -67,8 +67,8 @@ describe("planning is requirement-free", () => {
 
     expectTypeOf(node).toEqualTypeOf<Node.Node<number, string, ChargeNeeded>>()
     expect(node.ast).toEqual({
-      _tag: "ActivityCall",
-      activity: "requirement/charge",
+      _tag: "ActionCall",
+      action: "requirement/charge",
       payload: { cents: 100 }
     })
   })
@@ -142,7 +142,7 @@ describe("a flow carries what its body requires", () => {
 
   it("refuses to run without the implementation layer", () => {
     const engineOnly = Interpreter.layer(Paying).pipe(
-      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(Action.layerImplementations),
       Layer.provideMerge(layerMemory)
     )
 
@@ -159,9 +159,9 @@ describe("a flow carries what its body requires", () => {
     expectTypeOf(unimplemented).toBeFunction()
   })
 
-  it("has the requirement erased by the activity's own layer", async () => {
+  it("has the requirement erased by the action's own layer", async () => {
     const wired = Layer.mergeAll(charges, Interpreter.layer(Paying)).pipe(
-      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(Action.layerImplementations),
       Layer.provideMerge(layerMemory)
     )
     const run = Paying.execute({ cents: 100 }, { executionId: "implemented" }).pipe(
@@ -240,17 +240,17 @@ describe("requirements travel the way the plan does", () => {
   })
 })
 
-describe("system activities require nothing of a caller", () => {
+describe("system actions require nothing of a caller", () => {
   it("keeps Sleep and WaitFor out of a body's channel", () => {
-    expectTypeOf<Node.Services<ReturnType<typeof Sleep.activity.call>>>().toEqualTypeOf<never>()
-    expectTypeOf<Node.Services<ReturnType<typeof WaitFor.activity.call>>>().toEqualTypeOf<never>()
+    expectTypeOf<Node.Services<ReturnType<typeof Sleep.action.call>>>().toEqualTypeOf<never>()
+    expectTypeOf<Node.Services<ReturnType<typeof WaitFor.action.call>>>().toEqualTypeOf<never>()
 
     const Waiting = Flow.make("requirement/waiting", {
       payload: { millis: Schema.Number },
       success: Schema.Unknown,
       body: ({ millis }) =>
-        Sleep.activity.call({ millis }).pipe(
-          Node.andThen(() => WaitFor.activity.call({ name: "approval" }))
+        Sleep.action.call({ millis }).pipe(
+          Node.andThen(() => WaitFor.action.call({ name: "approval" }))
         )
     })
 
@@ -263,14 +263,14 @@ describe("system activities require nothing of a caller", () => {
 describe("toLayer provides the requirement it mints", () => {
   it("answers with the same implementation the name-keyed table holds", async () => {
     const both = Layer.mergeAll(charges, refunds).pipe(
-      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(Action.layerImplementations),
       Layer.provideMerge(layerMemory)
     )
 
     const observed = await runPromise(
       Effect.gen(function*() {
         const charge = yield* Charge.requirement
-        const table = yield* Activity.Implementations
+        const table = yield* Action.Implementations
         const filed = yield* table.get("requirement/charge")
         return {
           provided: charge.name,
@@ -289,17 +289,17 @@ describe("toLayer provides the requirement it mints", () => {
     })
   })
 
-  it("keys the requirement by the activity tag, so two declarations name one slot", () => {
-    const again = Activity.make("requirement/charge", {
+  it("keys the requirement by the action tag, so two declarations name one slot", () => {
+    const again = Action.make("requirement/charge", {
       payload: { cents: Schema.Number },
       success: Schema.Number,
       error: Schema.String
     })
 
     expect(again.requirement.key).toBe(Charge.requirement.key)
-    expect(Charge.requirement.key).toBe("@smthrs/flow-next/Activity/Requirement/requirement/charge")
+    expect(Charge.requirement.key).toBe("@smthrs/flow-next/Action/Requirement/requirement/charge")
     // An annotated copy is still the same declaration, and names the same slot.
-    expect(Charge.annotate(Activity.CurrentAttempt, 1).requirement.key).toBe(Charge.requirement.key)
+    expect(Charge.annotate(Action.CurrentAttempt, 1).requirement.key).toBe(Charge.requirement.key)
   })
 
   it("still files into the table when no requirement is being collected", async () => {
@@ -307,13 +307,13 @@ describe("toLayer provides the requirement it mints", () => {
     // what a driver expanding a persisted plan resolves through, so it happens
     // whether or not the type channel was consulted.
     const audited = audits.pipe(
-      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(Action.layerImplementations),
       Layer.provideMerge(layerMemory)
     )
 
     const filed = await runPromise(
       Effect.gen(function*() {
-        const table = yield* Activity.Implementations
+        const table = yield* Action.Implementations
         return yield* table.get("requirement/audit")
       }).pipe(Effect.provide(audited))
     )

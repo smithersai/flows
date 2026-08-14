@@ -6,7 +6,7 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * Parity: Bazel Skyframe `MemoizingEvaluatorTest.java:3542` (transient versus
  * persistent cached error reevaluation).
  */
-import { Activity, Flow } from "@smthrs/flow-next"
+import { Action, Flow } from "@smthrs/flow-next"
 import { Journal } from "@smthrs/journal-next"
 import { Jj } from "@smthrs/kernel-next"
 import { Node } from "@smthrs/plan-next"
@@ -42,7 +42,7 @@ describe("failure evidence across restarts", () => {
     let failingDispatches = 0
     const state = DurableEngineState.makeMemory()
 
-    const stable = Activity.make({
+    const stable = Action.make({
       name: "stable",
       success: Schema.String,
       tier: "sealed",
@@ -53,7 +53,7 @@ describe("failure evidence across restarts", () => {
       })
     })
     // fails on its first dispatch, succeeds afterwards: a *transient* failure
-    const flaky = Activity.make({
+    const flaky = Action.make({
       name: "flaky",
       success: Schema.String,
       error: Schema.String,

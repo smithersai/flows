@@ -1,11 +1,11 @@
 import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
- * The lane this suite proves: an activity body runs in an isolated workspace
+ * The lane this suite proves: an action body runs in an isolated workspace
  * and returns a result, not a mutation.
  *
  * Before it, `StepBoundary`'s production filesystem layer could not observe
  * writes outside the paths it was told about, so it never set
- * `wholeTreeWritesVerified` — and `ActivityPersistence`'s cache-admission gate
+ * `wholeTreeWritesVerified` — and `ActionPersistence`'s cache-admission gate
  * requires it. The consequence was that NO result recorded under the
  * production composition ever reached the shared cross-run cache; only
  * `StepBoundary.layerTest` ever admitted one. The first test here is exactly
@@ -13,7 +13,7 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  */
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
 import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
-import { Activity, Flow } from "@smthrs/flow-next"
+import { Action, Flow } from "@smthrs/flow-next"
 import { Jj } from "@smthrs/kernel-next"
 import * as KernelWorkspace from "@smthrs/kernel-next/Workspace"
 import { Node } from "@smthrs/plan-next"
@@ -30,7 +30,7 @@ import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
-import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as JournalRecords from "../src/internal/JournalRecords.ts"
 import * as SandboxedExecution from "../src/internal/SandboxedExecution.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
@@ -112,11 +112,11 @@ const activate = (runId: string) =>
 const dispatch = (
   runId: string,
   key: string,
-  metadata: ActivityPersistence.BoundaryMetadata,
+  metadata: ActionPersistence.BoundaryMetadata,
   execute: () => Effect.Effect<unknown, unknown>
 ) =>
-  ActivityPersistence.make({ runId, owner, sourceId: `sandbox-${runId}`, execute })({
-    activity: {},
+  ActionPersistence.make({ runId, owner, sourceId: `sandbox-${runId}`, execute })({
+    action: {},
     attempt: 1,
     key,
     tier: "sealed",
@@ -124,7 +124,7 @@ const dispatch = (
   })
 
 /**
- * The engine's encoded activity effect is opaque (`Effect<unknown, unknown>`):
+ * The engine's encoded action effect is opaque (`Effect<unknown, unknown>`):
  * the services a body reads are resolved from whatever context it runs in,
  * which is precisely the seam the sandbox re-seeds. These helpers reproduce
  * that erasure rather than pretending the requirement is visible here.
@@ -132,7 +132,7 @@ const dispatch = (
 const body = <A, R>(effect: Effect.Effect<A, never, R>): Effect.Effect<unknown, unknown, never> =>
   effect as unknown as Effect.Effect<unknown, unknown, never>
 
-/** An ordinary activity body: it knows nothing about sandboxes. */
+/** An ordinary action body: it knows nothing about sandboxes. */
 const renderer = (input: string, output: string) =>
   body(
     Effect.gen(function*() {
@@ -143,11 +143,11 @@ const renderer = (input: string, output: string) =>
     }).pipe(Effect.orDie)
   )
 
-describe("sealed activities under the production composition", () => {
+describe("sealed actions under the production composition", () => {
   it("admits a hard-boundary result to the shared cache — impossible before this lane", async () => {
     const root = workspace()
     const key = "sandbox/admitted"
-    const metadata: ActivityPersistence.BoundaryMetadata = {
+    const metadata: ActionPersistence.BoundaryMetadata = {
       readSet: [{ path: join(root, "src/in.txt"), digest: sha256("hello") }],
       writeSet: [join(root, "out/result.txt")],
       boundaryMode: "hard"
@@ -170,7 +170,7 @@ describe("sealed activities under the production composition", () => {
 
     const { entry, result, row } = await runPromise(program)
     expect(result).toEqual({ rendered: 5 })
-    // THE HEADLINE: a production-composed sealed activity is in the shared
+    // THE HEADLINE: a production-composed sealed action is in the shared
     // cross-run cache, with honest whole-tree evidence behind it.
     expect(Option.isSome(entry)).toBe(true)
     expect(Option.isSome(entry) ? (entry.value.meta as { boundary?: unknown }).boundary : undefined)
@@ -184,7 +184,7 @@ describe("sealed activities under the production composition", () => {
   it("records no shared entry under the same composition without a sandbox", async () => {
     const root = workspace()
     const key = "sandbox/unsandboxed"
-    const metadata: ActivityPersistence.BoundaryMetadata = {
+    const metadata: ActionPersistence.BoundaryMetadata = {
       readSet: [{ path: join(root, "src/in.txt"), digest: sha256("hello") }],
       writeSet: [join(root, "out/result.txt")],
       boundaryMode: "hard"
@@ -214,7 +214,7 @@ describe("sealed activities under the production composition", () => {
   it("leaves the host untouched and journals nothing applied when the declaration is violated", async () => {
     const root = workspace()
     const key = "sandbox/violation"
-    const metadata: ActivityPersistence.BoundaryMetadata = {
+    const metadata: ActionPersistence.BoundaryMetadata = {
       readSet: [{ path: join(root, "src/in.txt"), digest: sha256("hello") }],
       writeSet: [join(root, "out/declared.txt")],
       boundaryMode: "hard"
@@ -257,7 +257,7 @@ describe("sealed activities under the production composition", () => {
     const root = workspace()
     const key = "sandbox/effects"
     const dispatched: Array<WorkspaceSandbox.QueuedEffect> = []
-    const metadata: ActivityPersistence.BoundaryMetadata = {
+    const metadata: ActionPersistence.BoundaryMetadata = {
       readSet: [],
       writeSet: [join(root, "out/result.txt")],
       boundaryMode: "hard"
@@ -304,7 +304,7 @@ describe("sealed activities under the production composition", () => {
   it("journals what a transaction queued and sends nothing when no dispatcher is composed", async () => {
     const root = workspace()
     const key = "sandbox/undispatched"
-    const metadata: ActivityPersistence.BoundaryMetadata = {
+    const metadata: ActionPersistence.BoundaryMetadata = {
       readSet: [],
       writeSet: [join(root, "out/result.txt")],
       boundaryMode: "hard"
@@ -334,7 +334,7 @@ describe("sealed activities under the production composition", () => {
   it("journals a whole-tree deviation in expected mode instead of failing", async () => {
     const root = workspace()
     const key = "sandbox/expected"
-    const metadata: ActivityPersistence.BoundaryMetadata = {
+    const metadata: ActionPersistence.BoundaryMetadata = {
       readSet: [],
       writeSet: [join(root, "out/declared.txt")],
       boundaryMode: "expected"
@@ -368,11 +368,11 @@ describe("sealed activities under the production composition", () => {
 /**
  * `EngineStore.make` resolves services once and re-provides them onto the
  * engine's fiber, which does not carry the store's layer context. The sandbox
- * and its dispatch stage have to travel the same way or an activity would
+ * and its dispatch stage have to travel the same way or an action would
  * silently run unsandboxed under a composition that declared one.
  */
 describe("EngineStore composition", () => {
-  const SandboxFlow = Flow.make("SandboxedActivity/Flow", {
+  const SandboxFlow = Flow.make("SandboxedAction/Flow", {
     payload: {},
     success: Schema.String,
     body: opaqueHandlerBody
@@ -381,7 +381,7 @@ describe("EngineStore composition", () => {
   it("carries the sandbox and the dispatch stage onto the engine's own fiber", async () => {
     const delivered: Array<string> = []
     let dispatches = 0
-    const sealed = Activity.make({
+    const sealed = Action.make({
       name: "sandboxed",
       success: Schema.String,
       tier: "sealed",
@@ -533,7 +533,7 @@ describe("copy-back conflict retry", () => {
     expect(materializations).toBe(1)
   })
 
-  it("keeps a body's own failure as the activity's failure", async () => {
+  it("keeps a body's own failure as the action's failure", async () => {
     const program = Effect.gen(function*() {
       const memory = yield* WorkspaceSandbox.makeMemory()
       return yield* Effect.flip(SandboxedExecution.execute({
@@ -551,7 +551,7 @@ describe("cache-hit replay under a sandboxed composition", () => {
   it("re-materializes the recorded outputs instead of re-running the body", async () => {
     const root = workspace()
     const key = "sandbox/replay"
-    const metadata: ActivityPersistence.BoundaryMetadata = {
+    const metadata: ActionPersistence.BoundaryMetadata = {
       readSet: [{ path: join(root, "src/in.txt"), digest: sha256("hello") }],
       writeSet: [join(root, "out/result.txt")],
       boundaryMode: "hard"

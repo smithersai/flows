@@ -52,7 +52,7 @@ Combine:
 - `StepBoundary.layerTest()` for deterministic boundary evidence,
 - a stub `Jj` (`@smthrs/jj-next/browser/BrowserJj`'s `layerUnsupported`).
 
-Create a second `EngineStore.make` within the same service scope to simulate engine restart. Register the same handler, complete a deferred or call `resume`, and assert that completed activity code was not dispatched twice.
+Create a second `EngineStore.make` within the same service scope to simulate engine restart. Register the same handler, complete a deferred or call `resume`, and assert that completed action code was not dispatched twice.
 
 Flush the journal before reading committed entries:
 

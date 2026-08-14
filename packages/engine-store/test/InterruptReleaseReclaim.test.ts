@@ -56,8 +56,8 @@ const provideJournal = <A, E, R>(
     Exclude<R, Journal.Journal | RunStore.RunStore | DurableEngineState.DurableEngineState | Scope.Scope>
   >
 
-/** Interrupts a run mid-activity via driver-scope close and returns the row. */
-const releaseMidActivity = (executionId: string) =>
+/** Interrupts a run mid-action via driver-scope close and returns the row. */
+const releaseMidAction = (executionId: string) =>
   Effect.gen(function*() {
     const driverScope = yield* Scope.make()
     const driver = yield* makeDriver("owner-1").pipe(Scope.provide(driverScope))
@@ -78,7 +78,7 @@ describe("interrupt-released runs are reclaimable (issue #39)", () => {
     const result = await runPromise(provideJournal(Effect.gen(function*() {
       const store = yield* RunStore.RunStore
       const state = yield* DurableEngineState.DurableEngineState
-      yield* releaseMidActivity("release-parked")
+      yield* releaseMidAction("release-parked")
       const row = yield* store.get("release-parked")
       const waiting = yield* state.waiting("release-parked")
       return { row, waiting }
@@ -95,7 +95,7 @@ describe("interrupt-released runs are reclaimable (issue #39)", () => {
   it("a later worker's sweep re-drives the released run to completion", async () => {
     const result = await runPromise(provideJournal(Effect.gen(function*() {
       const store = yield* RunStore.RunStore
-      yield* releaseMidActivity("release-redrive")
+      yield* releaseMidAction("release-redrive")
 
       // A fresh worker over the same store: its sweep must find the
       // released run and re-drive it without any operator action.
@@ -116,7 +116,7 @@ describe("interrupt-released runs are reclaimable (issue #39)", () => {
   it("requestCancel against a released run is eventually delivered", async () => {
     const result = await runPromise(provideJournal(Effect.gen(function*() {
       const store = yield* RunStore.RunStore
-      yield* releaseMidActivity("release-cancel")
+      yield* releaseMidAction("release-cancel")
 
       // Another process (the CLI) durably requests cancellation while
       // nothing owns the run.

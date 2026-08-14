@@ -13,10 +13,10 @@ The suite is a gate, so a snippet that stops compiling or stops producing the do
 
 | File | Shows | The assertion that matters |
 | --- | --- | --- |
-| [`01-define-and-run.ts`](https://github.com/smithersai/flows/blob/main/examples/src/01-define-and-run.ts) | the shortest complete program: `Activity.make` and its `toLayer`, a `Flow.make` body that names it, `Interpreter.layer`, `FlowEngine.layerMemory` | the flow returns `Hello, Ada.` |
+| [`01-define-and-run.ts`](https://github.com/smithersai/flows/blob/main/examples/src/01-define-and-run.ts) | the shortest complete program: `Action.make` and its `toLayer`, a `Flow.make` body that names it, `Interpreter.layer`, `FlowEngine.layerMemory` | the flow returns `Hello, Ada.` |
 | [`02-run-durably.ts`](https://github.com/smithersai/flows/blob/main/examples/src/02-run-durably.ts) | the same flow body on `EngineStore` over SQLite, then reading the journal it wrote | the run produces its result and the journal holds lifecycle entries |
-| [`03-crash-and-resume.ts`](https://github.com/smithersai/flows/blob/main/examples/src/03-crash-and-resume.ts) | suspending on a `DurableDeferred`, dropping the engine, and resuming from durable state | the suspended step's implementation runs more than once and the sealed activity in front of the suspension dispatches exactly once |
-| [`04-retry-policy.ts`](https://github.com/smithersai/flows/blob/main/examples/src/04-retry-policy.ts) | `RetryPolicy` as inspectable data, and `Activity.retry` as the runtime side | the ladder is `[100, 200, 400, null]`, a non-retryable tag gives up, and the flaky activity succeeds on dispatch three |
+| [`03-crash-and-resume.ts`](https://github.com/smithersai/flows/blob/main/examples/src/03-crash-and-resume.ts) | suspending on a `DurableDeferred`, dropping the engine, and resuming from durable state | the suspended step's implementation runs more than once and the sealed action in front of the suspension dispatches exactly once |
+| [`04-retry-policy.ts`](https://github.com/smithersai/flows/blob/main/examples/src/04-retry-policy.ts) | `RetryPolicy` as inspectable data, and `Action.retry` as the runtime side | the ladder is `[100, 200, 400, null]`, a non-retryable tag gives up, and the flaky action succeeds on dispatch three |
 | [`05-time-travel-fork.ts`](https://github.com/smithersai/flows/blob/main/examples/src/05-time-travel-fork.ts) | `TimeTravel.fork` at a position, copying executable state and attempts into a new run | the fork returns the parent's answer with one total dispatch, because the sealed cache key replays |
 | [`06-time-travel-rewind.ts`](https://github.com/smithersai/flows/blob/main/examples/src/06-time-travel-rewind.ts) | `TimeTravel.inspect` folding entries at a frame, and `TimeTravel.rewind` truncating the suffix | the derived total is the value at the frame, the suffix past it is archived, fewer entries remain than the run wrote, and the audit completes |
 | [`07-sync-follower.ts`](https://github.com/smithersai/flows/blob/main/examples/src/07-sync-follower.ts) | a follower catching up on durable history and then following live commits | the first two entries are history and the third arrived after the subscription opened |
@@ -25,7 +25,7 @@ The suite is a gate, so a snippet that stops compiling or stops producing the do
 
 ## Reading them in order
 
-The first three build on each other. `01` shows what the two nouns are with nothing durable underneath: an `Activity` declaration whose implementation arrives as a layer, and a `Flow` whose body names it. `02` swaps `FlowEngine.layerMemory` for the durable engine and changes nothing else in the flow body, which is the point of the encoded seam. `03` is the reason durability exists: the run suspends waiting for an approval that has not arrived, the engine is discarded, a second engine over the same file attaches the same implementation, and the run finishes without re-dispatching the work it already recorded.
+The first three build on each other. `01` shows what the two nouns are with nothing durable underneath: an `Action` declaration whose implementation arrives as a layer, and a `Flow` whose body names it. `02` swaps `FlowEngine.layerMemory` for the durable engine and changes nothing else in the flow body, which is the point of the encoded seam. `03` is the reason durability exists: the run suspends waiting for an approval that has not arrived, the engine is discarded, a second engine over the same file attaches the same implementation, and the run finishes without re-dispatching the work it already recorded.
 
 `04` separates policy from execution. The backoff ladder is computed from the policy value with no engine in scope, which is how a deployment can review a retry configuration before shipping it.
 
@@ -37,7 +37,7 @@ The first three build on each other. `01` shows what the two nouns are with noth
 
 `examples/src/durable-layer.ts` composes what `EngineStore.layer` needs: the journal and its three stores, the durable deferred and clock state, a kernel `Jj`, and a `StepBoundary`, all over one SQLite file. Every persistence example reuses it, which is also why a restart in one example reads the rows a previous phase wrote.
 
-The `Jj` in that layer is a stub that records nothing. The examples use sealed activities, so the engine never needs a real snapshot, and a stub keeps the composition honest without requiring a `jj` binary on the machine. No packaged production layer ships yet; assembling this composition is application work today, and that gap is listed in [External](/external).
+The `Jj` in that layer is a stub that records nothing. The examples use sealed actions, so the engine never needs a real snapshot, and a stub keeps the composition honest without requiring a `jj` binary on the machine. No packaged production layer ships yet; assembling this composition is application work today, and that gap is listed in [External](/external).
 
 ## Reading next
 

@@ -3,7 +3,7 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * Issue #59: the retry verdict is durable. A persisted `failed` attempt row
  * replays by rethrowing the persisted domain failure — never by surfacing
  * `AttemptAdmissionRejected` — so a policy-declared `nonRetryable` error
- * matches on resume: the activity body is not re-dispatched and the backoff
+ * matches on resume: the action body is not re-dispatched and the backoff
  * ladder is not re-slept.
  *
  * Temporal prior art: mutable state persists the attempt failure alongside
@@ -12,7 +12,7 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * persisted failure after a restart — the failure itself is durable, not
  * just the fact that an attempt happened.
  */
-import { Activity, Flow, RetryPolicy } from "@smthrs/flow-next"
+import { Action, Flow, RetryPolicy } from "@smthrs/flow-next"
 import { Journal } from "@smthrs/journal-next"
 import * as Notifying from "@smthrs/journal-next/test/Notifying"
 import { Jj } from "@smthrs/kernel-next"
@@ -28,7 +28,7 @@ import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
-import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
 import { key, runPromise, sha256 } from "./Sha256.ts"
@@ -59,17 +59,17 @@ const provide = <A>(effect: Effect.Effect<A, any, any>, state: DurableEngineStat
       Effect.provide(TestClock.layer()),
       // Sealed cache keys hash the resolved environment. Declaring an empty
       // one — what a hand-wired composition does through
-      // `Activity.layerCacheEnvironment` — keeps the key run-independent so
+      // `Action.layerCacheEnvironment` — keeps the key run-independent so
       // the mirror below can reproduce it; leaving it undeclared would pin
       // each key to its own execution.
-      Effect.provide(Activity.layerCacheEnvironment(environment))
+      Effect.provide(Action.layerCacheEnvironment(environment))
     ) as Effect.Effect<A>
   )
 
-// The engine derives a sealed activity's string idempotency key through the
+// The engine derives a sealed action's string idempotency key through the
 // generic `Key` schema; the test mirrors the engine-owned input to inspect the persisted rows.
 // Since issue #120 the body also folds the declared success/error schemas
-// (their stable `SchemaRepresentation` document form) — both activities
+// (their stable `SchemaRepresentation` document form) — both actions
 // below share the same declaration.
 const declaration = {
   success: SchemaRepresentation.toJson(SchemaRepresentation.toRepresentation(Schema.String.ast)),
@@ -77,14 +77,14 @@ const declaration = {
     Schema.Struct({ _tag: Schema.Literal("FatalBoom"), detail: Schema.String }).ast
   ))
 }
-const environment = { layers: [], capabilities: {} } satisfies Activity.CacheEnvironment
+const environment = { layers: [], capabilities: {} } satisfies Action.CacheEnvironment
 // `form` names which idempotency-key form built `input`, so a caller object
 // that spells the string form's encoding cannot alias it (B3).
-const activityKey = (name: string, idempotencyKey: string) =>
+const actionKey = (name: string, idempotencyKey: string) =>
   key({
     kind: "cache",
     form: "declared",
-    input: { activity: name, idempotencyKey, declaration },
+    input: { action: name, idempotencyKey, declaration },
     environment
   })
 
@@ -93,11 +93,11 @@ describe("non-retryable classification against the real error class (issue #165)
     // `defaultNonRetryable` matches by string so engine never depends on
     // engine-store, and RetryPolicy's own test asserts against a synthetic
     // `{ _tag }` object for the same reason — so nothing pinned the literal
-    // to the exported class. Renaming the tag in ActivityPersistence left
+    // to the exported class. Renaming the tag in ActionPersistence left
     // every suite green while cache corruption silently became retryable
     // again. This cross-package cell feeds the REAL instance through the
     // classification, so either side of the seam moving alone fails here.
-    const corruption = new ActivityPersistence.CacheCorruptionDetected({
+    const corruption = new ActionPersistence.CacheCorruptionDetected({
       code: "cache_corruption_detected",
       keyDigest: "deadbeef",
       path: "dist/manifest.json",
@@ -112,9 +112,9 @@ describe("non-retryable classification against the real error class (issue #165)
 })
 
 describe("non-retryable verdict durability across resume", () => {
-  it("does not re-dispatch a durably failed non-retryable activity and propagates the original error without backoff sleeps", async () => {
+  it("does not re-dispatch a durably failed non-retryable action and propagates the original error without backoff sleeps", async () => {
     let dispatches = 0
-    const fatal = Activity.make({
+    const fatal = Action.make({
       name: "NonRetryableReplay/fatal",
       success: Schema.String,
       error: Schema.Struct({ _tag: Schema.Literal("FatalBoom"), detail: Schema.String }),
@@ -138,7 +138,7 @@ describe("non-retryable verdict durability across resume", () => {
       journalSource: "non-retryable-test",
       isAlive: () => Effect.succeed(false)
     })
-    const key = activityKey("NonRetryableReplay/fatal", "non-retryable-v1")
+    const key = actionKey("NonRetryableReplay/fatal", "non-retryable-v1")
     const attemptId = {
       runId: "non-retryable-run",
       stepKeyDigest: sha256(key),
@@ -227,7 +227,7 @@ describe("non-retryable verdict durability across resume", () => {
     )
 
     expect(result.dispatchesBeforeResume).toBe(1)
-    // The activity body is never re-executed after resume.
+    // The action body is never re-executed after resume.
     expect(result.dispatchesAfterResume).toBe(1)
     expect(result.row.status).toBe("failed")
     // The original domain error propagates — not the admission wrapper.
@@ -236,7 +236,7 @@ describe("non-retryable verdict durability across resume", () => {
   })
 
   it("replays a persisted failed attempt row by rethrowing the persisted domain error", async () => {
-    // Unit-level pin on `ActivityPersistence`: a `failed` row must rethrow
+    // Unit-level pin on `ActionPersistence`: a `failed` row must rethrow
     // the persisted cause — the `_tag` survives the JSON round trip so
     // `RetryPolicy` non-retryable matching works on replay.
     const { default: makeState } = { default: DurableEngineState.makeMemory }
@@ -247,7 +247,7 @@ describe("non-retryable verdict durability across resume", () => {
       isAlive: () => Effect.succeed(false)
     })
     let dispatches = 0
-    const flaky = Activity.make({
+    const flaky = Action.make({
       name: "NonRetryableReplay/tagged",
       success: Schema.String,
       error: Schema.Struct({ _tag: Schema.Literal("FatalBoom"), detail: Schema.String }),
@@ -274,7 +274,7 @@ describe("non-retryable verdict durability across resume", () => {
         const attempts = yield* AttemptStore.AttemptStore
         const row = yield* attempts.get({
           runId: "failed-row-run",
-          stepKeyDigest: sha256(activityKey("NonRetryableReplay/tagged", "tagged-v1")),
+          stepKeyDigest: sha256(actionKey("NonRetryableReplay/tagged", "tagged-v1")),
           attempt: 1
         })
         return { row, dispatches }
@@ -318,13 +318,13 @@ describe("non-retryable verdict durability across resume", () => {
           owner
         )
         let dispatches = 0
-        const executor = ActivityPersistence.make({
+        const executor = ActionPersistence.make({
           runId,
           owner,
           sourceId: "rehydrate-test",
           execute: () => Effect.sync(() => dispatches++)
         })
-        const exit = yield* executor({ activity: {}, attempt: 1, key, tier: "sealed" }).pipe(Effect.exit)
+        const exit = yield* executor({ action: {}, attempt: 1, key, tier: "sealed" }).pipe(Effect.exit)
         return { exit, dispatches }
       })
 

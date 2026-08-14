@@ -1,7 +1,7 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 /**
- * Defines data-shaped retry policies for durable activity retries.
+ * Defines data-shaped retry policies for durable action retries.
  *
  * A `RetryPolicy` is a plain value — initial interval, backoff factor, cap,
  * optional maximum attempts, optional jitter, and optional non-retryable
@@ -164,7 +164,7 @@ export class RetryPolicyExpired extends Schema.TaggedError<RetryPolicyExpired>()
     code: Schema.Literal("retry_policy_expired").pipe(
       Schema.withConstructorDefault(Effect.succeed("retry_policy_expired"))
     ),
-    activityName: Schema.String,
+    actionName: Schema.String,
     attempt: Schema.Number,
     expirationMs: Schema.Number,
     lastError: Schema.optional(Schema.Unknown)
@@ -183,7 +183,7 @@ export class RetryAttemptsExhausted extends Schema.TaggedError<RetryAttemptsExha
     code: Schema.Literal("retry_attempts_exhausted").pipe(
       Schema.withConstructorDefault(Effect.succeed("retry_attempts_exhausted"))
     ),
-    activityName: Schema.String,
+    actionName: Schema.String,
     attempt: Schema.Number,
     maxAttempts: Schema.Number,
     lastError: Schema.optional(Schema.Unknown)
@@ -289,7 +289,7 @@ export const errorTag = (error: unknown): string | undefined => {
  * Error tags that are non-retryable by type, under every policy (issue #156).
  *
  * These failures are integrity verdicts that must reach the driver without an
- * activity-level retry hiding the first detection. Their persistence seams
+ * action-level retry hiding the first detection. Their persistence seams
  * take a quarantine state action before raising them, so a later dispatch can
  * heal, but the detecting dispatch remains a non-retryable failure. No
  * per-callsite or per-policy opt-out exists; the tags are matched by string so
@@ -299,7 +299,7 @@ export const errorTag = (error: unknown): string | undefined => {
  * counterpart: the corrupt boundary evidence is removed while the completed
  * outcome stays durable. It reaches the driver unretried, which parks the
  * first detection in the `quarantine` waiting state; the next explicit resume
- * returns the recorded outcome without re-executing the activity.
+ * returns the recorded outcome without re-executing the action.
  *
  * @category attempts
  * @since 0.1.0

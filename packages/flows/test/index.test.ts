@@ -41,7 +41,7 @@ const packageNames = readdirSync(packagesDir)
   .filter((name) => isFile(join(packagesDir, name, "package.json")))
 // `@smthrs/flow-next` is the one package re-exported FLAT rather than as a single
 // namespace: writing a flow is the point of the library, so `Flow`,
-// `Activity`, `RetryPolicy`, and their siblings sit at the top level. Its
+// `Action`, `RetryPolicy`, and their siblings sit at the top level. Its
 // contribution is therefore derived from the package's own exports, not from
 // its directory name — a new authoring namespace there fails this test until
 // the barrel re-exports it, exactly as a new package does.
@@ -63,7 +63,7 @@ describe("barrel", () => {
     expect(expected).toContain("TimeTravel")
     // the flat authoring re-export is part of the universe too
     expect(expected).toContain("Flow")
-    expect(expected).toContain("Activity")
+    expect(expected).toContain("Action")
   })
 
   it("excludes the platform bundles, and there are some to exclude", () => {

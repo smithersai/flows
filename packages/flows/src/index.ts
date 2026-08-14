@@ -23,13 +23,13 @@
  * the re-exported namespace names.
  *
  * The one exception is `@smthrs/flow-next`: the authoring model is re-exported
- * *flat*, so `Flow`, `Activity`, `RetryPolicy`, `DurableDeferred`,
+ * *flat*, so `Flow`, `Action`, `RetryPolicy`, `DurableDeferred`,
  * `DurableClock`, `DurableQueue`, `FlowRuntime`, and `StepIdentity` sit at the
  * top level beside the infrastructure namespaces. Writing a flow is the point
  * of the library; `Flows.Flow.Flow.make` would be noise.
  *
  * ```ts
- * import { Activity, Engine, Flow, Journal } from "@smthrs/flows-next"
+ * import { Action, Engine, Flow, Journal } from "@smthrs/flows-next"
  * ```
  *
  * `@smthrs/time-travel-next` is the second: `TimeTravel` is a *service key*, not a
@@ -85,7 +85,7 @@ export { TimeTravel } from "@smthrs/time-travel-next"
  * @category models
  */
 export const namespaces = [
-  "Activity",
+  "Action",
   "Artifacts",
   "Canonical",
   "Capability",

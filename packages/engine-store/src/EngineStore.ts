@@ -9,7 +9,7 @@
  */
 import { Sha256 } from "@smthrs/crypto-next"
 import { FlowEngine } from "@smthrs/engine-next"
-import { type Activity, Flow, FlowRuntime } from "@smthrs/flow-next"
+import { type Action, Flow, FlowRuntime } from "@smthrs/flow-next"
 import { FileBoundary } from "@smthrs/flow-next/FileBoundary"
 import { Journal } from "@smthrs/journal-next"
 import { Jj } from "@smthrs/kernel-next"
@@ -24,7 +24,7 @@ import type * as Schedule from "effect/Schedule"
 import * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
 import * as DurableEngineState from "./DurableEngineState.ts"
-import * as ActivityPersistence from "./internal/ActivityPersistence.ts"
+import * as ActionPersistence from "./internal/ActionPersistence.ts"
 import * as AttemptAdmission from "./internal/AttemptAdmission.ts"
 import * as AttemptProbe from "./internal/AttemptProbe.ts"
 import * as DeferredPersistence from "./internal/DeferredPersistence.ts"
@@ -102,7 +102,7 @@ const isBoundaryMetadata = Schema.is(FileBoundary)
  * Constructs the production encoded composition.
  *
  * Registrations and active fibers are scoped in memory. Run identity, encoded
- * payload, results, deferred completions, clocks, activities, and ownership
+ * payload, results, deferred completions, clocks, actions, and ownership
  * are persisted by the supplied layers.
  *
  * @since 0.1.0
@@ -115,7 +115,7 @@ export const make = (
     const ownerIdentity = yield* OwnerIdentity.OwnerIdentity
     const owner = yield* ownerIdentity.ownerId(options.owner.hostId)
     // One admission mutex per incarnation, shared by every dispatch this
-    // store drives: `ActivityPersistence.make` runs per dispatch below, so a
+    // store drives: `ActionPersistence.make` runs per dispatch below, so a
     // per-make default would never contend and the same-key exclusion the
     // adoption evidence rests on (issues #102, #103) would silently vanish.
     const admission = AttemptAdmission.makeUnsafe()
@@ -128,7 +128,7 @@ export const make = (
     /**
      * Both halves of the isolated-execution lane are OPTIONAL and resolved
      * here, at composition time, for the same reason every service above is:
-     * `activityExecute` runs on the engine's fiber, which does not carry the
+     * `actionExecute` runs on the engine's fiber, which does not carry the
      * store's layer context, so anything the dispatch needs has to be captured
      * now and re-provided below. A composition without a sandbox keeps the
      * pre-existing behaviour — the body runs against the host directly — and
@@ -164,11 +164,11 @@ export const make = (
       fireRetryPolicy: options.clockFireRetryPolicy
     })
 
-    const activityExecute = Effect.fn("FlowEngine.activityExecute")(function*(input: {
-      readonly activity: Activity.Any
+    const actionExecute = Effect.fn("FlowEngine.actionExecute")(function*(input: {
+      readonly action: Action.Any
       readonly attempt: number
       readonly key: string
-      readonly tier: Activity.Tier
+      readonly tier: Action.Tier
       readonly metadata: unknown
     }) {
       const parent = yield* FlowRuntime.FlowInstance
@@ -184,24 +184,23 @@ export const make = (
       // to reach the parked row. An implementation that declares one — `Sleep`
       // under `timer`, `WaitFor` under `event` with its wake token — writes it
       // here, so without the thread-back `RunDriver` would park on the derived
-      // default and an activity's declaration would be inert. It is seeded as
+      // default and an action's declaration would be inert. It is seeded as
       // well as copied back so a body that annotated before dispatching keeps
       // its own declaration, and so the consumption `deferredResult` performs
       // on a settled wait travels out the same way (issue #42).
       const waitingBefore = parent.waiting
       instance.waiting = waitingBefore
-      return yield* ActivityPersistence.make({
+      return yield* ActionPersistence.make({
         runId: parent.executionId,
         owner,
         sourceId: options.journalSource,
-        execute: (activityInput) =>
-          (activityInput.activity as Activity.Any).executeEncoded as Effect.Effect<unknown, unknown>,
-        idempotencyKey: input.activity.idempotencyKey === undefined
+        execute: (actionInput) => (actionInput.action as Action.Any).executeEncoded as Effect.Effect<unknown, unknown>,
+        idempotencyKey: input.action.idempotencyKey === undefined
           ? undefined
           : input.key,
         admission
       })({
-        activity: input.activity,
+        action: input.action,
         attempt: input.attempt,
         key: input.key,
         tier: input.tier,
@@ -246,14 +245,14 @@ export const make = (
       interrupt: driver.interrupt,
       interruptUnsafe: driver.interruptUnsafe,
       resume: driver.resume,
-      activityExecute,
+      actionExecute,
       // The durable schedule-to-close origin (issue #45): the first
-      // attempt's persisted `startedAtMs` for the activity key. It lives in
+      // attempt's persisted `startedAtMs` for the action key. It lives in
       // the same `flows_attempts` rows that already restore the attempt
       // sequence across park/resume and process death, so the engine's
       // `expirationMs` budget is measured from the true first attempt
       // instead of restarting on every process.
-      activityRetryOrigin: Effect.fnUntraced(function*(input: {
+      actionRetryOrigin: Effect.fnUntraced(function*(input: {
         readonly key: string
       }) {
         const parent = yield* FlowRuntime.FlowInstance
@@ -268,10 +267,10 @@ export const make = (
       // The durable attempt counter (issue #59): the highest contiguous
       // persisted attempt for the key, so a resumed run replays failed
       // attempts under their original numbers instead of restarting at 1 —
-      // the persisted failure is rethrown by `ActivityPersistence`, the
+      // the persisted failure is rethrown by `ActionPersistence`, the
       // retry decision sees the true attempt count, and the backoff ladder
       // is not re-slept.
-      activityLatestAttempt: Effect.fnUntraced(function*(input: {
+      actionLatestAttempt: Effect.fnUntraced(function*(input: {
         readonly key: string
       }) {
         const parent = yield* FlowRuntime.FlowInstance
@@ -319,14 +318,14 @@ export const layer = (
     Effect.map(Jj.Jj, (jj) =>
       FlowEngine.SnapshotBoundary.of({
         snapshot: Effect.fn("SnapshotBoundary.snapshot")(({ key, attempt }) =>
-          jj.snapshot(`flows activity ${key} attempt ${attempt}`).pipe(
+          jj.snapshot(`flows action ${key} attempt ${attempt}`).pipe(
             Effect.orDie,
             Effect.map((snapshot) => snapshot.changeId)
           )
         ),
         restore: Effect.fn("SnapshotBoundary.restore")((snapshot) => jj.restore(snapshot as never).pipe(Effect.orDie)),
         diff: Effect.fn("SnapshotBoundary.diff")((snapshot, { key, attempt }) =>
-          jj.snapshot(`flows activity ${key} attempt ${attempt} settled`).pipe(
+          jj.snapshot(`flows action ${key} attempt ${attempt} settled`).pipe(
             Effect.orDie,
             Effect.flatMap((current) => jj.diff(snapshot as never, current.changeId).pipe(Effect.orDie))
           )

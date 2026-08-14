@@ -1,6 +1,6 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, DurableDeferred, Flow, Interpreter } from "@smthrs/flow-next"
+import { Action, DurableDeferred, Flow, Interpreter } from "@smthrs/flow-next"
 import { Cause, Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
@@ -28,7 +28,7 @@ const isComplete = (result: Flow.Result<any, any>) => result._tag === "Complete"
 
 describe("SuspendOnFailure", () => {
   effect("a failing flow suspends instead of completing, carrying the cause as a defect", () => {
-    const Step = Activity.make("Suspend/on-failure/step", {
+    const Step = Action.make("Suspend/on-failure/step", {
       payload: { id: Schema.String },
       success: Schema.String,
       error: Schema.String
@@ -75,7 +75,7 @@ describe("SuspendOnFailure", () => {
   })
 
   effect("without the annotation the same failure completes as a typed failure", () => {
-    const Step = Activity.make("Suspend/no-annotation/step", {
+    const Step = Action.make("Suspend/no-annotation/step", {
       payload: { id: Schema.String },
       success: Schema.String,
       error: Schema.String
@@ -98,7 +98,7 @@ describe("SuspendOnFailure", () => {
   })
 
   effect("interrupting a suspend-on-failure flow discards the execution rather than suspending it", () => {
-    const Step = Activity.make("Suspend/interrupted/step", {
+    const Step = Action.make("Suspend/interrupted/step", {
       payload: { id: Schema.String },
       success: Schema.String
     })
@@ -123,7 +123,7 @@ describe("SuspendOnFailure", () => {
   })
 })
 
-describe("concurrent activity suspension", () => {
+describe("concurrent action suspension", () => {
   const Gate = DurableDeferred.make("Suspend/Gate", {
     success: Schema.String,
     error: Schema.String
@@ -131,7 +131,7 @@ describe("concurrent activity suspension", () => {
 
   effect("suspension cancels concurrent siblings, which run exactly once after resumption", () => {
     let slowRuns = 0
-    const slow = Activity.make({
+    const slow = Action.make({
       name: "Suspend/slow",
       success: Schema.String,
       idempotencyKey: "suspend/slow",
@@ -142,7 +142,7 @@ describe("concurrent activity suspension", () => {
       })
     })
 
-    const Step = Activity.make("Suspend/concurrent/step", {
+    const Step = Action.make("Suspend/concurrent/step", {
       payload: { id: Schema.String },
       success: Schema.String,
       error: Schema.String
@@ -169,7 +169,7 @@ describe("concurrent activity suspension", () => {
       const executionId = yield* flow.execute({ id: "c" }, { discard: true })
       const suspended = yield* pollUntil(flow.poll(executionId), isSuspended)
       expect(Option.isSome(suspended) && suspended.value._tag).toBe("Suspended")
-      // the unresolved deferred suspends the whole flow before the sibling activity settles
+      // the unresolved deferred suspends the whole flow before the sibling action settles
       expect(slowRuns).toBe(0)
 
       const token = DurableDeferred.tokenFromExecutionId(Gate, { flow, executionId })
@@ -185,13 +185,13 @@ describe("concurrent activity suspension", () => {
     }).pipe(Effect.provide(layer))
   })
 
-  effect("keeps waiting when a sibling starts another activity after the in-flight count hits zero", () => {
+  effect("keeps waiting when a sibling starts another action after the in-flight count hits zero", () => {
     // The in-flight count can briefly return to zero between two sequential
-    // activities of a still-running sibling. Suspension must not be released
-    // in that window: every activity of the chain has to settle first.
+    // actions of a still-running sibling. Suspension must not be released
+    // in that window: every action of the chain has to settle first.
     const ran: Array<string> = []
     const step = (name: string) =>
-      Activity.make({
+      Action.make({
         name,
         success: Schema.String,
         execute: Effect.gen(function*() {
@@ -200,7 +200,7 @@ describe("concurrent activity suspension", () => {
           return name
         })
       })
-    const failing = Activity.make({
+    const failing = Action.make({
       name: "Edge/chain-suspender",
       success: Schema.String,
       error: Schema.String,
@@ -209,7 +209,7 @@ describe("concurrent activity suspension", () => {
         return yield* Effect.fail("chain-boom")
       })
     })
-    const Chain = Activity.make("Edge/chain/step", {
+    const Chain = Action.make("Edge/chain/step", {
       payload: { id: Schema.String },
       success: Schema.String,
       error: Schema.String

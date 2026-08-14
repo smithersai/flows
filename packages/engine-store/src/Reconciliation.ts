@@ -6,7 +6,7 @@
  * mode — going outside them is allowed, journaled, and "triggers a
  * **reconciliation flow** — pluggable, a flow like everything else". The
  * deviation events have been emitted since the isolated-execution lane landed
- * (`internal/ActivityPersistence.ts`, both `expectedSetDeviation` sites) and
+ * (`internal/ActionPersistence.ts`, both `expectedSetDeviation` sites) and
  * had **no consumer at all**. This is the consumer, and
  * `PlanScheduler` is what feeds it.
  *

@@ -23,7 +23,7 @@ Everything durable in Smithers Flows is one of a small number of shapes. This pa
 | Compensation receipt | `flows_time_travel_receipts` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel-next` |
 | Archived entry | `flows_time_travel_archive` | `SqlTimeTravelStore.migrate` | `@smthrs/time-travel-next` |
 
-Two shapes are in-memory only: the activity step keys the engine derives, which are recomputed on every replay, and sync frames, which exist on the wire. A compiled plan's node keys are different — they are computed once at plan time and persisted in `flows_plan_nodes`.
+Two shapes are in-memory only: the action step keys the engine derives, which are recomputed on every replay, and sync frames, which exist on the wire. A compiled plan's node keys are different — they are computed once at plan time and persisted in `flows_plan_nodes`.
 
 ## Journal entries
 
@@ -151,7 +151,7 @@ Invariants: mutations are fenced by the current run owner, and the first fenced 
 | Column | Meaning |
 | --- | --- |
 | `key_digest` | primary key, the `Sha256` transformation of the step key |
-| `result_json` | the encoded activity success |
+| `result_json` | the encoded action success |
 | `meta_json` | opaque metadata |
 | `created_at_ms` | creation stamp |
 | `recorded_run_id`, `recorded_event_seq` | journal provenance |
@@ -178,9 +178,9 @@ Decoding through `Canonical` produces RFC 8785 JSON. The wrapped `canonicalize` 
 yield* Schema.decodeUnknownEffect(Key)({ operation: "compile", version: 3 })
 ```
 
-A sealed activity key changes when its caller identity, complete cache environment, or filesystem boundary changes. The engine owns that combined input; `@smthrs/keys-next` only hashes it.
+A sealed action key changes when its caller identity, complete cache environment, or filesystem boundary changes. The engine owns that combined input; `@smthrs/keys-next` only hashes it.
 
-A string `idempotencyKey` folds in the activity name and declared schemas. An object identity is caller-owned and rename-stable.
+A string `idempotencyKey` folds in the action name and declared schemas. An object identity is caller-owned and rename-stable.
 
 If no complete environment is declared, the key includes the current execution ID and cannot be reused across runs.
 
@@ -190,7 +190,7 @@ If no complete environment is declared, the key includes the current execution I
 { runId: "run-42", parentScope: "checkout", ordinal: 3, tier: "compensable" }
 ```
 
-The engine hashes this private shape through `Key`. Ordinals are allocated per declaration identity, meaning the activity name refined by any declared key, and that scope is folded into the key as `parentScope`.
+The engine hashes this private shape through `Key`. Ordinals are allocated per declaration identity, meaning the action name refined by any declared key, and that scope is folded into the key as `parentScope`.
 
 ## Frames and time-travel shapes
 

@@ -3,7 +3,7 @@ import { Jj } from "@smthrs/kernel-next"
 import { type Ownership, RunStore } from "@smthrs/run-store-next"
 import { Effect, Layer } from "effect"
 import { describe, expect, it } from "vitest"
-import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise } from "./Sha256.ts"
@@ -34,13 +34,13 @@ describe("engine-store journal integration", () => {
         return yield* Effect.die(new Error("journal run claim was lost"))
       }
       yield* runs.activate("journal-run", owner, claim.claimedAtMs, snapshot)
-      yield* ActivityPersistence.make({
+      yield* ActionPersistence.make({
         runId: "journal-run",
         owner,
         sourceId: "journal-test",
         execute: () => Effect.succeed({ ok: true })
       })({
-        activity: {},
+        action: {},
         attempt: 1,
         key: "caller-supplied-journal-key",
         tier: "sealed",
@@ -87,13 +87,13 @@ describe("engine-store journal integration", () => {
       }
       yield* runs.activate("fresh-engine-run", owner, freshClaim.claimedAtMs, freshSnapshot)
       let dispatches = 0
-      yield* ActivityPersistence.make({
+      yield* ActionPersistence.make({
         runId: "fresh-engine-run",
         owner,
         sourceId: "first-engine",
         execute: () => Effect.sync(() => ++dispatches)
       })({
-        activity: {},
+        action: {},
         attempt: 1,
         key: "fresh-engine-key",
         tier: "sealed",
@@ -107,13 +107,13 @@ describe("engine-store journal integration", () => {
         return yield* Effect.die(new Error("fresh engine poll claim was lost"))
       }
       yield* runs.activate("fresh-engine-poll", owner, pollClaim.claimedAtMs, pollSnapshot)
-      const second = yield* ActivityPersistence.make({
+      const second = yield* ActionPersistence.make({
         runId: "fresh-engine-poll",
         owner,
         sourceId: "second-engine",
         execute: () => Effect.sync(() => ++dispatches)
       })({
-        activity: {},
+        action: {},
         attempt: 1,
         key: "fresh-engine-key",
         tier: "sealed",

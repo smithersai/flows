@@ -82,7 +82,7 @@ body *actually* read and wrote. Two contracts split that job:
 
 The host is untouched until `materialize`, a compare-and-set on every changed
 file's pre-image that applies the whole diff bundle or none of it. That is why
-a sealed activity composed this way may enter the shared step cache: its
+a sealed action composed this way may enter the shared step cache: its
 evidence carries whole-tree write verification honestly. It is also why writes
 reach the host at exactly one place, which is where the human diff-review gate
 of `docs/specs/Concepts/Diff Review.md` will attach.

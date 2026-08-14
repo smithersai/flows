@@ -20,14 +20,14 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
-import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "read-set-host", pid: 21, nonce: "read-set-process" }
 
-const declared: ActivityPersistence.BoundaryMetadata = {
+const declared: ActionPersistence.BoundaryMetadata = {
   readSet: [{ path: "config.json", digest: "D1" }],
   writeSet: ["output.txt"],
   boundaryMode: "hard"
@@ -58,8 +58,8 @@ const activate = (runId: string) =>
   })
 
 const dispatch = (runId: string, key: string, execute: () => Effect.Effect<unknown, unknown>) =>
-  ActivityPersistence.make({ runId, owner, sourceId: `read-set-${runId}`, execute })({
-    activity: {},
+  ActionPersistence.make({ runId, owner, sourceId: `read-set-${runId}`, execute })({
+    action: {},
     attempt: 1,
     key,
     tier: "sealed",
@@ -132,7 +132,7 @@ describe("sealed cache hits verify the measured read set (issue #90)", () => {
       replayWithMeasurement("stale-digest", [{ path: "config.json", digest: "D2" }])
     )
     expect(result.second).toBe("recorded")
-    // The stale hit is refused: the activity runs a second time instead of
+    // The stale hit is refused: the action runs a second time instead of
     // replaying the pre-edit result and its boundary outputs.
     expect(result.executions).toBe(2)
     expect(result.replays).toBe(0)

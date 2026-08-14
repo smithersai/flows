@@ -6,7 +6,7 @@
  *
  * @since 4.0.0
  */
-import { Activity, type DurableDeferred, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow-next"
+import { Action, type DurableDeferred, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow-next"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
@@ -15,8 +15,8 @@ import * as Exit from "effect/Exit"
 import * as Option from "effect/Option"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
-import { activityKey, ordinalScope, uncanonicalKey } from "./ActivityKey.ts"
-import type { ActivityExecuteOptions, Encoded } from "./Encoded.ts"
+import { actionKey, ordinalScope, uncanonicalKey } from "./ActionKey.ts"
+import type { ActionExecuteOptions, Encoded } from "./Encoded.ts"
 import * as Round from "./Round.ts"
 import { SnapshotBoundary, type SnapshotBoundaryOptions } from "./SnapshotBoundary.ts"
 
@@ -149,7 +149,7 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
       const resumeStartMs = yield* Clock.currentTimeMillis
       while (true) {
         const wrapped = Option.isSome(parentInstance)
-          ? yield* Flow.wrapActivityResult(
+          ? yield* Flow.wrapActionResult(
             current,
             (result) => result._tag === "Suspended"
           )
@@ -243,32 +243,32 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
     interrupt: options.interrupt,
     interruptUnsafe: options.interruptUnsafe,
     resume: options.resume,
-    // Untraced because activity retries are a hot path within a flow run.
-    activityExecute: Effect.fnUntraced(function*<
+    // Untraced because action retries are a hot path within a flow run.
+    actionExecute: Effect.fnUntraced(function*<
       Success extends Schema.Constraint,
       Error extends Schema.Constraint,
       R
-    >(activity: Activity.Activity<Success, Error, R>, attempt: number) {
+    >(action: Action.Action<Success, Error, R>, attempt: number) {
       const instance = yield* FlowRuntime.FlowInstance
-      // `Activity.retry` hands down an empty slot map rather than a number:
-      // the ordinal can only be allocated here, where the activity — and so
+      // `Action.retry` hands down an empty slot map rather than a number:
+      // the ordinal can only be allocated here, where the action — and so
       // its allocation scope — is known (issue #73). The slot is keyed by
-      // scope so a retry block dispatching several distinct activities pins
+      // scope so a retry block dispatching several distinct actions pins
       // each to its own ordinal (issue #84), reused across every attempt of
       // the sequence. Within one attempt the n-th dispatch of a scope takes
       // the n-th pinned ordinal (issue #100): a retry block may dispatch one
       // declaration several times, and each dispatch owns its own identity —
       // allocated on the attempt that first reaches it, replayed by position
       // on every later attempt.
-      const scopeResult = yield* Effect.result(ordinalScope(activity))
+      const scopeResult = yield* Effect.result(ordinalScope(action))
       if (Result.isFailure(scopeResult)) {
-        return uncanonicalKey(activity.name, scopeResult.failure)
+        return uncanonicalKey(action.name, scopeResult.failure)
       }
       const scope = scopeResult.success
-      const slot = yield* Activity.CurrentOrdinal
+      const slot = yield* Action.CurrentOrdinal
       let ordinal: number
       if (slot === undefined) {
-        ordinal = instance.activityState.nextOrdinal(scope)
+        ordinal = instance.actionState.nextOrdinal(scope)
       } else {
         const index = slot.cursors.get(scope) ?? 0
         slot.cursors.set(scope, index + 1)
@@ -276,20 +276,20 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
         if (index < pinned.length) {
           ordinal = pinned[index]!
         } else {
-          ordinal = instance.activityState.nextOrdinal(scope)
+          ordinal = instance.actionState.nextOrdinal(scope)
           pinned.push(ordinal)
           slot.values.set(scope, pinned)
         }
       }
       // Invocation keys are run-local, so the environment is not their key
-      // material; `activityKey` folds it into cache keys only (issue #75).
-      const environment = yield* Activity.CurrentCacheEnvironment
-      // `AnyWithProps` widening: `activityKey` needs the declared schemas so
+      // material; `actionKey` folds it into cache keys only (issue #75).
+      const environment = yield* Action.CurrentCacheEnvironment
+      // `AnyWithProps` widening: `actionKey` needs the declared schemas so
       // the string-form sealed identity folds the compiled declaration
-      // (issue #120); every activity built by `Activity.make` carries them,
+      // (issue #120); every action built by `Action.make` carries them,
       // only the `Schema.Constraint` type parameters resist the assignment.
-      const keyResult = yield* Effect.result(activityKey(
-        activity as unknown as Activity.AnyWithProps,
+      const keyResult = yield* Effect.result(actionKey(
+        action as unknown as Action.AnyWithProps,
         instance.executionId,
         ordinal,
         environment,
@@ -300,24 +300,24 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
          above first, so this branch is unreachable until the environment or
          hermetic folding gains fallible material of its own. */
       if (Result.isFailure(keyResult)) {
-        return uncanonicalKey(activity.name, keyResult.failure)
+        return uncanonicalKey(action.name, keyResult.failure)
       }
       const key = keyResult.success
-      const policy = activity.retryPolicy
+      const policy = action.retryPolicy
       // Elapsed retry time for the policy's expiration bound. Durable
       // drivers persist the first attempt's start time alongside the attempt
-      // row and expose it through `activityRetryOrigin`, so the
+      // row and expose it through `actionRetryOrigin`, so the
       // schedule-to-close budget survives park/resume and process death
       // (issue #45, mirroring Temporal's persisted expiration interval). The
       // in-process clock is the fallback for engines without durable
       // attempts.
       const durableOrigin = policy?.expirationMs !== undefined &&
-          options.activityRetryOrigin !== undefined
-        ? yield* options.activityRetryOrigin({ key })
+          options.actionRetryOrigin !== undefined
+        ? yield* options.actionRetryOrigin({ key })
         : Option.none<number>()
       if (
         policy?.expirationMs !== undefined &&
-        options.activityRetryOrigin !== undefined &&
+        options.actionRetryOrigin !== undefined &&
         Option.isNone(durableOrigin)
       ) {
         // A durable driver that finds no surviving attempt row cannot bound
@@ -326,7 +326,7 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
         // turn benign attempt-row retention pruning into spurious failures —
         // but the restarted budget is worth a trace (issue #69).
         yield* Effect.logWarning(
-          `FlowEngine.activityExecute: no durable retry origin for "${activity.name}"; the expirationMs budget restarts from the current clock`
+          `FlowEngine.actionExecute: no durable retry origin for "${action.name}"; the expirationMs budget restarts from the current clock`
         )
       }
       const retryStartMs = Option.isSome(durableOrigin)
@@ -336,38 +336,38 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
       // sequence keeps its numbering across process death, so replayed
       // failed attempts do not re-sleep the backoff ladder from attempt 1
       // and the retry decision below sees the true attempt count.
-      const latestAttempt = options.activityLatestAttempt !== undefined
-        ? yield* options.activityLatestAttempt({ key })
+      const latestAttempt = options.actionLatestAttempt !== undefined
+        ? yield* options.actionLatestAttempt({ key })
         : Option.none<number>()
       let currentAttempt = Option.isSome(latestAttempt) && latestAttempt.value > attempt
         ? latestAttempt.value
         : attempt
       while (true) {
         if (
-          activity.tier === "irreversible" &&
+          action.tier === "irreversible" &&
           currentAttempt > 1 &&
-          activity.idempotencyKey === undefined
+          action.idempotencyKey === undefined
         ) {
           return yield* Effect.die(
-            new Activity.IrreversibleRetryRequiresIdempotencyKey({
-              activityName: activity.name,
+            new Action.IrreversibleRetryRequiresIdempotencyKey({
+              actionName: action.name,
               attempt: currentAttempt
             })
           )
         }
-        const input: ActivityExecuteOptions = {
-          activity,
+        const input: ActionExecuteOptions = {
+          action,
           attempt: currentAttempt,
           key,
-          tier: activity.tier,
-          metadata: activity.metadata
+          tier: action.tier,
+          metadata: action.metadata
         }
         let result: Flow.Result<unknown, unknown>
-        if (activity.tier === "compensable") {
+        if (action.tier === "compensable") {
           const boundaryOption = yield* Effect.serviceOption(SnapshotBoundary)
           if (Option.isNone(boundaryOption)) {
             return yield* Effect.die(
-              `Compensable activity "${activity.name}" requires SnapshotBoundary`
+              `Compensable action "${action.name}" requires SnapshotBoundary`
             )
           }
           const boundary = boundaryOption.value
@@ -376,24 +376,24 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
             executionId: instance.executionId,
             key,
             attempt: currentAttempt,
-            metadata: activity.metadata
+            metadata: action.metadata
           }
-          if (currentAttempt > 1 && instance.activityState.snapshots.has(key)) {
+          if (currentAttempt > 1 && instance.actionState.snapshots.has(key)) {
             yield* boundary.restore(
-              instance.activityState.snapshots.get(key),
+              instance.actionState.snapshots.get(key),
               boundaryOptions
             )
           }
           const snapshot = yield* boundary.snapshot(boundaryOptions)
-          instance.activityState.snapshots.set(key, snapshot)
-          result = yield* options.activityExecute(input).pipe(
+          instance.actionState.snapshots.set(key, snapshot)
+          result = yield* options.actionExecute(input).pipe(
             Effect.ensuring(Effect.asVoid(boundary.diff(snapshot, boundaryOptions))),
-            Effect.provideService(Activity.CurrentAttempt, currentAttempt),
-            Effect.provideService(Activity.CurrentInvocationKey, key)
+            Effect.provideService(Action.CurrentAttempt, currentAttempt),
+            Effect.provideService(Action.CurrentInvocationKey, key)
           )
         } else {
-          result = yield* options.activityExecute(input).pipe(
-            Effect.provideService(Activity.CurrentAttempt, currentAttempt),
+          result = yield* options.actionExecute(input).pipe(
+            Effect.provideService(Action.CurrentAttempt, currentAttempt),
             // DECIDED (2026-08-11, pending review): the dispatch's own key is
             // handed to the implementation rather than left engine-private. An
             // implementation that names durable state of its own — `Sleep`
@@ -401,15 +401,15 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
             // replays of one node and distinct between two identical calls,
             // and this key already is both: it is allocated here on EVERY
             // dispatch, including a replayed one, because the driver reached
-            // through `options.activityExecute` addresses the recorded outcome
+            // through `options.actionExecute` addresses the recorded outcome
             // by it. Deriving a second identity in the implementation would
             // duplicate the allocation and drift from it; the attempt is
             // deliberately not folded in, so a retried wait rejoins the timer
             // it already armed.
-            Effect.provideService(Activity.CurrentInvocationKey, key)
+            Effect.provideService(Action.CurrentInvocationKey, key)
           )
         }
-        // Suspension is the activity path's only non-exit settlement; the
+        // Suspension is the action path's only non-exit settlement; the
         // narrowing is written as "not complete" so the flow-only handoff
         // variant needs no unreachable arm of its own.
         if (result._tag !== "Complete") {
@@ -436,7 +436,7 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
               return new Flow.Complete({
                 exit: Exit.die(
                   new RetryPolicy.RetryAttemptsExhausted({
-                    activityName: activity.name,
+                    actionName: action.name,
                     attempt: currentAttempt,
                     maxAttempts: policy.maxAttempts ?? currentAttempt,
                     lastError: failure.error
@@ -448,7 +448,7 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
               return new Flow.Complete({
                 exit: Exit.die(
                   new RetryPolicy.RetryPolicyExpired({
-                    activityName: activity.name,
+                    actionName: action.name,
                     attempt: currentAttempt,
                     // `expired` is only ever produced by a policy that
                     // declares `expirationMs`, so the bound is always present.
@@ -462,11 +462,11 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
           }
         }
         const exit = yield* Effect.orDie(
-          Schema.decodeEffect(activity.exitSchemaPartial)(toJsonExit(result.exit))
+          Schema.decodeEffect(action.exitSchemaPartial)(toJsonExit(result.exit))
         )
         return new Flow.Complete({ exit })
       }
-    }, (body, activity) =>
+    }, (body, action) =>
       // Ordinal-keyed invocations of one allocation scope are
       // allocation-ordered: with two in flight at once the ordinals — and so
       // the step keys, attempt rows, and recorded outcomes — would be
@@ -477,8 +477,8 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
       // closure), so the hazard is refused up front — Temporal's
       // nondeterminism error, moved to the first run — and a declared
       // idempotencyKey *distinguishing the invocations* is the way out.
-      // Only a sealed activity with a key escapes the refusal: it takes a
-      // pure cache key with no ordinal at all. A keyed activity at any
+      // Only a sealed action with a key escapes the refusal: it takes a
+      // pure cache key with no ordinal at all. A keyed action at any
       // other tier still resolves to an invocation key whose scope folds the
       // key, so two concurrent SAME-key dispatches share one scope and have
       // exactly the arrival-order hazard — and, nested in sibling retry
@@ -486,10 +486,10 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
       // would even hand both dispatches the same pinned ordinal (issue
       // #130). Distinct keys are distinct scopes and overlap freely.
       Effect.gen(function*() {
-        if (activity.tier === "sealed" && activity.idempotencyKey !== undefined) return yield* body
+        if (action.tier === "sealed" && action.idempotencyKey !== undefined) return yield* body
         const instance = yield* FlowRuntime.FlowInstance
-        const inFlight = instance.activityState.keylessInFlight
-        const scope = yield* ordinalScope(activity).pipe(Effect.orDie)
+        const inFlight = instance.actionState.keylessInFlight
+        const scope = yield* ordinalScope(action).pipe(Effect.orDie)
         // The acquire and its release live in one uninterruptible region
         // (issue #139): a bare `add` followed by `Effect.ensuring` left a
         // one-op window — after the add, before the finalizer registered —
@@ -506,7 +506,7 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
             acquired
               ? body
               : Effect.die(
-                new Activity.ConcurrentKeylessDispatch({ activityName: activity.name })
+                new Action.ConcurrentKeylessDispatch({ actionName: action.name })
               ),
           (acquired) => acquired ? Effect.sync(() => inFlight.delete(scope)) : Effect.void
         )

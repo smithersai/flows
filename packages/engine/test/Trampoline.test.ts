@@ -3,14 +3,14 @@
  * handing off, the derived round identity underneath it, the round budget, and
  * what a handoff to a flow this engine has never been told about does.
  */
-import { Activity, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
+import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Cause, Effect, Exit, Layer, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
 import { runPromise } from "./Crypto.ts"
 
-const Increment = Activity.make("trampoline/increment", {
+const Increment = Action.make("trampoline/increment", {
   payload: { value: Schema.Number },
   success: Schema.Number
 })
@@ -23,7 +23,7 @@ type CounterFlow = Flow.Flow<
   typeof Schema.Never,
   // `.to()` drops the callee's requirements, so a lineage that hands off to
   // itself names only what one round calls and the type stays finite.
-  Activity.Requirement<"trampoline/increment">
+  Action.Requirement<"trampoline/increment">
 >
 
 /**
@@ -67,14 +67,14 @@ const OriginBounded = Flow.make("trampoline/origin-bounded", {
   maxRounds: 1,
   body: ({ value }) => UnboundedTarget.to({ value })
 })
-const ParentActivityDeclaration = Activity.make("trampoline/parent/activity", {
+const ParentActionDeclaration = Action.make("trampoline/parent/action", {
   payload: { target: Schema.Number },
   success: Schema.Number
 })
 const Parent = Flow.make("trampoline/parent", {
   payload: { target: Schema.Number },
   success: Schema.Number,
-  body: (payload) => ParentActivityDeclaration.call(payload)
+  body: (payload) => ParentActionDeclaration.call(payload)
 })
 
 /** Every increment the lineage dispatched, in order. */
@@ -87,8 +87,8 @@ const wire = <
       // below does — so it is allowed to ask for the increment this wiring
       // provides.
       | FlowRuntime.FlowRuntime
-      | Activity.Implementations
-      | Activity.Requirement<"trampoline/increment">
+      | Action.Implementations
+      | Action.Requirement<"trampoline/increment">
     >
   >
 >(...registrations: Registrations) => {
@@ -105,7 +105,7 @@ const wire = <
         })
       )
     ),
-    Layer.provideMerge(Activity.layerImplementations),
+    Layer.provideMerge(Action.layerImplementations),
     Layer.provideMerge(FlowEngine.layerMemory)
   )
   return { calls, layer }
@@ -229,12 +229,12 @@ describe("a lineage on the memory engine", () => {
     const { calls, layer } = wire(
       Interpreter.layer(Counter),
       Layer.mergeAll(
-        ParentActivityDeclaration.toLayer(({ target }) =>
+        ParentActionDeclaration.toLayer(({ target }) =>
           Counter.execute({ value: 0, target }, { executionId: "memory-child-lineage" })
         ),
         Interpreter.layer(Parent)
       ).pipe(
-        Layer.provideMerge(Activity.layerImplementations)
+        Layer.provideMerge(Action.layerImplementations)
       )
     )
 

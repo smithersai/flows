@@ -5,7 +5,7 @@
  *
  * Every other suite in this tree proves one package's contract. This one buys
  * the claim the two notes actually make to an author: that the nouns compose —
- * an `Activity` that does work, a `Flow` whose pure `body` is planned before it
+ * an `Action` that does work, a `Flow` whose pure `body` is planned before it
  * runs, a branch that decides on real values, a lineage that keeps outputting
  * flows — and that the result of composing them survives a process that dies in
  * the middle. So each case here drives the real SQLite-backed stores rather
@@ -30,7 +30,7 @@ import { TestClock } from "effect/testing"
 import { createHash, webcrypto } from "node:crypto"
 import { describe, expect, it } from "vitest"
 import {
-  Activity,
+  Action,
   DurableDeferred,
   EngineStore as EngineStorePackage,
   Flow,
@@ -115,8 +115,8 @@ const durableTimed = <A, E, R>(body: Effect.Effect<A, E, R>): Promise<A> =>
     ) as Effect.Effect<A>
   )
 
-/** The layer type an activity implementation registers itself through. */
-type Implementation = Layer.Layer<never, never, Activity.Implementations | FlowRuntime.FlowRuntime>
+/** The layer type an action implementation registers itself through. */
+type Implementation = Layer.Layer<never, never, Action.Implementations | FlowRuntime.FlowRuntime>
 
 /**
  * One engine incarnation over already-provided stores, with the flows it can
@@ -140,7 +140,7 @@ const incarnation = (options: {
       // topology hides, which is the erasure every sibling suite makes here.
       ...options.flows.map((flow) => Interpreter.layer(flow as never) as Implementation)
     ].reduce<Implementation>((left, right) => Layer.merge(left, right), Layer.empty).pipe(
-      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(Action.layerImplementations),
       Layer.provideMerge(Layer.succeed(FlowRuntime.FlowRuntime, engine))
     )
     return { engine, wiring }
@@ -176,7 +176,7 @@ const refused = (build: () => unknown): PlanPackage.GraphBuildError.GraphBuildEr
   throw new Error("the build was expected to be refused, and was not")
 }
 
-const Increment = Activity.make("e2e/increment", {
+const Increment = Action.make("e2e/increment", {
   payload: { value: Schema.Number },
   success: Schema.Number
 })
@@ -198,14 +198,14 @@ type CounterFlow = Flow.Flow<
   typeof Schema.Never,
   // `.to()` drops the callee's requirements, so a lineage that hands off to
   // itself names only what one round calls and the type stays finite.
-  Activity.Requirement<"e2e/increment">
+  Action.Requirement<"e2e/increment">
 >
 
 /** The recursion edge a body cannot name inside its own declaration. */
 const counters = new Map<string, CounterFlow>()
 
 /**
- * `docs/specs/Concepts/Trampoline Loops.md`'s counter, verbatim: one activity,
+ * `docs/specs/Concepts/Trampoline Loops.md`'s counter, verbatim: one action,
  * one branch, and a handoff to itself in the arm that has not arrived yet.
  */
 const counter = (tag: string, maxRounds?: number): CounterFlow => {
@@ -293,7 +293,7 @@ describe("a lineage counts to 100", () => {
       }
     }))
 
-    // The predicate ran on the REAL value the activity produced, and the arm it
+    // The predicate ran on the REAL value the action produced, and the arm it
     // did not take opened no round at all.
     expect(observed.value).toBe(101)
     expect(calls).toEqual([100])
@@ -307,7 +307,7 @@ describe("a lineage counts to 100", () => {
     const ids = Graph.nodes(graph).map((node) => node.id)
 
     // The exit condition and the handoff site are in the plan of round one,
-    // side by side, before the first activity has run.
+    // side by side, before the first action has run.
     expect(graph.diagnostics).toEqual([])
     expect(ids).toContain("root.flow.then")
     expect(ids).toContain("root.flow.else")
@@ -316,7 +316,7 @@ describe("a lineage counts to 100", () => {
   })
 })
 
-const Stage = Activity.make("e2e/stage", {
+const Stage = Action.make("e2e/stage", {
   payload: { label: Schema.String, value: Schema.Number },
   success: Schema.Number
 })
@@ -539,7 +539,7 @@ describe("a body is refused for computing on a value that does not exist yet", (
   })
 
   it("names the field path the body reached through before it computed", () => {
-    const Shaped = Activity.make("e2e/shaped", {
+    const Shaped = Action.make("e2e/shaped", {
       payload: { value: Schema.Number },
       success: Schema.Struct({ count: Schema.Number })
     })
@@ -567,7 +567,7 @@ describe("a body is refused for computing on a value that does not exist yet", (
   })
 
   it("allows the same value to be passed, and reads the field it named", async () => {
-    const Counted = Activity.make("e2e/counted", {
+    const Counted = Action.make("e2e/counted", {
       payload: { value: Schema.Number },
       success: Schema.Struct({ count: Schema.Number })
     })
@@ -750,7 +750,7 @@ describe("a child boundary is a real execution", () => {
   })
 })
 
-const Mark = Activity.make("e2e/mark", {
+const Mark = Action.make("e2e/mark", {
   payload: { label: Schema.String },
   success: Schema.String
 })
@@ -769,7 +769,7 @@ const Napping = Flow.make("e2e/napping", {
   success: Schema.String,
   body: ({ millis }) =>
     Mark.call({ label: "before" }).pipe(
-      Node.andThen(() => Sleep.activity.call({ millis })),
+      Node.andThen(() => Sleep.action.call({ millis })),
       Node.andThen(() => Mark.call({ label: "after" }))
     )
 })
@@ -779,11 +779,11 @@ const Gated = Flow.make("e2e/gated", {
   success: Schema.Json,
   body: ({ name }) =>
     Mark.call({ label: "before" }).pipe(
-      Node.andThen(() => WaitFor.activity.call({ name }))
+      Node.andThen(() => WaitFor.action.call({ name }))
     )
 })
 
-describe("the system wait activities park and wake durably", () => {
+describe("the system wait actions park and wake durably", () => {
   it("parks a sleep under timer with its deadline, and the clock's fire resumes it", async () => {
     const marks: Array<string> = []
     const observed = await durableTimed(Effect.gen(function*() {
@@ -872,7 +872,7 @@ describe("the system wait activities park and wake durably", () => {
   })
 })
 
-const Fallible = Activity.make("e2e/fallible", {
+const Fallible = Action.make("e2e/fallible", {
   payload: { error: Schema.String },
   success: Schema.Number,
   error: Schema.String

@@ -3,35 +3,35 @@
  * what each node variant does when it is driven with real values, and what the
  * interpreter refuses.
  */
-import { Activity, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
+import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
 import { Node, Planned } from "@smthrs/plan-next"
 import { Context, Effect, Exit, Layer, Schema } from "effect"
 import { describe, expect, expectTypeOf, it } from "vitest"
 import { runPromise } from "./Crypto.ts"
 import { layerMemory, makeInstance } from "./MemoryFlowRuntime.ts"
 
-const Read = Activity.make("interpreter/read", {
+const Read = Action.make("interpreter/read", {
   payload: { path: Schema.String },
   success: Schema.Struct({ value: Schema.Number, files: Schema.Array(Schema.String) })
 })
 
-const Write = Activity.make("interpreter/write", {
+const Write = Action.make("interpreter/write", {
   payload: { path: Schema.String, value: Schema.Number },
   success: Schema.Number
 })
 
-const Sum = Activity.make("interpreter/sum", {
+const Sum = Action.make("interpreter/sum", {
   payload: { values: Schema.Array(Schema.Number), label: Schema.String },
   success: Schema.Number
 })
 
-const Fallible = Activity.make("interpreter/fallible", {
+const Fallible = Action.make("interpreter/fallible", {
   payload: { fail: Schema.Boolean, error: Schema.String },
   success: Schema.Number,
   error: Schema.String
 })
 
-/** The calls each activity received, in the order the walk dispatched them. */
+/** The calls each action received, in the order the walk dispatched them. */
 const calls: Array<string> = []
 
 const implementations = Layer.mergeAll(
@@ -57,24 +57,24 @@ const implementations = Layer.mergeAll(
 )
 
 /** What a layer under test may ask for: the table, and a runtime to register with. */
-type Wiring = Layer.Layer<never, never, FlowRuntime.FlowRuntime | Activity.Implementations>
+type Wiring = Layer.Layer<never, never, FlowRuntime.FlowRuntime | Action.Implementations>
 
 /** Everything a driven body needs: the table, the implementations, a runtime. */
 const wired = (
   registration: Wiring = Layer.empty
 ): Layer.Layer<
-  Layer.Success<typeof implementations> | FlowRuntime.FlowRuntime | Activity.Implementations
+  Layer.Success<typeof implementations> | FlowRuntime.FlowRuntime | Action.Implementations
 > =>
   Layer.merge(implementations, registration).pipe(
-    Layer.provideMerge(Activity.layerImplementations),
+    Layer.provideMerge(Action.layerImplementations),
     Layer.provideMerge(layerMemory)
   )
 
 /** A bare interpretation, outside any registered flow execution. */
 const drive = <A, E>(
-  effect: Effect.Effect<A, E, FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime | Activity.Implementations>,
+  effect: Effect.Effect<A, E, FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime | Action.Implementations>,
   layer: Layer.Layer<
-    FlowRuntime.FlowRuntime | Activity.Implementations,
+    FlowRuntime.FlowRuntime | Action.Implementations,
     never,
     never
   > = wired()
@@ -102,7 +102,7 @@ const refusal = async (
   effect: Effect.Effect<
     unknown,
     unknown,
-    FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime | Activity.Implementations
+    FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime | Action.Implementations
   >
 ): Promise<unknown> => {
   const exit = await drive(Effect.exit(effect))
@@ -111,7 +111,7 @@ const refusal = async (
 }
 
 describe("Interpreter.layer", () => {
-  it("drives activities, reference paths, and a deferred map end to end", async () => {
+  it("drives actions, reference paths, and a deferred map end to end", async () => {
     calls.length = 0
     const Pipeline = Flow.make("interpreter/pipeline", {
       payload: { path: Schema.String },
@@ -180,21 +180,21 @@ describe("Interpreter payload resolution", () => {
 })
 
 describe("Interpreter branches", () => {
-  const Increment = Activity.make("interpreter/increment", {
+  const Increment = Action.make("interpreter/increment", {
     payload: { path: Schema.String },
     success: Schema.Number
   })
 
   const CountTo = (settledValue: number) =>
     Layer.mergeAll(Increment.toLayer(() => Effect.succeed(settledValue))).pipe(
-      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(Action.layerImplementations),
       Layer.provideMerge(layerMemory)
     )
 
   const Decide = Flow.make("interpreter/decide", {
     payload: { path: Schema.String, target: Schema.Number },
     success: Schema.Unknown,
-    body: ({ path, target }): Node.Node<unknown, never, Activity.Requirement<"interpreter/increment">> =>
+    body: ({ path, target }): Node.Node<unknown, never, Action.Requirement<"interpreter/increment">> =>
       Increment.call({ path }).pipe(
         Node.branch({
           if: (value) => value >= target,
@@ -384,12 +384,12 @@ describe("Interpreter node variants", () => {
 })
 
 describe("Interpreter refusals", () => {
-  const Missing = Activity.make("interpreter/missing", {
+  const Missing = Action.make("interpreter/missing", {
     payload: { path: Schema.String },
     success: Schema.Number
   })
 
-  it("names the activity that has no implementation", async () => {
+  it("names the action that has no implementation", async () => {
     const Orphan = Flow.make("interpreter/orphan", {
       payload: { path: Schema.String },
       success: Schema.Number,
@@ -399,7 +399,7 @@ describe("Interpreter refusals", () => {
     expect(await refusal(Interpreter.interpret(Orphan, { path: "counter.txt" }))).toMatchObject({
       error: {
         _tag: "@smthrs/flow-next/InterpreterError",
-        code: "unresolved_activity",
+        code: "unresolved_action",
         flow: "interpreter/orphan",
         node: "root.flow",
         message: expect.stringContaining("interpreter/missing.toLayer(execute)")
@@ -407,7 +407,7 @@ describe("Interpreter refusals", () => {
     })
   })
 
-  it("refuses an unimplemented activity before the implemented ones ahead of it run", async () => {
+  it("refuses an unimplemented action before the implemented ones ahead of it run", async () => {
     calls.length = 0
     // Wiring is knowable from the graph, so it is refused from the graph. The
     // alternative surfaces the same error after `Read` has already committed
@@ -419,7 +419,7 @@ describe("Interpreter refusals", () => {
     })
 
     expect(await refusal(Interpreter.interpret(Half, { path: "counter.txt" }))).toMatchObject({
-      error: { code: "unresolved_activity", node: "root.flow.then" }
+      error: { code: "unresolved_action", node: "root.flow.then" }
     })
     expect(calls).toEqual([])
   })
@@ -510,7 +510,7 @@ describe("a flow's behavior is its body", () => {
     expect("BodyDefinesBehavior" in Flow).toBe(false)
     expectTypeOf<Interpreter.InterpreterError["code"]>().toEqualTypeOf<
       | "incomplete_graph"
-      | "unresolved_activity"
+      | "unresolved_action"
       | "unresolved_reference"
       | "unsupported_call"
       | "missing_operation"

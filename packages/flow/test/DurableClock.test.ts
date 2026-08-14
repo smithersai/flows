@@ -1,6 +1,6 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, DurableClock, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
+import { Action, DurableClock, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Duration, Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
@@ -35,7 +35,7 @@ describe("DurableClock", () => {
     }))
 
   effect("a zero duration sleep returns without waiting on the clock", () => {
-    const Step = Activity.make("DurableClock/zero/step", {
+    const Step = Action.make("DurableClock/zero/step", {
       payload: { id: Schema.String },
       success: Schema.String
     })
@@ -61,7 +61,7 @@ describe("DurableClock", () => {
   })
 
   effect("sleeps at or below the in-memory threshold never suspend the flow", () => {
-    const Step = Activity.make("DurableClock/in-memory/step", {
+    const Step = Action.make("DurableClock/in-memory/step", {
       payload: { id: Schema.String },
       success: Schema.String
     })
@@ -96,7 +96,7 @@ describe("DurableClock", () => {
   })
 
   effect("the in-memory threshold boundary is inclusive and configurable", () => {
-    const Step = Activity.make("DurableClock/threshold/step", {
+    const Step = Action.make("DurableClock/threshold/step", {
       payload: { id: Schema.String },
       success: Schema.String
     })
@@ -132,7 +132,7 @@ describe("DurableClock", () => {
   })
 
   effect("sleeps above the threshold suspend the flow until the durable clock fires", () => {
-    const Step = Activity.make("DurableClock/durable/step", {
+    const Step = Action.make("DurableClock/durable/step", {
       payload: { id: Schema.String },
       success: Schema.String
     })
@@ -171,7 +171,7 @@ describe("DurableClock", () => {
   })
 
   effect("sequential durable sleeps each wake at their own deadline", () => {
-    const Step = Activity.make("DurableClock/sequential/step", {
+    const Step = Action.make("DurableClock/sequential/step", {
       payload: { id: Schema.String },
       success: Schema.Number
     })
@@ -190,7 +190,7 @@ describe("DurableClock", () => {
             duration: "5 minutes",
             inMemoryThreshold: "1 second"
           })
-          yield* Activity.make({
+          yield* Action.make({
             name: "sequential/mark-first",
             tier: "sealed",
             idempotencyKey: "sequential/mark-first",
@@ -227,7 +227,7 @@ describe("DurableClock", () => {
   })
 
   effect("an early wake wins the race against the armed timer, which then fires into a no-op", () => {
-    const Step = Activity.make("DurableClock/early-wake/step", {
+    const Step = Action.make("DurableClock/early-wake/step", {
       payload: { id: Schema.String },
       success: Schema.Number
     })

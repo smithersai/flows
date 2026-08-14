@@ -24,7 +24,7 @@ import { dirname, join } from "node:path"
 
 /**
  * A Jujutsu service that records nothing. The engine calls it for compensable
- * snapshots; the examples use sealed activities, so a stub keeps the wiring
+ * snapshots; the examples use sealed actions, so a stub keeps the wiring
  * honest without requiring a jj binary.
  */
 export const stubJj = Layer.succeed(
@@ -55,7 +55,7 @@ export const storesLayer = (filename: string) => {
 }
 
 /**
- * The workspace an example's activities read and write. It defaults to the
+ * The workspace an example's actions read and write. It defaults to the
  * directory holding the SQLite file, so a temp-file example is confined to its
  * own temp directory.
  */
@@ -82,7 +82,7 @@ const hostLayer = (filename: string) =>
  *
  * The boundary and the sandbox are the PRODUCTION layers — `StepBoundary.layer`
  * and `WorkspaceSandbox.layerFileSystem`, not `StepBoundary.layerTest`. That
- * pairing is what makes a sealed activity's result eligible for the shared
+ * pairing is what makes a sealed action's result eligible for the shared
  * step cache: the sandbox runs the body in an isolated workspace and observes
  * the whole tree, so the boundary evidence can honestly claim
  * `wholeTreeWritesVerified`. With `layerTest` the claim was a test fixture and

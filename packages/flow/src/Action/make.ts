@@ -1,7 +1,7 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 /**
- * Constructs executable durable activity values.
+ * Constructs executable durable action values.
  *
  * @since 4.0.0
  */
@@ -19,13 +19,13 @@ import * as Flow from "../Flow/index.ts"
 import { FlowInstance } from "../FlowRuntime/FlowInstance.ts"
 import { FlowRuntime } from "../FlowRuntime/FlowRuntime.ts"
 import type * as RetryPolicy from "../RetryPolicy.ts"
-import type { Activity, Declared, IdempotencyKey, Requirement, Tier } from "./Activity.ts"
+import type { Action, Declared, IdempotencyKey, Requirement, Tier } from "./Action.ts"
 import { CurrentAttempt } from "./Context.ts"
 import { type Implementation, Implementations } from "./Implementations.ts"
 import { TypeId } from "./TypeId.ts"
 
 /**
- * Creates a flow activity from an effect, using the provided schemas to
+ * Creates a flow action from an effect, using the provided schemas to
  * encode successes and failures for durable execution.
  *
  * @category constructors
@@ -46,7 +46,7 @@ const makeInline = <
   readonly interruptRetryPolicy?: Schedule.Schedule<any, unknown> | undefined
   readonly retryPolicy?: RetryPolicy.RetryPolicy | undefined
   readonly annotations?: Context.Context<never> | undefined
-}): Activity<Success, Error, Exclude<R, FlowInstance | FlowRuntime | Scope>> => {
+}): Action<Success, Error, Exclude<R, FlowInstance | FlowRuntime | Scope>> => {
   const successSchema = options.success ?? (Schema.Void as any as Success)
   const errorSchema = options.error ?? (Schema.Never as any as Error)
   const successSchemaJson = Schema.toCodecJson(successSchema)
@@ -57,9 +57,9 @@ const makeInline = <
     options.name,
     options.interruptRetryPolicy
   )(options.execute)
-  const self: Activity<Success, Error, Exclude<R, FlowInstance | FlowRuntime>> = {
-    ...Effectable.Prototype<Activity<Success, Error, R>>({
-      label: "Activity",
+  const self: Action<Success, Error, Exclude<R, FlowInstance | FlowRuntime>> = {
+    ...Effectable.Prototype<Action<Success, Error, R>>({
+      label: "Action",
       evaluate(_) {
         return execute
       }
@@ -126,7 +126,7 @@ const makeDeclared = <
   // compared by their string key, so re-minting one for an annotated copy of
   // this declaration names the same slot the original does.
   const requirement = Context.Service<Requirement<Tag>, Implementation>(
-    `@smthrs/flow-next/Activity/Requirement/${tag}`
+    `@smthrs/flow-next/Action/Requirement/${tag}`
   )
   const self: Declared<Tag, PayloadSchema, Success, Error> = {
     [TypeId]: TypeId,
@@ -151,12 +151,12 @@ const makeDeclared = <
       })
     },
     call(payload) {
-      return Node.activityCall<Success["Type"], Error["Type"]>(self, tag, payload)
+      return Node.actionCall<Success["Type"], Error["Type"]>(self, tag, payload)
     },
     toLayer(execute) {
-      // The flow form of this activity: same tag, same schemas, and a body that
+      // The flow form of this action: same tag, same schemas, and a body that
       // is the one call to it. Registering that flow is what lets a caller
-      // `execute` the activity as a durable execution of its own, and the body
+      // `execute` the action as a durable execution of its own, and the body
       // says truthfully what such an execution does. It stays INTERNAL — a flow
       // carries a body and never a handler, so `Flow` has no `toLayer` for an
       // author to reach this seam with.
@@ -170,9 +170,9 @@ const makeDeclared = <
         success: successSchema,
         error: errorSchema,
         annotations,
-        body: (payload) => Node.activityCall<Success["Type"], Error["Type"]>(self, tag, payload)
+        body: (payload) => Node.actionCall<Success["Type"], Error["Type"]>(self, tag, payload)
       }) as unknown as Flow.Flow<Tag, PayloadSchema, Success, Error>
-      const activity = (payload: PayloadSchema["Type"]) =>
+      const action = (payload: PayloadSchema["Type"]) =>
         makeInline({
           name: tag,
           success: successSchema,
@@ -183,7 +183,7 @@ const makeDeclared = <
           execute: execute(payload)
         })
       // The implementation, provided under the requirement this declaration
-      // minted. That is the compile-time half: a body that called this activity
+      // minted. That is the compile-time half: a body that called this action
       // produced a node requiring the tag, and this layer is the only thing
       // that answers it, so a plan cannot reach `execute` without its code.
       //
@@ -207,11 +207,11 @@ const makeDeclared = <
             // hands an unknown to the constructor; `makeEffect` is what decides
             // whether it was one.
             Effect.orDie(payloadSchema.makeEffect(payload as never)),
-            (decoded) => activity(decoded)
+            (decoded) => action(decoded)
           ).pipe(Effect.updateContext((input) => Context.merge(services, input) as Context.Context<any>))
         const implementation: Implementation = {
           name: tag,
-          activity: provided as Implementation["activity"]
+          action: provided as Implementation["action"]
         }
         const table = yield* Effect.serviceOption(Implementations)
         if (Option.isSome(table)) yield* table.value.add(implementation)
@@ -219,7 +219,7 @@ const makeDeclared = <
       }))
       return Layer.merge(
         Layer.effectDiscard(
-          Effect.flatMap(FlowRuntime, (engine) => engine.register(registration, activity))
+          Effect.flatMap(FlowRuntime, (engine) => engine.register(registration, action))
         ),
         implement
       )
@@ -229,7 +229,7 @@ const makeDeclared = <
 }
 
 /**
- * Creates either an inline executable activity or a named activity
+ * Creates either an inline executable action or a named action
  * declaration, selected by whether the first argument is a string.
  *
  * @category constructors
@@ -269,14 +269,14 @@ export const make: {
     readonly interruptRetryPolicy?: Schedule.Schedule<any, unknown> | undefined
     readonly retryPolicy?: RetryPolicy.RetryPolicy | undefined
     readonly annotations?: Context.Context<never> | undefined
-  }): Activity<Success, Error, Exclude<R, FlowInstance | FlowRuntime | Scope>>
+  }): Action<Success, Error, Exclude<R, FlowInstance | FlowRuntime | Scope>>
 } = ((first: string | Parameters<typeof makeInline>[0], second?: object) =>
   typeof first === "string"
     ? makeDeclared(first, second as Parameters<typeof makeDeclared>[1])
     : makeInline(first)) as any
 
 /**
- * Declares a SYSTEM activity: one whose implementation ships with the engine
+ * Declares a SYSTEM action: one whose implementation ships with the engine
  * rather than with the composition that calls it.
  *
  * It is {@link make}'s declared form in every respect except the requirement.
@@ -288,7 +288,7 @@ export const make: {
  *
  * Everything else is unchanged — the layer still registers with the runtime and
  * still files itself in {@link module:Implementations.Implementations}, so a
- * driver resolves a system activity by tag exactly like any other.
+ * driver resolves a system action by tag exactly like any other.
  *
  * @category constructors
  * @since 0.1.0
@@ -340,34 +340,34 @@ const retryInfraInterrupt = (
       }),
       Effect.catch((error) =>
         isInfraInterrupt(error)
-          ? Effect.die(`Activity "${name}" infrastructure interrupt retry attempts exhausted`)
+          ? Effect.die(`Action "${name}" infrastructure interrupt retry attempts exhausted`)
           : Effect.fail(error)
       )
     )
 
-// Untraced because activity execution is retried in the flow hot path.
+// Untraced because action execution is retried in the flow hot path.
 const makeExecute = Effect.fnUntraced(function*<
   R,
   Success extends Schema.Constraint = typeof Schema.Void,
   Error extends Schema.Constraint = typeof Schema.Never
->(activity: Activity<Success, Error, R>) {
+>(action: Action<Success, Error, R>) {
   const engine = yield* FlowRuntime
   const instance = yield* FlowInstance
   const attempt = yield* CurrentAttempt
   yield* Effect.annotateCurrentSpan({ executionId: instance.executionId })
-  const result = yield* Flow.wrapActivityResult(
-    engine.activityExecute(activity, attempt),
+  const result = yield* Flow.wrapActionResult(
+    engine.actionExecute(action, attempt),
     (_) => _._tag === "Suspended"
   )
-  // An activity settles with an exit or with a suspension; a handoff is a
-  // FLOW settlement, and the engine's activity path never produces one. The
+  // An action settles with an exit or with a suspension; a handoff is a
+  // FLOW settlement, and the engine's action path never produces one. The
   // narrowing is written as "not complete" so the third result variant needs
   // no unreachable arm of its own.
   if (result._tag !== "Complete") {
     return yield* Flow.suspend(instance)
   }
   return yield* result.exit
-}, (effect, activity) =>
-  Effect.withSpan(effect, activity.name, {
+}, (effect, action) =>
+  Effect.withSpan(effect, action.name, {
     captureStackTrace: false
   }))

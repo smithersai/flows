@@ -14,14 +14,14 @@ import { type Ownership, RunStore } from "@smthrs/run-store-next"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"
-import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "provenance-idem-host", pid: 53, nonce: "provenance-idem-process" }
 
-const declared: ActivityPersistence.BoundaryMetadata = {
+const declared: ActionPersistence.BoundaryMetadata = {
   readSet: [{ path: "config.json", digest: "D1" }],
   writeSet: ["output.txt"],
   boundaryMode: "hard"
@@ -85,25 +85,25 @@ describe("cacheProvenance emissions are idempotent per observation (issue #124)"
       Effect.gen(function*() {
         // First run records the shared row under a healthy boundary.
         yield* activate("provenance-idem-first")
-        yield* ActivityPersistence.make({
+        yield* ActionPersistence.make({
           runId: "provenance-idem-first",
           owner,
           sourceId: "provenance-idem-first",
           execute: () => Effect.succeed("recorded")
-        })({ activity: {}, attempt: 1, key, tier: "sealed", metadata: declared }).pipe(
+        })({ action: {}, attempt: 1, key, tier: "sealed", metadata: declared }).pipe(
           Effect.provide(StepBoundary.layerTest({ readSnapshot: declared.readSet }))
         )
         // Second run's boundary verifies the hit but can never replay it,
         // and its body fails — so the same refusal is observed again on the
         // next dispatch of the very same key and attempt.
         yield* activate("provenance-idem-second")
-        const execute = ActivityPersistence.make({
+        const execute = ActionPersistence.make({
           runId: "provenance-idem-second",
           owner,
           sourceId: "provenance-idem-second",
           execute: () => Effect.fail("body broken")
         })
-        const dispatch = execute({ activity: {}, attempt: 1, key, tier: "sealed", metadata: declared }).pipe(
+        const dispatch = execute({ action: {}, attempt: 1, key, tier: "sealed", metadata: declared }).pipe(
           Effect.provide(unreplayableBoundary),
           Effect.exit
         )

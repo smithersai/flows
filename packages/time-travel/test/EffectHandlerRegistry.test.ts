@@ -49,7 +49,7 @@ const handler = (
 })
 
 describe("EffectHandlerRegistry", () => {
-  it("preserves the original activity failure when recording its intended boundary fails", async () => {
+  it("preserves the original action failure when recording its intended boundary fails", async () => {
     const journal = Journal.makeNoop({
       emitDurable: () => Effect.fail(new Journal.JournalError({ code: "unknown", message: "journal offline" }))
     })
@@ -438,8 +438,8 @@ describe("EffectHandlerRegistry", () => {
     })
   })
 
-  it("reports a succeeded-boundary persistence failure after the activity has completed", async () => {
-    let activityRuns = 0
+  it("reports a succeeded-boundary persistence failure after the action has completed", async () => {
+    let actionRuns = 0
     let emits = 0
     const journal = Journal.makeNoop({
       emitDurable: () =>
@@ -464,13 +464,13 @@ describe("EffectHandlerRegistry", () => {
           runId: "run",
           lineageId: "run/root",
           sourceId: "adapter"
-        }, Effect.sync(() => ++activityRuns)).pipe(
+        }, Effect.sync(() => ++actionRuns)).pipe(
           Effect.provide(Layer.succeed(Journal.Journal, journal))
         )
       )
     )
 
-    expect(activityRuns).toBe(1)
+    expect(actionRuns).toBe(1)
     expect(emits).toBe(2)
     expect(failure).toMatchObject({
       code: "unknown",
@@ -478,7 +478,7 @@ describe("EffectHandlerRegistry", () => {
     })
   })
 
-  it("records unknown and preserves the original activity failure", async () => {
+  it("records unknown and preserves the original action failure", async () => {
     const emitted: Array<JournalEvent.Input> = []
     const journal = Journal.makeNoop({
       emitDurable: (input) =>
@@ -500,13 +500,13 @@ describe("EffectHandlerRegistry", () => {
           runId: "run",
           lineageId: "run/root",
           sourceId: "adapter"
-        }, Effect.fail("activity-failed")).pipe(
+        }, Effect.fail("action-failed")).pipe(
           Effect.provide(Layer.succeed(Journal.Journal, journal))
         )
       )
     )
 
-    expect(failure).toBe("activity-failed")
+    expect(failure).toBe("action-failed")
     expect(emitted.map((input) =>
       (input.payload as {
         readonly effect: { readonly status: string }
@@ -514,7 +514,7 @@ describe("EffectHandlerRegistry", () => {
     )).toEqual(["intended", "unknown"])
   })
 
-  it("records unknown and preserves an activity defect as a defect", async () => {
+  it("records unknown and preserves an action defect as a defect", async () => {
     const emitted: Array<string> = []
     const journal = Journal.makeNoop({
       emitDurable: (input) =>
@@ -537,7 +537,7 @@ describe("EffectHandlerRegistry", () => {
           runId: "run",
           lineageId: "run/root",
           sourceId: "adapter"
-        }, Effect.die("activity-defect")).pipe(
+        }, Effect.die("action-defect")).pipe(
           Effect.provide(Layer.succeed(Journal.Journal, journal))
         )
       )
@@ -546,12 +546,12 @@ describe("EffectHandlerRegistry", () => {
     expect(Exit.isFailure(exit)).toBe(true)
     if (Exit.isFailure(exit)) {
       const defect = Cause.findDefect(exit.cause)
-      expect(Result.isSuccess(defect) ? defect.success : undefined).toBe("activity-defect")
+      expect(Result.isSuccess(defect) ? defect.success : undefined).toBe("action-defect")
     }
     expect(emitted).toEqual(["intended", "unknown"])
   })
 
-  it("preserves an activity failure when recording its unknown boundary also fails", async () => {
+  it("preserves an action failure when recording its unknown boundary also fails", async () => {
     let emits = 0
     const journal = Journal.makeNoop({
       emitDurable: () =>
@@ -576,15 +576,15 @@ describe("EffectHandlerRegistry", () => {
           runId: "run",
           lineageId: "run/root",
           sourceId: "adapter"
-        }, Effect.fail("activity-failed")).pipe(Effect.provide(Layer.succeed(Journal.Journal, journal)))
+        }, Effect.fail("action-failed")).pipe(Effect.provide(Layer.succeed(Journal.Journal, journal)))
       )
     )
 
-    expect(failure).toBe("activity-failed")
+    expect(failure).toBe("action-failed")
     expect(emits).toBe(2)
   })
 
-  it("settles an interrupted activity as unknown before the fiber exits", async () => {
+  it("settles an interrupted action as unknown before the fiber exits", async () => {
     const emitted: Array<string> = []
     const entered = Effect.runSync(Deferred.make<void>())
     const journal = Journal.makeNoop({

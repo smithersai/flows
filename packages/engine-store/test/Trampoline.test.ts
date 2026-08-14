@@ -11,7 +11,7 @@
  * running forever.
  */
 import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
-import { Activity, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
+import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
 import { Journal, SqlJournal } from "@smthrs/journal-next"
 import * as Notifying from "@smthrs/journal-next/test/Notifying"
 import { Jj } from "@smthrs/kernel-next"
@@ -40,7 +40,7 @@ const jj = Jj.make({
   status: () => Effect.succeed("")
 })
 
-const Increment = Activity.make("trampoline/increment", {
+const Increment = Action.make("trampoline/increment", {
   payload: { value: Schema.Number },
   success: Schema.Number
 })
@@ -53,7 +53,7 @@ type CounterFlow = Flow.Flow<
   typeof Schema.Never,
   // `.to()` drops the callee's requirements, so a lineage that hands off to
   // itself names only what one round calls and the type stays finite.
-  Activity.Requirement<"trampoline/increment">
+  Action.Requirement<"trampoline/increment">
 >
 
 /** The recursion edge a body cannot name inside its own declaration. */
@@ -103,14 +103,14 @@ const OriginBounded = Flow.make("trampoline/origin-bounded", {
   body: ({ value }) => LegTwo.to({ value })
 })
 
-const ParentActivityDeclaration = Activity.make("trampoline/parent/activity", {
+const ParentActionDeclaration = Action.make("trampoline/parent/action", {
   payload: { target: Schema.Number },
   success: Schema.Number
 })
 const Parent = Flow.make("trampoline/parent", {
   payload: { target: Schema.Number },
   success: Schema.Number,
-  body: (payload) => ParentActivityDeclaration.call(payload)
+  body: (payload) => ParentActionDeclaration.call(payload)
 })
 
 /** A round that parks instead of answering. */
@@ -167,7 +167,7 @@ const incarnation = (
       ),
       ...flows.map((flow) => Interpreter.layer(flow as never))
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(Action.layerImplementations),
       Layer.provideMerge(Layer.succeed(FlowRuntime.FlowRuntime, engine))
     )
     return { calls, wiring }
@@ -287,15 +287,15 @@ describe("a durable lineage", () => {
         ),
         Interpreter.layer(Counter),
         Layer.mergeAll(
-          ParentActivityDeclaration.toLayer(({ target }) =>
+          ParentActionDeclaration.toLayer(({ target }) =>
             Counter.execute({ value: 0, target }, { executionId: "durable-child-lineage" })
           ),
           Interpreter.layer(Parent)
         ).pipe(
-          Layer.provideMerge(Activity.layerImplementations)
+          Layer.provideMerge(Action.layerImplementations)
         )
       ).pipe(
-        Layer.provideMerge(Activity.layerImplementations),
+        Layer.provideMerge(Action.layerImplementations),
         Layer.provideMerge(Layer.succeed(FlowRuntime.FlowRuntime, engine))
       )
 

@@ -24,7 +24,7 @@ The pairs that are closed today:
 Three consequences to design around:
 
 - Publication is deferred. An entry reaches `changes`, `stream`, and the in-process producer index only after the outermost COMMIT. A subscriber never observes an entry that later rolls back, and a rolled-back producer identity stays re-emittable rather than deduplicating against a sequence that does not exist.
-- The unit is all-or-nothing. A crash before COMMIT loses the whole unit, so an activity body that had already run re-executes on the next drive. Temporal makes the same trade when it submits mutable state and its event batches as one persistence request.
+- The unit is all-or-nothing. A crash before COMMIT loses the whole unit, so an action body that had already run re-executes on the next drive. Temporal makes the same trade when it submits mutable state and its event batches as one persistence request.
 - Nothing that is not storage work may run inside the transaction. No flow bodies, no host calls, no jj snapshots, no boundary prepare or settle, no lossy `flush`.
 
 A local commit is still not remote atomicity. No journal write makes an external effect atomic with it, so effects outside the database keep needing idempotency keys, fencing tokens, or a declared compensation.
@@ -68,7 +68,7 @@ Two sweeps run on the heartbeat cadence. One enumerates actionable parked rows, 
 
 A retry policy carries an `expirationMs` schedule-to-close bound. Measuring it from the current clock would restart the budget every time a run parked or a process died, which turns a bounded budget into an unbounded one.
 
-The driver instead exposes `activityRetryOrigin({ key })`, reading the durably persisted first-attempt start. The wall-clock budget then survives park, resume, and process death. The attempt counter resumes from `activityLatestAttempt`, so the backoff ladder is not re-slept.
+The driver instead exposes `actionRetryOrigin({ key })`, reading the durably persisted first-attempt start. The wall-clock budget then survives park, resume, and process death. The attempt counter resumes from `actionLatestAttempt`, so the backoff ladder is not re-slept.
 
 Degradation is explicit. When attempt 1 has been pruned, the origin falls back to the earliest surviving attempt row. Only when no row survives does the budget restart from the current clock, and that case logs a warning.
 
@@ -78,7 +78,7 @@ The verdict is durable too. A persisted `failed` attempt row replays by rethrowi
 
 A cache key says an output is a function of some declarations. It cannot see a hidden file read or an undeclared network call. So the key alone never admits a row to the shared cache. Admission requires all of:
 
-1. activity tier `sealed`;
+1. action tier `sealed`;
 2. `metadata` that decodes as `FileBoundary`;
 3. `boundaryMode: "hard"`;
 4. `prepare` and `settle` both succeeding;
@@ -95,13 +95,13 @@ One near-miss is journalled rather than silent: when every gate passes but the r
 
 Handlers are not serialized. A resume claims the run, decodes the original payload, invokes the registered handler from the top, returns stored results at known boundaries, and dispatches at the first boundary with no recorded state.
 
-Control flow is re-evaluated rather than restored from a stack snapshot, so code between boundaries must produce the same control flow given the same payload and recorded values. That rules out `Date.now()`, unseeded randomness, global mutable state, unordered external reads, environment variables read inline, and host operations outside an activity. The output of a recorded activity may be nondeterministic, because replay safety comes from recording its encoded exit.
+Control flow is re-evaluated rather than restored from a stack snapshot, so code between boundaries must produce the same control flow given the same payload and recorded values. That rules out `Date.now()`, unseeded randomness, global mutable state, unordered external reads, environment variables read inline, and host operations outside an action. The output of a recorded action may be nondeterministic, because replay safety comes from recording its encoded exit.
 
-Durability attaches at boundaries: `Activity`, `DurableDeferred`, durable clocks, durable queues, child flow execution, and explicit journal or time-travel effect boundaries. Nothing between them is journaled.
+Durability attaches at boundaries: `Action`, `DurableDeferred`, durable clocks, durable queues, child flow execution, and explicit journal or time-travel effect boundaries. Nothing between them is journaled.
 
 Two APIs use the word replay differently. `EngineStore` replay re-runs a registered handler. `TimeTravel.inspect` is read-only and folds committed entries into a projection, never invoking a handler or dispatcher.
 
-There is no flow-source digest. What decides reuse after a code edit is activity identity: a changed cache key input produces a new result, an unchanged one reuses the old, changed control flow around ordinal activities can remap ordinals, and changed schemas can make stored payloads or results fail to decode as a defect.
+There is no flow-source digest. What decides reuse after a code edit is action identity: a changed cache key input produces a new result, an unchanged one reuses the old, changed control flow around ordinal actions can remap ordinals, and changed schemas can make stored payloads or results fail to decode as a defect.
 
 ## Run cycle detection
 

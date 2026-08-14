@@ -1,7 +1,7 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 /**
- * Defines the schemas and interfaces of a durable activity.
+ * Defines the schemas and interfaces of a durable action.
  *
  * @since 4.0.0
  */
@@ -19,7 +19,7 @@ import type { Implementation } from "./Implementations.ts"
 import type { TypeId } from "./TypeId.ts"
 
 /**
- * The durability and retry semantics of an activity.
+ * The durability and retry semantics of an action.
  *
  * @category models
  * @since 0.1.0
@@ -27,7 +27,7 @@ import type { TypeId } from "./TypeId.ts"
 export const Tier = Schema.Literals(["sealed", "compensable", "irreversible"])
 
 /**
- * The durability and retry semantics of an activity.
+ * The durability and retry semantics of an action.
  *
  * @category models
  * @since 0.1.0
@@ -35,7 +35,7 @@ export const Tier = Schema.Literals(["sealed", "compensable", "irreversible"])
 export type Tier = typeof Tier.Type
 
 /**
- * Schema for caller-declared sealed activity identity.
+ * Schema for caller-declared sealed action identity.
  *
  * @category models
  * @since 0.1.0
@@ -46,10 +46,10 @@ export const IdempotencyKey = Schema.Union([
 ])
 
 /**
- * Caller-declared sealed activity identity.
+ * Caller-declared sealed action identity.
  *
- * A string is namespaced by the activity declaration. A JSON object is
- * caller-owned and remains stable across activity renames. Runtime
+ * A string is namespaced by the action declaration. A JSON object is
+ * caller-owned and remains stable across action renames. Runtime
  * environment and filesystem facts are always added by the engine.
  *
  * @category models
@@ -58,7 +58,7 @@ export const IdempotencyKey = Schema.Union([
 export type IdempotencyKey = typeof IdempotencyKey.Type
 
 /**
- * Recursively permits planned references wherever a declared activity payload
+ * Recursively permits planned references wherever a declared action payload
  * accepts a concrete value.
  *
  * @category models
@@ -71,7 +71,7 @@ export type PlannedPayload<T> =
     : T)
 
 /**
- * The requirement one declared activity mints for itself, identified by its
+ * The requirement one declared action mints for itself, identified by its
  * tag.
  *
  * A declaration is data that travels everywhere and carries no code, so a body
@@ -91,11 +91,11 @@ export interface Requirement<Tag extends string> {
 }
 
 /**
- * A named activity declaration whose implementation is supplied separately
+ * A named action declaration whose implementation is supplied separately
  * through a layer and whose calls only add nodes to a plan.
  *
  * `Requires` is what `.call()` puts in the requirement channel of the node it
- * records. It is this activity's own {@link Requirement} for an ordinary
+ * records. It is this action's own {@link Requirement} for an ordinary
  * declaration, and `never` for a system declaration the engine itself
  * implements ({@link module:make.makeSystem}).
  *
@@ -123,7 +123,7 @@ export interface Declared<
    *
    * `toLayer` provides it; a composition that would rather hand the runtime an
    * implementation directly can provide it itself with `Layer.succeed`. Its
-   * string key is derived from the activity tag, so two declarations of one tag
+   * string key is derived from the action tag, so two declarations of one tag
    * name one slot.
    */
   readonly requirement: Context.Service<Requirement<Tag>, Implementation>
@@ -149,14 +149,14 @@ export interface Declared<
 }
 
 /**
- * Durable flow activity that behaves as an `Effect` and records its name,
+ * Durable flow action that behaves as an `Effect` and records its name,
  * result schemas, annotations, and encoded execution form for the flow
  * engine.
  *
  * @category models
  * @since 4.0.0
  */
-export interface Activity<
+export interface Action<
   Success extends Schema.Constraint = Schema.Void,
   Error extends Schema.Constraint = Schema.Never,
   R = never
@@ -185,10 +185,10 @@ export interface Activity<
   annotate<I, S>(
     key: Context.Key<I, S>,
     value: S
-  ): Activity<Success, Error, R>
+  ): Action<Success, Error, R>
   annotateMerge<I>(
     annotations: Context.Context<I>
-  ): Activity<Success, Error, R>
+  ): Action<Success, Error, R>
   readonly execute: Effect.Effect<
     Success["Type"],
     Error["Type"],
@@ -216,7 +216,7 @@ export interface Activity<
 }
 
 /**
- * Type-erased activity shape for APIs that only need the activity identity,
+ * Type-erased action shape for APIs that only need the action identity,
  * name, annotations, and encoded execution.
  *
  * @category models
@@ -234,7 +234,7 @@ export interface Any {
 }
 
 /**
- * Type-erased activity shape that also exposes success and error schemas for
+ * Type-erased action shape that also exposes success and error schemas for
  * derived flow APIs.
  *
  * @category models

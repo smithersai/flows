@@ -384,7 +384,7 @@ although the nearby comment later says the backoff survives restart. Thus
 `maxAttempts` and `expirationMs` on `suspendedRetryPolicy` can be bypassed by
 restarting the caller/process repeatedly.
 
-Activity retry state is correctly persisted through attempt rows, which makes
+Action retry state is correctly persisted through attempt rows, which makes
 the contrast important. If `suspendedRetryPolicy` is only a per-call polling
 budget, its name and documentation need to say so and it should not be used as
 a run-level bound. If it is meant to bound a durable wait, attempt and origin

@@ -3,7 +3,7 @@ import { defineConfig } from "vocs/config"
 export default defineConfig({
   title: "Smithers Flows",
   description:
-    "Smithers Flows is an Effect-based durable-execution engine: typed flows that replay from a journal, content-addressed activity results, capability-checked host access, read-only sync, and time travel over run history.",
+    "Smithers Flows is an Effect-based durable-execution engine: typed flows that replay from a journal, content-addressed action results, capability-checked host access, read-only sync, and time travel over run history.",
   srcDir: "docs",
   outDir: "docs/dist",
   sidebar: [

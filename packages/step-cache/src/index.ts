@@ -1,7 +1,7 @@
 /**
  * The step result cache: which sealed results may be reused.
  *
- * `CacheStore` is a keyed memoization of sealed activity results whose entries
+ * `CacheStore` is a keyed memoization of sealed action results whose entries
  * may be evicted — a cache, in the `docs/specs/Concepts/Step Keys.md` sense —
  * and it shares nothing with the journal or the run store beyond the database
  * beneath it. See `docs/specs/Concepts/Journal Split.md`.

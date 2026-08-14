@@ -4,12 +4,12 @@ The runtime that executes flows: the low-level encoded engine contract, its type
 
 ```ts
 import { FlowEngine } from "@smthrs/engine-next"
-import { Activity, Flow, Interpreter } from "@smthrs/flow-next"
+import { Action, Flow, Interpreter } from "@smthrs/flow-next"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 
-const Compile = Activity.make("example/Compile", {
+const Compile = Action.make("example/Compile", {
   payload: { target: Schema.String },
   success: Schema.String,
   tier: "sealed"
@@ -24,7 +24,7 @@ const Build = Flow.make("example/Build", {
 const layer = Layer.mergeAll(
   Compile.toLayer(({ target }) => Effect.succeed(`${target}.js`)),
   Interpreter.layer(Build)
-).pipe(Layer.provideMerge(Activity.layerImplementations), Layer.provideMerge(FlowEngine.layerMemory))
+).pipe(Layer.provideMerge(Action.layerImplementations), Layer.provideMerge(FlowEngine.layerMemory))
 ```
 
 ## Entry point
@@ -41,8 +41,8 @@ The engine implements `FlowRuntime`, the port `@smthrs/flow-next` declares. The 
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `Encoded` | interface | the storage-facing seam, including `activityExecute` |
-| `ActivityExecuteOptions` | interface | activity, attempt, step key, tier |
+| `Encoded` | interface | the storage-facing seam, including `actionExecute` |
+| `ActionExecuteOptions` | interface | action, attempt, step key, tier |
 | `SnapshotBoundary`, `SnapshotBoundaryOptions` | class + interface | compensable snapshot hooks |
 | `makeInstance` | constructor | the initial per-execution state a runtime hands to a flow run |
 | `makeUnsafe` | constructor | adapts an `Encoded` implementation into the typed `FlowRuntime` |

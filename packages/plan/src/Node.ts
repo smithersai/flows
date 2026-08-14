@@ -11,7 +11,7 @@
  * A node also carries Effect's requirement channel, `R`, and carries it as a
  * PHANTOM: building a plan demands nothing, and every combinator here unions
  * `R` without ever reading it. What fills the channel is a call to something
- * whose code lives elsewhere — an activity — so the type of a plan states which
+ * whose code lives elsewhere — an action — so the type of a plan states which
  * implementations executing it will need, and the place that executes it is
  * where the compiler asks for them.
  *
@@ -22,7 +22,7 @@
  * note states, and this module encodes: **map transforms; branch decides.**
  *
  * Adapted from the agent repo's `@smthrs/core` `Node.ts`. `Dynamic` is gone —
- * a model call is an ordinary activity, and nothing model-shaped belongs in
+ * a model call is an ordinary action, and nothing model-shaped belongs in
  * this package — and node annotations are gone with it, because the AST has to
  * stay JSON serializable.
  *
@@ -80,7 +80,7 @@ export type FunctionIdentity = Extract<Ast, { readonly _tag: "Map" }>["mapper"]
  * `R` is Effect's requirement channel, and it is PHANTOM here. Nothing at plan
  * time reads it: the AST, the graph built from it, its key material, and every
  * digest are identical whatever `R` says. It exists so a value that names an
- * implementation it does not carry — an activity call — can say so in its type,
+ * implementation it does not carry — an action call — can say so in its type,
  * and so the place that finally has to run that implementation can demand it.
  * Building a plan therefore stays requirement-free; only executing one is not.
  *
@@ -444,20 +444,20 @@ export const flowCall = <A = unknown, E = never, R = never>(
 ): Node<A, E, R> => internal.makeNode<A, E, R>(internal.flowCall(declaration, flow, mode, payload))
 
 /**
- * Constructs the activity-call node used by `@smthrs/flow-next` without making
- * activity calls part of the public authoring surface of this package.
+ * Constructs the action-call node used by `@smthrs/flow-next` without making
+ * action calls part of the public authoring surface of this package.
  *
  * @since 0.1.0
  * @private
  */
-export const activityCall = <A = unknown, E = never, R = never>(
+export const actionCall = <A = unknown, E = never, R = never>(
   declaration: unknown,
-  activity: string,
+  action: string,
   payload: unknown
-): Node<A, E, R> => internal.makeNode<A, E, R>(internal.activityCall(declaration, activity, payload))
+): Node<A, E, R> => internal.makeNode<A, E, R>(internal.actionCall(declaration, action, payload))
 
 /**
- * Reads the flow or activity declaration a call node names, so `@smthrs/flow-next`
+ * Reads the flow or action declaration a call node names, so `@smthrs/flow-next`
  * can expand a call it recorded. It is `undefined` for an AST that was
  * rehydrated from JSON, because the declaration lives beside the AST rather
  * than inside it — a graph built from such an AST keeps the call as a leaf.
@@ -466,7 +466,7 @@ export const activityCall = <A = unknown, E = never, R = never>(
  * @private
  */
 export const declaration = (
-  ast: Extract<Ast, { readonly _tag: "ActivityCall" | "FlowCall" }>
+  ast: Extract<Ast, { readonly _tag: "ActionCall" | "FlowCall" }>
 ): unknown => internal.declaration(ast)
 
 /**

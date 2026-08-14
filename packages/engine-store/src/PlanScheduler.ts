@@ -3,7 +3,7 @@
  *
  * `@smthrs/plan-next` makes the plan a value; this makes it run. The scheduler
  * walks the persisted graph, dispatches ready nodes through the same
- * `internal/ActivityPersistence` seam every activity uses — so the shared step
+ * `internal/ActionPersistence` seam every action uses — so the shared step
  * cache, the workspace sandbox's execute→materialize transaction, attempt
  * rows, and the fenced journal all apply unchanged — and records one of four
  * evaluation outcomes per node.
@@ -71,7 +71,7 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Ref from "effect/Ref"
 import * as Schema from "effect/Schema"
-import * as ActivityPersistence from "./internal/ActivityPersistence.ts"
+import * as ActionPersistence from "./internal/ActionPersistence.ts"
 import * as JournalRecords from "./internal/JournalRecords.ts"
 import * as Reconciliation from "./Reconciliation.ts"
 import * as StepBoundary from "./StepBoundary.ts"
@@ -331,7 +331,7 @@ export const make = (options: Options): Service => {
    * Scheduler records take the journal's durable, owner-fenced channel: a plan
    * digest binds an approval, so it may never ride the lossy queue. A zombie
    * that lost the run self-interrupts on `fence_lost`, exactly as
-   * `internal/ActivityPersistence` does — a scheduler that kept dispatching
+   * `internal/ActionPersistence` does — a scheduler that kept dispatching
    * after losing ownership is the failure mode fencing exists to prevent.
    */
   const emit = (record: JournalEvent.Input) =>
@@ -578,7 +578,7 @@ export const make = (options: Options): Service => {
             }))
             digestToNode.set(yield* Effect.orDie(digestOf(dispatchKey)), node.id)
             const ran = yield* Ref.make(false)
-            const exit = yield* ActivityPersistence.make({
+            const exit = yield* ActionPersistence.make({
               runId: options.runId,
               owner: options.owner,
               sourceId: `${options.sourceId}/node/${node.id}`,
@@ -586,7 +586,7 @@ export const make = (options: Options): Service => {
                 Ref.set(ran, true).pipe(
                   Effect.andThen(executor.execute({ node, attempt: state.attempts, boundary, inputs }))
                 )
-            })({ activity: {}, attempt: state.attempts, key: dispatchKey, tier: "sealed", metadata: boundary }).pipe(
+            })({ action: {}, attempt: state.attempts, key: dispatchKey, tier: "sealed", metadata: boundary }).pipe(
               Effect.exit
             )
             if (Exit.isSuccess(exit)) {

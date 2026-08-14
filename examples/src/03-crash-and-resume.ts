@@ -10,16 +10,16 @@
  * The flow is a body over one declared step, `Assess`. Its implementation is
  * where the durable wait lives, which is what makes the counters below the
  * replay contract: the step's implementation runs twice, and the sealed
- * activity in front of the suspension dispatches once.
+ * action in front of the suspension dispatches once.
  */
-import { Activity, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
+import { Action, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import { durableEngine } from "./durable-layer.ts"
 
-export const Assess = Activity.make("examples/Assess", {
+export const Assess = Action.make("examples/Assess", {
   payload: { document: Schema.String },
   success: Schema.String
 })
@@ -45,7 +45,7 @@ export const main = (filename: string): Effect.Effect<Summary> =>
     let readDispatches = 0
     let stepEntries = 0
 
-    const ReadDocument = Activity.make({
+    const ReadDocument = Action.make({
       name: "examples/ReadDocument",
       success: Schema.String,
       tier: "sealed",
@@ -66,7 +66,7 @@ export const main = (filename: string): Effect.Effect<Summary> =>
 
     const engine = (hostId: string) =>
       Layer.mergeAll(Assess.toLayer(assess), Interpreter.layer(Review)).pipe(
-        Layer.provideMerge(Activity.layerImplementations),
+        Layer.provideMerge(Action.layerImplementations),
         Layer.provideMerge(durableEngine(filename, hostId))
       )
 

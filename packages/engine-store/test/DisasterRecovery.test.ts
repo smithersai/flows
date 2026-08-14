@@ -4,7 +4,7 @@
  * longer hashes to that manifest; and the fence step invalidates every
  * persisted ownership fence the snapshot carried.
  *
- * The restore drill — a live engine, a mid-activity backup, and a resumed run
+ * The restore drill — a live engine, a mid-action backup, and a resumed run
  * on the restored store — lives in `RestoreDrill.test.ts`. This suite covers
  * the file and manifest edges with hand-tampered backups.
  */

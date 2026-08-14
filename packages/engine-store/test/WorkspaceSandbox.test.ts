@@ -389,7 +389,7 @@ describe("WorkspaceSandbox expected mode", () => {
 
 /**
  * The transaction also seeds Effect's own `FileSystem` tag, which is how an
- * ordinary activity body — one that never heard of `WorkspaceSandbox` — runs
+ * ordinary action body — one that never heard of `WorkspaceSandbox` — runs
  * isolated.
  */
 describe("WorkspaceSandbox transaction filesystem", () => {

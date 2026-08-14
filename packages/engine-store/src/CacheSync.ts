@@ -8,9 +8,9 @@
  * entry that references them last.
  *
  * This tag exists because of *where* the local row is written.
- * `ActivityPersistence` commits the cache row and the journal record that
+ * `ActionPersistence` commits the cache row and the journal record that
  * explains it in one `DurableWriter` transaction, and nothing that is not
- * storage work may be held across one — the activity body, the Jj snapshot, and
+ * storage work may be held across one — the action body, the Jj snapshot, and
  * the boundary prepare/settle all already stay outside. A `CacheStore` whose
  * `put` also writes a shared HTTP tier would put a network round trip inside
  * that transaction, blocking every other writer for its duration and rolling
@@ -78,7 +78,7 @@ export class CacheSync extends Context.Service<CacheSync, Service>()("flows/engi
  * The single-tier implementation: there is no shared step-result tier, so a
  * recorded entry is already everywhere it will ever be.
  *
- * This is the default `ActivityPersistence` falls back to when the tag is
+ * This is the default `ActionPersistence` falls back to when the tag is
  * absent, which is what keeps a purely local composition free of any
  * remote-cache machinery.
  *

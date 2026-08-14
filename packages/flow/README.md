@@ -1,6 +1,6 @@
 # @smthrs/flow-next
 
-The flow authoring model. It defines typed flows, activities, durable waits
+The flow authoring model. It defines typed flows, actions, durable waits
 and queues, retry policy, step identity, and the runtime port those APIs are
 executed against. `@smthrs/engine-next` implements that port; `@smthrs/engine-store-next`
 makes it durable.
@@ -11,13 +11,13 @@ npm install @smthrs/flow-next
 
 ## Mental model
 
-A `Flow` is the durable program, `Activity` values are its recorded
+A `Flow` is the durable program, `Action` values are its recorded
 operations, and a `FlowRuntime` runs them. The remaining primitives let the
 program wait without requiring the process to stay alive.
 
 ```text
 Flow
- ├─ executes Activity values
+ ├─ executes Action values
  ├─ waits on DurableDeferred values
  ├─ sleeps with DurableClock
  └─ delegates work through DurableQueue
@@ -33,24 +33,24 @@ Flow
 | Source               | Role                                                                                                                      |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | `Flow/`              | Defines a complete durable program and its execute, poll, interrupt, resume, and rollback lifecycle.                      |
-| `Activity/`          | Defines an individual durable operation whose result a runtime records or replays, plus its step identity and boundaries. |
+| `Action/`            | Defines an individual durable operation whose result a runtime records or replays, plus its step identity and boundaries. |
 | `FlowRuntime/`       | The execution contract those APIs require, the per-execution state contract, and the cycle failure `execute` can return.  |
 | `DurableDeferred.ts` | A persisted promise that a flow can await across process restarts.                                                        |
 | `DurableClock.ts`    | A timer that eventually completes a `DurableDeferred`.                                                                    |
 | `DurableQueue.ts`    | Sends work to a persisted worker and awaits its result through a `DurableDeferred`.                                       |
-| `RetryPolicy.ts`     | Data describing when a runtime should retry a failed activity.                                                            |
+| `RetryPolicy.ts`     | Data describing when a runtime should retry a failed action.                                                              |
 | `index.ts`           | Exposes the public namespaces.                                                                                            |
 
 ## Usage
 
-An `Activity` carries an implementation, attached separately as a layer. A
+An `Action` carries an implementation, attached separately as a layer. A
 `Flow` carries a `body`, and never opaque code.
 
 ```ts
-import { Activity, Flow, Interpreter } from "@smthrs/flow-next"
+import { Action, Flow, Interpreter } from "@smthrs/flow-next"
 import { Effect, Layer, Schema } from "effect"
 
-const Render = Activity.make("render", {
+const Render = Action.make("render", {
   payload: { name: Schema.String },
   success: Schema.String
 })
@@ -65,7 +65,7 @@ const Greet = Flow.make("Greet", {
 const GreetLayer = Layer.mergeAll(
   Render.toLayer(({ name }) => Effect.succeed(`hello ${name}`)),
   Interpreter.layer(Greet)
-).pipe(Layer.provideMerge(Activity.layerImplementations))
+).pipe(Layer.provideMerge(Action.layerImplementations))
 ```
 
 Provide a runtime — `FlowEngine.layerMemory` from `@smthrs/engine-next` in tests, or
@@ -76,12 +76,12 @@ flow.
 
 `Render.call(payload)` records a node and runs nothing, so building the plan a
 body describes asks for no service. What it does do is put a requirement in the
-node's type — one minted by `Activity.make` and keyed by the activity tag — and
+node's type — one minted by `Action.make` and keyed by the action tag — and
 `Flow.make` reads the union of those off the node its body returns:
 
 ```ts
 Greet.execute({ name: "Ada" }, { executionId: "greet-ada" })
-// Effect<string, never, FlowRuntime | Activity.Requirement<"render">>
+// Effect<string, never, FlowRuntime | Action.Requirement<"render">>
 ```
 
 `Render.toLayer(...)` provides that requirement, so the composition above erases
@@ -98,12 +98,12 @@ rules follow from where a plan actually goes:
   never drive a body, and a re-drive runs under the context the flow was
   REGISTERED with, not the resumer's.
 
-`Sleep` and `WaitFor` are declared with `Activity.makeSystem` and mint no
+`Sleep` and `WaitFor` are declared with `Action.makeSystem` and mint no
 requirement: the engine implements them, so an author cannot be the one who
 forgot them.
 
-The name-keyed `Activity.Implementations` table is unchanged and is still how a
-run resolves an activity, because a driver expanding a plan read back out of a
+The name-keyed `Action.Implementations` table is unchanged and is still how a
+run resolves an action, because a driver expanding a plan read back out of a
 journal has no types left to consult. `toLayer` does both — provides the tag,
 and files into the table when a composition wired one up.
 
@@ -119,16 +119,16 @@ back to `@smthrs/engine-next`.
 The root exports these namespaces, also available from matching
 `@smthrs/flow-next/*` subpaths.
 
-| Namespace         | Public exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Flow`            | `Flow` plus erased/schema helper types `AnyStructSchema`, `Execution`, `Any`, `AnyWithProps`, `PayloadSchema`, `Requirements`, `RequirementsClient`, and `RequirementsHandler`; `make`, whose `body` is required; result guard/schema/models `isResult`, `Result`, `ResultEncoded`, `CompleteEncoded`, `CompleteSchema`, `Complete` (including `Complete.Schema`), and `Suspended`; runtime helpers `intoResult`, `wrapActivityResult`, `scope`, `provideScope`, `addFinalizer`, `withRollback`, and `suspend`; annotations `CaptureDefects` and `SuspendOnFailure`; execution identity `ExecutionIdRequired`, `ExecutionIdSource`, `CurrentExecutionIds`, `derived`, and `layerExecutionIds`. A flow value exposes `body`, `call`, `child`, `to`, `execute`, `poll`, `interrupt`, `resume`, `executionId`, annotation methods, and `withRollback`. |
-| `Activity`        | `Activity`, `Declared`, `Requirement`, `Any`, and `AnyWithProps`; durability `Tier` and `IdempotencyKey`; `make`, `makeSystem`, `retry`, `idempotencyKey`, and `raceAll`; declared-activity resolution `Implementations`, `Implementation`, and `layerImplementations`; attempt references `CurrentAttempt` and `CurrentOrdinal`; errors `InfraInterrupt` and `IrreversibleRetryRequiresIdempotencyKey`.                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `DurableDeferred` | `DurableDeferred`, `Any`, and `AnyWithProps`; `make`, `await`, `into`, and `raceAll`; token API `TokenTypeId`, `Token`, `TokenParsed` (`FromString`, `fromString`, `encode`, `asToken`), `token`, `tokenFromExecutionId`, and `tokenFromPayload`; external completion `done`, `succeed`, `fail`, and `failCause`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `DurableClock`    | `DurableClock`, `make({ name, duration })`, and threshold-aware `sleep(options)`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `DurableQueue`    | `TypeId`, `DurableQueue`, `make`, flow-side `process`, worker effect `makeWorker`, and worker `layer` constructor `worker`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
-| `RetryPolicy`     | `RetryPolicy` schema/type, `make`, and `defaultRetryPolicy`; decisions `RetryAfter`, `GiveUp`, `RetryDecision`, `retryAfter`, and `giveUp`; `nextDelay`, `nextDelayEffect`, `errorTag`, `isNonRetryable`, `decide`, and `decideEffect`; `RetryAttemptsExhausted`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `FlowRuntime`     | The execution contract this package declares: the `FlowRuntime` service, the per-execution `FlowInstance` service, `annotateWaiting` and `WaitingAnnotation`, and the `FlowCycleDetected` failure `execute` can return.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `StepIdentity`    | `allocationScope` and `invocationKey`, the one canonical derivation of ordinal step identity.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| Namespace         | Public exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Flow`            | `Flow` plus erased/schema helper types `AnyStructSchema`, `Execution`, `Any`, `AnyWithProps`, `PayloadSchema`, `Requirements`, `RequirementsClient`, and `RequirementsHandler`; `make`, whose `body` is required; result guard/schema/models `isResult`, `Result`, `ResultEncoded`, `CompleteEncoded`, `CompleteSchema`, `Complete` (including `Complete.Schema`), and `Suspended`; runtime helpers `intoResult`, `wrapActionResult`, `scope`, `provideScope`, `addFinalizer`, `withRollback`, and `suspend`; annotations `CaptureDefects` and `SuspendOnFailure`; execution identity `ExecutionIdRequired`, `ExecutionIdSource`, `CurrentExecutionIds`, `derived`, and `layerExecutionIds`. A flow value exposes `body`, `call`, `child`, `to`, `execute`, `poll`, `interrupt`, `resume`, `executionId`, annotation methods, and `withRollback`. |
+| `Action`          | `Action`, `Declared`, `Requirement`, `Any`, and `AnyWithProps`; durability `Tier` and `IdempotencyKey`; `make`, `makeSystem`, `retry`, `idempotencyKey`, and `raceAll`; declared-action resolution `Implementations`, `Implementation`, and `layerImplementations`; attempt references `CurrentAttempt` and `CurrentOrdinal`; errors `InfraInterrupt` and `IrreversibleRetryRequiresIdempotencyKey`.                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `DurableDeferred` | `DurableDeferred`, `Any`, and `AnyWithProps`; `make`, `await`, `into`, and `raceAll`; token API `TokenTypeId`, `Token`, `TokenParsed` (`FromString`, `fromString`, `encode`, `asToken`), `token`, `tokenFromExecutionId`, and `tokenFromPayload`; external completion `done`, `succeed`, `fail`, and `failCause`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `DurableClock`    | `DurableClock`, `make({ name, duration })`, and threshold-aware `sleep(options)`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `DurableQueue`    | `TypeId`, `DurableQueue`, `make`, flow-side `process`, worker effect `makeWorker`, and worker `layer` constructor `worker`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `RetryPolicy`     | `RetryPolicy` schema/type, `make`, and `defaultRetryPolicy`; decisions `RetryAfter`, `GiveUp`, `RetryDecision`, `retryAfter`, and `giveUp`; `nextDelay`, `nextDelayEffect`, `errorTag`, `isNonRetryable`, `decide`, and `decideEffect`; `RetryAttemptsExhausted`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `FlowRuntime`     | The execution contract this package declares: the `FlowRuntime` service, the per-execution `FlowInstance` service, `annotateWaiting` and `WaitingAnnotation`, and the `FlowCycleDetected` failure `execute` can return.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `StepIdentity`    | `allocationScope` and `invocationKey`, the one canonical derivation of ordinal step identity.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 ## Source layout
 
@@ -142,17 +142,17 @@ The root exports these namespaces, also available from matching
 - `ExecutionIdRequired.ts` defines the missing-identity error.
 - `TypeId.ts` contains the private runtime marker.
 
-### Activity source layout
+### Action source layout
 
-- `Activity.ts` defines the data structure and schemas.
-- `make.ts` constructs executable activities and mints each declaration's requirement.
+- `Action.ts` defines the data structure and schemas.
+- `make.ts` constructs executable actions and mints each declaration's requirement.
 - `Implementations.ts` holds the name-keyed table a driver resolves a persisted plan through.
 - `Context.ts` carries attempt and cache state during execution.
 - `retry.ts` retries operations while preserving durable identity.
 - `StepIdentity.ts` and `idempotencyKey.ts` derive recorded execution keys.
 - `FileInput.ts`, `FileBoundary.ts`, and `BoundaryMode.ts` describe filesystem access.
 - `CacheEnvironment.ts` describes runtime facts included in cache identity.
-- `raceAll.ts` durably races activities.
+- `raceAll.ts` durably races actions.
 - `Errors.ts` defines typed failures.
 - `TypeId.ts` contains the private runtime marker.
 
@@ -160,7 +160,7 @@ The root exports these namespaces, also available from matching
 
 ```ts
 import { FlowEngine } from "@smthrs/engine-next"
-import { Activity, Flow, Interpreter } from "@smthrs/flow-next"
+import { Action, Flow, Interpreter } from "@smthrs/flow-next"
 import { Effect, Layer, Option, Schema } from "effect"
 
 class ReviewFailed extends Schema.TaggedError<ReviewFailed>()(
@@ -168,8 +168,8 @@ class ReviewFailed extends Schema.TaggedError<ReviewFailed>()(
   { reason: Schema.String }
 ) {}
 
-// Activity.make: the named atom, declared without code.
-const Verdict = Activity.make("review", {
+// Action.make: the named atom, declared without code.
+const Verdict = Action.make("review", {
   payload: { pr: Schema.String },
   success: Schema.String,
   error: ReviewFailed
@@ -191,12 +191,12 @@ const Hardened = Review
   .annotate(Flow.CaptureDefects, true)
   .annotate(Flow.SuspendOnFailure, true)
 
-// Interpreter.layer drives the body; the activity implementations the body
+// Interpreter.layer drives the body; the action implementations the body
 // names attach beside it, over the table they file themselves in.
 const ReviewHandler = Layer.mergeAll(
   Verdict.toLayer(({ pr }) => Effect.succeed(`lgtm ${pr}`)),
   Interpreter.layer(Review)
-).pipe(Layer.provideMerge(Activity.layerImplementations))
+).pipe(Layer.provideMerge(Action.layerImplementations))
 
 // Run and observe. execute needs an executionId unless the flow declares
 // idempotencyKey (Review does, so it may be omitted); discard: true
@@ -221,7 +221,7 @@ Inside a handler, `Flow.scope` / `Flow.provideScope` / `Flow.addFinalizer`
 manage the execution-scoped resource scope, `Flow.suspend(instance)` parks
 the execution, `Flow.withRollback(effect, rollback)` registers how to undo a
 successful effect if the enclosing flow later fails, and `Flow.intoResult` /
-`Flow.wrapActivityResult` convert
+`Flow.wrapActionResult` convert
 handler effects to `Flow.Result` values (serialized via `Flow.Result`,
 `Flow.ResultEncoded`, `Flow.Complete.Schema`, and `Flow.Suspended`).
 Executing without an execution ID or idempotency key fails with
@@ -231,16 +231,16 @@ Registering a behavior under a flow tag is the runtime's own seam and stays
 internal to this package: a flow has one behavior and it is the body, so there
 is no `toLayer` on a flow to attach a second one with.
 
-### Activity — durable steps, tiers, retries, races
+### Action — durable steps, tiers, retries, races
 
 ```ts
-import { Activity, RetryPolicy } from "@smthrs/flow-next"
+import { Action, RetryPolicy } from "@smthrs/flow-next"
 import { Effect, Schema } from "effect"
 
 // Tiers: "sealed" (default), "compensable" (requires a
 // FlowEngine.SnapshotBoundary in context), "irreversible" (retry requires
 // an idempotencyKey, else IrreversibleRetryRequiresIdempotencyKey).
-const charge = Activity.make({
+const charge = Action.make({
   name: "charge",
   success: Schema.String,
   error: Schema.String,
@@ -248,20 +248,20 @@ const charge = Activity.make({
   idempotencyKey: "charge:pr-42", // string | object
   retryPolicy: RetryPolicy.defaultRetryPolicy,
   execute: Effect.gen(function*() {
-    const attempt = yield* Activity.CurrentAttempt // 1-based retry attempt
-    const ordinal = yield* Activity.CurrentOrdinal // run-local step ordinal
-    // Activity.idempotencyKey derives a run-local invocation key effectfully:
-    const key = yield* Activity.idempotencyKey("charge", { includeAttempt: true })
+    const attempt = yield* Action.CurrentAttempt // 1-based retry attempt
+    const ordinal = yield* Action.CurrentOrdinal // run-local step ordinal
+    // Action.idempotencyKey derives a run-local invocation key effectfully:
+    const key = yield* Action.idempotencyKey("charge", { includeAttempt: true })
     return `charged on attempt ${attempt} (step ${ordinal}, key ${key})`
   })
 })
 
-// Activity.retry wraps an activity with Effect.retry semantics while
-// threading CurrentAttempt/CurrentOrdinal; Activity.raceAll races several
-// activities durably. Infrastructure interrupts surface as
-// Activity.InfraInterrupt and honor `interruptRetryPolicy`.
-const resilient = Activity.retry(charge, { times: 3 })
-const fastest = Activity.raceAll("fastest-charge", [charge, resilient])
+// Action.retry wraps an action with Effect.retry semantics while
+// threading CurrentAttempt/CurrentOrdinal; Action.raceAll races several
+// actions durably. Infrastructure interrupts surface as
+// Action.InfraInterrupt and honor `interruptRetryPolicy`.
+const resilient = Action.retry(charge, { times: 3 })
+const fastest = Action.raceAll("fastest-charge", [charge, resilient])
 ```
 
 ### DurableClock — durable sleep

@@ -1,13 +1,13 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 /**
- * `Activity.retry` re-runs a block while keeping the durable identity of the
+ * `Action.retry` re-runs a block while keeping the durable identity of the
  * dispatches inside it: every attempt sees an incremented `CurrentAttempt`,
  * and each dispatch position keeps the ordinal it was allocated on the
  * attempt that first reached it. A nested block shares the enclosing block's
  * pinned ordinals and folds its own cursor positions back on exit.
  */
-import { Activity, Flow, Interpreter } from "@smthrs/flow-next"
+import { Action, Flow, Interpreter } from "@smthrs/flow-next"
 import { Effect, Layer, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
@@ -18,7 +18,7 @@ const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Cr
   it(name, () => runPromise(body()))
 
 /** The one step the host flow is made of; each case supplies its body. */
-const Block = Activity.make("Retry/Block", {
+const Block = Action.make("Retry/Block", {
   payload: { id: Schema.String },
   success: Schema.Number
 })
@@ -40,15 +40,15 @@ const run = (
     )
   ) as Effect.Effect<number, never, Crypto.Crypto>
 
-describe("Activity.retry", () => {
+describe("Action.retry", () => {
   effect("increments CurrentAttempt for every attempt of the block", () =>
     Effect.gen(function*() {
       const attempts: Array<number> = []
       const body = Effect.gen(function*() {
-        const attempt = yield* Activity.CurrentAttempt
+        const attempt = yield* Action.CurrentAttempt
         attempts.push(attempt)
         return attempt < 3 ? yield* Effect.fail("again") : attempt
-      }).pipe(Activity.retry({ times: 5 }), Effect.orDie)
+      }).pipe(Action.retry({ times: 5 }), Effect.orDie)
 
       expect(yield* run(body, "attempts")).toBe(3)
       expect(attempts).toEqual([1, 2, 3])
@@ -57,7 +57,7 @@ describe("Activity.retry", () => {
   effect("pins each dispatch position to its own identity across attempts", () =>
     Effect.gen(function*() {
       let executions = 0
-      const step = Activity.make({
+      const step = Action.make({
         name: "Retry/step",
         success: Schema.Number,
         execute: Effect.sync(() => ++executions)
@@ -71,7 +71,7 @@ describe("Activity.retry", () => {
         const second = yield* step
         if (rounds === 1) return yield* Effect.fail("retry once")
         return first + second
-      }).pipe(Activity.retry({ times: 3 }), Effect.orDie)
+      }).pipe(Action.retry({ times: 3 }), Effect.orDie)
 
       // Each attempt dispatches both positions; the attempt number is part of
       // the recorded outcome, so the second attempt runs them again.
@@ -83,12 +83,12 @@ describe("Activity.retry", () => {
   effect("a nested block shares the enclosing block's pinned ordinals", () =>
     Effect.gen(function*() {
       let executions = 0
-      const inner = Activity.make({
+      const inner = Action.make({
         name: "Retry/inner",
         success: Schema.Number,
         execute: Effect.sync(() => ++executions)
       })
-      const before = Activity.make({
+      const before = Action.make({
         name: "Retry/before",
         success: Schema.Number,
         execute: Effect.sync(() => ++executions)
@@ -104,9 +104,9 @@ describe("Activity.retry", () => {
           innerRounds++
           const dispatched = yield* inner
           return innerRounds === 1 ? yield* Effect.fail("inner again") : dispatched
-        }).pipe(Activity.retry({ times: 3 }))
+        }).pipe(Action.retry({ times: 3 }))
         return outerRounds === 1 ? yield* Effect.fail("outer again") : value
-      }).pipe(Activity.retry({ times: 3 }), Effect.orDie)
+      }).pipe(Action.retry({ times: 3 }), Effect.orDie)
 
       // The inner block retries once inside the first outer attempt. On the
       // second outer attempt it starts from attempt 1 again and, because the

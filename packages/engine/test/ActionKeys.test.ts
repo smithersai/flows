@@ -1,6 +1,6 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
+import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Effect, Exit, Layer, Result, Schedule, Schema, SchemaRepresentation, Scope } from "effect"
 import type * as Crypto from "effect/Crypto"
@@ -11,7 +11,7 @@ import { key, runPromise } from "./Crypto.ts"
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
   it(name, () => runPromise(body()))
 
-const hostFlow = Flow.make("ActivityKeys/host", {
+const hostFlow = Flow.make("ActionKeys/host", {
   payload: { id: Schema.String },
   success: Schema.Void,
   body: () => Node.succeed(undefined)
@@ -33,15 +33,15 @@ const provideHost = <A, E>(
     Effect.provide(FlowEngine.layerMemory)
   )
 
-describe("activity execution keys", () => {
-  effect("namespaces string idempotency keys by activity name so distinct activities never collide", () => {
+describe("action execution keys", () => {
+  effect("namespaces string idempotency keys by action name so distinct actions never collide", () => {
     // Issue #9: `chargeCard` and `sendEmail` both declaring
     // `idempotencyKey: "order-123"` must NOT share a step key — otherwise the
     // second replays the first's persisted outcome against the wrong schema.
     let charges = 0
     let emails = 0
-    const chargeCard = Activity.make({
-      name: "ActivityKeys/chargeCard",
+    const chargeCard = Action.make({
+      name: "ActionKeys/chargeCard",
       success: Schema.Number,
       idempotencyKey: "order-123",
       execute: Effect.sync(() => {
@@ -49,8 +49,8 @@ describe("activity execution keys", () => {
         return 42
       })
     })
-    const sendEmail = Activity.make({
-      name: "ActivityKeys/sendEmail",
+    const sendEmail = Action.make({
+      name: "ActionKeys/sendEmail",
       success: Schema.String,
       idempotencyKey: "order-123",
       execute: Effect.sync(() => {
@@ -58,17 +58,17 @@ describe("activity execution keys", () => {
         return "sent"
       })
     })
-    const flowActivityDeclaration = Activity.make("ActivityKeys/no-collision/activity", {
+    const flowActionDeclaration = Action.make("ActionKeys/no-collision/action", {
       payload: { run: Schema.String },
       success: Schema.String
     })
-    const flow = Flow.make("ActivityKeys/no-collision", {
+    const flow = Flow.make("ActionKeys/no-collision", {
       payload: { run: Schema.String },
       success: Schema.String,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
     const layer = Layer.mergeAll(
-      flowActivityDeclaration.toLayer(() =>
+      flowActionDeclaration.toLayer(() =>
         Effect.gen(function*() {
           const amount = yield* chargeCard
           const receipt = yield* sendEmail
@@ -77,7 +77,7 @@ describe("activity execution keys", () => {
       ),
       Interpreter.layer(flow)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
 
     return Effect.gen(function*() {
@@ -87,29 +87,29 @@ describe("activity execution keys", () => {
     }).pipe(Effect.provide(layer))
   })
 
-  effect("replays the same activity's string idempotency key across attempts", () => {
+  effect("replays the same action's string idempotency key across attempts", () => {
     let executions = 0
-    const activity = () =>
-      Activity.make({
-        name: "ActivityKeys/stable",
+    const action = () =>
+      Action.make({
+        name: "ActionKeys/stable",
         success: Schema.Number,
         idempotencyKey: "sealed/caller-key",
         execute: Effect.sync(() => ++executions)
       })
-    const flowActivityDeclaration = Activity.make("ActivityKeys/replay/activity", {
+    const flowActionDeclaration = Action.make("ActionKeys/replay/action", {
       payload: { run: Schema.String },
       success: Schema.Number
     })
-    const flow = Flow.make("ActivityKeys/replay", {
+    const flow = Flow.make("ActionKeys/replay", {
       payload: { run: Schema.String },
       success: Schema.Number,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
     const layer = Layer.mergeAll(
-      flowActivityDeclaration.toLayer(() => Effect.andThen(activity(), activity())),
+      flowActionDeclaration.toLayer(() => Effect.andThen(action(), action())),
       Interpreter.layer(flow)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
@@ -123,12 +123,12 @@ describe("activity execution keys", () => {
   effect("folds the boundary descriptor into string idempotency keys so a changed read set misses (issue #25)", () => {
     // Skyframe's dirty→recheck→rebuild collapses to key-based invalidation
     // here: the hermetic descriptor (readSet digests, writeSet,
-    // boundaryMode) is part of the cache key, so an activity whose
+    // boundaryMode) is part of the cache key, so an action whose
     // declared inputs changed can never replay the stale cached result.
     let executions = 0
     const build = (digest: string) =>
-      Activity.make({
-        name: "ActivityKeys/build",
+      Action.make({
+        name: "ActionKeys/build",
         success: Schema.Number,
         idempotencyKey: "v1",
         metadata: {
@@ -138,17 +138,17 @@ describe("activity execution keys", () => {
         },
         execute: Effect.sync(() => ++executions)
       })
-    const flowActivityDeclaration = Activity.make("ActivityKeys/boundary-invalidation/activity", {
+    const flowActionDeclaration = Action.make("ActionKeys/boundary-invalidation/action", {
       payload: { run: Schema.String },
       success: Schema.Number
     })
-    const flow = Flow.make("ActivityKeys/boundary-invalidation", {
+    const flow = Flow.make("ActionKeys/boundary-invalidation", {
       payload: { run: Schema.String },
       success: Schema.Number,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
     const layer = Layer.mergeAll(
-      flowActivityDeclaration.toLayer(() =>
+      flowActionDeclaration.toLayer(() =>
         Effect.gen(function*() {
           // Same digest replays; the changed digest must re-execute.
           yield* build("d1")
@@ -158,7 +158,7 @@ describe("activity execution keys", () => {
       ),
       Interpreter.layer(flow)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
 
     return Effect.gen(function*() {
@@ -167,40 +167,40 @@ describe("activity execution keys", () => {
     }).pipe(Effect.provide(layer))
   })
 
-  effect("keeps object identity caller-owned so replay survives an activity rename", () => {
+  effect("keeps object identity caller-owned so replay survives an action rename", () => {
     // The object-form idempotencyKey is the escape hatch for rename-stable
-    // identity: the caller owns the full key input, so the activity name
+    // identity: the caller owns the full key input, so the action name
     // intentionally does not enter the digest.
     let executions = 0
     const identity = {
       operation: "sealed/caller-owned"
     }
-    const first = Activity.make({
-      name: "ActivityKeys/first-name",
+    const first = Action.make({
+      name: "ActionKeys/first-name",
       success: Schema.Number,
       idempotencyKey: identity,
       execute: Effect.sync(() => ++executions)
     })
-    const renamed = Activity.make({
-      name: "ActivityKeys/renamed",
+    const renamed = Action.make({
+      name: "ActionKeys/renamed",
       success: Schema.Number,
       idempotencyKey: identity,
       execute: Effect.sync(() => ++executions)
     })
-    const flowActivityDeclaration = Activity.make("ActivityKeys/rename-stable/activity", {
+    const flowActionDeclaration = Action.make("ActionKeys/rename-stable/action", {
       payload: { run: Schema.String },
       success: Schema.Number
     })
-    const flow = Flow.make("ActivityKeys/rename-stable", {
+    const flow = Flow.make("ActionKeys/rename-stable", {
       payload: { run: Schema.String },
       success: Schema.Number,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
     const layer = Layer.mergeAll(
-      flowActivityDeclaration.toLayer(() => Effect.andThen(first, renamed)),
+      flowActionDeclaration.toLayer(() => Effect.andThen(first, renamed)),
       Interpreter.layer(flow)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
@@ -215,7 +215,7 @@ describe("activity execution keys", () => {
     "folds the boundary descriptor into object-form keys so the rename-stable escape hatch cannot bypass invalidation (issue #57)",
     () => {
       // A caller-owned object, on a sealed
-      // activity declaring a hard boundary descriptor, must still fold the
+      // action declaring a hard boundary descriptor, must still fold the
       // read-set material into the key: otherwise a changed read-set digest
       // replays the stale cross-run cache entry #25 was filed for.
       let executions = 0
@@ -223,8 +223,8 @@ describe("activity execution keys", () => {
         operation: "sealed/boundary-escape-hatch"
       }
       const build = (digest: string) =>
-        Activity.make({
-          name: "ActivityKeys/object-boundary",
+        Action.make({
+          name: "ActionKeys/object-boundary",
           success: Schema.Number,
           idempotencyKey: identity,
           metadata: {
@@ -234,17 +234,17 @@ describe("activity execution keys", () => {
           },
           execute: Effect.sync(() => ++executions)
         })
-      const flowActivityDeclaration = Activity.make("ActivityKeys/object-boundary-invalidation/activity", {
+      const flowActionDeclaration = Action.make("ActionKeys/object-boundary-invalidation/action", {
         payload: { run: Schema.String },
         success: Schema.Number
       })
-      const flow = Flow.make("ActivityKeys/object-boundary-invalidation", {
+      const flow = Flow.make("ActionKeys/object-boundary-invalidation", {
         payload: { run: Schema.String },
         success: Schema.Number,
-        body: (payload) => flowActivityDeclaration.call(payload)
+        body: (payload) => flowActionDeclaration.call(payload)
       })
       const layer = Layer.mergeAll(
-        flowActivityDeclaration.toLayer(() =>
+        flowActionDeclaration.toLayer(() =>
           Effect.gen(function*() {
             // Same digest replays; the changed digest must re-execute.
             yield* build("d1")
@@ -254,7 +254,7 @@ describe("activity execution keys", () => {
         ),
         Interpreter.layer(flow)
       ).pipe(
-        Layer.provideMerge(Activity.layerImplementations)
+        Layer.provideMerge(Action.layerImplementations)
       ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
 
       return Effect.gen(function*() {
@@ -268,7 +268,7 @@ describe("activity execution keys", () => {
     "overrides a caller-pinned stale hermetic with the metadata descriptor so the read-set change still misses (issue #83)",
     () => {
       // Issue #57's mechanism is spread order alone: the descriptor derived
-      // from `activity.metadata` must win over a `boundary` the caller
+      // from `action.metadata` must win over a `boundary` the caller
       // pinned inside the object-form identity. This is the
       // caller-supplies case the #57 test never covered — a refactor that
       // spread the caller's field last (`{ boundary, ...identity }`) would
@@ -277,8 +277,8 @@ describe("activity execution keys", () => {
       let executions = 0
       const identity = { operation: "sealed/pinned-hermetic" }
       const build = (digest: string) =>
-        Activity.make({
-          name: "ActivityKeys/pinned-hermetic",
+        Action.make({
+          name: "ActionKeys/pinned-hermetic",
           success: Schema.Number,
           idempotencyKey: identity,
           metadata: {
@@ -288,17 +288,17 @@ describe("activity execution keys", () => {
           },
           execute: Effect.sync(() => ++executions)
         })
-      const flowActivityDeclaration = Activity.make("ActivityKeys/pinned-hermetic-invalidation/activity", {
+      const flowActionDeclaration = Action.make("ActionKeys/pinned-hermetic-invalidation/action", {
         payload: { run: Schema.String },
         success: Schema.Number
       })
-      const flow = Flow.make("ActivityKeys/pinned-hermetic-invalidation", {
+      const flow = Flow.make("ActionKeys/pinned-hermetic-invalidation", {
         payload: { run: Schema.String },
         success: Schema.Number,
-        body: (payload) => flowActivityDeclaration.call(payload)
+        body: (payload) => flowActionDeclaration.call(payload)
       })
       const layer = Layer.mergeAll(
-        flowActivityDeclaration.toLayer(() =>
+        flowActionDeclaration.toLayer(() =>
           Effect.gen(function*() {
             // The pinned "frozen" digest never enters the key: same metadata
             // digest replays, the changed digest re-executes.
@@ -309,7 +309,7 @@ describe("activity execution keys", () => {
         ),
         Interpreter.layer(flow)
       ).pipe(
-        Layer.provideMerge(Activity.layerImplementations)
+        Layer.provideMerge(Action.layerImplementations)
       ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
 
       return Effect.gen(function*() {
@@ -322,12 +322,12 @@ describe("activity execution keys", () => {
   effect("folds the declared schemas into string idempotency keys so a schema change misses (issue #120)", () => {
     // The step-key spec requires the content body to be the *compiled
     // declaration* — schemas and combinators applied. Folding only
-    // `{activity, idempotencyKey}` let an activity whose success schema
+    // `{action, idempotencyKey}` let an action whose success schema
     // changed keep its old key, replaying a stale cached row decoded under
     // the new schema.
     let executions = 0
-    const v1 = Activity.make({
-      name: "ActivityKeys/schema-change",
+    const v1 = Action.make({
+      name: "ActionKeys/schema-change",
       success: Schema.Struct({ a: Schema.Number }),
       idempotencyKey: "row",
       execute: Effect.sync(() => {
@@ -335,8 +335,8 @@ describe("activity execution keys", () => {
         return { a: 1 }
       })
     })
-    const v2 = Activity.make({
-      name: "ActivityKeys/schema-change",
+    const v2 = Action.make({
+      name: "ActionKeys/schema-change",
       success: Schema.Struct({ a: Schema.Number, b: Schema.Number }),
       idempotencyKey: "row",
       execute: Effect.sync(() => {
@@ -344,17 +344,17 @@ describe("activity execution keys", () => {
         return { a: 1, b: 2 }
       })
     })
-    const flowActivityDeclaration = Activity.make("ActivityKeys/schema-invalidation/activity", {
+    const flowActionDeclaration = Action.make("ActionKeys/schema-invalidation/action", {
       payload: { run: Schema.String },
       success: Schema.Number
     })
-    const flow = Flow.make("ActivityKeys/schema-invalidation", {
+    const flow = Flow.make("ActionKeys/schema-invalidation", {
       payload: { run: Schema.String },
       success: Schema.Number,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
     const layer = Layer.mergeAll(
-      flowActivityDeclaration.toLayer(() =>
+      flowActionDeclaration.toLayer(() =>
         Effect.gen(function*() {
           // Same declaration replays; the changed success schema must miss and
           // re-execute rather than decode v1's cached row as v2's shape.
@@ -366,7 +366,7 @@ describe("activity execution keys", () => {
       ),
       Interpreter.layer(flow)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
 
     return Effect.gen(function*() {
@@ -380,14 +380,14 @@ describe("activity execution keys", () => {
     () => {
       // `declarationDigest` folds BOTH declared schemas; the #120 regression
       // test varied only the success schema, so dropping the error term kept
-      // the suite green while an activity whose error schema changed replayed
+      // the suite green while an action whose error schema changed replayed
       // a stale row decoded under the new error type. This cell pins the
       // error-schema axis: identical success schema and idempotencyKey, only
       // the error schema differs, and the second declaration must re-execute.
       let executions = 0
       const make = <Error extends Schema.Constraint>(error: Error) =>
-        Activity.make({
-          name: "ActivityKeys/error-schema-change",
+        Action.make({
+          name: "ActionKeys/error-schema-change",
           success: Schema.Struct({ a: Schema.Number }),
           error,
           idempotencyKey: "row",
@@ -398,17 +398,17 @@ describe("activity execution keys", () => {
         })
       const v1 = make(Schema.Struct({ reason: Schema.String }))
       const v2 = make(Schema.Struct({ reason: Schema.String, retriable: Schema.Boolean }))
-      const flowActivityDeclaration = Activity.make("ActivityKeys/error-schema-invalidation/activity", {
+      const flowActionDeclaration = Action.make("ActionKeys/error-schema-invalidation/action", {
         payload: { run: Schema.String },
         success: Schema.Number
       })
-      const flow = Flow.make("ActivityKeys/error-schema-invalidation", {
+      const flow = Flow.make("ActionKeys/error-schema-invalidation", {
         payload: { run: Schema.String },
         success: Schema.Number,
-        body: (payload) => flowActivityDeclaration.call(payload)
+        body: (payload) => flowActionDeclaration.call(payload)
       })
       const layer = Layer.mergeAll(
-        flowActivityDeclaration.toLayer(() =>
+        flowActionDeclaration.toLayer(() =>
           Effect.gen(function*() {
             // Same declaration replays; the changed error schema must miss and
             // re-execute rather than replay v1's cached row under v2's key.
@@ -422,7 +422,7 @@ describe("activity execution keys", () => {
         ),
         Interpreter.layer(flow)
       ).pipe(
-        Layer.provideMerge(Activity.layerImplementations)
+        Layer.provideMerge(Action.layerImplementations)
       ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
 
       return Effect.gen(function*() {
@@ -437,7 +437,7 @@ describe("activity execution keys", () => {
       key({
         kind: "cache",
         input: {
-          body: "activity",
+          body: "action",
           dependencies: { input: { kind: "literal", value: input } }
         },
         environment: {
@@ -457,16 +457,16 @@ describe("activity execution keys", () => {
     })
   })
 
-  effect("keeps ordinal activity keys isolated by run and never by activity name", () =>
+  effect("keeps ordinal action keys isolated by run and never by action name", () =>
     Effect.gen(function*() {
       const ordinal = (run: string, attempt: number) => `ordinal/${run}/compensable/${attempt}`
       expect(ordinal("run-a", 1)).not.toBe(ordinal("run-b", 1))
       expect(ordinal("run-a", 1)).not.toBe(ordinal("run-a", 2))
-      expect(ordinal("run-a", 1)).not.toContain("activity-name")
+      expect(ordinal("run-a", 1)).not.toContain("action-name")
     }))
 
   effect("distinguishes a caller object that spells the string form's encoding (B3)", () => {
-    // The string form builds `{activity, idempotencyKey, declaration}` and the
+    // The string form builds `{action, idempotencyKey, declaration}` and the
     // object form uses the caller's object verbatim. With no tag naming which
     // form produced the input, a caller object that spells the string form's
     // encoding — the shape a caller reaches for when copying the engine's own
@@ -482,8 +482,8 @@ describe("activity execution keys", () => {
       success: SchemaRepresentation.toJson(SchemaRepresentation.toRepresentation(success.ast)),
       error: SchemaRepresentation.toJson(SchemaRepresentation.toRepresentation(Schema.Never.ast))
     }
-    const declared = Activity.make({
-      name: "ActivityKeys/charge",
+    const declared = Action.make({
+      name: "ActionKeys/charge",
       success,
       idempotencyKey: "order-7",
       execute: Effect.sync(() => {
@@ -491,11 +491,11 @@ describe("activity execution keys", () => {
         return "declared"
       })
     })
-    const spelled = Activity.make({
-      name: "ActivityKeys/spells-the-string-form",
+    const spelled = Action.make({
+      name: "ActionKeys/spells-the-string-form",
       success,
       idempotencyKey: {
-        activity: "ActivityKeys/charge",
+        action: "ActionKeys/charge",
         idempotencyKey: "order-7",
         declaration
       },
@@ -504,17 +504,17 @@ describe("activity execution keys", () => {
         return "spelled"
       })
     })
-    const flowActivityDeclaration = Activity.make("ActivityKeys/form-aliasing/activity", {
+    const flowActionDeclaration = Action.make("ActionKeys/form-aliasing/action", {
       payload: { run: Schema.String },
       success: Schema.String
     })
-    const flow = Flow.make("ActivityKeys/form-aliasing", {
+    const flow = Flow.make("ActionKeys/form-aliasing", {
       payload: { run: Schema.String },
       success: Schema.String,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
     const layer = Layer.mergeAll(
-      flowActivityDeclaration.toLayer(() =>
+      flowActionDeclaration.toLayer(() =>
         Effect.gen(function*() {
           const first = yield* declared
           const second = yield* spelled
@@ -523,7 +523,7 @@ describe("activity execution keys", () => {
       ),
       Interpreter.layer(flow)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
@@ -538,15 +538,15 @@ describe("activity execution keys", () => {
   })
 
   effect("classifies tagged infrastructure interrupts for retry exhaustion", () => {
-    const activity = Activity.make({
-      name: "ActivityKeys/infra-interrupt",
+    const action = Action.make({
+      name: "ActionKeys/infra-interrupt",
       error: Schema.Unknown,
       interruptRetryPolicy: Schedule.recurs(0),
-      execute: Effect.fail(new Activity.InfraInterrupt({ reason: "host-lost" }))
+      execute: Effect.fail(new Action.InfraInterrupt({ reason: "host-lost" }))
     })
 
     return Effect.gen(function*() {
-      const exit = yield* activity.execute.pipe(Effect.exit)
+      const exit = yield* action.execute.pipe(Effect.exit)
       expect(Exit.isFailure(exit)).toBe(true)
       expect(Exit.isFailure(exit) && exit.cause.reasons.some((reason) => reason._tag === "Die")).toBe(true)
     }).pipe(provideHost)

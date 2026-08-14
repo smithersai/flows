@@ -1,7 +1,7 @@
 # `@smthrs/run-store-next`
 
 This page is the public API reference for **executable run state**: run rows,
-activity attempt rows, and the ownership arbitration that fences them. It was
+action attempt rows, and the ownership arbitration that fences them. It was
 split out of `@smthrs/journal-next` — see
 [`docs/specs/Concepts/Journal Split.md`](../../../docs/specs/Concepts/Journal%20Split.md).
 

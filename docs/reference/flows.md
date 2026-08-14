@@ -17,7 +17,7 @@ import { Engine, Kernel, Journal } from "@smthrs/flows-next"
 | `Crypto`      | `@smthrs/crypto-next`        | [crypto](crypto.md)                    |
 | `Database`    | `@smthrs/database-next`     | [database](database.md)                |
 | `Engine`      | `@smthrs/engine-next`       | [engine](engine.md)                    |
-| `Flow`, `Activity`, `RetryPolicy`, `DurableDeferred`, `DurableClock`, `DurableQueue`, `FlowRuntime`, `StepIdentity` | `@smthrs/flow-next` (flat) | [flow](flow.md) |
+| `Flow`, `Action`, `RetryPolicy`, `DurableDeferred`, `DurableClock`, `DurableQueue`, `FlowRuntime`, `StepIdentity` | `@smthrs/flow-next` (flat) | [flow](flow.md) |
 | `EngineStore` | `@smthrs/engine-store-next` | [engine-store](engine-store.md)        |
 | `Jj`          | `@smthrs/jj-next`           | [jj](jj.md)                            |
 | `Journal`     | `@smthrs/journal-next`      | [journal](journal.md)                  |

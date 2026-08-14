@@ -180,7 +180,7 @@ const error = (code: CacheStoreErrorCode, message: string, cause?: unknown): Cac
  * `put` decides `ExistingSame` versus `Conflict` by comparing `result_json`
  * text. `JSON.stringify` output depends on key insertion order, so two
  * structurally equal results built in different orders compared unequal, and
- * `ActivityPersistence` routes `Conflict` to the `Inconsistency` receiver whose
+ * `ActionPersistence` routes `Conflict` to the `Inconsistency` receiver whose
  * core default verdict is `fail` — the run failed with `CacheConflictDetected`
  * naming a divergence that did not exist. Canonicalizing on the way in makes
  * the text comparison a structural one, which is what `@smthrs/canonical-next`

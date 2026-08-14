@@ -2,7 +2,7 @@
 
 import type * as Crypto from "effect/Crypto"
 /**
- * Issue #111: keyless same-declaration activities dispatched concurrently
+ * Issue #111: keyless same-declaration actions dispatched concurrently
  * take their ordinals from fiber arrival order, so a crash-resume that
  * replays the fibers in the opposite order silently hands one invocation the
  * other's recorded outcome — with no input material persisted, the swap is
@@ -12,7 +12,7 @@ import type * as Crypto from "effect/Crypto"
  * with `ConcurrentKeylessDispatch`, and declaring an `idempotencyKey` is the
  * sanctioned way to run distinguishable invocations concurrently.
  */
-import { Activity, Flow, FlowRuntime } from "@smthrs/flow-next"
+import { Action, Flow, FlowRuntime } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Cause, Deferred, Effect, Exit, Fiber, Layer, Scheduler, Schema } from "effect"
 import { describe, expect, it } from "vitest"
@@ -28,7 +28,7 @@ const flow = Flow.make("KeylessConcurrency/flow", {
   body: () => Node.succeed(undefined)
 })
 
-const keylessFetch = Activity.make({
+const keylessFetch = Action.make({
   name: "KeylessConcurrency/fetch",
   tier: "irreversible",
   success: Schema.Void,
@@ -36,7 +36,7 @@ const keylessFetch = Activity.make({
 })
 
 const keyedFetch = (idempotencyKey: string) =>
-  Activity.make({
+  Action.make({
     name: "KeylessConcurrency/fetch",
     tier: "irreversible",
     idempotencyKey,
@@ -57,7 +57,7 @@ const gatedEngine = (gate: Deferred.Deferred<void>) =>
     interrupt: () => Effect.void,
     interruptUnsafe: () => Effect.void,
     resume: () => Effect.void,
-    activityExecute: () => Effect.as(Deferred.await(gate), new Flow.Complete({ exit: Exit.void })),
+    actionExecute: () => Effect.as(Deferred.await(gate), new Flow.Complete({ exit: Exit.void })),
     deferredResult: () => Effect.succeedNone,
     deferredDone: () => Effect.void,
     scheduleClock: () => Effect.void
@@ -68,7 +68,7 @@ const drive = (
   program: (
     engine: FlowRuntime.FlowRuntime["Service"],
     gate: Deferred.Deferred<void>
-    // The `as never` activity casts below erase the dispatch requirements, so
+    // The `as never` action casts below erase the dispatch requirements, so
     // the program's `R` widens; `drive` discharges both services and pins the
     // boundary back to `never` in its own return type.
   ) => Effect.Effect<unknown, unknown, any>
@@ -90,8 +90,8 @@ const dies = (exit: Exit.Exit<unknown, unknown>): boolean =>
   Exit.isFailure(exit) &&
   exit.cause.reasons.some((reason) =>
     Cause.isDieReason(reason) &&
-    reason.defect instanceof Activity.ConcurrentKeylessDispatch &&
-    reason.defect.activityName === "KeylessConcurrency/fetch"
+    reason.defect instanceof Action.ConcurrentKeylessDispatch &&
+    reason.defect.actionName === "KeylessConcurrency/fetch"
   )
 
 describe("concurrent keyless same-declaration dispatches are refused (issue #111)", () => {
@@ -99,11 +99,11 @@ describe("concurrent keyless same-declaration dispatches are refused (issue #111
     return Effect.gen(function*() {
       const exit = yield* drive("keyless-overlap", (engine, gate) =>
         Effect.all([
-          engine.activityExecute(keylessFetch as never, 1),
+          engine.actionExecute(keylessFetch as never, 1),
           // The second dispatch arrives while the first is still parked in
           // the gated body — the exact window in which a replay could
           // reverse arrival order and swap the recorded outcomes.
-          engine.activityExecute(keylessFetch as never, 1).pipe(
+          engine.actionExecute(keylessFetch as never, 1).pipe(
             Effect.ensuring(Deferred.done(gate, Exit.void))
           )
         ], { concurrency: "unbounded" }))
@@ -118,8 +118,8 @@ describe("concurrent keyless same-declaration dispatches are refused (issue #111
           // Fork both dispatches so they genuinely overlap in the gated
           // body, then release the gate from outside.
           const fiber = yield* Effect.forkChild(Effect.all([
-            engine.activityExecute(keyedFetch("url-a") as never, 1),
-            engine.activityExecute(keyedFetch("url-b") as never, 1)
+            engine.actionExecute(keyedFetch("url-a") as never, 1),
+            engine.actionExecute(keyedFetch("url-b") as never, 1)
           ], { concurrency: "unbounded" }))
           yield* Effect.yieldNow
           yield* Deferred.done(gate, Exit.void)
@@ -139,8 +139,8 @@ describe("concurrent keyless same-declaration dispatches are refused (issue #111
     return Effect.gen(function*() {
       const exit = yield* drive("keyed-same-key-overlap", (engine, gate) =>
         Effect.all([
-          engine.activityExecute(keyedFetch("url-a") as never, 1),
-          engine.activityExecute(keyedFetch("url-a") as never, 1).pipe(
+          engine.actionExecute(keyedFetch("url-a") as never, 1),
+          engine.actionExecute(keyedFetch("url-a") as never, 1).pipe(
             Effect.ensuring(Deferred.done(gate, Exit.void))
           )
         ], { concurrency: "unbounded" }))
@@ -153,8 +153,8 @@ describe("concurrent keyless same-declaration dispatches are refused (issue #111
       const exit = yield* drive("keyed-same-key-sequential", (engine, gate) =>
         Effect.gen(function*() {
           yield* Deferred.done(gate, Exit.void)
-          yield* engine.activityExecute(keyedFetch("url-a") as never, 1)
-          yield* engine.activityExecute(keyedFetch("url-a") as never, 1)
+          yield* engine.actionExecute(keyedFetch("url-a") as never, 1)
+          yield* engine.actionExecute(keyedFetch("url-a") as never, 1)
         }))
       expect(Exit.isSuccess(exit)).toBe(true)
     })
@@ -165,8 +165,8 @@ describe("concurrent keyless same-declaration dispatches are refused (issue #111
       const exit = yield* drive("keyless-sequential", (engine, gate) =>
         Effect.gen(function*() {
           yield* Deferred.done(gate, Exit.void)
-          yield* engine.activityExecute(keylessFetch as never, 1)
-          yield* engine.activityExecute(keylessFetch as never, 1)
+          yield* engine.actionExecute(keylessFetch as never, 1)
+          yield* engine.actionExecute(keylessFetch as never, 1)
         }))
       expect(Exit.isSuccess(exit)).toBe(true)
     })
@@ -191,7 +191,7 @@ describe("interruption cannot poison the in-flight guard (issue #139)", () => {
           const exit = yield* drive(`inflight-interrupt-${budget}-${steps}`, (engine, gate) =>
             Effect.gen(function*() {
               const probe = yield* Effect.forkChild(
-                engine.activityExecute(keylessFetch as never, 1).pipe(
+                engine.actionExecute(keylessFetch as never, 1).pipe(
                   Effect.provideService(Scheduler.MaxOpsBeforeYield, budget)
                 )
               )
@@ -204,7 +204,7 @@ describe("interruption cannot poison the in-flight guard (issue #139)", () => {
               yield* Fiber.await(probe)
               yield* Fiber.join(interrupter).pipe(Effect.exit)
               // The guard released, the same scope must dispatch cleanly.
-              yield* engine.activityExecute(keylessFetch as never, 1)
+              yield* engine.actionExecute(keylessFetch as never, 1)
             }))
           expect({ budget, steps, success: Exit.isSuccess(exit) })
             .toEqual({ budget, steps, success: true })

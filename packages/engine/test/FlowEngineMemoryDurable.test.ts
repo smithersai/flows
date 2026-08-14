@@ -9,7 +9,7 @@
  * suspension live in `@smthrs/flow-next`'s suite. What is asserted here is the
  * engine's side of the same interaction.
  */
-import { Activity, DurableClock, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
+import { Action, DurableClock, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
 import { Effect, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
@@ -47,7 +47,7 @@ const pollComplete = <A, E, R>(
   })
 
 describe("FlowEngine.layerMemory durable waits", () => {
-  const ParkedActivityDeclaration = Activity.make("Memory/Parked/activity", {
+  const ParkedActionDeclaration = Action.make("Memory/Parked/action", {
     payload: { id: Schema.String },
     success: Schema.String
   })
@@ -55,15 +55,15 @@ describe("FlowEngine.layerMemory durable waits", () => {
     payload: { id: Schema.String },
     success: Schema.String,
     idempotencyKey: ({ id }) => id,
-    body: (payload) => ParkedActivityDeclaration.call(payload)
+    body: (payload) => ParkedActionDeclaration.call(payload)
   })
   const gate = DurableDeferred.make("Memory/gate", { success: Schema.String })
 
   const ParkedLayer = Layer.mergeAll(
-    ParkedActivityDeclaration.toLayer(() => DurableDeferred.await(gate)),
+    ParkedActionDeclaration.toLayer(() => DurableDeferred.await(gate)),
     Interpreter.layer(Parked)
   ).pipe(
-    Layer.provideMerge(Activity.layerImplementations)
+    Layer.provideMerge(Action.layerImplementations)
   ).pipe(
     Layer.provideMerge(FlowEngine.layerMemory)
   )

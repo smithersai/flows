@@ -8,14 +8,14 @@ import * as Option from "effect/Option"
 import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 import * as Inconsistency from "../src/Inconsistency.ts"
-import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "inconsistency-host", pid: 7, nonce: "inconsistency-process" }
 
-const boundary: ActivityPersistence.BoundaryMetadata = {
+const boundary: ActionPersistence.BoundaryMetadata = {
   readSet: [],
   writeSet: ["output.txt"],
   boundaryMode: "hard"
@@ -67,13 +67,13 @@ const seedConflictingRow = (keyDigest: string, result: unknown) =>
   })
 
 const dispatch = (runId: string, key: string, result: string) =>
-  ActivityPersistence.make({
+  ActionPersistence.make({
     runId,
     owner,
     sourceId: "inconsistency-test",
     execute: () => Effect.succeed(result)
   })({
-    activity: {},
+    action: {},
     attempt: 1,
     key,
     tier: "sealed",
@@ -106,7 +106,7 @@ describe("Inconsistency", () => {
       }).pipe(Effect.provide(Layer.provideMerge(Inconsistency.layerStrict, base)), Effect.scoped)
     )
 
-    expect(result.error).toBeInstanceOf(ActivityPersistence.CacheConflictDetected)
+    expect(result.error).toBeInstanceOf(ActionPersistence.CacheConflictDetected)
     expect(result.error).toMatchObject({
       code: "cache_conflict_detected",
       keyDigest,
@@ -165,8 +165,8 @@ describe("Inconsistency", () => {
     expect(notes).toBe(0)
   })
 
-  it("never discards a cache.put result in ActivityPersistence", () => {
-    const source = readFileSync(new URL("../src/internal/ActivityPersistence.ts", import.meta.url), "utf8")
+  it("never discards a cache.put result in ActionPersistence", () => {
+    const source = readFileSync(new URL("../src/internal/ActionPersistence.ts", import.meta.url), "utf8")
     const puts = source.match(/cache\.put\(/g) ?? []
     const bound = source.match(/= yield\* cache\.put\(/g) ?? []
     expect(puts.length).toBeGreaterThan(0)

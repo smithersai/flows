@@ -73,7 +73,7 @@ const event = (options: EventOptions, eventType: string, payload: unknown): Jour
 export const runDecision = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.run-decision", payload)
 /**
- * An activity attempt was admitted and its body is about to run. Paired with
+ * An action attempt was admitted and its body is about to run. Paired with
  * {@link attemptFinished}; an unmatched one is crash evidence.
  *
  * @since 0.1.0
@@ -82,7 +82,7 @@ export const runDecision = (options: EventOptions, payload: unknown) =>
 export const attemptStarted = (options: EventOptions, payload: unknown) =>
   event(options, "flows.engine.attempt-started", payload)
 /**
- * An activity attempt settled, successfully or not. Closes the span opened by
+ * An action attempt settled, successfully or not. Closes the span opened by
  * {@link attemptStarted}.
  *
  * @since 0.1.0

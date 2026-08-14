@@ -84,7 +84,7 @@ Constraints on `capture`:
 
 ## Operational guidance
 
-**Choose boundaries that dominate producer retries.** Compaction truncates the durable producer-retry window: a retry of a source event whose row was compacted away is admitted as a new event, not deduplicated. Checkpoint only at sequences where no producer can still retry an event at or below the boundary — in the engine's terms, at quiescent points where every in-flight activity outcome is already durable.
+**Choose boundaries that dominate producer retries.** Compaction truncates the durable producer-retry window: a retry of a source event whose row was compacted away is admitted as a new event, not deduplicated. Checkpoint only at sequences where no producer can still retry an event at or below the boundary — in the engine's terms, at quiescent points where every in-flight action outcome is already durable.
 
 **Do not compact runs you intend to fork or rewind below the checkpoint.** `@smthrs/time-travel-next` forks copy the parent's surviving journal rows; history below the floor is gone. Compaction trades auditability below the boundary for bounded storage — that is its point — so keep full history on runs where the audit trail matters more than the disk.
 

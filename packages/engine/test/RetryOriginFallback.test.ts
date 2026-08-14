@@ -7,7 +7,7 @@
  * budget restarts (with a logged warning) instead of failing the run — so
  * the #45 fix cannot silently regress into an untested branch.
  */
-import { Activity, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow-next"
+import { Action, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Cause, Effect, Exit, Fiber, Layer, Logger, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
@@ -33,7 +33,7 @@ describe("retry origin fallback when the durable hook yields none", () => {
     const capture = Logger.make((options) => {
       logs.push({ message: options.message, logLevel: options.logLevel })
     })
-    const activity = Activity.make({
+    const action = Action.make({
       name: "RetryOriginFallback/pruned",
       success: Schema.Number,
       error: Schema.String,
@@ -53,19 +53,19 @@ describe("retry origin fallback when the durable hook yields none", () => {
       interrupt: () => Effect.void,
       interruptUnsafe: () => Effect.void,
       resume: () => Effect.void,
-      activityExecute: (input) =>
+      actionExecute: (input) =>
         Effect.sync(() => {
           attempts.push(input.attempt)
           return new Flow.Complete({ exit: Exit.fail("still-failing") })
         }),
       // Every attempt row was pruned: the durable driver has no origin.
-      activityRetryOrigin: () => Effect.sync(() => (originRequests++, Option.none())),
+      actionRetryOrigin: () => Effect.sync(() => (originRequests++, Option.none())),
       deferredResult: () => Effect.succeedNone,
       deferredDone: () => Effect.void,
       scheduleClock: () => Effect.void
     })
     return Effect.gen(function*() {
-      const fiber = yield* engine.activityExecute(activity, 1).pipe(
+      const fiber = yield* engine.actionExecute(action, 1).pipe(
         Effect.forkChild({ startImmediately: true })
       )
       // Attempt 1 runs at elapsed 0 and schedules the 1ms backoff; the
@@ -79,7 +79,7 @@ describe("retry origin fallback when the durable hook yields none", () => {
       // 1ms window elapsed across the backoff sleep.
       expect(attempts).toEqual([1, 2])
       // The restarted budget must be observable (issue #82): the fallback's
-      // only operator signal is the warning naming the activity, emitted
+      // only operator signal is the warning naming the action, emitted
       // exactly once for the retry sequence — not once per attempt.
       const warnings = logs.filter((entry) =>
         entry.logLevel === "Warn" &&
@@ -93,7 +93,7 @@ describe("retry origin fallback when the durable hook yields none", () => {
         if (Exit.isFailure(result.exit)) {
           expect(Cause.squash(result.exit.cause)).toMatchObject({
             _tag: "@smthrs/engine-next/RetryPolicyExpired",
-            activityName: "RetryOriginFallback/pruned",
+            actionName: "RetryOriginFallback/pruned",
             expirationMs: 1,
             lastError: "still-failing"
           })

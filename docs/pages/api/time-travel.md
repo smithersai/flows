@@ -61,7 +61,7 @@ const count = yield* timeTravel.inspect(position, { initial: 0, reduce: (state) 
 
 | Operation | Notes |
 | --- | --- |
-| `inspect(position, projection)` | read-only fold of committed entries up to the frame; never invokes a flow handler or an activity dispatcher, which is what separates it from an engine resume |
+| `inspect(position, projection)` | read-only fold of committed entries up to the frame; never invokes a flow handler or an action dispatcher, which is what separates it from an engine resume |
 | `fork(position, options?)` | requires a terminal or inactive parent; the jj workspace name and path are derived from the position, and the lane is forgotten when the service is released. `options.workspaceRoot` only moves where it lands |
 | `rewind(position, options?)` | the fenced, audited suffix-removal protocol. The ownership claim and audit id are minted inside; `options.detachedChildren` (`"block"` by default, or `"cancel"`) and `options.pageSize` are the only knobs |
 
@@ -87,7 +87,7 @@ a later rewind has something to assess. It stays public for that reason.
 | `EffectRecord`, `Description`, `EffectTier`, `EffectStatus` | shapes | `intended`, `succeeded`, `unknown` |
 
 The engine is the producer: `@smthrs/engine-store-next` writes an `intended` record
-before an irreversible activity's body runs and a terminal record after it
+before an irreversible action's body runs and a terminal record after it
 settles, so an ordinary run leaves a rewind something to assess without the
 application calling `guard` by hand.
 
@@ -102,7 +102,7 @@ itself. What a composition contributes is the handler, not the registry.
 | --- | --- | --- |
 | `CompensationHandlers` | service | optional; the handlers a composition contributes |
 | `layer(handlers)`, `layerNoop` | layers | `TimeTravel.layer` reads the service when present |
-| `Handler` | shape | `kind` (the activity name the engine journaled), `tier`, `residue`, `revert`, optional `assess`/`rollback` |
+| `Handler` | shape | `kind` (the action name the engine journaled), `tier`, `residue`, `revert`, optional `assess`/`rollback` |
 
 With no handlers provided, a crossed record that is not sealed classifies as
 `blocking` and the rewind fails with `irreversible` — the safe default.

@@ -14,7 +14,7 @@
   result to the cross-run cache.
 - Quarantined corrupt boundary evidence off succeeded attempt rows after
   journalling the inconsistency, so a later resume returns the durable outcome
-  without re-executing the activity
+  without re-executing the action
   ([#171](https://github.com/smithersai/flows/issues/171)).
 - Included recorded-row provenance in corruption journal identities so an
   identically re-corrupted row records a new incident after healing
@@ -31,7 +31,7 @@
 ### Added
 
 - Added the journal-backed engine composition, claim-gated run
-  driver, durable deferred and absolute-clock state, activity persistence
+  driver, durable deferred and absolute-clock state, action persistence
   wiring, and deterministic test layers.
 - Added SQL-backed deferred completions and clock deadlines with owner-fenced
   scheduling, first-writer completion, and restart recovery.

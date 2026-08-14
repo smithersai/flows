@@ -39,7 +39,7 @@
  * Adapted from the agent repo's `@smthrs/core` `Graph.ts`. The lenient
  * placeholder, the model-shaped `Dynamic` node, the lane-merge elaboration,
  * and the conflict pass do not come across: the placeholder is strict here,
- * a model call is an ordinary activity, and write overlap is resolved by
+ * a model call is an ordinary action, and write overlap is resolved by
  * `Plan.compile`, which owns that verdict.
  *
  * @since 0.1.0
@@ -53,8 +53,8 @@ import * as Context from "effect/Context"
 import * as Option from "effect/Option"
 import * as Predicate from "effect/Predicate"
 import * as Schema from "effect/Schema"
-import type * as Activity from "./Activity/Activity.ts"
-import { TypeId as ActivityTypeId } from "./Activity/TypeId.ts"
+import type * as Action from "./Action/Action.ts"
+import { TypeId as ActionTypeId } from "./Action/TypeId.ts"
 import * as Annotations from "./Flow/Annotations.ts"
 import type * as Flow from "./Flow/Flow.ts"
 import { TypeId as FlowTypeId } from "./Flow/TypeId.ts"
@@ -114,7 +114,7 @@ export interface GraphNode {
   /**
    * What this node passes on, hydrated: real data where the author wrote data,
    * and a {@link module:Planned.Planned} placeholder where a step result goes.
-   * It is the call payload of an `ActivityCall` or a `FlowCall`, the value of a
+   * It is the call payload of an `ActionCall` or a `FlowCall`, the value of a
    * `Succeed`, and `undefined` for every other variant, which passes nothing of
    * its own.
    */
@@ -178,18 +178,18 @@ export interface Graph {
 }
 
 /**
- * The declared-activity fields graph building reads. Only `Activity.make`'s
- * declared form produces an `ActivityCall`, so a call node's declaration is
+ * The declared-action fields graph building reads. Only `Action.make`'s
+ * declared form produces an `ActionCall`, so a call node's declaration is
  * one of these whenever the side table still holds it.
  *
  * @private
  */
-interface ActivityDeclaration {
+interface ActionDeclaration {
   readonly name: string
   readonly payloadSchema: Schema.Top
   readonly successSchema: Schema.Top
   readonly errorSchema: Schema.Top
-  readonly tier: Activity.Tier
+  readonly tier: Action.Tier
   readonly annotations: Context.Context<never>
 }
 
@@ -219,8 +219,8 @@ const flowDeclaration = (value: unknown): Flow.Any | undefined =>
   Predicate.hasProperty(value, FlowTypeId) ? value as unknown as Flow.Any : undefined
 
 /** @private */
-const activityDeclaration = (value: unknown): ActivityDeclaration | undefined =>
-  Predicate.hasProperty(value, ActivityTypeId) ? value as unknown as ActivityDeclaration : undefined
+const actionDeclaration = (value: unknown): ActionDeclaration | undefined =>
+  Predicate.hasProperty(value, ActionTypeId) ? value as unknown as ActionDeclaration : undefined
 
 /** @private */
 const declaredEffects = (annotations: Context.Context<never>): Annotations.Effects | undefined =>
@@ -667,8 +667,8 @@ export const build = (
           inputs
         })
       }
-      case "ActivityCall": {
-        const declared = activityDeclaration(Node.declaration(ast))
+      case "ActionCall": {
+        const declared = actionDeclaration(Node.declaration(ast))
         const annotations = declared?.annotations ?? Context.empty()
         const payload = hydrate(ast.payload, substitutions)
         return record({
@@ -680,8 +680,8 @@ export const build = (
           placement: declaredPlacement(annotations),
           tier: declared?.tier ?? "sealed",
           body: {
-            _tag: "ActivityCall",
-            activity: ast.activity,
+            _tag: "ActionCall",
+            action: ast.action,
             tier: declared?.tier ?? "sealed",
             declaration: declared === undefined ? undefined : {
               payload: schemaIdentity(declared.payloadSchema),

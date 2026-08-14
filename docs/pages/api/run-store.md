@@ -1,6 +1,6 @@
 # @smthrs/run-store-next
 
-Executable run state: run rows, activity attempt rows, and the ownership arbitration that fences them. Split out of [`@smthrs/journal-next`](/api/journal). Both stores write through the `@smthrs/database-next` contract, so the package root bundles for the browser.
+Executable run state: run rows, action attempt rows, and the ownership arbitration that fences them. Split out of [`@smthrs/journal-next`](/api/journal). Both stores write through the `@smthrs/database-next` contract, so the package root bundles for the browser.
 
 ```ts
 import { AttemptStore, Migrations, RunStore } from "@smthrs/run-store-next"

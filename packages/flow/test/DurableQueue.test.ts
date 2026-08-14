@@ -1,6 +1,6 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, DurableQueue, Flow, Interpreter } from "@smthrs/flow-next"
+import { Action, DurableQueue, Flow, Interpreter } from "@smthrs/flow-next"
 import { Cause, Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
@@ -35,7 +35,7 @@ describe("DurableQueue", () => {
     error: Schema.String,
     idempotencyKey: ({ id }) => id
   })
-  const Offer = Activity.make("DurableQueue/SuppliedKey/offer", {
+  const Offer = Action.make("DurableQueue/SuppliedKey/offer", {
     payload: { id: Schema.String, value: Schema.Number },
     success: Schema.Number,
     error: Schema.String
@@ -52,7 +52,7 @@ describe("DurableQueue", () => {
     Interpreter.layer(Flow_),
     DurableQueue.worker(Queue, ({ value }) => Effect.succeed(value + 1))
   ).pipe(
-    Layer.provideMerge(Activity.layerImplementations),
+    Layer.provideMerge(Action.layerImplementations),
     Layer.provideMerge(layerMemory),
     Layer.provideMerge(PersistedQueueLayer)
   )
@@ -68,7 +68,7 @@ describe("DurableQueue", () => {
     }).pipe(Effect.provide(successLayer)))
 
   effect("propagates queue worker failures", () => {
-    const Offer = Activity.make("DurableQueue/Failure/offer", {
+    const Offer = Action.make("DurableQueue/Failure/offer", {
       payload: { id: Schema.String },
       success: Schema.Void,
       error: Schema.String
@@ -85,7 +85,7 @@ describe("DurableQueue", () => {
       Interpreter.layer(Failure),
       DurableQueue.worker(Queue, () => Effect.fail("boom"))
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(Action.layerImplementations),
       Layer.provideMerge(layerMemory),
       Layer.provideMerge(PersistedQueueLayer)
     )
@@ -113,7 +113,7 @@ describe("DurableQueue", () => {
     })
     expect(SchemaQueue.payloadSchema).toBe(payloadSchema)
 
-    const Offer = Activity.make("DurableQueue/SchemaPayload/offer", {
+    const Offer = Action.make("DurableQueue/SchemaPayload/offer", {
       payload: { id: Schema.String, value: Schema.Number },
       success: Schema.Number,
       error: Schema.String
@@ -130,7 +130,7 @@ describe("DurableQueue", () => {
       Interpreter.layer(SchemaFlow),
       DurableQueue.worker(SchemaQueue, ({ value }) => Effect.succeed(value * 2))
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(Action.layerImplementations),
       Layer.provideMerge(layerMemory),
       Layer.provideMerge(PersistedQueueLayer)
     )
@@ -153,7 +153,7 @@ describe("DurableQueue", () => {
       error: Schema.String,
       idempotencyKey: ({ id }) => id
     })
-    const Offer = Activity.make("DurableQueue/Idle/offer", {
+    const Offer = Action.make("DurableQueue/Idle/offer", {
       payload: { id: Schema.String },
       success: Schema.Void,
       error: Schema.String
@@ -175,7 +175,7 @@ describe("DurableQueue", () => {
         { concurrency: 0 }
       )
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(Action.layerImplementations),
       Layer.provideMerge(layerMemory),
       Layer.provideMerge(PersistedQueueLayer)
     )

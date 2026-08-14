@@ -24,7 +24,7 @@ import { dual } from "effect/Function"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as SchemaGetter from "effect/SchemaGetter"
-import type * as Activity from "./Activity/index.ts"
+import type * as Action from "./Action/index.ts"
 import * as Flow from "./Flow/index.ts"
 import { FlowInstance } from "./FlowRuntime/FlowInstance.ts"
 import { FlowRuntime } from "./FlowRuntime/FlowRuntime.ts"
@@ -47,7 +47,7 @@ export interface DurableDeferred<
   readonly successSchema: Success
   readonly errorSchema: Error
   readonly exitSchema: Schema.Exit<Schema.Top, Schema.Top, Schema.Top>
-  readonly withActivityAttempt: Effect.Effect<DurableDeferred<Success, Error>>
+  readonly withActionAttempt: Effect.Effect<DurableDeferred<Success, Error>>
 }
 
 /**
@@ -106,7 +106,7 @@ export const make = <
       Schema.toCodecJson(errorSchema),
       Schema.toCodecJson(Schema.Defect())
     ) as any,
-    withActivityAttempt: Effect.gen(function*() {
+    withActionAttempt: Effect.gen(function*() {
       const attempt = yield* CurrentAttempt
       return make(`${name}/${attempt}`, {
         success: successSchema,
@@ -117,7 +117,7 @@ export const make = <
 }
 
 const CurrentAttempt = Context.Reference<number>(
-  "effect/flow/Activity/CurrentAttempt" satisfies typeof Activity.CurrentAttempt.key,
+  "effect/flow/Action/CurrentAttempt" satisfies typeof Action.CurrentAttempt.key,
   { defaultValue: () => 1 }
 )
 
@@ -138,7 +138,7 @@ const await_: <Success extends Schema.Constraint, Error extends Schema.Constrain
   >(self: DurableDeferred<Success, Error>) {
     const engine = yield* FlowRuntime
     const instance = yield* FlowInstance
-    const exit = yield* Flow.wrapActivityResult(
+    const exit = yield* Flow.wrapActionResult(
       engine.deferredResult(self),
       Option.isNone
     )

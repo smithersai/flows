@@ -90,7 +90,7 @@ const summary = yield* DisasterRecovery.fence(restored.manifest) // over the res
 
 - **Writes after the snapshot.** Lost by definition. The backup interval is the bound.
 - **External side effects.** The store records what ran; it cannot undo an email, a push, or an API call made after the snapshot, and an in-flight attempt re-executes on resume. Side effects need the same idempotency they need to survive a crash.
-- **Workspace trees and jj state.** Only the database and the objects directory are captured. Activity workspaces, sandbox trees, and jj repositories are not part of the backup.
+- **Workspace trees and jj state.** Only the database and the objects directory are captured. Action workspaces, sandbox trees, and jj repositories are not part of the backup.
 - **Remote artifact tiers.** `RemoteArtifacts` content is not walked. The backup captures the local objects directory; a restored store backed by a remote tier heals remote misses through the normal read-through path.
 - **Retention, encryption, and off-host transport.** The backup directory is plain files; scheduling, rotation, encryption, and shipping it off the host are the operator's platform.
 - **Non-SQLite backends.** `backup` speaks SQLite (`VACUUM INTO`) and fails with its `sql` error code on any other `SqlClient`.

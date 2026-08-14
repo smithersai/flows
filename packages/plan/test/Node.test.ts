@@ -270,12 +270,12 @@ describe("internal/node call factories", () => {
     })
   })
 
-  it("records an activity call with its payload and declaration", () => {
+  it("records an action call with its payload and declaration", () => {
     const declaration = { tag: "counter/read" }
-    const ast = internal.activityCall(declaration, "counter/read", { path: "counter.txt" })
+    const ast = internal.actionCall(declaration, "counter/read", { path: "counter.txt" })
     expect(ast).toEqual({
-      _tag: "ActivityCall",
-      activity: "counter/read",
+      _tag: "ActionCall",
+      action: "counter/read",
       payload: { path: "counter.txt" }
     })
     expect(internal.declaration(ast)).toBe(declaration)
@@ -287,7 +287,7 @@ describe("internal/node call factories", () => {
     const planned = Planned.make<{ readonly path: string }>("previous")
     const shared = { literal: true }
     const flow = Node.flowCall(declaration, "counter/next", "inline", { path: planned.path })
-    const activity = Node.activityCall(declaration, "counter/read", {
+    const action = Node.actionCall(declaration, "counter/read", {
       paths: [planned.path],
       shared: [shared, shared]
     })
@@ -299,26 +299,26 @@ describe("internal/node call factories", () => {
         path: { _tag: "PlannedReference", node: "previous", path: ["path"] }
       }
     })
-    expect(activity.ast).toEqual({
-      _tag: "ActivityCall",
-      activity: "counter/read",
+    expect(action.ast).toEqual({
+      _tag: "ActionCall",
+      action: "counter/read",
       payload: {
         paths: [{ _tag: "PlannedReference", node: "previous", path: ["path"] }],
         shared: [{ literal: true }, { literal: true }]
       }
     })
     expect(internal.declaration(tagged(flow.ast, "FlowCall"))).toBe(declaration)
-    expect(internal.declaration(tagged(activity.ast, "ActivityCall"))).toBe(declaration)
-    expect(JSON.parse(JSON.stringify({ flow: flow.ast, activity: activity.ast }))).toEqual({
+    expect(internal.declaration(tagged(action.ast, "ActionCall"))).toBe(declaration)
+    expect(JSON.parse(JSON.stringify({ flow: flow.ast, action: action.ast }))).toEqual({
       flow: flow.ast,
-      activity: activity.ast
+      action: action.ast
     })
   })
 
   it("preserves an own __proto__ payload field without changing the clone prototype", () => {
     const payload = Object.create(null) as Record<string, unknown>
     Object.defineProperty(payload, "__proto__", { enumerable: true, value: "safe" })
-    const ast = internal.activityCall({}, "safe", payload)
+    const ast = internal.actionCall({}, "safe", payload)
     const cloned = ast.payload as Record<string, unknown>
     expect(Object.getPrototypeOf(cloned)).toBeNull()
     expect(Object.hasOwn(cloned, "__proto__")).toBe(true)
@@ -327,9 +327,9 @@ describe("internal/node call factories", () => {
 
   it("reads back the declaration and the continuation a graph builder needs", () => {
     const declaration = { tag: "counter/read" }
-    const activity = Node.activityCall(declaration, "counter/read", { path: "counter.txt" })
+    const action = Node.actionCall(declaration, "counter/read", { path: "counter.txt" })
     const flow = Node.flowCall(declaration, "counter/next", "inline", { path: "counter.txt" })
-    expect(Node.declaration(tagged(activity.ast, "ActivityCall"))).toBe(declaration)
+    expect(Node.declaration(tagged(action.ast, "ActionCall"))).toBe(declaration)
     expect(Node.declaration(tagged(flow.ast, "FlowCall"))).toBe(declaration)
 
     const built = Node.andThen(Node.succeed(1), (value: Planned.Planned<number>) => Node.succeed(value))

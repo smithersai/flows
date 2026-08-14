@@ -17,7 +17,7 @@
  * the per-attempt producer identity `(sourceId, sourceSeq 0)` collapses the
  * re-emission into a `Duplicate` on every ordinary replay.
  */
-import type { Activity } from "@smthrs/flow-next"
+import type { Action } from "@smthrs/flow-next"
 import { Journal, type JournalEvent } from "@smthrs/journal-next"
 import { Jj } from "@smthrs/kernel-next"
 import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store-next"
@@ -25,14 +25,14 @@ import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"
-import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "terminal-emit-host", pid: 61, nonce: "terminal-emit-process" }
 
-const declared: ActivityPersistence.BoundaryMetadata = {
+const declared: ActionPersistence.BoundaryMetadata = {
   readSet: [{ path: "config.json", digest: "D1" }],
   writeSet: ["output.txt"],
   boundaryMode: "hard"
@@ -66,10 +66,10 @@ const dispatch = (
   runId: string,
   key: string,
   execute: () => Effect.Effect<unknown, unknown>,
-  options: { readonly tier?: Activity.Tier; readonly metadata?: ActivityPersistence.BoundaryMetadata } = {}
+  options: { readonly tier?: Action.Tier; readonly metadata?: ActionPersistence.BoundaryMetadata } = {}
 ) =>
-  ActivityPersistence.make({ runId, owner, sourceId: `terminal-emit-${runId}`, execute })({
-    activity: {},
+  ActionPersistence.make({ runId, owner, sourceId: `terminal-emit-${runId}`, execute })({
+    action: {},
     attempt: 1,
     key,
     tier: options.tier ?? "sealed",

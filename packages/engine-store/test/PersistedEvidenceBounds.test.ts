@@ -1,6 +1,6 @@
 /**
  * Issue #125: an end-to-end guard on the issue-#113 bound — a dispatch
- * through `ActivityPersistence.make` under the REAL filesystem-backed
+ * through `ActionPersistence.make` under the REAL filesystem-backed
  * `StepBoundary` with an over-bound output must persist the digest
  * reference, never the payload, into the attempt row meta. The filesystem
  * boundary cannot observe the whole tree, so its evidence must not enter the
@@ -15,7 +15,7 @@ import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
-import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
@@ -86,7 +86,7 @@ describe("persisted evidence stays bounded through the real boundary (issue #125
     const artifact = "x".repeat(4096)
     const artifactDigest = sha256(artifact)
     const host = memoryFs({ "input.txt": "original" })
-    const metadata: ActivityPersistence.BoundaryMetadata = {
+    const metadata: ActionPersistence.BoundaryMetadata = {
       readSet: [{ path: "input.txt", digest: sha256("original") }],
       writeSet: ["artifact.bin"],
       boundaryMode: "hard"
@@ -104,7 +104,7 @@ describe("persisted evidence stays bounded through the real boundary (issue #125
         const attempts = yield* AttemptStore.AttemptStore
         const cache = yield* CacheStore.CacheStore
         yield* activate(runId)
-        const result = yield* ActivityPersistence.make({
+        const result = yield* ActionPersistence.make({
           runId,
           owner,
           sourceId: "evidence-bounds",
@@ -113,7 +113,7 @@ describe("persisted evidence stays bounded through the real boundary (issue #125
               host.files.set("artifact.bin", encoder.encode(artifact))
               return "done"
             })
-        })({ activity: {}, attempt: 1, key, tier: "sealed", metadata }).pipe(Effect.provide(boundaryLayer))
+        })({ action: {}, attempt: 1, key, tier: "sealed", metadata }).pipe(Effect.provide(boundaryLayer))
         const entry = yield* cache.get(keyDigest)
         const row = yield* attempts.get({ runId, stepKeyDigest: keyDigest, attempt: 1 })
         return { result, entry, row }

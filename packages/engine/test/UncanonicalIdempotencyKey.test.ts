@@ -5,13 +5,13 @@ import type * as Crypto from "effect/Crypto"
  * Issue #151: forcing key-schema decoders at the four derivation sites turned
  * a typed canonicalization error into an untyped defect that
  * killed the fiber. The caller-owned sites now surface a typed, non-retryable
- * `Activity.UncanonicalIdempotencyKey` naming the offending path (delivered
+ * `Action.UncanonicalIdempotencyKey` naming the offending path (delivered
  * through the recorded completion exit, the same channel RetryPolicy's
  * typed terminal errors use), and the engine-generated ordinal sites go
  * through `StepIdentity.invocationKey`, which preserves the typed error for the
  * impossible invariant violation instead of discarding it.
  */
-import { Activity, Flow, Interpreter } from "@smthrs/flow-next"
+import { Action, Flow, Interpreter } from "@smthrs/flow-next"
 import * as StepIdentity from "@smthrs/flow-next/StepIdentity"
 import { Cause, Effect, Exit, Layer, Schema } from "effect"
 import { describe, expect, it } from "vitest"
@@ -21,7 +21,7 @@ import { invocationKey, runPromise, runSync } from "./Crypto.ts"
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
   it(name, () => runPromise(body()))
 
-const identityWith = (body: unknown): Activity.IdempotencyKey => ({ body } as Activity.IdempotencyKey)
+const identityWith = (body: unknown): Action.IdempotencyKey => ({ body } as Action.IdempotencyKey)
 
 const dieOf = (exit: Exit.Exit<unknown, unknown>): unknown => {
   if (!Exit.isFailure(exit)) return undefined
@@ -31,7 +31,7 @@ const dieOf = (exit: Exit.Exit<unknown, unknown>): unknown => {
 
 const runRejected = (tier: "sealed" | "compensable", body: unknown) => {
   let executions = 0
-  const activity = Activity.make({
+  const action = Action.make({
     name: `Uncanonical/${tier}`,
     success: Schema.Number,
     tier,
@@ -41,17 +41,17 @@ const runRejected = (tier: "sealed" | "compensable", body: unknown) => {
       return 1
     })
   })
-  const flowActivityDeclaration = Activity.make(`Uncanonical/${tier}-flow` + "/activity", {
+  const flowActionDeclaration = Action.make(`Uncanonical/${tier}-flow` + "/action", {
     payload: { id: Schema.String },
     success: Schema.Number
   })
   const flow = Flow.make(`Uncanonical/${tier}-flow`, {
     payload: { id: Schema.String },
     success: Schema.Number,
-    body: (payload) => flowActivityDeclaration.call(payload)
+    body: (payload) => flowActionDeclaration.call(payload)
   })
-  const layer = Layer.mergeAll(flowActivityDeclaration.toLayer(() => activity), Interpreter.layer(flow)).pipe(
-    Layer.provideMerge(Activity.layerImplementations)
+  const layer = Layer.mergeAll(flowActionDeclaration.toLayer(() => action), Interpreter.layer(flow)).pipe(
+    Layer.provideMerge(Action.layerImplementations)
   ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
   return Effect.gen(function*() {
     const exit = yield* flow.execute({ id: "x" }, { executionId: `run-${tier}` }).pipe(Effect.exit)
@@ -64,10 +64,10 @@ describe("rejected declaration material surfaces typed, not as fiber death (issu
     Effect.gen(function*() {
       const outcome = yield* runRejected("sealed", { count: 1n })
       const defect = dieOf(outcome.exit)
-      expect(defect).toBeInstanceOf(Activity.UncanonicalIdempotencyKey)
-      const error = defect as Activity.UncanonicalIdempotencyKey
+      expect(defect).toBeInstanceOf(Action.UncanonicalIdempotencyKey)
+      const error = defect as Action.UncanonicalIdempotencyKey
       expect(error.code).toBe("uncanonical_idempotency_key")
-      expect(error.activityName).toBe("Uncanonical/sealed")
+      expect(error.actionName).toBe("Uncanonical/sealed")
       expect(error.reason).toBe("canonicalize_failed")
       expect(error.path).toBe("$")
       expect(outcome.executions).toBe(0)
@@ -77,7 +77,7 @@ describe("rejected declaration material surfaces typed, not as fiber death (issu
 describe("StepIdentity typed derivations (issue #151)", () => {
   it("allocationScope returns a typed SchemaError for rejected JSON material", () => {
     const error = runSync(Effect.flip(StepIdentity.allocationScope({
-      kind: "activity",
+      kind: "action",
       name: "op",
       idempotency: identityWith({ count: 1n })
     })))

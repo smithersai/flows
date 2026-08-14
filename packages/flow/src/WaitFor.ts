@@ -1,17 +1,17 @@
 /**
- * The system wait point, as an ordinary declared activity.
+ * The system wait point, as an ordinary declared action.
  *
  * `docs/specs/Concepts/Unified Flow Authoring.md` names wait-for-event the
  * other half of the timer gap and says how to close it: ship it over the
  * existing `DurableDeferred`, so an external signal is a visible, keyed plan
- * node. That is this module. {@link activity} is a plain `Activity.make`
+ * node. That is this module. {@link action} is a plain `Action.make`
  * declaration — catalogable, `.call()`-able, one node in the built plan — and
  * {@link layer} is the implementation.
  *
  * Nothing about resolution is new. The wait is a `DurableDeferred`, so whoever
  * satisfies it completes it the way every other durable deferred is completed:
  * a token, and `DurableDeferred.succeed`, `fail`, `failCause`, or `done`.
- * {@link deferred} is how a resolver names the same wait point the activity
+ * {@link deferred} is how a resolver names the same wait point the action
  * awaits. The park is declared through the ordinary waiting vocabulary
  * ({@link module:WaitingAnnotation.annotateWaiting}) under `event`, carrying
  * that token as the compare-and-swap material a wake handler matches. Replay is
@@ -23,7 +23,7 @@
 import * as Effect from "effect/Effect"
 import type * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
-import * as Activity from "./Activity/index.ts"
+import * as Action from "./Action/index.ts"
 import * as DurableDeferred from "./DurableDeferred.ts"
 import { FlowInstance } from "./FlowRuntime/FlowInstance.ts"
 import type { FlowRuntime } from "./FlowRuntime/FlowRuntime.ts"
@@ -66,7 +66,7 @@ export const tag = "system/wait-for"
 /**
  * The durable deferred a named wait point resolves through.
  *
- * This is the resolver's half of {@link activity}: the value to hand
+ * This is the resolver's half of {@link action}: the value to hand
  * `DurableDeferred.tokenFromExecutionId` and `DurableDeferred.succeed`, so a
  * wait that a body declared by name is completed through the existing deferred
  * completion path rather than a second one.
@@ -84,19 +84,19 @@ export const deferred = (name: string): DurableDeferred.DurableDeferred<typeof S
   DurableDeferred.make(`WaitFor/${name}`, { success: Schema.Json })
 
 /**
- * The declared wait activity: a wait point named by `name` or by `token`.
+ * The declared wait action: a wait point named by `name` or by `token`.
  *
  * **When to use**
  *
  * Use it in a body wherever a round has to wait for something outside the run —
- * an approval, a webhook, a human — `WaitFor.activity.call({ name: "approval"
+ * an approval, a webhook, a human — `WaitFor.action.call({ name: "approval"
  * })`. The node settles with whatever value resolved the wait, so downstream
  * steps read it the way they read any other step result.
  *
  * @category constructors
  * @since 0.1.0
  */
-export const activity: Activity.Declared<
+export const action: Action.Declared<
   typeof tag,
   Schema.Struct<{
     readonly token: Schema.optional<Schema.String>
@@ -105,7 +105,7 @@ export const activity: Activity.Declared<
   typeof Schema.Json,
   typeof WaitForRequestInvalid,
   never
-> = Activity.makeSystem(tag, {
+> = Action.makeSystem(tag, {
   payload: {
     token: Schema.optional(Schema.String),
     name: Schema.optional(Schema.String)
@@ -199,20 +199,20 @@ const target = (
  * The wait implementation: park under `event` with the wake token, and settle
  * with the value that resolved the wait.
  *
- * Provide it beside the other activity implementation layers a body calls, over
+ * Provide it beside the other action implementation layers a body calls, over
  * the {@link module:Implementations.layerImplementations} table they file
  * themselves in:
  *
  * ```ts
  * Layer.mergeAll(WaitFor.layer, Interpreter.layer(Pipeline)).pipe(
- *   Layer.provideMerge(Activity.layerImplementations)
+ *   Layer.provideMerge(Action.layerImplementations)
  * )
  * ```
  *
  * @category layers
  * @since 0.1.0
  */
-export const layer: Layer.Layer<never, never, FlowRuntime> = activity.toLayer((payload) =>
+export const layer: Layer.Layer<never, never, FlowRuntime> = action.toLayer((payload) =>
   Effect.gen(function*() {
     const instance = yield* FlowInstance
     const waitPoint = yield* target(payload, instance.flow._tag, instance.executionId)

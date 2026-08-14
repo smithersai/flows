@@ -20,7 +20,7 @@ import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as Inconsistency from "../src/Inconsistency.ts"
-import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
@@ -28,7 +28,7 @@ import { runPromise, sha256 } from "./Sha256.ts"
 const ownerA: Ownership.OwnerId = { hostId: "lifecycle-host-a", pid: 1, nonce: "lifecycle-owner-a" }
 const ownerB: Ownership.OwnerId = { hostId: "lifecycle-host-b", pid: 2, nonce: "lifecycle-owner-b" }
 
-const boundary: ActivityPersistence.BoundaryMetadata = {
+const boundary: ActionPersistence.BoundaryMetadata = {
   readSet: [],
   writeSet: ["output.txt"],
   boundaryMode: "hard"
@@ -119,7 +119,7 @@ const makeExecutor = (options: {
   readonly key: string
   readonly result: unknown
 }) =>
-  ActivityPersistence.make({
+  ActionPersistence.make({
     runId: options.runId,
     owner: options.owner,
     sourceId: `lifecycle-${options.owner.nonce}`,
@@ -138,7 +138,7 @@ describe("lifecycle journal durability", () => {
       const cache = yield* CacheStore.CacheStore
       const executor = makeExecutor({ runId: "drop-proof", owner: ownerA, key, result: "v1" })
       const value = yield* executor({
-        activity: {},
+        action: {},
         attempt: 1,
         key,
         tier: "sealed",
@@ -182,7 +182,7 @@ describe("lifecycle journal durability", () => {
       )
       const executor = makeExecutor({ runId: "fence-proof", owner: ownerA, key, result: "v1" })
       const exit = yield* executor({
-        activity: {},
+        action: {},
         attempt: 1,
         key,
         tier: "sealed",
@@ -219,7 +219,7 @@ describe("lifecycle journal durability", () => {
       const lossy = droppingLossy(journal)
       const executor = makeExecutor({ runId: "conflict-proof", owner: ownerA, key, result: "v1" })
       const value = yield* executor({
-        activity: {},
+        action: {},
         attempt: 1,
         key,
         tier: "sealed",

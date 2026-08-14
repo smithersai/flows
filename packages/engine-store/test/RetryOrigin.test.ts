@@ -6,7 +6,7 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  */
 import { DurableWriter } from "@smthrs/database-next"
 import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
-import { Activity, Flow, RetryPolicy } from "@smthrs/flow-next"
+import { Action, Flow, RetryPolicy } from "@smthrs/flow-next"
 import { SqlJournal } from "@smthrs/journal-next"
 import { Jj } from "@smthrs/kernel-next"
 import { Node } from "@smthrs/plan-next"
@@ -56,7 +56,7 @@ const provide = <A>(effect: Effect.Effect<A, any, any>, state: DurableEngineStat
 describe("durable schedule-to-close origin", () => {
   it("does not restart the retry budget when a new process re-drives the run", async () => {
     let dispatches = 0
-    const flaky = Activity.make({
+    const flaky = Action.make({
       name: "flaky",
       success: Schema.String,
       error: Schema.String,
@@ -139,7 +139,7 @@ describe("durable schedule-to-close origin", () => {
     // fresh in-process clock, which would silently restore the unbounded
     // budget #45 fixed.
     let dispatches = 0
-    const flaky = Activity.make({
+    const flaky = Action.make({
       name: "flaky-pruned",
       success: Schema.String,
       error: Schema.String,

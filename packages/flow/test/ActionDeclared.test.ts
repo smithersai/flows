@@ -1,20 +1,20 @@
-import { Activity, Flow, FlowRuntime, Graph } from "@smthrs/flow-next"
+import { Action, Flow, FlowRuntime, Graph } from "@smthrs/flow-next"
 import { Node, Planned } from "@smthrs/plan-next"
 import { Context, Effect, Layer, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { runPromise } from "./Crypto.ts"
 import { layerMemory } from "./MemoryFlowRuntime.ts"
 
-const Label = Context.Reference<string>("ActivityDeclared/Label", {
+const Label = Context.Reference<string>("ActionDeclared/Label", {
   defaultValue: () => "missing"
 })
 
-describe("Activity.make declared overload", () => {
-  it("discriminates declared and inline activities by the first argument", () => {
-    const declared = Activity.make("Declared/discrimination", {
+describe("Action.make declared overload", () => {
+  it("discriminates declared and inline actions by the first argument", () => {
+    const declared = Action.make("Declared/discrimination", {
       payload: { value: Schema.Number }
     })
-    const inline = Activity.make({
+    const inline = Action.make({
       name: "Inline/discrimination",
       execute: Effect.void
     })
@@ -27,14 +27,14 @@ describe("Activity.make declared overload", () => {
 
   it("exposes declared schemas, defaults, tier, and idempotency", () => {
     const payload = Schema.Struct({ value: Schema.Number })
-    const declared = Activity.make("Declared/fields", {
+    const declared = Action.make("Declared/fields", {
       payload,
       success: Schema.String,
       error: Schema.Number,
       tier: "irreversible",
       idempotencyKey: { operation: "fields" }
     })
-    const defaults = Activity.make("Declared/defaults", {
+    const defaults = Action.make("Declared/defaults", {
       payload: { value: Schema.Number }
     })
 
@@ -47,8 +47,8 @@ describe("Activity.make declared overload", () => {
     expect(defaults.idempotencyKey).toBeUndefined()
   })
 
-  it("builds an activity-call node and preserves planned payload references", () => {
-    const declared = Activity.make("Declared/call", {
+  it("builds an action-call node and preserves planned payload references", () => {
+    const declared = Action.make("Declared/call", {
       payload: { value: Schema.Number, nested: Schema.Struct({ label: Schema.String }) },
       success: Schema.String,
       error: Schema.Number
@@ -59,8 +59,8 @@ describe("Activity.make declared overload", () => {
 
     expect(Node.isNode(node)).toBe(true)
     expect(node.ast).toEqual({
-      _tag: "ActivityCall",
-      activity: "Declared/call",
+      _tag: "ActionCall",
+      action: "Declared/call",
       payload: {
         value: { _tag: "PlannedReference", node: "upstream", path: [] },
         nested: {
@@ -71,7 +71,7 @@ describe("Activity.make declared overload", () => {
   })
 
   it("adds and merges annotations without mutating the declaration", () => {
-    const original = Activity.make("Declared/annotations", {
+    const original = Action.make("Declared/annotations", {
       payload: {},
       annotations: Context.make(Label, "initial")
     })
@@ -85,14 +85,14 @@ describe("Activity.make declared overload", () => {
 
   it("registers an implementation that receives decoded payload and executes durably", async () => {
     const NumberPayload = Schema.Struct({ value: Schema.NumberFromString })
-    const declared = Activity.make("Declared/execution", {
+    const declared = Action.make("Declared/execution", {
       payload: NumberPayload,
       success: Schema.Number,
       tier: "sealed",
       idempotencyKey: "double"
     })
     // Drive the public declared call through a composite body. This verifies
-    // the ActivityCall node, its payload decoding, and the registered
+    // the ActionCall node, its payload decoding, and the registered
     // implementation as one durable path.
     const invocation = Flow.make("Declared/execution", {
       payload: NumberPayload,
@@ -108,7 +108,7 @@ describe("Activity.make declared overload", () => {
     ).pipe(Layer.provideMerge(layerMemory))
 
     expect(Graph.nodes(Graph.build(invocation, { value: 21 }))[0]).toMatchObject({
-      kind: "ActivityCall",
+      kind: "ActionCall",
       payload: { value: 21 }
     })
 
@@ -121,8 +121,8 @@ describe("Activity.make declared overload", () => {
     expect(seen).toEqual([21])
   })
 
-  it("registers a flow whose body is the one call to the activity", async () => {
-    const declared = Activity.make("Declared/flow-form", {
+  it("registers a flow whose body is the one call to the action", async () => {
+    const declared = Action.make("Declared/flow-form", {
       payload: { value: Schema.Number },
       success: Schema.Number
     })
@@ -149,7 +149,7 @@ describe("Activity.make declared overload", () => {
     expect(registered?._tag).toBe("Declared/flow-form")
     const graph = Graph.build(registered!, { value: 7 })
     expect(Graph.nodes(graph).map((node) => [node.id, node.kind])).toEqual([
-      ["root.flow", "ActivityCall"],
+      ["root.flow", "ActionCall"],
       ["root", "FlowCall"]
     ])
     expect(Graph.nodes(graph)[0]?.payload).toEqual({ value: 7 })

@@ -9,14 +9,14 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as Inconsistency from "../src/Inconsistency.ts"
-import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
 
-const owner: Ownership.OwnerId = { hostId: "activity-host", pid: 11, nonce: "activity-process" }
+const owner: Ownership.OwnerId = { hostId: "action-host", pid: 11, nonce: "action-process" }
 
-const boundary: ActivityPersistence.BoundaryMetadata = {
+const boundary: ActionPersistence.BoundaryMetadata = {
   readSet: [],
   writeSet: ["output.txt"],
   boundaryMode: "hard"
@@ -25,7 +25,7 @@ const boundary: ActivityPersistence.BoundaryMetadata = {
 const jj = Layer.succeed(
   Jj.Jj,
   Jj.make({
-    snapshot: () => Effect.succeed({ changeId: "activity-snapshot" as never }),
+    snapshot: () => Effect.succeed({ changeId: "action-snapshot" as never }),
     restore: () => Effect.void,
     diff: () => Effect.succeed(""),
     workspaceAdd: () => Effect.void,
@@ -60,7 +60,7 @@ const layer = Layer.mergeAll(TestStores.layer(), StepBoundary.layerTest(), jj)
  */
 const tolerantLayer = Layer.provideMerge(Inconsistency.layerTolerant, layer)
 
-describe("ActivityPersistence", () => {
+describe("ActionPersistence", () => {
   it("does not dispatch when attempt admission reports an existing or conflicting row", async () => {
     let dispatches = 0
     const result = await runPromise(
@@ -75,13 +75,13 @@ describe("ActivityPersistence", () => {
         const run = (outcome: AttemptStore.PutResult) =>
           Effect.exit(
             Effect.provideService(
-              ActivityPersistence.make({
+              ActionPersistence.make({
                 runId: "admission-rejected",
                 owner,
-                sourceId: "activity-test",
+                sourceId: "action-test",
                 execute
               })({
-                activity: {},
+                action: {},
                 attempt: 1,
                 key: `admission/${outcome._tag}`,
                 tier: "sealed"
@@ -115,17 +115,17 @@ describe("ActivityPersistence", () => {
         const exits = yield* Effect.forEach(outcomes, (outcome, index) =>
           Effect.exit(
             Effect.provideService(
-              ActivityPersistence.make({
+              ActionPersistence.make({
                 runId: "finish-rejected",
                 owner,
-                sourceId: "activity-test",
+                sourceId: "action-test",
                 execute: () =>
                   Effect.sync(() => {
                     dispatches++
                     return index
                   })
               })({
-                activity: {},
+                action: {},
                 attempt: index + 1,
                 key: `finish-rejected/${index}`,
                 tier: "sealed",
@@ -181,13 +181,13 @@ describe("ActivityPersistence", () => {
           recordedEventSeq: 0
         })
         const value = yield* Effect.provideService(
-          ActivityPersistence.make({
+          ActionPersistence.make({
             runId: "cache-conflict-run",
             owner,
-            sourceId: "activity-test",
+            sourceId: "action-test",
             execute: () => Effect.succeed("second")
           })({
-            activity: {},
+            action: {},
             attempt: 1,
             key,
             tier: "sealed",
@@ -245,17 +245,17 @@ describe("ActivityPersistence", () => {
           })
         }
         return yield* Effect.forEach(malformed, (_, index) =>
-          ActivityPersistence.make({
+          ActionPersistence.make({
             runId: "malformed-cache-run",
             owner,
-            sourceId: "activity-test",
+            sourceId: "action-test",
             execute: () =>
               Effect.sync(() => {
                 dispatches++
                 return `fresh-${index}`
               })
           })({
-            activity: {},
+            action: {},
             attempt: index + 1,
             key: `malformed-cache/${index}`,
             tier: "sealed",
@@ -274,12 +274,12 @@ describe("ActivityPersistence", () => {
     const result = await runPromise(
       Effect.gen(function*() {
         yield* activate("no-whole-tree-proof")
-        const value = yield* ActivityPersistence.make({
+        const value = yield* ActionPersistence.make({
           runId: "no-whole-tree-proof",
           owner,
-          sourceId: "activity-test",
+          sourceId: "action-test",
           execute: () => Effect.succeed("run-local")
-        })({ activity: {}, attempt: 1, key, tier: "sealed", metadata: boundary })
+        })({ action: {}, attempt: 1, key, tier: "sealed", metadata: boundary })
         const cache = yield* CacheStore.CacheStore
         return { value, cached: yield* cache.get(keyDigest) }
       }).pipe(

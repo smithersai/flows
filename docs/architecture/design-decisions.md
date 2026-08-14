@@ -4,27 +4,27 @@ This page records the architectural decisions that explain the current source la
 
 ## D1. Durable execution is application-neutral
 
-Flow payloads, activity inputs, and journal events remain application-defined values so the engine can be embedded without adopting a higher-level application model.
+Flow payloads, action inputs, and journal events remain application-defined values so the engine can be embedded without adopting a higher-level application model.
 
 Consequence: the journal uses an open `eventType` plus `payload` envelope, and the engine records engine-specific events without closing the union around one application.
 
-## D2. Flow bodies replay; activities record effects
+## D2. Flow bodies replay; actions record effects
 
-A resume re-enters the registered handler from the top. Application effects must cross `Activity`, `DurableDeferred`, clock, or another recorded boundary. This is the basis of [deterministic replay](../concepts/determinism-and-replay.md).
+A resume re-enters the registered handler from the top. Application effects must cross `Action`, `DurableDeferred`, clock, or another recorded boundary. This is the basis of [deterministic replay](../concepts/determinism-and-replay.md).
 
-Consequence: local computation between boundaries must be deterministic, while activity outputs may be nondeterministic because their encoded result is recorded.
+Consequence: local computation between boundaries must be deterministic, while action outputs may be nondeterministic because their encoded result is recorded.
 
 ## D3. Key computation sits above storage
 
-`@smthrs/engine-next` computes content or ordinal step keys before calling `FlowEngine.Encoded.activityExecute`. Memory and durable engines therefore receive the same identity instead of implementing key policy independently.
+`@smthrs/engine-next` computes content or ordinal step keys before calling `FlowEngine.Encoded.actionExecute`. Memory and durable engines therefore receive the same identity instead of implementing key policy independently.
 
 Consequence: object-form sealed cache key inputs are caller-owned and
 rename-stable. String idempotency keys are intentionally namespaced by the
-activity name and schema declaration, so those changes invalidate reuse.
+action name and schema declaration, so those changes invalidate reuse.
 
 ## D4. Cache admission requires evidence
 
-A cache key alone does not prove hermetic execution. `@smthrs/engine-store-next` caches only sealed activities that carry a hard `StepBoundary` descriptor, settle without a deviation, and explicitly attest whole-tree write verification.
+A cache key alone does not prove hermetic execution. `@smthrs/engine-store-next` caches only sealed actions that carry a hard `StepBoundary` descriptor, settle without a deviation, and explicitly attest whole-tree write verification.
 
 Consequence: the filesystem-backed `StepBoundary.layer` measures declared read sets and materializes declared outputs, but cannot detect writes elsewhere and therefore does not admit shared cache rows. Cross-run admission requires a stronger whole-tree boundary, such as a future jj-diff-backed implementation.
 

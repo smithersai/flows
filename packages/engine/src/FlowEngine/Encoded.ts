@@ -10,7 +10,7 @@
  *
  * @since 4.0.0
  */
-import type { Activity, DurableClock, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow-next"
+import type { Action, DurableClock, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow-next"
 import type * as Crypto from "effect/Crypto"
 import type * as Effect from "effect/Effect"
 import type * as Exit from "effect/Exit"
@@ -19,17 +19,17 @@ import type * as Scope from "effect/Scope"
 import type * as Round from "./Round.ts"
 
 /**
- * The identity and boundary information supplied to an encoded activity
+ * The identity and boundary information supplied to an encoded action
  * executor.
  *
  * @category models
  * @since 0.1.0
  */
-export interface ActivityExecuteOptions {
-  readonly activity: Activity.Any
+export interface ActionExecuteOptions {
+  readonly action: Action.Any
   readonly attempt: number
   readonly key: string
-  readonly tier: Activity.Tier
+  readonly tier: Action.Tier
   readonly metadata: unknown
 }
 
@@ -101,15 +101,15 @@ export interface Encoded {
       executionId: string
     ) => Effect.Effect<void>)
     | undefined
-  readonly activityExecute: (
-    options: ActivityExecuteOptions
+  readonly actionExecute: (
+    options: ActionExecuteOptions
   ) => Effect.Effect<
     Flow.Result<unknown, unknown>,
     never,
     FlowRuntime.FlowInstance | Crypto.Crypto
   >
   /**
-   * The durable wall-clock origin of an activity's retry sequence: the
+   * The durable wall-clock origin of an action's retry sequence: the
    * persisted start time of the first attempt for `key`, when one exists.
    *
    * Durable drivers implement it so a `RetryPolicy.expirationMs`
@@ -125,7 +125,7 @@ export interface Encoded {
    * keep `Option.some` as long as any attempt row survives, using the
    * earliest surviving row when attempt 1 itself was pruned.
    */
-  readonly activityRetryOrigin?:
+  readonly actionRetryOrigin?:
     | ((options: {
       readonly key: string
     }) => Effect.Effect<Option.Option<number>, never, FlowRuntime.FlowInstance | Crypto.Crypto>)
@@ -139,7 +139,7 @@ export interface Encoded {
    * re-slept from attempt 1, and a persisted `nonRetryable` failure is
    * decided against the original attempt instead of re-dispatching.
    */
-  readonly activityLatestAttempt?:
+  readonly actionLatestAttempt?:
     | ((options: {
       readonly key: string
     }) => Effect.Effect<Option.Option<number>, never, FlowRuntime.FlowInstance | Crypto.Crypto>)

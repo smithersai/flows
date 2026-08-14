@@ -4,20 +4,20 @@ import type * as Crypto from "effect/Crypto"
 /**
  * Issue #73: invocation keys must not depend on fiber scheduling order.
  *
- * Compensable, irreversible, and unsealed activities are keyed by
+ * Compensable, irreversible, and unsealed actions are keyed by
  * `(runId, ordinal, tier)`, and the ordinal used to come from one per-run
- * counter bumped in the order fibers happened to reach `activityExecute`.
- * Nothing serializes that order — a flow body may run activities under
+ * counter bumped in the order fibers happened to reach `actionExecute`.
+ * Nothing serializes that order — a flow body may run actions under
  * `Effect.all({ concurrency: "unbounded" })`, and on replay a recorded
- * activity resolves from the journal near-instantly while an unrecorded one
- * runs live — so a permuted interleaving aliased one activity onto another's
+ * action resolves from the journal near-instantly while an unrecorded one
+ * runs live — so a permuted interleaving aliased one action onto another's
  * recorded attempt rows, checkpoint, and outcome.
  *
- * The two drives below dispatch the same pair of activities in opposite
+ * The two drives below dispatch the same pair of actions in opposite
  * orders, which is exactly what a permuted interleaving produces. Each
- * activity must keep its own identity across both.
+ * action must keep its own identity across both.
  */
-import { Activity, Flow, FlowRuntime, StepIdentity } from "@smthrs/flow-next"
+import { Action, Flow, FlowRuntime, StepIdentity } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Deferred, Effect, Exit, Layer, Schema } from "effect"
 import { describe, expect, it } from "vitest"
@@ -33,21 +33,21 @@ const flow = Flow.make("InvocationKeyStability/flow", {
   body: () => Node.succeed(undefined)
 })
 
-const chargeCard = Activity.make({
+const chargeCard = Action.make({
   name: "InvocationKeyStability/chargeCard",
   tier: "irreversible",
   success: Schema.Void,
   execute: Effect.void
 })
 
-const sendEmail = Activity.make({
+const sendEmail = Action.make({
   name: "InvocationKeyStability/sendEmail",
   tier: "irreversible",
   success: Schema.Void,
   execute: Effect.void
 })
 
-const repeatedCharge = Activity.make({
+const repeatedCharge = Action.make({
   name: "InvocationKeyStability/repeated",
   tier: "irreversible",
   success: Schema.Void,
@@ -63,9 +63,9 @@ const scriptedEngine = (keys: Array<{ readonly name: string; readonly key: strin
     interrupt: () => Effect.void,
     interruptUnsafe: () => Effect.void,
     resume: () => Effect.void,
-    activityExecute: (input) =>
+    actionExecute: (input) =>
       Effect.sync(() => {
-        keys.push({ name: input.activity.name, key: input.key })
+        keys.push({ name: input.action.name, key: input.key })
         return new Flow.Complete({ exit: Exit.void })
       }),
     deferredResult: () => Effect.succeedNone,
@@ -73,16 +73,16 @@ const scriptedEngine = (keys: Array<{ readonly name: string; readonly key: strin
     scheduleClock: () => Effect.void
   })
 
-/** One drive of a run: dispatches `activities` in the given order. */
+/** One drive of a run: dispatches `actions` in the given order. */
 const drive = (
   executionId: string,
-  activities: ReadonlyArray<Activity.Any>
+  actions: ReadonlyArray<Action.Any>
 ): Effect.Effect<ReadonlyArray<{ readonly name: string; readonly key: string }>> => {
   const keys: Array<{ readonly name: string; readonly key: string }> = []
   return Effect.gen(function*() {
     const engine = yield* FlowRuntime.FlowRuntime
-    for (const activity of activities) {
-      yield* engine.activityExecute(activity as never, 1)
+    for (const action of actions) {
+      yield* engine.actionExecute(action as never, 1)
     }
   }).pipe(
     Effect.as(keys as ReadonlyArray<{ readonly name: string; readonly key: string }>),
@@ -100,19 +100,19 @@ const keyOf = (
 ) => entries.filter((entry) => entry.name === name).map((entry) => entry.key)
 
 describe("invocation key stability under permuted scheduling (issue #73)", () => {
-  effect("keeps each activity's key when a replay dispatches the pair in the opposite order", () => {
+  effect("keeps each action's key when a replay dispatches the pair in the opposite order", () => {
     return Effect.gen(function*() {
       const first = yield* drive("ordinal-stability-run", [chargeCard, sendEmail])
       const replay = yield* drive("ordinal-stability-run", [sendEmail, chargeCard])
 
       expect(keyOf(first, chargeCard.name)).toEqual(keyOf(replay, chargeCard.name))
       expect(keyOf(first, sendEmail.name)).toEqual(keyOf(replay, sendEmail.name))
-      // Distinct activities still never share an identity.
+      // Distinct actions still never share an identity.
       expect(keyOf(first, chargeCard.name)).not.toEqual(keyOf(first, sendEmail.name))
     })
   })
 
-  effect("still separates repeated invocations of one activity within a run", () => {
+  effect("still separates repeated invocations of one action within a run", () => {
     return Effect.gen(function*() {
       const entries = yield* drive("ordinal-repeat-run", [
         repeatedCharge,
@@ -156,41 +156,41 @@ const driveProgram = (
   ) as Effect.Effect<ReadonlyArray<{ readonly name: string; readonly key: string }>>
 }
 
-describe("ordinal slots inside Activity.retry (issue #84)", () => {
-  effect("a differently-named activity in one retry block keeps its own name-scoped identity", () => {
-    // `Activity.retry(gen { yield* A; yield* B })` followed by a plain
-    // `yield* B`: the in-block B must consume `activity:B`'s counter, not
+describe("ordinal slots inside Action.retry (issue #84)", () => {
+  effect("a differently-named action in one retry block keeps its own name-scoped identity", () => {
+    // `Action.retry(gen { yield* A; yield* B })` followed by a plain
+    // `yield* B`: the in-block B must consume `action:B`'s counter, not
     // inherit A's slot value, or the later independent B collides with it.
     return Effect.gen(function*() {
       const entries = yield* driveProgram("ordinal-slot-run", (engine) =>
         Effect.gen(function*() {
-          yield* Activity.retry(
+          yield* Action.retry(
             Effect.gen(function*() {
-              yield* engine.activityExecute(chargeCard as never, 1)
-              yield* engine.activityExecute(sendEmail as never, 1)
+              yield* engine.actionExecute(chargeCard as never, 1)
+              yield* engine.actionExecute(sendEmail as never, 1)
             }),
             { times: 0 }
           )
-          yield* engine.activityExecute(sendEmail as never, 1)
+          yield* engine.actionExecute(sendEmail as never, 1)
         }))
       const emailKeys = keyOf(entries, sendEmail.name)
       expect(emailKeys).toHaveLength(2)
       expect(new Set(emailKeys).size).toBe(2)
-      // And no key is shared across differently-named activities either.
+      // And no key is shared across differently-named actions either.
       expect(new Set(entries.map((entry) => entry.key)).size).toBe(entries.length)
     })
   })
 
-  effect("each activity inside a retry block keeps a stable ordinal across attempts", () => {
-    // The per-name slot map must still pin each activity of the block to one
+  effect("each action inside a retry block keeps a stable ordinal across attempts", () => {
+    // The per-name slot map must still pin each action of the block to one
     // ordinal for the whole retry sequence.
     return Effect.gen(function*() {
       const entries = yield* driveProgram("ordinal-slot-retry-run", (engine) => {
         let attempt = 0
-        return Activity.retry(
+        return Action.retry(
           Effect.gen(function*() {
-            yield* engine.activityExecute(chargeCard as never, 1)
-            yield* engine.activityExecute(sendEmail as never, 1)
+            yield* engine.actionExecute(chargeCard as never, 1)
+            yield* engine.actionExecute(sendEmail as never, 1)
             attempt++
             if (attempt < 3) return yield* Effect.fail("again")
           }),
@@ -206,7 +206,7 @@ describe("ordinal slots inside Activity.retry (issue #84)", () => {
   })
 })
 
-describe("nested Activity.retry keeps inner pins across outer attempts (issue #108)", () => {
+describe("nested Action.retry keeps inner pins across outer attempts (issue #108)", () => {
   effect("an inner block's completed dispatch keeps its key when the outer block replays", () => {
     // `outer retry { inner retry { charge }; flakyStep }`: outer attempt 1
     // charges under ordinal N and fails later; outer attempt 2 re-enters the
@@ -218,10 +218,10 @@ describe("nested Activity.retry keeps inner pins across outer attempts (issue #1
     return Effect.gen(function*() {
       const entries = yield* driveProgram("ordinal-nested-retry", (engine) => {
         let outerAttempt = 0
-        return Activity.retry(
+        return Action.retry(
           Effect.gen(function*() {
-            yield* Activity.retry(
-              engine.activityExecute(chargeCard as never, 1),
+            yield* Action.retry(
+              engine.actionExecute(chargeCard as never, 1),
               { times: 0 }
             )
             outerAttempt++
@@ -244,12 +244,12 @@ describe("nested Activity.retry keeps inner pins across outer attempts (issue #1
     return Effect.gen(function*() {
       const entries = yield* driveProgram("ordinal-nested-cursor", (engine) => {
         let innerAttempt = 0
-        return Activity.retry(
+        return Action.retry(
           Effect.gen(function*() {
-            yield* engine.activityExecute(repeatedCharge as never, 1)
-            yield* Activity.retry(
+            yield* engine.actionExecute(repeatedCharge as never, 1)
+            yield* Action.retry(
               Effect.gen(function*() {
-                yield* engine.activityExecute(repeatedCharge as never, 1)
+                yield* engine.actionExecute(repeatedCharge as never, 1)
                 innerAttempt++
                 if (innerAttempt < 2) return yield* Effect.fail("again")
               }),
@@ -274,11 +274,11 @@ describe("nested Activity.retry keeps inner pins across outer attempts (issue #1
     // dispatch still takes the next position, not a replayed one.
     return Effect.gen(function*() {
       const entries = yield* driveProgram("ordinal-nested-untouched", (engine) =>
-        Activity.retry(
+        Action.retry(
           Effect.gen(function*() {
-            yield* engine.activityExecute(repeatedCharge as never, 1)
-            yield* Activity.retry(Effect.void, { times: 0 })
-            yield* engine.activityExecute(repeatedCharge as never, 1)
+            yield* engine.actionExecute(repeatedCharge as never, 1)
+            yield* Action.retry(Effect.void, { times: 0 })
+            yield* engine.actionExecute(repeatedCharge as never, 1)
           }),
           { times: 0 }
         ))
@@ -291,13 +291,13 @@ describe("nested Activity.retry keeps inner pins across outer attempts (issue #1
 
 describe("concurrent sibling retry blocks inside one outer block (issue #116)", () => {
   // Keyed overlap of one declaration is sanctioned (issue #111), so two
-  // sibling `Activity.retry` blocks may run concurrently inside one outer
+  // sibling `Action.retry` blocks may run concurrently inside one outer
   // block. Sharing one mutable cursor map made a sibling's attempt boundary
   // clear *every* scope's dispatch cursor: the victim's next dispatch then
   // re-consumed its first pinned ordinal — a duplicate step key silently
   // replaying another dispatch's recorded outcome.
   const keyed = (idempotencyKey: string) =>
-    Activity.make({
+    Action.make({
       name: "InvocationKeyStability/sibling",
       tier: "irreversible",
       idempotencyKey,
@@ -312,12 +312,12 @@ describe("concurrent sibling retry blocks inside one outer block (issue #116)", 
       const bFirstDone = yield* Deferred.make<void>()
       const aRetried = yield* Deferred.make<void>()
       const entries = yield* driveProgram("ordinal-concurrent-siblings", (engine) =>
-        Activity.retry(
+        Action.retry(
           Effect.all([
-            Activity.retry(
+            Action.retry(
               Effect.gen(function*() {
-                const attempt = yield* Activity.CurrentAttempt
-                yield* engine.activityExecute(siblingA as never, 1)
+                const attempt = yield* Action.CurrentAttempt
+                yield* engine.actionExecute(siblingA as never, 1)
                 if (attempt === 1) {
                   // Fail only after B's first dispatch is recorded, so A's
                   // attempt boundary fires while B is mid-flight between its
@@ -329,12 +329,12 @@ describe("concurrent sibling retry blocks inside one outer block (issue #116)", 
               }),
               { times: 5 }
             ),
-            Activity.retry(
+            Action.retry(
               Effect.gen(function*() {
-                yield* engine.activityExecute(siblingB as never, 1)
+                yield* engine.actionExecute(siblingB as never, 1)
                 yield* Deferred.done(bFirstDone, Exit.void)
                 yield* Deferred.await(aRetried)
-                yield* engine.activityExecute(siblingB as never, 1)
+                yield* engine.actionExecute(siblingB as never, 1)
               }),
               { times: 0 }
             )
@@ -358,7 +358,7 @@ describe("concurrent sibling retry blocks inside one outer block (issue #116)", 
 
 describe("same-name invocation identity (issue #85)", () => {
   const notify = (idempotencyKey: string) =>
-    Activity.make({
+    Action.make({
       name: "InvocationKeyStability/notify",
       tier: "irreversible",
       idempotencyKey,
@@ -369,7 +369,7 @@ describe("same-name invocation identity (issue #85)", () => {
   const notifyB = notify("user-b")
 
   effect("a declared idempotencyKey pins each invocation's key under swapped arrival order", () => {
-    // Two concurrent invocations of one activity name with distinguishable
+    // Two concurrent invocations of one action name with distinguishable
     // inputs must not swap recorded outcomes when a replay reverses arrival
     // order: the declared identity, not the fiber schedule, owns the key.
     return Effect.gen(function*() {
@@ -394,7 +394,7 @@ describe("same-name invocation identity (issue #85)", () => {
   })
 
   const notifyContent = (user: string) =>
-    Activity.make({
+    Action.make({
       name: "InvocationKeyStability/notifyContent",
       tier: "irreversible",
       idempotencyKey: { user },
@@ -407,7 +407,7 @@ describe("same-name invocation identity (issue #85)", () => {
   effect("an object-form idempotencyKey pins each invocation's key under swapped arrival order (issue #101)", () => {
     // The idempotency component is a union: an object must
     // refine the allocation scope exactly as a string does. Refining only
-    // the string form left object-keyed activities on the name-only counter,
+    // the string form left object-keyed actions on the name-only counter,
     // so a replay with reversed fiber arrival swapped their ordinals — and
     // with them the recorded attempt rows and outcomes.
     return Effect.gen(function*() {
@@ -422,18 +422,18 @@ describe("same-name invocation identity (issue #85)", () => {
   })
 })
 
-describe("same identity dispatched twice inside Activity.retry (issue #100)", () => {
+describe("same identity dispatched twice inside Action.retry (issue #100)", () => {
   effect("each dispatch of one declaration in a retry block owns its own key", () => {
-    // `Activity.retry(gen { yield* charge; yield* charge })`: a single-valued
+    // `Action.retry(gen { yield* charge; yield* charge })`: a single-valued
     // slot handed the first dispatch's ordinal to the second, so under a
     // durable engine the second charge silently replayed the first's
     // recorded outcome instead of executing.
     return Effect.gen(function*() {
       const entries = yield* driveProgram("ordinal-same-identity-block", (engine) =>
-        Activity.retry(
+        Action.retry(
           Effect.gen(function*() {
-            yield* engine.activityExecute(repeatedCharge as never, 1)
-            yield* engine.activityExecute(repeatedCharge as never, 1)
+            yield* engine.actionExecute(repeatedCharge as never, 1)
+            yield* engine.actionExecute(repeatedCharge as never, 1)
           }),
           { times: 0 }
         ))
@@ -447,10 +447,10 @@ describe("same identity dispatched twice inside Activity.retry (issue #100)", ()
     return Effect.gen(function*() {
       const entries = yield* driveProgram("ordinal-same-identity-retry", (engine) => {
         let attempt = 0
-        return Activity.retry(
+        return Action.retry(
           Effect.gen(function*() {
-            yield* engine.activityExecute(repeatedCharge as never, 1)
-            yield* engine.activityExecute(repeatedCharge as never, 1)
+            yield* engine.actionExecute(repeatedCharge as never, 1)
+            yield* engine.actionExecute(repeatedCharge as never, 1)
             attempt++
             if (attempt < 3) return yield* Effect.fail("again")
           }),
@@ -474,17 +474,17 @@ describe("idempotency form refines the allocation scope (StepIdentity.ts:88-89)"
     // identity whose digest it happens to spell". Nothing asserted it. The
     // persisted key had the same gap and did alias there (B3).
     const name = "InvocationKeyStability/charge"
-    const base = `activity/${name.length}:${name}`
+    const base = `action/${name.length}:${name}`
     return Effect.gen(function*() {
       const declared = yield* StepIdentity.allocationScope({
-        kind: "activity",
+        kind: "action",
         name,
         idempotency: "order-7"
       })
       const callerOwned = yield* StepIdentity.allocationScope({
-        kind: "activity",
+        kind: "action",
         name,
-        idempotency: { activity: name, idempotencyKey: "order-7" }
+        idempotency: { action: name, idempotencyKey: "order-7" }
       })
 
       expect(declared).not.toBe(callerOwned)

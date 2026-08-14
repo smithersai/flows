@@ -20,7 +20,7 @@ When `EngineStore` detects that execution inside a running flow, it:
 3. suspends the parent while the child is incomplete,
 4. resumes the parent after the child reaches a terminal result.
 
-The child has its own run ownership, journal entries, activity attempts, and payload/result schemas. Re-executing the parent observes the persisted child result instead of starting another child with the same execution ID.
+The child has its own run ownership, journal entries, action attempts, and payload/result schemas. Re-executing the parent observes the persisted child result instead of starting another child with the same execution ID.
 
 ## Identity requirements
 

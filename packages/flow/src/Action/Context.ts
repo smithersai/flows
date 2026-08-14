@@ -1,7 +1,7 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 /**
- * Defines runtime context carried across activity attempts.
+ * Defines runtime context carried across action attempts.
  *
  * @since 0.1.0
  */
@@ -11,17 +11,17 @@ import type { CacheEnvironment } from "./CacheEnvironment.ts"
 
 /**
  * Context reference carrying the complete environment folded into reusable
- * activity keys.
+ * action keys.
  *
  * A composition either provides a complete {@link CacheEnvironment} or leaves
- * it absent. When absent, the engine scopes activity keys to the current run
+ * it absent. When absent, the engine scopes action keys to the current run
  * instead of presenting incomplete environment data as reusable identity.
  *
  * @category idempotency
  * @since 0.1.0
  */
 export const CurrentCacheEnvironment = Context.Reference<CacheEnvironment | undefined>(
-  "flows/engine/Activity/CurrentCacheEnvironment",
+  "flows/engine/Action/CurrentCacheEnvironment",
   { defaultValue: () => undefined }
 )
 
@@ -44,13 +44,13 @@ export const layerCacheEnvironment = (
  * The ordinal slots a retry sequence shares across its attempts, keyed by
  * allocation scope.
  *
- * `Activity.retry` cannot allocate ordinals itself — allocation is scoped by
- * activity identity and only the engine knows which activity is being
+ * `Action.retry` cannot allocate ordinals itself — allocation is scoped by
+ * action identity and only the engine knows which action is being
  * dispatched (issue #73) — so it provides an empty map the engine fills per
  * scope on the first attempt and reads back on every later one. The map is
  * scope-keyed rather than a single value because one retry block may
- * dispatch several distinct activities; a shared unkeyed slot handed the
- * first activity's ordinal to every later one, silently skipping their own
+ * dispatch several distinct actions; a shared unkeyed slot handed the
+ * first action's ordinal to every later one, silently skipping their own
  * name-scoped counters and aliasing a later independent dispatch onto an
  * in-block key (issue #84).
  *
@@ -59,7 +59,7 @@ export const layerCacheEnvironment = (
  * times, and a single-valued slot handed the first dispatch's ordinal to
  * every later one, so the second dispatch silently replayed the first's
  * recorded outcome. `cursors` counts the dispatches of each scope within the
- * current attempt — `Activity.retry` resets it at every attempt boundary —
+ * current attempt — `Action.retry` resets it at every attempt boundary —
  * so the n-th same-scope dispatch of every attempt reuses the n-th pinned
  * ordinal.
  *
@@ -73,25 +73,25 @@ export interface OrdinalSlot {
 
 /**
  * Context reference carrying the ordinal slot of the enclosing
- * `Activity.retry` sequence, when present.
+ * `Action.retry` sequence, when present.
  *
  * @category attempts
  * @since 0.1.0
  */
 export const CurrentOrdinal = Context.Reference<OrdinalSlot | undefined>(
-  "flows/engine/Activity/CurrentOrdinal",
+  "flows/engine/Action/CurrentOrdinal",
   { defaultValue: () => undefined }
 )
 
 /**
- * Context reference containing the current activity retry attempt, defaulting
+ * Context reference containing the current action retry attempt, defaulting
  * to `1`.
  *
  * @category attempts
  * @since 4.0.0
  */
 export const CurrentAttempt = Context.Reference<number>(
-  "effect/flow/Activity/CurrentAttempt",
+  "effect/flow/Action/CurrentAttempt",
   { defaultValue: () => 1 }
 )
 
@@ -101,7 +101,7 @@ export const CurrentAttempt = Context.Reference<number>(
  *
  * **When to use**
  *
- * Use it in an activity implementation that has to name durable state of its
+ * Use it in an action implementation that has to name durable state of its
  * own — `Sleep` names a `DurableClock` — so the name it derives belongs to
  * THIS dispatch. The key is the identity the engine already allocated for the
  * dispatch: its attempt rows, its recorded outcome, and its cache row are
@@ -121,6 +121,6 @@ export const CurrentAttempt = Context.Reference<number>(
  * @since 0.1.0
  */
 export const CurrentInvocationKey = Context.Reference<string | undefined>(
-  "flows/engine/Activity/CurrentInvocationKey",
+  "flows/engine/Action/CurrentInvocationKey",
   { defaultValue: () => undefined }
 )

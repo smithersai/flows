@@ -1,5 +1,5 @@
 /**
- * Durable activity dispatch at the engine encoded seam.
+ * Durable action dispatch at the engine encoded seam.
  *
  * Governing designs: `docs/specs/Concepts/Run Ownership.md`,
  * `docs/specs/Concepts/Step Keys.md`, and
@@ -9,7 +9,7 @@
  */
 import { Sha256 } from "@smthrs/crypto-next"
 import { FlowEngine } from "@smthrs/engine-next"
-import type { Activity } from "@smthrs/flow-next"
+import type { Action } from "@smthrs/flow-next"
 import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
 import { Journal, type JournalEvent } from "@smthrs/journal-next"
 import { Jj } from "@smthrs/kernel-next"
@@ -32,11 +32,11 @@ import * as JournalRecords from "./JournalRecords.ts"
 import * as SandboxedExecution from "./SandboxedExecution.ts"
 
 /**
- * The boundary declaration an activity may carry alongside its input.
+ * The boundary declaration an action may carry alongside its input.
  *
  * Aliased to `FileBoundary` rather than re-declared so the dispatch path and
  * the `@smthrs/flow-next` declaration cannot drift apart; it is a distinct name only
- * because "metadata" is how the activity input refers to it.
+ * because "metadata" is how the action input refers to it.
  *
  * @since 0.1.0
  * @category models
@@ -44,7 +44,7 @@ import * as SandboxedExecution from "./SandboxedExecution.ts"
 export type BoundaryMetadata = FileBoundary
 
 /**
- * Everything one dispatch of a durable activity needs: the opaque `activity`
+ * Everything one dispatch of a durable action needs: the opaque `action`
  * body, which `attempt` this is, the step `key` it is cached under, its trust
  * `tier`, and the boundary it declared, if any.
  *
@@ -55,11 +55,11 @@ export type BoundaryMetadata = FileBoundary
  * @since 0.1.0
  * @category models
  */
-export interface ActivityInput {
-  readonly activity: unknown
+export interface ActionInput {
+  readonly action: unknown
   readonly attempt: number
   readonly key: string
-  readonly tier: Activity.Tier
+  readonly tier: Action.Tier
   readonly metadata?: BoundaryMetadata | undefined
 }
 
@@ -84,7 +84,7 @@ export class AttemptSuspended extends Schema.TaggedError<AttemptSuspended>()(
 ) {}
 
 /**
- * A retry of an irreversible activity was refused because the caller supplied
+ * A retry of an irreversible action was refused because the caller supplied
  * no idempotency key.
  *
  * Retrying an irreversible body is only safe if the downstream effect can
@@ -173,11 +173,11 @@ export class CacheCorruptionDetected extends Schema.TaggedError<CacheCorruptionD
  * cache row is evictable — the next dispatch re-executes and re-captures
  * cleanly (issue #164) — but a succeeded attempt row records that this run's
  * side effects already ran, so eviction/re-execution would violate
- * exactly-once for irreversible activities. The corrupt boundary evidence is
+ * exactly-once for irreversible actions. The corrupt boundary evidence is
  * quarantined off the succeeded row instead: the driver parks the first
  * detection in the `quarantine` waiting state, and the next explicit resume
  * returns the durable outcome without re-materializing the poisoned evidence
- * or re-executing the activity.
+ * or re-executing the action.
  *
  * @since 0.1.0
  * @category errors
@@ -243,30 +243,30 @@ const replayCorruption = (
  * The isolated execution path raises the boundary's own `UndeclaredWrite`, so
  * a violation detected while the body ran classifies exactly like one detected
  * at settle time: the row records `hardViolation` and the journal gets the
- * violation record, rather than the failure passing as an ordinary activity
+ * violation record, rather than the failure passing as an ordinary action
  * error the retry policy might happily retry.
  */
 /**
  * The stable effect kind a compensation handler is registered under.
  *
- * The activity name is the adapter's own identity and is what an engine
- * composition registers its handler by; a dispatch whose activity carries no
+ * The action name is the adapter's own identity and is what an engine
+ * composition registers its handler by; a dispatch whose action carries no
  * name at all (the plan scheduler's synthetic node dispatch) falls back to a
  * constant, which resolves to no handler and therefore assesses as blocking —
  * the safe direction.
  */
-const activityKind = (activity: unknown): string =>
-  typeof activity === "object" && activity !== null && typeof (activity as { name?: unknown }).name === "string"
-    ? (activity as { readonly name: string }).name
-    : "flows/engine-store/activity"
+const actionKind = (action: unknown): string =>
+  typeof action === "object" && action !== null && typeof (action as { name?: unknown }).name === "string"
+    ? (action as { readonly name: string }).name
+    : "flows/engine-store/action"
 
 const declarationViolated = (cause: Cause.Cause<unknown>): boolean =>
   cause.reasons.some((reason) => Cause.isFailReason(reason) && reason.error instanceof StepBoundary.UndeclaredWrite)
 
 /**
- * What the activity dispatcher is constructed with: the run it belongs to, the
+ * What the action dispatcher is constructed with: the run it belongs to, the
  * ownership fence it writes under, and the `execute` function that actually
- * runs an activity body.
+ * runs an action body.
  *
  * Everything durable — the attempt row, the cache row, the journal record — is
  * this module's job; `execute` is the only part it delegates, which is what
@@ -280,10 +280,10 @@ export interface Dependencies {
   readonly runId: string
   readonly owner: Ownership.OwnerId
   readonly sourceId: string
-  /** Runs one activity body. The only part of a dispatch this module delegates. */
-  readonly execute: (input: ActivityInput) => Effect.Effect<unknown, unknown>
+  /** Runs one action body. The only part of a dispatch this module delegates. */
+  readonly execute: (input: ActionInput) => Effect.Effect<unknown, unknown>
   /**
-   * Makes a retry of an irreversible activity recognizable downstream. Its
+   * Makes a retry of an irreversible action recognizable downstream. Its
    * absence is what {@link IrreversibleRetryRequiresIdempotencyKey} reports.
    */
   readonly idempotencyKey?: string | undefined
@@ -374,7 +374,7 @@ const persistCause = (cause: Cause.Cause<unknown>): typeof CauseJson.Type => ({
  * rethrow the original domain error (issue #59). The row's `error` column
  * holds the {@link persistCause} encoding of the failing `Cause` — a plain
  * object whose `reasons` carry the tagged `Fail`/`Die`/`Interrupt` material.
- * `Fail` errors are already schema-encoded by `Activity.executeEncoded`, so
+ * `Fail` errors are already schema-encoded by `Action.executeEncoded`, so
  * their `_tag` survives and `RetryPolicy` non-retryable matching applies on
  * replay exactly as it did on the live attempt. Live reasons are rebuilt
  * unconditionally from the tagged material; anything unrecognizable becomes
@@ -398,7 +398,7 @@ const rehydrateCause = (error: unknown): Cause.Cause<unknown> => {
 }
 
 /**
- * Constructs the encoded activity executor. The activity itself stays opaque;
+ * Constructs the encoded action executor. The action itself stays opaque;
  * the supplied dispatcher is the only physical execution point.
  *
  * @since 0.1.0
@@ -407,11 +407,11 @@ const rehydrateCause = (error: unknown): Cause.Cause<unknown> => {
 export const make = (deps: Dependencies) => {
   const admission = deps.admission ?? AttemptAdmission.makeUnsafe()
   // The lineage every record this executor writes addresses itself to.
-  // An activity is a node inside its run's root lineage, not a lineage of
+  // An action is a node inside its run's root lineage, not a lineage of
   // its own: a lineage segment is minted only where a separate run is
   // (`docs/specs/Concepts/Subflows.md`).
   const lineageId = FlowEngine.Lineage.root(deps.runId)
-  return Effect.fn("ActivityPersistence.execute")((input: ActivityInput) =>
+  return Effect.fn("ActionPersistence.execute")((input: ActionInput) =>
     Effect.gen(function*() {
       const attempts = yield* AttemptStore.AttemptStore
       const cache = yield* CacheStore.CacheStore
@@ -445,7 +445,7 @@ export const make = (deps: Dependencies) => {
        * (`reference/temporal/service/history/workflow/transaction_impl.go`);
        * this is that unit of work, scoped to one attempt.
        *
-       * Nothing that is not storage work belongs inside: the activity body,
+       * Nothing that is not storage work belongs inside: the action body,
        * the Jj snapshot, and the boundary prepare/settle all stay outside so
        * the write transaction is never held across a host call.
        */
@@ -973,9 +973,9 @@ export const make = (deps: Dependencies) => {
                       // The strict verdict still makes the integrity violation
                       // visible by parking this dispatch. The row repair above
                       // is what makes the park resumable without an out-of-band
-                      // byte repair. This is a defect, not a declared activity
+                      // byte repair. This is a defect, not a declared action
                       // business error: routing it through the failure channel
-                      // would make the activity's error schema replace it with
+                      // would make the action's error schema replace it with
                       // a SchemaError.
                       return yield* Effect.die(
                         new AttemptEvidenceQuarantined({
@@ -1060,7 +1060,7 @@ export const make = (deps: Dependencies) => {
               // through to `attempts.put` here surfaced the row as
               // `AttemptAdmissionRejected`, whose tag can never match a
               // policy-declared `nonRetryable` classification, so a durably
-              // failed no-retry activity earned an extra real dispatch after
+              // failed no-retry action earned an extra real dispatch after
               // resume. Temporal's prior art: mutable state persists the attempt
               // failure and `ExecutionInfo.Attempt`, and its no-retry decision
               // (`service/history/workflow/retry.go`) is re-evaluated from that
@@ -1209,7 +1209,7 @@ export const make = (deps: Dependencies) => {
                   yield* jj.restore(decodeMeta(previous.value.meta)!.snapshotId!)
                 }
               }
-              const snapshot = yield* jj.snapshot(`flows activity ${keyDigest} attempt ${input.attempt}`)
+              const snapshot = yield* jj.snapshot(`flows action ${keyDigest} attempt ${input.attempt}`)
               snapshotId = snapshot.changeId
               // Persist the pre-image into the running row before announcing it
               // (issue #87): a SIGKILL mid-attempt must not lose the only
@@ -1256,7 +1256,7 @@ export const make = (deps: Dependencies) => {
           const prepared = preparedResult === undefined ? undefined : preparedResult.value
 
           /**
-           * THE ISOLATED EXECUTION (this lane). A sealed activity carrying a
+           * THE ISOLATED EXECUTION (this lane). A sealed action carrying a
            * boundary descriptor runs inside a workspace transaction when one
            * is composed: the body observes only its declared read set, its
            * writes become a diff bundle, and the host is untouched until
@@ -1300,7 +1300,7 @@ export const make = (deps: Dependencies) => {
           const effect = input.tier === "irreversible"
             ? {
               id: `${deps.runId}:${keyDigest}:${input.attempt}`,
-              kind: activityKind(input.activity),
+              kind: actionKind(input.action),
               tier: "irreversible" as const,
               runId: deps.runId,
               lineageId,

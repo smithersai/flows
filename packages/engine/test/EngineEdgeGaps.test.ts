@@ -1,6 +1,6 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, DurableDeferred, Flow, FlowRuntime, Interpreter, RetryPolicy, StepIdentity } from "@smthrs/flow-next"
+import { Action, DurableDeferred, Flow, FlowRuntime, Interpreter, RetryPolicy, StepIdentity } from "@smthrs/flow-next"
 import { Cause, Effect, Exit, Layer, Option, Result, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
@@ -10,34 +10,34 @@ import { runPromise, runSync } from "./Crypto.ts"
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
   it(name, () => runPromise(body()))
 
-describe("Activity.retry outside a flow", () => {
+describe("Action.retry outside a flow", () => {
   effect("still advances CurrentAttempt when no engine dispatch fills the ordinal slot", () => {
     // Outside a flow no engine dispatch ever fills the slot (allocation is
     // name-scoped and happens at dispatch, issue #73); the retry wrapper must
     // still work and report attempts.
     const attempts: Array<number> = []
     const body = Effect.gen(function*() {
-      const attempt = yield* Activity.CurrentAttempt
-      const slot = yield* Activity.CurrentOrdinal
+      const attempt = yield* Action.CurrentAttempt
+      const slot = yield* Action.CurrentOrdinal
       attempts.push(attempt)
       expect(slot?.values.size).toBe(0)
       return attempt < 3 ? yield* Effect.fail("again") : attempt
     })
 
     return Effect.gen(function*() {
-      expect(yield* Activity.retry(body, { times: 5 })).toBe(3)
+      expect(yield* Action.retry(body, { times: 5 })).toBe(3)
       expect(attempts).toEqual([1, 2, 3])
     })
   })
 
   effect("allocates a single stable ordinal for all attempts inside a flow", () => {
     // The engine fills the retry sequence's slot on the first dispatch and
-    // every later attempt reuses it, so the activity keeps one identity
+    // every later attempt reuses it, so the action keeps one identity
     // across the whole sequence (issue #73).
     const ordinals: Array<number | undefined> = []
     let attempts = 0
-    const activity = Activity.make({
-      name: "Edge/retry-ordinal-activity",
+    const action = Action.make({
+      name: "Edge/retry-ordinal-action",
       success: Schema.Number,
       error: Schema.String,
       execute: Effect.gen(function*() {
@@ -47,22 +47,22 @@ describe("Activity.retry outside a flow", () => {
     })
     const scope = runSync(
       StepIdentity.allocationScope({
-        kind: "activity",
-        name: "Edge/retry-ordinal-activity"
+        kind: "action",
+        name: "Edge/retry-ordinal-action"
       }).pipe(Effect.orDie)
     )
     const body = Effect.gen(function*() {
-      const result = yield* activity
-      ordinals.push(...(yield* Activity.CurrentOrdinal)?.values.get(scope) ?? [undefined])
+      const result = yield* action
+      ordinals.push(...(yield* Action.CurrentOrdinal)?.values.get(scope) ?? [undefined])
       return result
     }).pipe(
       Effect.tapError(() =>
         Effect.gen(function*() {
-          ordinals.push(...(yield* Activity.CurrentOrdinal)?.values.get(scope) ?? [undefined])
+          ordinals.push(...(yield* Action.CurrentOrdinal)?.values.get(scope) ?? [undefined])
         })
       )
     )
-    const flowActivityDeclaration = Activity.make("Edge/retry-ordinal/activity", {
+    const flowActionDeclaration = Action.make("Edge/retry-ordinal/action", {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String
@@ -71,13 +71,13 @@ describe("Activity.retry outside a flow", () => {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
     const layer = Layer.mergeAll(
-      flowActivityDeclaration.toLayer(() => Activity.retry(body, { times: 5 })),
+      flowActionDeclaration.toLayer(() => Action.retry(body, { times: 5 })),
       Interpreter.layer(flow)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
@@ -95,7 +95,7 @@ describe("DurableDeferred.into", () => {
       success: Schema.Number,
       error: Schema.String
     })
-    const flowActivityDeclaration = Activity.make("Edge/into-failure/activity", {
+    const flowActionDeclaration = Action.make("Edge/into-failure/action", {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String
@@ -104,11 +104,11 @@ describe("DurableDeferred.into", () => {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
     let bodyRuns = 0
     const layer = Layer.mergeAll(
-      flowActivityDeclaration.toLayer(() =>
+      flowActionDeclaration.toLayer(() =>
         Effect.gen(function*() {
           bodyRuns++
           // the second pass observes the persisted failure without re-running
@@ -120,7 +120,7 @@ describe("DurableDeferred.into", () => {
       ),
       Interpreter.layer(flow)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
 
     return Effect.gen(function*() {
@@ -142,7 +142,7 @@ describe("DurableDeferred.into", () => {
       success: Schema.Number,
       error: Schema.String
     })
-    const flowActivityDeclaration = Activity.make("Edge/into-success/activity", {
+    const flowActionDeclaration = Action.make("Edge/into-success/action", {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String
@@ -151,13 +151,13 @@ describe("DurableDeferred.into", () => {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
     const layer = Layer.mergeAll(
-      flowActivityDeclaration.toLayer(() => DurableDeferred.into(Effect.succeed(7), Result_)),
+      flowActionDeclaration.toLayer(() => DurableDeferred.into(Effect.succeed(7), Result_)),
       Interpreter.layer(flow)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
@@ -180,8 +180,8 @@ describe("retry decisions on defects", () => {
     // The retry decision point only classifies typed failures. A defect has no
     // Fail reason, so the policy must not consume attempts on it.
     let attempts = 0
-    const activity = Activity.make({
-      name: "Edge/dying-activity",
+    const action = Action.make({
+      name: "Edge/dying-action",
       success: Schema.Number,
       error: Schema.String,
       retryPolicy: RetryPolicy.make({ initialMs: 1, factor: 1, maxMs: 1, maxAttempts: 5 }),
@@ -190,7 +190,7 @@ describe("retry decisions on defects", () => {
         return Effect.die("kaboom")
       })
     })
-    const flowActivityDeclaration = Activity.make("Edge/dying/activity", {
+    const flowActionDeclaration = Action.make("Edge/dying/action", {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String
@@ -199,10 +199,10 @@ describe("retry decisions on defects", () => {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
-    const layer = Layer.mergeAll(flowActivityDeclaration.toLayer(() => activity), Interpreter.layer(flow)).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+    const layer = Layer.mergeAll(flowActionDeclaration.toLayer(() => action), Interpreter.layer(flow)).pipe(
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
@@ -216,8 +216,8 @@ describe("retry decisions on defects", () => {
 
   effect("a typed failure under the same policy is retried to the declared bound", () => {
     let attempts = 0
-    const activity = Activity.make({
-      name: "Edge/failing-activity",
+    const action = Action.make({
+      name: "Edge/failing-action",
       success: Schema.Number,
       error: Schema.String,
       retryPolicy: RetryPolicy.make({ initialMs: 1, factor: 1, maxMs: 1, maxAttempts: 3 }),
@@ -226,7 +226,7 @@ describe("retry decisions on defects", () => {
         return Effect.fail("again")
       })
     })
-    const flowActivityDeclaration = Activity.make("Edge/failing/activity", {
+    const flowActionDeclaration = Action.make("Edge/failing/action", {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String
@@ -235,10 +235,10 @@ describe("retry decisions on defects", () => {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
-    const layer = Layer.mergeAll(flowActivityDeclaration.toLayer(() => activity), Interpreter.layer(flow)).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+    const layer = Layer.mergeAll(flowActionDeclaration.toLayer(() => action), Interpreter.layer(flow)).pipe(
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
@@ -251,14 +251,14 @@ describe("retry decisions on defects", () => {
   })
 })
 
-describe("in-flight activity identity", () => {
-  effect("two concurrent runs of the same keyed activity both execute, then replay after settling", () => {
-    // The memory engine memoizes an activity result once it settles. While an
+describe("in-flight action identity", () => {
+  effect("two concurrent runs of the same keyed action both execute, then replay after settling", () => {
+    // The memory engine memoizes an action result once it settles. While an
     // attempt is still in flight there is nothing to replay, so a concurrent
     // sibling with the same key runs alongside it; a third, later call
     // replays the settled result.
     let executions = 0
-    const keyed = Activity.make({
+    const keyed = Action.make({
       name: "Edge/concurrent-keyed",
       success: Schema.Number,
       idempotencyKey: "edge/concurrent",
@@ -268,17 +268,17 @@ describe("in-flight activity identity", () => {
         return executions
       })
     })
-    const flowActivityDeclaration = Activity.make("Edge/concurrent-keyed/activity", {
+    const flowActionDeclaration = Action.make("Edge/concurrent-keyed/action", {
       payload: { id: Schema.String },
       success: Schema.Number
     })
     const flow = Flow.make("Edge/concurrent-keyed", {
       payload: { id: Schema.String },
       success: Schema.Number,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
     const layer = Layer.mergeAll(
-      flowActivityDeclaration.toLayer(() =>
+      flowActionDeclaration.toLayer(() =>
         Effect.gen(function*() {
           yield* Effect.all([keyed, keyed], { concurrency: "unbounded" })
           const inFlight = executions
@@ -288,7 +288,7 @@ describe("in-flight activity identity", () => {
       ),
       Interpreter.layer(flow)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
     return Effect.gen(function*() {
       const replayed = yield* flow.execute({ id: "x" }, { executionId: "run-concurrent" })
@@ -302,7 +302,7 @@ describe("in-flight activity identity", () => {
 describe("waitForZero", () => {
   effect("holds suspension open across several scheduler turns until the last sibling settles", () => {
     const events: Array<string> = []
-    const failing = Activity.make({
+    const failing = Action.make({
       name: "Edge/suspending",
       success: Schema.String,
       error: Schema.String,
@@ -311,7 +311,7 @@ describe("waitForZero", () => {
         return yield* Effect.fail("suspend-now")
       })
     })
-    const verySlow = Activity.make({
+    const verySlow = Action.make({
       name: "Edge/very-slow",
       success: Schema.String,
       execute: Effect.gen(function*() {
@@ -321,7 +321,7 @@ describe("waitForZero", () => {
         return "slow"
       })
     })
-    const flowActivityDeclaration = Activity.make("Edge/wait-for-zero/activity", {
+    const flowActionDeclaration = Action.make("Edge/wait-for-zero/action", {
       payload: { id: Schema.String },
       success: Schema.String,
       error: Schema.String
@@ -330,10 +330,10 @@ describe("waitForZero", () => {
       payload: { id: Schema.String },
       success: Schema.String,
       error: Schema.String,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     }).annotate(Flow.SuspendOnFailure, true)
     const layer = Layer.mergeAll(
-      flowActivityDeclaration.toLayer(() =>
+      flowActionDeclaration.toLayer(() =>
         Effect.map(
           Effect.all([failing, verySlow], { concurrency: "unbounded" }),
           ([a, b]) => `${a}+${b}`
@@ -341,7 +341,7 @@ describe("waitForZero", () => {
       ),
       Interpreter.layer(flow)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
 
     return Effect.gen(function*() {

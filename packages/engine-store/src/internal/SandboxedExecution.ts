@@ -72,13 +72,13 @@ const conflicted = (cause: Cause.Cause<unknown>): boolean =>
   )
 
 /**
- * Runs one activity body inside a workspace transaction and copies its result
+ * Runs one action body inside a workspace transaction and copies its result
  * back.
  *
  * The host is untouched until copy-back, so every refusal below leaves the
  * tree exactly as it found it:
  *
- * - a body failure propagates unchanged, because it is the activity's own
+ * - a body failure propagates unchanged, because it is the action's own
  *   declared error and the retry policy must still match on it;
  * - an execution the declaration did not predict fails with the boundary's own
  *   {@link StepBoundary.UndeclaredWrite}, which routes it through the caller's
@@ -93,7 +93,7 @@ export const execute = (options: {
   readonly sandbox: WorkspaceSandbox.Service
   readonly descriptor: FileBoundary
   /**
-   * The activity body. The engine's encoded effect erases its requirements, so
+   * The action body. The engine's encoded effect erases its requirements, so
    * the sandbox's own surfaces are named here: they are what `execute` seeds,
    * and naming them keeps a caller from having to launder the type.
    */

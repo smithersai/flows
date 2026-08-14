@@ -4,7 +4,7 @@
  * Both operations hang off one injectable service:
  *
  * `inspect` folds committed journal entries up to a frame through a pure
- * reducer. It reads; it never plans a flow body or runs an activity.
+ * reducer. It reads; it never plans a flow body or runs an action.
  *
  * `rewind` is the mutating protocol. Behind the one call it claims the run,
  * records an audit, assesses external effects recorded on the journal, restores
@@ -24,7 +24,7 @@
  * ownership claim like any driver and refuses a live run. Phase one below parks
  * the run at a `DurableDeferred.await`, which is what makes it rewindable.
  */
-import { Activity, DurableDeferred, Flow, Interpreter } from "@smthrs/flow-next"
+import { Action, DurableDeferred, Flow, Interpreter } from "@smthrs/flow-next"
 import { Journal, JournalEvent } from "@smthrs/journal-next"
 import { SqlTimeTravelStore, TimeTravel } from "@smthrs/time-travel-next"
 import * as Effect from "effect/Effect"
@@ -34,7 +34,7 @@ import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { durableEngine } from "./durable-layer.ts"
 
 /** The declared step the flow's body names; the wait lives in its implementation. */
-export const Post = Activity.make("examples/Post", {
+export const Post = Action.make("examples/Post", {
   payload: {},
   success: Schema.String
 })
@@ -61,7 +61,7 @@ const lineageId = "ledger-1/root"
  */
 const layer = (filename: string) =>
   Layer.mergeAll(Post.toLayer(post), Interpreter.layer(Ledger)).pipe(
-    Layer.provideMerge(Activity.layerImplementations),
+    Layer.provideMerge(Action.layerImplementations),
     Layer.provideMerge(TimeTravel.layer),
     Layer.provideMerge(SqlTimeTravelStore.layer),
     Layer.provideMerge(durableEngine(filename, "ledger"))
@@ -75,7 +75,7 @@ export interface Summary {
   readonly auditStatus: string
 }
 
-const Credit = Activity.make({
+const Credit = Action.make({
   name: "examples/Credit",
   success: Schema.Number,
   tier: "sealed",
@@ -103,7 +103,7 @@ export const main = (filename: string): Effect.Effect<Summary> =>
     const seq = before.entries[Math.floor(before.entries.length / 2)]!.seq
     const position = { runId: "ledger-1", frame: { lineageId, seq } }
 
-    // Read-only: count the activity attempts the frame covers, folding the
+    // Read-only: count the action attempts the frame covers, folding the
     // engine's own records.
     const derivedAttempts = yield* TimeTravel.pipe(
       Effect.flatMap((timeTravel) =>

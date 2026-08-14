@@ -9,7 +9,7 @@
  *    material belongs above it.
  * 2. **It produces `@smthrs/keys-next` `Key` values, not a second `sk1_` digest
  *    format.** The original minted its own prefix over a private `Digest`
- *    module. The engine dispatches under `Key` (`FlowEngine/ActivityKey.ts`),
+ *    module. The engine dispatches under `Key` (`FlowEngine/ActionKey.ts`),
  *    so a plan whose node keys were a *different* string format could never be
  *    the thing the cache is consulted against — and that is the whole point of
  *    `docs/specs/Specs/Object Model.md`'s `Plan`. One key format, one hashing
@@ -43,7 +43,7 @@ export type StepKey = Key
 /**
  * The nominal brand carried by every {@link DigestInput}. Kept private: the
  * only way to produce a value bearing it is {@link digestInput}, so a plain
- * value that merely happens to look like `{ digest: "..." }` — activities pass
+ * value that merely happens to look like `{ digest: "..." }` — actions pass
  * content hashes around as ordinary data — can never be mistaken for a genuine
  * upstream-result digest reference. This closes a step-key collision where
  * shape-sniffing (`"digest" in value`) hashed the two identically.

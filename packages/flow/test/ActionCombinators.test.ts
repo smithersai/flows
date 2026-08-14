@@ -1,6 +1,6 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, Flow, Interpreter } from "@smthrs/flow-next"
+import { Action, Flow, Interpreter } from "@smthrs/flow-next"
 import { Context, Effect, Layer, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
@@ -13,10 +13,10 @@ const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Cr
 const Label = Context.Reference<string>("test/Label", { defaultValue: () => "none" })
 const Owner = Context.Reference<string>("test/Owner", { defaultValue: () => "none" })
 
-describe("Activity combinators", () => {
-  effect("annotate returns a new activity carrying the annotation", () =>
+describe("Action combinators", () => {
+  effect("annotate returns a new action carrying the annotation", () =>
     Effect.sync(() => {
-      const base = Activity.make({
+      const base = Action.make({
         name: "Annotate/base",
         success: Schema.Number,
         execute: Effect.succeed(1)
@@ -24,14 +24,14 @@ describe("Activity combinators", () => {
       const annotated = base.annotate(Label, "audited")
 
       expect(Context.get(annotated.annotations, Label)).toBe("audited")
-      // the original activity is untouched
+      // the original action is untouched
       expect(Context.get(base.annotations, Label)).toBe("none")
       expect(annotated.name).toBe(base.name)
     }))
 
-  effect("annotateMerge merges an annotation context into the activity", () =>
+  effect("annotateMerge merges an annotation context into the action", () =>
     Effect.sync(() => {
-      const base = Activity.make({
+      const base = Action.make({
         name: "Annotate/merge",
         success: Schema.Number,
         execute: Effect.succeed(1)
@@ -43,14 +43,14 @@ describe("Activity combinators", () => {
       expect(Context.get(merged.annotations, Label)).toBe("first")
     }))
 
-  effect("annotated activities still execute normally", () => {
-    const step = Activity.make({
+  effect("annotated actions still execute normally", () => {
+    const step = Action.make({
       name: "Annotate/execute",
       success: Schema.Number,
       idempotencyKey: "annotate/execute",
       execute: Effect.succeed(7)
     }).annotate(Label, "audited")
-    const Run = Activity.make("Annotate/execute/run", {
+    const Run = Action.make("Annotate/execute/run", {
       payload: { id: Schema.String },
       success: Schema.Number
     })
@@ -68,9 +68,9 @@ describe("Activity combinators", () => {
     }).pipe(Effect.provide(layer))
   })
 
-  effect("raceAll returns the first activity result and persists it for replay", () => {
+  effect("raceAll returns the first action result and persists it for replay", () => {
     let fastRuns = 0
-    const fast = Activity.make({
+    const fast = Action.make({
       name: "Race/fast",
       success: Schema.Number,
       idempotencyKey: "race/fast",
@@ -79,13 +79,13 @@ describe("Activity combinators", () => {
         return 1
       })
     })
-    const slow = Activity.make({
+    const slow = Action.make({
       name: "Race/slow",
       success: Schema.Number,
       idempotencyKey: "race/slow",
       execute: Effect.never as Effect.Effect<number>
     })
-    const Race = Activity.make("Race/all/run", {
+    const Race = Action.make("Race/all/run", {
       payload: { id: Schema.String },
       success: Schema.Number
     })
@@ -98,8 +98,8 @@ describe("Activity combinators", () => {
     const layer = layerWired(Layer.mergeAll(
       Race.toLayer(() =>
         Effect.gen(function*() {
-          const first = yield* Activity.raceAll("winner", [fast, slow])
-          const second = yield* Activity.raceAll("winner", [fast, slow])
+          const first = yield* Action.raceAll("winner", [fast, slow])
+          const second = yield* Action.raceAll("winner", [fast, slow])
           return first + second
         })
       ),
@@ -113,21 +113,21 @@ describe("Activity combinators", () => {
   })
 
   effect("raceAll ignores a losing failure and returns the surviving success", () => {
-    const failing = Activity.make({
+    const failing = Action.make({
       name: "Race/failing",
       success: Schema.Number,
       error: Schema.String,
       idempotencyKey: "race/failing",
       execute: Effect.fail("nope")
     })
-    const pending = Activity.make({
+    const pending = Action.make({
       name: "Race/pending",
       success: Schema.Number,
       error: Schema.String,
       idempotencyKey: "race/pending",
       execute: Effect.succeed(5)
     })
-    const Race = Activity.make("Race/failure/run", {
+    const Race = Action.make("Race/failure/run", {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String
@@ -140,7 +140,7 @@ describe("Activity combinators", () => {
       body: (payload) => Race.call(payload)
     })
     const layer = layerWired(Layer.mergeAll(
-      Race.toLayer(() => Activity.raceAll("loser", [failing, pending])),
+      Race.toLayer(() => Action.raceAll("loser", [failing, pending])),
       Interpreter.layer(flow)
     ))
     return Effect.gen(function*() {

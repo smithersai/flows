@@ -1,5 +1,5 @@
 /**
- * Pins issue #71: a SIGKILL mid-activity leaves the attempt row in state
+ * Pins issue #71: a SIGKILL mid-action leaves the attempt row in state
  * `running`. On re-drive by the reclaiming owner (issue #53's
  * `sweepStaleRunning`), the persisted-row chain used to handle only
  * succeeded/failed/suspended, so the stale running row fell through to
@@ -17,7 +17,7 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
-import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
@@ -77,7 +77,7 @@ describe("stale running attempt rows (issue #71)", () => {
         )
         expect(seeded._tag).toBe("Inserted")
 
-        const outcome = yield* ActivityPersistence.make({
+        const outcome = yield* ActionPersistence.make({
           runId: "stale-running",
           owner,
           sourceId: "stale-running-test",
@@ -87,7 +87,7 @@ describe("stale running attempt rows (issue #71)", () => {
               return "recovered"
             })
         })({
-          activity: {},
+          action: {},
           attempt: 1,
           key,
           tier: "sealed"
@@ -129,13 +129,13 @@ describe("stale running attempt rows (issue #71)", () => {
           owner
         )
         const exit = yield* Effect.exit(
-          ActivityPersistence.make({
+          ActionPersistence.make({
             runId: "stale-running-fails",
             owner,
             sourceId: "stale-running-test",
             execute: () => Effect.fail("boom")
           })({
-            activity: {},
+            action: {},
             attempt: 1,
             key,
             tier: "sealed"

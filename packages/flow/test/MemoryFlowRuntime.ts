@@ -5,13 +5,13 @@
  * `@smthrs/flow-next` deliberately does not depend on anything that executes
  * flows, so its suite cannot reach for `@smthrs/engine-next`'s `layerMemory`. This
  * fixture is the smallest runtime the authoring surface needs: it registers
- * handlers, drives suspension and resumption, memoizes activity outcomes per
+ * handlers, drives suspension and resumption, memoizes action outcomes per
  * (identity, attempt), and records durable deferred results. Everything the
  * real engine adds on top — step-key derivation, ordinal pinning, retry
  * policy decisions, snapshot boundaries — is tested in `@smthrs/engine-next`,
  * against the engine that owns it.
  */
-import { Activity, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow-next"
+import { Action, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow-next"
 import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -39,7 +39,7 @@ export const makeInstance = (
     waiting: undefined,
     handoff: undefined,
     cause: undefined,
-    activityState: {
+    actionState: {
       count: 0,
       latch: Latch.makeUnsafe(),
       nextOrdinal: (scope: string) => {
@@ -56,12 +56,12 @@ export const makeInstance = (
 const toJsonExit = Exit.map((value: any) => value ?? null)
 
 /** The ordinal counter one declaration's dispatches are allocated from. */
-const ordinalScope = (activity: { readonly name: string; readonly idempotencyKey?: unknown }): string =>
-  `${activity.name}/${JSON.stringify(activity.idempotencyKey ?? null)}`
+const ordinalScope = (action: { readonly name: string; readonly idempotencyKey?: unknown }): string =>
+  `${action.name}/${JSON.stringify(action.idempotencyKey ?? null)}`
 
 /**
  * The dispatch identity this fixture hands an implementation through
- * `Activity.CurrentInvocationKey`: the `ordinal`-th dispatch of `activity`
+ * `Action.CurrentInvocationKey`: the `ordinal`-th dispatch of `action`
  * within `executionId`, counting from one.
  *
  * The real engine derives a digest here rather than a readable tuple. What the
@@ -71,9 +71,9 @@ const ordinalScope = (activity: { readonly name: string; readonly idempotencyKey
  */
 export const dispatchKey = (
   executionId: string,
-  activity: { readonly name: string; readonly idempotencyKey?: unknown },
+  action: { readonly name: string; readonly idempotencyKey?: unknown },
   ordinal: number
-): string => JSON.stringify([executionId, ordinalScope(activity), ordinal])
+): string => JSON.stringify([executionId, ordinalScope(action), ordinal])
 
 type Handler = (
   payload: object,
@@ -89,7 +89,7 @@ type ExecutionState = {
 }
 
 /**
- * A `FlowRuntime` layer that keeps every execution, activity outcome, and
+ * A `FlowRuntime` layer that keeps every execution, action outcome, and
  * durable deferred result in process memory.
  */
 export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(FlowRuntime.FlowRuntime)(
@@ -97,7 +97,7 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
     const rootScope = yield* Effect.scope
     const flows = new Map<string, { readonly handler: Handler; readonly scope: Scope.Scope }>()
     const executions = new Map<string, ExecutionState>()
-    const activities = new Map<string, Exit.Exit<Flow.Result<unknown, unknown>>>()
+    const actions = new Map<string, Exit.Exit<Flow.Result<unknown, unknown>>>()
     const deferredResults = new Map<string, Exit.Exit<any, any>>()
     const clocks = yield* FiberMap.make<string>()
 
@@ -175,7 +175,7 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
         )
         if (options.discard) return options.executionId
         if (Option.isSome(parentInstance)) {
-          const wrapped = yield* Flow.wrapActivityResult(
+          const wrapped = yield* Flow.wrapActionResult(
             Fiber.join(state.fiber!) as Effect.Effect<Flow.Result<unknown, unknown>>,
             (result) => result._tag === "Suspended"
           )
@@ -212,13 +212,13 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
         yield* Fiber.interrupt(state.fiber!)
       }),
       resume: (_flow, executionId) => drive(executionId) as Effect.Effect<void>,
-      activityExecute: Effect.fnUntraced(function*(activity: any, attempt: number) {
+      actionExecute: Effect.fnUntraced(function*(action: any, attempt: number) {
         const instance = yield* FlowRuntime.FlowInstance
-        const scope = ordinalScope(activity)
-        const slot = yield* Activity.CurrentOrdinal
+        const scope = ordinalScope(action)
+        const slot = yield* Action.CurrentOrdinal
         let ordinal: number
         if (slot === undefined) {
-          ordinal = instance.activityState.nextOrdinal(scope)
+          ordinal = instance.actionState.nextOrdinal(scope)
         } else {
           const index = slot.cursors.get(scope) ?? 0
           slot.cursors.set(scope, index + 1)
@@ -226,7 +226,7 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
           if (index < pinned.length) {
             ordinal = pinned[index]!
           } else {
-            ordinal = instance.activityState.nextOrdinal(scope)
+            ordinal = instance.actionState.nextOrdinal(scope)
             pinned.push(ordinal)
             slot.values.set(scope, pinned)
           }
@@ -236,20 +236,20 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
         // an implementation reading `CurrentInvocationKey` gets the same value
         // on every attempt and on every replay of one node; the memo is per
         // (dispatch, attempt) because a retried attempt is its own recording.
-        const dispatch = dispatchKey(instance.executionId, activity, ordinal)
+        const dispatch = dispatchKey(instance.executionId, action, ordinal)
         const id = JSON.stringify([dispatch, attempt])
-        const memo = activities.get(id)
+        const memo = actions.get(id)
         if (memo && !(memo._tag === "Success" && memo.value._tag === "Suspended")) {
           const replayed = yield* memo
           if (replayed._tag !== "Complete") return replayed
           return new Flow.Complete({
             exit: yield* Effect.orDie(
-              Schema.decodeEffect(activity.exitSchemaPartial)(toJsonExit(replayed.exit))
+              Schema.decodeEffect(action.exitSchemaPartial)(toJsonExit(replayed.exit))
             )
           }) as any
         }
-        const activityInstance = makeInstance(instance.flow, instance.executionId)
-        activityInstance.interrupted = instance.interrupted
+        const actionInstance = makeInstance(instance.flow, instance.executionId)
+        actionInstance.interrupted = instance.interrupted
         // A dispatch gets an instance of its own — here to keep attempt state
         // apart, in the real engine to keep the dispatch's persistence apart —
         // so the waiting classification is threaded in and back out rather than
@@ -259,27 +259,27 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
         // (`deferredResult`), and one that touches neither leaves whatever the
         // body declared alone — seeded here, copied back below.
         const waitingBefore = instance.waiting
-        activityInstance.waiting = waitingBefore
-        const result = (yield* (activity.executeEncoded.pipe(
+        actionInstance.waiting = waitingBefore
+        const result = (yield* (action.executeEncoded.pipe(
           Flow.intoResult,
-          Effect.provideService(FlowRuntime.FlowInstance, activityInstance),
-          Effect.provideService(Activity.CurrentAttempt, attempt),
-          Effect.provideService(Activity.CurrentInvocationKey, dispatch),
-          Effect.onExit((exit: any) => Effect.sync(() => activities.set(id, exit)))
+          Effect.provideService(FlowRuntime.FlowInstance, actionInstance),
+          Effect.provideService(Action.CurrentAttempt, attempt),
+          Effect.provideService(Action.CurrentInvocationKey, dispatch),
+          Effect.onExit((exit: any) => Effect.sync(() => actions.set(id, exit)))
         ) as Effect.Effect<Flow.Result<unknown, unknown>>)) as Flow.Result<unknown, unknown>
-        if (instance.waiting === waitingBefore) instance.waiting = activityInstance.waiting
+        if (instance.waiting === waitingBefore) instance.waiting = actionInstance.waiting
         // A recorded interruption is a durable OUTCOME, not a request to
         // suspend (`DurableDeferred.await` sets the flag to say so). The flag
         // is set on whichever instance is in scope, which for a declared
-        // activity's implementation is the dispatch's own — so it travels back
+        // action's implementation is the dispatch's own — so it travels back
         // to the flow, exactly as the waiting classification above does.
         // Without it the flow sees an interrupt-only cause it never marked and
         // classifies a terminal outcome as an external suspension.
-        if (activityInstance.interrupted) instance.interrupted = true
+        if (actionInstance.interrupted) instance.interrupted = true
         if (result._tag !== "Complete") return result as never
         return new Flow.Complete({
           exit: yield* Effect.orDie(
-            Schema.decodeEffect(activity.exitSchemaPartial)(toJsonExit(result.exit))
+            Schema.decodeEffect(action.exitSchemaPartial)(toJsonExit(result.exit))
           )
         }) as any
       }) as any,
@@ -320,7 +320,7 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
 )
 
 /**
- * Everything a bodied flow needs to run: the activity implementations and the
+ * Everything a bodied flow needs to run: the action implementations and the
  * flow registrations a case wires up, over ONE implementation table, over this
  * runtime.
  *
@@ -329,10 +329,10 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
  * the interpreter reads.
  */
 export const layerWired = <Implemented = never>(
-  registrations: Layer.Layer<Implemented, never, FlowRuntime.FlowRuntime | Activity.Implementations>
-): Layer.Layer<Implemented | FlowRuntime.FlowRuntime | Activity.Implementations> =>
+  registrations: Layer.Layer<Implemented, never, FlowRuntime.FlowRuntime | Action.Implementations>
+): Layer.Layer<Implemented | FlowRuntime.FlowRuntime | Action.Implementations> =>
   registrations.pipe(
-    Layer.provideMerge(Activity.layerImplementations),
+    Layer.provideMerge(Action.layerImplementations),
     Layer.provideMerge(layerMemory)
   )
 

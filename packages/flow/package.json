@@ -3,7 +3,7 @@
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
-  "description": "The flow authoring model: flows, activities, durable waits, retry policy, and the runtime port they execute against",
+  "description": "The flow authoring model: flows, actions, durable waits, retry policy, and the runtime port they execute against",
   "homepage": "https://github.com/smithersai/flows",
   "repository": {
     "type": "git",
@@ -32,16 +32,16 @@
   "exports": {
     "./package.json": "./package.json",
     ".": "./src/index.ts",
-    "./Activity": "./src/Activity/index.ts",
-    "./Activity/*": null,
-    "./CacheEnvironment": "./src/Activity/CacheEnvironment.ts",
-    "./FileBoundary": "./src/Activity/FileBoundary.ts",
-    "./FileInput": "./src/Activity/FileInput.ts",
+    "./Action": "./src/Action/index.ts",
+    "./Action/*": null,
+    "./CacheEnvironment": "./src/Action/CacheEnvironment.ts",
+    "./FileBoundary": "./src/Action/FileBoundary.ts",
+    "./FileInput": "./src/Action/FileInput.ts",
     "./Flow": "./src/Flow/index.ts",
     "./Flow/*": null,
     "./FlowRuntime": "./src/FlowRuntime/index.ts",
     "./FlowRuntime/*": null,
-    "./StepIdentity": "./src/Activity/StepIdentity.ts",
+    "./StepIdentity": "./src/Action/StepIdentity.ts",
     "./*": "./src/*.ts",
     "./internal/*": null,
     "./*/index": null
@@ -68,26 +68,26 @@
         "import": "./dist/esm/index.js",
         "require": "./dist/cjs/index.js"
       },
-      "./Activity": {
-        "types": "./dist/esm/Activity/index.d.ts",
-        "import": "./dist/esm/Activity/index.js",
-        "require": "./dist/cjs/Activity/index.js"
+      "./Action": {
+        "types": "./dist/esm/Action/index.d.ts",
+        "import": "./dist/esm/Action/index.js",
+        "require": "./dist/cjs/Action/index.js"
       },
-      "./Activity/*": null,
+      "./Action/*": null,
       "./CacheEnvironment": {
-        "types": "./dist/esm/Activity/CacheEnvironment.d.ts",
-        "import": "./dist/esm/Activity/CacheEnvironment.js",
-        "require": "./dist/cjs/Activity/CacheEnvironment.js"
+        "types": "./dist/esm/Action/CacheEnvironment.d.ts",
+        "import": "./dist/esm/Action/CacheEnvironment.js",
+        "require": "./dist/cjs/Action/CacheEnvironment.js"
       },
       "./FileBoundary": {
-        "types": "./dist/esm/Activity/FileBoundary.d.ts",
-        "import": "./dist/esm/Activity/FileBoundary.js",
-        "require": "./dist/cjs/Activity/FileBoundary.js"
+        "types": "./dist/esm/Action/FileBoundary.d.ts",
+        "import": "./dist/esm/Action/FileBoundary.js",
+        "require": "./dist/cjs/Action/FileBoundary.js"
       },
       "./FileInput": {
-        "types": "./dist/esm/Activity/FileInput.d.ts",
-        "import": "./dist/esm/Activity/FileInput.js",
-        "require": "./dist/cjs/Activity/FileInput.js"
+        "types": "./dist/esm/Action/FileInput.d.ts",
+        "import": "./dist/esm/Action/FileInput.js",
+        "require": "./dist/cjs/Action/FileInput.js"
       },
       "./Flow": {
         "types": "./dist/esm/Flow/index.d.ts",
@@ -102,9 +102,9 @@
       },
       "./FlowRuntime/*": null,
       "./StepIdentity": {
-        "types": "./dist/esm/Activity/StepIdentity.d.ts",
-        "import": "./dist/esm/Activity/StepIdentity.js",
-        "require": "./dist/cjs/Activity/StepIdentity.js"
+        "types": "./dist/esm/Action/StepIdentity.d.ts",
+        "import": "./dist/esm/Action/StepIdentity.js",
+        "require": "./dist/cjs/Action/StepIdentity.js"
       },
       "./*": {
         "types": "./dist/esm/*.d.ts",

@@ -62,10 +62,10 @@ Required services: `Journal`, `RunStore`, `AttemptStore`, `CacheStore`, `Durable
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `StepBoundary` | service tag | prepare and settle around an activity |
+| `StepBoundary` | service tag | prepare and settle around an action |
 | `Service`, `PreparedBoundary` | interfaces | |
 | `FileBoundary`, `FileInput` | schemas + types from `@smthrs/flow-next/FileBoundary` | the declared filesystem boundary |
-| `Activity.BoundaryMode` | schema + type from `@smthrs/flow-next/Activity` | `hard` or `expected` enforcement |
+| `Action.BoundaryMode` | schema + type from `@smthrs/flow-next/Action` | `hard` or `expected` enforcement |
 | `BoundaryEvidence`, `BoundaryDeviation`, `readSetMatches` | schemas + predicate | settle evidence |
 | `referencedDigests` | accessor | the digests evidence references rather than inlines |
 | `make` | constructor | from an implementation |

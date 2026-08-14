@@ -75,7 +75,7 @@ describe("Redaction", () => {
       const journal = yield* Journal
       const run = runId("redaction-durable")
       yield* journal.emitDurable(
-        input(run, sourceId("activity"), "activity.completed", {
+        input(run, sourceId("action"), "action.completed", {
           apiKey: "sk-ant-api03-abcdefgh",
           prompt: "call with Bearer abcdefghijkl"
         }, { authorization: "Bearer abcdefghijkl" })
@@ -116,7 +116,7 @@ describe("Redaction", () => {
     Effect.gen(function*() {
       const journal = yield* Journal
       const run = runId("redaction-off")
-      yield* journal.emitDurable(input(run, sourceId("activity"), "raw", { token: "hunter2" }))
+      yield* journal.emitDurable(input(run, sourceId("action"), "raw", { token: "hunter2" }))
       const page = yield* journal.entries({ runId: run, limit: 10 })
       expect(page.entries[0]!.payload).toEqual({ token: "hunter2" })
     }).pipe(

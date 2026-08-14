@@ -1,7 +1,7 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 /**
- * Defines typed activity execution and identity failures.
+ * Defines typed action execution and identity failures.
  *
  * The `_tag` strings below keep the `@smthrs/engine-next/` prefix they were minted
  * with. A tag is wire format: durable stores persist encoded exits carrying
@@ -15,7 +15,7 @@ import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 
 /**
- * Marker raised by an engine when an activity is interrupted by host loss or
+ * Marker raised by an engine when an action is interrupted by host loss or
  * rebalancing rather than user cancellation.
  *
  * @category errors
@@ -32,7 +32,7 @@ export class InfraInterrupt extends Schema.TaggedError<InfraInterrupt>()(
 ) {}
 
 /**
- * An irreversible activity attempted a retry without declaring an
+ * An irreversible action attempted a retry without declaring an
  * idempotency key.
  *
  * @category errors
@@ -45,7 +45,7 @@ export class IrreversibleRetryRequiresIdempotencyKey
       code: Schema.Literal("irreversible_retry_requires_idempotency_key").pipe(
         Schema.withConstructorDefault(Effect.succeed("irreversible_retry_requires_idempotency_key"))
       ),
-      activityName: Schema.String,
+      actionName: Schema.String,
       attempt: Schema.Number
     }
   )
@@ -61,7 +61,7 @@ export class IrreversibleRetryRequiresIdempotencyKey
  * outcome (issue #111); Temporal fails such replays with a nondeterminism
  * error, and the engine refuses the hazard up front instead of detecting it
  * after the corruption. Declare an `idempotencyKey` *distinguishing* the
- * invocations to dispatch them concurrently; a sealed activity with a key
+ * invocations to dispatch them concurrently; a sealed action with a key
  * takes a pure cache key and is exempt.
  *
  * @category errors
@@ -73,7 +73,7 @@ export class ConcurrentKeylessDispatch extends Schema.TaggedError<ConcurrentKeyl
     code: Schema.Literal("concurrent_keyless_dispatch").pipe(
       Schema.withConstructorDefault(Effect.succeed("concurrent_keyless_dispatch"))
     ),
-    activityName: Schema.String
+    actionName: Schema.String
   }
 ) {}
 
@@ -92,7 +92,7 @@ export class UncanonicalIdempotencyKey extends Schema.TaggedError<UncanonicalIde
     code: Schema.Literal("uncanonical_idempotency_key").pipe(
       Schema.withConstructorDefault(Effect.succeed("uncanonical_idempotency_key"))
     ),
-    activityName: Schema.String,
+    actionName: Schema.String,
     /** Stable reason identifying an RFC 8785 canonicalization failure. */
     reason: Schema.String,
     /** The path of the offending value inside the declared identity. */

@@ -1,9 +1,9 @@
 /**
- * The system wait activity: what it puts in a plan, how it parks, how the
+ * The system wait action: what it puts in a plan, how it parks, how the
  * ordinary deferred completion path resumes it, and what a settled wait does on
  * replay.
  */
-import { Activity, DurableDeferred, Flow, FlowRuntime, Graph, Interpreter, WaitFor } from "@smthrs/flow-next"
+import { Action, DurableDeferred, Flow, FlowRuntime, Graph, Interpreter, WaitFor } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
@@ -27,7 +27,7 @@ const pollComplete = <A, E, R>(
   })
 
 /** The step before a wait, so a replay that re-ran it would be visible. */
-const Mark = Activity.make("waitFor/mark", {
+const Mark = Action.make("waitFor/mark", {
   payload: { label: Schema.String },
   success: Schema.String
 })
@@ -35,9 +35,9 @@ const Mark = Activity.make("waitFor/mark", {
 const marks: Array<string> = []
 
 const wired = (
-  registration: Layer.Layer<never, never, FlowRuntime.FlowRuntime | Activity.Implementations> = Layer.empty
+  registration: Layer.Layer<never, never, FlowRuntime.FlowRuntime | Action.Implementations> = Layer.empty
 ): Layer.Layer<
-  Activity.Requirement<"waitFor/mark"> | FlowRuntime.FlowRuntime | Activity.Implementations
+  Action.Requirement<"waitFor/mark"> | FlowRuntime.FlowRuntime | Action.Implementations
 > =>
   Layer.mergeAll(
     WaitFor.layer,
@@ -49,7 +49,7 @@ const wired = (
     ),
     registration
   ).pipe(
-    Layer.provideMerge(Activity.layerImplementations),
+    Layer.provideMerge(Action.layerImplementations),
     Layer.provideMerge(layerMemory)
   )
 
@@ -60,7 +60,7 @@ const Host = Flow.make("waitFor/host", { payload: {}, body: () => Node.succeed(u
 const Other = Flow.make("waitFor/other", { payload: {}, body: () => Node.succeed(undefined) })
 
 const drive = <A, E>(
-  effect: Effect.Effect<A, E, FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime | Activity.Implementations>,
+  effect: Effect.Effect<A, E, FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime | Action.Implementations>,
   instance: FlowRuntime.FlowInstance["Service"]
 ): Promise<A> =>
   runPromise(
@@ -83,35 +83,35 @@ describe("WaitFor as a plan node", () => {
   const Gated = Flow.make("waitFor/plan", {
     payload: { name: Schema.String },
     success: Schema.Json,
-    body: ({ name }) => WaitFor.activity.call({ name })
+    body: ({ name }) => WaitFor.action.call({ name })
   })
 
-  it("is an ordinary declared activity", () => {
+  it("is an ordinary declared action", () => {
     expect(WaitFor.tag).toBe("system/wait-for")
-    expect(WaitFor.activity.name).toBe("system/wait-for")
-    expect(WaitFor.activity.tier).toBe("sealed")
+    expect(WaitFor.action.name).toBe("system/wait-for")
+    expect(WaitFor.action.tier).toBe("sealed")
   })
 
   it("names the deferred a resolver completes", () => {
     expect(WaitFor.deferred("approval").name).toBe("WaitFor/approval")
   })
 
-  it("appears in a built graph as a keyed activity-call node", () => {
+  it("appears in a built graph as a keyed action-call node", () => {
     const graph = Graph.build(Gated, { name: "approval" })
-    const node = Graph.nodes(graph).find((observed) => observed.kind === "ActivityCall")
+    const node = Graph.nodes(graph).find((observed) => observed.kind === "ActionCall")
 
     expect(graph.diagnostics).toEqual([])
     expect(node?.id).toBe("root.flow")
     expect(node?.ast).toEqual({
-      _tag: "ActivityCall",
-      activity: "system/wait-for",
+      _tag: "ActionCall",
+      action: "system/wait-for",
       payload: { name: "approval" }
     })
     expect(node?.payload).toEqual({ name: "approval" })
     expect(Graph.drafts(graph).map((draft) => draft.id)).toContain("root.flow")
     expect(node?.draft.material.body).toMatchObject({
-      _tag: "ActivityCall",
-      activity: "system/wait-for",
+      _tag: "ActionCall",
+      action: "system/wait-for",
       tier: "sealed"
     })
   })
@@ -125,7 +125,7 @@ describe("WaitFor parks", () => {
       success: Schema.Json,
       body: ({ name }) =>
         Mark.call({ label: "before" }).pipe(
-          Node.andThen(() => WaitFor.activity.call({ name }))
+          Node.andThen(() => WaitFor.action.call({ name }))
         )
     })
     const executionId = "waitFor-gated"
@@ -156,7 +156,7 @@ describe("WaitFor parks", () => {
   effect("declares the event waiting vocabulary with the wake token", () => {
     const instance = makeInstance(Host, "waitFor-annotation")
     return Effect.gen(function*() {
-      const result = yield* Flow.intoResult(Interpreter.interpret(WaitFor.activity.call({ name: "gate" })))
+      const result = yield* Flow.intoResult(Interpreter.interpret(WaitFor.action.call({ name: "gate" })))
       expect(result._tag).toBe("Suspended")
       expect(instance.suspended).toBe(true)
       expect(instance.waiting).toEqual({
@@ -185,7 +185,7 @@ describe("WaitFor replays", () => {
         })
         yield* DurableDeferred.succeed(gate, { token, value: "already" })
 
-        const interpretation = yield* Interpreter.interpret(WaitFor.activity.call({ name: "recorded" }))
+        const interpretation = yield* Interpreter.interpret(WaitFor.action.call({ name: "recorded" }))
         expect(interpretation.value).toBe("already")
       }),
       instance
@@ -207,7 +207,7 @@ describe("WaitFor replays", () => {
         })
         yield* DurableDeferred.succeed(gate, { token, value: ["resolved"] })
 
-        const interpretation = yield* Interpreter.interpret(WaitFor.activity.call({ token }))
+        const interpretation = yield* Interpreter.interpret(WaitFor.action.call({ token }))
         expect(interpretation.value).toEqual(["resolved"])
       }),
       instance
@@ -218,7 +218,7 @@ describe("WaitFor replays", () => {
 
 describe("WaitFor refusals", () => {
   it("refuses a payload that names no wait point", async () => {
-    expect(await refusal(WaitFor.activity.call({}))).toMatchObject({
+    expect(await refusal(WaitFor.action.call({}))).toMatchObject({
       error: {
         _tag: "@smthrs/flow-next/WaitForRequestInvalid",
         code: "missing_target",
@@ -229,7 +229,7 @@ describe("WaitFor refusals", () => {
 
   it("refuses a payload that names both a token and a name", async () => {
     expect(
-      await refusal(WaitFor.activity.call({ name: "gate", token: "anything" }))
+      await refusal(WaitFor.action.call({ name: "gate", token: "anything" }))
     ).toMatchObject({
       error: {
         _tag: "@smthrs/flow-next/WaitForRequestInvalid",
@@ -240,7 +240,7 @@ describe("WaitFor refusals", () => {
   })
 
   it("refuses a token that is not a durable deferred token", async () => {
-    expect(await refusal(WaitFor.activity.call({ token: "not a token" }))).toMatchObject({
+    expect(await refusal(WaitFor.action.call({ token: "not a token" }))).toMatchObject({
       error: {
         _tag: "@smthrs/flow-next/WaitForRequestInvalid",
         code: "malformed_token"
@@ -254,7 +254,7 @@ describe("WaitFor refusals", () => {
       executionId: "some-other-execution"
     })
 
-    expect(await refusal(WaitFor.activity.call({ token: foreign }))).toMatchObject({
+    expect(await refusal(WaitFor.action.call({ token: foreign }))).toMatchObject({
       error: {
         _tag: "@smthrs/flow-next/WaitForRequestInvalid",
         code: "foreign_execution",
@@ -272,7 +272,7 @@ describe("WaitFor refusals", () => {
       executionId: "waitFor-refusal"
     })
 
-    expect(await refusal(WaitFor.activity.call({ token: foreign }))).toMatchObject({
+    expect(await refusal(WaitFor.action.call({ token: foreign }))).toMatchObject({
       error: {
         _tag: "@smthrs/flow-next/WaitForRequestInvalid",
         code: "foreign_execution",

@@ -1,6 +1,6 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, DurableDeferred, Flow, FlowRuntime, Interpreter, RetryPolicy } from "@smthrs/flow-next"
+import { Action, DurableDeferred, Flow, FlowRuntime, Interpreter, RetryPolicy } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Cause, Deferred, Effect, Exit, Fiber, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
@@ -30,7 +30,7 @@ const isSuspended = (result: Flow.Result<any, any>) => result._tag === "Suspende
 describe("boundary descriptor identity", () => {
   // `boundaryHermetic` only folds a *well-formed* descriptor into the content
   // key. Every malformed shape must be ignored — never partially applied and
-  // never a crash — so two activities differing only in junk metadata keep the
+  // never a crash — so two actions differing only in junk metadata keep the
   // same replay identity.
   const malformed: ReadonlyArray<readonly [string, unknown]> = [
     ["non-object metadata", "not-an-object"],
@@ -59,33 +59,33 @@ describe("boundary descriptor identity", () => {
   for (const [label, metadata] of malformed) {
     effect(`ignores ${label} and replays the descriptor-free identity`, () => {
       let executions = 0
-      const plain = Activity.make({
+      const plain = Action.make({
         name: "Gaps/boundary",
         success: Schema.Number,
         idempotencyKey: "boundary/v1",
         execute: Effect.sync(() => ++executions)
       })
-      const junk = Activity.make({
+      const junk = Action.make({
         name: "Gaps/boundary",
         success: Schema.Number,
         idempotencyKey: "boundary/v1",
         metadata: metadata as any,
         execute: Effect.sync(() => ++executions)
       })
-      const flowActivityDeclaration = Activity.make("Gaps/boundary-malformed/activity", {
+      const flowActionDeclaration = Action.make("Gaps/boundary-malformed/action", {
         payload: { id: Schema.String },
         success: Schema.Number
       })
       const flow = Flow.make("Gaps/boundary-malformed", {
         payload: { id: Schema.String },
         success: Schema.Number,
-        body: (payload) => flowActivityDeclaration.call(payload)
+        body: (payload) => flowActionDeclaration.call(payload)
       })
       const layer = Layer.mergeAll(
-        flowActivityDeclaration.toLayer(() => Effect.andThen(plain, junk)),
+        flowActionDeclaration.toLayer(() => Effect.andThen(plain, junk)),
         Interpreter.layer(flow)
       ).pipe(
-        Layer.provideMerge(Activity.layerImplementations)
+        Layer.provideMerge(Action.layerImplementations)
       ).pipe(
         Layer.provideMerge(FlowEngine.layerMemory)
       )
@@ -99,24 +99,24 @@ describe("boundary descriptor identity", () => {
   effect("distinguishes the two well-formed boundary modes", () => {
     let executions = 0
     const build = (boundaryMode: "hard" | "expected") =>
-      Activity.make({
+      Action.make({
         name: "Gaps/boundary-mode",
         success: Schema.Number,
         idempotencyKey: "mode/v1",
         metadata: { readSet: [], writeSet: [], boundaryMode },
         execute: Effect.sync(() => ++executions)
       })
-    const flowActivityDeclaration = Activity.make("Gaps/boundary-modes/activity", {
+    const flowActionDeclaration = Action.make("Gaps/boundary-modes/action", {
       payload: { id: Schema.String },
       success: Schema.Number
     })
     const flow = Flow.make("Gaps/boundary-modes", {
       payload: { id: Schema.String },
       success: Schema.Number,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
     const layer = Layer.mergeAll(
-      flowActivityDeclaration.toLayer(() =>
+      flowActionDeclaration.toLayer(() =>
         Effect.gen(function*() {
           yield* build("hard")
           yield* build("expected")
@@ -125,7 +125,7 @@ describe("boundary descriptor identity", () => {
       ),
       Interpreter.layer(flow)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
     return Effect.gen(function*() {
       // "hard" replays its own earlier result; "expected" is a distinct key
@@ -135,10 +135,10 @@ describe("boundary descriptor identity", () => {
   })
 
   effect("a well-formed descriptor only enters the key for sealed string identities", () => {
-    // Ordinal-keyed (unsealed) activities never consult the descriptor.
+    // Ordinal-keyed (unsealed) actions never consult the descriptor.
     let executions = 0
     const build = (digest: string) =>
-      Activity.make({
+      Action.make({
         name: "Gaps/unsealed-boundary",
         success: Schema.Number,
         metadata: {
@@ -148,20 +148,20 @@ describe("boundary descriptor identity", () => {
         },
         execute: Effect.sync(() => ++executions)
       })
-    const flowActivityDeclaration = Activity.make("Gaps/unsealed-boundary/activity", {
+    const flowActionDeclaration = Action.make("Gaps/unsealed-boundary/action", {
       payload: { id: Schema.String },
       success: Schema.Number
     })
     const flow = Flow.make("Gaps/unsealed-boundary", {
       payload: { id: Schema.String },
       success: Schema.Number,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
     const layer = Layer.mergeAll(
-      flowActivityDeclaration.toLayer(() => Effect.andThen(build("d1"), build("d1"))),
+      flowActionDeclaration.toLayer(() => Effect.andThen(build("d1"), build("d1"))),
       Interpreter.layer(flow)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
@@ -178,7 +178,7 @@ describe("annotateWaiting", () => {
     Effect.gen(function*() {
       const entered = yield* Deferred.make<void>()
       const release = yield* Deferred.make<void>()
-      const slow = Activity.make({
+      const slow = Action.make({
         name: "gaps-waiting-slow",
         success: Schema.Void,
         execute: Effect.gen(function*() {
@@ -186,12 +186,12 @@ describe("annotateWaiting", () => {
           yield* Deferred.await(release)
         })
       })
-      const parked = Activity.make({
+      const parked = Action.make({
         name: "gaps-waiting-parked",
         success: Schema.Void,
         execute: FlowRuntime.annotateWaiting({ reason: "approval", token: "winner" })
       })
-      const declaration = Activity.make("Gaps/waiting-race/activity", { payload: {}, success: Schema.Any })
+      const declaration = Action.make("Gaps/waiting-race/action", { payload: {}, success: Schema.Any })
       const flow = Flow.make("Gaps/waiting-race", {
         payload: {},
         success: Schema.Any,
@@ -211,7 +211,7 @@ describe("annotateWaiting", () => {
         ),
         Interpreter.layer(flow)
       ).pipe(
-        Layer.provideMerge(Activity.layerImplementations),
+        Layer.provideMerge(Action.layerImplementations),
         Layer.provideMerge(FlowEngine.layerMemory)
       )
 
@@ -222,17 +222,17 @@ describe("annotateWaiting", () => {
     }))
 
   effect("records the declared waiting classification on the running instance", () => {
-    const flowActivityDeclaration = Activity.make("Gaps/waiting/activity", {
+    const flowActionDeclaration = Action.make("Gaps/waiting/action", {
       payload: { id: Schema.String },
       success: Schema.Any
     })
     const flow = Flow.make("Gaps/waiting", {
       payload: { id: Schema.String },
       success: Schema.Any,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
     const layer = Layer.mergeAll(
-      flowActivityDeclaration.toLayer(() =>
+      flowActionDeclaration.toLayer(() =>
         Effect.gen(function*() {
           const instance = yield* FlowRuntime.FlowInstance
           const before = instance.waiting
@@ -244,7 +244,7 @@ describe("annotateWaiting", () => {
       ),
       Interpreter.layer(flow)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
     return Effect.gen(function*() {
       const result = yield* flow.execute({ id: "x" }, { executionId: "run-waiting" })
@@ -261,7 +261,7 @@ describe("annotateWaiting", () => {
     // its declaration die with that instance unless the driver threads it. Both
     // directions matter: the declaration travels out, and a body that annotated
     // before dispatching is not clobbered by a dispatch that declares nothing.
-    const declaring = Activity.make({
+    const declaring = Action.make({
       name: "gaps-annotating",
       success: Schema.String,
       tier: "sealed",
@@ -271,24 +271,24 @@ describe("annotateWaiting", () => {
         "declared"
       )
     })
-    const silent = Activity.make({
+    const silent = Action.make({
       name: "gaps-silent",
       success: Schema.String,
       tier: "sealed",
       idempotencyKey: "gaps-silent-v1",
       execute: Effect.succeed("silent")
     })
-    const flowActivityDeclaration = Activity.make("Gaps/waiting-activity/activity", {
+    const flowActionDeclaration = Action.make("Gaps/waiting-action/action", {
       payload: { id: Schema.String },
       success: Schema.Any
     })
-    const flow = Flow.make("Gaps/waiting-activity", {
+    const flow = Flow.make("Gaps/waiting-action", {
       payload: { id: Schema.String },
       success: Schema.Any,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
     const layer = Layer.mergeAll(
-      flowActivityDeclaration.toLayer(() =>
+      flowActionDeclaration.toLayer(() =>
         Effect.gen(function*() {
           const instance = yield* FlowRuntime.FlowInstance
           yield* declaring
@@ -299,10 +299,10 @@ describe("annotateWaiting", () => {
       ),
       Interpreter.layer(flow)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
     return Effect.gen(function*() {
-      const result = yield* flow.execute({ id: "x" }, { executionId: "run-waiting-activity" })
+      const result = yield* flow.execute({ id: "x" }, { executionId: "run-waiting-action" })
       expect(result.declared).toEqual({ reason: "approval", token: "req-2" })
       expect(result.preserved).toEqual({ reason: "approval", token: "req-2" })
     }).pipe(Effect.provide(layer))
@@ -334,7 +334,7 @@ describe("suspended resume policy", () => {
       interrupt: () => Effect.void,
       interruptUnsafe: () => Effect.void,
       resume: () => Effect.void,
-      activityExecute: () => Effect.succeed(new Flow.Complete({ exit: Exit.void })),
+      actionExecute: () => Effect.succeed(new Flow.Complete({ exit: Exit.void })),
       deferredResult: () => Effect.succeedNone,
       deferredDone: () => Effect.void,
       scheduleClock: () => Effect.void
@@ -359,7 +359,7 @@ describe("suspended resume policy", () => {
     const Gate = DurableDeferred.make("Gaps/never-resolved", {
       success: Schema.String
     })
-    const flowActivityDeclaration = Activity.make("Gaps/suspend-exhausted/activity", {
+    const flowActionDeclaration = Action.make("Gaps/suspend-exhausted/action", {
       payload: { id: Schema.String },
       success: Schema.String
     })
@@ -373,13 +373,13 @@ describe("suspended resume policy", () => {
         maxMs: 1,
         maxAttempts: 1
       }),
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
     const layer = Layer.mergeAll(
-      flowActivityDeclaration.toLayer(() => DurableDeferred.await(Gate)),
+      flowActionDeclaration.toLayer(() => DurableDeferred.await(Gate)),
       Interpreter.layer(flow)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
@@ -394,7 +394,7 @@ describe("suspended resume policy", () => {
     const Gate = DurableDeferred.make("Gaps/late-resolved", {
       success: Schema.String
     })
-    const flowActivityDeclaration = Activity.make("Gaps/suspend-resumes/activity", {
+    const flowActionDeclaration = Action.make("Gaps/suspend-resumes/action", {
       payload: { id: Schema.String },
       success: Schema.String
     })
@@ -402,13 +402,13 @@ describe("suspended resume policy", () => {
       payload: { id: Schema.String },
       success: Schema.String,
       suspendedRetryPolicy: RetryPolicy.make({ initialMs: 1, factor: 1, maxMs: 1 }),
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
     const layer = Layer.mergeAll(
-      flowActivityDeclaration.toLayer(() => DurableDeferred.await(Gate)),
+      flowActionDeclaration.toLayer(() => DurableDeferred.await(Gate)),
       Interpreter.layer(flow)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
@@ -425,9 +425,9 @@ describe("suspended resume policy", () => {
   })
 })
 
-describe("activity retry give-up reasons", () => {
-  effect("uses a durable retry origin when calculating an activity expiration", () => {
-    const activity = Activity.make({
+describe("action retry give-up reasons", () => {
+  effect("uses a durable retry origin when calculating an action expiration", () => {
+    const action = Action.make({
       name: "Gaps/durable-retry-origin",
       success: Schema.Number,
       error: Schema.String,
@@ -437,7 +437,7 @@ describe("activity retry give-up reasons", () => {
         maxMs: 10,
         expirationMs: 1
       }),
-      execute: Effect.die("activity executor must not run in this driver test")
+      execute: Effect.die("action executor must not run in this driver test")
     })
     const flow = Flow.make("Gaps/durable-retry-origin", {
       payload: { id: Schema.String },
@@ -453,21 +453,21 @@ describe("activity retry give-up reasons", () => {
       interrupt: () => Effect.void,
       interruptUnsafe: () => Effect.void,
       resume: () => Effect.void,
-      activityExecute: () => Effect.succeed(new Flow.Complete({ exit: Exit.fail("unavailable") })),
-      activityRetryOrigin: ({ key }) => Effect.sync(() => (requestedKey = key, Option.some(0))),
+      actionExecute: () => Effect.succeed(new Flow.Complete({ exit: Exit.fail("unavailable") })),
+      actionRetryOrigin: ({ key }) => Effect.sync(() => (requestedKey = key, Option.some(0))),
       deferredResult: () => Effect.succeedNone,
       deferredDone: () => Effect.void,
       scheduleClock: () => Effect.void
     })
     return Effect.gen(function*() {
-      const result = yield* scripted.activityExecute(activity, 1)
+      const result = yield* scripted.actionExecute(action, 1)
       expect(requestedKey).toBeTypeOf("string")
       expect(result._tag).toBe("Complete")
       if (result._tag === "Complete") {
         expect(Exit.isFailure(result.exit)).toBe(true)
         expect(Exit.isFailure(result.exit) && Cause.squash(result.exit.cause)).toMatchObject({
           _tag: "@smthrs/engine-next/RetryPolicyExpired",
-          activityName: "Gaps/durable-retry-origin",
+          actionName: "Gaps/durable-retry-origin",
           attempt: 1,
           expirationMs: 1,
           lastError: "unavailable"
@@ -487,7 +487,7 @@ describe("activity retry give-up reasons", () => {
     // without ever declaring maxAttempts; the reported bound is the attempt
     // actually reached.
     let attempts = 0
-    const activity = Activity.make({
+    const action = Action.make({
       name: "Gaps/exhausted-no-max",
       success: Schema.Number,
       error: Schema.String,
@@ -497,7 +497,7 @@ describe("activity retry give-up reasons", () => {
         return Effect.fail("nope")
       })
     })
-    const flowActivityDeclaration = Activity.make("Gaps/exhausted-no-max/activity", {
+    const flowActionDeclaration = Action.make("Gaps/exhausted-no-max/action", {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String
@@ -506,10 +506,10 @@ describe("activity retry give-up reasons", () => {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
-    const layer = Layer.mergeAll(flowActivityDeclaration.toLayer(() => activity), Interpreter.layer(flow)).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+    const layer = Layer.mergeAll(flowActionDeclaration.toLayer(() => action), Interpreter.layer(flow)).pipe(
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
@@ -533,7 +533,7 @@ describe("activity retry give-up reasons", () => {
       _tag: Schema.tag("Fatal"),
       message: Schema.String
     }) {}
-    const activity = Activity.make({
+    const action = Action.make({
       name: "Gaps/nonretryable",
       success: Schema.Number,
       error: Fatal,
@@ -548,7 +548,7 @@ describe("activity retry give-up reasons", () => {
         return Effect.fail(new Fatal({ message: "no retry" }))
       })
     })
-    const flowActivityDeclaration = Activity.make("Gaps/nonretryable/activity", {
+    const flowActionDeclaration = Action.make("Gaps/nonretryable/action", {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Fatal
@@ -557,10 +557,10 @@ describe("activity retry give-up reasons", () => {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Fatal,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
-    const layer = Layer.mergeAll(flowActivityDeclaration.toLayer(() => activity), Interpreter.layer(flow)).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+    const layer = Layer.mergeAll(flowActionDeclaration.toLayer(() => action), Interpreter.layer(flow)).pipe(
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
@@ -575,17 +575,17 @@ describe("activity retry give-up reasons", () => {
 
 describe("memory engine lifecycle", () => {
   effect("interruptUnsafe on an unknown execution id is a no-op", () => {
-    const flowActivityDeclaration = Activity.make("Gaps/interrupt-unknown/activity", {
+    const flowActionDeclaration = Action.make("Gaps/interrupt-unknown/action", {
       payload: { id: Schema.String },
       success: Schema.Void
     })
     const flow = Flow.make("Gaps/interrupt-unknown", {
       payload: { id: Schema.String },
       success: Schema.Void,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
-    const layer = Layer.mergeAll(flowActivityDeclaration.toLayer(() => Effect.void), Interpreter.layer(flow)).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+    const layer = Layer.mergeAll(flowActionDeclaration.toLayer(() => Effect.void), Interpreter.layer(flow)).pipe(
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )
@@ -598,18 +598,18 @@ describe("memory engine lifecycle", () => {
   })
 
   effect("polling a flow whose defect escaped capture surfaces the defect", () => {
-    const flowActivityDeclaration = Activity.make("Gaps/uncaptured-defect/activity", {
+    const flowActionDeclaration = Action.make("Gaps/uncaptured-defect/action", {
       payload: { id: Schema.String },
       success: Schema.Void
     })
     const flow = Flow.make("Gaps/uncaptured-defect", {
       payload: { id: Schema.String },
       success: Schema.Void,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     }).annotate(Flow.CaptureDefects, false)
-    const layer = Layer.mergeAll(flowActivityDeclaration.toLayer(() => Effect.die("boom")), Interpreter.layer(flow))
+    const layer = Layer.mergeAll(flowActionDeclaration.toLayer(() => Effect.die("boom")), Interpreter.layer(flow))
       .pipe(
-        Layer.provideMerge(Activity.layerImplementations)
+        Layer.provideMerge(Action.layerImplementations)
       ).pipe(
         Layer.provideMerge(FlowEngine.layerMemory)
       )
@@ -626,18 +626,18 @@ describe("memory engine lifecycle", () => {
   })
 
   effect("captures the same defect as a Complete failure exit by default", () => {
-    const flowActivityDeclaration = Activity.make("Gaps/captured-defect/activity", {
+    const flowActionDeclaration = Action.make("Gaps/captured-defect/action", {
       payload: { id: Schema.String },
       success: Schema.Void
     })
     const flow = Flow.make("Gaps/captured-defect", {
       payload: { id: Schema.String },
       success: Schema.Void,
-      body: (payload) => flowActivityDeclaration.call(payload)
+      body: (payload) => flowActionDeclaration.call(payload)
     })
-    const layer = Layer.mergeAll(flowActivityDeclaration.toLayer(() => Effect.die("boom")), Interpreter.layer(flow))
+    const layer = Layer.mergeAll(flowActionDeclaration.toLayer(() => Effect.die("boom")), Interpreter.layer(flow))
       .pipe(
-        Layer.provideMerge(Activity.layerImplementations)
+        Layer.provideMerge(Action.layerImplementations)
       ).pipe(
         Layer.provideMerge(FlowEngine.layerMemory)
       )

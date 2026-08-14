@@ -1,6 +1,6 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, DurableDeferred, Flow, Interpreter } from "@smthrs/flow-next"
+import { Action, DurableDeferred, Flow, Interpreter } from "@smthrs/flow-next"
 import { Effect, Exit, FileSystem, Layer, Option, Path, Schema, Scope } from "effect"
 import { Etag, HttpPlatform } from "effect/unstable/http"
 import { HttpApi, HttpApiTest } from "effect/unstable/httpapi"
@@ -12,7 +12,7 @@ import { runPromise } from "./Crypto.ts"
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Scope.Scope>) =>
   it(name, () => runPromise(Effect.scoped(body())))
 
-const EchoActivityDeclaration = Activity.make("Proxy/Echo/activity", {
+const EchoActionDeclaration = Action.make("Proxy/Echo/action", {
   payload: { value: Schema.Number },
   success: Schema.Number,
   error: Schema.Literal("invalid")
@@ -22,12 +22,12 @@ const Echo = Flow.make("Proxy/Echo", {
   success: Schema.Number,
   error: Schema.Literal("invalid"),
   idempotencyKey: ({ value }) => String(value),
-  body: (payload) => EchoActivityDeclaration.call(payload)
+  body: (payload) => EchoActionDeclaration.call(payload)
 })
 
 const Gate = DurableDeferred.make("Proxy/Gate", { success: Schema.Number })
 
-const SuspendsActivityDeclaration = Activity.make("Proxy/Suspends/activity", {
+const SuspendsActionDeclaration = Action.make("Proxy/Suspends/action", {
   payload: { id: Schema.String },
   success: Schema.Number
 })
@@ -35,7 +35,7 @@ const Suspends = Flow.make("Proxy/Suspends", {
   payload: { id: Schema.String },
   success: Schema.Number,
   idempotencyKey: ({ id }) => id,
-  body: (payload) => SuspendsActivityDeclaration.call(payload)
+  body: (payload) => SuspendsActionDeclaration.call(payload)
 })
 
 const flows = [Echo, Suspends] as const
@@ -48,12 +48,12 @@ const makeLayer = (echo: (value: number) => Effect.Effect<number, "invalid">) =>
       return echo(value)
     })
   const layer = Layer.mergeAll(
-    Layer.mergeAll(EchoActivityDeclaration.toLayer(({ value }) => counted(value)), Interpreter.layer(Echo)).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+    Layer.mergeAll(EchoActionDeclaration.toLayer(({ value }) => counted(value)), Interpreter.layer(Echo)).pipe(
+      Layer.provideMerge(Action.layerImplementations)
     ),
-    Layer.mergeAll(SuspendsActivityDeclaration.toLayer(() => DurableDeferred.await(Gate)), Interpreter.layer(Suspends))
+    Layer.mergeAll(SuspendsActionDeclaration.toLayer(() => DurableDeferred.await(Gate)), Interpreter.layer(Suspends))
       .pipe(
-        Layer.provideMerge(Activity.layerImplementations)
+        Layer.provideMerge(Action.layerImplementations)
       )
   ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
   return { layer, calls: () => calls }
@@ -176,17 +176,17 @@ describe("FlowProxyServer.layerRpcHandlers", () => {
 
 describe("serving a flow is executing it", () => {
   // Serving happens on the side of the boundary that drives the body, so the
-  // compile-time gate on a missing activity implementation has to hold here
+  // compile-time gate on a missing action implementation has to hold here
   // too. A type test: `tsc -p tsconfig.test.json` in `npm run check` fails on
   // a red assertion whether or not the suite is run.
-  it("requires the activity implementations of every flow it serves", () => {
+  it("requires the action implementations of every flow it serves", () => {
     type Served = Layer.Services<ReturnType<typeof FlowProxyServer.layerRpcHandlers<typeof flows>>>
 
-    expectTypeOf<Activity.Requirement<"Proxy/Echo/activity">>().toExtend<Served>()
-    expectTypeOf<Activity.Requirement<"Proxy/Suspends/activity">>().toExtend<Served>()
+    expectTypeOf<Action.Requirement<"Proxy/Echo/action">>().toExtend<Served>()
+    expectTypeOf<Action.Requirement<"Proxy/Suspends/action">>().toExtend<Served>()
 
     const engineOnly = Interpreter.layer(Echo).pipe(
-      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(Action.layerImplementations),
       Layer.provideMerge(FlowEngine.layerMemory)
     )
     const unmet = Effect.void.pipe(
@@ -196,11 +196,11 @@ describe("serving a flow is executing it", () => {
     // An engine and a table satisfy everything except the implementations, and
     // those are exactly what is left over.
     expectTypeOf<Effect.Services<typeof unmet>>().toEqualTypeOf<
-      Activity.Requirement<"Proxy/Echo/activity"> | Activity.Requirement<"Proxy/Suspends/activity">
+      Action.Requirement<"Proxy/Echo/action"> | Action.Requirement<"Proxy/Suspends/action">
     >()
 
     // Never invoked: the assertion is that this expression does not compile.
-    // @ts-expect-error -- the served bodies name two activities, and nothing in
+    // @ts-expect-error -- the served bodies name two actions, and nothing in
     // this composition implements either.
     const unimplemented = () => Effect.runPromise(unmet)
 

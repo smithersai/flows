@@ -16,7 +16,7 @@
  * it drops with the AST it is keyed by.
  *
  * Adapted from the agent repo's `@smthrs/core` `internal/node.ts`. `Dynamic`
- * does not come across — a model call is an ordinary activity here — and
+ * does not come across — a model call is an ordinary action here — and
  * neither do annotations, which are `Context` values and would break
  * serializability.
  *
@@ -174,15 +174,15 @@ export interface FlowCall {
 }
 
 /**
- * A call to an activity: the atom that does work. Same split as
- * {@link FlowCall}, and no mode — an activity is always one node.
+ * A call to an action: the atom that does work. Same split as
+ * {@link FlowCall}, and no mode — an action is always one node.
  *
  * @since 0.1.0
  * @private
  */
-export interface ActivityCall {
-  readonly _tag: "ActivityCall"
-  readonly activity: string
+export interface ActionCall {
+  readonly _tag: "ActionCall"
+  readonly action: string
   readonly payload: unknown
 }
 
@@ -220,7 +220,7 @@ export interface PlannedReference {
  * @since 0.1.0
  * @private
  */
-export type NodeAst = Succeed | All | Map | AndThen | Branch | Catch | FlowCall | ActivityCall
+export type NodeAst = Succeed | All | Map | AndThen | Branch | Catch | FlowCall | ActionCall
 
 type Operation = (value: unknown) => unknown
 
@@ -229,7 +229,7 @@ type Predicate = (value: unknown) => boolean
 const operations = new WeakMap<AndThen | Map, Operation>()
 const predicates = new WeakMap<Branch, Predicate>()
 const filters = new WeakMap<Catch, Schema.Top>()
-const declarations = new WeakMap<ActivityCall | FlowCall, unknown>()
+const declarations = new WeakMap<ActionCall | FlowCall, unknown>()
 
 /**
  * Replaces strict planned proxies with their inert reference records while
@@ -447,14 +447,14 @@ export const flowCall = (declaration: unknown, flow: string, mode: CallMode, pay
 }
 
 /**
- * Constructs an {@link ActivityCall}, filing the activity declaration beside
+ * Constructs an {@link ActionCall}, filing the action declaration beside
  * it.
  *
  * @since 0.1.0
  * @private
  */
-export const activityCall = (declaration: unknown, activity: string, payload: unknown): ActivityCall => {
-  const ast: ActivityCall = { _tag: "ActivityCall", activity, payload: value(payload) }
+export const actionCall = (declaration: unknown, action: string, payload: unknown): ActionCall => {
+  const ast: ActionCall = { _tag: "ActionCall", action, payload: value(payload) }
   declarations.set(ast, declaration)
   return ast
 }
@@ -484,9 +484,9 @@ export const predicate = (ast: Branch): Predicate | undefined => predicates.get(
 export const filter = (ast: Catch): Schema.Top | undefined => filters.get(ast)
 
 /**
- * The flow or activity declaration a call node names.
+ * The flow or action declaration a call node names.
  *
  * @since 0.1.0
  * @private
  */
-export const declaration = (ast: ActivityCall | FlowCall): unknown => declarations.get(ast)
+export const declaration = (ast: ActionCall | FlowCall): unknown => declarations.get(ast)

@@ -112,7 +112,7 @@ describe("CacheStore", () => {
     // `JSON.stringify` that text depends on key insertion order, so a body that
     // spreads a decoded record — or that reorders fields across a refactor —
     // produced `Conflict` for a result that had not changed.
-    // `ActivityPersistence` routes `Conflict` to the `Inconsistency` receiver
+    // `ActionPersistence` routes `Conflict` to the `Inconsistency` receiver
     // whose core default verdict is `fail`, so the run failed with
     // `CacheConflictDetected` naming a divergence that did not exist.
     const first = { a: 1, b: 2, nested: { x: "x", y: "y" } }

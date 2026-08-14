@@ -296,7 +296,7 @@ export const RunParentEdge = Schema.Struct({
 export type RunParentEdge = typeof RunParentEdge.Type
 
 /**
- * The surviving attempt rows of one activity key: the earliest surviving
+ * The surviving attempt rows of one action key: the earliest surviving
  * row's start time and the highest attempt number contiguous from it.
  *
  * @since 0.1.0
@@ -314,7 +314,7 @@ export const AttemptSurvivors = Schema.Struct({
 })
 
 /**
- * The surviving attempt range of one activity key.
+ * The surviving attempt range of one action key.
  *
  * @category models
  * @since 0.1.0
@@ -435,7 +435,7 @@ export interface Service {
     limit?: number | undefined
   ) => Effect.Effect<ReadonlyArray<string>>
   /**
-   * The surviving attempt rows for an activity key, in one range read: the
+   * The surviving attempt rows for an action key, in one range read: the
    * earliest surviving row's start time (the durable retry origin when
    * attempt 1 itself was pruned, issue #69) and the highest attempt number
    * contiguous from it (the resumed attempt counter, issue #59).

@@ -1,6 +1,6 @@
 # @smthrs/step-cache-next
 
-The flows step result cache: which sealed activity results may be reused.
+The flows step result cache: which sealed action results may be reused.
 Split out of `@smthrs/journal-next` — see
 [`docs/specs/Concepts/Journal Split.md`](../../../docs/specs/Concepts/Journal%20Split.md).
 

@@ -73,7 +73,7 @@ export const EffectsDeclaration = Context.Service<Effects>("@smthrs/flow-next/Fl
 export const Placement = Context.Service<PlacementDirective>("@smthrs/flow-next/Flow/Placement")
 
 /**
- * Captures defects for a flow and includes them in the result of the flow or its activities.
+ * Captures defects for a flow and includes them in the result of the flow or its actions.
  *
  * **Details**
  *

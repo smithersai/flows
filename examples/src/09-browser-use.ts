@@ -14,7 +14,7 @@
  * Node-only import ever sneaks in.
  */
 import { FlowEngine } from "@smthrs/engine-next"
-import { Activity, Flow, Interpreter } from "@smthrs/flow-next"
+import { Action, Flow, Interpreter } from "@smthrs/flow-next"
 import { Key } from "@smthrs/keys-next"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
@@ -26,7 +26,7 @@ import type * as Crypto from "effect/Crypto"
  * whether or not this bundle also carries an implementation for it — which is
  * the placement half of the declaration/implementation split.
  */
-export const CompileTarget = Activity.make("examples/CompileTarget", {
+export const CompileTarget = Action.make("examples/CompileTarget", {
   payload: { target: Schema.String },
   success: Schema.String
 })
@@ -42,7 +42,7 @@ const CompileLayer = Layer.mergeAll(
   CompileTarget.toLayer(({ target }) => Effect.succeed(`built ${target}`)),
   Interpreter.layer(Compile)
 ).pipe(
-  Layer.provideMerge(Activity.layerImplementations),
+  Layer.provideMerge(Action.layerImplementations),
   Layer.provideMerge(FlowEngine.layerMemory)
 )
 

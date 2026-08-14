@@ -3,25 +3,25 @@
  *
  * This is the shortest complete program in the library, and it is the two nouns
  * of `docs/specs/Concepts/Unified Flow Authoring.md` at their smallest.
- * `Activity.make` declares the atom that does the work — schemas and a stable
+ * `Action.make` declares the atom that does the work — schemas and a stable
  * tag, no code — and `toLayer` attaches the implementation separately, where
  * the code can run. `Flow.make` declares the composite, and its `body` names
- * the activity rather than calling it: a body is planned, so `Greet.call`
+ * the action rather than calling it: a body is planned, so `Greet.call`
  * records one node and executes nothing.
  *
  * `Interpreter.layer` is what turns that plan into a run, over the
- * `Activity.layerImplementations` table the implementation files itself in, and
+ * `Action.layerImplementations` table the implementation files itself in, and
  * `FlowEngine.layerMemory` supplies an engine that keeps its state in the
  * process.
  */
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
 import { FlowEngine } from "@smthrs/engine-next"
-import { Activity, Flow, Interpreter } from "@smthrs/flow-next"
+import { Action, Flow, Interpreter } from "@smthrs/flow-next"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 
-export const Greet = Activity.make("examples/Greet", {
+export const Greet = Action.make("examples/Greet", {
   payload: { name: Schema.String },
   success: Schema.String
 })
@@ -36,9 +36,9 @@ const GreetingLayer = Layer.mergeAll(
   Greet.toLayer(({ name }) => Effect.succeed(`Hello, ${name}.`)),
   Interpreter.layer(Greeting)
 ).pipe(
-  Layer.provideMerge(Activity.layerImplementations),
+  Layer.provideMerge(Action.layerImplementations),
   Layer.provideMerge(FlowEngine.layerMemory),
-  // An activity dispatch is recorded under a derived step identity, so the
+  // An action dispatch is recorded under a derived step identity, so the
   // engine needs a `Crypto` even in memory. A browser program supplies its own;
   // this one is Node.
   Layer.provideMerge(NodeCrypto.layer)

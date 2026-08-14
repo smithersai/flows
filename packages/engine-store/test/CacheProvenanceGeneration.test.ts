@@ -24,7 +24,7 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
-import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as OwnerIdentity from "../src/OwnerIdentity.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
@@ -32,7 +32,7 @@ import { key, runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "generation-host", pid: 29, nonce: "generation-process" }
 
-const declared: ActivityPersistence.BoundaryMetadata = {
+const declared: ActionPersistence.BoundaryMetadata = {
   readSet: [{ path: "config.json", digest: "D1" }],
   writeSet: ["output.txt"],
   boundaryMode: "hard"
@@ -99,12 +99,12 @@ describe("post-eviction re-records take fresh provenance (issue #129)", () => {
         const cache = yield* CacheStore.CacheStore
         yield* activate(runId)
         const execute = (result: string, attempt: number, boundary: Layer.Layer<StepBoundary.Service>) =>
-          ActivityPersistence.make({
+          ActionPersistence.make({
             runId,
             owner,
             sourceId: `generation-${runId}`,
             execute: () => Effect.succeed(result)
-          })({ activity: {}, attempt, key, tier: "sealed", metadata: declared }).pipe(
+          })({ action: {}, attempt, key, tier: "sealed", metadata: declared }).pipe(
             Effect.provide(boundary)
           )
         // Generation 0: records the row under a healthy measurement.
@@ -176,7 +176,7 @@ describe("identical-content re-records collapse into the original provenance", (
         // byte-identical in provenance — so only the counter pins the
         // `row.state === "succeeded"` replay branch itself.
         let executions = 0
-        const execute = ActivityPersistence.make({
+        const execute = ActionPersistence.make({
           runId,
           owner,
           sourceId: `generation-${runId}`,
@@ -186,7 +186,7 @@ describe("identical-content re-records collapse into the original provenance", (
               return "recorded"
             })
         })
-        const dispatch = execute({ activity: {}, attempt: 1, key, tier: "sealed", metadata: declared }).pipe(
+        const dispatch = execute({ action: {}, attempt: 1, key, tier: "sealed", metadata: declared }).pipe(
           Effect.provide(StepBoundary.layerTest({ readSnapshot: declared.readSet }))
         )
         yield* dispatch
@@ -237,12 +237,12 @@ describe("identical-content re-records collapse into the original provenance", (
         const cache = yield* CacheStore.CacheStore
         yield* activate(runId)
         const execute = (attempt: number, boundary: Layer.Layer<StepBoundary.Service>) =>
-          ActivityPersistence.make({
+          ActionPersistence.make({
             runId,
             owner,
             sourceId: `generation-${runId}`,
             execute: () => Effect.succeed("recorded")
-          })({ activity: {}, attempt, key, tier: "sealed", metadata: declared }).pipe(
+          })({ action: {}, attempt, key, tier: "sealed", metadata: declared }).pipe(
             Effect.provide(boundary)
           )
         yield* execute(1, flappingBoundary([declared.readSet as never]))
@@ -330,13 +330,13 @@ describe("the generation digest is canonical, not key-order-coincident (B7)", ()
         const cache = yield* CacheStore.CacheStore
         const journal = yield* Journal.Journal
         yield* activate(runId)
-        const execute = ActivityPersistence.make({
+        const execute = ActionPersistence.make({
           runId,
           owner,
           sourceId: `generation-${runId}`,
           execute: () => Effect.succeed("recorded")
         })
-        const dispatch = execute({ activity: {}, attempt: 1, key, tier: "sealed", metadata: declared }).pipe(
+        const dispatch = execute({ action: {}, attempt: 1, key, tier: "sealed", metadata: declared }).pipe(
           Effect.provide(StepBoundary.layerTest({ readSnapshot: declared.readSet }))
         )
         yield* dispatch

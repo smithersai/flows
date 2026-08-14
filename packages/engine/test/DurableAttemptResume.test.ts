@@ -3,12 +3,12 @@
 import type * as Crypto from "effect/Crypto"
 /**
  * Issue #59: the attempt counter resumes from the persisted sequence. A
- * durable driver exposes `activityLatestAttempt`, and the engine starts the
+ * durable driver exposes `actionLatestAttempt`, and the engine starts the
  * retry loop at the highest persisted attempt instead of 1, so replayed
  * failed attempts keep their numbering: the backoff ladder is not re-slept
  * and the retry decision sees the true attempt count.
  */
-import { Activity, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow-next"
+import { Action, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Cause, Effect, Exit, Layer, Option, Schema } from "effect"
 import { describe, expect, it } from "vitest"
@@ -36,14 +36,14 @@ const scriptedWith = (options: {
     interrupt: () => Effect.void,
     interruptUnsafe: () => Effect.void,
     resume: () => Effect.void,
-    activityExecute: (input) =>
+    actionExecute: (input) =>
       Effect.sync(() => {
         options.attempts.push(input.attempt)
         return new Flow.Complete({
           exit: input.attempt >= 4 ? Exit.succeed(input.attempt) : Exit.fail("transient")
         })
       }),
-    activityLatestAttempt: () => Effect.succeed(options.latestAttempt),
+    actionLatestAttempt: () => Effect.succeed(options.latestAttempt),
     deferredResult: () => Effect.succeedNone,
     deferredDone: () => Effect.void,
     scheduleClock: () => Effect.void
@@ -61,7 +61,7 @@ const provideInstance = <A, E>(self: Effect.Effect<A, E, any>, engine: FlowRunti
 describe("durable attempt counter resume", () => {
   effect("starts the retry loop at the persisted highest attempt instead of 1", () => {
     const attempts: Array<number> = []
-    const activity = Activity.make({
+    const action = Action.make({
       name: "AttemptResume/replayed",
       success: Schema.Number,
       error: Schema.String,
@@ -70,7 +70,7 @@ describe("durable attempt counter resume", () => {
     })
     const engine = scriptedWith({ latestAttempt: Option.some(4), attempts })
     return Effect.gen(function*() {
-      const result = yield* engine.activityExecute(activity, 1)
+      const result = yield* engine.actionExecute(action, 1)
       expect(result._tag).toBe("Complete")
       // The persisted sequence resumes at attempt 4: attempts 1-3 are never
       // re-dispatched and their backoff ladder is never re-slept.
@@ -83,7 +83,7 @@ describe("durable attempt counter resume", () => {
 
   effect("keeps the caller's attempt when the persisted sequence is not ahead", () => {
     const attempts: Array<number> = []
-    const activity = Activity.make({
+    const action = Action.make({
       name: "AttemptResume/fresh",
       success: Schema.Number,
       error: Schema.String,
@@ -92,7 +92,7 @@ describe("durable attempt counter resume", () => {
     })
     const engine = scriptedWith({ latestAttempt: Option.some(1), attempts })
     return Effect.gen(function*() {
-      const result = yield* engine.activityExecute(activity, 1)
+      const result = yield* engine.actionExecute(action, 1)
       expect(result._tag).toBe("Complete")
       expect(attempts).toEqual([1, 2, 3, 4])
     }).pipe((self) => provideInstance(self, engine))
@@ -100,7 +100,7 @@ describe("durable attempt counter resume", () => {
 
   effect("propagates a replayed non-retryable failure at the persisted attempt without re-dispatching", () => {
     const attempts: Array<number> = []
-    const activity = Activity.make({
+    const action = Action.make({
       name: "AttemptResume/non-retryable",
       success: Schema.Number,
       error: Schema.Struct({ _tag: Schema.Literal("FatalBoom"), detail: Schema.String }),
@@ -122,20 +122,20 @@ describe("durable attempt counter resume", () => {
       resume: () => Effect.void,
       // The durable driver replays the persisted failed attempt: the
       // original tagged error surfaces, never an admission wrapper.
-      activityExecute: (input) =>
+      actionExecute: (input) =>
         Effect.sync(() => {
           attempts.push(input.attempt)
           return new Flow.Complete({
             exit: Exit.failCause(Cause.fail({ _tag: "FatalBoom", detail: "persisted" }))
           })
         }),
-      activityLatestAttempt: () => Effect.succeedSome(3),
+      actionLatestAttempt: () => Effect.succeedSome(3),
       deferredResult: () => Effect.succeedNone,
       deferredDone: () => Effect.void,
       scheduleClock: () => Effect.void
     })
     return Effect.gen(function*() {
-      const result = yield* engine.activityExecute(activity, 1)
+      const result = yield* engine.actionExecute(action, 1)
       // Exactly one (replayed) dispatch at the persisted attempt; the
       // non-retryable verdict matches the original error and propagates
       // without any backoff sleep.

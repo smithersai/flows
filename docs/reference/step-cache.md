@@ -1,7 +1,7 @@
 # `@smthrs/step-cache-next`
 
 This page is the public API reference for the **step result cache**: sealed
-activity results addressed by step-key digest. It was split out of
+action results addressed by step-key digest. It was split out of
 `@smthrs/journal-next` — see
 [`docs/specs/Concepts/Journal Split.md`](../../../docs/specs/Concepts/Journal%20Split.md).
 

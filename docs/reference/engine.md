@@ -4,7 +4,7 @@ This page is the public API reference for the runtime that executes flows: the l
 
 ## `FlowEngine`
 
-`Encoded` is the implementation interface a durable store provides; `makeUnsafe(encoded)` adapts it into the typed `FlowRuntime` service, adding schema decoding and encoding on the way through. `makeInstance(flow, executionId)` builds the per-execution state a run is driven with. `layerMemory` provides the local, volatile implementation used in examples and tests. `SnapshotBoundary` is the host snapshot contract used by compensable activities.
+`Encoded` is the implementation interface a durable store provides; `makeUnsafe(encoded)` adapts it into the typed `FlowRuntime` service, adding schema decoding and encoding on the way through. `makeInstance(flow, executionId)` builds the per-execution state a run is driven with. `layerMemory` provides the local, volatile implementation used in examples and tests. `SnapshotBoundary` is the host snapshot contract used by compensable actions.
 
 ## Flow proxies
 

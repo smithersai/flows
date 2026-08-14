@@ -7,7 +7,7 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * parks the run with exactly that payload so reason-specific sweeps
  * (`WHERE waiting_reason = 'approval'`) see it.
  */
-import { Activity, DurableClock, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow-next"
+import { Action, DurableClock, DurableDeferred, Flow, FlowRuntime } from "@smthrs/flow-next"
 import { Jj } from "@smthrs/kernel-next"
 import { Node } from "@smthrs/plan-next"
 import { RunStore } from "@smthrs/run-store-next"
@@ -73,7 +73,7 @@ describe("annotated waiting reasons reach the parked row (issue #31)", () => {
       Effect.gen(function*() {
         const entered = yield* Deferred.make<void>()
         const release = yield* Deferred.make<void>()
-        const slow = Activity.make({
+        const slow = Action.make({
           name: "annotated-waiting-race-slow",
           success: Schema.Void,
           execute: Effect.gen(function*() {
@@ -81,7 +81,7 @@ describe("annotated waiting reasons reach the parked row (issue #31)", () => {
             yield* Deferred.await(release)
           })
         })
-        const parked = Activity.make({
+        const parked = Action.make({
           name: "annotated-waiting-race-parked",
           success: Schema.Void,
           execute: FlowRuntime.annotateWaiting({ reason: "approval", token: "winner" })
@@ -163,24 +163,24 @@ describe("annotated waiting reasons reach the parked row (issue #31)", () => {
     expect(Option.isNone(result.afterWake)).toBe(true)
   })
 
-  it("an activity's own declaration reaches the parked row, not the derived default", async () => {
-    const GatedFlow = Flow.make("Annotated/ActivityGate", {
+  it("an action's own declaration reaches the parked row, not the derived default", async () => {
+    const GatedFlow = Flow.make("Annotated/ActionGate", {
       payload: {},
       success: Schema.String,
       body: opaqueHandlerBody
     })
-    const gate = DurableDeferred.make("annotated-activity-gate", { success: Schema.String })
-    // The shape `WaitFor` ships: the wait is inside an ACTIVITY, so the
+    const gate = DurableDeferred.make("annotated-action-gate", { success: Schema.String })
+    // The shape `WaitFor` ships: the wait is inside an ACTION, so the
     // declaration is written on the dispatch's own instance. A driver that did
     // not thread it back would park this run on the derived `event` default and
     // drop the wake token the resolver is matched against.
-    const waitPoint = Activity.make({
-      name: "annotated-activity-wait",
+    const waitPoint = Action.make({
+      name: "annotated-action-wait",
       success: Schema.String,
       tier: "sealed",
-      idempotencyKey: "annotated-activity-wait-v1",
+      idempotencyKey: "annotated-action-wait-v1",
       execute: Effect.gen(function*() {
-        yield* FlowRuntime.annotateWaiting({ reason: "approval", token: "activity-token-7" })
+        yield* FlowRuntime.annotateWaiting({ reason: "approval", token: "action-token-7" })
         return yield* DurableDeferred.await(gate)
       })
     })
@@ -192,34 +192,34 @@ describe("annotated waiting reasons reach the parked row (issue #31)", () => {
           (() => Effect.map(waitPoint, (value) => `approved:${value}`)) as never
         )
         yield* engine.execute(GatedFlow as never, {
-          executionId: "annotated-activity",
+          executionId: "annotated-action",
           payload: {},
           discard: true
         })
-        const parked = yield* state.waiting("annotated-activity")
+        const parked = yield* state.waiting("annotated-action")
         const approvalSweep = yield* state.waitingRuns({ reason: "approval" })
 
         yield* engine.deferredDone(gate as never, {
           flowName: GatedFlow._tag,
-          executionId: "annotated-activity",
+          executionId: "annotated-action",
           deferredName: gate.name,
           exit: Exit.succeed("yes")
         })
         yield* engine.execute(GatedFlow as never, {
-          executionId: "annotated-activity",
+          executionId: "annotated-action",
           payload: {},
           discard: true
         })
-        const finished = yield* store.get("annotated-activity")
-        const afterWake = yield* state.waiting("annotated-activity")
+        const finished = yield* store.get("annotated-action")
+        const afterWake = yield* state.waiting("annotated-action")
         return { parked, approvalSweep, finished, afterWake }
       })
     )
 
     const parked = Option.getOrThrow(result.parked)
     expect(parked.reason).toBe("approval")
-    expect(parked.token).toBe("activity-token-7")
-    expect(result.approvalSweep.map((row) => row.runId)).toEqual(["annotated-activity"])
+    expect(parked.token).toBe("action-token-7")
+    expect(result.approvalSweep.map((row) => row.runId)).toEqual(["annotated-action"])
     expect(result.finished.status).toBe("completed")
     // The resolved wait consumes the declaration on the way out, so nothing
     // stale survives the wake.

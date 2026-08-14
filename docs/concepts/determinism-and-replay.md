@@ -1,6 +1,6 @@
 # Determinism and replay
 
-This page defines the replay contract for flow authors and engine implementers. It covers current handler re-execution, activity memoization, suspension, and the distinction between engine replay and time-travel projection.
+This page defines the replay contract for flow authors and engine implementers. It covers current handler re-execution, action memoization, suspension, and the distinction between engine replay and time-travel projection.
 
 ## The replay function
 
@@ -29,12 +29,12 @@ Code between durable boundaries must produce the same control flow when given th
 - global mutable state;
 - unordered external reads;
 - changing environment variables;
-- Host operations outside an `Activity`.
+- Host operations outside an `Action`.
 
-Instead, run nondeterministic or effectful work inside a recorded activity:
+Instead, run nondeterministic or effectful work inside a recorded action:
 
 ```ts
-const ReadConfig = Activity.make({
+const ReadConfig = Action.make({
   name: "config/read",
   success: Schema.String,
   tier: "sealed",
@@ -48,11 +48,11 @@ const ReadConfig = Activity.make({
 
 The output may be nondeterministic. Replay safety comes from recording its encoded exit, not from requiring the output itself to be predictable.
 
-## Activity identity
+## Action identity
 
-For a sealed activity with an `idempotencyKey`, the flow engine computes a cache key. A **string** is namespaced by the activity name and declared schemas. An **object** is caller-owned canonical JSON and remains stable across activity renames. The engine adds runtime environment and boundary facts separately.
+For a sealed action with an `idempotencyKey`, the flow engine computes a cache key. A **string** is namespaced by the action name and declared schemas. An **object** is caller-owned canonical JSON and remains stable across action renames. The engine adds runtime environment and boundary facts separately.
 
-Sealed activities without a cache key input, plus compensable and irreversible activities, use an ordinal allocated from a counter scoped to the activity's name, with the name folded into the key (issue #73). Concurrent activities of different names are therefore stable under any interleaving. Repeated invocations of one activity are numbered in allocation order, so changing control flow before such a boundary can still change which invocation occupies which ordinal. Prefer stable cache key inputs for replayable reads.
+Sealed actions without a cache key input, plus compensable and irreversible actions, use an ordinal allocated from a counter scoped to the action's name, with the name folded into the key (issue #73). Concurrent actions of different names are therefore stable under any interleaving. Repeated invocations of one action are numbered in allocation order, so changing control flow before such a boundary can still change which invocation occupies which ordinal. Prefer stable cache key inputs for replayable reads.
 
 ## Suspension
 
@@ -71,20 +71,20 @@ The current public API does not expose a separate durable record for every losin
 Two APIs use “replay” differently:
 
 - `EngineStore` replay re-runs a registered flow handler and returns stored boundaries.
-- `TimeTravel.inspect` is read-only. It folds committed journal entries up to a `Frame` and optionally resolves cache values. It never invokes a flow handler or activity dispatcher.
+- `TimeTravel.inspect` is read-only. It folds committed journal entries up to a `Frame` and optionally resolves cache values. It never invokes a flow handler or action dispatcher.
 
 The latter is suitable for rebuilding a view or assessing a frame. It is not an engine resume.
 
 ## Source changes
 
-There is no flow-source digest check. Existing activity keys and ordinal positions determine what reuses recorded state after a code edit:
+There is no flow-source digest check. Existing action keys and ordinal positions determine what reuses recorded state after a code edit:
 
-- changed cache key input → new activity result;
+- changed cache key input → new action result;
 - unchanged cache key input → existing result;
-- changed control flow around ordinal activities → potentially different ordinal mapping;
+- changed control flow around ordinal actions → potentially different ordinal mapping;
 - changed flow schemas → stored payload or result decoding may fail as a defect.
 
-Version flow tags, activity bodies, and schemas deliberately when compatibility changes.
+Version flow tags, action bodies, and schemas deliberately when compatibility changes.
 
 ## Related
 

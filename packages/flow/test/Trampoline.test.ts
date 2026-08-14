@@ -8,14 +8,14 @@
  * fixture here settles a handed-off round as itself; `@smthrs/engine-next` and
  * `@smthrs/engine-store-next` own the lineage tests.
  */
-import { Activity, Flow, FlowRuntime, Graph, Interpreter } from "@smthrs/flow-next"
+import { Action, Flow, FlowRuntime, Graph, Interpreter } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Effect, Layer, Option, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { runPromise } from "./Crypto.ts"
 import { layerMemory, makeInstance } from "./MemoryFlowRuntime.ts"
 
-const Increment = Activity.make("trampoline/increment", {
+const Increment = Action.make("trampoline/increment", {
   payload: { value: Schema.Number },
   success: Schema.Number
 })
@@ -29,8 +29,8 @@ type CounterFlow = Flow.Flow<
   typeof Schema.Number,
   typeof Schema.Never,
   // The self-handoff drops its requirements, so the lineage names only the
-  // activity its own round calls and the type stays finite.
-  Activity.Requirement<"trampoline/increment">
+  // action its own round calls and the type stays finite.
+  Action.Requirement<"trampoline/increment">
 >
 
 const Counter: CounterFlow = Flow.make("trampoline/counter", {
@@ -65,12 +65,12 @@ const EncodedSource = Flow.make("trampoline/encoded-source", {
 })
 
 const wired = (
-  registration: Layer.Layer<never, never, FlowRuntime.FlowRuntime | Activity.Implementations>
+  registration: Layer.Layer<never, never, FlowRuntime.FlowRuntime | Action.Implementations>
 ): Layer.Layer<
-  Layer.Success<typeof increments> | FlowRuntime.FlowRuntime | Activity.Implementations
+  Layer.Success<typeof increments> | FlowRuntime.FlowRuntime | Action.Implementations
 > =>
   Layer.merge(increments, registration).pipe(
-    Layer.provideMerge(Activity.layerImplementations),
+    Layer.provideMerge(Action.layerImplementations),
     Layer.provideMerge(layerMemory)
   )
 

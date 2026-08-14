@@ -1,4 +1,4 @@
-import type { Activity } from "@smthrs/flow-next"
+import type { Action } from "@smthrs/flow-next"
 import { Journal } from "@smthrs/journal-next"
 import { Jj } from "@smthrs/kernel-next"
 import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store-next"
@@ -10,14 +10,14 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as Inconsistency from "../src/Inconsistency.ts"
-import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "edge-host", pid: 11, nonce: "edge-process" }
 
-const boundary: ActivityPersistence.BoundaryMetadata = {
+const boundary: ActionPersistence.BoundaryMetadata = {
   readSet: [],
   writeSet: ["output.txt"],
   boundaryMode: "hard"
@@ -62,20 +62,20 @@ const activate = (runId: string) =>
 const dispatch = (options: {
   readonly runId: string
   readonly key: string
-  readonly tier: Activity.Tier
+  readonly tier: Action.Tier
   readonly attempt?: number
-  readonly metadata?: ActivityPersistence.BoundaryMetadata
+  readonly metadata?: ActionPersistence.BoundaryMetadata
   readonly idempotencyKey?: string
   readonly execute: () => Effect.Effect<unknown, unknown>
 }) =>
-  ActivityPersistence.make({
+  ActionPersistence.make({
     runId: options.runId,
     owner,
-    sourceId: "activity-edge-test",
+    sourceId: "action-edge-test",
     execute: options.execute,
     ...(options.idempotencyKey === undefined ? {} : { idempotencyKey: options.idempotencyKey })
   })({
-    activity: {},
+    action: {},
     attempt: options.attempt ?? 1,
     key: options.key,
     tier: options.tier,
@@ -120,7 +120,7 @@ describe("cache conflict with no Inconsistency receiver provided", () => {
       }).pipe(Effect.provide(base()), Effect.scoped)
     )
 
-    expect(result.error).toBeInstanceOf(ActivityPersistence.CacheConflictDetected)
+    expect(result.error).toBeInstanceOf(ActionPersistence.CacheConflictDetected)
     expect(result.error).toMatchObject({ keyDigest, recordedRunId: "recorded-run" })
     expect(result.conflicts).toHaveLength(1)
     expect(result.conflicts[0]!.payload).toMatchObject({ verdict: "fail" })

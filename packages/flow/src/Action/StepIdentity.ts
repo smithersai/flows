@@ -4,8 +4,8 @@
  * Derives allocation scopes and run-local invocation keys.
  *
  * Ordinal step identity has three components: the kind of durable operation
- * (an activity dispatch or an internal engine operation), the stable
- * declaration identity (the activity name, or a fixed internal label), and an
+ * (an action dispatch or an internal engine operation), the stable
+ * declaration identity (the action name, or a fixed internal label), and an
  * optional explicit idempotency component — a caller-declared string or
  * object. Every ordinal counter in the engine
  * is keyed by the scope this module derives, and the scope is also folded
@@ -51,13 +51,13 @@ const Invocation = Schema.Struct({
  */
 export interface AllocationIdentity {
   /**
-   * `"activity"` for user-declared activity dispatches, `"internal"` for
+   * `"action"` for user-declared action dispatches, `"internal"` for
    * engine-owned durable operations (queue offers, deferred tokens). The two
    * kinds own disjoint counter namespaces.
    */
-  readonly kind: "activity" | "internal"
+  readonly kind: "action" | "internal"
   /**
-   * The stable declaration identity: an activity's declared name, or a fixed
+   * The stable declaration identity: an action's declared name, or a fixed
    * label for an internal operation family. Diagnostic names must not be
    * passed here unless they are part of identity.
    */

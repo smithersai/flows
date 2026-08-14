@@ -5,11 +5,11 @@
  */
 
 /**
- * Durable activity definitions and combinators.
+ * Durable action definitions and combinators.
  *
  * @since 4.0.0
  */
-export * as Activity from "./Activity/index.ts"
+export * as Action from "./Action/index.ts"
 
 /**
  * Durable clock and timer services.
@@ -68,7 +68,7 @@ export * as Interpreter from "./Interpreter.ts"
 export * as RetryPolicy from "./RetryPolicy.ts"
 
 /**
- * The system timer activity and its implementation layer.
+ * The system timer action and its implementation layer.
  *
  * @since 0.1.0
  */
@@ -79,10 +79,10 @@ export * as Sleep from "./Sleep.ts"
  *
  * @since 4.0.0
  */
-export * as StepIdentity from "./Activity/StepIdentity.ts"
+export * as StepIdentity from "./Action/StepIdentity.ts"
 
 /**
- * The system wait-point activity and its implementation layer.
+ * The system wait-point action and its implementation layer.
  *
  * @since 0.1.0
  */

@@ -1,6 +1,6 @@
 /**
  * Effect-boundary evidence, emitted by the engine at the point an irreversible
- * activity crosses into the outside world.
+ * action crosses into the outside world.
  *
  * `docs/specs/Concepts/Time Travel Compensation.md` requires one durable
  * journal entry recorded **before the adapter begins**, whose status then moves

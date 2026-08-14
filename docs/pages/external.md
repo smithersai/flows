@@ -9,7 +9,7 @@ What exists elsewhere, what this engine borrows from it, and what a deployment c
 | [Effect](https://effect.website) | the runtime this library is written in | `unstable/workflow` is vendored into `@smthrs/flow-next` and `@smthrs/engine-next`; `unstable/ai`, `unstable/rpc`, and `unstable/sql` shape the service, layer, and schema conventions everywhere else |
 | [Temporal](https://docs.temporal.io/) | a mature durable-execution service and cloud platform | shard and rangeID fencing became the run claim expressed as a `WHERE` clause; mutable state plus event batches in one persistence request became `Journal.transact`; reset and rebuild informed the rewind protocol; persisted attempt counts informed the retry origin |
 | [Restate](https://docs.restate.dev/foundations/services) | a lightweight runtime with durable services, state, promises, and exactly-once-per-ID workflows | the shape of an idempotency-derived execution id |
-| [Inngest](https://www.inngest.com/docs/learn/how-functions-are-executed) | managed coordination with memoized steps, queues, and flow control | the memoized-step model that `Activity` implements |
+| [Inngest](https://www.inngest.com/docs/learn/how-functions-are-executed) | managed coordination with memoized steps, queues, and flow control | the memoized-step model that `Action` implements |
 | [Bazel](https://bazel.build) Skyframe | keyed, memoizing, parallel, incremental evaluation | content-addressed step keys, the cache-admission gate, and the `GraphTester`-shaped deterministic test harness |
 | [BAML](https://github.com/BoundaryML/baml) | schema-first prompting and evals as a language feature | the discipline of declaring a typed contract before the effect that satisfies it |
 
@@ -22,8 +22,8 @@ The honest positioning is an embeddable, Effect-native durable-execution toolkit
 | Area | Behavior |
 | --- | --- |
 | Flow definitions | `Flow.make`, registration layers, explicit or idempotency-derived execution ids |
-| Recorded steps | `Activity.make` with success and error schemas, tiers, metadata, annotations, and encoded exits |
-| In-memory runtime | execution, polling, suspension, resume, interruption, deferreds, clocks, activity memoization |
+| Recorded steps | `Action.make` with success and error schemas, tiers, metadata, annotations, and encoded exits |
+| In-memory runtime | execution, polling, suspension, resume, interruption, deferreds, clocks, action memoization |
 | Durable run state | SQL run rows, exact claims, activation fences, heartbeats, stale-owner steal, terminal transitions, `parent_run_id` lineage, durable cancel requests observed inside both the re-activation and terminal compare-and-swaps |
 | Sweeps | a sandboxed periodic sweep over actionable parked rows and over stale-running rows, so a hard-killed owner does not strand its run |
 | Attempt state | fenced admission, a configurable in-progress vocabulary and checkpoint cap, optional upsert admission, first terminal result, an unfenced patch surface, opaque metadata |

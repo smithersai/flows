@@ -14,7 +14,7 @@ it("computes the backoff ladder from policy data alone", () => {
   expect(fatalDecision).toEqual({ _tag: "GiveUp", reason: "nonRetryable" })
 })
 
-it("retries a flaky activity until it succeeds", async () => {
+it("retries a flaky action until it succeeds", async () => {
   const summary = await Effect.runPromise(main(join(directory, "publish.sqlite")))
   expect(summary.result).toBe("v1:uploaded")
   expect(summary.dispatches).toBe(3)

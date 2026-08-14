@@ -30,7 +30,7 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
-import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as JournalRecords from "../src/internal/JournalRecords.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
@@ -105,7 +105,7 @@ describe("adoption liveness evidence is the admission permit (issues #86, #102, 
           },
           owner
         )
-        return yield* ActivityPersistence.make({
+        return yield* ActionPersistence.make({
           runId: "adoption-redrive",
           owner,
           sourceId: "adoption-test",
@@ -114,7 +114,7 @@ describe("adoption liveness evidence is the admission permit (issues #86, #102, 
               dispatches++
               return "recovered"
             })
-        })({ activity: {}, attempt: 1, key, tier: "sealed" })
+        })({ action: {}, attempt: 1, key, tier: "sealed" })
       }).pipe(Effect.provide(layers([])), Effect.scoped)
     )
     expect(dispatches).toBe(1)
@@ -148,7 +148,7 @@ describe("adoption liveness evidence is the admission permit (issues #86, #102, 
         )
         // One executor (one shared admission mutex), dispatched twice
         // concurrently — the in-process double-dispatch scenario.
-        const dispatch = ActivityPersistence.make({
+        const dispatch = ActionPersistence.make({
           runId: "adoption-concurrent",
           owner,
           sourceId: "adoption-test",
@@ -162,7 +162,7 @@ describe("adoption liveness evidence is the admission permit (issues #86, #102, 
               return "charged"
             })
         })
-        const input = { activity: {}, attempt: 1, key, tier: "irreversible" as const }
+        const input = { action: {}, attempt: 1, key, tier: "irreversible" as const }
         return yield* Effect.all([dispatch(input), dispatch(input)], { concurrency: 2 })
       }).pipe(Effect.provide(layers([])), Effect.scoped)
     )
@@ -188,7 +188,7 @@ describe("adoption liveness evidence is the admission permit (issues #86, #102, 
           },
           owner
         )
-        const outcome = yield* ActivityPersistence.make({
+        const outcome = yield* ActionPersistence.make({
           runId: "adoption-dead",
           owner,
           sourceId: "adoption-test",
@@ -197,7 +197,7 @@ describe("adoption liveness evidence is the admission permit (issues #86, #102, 
               dispatches++
               return "recovered"
             })
-        })({ activity: {}, attempt: 1, key, tier: "sealed" })
+        })({ action: {}, attempt: 1, key, tier: "sealed" })
         return outcome
       }).pipe(Effect.provide(layers([])), Effect.scoped)
     )
@@ -227,12 +227,12 @@ describe("adopted compensable attempts restore their own pre-image (issue #87)",
           },
           owner
         )
-        const outcome = yield* ActivityPersistence.make({
+        const outcome = yield* ActionPersistence.make({
           runId: "adoption-compensable",
           owner,
           sourceId: "adoption-test",
           execute: () => Effect.succeed("compensated")
-        })({ activity: {}, attempt: 1, key, tier: "compensable" })
+        })({ action: {}, attempt: 1, key, tier: "compensable" })
         const row = yield* attempts.get({
           runId: "adoption-compensable",
           stepKeyDigest: sha256(key),
@@ -259,7 +259,7 @@ describe("adopted compensable attempts restore their own pre-image (issue #87)",
         yield* activate("adoption-preimage")
         const attempts = yield* AttemptStore.AttemptStore
         let runningMeta: unknown
-        yield* ActivityPersistence.make({
+        yield* ActionPersistence.make({
           runId: "adoption-preimage",
           owner,
           sourceId: "adoption-test",
@@ -273,7 +273,7 @@ describe("adopted compensable attempts restore their own pre-image (issue #87)",
               runningMeta = Option.isSome(row) ? row.value.meta : undefined
               return "done"
             })
-        })({ activity: {}, attempt: 1, key, tier: "compensable" })
+        })({ action: {}, attempt: 1, key, tier: "compensable" })
         return runningMeta
       }).pipe(Effect.provide(layers(calls)), Effect.scoped)
     )
@@ -331,12 +331,12 @@ describe("adoption re-emissions are producer-idempotent (issue #91)", () => {
           ),
           owner
         )
-        yield* ActivityPersistence.make({
+        yield* ActionPersistence.make({
           runId: "adoption-dedupe",
           owner,
           sourceId: "adoption-test",
           execute: () => Effect.succeed("recovered")
-        })({ activity: {}, attempt: 1, key, tier: "compensable" })
+        })({ action: {}, attempt: 1, key, tier: "compensable" })
         const page = yield* journal.entries({ runId: "adoption-dedupe" as never, limit: 100 })
         return page.entries
       }).pipe(Effect.provide(layers(calls)), Effect.scoped)
@@ -391,7 +391,7 @@ describe("the adoption claim is fenced at the moment it lands (issue #102)", () 
       Effect.gen(function*() {
         yield* seedAdoptable("adoption-fence", key)
         return yield* Effect.exit(
-          ActivityPersistence.make({
+          ActionPersistence.make({
             runId: "adoption-fence",
             owner,
             sourceId: "adoption-test",
@@ -400,7 +400,7 @@ describe("the adoption claim is fenced at the moment it lands (issue #102)", () 
                 dispatches++
                 return "must-not-run"
               })
-          })({ activity: {}, attempt: 1, key, tier: "sealed" })
+          })({ action: {}, attempt: 1, key, tier: "sealed" })
         )
       }).pipe(
         Effect.provide(flakyFence.pipe(Layer.provideMerge(layers([])))),
@@ -428,7 +428,7 @@ describe("the adoption claim is fenced at the moment it lands (issue #102)", () 
       Effect.gen(function*() {
         yield* seedAdoptable("adoption-vanish", key)
         return yield* Effect.exit(
-          ActivityPersistence.make({
+          ActionPersistence.make({
             runId: "adoption-vanish",
             owner,
             sourceId: "adoption-test",
@@ -437,7 +437,7 @@ describe("the adoption claim is fenced at the moment it lands (issue #102)", () 
                 dispatches++
                 return "must-not-run"
               })
-          })({ activity: {}, attempt: 1, key, tier: "sealed" })
+          })({ action: {}, attempt: 1, key, tier: "sealed" })
         )
       }).pipe(
         Effect.provide(vanishingPatch.pipe(Layer.provideMerge(layers([])))),

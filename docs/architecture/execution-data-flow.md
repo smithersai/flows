@@ -1,6 +1,6 @@
 # Execution and data flow
 
-This page traces one flow execution through the current implementation, from a typed flow call to ownership, activity persistence, suspension, and replay. It focuses on cross-package data flow rather than individual API signatures.
+This page traces one flow execution through the current implementation, from a typed flow call to ownership, action persistence, suspension, and replay. It focuses on cross-package data flow rather than individual API signatures.
 
 ```mermaid
 sequenceDiagram
@@ -18,7 +18,7 @@ sequenceDiagram
   Driver->>Runs: claim(snapshot) then activate(claim)
   Driver->>Runs: heartbeat while owned
   Driver->>Flow: run registered handler from the top
-  Flow->>Driver: activityExecute(activity, attempt, key, tier)
+  Flow->>Driver: actionExecute(action, attempt, key, tier)
   Driver->>Runs: confirm ownership heartbeat fence
   Driver->>Attempts: admit attempt
   Driver->>Journal: attempt-started
@@ -40,25 +40,25 @@ The caller supplies `executionId`, or the flow derives one from its opt-in `idem
 
 The driver reads an exact `RunSnapshot`, performs a claim compare-and-swap, activates that claim, and then changes the row to `running`. A heartbeat fiber updates the row every second. Losing the ownership fence interrupts the driving fiber, preventing two processes from persisting terminal state for one run.
 
-## 4. Re-execution and activities
+## 4. Re-execution and actions
 
-Resume invokes the handler from the top. Durable behavior exists at `Activity`, `DurableDeferred`, and clock boundaries:
+Resume invokes the handler from the top. Durable behavior exists at `Action`, `DurableDeferred`, and clock boundaries:
 
 - A previously successful attempt returns its stored outcome.
-- An eligible sealed activity may restore declared outputs from the shared cache.
+- An eligible sealed action may restore declared outputs from the shared cache.
 - An unfinished deferred suspends the flow.
-- The first activity or deferred without recorded state is the live frontier.
+- The first action or deferred without recorded state is the live frontier.
 
 Flow-local JavaScript or Effect code between those boundaries runs again. It must therefore be deterministic.
 
-## 5. Activity persistence
+## 5. Action persistence
 
 The flow runtime computes a `Key` before calling the encoded engine:
 
-- sealed activity plus declared cache key input → cache key;
+- sealed action plus declared cache key input → cache key;
 - otherwise → run-local invocation key.
 
-The engine store hashes that key again for its database address, confirms the run fence, admits an attempt, executes it, and persists the first terminal transition. Only a sealed activity with a hard `StepBoundary` descriptor and deviation-free evidence is admitted to the global cache.
+The engine store hashes that key again for its database address, confirms the run fence, admits an attempt, executes it, and persists the first terminal transition. Only a sealed action with a hard `StepBoundary` descriptor and deviation-free evidence is admitted to the global cache.
 
 ## 6. Suspension and wake-up
 

@@ -41,7 +41,7 @@ import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
-import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as DeferredPersistence from "../src/internal/DeferredPersistence.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
 import * as Migrations from "../src/Migrations.ts"
@@ -50,7 +50,7 @@ import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "wal-host", pid: 1, nonce: "wal-owner" }
 
-const boundary: ActivityPersistence.BoundaryMetadata = {
+const boundary: ActionPersistence.BoundaryMetadata = {
   readSet: [],
   writeSet: ["output.txt"],
   boundaryMode: "hard"
@@ -152,7 +152,7 @@ const dispatch = (options: {
   readonly result: unknown
   readonly counter?: { count: number } | undefined
 }) =>
-  ActivityPersistence.make({
+  ActionPersistence.make({
     runId: options.runId,
     owner: options.owner,
     sourceId: `wal-${options.runId}`,
@@ -161,7 +161,7 @@ const dispatch = (options: {
         if (options.counter !== undefined) options.counter.count++
         return options.result
       })
-  })({ activity: {}, attempt: 1, key: options.key, tier: "sealed", metadata: boundary })
+  })({ action: {}, attempt: 1, key: options.key, tier: "sealed", metadata: boundary })
 
 describe("lifecycle history is atomic with executable state", () => {
   it("a crash between the attempt admission and its started event leaves neither", async () => {

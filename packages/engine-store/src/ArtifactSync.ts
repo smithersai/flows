@@ -10,7 +10,7 @@
  * may fail to validate server-side if they are accessed before all blobs they
  * refer to are present" — and enforces it by ordering:
  * `findMissingDigests` → upload the missing → upload the `ActionResult` LAST.
- * {@link Service.publish} is that ordering, and `ActivityPersistence` calls it
+ * {@link Service.publish} is that ordering, and `ActionPersistence` calls it
  * before `CacheStore.put`.
  *
  * The read direction is the same protocol in reverse and is deliberately
@@ -99,7 +99,7 @@ export class ArtifactSync extends Context.Service<ArtifactSync, Service>()("flow
  * The single-tier implementation: there is no shared artifact store, so there
  * is nothing to publish and nothing to fetch.
  *
- * This is the default `ActivityPersistence` falls back to when the tag is
+ * This is the default `ActionPersistence` falls back to when the tag is
  * absent, which is what keeps a purely local composition free of any
  * remote-cache machinery.
  *

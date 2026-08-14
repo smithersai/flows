@@ -23,7 +23,7 @@ Twenty-three npm workspaces under `packages/`, one closed dependency set. This p
 | `@smthrs/keys-next` | `packages/keys` | yes | no tables; canonical flow keys |
 | `@smthrs/plan-next` | `packages/plan` | yes | `flows_plans`, `flows_plan_nodes`, `flows_plan_edges` |
 | `@smthrs/artifacts-next` | `packages/artifacts` | yes | no tables; bytes addressed by their own SHA-256 digest |
-| `@smthrs/flow-next` | `packages/flow` | yes | no tables; flow, activity, and durable-primitive definitions plus the runtime port |
+| `@smthrs/flow-next` | `packages/flow` | yes | no tables; flow, action, and durable-primitive definitions plus the runtime port |
 | `@smthrs/engine-next` | `packages/engine` | yes | no tables; the engine that executes them, and the RPC/HTTP façades |
 | `@smthrs/engine-store-next` | `packages/engine-store` | yes | `flows_deferred_completions`, `flows_clock_deadlines`, `flows_run_parents` |
 | `@smthrs/sync-next` | `packages/sync` | yes | no tables; a wire protocol over journal entries |
@@ -210,7 +210,7 @@ A package root exports contracts. A platform implementation lives under a subpat
 | `@smthrs/run-store-next/test/TestRunStore` | no | yes | composes `TestDatabase` |
 | `@smthrs/step-cache-next` | yes | yes | the step cache over the same contracts |
 | `@smthrs/step-cache-next/test/TestCacheStore` | no | yes | composes `TestDatabase` |
-| `@smthrs/flow-next` | yes | yes | flow, activity, durable primitives, retry, identity |
+| `@smthrs/flow-next` | yes | yes | flow, action, durable primitives, retry, identity |
 | `@smthrs/engine-next` | yes | yes | the engine that executes flows, plus the RPC/HTTP façades |
 | `@smthrs/engine-store-next` | yes | yes | the durable engine; owner identity enters through `OwnerIdentity` |
 | `@smthrs/sync-next` | yes | yes | protocol and client and server over RPC |

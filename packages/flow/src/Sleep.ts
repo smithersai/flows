@@ -1,10 +1,10 @@
 /**
- * The system timer, as an ordinary declared activity.
+ * The system timer, as an ordinary declared action.
  *
  * `docs/specs/Concepts/Unified Flow Authoring.md` names the timer primitive a
  * gap and says how to close it: ship it over the existing `DurableClock`, so a
  * wait is a visible, keyed plan node rather than a second execution mechanism.
- * That is this module. {@link activity} is a plain `Activity.make` declaration —
+ * That is this module. {@link action} is a plain `Action.make` declaration —
  * it appears in a catalog, `.call()` records a node, and `Graph.build` puts that
  * node in the plan beside every other step — and {@link layer} is the
  * implementation the hosts that can run a timer provide.
@@ -30,7 +30,7 @@ import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import type * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
-import * as Activity from "./Activity/index.ts"
+import * as Action from "./Action/index.ts"
 import * as DurableClock from "./DurableClock.ts"
 import type { FlowRuntime } from "./FlowRuntime/FlowRuntime.ts"
 import { annotateWaiting } from "./FlowRuntime/WaitingAnnotation.ts"
@@ -64,15 +64,15 @@ export class SleepRequestInvalid extends Schema.TaggedError<SleepRequestInvalid>
 export const tag = "system/sleep"
 
 /**
- * The declared sleep activity: `millis` from now, or an absolute `until`.
+ * The declared sleep action: `millis` from now, or an absolute `until`.
  *
  * **When to use**
  *
  * Use it in a body wherever a round has to wait for time to pass —
- * `Sleep.activity.call({ millis: 60_000 })` — rather than reaching for
+ * `Sleep.action.call({ millis: 60_000 })` — rather than reaching for
  * `DurableClock.sleep`, which is only callable from a handler and leaves
  * nothing in the plan. A sleep node is keyed, inspectable, and skippable by a
- * branch exactly like an activity that does work.
+ * branch exactly like an action that does work.
  *
  * Two waits of the same length are two waits: `sleep(1h)` followed by
  * `sleep(1h)` sleeps for two hours, because each call is its own node with its
@@ -81,7 +81,7 @@ export const tag = "system/sleep"
  * @category constructors
  * @since 0.1.0
  */
-export const activity: Activity.Declared<
+export const action: Action.Declared<
   typeof tag,
   Schema.Struct<{
     readonly millis: Schema.optional<Schema.Number>
@@ -90,7 +90,7 @@ export const activity: Activity.Declared<
   typeof Schema.Void,
   typeof SleepRequestInvalid,
   never
-> = Activity.makeSystem(tag, {
+> = Action.makeSystem(tag, {
   payload: {
     millis: Schema.optional(Schema.Number),
     until: Schema.optional(Schema.Number)
@@ -157,10 +157,10 @@ const deadlineOf = (
  * @private
  */
 const clockName: Effect.Effect<string> = Effect.gen(function*() {
-  const invocation = yield* Activity.CurrentInvocationKey
+  const invocation = yield* Action.CurrentInvocationKey
   if (invocation === undefined) {
     return yield* Effect.die(
-      `${tag} ran under a runtime that supplies no Activity.CurrentInvocationKey. ` +
+      `${tag} ran under a runtime that supplies no Action.CurrentInvocationKey. ` +
         "A durable timer is named by the dispatch that armed it, so a runtime that does not " +
         "identify the dispatch cannot arm one."
     )
@@ -171,20 +171,20 @@ const clockName: Effect.Effect<string> = Effect.gen(function*() {
 /**
  * The sleep implementation: arm the durable clock, park under `timer`, wake.
  *
- * Provide it beside the other activity implementation layers a body calls, over
+ * Provide it beside the other action implementation layers a body calls, over
  * the {@link module:Implementations.layerImplementations} table they file
  * themselves in:
  *
  * ```ts
  * Layer.mergeAll(Sleep.layer, Interpreter.layer(Pipeline)).pipe(
- *   Layer.provideMerge(Activity.layerImplementations)
+ *   Layer.provideMerge(Action.layerImplementations)
  * )
  * ```
  *
  * @category layers
  * @since 0.1.0
  */
-export const layer: Layer.Layer<never, never, FlowRuntime> = activity.toLayer((payload) =>
+export const layer: Layer.Layer<never, never, FlowRuntime> = action.toLayer((payload) =>
   Effect.gen(function*() {
     const now = yield* Clock.currentTimeMillis
     const wakeAt = yield* deadlineOf(payload, now)

@@ -6,7 +6,7 @@
  * idempotency-key scoping forms, infrastructure-interrupt exhaustion, the
  * flow scope helpers, and the waiting annotation a durable driver reads.
  */
-import { Activity, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
+import { Action, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
 import { Cause, Context, Effect, Exit, Layer, Option, Schedule, Schema, Scope } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
@@ -17,7 +17,7 @@ const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Cr
   it(name, () => runPromise(body()))
 
 /** The one step the host flow is made of; each case supplies its body. */
-const Block = Activity.make("Gaps/Block", {
+const Block = Action.make("Gaps/Block", {
   payload: { id: Schema.String },
   success: Schema.Void
 })
@@ -33,12 +33,12 @@ const Host = Flow.make("Gaps/Host", {
 const hosted = (
   execute: () => Effect.Effect<void, never, FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance>
 ): Layer.Layer<
-  Activity.Requirement<"Gaps/Block"> | FlowRuntime.FlowRuntime | Activity.Implementations
+  Action.Requirement<"Gaps/Block"> | FlowRuntime.FlowRuntime | Action.Implementations
 > => layerWired(Layer.mergeAll(Block.toLayer(execute), Interpreter.layer(Host)))
 
-describe("Activity.CacheEnvironment", () => {
+describe("Action.CacheEnvironment", () => {
   it("accepts a complete environment and rejects an empty capability name", () => {
-    const decode = Schema.decodeUnknownExit(Activity.CacheEnvironment)
+    const decode = Schema.decodeUnknownExit(Action.CacheEnvironment)
     expect(
       Exit.isSuccess(decode({ layers: ["node@22"], capabilities: { net: ["dns"] } }))
     ).toBe(true)
@@ -49,21 +49,21 @@ describe("Activity.CacheEnvironment", () => {
 
   effect("layerCacheEnvironment publishes it, and the reference defaults to absent", () =>
     Effect.gen(function*() {
-      expect(yield* Activity.CurrentCacheEnvironment).toBeUndefined()
-      expect(yield* Activity.CurrentOrdinal).toBeUndefined()
-      expect(yield* Activity.CurrentAttempt).toBe(1)
-      const environment: Activity.CacheEnvironment = {
+      expect(yield* Action.CurrentCacheEnvironment).toBeUndefined()
+      expect(yield* Action.CurrentOrdinal).toBeUndefined()
+      expect(yield* Action.CurrentAttempt).toBe(1)
+      const environment: Action.CacheEnvironment = {
         layers: ["node@22"],
         capabilities: { net: ["dns"] }
       }
-      const seen = yield* Activity.CurrentCacheEnvironment.pipe(
-        Effect.provide(Activity.layerCacheEnvironment(environment))
+      const seen = yield* Action.CurrentCacheEnvironment.pipe(
+        Effect.provide(Action.layerCacheEnvironment(environment))
       )
       expect(seen).toEqual(environment)
     }))
 })
 
-describe("Activity.idempotencyKey", () => {
+describe("Action.idempotencyKey", () => {
   const withInstance = <A, E>(effect: Effect.Effect<A, E, FlowRuntime.FlowInstance | Crypto.Crypto>) =>
     Effect.provideService(effect, FlowRuntime.FlowInstance, makeInstance(Host, "internal-keys"))
 
@@ -71,10 +71,10 @@ describe("Activity.idempotencyKey", () => {
     "scopes allocations by the declared parent, the attempt, or neither",
     () =>
       withInstance(Effect.gen(function*() {
-        const plain = yield* Activity.idempotencyKey("offer")
-        const alsoPlain = yield* Activity.idempotencyKey("offer")
-        const scoped = yield* Activity.idempotencyKey("offer", { parentScope: "queue:a" })
-        const byAttempt = yield* Activity.idempotencyKey("offer", { includeAttempt: true })
+        const plain = yield* Action.idempotencyKey("offer")
+        const alsoPlain = yield* Action.idempotencyKey("offer")
+        const scoped = yield* Action.idempotencyKey("offer", { parentScope: "queue:a" })
+        const byAttempt = yield* Action.idempotencyKey("offer", { includeAttempt: true })
         // Distinct allocations of one scope are ordinal-ordered, and distinct
         // scopes never collide.
         expect(plain).not.toBe(alsoPlain)
@@ -83,20 +83,20 @@ describe("Activity.idempotencyKey", () => {
   )
 })
 
-describe("Activity infrastructure-interrupt retry", () => {
+describe("Action infrastructure-interrupt retry", () => {
   effect("exhausting the interrupt policy dies rather than failing", () => {
     let attempts = 0
-    const activity = Activity.make({
+    const action = Action.make({
       name: "Gaps/infra",
       success: Schema.Void,
-      error: Schema.Union([Activity.InfraInterrupt, Schema.String]),
+      error: Schema.Union([Action.InfraInterrupt, Schema.String]),
       interruptRetryPolicy: Schedule.recurs(2),
       execute: Effect.suspend(() => {
         attempts++
-        return Effect.fail(new Activity.InfraInterrupt({ reason: "host lost" }))
+        return Effect.fail(new Action.InfraInterrupt({ reason: "host lost" }))
       })
     })
-    const layer = hosted(() => Effect.asVoid(activity).pipe(Effect.orDie))
+    const layer = hosted(() => Effect.asVoid(action).pipe(Effect.orDie))
     return Effect.gen(function*() {
       const exit = yield* Host.execute({ id: "infra" }).pipe(Effect.exit)
       expect(Exit.isFailure(exit)).toBe(true)
@@ -106,14 +106,14 @@ describe("Activity infrastructure-interrupt retry", () => {
   })
 
   effect("a non-infrastructure failure is propagated untouched", () => {
-    const activity = Activity.make({
+    const action = Action.make({
       name: "Gaps/other",
       success: Schema.Void,
       error: Schema.String,
       interruptRetryPolicy: Schedule.recurs(2),
       execute: Effect.fail("plain")
     })
-    const layer = hosted(() => Effect.asVoid(activity).pipe(Effect.orDie))
+    const layer = hosted(() => Effect.asVoid(action).pipe(Effect.orDie))
     return Effect.gen(function*() {
       const exit = yield* Host.execute({ id: "other" }).pipe(Effect.exit)
       expect(Exit.isFailure(exit)).toBe(true)
@@ -148,7 +148,7 @@ describe("flow scope helpers", () => {
 
 describe("Flow annotations", () => {
   effect("annotateMerge folds a context into the flow definition, and an uncaptured defect escapes", () => {
-    const Defective = Activity.make("Gaps/Uncaptured/step", {
+    const Defective = Action.make("Gaps/Uncaptured/step", {
       payload: { id: Schema.String },
       success: Schema.Void
     })

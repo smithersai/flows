@@ -5,14 +5,14 @@
  * stands for is genuine, so the parent's interruption and the child's
  * suspension travel between them.
  */
-import { Activity, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
+import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Effect, Exit, Fiber, Layer, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
 import { runPromise } from "./Crypto.ts"
 
-const Bump = Activity.make("boundary/bump", {
+const Bump = Action.make("boundary/bump", {
   payload: { value: Schema.Number },
   success: Schema.Number
 })
@@ -55,7 +55,7 @@ const scripted = (result: Flow.Result<unknown, unknown>) => {
     interrupt: (_flow, executionId) => Effect.sync(() => void interrupts.push(executionId)),
     interruptUnsafe: () => Effect.void,
     resume: () => Effect.void,
-    activityExecute: () => Effect.succeed(new Flow.Complete({ exit: Exit.void })),
+    actionExecute: () => Effect.succeed(new Flow.Complete({ exit: Exit.void })),
     deferredResult: () => Effect.succeedNone,
     deferredDone: () => Effect.void,
     scheduleClock: () => Effect.void
@@ -79,7 +79,7 @@ const drive = (
           Effect.scoped,
           Effect.provideService(FlowRuntime.FlowInstance, instance),
           Effect.provideService(FlowRuntime.FlowRuntime, engine),
-          Effect.provide(Activity.layerImplementations)
+          Effect.provide(Action.layerImplementations)
         )
       )
       return yield* Fiber.await(fiber)
@@ -88,7 +88,7 @@ const drive = (
 
 /**
  * The real in-memory engine, with the callee registered as its own flow and the
- * activity it calls recording every dispatch.
+ * action it calls recording every dispatch.
  */
 const live = () => {
   const calls: Array<string> = []
@@ -102,7 +102,7 @@ const live = () => {
     Interpreter.layer(Child),
     Interpreter.layer(Parent)
   ).pipe(
-    Layer.provideMerge(Activity.layerImplementations),
+    Layer.provideMerge(Action.layerImplementations),
     Layer.provideMerge(FlowEngine.layerMemory)
   )
   return { calls, layer }

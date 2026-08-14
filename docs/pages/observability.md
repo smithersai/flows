@@ -35,7 +35,7 @@ Executable state is deliberately outside that chokepoint. Run state, attempt che
 | `<FlowTag>.poll` | `executionId` | `@smthrs/flow-next` `Flow/make.ts` |
 | `<FlowTag>.interrupt` | `executionId` | `@smthrs/flow-next` `Flow/make.ts` |
 | `<FlowTag>.resume` | `executionId` | `@smthrs/flow-next` `Flow/make.ts` |
-| `<activity name>` | none | `@smthrs/flow-next` `Activity/make.ts`, around every activity dispatch |
+| `<action name>` | none | `@smthrs/flow-next` `Action/make.ts`, around every action dispatch |
 | `FlowEngine.deferredResult` | `name` | `@smthrs/engine-next` `FlowEngine/make.ts` |
 | `FlowEngine.deferredDone` | `name`, `executionId` | `@smthrs/engine-next` `FlowEngine/make.ts` |
 | `FlowEngine.scheduleClock` | `executionId`, `name` | `@smthrs/engine-next` `FlowEngine/make.ts` |

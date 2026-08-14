@@ -6,7 +6,7 @@ This page defines the runtime model implemented by `@smthrs/engine-next`, `@smth
 
 - A **flow** is a typed definition plus a registered Effect handler.
 - An **execution** is one flow invocation identified by `executionId`.
-- An **activity** is a schema-encoded effect boundary with a stable key, attempt number, and durability tier.
+- An **action** is a schema-encoded effect boundary with a stable key, attempt number, and durability tier.
 - A **run row** stores execution status, ownership, encoded payload, and encoded result.
 - An **attempt row** stores the state and outcome of one `(run, step-key digest, attempt)` tuple.
 - A **suspension** is a non-terminal result that releases run ownership until a wake resumes the handler.
@@ -31,14 +31,14 @@ The registered handler is not serialized. On resume, the engine invokes it from 
 ```ts
 const handler = () =>
   Effect.gen(function*() {
-    const first = yield* firstActivity       // recorded attempt on replay
+    const first = yield* firstAction       // recorded attempt on replay
     const signal = yield* DurableDeferred.await(gate) // suspends until completed
-    const frontier = yield* frontierActivity // runs after the wake
+    const frontier = yield* frontierAction // runs after the wake
     return `${first}/${signal}/${frontier}`
   })
 ```
 
-This shape is adapted from the repository’s durable replay test. The local statement before the deferred executes again, but `firstActivity` does not dispatch again; its recorded attempt is returned. After the deferred is completed and the run is reclaimed, `frontierActivity` becomes live.
+This shape is adapted from the repository’s durable replay test. The local statement before the deferred executes again, but `firstAction` does not dispatch again; its recorded attempt is returned. After the deferred is completed and the run is reclaimed, `frontierAction` becomes live.
 
 See [determinism and replay](determinism-and-replay.md) for authoring rules.
 
@@ -48,7 +48,7 @@ With `EngineStore`, the following can outlive the driving fiber:
 
 - encoded flow payload and result;
 - run status, claim, owner, and heartbeat;
-- activity attempts, checkpoints, outcomes, errors, and metadata;
+- action attempts, checkpoints, outcomes, errors, and metadata;
 - journal entries;
 - shared cache entries.
 
@@ -84,7 +84,7 @@ Reusing an ID with a different flow tag or encoded payload is rejected as a defe
 
 Ordinary TypeScript and Effect combinators are not individually journaled. Durability attaches at:
 
-- `Activity`;
+- `Action`;
 - `DurableDeferred`;
 - durable clocks;
 - durable queues built from deferreds and Effect’s persisted queue;
@@ -101,7 +101,7 @@ The implemented library has definition, execution, and replay:
 2. the handler executes under a flow engine;
 3. a resume re-executes it against stored boundaries.
 
-A separate discovery phase, pure static planning phase, and serializable action-graph builder are **Planned**. The current runtime does not expose a plan value that enumerates every future activity or cache hit before execution. See [flows and the action graph](action-graph.md).
+A separate discovery phase, pure static planning phase, and serializable action-graph builder are **Planned**. The current runtime does not expose a plan value that enumerates every future action or cache hit before execution. See [flows and the action graph](action-graph.md).
 
 ## Related
 

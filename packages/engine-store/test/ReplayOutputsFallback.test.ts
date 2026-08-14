@@ -23,7 +23,7 @@ import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
-import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 
 /**
@@ -37,7 +37,7 @@ import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "replay-fallback-host", pid: 51, nonce: "replay-fallback-process" }
 
-const declared: ActivityPersistence.BoundaryMetadata = {
+const declared: ActionPersistence.BoundaryMetadata = {
   readSet: [{ path: "config.json", digest: "D1" }],
   writeSet: ["dist/manifest.json"],
   boundaryMode: "hard"
@@ -68,8 +68,8 @@ const activate = (runId: string) =>
   })
 
 const dispatch = (runId: string, key: string, execute: () => Effect.Effect<unknown, unknown>) =>
-  ActivityPersistence.make({ runId, owner, sourceId: `replay-fallback-${runId}`, execute })({
-    activity: {},
+  ActionPersistence.make({ runId, owner, sourceId: `replay-fallback-${runId}`, execute })({
+    action: {},
     attempt: 1,
     key,
     tier: "sealed",

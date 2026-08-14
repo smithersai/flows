@@ -11,7 +11,7 @@
   `FlowProxy.ts`, `FlowProxyServer.ts`, and `index.ts`
 
 The vendored source now spans two packages. `@smthrs/flow-next` carries the
-authoring half (`Flow`, `Activity`, `DurableClock`, `DurableDeferred`,
+authoring half (`Flow`, `Action`, `DurableClock`, `DurableDeferred`,
 `DurableQueue`, and the runtime port those APIs are written against);
 `@smthrs/engine-next` carries the runtime half (the encoded seam, its typed
 adapter, the in-memory implementation, and the proxies). This file documents
@@ -87,7 +87,7 @@ any interrupt cause up to ten times and turns exhaustion into a defect.
 Flows removes that default. Ordinary fiber interruption and flow
 suspension propagate immediately. `InfraInterrupt` is the explicit marker for
 rebalancing or host-loss interruption, and only that marker consumes an
-activity's opt-in `interruptRetryPolicy`. Exhaustion still becomes a defect.
+action's opt-in `interruptRetryPolicy`. Exhaustion still becomes a defect.
 
 This keeps user cancellation prompt while allowing a clustered engine to opt
 into the recovery behavior it actually needs.
@@ -132,24 +132,24 @@ Upstream references:
 - `FlowEngine.ts:448-465`, suspended execution polling loop
 - `FlowEngine.ts:555-558`, unchanged fallback schedule
 
-### 5. Activity identity is supplied above the encoded seam
+### 5. Action identity is supplied above the encoded seam
 
 Upstream passes `(activity, attempt)` through `Encoded.activityExecute`; the
 memory engine derives `${executionId}/${activity.name}/${attempt}` internally.
 The `Activity.idempotencyKey` helper separately hashes execution ID, optional
 attempt, and activity name.
 
-Flows passes `{ activity, attempt, key, tier, metadata }` through the encoded
+Flows passes `{ action, attempt, key, tier, metadata }` through the encoded
 seam. `FlowEngine.makeUnsafe` computes `key` before dispatch with
 `@smthrs/keys-next`: the engine builds sealed identity input and decodes it through `Key`, while
-compensable, irreversible, and identity-free sealed activities use stable
+compensable, irreversible, and identity-free sealed actions use stable
 per-run ordinals. `metadata` carries an optional read/write-set descriptor
 without interpretation below this package boundary. The memory implementation
 indexes memo state only by `(key, attempt)`. Durable clock and queue internals
 use the same ordinal allocator, and no implementation derives identity from an
-activity name.
+action name.
 
-`Activity.make` adds `tier` (default `"sealed"`), optional `idempotencyKey`,
+`Action.make` adds `tier` (default `"sealed"`), optional `idempotencyKey`,
 and opaque `metadata`. Compensable dispatch requires the local
 `SnapshotBoundary` hook (`snapshot`, `restore`, `diff`) and restores before a
 retry. The interface carries
@@ -158,7 +158,7 @@ does not import `@smthrs/kernel-next`. An irreversible retry without a declared
 idempotency key dies with structured
 `IrreversibleRetryRequiresIdempotencyKey` before redispatch.
 
-This eliminates replay collisions caused by reused or renamed activity names,
+This eliminates replay collisions caused by reused or renamed action names,
 keeps key computation identical for memory and durable engines, preserves
 write-set metadata for enforcement below the seam, and prevents unsafe
 double-sends.
@@ -210,7 +210,7 @@ Upstream references (rc.108):
 
 - `Flow.annotations` remains `Context.Context<never>`; open metadata does
   not expand the flow shape (`Flow.ts:58`).
-- Activity exits remain schema encoded and decoded across the engine boundary
+- Action exits remain schema encoded and decoded across the engine boundary
   (`Activity.ts:135-175`, `FlowEngine.ts:471-483`).
 - `Flow.intoResult` retains upstream scope closure, defect capture,
   interrupt filtering, and the `Suspended` value (`Flow.ts:651-713`).

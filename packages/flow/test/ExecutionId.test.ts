@@ -1,6 +1,6 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, Flow, Interpreter } from "@smthrs/flow-next"
+import { Action, Flow, Interpreter } from "@smthrs/flow-next"
 import { Cause, Effect, Exit, Layer, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
@@ -10,7 +10,7 @@ import { layerWired } from "./MemoryFlowRuntime.ts"
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
   it(name, () => runPromise(body()))
 
-const Echo = Activity.make("ExecutionId/echo", {
+const Echo = Action.make("ExecutionId/echo", {
   payload: { value: Schema.String },
   success: Schema.String
 })
@@ -126,7 +126,7 @@ describe("the default execution-id source", () => {
     }).pipe(Effect.provide(AnonymousLayer)))
 
   effect("dies before engine invocation when the payload has no canonical form", () => {
-    const Unreached = Activity.make("ExecutionId/unreached", {
+    const Unreached = Action.make("ExecutionId/unreached", {
       payload: { value: Schema.String },
       success: Schema.String
     })

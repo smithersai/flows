@@ -59,13 +59,13 @@ export default tseslint.config(
     }
   },
   {
-    files: ["src/Activity/Activity.ts"],
+    files: ["src/Action/Action.ts"],
     rules: {
       "@typescript-eslint/no-empty-object-type": "off"
     }
   },
   {
-    files: ["src/Activity/make.ts"],
+    files: ["src/Action/make.ts"],
     rules: {
       "prefer-const": "off"
     }

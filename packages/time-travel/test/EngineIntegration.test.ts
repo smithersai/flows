@@ -18,7 +18,7 @@ import * as EngineStore from "@smthrs/engine-store-next/EngineStore"
 import * as EngineMigrations from "@smthrs/engine-store-next/Migrations"
 import * as OwnerIdentity from "@smthrs/engine-store-next/OwnerIdentity"
 import * as StepBoundary from "@smthrs/engine-store-next/StepBoundary"
-import { Activity, DurableDeferred, Flow, Interpreter } from "@smthrs/flow-next"
+import { Action, DurableDeferred, Flow, Interpreter } from "@smthrs/flow-next"
 import * as Jj from "@smthrs/jj-next"
 import * as Journal from "@smthrs/journal-next/Journal"
 import type * as JournalEvent from "@smthrs/journal-next/JournalEvent"
@@ -40,14 +40,14 @@ import type { TimeTravelError } from "../src/TimeTravelError.ts"
  * The declared step the flow's body names.
  *
  * DECIDED (2026-08-11, pending review): the composite handler this suite always
- * had becomes ONE declared activity rather than four body nodes. What is under
+ * had becomes ONE declared action rather than four body nodes. What is under
  * test is time travel over an engine-written journal, so the fixture keeps the
- * activity mix and the ordering the evidence assertions are written against;
+ * action mix and the ordering the evidence assertions are written against;
  * decomposing it would rewrite the evidence rather than migrate the authoring
- * shape. The body still names an activity instead of carrying code, which is
+ * shape. The body still names an action instead of carrying code, which is
  * the migration `docs/specs/Concepts/Unified Flow Authoring.md` asks for.
  */
-const Post = Activity.make("time-travel/Post", { payload: {}, success: Schema.String })
+const Post = Action.make("time-travel/Post", { payload: {}, success: Schema.String })
 const Ledger = Flow.make("time-travel/Ledger", {
   payload: {},
   success: Schema.String,
@@ -55,7 +55,7 @@ const Ledger = Flow.make("time-travel/Ledger", {
 })
 const Settled = DurableDeferred.make("time-travel/settled", { success: Schema.String })
 
-/** The irreversible activity whose boundary records a rewind has to assess. */
+/** The irreversible action whose boundary records a rewind has to assess. */
 const notifyKind = "time-travel/Notify"
 
 /**
@@ -92,14 +92,14 @@ interface Harness {
  * the engine itself, not by the test.
  */
 const engineLayer = (harness: Harness, handlers: ReadonlyArray<CompensationHandlers.Handler>) => {
-  const Credit = Activity.make({
+  const Credit = Action.make({
     name: "time-travel/Credit",
     success: Schema.Number,
     tier: "sealed",
     idempotencyKey: "time-travel/credit/v1",
     execute: Effect.succeed(30)
   })
-  const Notify = Activity.make({
+  const Notify = Action.make({
     name: notifyKind,
     success: Schema.String,
     tier: "irreversible",
@@ -109,11 +109,11 @@ const engineLayer = (harness: Harness, handlers: ReadonlyArray<CompensationHandl
       return "sent"
     })
   })
-  // A compensable activity is what OWNS a workspace pointer: the engine
+  // A compensable action is what OWNS a workspace pointer: the engine
   // snapshots the tree before it runs. Every later frame carries that pointer
-  // forward, which is what gives a sealed activity's frame a tier-2 address at
+  // forward, which is what gives a sealed action's frame a tier-2 address at
   // all.
-  const Stage = Activity.make({
+  const Stage = Action.make({
     name: "time-travel/Stage",
     success: Schema.String,
     tier: "compensable",
@@ -138,7 +138,7 @@ const engineLayer = (harness: Harness, handlers: ReadonlyArray<CompensationHandl
   ).pipe(Layer.provideMerge(Layer.effectDiscard(EngineMigrations.run)))
 
   return Layer.mergeAll(Post.toLayer(post), Interpreter.layer(Ledger)).pipe(
-    Layer.provideMerge(Activity.layerImplementations),
+    Layer.provideMerge(Action.layerImplementations),
     Layer.provideMerge(TimeTravel.layer),
     Layer.provideMerge(CompensationHandlers.layer(handlers)),
     Layer.provideMerge(SqlTimeTravelStore.layer),
@@ -222,7 +222,7 @@ describe("time travel over an engine-written journal", () => {
     // The engine minted one lineage for the run and stamped it on every record.
     expect(result.lineages).toEqual(["ledger-1/root"])
     // Four dispatches, and the fold saw them: the body's own step, then the
-    // three activities its implementation runs before the deferred parks it.
+    // three actions its implementation runs before the deferred parks it.
     expect(result.attempts).toBe(4)
     // Every frame carries a tier-2 anchor, not just the compensable one.
     expect(result.anchored).toBe(4)
@@ -232,7 +232,7 @@ describe("time travel over an engine-written journal", () => {
     const result = await drive([], (harness) =>
       Effect.gen(function*() {
         const committed = yield* entries
-        // Cut when the compensable and sealed activities had settled and the
+        // Cut when the compensable and sealed actions had settled and the
         // irreversible one had not yet been admitted.
         const frameSeq = seqOf(committed, "flows.engine.attempt-finished", 2)
         const sql = yield* Effect.service(SqlClient.SqlClient)
@@ -263,7 +263,7 @@ describe("time travel over an engine-written journal", () => {
     // parent's current state (which the parent kept driving past).
     expect(result.childState).not.toBe(result.parentState)
     // The parent recorded four attempts — the body's step and the three
-    // activities under it; the child inherits only the ones its copied prefix
+    // actions under it; the child inherits only the ones its copied prefix
     // can explain.
     expect(result.parentAttempts).toBe(4)
     expect(result.childAttempts).toBe(3)

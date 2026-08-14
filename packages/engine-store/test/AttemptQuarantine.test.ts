@@ -6,9 +6,9 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * effects already ran, so blind re-execution would break exactly-once. Instead,
  * the corrupt boundary evidence is journalled and quarantined off the succeeded
  * row. The first resume parks visibly; the next returns the durable outcome
- * without touching the poisoned evidence or re-running the activity.
+ * without touching the poisoned evidence or re-running the action.
  */
-import { Activity, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow-next"
+import { Action, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow-next"
 import { Journal } from "@smthrs/journal-next"
 import * as Notifying from "@smthrs/journal-next/test/Notifying"
 import { Jj } from "@smthrs/kernel-next"
@@ -24,7 +24,7 @@ import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
-import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
@@ -58,7 +58,7 @@ describe("succeeded-row corruption quarantines its evidence and heals on resume 
     // the engine matches by tag string, so nothing else stops a rename from
     // silently making quarantine retryable — each retry would re-detect the
     // identical corruption before the driver ever parks the run.
-    const quarantined = new ActivityPersistence.AttemptEvidenceQuarantined({
+    const quarantined = new ActionPersistence.AttemptEvidenceQuarantined({
       code: "attempt_evidence_quarantined",
       keyDigest: "deadbeef",
       attempt: 1,
@@ -74,7 +74,7 @@ describe("succeeded-row corruption quarantines its evidence and heals on resume 
 
   it("parks once, then resumes from the durable outcome while the evidence remains corrupt", async () => {
     let dispatches = 0
-    const sealed = Activity.make({
+    const sealed = Action.make({
       name: "AttemptQuarantine/sealed",
       success: Schema.String,
       tier: "sealed",
@@ -106,7 +106,7 @@ describe("succeeded-row corruption quarantines its evidence and heals on resume 
         TestClock.layer(),
         Layer.succeed(DurableEngineState.DurableEngineState, state),
         Layer.succeed(Jj.Jj, jj),
-        Activity.layerCacheEnvironment({ layers: [], capabilities: {} }),
+        Action.layerCacheEnvironment({ layers: [], capabilities: {} }),
         NodeCrypto.layer,
         boundary
       )
@@ -289,7 +289,7 @@ describe("a cancel that races the quarantine park", () => {
     // park's `after` hook makes that instant deterministic; racing it against
     // the cancel poll would not be.
     const executionId = "quarantine-cancel-race"
-    const quarantined = new ActivityPersistence.AttemptEvidenceQuarantined({
+    const quarantined = new ActionPersistence.AttemptEvidenceQuarantined({
       code: "attempt_evidence_quarantined",
       keyDigest: "cafebabe",
       attempt: 1,

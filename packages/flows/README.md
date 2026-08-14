@@ -15,24 +15,24 @@ import { Engine, EngineStore, Journal, Kernel } from "@smthrs/flows-next"
 
 ## Public API
 
-| Namespace                                                                                                           | Re-exported package                                        |
-| ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `Canonical`                                                                                                         | `@smthrs/canonical-next`                                   |
-| `Capability`                                                                                                        | `@smthrs/capability-next`                                  |
-| `Crypto`                                                                                                            | `@smthrs/crypto-next`                                      |
-| `Database`                                                                                                          | `@smthrs/database-next`                                    |
-| `Engine`                                                                                                            | `@smthrs/engine-next`                                      |
-| `Flow`, `Activity`, `RetryPolicy`, `DurableDeferred`, `DurableClock`, `DurableQueue`, `FlowRuntime`, `StepIdentity` | `@smthrs/flow-next` (re-exported flat)                     |
-| `EngineStore`                                                                                                       | `@smthrs/engine-store-next`                                |
-| `Jj`                                                                                                                | `@smthrs/jj-next`                                          |
-| `Journal`                                                                                                           | `@smthrs/journal-next`                                     |
-| `RunStore`                                                                                                          | `@smthrs/run-store-next`                                   |
-| `StepCache`                                                                                                         | `@smthrs/step-cache-next`                                  |
-| `Kernel`                                                                                                            | `@smthrs/kernel-next`                                      |
-| `Keys`                                                                                                              | `@smthrs/keys-next`                                        |
-| `Sandbox`                                                                                                           | `@smthrs/sandbox-next`                                     |
-| `Sync`                                                                                                              | `@smthrs/sync-next`                                        |
-| `TimeTravel`                                                                                                        | `@smthrs/time-travel-next` (service key, re-exported flat) |
+| Namespace                                                                                                         | Re-exported package                                        |
+| ----------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `Canonical`                                                                                                       | `@smthrs/canonical-next`                                   |
+| `Capability`                                                                                                      | `@smthrs/capability-next`                                  |
+| `Crypto`                                                                                                          | `@smthrs/crypto-next`                                      |
+| `Database`                                                                                                        | `@smthrs/database-next`                                    |
+| `Engine`                                                                                                          | `@smthrs/engine-next`                                      |
+| `Flow`, `Action`, `RetryPolicy`, `DurableDeferred`, `DurableClock`, `DurableQueue`, `FlowRuntime`, `StepIdentity` | `@smthrs/flow-next` (re-exported flat)                     |
+| `EngineStore`                                                                                                     | `@smthrs/engine-store-next`                                |
+| `Jj`                                                                                                              | `@smthrs/jj-next`                                          |
+| `Journal`                                                                                                         | `@smthrs/journal-next`                                     |
+| `RunStore`                                                                                                        | `@smthrs/run-store-next`                                   |
+| `StepCache`                                                                                                       | `@smthrs/step-cache-next`                                  |
+| `Kernel`                                                                                                          | `@smthrs/kernel-next`                                      |
+| `Keys`                                                                                                            | `@smthrs/keys-next`                                        |
+| `Sandbox`                                                                                                         | `@smthrs/sandbox-next`                                     |
+| `Sync`                                                                                                            | `@smthrs/sync-next`                                        |
+| `TimeTravel`                                                                                                      | `@smthrs/time-travel-next` (service key, re-exported flat) |
 
 Namespacing preserves APIs such as `Kernel.ChildProcessSpawner.layerNoop` and
 `RunStore.RunStore.layer`. Depend on an individual package when a narrower

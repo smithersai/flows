@@ -29,7 +29,7 @@ export const draft = (
   material: {
     version: KeyMaterial.version,
     kind: "sealed",
-    body: options.body ?? { activity: id },
+    body: options.body ?? { action: id },
     inputs: options.inputs ?? [],
     layers: [],
     capabilities: []
@@ -79,7 +79,7 @@ describe("Plan.compile", () => {
   it("renaming a node changes no key — ids are lookup addresses, never hashed", async () => {
     const left = await runPromise(compile([draft("a"), draft("b", { inputs: [{ _tag: "Pending", from: "a" }] })]))
     const right = await runPromise(compile([
-      draft("renamed", { body: { activity: "a" } }),
+      draft("renamed", { body: { action: "a" } }),
       draft("b", { inputs: [{ _tag: "Pending", from: "renamed" }] })
     ]))
     expect(keyOf(right, "b")).toBe(keyOf(left, "b"))

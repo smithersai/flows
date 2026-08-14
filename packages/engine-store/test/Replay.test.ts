@@ -1,4 +1,4 @@
-import { Activity, DurableDeferred, Flow } from "@smthrs/flow-next"
+import { Action, DurableDeferred, Flow } from "@smthrs/flow-next"
 import { Journal } from "@smthrs/journal-next"
 import { Jj } from "@smthrs/kernel-next"
 import { Node } from "@smthrs/plan-next"
@@ -42,7 +42,7 @@ describe("deterministic replay", () => {
     const owners: Array<Ownership.OwnerId> = []
     const state = DurableEngineState.makeMemory()
 
-    const firstActivity = Activity.make({
+    const firstAction = Action.make({
       name: "first",
       success: Schema.String,
       tier: "sealed",
@@ -52,7 +52,7 @@ describe("deterministic replay", () => {
         return "first-result"
       })
     })
-    const frontierActivity = Activity.make({
+    const frontierAction = Action.make({
       name: "frontier",
       success: Schema.String,
       tier: "sealed",
@@ -64,11 +64,11 @@ describe("deterministic replay", () => {
     })
     const handler = () =>
       Effect.gen(function*() {
-        const first = yield* firstActivity
+        const first = yield* firstAction
         decisions.push(`before:${first}`)
         const winner = yield* DurableDeferred.await(gate)
         decisions.push(`winner:${winner}`)
-        const frontier = yield* frontierActivity
+        const frontier = yield* frontierAction
         return `${first}/${winner}/${frontier}`
       })
 

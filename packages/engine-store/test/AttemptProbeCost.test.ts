@@ -1,6 +1,6 @@
 import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 /**
- * Pins issue #77: probing the surviving attempts for an activity key must
+ * Pins issue #77: probing the surviving attempts for an action key must
  * not cost up to 32 sequential `AttemptStore.get` point reads per fresh
  * dispatch (doubled when the policy declares `expirationMs`). Over SQL
  * durable state the probe is one `attemptSurvivors` range read, so the
@@ -8,7 +8,7 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * regression reappears as dozens of gets and fails the bound.
  */
 import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
-import { Activity, Flow, RetryPolicy } from "@smthrs/flow-next"
+import { Action, Flow, RetryPolicy } from "@smthrs/flow-next"
 import { SqlJournal } from "@smthrs/journal-next"
 import { Jj } from "@smthrs/kernel-next"
 import { Node } from "@smthrs/plan-next"
@@ -44,9 +44,9 @@ const jj = Jj.make({
 })
 
 describe("attempt probe cost over SQL durable state (issue #77)", () => {
-  it("a fresh activity with an expirationMs policy dispatches without per-attempt point-read scans", async () => {
+  it("a fresh action with an expirationMs policy dispatches without per-attempt point-read scans", async () => {
     let dispatches = 0
-    const steady = Activity.make({
+    const steady = Action.make({
       name: "steady",
       success: Schema.String,
       error: Schema.String,

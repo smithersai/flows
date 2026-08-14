@@ -2,7 +2,7 @@
 
 Smithers Flows is an Effect-based durable-execution engine: typed flows that record every side effect to a journal, so a crashed process resumes from its recorded steps instead of starting over.
 
-You declare an activity once with Schema-typed payload, success, and error, attach its implementation as a layer, and write a flow whose pure body names it. The engine persists run state in SQLite through the journal, computes a content-addressed key for each activity, and stores each attempt's encoded result. When a process restarts, it claims the run, re-plans the flow and drives it from the top, and replays every recorded step; the first step without a record is where new work happens. A capability kernel bounds what flow code can reach on the host, read-only sync streams journal entries to followers, and time travel forks and rewinds run history.
+You declare an action once with Schema-typed payload, success, and error, attach its implementation as a layer, and write a flow whose pure body names it. The engine persists run state in SQLite through the journal, computes a content-addressed key for each action, and stores each attempt's encoded result. When a process restarts, it claims the run, re-plans the flow and drives it from the top, and replays every recorded step; the first step without a record is where new work happens. A capability kernel bounds what flow code can reach on the host, read-only sync streams journal entries to followers, and time travel forks and rewinds run history.
 
 ## Quick start
 
@@ -15,13 +15,13 @@ npm install @smthrs/flow-next @smthrs/engine-next effect
 ```ts
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
 import { FlowEngine } from "@smthrs/engine-next"
-import { Activity, Flow, Interpreter } from "@smthrs/flow-next"
+import { Action, Flow, Interpreter } from "@smthrs/flow-next"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 
 // The atom that does the work: schemas and a tag, no code.
-export const Greet = Activity.make("example/Greet", {
+export const Greet = Action.make("example/Greet", {
   payload: { name: Schema.String },
   success: Schema.String
 })
@@ -38,7 +38,7 @@ const GreetingLayer = Layer.mergeAll(
   Greet.toLayer(({ name }) => Effect.succeed(`Hello, ${name}.`)),
   Interpreter.layer(Greeting)
 ).pipe(
-  Layer.provideMerge(Activity.layerImplementations),
+  Layer.provideMerge(Action.layerImplementations),
   Layer.provideMerge(FlowEngine.layerMemory),
   Layer.provideMerge(NodeCrypto.layer)
 )
@@ -88,7 +88,7 @@ That engine keeps its state in the process. To survive a crash, drive the same f
 | `@smthrs/keys-next` | canonical flow keys |
 | `@smthrs/plan-next` | the keyed action graph, its authoring AST, its append-only store, and its diff |
 | `@smthrs/artifacts-next` | the content-addressed artifact store, local and remote |
-| `@smthrs/flow-next` | flow definitions, activities, durable primitives, retry policy |
+| `@smthrs/flow-next` | flow definitions, actions, durable primitives, retry policy |
 | `@smthrs/engine-next` | the engine that executes them, plus the RPC and HTTP façades |
 | `@smthrs/engine-store-next` | the durable engine: claims, fences, and persists runs over the journal |
 | `@smthrs/sync-next` | read-only journal replication for followers |

@@ -57,7 +57,7 @@ Three properties matter to callers:
 - **Only storage work belongs inside.** The transaction is held for its whole body: no flow bodies, host calls, or `flush` (which waits on the lossy writer and would deadlock against the open transaction).
 - **Nesting is a savepoint.** An inner `transact` defers its settlements to the outermost commit.
 
-A crash before COMMIT still loses the whole unit, so work that had already run — an activity body, for instance — re-executes on the next drive. And no local transaction makes a remote effect atomic, so external effects still need idempotency keys, fencing tokens, or compensation.
+A crash before COMMIT still loses the whole unit, so work that had already run — an action body, for instance — re-executes on the next drive. And no local transaction makes a remote effect atomic, so external effects still need idempotency keys, fencing tokens, or compensation.
 
 Stated deviation from smithers (`packages/db/src/adapter.js`), which allocates under `BEGIN IMMEDIATE`: the SQLite backends we ship give Effect's SQL client no `beginTransaction` hook, so `DurableWriter.write` opens the default DEFERRED transaction. The floor read holds a shared lock and the INSERT upgrades it; under WAL a concurrent writer makes that upgrade fail `SQLITE_BUSY_SNAPSHOT`, which the database package classifies as retryable and replays the whole transaction — floor read included — against the committed snapshot. Allocation is therefore conflict-free by retry, not by lock escalation, and `packages/journal/test/JournalDurable.test.ts` proves it with two connections writing one run concurrently and with a cold-restart floor case.
 

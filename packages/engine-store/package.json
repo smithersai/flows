@@ -3,7 +3,7 @@
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
-  "description": "Effect services for durable engine activity persistence and replay boundaries",
+  "description": "Effect services for durable engine action persistence and replay boundaries",
   "homepage": "https://github.com/smithersai/flows",
   "repository": {
     "type": "git",

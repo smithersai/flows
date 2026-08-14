@@ -58,8 +58,8 @@ These are the behaviors that have to be exercised against real implementations, 
 | `@smthrs/keys-next` | 2 | canonical flow keys and rejected inputs |
 | `@smthrs/plan-next` | 6 | the step-key compiler and its collision cases, plan compilation, conflict annotation and append, the append-only store, the node AST, planned-value refusals, build refusals |
 | `@smthrs/artifacts-next` | 5 | the store contract, the memory and filesystem implementations, the combined tier, and the remote client |
-| `@smthrs/flow-next` | 12 | flow definitions, execution ids, results, suspension, activity combinators and retry pinning, deferreds, clocks, queues, retry policy data, step identity |
-| `@smthrs/engine-next` | 18 | activity identity and keys, ordinal stability, keyless concurrency, tiers, durable attempt resume, the memory engine, retry decisions, proxies |
+| `@smthrs/flow-next` | 12 | flow definitions, execution ids, results, suspension, action combinators and retry pinning, deferreds, clocks, queues, retry policy data, step identity |
+| `@smthrs/engine-next` | 18 | action identity and keys, ordinal stability, keyless concurrency, tiers, durable attempt resume, the memory engine, retry decisions, proxies |
 | `@smthrs/engine-store-next` | 61 | the durability matrix: ownership, adoption, sweeps, parking, cancellation, cycles, attempt persistence, cache admission, boundaries, WAL atomicity, fault matrix |
 | `@smthrs/sync-next` | 20 | protocol, server paging and workspace merge, client cursors and gaps, transport faults, branch commands, presence, share, projection, convergence |
 | `@smthrs/time-travel-next` | 21 | the `TimeTravel` service surface, replay, fork and its lineage, rewind with claims, concurrency and rollback, truncation, compensation, recovery, both stores |

@@ -7,19 +7,19 @@
  * the boundary loudly at build time: a recursive `.call()`, and a placement the
  * caller cannot satisfy. Both refusals and the boundary they point at are here.
  */
-import { Activity, DurableDeferred, Flow, FlowRuntime, Graph, Interpreter } from "@smthrs/flow-next"
+import { Action, DurableDeferred, Flow, FlowRuntime, Graph, Interpreter } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Effect, Exit, Layer, Option, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { runPromise } from "./Crypto.ts"
 import { layerMemory, makeInstance } from "./MemoryFlowRuntime.ts"
 
-const Bump = Activity.make("child/bump", {
+const Bump = Action.make("child/bump", {
   payload: { value: Schema.Number },
   success: Schema.Number
 })
 
-/** The activity invocations one case saw, in dispatch order. */
+/** The action invocations one case saw, in dispatch order. */
 const calls: Array<string> = []
 
 const bumps = Bump.toLayer(({ value }) =>
@@ -48,12 +48,12 @@ const node = (graph: Graph.Graph, id: string): Graph.GraphNode =>
   Graph.nodes(graph).find((observed) => observed.id === id)!
 
 const wired = (
-  registration: Layer.Layer<never, never, FlowRuntime.FlowRuntime | Activity.Implementations>
+  registration: Layer.Layer<never, never, FlowRuntime.FlowRuntime | Action.Implementations>
 ): Layer.Layer<
-  Layer.Success<typeof bumps> | FlowRuntime.FlowRuntime | Activity.Implementations
+  Layer.Success<typeof bumps> | FlowRuntime.FlowRuntime | Action.Implementations
 > =>
   Layer.merge(bumps, registration).pipe(
-    Layer.provideMerge(Activity.layerImplementations),
+    Layer.provideMerge(Action.layerImplementations),
     Layer.provideMerge(layerMemory)
   )
 
@@ -278,14 +278,14 @@ describe("the interpreter drives a child boundary as a real execution", () => {
 
     // The derived id is the whole mechanism: the second drive re-derives it and
     // lands on the child execution that already exists rather than opening a
-    // second copy of it, so the callee's one activity ran once.
+    // second copy of it, so the callee's one action ran once.
     expect(replay).toEqual([50, 50])
     expect(calls).toEqual(["bump:4"])
   })
 
   it("suspends the parent while the child is suspended, and completes it when the child does", async () => {
     const Gate = DurableDeferred.make("child/gate", { success: Schema.Number })
-    const Await = Activity.make("child/await", { payload: {}, success: Schema.Number })
+    const Await = Action.make("child/await", { payload: {}, success: Schema.Number })
     const Gated = Flow.make("child/gated", {
       payload: {},
       success: Schema.Number,
@@ -301,7 +301,7 @@ describe("the interpreter drives a child boundary as a real execution", () => {
       Interpreter.layer(Gated),
       Interpreter.layer(Waiting)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations),
+      Layer.provideMerge(Action.layerImplementations),
       Layer.provideMerge(layerMemory)
     )
     const settled = await runPromise(

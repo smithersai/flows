@@ -3,7 +3,7 @@
 /**
  * The execution contract flow authoring APIs are written against.
  *
- * `FlowRuntime` is the port: the smallest service a `Flow`, an `Activity`, a
+ * `FlowRuntime` is the port: the smallest service a `Flow`, an `Action`, a
  * `DurableDeferred`, or a `DurableClock` needs in order to be executed,
  * polled, suspended, and resumed. `@smthrs/flow-next` declares it and depends on
  * nothing that implements it; `@smthrs/engine-next` supplies the implementation,
@@ -11,7 +11,7 @@
  *
  * Every method here takes a flow whatever its requirement channel says, and
  * demands none of it. The channel is a compile-time statement about which
- * activity implementations a body names, and this port is below the place that
+ * action implementations a body names, and this port is below the place that
  * statement is settled: a runtime resolves each call by the tag the node
  * carries, which is the only thing left of a plan read back out of a journal.
  * `Flow.execute` — written against this port, one level up — is where the
@@ -28,7 +28,7 @@ import type * as Exit from "effect/Exit"
 import type * as Option from "effect/Option"
 import type * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
-import type * as Activity from "../Activity/index.ts"
+import type * as Action from "../Action/index.ts"
 import type { DurableClock } from "../DurableClock.ts"
 import type * as DurableDeferred from "../DurableDeferred.ts"
 import type * as Flow from "../Flow/index.ts"
@@ -38,7 +38,7 @@ import type { FlowInstance } from "./FlowInstance.ts"
 
 /**
  * Service that represents a flow runtime, responsible for registering and
- * executing flows and coordinating activities, durable deferreds,
+ * executing flows and coordinating actions, durable deferreds,
  * interrupts, resumes, and clocks.
  *
  * @category services
@@ -156,14 +156,14 @@ export class FlowRuntime extends Context.Service<
     ) => Effect.Effect<void>
 
     /**
-     * Execute an activity from a flow.
+     * Execute an action from a flow.
      */
-    readonly activityExecute: <
+    readonly actionExecute: <
       Success extends Schema.Constraint,
       Error extends Schema.Constraint,
       R
     >(
-      activity: Activity.Activity<Success, Error, R>,
+      action: Action.Action<Success, Error, R>,
       attempt: number
     ) => Effect.Effect<
       Flow.Result<Success["Type"], Error["Type"]>,

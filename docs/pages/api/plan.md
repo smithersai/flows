@@ -16,7 +16,7 @@ const plan = yield* Plan.compile({
       material: {
         version: "flows/key-material/v1",
         kind: "sealed",
-        body: { activity: "read-pr", pr: 4821 },
+        body: { action: "read-pr", pr: 4821 },
         inputs: [],
         layers: [],
         capabilities: ["net:get"]
@@ -28,7 +28,7 @@ const plan = yield* Plan.compile({
       material: {
         version: "flows/key-material/v1",
         kind: "sealed",
-        body: { activity: "run-tests" },
+        body: { action: "run-tests" },
         inputs: [{ _tag: "Ref", from: "read-pr", path: [] }],
         layers: [],
         capabilities: []

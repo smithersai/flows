@@ -1,6 +1,6 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
-import { Activity, DurableDeferred, Flow, Interpreter } from "@smthrs/flow-next"
+import { Action, DurableDeferred, Flow, Interpreter } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Effect, Fiber, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
@@ -48,7 +48,7 @@ describe("FlowProxy", () => {
 
   effect("polling fallback wakes a suspended flow under TestClock", () => {
     const signal = DurableDeferred.make("FlowProxy/poll-signal", { success: Schema.Number })
-    const suspendedActivityDeclaration = Activity.make("FlowProxy/suspended/activity", {
+    const suspendedActionDeclaration = Action.make("FlowProxy/suspended/action", {
       payload: { id: Schema.String },
       success: Schema.Number
     })
@@ -56,13 +56,13 @@ describe("FlowProxy", () => {
       payload: { id: Schema.String },
       success: Schema.Number,
       idempotencyKey: ({ id }) => id,
-      body: (payload) => suspendedActivityDeclaration.call(payload)
+      body: (payload) => suspendedActionDeclaration.call(payload)
     })
     const layer = Layer.mergeAll(
-      suspendedActivityDeclaration.toLayer(() => DurableDeferred.await(signal)),
+      suspendedActionDeclaration.toLayer(() => DurableDeferred.await(signal)),
       Interpreter.layer(suspended)
     ).pipe(
-      Layer.provideMerge(Activity.layerImplementations)
+      Layer.provideMerge(Action.layerImplementations)
     ).pipe(
       Layer.provideMerge(FlowEngine.layerMemory)
     )

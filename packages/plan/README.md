@@ -21,7 +21,7 @@ const plan = yield* Plan.compile({
       material: {
         version: "flows/key-material/v1",
         kind: "sealed",
-        body: { activity: "read-pr", pr: 4821 },
+        body: { action: "read-pr", pr: 4821 },
         inputs: [],
         layers: [],
         capabilities: ["net:get"]
@@ -33,7 +33,7 @@ const plan = yield* Plan.compile({
       material: {
         version: "flows/key-material/v1",
         kind: "sealed",
-        body: { activity: "run-tests" },
+        body: { action: "run-tests" },
         inputs: [{ _tag: "Ref", from: "read-pr", path: [] }],
         layers: [],
         capabilities: []
@@ -64,7 +64,7 @@ yield* store.record(plan, Date.now())
 `R`, and carries it as a phantom: no combinator here reads it, and the AST, the
 graph, the key material, and every digest are identical whatever it says.
 Building a plan therefore asks for no service at all. What fills the channel is
-a call to something whose code lives elsewhere — an activity — so a plan's type
+a call to something whose code lives elsewhere — an action — so a plan's type
 states which implementations running it will need, and the place that runs it
 (`Flow.execute`, in `@smthrs/flow-next`) is where the compiler asks for them.
 Each combinator unions its parts: `all` over its members, `map` and `andThen`

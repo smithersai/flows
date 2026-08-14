@@ -1,7 +1,7 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 /**
- * The host snapshot boundary compensable activities are executed against.
+ * The host snapshot boundary compensable actions are executed against.
  *
  * @since 0.1.0
  */
@@ -10,7 +10,7 @@ import * as Context from "effect/Context"
 import type * as Effect from "effect/Effect"
 
 /**
- * Context passed to a compensable activity snapshot boundary.
+ * Context passed to a compensable action snapshot boundary.
  *
  * @category models
  * @since 0.1.0
@@ -24,7 +24,7 @@ export interface SnapshotBoundaryOptions {
 }
 
 /**
- * Minimal host snapshot boundary required by compensable activities.
+ * Minimal host snapshot boundary required by compensable actions.
  *
  * TODO(piece-6): bind to @smthrs/kernel-next Jj in @smthrs/engine-store-next.
  *

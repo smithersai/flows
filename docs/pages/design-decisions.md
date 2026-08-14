@@ -4,27 +4,27 @@ Why the engine looks the way it does. Each entry states the decision, the altern
 
 ## D1. Durable execution stays application-neutral
 
-Flow payloads, activity inputs, and journal events are application-defined values. The journal envelope is an open `eventType` plus a `payload`, and the engine writes its own events into that same open space.
+Flow payloads, action inputs, and journal events are application-defined values. The journal envelope is an open `eventType` plus a `payload`, and the engine writes its own events into that same open space.
 
 The alternative was a closed union of engine event types with application events pushed into a side channel. That reads better in a type signature and makes the engine unembeddable in anything that wants its own vocabulary.
 
 Cost: no exhaustive match over event types, and consumers filter on strings. `event_type` is indexed for exactly that reason.
 
-## D2. Flow bodies replay, activities record effects
+## D2. Flow bodies replay, actions record effects
 
-A resume re-enters the registered handler from the top. Application effects have to cross an `Activity`, `DurableDeferred`, clock, queue, or child-flow boundary to be recorded.
+A resume re-enters the registered handler from the top. Application effects have to cross an `Action`, `DurableDeferred`, clock, queue, or child-flow boundary to be recorded.
 
 The alternative is snapshotting a continuation, which is what a language-level durable runtime does. That needs either a custom interpreter or serializable stacks, and neither is available to a library that wants to be an ordinary Effect dependency.
 
-Cost: local computation between boundaries must be deterministic. `Date.now()`, unseeded randomness, global mutable state, unordered external reads, and inline environment reads are all unsafe in a flow body. Activity outputs may be nondeterministic, because the encoded exit is what gets recorded.
+Cost: local computation between boundaries must be deterministic. `Date.now()`, unseeded randomness, global mutable state, unordered external reads, and inline environment reads are all unsafe in a flow body. Action outputs may be nondeterministic, because the encoded exit is what gets recorded.
 
 ## D3. Key computation sits above storage
 
-`@smthrs/engine-next` computes a cache key or an invocation key before it calls `FlowEngine.Encoded.activityExecute`. The memory engine and the durable engine receive the same identity.
+`@smthrs/engine-next` computes a cache key or an invocation key before it calls `FlowEngine.Encoded.actionExecute`. The memory engine and the durable engine receive the same identity.
 
 The alternative was letting each engine derive identity from its own storage addresses, which produces two key policies that drift.
 
-Cost: caller-owned object identities can be wrong. String identities are namespaced by the activity name and schemas, so renaming an activity or changing its schemas invalidates reuse. A missing complete cache environment scopes the key to the current execution.
+Cost: caller-owned object identities can be wrong. String identities are namespaced by the action name and schemas, so renaming an action or changing its schemas invalidates reuse. A missing complete cache environment scopes the key to the current execution.
 
 ## D4. Cache admission requires evidence, not just a key
 
@@ -52,7 +52,7 @@ This was the review's release blocker. At the time of the review, `attempts.fini
 
 The third posture was rejected on the grounds that time travel and journal-backed sync are two of the four things this library is launched on, and shipping them with a documented hole invites the first public reviewer to re-litigate the same finding. The fix was to widen a transaction boundary rather than invent one, since `SqlJournal.emitDurable` was already internally transactional. Eight state-and-entry pairs are now closed inside `Journal.transact`.
 
-Cost: the unit is all-or-nothing, so a crash before COMMIT loses the whole unit and an activity body that had already run re-executes on the next drive. Temporal makes the same trade when it submits mutable state and its event batches as one persistence request. Nothing that is not storage work may run inside the transaction, which rules out flow bodies, host calls, jj snapshots, boundary prepare and settle, and the lossy `flush`. And a local commit is still not remote atomicity.
+Cost: the unit is all-or-nothing, so a crash before COMMIT loses the whole unit and an action body that had already run re-executes on the next drive. Temporal makes the same trade when it submits mutable state and its event batches as one persistence request. Nothing that is not storage work may run inside the transaction, which rules out flow bodies, host calls, jj snapshots, boundary prepare and settle, and the lossy `flush`. And a local commit is still not remote atomicity.
 
 ## D7. One owner drives a run
 
@@ -68,7 +68,7 @@ The implemented tiers are sealed, compensable, and irreversible. Sealed work may
 
 The alternative considered was a graph-wide policy of halt, quarantine, or continue. It is not part of the current API.
 
-Cost: failure handling is per-activity. There is no way to say that one failing branch should quarantine the run while another continues.
+Cost: failure handling is per-action. There is no way to say that one failing branch should quarantine the run while another continues.
 
 ## D9. Time travel is a separate protocol
 

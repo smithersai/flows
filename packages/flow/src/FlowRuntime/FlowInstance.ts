@@ -18,13 +18,13 @@ import type { WaitingAnnotation } from "./WaitingAnnotation.ts"
  * **When to use**
  *
  * Use to read or update flow execution, suspension, interruption,
- * lifetime, failure, and activity coordination state inside flow authoring
+ * lifetime, failure, and action coordination state inside flow authoring
  * combinators and runtime implementations.
  *
  * **Details**
  *
  * The service stores the execution ID, flow definition, long-lived scope,
- * suspension and interruption flags, the stored failure cause, and activity
+ * suspension and interruption flags, the stored failure cause, and action
  * coordination state for a single flow run. `@smthrs/flow-next` declares the
  * contract; a runtime — `@smthrs/engine-next` — constructs the value.
  *
@@ -100,7 +100,7 @@ export class FlowInstance extends Context.Service<
      */
     cause: Cause.Cause<never> | undefined
 
-    readonly activityState: {
+    readonly actionState: {
       count: number
       readonly latch: Latch.Latch
       readonly nextOrdinal: (scope: string) => number

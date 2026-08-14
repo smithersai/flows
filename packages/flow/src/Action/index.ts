@@ -1,11 +1,11 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 /**
- * Durable activities, identity, boundaries, retries, and runtime context.
+ * Durable actions, identity, boundaries, retries, and runtime context.
  *
  * @since 4.0.0
  */
-export * from "./Activity.ts"
+export * from "./Action.ts"
 export * from "./BoundaryMode.ts"
 export * from "./CacheEnvironment.ts"
 export * from "./Context.ts"

@@ -1,16 +1,16 @@
 # @smthrs/flows-next
 
-The umbrella barrel. It re-exports the engine packages as namespaces, so one dependency gives you the whole surface without collapsing each package's `make` / `makeNoop` / `layerNoop` trio into a shared namespace. There are two exceptions: `@smthrs/flow-next`'s authoring model is re-exported flat, so `Flow`, `Activity`, and their siblings sit at the top level, and `@smthrs/time-travel-next` contributes the `TimeTravel` *service key* flat rather than a namespace, so `yield* TimeTravel` is the whole onboarding and `TimeTravel.layer` provides it.
+The umbrella barrel. It re-exports the engine packages as namespaces, so one dependency gives you the whole surface without collapsing each package's `make` / `makeNoop` / `layerNoop` trio into a shared namespace. There are two exceptions: `@smthrs/flow-next`'s authoring model is re-exported flat, so `Flow`, `Action`, and their siblings sit at the top level, and `@smthrs/time-travel-next` contributes the `TimeTravel` *service key* flat rather than a namespace, so `yield* TimeTravel` is the whole onboarding and `TimeTravel.layer` provides it.
 
 The `@smthrs/platform-*` bundles are deliberately absent, for the same reason `effect`'s index does not re-export `@effect/platform-node`: a platform bundle is chosen by the program that runs, not by the library it depends on. Import [`@smthrs/platform-node-next`](/api/platform-node), [`@smthrs/platform-bun-next`](/api/platform-bun), or [`@smthrs/platform-browser-next`](/api/platform-browser) directly.
 
 ```ts
-import { Activity, Flow, Kernel, RunStore } from "@smthrs/flows-next"
+import { Action, Flow, Kernel, RunStore } from "@smthrs/flows-next"
 import * as Schema from "effect/Schema"
 
 const jj = Kernel.Jj.layerNoop({})
 const runs = RunStore.RunStore.layer
-const Compile = Activity.make("example/Compile", {
+const Compile = Action.make("example/Compile", {
   payload: { target: Schema.String },
   success: Schema.String
 })
@@ -38,7 +38,7 @@ This entry point bundles for the browser: it re-exports only package roots, each
 | `Crypto` | `@smthrs/crypto-next` | [Crypto](/api/crypto) |
 | `Database` | `@smthrs/database-next` | [Database](/api/database) |
 | `Engine` | `@smthrs/engine-next` | [Engine](/api/engine) |
-| `Activity`, `DurableClock`, `DurableDeferred`, `DurableQueue`, `Flow`, `FlowRuntime`, `RetryPolicy`, `StepIdentity` | `@smthrs/flow-next` (re-exported flat) | [Flow](/api/flow) |
+| `Action`, `DurableClock`, `DurableDeferred`, `DurableQueue`, `Flow`, `FlowRuntime`, `RetryPolicy`, `StepIdentity` | `@smthrs/flow-next` (re-exported flat) | [Flow](/api/flow) |
 | `EngineStore` | `@smthrs/engine-store-next` | [EngineStore](/api/engine-store) |
 | `Jj` | `@smthrs/jj-next` | [Jj](/api/jj) |
 | `Journal` | `@smthrs/journal-next` | [Journal](/api/journal) |

@@ -23,7 +23,7 @@ import type * as Scope from "effect/Scope"
 import * as DurableEngineState from "../DurableEngineState.ts"
 import { RunState } from "../RunState.ts"
 import * as WakeBus from "../WakeBus.ts"
-import * as ActivityPersistence from "./ActivityPersistence.ts"
+import * as ActionPersistence from "./ActionPersistence.ts"
 import * as EffectRecords from "./EffectRecords.ts"
 import * as JournalRecords from "./JournalRecords.ts"
 import * as RunCoordinator from "./RunCoordinator.ts"
@@ -851,13 +851,13 @@ export const make = (
         // Corrupt evidence on a SUCCEEDED attempt row is an operator-visible
         // event, not a terminal run failure (issue #171): the row cannot be
         // evicted and re-executed like a corrupt cache row (#164) without
-        // breaking exactly-once. ActivityPersistence has already journalled
+        // breaking exactly-once. ActionPersistence has already journalled
         // the corruption and quarantined only its boundary evidence off the
         // row. Park this first strict detection so it remains visible; the
         // next explicit resume returns the durable outcome without replaying
-        // the poison or re-executing the activity.
+        // the poison or re-executing the action.
         const quarantine = result._tag === "Complete" && Exit.isFailure(result.exit)
-          ? ActivityPersistence.evidenceQuarantined(result.exit.cause)
+          ? ActionPersistence.evidenceQuarantined(result.exit.cause)
           : undefined
         if (quarantine !== undefined) {
           yield* engineState.park(
@@ -970,7 +970,7 @@ export const make = (
      * re-executing the flow.
      *
      * The same sweep reclaims interrupt-released runs (issue #39): a run
-     * parked with reason `released` was interrupted mid-activity by shutdown
+     * parked with reason `released` was interrupted mid-action by shutdown
      * or a heartbeat self-interrupt, has no pending clock and no completed
      * deferred, and would otherwise never be re-driven. Waking it re-enters
      * the ordinary claim/activate path, which also delivers any pending

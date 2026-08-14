@@ -1,7 +1,7 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 /**
- * Retries effects while preserving durable activity identity.
+ * Retries effects while preserving durable action identity.
  *
  * @since 4.0.0
  */
@@ -37,7 +37,7 @@ export const retry: {
       // outermost slot keeps every pin alive for the whole outer sequence.
       const enclosing = yield* CurrentOrdinal
       // One `values` map for the whole retry sequence: the engine fills each
-      // activity's scope with the ordinal it allocates on the first attempt,
+      // action's scope with the ordinal it allocates on the first attempt,
       // and every later attempt of the same sequence reuses those ordinals
       // (issues #73, #84). The `cursors` map, however, is *per block*
       // (issue #116): #108 shared the enclosing block's mutable cursor map

@@ -26,7 +26,7 @@ export const idempotencyKey: (
     readonly parentScope?: string | undefined
   } | undefined
 ) => Effect.Effect<string, never, FlowInstance | Crypto.Crypto> =
-  // Untraced because activity-key allocation is on every activity attempt.
+  // Untraced because action-key allocation is on every action attempt.
   Effect.fnUntraced(function*(_name: string, options?: {
     readonly includeAttempt?: boolean | undefined
     readonly parentScope?: string | undefined
@@ -56,7 +56,7 @@ export const idempotencyKey: (
       name: "idempotency",
       idempotency: parentScope
     }).pipe(Effect.orDie)
-    const ordinal = instance.activityState.nextOrdinal(scope)
+    const ordinal = instance.actionState.nextOrdinal(scope)
     return yield* StepIdentity.invocationKey({
       runId: instance.executionId,
       ordinal,

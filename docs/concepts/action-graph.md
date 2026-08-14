@@ -17,30 +17,30 @@ const program = Effect.gen(function*() {
 })
 ```
 
-Sequencing creates dependency edges. `Effect.all` exposes independent branches. `Activity.raceAll` and `DurableDeferred.raceAll` create a persisted race result. Calling another flow creates a child execution dependency.
+Sequencing creates dependency edges. `Effect.all` exposes independent branches. `Action.raceAll` and `DurableDeferred.raceAll` create a persisted race result. Calling another flow creates a child execution dependency.
 
 The graph is therefore explicit in the Effect program but discovered dynamically as the handler runs. There is no public `Node` or static graph value in this repository.
 
 ## The Bazel-like action boundary
 
-An activity has the pieces of an action:
+An `Action` carries every piece a Bazel action does:
 
 | Action property | Current representation |
 | --- | --- |
-| caller identity | string or canonical JSON object in `Activity.idempotencyKey` |
-| runtime layers | `Activity.CacheEnvironment.layers` |
-| authority | `Activity.CacheEnvironment.capabilities` |
-| declared reads/writes | activity `metadata` decoded as `FileBoundary` |
-| output | schema-encoded activity exit and optional `BoundaryEvidence.declaredOutputs` |
+| caller identity | string or canonical JSON object in `Action.idempotencyKey` |
+| runtime layers | `Action.CacheEnvironment.layers` |
+| authority | `Action.CacheEnvironment.capabilities` |
+| declared reads/writes | action `metadata` decoded as `FileBoundary` |
+| output | schema-encoded action exit and optional `BoundaryEvidence.declaredOutputs` |
 | cache address | content-derived `Key`, then its SHA-256 digest in `CacheStore` |
 
-A sealed activity is reusable only when it has an idempotency key, a complete cache environment, and sufficient boundary evidence. Other work receives a run-local key and cannot share results across runs.
+A sealed action is reusable only when it has an idempotency key, a complete cache environment, and sufficient boundary evidence. Other work receives a run-local key and cannot share results across runs.
 
 ## Hermeticity is an evidence gate
 
 The derived `Key` identifies an action but does not enforce hermeticity. Cache admission in `@smthrs/engine-store-next` additionally requires:
 
-1. activity tier `sealed`;
+1. action tier `sealed`;
 2. metadata that decodes as `FileBoundary`;
 3. boundary mode `hard`;
 4. successful `prepare` and `settle`;
@@ -73,7 +73,7 @@ Inside one flow body the runtime schedules **fibers**, not a persisted DAG:
 - queue worker concurrency is explicit;
 - run ownership prevents cross-process duplicate drivers.
 
-Above that, `EngineStore.PlanScheduler` drives a **persisted plan**. It walks the graph, admits ready nodes under `steps`/`agents` caps ordered by priority plus one point per round waited, and dispatches each through the same `ActivityPersistence` seam an ordinary activity uses — so the shared cache, the workspace sandbox, attempt rows, and the fenced journal all apply unchanged. Each node settles as `built`, `clean`, `failed`, or `skipped`, and the outcome is journaled.
+Above that, `EngineStore.PlanScheduler` drives a **persisted plan**. It walks the graph, admits ready nodes under `steps`/`agents` caps ordered by priority plus one point per round waited, and dispatches each through the same `ActionPersistence` seam an ordinary action uses — so the shared cache, the workspace sandbox, attempt rows, and the fenced journal all apply unchanged. Each node settles as `built`, `clean`, `failed`, or `skipped`, and the outcome is journaled.
 
 There is still no resource pool, critical-path analysis, or package-defined concurrency ceiling; `aspects.ts`-derived caps are supplied to the scheduler by its caller rather than read by it.
 

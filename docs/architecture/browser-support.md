@@ -25,7 +25,7 @@ These bundle for the browser. A resolution error in any of them fails the build.
 | `@smthrs/journal-next` | The journal, its migration, projections, and redaction, all over `SqlClient` and the `DurableWriter` contract |
 | `@smthrs/run-store-next` | Run and attempt stores, ownership arbitration, and their migration, over the same contracts |
 | `@smthrs/step-cache-next` | The step cache and its migration, over the same contracts, plus the HTTP action-cache client and the two-tier composition |
-| `@smthrs/flow-next` | Flow, activity, durable clock/deferred/queue, retry policy, step identity, and the `FlowRuntime` port |
+| `@smthrs/flow-next` | Flow, action, durable clock/deferred/queue, retry policy, step identity, and the `FlowRuntime` port |
 | `@smthrs/engine-next` | The engine that executes flows: the encoded seam, the in-memory runtime, and the RPC/HTTP façades |
 | `@smthrs/engine-store-next` | The durable engine over the journal. Owner identity — the last `process.pid` and `node:crypto` read — enters through the `OwnerIdentity` service, whose default draws an incarnation number where a host has no process (issue #114) |
 | `@smthrs/flows-next` | The barrel. It re-exports every engine package, so it bundles exactly when they all do |

@@ -11,7 +11,7 @@ import { Jj } from "@smthrs/kernel-next"
 import { type Ownership, RunStore } from "@smthrs/run-store-next"
 import { Effect, Layer } from "effect"
 import { describe, expect, it } from "vitest"
-import * as ActivityPersistence from "../src/internal/ActivityPersistence.ts"
+import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as EffectRecords from "../src/internal/EffectRecords.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
@@ -38,7 +38,7 @@ const boundaries = (entries: ReadonlyArray<{ readonly eventType: string; readonl
 
 const dispatch = (options: {
   readonly runId: string
-  readonly activity: unknown
+  readonly action: unknown
   readonly tier: "sealed" | "irreversible"
   readonly idempotencyKey?: string
   readonly execute: Effect.Effect<unknown, unknown>
@@ -53,14 +53,14 @@ const dispatch = (options: {
       if (claim._tag !== "Claimed") return yield* Effect.die(new Error("claim lost"))
       yield* runs.activate(options.runId, owner, claim.claimedAtMs, snapshot)
       const exit = yield* Effect.exit(
-        ActivityPersistence.make({
+        ActionPersistence.make({
           runId: options.runId,
           owner,
           sourceId: "boundary-test",
           execute: () => options.execute,
           ...(options.idempotencyKey === undefined ? {} : { idempotencyKey: options.idempotencyKey })
         })({
-          activity: options.activity,
+          action: options.action,
           attempt: 1,
           key: `${options.runId}-key`,
           tier: options.tier
@@ -74,10 +74,10 @@ const dispatch = (options: {
   )
 
 describe("effect-boundary records", () => {
-  it("brackets an irreversible dispatch with intended and succeeded, keyed by the activity name", async () => {
+  it("brackets an irreversible dispatch with intended and succeeded, keyed by the action name", async () => {
     const result = await dispatch({
       runId: "boundary-ok",
-      activity: { name: "billing/Charge" },
+      action: { name: "billing/Charge" },
       tier: "irreversible",
       idempotencyKey: "charge-1",
       execute: Effect.succeed("receipt")
@@ -117,22 +117,22 @@ describe("effect-boundary records", () => {
       runId: "boundary-failed",
       // No declared name and no idempotency key: the kind falls back to the
       // constant, which resolves to no handler and therefore blocks a rewind.
-      activity: {},
+      action: {},
       tier: "irreversible",
       execute: Effect.fail("provider refused")
     })
 
     expect(result.exit._tag).toBe("Failure")
     expect(boundaries(result.entries).map((effect) => [effect.kind, effect.status])).toEqual([
-      ["flows/engine-store/activity", "intended"],
-      ["flows/engine-store/activity", "unknown"]
+      ["flows/engine-store/action", "intended"],
+      ["flows/engine-store/action", "unknown"]
     ])
   })
 
   it("writes no boundary record for work that is not tier-3", async () => {
     const result = await dispatch({
       runId: "boundary-sealed",
-      activity: { name: "reports/Read" },
+      action: { name: "reports/Read" },
       tier: "sealed",
       execute: Effect.succeed("read")
     })

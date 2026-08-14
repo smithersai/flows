@@ -18,7 +18,7 @@ import * as Schedule from "effect/Schedule"
 import * as Schema from "effect/Schema"
 import * as Tracer from "effect/Tracer"
 import * as PersistedQueue from "effect/unstable/persistence/PersistedQueue"
-import * as Activity from "./Activity/index.ts"
+import * as Action from "./Action/index.ts"
 import * as DurableDeferred from "./DurableDeferred.ts"
 import type { FlowInstance, FlowRuntime } from "./FlowRuntime/index.ts"
 
@@ -64,7 +64,7 @@ export interface DurableQueue<
  * **Example** (Defining a durable queue with workers)
  *
  * ```ts
- * import { Activity, DurableQueue, Flow, Interpreter } from "@smthrs/flow-next"
+ * import { Action, DurableQueue, Flow, Interpreter } from "@smthrs/flow-next"
  * import { Effect, Layer, Schema } from "effect"
  *
  * // Define a DurableQueue that can be used to derive workers and offer items for
@@ -81,9 +81,9 @@ export interface DurableQueue<
  *   }
  * })
  *
- * // Offering an item is work, so it is a declared Activity: the declaration is
+ * // Offering an item is work, so it is a declared Action: the declaration is
  * // pure data, and the implementation attaches separately.
- * const Offer = Activity.make("MyFlow/offer", {
+ * const Offer = Action.make("MyFlow/offer", {
  *   payload: {
  *     id: Schema.String
  *   }
@@ -112,7 +112,7 @@ export interface DurableQueue<
  * })
  *
  * const MyFlowLayer = Layer.mergeAll(OfferLive, Interpreter.layer(MyFlow)).pipe(
- *   Layer.provideMerge(Activity.layerImplementations)
+ *   Layer.provideMerge(Action.layerImplementations)
  * )
  *
  * // Define a worker layer that can process items from the DurableQueue.
@@ -224,7 +224,7 @@ export const process: <
       name: queueName,
       schema: getQueueSchema(self.payloadSchema)
     })
-    const key = yield* Activity.idempotencyKey(queueName, {
+    const key = yield* Action.idempotencyKey(queueName, {
       parentScope: self.idempotencyKey(payload)
     })
 
