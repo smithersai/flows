@@ -31,8 +31,6 @@ import {
 import { GrantStore } from "./GrantStore.ts"
 import { Workspace } from "./Workspace.ts"
 
-const FileSystemTypeId = "~effect/platform/FileSystem"
-
 const readableOpenFlags: ReadonlySet<EffectFileSystem.OpenFlag> = new Set([
   "r",
   "r+",
@@ -223,84 +221,110 @@ export const layer: Layer.Layer<
         write(value).pipe(Effect.andThen(file.writeAll(buffer)))
       )
     })
+    // `EffectFileSystem.make` brands the implementation with Effect's own
+    // (non-exported) type id. The five operations `make` would derive from
+    // the primitives are overridden below with guarded delegates to the host
+    // implementation, so delegation semantics do not change.
     const guarded: EffectFileSystem.FileSystem = {
-      [FileSystemTypeId]: FileSystemTypeId,
-      access: Effect.fn("FileSystem.access")((value, options) =>
-        read(value).pipe(Effect.andThen(fileSystem.access(normalize(value), options)))
-      ),
-      copy: Effect.fn("FileSystem.copy")((from, to, options) =>
-        readWrite(from, to).pipe(Effect.andThen(fileSystem.copy(normalize(from), normalize(to), options)))
-      ),
-      copyFile: Effect.fn("FileSystem.copyFile")((from, to) =>
-        readWrite(from, to).pipe(Effect.andThen(fileSystem.copyFile(normalize(from), normalize(to))))
-      ),
-      chmod: Effect.fn("FileSystem.chmod")((value, mode) =>
-        write(value).pipe(Effect.andThen(fileSystem.chmod(normalize(value), mode)))
-      ),
-      chown: Effect.fn("FileSystem.chown")((value, uid, gid) =>
-        write(value).pipe(Effect.andThen(fileSystem.chown(normalize(value), uid, gid)))
-      ),
-      glob: Effect.fn("FileSystem.glob")((pattern, options) => {
-        const root = options?.root === undefined ? workspace.root : normalize(options.root)
-        const normalizedPattern = normalizeFrom(root, pattern)
-        return read(normalizedPattern).pipe(
-          Effect.andThen(
-            fileSystem.glob(
-              normalizedPattern,
-              options?.root === undefined ? options : { ...options, root }
+      ...EffectFileSystem.make({
+        access: Effect.fn("FileSystem.access")((value, options) =>
+          read(value).pipe(Effect.andThen(fileSystem.access(normalize(value), options)))
+        ),
+        copy: Effect.fn("FileSystem.copy")((from, to, options) =>
+          readWrite(from, to).pipe(Effect.andThen(fileSystem.copy(normalize(from), normalize(to), options)))
+        ),
+        copyFile: Effect.fn("FileSystem.copyFile")((from, to) =>
+          readWrite(from, to).pipe(Effect.andThen(fileSystem.copyFile(normalize(from), normalize(to))))
+        ),
+        chmod: Effect.fn("FileSystem.chmod")((value, mode) =>
+          write(value).pipe(Effect.andThen(fileSystem.chmod(normalize(value), mode)))
+        ),
+        chown: Effect.fn("FileSystem.chown")((value, uid, gid) =>
+          write(value).pipe(Effect.andThen(fileSystem.chown(normalize(value), uid, gid)))
+        ),
+        glob: Effect.fn("FileSystem.glob")((pattern, options) => {
+          const root = options?.root === undefined ? workspace.root : normalize(options.root)
+          const normalizedPattern = normalizeFrom(root, pattern)
+          return read(normalizedPattern).pipe(
+            Effect.andThen(
+              fileSystem.glob(
+                normalizedPattern,
+                options?.root === undefined ? options : { ...options, root }
+              )
             )
           )
+        }),
+        link: Effect.fn("FileSystem.link")((from, to) =>
+          readWrite(from, to).pipe(Effect.andThen(fileSystem.link(normalize(from), normalize(to))))
+        ),
+        makeDirectory: Effect.fn("FileSystem.makeDirectory")((value, options) =>
+          write(value).pipe(Effect.andThen(fileSystem.makeDirectory(normalize(value), options)))
+        ),
+        makeTempDirectory: Effect.fn("FileSystem.makeTempDirectory")((options) =>
+          temp(options?.directory).pipe(Effect.andThen(fileSystem.makeTempDirectory(normalizeTempOptions(options))))
+        ),
+        makeTempDirectoryScoped: Effect.fn("FileSystem.makeTempDirectoryScoped")((options) =>
+          temp(options?.directory).pipe(
+            Effect.andThen(fileSystem.makeTempDirectoryScoped(normalizeTempOptions(options)))
+          )
+        ),
+        makeTempFile: Effect.fn("FileSystem.makeTempFile")((options) =>
+          temp(options?.directory).pipe(Effect.andThen(fileSystem.makeTempFile(normalizeTempOptions(options))))
+        ),
+        makeTempFileScoped: Effect.fn("FileSystem.makeTempFileScoped")((options) =>
+          temp(options?.directory).pipe(Effect.andThen(fileSystem.makeTempFileScoped(normalizeTempOptions(options))))
+        ),
+        open: Effect.fn("FileSystem.open")((value, options) =>
+          openChecks(value, options?.flag ?? "r").pipe(
+            Effect.andThen(fileSystem.open(normalize(value), options)),
+            Effect.map((file) => wrapFile(file, value))
+          )
+        ),
+        readDirectory: Effect.fn("FileSystem.readDirectory")((value, options) =>
+          read(value).pipe(Effect.andThen(fileSystem.readDirectory(normalize(value), options)))
+        ),
+        readFile: Effect.fn("FileSystem.readFile")((value) =>
+          read(value).pipe(Effect.andThen(fileSystem.readFile(normalize(value))))
+        ),
+        readLink: Effect.fn("FileSystem.readLink")((value) =>
+          read(value).pipe(Effect.andThen(fileSystem.readLink(normalize(value))))
+        ),
+        realPath: Effect.fn("FileSystem.realPath")((value) =>
+          read(value).pipe(Effect.andThen(fileSystem.realPath(normalize(value))))
+        ),
+        remove: Effect.fn("FileSystem.remove")((value, options) =>
+          write(value).pipe(Effect.andThen(fileSystem.remove(normalize(value), options)))
+        ),
+        rename: Effect.fn("FileSystem.rename")((from, to) =>
+          writeWrite(from, to).pipe(Effect.andThen(fileSystem.rename(normalize(from), normalize(to))))
+        ),
+        stat: Effect.fn("FileSystem.stat")((value) =>
+          read(value).pipe(Effect.andThen(fileSystem.stat(normalize(value))))
+        ),
+        symlink: Effect.fn("FileSystem.symlink")((from, to) =>
+          write(to).pipe(Effect.andThen(fileSystem.symlink(from, normalize(to))))
+        ),
+        truncate: Effect.fn("FileSystem.truncate")((value, length) =>
+          write(value).pipe(Effect.andThen(fileSystem.truncate(normalize(value), length)))
+        ),
+        utimes: Effect.fn("FileSystem.utimes")((value, atime, mtime) =>
+          write(value).pipe(Effect.andThen(fileSystem.utimes(normalize(value), atime, mtime)))
+        ),
+        watch: (value) =>
+          Stream.unwrap(
+            Effect.fn("FileSystem.watch")(() =>
+              Effect.suspend(() => read(value).pipe(Effect.map(() => fileSystem.watch(normalize(value)))))
+            )()
+          ),
+        writeFile: Effect.fn("FileSystem.writeFile")((value, data, options) =>
+          write(value).pipe(Effect.andThen(fileSystem.writeFile(normalize(value), data, options)))
         )
       }),
       exists: Effect.fn("FileSystem.exists")((value) =>
         read(value).pipe(Effect.andThen(fileSystem.exists(normalize(value))))
       ),
-      link: Effect.fn("FileSystem.link")((from, to) =>
-        readWrite(from, to).pipe(Effect.andThen(fileSystem.link(normalize(from), normalize(to))))
-      ),
-      makeDirectory: Effect.fn("FileSystem.makeDirectory")((value, options) =>
-        write(value).pipe(Effect.andThen(fileSystem.makeDirectory(normalize(value), options)))
-      ),
-      makeTempDirectory: Effect.fn("FileSystem.makeTempDirectory")((options) =>
-        temp(options?.directory).pipe(Effect.andThen(fileSystem.makeTempDirectory(normalizeTempOptions(options))))
-      ),
-      makeTempDirectoryScoped: Effect.fn("FileSystem.makeTempDirectoryScoped")((options) =>
-        temp(options?.directory).pipe(
-          Effect.andThen(fileSystem.makeTempDirectoryScoped(normalizeTempOptions(options)))
-        )
-      ),
-      makeTempFile: Effect.fn("FileSystem.makeTempFile")((options) =>
-        temp(options?.directory).pipe(Effect.andThen(fileSystem.makeTempFile(normalizeTempOptions(options))))
-      ),
-      makeTempFileScoped: Effect.fn("FileSystem.makeTempFileScoped")((options) =>
-        temp(options?.directory).pipe(Effect.andThen(fileSystem.makeTempFileScoped(normalizeTempOptions(options))))
-      ),
-      open: Effect.fn("FileSystem.open")((value, options) =>
-        openChecks(value, options?.flag ?? "r").pipe(
-          Effect.andThen(fileSystem.open(normalize(value), options)),
-          Effect.map((file) => wrapFile(file, value))
-        )
-      ),
-      readDirectory: Effect.fn("FileSystem.readDirectory")((value, options) =>
-        read(value).pipe(Effect.andThen(fileSystem.readDirectory(normalize(value), options)))
-      ),
-      readFile: Effect.fn("FileSystem.readFile")((value) =>
-        read(value).pipe(Effect.andThen(fileSystem.readFile(normalize(value))))
-      ),
       readFileString: Effect.fn("FileSystem.readFileString")((value, encoding) =>
         read(value).pipe(Effect.andThen(fileSystem.readFileString(normalize(value), encoding)))
-      ),
-      readLink: Effect.fn("FileSystem.readLink")((value) =>
-        read(value).pipe(Effect.andThen(fileSystem.readLink(normalize(value))))
-      ),
-      realPath: Effect.fn("FileSystem.realPath")((value) =>
-        read(value).pipe(Effect.andThen(fileSystem.realPath(normalize(value))))
-      ),
-      remove: Effect.fn("FileSystem.remove")((value, options) =>
-        write(value).pipe(Effect.andThen(fileSystem.remove(normalize(value), options)))
-      ),
-      rename: Effect.fn("FileSystem.rename")((from, to) =>
-        writeWrite(from, to).pipe(Effect.andThen(fileSystem.rename(normalize(from), normalize(to))))
       ),
       sink: (value, options) =>
         Sink.unwrap(
@@ -308,33 +332,12 @@ export const layer: Layer.Layer<
             () => Effect.suspend(() => write(value).pipe(Effect.map(() => fileSystem.sink(normalize(value), options))))
           )()
         ),
-      stat: Effect.fn("FileSystem.stat")((value) =>
-        read(value).pipe(Effect.andThen(fileSystem.stat(normalize(value))))
-      ),
       stream: (value, options) =>
         Stream.unwrap(
           Effect.fn("FileSystem.stream")(() =>
             Effect.suspend(() => read(value).pipe(Effect.map(() => fileSystem.stream(normalize(value), options))))
           )()
         ),
-      symlink: Effect.fn("FileSystem.symlink")((from, to) =>
-        write(to).pipe(Effect.andThen(fileSystem.symlink(from, normalize(to))))
-      ),
-      truncate: Effect.fn("FileSystem.truncate")((value, length) =>
-        write(value).pipe(Effect.andThen(fileSystem.truncate(normalize(value), length)))
-      ),
-      utimes: Effect.fn("FileSystem.utimes")((value, atime, mtime) =>
-        write(value).pipe(Effect.andThen(fileSystem.utimes(normalize(value), atime, mtime)))
-      ),
-      watch: (value) =>
-        Stream.unwrap(
-          Effect.fn("FileSystem.watch")(() =>
-            Effect.suspend(() => read(value).pipe(Effect.map(() => fileSystem.watch(normalize(value)))))
-          )()
-        ),
-      writeFile: Effect.fn("FileSystem.writeFile")((value, data, options) =>
-        write(value).pipe(Effect.andThen(fileSystem.writeFile(normalize(value), data, options)))
-      ),
       writeFileString: Effect.fn("FileSystem.writeFileString")((value, data, options) =>
         write(value).pipe(Effect.andThen(fileSystem.writeFileString(normalize(value), data, options)))
       )
