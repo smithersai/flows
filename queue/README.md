@@ -35,11 +35,12 @@ workflow `queue-driver` (`.smithers/workflows/queue-driver.tsx`, UI at
 `.smithers/ui/queue-driver.tsx`; both untracked). Run it from the repo root:
 
 ```sh
-smithers workflow run queue-driver                      # highest-priority queued item
-smithers workflow run queue-driver --input item=<slug>  # a specific item
+smithers workflow run queue-driver                                # highest-priority queued item
+smithers workflow run queue-driver --input '{"item":"<slug>"}'    # a specific item
 ```
 
-Pass `--input requireApproval=true` to add a human approval gate before
+`--input` takes an inline JSON value. Pass
+`--input '{"requireApproval":true}'` to add a human approval gate before
 landing. One run processes one item: pick flips its `status` to
 `in-progress`, then docs → implement → verify → land run in an isolated
 worktree lane (`.smithers/workflows/.worktrees/queue-<slug>`, branch
