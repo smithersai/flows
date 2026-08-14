@@ -979,16 +979,23 @@ describe("WorkspaceSandbox filesystem host atomicity", () => {
         })
       })
       if (accepted._tag !== "Accepted") throw new Error("expected accepted execution")
-      return yield* Effect.flip(sandbox.materialize(accepted))
+      return yield* Effect.exit(sandbox.materialize(accepted))
     }).pipe(Effect.provide(faultLayer(files, (call) => call === 2 || call === 3)))
 
-    const refused = await runPromise(program)
-    expect(refused).toMatchObject({ code: "host_unavailable" })
-    expect(refused.message).toContain("rollback could not restore")
+    const exit = await runPromise(program)
+    if (exit._tag !== "Failure") throw new Error("expected the materialize to fail")
+    const errors = exit.cause.reasons.filter(Cause.isFailReason).map((reason) => reason.error)
+    // Both failures travel: the refused apply write that opened the window,
+    // then the rollback that could not close it.
+    expect(errors).toHaveLength(2)
+    expect(errors[0]).toMatchObject({ code: "host_unavailable" })
+    const compound = errors[1]
+    expect(compound).toMatchObject({ code: "host_unavailable" })
+    expect(compound!.message).toContain("rollback could not restore")
     // The compound rollback cause carries each refusal whole; the injected
     // device failure is reachable through the nested causes rather than
     // stringified away.
-    const rollback = refused.cause as Cause.Cause<WorkspaceSandbox.WorkspaceError>
+    const rollback = compound!.cause as Cause.Cause<WorkspaceSandbox.WorkspaceError>
     const inner = rollback.reasons.filter(Cause.isFailReason).map((reason) => reason.error.cause)
     expect(
       inner.some((cause) => String((cause as PlatformError.PlatformError).message).includes("injected"))

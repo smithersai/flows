@@ -1399,14 +1399,22 @@ export const makeFileSystem = (
             const reasons = restored.cause.reasons
               .filter(Cause.isFailReason)
               .map((reason) => reason.error.message)
-            return yield* Effect.fail(
-              new WorkspaceError({
-                code: "host_unavailable",
-                message: `copy-back failed mid-apply and rollback could not restore the workspace: ${
-                  reasons.join("; ")
-                }`,
-                cause: restored.cause
-              })
+            // Both failures travel: the apply cause that opened the window and
+            // the rollback cause that could not close it, composed the way
+            // `acquireUseRelease` composes a failed use with a failed release.
+            return yield* Effect.failCause(
+              Cause.combine(
+                cause,
+                Cause.fail(
+                  new WorkspaceError({
+                    code: "host_unavailable",
+                    message: `copy-back failed mid-apply and rollback could not restore the workspace: ${
+                      reasons.join("; ")
+                    }`,
+                    cause: restored.cause
+                  })
+                )
+              )
             )
           })
         ),

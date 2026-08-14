@@ -231,11 +231,14 @@ export const make = <
   tag: Tag,
   options: MakeOptions<Payload, Success, Error> & { readonly body: Body<Payload, Requires> }
 ): Flow<Tag, PayloadSchemaOf<Payload>, Success, Error, Requires> => {
+  // Invalid static configuration is a programmer error thrown at construction,
+  // the same contract as effect's own `ExecutionPlan.make` (which throws on
+  // `attempts <= 0`); `RangeError` matches effect's range-violation throws.
   if (
     options.maxRounds !== undefined &&
     (!Number.isSafeInteger(options.maxRounds) || options.maxRounds < 1)
   ) {
-    throw new RangeError(`Flow "${tag}" maxRounds must be a positive safe integer`)
+    throw new RangeError(`Flow.make: "${tag}" maxRounds must be a positive safe integer`)
   }
   return makeProto<Tag, PayloadSchemaOf<Payload>, Success, Error, Requires>({
     _tag: tag,

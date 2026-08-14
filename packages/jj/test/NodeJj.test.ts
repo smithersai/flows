@@ -148,6 +148,8 @@ describe.skipIf(!jjInstalled)("NodeJj", () => {
       const error = await run(Effect.flip(Effect.flatMap(Jj, (jj) => jj.status())))
       expect(error.code).toBe("not_installed")
       expect(error.message).toBe("jj: command not found on PATH")
+      // The spawn failure travels whole on `cause` rather than flattened away.
+      expect((error.cause as NodeJS.ErrnoException).code).toBe("ENOENT")
     } finally {
       process.env.PATH = path
     }

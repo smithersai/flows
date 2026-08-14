@@ -60,7 +60,9 @@ export class JjError extends Schema.TaggedError<JjError>()("@smthrs/jj-next/JjEr
   method: Schema.optional(Schema.String),
   message: Schema.String,
   /** The jj command that produced the failure, when one was run. */
-  command: Schema.optional(Schema.String)
+  command: Schema.optional(Schema.String),
+  /** The underlying host failure, carried whole rather than flattened away. */
+  cause: Schema.optional(Schema.Unknown)
 }) {}
 
 /**
