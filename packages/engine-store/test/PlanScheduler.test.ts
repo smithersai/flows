@@ -303,6 +303,52 @@ describe("PlanScheduler admission", () => {
     const report = await runPromise(program)
     expect(outcomes(report)).toEqual({ left: "built", right: "built" })
   })
+
+  /**
+   * The reader-after-writer edge, observed where it matters: a node that reads
+   * a path another node writes must not be in the same wavefront round as its
+   * producer, or it measures pre-producer bytes and the dispatch key records
+   * that wrong execution as a legitimate one.
+   *
+   * The trace is read as an interleaving. Each body announces itself, yields,
+   * and announces its end, so two nodes admitted in one round always interleave
+   * and two nodes in different rounds never can. The first assertion is the
+   * control that proves the probe discriminates.
+   */
+  it("never admits a reader in the same round as the node that writes what it reads", async () => {
+    const traced = (runId: string, plan: Plan.Plan) => {
+      const trace: Array<string> = []
+      const executor: PlanScheduler.Executor = {
+        execute: ({ node }) =>
+          Effect.gen(function*() {
+            trace.push(`start:${node.id}`)
+            yield* Effect.yieldNow
+            trace.push(`end:${node.id}`)
+            return node.id
+          })
+      }
+      return Effect.gen(function*() {
+        yield* activate(runId)
+        yield* Effect.provide(scheduler({ runId, executor }).run(plan), harness({ runId, executor }))
+        return trace
+      }).pipe(Effect.provide(TestStores.layer()))
+    }
+
+    const independent = await runPromise(traced(
+      "run-rw-control",
+      await runPromise(compile([draft("writer", { writes: ["shared.out"] }), draft("bystander")]))
+    ))
+    expect(independent).toEqual(["start:writer", "start:bystander", "end:writer", "end:bystander"])
+
+    const ordered = await runPromise(traced(
+      "run-rw-ordered",
+      await runPromise(compile([
+        draft("writer", { writes: ["shared.out"] }),
+        draft("reader", { reads: ["shared.out"], writes: ["reader.out"] })
+      ]))
+    ))
+    expect(ordered).toEqual(["start:writer", "end:writer", "start:reader", "end:reader"])
+  })
 })
 
 const conflict = () =>

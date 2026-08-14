@@ -116,10 +116,12 @@ export type ConflictAnnotation = typeof ConflictAnnotation.Type
 /**
  * A keyed node of the plan.
  *
- * `dependsOn` is the *edge* set: material references plus any ordering edge a
- * `serialize` verdict added. Ordering edges are deliberately NOT part of the
- * key — a node serialized behind another still computes the same result, so
- * re-keying it would throw away a legitimate cache hit.
+ * `dependsOn` is the *edge* set: material references, any ordering edge a
+ * `serialize` verdict added, and the reader-after-writer edges that put a
+ * node behind whoever produces the paths it reads. Ordering edges are
+ * deliberately NOT part of the key — a node ordered behind another still
+ * computes the same result, so re-keying it would throw away a legitimate
+ * cache hit.
  *
  * `strategy` and `runtime` are this declaration's own preferences, recorded so
  * a later elaboration can resolve a pair against them without re-reading the
@@ -230,6 +232,15 @@ const pairRuntime = (left: RuntimeStrategy, right: RuntimeStrategy): RuntimeStra
 const overlap = (left: NodeEffects, right: NodeEffects): ReadonlyArray<string> =>
   left.writes.filter((path) => right.writes.includes(path))
 
+/**
+ * Whether `reader` consumes a path `writer` produces. The conflict pass above
+ * compares writes against writes, so this relation is the one it cannot see.
+ *
+ * @private
+ */
+const readsWhatItWrites = (reader: NodeEffects, writer: NodeEffects): boolean =>
+  reader.reads.some((path) => writer.writes.includes(path))
+
 /** @private */
 type Ordered =
   | { readonly ok: true; readonly drafts: ReadonlyArray<NodeDraft> }
@@ -294,9 +305,16 @@ const reachable = (nodes: ReadonlyArray<PlanNode>): Map<string, Set<string>> => 
 }
 
 /**
- * Detects write overlaps and annotates the conflicting pair, adding the
- * ordering edge a `serialize` verdict implies. Nodes already ordered by a
+ * Two passes over the graph.
+ *
+ * The first detects write overlaps and annotates the conflicting pair, adding
+ * the ordering edge a `serialize` verdict implies. Nodes already ordered by a
  * dependency path are not conflicts.
+ *
+ * The second adds reader-after-writer edges: a node that reads a path another
+ * node writes is ordered behind its producer. That pair is not a conflict —
+ * nothing needs annotating and no strategy applies — it is a missing edge, so
+ * only `dependsOn` grows.
  *
  * Nodes are visited in plan order, so a `serialize` edge always points from
  * the earlier declaration to the later one and can never close a cycle. Nodes
@@ -342,6 +360,56 @@ const annotate = (
           ordering.set(later.id, [...ordering.get(later.id) ?? [], earlier.id])
           closure.get(later.id)!.add(earlier.id)
         }
+      }
+    }
+    // Reader-after-writer. A node that READS a path another node WRITES was
+    // ordered by nothing: the pass above compares write sets against write
+    // sets, so reader and writer could be admitted in the same wavefront
+    // round. The reader then measures pre-producer bytes and — because the
+    // dispatch key honestly folds the digest it measured — caches that wrong
+    // execution as a legitimate one. `PlanScheduler.measure` already assumes
+    // "their producer has settled"; this pass is what makes the assumption
+    // true.
+    //
+    // Ordering only, exactly like a `serialize` edge: it enters `dependsOn`
+    // and never key material, because the reader computes the same result
+    // either way and its content dependence is already keyed by the hermetic
+    // boundary digests measured at dispatch.
+    const edges = new Map(
+      nodes.map((node) => [node.id, new Set([...node.dependsOn, ...ordering.get(node.id) ?? []])])
+    )
+    const reaches = (from: string, to: string): boolean => {
+      const seen = new Set<string>()
+      const stack = [from]
+      while (stack.length > 0) {
+        const current = stack.pop()!
+        if (current === to) return true
+        if (seen.has(current)) continue
+        seen.add(current)
+        /* v8 ignore next -- every id in an edge set names a node of this plan, so the fallback is unreachable */
+        for (const next of edges.get(current) ?? []) stack.push(next)
+      }
+      return false
+    }
+    for (const reader of nodes) {
+      // Append-only: a frozen node's row is never rewritten, so the edge lands
+      // on the new node only — the same rule the conflict pass follows.
+      if (frozen.has(reader.id)) continue
+      for (const writer of nodes) {
+        if (writer.id === reader.id) continue
+        if (!readsWhatItWrites(reader.effects, writer.effects)) continue
+        // Already ordered, by a material edge, a serialize edge, or a path
+        // through either.
+        if (reaches(reader.id, writer.id)) continue
+        // The graph already orders the writer AFTER the reader. A declared
+        // dependency outranks an inferred ordering and the writer-first edge
+        // would close a cycle, so the pair is left as declared. Checking
+        // reachability rather than relying on plan order is the deviation the
+        // vault note records: plan order alone only justifies edges that point
+        // backwards, and writer-first points either way.
+        if (reaches(writer.id, reader.id)) continue
+        ordering.set(reader.id, [...ordering.get(reader.id) ?? [], writer.id])
+        edges.get(reader.id)!.add(writer.id)
       }
     }
     return nodes.map((node) => {

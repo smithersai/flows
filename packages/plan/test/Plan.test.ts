@@ -151,7 +151,125 @@ describe("Plan.compile", () => {
   })
 })
 
+/**
+ * The reader-after-writer pass. Before it existed, `overlap` compared write
+ * sets against write sets only, so a node reading what another node wrote was
+ * ordered by nothing and the wavefront could admit both in the same round —
+ * the reader measuring pre-producer bytes and caching that as legitimate.
+ */
+describe("Plan.compile reader-after-writer edges", () => {
+  const acyclic = (plan: Plan.Plan): boolean => {
+    const order = new Map(plan.nodes.map((node, index) => [node.id, index]))
+    const edges = new Map(plan.nodes.map((node) => [node.id, node.dependsOn]))
+    const state = new Map<string, "visiting" | "done">()
+    const visit = (id: string): boolean => {
+      const mark = state.get(id)
+      if (mark === "done") return true
+      if (mark === "visiting") return false
+      state.set(id, "visiting")
+      for (const next of edges.get(id) ?? []) if (!visit(next)) return false
+      state.set(id, "done")
+      return true
+    }
+    return [...order.keys()].every(visit)
+  }
+
+  it("orders a reader behind the node that writes what it reads", async () => {
+    const unrelated = await runPromise(compile([
+      draft("writer", { writes: ["out"] }),
+      draft("reader", { reads: ["other"] })
+    ]))
+    const plan = await runPromise(compile([
+      draft("writer", { writes: ["out"] }),
+      draft("reader", { reads: ["out"] })
+    ]))
+    const reader = plan.nodes.find((node) => node.id === "reader")!
+    expect(reader.dependsOn).toEqual(["writer"])
+    // An ordering edge, not a conflict: nothing was double-written.
+    expect(plan.nodes.flatMap((node) => node.conflicts)).toEqual([])
+    // And ordering is not key material, so the reader keeps its cache hit.
+    expect(keyOf(plan, "reader")).toBe(keyOf(unrelated, "reader"))
+    expect(keyOf(plan, "writer")).toBe(keyOf(unrelated, "writer"))
+  })
+
+  it("puts the writer first even when the reader was declared first", async () => {
+    const plan = await runPromise(compile([
+      draft("reader", { reads: ["out"] }),
+      draft("writer", { writes: ["out"] })
+    ]))
+    expect(plan.nodes.find((node) => node.id === "reader")!.dependsOn).toEqual(["writer"])
+    expect(acyclic(plan)).toBe(true)
+  })
+
+  it("adds nothing when a dependency path already orders the pair", async () => {
+    const plan = await runPromise(compile([
+      draft("writer", { writes: ["out"] }),
+      draft("middle", { inputs: [{ _tag: "Ref", from: "writer", path: [] }] }),
+      draft("reader", { reads: ["out"], inputs: [{ _tag: "Ref", from: "middle", path: [] }] })
+    ]))
+    expect(plan.nodes.find((node) => node.id === "reader")!.dependsOn).toEqual(["middle"])
+  })
+
+  it("leaves the pair alone rather than closing a cycle", async () => {
+    // The graph already orders the writer AFTER the reader. A declared
+    // dependency outranks an inferred ordering.
+    const plan = await runPromise(compile([
+      draft("reader", { reads: ["out"] }),
+      draft("writer", { writes: ["out"], inputs: [{ _tag: "Ref", from: "reader", path: [] }] })
+    ]))
+    expect(plan.nodes.find((node) => node.id === "reader")!.dependsOn).toEqual([])
+    expect(plan.nodes.find((node) => node.id === "writer")!.dependsOn).toEqual(["reader"])
+    expect(acyclic(plan)).toBe(true)
+  })
+
+  it("never gives a node an edge to itself for reading its own write", async () => {
+    const plan = await runPromise(compile([draft("both", { reads: ["out"], writes: ["out"] })]))
+    expect(plan.nodes[0]!.dependsOn).toEqual([])
+  })
+
+  it("visits a diamond of existing edges once while searching for the pair", async () => {
+    const plan = await runPromise(compile([
+      draft("base"),
+      draft("left", { inputs: [{ _tag: "Ref", from: "base", path: [] }] }),
+      draft("right", { inputs: [{ _tag: "Ref", from: "base", path: [] }] }),
+      draft("writer", { writes: ["out"] }),
+      draft("reader", {
+        reads: ["out"],
+        inputs: [{ _tag: "Ref", from: "left", path: [] }, { _tag: "Ref", from: "right", path: [] }]
+      })
+    ]))
+    expect(plan.nodes.find((node) => node.id === "reader")!.dependsOn).toEqual(["left", "right", "writer"])
+    expect(acyclic(plan)).toBe(true)
+  })
+
+  it("keeps a whole read-write chain acyclic and ordered", async () => {
+    const plan = await runPromise(compile([
+      draft("c", { reads: ["b.out"], writes: ["c.out"] }),
+      draft("a", { writes: ["a.out"] }),
+      draft("b", { reads: ["a.out"], writes: ["b.out"] })
+    ]))
+    expect(acyclic(plan)).toBe(true)
+    expect(plan.nodes.find((node) => node.id === "b")!.dependsOn).toEqual(["a"])
+    expect(plan.nodes.find((node) => node.id === "c")!.dependsOn).toEqual(["b"])
+  })
+})
+
 describe("Plan.append", () => {
+  it("lands a reader-after-writer edge on the new node only", async () => {
+    const base = await runPromise(compile([draft("recorded-reader", { reads: ["out"] })]))
+    const grown = await runPromise(Plan.append(base, [draft("late-writer", { writes: ["out"] })]))
+    // The frozen node's row is never rewritten, so it gains no edge.
+    expect(grown.nodes[0]).toEqual(base.nodes[0])
+    expect(grown.nodes[1]!.dependsOn).toEqual([])
+
+    const writerFirst = await runPromise(compile([draft("recorded-writer", { writes: ["out"] })]))
+    const withReader = await runPromise(
+      Plan.append(writerFirst, [draft("late-reader", { reads: ["out"] })])
+    )
+    expect(withReader.nodes[0]).toEqual(writerFirst.nodes[0])
+    expect(withReader.nodes[1]!.dependsOn).toEqual(["recorded-writer"])
+  })
+
   it("grows the plan without rewriting a single recorded node", async () => {
     const base = await runPromise(compile([draft("root", { writes: ["out"] })]))
     const grown = await runPromise(
