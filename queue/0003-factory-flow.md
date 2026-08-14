@@ -23,3 +23,8 @@ replacing the smithers DDD pack as this repo's operator.
 - The smithers pack's loop (audit → spec update → triage → work → review) is
   the reference implementation; keep its honesty rules (no fake success,
   features stay broken until proven) as flow contracts.
+- Colocated `ui.tsx` beside the flow, per
+  `docs/specs/Specs/File Conventions.md`. Compose shared components; the
+  corrected pattern is the outer repo's `.smithers/ui/ddd-VaultTab.tsx`
+  (composes `smthrs/ui` + the markdown-editor adapter), not the hand-rolled
+  113 KB `ddd-shared.tsx` in the smithers repo.
