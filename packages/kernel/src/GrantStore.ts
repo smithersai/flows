@@ -323,7 +323,7 @@ export const make = (
 
     const nextUnattendedRequestId = Effect.sync(() => `permission-${nextRequestId++}`)
 
-    const check: Service["check"] = Effect.fn("flows/kernel/GrantStore.check")((capability, meta = {}) =>
+    const check: Service["check"] = Effect.fn("GrantStore.check")((capability, meta = {}) =>
       Effect.uninterruptibleMask((restore) =>
         Effect.gen(function*() {
           const entry = yield* mutation.withPermit(
@@ -399,7 +399,7 @@ export const make = (
       ).pipe(Effect.asVoid)
     )
 
-    const reply: Service["reply"] = Effect.fn("flows/kernel/GrantStore.reply")((
+    const reply: Service["reply"] = Effect.fn("GrantStore.reply")((
       requestId,
       resolution,
       suppliedPattern
@@ -512,7 +512,7 @@ export const make = (
       )
     )
 
-    const list: Service["list"] = Effect.fn("flows/kernel/GrantStore.list")(() =>
+    const list: Service["list"] = Effect.fn("GrantStore.list")(() =>
       mutation.withPermit(
         Effect.sync(() =>
           Array.from(
@@ -528,7 +528,7 @@ export const make = (
       )
     )()
 
-    const grantEnvelope: Service["grantEnvelope"] = Effect.fn("flows/kernel/GrantStore.grantEnvelope")((
+    const grantEnvelope: Service["grantEnvelope"] = Effect.fn("GrantStore.grantEnvelope")((
       { patterns, planDigest, scope = "run" }
     ) =>
       Effect.uninterruptible(
@@ -587,10 +587,10 @@ export const layer = (
  * @since 0.1.0
  */
 export const makeNoop: Service = GrantStore.of({
-  check: Effect.fn("flows/kernel/GrantStore.check")(() => Effect.void),
-  reply: Effect.fn("flows/kernel/GrantStore.reply")(() => Effect.void),
-  list: Effect.fn("flows/kernel/GrantStore.list")(() => Effect.succeed([]))(),
-  grantEnvelope: Effect.fn("flows/kernel/GrantStore.grantEnvelope")(() => Effect.void)
+  check: Effect.fn("GrantStore.check")(() => Effect.void),
+  reply: Effect.fn("GrantStore.reply")(() => Effect.void),
+  list: Effect.fn("GrantStore.list")(() => Effect.succeed([]))(),
+  grantEnvelope: Effect.fn("GrantStore.grantEnvelope")(() => Effect.void)
 })
 
 /**

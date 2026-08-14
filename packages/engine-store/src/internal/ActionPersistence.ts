@@ -824,6 +824,7 @@ export const make = (deps: Dependencies) => {
                     }
                   }
                   if (Exit.isSuccess(materialized)) {
+                    yield* Metric.update(EngineStoreMetrics.stepCacheDecision.VerifiedHit, 1)
                     const recorded = {
                       runId: cached.value.recordedRunId,
                       eventSeq: cached.value.recordedEventSeq
@@ -848,6 +849,7 @@ export const make = (deps: Dependencies) => {
                   // content-addressed blob path, `host` for everything else —
                   // a failing disk corrupting many blobs must never journal
                   // identically to a one-off EIO.
+                  yield* Metric.update(EngineStoreMetrics.stepCacheDecision.ReplayFailed, 1)
                   const corruption = replayCorruption(materialized.cause)
                   yield* emitConverging(
                     JournalRecords.cacheProvenance(
@@ -918,6 +920,7 @@ export const make = (deps: Dependencies) => {
                     }
                   }
                 } else if (Option.isSome(measured)) {
+                  yield* Metric.update(EngineStoreMetrics.stepCacheDecision.StaleReadSet, 1)
                   // Only a *measured* mismatch is evidence the inputs changed
                   // (issue #110): a host that cannot measure right now — a
                   // transient EIO/EACCES on any declared read path — says
@@ -965,8 +968,18 @@ export const make = (deps: Dependencies) => {
                       eventSeq: cached.value.recordedEventSeq
                     }
                   })
+                } else {
+                  // The host could not measure the read set at all, so the
+                  // hit is merely refused for this dispatch; the row survives.
+                  yield* Metric.update(EngineStoreMetrics.stepCacheDecision.Unmeasurable, 1)
                 }
+              } else {
+                // A row whose recorded evidence cannot justify reuse — a
+                // foreign tier, an unverified capture, a recorded deviation.
+                yield* Metric.update(EngineStoreMetrics.stepCacheDecision.UnverifiableEvidence, 1)
               }
+            } else {
+              yield* Metric.update(EngineStoreMetrics.stepCacheDecision.Miss, 1)
             }
           }
 

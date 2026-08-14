@@ -117,6 +117,7 @@ describe("publish", () => {
     const failure = errorOf(exit) as ArtifactSync.ArtifactPublicationFailed
     expect(failure.message).toContain("cannot read the artifact it recorded")
     expect(failure.digests).toEqual([digest])
+    expect(failure.cause).toBeInstanceOf(ArtifactStore.ArtifactMissing)
   })
 
   it("fails when the shared tier refuses the upload", async () => {
@@ -124,7 +125,9 @@ describe("publish", () => {
     await runPromise(local.put(payload))
     const remote = ArtifactStore.makeNoop({ findMissing: (digests) => Effect.succeed([...digests]) })
     const exit = await runPromise(ArtifactSync.make({ local, remote }).publish([digest]).pipe(Effect.exit))
-    expect((errorOf(exit) as ArtifactSync.ArtifactPublicationFailed).message).toContain("refused an upload")
+    const failure = errorOf(exit) as ArtifactSync.ArtifactPublicationFailed
+    expect(failure.message).toContain("refused an upload")
+    expect(failure.cause).toBeInstanceOf(ArtifactStore.ArtifactStoreError)
   })
 
   it("fails when the confirming re-probe cannot be made", async () => {

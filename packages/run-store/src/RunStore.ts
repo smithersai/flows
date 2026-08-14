@@ -11,7 +11,7 @@
  */
 import { DurableWriter, fromSqlError } from "@smthrs/database-next/DurableWriter"
 import type { OwnerId } from "@smthrs/journal-next/OwnerId"
-import { Clock, Context, Duration, Effect, Layer, Metric, Schema } from "effect"
+import { Cause, Clock, Context, Duration, Effect, Layer, Metric, Schema } from "effect"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import type * as SqlError from "effect/unstable/sql/SqlError"
 import { heartbeatStaleAfter } from "./Heartbeat.ts"
@@ -374,6 +374,33 @@ const fenceLost = { _tag: "FenceLost" } as const
 const transitioned = { _tag: "Transitioned" } as const
 const guardFailed = { _tag: "GuardFailed" } as const
 
+/** Rewrites an outcome tag (`HeartbeatFresh`) as a span attribute value (`heartbeat_fresh`). */
+const outcomeValue = (tag: string): string => tag.replace(/(?<=[a-z0-9])(?=[A-Z])/g, "_").toLowerCase()
+
+/**
+ * Observes a store operation's exit onto its span, and — when the operation
+ * has an outcome-keyed counter — updates it in the same observation: the
+ * domain tag (`claimed`, `fence_lost`) on success, `failure` or `interrupt`
+ * otherwise, so a span never closes without saying how. `Effect.onExit` only
+ * reads the exit; the value, cause, and interruption propagate
+ * byte-identically.
+ */
+const observeOutcome = <A extends { readonly _tag: string }>(
+  metricOf?: ((outcome: A) => Metric.Metric<number, Metric.CounterState<number>>) | undefined
+) =>
+<E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
+  effect.pipe(
+    Effect.onExit((exit) =>
+      exit._tag === "Success"
+        ? Effect.annotateCurrentSpan({ outcome: outcomeValue(exit.value._tag) }).pipe(
+          Effect.andThen(metricOf === undefined ? Effect.void : Metric.update(metricOf(exit.value), 1))
+        )
+        : Effect.annotateCurrentSpan({
+          outcome: Cause.hasInterruptsOnly(exit.cause) ? "interrupt" : "failure"
+        })
+    )
+  )
+
 /**
  * The staleness cutoff in milliseconds, derived from the one definition rather
  * than restated. `Ownership` imports `RunStore`, so the shared constants live
@@ -719,18 +746,19 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
     claimant: OwnerId,
     nowMs: number
   ): Effect.Effect<ClaimOutcome, RunStoreError> =>
-    Effect.annotateCurrentSpan({ runId, claimantHostId: claimant.hostId }).pipe(Effect.andThen(
-      write(
-        "claim",
-        Effect.gen(function*() {
-          // `claim` never admits a running run, so it needs no staleness
-          // disjunction. `status IN ('pending', 'suspended')` already excludes
-          // 'running', which made the preceding `status <> 'running'` redundant
-          // and the trailing `(status <> 'running' OR heartbeat IS NULL OR
-          // heartbeat < cutoff)` a tautology — its first branch was already
-          // known true. `claimAndOwn` is the method that genuinely needs the
-          // staleness test, because it does admit 'running'.
-          const rows = yield* sql<{ readonly runId: string }>`
+    Effect.annotateCurrentSpan({ runId, claimantHostId: claimant.hostId }).pipe(
+      Effect.andThen(
+        write(
+          "claim",
+          Effect.gen(function*() {
+            // `claim` never admits a running run, so it needs no staleness
+            // disjunction. `status IN ('pending', 'suspended')` already excludes
+            // 'running', which made the preceding `status <> 'running'` redundant
+            // and the trailing `(status <> 'running' OR heartbeat IS NULL OR
+            // heartbeat < cutoff)` a tautology — its first branch was already
+            // known true. `claimAndOwn` is the method that genuinely needs the
+            // staleness test, because it does admit 'running'.
+            const rows = yield* sql<{ readonly runId: string }>`
           UPDATE flows_runs
           SET
             claim_host_id = ${claimant.hostId},
@@ -750,12 +778,14 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
             AND claimed_at_ms IS NULL
           RETURNING run_id AS "runId"
         `
-          if (rows.length > 0) return claimed(nowMs)
-          const current = yield* selectRun(sql, runId)
-          return classifyClaimLoss(current[0], nowMs)
-        })
-      ).pipe(Effect.tap((outcome) => Metric.update(RunStoreMetrics.claim[outcome._tag], 1)))
-    ))
+            if (rows.length > 0) return claimed(nowMs)
+            const current = yield* selectRun(sql, runId)
+            return classifyClaimLoss(current[0], nowMs)
+          })
+        )
+      ),
+      observeOutcome((outcome) => RunStoreMetrics.claim[outcome._tag])
+    )
   )
 
   const claimAndOwn = Effect.fn("RunStore.claimAndOwn")((
@@ -784,8 +814,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
               // on a run that is genuinely recoverable. The other three still
               // describe the row itself and are reported unchanged.
               return loss === snapshotChanged ? evidenceRequired : loss
-            }),
-            Effect.tap((outcome) => Metric.update(RunStoreMetrics.claimAndOwn[outcome._tag], 1))
+            })
           )
         }
 
@@ -824,8 +853,9 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
             const current = yield* selectRun(sql, runId)
             return classifyClaimLoss(current[0], nowMs)
           })
-        ).pipe(Effect.tap((outcome) => Metric.update(RunStoreMetrics.claimAndOwn[outcome._tag], 1)))
-      }))
+        )
+      })),
+      observeOutcome((outcome) => RunStoreMetrics.claimAndOwn[outcome._tag])
     )
   )
 
@@ -835,13 +865,14 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
     claimedAtMs: number,
     expected: RunSnapshot
   ): Effect.Effect<ActivateOutcome, RunStoreError> =>
-    Effect.annotateCurrentSpan({ runId, claimantHostId: claimant.hostId }).pipe(Effect.andThen(
-      Clock.currentTimeMillis.pipe(
-        Effect.flatMap((activatedAtMs) =>
-          write(
-            "activate",
-            Effect.gen(function*() {
-              const rows = yield* sql<{ readonly runId: string }>`
+    Effect.annotateCurrentSpan({ runId, claimantHostId: claimant.hostId }).pipe(
+      Effect.andThen(
+        Clock.currentTimeMillis.pipe(
+          Effect.flatMap((activatedAtMs) =>
+            write(
+              "activate",
+              Effect.gen(function*() {
+                const rows = yield* sql<{ readonly runId: string }>`
               UPDATE flows_runs
               SET
                 status = 'running',
@@ -867,12 +898,12 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
                 AND claimed_at_ms = ${claimedAtMs}
               RETURNING run_id AS "runId"
             `
-              if (rows.length > 0) return activated
+                if (rows.length > 0) return activated
 
-              const current = yield* selectRun(sql, runId)
-              if (current[0] === undefined || !rowMatchesClaim(current[0], claimant, claimedAtMs)) return claimLost
+                const current = yield* selectRun(sql, runId)
+                if (current[0] === undefined || !rowMatchesClaim(current[0], claimant, claimedAtMs)) return claimLost
 
-              yield* sql`
+                yield* sql`
               UPDATE flows_runs
               SET
                 claim_host_id = NULL,
@@ -885,13 +916,14 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
                 AND claim_nonce = ${claimant.nonce}
                 AND claimed_at_ms = ${claimedAtMs}
             `
-              return snapshotChanged
-            })
+                return snapshotChanged
+              })
+            )
           )
-        ),
-        Effect.tap((outcome) => Metric.update(RunStoreMetrics.activate[outcome._tag], 1))
-      )
-    ))
+        )
+      ),
+      observeOutcome((outcome) => RunStoreMetrics.activate[outcome._tag])
+    )
   )
 
   const abandonClaim = Effect.fn("RunStore.abandonClaim")((
@@ -899,10 +931,11 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
     claimant: OwnerId,
     claimedAtMs: number
   ): Effect.Effect<AbandonClaimOutcome, RunStoreError> =>
-    Effect.annotateCurrentSpan({ runId, claimantHostId: claimant.hostId }).pipe(Effect.andThen(write(
-      "abandonClaim",
-      Effect.map(
-        sql<{ readonly runId: string }>`
+    Effect.annotateCurrentSpan({ runId, claimantHostId: claimant.hostId }).pipe(
+      Effect.andThen(write(
+        "abandonClaim",
+        Effect.map(
+          sql<{ readonly runId: string }>`
           UPDATE flows_runs
           SET
             claim_host_id = NULL,
@@ -916,9 +949,11 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
             AND claimed_at_ms = ${claimedAtMs}
           RETURNING run_id AS "runId"
         `,
-        (rows) => rows.length > 0 ? abandoned : claimLost
-      )
-    )))
+          (rows) => rows.length > 0 ? abandoned : claimLost
+        )
+      )),
+      observeOutcome<AbandonClaimOutcome>()
+    )
   )
 
   const recoverClaim = Effect.fn("RunStore.recoverClaim")((
@@ -961,7 +996,8 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
               : claimChanged
           })
         )
-      }))
+      })),
+      observeOutcome<RecoverClaimOutcome>()
     )
   )
 
@@ -970,11 +1006,12 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
     owner: OwnerId,
     nowMs: number
   ): Effect.Effect<HeartbeatOutcome, RunStoreError> =>
-    Effect.annotateCurrentSpan({ runId, ownerHostId: owner.hostId }).pipe(Effect.andThen(
-      write(
-        "heartbeat",
-        Effect.gen(function*() {
-          const rows = yield* sql<{ readonly runId: string }>`
+    Effect.annotateCurrentSpan({ runId, ownerHostId: owner.hostId }).pipe(
+      Effect.andThen(
+        write(
+          "heartbeat",
+          Effect.gen(function*() {
+            const rows = yield* sql<{ readonly runId: string }>`
           UPDATE flows_runs
           SET heartbeat_at_ms = ${nowMs}
           WHERE run_id = ${runId}
@@ -984,12 +1021,14 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
             AND owner_nonce = ${owner.nonce}
           RETURNING run_id AS "runId"
         `
-          if (rows.length > 0) return updated
-          const current = yield* selectRun(sql, runId)
-          return current.length === 0 ? notFound : fenceLost
-        })
-      ).pipe(Effect.tap((outcome) => Metric.update(RunStoreMetrics.heartbeat[outcome._tag], 1)))
-    ))
+            if (rows.length > 0) return updated
+            const current = yield* selectRun(sql, runId)
+            return current.length === 0 ? notFound : fenceLost
+          })
+        )
+      ),
+      observeOutcome((outcome) => RunStoreMetrics.heartbeat[outcome._tag])
+    )
   )
 
   const transitionOwned = Effect.fn("RunStore.transitionOwned")((
@@ -1068,12 +1107,10 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
                 return ownsRow ? guardFailed : fenceLost
               })
             )
-          ),
-          Effect.tap((outcome) =>
-            Metric.update(Metric.withAttributes(RunStoreMetrics.transition[outcome._tag], { to: toStatus }), 1)
           )
         )
-      }))
+      })),
+      observeOutcome((outcome) => Metric.withAttributes(RunStoreMetrics.transition[outcome._tag], { to: toStatus }))
     )
   )
 
@@ -1084,15 +1121,16 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
     nowMs: number,
     evidence: LivenessEvidence
   ): Effect.Effect<ClaimOutcome, RunStoreError> =>
-    Effect.annotateCurrentSpan({ runId, claimantHostId: claimant.hostId }).pipe(Effect.andThen(Effect.suspend(() => {
-      if (!evidenceMatches(expected, claimant, nowMs, evidence)) {
-        return Effect.as(Metric.update(RunStoreMetrics.steal.SnapshotChanged, 1), snapshotChanged)
-      }
-      const expectedOwner = expected.owner!
-      return write(
-        "steal",
-        Effect.gen(function*() {
-          const rows = yield* sql<{ readonly runId: string }>`
+    Effect.annotateCurrentSpan({ runId, claimantHostId: claimant.hostId }).pipe(
+      Effect.andThen(Effect.suspend(() => {
+        if (!evidenceMatches(expected, claimant, nowMs, evidence)) {
+          return Effect.succeed(snapshotChanged)
+        }
+        const expectedOwner = expected.owner!
+        return write(
+          "steal",
+          Effect.gen(function*() {
+            const rows = yield* sql<{ readonly runId: string }>`
           UPDATE flows_runs
           SET
             claim_host_id = ${claimant.hostId},
@@ -1112,12 +1150,14 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
             AND claimed_at_ms IS NULL
           RETURNING run_id AS "runId"
         `
-          if (rows.length > 0) return claimed(nowMs)
-          const current = yield* selectRun(sql, runId)
-          return classifyClaimLoss(current[0], nowMs)
-        })
-      ).pipe(Effect.tap((outcome) => Metric.update(RunStoreMetrics.steal[outcome._tag], 1)))
-    })))
+            if (rows.length > 0) return claimed(nowMs)
+            const current = yield* selectRun(sql, runId)
+            return classifyClaimLoss(current[0], nowMs)
+          })
+        )
+      })),
+      observeOutcome((outcome) => RunStoreMetrics.steal[outcome._tag])
+    )
   )
 
   return RunStore.of({

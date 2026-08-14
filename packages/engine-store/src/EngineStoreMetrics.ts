@@ -266,6 +266,38 @@ export const boundarySettlement = byOutcome(
 )
 
 /**
+ * Counter over the EFFECTIVE step-boundary cache decisions at the dispatch
+ * seam, dimensioned by `outcome`. `flows_step_cache_lookups` counts raw row
+ * presence at `CacheStore.get`; this series records what the dispatch
+ * actually did with the row after read-set verification and output
+ * materialization — `verified_hit` served the cached result, and every other
+ * outcome fell through to a real execution (`miss` no row,
+ * `unverifiable_evidence` a row whose recorded evidence cannot justify reuse,
+ * `unmeasurable` a host that could not re-measure the read set,
+ * `stale_read_set` a measured mismatch, `replay_failed` verified evidence the
+ * host could not re-materialize). Exactly one decision is counted per
+ * cache-consulting dispatch.
+ *
+ * @category metrics
+ * @since 0.1.0
+ */
+export const stepCacheDecisions = Metric.counter("flows_engine_step_cache_decisions", {
+  description: "Effective step-boundary cache decisions at the dispatch seam"
+})
+
+/**
+ * `stepCacheDecisions` views keyed by decision.
+ *
+ * @category metrics
+ * @since 0.1.0
+ */
+export const stepCacheDecision = byOutcome(
+  stepCacheDecisions,
+  {},
+  ["VerifiedHit", "Miss", "UnverifiableEvidence", "Unmeasurable", "StaleReadSet", "ReplayFailed"] as const
+)
+
+/**
  * Counter over the run driver's claim-and-activate decisions, dimensioned by
  * `outcome`. These are the engine-level decisions taken BEFORE or AFTER the
  * store-level compare-and-swaps `RunStoreMetrics` counts: a `terminal` or

@@ -67,6 +67,7 @@ Metrics are the hot-path series the store packages define beside the code that u
 | `flows_engine_sandbox_materializations` | `outcome` = `success` \| `failure` \| `interrupt` | `WorkspaceSandbox.materialize` — the one host write |
 | `flows_engine_sandbox_conflicts` | none | copy-back preflight, once per compare-and-set refusal |
 | `flows_engine_boundary_settlements` | `outcome` = `clean` \| `deviation` \| `violation` \| `refused` | the dispatch seam, once per boundary settle |
+| `flows_engine_step_cache_decisions` | `outcome` = `verified_hit` \| `miss` \| `unverifiable_evidence` \| `unmeasurable` \| `stale_read_set` \| `replay_failed` | `ActionPersistence`, exactly once per cache-consulting dispatch after verification and materialization; unlike `flows_step_cache_lookups`, this is the effective reuse/fall-through decision |
 | `flows_engine_claims` | `outcome` = `activated` \| `terminal` \| `heartbeat_fresh` \| `steal_refused_owner_alive` \| `claim_lost` \| `activation_lost` | `RunDriver.claimAndActivate` — the engine-level decisions before and after the store CAS |
 
 Durations are `Metric.timer` histograms recorded through Effect's `Effect.trackDuration` (monotonic clock; success, failure, and interruption alike):

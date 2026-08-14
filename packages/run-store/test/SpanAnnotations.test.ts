@@ -50,4 +50,35 @@ describe("SpanAnnotations", () => {
     expect(getSpan).toBeDefined()
     expect(getSpan!.attributes.get("runId")).toBe("run-span")
   })
+
+  it("annotates domain outcomes and failures without replacing the operation exit", async () => {
+    const spans: Array<Tracer.NativeSpan> = []
+    const tracer = Tracer.make({
+      span(options) {
+        const span = new Tracer.NativeSpan(options)
+        spans.push(span)
+        return span
+      }
+    })
+    const owner = { hostId: "span-host", pid: 1, nonce: "span-nonce" }
+
+    const failure = await migrated(
+      Effect.gen(function*() {
+        const store = yield* RunStore
+        yield* store.create("run-outcome", "{}")
+        const outcome = yield* store.claimAndOwn(
+          "run-outcome",
+          { status: "pending", owner: null, heartbeatAtMs: null },
+          owner,
+          1
+        )
+        expect(outcome._tag).toBe("Activated")
+        return yield* Effect.exit(store.transitionOwned("run-outcome", owner, "completed", "not-json"))
+      }).pipe(Effect.provideService(Tracer.Tracer, tracer))
+    )
+
+    expect(failure._tag).toBe("Failure")
+    expect(spans.find((span) => span.name === "RunStore.claimAndOwn")!.attributes.get("outcome")).toBe("activated")
+    expect(spans.find((span) => span.name === "RunStore.transitionOwned")!.attributes.get("outcome")).toBe("failure")
+  })
 })

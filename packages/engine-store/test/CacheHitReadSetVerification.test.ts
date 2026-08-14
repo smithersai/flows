@@ -18,8 +18,10 @@ import { type Ownership, RunStore } from "@smthrs/run-store-next"
 import { CacheStore } from "@smthrs/step-cache-next"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as Metric from "effect/Metric"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
+import * as EngineStoreMetrics from "../src/EngineStoreMetrics.ts"
 import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
@@ -187,6 +189,45 @@ describe("a refused stale hit invalidates the poisoned entry (issue #99)", () =>
     // key does not describe, so nothing may be re-recorded under it
     // (issue #106) — the poisoned row is gone and stays gone.
     expect(Option.isNone(outcome.entry)).toBe(true)
+  })
+})
+
+describe("the effective cache decision is metered exactly once per consult", () => {
+  const decisionCounts = Effect.gen(function*() {
+    const read = (metric: Metric.Metric<number, Metric.CounterState<number>>) =>
+      Effect.map(Metric.value(metric), (state) => state.count)
+    return {
+      miss: yield* read(EngineStoreMetrics.stepCacheDecision.Miss),
+      verifiedHit: yield* read(EngineStoreMetrics.stepCacheDecision.VerifiedHit),
+      staleReadSet: yield* read(EngineStoreMetrics.stepCacheDecision.StaleReadSet)
+    }
+  })
+
+  it("counts the recording consult as a miss and the verified replay as a verified hit", async () => {
+    const observed = await runPromise(
+      Effect.gen(function*() {
+        const result = yield* replayWithMeasurement("metered-hit", [{ path: "config.json", digest: "D1" }])
+        return { result, counts: yield* decisionCounts }
+      }).pipe(Effect.provideService(Metric.MetricRegistry, new Map()))
+    )
+    expect(observed.result.executions).toBe(1)
+    expect(observed.result.replays).toBe(1)
+    // Two dispatches consulted the cache, so exactly two decisions land:
+    // the recording run's miss and the second run's verified hit.
+    expect(observed.counts).toEqual({ miss: 1, verifiedHit: 1, staleReadSet: 0 })
+  })
+
+  it("counts a measured mismatch as a stale-read-set fall-through, not a hit or a raw-row hit", async () => {
+    const observed = await runPromise(
+      Effect.gen(function*() {
+        const result = yield* replayWithMeasurement("metered-stale", [{ path: "config.json", digest: "D2" }])
+        return { result, counts: yield* decisionCounts }
+      }).pipe(Effect.provideService(Metric.MetricRegistry, new Map()))
+    )
+    expect(observed.result.executions).toBe(2)
+    // The row was present — `flows_step_cache_lookups` would call it a hit —
+    // but the effective decision refused it after measurement.
+    expect(observed.counts).toEqual({ miss: 1, verifiedHit: 0, staleReadSet: 1 })
   })
 })
 
