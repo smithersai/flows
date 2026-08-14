@@ -79,16 +79,20 @@ selection draws the same line, for the same reason: tests are sinks.
 ## Recertification debt
 
 A deferred step is a debt, not a decision. It is journaled with the guess
-that caused it, and the `Selection.debt` query lists every open one — node, key,
-edge, likelihood, and journal provenance — so a guess-free pass can execute
-exactly what was deferred.
+that caused it, and the `Selection.debt` query lists a run's open ones —
+node, key, edge, likelihood, and journal provenance — so a guess-free pass
+can execute exactly what was deferred.
 
-v1 ships the primitives a recertification pass is built from: the
-`Selection.debt` query and a run-level override that forces every verdict to
-`Admit` for one run, itself journaled, the way `--fresh` ignores the cache.
-v1 does not ship a scheduled system flow that runs that pass automatically —
-a nightly or per-merge "recertify" flow is future work layered on top of
-these primitives, not part of this module.
+v1 ships two primitives: the `Selection.debt` query and a run-level override
+that forces every verdict to `Admit` for one run, itself journaled, the way
+`--fresh` ignores the cache. The query folds one run's journal, so repayment
+is same-run: the guess-free pass v1 supports is the deferring run driven
+again under the override, whose settlements land under the runId the fold
+reads and close the debt. v1 does not ship a scheduled system flow that runs
+that pass automatically — and a standing nightly or per-merge "recertify"
+flow is a new run whose settlements this fold cannot see, so it also needs a
+cross-run repayment query on top of these primitives; both are future work,
+not part of this module.
 
 When a guess is wrong, the recertification pass is where that surfaces: the
 deferred step runs for real, and the miss becomes the training signal for the

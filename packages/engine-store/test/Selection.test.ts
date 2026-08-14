@@ -416,7 +416,7 @@ describe("Selection.layerHeuristic", () => {
 })
 
 describe("Selection.debt", () => {
-  it("round-trips: a deferral is owed until a guess-free run repays it", async () => {
+  it("round-trips: a deferral is owed until the run's guess-free full pass repays it", async () => {
     const plan = await runPromise(compile(reviewGraph()))
     const executor: PlanScheduler.Executor = { execute: ({ node }) => Effect.succeed({ ran: node.id }) }
     const program = Effect.gen(function*() {
@@ -464,6 +464,36 @@ describe("Selection.debt", () => {
     expect(owedAfterFirst[0]!.seq).toBe(recordedAt)
     expect(outcomes(second)).toEqual({ build: "clean", "engine-tests": "clean", "lint-docs": "built" })
     expect(owedAfterSecond).toEqual([])
+  })
+
+  it("folds one run only: a settlement under another runId does not repay", async () => {
+    // Repayment is same-run: the fold reads one run's journal, so the same
+    // planKey settled `built` under a different runId leaves the debt open.
+    const plan = await runPromise(compile(reviewGraph()))
+    const executor: PlanScheduler.Executor = { execute: ({ node }) => Effect.succeed({ ran: node.id }) }
+    const program = Effect.gen(function*() {
+      yield* activate("run-debt-owing")
+      yield* activate("run-debt-foreign")
+      const guessing = PlanScheduler.make({
+        runId: "run-debt-owing",
+        owner,
+        sourceId: "scheduler/run-debt-owing",
+        selection: { changed, beliefs: beliefs(edge()), policy }
+      })
+      yield* Effect.provide(guessing.run(plan), harness({ executor, selection: Selection.layerHeuristic }))
+      const journal = yield* Journal.Journal
+      yield* journal.emitDurable(
+        JournalRecords.nodeSettled(
+          { runId: "run-debt-foreign", lineageId: "run-debt-foreign/root", sourceId: "scheduler/run-debt-foreign" },
+          { planKey: plan.nodes.find((node) => node.id === "lint-docs")!.key, outcome: "built" }
+        ),
+        owner
+      )
+      return yield* Selection.debt("run-debt-owing")
+    }).pipe(Effect.provide(TestStores.layer()))
+    const owed = await runPromise(program)
+    expect(owed).toHaveLength(1)
+    expect(owed[0]).toMatchObject({ nodeId: "lint-docs" })
   })
 
   it("skips records it cannot decode and reads past the first page of the journal", async () => {

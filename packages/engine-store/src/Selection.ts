@@ -395,6 +395,12 @@ const decodeSettled = Schema.decodeUnknownOption(SettledPayload)
  * guess-free pass executed the work and surfaced the miss, which is the
  * training signal the spec asks for.
  *
+ * The fold reads exactly one run's journal, so only a settlement journaled
+ * under the same `runId` closes a debt — the guess-free pass is the deferring
+ * run driven again under the `full` override. A recertification run holds
+ * its own runId and is invisible here; a cross-run repayment query is future
+ * work.
+ *
  * The journal is read directly rather than projected into a table, for the
  * same reason the scheduler consumes deviations from it: a deferral is a
  * durable, replayable fact, and a second store would be a cache of one.
