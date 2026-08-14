@@ -631,6 +631,7 @@ export interface Host {
  */
 interface Trace {
   readonly inputs: Array<{ readonly path: string; readonly content: Uint8Array }>
+  readonly attemptedReads: Array<{ readonly path: string; readonly produced: boolean }>
   readonly effects: Array<QueuedEffect>
 }
 
@@ -649,12 +650,14 @@ const notFound = (path: string): WorkspaceError =>
  */
 const transaction = (base: ReadonlyMap<string, Uint8Array>, trace: Trace, root: string) => {
   const files = new Map(base)
+  const produced = new Set<string>()
   const resolvePath = (path: string): Effect.Effect<string, WorkspaceError> => {
     const normalized = normalizePath(root, path)
     return Result.isFailure(normalized) ? Effect.fail(normalized.failure) : Effect.succeed(normalized.success)
   }
   const readBytes = Effect.fn("WorkspaceSandbox.read")(function*(path: string) {
     const key = yield* resolvePath(path)
+    trace.attemptedReads.push({ path: key, produced: produced.has(key) })
     const content = files.get(key)
     if (content === undefined) return yield* Effect.fail(notFound(key))
     trace.inputs.push({ path: key, content })
@@ -662,10 +665,12 @@ const transaction = (base: ReadonlyMap<string, Uint8Array>, trace: Trace, root: 
   })
   const writeBytes = Effect.fn("WorkspaceSandbox.write")(function*(path: string, content: Uint8Array) {
     const key = yield* resolvePath(path)
+    produced.add(key)
     files.set(key, content.slice())
   })
   const removePath = Effect.fn("WorkspaceSandbox.remove")(function*(path: string) {
     const key = yield* resolvePath(path)
+    produced.add(key)
     files.delete(key)
   })
   const workspace = Workspace.of({
@@ -849,17 +854,45 @@ export const makeHosted = (host: Host): Service => {
         }
       }
       const base = yield* host.snapshot(execution.descriptor)
-      const trace: Trace = { inputs: [], effects: [] }
+      const trace: Trace = { inputs: [], attemptedReads: [], effects: [] }
       const isolated = transaction(base, trace, host.root)
-      const output = yield* execution.workflow.pipe(
+      const outcome = yield* execution.workflow.pipe(
         Effect.provideService(Workspace, isolated.workspace),
-        Effect.provideService(FileSystem.FileSystem, isolated.fileSystem)
+        Effect.provideService(FileSystem.FileSystem, isolated.fileSystem),
+        Effect.exit
       )
-      const files = yield* changes(base, isolated.files, host)
       const inputs: Array<InputObservation> = []
       for (const input of trace.inputs) {
         inputs.push({ resource: resource(input.path), digest: yield* digestOf(input.content) })
       }
+      const descriptor = workspaceRelative(host.root, execution.descriptor)
+      const undeclaredReads = trace.attemptedReads.filter((attempt) =>
+        !attempt.produced &&
+        !descriptor.readSet.some((entry) =>
+          FileSet.isGlob(entry) ? FileSet.matchesGlob(entry, attempt.path) : entry.path === attempt.path
+        )
+      )
+      if (Exit.isFailure(outcome)) {
+        if (undeclaredReads.length > 0) {
+          return {
+            _tag: "Invalidated" as const,
+            provenance: {
+              baseRevision: yield* revisionOf(base),
+              inputs,
+              outputs: []
+            },
+            violations: [
+              ...new Map(undeclaredReads.map((attempt) => [attempt.path, {
+                kind: "undeclared-read" as const,
+                resource: resource(attempt.path)
+              }])).values()
+            ]
+          }
+        }
+        return yield* Effect.failCause(outcome.cause)
+      }
+      const output = outcome.value
+      const files = yield* changes(base, isolated.files, host)
       const provenance: Provenance = {
         baseRevision: yield* revisionOf(base),
         inputs,
@@ -869,7 +902,15 @@ export const makeHosted = (host: Host): Service => {
           digest: change.afterDigest
         }))
       }
-      const invalid = violations(workspaceRelative(host.root, execution.descriptor), base, provenance)
+      const invalid = [
+        ...new Map([
+          ...violations(descriptor, base, provenance),
+          ...undeclaredReads.map((attempt) => ({
+            kind: "undeclared-read" as const,
+            resource: resource(attempt.path)
+          }))
+        ].map((violation) => [`${violation.kind}:${violation.resource.id}`, violation])).values()
+      ]
       // Hard mode discards; expected mode admits the result and leaves the
       // deviation for the engine to journal and reconcile
       // (`Effect Taxonomy.md`, "Expected sets — the soft mode"). Either way

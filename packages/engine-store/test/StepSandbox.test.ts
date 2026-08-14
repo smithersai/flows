@@ -54,6 +54,26 @@ describe("StepSandbox", () => {
     })
   })
 
+  it("keeps the typed refusal when the host copied only declared reads", async () => {
+    const sandbox = WorkspaceSandbox.makeHosted({
+      root: "",
+      snapshot: () => Effect.succeed(new Map([["src/input.txt", new TextEncoder().encode("input")]])),
+      baseline: () => Effect.succeed(undefined),
+      retain: (bytes) => Effect.succeed(bytes),
+      commit: () => Effect.void
+    })
+    const failure = await runPromise(Effect.flip(SandboxedExecution.execute({
+      sandbox,
+      descriptor,
+      workflow: Effect.flatMap(FileSystem.FileSystem, (fs) => fs.readFileString("src/secret.txt"))
+    })))
+    expect(failure).toMatchObject({
+      _tag: "flows/engine-store/UndeclaredRead",
+      code: "undeclared_read",
+      paths: ["src/secret.txt"]
+    })
+  })
+
   it("leaves the host untouched when the scoped execution is interrupted", async () => {
     const memory = await runPromise(WorkspaceSandbox.makeMemory({ "src/input.txt": "input" }))
     await runPromise(Effect.gen(function*() {

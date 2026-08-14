@@ -419,7 +419,11 @@ describe("WorkspaceSandbox transaction filesystem", () => {
       const test = yield* WorkspaceSandbox.makeMemory({ "src/in.txt": "seed", "src/nested/deep.txt": "deep" })
       const accepted = yield* test.service.execute({
         descriptor: descriptor({
-          readSet: [read("src/in.txt", "seed"), read("src/nested/deep.txt", "deep")],
+          readSet: [
+            read("src/in.txt", "seed"),
+            read("src/nested/deep.txt", "deep"),
+            read("out/nope.txt", "absent")
+          ],
           writeSet: ["out/**", "src/in.txt"]
         }),
         workflow: Effect.gen(function*() {
