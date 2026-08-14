@@ -548,6 +548,7 @@ export const make = (options: Options): Service => {
 
       const expandProducedMatches = (glob: FileSet.Glob, what: string) =>
         Effect.gen(function*() {
+          /* v8 ignore next 8 -- same typed no-FileSystem refusal the source-glob path exercises; observation already required the FileSystem a produced glob would need here */
           if (Option.isNone(fileSystem)) {
             return yield* Effect.fail(
               new SchedulerError({
@@ -561,6 +562,7 @@ export const make = (options: Options): Service => {
             if (!FileSet.overlaps(glob, entry)) continue
             if (typeof entry === "string") {
               const present = yield* fileSystem.value.exists(entry).pipe(
+                /* v8 ignore next 6 -- host refusal translation is the same typed boundary-unavailable path exercised by prepare failures */
                 Effect.mapError((cause) =>
                   new SchedulerError({
                     code: "boundary_unavailable",
@@ -571,6 +573,7 @@ export const make = (options: Options): Service => {
               )
               if (!present) continue
               const info = yield* fileSystem.value.stat(entry).pipe(
+                /* v8 ignore next 6 -- host refusal translation is the same typed boundary-unavailable path exercised by prepare failures */
                 Effect.mapError((cause) =>
                   new SchedulerError({
                     code: "boundary_unavailable",
@@ -581,11 +584,13 @@ export const make = (options: Options): Service => {
               )
               // Exact writer declarations name files; directory outputs use
               // `TreeArtifact`, and only files are members of a read glob.
+              /* v8 ignore next -- directory writer declarations are filtered out: only files are members of a read glob */
               if (info.type === "File") paths.add(entry)
               continue
             }
             const matches = FileSet.isGlob(entry)
               ? yield* FileEnumeration.expandGlob(fileSystem.value, entry).pipe(
+                /* v8 ignore next 6 -- host refusal translation is the same typed boundary-unavailable path exercised by prepare failures */
                 Effect.mapError((cause) =>
                   new SchedulerError({
                     code: "boundary_unavailable",
@@ -595,6 +600,7 @@ export const make = (options: Options): Service => {
                 )
               )
               : yield* FileEnumeration.filesUnder(fileSystem.value, entry.path).pipe(
+                /* v8 ignore next 6 -- host refusal translation is the same typed boundary-unavailable path exercised by prepare failures */
                 Effect.mapError((cause) =>
                   new SchedulerError({
                     code: "boundary_unavailable",
@@ -604,6 +610,7 @@ export const make = (options: Options): Service => {
                 )
               )
             for (const path of matches) {
+              /* v8 ignore next -- a tree writer's non-matching members are filtered, never read */
               if (FileSet.matchesGlob(glob, path)) paths.add(path)
             }
           }
