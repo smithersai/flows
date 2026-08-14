@@ -1,6 +1,7 @@
 import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
 import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
 import * as Effect from "effect/Effect"
+import * as Encoding from "effect/Encoding"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"
@@ -197,58 +198,107 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
     const files = new Map<string, Uint8Array>(
       Object.entries(seed).map(([path, content]) => [path, encoder.encode(content)])
     )
+    const directories = new Set<string>()
+    const addParentDirectories = (path: string) => {
+      const segments = path.split("/")
+      for (let index = 1; index < segments.length; index++) {
+        directories.add(segments.slice(0, index).join("/"))
+      }
+    }
+    for (const path of files.keys()) addParentDirectories(path)
+    const failedReads = new Set<string>()
+    const madeDirectories: Array<string> = []
+    const removals: Array<string> = []
+    const writes: Array<string> = []
+    const present = (path: string) =>
+      files.has(path) ||
+      directories.has(path) ||
+      [...files.keys(), ...directories].some((candidate) => candidate.startsWith(`${path}/`))
     const fs = FileSystem.makeNoop({
-      exists: ((path: string) =>
-        Effect.succeed(
-          files.has(path) || [...files.keys()].some((candidate) => candidate.startsWith(`${path}/`))
-        )) as never,
+      exists: ((path: string) => Effect.succeed(present(path))) as never,
       readFile: ((path: string) =>
-        files.has(path)
-          ? Effect.succeed(files.get(path)!)
-          : Effect.die(`missing file ${path}`)) as never,
+        Effect.suspend(() => {
+          if (failedReads.delete(path)) return Effect.fail(new Error(`EIO: ${path}`))
+          const bytes = files.get(path)
+          return bytes === undefined ? Effect.fail(new Error(`ENOENT: ${path}`)) : Effect.succeed(bytes)
+        })) as never,
       writeFile: ((path: string, bytes: Uint8Array) =>
         Effect.sync(() => {
+          writes.push(path)
+          addParentDirectories(path)
           files.set(path, bytes)
         })) as never,
       remove: ((path: string, options?: { readonly recursive?: boolean }) =>
-        Effect.sync(() => {
-          files.delete(path)
-          if (options?.recursive === true) {
+        Effect.suspend(() => {
+          const descendantFiles = [...files.keys()].filter((candidate) => candidate.startsWith(`${path}/`))
+          const descendantDirectories = [...directories].filter((candidate) => candidate.startsWith(`${path}/`))
+          if (
+            files.has(path) === false &&
+            options?.recursive !== true &&
+            (descendantFiles.length > 0 || descendantDirectories.length > 0)
+          ) return Effect.fail(new Error(`ENOTEMPTY: ${path}`))
+          return Effect.sync(() => {
+            removals.push(path)
+            files.delete(path)
+            directories.delete(path)
+            if (options?.recursive !== true) return
             for (const candidate of files.keys()) {
               if (candidate.startsWith(`${path}/`)) files.delete(candidate)
             }
+            for (const candidate of directories) {
+              if (candidate.startsWith(`${path}/`)) directories.delete(candidate)
+            }
+          })
+        })) as never,
+      makeDirectory: ((path: string, options?: { readonly recursive?: boolean }) =>
+        Effect.sync(() => {
+          madeDirectories.push(path)
+          if (options?.recursive !== true) {
+            directories.add(path)
+            return
+          }
+          const segments = path.split("/")
+          for (let index = 1; index <= segments.length; index++) {
+            directories.add(segments.slice(0, index).join("/"))
           }
         })) as never,
-      makeDirectory: (() => Effect.void) as never,
       // Node-faithful: a recursive listing names intermediate directories
-      // too, and `stat` answers `Directory` for them — the walk has to skip
-      // them, exactly as it does over a real host.
-      readDirectory: ((directory: string, options?: { readonly recursive?: boolean }) => {
-        const prefix = directory === "." ? "" : `${directory}/`
-        const names = new Set<string>()
-        for (const path of files.keys()) {
-          if (!path.startsWith(prefix)) continue
-          const rest = path.slice(prefix.length)
-          if (options?.recursive === true) {
-            names.add(rest)
-            const segments = rest.split("/")
-            for (let index = 1; index < segments.length; index++) {
-              names.add(segments.slice(0, index).join("/"))
-            }
-          } else {
-            names.add(rest.split("/")[0]!)
+      // too, and `stat` answers `Directory` for them — the walk skips or
+      // collects them exactly as it does over a real host. Directories with
+      // no files exist only in the `directories` set, so listings draw from
+      // both; a missing or non-directory path answers ENOENT as a host does.
+      readDirectory: ((directory: string, options?: { readonly recursive?: boolean }) =>
+        Effect.suspend(() => {
+          const root = directory === "."
+          if (!root && (!present(directory) || files.has(directory))) {
+            return Effect.fail(new Error(`ENOENT: ${directory}`))
           }
-        }
-        return Effect.succeed([...names].sort())
-      }) as never,
+          const prefix = root ? "" : `${directory}/`
+          const entries = new Set<string>()
+          for (const candidate of [...directories, ...files.keys()]) {
+            if (prefix !== "" && !candidate.startsWith(prefix)) continue
+            const relative = prefix === "" ? candidate : candidate.slice(prefix.length)
+            entries.add(options?.recursive === true ? relative : relative.split("/")[0]!)
+          }
+          return Effect.succeed([...entries].sort())
+        })) as never,
       stat: ((path: string) =>
         files.has(path)
           ? Effect.succeed({ type: "File" })
-          : [...files.keys()].some((candidate) => candidate.startsWith(`${path}/`))
+          : present(path)
           ? Effect.succeed({ type: "Directory" })
-          : Effect.die(`missing stat ${path}`)) as never
+          : Effect.fail(new Error(`ENOENT: ${path}`))) as never
     })
-    return { files, layer: StepBoundary.layer.pipe(Layer.provide(hostLayer(fs))) }
+    return {
+      directories,
+      failedReads,
+      files,
+      fs,
+      madeDirectories,
+      removals,
+      writes,
+      layer: StepBoundary.layer.pipe(Layer.provide(hostLayer(fs)))
+    }
   }
 
   const declared = (content: string): FileBoundary => ({
@@ -628,8 +678,116 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
     )).resolves.toBeDefined()
   })
 
-  it("captures and replays a tree artifact after clearing stale descendants", async () => {
-    const producer = memoryFs({ "tree/a.txt": "a", "tree/nested/b.txt": "b" })
+  it("makes a warm replay write-free without recreating parent directories", async () => {
+    const producer = memoryFs({ "dist/a.txt": "a", "dist/b.txt": "b" })
+    const evidence = await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        return yield* boundary.settle(
+          yield* boundary.prepare({
+            readSet: [],
+            writeSet: ["dist/a.txt", "dist/b.txt"],
+            boundaryMode: "hard"
+          })
+        )
+      }).pipe(Effect.provide(producer.layer))
+    )
+    const consumer = memoryFs({})
+    const replay = () =>
+      runPromise(
+        Effect.flatMap(StepBoundary.StepBoundary, (boundary) => boundary.replayOutputs(evidence)).pipe(
+          Effect.provide(consumer.layer)
+        )
+      )
+
+    await replay()
+    expect(consumer.writes).toEqual(["dist/a.txt", "dist/b.txt"])
+    consumer.writes.length = 0
+    consumer.madeDirectories.length = 0
+
+    await replay()
+    expect(consumer.writes).toEqual([])
+    expect(consumer.madeDirectories).toEqual([])
+    expect(decoder.decode(consumer.files.get("dist/a.txt"))).toBe("a")
+    expect(decoder.decode(consumer.files.get("dist/b.txt"))).toBe("b")
+  })
+
+  it("rewrites only a tampered output", async () => {
+    const producer = memoryFs({ "dist/a.txt": "a", "dist/b.txt": "b" })
+    const evidence = await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        return yield* boundary.settle(
+          yield* boundary.prepare({
+            readSet: [],
+            writeSet: ["dist/a.txt", "dist/b.txt"],
+            boundaryMode: "hard"
+          })
+        )
+      }).pipe(Effect.provide(producer.layer))
+    )
+    const consumer = memoryFs({ "dist/a.txt": "tampered", "dist/b.txt": "b" })
+
+    await runPromise(
+      Effect.flatMap(StepBoundary.StepBoundary, (boundary) => boundary.replayOutputs(evidence)).pipe(
+        Effect.provide(consumer.layer)
+      )
+    )
+
+    expect(consumer.writes).toEqual(["dist/a.txt"])
+    expect(decoder.decode(consumer.files.get("dist/a.txt"))).toBe("a")
+    expect(decoder.decode(consumer.files.get("dist/b.txt"))).toBe("b")
+  })
+
+  it("verifies the destination before decoding inline content or reading an artifact", async () => {
+    const host = memoryFs({ "inline.txt": "inline", "referenced.txt": "referenced" })
+    const boundary = StepBoundary.makeFileSystem(host.fs, ArtifactStore.makeNoop())
+
+    await runPromise(
+      boundary.replayOutputs({
+        declaredOutputs: {
+          outputs: [
+            { path: "inline.txt", digest: sha256("inline"), content: "%%%not-base64%%%" },
+            { path: "referenced.txt", digest: sha256("referenced") }
+          ]
+        },
+        diffIdentity: "warm-short-circuit"
+      })
+    )
+
+    // The first row would be corrupt if decoded and the second store refuses
+    // every read. Matching destination digests make both unnecessary.
+    expect(host.writes).toEqual([])
+  })
+
+  it("falls through to ordinary materialization when the destination probe fails", async () => {
+    const host = memoryFs({ "output.txt": "stale" })
+    host.failedReads.add("output.txt")
+    const boundary = StepBoundary.makeFileSystem(host.fs, ArtifactStore.makeNoop())
+
+    await runPromise(
+      boundary.replayOutputs({
+        declaredOutputs: {
+          outputs: [{
+            path: "output.txt",
+            digest: sha256("recorded"),
+            content: Encoding.encodeBase64(encoder.encode("recorded"))
+          }]
+        },
+        diffIdentity: "probe-refused"
+      })
+    )
+
+    expect(host.writes).toEqual(["output.txt"])
+    expect(decoder.decode(host.files.get("output.txt"))).toBe("recorded")
+  })
+
+  it("diffs a tree artifact, including dotfiles, and removes only stale empty directories", async () => {
+    const producer = memoryFs({
+      "tree/.kept": "dotfile",
+      "tree/a.txt": "a",
+      "tree/nested/b.txt": "b"
+    })
     const evidence = await runPromise(
       Effect.gen(function*() {
         const boundary = yield* StepBoundary.StepBoundary
@@ -646,17 +804,64 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
       readonly outputs: ReadonlyArray<{ readonly path: string }>
       readonly trees: ReadonlyArray<{ readonly path: string; readonly identity: string }>
     }
-    expect(outputs.outputs.map((entry) => entry.path)).toEqual(["tree/a.txt", "tree/nested/b.txt"])
+    expect(outputs.outputs.map((entry) => entry.path)).toEqual([
+      "tree/.kept",
+      "tree/a.txt",
+      "tree/nested/b.txt"
+    ])
     expect(outputs.trees[0]).toMatchObject({ path: "tree" })
     expect(outputs.trees[0]!.identity).toMatch(/^key1_/)
 
-    const consumer = memoryFs({ "tree/stale.txt": "stale" })
+    const consumer = memoryFs({
+      "tree/.kept": "dotfile",
+      "tree/a.txt": "a",
+      "tree/nested/b.txt": "tampered",
+      "tree/stale/.secret": "stale"
+    })
     await runPromise(
       Effect.flatMap(StepBoundary.StepBoundary, (boundary) => boundary.replayOutputs(evidence)).pipe(
         Effect.provide(consumer.layer)
       )
     )
+    expect([...consumer.files.keys()].sort()).toEqual([
+      "tree/.kept",
+      "tree/a.txt",
+      "tree/nested/b.txt"
+    ])
+    expect(consumer.writes).toEqual(["tree/nested/b.txt"])
+    expect(consumer.removals).toEqual(["tree/stale/.secret", "tree/stale"])
+    expect(consumer.directories.has("tree/stale")).toBe(false)
+    expect(decoder.decode(consumer.files.get("tree/nested/b.txt"))).toBe("b")
+  })
+
+  it("fully materializes a recorded tree when its root is missing", async () => {
+    const producer = memoryFs({ "tree/a.txt": "a", "tree/nested/b.txt": "b" })
+    const evidence = await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        return yield* boundary.settle(
+          yield* boundary.prepare({
+            readSet: [],
+            writeSet: [{ _tag: "TreeArtifact", path: "tree" }],
+            boundaryMode: "hard"
+          })
+        )
+      }).pipe(Effect.provide(producer.layer))
+    )
+    const consumer = memoryFs({ "tree/old.txt": "old" })
+    await runPromise(consumer.fs.remove("tree", { recursive: true, force: true }))
+    consumer.removals.length = 0
+
+    await runPromise(
+      Effect.flatMap(StepBoundary.StepBoundary, (boundary) => boundary.replayOutputs(evidence)).pipe(
+        Effect.provide(consumer.layer)
+      )
+    )
+
+    expect(consumer.writes).toEqual(["tree/a.txt", "tree/nested/b.txt"])
     expect([...consumer.files.keys()].sort()).toEqual(["tree/a.txt", "tree/nested/b.txt"])
+    expect(consumer.directories.has("tree")).toBe(true)
+    expect(consumer.directories.has("tree/nested")).toBe(true)
   })
 
   it("captures write-set outputs and re-materializes them on a fresh workspace", async () => {

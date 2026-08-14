@@ -254,6 +254,9 @@ describe("an artifact store that refuses outright stays a retryable host refusal
     const host = memoryFs({ "input.txt": "original" })
     const artifact = "r".repeat(64)
     const evidence = await runPromise(settleWithArtifact(host, artifact, 16))
+    // Force materialization: a verified destination now skips the store
+    // entirely, while this cell exercises a store refusal that is consulted.
+    host.files.delete("artifact.bin")
     const failure = await runPromise(
       Effect.gen(function*() {
         const boundary = yield* StepBoundary.StepBoundary

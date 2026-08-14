@@ -68,6 +68,44 @@ export const filesUnder = (
   })
 
 /**
+ * Every file and every directory under `dir` (workspace-relative, non-empty),
+ * as sorted workspace-relative paths. The directory list includes `dir`
+ * itself, so a tree replay can audit exactly the scaffolding it may have to
+ * prune. A missing directory enumerates to nothing — a tree that matched
+ * nothing is legal, so absence is a fact rather than a failure.
+ *
+ * @since 0.1.0
+ * @category accessors
+ */
+export const entriesUnder = (
+  fs: FileSystem.FileSystem,
+  dir: string,
+  options: EnumerationOptions = {}
+): Effect.Effect<
+  { readonly files: ReadonlyArray<string>; readonly directories: ReadonlyArray<string> },
+  PlatformError.PlatformError
+> =>
+  Effect.gen(function*() {
+    const resolve = options.resolve ?? defaultResolve
+    const present = yield* fs.exists(resolve(dir))
+    if (!present) return { files: [], directories: [] }
+    const entries = yield* fs.readDirectory(resolve(dir), { recursive: true })
+    const files: Array<string> = []
+    const directories: Array<string> = [dir]
+    for (const entry of entries) {
+      const relative = entry.replaceAll("\\", "/")
+      const path = `${dir}/${relative}`
+      const info = yield* fs.stat(resolve(path))
+      if (info.type === "File") files.push(path)
+      else {
+        /* v8 ignore else -- special entries (symlinks, sockets) are neither materializable leaves nor prunable scaffolding */
+        if (info.type === "Directory") directories.push(path)
+      }
+    }
+    return { files: files.sort(), directories: directories.sort() }
+  })
+
+/**
  * The longest directory prefix of a pattern that contains no wildcard — the
  * subtree a walk has to visit. `src/**` walks `src`; `*.txt` walks the root.
  *

@@ -579,8 +579,8 @@ export const makeFileSystem = (
   const expandGlob = Effect.fn("StepBoundary.expandGlob")(function*(glob: FileSet.Glob) {
     return yield* FileEnumeration.expandGlob(fs, glob).pipe(Effect.mapError(hostFailure))
   })
-  const treeFiles = Effect.fn("StepBoundary.treeFiles")(function*(path: string) {
-    return yield* FileEnumeration.filesUnder(fs, path).pipe(Effect.mapError(hostFailure))
+  const treeEntries = Effect.fn("StepBoundary.treeEntries")(function*(path: string) {
+    return yield* FileEnumeration.entriesUnder(fs, path).pipe(Effect.mapError(hostFailure))
   })
   const capture = Effect.fn("StepBoundary.capture")(function*(path: string, inlineBudget: number) {
     const present = yield* fs.exists(path).pipe(Effect.mapError(hostFailure))
@@ -609,6 +609,15 @@ export const makeFileSystem = (
     return { output: { path, digest, sizeBytes: bytes.length } satisfies MaterializedOutput, inlinedBytes: 0 }
   })
   const materialize = Effect.fn("StepBoundary.materialize")(function*(output: MaterializedOutput) {
+    // The filesystem is the cheapest source of truth for a warm workspace.
+    // Probe before decoding inline bytes or consulting the artifact store; a
+    // transient probe refusal merely forfeits the optimization and the
+    // ordinary materialization path retains its existing typed failures.
+    const current = yield* measure(output.path).pipe(
+      Effect.map((digest) => digest !== absentDigest && digest === output.digest),
+      Effect.catch(() => Effect.succeed(false))
+    )
+    if (current) return
     let bytes: Uint8Array
     if (output.content !== undefined) {
       const decoded = Encoding.decodeBase64(output.content)
@@ -722,7 +731,7 @@ export const makeFileSystem = (
         if (typeof entry === "string") outputPaths.push(entry)
         else if (entry._tag === "Glob") outputPaths.push(...yield* expandGlob(entry))
         else {
-          const files = yield* treeFiles(entry.path)
+          const files = (yield* treeEntries(entry.path)).files
           outputPaths.push(...files)
           const pairs: Array<readonly [string, string]> = []
           for (const path of files) pairs.push([path.slice(entry.path.length + 1), yield* measure(path)])
@@ -828,8 +837,19 @@ export const makeFileSystem = (
           })
         )
       }
+      const emptyDirectoryCandidates = new Set<string>()
       for (const tree of decoded.success.trees ?? []) {
-        yield* fs.remove(tree.path, { recursive: true, force: true }).pipe(Effect.mapError(hostFailure))
+        const prefix = `${tree.path}/`.replace(/\/{2,}$/g, "/")
+        const recorded = new Set(
+          decoded.success.outputs
+            .map((output) => output.path)
+            .filter((path) => path.startsWith(prefix))
+        )
+        const entries = yield* treeEntries(tree.path)
+        for (const path of entries.files) {
+          if (!recorded.has(path)) yield* fs.remove(path).pipe(Effect.mapError(hostFailure))
+        }
+        for (const directory of entries.directories) emptyDirectoryCandidates.add(directory)
       }
       for (const recorded of decoded.success.outputs) {
         const output = "digest" in recorded ? recorded : yield* fromLegacyOutput(recorded)
@@ -839,6 +859,14 @@ export const makeFileSystem = (
         } else {
           yield* materialize(output)
         }
+      }
+      // Remove only directories proven empty after pruning and
+      // materialization. Deepest-first preserves every directory that still
+      // contains a recorded child while clearing stale empty scaffolding.
+      const directories = [...emptyDirectoryCandidates].sort((left, right) => right.length - left.length)
+      for (const directory of directories) {
+        const entries = yield* fs.readDirectory(directory).pipe(Effect.mapError(hostFailure))
+        if (entries.length === 0) yield* fs.remove(directory).pipe(Effect.mapError(hostFailure))
       }
     })
   })
