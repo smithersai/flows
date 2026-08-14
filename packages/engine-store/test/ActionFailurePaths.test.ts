@@ -21,6 +21,7 @@ import type * as Scope from "effect/Scope"
 import { describe, expect, it } from "vitest"
 import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as StepSandbox from "../src/StepSandbox.ts"
 import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
 
@@ -187,6 +188,43 @@ describe("action executor failure paths", () => {
     expect(finished[0]!.payload).toMatchObject({ state: "failed" })
   })
 
+  it("settles the attempt when the injected sandbox refuses to open", async () => {
+    // `StepSandbox.layerNoop` is the browser story: a host that cannot build
+    // the forest refuses typed. The refusal must settle the attempt exactly
+    // like a prepare failure — a row left "running" would read as a crash to
+    // the reclaim machinery instead of a refusal.
+    const key = "failure/sandbox-open"
+    const result = await run(
+      Effect.gen(function*() {
+        yield* activate("sandbox-open-fails", ownerA)
+        const exit = yield* executor({
+          runId: "sandbox-open-fails",
+          execute: () => Effect.succeed("never dispatched: open refuses first")
+        })(input(key)).pipe(Effect.exit)
+        const attempts = yield* AttemptStore.AttemptStore
+        const row = yield* attempts.get({
+          runId: "sandbox-open-fails",
+          stepKeyDigest: sha256(key),
+          attempt: 1
+        })
+        const events = yield* journalState("sandbox-open-fails")
+        return { exit, row, events }
+      }),
+      Layer.mergeAll(StepBoundary.layerTest(), StepSandbox.layerNoop)
+    )
+
+    const failure = Exit.isFailure(result.exit)
+      ? Cause.squash(result.exit.cause) as { readonly _tag?: string }
+      : {}
+    expect(failure._tag).toBe("flows/engine-store/UnsupportedBoundary")
+    expect(Option.getOrThrow(result.row).state).toBe("failed")
+    const eventTypes = result.events.map((event) => event.eventType)
+    expect(eventTypes).toContain("flows.engine.hard-violation")
+    const finished = result.events.filter((event) => event.eventType === "flows.engine.attempt-finished")
+    expect(finished).toHaveLength(1)
+    expect(finished[0]!.payload).toMatchObject({ state: "failed" })
+  })
+
   it("journals a hard violation and a failed finish when boundary.settle rejects an undeclared write", async () => {
     const key = "failure/settle"
     const result = await run(
@@ -284,6 +322,48 @@ describe("action executor failure paths", () => {
     const eventTypes = result.events.map((event) => event.eventType)
     expect(eventTypes).not.toContain("flows.engine.attempt-finished")
     expect(eventTypes).not.toContain("flows.engine.hard-violation")
+  })
+
+  it("fence lost while settling a refused sandbox open: the finish is discarded", async () => {
+    // The same fence discipline as every other settle path, on the
+    // sandbox-open refusal branch: a steal between the refusal and the finish
+    // self-interrupts instead of sealing under the lost fence.
+    const key = "failure/fence-sandbox-open"
+    const result = await run(
+      Effect.gen(function*() {
+        yield* activate("fence-sandbox-open", ownerA)
+        const runs = yield* RunStore.RunStore
+        const attempts = yield* AttemptStore.AttemptStore
+        const failedFinish = (args: ReadonlyArray<unknown>): boolean =>
+          (args[0] as { readonly state: string }).state === "failed"
+        const steal: Notifying.Hook = (op, order, args) =>
+          op === "finish" && order === "before" && failedFinish(args)
+            ? takeover(runs, "fence-sandbox-open", ownerB).pipe(Effect.orDie)
+            : Effect.void
+
+        const fencedOut = executor({
+          runId: "fence-sandbox-open",
+          execute: () => Effect.succeed("never dispatched: open refuses first")
+        })
+        const exit = yield* fencedOut(input(key)).pipe(
+          Effect.provideService(AttemptStore.AttemptStore, Notifying.wrap(attempts, steal)),
+          Effect.forkChild({ startImmediately: true }),
+          Effect.flatMap(Fiber.await)
+        )
+        const row = yield* attempts.get({
+          runId: "fence-sandbox-open",
+          stepKeyDigest: sha256(key),
+          attempt: 1
+        })
+        const events = yield* journalState("fence-sandbox-open")
+        return { exit, row, events }
+      }),
+      Layer.mergeAll(StepBoundary.layerTest(), StepSandbox.layerNoop)
+    )
+
+    expect(Exit.isFailure(result.exit) && Cause.hasInterruptsOnly(result.exit.cause)).toBe(true)
+    expect(Option.getOrThrow(result.row).state).toBe("running")
+    expect(result.events.map((event) => event.eventType)).not.toContain("flows.engine.attempt-finished")
   })
 
   it("persists the failing cause as explicit tagged-reason JSON, independent of the store's serializer", async () => {

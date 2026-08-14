@@ -482,7 +482,7 @@ describe("WorkspaceSandbox filesystem host", () => {
       remove: (path) => Effect.sync(() => void files.delete(String(path))),
       makeDirectory: () => Effect.void,
       readDirectory: ((directory: string, options?: { readonly recursive?: boolean }) => {
-        const prefix = `${directory}/`
+        const prefix = directory === "." ? "" : `${directory}/`
         const names = new Set<string>()
         for (const path of files.keys()) {
           if (!path.startsWith(prefix)) continue
@@ -532,6 +532,7 @@ describe("WorkspaceSandbox filesystem host", () => {
       ["/w/src/a.ts", encoder.encode("a")],
       ["/w/src/nested/b.ts", encoder.encode("b")],
       ["/w/src/skip.js", encoder.encode("skip")],
+      ["/w/notes.md", encoder.encode("root-level")],
       ["/w/stale.txt", encoder.encode("stale")]
     ])
     const program = Effect.gen(function*() {
@@ -544,14 +545,16 @@ describe("WorkspaceSandbox filesystem host", () => {
         descriptor: descriptor({
           readSet: [
             { _tag: "Glob", include: ["src/**/*.ts"], exclude: ["src/**/skip.ts"] },
-            { _tag: "Glob", include: ["src/a.ts"] }
+            { _tag: "Glob", include: ["src/a.ts"] },
+            // A root-level pattern walks the workspace root itself.
+            { _tag: "Glob", include: ["*.md"] }
           ],
           removes: ["stale.txt", "absent.txt"]
         }),
         workflow: Effect.gen(function*() {
           const fs = yield* FileSystem.FileSystem
           const visible: Array<string> = []
-          for (const path of ["src/a.ts", "src/nested/b.ts", "src/skip.js"]) {
+          for (const path of ["src/a.ts", "src/nested/b.ts", "notes.md", "src/skip.js"]) {
             if (yield* fs.exists(path)) visible.push(path)
           }
           yield* fs.readFileString("src/a.ts")
@@ -562,8 +565,37 @@ describe("WorkspaceSandbox filesystem host", () => {
     }).pipe(Effect.provide(hostLayer(files)))
     const accepted = await runPromise(program)
     if (accepted._tag !== "Accepted") throw new Error("expected accepted execution")
-    expect(accepted.result.output).toEqual(["src/a.ts", "src/nested/b.ts"])
+    expect(accepted.result.output).toEqual(["src/a.ts", "src/nested/b.ts", "notes.md"])
     expect(accepted.result.files.map((change) => change.path)).toEqual(["stale.txt"])
+  })
+
+  it("expands a root-level read glob on a host rooted at the current directory", async () => {
+    // `root === ""` is the current-directory host: the workspace root's own
+    // spelling is `"."`, the other arm of the enumeration's resolve.
+    const files = new Map<string, Uint8Array>([
+      ["top.ts", encoder.encode("top")],
+      ["src/deep.ts", encoder.encode("deep")]
+    ])
+    const program = Effect.gen(function*() {
+      const sandbox = WorkspaceSandbox.makeFileSystem(
+        yield* FileSystem.FileSystem,
+        yield* ArtifactStore.ArtifactStore,
+        ""
+      )
+      return yield* sandbox.execute({
+        descriptor: descriptor({ readSet: [{ _tag: "Glob", include: ["*.ts"] }] }),
+        workflow: Effect.gen(function*() {
+          const fs = yield* FileSystem.FileSystem
+          return {
+            top: yield* fs.exists("top.ts"),
+            deep: yield* fs.exists("src/deep.ts")
+          }
+        })
+      })
+    }).pipe(Effect.provide(hostLayer(files)))
+    const accepted = await runPromise(program)
+    if (accepted._tag !== "Accepted") throw new Error("expected accepted execution")
+    expect(accepted.result.output).toEqual({ top: true, deep: false })
   })
 
   it("copies back through a beforeDigest compare-and-set, retaining oversized products by digest", async () => {

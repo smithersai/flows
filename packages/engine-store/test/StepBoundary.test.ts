@@ -125,6 +125,39 @@ describe("StepBoundary", () => {
     expect(evidence.deviation).toBeUndefined()
   })
 
+  it("hard-fails a surviving removal the fixture reports", async () => {
+    const program = Effect.gen(function*() {
+      const boundary = yield* StepBoundary.StepBoundary
+      const prepared = yield* boundary.prepare({
+        ...descriptor,
+        writeSet: ["output.txt"],
+        removes: ["stale.txt"]
+      })
+      return yield* Effect.flip(boundary.settle(prepared))
+    }).pipe(Effect.provide(StepBoundary.layerTest({ survivingRemovals: ["stale.txt"] })))
+    const failure = await runPromise(program)
+    expect(failure).toMatchObject({
+      _tag: "flows/engine-store/SurvivingDeclaredRemoval",
+      code: "surviving_declared_removal",
+      paths: ["stale.txt"]
+    })
+  })
+
+  it("records a fixture-reported surviving removal as a deviation in expected mode", async () => {
+    const program = Effect.gen(function*() {
+      const boundary = yield* StepBoundary.StepBoundary
+      const prepared = yield* boundary.prepare({
+        ...descriptor,
+        boundaryMode: "expected",
+        writeSet: ["output.txt"],
+        removes: ["stale.txt"]
+      })
+      return yield* boundary.settle(prepared)
+    }).pipe(Effect.provide(StepBoundary.layerTest({ survivingRemovals: ["stale.txt"] })))
+    const evidence = await runPromise(program)
+    expect(evidence.deviation).toMatchObject({ _tag: "SurvivingDeclaredRemoval", paths: ["stale.txt"] })
+  })
+
   it("fails closed when the host does not support boundaries", async () => {
     const program = Effect.gen(function*() {
       const boundary = yield* StepBoundary.StepBoundary
@@ -187,19 +220,32 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
           }
         })) as never,
       makeDirectory: (() => Effect.void) as never,
+      // Node-faithful: a recursive listing names intermediate directories
+      // too, and `stat` answers `Directory` for them — the walk has to skip
+      // them, exactly as it does over a real host.
       readDirectory: ((directory: string, options?: { readonly recursive?: boolean }) => {
         const prefix = directory === "." ? "" : `${directory}/`
         const names = new Set<string>()
         for (const path of files.keys()) {
           if (!path.startsWith(prefix)) continue
           const rest = path.slice(prefix.length)
-          names.add(options?.recursive === true ? rest : rest.split("/")[0]!)
+          if (options?.recursive === true) {
+            names.add(rest)
+            const segments = rest.split("/")
+            for (let index = 1; index < segments.length; index++) {
+              names.add(segments.slice(0, index).join("/"))
+            }
+          } else {
+            names.add(rest.split("/")[0]!)
+          }
         }
         return Effect.succeed([...names].sort())
       }) as never,
       stat: ((path: string) =>
         files.has(path)
           ? Effect.succeed({ type: "File" })
+          : [...files.keys()].some((candidate) => candidate.startsWith(`${path}/`))
+          ? Effect.succeed({ type: "Directory" })
           : Effect.die(`missing stat ${path}`)) as never
     })
     return { files, layer: StepBoundary.layer.pipe(Layer.provide(hostLayer(fs))) }
@@ -433,6 +479,26 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
       }).pipe(Effect.provide(host.layer))
     )
     expect(absolute).toMatchObject({ code: "unsupported_boundary" })
+  })
+
+  it("expands root-level patterns and walks a shared include prefix once", async () => {
+    // A root-level pattern walks the workspace root itself; two includes with
+    // one static prefix walk that subtree once and still match through every
+    // include.
+    const host = memoryFs({ "a.out": "x", "docs/a.md": "m", "docs/b.txt": "t", "src/skip.js": "s" })
+    const evidence = await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        const prepared = yield* boundary.prepare({
+          readSet: [],
+          writeSet: [{ _tag: "Glob", include: ["*.out", "docs/*.md", "docs/*.txt"] }],
+          boundaryMode: "hard"
+        })
+        return yield* boundary.settle(prepared)
+      }).pipe(Effect.provide(host.layer))
+    )
+    const captured = (evidence.declaredOutputs as { outputs: ReadonlyArray<{ path: string }> }).outputs
+    expect(captured.map((output) => output.path)).toEqual(["a.out", "docs/a.md", "docs/b.txt"])
   })
 
   it("expands globs and trees over dotfiles, and replay restores them", async () => {
