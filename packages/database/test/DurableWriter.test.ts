@@ -1,8 +1,8 @@
+import { describe, expect, it } from "@effect/vitest"
 import { Cause, Effect, Exit, Fiber, Random, Result } from "effect"
 import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as SqlError from "effect/unstable/sql/SqlError"
-import { describe, expect, it } from "vitest"
 import * as DurableWriter from "../src/DurableWriter.ts"
 import * as WriteRetry from "../src/internal/WriteRetry.ts"
 import * as TestDatabase from "../src/test/TestDatabase.ts"
@@ -27,78 +27,84 @@ const retrySql = {
 } as SqlClient.SqlClient
 
 describe("DurableWriter", () => {
-  it("opens, queries, and commits a transaction through TestDatabase", async () => {
-    const result = await Effect.runPromise(
-      Effect.gen(function*() {
-        const sql = yield* Effect.service(SqlClient.SqlClient)
-        const writer = yield* DurableWriter.DurableWriter
-        yield* sql`CREATE TABLE values_table (value INTEGER NOT NULL)`
-        yield* writer.write(sql`INSERT INTO values_table (value) VALUES (${42})`)
-        const rows = yield* sql<{ readonly value: number }>`SELECT value FROM values_table`
-        return rows[0]?.value
-      }).pipe(Effect.provide(TestDatabase.layer))
-    )
+  it.effect("opens, queries, and commits a transaction through TestDatabase", () =>
+    Effect.gen(function*() {
+      const result = yield* (
+        Effect.gen(function*() {
+          const sql = yield* Effect.service(SqlClient.SqlClient)
+          const writer = yield* DurableWriter.DurableWriter
+          yield* sql`CREATE TABLE values_table (value INTEGER NOT NULL)`
+          yield* writer.write(sql`INSERT INTO values_table (value) VALUES (${42})`)
+          const rows = yield* sql<{ readonly value: number }>`SELECT value FROM values_table`
+          return rows[0]?.value
+        }).pipe(Effect.provide(TestDatabase.layer))
+      )
 
-    expect(result).toBe(42)
-  })
+      expect(result).toBe(42)
+    }))
 
-  it("reads the affected-row count from either dialect's raw result", async () => {
-    const counts = await Effect.runPromise(
-      Effect.all([
-        DurableWriter.affectedRows({ changes: 3 }),
-        DurableWriter.affectedRows({ rowCount: 0 }),
-        // A driver that reports both wins on the SQLite field it already used.
-        DurableWriter.affectedRows({ changes: 2, rowCount: 5 })
-      ])
-    )
+  it.effect("reads the affected-row count from either dialect's raw result", () =>
+    Effect.gen(function*() {
+      const counts = yield* (
+        Effect.all([
+          DurableWriter.affectedRows({ changes: 3 }),
+          DurableWriter.affectedRows({ rowCount: 0 }),
+          // A driver that reports both wins on the SQLite field it already used.
+          DurableWriter.affectedRows({ changes: 2, rowCount: 5 })
+        ])
+      )
 
-    expect(counts).toEqual([3, 0, 2])
-  })
+      expect(counts).toEqual([3, 0, 2])
+    }))
 
-  it("fails with unsupported rather than guessing when no affected-row count is readable", async () => {
-    const shapes: ReadonlyArray<unknown> = [
-      undefined,
-      null,
-      "1 row",
-      {},
-      { changes: "3" },
-      { changes: -1 },
-      { rowCount: 1.5 }
-    ]
-    const failures = await Effect.runPromise(
-      Effect.forEach(shapes, (shape) => Effect.flip(DurableWriter.affectedRows(shape)))
-    )
+  it.effect("fails with unsupported rather than guessing when no affected-row count is readable", () =>
+    Effect.gen(function*() {
+      const shapes: ReadonlyArray<unknown> = [
+        undefined,
+        null,
+        "1 row",
+        {},
+        { changes: "3" },
+        { changes: -1 },
+        { rowCount: 1.5 }
+      ]
+      const failures = yield* (
+        Effect.forEach(shapes, (shape) => Effect.flip(DurableWriter.affectedRows(shape)))
+      )
 
-    expect(failures.map((failure) => failure.code)).toEqual(shapes.map(() => "unsupported"))
-  })
+      expect(failures.map((failure) => failure.code)).toEqual(shapes.map(() => "unsupported"))
+    }))
 
   // BUG: affectedRows accepts integers above JavaScript's safe range even though their exact count is unreadable.
-  it.fails("rejects an affected-row count one past Number.MAX_SAFE_INTEGER", async () => {
-    const failure = await Effect.runPromise(
-      Effect.flip(DurableWriter.affectedRows({ changes: Number.MAX_SAFE_INTEGER + 1 }))
-    )
+  it.effect.fails("rejects an affected-row count one past Number.MAX_SAFE_INTEGER", () =>
+    Effect.gen(function*() {
+      const failure = yield* (
+        Effect.flip(DurableWriter.affectedRows({ changes: Number.MAX_SAFE_INTEGER + 1 }))
+      )
 
-    expect(failure).toBeInstanceOf(DurableWriter.DatabaseError)
-    expect(failure.code).toBe("unsupported")
-  })
+      expect(failure).toBeInstanceOf(DurableWriter.DatabaseError)
+      expect(failure.code).toBe("unsupported")
+    }))
 
-  it("rejects NaN as an affected-row count", async () => {
-    const failure = await Effect.runPromise(
-      Effect.flip(DurableWriter.affectedRows({ changes: Number.NaN }))
-    )
+  it.effect("rejects NaN as an affected-row count", () =>
+    Effect.gen(function*() {
+      const failure = yield* (
+        Effect.flip(DurableWriter.affectedRows({ changes: Number.NaN }))
+      )
 
-    expect(failure).toBeInstanceOf(DurableWriter.DatabaseError)
-    expect(failure.code).toBe("unsupported")
-  })
+      expect(failure).toBeInstanceOf(DurableWriter.DatabaseError)
+      expect(failure.code).toBe("unsupported")
+    }))
 
   // BUG: affectedRows reads inherited properties instead of requiring a driver's own result field.
-  it.fails("rejects a prototype-inherited affected-row count", async () => {
-    const raw = Object.create({ changes: 3 }) as object
-    const failure = await Effect.runPromise(Effect.flip(DurableWriter.affectedRows(raw)))
+  it.effect.fails("rejects a prototype-inherited affected-row count", () =>
+    Effect.gen(function*() {
+      const raw = Object.create({ changes: 3 }) as object
+      const failure = yield* (Effect.flip(DurableWriter.affectedRows(raw)))
 
-    expect(failure).toBeInstanceOf(DurableWriter.DatabaseError)
-    expect(failure.code).toBe("unsupported")
-  })
+      expect(failure).toBeInstanceOf(DurableWriter.DatabaseError)
+      expect(failure.code).toBe("unsupported")
+    }))
 
   it("normalizes SQLite errors into stable DatabaseError codes", () => {
     expect(DurableWriter.fromSqlError(sqliteError("SQLITE_BUSY"))).toMatchObject({ code: "busy" })
@@ -212,81 +218,87 @@ describe("DurableWriter", () => {
     expect(attempts).toBe(3)
   })
 
-  it("surfaces busy after a permanently busy write exhausts its retry budget", async () => {
-    let attempts = 0
-    const writer = DurableWriter.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
-    const program = Effect.gen(function*() {
-      const fiber = yield* writer.write(
-        Effect.suspend(() => {
-          attempts += 1
-          return Effect.fail(sqliteError("SQLITE_BUSY"))
-        })
-      ).pipe(Effect.flip, Effect.forkChild({ startImmediately: true }))
-      yield* Effect.yieldNow
-      yield* TestClock.adjust("1 second")
-      return yield* Fiber.join(fiber)
-    }).pipe(
-      Effect.provide(TestClock.layer()),
-      Random.withSeed(1)
-    )
+  it.effect("surfaces busy after a permanently busy write exhausts its retry budget", () =>
+    Effect.gen(function*() {
+      let attempts = 0
+      const writer = DurableWriter.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
+      const program = Effect.gen(function*() {
+        const fiber = yield* writer.write(
+          Effect.suspend(() => {
+            attempts += 1
+            return Effect.fail(sqliteError("SQLITE_BUSY"))
+          })
+        ).pipe(Effect.flip, Effect.forkChild({ startImmediately: true }))
+        yield* Effect.yieldNow
+        yield* TestClock.adjust("1 second")
+        return yield* Fiber.join(fiber)
+      }).pipe(
+        Effect.provide(TestClock.layer()),
+        Random.withSeed(1)
+      )
 
-    const failure = await Effect.runPromise(program)
-    expect(failure).toBeInstanceOf(DurableWriter.DatabaseError)
-    if (failure instanceof DurableWriter.DatabaseError) {
-      expect(failure.code).toBe("busy")
-    }
-    expect(attempts).toBe(3)
-  })
+      const failure = yield* program
+      expect(failure).toBeInstanceOf(DurableWriter.DatabaseError)
+      if (failure instanceof DurableWriter.DatabaseError) {
+        expect(failure.code).toBe("busy")
+      }
+      expect(attempts).toBe(3)
+    }))
 
-  it.each([0, -5, 1.7])("clamps maxAttempts $maxAttempts to one attempt", async (maxAttempts) => {
-    let attempts = 0
-    const writer = DurableWriter.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts })
-    const program = Effect.gen(function*() {
-      const fiber = yield* writer.write(
-        Effect.suspend(() => {
-          attempts += 1
-          return Effect.fail(sqliteError("SQLITE_BUSY"))
-        })
-      ).pipe(Effect.flip, Effect.forkChild({ startImmediately: true }))
-      yield* Effect.yieldNow
-      yield* TestClock.adjust("1 second")
-      return yield* Fiber.join(fiber)
-    }).pipe(Effect.provide(TestClock.layer()))
+  it.effect.each([0, -5, 1.7])(
+    "clamps maxAttempts $maxAttempts to one attempt",
+    (maxAttempts) =>
+      Effect.gen(function*() {
+        let attempts = 0
+        const writer = DurableWriter.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts })
+        const program = Effect.gen(function*() {
+          const fiber = yield* writer.write(
+            Effect.suspend(() => {
+              attempts += 1
+              return Effect.fail(sqliteError("SQLITE_BUSY"))
+            })
+          ).pipe(Effect.flip, Effect.forkChild({ startImmediately: true }))
+          yield* Effect.yieldNow
+          yield* TestClock.adjust("1 second")
+          return yield* Fiber.join(fiber)
+        }).pipe(Effect.provide(TestClock.layer()))
 
-    const failure = await Effect.runPromise(program)
-    expect(failure).toBeInstanceOf(DurableWriter.DatabaseError)
-    if (failure instanceof DurableWriter.DatabaseError) {
-      expect(failure.code).toBe("busy")
-    }
-    expect(attempts).toBe(1)
-  })
+        const failure = yield* program
+        expect(failure).toBeInstanceOf(DurableWriter.DatabaseError)
+        if (failure instanceof DurableWriter.DatabaseError) {
+          expect(failure.code).toBe("busy")
+        }
+        expect(attempts).toBe(1)
+      })
+  )
 
   // BUG: jitter runs after the maxDelayMs cap and can extend a retry beyond the documented upper bound.
-  it.fails("caps every exponential retry delay at maxDelayMs under TestClock", async () => {
-    let attempts = 0
-    const writer = DurableWriter.make(retrySql, { baseDelayMs: 4, maxDelayMs: 5, maxAttempts: 3 })
-    const program = Effect.gen(function*() {
-      const fiber = yield* writer.write(
-        Effect.suspend(() => {
-          attempts += 1
-          return Effect.fail(sqliteError("SQLITE_BUSY"))
-        })
-      ).pipe(Effect.exit, Effect.forkChild({ startImmediately: true }))
-      yield* Effect.yieldNow
-      expect(attempts).toBe(1)
-      yield* TestClock.adjust("4 millis")
-      expect(attempts).toBe(2)
-      yield* TestClock.adjust("5 millis")
-      expect(attempts).toBe(3)
-      return yield* Fiber.join(fiber)
-    }).pipe(
-      Effect.provide(TestClock.layer()),
-      Random.withSeed(1)
-    )
+  it.effect.fails("caps every exponential retry delay at maxDelayMs under TestClock", () =>
+    Effect.gen(function*() {
+      let attempts = 0
+      const writer = DurableWriter.make(retrySql, { baseDelayMs: 4, maxDelayMs: 5, maxAttempts: 3 })
+      const program = Effect.gen(function*() {
+        const fiber = yield* writer.write(
+          Effect.suspend(() => {
+            attempts += 1
+            return Effect.fail(sqliteError("SQLITE_BUSY"))
+          })
+        ).pipe(Effect.exit, Effect.forkChild({ startImmediately: true }))
+        yield* Effect.yieldNow
+        expect(attempts).toBe(1)
+        yield* TestClock.adjust("4 millis")
+        expect(attempts).toBe(2)
+        yield* TestClock.adjust("5 millis")
+        expect(attempts).toBe(3)
+        return yield* Fiber.join(fiber)
+      }).pipe(
+        Effect.provide(TestClock.layer()),
+        Random.withSeed(1)
+      )
 
-    const exit = await Effect.runPromise(program)
-    expect(Exit.isFailure(exit)).toBe(true)
-  })
+      const exit = yield* program
+      expect(Exit.isFailure(exit)).toBe(true)
+    }))
 
   it("retries retryable driver defects through the same schedule", async () => {
     let attempts = 0
@@ -372,51 +384,54 @@ describe("DurableWriter", () => {
     expect(attempts).toBe(3)
   })
 
-  it("does not retry constraint failures", async () => {
-    let attempts = 0
-    const writer = DurableWriter.make(retrySql, { maxAttempts: 3 })
-    const exit = await Effect.runPromiseExit(
-      writer.write(
-        Effect.suspend(() => {
-          attempts += 1
-          return Effect.fail(sqliteError("SQLITE_CONSTRAINT"))
-        })
+  it.effect("does not retry constraint failures", () =>
+    Effect.gen(function*() {
+      let attempts = 0
+      const writer = DurableWriter.make(retrySql, { maxAttempts: 3 })
+      const exit = yield* Effect.exit(
+        writer.write(
+          Effect.suspend(() => {
+            attempts += 1
+            return Effect.fail(sqliteError("SQLITE_CONSTRAINT"))
+          })
+        )
       )
-    )
 
-    expect(Exit.isFailure(exit)).toBe(true)
-    expect(attempts).toBe(1)
-  })
+      expect(Exit.isFailure(exit)).toBe(true)
+      expect(attempts).toBe(1)
+    }))
 
-  it("layerNoop fails writes with unsupported", async () => {
-    const exit = await Effect.runPromiseExit(
-      Effect.gen(function*() {
-        const writer = yield* DurableWriter.DurableWriter
-        return yield* writer.write(Effect.void)
-      }).pipe(Effect.provide(DurableWriter.layerNoop))
-    )
+  it.effect("layerNoop fails writes with unsupported", () =>
+    Effect.gen(function*() {
+      const exit = yield* Effect.exit(
+        Effect.gen(function*() {
+          const writer = yield* DurableWriter.DurableWriter
+          return yield* writer.write(Effect.void)
+        }).pipe(Effect.provide(DurableWriter.layerNoop))
+      )
 
-    expect(Exit.isFailure(exit)).toBe(true)
-    if (Exit.isFailure(exit)) {
-      const error = Cause.findError(exit.cause)
-      expect(Result.isSuccess(error)).toBe(true)
-      if (Result.isSuccess(error)) {
-        expect(error.success.code).toBe("unsupported")
+      expect(Exit.isFailure(exit)).toBe(true)
+      if (Exit.isFailure(exit)) {
+        const error = Cause.findError(exit.cause)
+        expect(Result.isSuccess(error)).toBe(true)
+        if (Result.isSuccess(error)) {
+          expect(error.success.code).toBe("unsupported")
+        }
       }
-    }
-  })
+    }))
 
-  it("makeNoop fails writes with unsupported", async () => {
-    const writer = DurableWriter.makeNoop()
-    const exit = await Effect.runPromiseExit(writer.write(Effect.void))
+  it.effect("makeNoop fails writes with unsupported", () =>
+    Effect.gen(function*() {
+      const writer = DurableWriter.makeNoop()
+      const exit = yield* Effect.exit(writer.write(Effect.void))
 
-    expect(Exit.isFailure(exit)).toBe(true)
-    if (Exit.isFailure(exit)) {
-      const found = Cause.findError(exit.cause)
-      expect(Result.isSuccess(found) && found.success instanceof DurableWriter.DatabaseError).toBe(true)
-      if (Result.isSuccess(found) && found.success instanceof DurableWriter.DatabaseError) {
-        expect(found.success.code).toBe("unsupported")
+      expect(Exit.isFailure(exit)).toBe(true)
+      if (Exit.isFailure(exit)) {
+        const found = Cause.findError(exit.cause)
+        expect(Result.isSuccess(found) && found.success instanceof DurableWriter.DatabaseError).toBe(true)
+        if (Result.isSuccess(found) && found.success instanceof DurableWriter.DatabaseError) {
+          expect(found.success.code).toBe("unsupported")
+        }
       }
-    }
-  })
+    }))
 })

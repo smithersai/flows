@@ -19,8 +19,9 @@
  * itself: SHA-256 over `node:crypto`, and the in-memory SQLite database every
  * store binds to.
  */
-import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
+import { describe, expect, it } from "@effect/vitest"
 import * as DurableWriter from "@smthrs/database-next/DurableWriter"
+import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import * as Crypto from "effect/Crypto"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
@@ -32,7 +33,6 @@ import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import { TestClock } from "effect/testing"
 import { createHash, webcrypto } from "node:crypto"
-import { describe, expect, it } from "vitest"
 import {
   Action,
   DurableDeferred,
@@ -109,21 +109,16 @@ const services = Layer.mergeAll(
 const durableWith = <A, E, R>(
   body: Effect.Effect<A, E, R>,
   layer: Layer.Layer<never>
-): Promise<A> =>
-  Effect.runPromise(
-    Effect.scoped(body.pipe(Effect.provide(layer), Effect.provide(hostCrypto))) as Effect.Effect<A>
-  )
+) => Effect.scoped(body.pipe(Effect.provide(layer), Effect.provide(hostCrypto))) as Effect.Effect<A>
 
 /** Runs one body against a fresh database and the real durable stores. */
-const durable = <A, E, R>(body: Effect.Effect<A, E, R>): Promise<A> => durableWith(body, services)
+const durable = <A, E, R>(body: Effect.Effect<A, E, R>) => durableWith(body, services)
 
 /** The same, with time under the test's control so a durable timer can fire. */
-const durableTimed = <A, E, R>(body: Effect.Effect<A, E, R>): Promise<A> =>
-  Effect.runPromise(
-    Effect.scoped(
-      body.pipe(Effect.provide(services), Effect.provide(hostCrypto), Effect.provide(TestClock.layer()))
-    ) as Effect.Effect<A>
-  )
+const durableTimed = <A, E, R>(body: Effect.Effect<A, E, R>) =>
+  Effect.scoped(
+    body.pipe(Effect.provide(services), Effect.provide(hostCrypto), Effect.provide(TestClock.layer()))
+  ) as Effect.Effect<A>
 
 /** The layer type an action implementation registers itself through. */
 type Implementation = Layer.Layer<never, never, Action.Implementations | FlowRuntime.FlowRuntime>
@@ -247,77 +242,79 @@ const CountTo = counter("e2e/count-to")
 const Bounded = counter("e2e/bounded", 3)
 
 describe("a lineage counts to 100", () => {
-  it("chains one execution per round under the lineage, and answers with the target", async () => {
-    const calls: Array<number> = []
-    const observed = await durable(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      const state = yield* DurableEngineState.DurableEngineState
-      const { wiring } = yield* incarnation({
-        hostId: "century",
-        flows: [CountTo],
-        implementations: [incrementing(calls)]
-      })
+  it.effect("chains one execution per round under the lineage, and answers with the target", () =>
+    Effect.gen(function*() {
+      const calls: Array<number> = []
+      const observed = yield* durable(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const state = yield* DurableEngineState.DurableEngineState
+        const { wiring } = yield* incarnation({
+          hostId: "century",
+          flows: [CountTo],
+          implementations: [incrementing(calls)]
+        })
 
-      const value = yield* CountTo.execute({ value: 0, target: 100 }, {
-        executionId: "century-lineage"
-      }).pipe(Effect.provide(wiring))
+        const value = yield* CountTo.execute({ value: 0, target: 100 }, {
+          executionId: "century-lineage"
+        }).pipe(Effect.provide(wiring))
 
-      const ids = [
-        "century-lineage",
-        ...Array.from({ length: 99 }, (_, index) => roundId("century-lineage", index + 1))
-      ]
-      const rows = yield* Effect.forEach(ids, (runId) => store.get(runId))
-      const edges = yield* Effect.forEach(ids, (runId) => state.runParents(runId))
-      const beyond = yield* Effect.exit(store.get(roundId("century-lineage", 100)))
-      return { beyond, edges, ids, rows, value }
+        const ids = [
+          "century-lineage",
+          ...Array.from({ length: 99 }, (_, index) => roundId("century-lineage", index + 1))
+        ]
+        const rows = yield* Effect.forEach(ids, (runId) => store.get(runId))
+        const edges = yield* Effect.forEach(ids, (runId) => state.runParents(runId))
+        const beyond = yield* Effect.exit(store.get(roundId("century-lineage", 100)))
+        return { beyond, edges, ids, rows, value }
+      }))
+
+      expect(observed.value).toBe(100)
+      // One dispatch per round, on the value that round was handed: a hundred
+      // rounds, not a hundred copies of one round.
+      expect(calls).toEqual(Array.from({ length: 100 }, (_, index) => index))
+      expect(observed.rows).toHaveLength(100)
+      expect(observed.rows.every((row) => row.status === "completed")).toBe(true)
+      // The chain is `parent_run_id` plus the lineage pair. Round 0 carries the
+      // pair too; only its continue-as-new parent is absent.
+      expect(observed.rows.map((row) => row.roundOrdinal)).toEqual(Array.from({ length: 100 }, (_, index) => index))
+      expect(observed.rows.every((row) => row.lineageId === "century-lineage")).toBe(true)
+      expect(observed.rows[0]?.parentRunId).toBeNull()
+      expect(observed.rows.slice(1).map((row) => row.parentRunId)).toEqual(observed.ids.slice(0, 99))
+      // A round is the same run continuing, not a spawned child, so the subflow
+      // edge table stays empty for every one of them.
+      expect(observed.edges.every((edge) => edge.length === 0)).toBe(true)
+      // The lineage stopped at the round that answered: no hundred-and-first.
+      expect(Exit.isFailure(observed.beyond)).toBe(true)
     }))
 
-    expect(observed.value).toBe(100)
-    // One dispatch per round, on the value that round was handed: a hundred
-    // rounds, not a hundred copies of one round.
-    expect(calls).toEqual(Array.from({ length: 100 }, (_, index) => index))
-    expect(observed.rows).toHaveLength(100)
-    expect(observed.rows.every((row) => row.status === "completed")).toBe(true)
-    // The chain is `parent_run_id` plus the lineage pair. Round 0 carries the
-    // pair too; only its continue-as-new parent is absent.
-    expect(observed.rows.map((row) => row.roundOrdinal)).toEqual(Array.from({ length: 100 }, (_, index) => index))
-    expect(observed.rows.every((row) => row.lineageId === "century-lineage")).toBe(true)
-    expect(observed.rows[0]?.parentRunId).toBeNull()
-    expect(observed.rows.slice(1).map((row) => row.parentRunId)).toEqual(observed.ids.slice(0, 99))
-    // A round is the same run continuing, not a spawned child, so the subflow
-    // edge table stays empty for every one of them.
-    expect(observed.edges.every((edge) => edge.length === 0)).toBe(true)
-    // The lineage stopped at the round that answered: no hundred-and-first.
-    expect(Exit.isFailure(observed.beyond)).toBe(true)
-  })
+  it.effect("takes the exit arm on the first round when the target is already met", () =>
+    Effect.gen(function*() {
+      const calls: Array<number> = []
+      const observed = yield* durable(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const { wiring } = yield* incarnation({
+          hostId: "exit-first",
+          flows: [CountTo],
+          implementations: [incrementing(calls)]
+        })
+        const value = yield* CountTo.execute({ value: 100, target: 100 }, {
+          executionId: "exit-first-lineage"
+        }).pipe(Effect.provide(wiring))
+        return {
+          root: yield* store.get("exit-first-lineage"),
+          successor: yield* Effect.exit(store.get(roundId("exit-first-lineage", 1))),
+          value
+        }
+      }))
 
-  it("takes the exit arm on the first round when the target is already met", async () => {
-    const calls: Array<number> = []
-    const observed = await durable(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      const { wiring } = yield* incarnation({
-        hostId: "exit-first",
-        flows: [CountTo],
-        implementations: [incrementing(calls)]
-      })
-      const value = yield* CountTo.execute({ value: 100, target: 100 }, {
-        executionId: "exit-first-lineage"
-      }).pipe(Effect.provide(wiring))
-      return {
-        root: yield* store.get("exit-first-lineage"),
-        successor: yield* Effect.exit(store.get(roundId("exit-first-lineage", 1))),
-        value
-      }
+      // The predicate ran on the REAL value the action produced, and the arm it
+      // did not take opened no round at all.
+      expect(observed.value).toBe(101)
+      expect(calls).toEqual([100])
+      expect(observed.root.status).toBe("completed")
+      expect(observed.root.roundOrdinal).toBe(0)
+      expect(Exit.isFailure(observed.successor)).toBe(true)
     }))
-
-    // The predicate ran on the REAL value the action produced, and the arm it
-    // did not take opened no round at all.
-    expect(observed.value).toBe(101)
-    expect(calls).toEqual([100])
-    expect(observed.root.status).toBe("completed")
-    expect(observed.root.roundOrdinal).toBe(0)
-    expect(Exit.isFailure(observed.successor)).toBe(true)
-  })
 
   it("shows both arms as topology before any of it runs", () => {
     const graph = Graph.build(CountTo, { value: 0, target: 2 })
@@ -372,95 +369,97 @@ const StageOne = Flow.make("e2e/stage-one", {
 })
 
 describe("a lineage survives the process that was driving it", () => {
-  it("re-drives the round the dead worker opened, and re-runs nothing it settled", async () => {
-    const first: Array<string> = []
-    const second: Array<string> = []
-    const observed = await durable(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      // A worker that knows the first two legs only. It settles rounds 0 and 1,
-      // opens round 2 durably, and then has nothing that can drive it — the
-      // crash window the derived round id exists for.
-      const partial = yield* incarnation({
-        hostId: "crash-partial",
-        flows: [StageOne, StageTwo],
-        implementations: [staging(first)]
-      })
-      yield* StageOne.execute({ value: 0 }, {
-        executionId: "crash-lineage",
-        discard: true
-      }).pipe(Effect.provide(partial.wiring))
+  it.effect("re-drives the round the dead worker opened, and re-runs nothing it settled", () =>
+    Effect.gen(function*() {
+      const first: Array<string> = []
+      const second: Array<string> = []
+      const observed = yield* durable(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        // A worker that knows the first two legs only. It settles rounds 0 and 1,
+        // opens round 2 durably, and then has nothing that can drive it — the
+        // crash window the derived round id exists for.
+        const partial = yield* incarnation({
+          hostId: "crash-partial",
+          flows: [StageOne, StageTwo],
+          implementations: [staging(first)]
+        })
+        yield* StageOne.execute({ value: 0 }, {
+          executionId: "crash-lineage",
+          discard: true
+        }).pipe(Effect.provide(partial.wiring))
 
-      const settled = yield* Effect.forEach(
-        ["crash-lineage", roundId("crash-lineage", 1)],
-        (runId) => store.get(runId)
-      )
-      const stranded = yield* store.get(roundId("crash-lineage", 2))
+        const settled = yield* Effect.forEach(
+          ["crash-lineage", roundId("crash-lineage", 1)],
+          (runId) => store.get(runId)
+        )
+        const stranded = yield* store.get(roundId("crash-lineage", 2))
 
-      // The replacement knows every leg and picks the lineage up from its root.
-      const whole = yield* incarnation({
-        hostId: "crash-whole",
-        flows: [StageOne, StageTwo, StageThree],
-        implementations: [staging(second)]
-      })
-      const value = yield* StageOne.execute({ value: 0 }, {
-        executionId: "crash-lineage"
-      }).pipe(Effect.provide(whole.wiring))
+        // The replacement knows every leg and picks the lineage up from its root.
+        const whole = yield* incarnation({
+          hostId: "crash-whole",
+          flows: [StageOne, StageTwo, StageThree],
+          implementations: [staging(second)]
+        })
+        const value = yield* StageOne.execute({ value: 0 }, {
+          executionId: "crash-lineage"
+        }).pipe(Effect.provide(whole.wiring))
 
-      const finished = yield* Effect.forEach(
-        ["crash-lineage", roundId("crash-lineage", 1), roundId("crash-lineage", 2)],
-        (runId) => store.get(runId)
-      )
-      return { finished, settled, stranded, value }
+        const finished = yield* Effect.forEach(
+          ["crash-lineage", roundId("crash-lineage", 1), roundId("crash-lineage", 2)],
+          (runId) => store.get(runId)
+        )
+        return { finished, settled, stranded, value }
+      }))
+
+      expect(observed.settled.map((row) => row.status)).toEqual(["completed", "completed"])
+      expect(observed.stranded.status).toBe("pending")
+      expect(observed.stranded.roundOrdinal).toBe(2)
+      // At most once: the first worker's two rounds ran on IT, and the second
+      // worker ran only the round nobody had run.
+      expect(first).toEqual(["one:0", "two:1"])
+      expect(second).toEqual(["three:2"])
+      expect(observed.value).toBe(3)
+      expect(observed.finished.map((row) => row.status)).toEqual(["completed", "completed", "completed"])
+      // The re-drive landed on the round that already existed, so the chain is
+      // the one the dead worker started.
+      expect(observed.finished.map((row) => row.parentRunId)).toEqual([
+        null,
+        "crash-lineage",
+        roundId("crash-lineage", 1)
+      ])
+      expect(observed.finished.map((row) => row.roundOrdinal)).toEqual([0, 1, 2])
     }))
-
-    expect(observed.settled.map((row) => row.status)).toEqual(["completed", "completed"])
-    expect(observed.stranded.status).toBe("pending")
-    expect(observed.stranded.roundOrdinal).toBe(2)
-    // At most once: the first worker's two rounds ran on IT, and the second
-    // worker ran only the round nobody had run.
-    expect(first).toEqual(["one:0", "two:1"])
-    expect(second).toEqual(["three:2"])
-    expect(observed.value).toBe(3)
-    expect(observed.finished.map((row) => row.status)).toEqual(["completed", "completed", "completed"])
-    // The re-drive landed on the round that already existed, so the chain is
-    // the one the dead worker started.
-    expect(observed.finished.map((row) => row.parentRunId)).toEqual([
-      null,
-      "crash-lineage",
-      roundId("crash-lineage", 1)
-    ])
-    expect(observed.finished.map((row) => row.roundOrdinal)).toEqual([0, 1, 2])
-  })
 })
 
 describe("a lineage may not open more rounds than it declared", () => {
-  it("ends the lineage with the typed refusal when the round budget is spent", async () => {
-    const calls: Array<number> = []
-    const observed = await durable(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      const { wiring } = yield* incarnation({
-        hostId: "bounded",
-        flows: [Bounded],
-        implementations: [incrementing(calls)]
-      })
-      const exit = yield* Bounded.execute({ value: 0, target: 99 }, {
-        executionId: "bounded-lineage"
-      }).pipe(Effect.exit, Effect.provide(wiring))
-      return {
-        beyond: yield* Effect.exit(store.get(roundId("bounded-lineage", 3))),
-        exit,
-        last: yield* store.get(roundId("bounded-lineage", 2))
-      }
-    }))
+  it.effect("ends the lineage with the typed refusal when the round budget is spent", () =>
+    Effect.gen(function*() {
+      const calls: Array<number> = []
+      const observed = yield* durable(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const { wiring } = yield* incarnation({
+          hostId: "bounded",
+          flows: [Bounded],
+          implementations: [incrementing(calls)]
+        })
+        const exit = yield* Bounded.execute({ value: 0, target: 99 }, {
+          executionId: "bounded-lineage"
+        }).pipe(Effect.exit, Effect.provide(wiring))
+        return {
+          beyond: yield* Effect.exit(store.get(roundId("bounded-lineage", 3))),
+          exit,
+          last: yield* store.get(roundId("bounded-lineage", 2))
+        }
+      }))
 
-    // Three rounds are all a lineage bounded at three may open, and the request
-    // for a fourth is what fails — terminally, on the round that asked for it.
-    expect(calls).toEqual([0, 1, 2])
-    expect(Exit.isFailure(observed.exit)).toBe(true)
-    expect(Exit.isFailure(observed.exit) && observed.exit.cause.toString()).toContain("MaxRoundsExceeded")
-    expect(observed.last.status).toBe("failed")
-    expect(Exit.isFailure(observed.beyond)).toBe(true)
-  })
+      // Three rounds are all a lineage bounded at three may open, and the request
+      // for a fourth is what fails — terminally, on the round that asked for it.
+      expect(calls).toEqual([0, 1, 2])
+      expect(Exit.isFailure(observed.exit)).toBe(true)
+      expect(Exit.isFailure(observed.exit) && observed.exit.cause.toString()).toContain("MaxRoundsExceeded")
+      expect(observed.last.status).toBe("failed")
+      expect(Exit.isFailure(observed.beyond)).toBe(true)
+    }))
 })
 
 describe("a body is refused for computing on a value that does not exist yet", () => {
@@ -583,45 +582,46 @@ describe("a body is refused for computing on a value that does not exist yet", (
     expect(error.message).toContain("root.flow.andThen.count")
   })
 
-  it("allows the same value to be passed, and reads the field it named", async () => {
-    const Counted = Action.make("e2e/counted", {
-      payload: { value: Schema.Number },
-      success: Schema.Struct({ count: Schema.Number })
-    })
-    const seen: Array<number> = []
-    const Passing = Flow.make("e2e/passing", {
-      payload: { value: Schema.Number },
-      success: Schema.Number,
-      // Field access records a reference path; the value itself is never
-      // touched at plan time. This is the half of the rule that must WORK.
-      body: ({ value }) =>
-        Counted.call({ value }).pipe(
-          Node.andThen((counted) => Increment.call({ value: counted.count }))
-        )
-    })
-
-    const value = await durable(Effect.gen(function*() {
-      const { wiring } = yield* incarnation({
-        hostId: "passing",
-        flows: [Passing],
-        implementations: [
-          Counted.toLayer(({ value }) => Effect.succeed({ count: value + 10 })),
-          Increment.toLayer(({ value }) =>
-            Effect.sync(() => {
-              seen.push(value)
-              return value + 1
-            })
-          )
-        ]
+  it.effect("allows the same value to be passed, and reads the field it named", () =>
+    Effect.gen(function*() {
+      const Counted = Action.make("e2e/counted", {
+        payload: { value: Schema.Number },
+        success: Schema.Struct({ count: Schema.Number })
       })
-      return yield* Passing.execute({ value: 1 }, { executionId: "passing-run" }).pipe(
-        Effect.provide(wiring)
-      )
-    }))
+      const seen: Array<number> = []
+      const Passing = Flow.make("e2e/passing", {
+        payload: { value: Schema.Number },
+        success: Schema.Number,
+        // Field access records a reference path; the value itself is never
+        // touched at plan time. This is the half of the rule that must WORK.
+        body: ({ value }) =>
+          Counted.call({ value }).pipe(
+            Node.andThen((counted) => Increment.call({ value: counted.count }))
+          )
+      })
 
-    expect(seen).toEqual([11])
-    expect(value).toBe(12)
-  })
+      const value = yield* durable(Effect.gen(function*() {
+        const { wiring } = yield* incarnation({
+          hostId: "passing",
+          flows: [Passing],
+          implementations: [
+            Counted.toLayer(({ value }) => Effect.succeed({ count: value + 10 })),
+            Increment.toLayer(({ value }) =>
+              Effect.sync(() => {
+                seen.push(value)
+                return value + 1
+              })
+            )
+          ]
+        })
+        return yield* Passing.execute({ value: 1 }, { executionId: "passing-run" }).pipe(
+          Effect.provide(wiring)
+        )
+      }))
+
+      expect(seen).toEqual([11])
+      expect(value).toBe(12)
+    }))
 })
 
 /** A one-field counter, which is all a self-call needs to be refused. */
@@ -689,82 +689,86 @@ const GateParent = Flow.make("e2e/gate-parent", {
 })
 
 describe("a child boundary is a real execution", () => {
-  it("runs the child under its own derived id, with the parent edge recorded", async () => {
-    const calls: Array<number> = []
-    const replayed: Array<number> = []
-    const observed = await durable(Effect.gen(function*() {
-      const childId = yield* Interpreter.childExecutionId("boundary-parent", "root.flow.map", Child._tag, { value: 4 })
-      const store = yield* RunStore.RunStore
-      const state = yield* DurableEngineState.DurableEngineState
-      const first = yield* incarnation({
-        hostId: "boundary",
-        flows: [Child, Parent],
-        implementations: [incrementing(calls)]
-      })
-      const value = yield* Parent.execute({ value: 4 }, { executionId: "boundary-parent" }).pipe(
-        Effect.provide(first.wiring)
-      )
+  it.effect("runs the child under its own derived id, with the parent edge recorded", () =>
+    Effect.gen(function*() {
+      const calls: Array<number> = []
+      const replayed: Array<number> = []
+      const observed = yield* durable(Effect.gen(function*() {
+        const childId = yield* Interpreter.childExecutionId("boundary-parent", "root.flow.map", Child._tag, {
+          value: 4
+        })
+        const store = yield* RunStore.RunStore
+        const state = yield* DurableEngineState.DurableEngineState
+        const first = yield* incarnation({
+          hostId: "boundary",
+          flows: [Child, Parent],
+          implementations: [incrementing(calls)]
+        })
+        const value = yield* Parent.execute({ value: 4 }, { executionId: "boundary-parent" }).pipe(
+          Effect.provide(first.wiring)
+        )
 
-      // A second incarnation over the same storage asks for the same parent:
-      // both executions are settled, so this is a read.
-      const second = yield* incarnation({
-        hostId: "boundary-replay",
-        flows: [Child, Parent],
-        implementations: [incrementing(replayed)]
-      })
-      const again = yield* Parent.execute({ value: 4 }, { executionId: "boundary-parent" }).pipe(
-        Effect.provide(second.wiring)
-      )
+        // A second incarnation over the same storage asks for the same parent:
+        // both executions are settled, so this is a read.
+        const second = yield* incarnation({
+          hostId: "boundary-replay",
+          flows: [Child, Parent],
+          implementations: [incrementing(replayed)]
+        })
+        const again = yield* Parent.execute({ value: 4 }, { executionId: "boundary-parent" }).pipe(
+          Effect.provide(second.wiring)
+        )
 
-      return {
-        again,
-        child: yield* store.get(childId),
-        edges: yield* state.runParents(childId),
-        parent: yield* store.get("boundary-parent"),
-        value
-      }
+        return {
+          again,
+          child: yield* store.get(childId),
+          edges: yield* state.runParents(childId),
+          parent: yield* store.get("boundary-parent"),
+          value
+        }
+      }))
+
+      expect(observed.value).toBe(50)
+      expect(calls).toEqual([4])
+      // One node in the parent's plan, one execution of its own underneath, and
+      // the ancestry edge a cycle walk reads.
+      expect(observed.child.status).toBe("completed")
+      expect(observed.parent.status).toBe("completed")
+      expect(observed.edges.map((edge) => edge.parentId)).toEqual(["boundary-parent"])
+      // Replay is flat: nothing under the boundary ran a second time.
+      expect(observed.again).toBe(50)
+      expect(replayed).toEqual([])
     }))
 
-    expect(observed.value).toBe(50)
-    expect(calls).toEqual([4])
-    // One node in the parent's plan, one execution of its own underneath, and
-    // the ancestry edge a cycle walk reads.
-    expect(observed.child.status).toBe("completed")
-    expect(observed.parent.status).toBe("completed")
-    expect(observed.edges.map((edge) => edge.parentId)).toEqual(["boundary-parent"])
-    // Replay is flat: nothing under the boundary ran a second time.
-    expect(observed.again).toBe(50)
-    expect(replayed).toEqual([])
-  })
+  it.effect("suspends the parent behind a child that parked", () =>
+    Effect.gen(function*() {
+      const observed = yield* durable(Effect.gen(function*() {
+        const childId = yield* Interpreter.childExecutionId("gate-parent", "root.flow", Gate._tag, { value: 1 })
+        const store = yield* RunStore.RunStore
+        const state = yield* DurableEngineState.DurableEngineState
+        const { wiring } = yield* incarnation({
+          hostId: "gate",
+          flows: [Gate, GateParent],
+          implementations: []
+        })
+        yield* GateParent.execute({ value: 1 }, {
+          executionId: "gate-parent",
+          discard: true
+        }).pipe(Effect.provide(wiring))
+        return {
+          child: yield* store.get(childId),
+          parent: yield* store.get("gate-parent"),
+          waiting: yield* state.waiting(childId)
+        }
+      }))
 
-  it("suspends the parent behind a child that parked", async () => {
-    const observed = await durable(Effect.gen(function*() {
-      const childId = yield* Interpreter.childExecutionId("gate-parent", "root.flow", Gate._tag, { value: 1 })
-      const store = yield* RunStore.RunStore
-      const state = yield* DurableEngineState.DurableEngineState
-      const { wiring } = yield* incarnation({
-        hostId: "gate",
-        flows: [Gate, GateParent],
-        implementations: []
-      })
-      yield* GateParent.execute({ value: 1 }, {
-        executionId: "gate-parent",
-        discard: true
-      }).pipe(Effect.provide(wiring))
-      return {
-        child: yield* store.get(childId),
-        parent: yield* store.get("gate-parent"),
-        waiting: yield* state.waiting(childId)
-      }
+      // The nesting is genuine, so the child's suspension is the parent's.
+      expect(observed.child.status).toBe("suspended")
+      expect(observed.parent.status).toBe("suspended")
+      expect(Option.isSome(observed.waiting)).toBe(true)
+      expect(Option.isSome(observed.waiting) && observed.waiting.value.reason).toBe("approval")
+      expect(Option.isSome(observed.waiting) && observed.waiting.value.token).toBe("child-gate")
     }))
-
-    // The nesting is genuine, so the child's suspension is the parent's.
-    expect(observed.child.status).toBe("suspended")
-    expect(observed.parent.status).toBe("suspended")
-    expect(Option.isSome(observed.waiting)).toBe(true)
-    expect(Option.isSome(observed.waiting) && observed.waiting.value.reason).toBe("approval")
-    expect(Option.isSome(observed.waiting) && observed.waiting.value.token).toBe("child-gate")
-  })
 })
 
 const Mark = Action.make("e2e/mark", {
@@ -801,92 +805,94 @@ const Gated = Flow.make("e2e/gated", {
 })
 
 describe("the system wait actions park and wake durably", () => {
-  it("parks a sleep under timer with its deadline, and the clock's fire resumes it", async () => {
-    const marks: Array<string> = []
-    const observed = await durableTimed(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      const state = yield* DurableEngineState.DurableEngineState
-      const { wiring } = yield* incarnation({
-        hostId: "napping",
-        flows: [Napping],
-        implementations: [marking(marks), Sleep.layer]
-      })
-      // The whole round-trip runs under one wiring: a clock fires on the
-      // engine's own fiber, and a worker that unregistered the flow first
-      // would leave the run parked for someone who has not.
-      return yield* Effect.gen(function*() {
-        yield* Napping.execute({ millis: 600_000 }, {
-          executionId: "napping-run",
-          discard: true
+  it.effect("parks a sleep under timer with its deadline, and the clock's fire resumes it", () =>
+    Effect.gen(function*() {
+      const marks: Array<string> = []
+      const observed = yield* durableTimed(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const state = yield* DurableEngineState.DurableEngineState
+        const { wiring } = yield* incarnation({
+          hostId: "napping",
+          flows: [Napping],
+          implementations: [marking(marks), Sleep.layer]
         })
+        // The whole round-trip runs under one wiring: a clock fires on the
+        // engine's own fiber, and a worker that unregistered the flow first
+        // would leave the run parked for someone who has not.
+        return yield* Effect.gen(function*() {
+          yield* Napping.execute({ millis: 600_000 }, {
+            executionId: "napping-run",
+            discard: true
+          })
 
-        const parked = yield* store.get("napping-run")
-        const waiting = yield* state.waiting("napping-run")
-        const clocks = yield* state.dueClocks(Number.MAX_SAFE_INTEGER)
+          const parked = yield* store.get("napping-run")
+          const waiting = yield* state.waiting("napping-run")
+          const clocks = yield* state.dueClocks(Number.MAX_SAFE_INTEGER)
 
-        // The wait is the durable clock's, so the way it ends is the clock
-        // firing — not a second execution mechanism.
-        yield* TestClock.adjust("10 minutes")
-        const woken = yield* settledRow("napping-run")
-        return { clocks, marks, parked, result: yield* Napping.poll("napping-run"), waiting, woken }
-      }).pipe(Effect.provide(wiring))
+          // The wait is the durable clock's, so the way it ends is the clock
+          // firing — not a second execution mechanism.
+          yield* TestClock.adjust("10 minutes")
+          const woken = yield* settledRow("napping-run")
+          return { clocks, marks, parked, result: yield* Napping.poll("napping-run"), waiting, woken }
+        }).pipe(Effect.provide(wiring))
+      }))
+
+      expect(observed.parked.status).toBe("suspended")
+      expect(Option.isSome(observed.waiting) && observed.waiting.value.reason).toBe("timer")
+      expect(observed.clocks).toHaveLength(1)
+      expect(Option.isSome(observed.waiting) && observed.waiting.value.wakeAt).toBe(observed.clocks[0]?.dueAtMs)
+      expect(observed.woken.status).toBe("completed")
+      expect(completedValue(observed.result)).toBe("after")
+      // The step before the wait was journaled on the first pass: the resumed
+      // round replayed its recorded outcome instead of running it again.
+      expect(marks).toEqual(["before", "after"])
     }))
 
-    expect(observed.parked.status).toBe("suspended")
-    expect(Option.isSome(observed.waiting) && observed.waiting.value.reason).toBe("timer")
-    expect(observed.clocks).toHaveLength(1)
-    expect(Option.isSome(observed.waiting) && observed.waiting.value.wakeAt).toBe(observed.clocks[0]?.dueAtMs)
-    expect(observed.woken.status).toBe("completed")
-    expect(completedValue(observed.result)).toBe("after")
-    // The step before the wait was journaled on the first pass: the resumed
-    // round replayed its recorded outcome instead of running it again.
-    expect(marks).toEqual(["before", "after"])
-  })
-
-  it("parks a wait under event with its wake token, and its completion resumes it", async () => {
-    const marks: Array<string> = []
-    const token = DurableDeferred.tokenFromExecutionId(WaitFor.deferred("approval"), {
-      flow: Gated,
-      executionId: "gated-run"
-    })
-    const observed = await durableTimed(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      const state = yield* DurableEngineState.DurableEngineState
-      const { wiring } = yield* incarnation({
-        hostId: "gated",
-        flows: [Gated],
-        implementations: [marking(marks), WaitFor.layer]
+  it.effect("parks a wait under event with its wake token, and its completion resumes it", () =>
+    Effect.gen(function*() {
+      const marks: Array<string> = []
+      const token = DurableDeferred.tokenFromExecutionId(WaitFor.deferred("approval"), {
+        flow: Gated,
+        executionId: "gated-run"
       })
-      return yield* Effect.gen(function*() {
-        yield* Gated.execute({ name: "approval" }, {
-          executionId: "gated-run",
-          discard: true
+      const observed = yield* durableTimed(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const state = yield* DurableEngineState.DurableEngineState
+        const { wiring } = yield* incarnation({
+          hostId: "gated",
+          flows: [Gated],
+          implementations: [marking(marks), WaitFor.layer]
         })
+        return yield* Effect.gen(function*() {
+          yield* Gated.execute({ name: "approval" }, {
+            executionId: "gated-run",
+            discard: true
+          })
 
-        const parked = yield* store.get("gated-run")
-        const waiting = yield* state.waiting("gated-run")
+          const parked = yield* store.get("gated-run")
+          const waiting = yield* state.waiting("gated-run")
 
-        // Resolution is the ordinary durable deferred completion path: a
-        // token, and `DurableDeferred.succeed`.
-        yield* DurableDeferred.succeed(WaitFor.deferred("approval"), {
-          token,
-          value: { approved: true }
-        })
+          // Resolution is the ordinary durable deferred completion path: a
+          // token, and `DurableDeferred.succeed`.
+          yield* DurableDeferred.succeed(WaitFor.deferred("approval"), {
+            token,
+            value: { approved: true }
+          })
 
-        const woken = yield* settledRow("gated-run")
-        return { marks, parked, result: yield* Gated.poll("gated-run"), waiting, woken }
-      }).pipe(Effect.provide(wiring))
+          const woken = yield* settledRow("gated-run")
+          return { marks, parked, result: yield* Gated.poll("gated-run"), waiting, woken }
+        }).pipe(Effect.provide(wiring))
+      }))
+
+      expect(observed.parked.status).toBe("suspended")
+      expect(Option.isSome(observed.waiting) && observed.waiting.value.reason).toBe("event")
+      expect(Option.isSome(observed.waiting) && observed.waiting.value.token).toBe(token)
+      expect(observed.woken.status).toBe("completed")
+      // The node settles with the value that resolved the wait, and the step
+      // before it replayed its recorded outcome rather than running again.
+      expect(completedValue(observed.result)).toEqual({ approved: true })
+      expect(marks).toEqual(["before"])
     }))
-
-    expect(observed.parked.status).toBe("suspended")
-    expect(Option.isSome(observed.waiting) && observed.waiting.value.reason).toBe("event")
-    expect(Option.isSome(observed.waiting) && observed.waiting.value.token).toBe(token)
-    expect(observed.woken.status).toBe("completed")
-    // The node settles with the value that resolved the wait, and the step
-    // before it replayed its recorded outcome rather than running again.
-    expect(completedValue(observed.result)).toEqual({ approved: true })
-    expect(marks).toEqual(["before"])
-  })
 })
 
 const Fallible = Action.make("e2e/fallible", {
@@ -918,377 +924,390 @@ const Guarded = Flow.make("e2e/guarded", {
 })
 
 describe("a failure arm is topology like any other", () => {
-  it("takes the arm its schema matches and settles the run", async () => {
-    const attempts: Array<string> = []
-    const observed = await durable(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      const { wiring } = yield* incarnation({
-        hostId: "recovered",
-        flows: [Guarded],
-        implementations: [failing(attempts)]
-      })
-      const value = yield* Guarded.execute({ error: "recoverable" }, {
-        executionId: "recovered-run"
-      }).pipe(Effect.provide(wiring))
-      return { row: yield* store.get("recovered-run"), value }
+  it.effect("takes the arm its schema matches and settles the run", () =>
+    Effect.gen(function*() {
+      const attempts: Array<string> = []
+      const observed = yield* durable(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const { wiring } = yield* incarnation({
+          hostId: "recovered",
+          flows: [Guarded],
+          implementations: [failing(attempts)]
+        })
+        const value = yield* Guarded.execute({ error: "recoverable" }, {
+          executionId: "recovered-run"
+        }).pipe(Effect.provide(wiring))
+        return { row: yield* store.get("recovered-run"), value }
+      }))
+
+      expect(observed.value).toBe(-1)
+      expect(attempts).toEqual(["recoverable"])
+      expect(observed.row.status).toBe("completed")
     }))
 
-    expect(observed.value).toBe(-1)
-    expect(attempts).toEqual(["recoverable"])
-    expect(observed.row.status).toBe("completed")
-  })
+  it.effect("propagates a failure the arm does not match", () =>
+    Effect.gen(function*() {
+      const attempts: Array<string> = []
+      const observed = yield* durable(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const { wiring } = yield* incarnation({
+          hostId: "propagated",
+          flows: [Guarded],
+          implementations: [failing(attempts)]
+        })
+        const exit = yield* Guarded.execute({ error: "fatal" }, {
+          executionId: "propagated-run"
+        }).pipe(Effect.exit, Effect.provide(wiring))
+        return { exit, row: yield* store.get("propagated-run") }
+      }))
 
-  it("propagates a failure the arm does not match", async () => {
-    const attempts: Array<string> = []
-    const observed = await durable(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      const { wiring } = yield* incarnation({
-        hostId: "propagated",
-        flows: [Guarded],
-        implementations: [failing(attempts)]
-      })
-      const exit = yield* Guarded.execute({ error: "fatal" }, {
-        executionId: "propagated-run"
-      }).pipe(Effect.exit, Effect.provide(wiring))
-      return { exit, row: yield* store.get("propagated-run") }
+      expect(Exit.isFailure(observed.exit)).toBe(true)
+      expect(Exit.isFailure(observed.exit) && observed.exit.cause.toString()).toContain("fatal")
+      expect(attempts).toEqual(["fatal"])
+      expect(observed.row.status).toBe("failed")
     }))
-
-    expect(Exit.isFailure(observed.exit)).toBe(true)
-    expect(Exit.isFailure(observed.exit) && observed.exit.cause.toString()).toContain("fatal")
-    expect(attempts).toEqual(["fatal"])
-    expect(observed.row.status).toBe("failed")
-  })
 })
 
 describe("a plan is a value that grows round over round", () => {
-  it("compiles a round, persists it, and appends the next round's nodes to it", async () => {
-    const observed = await durable(Effect.gen(function*() {
-      const store = yield* PlanStore.PlanStore
-      // Round one, planned from the real payload the lineage starts with.
-      const first = Graph.build(CountTo, { value: 0, target: 2 })
-      const round0 = yield* Plan.compile({
-        planId: "e2e-lineage-plan",
-        flow: CountTo._tag,
-        nodes: Graph.drafts(first)
-      })
-      const recorded = yield* store.record(round0, 1_000)
+  it.effect("compiles a round, persists it, and appends the next round's nodes to it", () =>
+    Effect.gen(function*() {
+      const observed = yield* durable(Effect.gen(function*() {
+        const store = yield* PlanStore.PlanStore
+        // Round one, planned from the real payload the lineage starts with.
+        const first = Graph.build(CountTo, { value: 0, target: 2 })
+        const round0 = yield* Plan.compile({
+          planId: "e2e-lineage-plan",
+          flow: CountTo._tag,
+          nodes: Graph.drafts(first)
+        })
+        const recorded = yield* store.record(round0, 1_000)
 
-      // Round two is the same body planned with what round one handed on. It
-      // grows the SAME plan: append-only, pre-keyed against what is there.
-      const second = Graph.build(CountTo, { value: 1, target: 2 }, { root: "round-1" })
-      const round1 = yield* Plan.append(round0, Graph.drafts(second))
-      yield* store.append(round1)
+        // Round two is the same body planned with what round one handed on. It
+        // grows the SAME plan: append-only, pre-keyed against what is there.
+        const second = Graph.build(CountTo, { value: 1, target: 2 }, { root: "round-1" })
+        const round1 = yield* Plan.append(round0, Graph.drafts(second))
+        yield* store.append(round1)
 
-      return {
-        appended: Plan.generationNodes(round1).map((node) => node.id),
-        diff: PlanDiff.diff(round0, round1),
-        read: yield* store.get("e2e-lineage-plan"),
-        recorded,
-        round0,
-        round1
-      }
+        return {
+          appended: Plan.generationNodes(round1).map((node) => node.id),
+          diff: PlanDiff.diff(round0, round1),
+          read: yield* store.get("e2e-lineage-plan"),
+          recorded,
+          round0,
+          round1
+        }
+      }))
+
+      expect(observed.recorded._tag).toBe("Recorded")
+      // Growth, not invalidation: round one's nodes keep their keys byte for
+      // byte, and the diff is exactly what round two added.
+      expect(observed.diff.removed).toEqual([])
+      expect(observed.diff.rekeyed).toEqual([])
+      expect(observed.diff.unchanged).toEqual(observed.round0.nodes.map((node) => node.id))
+      expect(observed.diff.added).toEqual(observed.appended)
+      expect(observed.diff.added.every((id) => id.startsWith("round-1"))).toBe(true)
+      expect(observed.diff.added.length).toBeGreaterThan(0)
+      // The digest an approval binds to advanced; the base it was approved at
+      // did not.
+      expect(observed.round1.generation).toBe(1)
+      expect(observed.round1.baseDigest).toBe(observed.round0.baseDigest)
+      expect(observed.round1.digest).not.toBe(observed.round0.digest)
+      // And the whole thing round-trips through storage unchanged.
+      expect(Option.isSome(observed.read)).toBe(true)
+      expect(Option.isSome(observed.read) && observed.read.value).toEqual(observed.round1)
     }))
 
-    expect(observed.recorded._tag).toBe("Recorded")
-    // Growth, not invalidation: round one's nodes keep their keys byte for
-    // byte, and the diff is exactly what round two added.
-    expect(observed.diff.removed).toEqual([])
-    expect(observed.diff.rekeyed).toEqual([])
-    expect(observed.diff.unchanged).toEqual(observed.round0.nodes.map((node) => node.id))
-    expect(observed.diff.added).toEqual(observed.appended)
-    expect(observed.diff.added.every((id) => id.startsWith("round-1"))).toBe(true)
-    expect(observed.diff.added.length).toBeGreaterThan(0)
-    // The digest an approval binds to advanced; the base it was approved at
-    // did not.
-    expect(observed.round1.generation).toBe(1)
-    expect(observed.round1.baseDigest).toBe(observed.round0.baseDigest)
-    expect(observed.round1.digest).not.toBe(observed.round0.digest)
-    // And the whole thing round-trips through storage unchanged.
-    expect(Option.isSome(observed.read)).toBe(true)
-    expect(Option.isSome(observed.read) && observed.read.value).toEqual(observed.round1)
-  })
+  it.effect("re-keys the nodes a changed payload moved, and says which input moved them", () =>
+    Effect.gen(function*() {
+      const observed = yield* durable(Effect.gen(function*() {
+        const first = Graph.build(CountTo, { value: 0, target: 2 })
+        const second = Graph.build(CountTo, { value: 1, target: 2 })
+        const before = yield* Plan.compile({
+          planId: "e2e-rekey-plan",
+          flow: CountTo._tag,
+          nodes: Graph.drafts(first)
+        })
+        const after = yield* Plan.compile({
+          planId: "e2e-rekey-plan",
+          flow: CountTo._tag,
+          nodes: Graph.drafts(second)
+        })
+        return PlanDiff.diff(before, after)
+      }))
 
-  it("re-keys the nodes a changed payload moved, and says which input moved them", async () => {
-    const observed = await durable(Effect.gen(function*() {
-      const first = Graph.build(CountTo, { value: 0, target: 2 })
-      const second = Graph.build(CountTo, { value: 1, target: 2 })
-      const before = yield* Plan.compile({
-        planId: "e2e-rekey-plan",
-        flow: CountTo._tag,
-        nodes: Graph.drafts(first)
-      })
-      const after = yield* Plan.compile({
-        planId: "e2e-rekey-plan",
-        flow: CountTo._tag,
-        nodes: Graph.drafts(second)
-      })
-      return PlanDiff.diff(before, after)
+      expect(observed.added).toEqual([])
+      expect(observed.removed).toEqual([])
+      // The round is the same shape with a different real payload, so every node
+      // that reads the payload re-keys and the report names the input.
+      const entry = observed.rekeyed.find((node) => node.id === "root.flow.branch")
+      expect(entry?.changed).toContain("input[0]")
+      expect(observed.rekeyed.map((node) => node.id)).toContain("root")
     }))
-
-    expect(observed.added).toEqual([])
-    expect(observed.removed).toEqual([])
-    // The round is the same shape with a different real payload, so every node
-    // that reads the payload re-keys and the report names the input.
-    const entry = observed.rekeyed.find((node) => node.id === "root.flow.branch")
-    expect(entry?.changed).toContain("input[0]")
-    expect(observed.rekeyed.map((node) => node.id)).toContain("root")
-  })
 })
 
 describe("journal admission is visible at the authoring boundary", () => {
-  it("surfaces a typed queue overflow and leaves the execution failed", async () => {
-    const writeGate = Deferred.makeUnsafe<void>()
-    const overflowSeen = Deferred.makeUnsafe<JournalPackage.Journal.JournalError>()
-    let blockWrites = false
-    const gatedWriter = Layer.effect(
-      DurableWriter.DurableWriter,
-      Effect.gen(function*() {
-        const writer = yield* DurableWriter.DurableWriter
-        const write: DurableWriter.Service["write"] = (effect) =>
-          Effect.suspend(() =>
-            blockWrites
-              ? Deferred.await(writeGate).pipe(Effect.andThen(writer.write(effect)))
-              : writer.write(effect)
-          )
-        return DurableWriter.DurableWriter.of({ write })
-      })
-    )
-    const gatedDatabase = Layer.provideMerge(gatedWriter, TestDatabase.layer)
-    const overflowServices = Layer.mergeAll(
-      SqlJournal.layer({ capacity: 1, overflow: "reject", batchSize: 1 }),
-      RunStore.layer,
-      AttemptStore.layer,
-      CacheStore.layer,
-      PlanStore.layer,
-      DurableEngineState.layer
-    ).pipe(
-      Layer.provideMerge(Layer.provideMerge(Migrations.layer, gatedDatabase)),
-      Layer.merge(OwnerIdentity.layer),
-      Layer.merge(StepBoundary.layerTest()),
-      Layer.merge(Layer.succeed(Jj.Jj, jj))
-    )
-
-    const Saturate = Action.make("e2e/saturate-journal", {
-      payload: {},
-      success: Schema.String,
-      error: JournalPackage.Journal.JournalError
-    })
-    const SaturatingFlow = Flow.make("e2e/saturating-flow", {
-      payload: {},
-      success: Schema.String,
-      error: JournalPackage.Journal.JournalError,
-      body: () => Saturate.call({})
-    })
-    const implementation = Saturate.toLayer(() =>
-      Effect.gen(function*() {
-        const journal = yield* JournalPackage.Journal.Journal
-        blockWrites = true
-        const event = (index: number) =>
-          new JournalPackage.JournalEvent.Input({
-            runId: "overflow-run" as never,
-            sourceId: "overflow-action" as never,
-            sourceSeq: index as never,
-            eventType: "author.telemetry",
-            payload: { index }
-          }, { disableChecks: true })
-        yield* journal.emitLossy(event(0))
-        // Let the writer take the first entry and block on persistence; the
-        // next admission then occupies the queue's sole remaining slot.
-        yield* Effect.yieldNow
-        yield* journal.emitLossy(event(1))
-        const overflow = yield* Effect.flip(journal.emitLossy(event(2)))
-        yield* Deferred.succeed(overflowSeen, overflow)
-        return yield* Effect.fail(overflow)
-      })
-    ) as Implementation
-
-    const observed = await durableWith(
-      Effect.gen(function*() {
-        const store = yield* RunStore.RunStore
-        const { wiring } = yield* incarnation({
-          hostId: "journal-overflow",
-          flows: [SaturatingFlow],
-          implementations: [implementation]
+  it.effect("surfaces a typed queue overflow and leaves the execution failed", () =>
+    Effect.gen(function*() {
+      const writeGate = Deferred.makeUnsafe<void>()
+      const overflowSeen = Deferred.makeUnsafe<JournalPackage.Journal.JournalError>()
+      let blockWrites = false
+      const gatedWriter = Layer.effect(
+        DurableWriter.DurableWriter,
+        Effect.gen(function*() {
+          const writer = yield* DurableWriter.DurableWriter
+          const write: DurableWriter.Service["write"] = (effect) =>
+            Effect.suspend(() =>
+              blockWrites
+                ? Deferred.await(writeGate).pipe(Effect.andThen(writer.write(effect)))
+                : writer.write(effect)
+            )
+          return DurableWriter.DurableWriter.of({ write })
         })
-        const fiber = yield* Effect.forkChild(
-          SaturatingFlow.execute({}, { executionId: "overflow-run" }).pipe(
-            Effect.provide(wiring),
-            Effect.exit
-          ),
-          { startImmediately: true }
-        )
-        const overflow = yield* Deferred.await(overflowSeen)
-        const during = yield* store.get("overflow-run")
-        yield* Deferred.succeed(writeGate, undefined)
-        const exit = yield* Fiber.join(fiber)
-        return { during, exit, overflow, settled: yield* store.get("overflow-run") }
-      }).pipe(Effect.ensuring(Deferred.succeed(writeGate, undefined))),
-      overflowServices
-    )
+      )
+      const gatedDatabase = Layer.provideMerge(gatedWriter, TestDatabase.layer)
+      const overflowServices = Layer.mergeAll(
+        SqlJournal.layer({ capacity: 1, overflow: "reject", batchSize: 1 }),
+        RunStore.layer,
+        AttemptStore.layer,
+        CacheStore.layer,
+        PlanStore.layer,
+        DurableEngineState.layer
+      ).pipe(
+        Layer.provideMerge(Layer.provideMerge(Migrations.layer, gatedDatabase)),
+        Layer.merge(OwnerIdentity.layer),
+        Layer.merge(StepBoundary.layerTest()),
+        Layer.merge(Layer.succeed(Jj.Jj, jj))
+      )
 
-    expect(observed.overflow._tag).toBe("flows/journal/JournalError")
-    expect(observed.overflow.code).toBe("queue_overflow")
-    expect(observed.overflow.message).toContain("journal admission queue is full")
-    expect(observed.during.status).toBe("running")
-    expect(Exit.isFailure(observed.exit)).toBe(true)
-    if (Exit.isFailure(observed.exit)) {
-      const reason = observed.exit.cause.reasons.find((candidate) => candidate._tag === "Fail")
-      expect(reason?._tag === "Fail" ? reason.error : undefined).toMatchObject({
-        _tag: "flows/journal/JournalError",
-        code: "queue_overflow"
+      const Saturate = Action.make("e2e/saturate-journal", {
+        payload: {},
+        success: Schema.String,
+        error: JournalPackage.Journal.JournalError
       })
-    }
-    expect(observed.settled.status).toBe("failed")
-    expect(observed.settled.owner).toBeNull()
-  })
+      const SaturatingFlow = Flow.make("e2e/saturating-flow", {
+        payload: {},
+        success: Schema.String,
+        error: JournalPackage.Journal.JournalError,
+        body: () => Saturate.call({})
+      })
+      const implementation = Saturate.toLayer(() =>
+        Effect.gen(function*() {
+          const journal = yield* JournalPackage.Journal.Journal
+          blockWrites = true
+          const event = (index: number) =>
+            new JournalPackage.JournalEvent.Input({
+              runId: "overflow-run" as never,
+              sourceId: "overflow-action" as never,
+              sourceSeq: index as never,
+              eventType: "author.telemetry",
+              payload: { index }
+            }, { disableChecks: true })
+          yield* journal.emitLossy(event(0))
+          // Let the writer take the first entry and block on persistence; the
+          // next admission then occupies the queue's sole remaining slot.
+          yield* Effect.yieldNow
+          yield* journal.emitLossy(event(1))
+          const overflow = yield* Effect.flip(journal.emitLossy(event(2)))
+          yield* Deferred.succeed(overflowSeen, overflow)
+          return yield* Effect.fail(overflow)
+        })
+      ) as Implementation
+
+      const observed = yield* durableWith(
+        Effect.gen(function*() {
+          const store = yield* RunStore.RunStore
+          const { wiring } = yield* incarnation({
+            hostId: "journal-overflow",
+            flows: [SaturatingFlow],
+            implementations: [implementation]
+          })
+          const fiber = yield* Effect.forkChild(
+            SaturatingFlow.execute({}, { executionId: "overflow-run" }).pipe(
+              Effect.provide(wiring),
+              Effect.exit
+            ),
+            { startImmediately: true }
+          )
+          const overflow = yield* Deferred.await(overflowSeen)
+          const during = yield* store.get("overflow-run")
+          yield* Deferred.succeed(writeGate, undefined)
+          const exit = yield* Fiber.join(fiber)
+          return { during, exit, overflow, settled: yield* store.get("overflow-run") }
+        }).pipe(Effect.ensuring(Deferred.succeed(writeGate, undefined))),
+        overflowServices
+      )
+
+      expect(observed.overflow._tag).toBe("flows/journal/JournalError")
+      expect(observed.overflow.code).toBe("queue_overflow")
+      expect(observed.overflow.message).toContain("journal admission queue is full")
+      expect(observed.during.status).toBe("running")
+      expect(Exit.isFailure(observed.exit)).toBe(true)
+      if (Exit.isFailure(observed.exit)) {
+        const reason = observed.exit.cause.reasons.find((candidate) => candidate._tag === "Fail")
+        expect(reason?._tag === "Fail" ? reason.error : undefined).toMatchObject({
+          _tag: "flows/journal/JournalError",
+          code: "queue_overflow"
+        })
+      }
+      expect(observed.settled.status).toBe("failed")
+      expect(observed.settled.owner).toBeNull()
+    }))
 })
 
 describe("wide authored graphs stay linear enough for the suite budget", () => {
-  it("builds, compiles, and diffs 300 parallel steps as 302 plan nodes", async () => {
-    const WideStep = Action.make("e2e/wide-step", {
-      payload: { index: Schema.Number },
-      success: Schema.Number
-    })
-    const members = Object.fromEntries(
-      Array.from({ length: 300 }, (_, index) => [
-        `step-${index}`,
-        WideStep.call({ index })
-      ])
-    )
-    const Wide = Flow.make("e2e/wide-flow", {
-      payload: {},
-      success: Schema.Any,
-      body: () => Node.all(members)
-    })
+  it.effect("builds, compiles, and diffs 300 parallel steps as 302 plan nodes", () =>
+    Effect.gen(function*() {
+      const WideStep = Action.make("e2e/wide-step", {
+        payload: { index: Schema.Number },
+        success: Schema.Number
+      })
+      const members = Object.fromEntries(
+        Array.from({ length: 300 }, (_, index) => [
+          `step-${index}`,
+          WideStep.call({ index })
+        ])
+      )
+      const Wide = Flow.make("e2e/wide-flow", {
+        payload: {},
+        success: Schema.Any,
+        body: () => Node.all(members)
+      })
 
-    const graph = Graph.build(Wide, {})
-    const before = await Effect.runPromise(
-      Plan.compile({
-        planId: "e2e-wide-plan",
-        flow: Wide._tag,
-        nodes: Graph.drafts(graph)
-      }).pipe(Effect.provide(hostCrypto))
-    )
-    const rebuilt = Graph.build(Wide, {})
-    const after = await Effect.runPromise(
-      Plan.compile({
-        planId: "e2e-wide-plan",
-        flow: Wide._tag,
-        nodes: Graph.drafts(rebuilt)
-      }).pipe(Effect.provide(hostCrypto))
-    )
-    const diff = PlanDiff.diff(before, after)
+      const graph = Graph.build(Wide, {})
+      const before = yield* (
+        Plan.compile({
+          planId: "e2e-wide-plan",
+          flow: Wide._tag,
+          nodes: Graph.drafts(graph)
+        }).pipe(Effect.provide(hostCrypto))
+      )
+      const rebuilt = Graph.build(Wide, {})
+      const after = yield* (
+        Plan.compile({
+          planId: "e2e-wide-plan",
+          flow: Wide._tag,
+          nodes: Graph.drafts(rebuilt)
+        }).pipe(Effect.provide(hostCrypto))
+      )
+      const diff = PlanDiff.diff(before, after)
 
-    expect(Graph.nodes(graph)).toHaveLength(302)
-    expect(before.nodes).toHaveLength(302)
-    expect(after.nodes).toHaveLength(302)
-    expect(diff).toEqual({
-      added: [],
-      removed: [],
-      rekeyed: [],
-      unchanged: before.nodes.map((node) => node.id)
-    })
-  }, 10_000)
+      expect(Graph.nodes(graph)).toHaveLength(302)
+      expect(before.nodes).toHaveLength(302)
+      expect(after.nodes).toHaveLength(302)
+      expect(diff).toEqual({
+        added: [],
+        removed: [],
+        rekeyed: [],
+        unchanged: before.nodes.map((node) => node.id)
+      })
+    }), 10_000)
 })
 
 describe("live ownership races stay fenced", () => {
-  it("lets one incarnation drive each round while the loser observes unsettled owned state", async () => {
-    const calls: Array<string> = []
-    const probes: Array<RunStorePackage.Ownership.OwnerId> = []
-    const started = [Latch.makeUnsafe(false), Latch.makeUnsafe(false)]
-    const release = [Latch.makeUnsafe(false), Latch.makeUnsafe(false)]
+  // The round drives its own `TestClock` through `durableTimed`, so the test
+  // itself keeps the live environment the `Effect.runPromise` boundary had.
+  it.live(
+    "lets one incarnation drive each round while the loser observes unsettled owned state",
+    () =>
+      Effect.gen(function*() {
+        const calls: Array<string> = []
+        const probes: Array<RunStorePackage.Ownership.OwnerId> = []
+        const started = [Latch.makeUnsafe(false), Latch.makeUnsafe(false)]
+        const release = [Latch.makeUnsafe(false), Latch.makeUnsafe(false)]
 
-    const observed = await durableTimed(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      const noHeartbeat = RunStore.makeNoop({
-        ...store,
-        heartbeat: () => Effect.never
-      })
-      const isAlive = (owner: RunStorePackage.Ownership.OwnerId) =>
-        Effect.sync(() => {
-          probes.push(owner)
-          return true
-        })
-      const first = yield* EngineStore.make({
-        owner: { hostId: "race-first" },
-        journalSource: "e2e-race-first",
-        isAlive
-      }).pipe(Effect.provideService(RunStore.RunStore, noHeartbeat))
-      const second = yield* EngineStore.make({
-        owner: { hostId: "race-second" },
-        journalSource: "e2e-race-second",
-        isAlive
-      })
-      const firstWiring = wiringFor(first, [CountTo], [
-        Increment.toLayer(({ value }) =>
-          Effect.gen(function*() {
-            calls.push(`first:${value}`)
-            yield* Latch.open(started[value]!)
-            yield* Latch.await(release[value]!)
-            return value + 1
+        const observed = yield* durableTimed(Effect.gen(function*() {
+          const store = yield* RunStore.RunStore
+          const noHeartbeat = RunStore.makeNoop({
+            ...store,
+            heartbeat: () => Effect.never
           })
-        ) as Implementation
-      ])
-      const secondWiring = wiringFor(second, [CountTo], [
-        Increment.toLayer(({ value }) =>
-          Effect.sync(() => {
-            calls.push(`second:${value}`)
-            return value + 1
+          const isAlive = (owner: RunStorePackage.Ownership.OwnerId) =>
+            Effect.sync(() => {
+              probes.push(owner)
+              return true
+            })
+          const first = yield* EngineStore.make({
+            owner: { hostId: "race-first" },
+            journalSource: "e2e-race-first",
+            isAlive
+          }).pipe(Effect.provideService(RunStore.RunStore, noHeartbeat))
+          const second = yield* EngineStore.make({
+            owner: { hostId: "race-second" },
+            journalSource: "e2e-race-second",
+            isAlive
           })
-        ) as Implementation
-      ])
+          const firstWiring = wiringFor(first, [CountTo], [
+            Increment.toLayer(({ value }) =>
+              Effect.gen(function*() {
+                calls.push(`first:${value}`)
+                yield* Latch.open(started[value]!)
+                yield* Latch.await(release[value]!)
+                return value + 1
+              })
+            ) as Implementation
+          ])
+          const secondWiring = wiringFor(second, [CountTo], [
+            Increment.toLayer(({ value }) =>
+              Effect.sync(() => {
+                calls.push(`second:${value}`)
+                return value + 1
+              })
+            ) as Implementation
+          ])
 
-      const rootFiber = yield* Effect.forkChild(
-        CountTo.execute({ value: 0, target: 2 }, {
-          executionId: "ownership-race",
-          discard: true
-        }).pipe(Effect.provide(firstWiring)),
-        { startImmediately: true }
-      )
-      yield* Latch.await(started[0]!)
-      yield* TestClock.adjust("31 seconds")
-      yield* CountTo.execute({ value: 0, target: 2 }, {
-        executionId: "ownership-race",
-        discard: true
-      }).pipe(Effect.provide(secondWiring))
-      const rootWhileContended = yield* store.get("ownership-race")
-      const rootPoll = yield* CountTo.poll("ownership-race").pipe(Effect.provide(secondWiring))
+          const rootFiber = yield* Effect.forkChild(
+            CountTo.execute({ value: 0, target: 2 }, {
+              executionId: "ownership-race",
+              discard: true
+            }).pipe(Effect.provide(firstWiring)),
+            { startImmediately: true }
+          )
+          yield* Latch.await(started[0]!)
+          yield* TestClock.adjust("31 seconds")
+          yield* CountTo.execute({ value: 0, target: 2 }, {
+            executionId: "ownership-race",
+            discard: true
+          }).pipe(Effect.provide(secondWiring))
+          const rootWhileContended = yield* store.get("ownership-race")
+          const rootPoll = yield* CountTo.poll("ownership-race").pipe(Effect.provide(secondWiring))
 
-      yield* Latch.open(release[0]!)
-      yield* Fiber.join(rootFiber)
-      yield* Latch.await(started[1]!)
-      const successorId = roundId("ownership-race", 1)
-      yield* TestClock.adjust("31 seconds")
-      yield* second.resume(CountTo, successorId)
-      const successorWhileContended = yield* store.get(successorId)
-      const successorPoll = yield* CountTo.poll(successorId).pipe(Effect.provide(secondWiring))
+          yield* Latch.open(release[0]!)
+          yield* Fiber.join(rootFiber)
+          yield* Latch.await(started[1]!)
+          const successorId = roundId("ownership-race", 1)
+          yield* TestClock.adjust("31 seconds")
+          yield* second.resume(CountTo, successorId)
+          const successorWhileContended = yield* store.get(successorId)
+          const successorPoll = yield* CountTo.poll(successorId).pipe(Effect.provide(secondWiring))
 
-      yield* Latch.open(release[1]!)
-      let successor = yield* store.get(successorId)
-      for (let attempt = 0; attempt < 50 && successor.status !== "completed"; attempt++) {
-        yield* Effect.yieldNow
-        successor = yield* store.get(successorId)
-      }
-      return {
-        root: yield* store.get("ownership-race"),
-        rootPoll,
-        rootWhileContended,
-        successor,
-        successorPoll,
-        successorWhileContended
-      }
-    }))
+          yield* Latch.open(release[1]!)
+          let successor = yield* store.get(successorId)
+          for (let attempt = 0; attempt < 50 && successor.status !== "completed"; attempt++) {
+            yield* Effect.yieldNow
+            successor = yield* store.get(successorId)
+          }
+          return {
+            root: yield* store.get("ownership-race"),
+            rootPoll,
+            rootWhileContended,
+            successor,
+            successorPoll,
+            successorWhileContended
+          }
+        }))
 
-    expect(calls).toEqual(["first:0", "first:1"])
-    expect(probes.some((owner) => owner.hostId === "race-first")).toBe(true)
-    expect(observed.rootWhileContended.status).toBe("running")
-    expect(observed.rootWhileContended.owner?.hostId).toBe("race-first")
-    expect(Option.isNone(observed.rootPoll)).toBe(true)
-    expect(observed.successorWhileContended.status).toBe("running")
-    expect(observed.successorWhileContended.owner?.hostId).toBe("race-first")
-    expect(Option.isNone(observed.successorPoll)).toBe(true)
-    expect(observed.root.status).toBe("completed")
-    expect(observed.successor.status).toBe("completed")
-    expect(observed.successor.owner).toBeNull()
-  }, 20_000)
+        expect(calls).toEqual(["first:0", "first:1"])
+        expect(probes.some((owner) => owner.hostId === "race-first")).toBe(true)
+        expect(observed.rootWhileContended.status).toBe("running")
+        expect(observed.rootWhileContended.owner?.hostId).toBe("race-first")
+        expect(Option.isNone(observed.rootPoll)).toBe(true)
+        expect(observed.successorWhileContended.status).toBe("running")
+        expect(observed.successorWhileContended.owner?.hostId).toBe("race-first")
+        expect(Option.isNone(observed.successorPoll)).toBe(true)
+        expect(observed.root.status).toBe("completed")
+        expect(observed.successor.status).toBe("completed")
+        expect(observed.successor.owner).toBeNull()
+      }),
+    20_000
+  )
 })

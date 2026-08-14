@@ -11,13 +11,13 @@
  * composes both — pins the same behaviour against the real migrated schema in
  * its `JournalFencing` suite.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { DurableWriter } from "@smthrs/database-next/DurableWriter"
 import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import { Effect, Layer } from "effect"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
-import { describe, expect, it } from "vitest"
 import { Journal, JournalError } from "../src/Journal.ts"
 import { Input, type RunId, type SourceId, type SourceSeq } from "../src/JournalEvent.ts"
 import * as Migrations from "../src/Migrations.ts"
@@ -58,88 +58,92 @@ const stack = SqlJournal.layer({ capacity: 8, overflow: "reject" }).pipe(
 
 const withStack = <A, E>(
   body: Effect.Effect<A, E, Journal | DurableWriter | SqlClient.SqlClient | Scope.Scope>
-) => Effect.runPromise(Effect.scoped(body.pipe(Effect.provide(stack), Effect.provide(TestClock.layer()))))
+) => Effect.scoped(body.pipe(Effect.provide(stack), Effect.provide(TestClock.layer())))
 
 const claim = (sql: SqlClient.SqlClient, run: RunId, holder: OwnerId) =>
   sql`INSERT INTO flows_runs (run_id, status, owner_host_id, owner_pid, owner_nonce)
       VALUES (${run}, 'running', ${holder.hostId}, ${holder.pid}, ${holder.nonce})`
 
 describe("SqlJournal durable fencing", () => {
-  it("commits a fenced append while the supplied owner still holds the run", async () => {
-    const receipt = await withStack(Effect.gen(function*() {
-      const journal = yield* Journal
-      const sql = yield* Effect.service(SqlClient.SqlClient)
-      const run = runId("fenced-commit")
-      yield* claim(sql, run, owner)
-      return yield* journal.emitDurable(input(run, sourceId("driver"), 0), owner)
+  it.effect("commits a fenced append while the supplied owner still holds the run", () =>
+    Effect.gen(function*() {
+      const receipt = yield* withStack(Effect.gen(function*() {
+        const journal = yield* Journal
+        const sql = yield* Effect.service(SqlClient.SqlClient)
+        const run = runId("fenced-commit")
+        yield* claim(sql, run, owner)
+        return yield* journal.emitDurable(input(run, sourceId("driver"), 0), owner)
+      }))
+
+      expect(receipt._tag).toBe("Accepted")
     }))
 
-    expect(receipt._tag).toBe("Accepted")
-  })
+  it.effect("fails the append with fence_lost once the run has a different owner", () =>
+    Effect.gen(function*() {
+      const failure = yield* withStack(Effect.gen(function*() {
+        const journal = yield* Journal
+        const sql = yield* Effect.service(SqlClient.SqlClient)
+        const run = runId("fenced-lost")
+        yield* claim(sql, run, { hostId: "host-b", pid: 7, nonce: "nonce-b" })
+        return yield* Effect.flip(journal.emitDurable(input(run, sourceId("driver"), 0), owner))
+      }))
 
-  it("fails the append with fence_lost once the run has a different owner", async () => {
-    const failure = await withStack(Effect.gen(function*() {
-      const journal = yield* Journal
-      const sql = yield* Effect.service(SqlClient.SqlClient)
-      const run = runId("fenced-lost")
-      yield* claim(sql, run, { hostId: "host-b", pid: 7, nonce: "nonce-b" })
-      return yield* Effect.flip(journal.emitDurable(input(run, sourceId("driver"), 0), owner))
-    }))
-
-    expect(failure).toBeInstanceOf(JournalError)
-    expect((failure as JournalError).code).toBe("fence_lost")
-  })
-
-  it("treats a malformed owner as a lost fence rather than a driver failure", async () => {
-    // `OwnerId` is `Schema.String`/`Schema.Number` with no runtime refinement,
-    // so a caller can hand the fence an empty identifier or a non-integral pid.
-    // The fence is a `WHERE EXISTS` comparison, so none of these can match the
-    // claimed row — the contract being pinned is that each is reported as the
-    // typed `fence_lost` a zombie owner gets, never a raw SQL/driver error and
-    // never a silent append behind the live owner.
-    const malformed: ReadonlyArray<OwnerId> = [
-      { hostId: "", pid: 42, nonce: "nonce-a" },
-      { hostId: "host-a", pid: 42, nonce: "" },
-      { hostId: "host-a", pid: 42.5, nonce: "nonce-a" },
-      { hostId: "host-a", pid: Number.NaN, nonce: "nonce-a" },
-      { hostId: "host-a", pid: Number.POSITIVE_INFINITY, nonce: "nonce-a" }
-    ]
-
-    const result = await withStack(Effect.gen(function*() {
-      const journal = yield* Journal
-      const sql = yield* Effect.service(SqlClient.SqlClient)
-      const run = runId("fenced-malformed")
-      yield* claim(sql, run, owner)
-      const failures = yield* Effect.forEach(
-        malformed,
-        (holder, index) => Effect.flip(journal.emitDurable(input(run, sourceId("driver"), index), holder))
-      )
-      const rows = yield* sql<{ readonly total: number }>`
-        SELECT COUNT(*) AS total FROM flows_journal_events WHERE run_id = ${run}
-      `
-      return { failures, total: Number(rows[0]!.total) }
-    }))
-
-    for (const failure of result.failures) {
       expect(failure).toBeInstanceOf(JournalError)
       expect((failure as JournalError).code).toBe("fence_lost")
-    }
-    // The legitimate owner's run gains no rows from any of them.
-    expect(result.total).toBe(0)
-  })
-
-  it("stays idempotent when a fenced retry re-emits an already-committed entry", async () => {
-    const receipts = await withStack(Effect.gen(function*() {
-      const journal = yield* Journal
-      const sql = yield* Effect.service(SqlClient.SqlClient)
-      const run = runId("fenced-retry")
-      yield* claim(sql, run, owner)
-      const first = yield* journal.emitDurable(input(run, sourceId("driver"), 0), owner)
-      const second = yield* journal.emitDurable(input(run, sourceId("driver"), 0), owner)
-      return [first, second] as const
     }))
 
-    expect(receipts[0]._tag).toBe("Accepted")
-    expect(receipts[1]._tag).toBe("Duplicate")
-  })
+  it.effect("treats a malformed owner as a lost fence rather than a driver failure", () =>
+    Effect.gen(function*() {
+      // `OwnerId` is `Schema.String`/`Schema.Number` with no runtime refinement,
+      // so a caller can hand the fence an empty identifier or a non-integral pid.
+      // The fence is a `WHERE EXISTS` comparison, so none of these can match the
+      // claimed row — the contract being pinned is that each is reported as the
+      // typed `fence_lost` a zombie owner gets, never a raw SQL/driver error and
+      // never a silent append behind the live owner.
+      const malformed: ReadonlyArray<OwnerId> = [
+        { hostId: "", pid: 42, nonce: "nonce-a" },
+        { hostId: "host-a", pid: 42, nonce: "" },
+        { hostId: "host-a", pid: 42.5, nonce: "nonce-a" },
+        { hostId: "host-a", pid: Number.NaN, nonce: "nonce-a" },
+        { hostId: "host-a", pid: Number.POSITIVE_INFINITY, nonce: "nonce-a" }
+      ]
+
+      const result = yield* withStack(Effect.gen(function*() {
+        const journal = yield* Journal
+        const sql = yield* Effect.service(SqlClient.SqlClient)
+        const run = runId("fenced-malformed")
+        yield* claim(sql, run, owner)
+        const failures = yield* Effect.forEach(
+          malformed,
+          (holder, index) => Effect.flip(journal.emitDurable(input(run, sourceId("driver"), index), holder))
+        )
+        const rows = yield* sql<{ readonly total: number }>`
+        SELECT COUNT(*) AS total FROM flows_journal_events WHERE run_id = ${run}
+      `
+        return { failures, total: Number(rows[0]!.total) }
+      }))
+
+      for (const failure of result.failures) {
+        expect(failure).toBeInstanceOf(JournalError)
+        expect((failure as JournalError).code).toBe("fence_lost")
+      }
+      // The legitimate owner's run gains no rows from any of them.
+      expect(result.total).toBe(0)
+    }))
+
+  it.effect("stays idempotent when a fenced retry re-emits an already-committed entry", () =>
+    Effect.gen(function*() {
+      const receipts = yield* withStack(Effect.gen(function*() {
+        const journal = yield* Journal
+        const sql = yield* Effect.service(SqlClient.SqlClient)
+        const run = runId("fenced-retry")
+        yield* claim(sql, run, owner)
+        const first = yield* journal.emitDurable(input(run, sourceId("driver"), 0), owner)
+        const second = yield* journal.emitDurable(input(run, sourceId("driver"), 0), owner)
+        return [first, second] as const
+      }))
+
+      expect(receipts[0]._tag).toBe("Accepted")
+      expect(receipts[1]._tag).toBe("Duplicate")
+    }))
 })

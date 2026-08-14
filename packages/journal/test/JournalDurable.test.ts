@@ -1,3 +1,4 @@
+import { describe, expect, it } from "@effect/vitest"
 import { DatabaseError, DurableWriter, layer as writerLayer } from "@smthrs/database-next/DurableWriter"
 import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
 import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
@@ -7,7 +8,6 @@ import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { describe, expect, it } from "vitest"
 import { Journal, JournalError, makeNoop, type Service } from "../src/Journal.ts"
 import { Input, type RunId, type SourceId, type SourceSeq } from "../src/JournalEvent.ts"
 import * as Migrations from "../src/Migrations.ts"
@@ -18,7 +18,7 @@ const sourceId = (value: string): SourceId => value as SourceId
 const sourceSeq = (value: number): SourceSeq => value as SourceSeq
 
 const effect = <E>(name: string, body: () => Effect.Effect<void, E>) =>
-  it(name, () => Effect.runPromise(body().pipe(Effect.provide(TestClock.layer()))))
+  it.effect(name, () => body().pipe(Effect.provide(TestClock.layer())))
 
 const input = (
   run: RunId,

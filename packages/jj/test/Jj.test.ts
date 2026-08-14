@@ -1,6 +1,6 @@
+import { describe, expect, it } from "@effect/vitest"
 import { Effect } from "effect"
 import type { PlatformError } from "effect/PlatformError"
-import { describe, expect, it } from "vitest"
 import * as Jj from "../src/Jj.ts"
 
 describe("jjError", () => {
@@ -27,41 +27,43 @@ describe("jjError", () => {
 })
 
 describe("Jj facade", () => {
-  it("fails every method with `not_installed` naming the method that was called", async () => {
-    const jj = Jj.makeNoop({})
-    const calls: ReadonlyArray<readonly [string, Effect.Effect<unknown, Jj.JjFailure | PlatformError>]> = [
-      ["snapshot", jj.snapshot("msg")],
-      ["restore", jj.restore("abc")],
-      ["diff", jj.diff("a", "b")],
-      ["workspaceAdd", jj.workspaceAdd("lane", "/tmp/lane")],
-      ["workspaceForget", jj.workspaceForget("lane")],
-      ["status", jj.status()]
-    ]
+  it.effect("fails every method with `not_installed` naming the method that was called", () =>
+    Effect.gen(function*() {
+      const jj = Jj.makeNoop({})
+      const calls: ReadonlyArray<readonly [string, Effect.Effect<unknown, Jj.JjFailure | PlatformError>]> = [
+        ["snapshot", jj.snapshot("msg")],
+        ["restore", jj.restore("abc")],
+        ["diff", jj.diff("a", "b")],
+        ["workspaceAdd", jj.workspaceAdd("lane", "/tmp/lane")],
+        ["workspaceForget", jj.workspaceForget("lane")],
+        ["status", jj.status()]
+      ]
 
-    for (const [method, effect] of calls) {
-      const error = await Effect.runPromise(Effect.flip(effect))
-      expect(error).toMatchObject({
-        code: "not_installed",
-        module: "Jj",
-        method,
-        message: `not_installed: Jj.${method}: jj is not available on this host`
-      })
-    }
-  })
+      for (const [method, effect] of calls) {
+        const error = yield* (Effect.flip(effect))
+        expect(error).toMatchObject({
+          code: "not_installed",
+          module: "Jj",
+          method,
+          message: `not_installed: Jj.${method}: jj is not available on this host`
+        })
+      }
+    }))
 
-  it("provides overrides through `layerNoop` while other methods stay unavailable", async () => {
-    const result = await Effect.runPromise(
-      Effect.gen(function*() {
-        const jj = yield* Jj.Jj
-        const snapshot = yield* jj.snapshot()
-        const failed = yield* Effect.flip(jj.status())
-        return { snapshot, failed }
-      }).pipe(Effect.provide(Jj.layerNoop({ snapshot: () => Effect.succeed({ changeId: "zzz" }) })))
-    )
+  it.effect("provides overrides through `layerNoop` while other methods stay unavailable", () =>
+    Effect.gen(function*() {
+      const result = yield* (
+        Effect.gen(function*() {
+          const jj = yield* Jj.Jj
+          const snapshot = yield* jj.snapshot()
+          const failed = yield* Effect.flip(jj.status())
+          return { snapshot, failed }
+        }).pipe(Effect.provide(Jj.layerNoop({ snapshot: () => Effect.succeed({ changeId: "zzz" }) })))
+      )
 
-    expect(result.snapshot.changeId).toBe("zzz")
-    expect(result.failed).toMatchObject({ code: "not_installed", method: "status" })
-  })
+      expect(result.snapshot.changeId).toBe("zzz")
+      expect(result.failed).toMatchObject({ code: "not_installed", method: "status" })
+    }))
 })
 
 describe("Jj constructor", () => {

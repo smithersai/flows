@@ -1,10 +1,10 @@
 /** Redirect fail-closed contract for NodeHost's Undici-backed HttpClient. */
+import { afterAll, beforeAll, describe, expect, it } from "@effect/vitest"
 import { Effect } from "effect"
 import { HttpClient } from "effect/unstable/http/HttpClient"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
 import { createServer, type Server } from "node:http"
 import type { AddressInfo } from "node:net"
-import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import * as NodeHost from "../../src/NodeHost.ts"
 
 const listen = (server: Server): Promise<number> =>
@@ -51,23 +51,24 @@ afterAll(async () => {
 })
 
 describe("NodeHost redirect contract", () => {
-  it("does not follow a 302 redirect to a second origin", async () => {
-    destinationHits = 0
-    const response = await Effect.runPromise(
-      Effect.gen(function*() {
-        const client = yield* HttpClient
-        const response = yield* client.execute(
-          HttpClientRequest.get(`http://127.0.0.1:${originPort}/redirect`)
-        )
-        yield* response.text
-        return { location: response.headers.location, status: response.status }
-      }).pipe(Effect.provide(NodeHost.layer))
-    )
+  it.effect("does not follow a 302 redirect to a second origin", () =>
+    Effect.gen(function*() {
+      destinationHits = 0
+      const response = yield* (
+        Effect.gen(function*() {
+          const client = yield* HttpClient
+          const response = yield* client.execute(
+            HttpClientRequest.get(`http://127.0.0.1:${originPort}/redirect`)
+          )
+          yield* response.text
+          return { location: response.headers.location, status: response.status }
+        }).pipe(Effect.provide(NodeHost.layer))
+      )
 
-    expect(response).toEqual({
-      location: `http://127.0.0.1:${destinationPort}/must-not-be-hit`,
-      status: 302
-    })
-    expect(destinationHits).toBe(0)
-  })
+      expect(response).toEqual({
+        location: `http://127.0.0.1:${destinationPort}/must-not-be-hit`,
+        status: 302
+      })
+      expect(destinationHits).toBe(0)
+    }))
 })

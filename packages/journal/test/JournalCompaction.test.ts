@@ -15,6 +15,7 @@
  * `CurrentBranchChanged` rather than observing gaps
  * (`reference/temporal/common/persistence/history_manager.go`).
  */
+import { describe, expect, it } from "@effect/vitest"
 import { DurableWriter } from "@smthrs/database-next/DurableWriter"
 import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import { Cause, Deferred, Effect, Exit, Fiber, Layer, Option } from "effect"
@@ -22,7 +23,6 @@ import * as Stream from "effect/Stream"
 import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import type * as Statement from "effect/unstable/sql/Statement"
-import { describe, expect, it } from "vitest"
 import { Journal, JournalError, type Service } from "../src/Journal.ts"
 import { type Entry, Input, type RunId, type Seq, type SourceId, type SourceSeq } from "../src/JournalEvent.ts"
 import * as Migrations from "../src/Migrations.ts"
@@ -49,12 +49,10 @@ const effect = <E>(
   name: string,
   body: () => Effect.Effect<void, E, DurableWriter | SqlClient.SqlClient>
 ) =>
-  it(name, () =>
-    Effect.runPromise(
-      body().pipe(
-        Effect.provide(Layer.provideMerge(Migrations.layer, TestDatabase.layer)),
-        Effect.provide(TestClock.layer())
-      )
+  it.effect(name, () =>
+    body().pipe(
+      Effect.provide(Layer.provideMerge(Migrations.layer, TestDatabase.layer)),
+      Effect.provide(TestClock.layer())
     ))
 
 /** A database decorator: reshapes the enclosing client/writer pair in place. */

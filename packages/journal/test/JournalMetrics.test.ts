@@ -2,12 +2,12 @@
  * The journal write counters: durable and lossy emission receipts land in the
  * registry the caller provided, keyed by channel and receipt.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { DurableWriter, type Service as WriterService } from "@smthrs/database-next/DurableWriter"
 import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import { Deferred, Effect, Layer, Metric } from "effect"
 import { TestClock } from "effect/testing"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"
-import { describe, expect, it } from "vitest"
 import { Journal } from "../src/Journal.ts"
 import { Input, type RunId, type SourceId, type SourceSeq } from "../src/JournalEvent.ts"
 import * as JournalMetrics from "../src/JournalMetrics.ts"
@@ -54,62 +54,62 @@ const withJournal = <A, E>(
   overrides: Partial<SqlJournal.SqlJournalOptions> = {},
   database: Layer.Layer<DurableWriter | SqlClient.SqlClient> = TestDatabase.layer
 ) =>
-  Effect.runPromise(
-    Effect.scoped(body.pipe(Effect.provide(journalLayer(overrides, database)))).pipe(
-      Effect.provide(TestClock.layer()),
-      Effect.provideService(Metric.MetricRegistry, new Map())
-    )
+  Effect.scoped(body.pipe(Effect.provide(journalLayer(overrides, database)))).pipe(
+    Effect.provide(TestClock.layer()),
+    Effect.provideService(Metric.MetricRegistry, new Map())
   )
 
 const count = (metric: Metric.Metric<number, Metric.CounterState<number>>) =>
   Effect.map(Metric.value(metric), (state) => state.count)
 
 describe("JournalMetrics", () => {
-  it("counts durable and lossy receipts through the provided registry", async () => {
-    await withJournal(Effect.gen(function*() {
-      const journal = yield* Journal
-
-      expect((yield* journal.emitDurable(input(0)))._tag).toBe("Accepted")
-      expect((yield* journal.emitDurable(input(0)))._tag).toBe("Duplicate")
-      expect((yield* journal.emitLossy(input(1)))._tag).toBe("Accepted")
-      expect((yield* journal.emitLossy(input(1)))._tag).toBe("Duplicate")
-      yield* journal.flush
-
-      expect(yield* count(JournalMetrics.durable.Accepted)).toBe(1)
-      expect(yield* count(JournalMetrics.durable.Duplicate)).toBe(1)
-      expect(yield* count(JournalMetrics.lossy.Accepted)).toBe(1)
-      expect(yield* count(JournalMetrics.lossy.Duplicate)).toBe(1)
-      // A dropped receipt lands in the same table; `Journal.test.ts` proves
-      // the drop policies themselves.
-      expect(yield* count(JournalMetrics.lossy.Dropped)).toBe(0)
-    }))
-  })
-
-  it("counts a drop-newest overflow as lossy.Dropped in the registry", async () => {
-    // The cell above leaves `Dropped` at zero, so the overflow receipt could
-    // stop reaching the registry without any test noticing. A gated writer
-    // holds the first event inside its transaction, which is what lets the
-    // one-slot queue fill and the third admission overflow deterministically.
-    const gate = Deferred.makeUnsafe<void>()
-    await withJournal(
-      Effect.gen(function*() {
+  it.effect("counts durable and lossy receipts through the provided registry", () =>
+    Effect.gen(function*() {
+      yield* withJournal(Effect.gen(function*() {
         const journal = yield* Journal
 
-        expect((yield* journal.emitLossy(input(0)))._tag).toBe("Accepted")
-        yield* Effect.yieldNow
+        expect((yield* journal.emitDurable(input(0)))._tag).toBe("Accepted")
+        expect((yield* journal.emitDurable(input(0)))._tag).toBe("Duplicate")
         expect((yield* journal.emitLossy(input(1)))._tag).toBe("Accepted")
-        const dropped = yield* journal.emitLossy(input(2))
-        expect(dropped).toMatchObject({ _tag: "Dropped", policy: "drop-newest" })
-
-        expect(yield* count(JournalMetrics.lossy.Dropped)).toBe(1)
-        // The drop is counted as a drop, never as an admission.
-        expect(yield* count(JournalMetrics.lossy.Accepted)).toBe(2)
-
-        yield* Deferred.succeed(gate, undefined)
+        expect((yield* journal.emitLossy(input(1)))._tag).toBe("Duplicate")
         yield* journal.flush
-      }).pipe(Effect.ensuring(Deferred.succeed(gate, undefined))),
-      { capacity: 1, overflow: "drop-newest", batchSize: 1 },
-      gatedDatabase(gate)
-    )
-  })
+
+        expect(yield* count(JournalMetrics.durable.Accepted)).toBe(1)
+        expect(yield* count(JournalMetrics.durable.Duplicate)).toBe(1)
+        expect(yield* count(JournalMetrics.lossy.Accepted)).toBe(1)
+        expect(yield* count(JournalMetrics.lossy.Duplicate)).toBe(1)
+        // A dropped receipt lands in the same table; `Journal.test.ts` proves
+        // the drop policies themselves.
+        expect(yield* count(JournalMetrics.lossy.Dropped)).toBe(0)
+      }))
+    }))
+
+  it.effect("counts a drop-newest overflow as lossy.Dropped in the registry", () =>
+    Effect.gen(function*() {
+      // The cell above leaves `Dropped` at zero, so the overflow receipt could
+      // stop reaching the registry without any test noticing. A gated writer
+      // holds the first event inside its transaction, which is what lets the
+      // one-slot queue fill and the third admission overflow deterministically.
+      const gate = Deferred.makeUnsafe<void>()
+      yield* withJournal(
+        Effect.gen(function*() {
+          const journal = yield* Journal
+
+          expect((yield* journal.emitLossy(input(0)))._tag).toBe("Accepted")
+          yield* Effect.yieldNow
+          expect((yield* journal.emitLossy(input(1)))._tag).toBe("Accepted")
+          const dropped = yield* journal.emitLossy(input(2))
+          expect(dropped).toMatchObject({ _tag: "Dropped", policy: "drop-newest" })
+
+          expect(yield* count(JournalMetrics.lossy.Dropped)).toBe(1)
+          // The drop is counted as a drop, never as an admission.
+          expect(yield* count(JournalMetrics.lossy.Accepted)).toBe(2)
+
+          yield* Deferred.succeed(gate, undefined)
+          yield* journal.flush
+        }).pipe(Effect.ensuring(Deferred.succeed(gate, undefined))),
+        { capacity: 1, overflow: "drop-newest", batchSize: 1 },
+        gatedDatabase(gate)
+      )
+    }))
 })

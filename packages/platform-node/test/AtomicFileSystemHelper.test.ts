@@ -15,6 +15,7 @@
  * `AtomicFileSystem.test.ts` pins the confinement races and the operation
  * semantics; this file pins the helper protocol itself.
  */
+import { afterEach, describe, expect, it } from "@effect/vitest"
 import * as KernelFileSystem from "@smthrs/kernel-next/FileSystem"
 import * as GrantStore from "@smthrs/kernel-next/GrantStore"
 import * as Workspace from "@smthrs/kernel-next/Workspace"
@@ -24,7 +25,6 @@ import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { promisify } from "node:util"
-import { afterEach, describe, expect, it } from "vitest"
 import * as AtomicFileSystem from "../src/AtomicFileSystem.ts"
 
 const directories = new Set<string>()
@@ -52,19 +52,17 @@ const run = <A, E>(
   root: string,
   effect: Effect.Effect<A, E, FileSystem.FileSystem>,
   host: Layer.Layer<FileSystem.FileSystem> = AtomicFileSystem.layer
-) => Effect.runPromise(effect.pipe(Effect.provide(guarded(root, host))))
+) => effect.pipe(Effect.provide(guarded(root, host)))
 
 const runDirect = <A>(
   request: KernelFileSystem.AtomicRequest,
   host: Layer.Layer<FileSystem.FileSystem>
 ) =>
-  Effect.runPromise(
-    Effect.gen(function*() {
-      const fs = yield* FileSystem.FileSystem
-      const atomic = (fs as KernelFileSystem.AtomicHostFileSystem)[KernelFileSystem.AtomicFileSystemTypeId]
-      return yield* atomic.execute<A>(request)
-    }).pipe(Effect.provide(host))
-  )
+  Effect.gen(function*() {
+    const fs = yield* FileSystem.FileSystem
+    const atomic = (fs as KernelFileSystem.AtomicHostFileSystem)[KernelFileSystem.AtomicFileSystemTypeId]
+    return yield* atomic.execute<A>(request)
+  }).pipe(Effect.provide(host))
 
 const quote = (value: string) => `'${value.replaceAll("'", `'\\''`)}'`
 
@@ -112,54 +110,58 @@ describe("atomic helper toolchain identity", () => {
    * The proof plants a `python3` that records that it ran and answers with a
    * corrupted read, then puts it on `PATH` and makes it the working directory.
    */
-  it("never runs a python3 planted on PATH or in the working directory", async () => {
-    const root = await temporaryDirectory()
-    const target = join(root, "target.txt")
-    await writeFile(target, "inside")
-    const bin = await temporaryDirectory()
-    const marker = join(await temporaryDirectory(), "path-executed")
-    await fakeInterpreter(
-      `require("node:fs").writeFileSync(${JSON.stringify(marker)}, "executed");` +
-        `process.stdout.write(${JSON.stringify(frame(`{"ok":true,"value":{"base64":"UFdORUQ="}}`))});`,
-      bin
-    )
-
-    const originalPath = process.env.PATH
-    const originalCwd = process.cwd()
-    let text: string
-    try {
-      process.env.PATH = bin
-      process.chdir(bin)
-      text = await run(root, Effect.flatMap(FileSystem.FileSystem, (fs) => fs.readFileString(target)))
-    } finally {
-      process.chdir(originalCwd)
-      process.env.PATH = originalPath
-    }
-
-    // The real interpreter answered, so the caller sees the real file...
-    expect(text).toBe("inside")
-    // ...and the planted one never ran at all.
-    expect(await missing(marker)).toBe(false)
-  }, 30_000)
-
-  it("refuses a configured executable that is relative, absent, not a file, or not executable", async () => {
-    const root = await temporaryDirectory()
-    const directory = await temporaryDirectory()
-    const plain = join(directory, "not-executable")
-    await writeFile(plain, "#!/bin/sh\nexit 0\n")
-    await chmod(plain, 0o644)
-
-    const attempt = (executable: string) =>
-      run(
-        root,
-        Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
-        hostedBy(executable)
+  it.live("never runs a python3 planted on PATH or in the working directory", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const target = join(root, "target.txt")
+      yield* Effect.promise(() => writeFile(target, "inside"))
+      const bin = yield* Effect.promise(() => temporaryDirectory())
+      const marker = join(yield* Effect.promise(() => temporaryDirectory()), "path-executed")
+      yield* Effect.promise(() =>
+        fakeInterpreter(
+          `require("node:fs").writeFileSync(${JSON.stringify(marker)}, "executed");` +
+            `process.stdout.write(${JSON.stringify(frame(`{"ok":true,"value":{"base64":"UFdORUQ="}}`))});`,
+          bin
+        )
       )
 
-    for (const executable of ["python3", join(directory, "absent"), directory, plain]) {
-      expect(await attempt(executable)).toMatchObject({ reason: { _tag: "PermissionDenied" } })
-    }
-  })
+      const originalPath = process.env.PATH
+      const originalCwd = process.cwd()
+      let text: string
+      try {
+        process.env.PATH = bin
+        process.chdir(bin)
+        text = yield* run(root, Effect.flatMap(FileSystem.FileSystem, (fs) => fs.readFileString(target)))
+      } finally {
+        process.chdir(originalCwd)
+        process.env.PATH = originalPath
+      }
+
+      // The real interpreter answered, so the caller sees the real file...
+      expect(text).toBe("inside")
+      // ...and the planted one never ran at all.
+      expect(yield* Effect.promise(() => missing(marker))).toBe(false)
+    }), 30_000)
+
+  it.live("refuses a configured executable that is relative, absent, not a file, or not executable", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const directory = yield* Effect.promise(() => temporaryDirectory())
+      const plain = join(directory, "not-executable")
+      yield* Effect.promise(() => writeFile(plain, "#!/bin/sh\nexit 0\n"))
+      yield* Effect.promise(() => chmod(plain, 0o644))
+
+      const attempt = (executable: string) =>
+        run(
+          root,
+          Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
+          hostedBy(executable)
+        )
+
+      for (const executable of ["python3", join(directory, "absent"), directory, plain]) {
+        expect(yield* attempt(executable)).toMatchObject({ reason: { _tag: "PermissionDenied" } })
+      }
+    }))
 
   /**
    * A workspace the adapter confines is exactly where an attacker can write.
@@ -167,23 +169,26 @@ describe("atomic helper toolchain identity", () => {
    * configured deliberately, so a misconfiguration cannot turn the confined
    * tree into the code that enforces the confinement.
    */
-  it("refuses an interpreter that lives inside the confined workspace", async () => {
-    const root = await temporaryDirectory()
-    const marker = join(await temporaryDirectory(), "workspace-executed")
-    const executable = await fakeInterpreter(
-      `require("node:fs").writeFileSync(${JSON.stringify(marker)}, "executed");`,
-      root
-    )
+  it.live("refuses an interpreter that lives inside the confined workspace", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const marker = join(yield* Effect.promise(() => temporaryDirectory()), "workspace-executed")
+      const executable = yield* Effect.promise(() =>
+        fakeInterpreter(
+          `require("node:fs").writeFileSync(${JSON.stringify(marker)}, "executed");`,
+          root
+        )
+      )
 
-    const failure = await run(
-      root,
-      Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
-      hostedBy(executable)
-    )
+      const failure = yield* run(
+        root,
+        Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
+        hostedBy(executable)
+      )
 
-    expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
-    expect(await missing(marker)).toBe(false)
-  })
+      expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
+      expect(yield* Effect.promise(() => missing(marker))).toBe(false)
+    }))
 
   /**
    * The kernel always pins a boundary root before it calls the executor, but
@@ -191,193 +196,212 @@ describe("atomic helper toolchain identity", () => {
    * directly to pin that a request without one still fails closed rather than
    * skipping the interpreter's location check.
    */
-  it("fails closed for a request that names no boundary root", async () => {
-    const root = await temporaryDirectory()
-    const failure = await Effect.runPromise(
-      Effect.gen(function*() {
-        const fs = yield* FileSystem.FileSystem
-        const atomic = (fs as KernelFileSystem.AtomicHostFileSystem)[KernelFileSystem.AtomicFileSystemTypeId]
-        return yield* Effect.flip(atomic.execute({ operation: "exists", path: join(root, "any.txt") }))
-      }).pipe(Effect.provide(AtomicFileSystem.layer))
-    )
-    expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
-  })
+  it.live("fails closed for a request that names no boundary root", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const failure = yield* (
+        Effect.gen(function*() {
+          const fs = yield* FileSystem.FileSystem
+          const atomic = (fs as KernelFileSystem.AtomicHostFileSystem)[KernelFileSystem.AtomicFileSystemTypeId]
+          return yield* Effect.flip(atomic.execute({ operation: "exists", path: join(root, "any.txt") }))
+        }).pipe(Effect.provide(AtomicFileSystem.layer))
+      )
+      expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
+    }))
 })
 
 describe("atomic helper limits", () => {
-  it("refuses every non-positive, fractional, non-finite, or over-hard-cap limit before spawning", async () => {
-    const root = await temporaryDirectory()
-    const marker = join(await temporaryDirectory(), "invalid-limit-executed")
-    const executable = await fakeInterpreter(
-      `require("node:fs").writeFileSync(${JSON.stringify(marker)}, "executed");`
-    )
-    const invalid: ReadonlyArray<readonly [keyof AtomicFileSystem.Limits, number]> = [
-      ["content", 0],
-      ["request", -1],
-      ["response", 1.5],
-      ["stderr", Number.NaN],
-      ["content", Number.POSITIVE_INFINITY],
-      ["request", 256 * 1024 * 1024 + 1]
-    ]
+  it.live("refuses every non-positive, fractional, non-finite, or over-hard-cap limit before spawning", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const marker = join(yield* Effect.promise(() => temporaryDirectory()), "invalid-limit-executed")
+      const executable = yield* Effect.promise(() =>
+        fakeInterpreter(
+          `require("node:fs").writeFileSync(${JSON.stringify(marker)}, "executed");`
+        )
+      )
+      const invalid: ReadonlyArray<readonly [keyof AtomicFileSystem.Limits, number]> = [
+        ["content", 0],
+        ["request", -1],
+        ["response", 1.5],
+        ["stderr", Number.NaN],
+        ["content", Number.POSITIVE_INFINITY],
+        ["request", 256 * 1024 * 1024 + 1]
+      ]
 
-    for (const [field, value] of invalid) {
-      const failure = await run(
+      for (const [field, value] of invalid) {
+        const failure = yield* run(
+          root,
+          Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
+          hostedBy(executable, { [field]: value })
+        )
+        expect(failure).toMatchObject({ reason: { _tag: "BadArgument" } })
+      }
+      const throwingLimits = Object.defineProperty({}, "content", {
+        get: () => {
+          throw "limit getter failed"
+        }
+      }) as Partial<AtomicFileSystem.Limits>
+      const getterFailure = yield* run(
         root,
         Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
-        hostedBy(executable, { [field]: value })
+        hostedBy(executable, throwingLimits)
       )
-      expect(failure).toMatchObject({ reason: { _tag: "BadArgument" } })
-    }
-    const throwingLimits = Object.defineProperty({}, "content", {
-      get: () => {
-        throw "limit getter failed"
+      expect(getterFailure).toMatchObject({ reason: { _tag: "BadArgument" } })
+      expect(described(getterFailure)).toContain("limits are invalid")
+      expect(yield* Effect.promise(() => missing(marker))).toBe(false)
+    }))
+
+  it.live("refuses an over-limit request before an interpreter is started", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const marker = join(yield* Effect.promise(() => temporaryDirectory()), "request-executed")
+      const executable = yield* Effect.promise(() =>
+        fakeInterpreter(
+          `require("node:fs").writeFileSync(${JSON.stringify(marker)}, "executed");`
+        )
+      )
+
+      const failure = yield* run(
+        root,
+        Effect.flatMap(
+          FileSystem.FileSystem,
+          (fs) => Effect.flip(fs.writeFileString(join(root, "big.txt"), "x".repeat(4096)))
+        ),
+        hostedBy(executable, { request: 512 })
+      )
+
+      expect(failure.reason._tag).toBe("BadArgument")
+      expect(String(failure.reason)).toContain("exceeds the 512 byte limit")
+      // Nothing was spawned: an over-limit request never reaches an interpreter.
+      expect(yield* Effect.promise(() => missing(marker))).toBe(false)
+    }))
+
+  it.live("reads up to the content limit and refuses one byte more", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      yield* Effect.promise(() => writeFile(join(root, "exact.txt"), "12345678"))
+      yield* Effect.promise(() => writeFile(join(root, "over.txt"), "123456789"))
+
+      const outcome = yield* run(
+        root,
+        Effect.gen(function*() {
+          const fs = yield* FileSystem.FileSystem
+          return {
+            exact: yield* fs.readFileString(join(root, "exact.txt")),
+            over: yield* Effect.flip(fs.readFile(join(root, "over.txt")))
+          }
+        }),
+        AtomicFileSystem.layerWith({ limits: { content: 8 } })
+      )
+
+      expect(outcome.exact).toBe("12345678")
+      expect(outcome.over).toMatchObject({ reason: { _tag: "BadResource" } })
+      expect(described(outcome.over)).toContain("atomic read limit")
+    }))
+
+  it.live("refuses an over-limit write without touching the file it would have replaced", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const target = join(root, "target.txt")
+      yield* Effect.promise(() => writeFile(target, "seed"))
+
+      const outcome = yield* run(
+        root,
+        Effect.gen(function*() {
+          const fs = yield* FileSystem.FileSystem
+          return {
+            bytes: yield* Effect.flip(fs.writeFile(target, new Uint8Array(64))),
+            text: yield* Effect.flip(fs.writeFileString(target, "123456789"))
+          }
+        }),
+        AtomicFileSystem.layerWith({ limits: { content: 8 } })
+      )
+
+      expect(outcome.text).toMatchObject({ reason: { _tag: "BadResource" } })
+      expect(outcome.bytes).toMatchObject({ reason: { _tag: "BadResource" } })
+      // Measured before the open, so the target was never truncated.
+      expect(yield* Effect.promise(() => readFile(target, "utf8"))).toBe("seed")
+    }))
+
+  it.live("refuses a listing and a glob that would exceed the response limit", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      for (let index = 0; index < 64; index++) {
+        yield* Effect.promise(() => writeFile(join(root, `entry-${index}.txt`), ""))
       }
-    }) as Partial<AtomicFileSystem.Limits>
-    const getterFailure = await run(
-      root,
-      Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
-      hostedBy(executable, throwingLimits)
-    )
-    expect(getterFailure).toMatchObject({ reason: { _tag: "BadArgument" } })
-    expect(described(getterFailure)).toContain("limits are invalid")
-    expect(await missing(marker)).toBe(false)
-  })
+      const outcome = yield* run(
+        root,
+        Effect.gen(function*() {
+          const fs = yield* FileSystem.FileSystem
+          return {
+            glob: yield* Effect.flip(fs.glob("**/*.txt", { root })),
+            listing: yield* Effect.flip(fs.readDirectory(root))
+          }
+        }),
+        AtomicFileSystem.layerWith({ limits: { response: 128 } })
+      )
+      expect(outcome.listing).toMatchObject({ reason: { _tag: "BadResource" } })
+      expect(outcome.glob).toMatchObject({ reason: { _tag: "BadResource" } })
+    }))
 
-  it("refuses an over-limit request before an interpreter is started", async () => {
-    const root = await temporaryDirectory()
-    const marker = join(await temporaryDirectory(), "request-executed")
-    const executable = await fakeInterpreter(
-      `require("node:fs").writeFileSync(${JSON.stringify(marker)}, "executed");`
-    )
+  it.live("stops accumulating a helper that writes more than the response limit", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const executable = yield* Effect.promise(() =>
+        fakeInterpreter(
+          `const block = Buffer.alloc(1 << 16, 0x61);` +
+            `const send = () => { while (process.stdout.write(block)) {} };` +
+            `process.stdout.on("drain", send); send(); setTimeout(() => {}, 30000);`
+        )
+      )
+      const failure = yield* run(
+        root,
+        Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
+        hostedBy(executable, { response: 1024 })
+      )
+      expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
+      expect(described(failure)).toContain("more than 1024 response bytes")
+    }), 30_000)
 
-    const failure = await run(
-      root,
-      Effect.flatMap(
-        FileSystem.FileSystem,
-        (fs) => Effect.flip(fs.writeFileString(join(root, "big.txt"), "x".repeat(4096)))
-      ),
-      hostedBy(executable, { request: 512 })
-    )
+  it.live("refuses a byte after an exact full response buffer without retaining it", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const executable = yield* Effect.promise(() =>
+        fakeInterpreter(
+          `process.stdout.write(Buffer.alloc(1088, 0x61));` +
+            `setTimeout(() => process.stdout.write(Buffer.from([0x62])), 25);` +
+            `setTimeout(() => {}, 30000);`
+        )
+      )
+      const failure = yield* run(
+        root,
+        Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
+        hostedBy(executable, { response: 1024 })
+      )
+      expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
+      expect(described(failure)).toContain("more than 1024 response bytes")
+    }), 30_000)
 
-    expect(failure.reason._tag).toBe("BadArgument")
-    expect(String(failure.reason)).toContain("exceeds the 512 byte limit")
-    // Nothing was spawned: an over-limit request never reaches an interpreter.
-    expect(await missing(marker)).toBe(false)
-  })
-
-  it("reads up to the content limit and refuses one byte more", async () => {
-    const root = await temporaryDirectory()
-    await writeFile(join(root, "exact.txt"), "12345678")
-    await writeFile(join(root, "over.txt"), "123456789")
-
-    const outcome = await run(
-      root,
-      Effect.gen(function*() {
-        const fs = yield* FileSystem.FileSystem
-        return {
-          exact: yield* fs.readFileString(join(root, "exact.txt")),
-          over: yield* Effect.flip(fs.readFile(join(root, "over.txt")))
-        }
-      }),
-      AtomicFileSystem.layerWith({ limits: { content: 8 } })
-    )
-
-    expect(outcome.exact).toBe("12345678")
-    expect(outcome.over).toMatchObject({ reason: { _tag: "BadResource" } })
-    expect(described(outcome.over)).toContain("atomic read limit")
-  })
-
-  it("refuses an over-limit write without touching the file it would have replaced", async () => {
-    const root = await temporaryDirectory()
-    const target = join(root, "target.txt")
-    await writeFile(target, "seed")
-
-    const outcome = await run(
-      root,
-      Effect.gen(function*() {
-        const fs = yield* FileSystem.FileSystem
-        return {
-          bytes: yield* Effect.flip(fs.writeFile(target, new Uint8Array(64))),
-          text: yield* Effect.flip(fs.writeFileString(target, "123456789"))
-        }
-      }),
-      AtomicFileSystem.layerWith({ limits: { content: 8 } })
-    )
-
-    expect(outcome.text).toMatchObject({ reason: { _tag: "BadResource" } })
-    expect(outcome.bytes).toMatchObject({ reason: { _tag: "BadResource" } })
-    // Measured before the open, so the target was never truncated.
-    expect(await readFile(target, "utf8")).toBe("seed")
-  })
-
-  it("refuses a listing and a glob that would exceed the response limit", async () => {
-    const root = await temporaryDirectory()
-    for (let index = 0; index < 64; index++) {
-      await writeFile(join(root, `entry-${index}.txt`), "")
-    }
-    const outcome = await run(
-      root,
-      Effect.gen(function*() {
-        const fs = yield* FileSystem.FileSystem
-        return {
-          glob: yield* Effect.flip(fs.glob("**/*.txt", { root })),
-          listing: yield* Effect.flip(fs.readDirectory(root))
-        }
-      }),
-      AtomicFileSystem.layerWith({ limits: { response: 128 } })
-    )
-    expect(outcome.listing).toMatchObject({ reason: { _tag: "BadResource" } })
-    expect(outcome.glob).toMatchObject({ reason: { _tag: "BadResource" } })
-  })
-
-  it("stops accumulating a helper that writes more than the response limit", async () => {
-    const root = await temporaryDirectory()
-    const executable = await fakeInterpreter(
-      `const block = Buffer.alloc(1 << 16, 0x61);` +
-        `const send = () => { while (process.stdout.write(block)) {} };` +
-        `process.stdout.on("drain", send); send(); setTimeout(() => {}, 30000);`
-    )
-    const failure = await run(
-      root,
-      Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
-      hostedBy(executable, { response: 1024 })
-    )
-    expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
-    expect(described(failure)).toContain("more than 1024 response bytes")
-  }, 30_000)
-
-  it("refuses a byte after an exact full response buffer without retaining it", async () => {
-    const root = await temporaryDirectory()
-    const executable = await fakeInterpreter(
-      `process.stdout.write(Buffer.alloc(1088, 0x61));` +
-        `setTimeout(() => process.stdout.write(Buffer.from([0x62])), 25);` +
-        `setTimeout(() => {}, 30000);`
-    )
-    const failure = await run(
-      root,
-      Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
-      hostedBy(executable, { response: 1024 })
-    )
-    expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
-    expect(described(failure)).toContain("more than 1024 response bytes")
-  }, 30_000)
-
-  it("bounds retained stderr independently of stdout", async () => {
-    const root = await temporaryDirectory()
-    const executable = await fakeInterpreter(
-      `process.stderr.write(Buffer.alloc(1 << 20, 0x62).toString("latin1"));` +
-        `process.exitCode = 7;`
-    )
-    const failure = await run(
-      root,
-      Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
-      hostedBy(executable, { stderr: 2048 })
-    )
-    expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
-    expect(described(failure)).toContain("(truncated)")
-    // A megabyte of diagnostics is not retained just because it was offered.
-    expect(described(failure).length).toBeLessThan(4096)
-  }, 30_000)
+  it.live("bounds retained stderr independently of stdout", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const executable = yield* Effect.promise(() =>
+        fakeInterpreter(
+          `process.stderr.write(Buffer.alloc(1 << 20, 0x62).toString("latin1"));` +
+            `process.exitCode = 7;`
+        )
+      )
+      const failure = yield* run(
+        root,
+        Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
+        hostedBy(executable, { stderr: 2048 })
+      )
+      expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
+      expect(described(failure)).toContain("(truncated)")
+      // A megabyte of diagnostics is not retained just because it was offered.
+      expect(described(failure).length).toBeLessThan(4096)
+    }), 30_000)
 
   /**
    * The helper enforces the same ceilings on its own side, against a host that
@@ -433,183 +457,194 @@ describe("atomic helper response framing", () => {
     ["a rejection with a non-string message", frame(`{"ok":false,"message":{"text":"no"}}`)]
   ]
 
-  it.each(cases)("fails closed on %s", async (_name, output) => {
-    const root = await temporaryDirectory()
-    const executable = await writing(output)
-    const failure = await run(
-      root,
-      Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
-      hostedBy(executable, { response: 4096 })
-    )
-    expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
-  })
-
-  it("fails closed when the framed response body is not valid UTF-8", async () => {
-    const root = await temporaryDirectory()
-    const executable = await fakeInterpreter(
-      `process.stdout.write(Buffer.concat([Buffer.from("flows-atomic/1 1\\n", "ascii"), Buffer.from([0xff])]));`
-    )
-    const failure = await run(
-      root,
-      Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
-      hostedBy(executable)
-    )
-    expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
-  })
-
-  it("refuses non-serializable direct requests before an interpreter starts", async () => {
-    const root = await temporaryDirectory()
-    const marker = join(await temporaryDirectory(), "serialization-executed")
-    const executable = await fakeInterpreter(
-      `require("node:fs").writeFileSync(${JSON.stringify(marker)}, "executed");`
-    )
-    const host = hostedBy(executable)
-    const failureOf = <A>(promise: Promise<A>) =>
-      promise.then(
-        () => undefined,
-        (failure: unknown) => failure
+  it.live.each(cases)("fails closed on %s", ([_name, output]) =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const executable = yield* Effect.promise(() => writing(output))
+      const failure = yield* run(
+        root,
+        Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
+        hostedBy(executable, { response: 4096 })
       )
-    const omitted = {
-      operation: "exists",
-      boundaryRoot: root,
-      logicalRoot: root,
-      path: join(root, "any.txt"),
-      toJSON: () => undefined
-    } as KernelFileSystem.AtomicRequest
-    const cyclicOptions: Record<string, unknown> = {}
-    cyclicOptions.self = cyclicOptions
-    const cyclic = {
-      operation: "exists",
-      boundaryRoot: root,
-      logicalRoot: root,
-      path: join(root, "any.txt"),
-      options: cyclicOptions
-    } satisfies KernelFileSystem.AtomicRequest
+      expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
+    }))
 
-    expect(await failureOf(runDirect(omitted, host))).toMatchObject({ reason: { _tag: "BadArgument" } })
-    expect(await failureOf(runDirect(cyclic, host))).toMatchObject({ reason: { _tag: "BadArgument" } })
-    expect(await missing(marker)).toBe(false)
-  })
+  it.live("fails closed when the framed response body is not valid UTF-8", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const executable = yield* Effect.promise(() =>
+        fakeInterpreter(
+          `process.stdout.write(Buffer.concat([Buffer.from("flows-atomic/1 1\\n", "ascii"), Buffer.from([0xff])]));`
+        )
+      )
+      const failure = yield* run(
+        root,
+        Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
+        hostedBy(executable)
+      )
+      expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
+    }))
 
-  it("fails closed when a helper claims success for an unsupported direct operation", async () => {
-    const root = await temporaryDirectory()
-    const executable = await writing(frame(`{"ok":true,"value":null}`))
-    const failure = await runDirect(
-      { operation: "unsupported", boundaryRoot: root, logicalRoot: root },
-      hostedBy(executable)
-    ).then(
-      () => undefined,
-      (error: unknown) => error
-    )
-    expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
-  })
+  it.live("refuses non-serializable direct requests before an interpreter starts", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const marker = join(yield* Effect.promise(() => temporaryDirectory()), "serialization-executed")
+      const executable = yield* Effect.promise(() =>
+        fakeInterpreter(
+          `require("node:fs").writeFileSync(${JSON.stringify(marker)}, "executed");`
+        )
+      )
+      const host = hostedBy(executable)
+      const omitted = {
+        operation: "exists",
+        boundaryRoot: root,
+        logicalRoot: root,
+        path: join(root, "any.txt"),
+        toJSON: () => undefined
+      } as KernelFileSystem.AtomicRequest
+      const cyclicOptions: Record<string, unknown> = {}
+      cyclicOptions.self = cyclicOptions
+      const cyclic = {
+        operation: "exists",
+        boundaryRoot: root,
+        logicalRoot: root,
+        path: join(root, "any.txt"),
+        options: cyclicOptions
+      } satisfies KernelFileSystem.AtomicRequest
 
-  it("reports a rejection envelope that carries no message", async () => {
-    const root = await temporaryDirectory()
-    const executable = await writing(frame(`{"ok":false}`))
-    const failure = await run(
-      root,
-      Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
-      hostedBy(executable)
-    )
-    expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
-    expect(described(failure)).toContain("rejected the operation")
-  })
+      expect(yield* Effect.flip(runDirect(omitted, host))).toMatchObject({ reason: { _tag: "BadArgument" } })
+      expect(yield* Effect.flip(runDirect(cyclic, host))).toMatchObject({ reason: { _tag: "BadArgument" } })
+      expect(yield* Effect.promise(() => missing(marker))).toBe(false)
+    }))
 
-  it("prefers the helper's own rejection over a nonzero exit and its stderr", async () => {
-    const root = await temporaryDirectory()
-    const executable = await writing(frame(`{"ok":false,"code":"ENOENT","message":"gone"}`), {
-      code: 7,
-      stderr: "noise on the way out"
-    })
-    const failure = await run(
-      root,
-      Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
-      hostedBy(executable)
-    )
-    // The errno the syscall produced survives; the exit status does not
-    // overwrite it with a generic fail-closed reason.
-    expect(failure).toMatchObject({ reason: { _tag: "NotFound" } })
-  })
+  it.live("fails closed when a helper claims success for an unsupported direct operation", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const executable = yield* Effect.promise(() => writing(frame(`{"ok":true,"value":null}`)))
+      const failure = yield* Effect.flip(runDirect(
+        { operation: "unsupported", boundaryRoot: root, logicalRoot: root },
+        hostedBy(executable)
+      ))
+      expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
+    }))
 
-  it("refuses a well-formed success that arrives with a nonzero exit", async () => {
-    const root = await temporaryDirectory()
-    const executable = await writing(frame(`{"ok":true,"value":true}`), { code: 7 })
-    const failure = await run(
-      root,
-      Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
-      hostedBy(executable)
-    )
-    expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
-    expect(described(failure)).toContain("exited 7")
-  })
+  it.live("reports a rejection envelope that carries no message", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const executable = yield* Effect.promise(() => writing(frame(`{"ok":false}`)))
+      const failure = yield* run(
+        root,
+        Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
+        hostedBy(executable)
+      )
+      expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
+      expect(described(failure)).toContain("rejected the operation")
+    }))
 
-  it("reports the broken request pipe when a helper exits before draining stdin", async () => {
-    const root = await temporaryDirectory()
-    const executable = await fakeInterpreter(`process.exitCode = 0;`)
-    // Larger than any pipe buffer, so the request write reaches a helper that
-    // has already exited and the pipe raises EPIPE mid-write.
-    const failure = await run(
-      root,
-      Effect.flatMap(
-        FileSystem.FileSystem,
-        (fs) => Effect.flip(fs.writeFileString(join(root, "big.txt"), "x".repeat(8 * 1024 * 1024)))
-      ),
-      hostedBy(executable)
-    )
-    expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
-  }, 30_000)
+  it.live("prefers the helper's own rejection over a nonzero exit and its stderr", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const executable = yield* Effect.promise(() =>
+        writing(frame(`{"ok":false,"code":"ENOENT","message":"gone"}`), {
+          code: 7,
+          stderr: "noise on the way out"
+        })
+      )
+      const failure = yield* run(
+        root,
+        Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
+        hostedBy(executable)
+      )
+      // The errno the syscall produced survives; the exit status does not
+      // overwrite it with a generic fail-closed reason.
+      expect(failure).toMatchObject({ reason: { _tag: "NotFound" } })
+    }))
 
-  it("fails the operation when the interpreter cannot be executed at all", async () => {
-    const root = await temporaryDirectory()
-    const executable = join(await temporaryDirectory(), "python3")
-    // A regular, executable file that is neither a script nor a binary: the
-    // exec fails after the checks pass, which is the child `error` path.
-    await writeFile(executable, Buffer.from([0x00, 0x01, 0x02, 0x03]))
-    await chmod(executable, 0o755)
-    const failure = await run(
-      root,
-      Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
-      hostedBy(executable)
-    )
-    expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
-  })
+  it.live("refuses a well-formed success that arrives with a nonzero exit", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const executable = yield* Effect.promise(() => writing(frame(`{"ok":true,"value":true}`), { code: 7 }))
+      const failure = yield* run(
+        root,
+        Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
+        hostedBy(executable)
+      )
+      expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
+      expect(described(failure)).toContain("exited 7")
+    }))
 
-  it("handles the child error event when an executable names an absent loader", async () => {
-    const root = await temporaryDirectory()
-    const executable = join(await temporaryDirectory(), "python3")
-    await writeFile(executable, "#!/definitely/not/a/real/interpreter\n")
-    await chmod(executable, 0o755)
-    const failure = await run(
-      root,
-      Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
-      hostedBy(executable)
-    )
-    expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
-  })
+  it.live("reports the broken request pipe when a helper exits before draining stdin", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const executable = yield* Effect.promise(() => fakeInterpreter(`process.exitCode = 0;`))
+      // Larger than any pipe buffer, so the request write reaches a helper that
+      // has already exited and the pipe raises EPIPE mid-write.
+      const failure = yield* run(
+        root,
+        Effect.flatMap(
+          FileSystem.FileSystem,
+          (fs) => Effect.flip(fs.writeFileString(join(root, "big.txt"), "x".repeat(8 * 1024 * 1024)))
+        ),
+        hostedBy(executable)
+      )
+      expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
+    }), 30_000)
+
+  it.live("fails the operation when the interpreter cannot be executed at all", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const executable = join(yield* Effect.promise(() => temporaryDirectory()), "python3")
+      // A regular, executable file that is neither a script nor a binary: the
+      // exec fails after the checks pass, which is the child `error` path.
+      yield* Effect.promise(() => writeFile(executable, Buffer.from([0x00, 0x01, 0x02, 0x03])))
+      yield* Effect.promise(() => chmod(executable, 0o755))
+      const failure = yield* run(
+        root,
+        Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
+        hostedBy(executable)
+      )
+      expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
+    }))
+
+  it.live("handles the child error event when an executable names an absent loader", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const executable = join(yield* Effect.promise(() => temporaryDirectory()), "python3")
+      yield* Effect.promise(() => writeFile(executable, "#!/definitely/not/a/real/interpreter\n"))
+      yield* Effect.promise(() => chmod(executable, 0o755))
+      const failure = yield* run(
+        root,
+        Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.exists(join(root, "any.txt")))),
+        hostedBy(executable)
+      )
+      expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
+    }))
 
   /**
    * A response is decoded from the complete frame, never from per-chunk
    * strings, so a character split across two stdout writes survives. Decoding
    * each chunk would have produced replacement characters for both halves.
    */
-  it("decodes a response whose multi-byte character is split across stdout chunks", async () => {
-    const root = await temporaryDirectory()
-    const complete = Buffer.from(frame(`{"ok":true,"value":["ラン.txt"]}`), "utf8")
-    // Inside the first byte of the three-byte encoding of "ラ".
-    const cut = complete.indexOf(Buffer.from("ラン", "utf8")) + 1
-    const executable = await fakeInterpreter(
-      `const all = Buffer.from(${JSON.stringify(complete.toString("base64"))}, "base64");` +
-        `process.stdout.write(all.subarray(0, ${cut}));` +
-        `setTimeout(() => process.stdout.write(all.subarray(${cut})), 25);`
-    )
-    const entries = await run(
-      root,
-      Effect.flatMap(FileSystem.FileSystem, (fs) => fs.readDirectory(root)),
-      hostedBy(executable)
-    )
-    expect(entries).toEqual(["ラン.txt"])
-  })
+  it.live("decodes a response whose multi-byte character is split across stdout chunks", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const complete = Buffer.from(frame(`{"ok":true,"value":["ラン.txt"]}`), "utf8")
+      // Inside the first byte of the three-byte encoding of "ラ".
+      const cut = complete.indexOf(Buffer.from("ラン", "utf8")) + 1
+      const executable = yield* Effect.promise(() =>
+        fakeInterpreter(
+          `const all = Buffer.from(${JSON.stringify(complete.toString("base64"))}, "base64");` +
+            `process.stdout.write(all.subarray(0, ${cut}));` +
+            `setTimeout(() => process.stdout.write(all.subarray(${cut})), 25);`
+        )
+      )
+      const entries = yield* run(
+        root,
+        Effect.flatMap(FileSystem.FileSystem, (fs) => fs.readDirectory(root)),
+        hostedBy(executable)
+      )
+      expect(entries).toEqual(["ラン.txt"])
+    }))
 })
 
 describe("atomic helper result validation", () => {
@@ -636,34 +671,38 @@ describe("atomic helper result validation", () => {
     ]
   ]
 
-  it.each(statCases)("fails closed on %s", async (_name, payload) => {
-    const root = await temporaryDirectory()
-    const executable = await writing(frame(payload))
-    const failure = await run(
-      root,
-      Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.stat(root))),
-      hostedBy(executable)
-    )
-    expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
-  })
+  it.live.each(statCases)("fails closed on %s", ([_name, payload]) =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const executable = yield* Effect.promise(() => writing(frame(payload)))
+      const failure = yield* run(
+        root,
+        Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.stat(root))),
+        hostedBy(executable)
+      )
+      expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
+    }))
 
-  it("accepts a stat whose optional fields are absent or null", async () => {
-    const root = await temporaryDirectory()
-    const executable = await writing(frame(
-      `{"ok":true,"value":{"type":"FIFO","mtime":1000,"atime":2000,"birthtime":null,"dev":1,"ino":2,` +
-        `"mode":420,"nlink":1,"uid":3,"gid":4,"rdev":0,"size":0,"blksize":null}}`
-    ))
-    const info = await run(
-      root,
-      Effect.flatMap(FileSystem.FileSystem, (fs) => fs.stat(root)),
-      hostedBy(executable)
-    )
-    expect(info.type).toBe("FIFO")
-    expect(info.birthtime._tag).toBe("None")
-    expect(info.blksize._tag).toBe("None")
-    // `blocks` is absent from the payload entirely rather than null.
-    expect(info.blocks._tag).toBe("None")
-  })
+  it.live("accepts a stat whose optional fields are absent or null", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const executable = yield* Effect.promise(() =>
+        writing(frame(
+          `{"ok":true,"value":{"type":"FIFO","mtime":1000,"atime":2000,"birthtime":null,"dev":1,"ino":2,` +
+            `"mode":420,"nlink":1,"uid":3,"gid":4,"rdev":0,"size":0,"blksize":null}}`
+        ))
+      )
+      const info = yield* run(
+        root,
+        Effect.flatMap(FileSystem.FileSystem, (fs) => fs.stat(root)),
+        hostedBy(executable)
+      )
+      expect(info.type).toBe("FIFO")
+      expect(info.birthtime._tag).toBe("None")
+      expect(info.blksize._tag).toBe("None")
+      // `blocks` is absent from the payload entirely rather than null.
+      expect(info.blocks._tag).toBe("None")
+    }))
 
   const readCases: ReadonlyArray<readonly [string, string]> = [
     ["a non-object read result", `{"ok":true,"value":7}`],
@@ -672,94 +711,104 @@ describe("atomic helper result validation", () => {
     ["a payload that is not base64", `{"ok":true,"value":{"base64":"not base64!!"}}`]
   ]
 
-  it.each(readCases)("fails closed on %s", async (_name, payload) => {
-    const root = await temporaryDirectory()
-    const target = join(root, "target.txt")
-    await writeFile(target, "inside")
-    const executable = await writing(frame(payload))
-    const failure = await run(
-      root,
-      Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.readFile(target))),
-      hostedBy(executable)
-    )
-    expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
-  })
-
-  it("validates success values for every non-file operation", async () => {
-    const root = await temporaryDirectory()
-    const target = join(root, "target.txt")
-    await writeFile(target, "inside")
-    const attempt = async (
-      value: string,
-      invoke: (fs: FileSystem.FileSystem) => Effect.Effect<unknown, PlatformError.PlatformError>
-    ) => {
-      const executable = await writing(frame(`{"ok":true,"value":${value}}`))
-      return run(
+  it.live.each(readCases)("fails closed on %s", ([_name, payload]) =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const target = join(root, "target.txt")
+      yield* Effect.promise(() => writeFile(target, "inside"))
+      const executable = yield* Effect.promise(() => writing(frame(payload)))
+      const failure = yield* run(
         root,
-        Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(invoke(fs))),
+        Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.readFile(target))),
         hostedBy(executable)
       )
-    }
-
-    const failures = await Promise.all([
-      attempt(`"yes"`, (fs) => fs.exists(target)),
-      attempt(`{}`, (fs) => fs.readDirectory(root)),
-      attempt(`["same","same"]`, (fs) => fs.readDirectory(root)),
-      attempt(`["bad\\u0000name"]`, (fs) => fs.readDirectory(root)),
-      attempt(`7`, (fs) => fs.realPath(target)),
-      attempt(`true`, (fs) => fs.writeFileString(target, "replacement"))
-    ])
-    for (const failure of failures) {
       expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
-    }
-    expect(await readFile(target, "utf8")).toBe("inside")
-  }, 30_000)
+    }))
 
-  it("refuses a helper listing above the entry-count ceiling", async () => {
-    const root = await temporaryDirectory()
-    const executable = await fakeInterpreter(
-      `const value = Array.from({ length: 100001 }, (_, index) => String(index));` +
-        `const body = Buffer.from(JSON.stringify({ ok: true, value }));` +
-        `process.stdout.write(Buffer.concat([Buffer.from("flows-atomic/1 " + body.length + "\\n"), body]));`
-    )
-    const failure = await run(
-      root,
-      Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.readDirectory(root))),
-      hostedBy(executable)
-    )
-    expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
-  }, 30_000)
+  it.live("validates success values for every non-file operation", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const target = join(root, "target.txt")
+      yield* Effect.promise(() => writeFile(target, "inside"))
+      const attempt = (
+        value: string,
+        invoke: (fs: FileSystem.FileSystem) => Effect.Effect<unknown, PlatformError.PlatformError>
+      ) =>
+        Effect.gen(function*() {
+          const executable = yield* Effect.promise(() => writing(frame(`{"ok":true,"value":${value}}`)))
+          return yield* run(
+            root,
+            Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(invoke(fs))),
+            hostedBy(executable)
+          )
+        })
 
-  it("preserves a file size beyond JavaScript's safe integer range", async () => {
-    const root = await temporaryDirectory()
-    const payload = `{"ok":true,"value":{"type":"File","mtime":1,"atime":1,"birthtime":null,"dev":1,"ino":1,` +
-      `"mode":420,"nlink":1,"uid":1,"gid":1,"rdev":0,"size":"9007199254740993",` +
-      `"blksize":"4096","blocks":1}}`
-    const executable = await writing(frame(payload))
-    const info = await run(
-      root,
-      Effect.flatMap(FileSystem.FileSystem, (fs) => fs.stat(root)),
-      hostedBy(executable)
-    )
-    expect(String(info.size)).toBe("9007199254740993")
-    expect(info.blksize).toMatchObject({ _tag: "Some", value: 4096n })
-  })
+      const failures = yield* Effect.all([
+        attempt(`"yes"`, (fs) => fs.exists(target)),
+        attempt(`{}`, (fs) => fs.readDirectory(root)),
+        attempt(`["same","same"]`, (fs) => fs.readDirectory(root)),
+        attempt(`["bad\\u0000name"]`, (fs) => fs.readDirectory(root)),
+        attempt(`7`, (fs) => fs.realPath(target)),
+        attempt(`true`, (fs) => fs.writeFileString(target, "replacement"))
+      ], { concurrency: "unbounded" })
+      for (const failure of failures) {
+        expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
+      }
+      expect(yield* Effect.promise(() => readFile(target, "utf8"))).toBe("inside")
+    }), 30_000)
 
-  it("refuses a payload that decodes to more than the read limit", async () => {
-    const root = await temporaryDirectory()
-    const target = join(root, "target.txt")
-    await writeFile(target, "inside")
-    const executable = await writing(frame(
-      `{"ok":true,"value":{"base64":"${Buffer.alloc(64, 0x61).toString("base64")}"}}`
-    ))
-    const failure = await run(
-      root,
-      Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.readFile(target))),
-      hostedBy(executable, { content: 8 })
-    )
-    expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
-    expect(described(failure)).toContain("over the 8 byte read limit")
-  })
+  it.live("refuses a helper listing above the entry-count ceiling", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const executable = yield* Effect.promise(() =>
+        fakeInterpreter(
+          `const value = Array.from({ length: 100001 }, (_, index) => String(index));` +
+            `const body = Buffer.from(JSON.stringify({ ok: true, value }));` +
+            `process.stdout.write(Buffer.concat([Buffer.from("flows-atomic/1 " + body.length + "\\n"), body]));`
+        )
+      )
+      const failure = yield* run(
+        root,
+        Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.readDirectory(root))),
+        hostedBy(executable)
+      )
+      expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
+    }), 30_000)
+
+  it.live("preserves a file size beyond JavaScript's safe integer range", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const payload = `{"ok":true,"value":{"type":"File","mtime":1,"atime":1,"birthtime":null,"dev":1,"ino":1,` +
+        `"mode":420,"nlink":1,"uid":1,"gid":1,"rdev":0,"size":"9007199254740993",` +
+        `"blksize":"4096","blocks":1}}`
+      const executable = yield* Effect.promise(() => writing(frame(payload)))
+      const info = yield* run(
+        root,
+        Effect.flatMap(FileSystem.FileSystem, (fs) => fs.stat(root)),
+        hostedBy(executable)
+      )
+      expect(String(info.size)).toBe("9007199254740993")
+      expect(info.blksize).toMatchObject({ _tag: "Some", value: 4096n })
+    }))
+
+  it.live("refuses a payload that decodes to more than the read limit", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const target = join(root, "target.txt")
+      yield* Effect.promise(() => writeFile(target, "inside"))
+      const executable = yield* Effect.promise(() =>
+        writing(frame(
+          `{"ok":true,"value":{"base64":"${Buffer.alloc(64, 0x61).toString("base64")}"}}`
+        ))
+      )
+      const failure = yield* run(
+        root,
+        Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.readFile(target))),
+        hostedBy(executable, { content: 8 })
+      )
+      expect(failure).toMatchObject({ reason: { _tag: "PermissionDenied" } })
+      expect(described(failure)).toContain("over the 8 byte read limit")
+    }))
 })
 
 describe("atomic special files", () => {
@@ -785,120 +834,125 @@ describe("atomic special files", () => {
    * caller could not tell that from an empty file, so a planted pipe silently
    * replaced content. The kind is now required on the descriptor itself.
    */
-  it("refuses to read or write a FIFO while still answering metadata for it", async () => {
-    const root = await temporaryDirectory()
-    const pipe = join(root, "pipe")
-    await makeFifo(pipe)
+  it.live("refuses to read or write a FIFO while still answering metadata for it", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const pipe = join(root, "pipe")
+      yield* Effect.promise(() => makeFifo(pipe))
 
-    const outcome = await run(
-      root,
-      Effect.gen(function*() {
-        const fs = yield* FileSystem.FileSystem
-        return {
-          existing: yield* fs.exists(pipe),
-          info: yield* fs.stat(pipe),
-          listed: yield* fs.readDirectory(root),
-          read: yield* Effect.flip(fs.readFile(pipe)),
-          writes: yield* Effect.forEach(
-            ["r+", "w", "w+", "a", "a+"] as ReadonlyArray<FileSystem.OpenFlag>,
-            (flag) =>
-              Effect.map(
-                Effect.result(fs.writeFileString(pipe, "escaped", { flag })),
-                (result) => `${flag}:${result._tag}`
-              )
-          )
-        }
-      })
-    )
+      const outcome = yield* run(
+        root,
+        Effect.gen(function*() {
+          const fs = yield* FileSystem.FileSystem
+          return {
+            existing: yield* fs.exists(pipe),
+            info: yield* fs.stat(pipe),
+            listed: yield* fs.readDirectory(root),
+            read: yield* Effect.flip(fs.readFile(pipe)),
+            writes: yield* Effect.forEach(
+              ["r+", "w", "w+", "a", "a+"] as ReadonlyArray<FileSystem.OpenFlag>,
+              (flag) =>
+                Effect.map(
+                  Effect.result(fs.writeFileString(pipe, "escaped", { flag })),
+                  (result) => `${flag}:${result._tag}`
+                )
+            )
+          }
+        })
+      )
 
-    expect(outcome.existing).toBe(true)
-    // Effect declares FIFO as a file type; the helper reports the real kind.
-    expect(outcome.info.type).toBe("FIFO")
-    expect(outcome.listed).toEqual(["pipe"])
-    expect(outcome.read).toMatchObject({ reason: { _tag: "PermissionDenied" } })
-    expect(outcome.writes).toEqual(["r+:Failure", "w:Failure", "w+:Failure", "a:Failure", "a+:Failure"])
-  }, 30_000)
+      expect(outcome.existing).toBe(true)
+      // Effect declares FIFO as a file type; the helper reports the real kind.
+      expect(outcome.info.type).toBe("FIFO")
+      expect(outcome.listed).toEqual(["pipe"])
+      expect(outcome.read).toMatchObject({ reason: { _tag: "PermissionDenied" } })
+      expect(outcome.writes).toEqual(["r+:Failure", "w:Failure", "w+:Failure", "a:Failure", "a+:Failure"])
+    }), 30_000)
 
-  it("refuses to read or write a socket while still answering metadata for it", async () => {
-    const root = await temporaryDirectory()
-    const socket = join(root, "s")
-    await makeSocket(socket)
+  it.live("refuses to read or write a socket while still answering metadata for it", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const socket = join(root, "s")
+      yield* Effect.promise(() => makeSocket(socket))
 
-    const outcome = await run(
-      root,
-      Effect.gen(function*() {
-        const fs = yield* FileSystem.FileSystem
-        return {
-          existing: yield* fs.exists(socket),
-          info: yield* fs.stat(socket),
-          read: yield* Effect.flip(fs.readFile(socket)),
-          write: yield* Effect.flip(fs.writeFileString(socket, "escaped"))
-        }
-      })
-    )
+      const outcome = yield* run(
+        root,
+        Effect.gen(function*() {
+          const fs = yield* FileSystem.FileSystem
+          return {
+            existing: yield* fs.exists(socket),
+            info: yield* fs.stat(socket),
+            read: yield* Effect.flip(fs.readFile(socket)),
+            write: yield* Effect.flip(fs.writeFileString(socket, "escaped"))
+          }
+        })
+      )
 
-    expect(outcome.existing).toBe(true)
-    expect(outcome.info.type).toBe("Socket")
-    expect(outcome.read._tag).toBe("PlatformError")
-    expect(outcome.write._tag).toBe("PlatformError")
-  }, 30_000)
+      expect(outcome.existing).toBe(true)
+      expect(outcome.info.type).toBe("Socket")
+      expect(outcome.read._tag).toBe("PlatformError")
+      expect(outcome.write._tag).toBe("PlatformError")
+    }), 30_000)
 
-  it("refuses to read or write a directory as content", async () => {
-    const root = await temporaryDirectory()
-    const directory = join(root, "nested")
-    await mkdir(directory)
-    const outcome = await run(
-      root,
-      Effect.gen(function*() {
-        const fs = yield* FileSystem.FileSystem
-        return {
-          read: yield* Effect.flip(fs.readFile(directory)),
-          write: yield* Effect.flip(fs.writeFileString(directory, "escaped"))
-        }
-      })
-    )
-    expect(outcome.read).toMatchObject({ reason: { _tag: "BadResource" } })
-    expect(outcome.write).toMatchObject({ reason: { _tag: "BadResource" } })
-  })
+  it.live("refuses to read or write a directory as content", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const directory = join(root, "nested")
+      yield* Effect.promise(() => mkdir(directory))
+      const outcome = yield* run(
+        root,
+        Effect.gen(function*() {
+          const fs = yield* FileSystem.FileSystem
+          return {
+            read: yield* Effect.flip(fs.readFile(directory)),
+            write: yield* Effect.flip(fs.writeFileString(directory, "escaped"))
+          }
+        })
+      )
+      expect(outcome.read).toMatchObject({ reason: { _tag: "BadResource" } })
+      expect(outcome.write).toMatchObject({ reason: { _tag: "BadResource" } })
+    }))
 
   /**
    * Everything that names an entry rather than reading it keeps working over a
    * special file, so ordinary workspaces are unaffected by the refusals above.
    */
-  it("keeps naming operations working over a FIFO", async () => {
-    const root = await temporaryDirectory()
-    const pipe = join(root, "pipe")
-    await makeFifo(pipe)
+  it.live("keeps naming operations working over a FIFO", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const pipe = join(root, "pipe")
+      yield* Effect.promise(() => makeFifo(pipe))
 
-    const outcome = await run(
-      root,
-      Effect.gen(function*() {
-        const fs = yield* FileSystem.FileSystem
-        return {
-          // A recursive makeDirectory may not absorb a FIFO the way it absorbs
-          // an existing directory.
-          directory: yield* Effect.flip(fs.makeDirectory(pipe, { recursive: true })),
-          real: yield* fs.realPath(pipe),
-          renamed: yield* Effect.result(fs.rename(pipe, join(root, "moved"))),
-          removed: yield* Effect.result(fs.remove(join(root, "moved"))),
-          gone: yield* fs.exists(join(root, "moved"))
-        }
-      })
-    )
+      const outcome = yield* run(
+        root,
+        Effect.gen(function*() {
+          const fs = yield* FileSystem.FileSystem
+          return {
+            // A recursive makeDirectory may not absorb a FIFO the way it absorbs
+            // an existing directory.
+            directory: yield* Effect.flip(fs.makeDirectory(pipe, { recursive: true })),
+            real: yield* fs.realPath(pipe),
+            renamed: yield* Effect.result(fs.rename(pipe, join(root, "moved"))),
+            removed: yield* Effect.result(fs.remove(join(root, "moved"))),
+            gone: yield* fs.exists(join(root, "moved"))
+          }
+        })
+      )
 
-    expect(outcome.directory).toMatchObject({ reason: { _tag: "AlreadyExists" } })
-    expect(outcome.real).toMatch(/pipe$/)
-    expect(outcome.renamed._tag).toBe("Success")
-    expect(outcome.removed._tag).toBe("Success")
-    expect(outcome.gone).toBe(false)
-  }, 30_000)
+      expect(outcome.directory).toMatchObject({ reason: { _tag: "AlreadyExists" } })
+      expect(outcome.real).toMatch(/pipe$/)
+      expect(outcome.renamed._tag).toBe("Success")
+      expect(outcome.removed._tag).toBe("Success")
+      expect(outcome.gone).toBe(false)
+    }), 30_000)
 
-  it("reports a glob pattern the helper cannot translate as bad input", async () => {
-    const root = await temporaryDirectory()
-    const failure = await run(
-      root,
-      Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.glob(join(root, "[]]"), { root })))
-    )
-    expect(failure.reason._tag).toBe("BadArgument")
-  })
+  it.live("reports a glob pattern the helper cannot translate as bad input", () =>
+    Effect.gen(function*() {
+      const root = yield* Effect.promise(() => temporaryDirectory())
+      const failure = yield* run(
+        root,
+        Effect.flatMap(FileSystem.FileSystem, (fs) => Effect.flip(fs.glob(join(root, "[]]"), { root })))
+      )
+      expect(failure.reason._tag).toBe("BadArgument")
+    }))
 })

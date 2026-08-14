@@ -1,9 +1,9 @@
+import { describe, expect, it } from "@effect/vitest"
 import { DurableWriter } from "@smthrs/database-next/DurableWriter"
 import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import { Effect, Layer } from "effect"
 import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
-import { describe, expect, it } from "vitest"
 import { Journal } from "../src/Journal.ts"
 import { Input, type RunId, type SourceId } from "../src/JournalEvent.ts"
 import * as Migrations from "../src/Migrations.ts"
@@ -28,7 +28,7 @@ const journalLayer = (options?: SqlJournal.SqlJournalOptions) =>
   ) as Layer.Layer<Journal | DurableWriter | SqlClient.SqlClient>
 
 const effect = <E>(name: string, body: () => Effect.Effect<void, E>) =>
-  it(name, () => Effect.runPromise(body().pipe(Effect.provide(TestClock.layer()))))
+  it.effect(name, () => body().pipe(Effect.provide(TestClock.layer())))
 
 describe("Redaction", () => {
   it("redacts credential-named fields wholesale", () => {

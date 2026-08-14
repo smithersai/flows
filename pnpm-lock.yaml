@@ -99,6 +99,9 @@ importers:
       '@effect/platform-node':
         specifier: 4.0.0-rc.108
         version: 4.0.0-rc.108(effect@4.0.0-rc.108)(ioredis@5.11.1(supports-color@8.1.1))
+      '@effect/vitest':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(vitest@4.1.9)
       '@types/node':
         specifier: 25.9.5
         version: 25.9.5
@@ -127,6 +130,9 @@ importers:
       '@effect/platform-node':
         specifier: 4.0.0-rc.108
         version: 4.0.0-rc.108(effect@4.0.0-rc.108)(ioredis@5.11.1(supports-color@8.1.1))
+      '@effect/vitest':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(vitest@4.1.9)
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
@@ -179,6 +185,9 @@ importers:
       '@effect/language-service':
         specifier: 0.87.1
         version: 0.87.1
+      '@effect/vitest':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(vitest@4.1.9)
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
@@ -228,6 +237,9 @@ importers:
       '@effect/language-service':
         specifier: 0.87.1
         version: 0.87.1
+      '@effect/vitest':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(vitest@4.1.9)
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
@@ -283,6 +295,9 @@ importers:
       '@effect/platform-node':
         specifier: 4.0.0-rc.108
         version: 4.0.0-rc.108(effect@4.0.0-rc.108)(ioredis@5.11.1(supports-color@8.1.1))
+      '@effect/vitest':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(vitest@4.1.9)
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
@@ -338,6 +353,9 @@ importers:
       '@effect/language-service':
         specifier: 0.87.1
         version: 0.87.1
+      '@effect/vitest':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(vitest@4.1.9)
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
@@ -402,6 +420,9 @@ importers:
       '@effect/platform-node':
         specifier: 4.0.0-rc.108
         version: 4.0.0-rc.108(effect@4.0.0-rc.108)(ioredis@5.11.1(supports-color@8.1.1))
+      '@effect/vitest':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(vitest@4.1.9)
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
@@ -496,6 +517,9 @@ importers:
       '@effect/platform-node':
         specifier: 4.0.0-rc.108
         version: 4.0.0-rc.108(effect@4.0.0-rc.108)(ioredis@5.11.1(supports-color@8.1.1))
+      '@effect/vitest':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(vitest@4.1.9)
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
@@ -560,6 +584,9 @@ importers:
       '@effect/platform-node':
         specifier: 4.0.0-rc.108
         version: 4.0.0-rc.108(effect@4.0.0-rc.108)(ioredis@5.11.1(supports-color@8.1.1))
+      '@effect/vitest':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(vitest@4.1.9)
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
@@ -669,6 +696,9 @@ importers:
       '@effect/language-service':
         specifier: 0.87.1
         version: 0.87.1
+      '@effect/vitest':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(vitest@4.1.9)
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
@@ -724,6 +754,9 @@ importers:
       '@effect/language-service':
         specifier: 0.87.1
         version: 0.87.1
+      '@effect/vitest':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(vitest@4.1.9)
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
@@ -779,6 +812,9 @@ importers:
       '@effect/language-service':
         specifier: 0.87.1
         version: 0.87.1
+      '@effect/vitest':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(vitest@4.1.9)
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
@@ -843,6 +879,9 @@ importers:
       '@effect/language-service':
         specifier: 0.87.1
         version: 0.87.1
+      '@effect/vitest':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(vitest@4.1.9)
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
@@ -904,6 +943,9 @@ importers:
       '@effect/platform-node':
         specifier: 4.0.0-rc.108
         version: 4.0.0-rc.108(effect@4.0.0-rc.108)(ioredis@5.11.1(supports-color@8.1.1))
+      '@effect/vitest':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(vitest@4.1.9)
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
@@ -956,6 +998,9 @@ importers:
       '@effect/language-service':
         specifier: 0.87.1
         version: 0.87.1
+      '@effect/vitest':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(vitest@4.1.9)
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
@@ -1017,6 +1062,9 @@ importers:
       '@effect/platform-node':
         specifier: 4.0.0-rc.108
         version: 4.0.0-rc.108(effect@4.0.0-rc.108)(ioredis@5.11.1(supports-color@8.1.1))
+      '@effect/vitest':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(vitest@4.1.9)
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
@@ -1075,6 +1123,9 @@ importers:
       '@effect/language-service':
         specifier: 0.87.1
         version: 0.87.1
+      '@effect/vitest':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(vitest@4.1.9)
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
@@ -1139,6 +1190,9 @@ importers:
       '@effect/platform-bun':
         specifier: 4.0.0-rc.108
         version: 4.0.0-rc.108(effect@4.0.0-rc.108)
+      '@effect/vitest':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(vitest@4.1.9)
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
@@ -1200,6 +1254,9 @@ importers:
       '@effect/language-service':
         specifier: 0.87.1
         version: 0.87.1
+      '@effect/vitest':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(vitest@4.1.9)
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
@@ -1258,6 +1315,9 @@ importers:
       '@effect/language-service':
         specifier: 0.87.1
         version: 0.87.1
+      '@effect/vitest':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(vitest@4.1.9)
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
@@ -1313,6 +1373,9 @@ importers:
       '@effect/language-service':
         specifier: 0.87.1
         version: 0.87.1
+      '@effect/vitest':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(vitest@4.1.9)
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
@@ -1371,6 +1434,9 @@ importers:
       '@effect/language-service':
         specifier: 0.87.1
         version: 0.87.1
+      '@effect/vitest':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(vitest@4.1.9)
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
@@ -1426,6 +1492,9 @@ importers:
       '@effect/language-service':
         specifier: 0.87.1
         version: 0.87.1
+      '@effect/vitest':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(vitest@4.1.9)
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
@@ -1499,6 +1568,9 @@ importers:
       '@effect/platform-node':
         specifier: 4.0.0-rc.108
         version: 4.0.0-rc.108(effect@4.0.0-rc.108)(ioredis@5.11.1(supports-color@8.1.1))
+      '@effect/vitest':
+        specifier: 4.0.0-rc.108
+        version: 4.0.0-rc.108(effect@4.0.0-rc.108)(vitest@4.1.9)
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
@@ -1830,6 +1902,12 @@ packages:
     resolution: {integrity: sha512-GiKCoQFa7Mp/PapmHsRHhqvHq+lUbKKrqjvdRzaOQAFp08zL8EKOgiXyJaNBP2A6s1hb/2TmpdBVTr4MrdYxAw==}
     peerDependencies:
       effect: ^4.0.0-rc.108
+
+  '@effect/vitest@4.0.0-rc.108':
+    resolution: {integrity: sha512-XD2GP1JATN28wnIeFGsBqYMuQDCHIodKKgFulGyG91GvuHqgf2gz+WxR2LPdyNoKMtr7lsbRzVj07niSYtIKzA==}
+    peerDependencies:
+      effect: ^4.0.0-rc.108
+      vitest: '>=4.1.0 <5.0.0'
 
   '@emnapi/core@1.10.0':
     resolution: {integrity: sha512-yq6OkJ4p82CAfPl0u9mQebQHKPJkY7WrIuk205cTYnYe+k2Z8YBh11FrbRG/H6ihirqcacOgl2BIO8oyMQLeXw==}
@@ -7427,6 +7505,11 @@ snapshots:
   '@effect/sql-sqlite-node@4.0.0-rc.108(effect@4.0.0-rc.108)':
     dependencies:
       effect: 4.0.0-rc.108
+
+  '@effect/vitest@4.0.0-rc.108(effect@4.0.0-rc.108)(vitest@4.1.9)':
+    dependencies:
+      effect: 4.0.0-rc.108
+      vitest: 4.1.9(@types/node@25.9.5)(@vitest/coverage-v8@4.1.9)(vite@8.2.1(@types/node@25.9.5)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.50.0)(tsx@4.23.12)(yaml@2.9.0))
 
   '@emnapi/core@1.10.0':
     dependencies:

@@ -3,6 +3,7 @@
  * `POST /cas/findMissing`, mirroring
  * `reference/bazel/.../remote/http/HttpCacheClient.java`.
  */
+import { describe, expect, it } from "@effect/vitest"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -10,10 +11,9 @@ import * as Layer from "effect/Layer"
 import * as HttpClient from "effect/unstable/http/HttpClient"
 import * as HttpClientError from "effect/unstable/http/HttpClientError"
 import * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"
-import { describe, expect, it } from "vitest"
 import * as ArtifactStore from "../src/ArtifactStore.ts"
 import * as RemoteArtifacts from "../src/RemoteArtifacts.ts"
-import { bytes, runPromise, sha256, text } from "./Crypto.ts"
+import { bytes, sha256, text, withCrypto } from "./Crypto.ts"
 
 const artifact = "a shared artifact"
 const digest = sha256(bytes(artifact))
@@ -66,227 +66,249 @@ const errorOf = (exit: Exit.Exit<unknown, unknown>): unknown => {
 }
 
 describe("uploads", () => {
-  it("PUTs the bytes to /cas/{digest} and returns the measured address", async () => {
-    const tier = remote(() => new Response(null, { status: 201 }))
-    const published = await runPromise(Effect.flatMap(tier.store, (store) => store.put(bytes(artifact))))
-    expect(published).toBe(digest)
-    expect(tier.calls[0]!.method).toBe("PUT")
-    // The trailing slash on the configured endpoint is ignored.
-    expect(tier.calls[0]!.url).toBe(`https://cache.example.com/cas/${digest}`)
-    expect(tier.calls[0]!.body).toBe(artifact)
-  })
+  it.effect("PUTs the bytes to /cas/{digest} and returns the measured address", () =>
+    Effect.gen(function*() {
+      const tier = remote(() => new Response(null, { status: 201 }))
+      const published = yield* withCrypto(Effect.flatMap(tier.store, (store) => store.put(bytes(artifact))))
+      expect(published).toBe(digest)
+      expect(tier.calls[0]!.method).toBe("PUT")
+      // The trailing slash on the configured endpoint is ignored.
+      expect(tier.calls[0]!.url).toBe(`https://cache.example.com/cas/${digest}`)
+      expect(tier.calls[0]!.body).toBe(artifact)
+    }))
 
-  it("sends the configured credential headers", async () => {
-    const tier = remote(() => new Response(null, { status: 200 }), { headers: { authorization: "Bearer secret" } })
-    await runPromise(Effect.flatMap(tier.store, (store) => store.put(bytes(artifact))))
-    expect(tier.calls[0]!.headers["authorization"]).toBe("Bearer secret")
-  })
+  it.effect("sends the configured credential headers", () =>
+    Effect.gen(function*() {
+      const tier = remote(() => new Response(null, { status: 200 }), { headers: { authorization: "Bearer secret" } })
+      yield* withCrypto(Effect.flatMap(tier.store, (store) => store.put(bytes(artifact))))
+      expect(tier.calls[0]!.headers["authorization"]).toBe("Bearer secret")
+    }))
 
-  it("fails on a non-2xx answer", async () => {
-    const tier = remote(() => new Response(null, { status: 500 }))
-    const exit = await runPromise(
-      Effect.flatMap(tier.store, (store) => store.put(bytes(artifact))).pipe(Effect.exit)
-    )
-    expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
-  })
-
-  it("fails when the transport itself refuses", async () => {
-    const client = HttpClient.make((request) =>
-      Effect.fail(
-        new HttpClientError.HttpClientError({
-          reason: new HttpClientError.TransportError({ request, cause: new Error("ECONNREFUSED") })
-        })
+  it.effect("fails on a non-2xx answer", () =>
+    Effect.gen(function*() {
+      const tier = remote(() => new Response(null, { status: 500 }))
+      const exit = yield* withCrypto(
+        Effect.flatMap(tier.store, (store) => store.put(bytes(artifact))).pipe(Effect.exit)
       )
-    )
-    const store = Effect.provide(
-      RemoteArtifacts.make({ endpoint: "https://cache.example.com" }),
-      Layer.succeed(HttpClient.HttpClient)(client)
-    )
-    const exit = await runPromise(Effect.flatMap(store, (tier) => tier.put(bytes(artifact))).pipe(Effect.exit))
-    expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
-  })
+      expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
+    }))
+
+  it.effect("fails when the transport itself refuses", () =>
+    Effect.gen(function*() {
+      const client = HttpClient.make((request) =>
+        Effect.fail(
+          new HttpClientError.HttpClientError({
+            reason: new HttpClientError.TransportError({ request, cause: new Error("ECONNREFUSED") })
+          })
+        )
+      )
+      const store = Effect.provide(
+        RemoteArtifacts.make({ endpoint: "https://cache.example.com" }),
+        Layer.succeed(HttpClient.HttpClient)(client)
+      )
+      const exit = yield* withCrypto(Effect.flatMap(store, (tier) => tier.put(bytes(artifact))).pipe(Effect.exit))
+      expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
+    }))
 })
 
 describe("downloads", () => {
-  it("GETs /cas/{digest} and verifies the address", async () => {
-    const tier = remote(() => new Response(artifact))
-    expect(text(await runPromise(Effect.flatMap(tier.store, (store) => store.get(digest))))).toBe(artifact)
-    expect(tier.calls[0]!.method).toBe("GET")
-  })
+  it.effect("GETs /cas/{digest} and verifies the address", () =>
+    Effect.gen(function*() {
+      const tier = remote(() => new Response(artifact))
+      expect(text(yield* withCrypto(Effect.flatMap(tier.store, (store) => store.get(digest))))).toBe(artifact)
+      expect(tier.calls[0]!.method).toBe("GET")
+    }))
 
-  it("reports a typed miss on 404", async () => {
-    const tier = remote(() => new Response(null, { status: 404 }))
-    const exit = await runPromise(Effect.flatMap(tier.store, (store) => store.get(digest)).pipe(Effect.exit))
-    expect((errorOf(exit) as ArtifactStore.ArtifactMissing)._tag).toBe("@smthrs/artifacts-next/ArtifactMissing")
-  })
+  it.effect("reports a typed miss on 404", () =>
+    Effect.gen(function*() {
+      const tier = remote(() => new Response(null, { status: 404 }))
+      const exit = yield* withCrypto(Effect.flatMap(tier.store, (store) => store.get(digest)).pipe(Effect.exit))
+      expect((errorOf(exit) as ArtifactStore.ArtifactMissing)._tag).toBe("@smthrs/artifacts-next/ArtifactMissing")
+    }))
 
-  it("refuses content that does not hash to the requested address", async () => {
-    // The shared tier is the least trusted store there is: a mis-serving or
-    // compromised cache must never be able to substitute content.
-    const tier = remote(() => new Response("something else entirely"))
-    const exit = await runPromise(Effect.flatMap(tier.store, (store) => store.get(digest)).pipe(Effect.exit))
-    const failure = errorOf(exit) as ArtifactStore.ArtifactCorruption
-    expect(failure._tag).toBe("@smthrs/artifacts-next/ArtifactCorruption")
-    expect(failure.recordedDigest).toBe(digest)
-  })
+  it.effect("refuses content that does not hash to the requested address", () =>
+    Effect.gen(function*() {
+      // The shared tier is the least trusted store there is: a mis-serving or
+      // compromised cache must never be able to substitute content.
+      const tier = remote(() => new Response("something else entirely"))
+      const exit = yield* withCrypto(Effect.flatMap(tier.store, (store) => store.get(digest)).pipe(Effect.exit))
+      const failure = errorOf(exit) as ArtifactStore.ArtifactCorruption
+      expect(failure._tag).toBe("@smthrs/artifacts-next/ArtifactCorruption")
+      expect(failure.recordedDigest).toBe(digest)
+    }))
 
-  it("fails on a non-2xx answer", async () => {
-    const tier = remote(() => new Response(null, { status: 503 }))
-    const exit = await runPromise(Effect.flatMap(tier.store, (store) => store.get(digest)).pipe(Effect.exit))
-    expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
-  })
+  it.effect("fails on a non-2xx answer", () =>
+    Effect.gen(function*() {
+      const tier = remote(() => new Response(null, { status: 503 }))
+      const exit = yield* withCrypto(Effect.flatMap(tier.store, (store) => store.get(digest)).pipe(Effect.exit))
+      expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
+    }))
 
-  it("fails a download that exceeds its deadline instead of waiting forever", async () => {
-    // Headers arrive but the body never does. The deadline covers the whole
-    // exchange, so the read fails typed instead of parking forever on a tier
-    // that stopped answering.
-    const tier = remote(
-      () => new Response(new ReadableStream({ start() {} })),
-      { downloadTimeout: "50 millis" }
-    )
-    const exit = await runPromise(Effect.flatMap(tier.store, (store) => store.get(digest)).pipe(Effect.exit))
-    expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
-  })
+  it.live("fails a download that exceeds its deadline instead of waiting forever", () =>
+    Effect.gen(function*() {
+      // Headers arrive but the body never does. The deadline covers the whole
+      // exchange, so the read fails typed instead of parking forever on a tier
+      // that stopped answering.
+      const tier = remote(
+        () => new Response(new ReadableStream({ start() {} })),
+        { downloadTimeout: "50 millis" }
+      )
+      const exit = yield* withCrypto(Effect.flatMap(tier.store, (store) => store.get(digest)).pipe(Effect.exit))
+      expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
+    }))
 
-  it("refuses a body that exceeds the size bound without buffering it whole", async () => {
-    let pulls = 0
-    const tier = remote(
-      () =>
-        new Response(
-          new ReadableStream({
-            pull(controller) {
-              pulls++
-              controller.enqueue(new Uint8Array(1024))
-            }
-          })
-        ),
-      { maxDownloadBytes: 4096 }
-    )
-    const exit = await runPromise(Effect.flatMap(tier.store, (store) => store.get(digest)).pipe(Effect.exit))
-    expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
-    // The endless body was abandoned one chunk past the bound, not slurped:
-    // the guard runs against the stream, not against a completed buffer.
-    expect(pulls).toBeLessThan(64)
-  })
-
-  it("refuses a declared oversize before reading a single body byte", async () => {
-    let pulls = 0
-    const tier = remote(
-      () =>
-        new Response(
-          // A zero high-water mark keeps the stream from priming its queue at
-          // construction, so a pull can only come from an actual body read.
-          new ReadableStream(
-            {
+  it.effect("refuses a body that exceeds the size bound without buffering it whole", () =>
+    Effect.gen(function*() {
+      let pulls = 0
+      const tier = remote(
+        () =>
+          new Response(
+            new ReadableStream({
               pull(controller) {
                 pulls++
-                controller.enqueue(new Uint8Array(8))
+                controller.enqueue(new Uint8Array(1024))
               }
-            },
-            { highWaterMark: 0 }
+            })
           ),
-          { headers: { "content-length": "1048576" } }
-        ),
-      { maxDownloadBytes: 1024 }
-    )
-    const exit = await runPromise(Effect.flatMap(tier.store, (store) => store.get(digest)).pipe(Effect.exit))
-    expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
-    expect(pulls).toBe(0)
-  })
-
-  it("treats an empty 2xx body as empty content, refused by the digest check", async () => {
-    const tier = remote(() => new Response(null, { status: 200 }))
-    const exit = await runPromise(Effect.flatMap(tier.store, (store) => store.get(digest)).pipe(Effect.exit))
-    const failure = errorOf(exit) as ArtifactStore.ArtifactCorruption
-    expect(failure._tag).toBe("@smthrs/artifacts-next/ArtifactCorruption")
-    expect(failure.measuredDigest).toBe(sha256(bytes("")))
-  })
-
-  it("fails when the response body cannot be read", async () => {
-    const tier = remote(() =>
-      new Response(
-        new ReadableStream({
-          start(controller) {
-            controller.error(new Error("truncated"))
-          }
-        })
+        { maxDownloadBytes: 4096 }
       )
-    )
-    const exit = await runPromise(Effect.flatMap(tier.store, (store) => store.get(digest)).pipe(Effect.exit))
-    expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
-  })
+      const exit = yield* withCrypto(Effect.flatMap(tier.store, (store) => store.get(digest)).pipe(Effect.exit))
+      expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
+      // The endless body was abandoned one chunk past the bound, not slurped:
+      // the guard runs against the stream, not against a completed buffer.
+      expect(pulls).toBeLessThan(64)
+    }))
+
+  it.effect("refuses a declared oversize before reading a single body byte", () =>
+    Effect.gen(function*() {
+      let pulls = 0
+      const tier = remote(
+        () =>
+          new Response(
+            // A zero high-water mark keeps the stream from priming its queue at
+            // construction, so a pull can only come from an actual body read.
+            new ReadableStream(
+              {
+                pull(controller) {
+                  pulls++
+                  controller.enqueue(new Uint8Array(8))
+                }
+              },
+              { highWaterMark: 0 }
+            ),
+            { headers: { "content-length": "1048576" } }
+          ),
+        { maxDownloadBytes: 1024 }
+      )
+      const exit = yield* withCrypto(Effect.flatMap(tier.store, (store) => store.get(digest)).pipe(Effect.exit))
+      expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
+      expect(pulls).toBe(0)
+    }))
+
+  it.effect("treats an empty 2xx body as empty content, refused by the digest check", () =>
+    Effect.gen(function*() {
+      const tier = remote(() => new Response(null, { status: 200 }))
+      const exit = yield* withCrypto(Effect.flatMap(tier.store, (store) => store.get(digest)).pipe(Effect.exit))
+      const failure = errorOf(exit) as ArtifactStore.ArtifactCorruption
+      expect(failure._tag).toBe("@smthrs/artifacts-next/ArtifactCorruption")
+      expect(failure.measuredDigest).toBe(sha256(bytes("")))
+    }))
+
+  it.effect("fails when the response body cannot be read", () =>
+    Effect.gen(function*() {
+      const tier = remote(() =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.error(new Error("truncated"))
+            }
+          })
+        )
+      )
+      const exit = yield* withCrypto(Effect.flatMap(tier.store, (store) => store.get(digest)).pipe(Effect.exit))
+      expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
+    }))
 })
 
 describe("existence probes", () => {
-  it("HEADs /cas/{digest}", async () => {
-    const tier = remote(() => new Response(null, { status: 200 }))
-    expect(await runPromise(Effect.flatMap(tier.store, (store) => store.has(digest)))).toBe(true)
-    expect(tier.calls[0]!.method).toBe("HEAD")
-  })
+  it.effect("HEADs /cas/{digest}", () =>
+    Effect.gen(function*() {
+      const tier = remote(() => new Response(null, { status: 200 }))
+      expect(yield* withCrypto(Effect.flatMap(tier.store, (store) => store.has(digest)))).toBe(true)
+      expect(tier.calls[0]!.method).toBe("HEAD")
+    }))
 
-  it("answers false on 404", async () => {
-    const tier = remote(() => new Response(null, { status: 404 }))
-    expect(await runPromise(Effect.flatMap(tier.store, (store) => store.has(digest)))).toBe(false)
-  })
+  it.effect("answers false on 404", () =>
+    Effect.gen(function*() {
+      const tier = remote(() => new Response(null, { status: 404 }))
+      expect(yield* withCrypto(Effect.flatMap(tier.store, (store) => store.has(digest)))).toBe(false)
+    }))
 
-  it("fails on any other status", async () => {
-    const tier = remote(() => new Response(null, { status: 403 }))
-    const exit = await runPromise(Effect.flatMap(tier.store, (store) => store.has(digest)).pipe(Effect.exit))
-    expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
-  })
+  it.effect("fails on any other status", () =>
+    Effect.gen(function*() {
+      const tier = remote(() => new Response(null, { status: 403 }))
+      const exit = yield* withCrypto(Effect.flatMap(tier.store, (store) => store.has(digest)).pipe(Effect.exit))
+      expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
+    }))
 })
 
 describe("the batched probe", () => {
   const other = sha256(bytes("another artifact"))
 
-  it("POSTs /cas/findMissing and returns what the tier reported", async () => {
-    const tier = remote(() => new Response(JSON.stringify({ missing: [other] }), { status: 200 }))
-    expect(await runPromise(Effect.flatMap(tier.store, (store) => store.findMissing([digest, other, other]))))
-      .toEqual([other])
-    expect(tier.calls[0]!.method).toBe("POST")
-    expect(tier.calls[0]!.url).toBe("https://cache.example.com/cas/findMissing")
-    // Duplicates never reach the wire.
-    expect(JSON.parse(tier.calls[0]!.body)).toEqual({ digests: [digest, other] })
-  })
+  it.effect("POSTs /cas/findMissing and returns what the tier reported", () =>
+    Effect.gen(function*() {
+      const tier = remote(() => new Response(JSON.stringify({ missing: [other] }), { status: 200 }))
+      expect(yield* withCrypto(Effect.flatMap(tier.store, (store) => store.findMissing([digest, other, other]))))
+        .toEqual([other])
+      expect(tier.calls[0]!.method).toBe("POST")
+      expect(tier.calls[0]!.url).toBe("https://cache.example.com/cas/findMissing")
+      // Duplicates never reach the wire.
+      expect(JSON.parse(tier.calls[0]!.body)).toEqual({ digests: [digest, other] })
+    }))
 
-  it("never asks about nothing", async () => {
-    const tier = remote(() => new Response(null, { status: 500 }))
-    expect(await runPromise(Effect.flatMap(tier.store, (store) => store.findMissing([])))).toEqual([])
-    expect(tier.calls).toEqual([])
-  })
+  it.effect("never asks about nothing", () =>
+    Effect.gen(function*() {
+      const tier = remote(() => new Response(null, { status: 500 }))
+      expect(yield* withCrypto(Effect.flatMap(tier.store, (store) => store.findMissing([])))).toEqual([])
+      expect(tier.calls).toEqual([])
+    }))
 
-  it("drops digests the caller never asked about", async () => {
-    // "The returned set is guaranteed to be a subset of `digests`"
-    // (`MissingDigestsFinder`). A server that answered otherwise would make
-    // the caller upload bytes it never probed for.
-    const tier = remote(() => new Response(JSON.stringify({ missing: [other, "unrequested"] }), { status: 200 }))
-    expect(await runPromise(Effect.flatMap(tier.store, (store) => store.findMissing([digest, other]))))
-      .toEqual([other])
-  })
+  it.effect("drops digests the caller never asked about", () =>
+    Effect.gen(function*() {
+      // "The returned set is guaranteed to be a subset of `digests`"
+      // (`MissingDigestsFinder`). A server that answered otherwise would make
+      // the caller upload bytes it never probed for.
+      const tier = remote(() => new Response(JSON.stringify({ missing: [other, "unrequested"] }), { status: 200 }))
+      expect(yield* withCrypto(Effect.flatMap(tier.store, (store) => store.findMissing([digest, other]))))
+        .toEqual([other])
+    }))
 
-  it("fails on a non-2xx answer", async () => {
-    const tier = remote(() => new Response(null, { status: 502 }))
-    const exit = await runPromise(
-      Effect.flatMap(tier.store, (store) => store.findMissing([digest])).pipe(Effect.exit)
-    )
-    expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
-  })
+  it.effect("fails on a non-2xx answer", () =>
+    Effect.gen(function*() {
+      const tier = remote(() => new Response(null, { status: 502 }))
+      const exit = yield* withCrypto(
+        Effect.flatMap(tier.store, (store) => store.findMissing([digest])).pipe(Effect.exit)
+      )
+      expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
+    }))
 
-  it("fails on a body that is not JSON", async () => {
-    const tier = remote(() => new Response("not json at all", { status: 200 }))
-    const exit = await runPromise(
-      Effect.flatMap(tier.store, (store) => store.findMissing([digest])).pipe(Effect.exit)
-    )
-    expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
-  })
+  it.effect("fails on a body that is not JSON", () =>
+    Effect.gen(function*() {
+      const tier = remote(() => new Response("not json at all", { status: 200 }))
+      const exit = yield* withCrypto(
+        Effect.flatMap(tier.store, (store) => store.findMissing([digest])).pipe(Effect.exit)
+      )
+      expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
+    }))
 
-  it("fails on JSON that is not a findMissing answer", async () => {
-    const tier = remote(() => new Response(JSON.stringify({ absent: [] }), { status: 200 }))
-    const exit = await runPromise(
-      Effect.flatMap(tier.store, (store) => store.findMissing([digest])).pipe(Effect.exit)
-    )
-    expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
-  })
+  it.effect("fails on JSON that is not a findMissing answer", () =>
+    Effect.gen(function*() {
+      const tier = remote(() => new Response(JSON.stringify({ absent: [] }), { status: 200 }))
+      const exit = yield* withCrypto(
+        Effect.flatMap(tier.store, (store) => store.findMissing([digest])).pipe(Effect.exit)
+      )
+      expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
+    }))
 })
 
 describe("the address guard", () => {
@@ -297,29 +319,33 @@ describe("the address guard", () => {
   // same guard the filesystem tier applies.
   const unusable = ["", "../ac/other-key", "sub/dir", "..", "back\\slash"]
   for (const digest of unusable) {
-    it(`refuses ${JSON.stringify(digest)} without a round trip`, async () => {
-      const tier = remote(() => new Response(null, { status: 200 }))
-      const store = await runPromise(tier.store)
-      const refused = async (operation: Effect.Effect<unknown, unknown, Crypto.Crypto>) =>
-        (errorOf(await runPromise(operation.pipe(Effect.exit))) as ArtifactStore.ArtifactStoreError).code
-      expect(await refused(store.get(digest))).toBe("invalid_digest")
-      expect(await refused(store.has(digest))).toBe("invalid_digest")
-      expect(await refused(store.findMissing([digest]))).toBe("invalid_digest")
-      expect(tier.calls).toEqual([])
-    })
+    it.effect(`refuses ${JSON.stringify(digest)} without a round trip`, () =>
+      Effect.gen(function*() {
+        const tier = remote(() => new Response(null, { status: 200 }))
+        const store = yield* withCrypto(tier.store)
+        const refused = (operation: Effect.Effect<unknown, unknown, Crypto.Crypto>) =>
+          withCrypto(operation.pipe(Effect.exit)).pipe(
+            Effect.map((exit) => (errorOf(exit) as ArtifactStore.ArtifactStoreError).code)
+          )
+        expect(yield* refused(store.get(digest))).toBe("invalid_digest")
+        expect(yield* refused(store.has(digest))).toBe("invalid_digest")
+        expect(yield* refused(store.findMissing([digest]))).toBe("invalid_digest")
+        expect(tier.calls).toEqual([])
+      }))
   }
 })
 
 describe("layer", () => {
-  it("provides the remote store under the ArtifactStore tag", async () => {
-    const stub = stubClient(() => new Response(null, { status: 201 }))
-    const published = await runPromise(
-      Effect.flatMap(ArtifactStore.ArtifactStore, (store) => store.put(bytes(artifact))).pipe(
-        Effect.provide(
-          RemoteArtifacts.layer({ endpoint: "https://cache.example.com" }).pipe(Layer.provide(stub.layer))
+  it.effect("provides the remote store under the ArtifactStore tag", () =>
+    Effect.gen(function*() {
+      const stub = stubClient(() => new Response(null, { status: 201 }))
+      const published = yield* withCrypto(
+        Effect.flatMap(ArtifactStore.ArtifactStore, (store) => store.put(bytes(artifact))).pipe(
+          Effect.provide(
+            RemoteArtifacts.layer({ endpoint: "https://cache.example.com" }).pipe(Layer.provide(stub.layer))
+          )
         )
       )
-    )
-    expect(published).toBe(digest)
-  })
+      expect(published).toBe(digest)
+    }))
 })

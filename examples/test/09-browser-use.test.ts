@@ -2,16 +2,16 @@ import { build } from "esbuild"
 import * as Effect from "effect/Effect"
 import { dirname, join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { expect, it } from "vitest"
+import { expect, it } from "@effect/vitest"
 import { main } from "../src/09-browser-use.ts"
 
 const here = dirname(fileURLToPath(import.meta.url))
 
-it("runs on the in-memory engine", async () => {
-    const summary = await Effect.runPromise(Effect.provide(main, NodeCrypto.layer))
+it.effect("runs on the in-memory engine", () => Effect.gen(function*() {
+    const summary = yield* (Effect.provide(main, NodeCrypto.layer))
   expect(summary.result).toBe("built web")
   expect(summary.stepKey).toMatch(/^key1_[0-9a-f]{64}$/)
-})
+}))
 
 it("bundles for the browser with no node: imports", async () => {
   const result = await build({

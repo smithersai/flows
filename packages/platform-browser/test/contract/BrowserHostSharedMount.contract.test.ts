@@ -5,6 +5,7 @@
  * same ZenFS mount. This test uses promise and synchronous adapters rooted at
  * one OS tmpdir so a split mount cannot satisfy the assertions by accident.
  */
+import { afterAll, describe, expect, it } from "@effect/vitest"
 import { Jj } from "@smthrs/jj-next"
 import type { SyncFsLike } from "@smthrs/jj-next/browser/WasiFs"
 import { Effect, FileSystem } from "effect"
@@ -15,7 +16,6 @@ import * as fsPromises from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { afterAll, describe, expect, it } from "vitest"
 import type * as BrowserChildProcessSpawner from "../../src/BrowserChildProcessSpawner/index.ts"
 import * as BrowserFileSystem from "../../src/BrowserFileSystem/index.ts"
 import * as BrowserHost from "../../src/BrowserHost.ts"
@@ -92,33 +92,34 @@ afterAll(() => {
 })
 
 describe("BrowserHost shared mount contract", () => {
-  it("makes FileSystem writes visible to bash, jj status, snapshot, and diff", async () => {
-    const observed = await Effect.runPromise(
-      Effect.gen(function*() {
-        const fileSystem = yield* FileSystem.FileSystem
-        const spawner = yield* ChildProcessSpawner
-        const jj = yield* Jj
+  it.effect("makes FileSystem writes visible to bash, jj status, snapshot, and diff", () =>
+    Effect.gen(function*() {
+      const observed = yield* (
+        Effect.gen(function*() {
+          const fileSystem = yield* FileSystem.FileSystem
+          const spawner = yield* ChildProcessSpawner
+          const jj = yield* Jj
 
-        yield* fileSystem.writeFileString("/repo/shared.txt", "first\n")
-        const bashRead = yield* spawner.string(
-          ChildProcess.make("read-shared", [], { cwd: "/repo" })
-        )
-        const { changeId: first } = yield* jj.snapshot("shared mount first")
+          yield* fileSystem.writeFileString("/repo/shared.txt", "first\n")
+          const bashRead = yield* spawner.string(
+            ChildProcess.make("read-shared", [], { cwd: "/repo" })
+          )
+          const { changeId: first } = yield* jj.snapshot("shared mount first")
 
-        yield* fileSystem.writeFileString("/repo/shared.txt", "second\n")
-        const status = yield* jj.status()
-        const { changeId: second } = yield* jj.snapshot("shared mount second")
-        const diff = yield* jj.diff(first, second)
-        return { bashRead, diff, first, second, status }
-      }).pipe(Effect.provide(layer))
-    )
+          yield* fileSystem.writeFileString("/repo/shared.txt", "second\n")
+          const status = yield* jj.status()
+          const { changeId: second } = yield* jj.snapshot("shared mount second")
+          const diff = yield* jj.diff(first, second)
+          return { bashRead, diff, first, second, status }
+        }).pipe(Effect.provide(layer))
+      )
 
-    expect(observed.bashRead).toBe("first\n")
-    expect(observed.first).toMatch(/^[a-z0-9]+$/)
-    expect(observed.second).not.toBe(observed.first)
-    expect(observed.status).toContain("M shared.txt")
-    expect(observed.diff).toContain("shared.txt")
-    expect(observed.diff).toContain("-first")
-    expect(observed.diff).toContain("+second")
-  })
+      expect(observed.bashRead).toBe("first\n")
+      expect(observed.first).toMatch(/^[a-z0-9]+$/)
+      expect(observed.second).not.toBe(observed.first)
+      expect(observed.status).toContain("M shared.txt")
+      expect(observed.diff).toContain("shared.txt")
+      expect(observed.diff).toContain("-first")
+      expect(observed.diff).toContain("+second")
+    }))
 })

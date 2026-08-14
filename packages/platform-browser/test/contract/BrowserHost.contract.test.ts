@@ -10,6 +10,7 @@
  * must hand all three the same mount. The cross-service invariant has its own
  * real-mount proof in `BrowserHostSharedMount.contract.test.ts`.
  */
+import { afterAll, beforeAll, describe, expect, it } from "@effect/vitest"
 import { Jj } from "@smthrs/jj-next"
 import type { SyncFsLike } from "@smthrs/jj-next/browser/WasiFs"
 import { runHostContract } from "@smthrs/kernel-next/test/contract"
@@ -20,7 +21,6 @@ import * as fsModule from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import type * as BrowserChildProcessSpawner from "../../src/BrowserChildProcessSpawner/index.ts"
 import * as BrowserHost from "../../src/BrowserHost.ts"
 
@@ -104,21 +104,22 @@ afterAll(() => {
 })
 
 describe("BrowserHost real wasm contract", () => {
-  it("diffs two snapshots and restores one through the Host-provided jj", async () => {
-    const path = join(host, "repo", "real-wasm.txt")
-    fsModule.writeFileSync(path, "first\n")
-    const { changeId: first } = await Effect.runPromise(jj.snapshot("real wasm first"))
-    fsModule.writeFileSync(path, "second\n")
-    const { changeId: second } = await Effect.runPromise(jj.snapshot("real wasm second"))
+  it.effect("diffs two snapshots and restores one through the Host-provided jj", () =>
+    Effect.gen(function*() {
+      const path = join(host, "repo", "real-wasm.txt")
+      fsModule.writeFileSync(path, "first\n")
+      const { changeId: first } = yield* (jj.snapshot("real wasm first"))
+      fsModule.writeFileSync(path, "second\n")
+      const { changeId: second } = yield* (jj.snapshot("real wasm second"))
 
-    const diff = await Effect.runPromise(jj.diff(first, second))
-    expect(diff).toContain("real-wasm.txt")
-    expect(diff).toContain("-first")
-    expect(diff).toContain("+second")
+      const diff = yield* (jj.diff(first, second))
+      expect(diff).toContain("real-wasm.txt")
+      expect(diff).toContain("-first")
+      expect(diff).toContain("+second")
 
-    await Effect.runPromise(jj.restore(first))
-    expect(fsModule.readFileSync(path, "utf8")).toBe("first\n")
-  })
+      yield* (jj.restore(first))
+      expect(fsModule.readFileSync(path, "utf8")).toBe("first\n")
+    }))
 })
 
 runHostContract(

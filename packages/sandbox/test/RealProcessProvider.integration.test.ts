@@ -1,8 +1,8 @@
+import { afterEach, describe, expect, it } from "@effect/vitest"
 import { Effect, Fiber, PlatformError, Stream } from "effect"
 import { ChildProcess } from "effect/unstable/process"
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process"
-import { afterEach, describe, expect, it } from "vitest"
 import * as RemoteChildProcessSpawner from "../src/RemoteChildProcessSpawner/index.ts"
 import type { Provider, RemoteProcess } from "../src/RemoteChildProcessSpawner/Provider.ts"
 import { ProviderError } from "../src/RemoteChildProcessSpawner/ProviderError.ts"
@@ -256,146 +256,151 @@ const makeRealProvider = (scripts: Readonly<Record<string, string>>): RealProvid
 }
 
 describe("RemoteChildProcessSpawner real-process provider", () => {
-  it("preserves all bytes and order from chunked megabyte-scale stdout", async () => {
-    const expectedBytes = 1024 * 1024
-    const provider = makeRealProvider({
-      chunked: [
-        "const chunk = Buffer.alloc(64 * 1024, 120)",
-        "let remaining = 16",
-        "const write = () => {",
-        "  if (remaining === 0) return",
-        "  remaining -= 1",
-        "  if (process.stdout.write(chunk)) setImmediate(write)",
-        "  else process.stdout.once('drain', write)",
-        "}",
-        "write()"
-      ].join("\n")
-    })
+  it.effect("preserves all bytes and order from chunked megabyte-scale stdout", () =>
+    Effect.gen(function*() {
+      const expectedBytes = 1024 * 1024
+      const provider = makeRealProvider({
+        chunked: [
+          "const chunk = Buffer.alloc(64 * 1024, 120)",
+          "let remaining = 16",
+          "const write = () => {",
+          "  if (remaining === 0) return",
+          "  remaining -= 1",
+          "  if (process.stdout.write(chunk)) setImmediate(write)",
+          "  else process.stdout.once('drain', write)",
+          "}",
+          "write()"
+        ].join("\n")
+      })
 
-    const result = await Effect.runPromise(
-      Effect.gen(function*() {
-        const spawner = yield* ChildProcessSpawner
-        const handle = yield* spawner.spawn(ChildProcess.make("chunked"))
-        const chunks = yield* Stream.runCollect(handle.stdout)
-        const code = yield* handle.exitCode
-        return { chunks, code }
-      }).pipe(Effect.scoped, Effect.provide(RemoteChildProcessSpawner.layer(provider.provider)))
-    )
-    const output = Buffer.concat(Array.from(result.chunks, (chunk) => Buffer.from(chunk)))
-
-    expect(result.code).toBe(0)
-    expect(output).toEqual(Buffer.alloc(expectedBytes, 120))
-    expect(provider.state.started[0]?.stdoutChunks).toBeGreaterThan(1)
-  }, testBudget)
-
-  it("propagates a real process's nonzero exit code", async () => {
-    const provider = makeRealProvider({ nonzero: "process.exit(37)" })
-
-    const code = await Effect.runPromise(
-      Effect.flatMap(ChildProcessSpawner, (spawner) => spawner.exitCode(ChildProcess.make("nonzero"))).pipe(
-        Effect.provide(RemoteChildProcessSpawner.layer(provider.provider))
+      const result = yield* (
+        Effect.gen(function*() {
+          const spawner = yield* ChildProcessSpawner
+          const handle = yield* spawner.spawn(ChildProcess.make("chunked"))
+          const chunks = yield* Stream.runCollect(handle.stdout)
+          const code = yield* handle.exitCode
+          return { chunks, code }
+        }).pipe(Effect.scoped, Effect.provide(RemoteChildProcessSpawner.layer(provider.provider)))
       )
-    )
+      const output = Buffer.concat(Array.from(result.chunks, (chunk) => Buffer.from(chunk)))
 
-    expect(code).toBe(37)
-  }, testBudget)
+      expect(result.code).toBe(0)
+      expect(output).toEqual(Buffer.alloc(expectedBytes, 120))
+      expect(provider.state.started[0]?.stdoutChunks).toBeGreaterThan(1)
+    }), testBudget)
 
-  it("maps a child killed mid-stream to exitCode PlatformError without hanging", async () => {
-    const provider = makeRealProvider({
-      streaming: [
-        "const chunk = Buffer.alloc(8 * 1024, 107)",
-        "const write = () => {",
-        "  if (process.stdout.write(chunk)) setImmediate(write)",
-        "  else process.stdout.once('drain', write)",
-        "}",
-        "write()"
-      ].join("\n")
-    })
+  it.effect("propagates a real process's nonzero exit code", () =>
+    Effect.gen(function*() {
+      const provider = makeRealProvider({ nonzero: "process.exit(37)" })
 
-    const error = await Effect.runPromise(
-      Effect.gen(function*() {
-        const spawner = yield* ChildProcessSpawner
-        const handle = yield* spawner.spawn(ChildProcess.make("streaming"))
-        const consumer = yield* Stream.runDrain(handle.stdout).pipe(Effect.forkChild({ startImmediately: true }))
-        const record = provider.state.started[0]
-        if (record === undefined) return yield* Effect.die(new Error("real provider did not record its child"))
-        yield* Effect.promise(() => waitFor(() => record.stdoutChunks > 0, "the first stdout chunk"))
-        yield* Effect.sync(() => {
-          record.child.kill("SIGKILL")
+      const code = yield* (
+        Effect.flatMap(ChildProcessSpawner, (spawner) => spawner.exitCode(ChildProcess.make("nonzero"))).pipe(
+          Effect.provide(RemoteChildProcessSpawner.layer(provider.provider))
+        )
+      )
+
+      expect(code).toBe(37)
+    }), testBudget)
+
+  it.effect("maps a child killed mid-stream to exitCode PlatformError without hanging", () =>
+    Effect.gen(function*() {
+      const provider = makeRealProvider({
+        streaming: [
+          "const chunk = Buffer.alloc(8 * 1024, 107)",
+          "const write = () => {",
+          "  if (process.stdout.write(chunk)) setImmediate(write)",
+          "  else process.stdout.once('drain', write)",
+          "}",
+          "write()"
+        ].join("\n")
+      })
+
+      const error = yield* (
+        Effect.gen(function*() {
+          const spawner = yield* ChildProcessSpawner
+          const handle = yield* spawner.spawn(ChildProcess.make("streaming"))
+          const consumer = yield* Stream.runDrain(handle.stdout).pipe(Effect.forkChild({ startImmediately: true }))
+          const record = provider.state.started[0]
+          if (record === undefined) return yield* Effect.die(new Error("real provider did not record its child"))
+          yield* Effect.promise(() => waitFor(() => record.stdoutChunks > 0, "the first stdout chunk"))
+          yield* Effect.sync(() => {
+            record.child.kill("SIGKILL")
+          })
+          const error = yield* Effect.flip(handle.exitCode)
+          yield* Fiber.await(consumer)
+          return error
+        }).pipe(Effect.scoped, Effect.provide(RemoteChildProcessSpawner.layer(provider.provider)))
+      )
+
+      expect(error).toBeInstanceOf(PlatformError.PlatformError)
+      expect(error.reason).toMatchObject({ _tag: "Unknown", module: "ChildProcess", method: "exitCode" })
+    }), testBudget)
+
+  it.effect("interrupts a scope and leaves no real OS process behind", () =>
+    Effect.gen(function*() {
+      const provider = makeRealProvider({ holding: "process.stdin.resume()" })
+
+      const pid = yield* (
+        Effect.gen(function*() {
+          const fiber = yield* Effect.gen(function*() {
+            const spawner = yield* ChildProcessSpawner
+            yield* spawner.spawn(ChildProcess.make("holding"))
+            return yield* Effect.never
+          }).pipe(
+            Effect.scoped,
+            Effect.provide(RemoteChildProcessSpawner.layer(provider.provider)),
+            Effect.forkChild({ startImmediately: true })
+          )
+          yield* Effect.promise(() => waitFor(() => provider.state.started.length === 1, "the holding child to start"))
+          const record = provider.state.started[0]
+          if (record === undefined) return yield* Effect.die(new Error("real provider did not record its child"))
+          const pid = childPid(record.child)
+          yield* Effect.promise(() => waitFor(() => processIsAlive(pid), `process ${pid} to be alive`))
+          yield* Fiber.interrupt(fiber)
+          return pid
         })
-        const error = yield* Effect.flip(handle.exitCode)
-        yield* Fiber.await(consumer)
-        return error
-      }).pipe(Effect.scoped, Effect.provide(RemoteChildProcessSpawner.layer(provider.provider)))
-    )
+      )
 
-    expect(error).toBeInstanceOf(PlatformError.PlatformError)
-    expect(error.reason).toMatchObject({ _tag: "Unknown", module: "ChildProcess", method: "exitCode" })
-  }, testBudget)
+      yield* Effect.promise(() => waitFor(() => !processIsAlive(pid), `interrupted process ${pid} to reach ESRCH`))
+      expect(processIsAlive(pid)).toBe(false)
+    }), testBudget)
 
-  it("interrupts a scope and leaves no real OS process behind", async () => {
-    const provider = makeRealProvider({ holding: "process.stdin.resume()" })
+  it.effect("bridges provider death to SandboxHealth and rejects a subsequent spawn", () =>
+    Effect.gen(function*() {
+      const provider = makeRealProvider({
+        holding: "process.stdin.resume()",
+        afterDeath: "process.stdout.write('unexpected spawn')"
+      })
 
-    const pid = await Effect.runPromise(
-      Effect.gen(function*() {
-        const fiber = yield* Effect.gen(function*() {
+      const result = yield* (
+        Effect.gen(function*() {
           const spawner = yield* ChildProcessSpawner
           yield* spawner.spawn(ChildProcess.make("holding"))
-          return yield* Effect.never
-        }).pipe(
-          Effect.scoped,
-          Effect.provide(RemoteChildProcessSpawner.layer(provider.provider)),
-          Effect.forkChild({ startImmediately: true })
-        )
-        yield* Effect.promise(() => waitFor(() => provider.state.started.length === 1, "the holding child to start"))
-        const record = provider.state.started[0]
-        if (record === undefined) return yield* Effect.die(new Error("real provider did not record its child"))
-        const pid = childPid(record.child)
-        yield* Effect.promise(() => waitFor(() => processIsAlive(pid), `process ${pid} to be alive`))
-        yield* Fiber.interrupt(fiber)
-        return pid
-      })
-    )
+          const record = provider.state.started[0]
+          if (record === undefined) return yield* Effect.die(new Error("real provider did not record its child"))
+          yield* Effect.promise(() =>
+            waitFor(() => processIsAlive(childPid(record.child)), "the provider child to be alive")
+          )
+          yield* Effect.sync(() => {
+            record.child.kill("SIGKILL")
+          })
+          yield* Effect.promise(() => waitFor(() => provider.state.unavailable, "provider death to become observable"))
+          const health = SandboxHealth.make(provider.pingProvider)
+          const state = yield* health.check
+          const spawnError = yield* Effect.flip(spawner.spawn(ChildProcess.make("afterDeath")))
+          return { state, spawnError }
+        }).pipe(Effect.scoped, Effect.provide(RemoteChildProcessSpawner.layer(provider.provider)))
+      )
 
-    await waitFor(() => !processIsAlive(pid), `interrupted process ${pid} to reach ESRCH`)
-    expect(processIsAlive(pid)).toBe(false)
-  }, testBudget)
-
-  it("bridges provider death to SandboxHealth and rejects a subsequent spawn", async () => {
-    const provider = makeRealProvider({
-      holding: "process.stdin.resume()",
-      afterDeath: "process.stdout.write('unexpected spawn')"
-    })
-
-    const result = await Effect.runPromise(
-      Effect.gen(function*() {
-        const spawner = yield* ChildProcessSpawner
-        yield* spawner.spawn(ChildProcess.make("holding"))
-        const record = provider.state.started[0]
-        if (record === undefined) return yield* Effect.die(new Error("real provider did not record its child"))
-        yield* Effect.promise(() =>
-          waitFor(() => processIsAlive(childPid(record.child)), "the provider child to be alive")
-        )
-        yield* Effect.sync(() => {
-          record.child.kill("SIGKILL")
+      expect(result.state._tag).toBe("Unhealthy")
+      if (result.state._tag === "Unhealthy") {
+        expect(result.state).toMatchObject({
+          component: "sandbox",
+          reason: "ping_failed",
+          message: "real provider session is unavailable"
         })
-        yield* Effect.promise(() => waitFor(() => provider.state.unavailable, "provider death to become observable"))
-        const health = SandboxHealth.make(provider.pingProvider)
-        const state = yield* health.check
-        const spawnError = yield* Effect.flip(spawner.spawn(ChildProcess.make("afterDeath")))
-        return { state, spawnError }
-      }).pipe(Effect.scoped, Effect.provide(RemoteChildProcessSpawner.layer(provider.provider)))
-    )
-
-    expect(result.state._tag).toBe("Unhealthy")
-    if (result.state._tag === "Unhealthy") {
-      expect(result.state).toMatchObject({
-        component: "sandbox",
-        reason: "ping_failed",
-        message: "real provider session is unavailable"
-      })
-    }
-    expect(result.spawnError).toBeInstanceOf(PlatformError.PlatformError)
-    expect(result.spawnError.reason).toMatchObject({ _tag: "NotFound", module: "ChildProcess", method: "spawn" })
-  }, testBudget)
+      }
+      expect(result.spawnError).toBeInstanceOf(PlatformError.PlatformError)
+      expect(result.spawnError.reason).toMatchObject({ _tag: "NotFound", module: "ChildProcess", method: "spawn" })
+    }), testBudget)
 })

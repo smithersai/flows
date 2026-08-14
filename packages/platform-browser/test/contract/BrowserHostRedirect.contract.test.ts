@@ -5,6 +5,7 @@
  * as a 302 here. In a real tab Fetch returns an opaque redirect instead; both
  * forms share the invariant that the second origin is never contacted.
  */
+import { afterAll, beforeAll, describe, expect, it } from "@effect/vitest"
 import { Effect } from "effect"
 import { HttpClient } from "effect/unstable/http/HttpClient"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
@@ -12,7 +13,6 @@ import * as fsModule from "node:fs"
 import * as fsPromises from "node:fs/promises"
 import { createServer, type Server } from "node:http"
 import type { AddressInfo } from "node:net"
-import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import type * as BrowserChildProcessSpawner from "../../src/BrowserChildProcessSpawner/index.ts"
 import * as BrowserHost from "../../src/BrowserHost.ts"
 
@@ -76,41 +76,43 @@ afterAll(async () => {
 })
 
 describe("BrowserHost HttpClient contract", () => {
-  it("returns a successful loopback GET response through the browser bundle", async () => {
-    const response = await Effect.runPromise(
-      Effect.gen(function*() {
-        const client = yield* HttpClient
-        const response = yield* client.execute(
-          HttpClientRequest.get(`http://127.0.0.1:${originPort}/success`)
-        )
-        return {
-          body: yield* response.text,
-          header: response.headers["x-browser-host"],
-          status: response.status
-        }
-      }).pipe(Effect.provide(layer))
-    )
+  it.effect("returns a successful loopback GET response through the browser bundle", () =>
+    Effect.gen(function*() {
+      const response = yield* (
+        Effect.gen(function*() {
+          const client = yield* HttpClient
+          const response = yield* client.execute(
+            HttpClientRequest.get(`http://127.0.0.1:${originPort}/success`)
+          )
+          return {
+            body: yield* response.text,
+            header: response.headers["x-browser-host"],
+            status: response.status
+          }
+        }).pipe(Effect.provide(layer))
+      )
 
-    expect(response).toEqual({ body: "browser response", header: "loopback", status: 200 })
-  })
+      expect(response).toEqual({ body: "browser response", header: "loopback", status: 200 })
+    }))
 
-  it("does not follow a 302 redirect to a second origin", async () => {
-    destinationHits = 0
-    const response = await Effect.runPromise(
-      Effect.gen(function*() {
-        const client = yield* HttpClient
-        const response = yield* client.execute(
-          HttpClientRequest.get(`http://127.0.0.1:${originPort}/redirect`)
-        )
-        yield* response.text
-        return { location: response.headers.location, status: response.status }
-      }).pipe(Effect.provide(layer))
-    )
+  it.effect("does not follow a 302 redirect to a second origin", () =>
+    Effect.gen(function*() {
+      destinationHits = 0
+      const response = yield* (
+        Effect.gen(function*() {
+          const client = yield* HttpClient
+          const response = yield* client.execute(
+            HttpClientRequest.get(`http://127.0.0.1:${originPort}/redirect`)
+          )
+          yield* response.text
+          return { location: response.headers.location, status: response.status }
+        }).pipe(Effect.provide(layer))
+      )
 
-    expect(response).toEqual({
-      location: `http://127.0.0.1:${destinationPort}/must-not-be-hit`,
-      status: 302
-    })
-    expect(destinationHits).toBe(0)
-  })
+      expect(response).toEqual({
+        location: `http://127.0.0.1:${destinationPort}/must-not-be-hit`,
+        status: 302
+      })
+      expect(destinationHits).toBe(0)
+    }))
 })
