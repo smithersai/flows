@@ -76,10 +76,41 @@ export const readSetMatches = (prepared: PreparedBoundary): boolean =>
  * @since 0.1.0
  * @category schemas
  */
-export const BoundaryDeviation = Schema.TaggedStruct("ExpectedSetDeviation", {
+export const ExpectedSetDeviation = Schema.TaggedStruct("ExpectedSetDeviation", {
   paths: Schema.Array(Schema.String),
   diffIdentity: Schema.NonEmptyString
 })
+
+/**
+ * Declared writes an expected-mode step did not produce, and did not declare
+ * as removals.
+ *
+ * The absence itself is the defect: recording it as valid evidence caches the
+ * claim "this file should not exist", which `replayOutputs` then acts on by
+ * deleting the path on a workspace that never ran the step. A hard-mode
+ * boundary raises {@link MissingDeclaredOutput} for the same observation.
+ *
+ * Expected mode records it rather than failing because the declaration there is
+ * a prediction — and because a deviation of any variant already bars the
+ * evidence from the shared cache (`ActionPersistence` gates `recordCache` on
+ * `deviation === undefined`), so an unexplained absence never reaches another
+ * host either way.
+ *
+ * @since 0.1.0
+ * @category schemas
+ */
+export const MissingOutputDeviation = Schema.TaggedStruct("MissingDeclaredOutput", {
+  paths: Schema.Array(Schema.String),
+  diffIdentity: Schema.NonEmptyString
+})
+
+/**
+ * What a settled boundary observed that its declaration did not predict.
+ *
+ * @since 0.1.0
+ * @category schemas
+ */
+export const BoundaryDeviation = Schema.Union([ExpectedSetDeviation, MissingOutputDeviation])
 
 /**
  * The value form of {@link BoundaryDeviation}.
@@ -139,6 +170,32 @@ export class UndeclaredWrite extends Schema.TaggedError<UndeclaredWrite>()(
   "flows/engine-store/UndeclaredWrite",
   {
     code: Schema.Literal("undeclared_write"),
+    paths: Schema.Array(Schema.String),
+    diffIdentity: Schema.NonEmptyString
+  }
+) {}
+
+/**
+ * A step finished without producing a path its write set declared, and did not
+ * declare that path as a removal.
+ *
+ * Bazel hard-fails the same observation — `SkyframeActionExecutor.checkOutputs`
+ * reports "output was not created" — and for the same reason: the alternative
+ * is to record `digest: null` as valid evidence, which caches the claim "this
+ * file should not exist" and makes every later replay delete the path. A step
+ * that crashed after declaring its writes would poison the cache with an
+ * eraser.
+ *
+ * Declaring the path in {@link FileBoundary}'s `removes` is how a deliberate
+ * deletion says so, and it is the only thing that makes the absence legitimate.
+ *
+ * @since 0.1.0
+ * @category errors
+ */
+export class MissingDeclaredOutput extends Schema.TaggedError<MissingDeclaredOutput>()(
+  "flows/engine-store/MissingDeclaredOutput",
+  {
+    code: Schema.Literal("missing_declared_output"),
     paths: Schema.Array(Schema.String),
     diffIdentity: Schema.NonEmptyString
   }
@@ -222,7 +279,7 @@ export interface Service {
   ) => Effect.Effect<PreparedBoundary, UnsupportedBoundary, Crypto.Crypto>
   readonly settle: (
     prepared: PreparedBoundary
-  ) => Effect.Effect<BoundaryEvidence, UndeclaredWrite | UnsupportedBoundary, Crypto.Crypto>
+  ) => Effect.Effect<BoundaryEvidence, UndeclaredWrite | MissingDeclaredOutput | UnsupportedBoundary, Crypto.Crypto>
   readonly replayOutputs: (
     evidence: BoundaryEvidence
   ) => Effect.Effect<void, UnsupportedBoundary | BoundaryCorruption | MissingArtifact, Crypto.Crypto>
@@ -563,21 +620,27 @@ export const makeFileSystem = (
       // detection needs the jj diff surface and stays a documented
       // limitation of this layer rather than a silent pass — the read set
       // is exactly the material cacheability rests on.
-      const declaredWrites = new Set(prepared.descriptor.writeSet)
+      const removes = prepared.descriptor.removes ?? []
+      const declaredWrites = new Set([...prepared.descriptor.writeSet, ...removes])
       const undeclared: Array<string> = []
       for (const entry of prepared.readSnapshot) {
         if (declaredWrites.has(entry.path)) continue
         if ((yield* measure(entry.path)) !== entry.digest) undeclared.push(entry.path)
       }
       const outputs: Array<MaterializedOutput> = []
+      // Declared removals are captured on the same path and under the same
+      // `digest: null` semantics they have always had — the difference is that
+      // here the absence was declared, so it is evidence rather than a defect.
+      const missing: Array<string> = []
       let inlinedBytes = 0
-      for (const path of prepared.descriptor.writeSet) {
+      for (const path of [...prepared.descriptor.writeSet, ...removes]) {
         const captured = yield* capture(path, maxTotalInlineBytes - inlinedBytes)
         // `capture` reports the bytes it actually inlined (zero for a
         // digest-only reference), so the aggregate budget never has to
         // re-derive them from the row it just built.
         inlinedBytes += captured.inlinedBytes
         outputs.push(captured.output)
+        if (captured.output.digest === null && !removes.includes(path)) missing.push(path)
       }
       // Through `Key` — the repo's one hashing chokepoint — so the identity is
       // a digest of the RFC 8785 canonical form rather than of whatever
@@ -586,10 +649,20 @@ export const makeFileSystem = (
         kind: "diff-identity",
         outputs: outputs.map((output) => [output.path, output.digest])
       }).pipe(Effect.orDie)
-      if (undeclared.length > 0 && prepared.descriptor.boundaryMode === "hard") {
-        return yield* Effect.fail(
-          new UndeclaredWrite({ code: "undeclared_write", paths: undeclared, diffIdentity })
-        )
+      if (prepared.descriptor.boundaryMode === "hard") {
+        if (undeclared.length > 0) {
+          return yield* Effect.fail(
+            new UndeclaredWrite({ code: "undeclared_write", paths: undeclared, diffIdentity })
+          )
+        }
+        // A declared output that was never produced is a defect, not evidence
+        // (Bazel's `checkOutputs`). Recording it would cache `digest: null`,
+        // which every later `replayOutputs` reads as "delete this path".
+        if (missing.length > 0) {
+          return yield* Effect.fail(
+            new MissingDeclaredOutput({ code: "missing_declared_output", paths: missing, diffIdentity })
+          )
+        }
       }
       return {
         declaredOutputs: { outputs },
@@ -597,9 +670,15 @@ export const makeFileSystem = (
         // This filesystem-only boundary cannot observe writes elsewhere in
         // the tree. Omission is deliberate: ActionPersistence treats the
         // result as run-local and will not publish it to the shared cache.
-        ...(undeclared.length === 0
-          ? {}
-          : { deviation: { _tag: "ExpectedSetDeviation" as const, paths: undeclared, diffIdentity } })
+        //
+        // An undeclared write is reported ahead of a missing output: it is the
+        // stronger claim about the same execution, and either variant bars the
+        // evidence from the shared cache identically.
+        ...(undeclared.length > 0
+          ? { deviation: { _tag: "ExpectedSetDeviation" as const, paths: undeclared, diffIdentity } }
+          : missing.length > 0
+          ? { deviation: { _tag: "MissingDeclaredOutput" as const, paths: missing, diffIdentity } }
+          : {})
       }
     }),
     replayOutputs: Effect.fn("StepBoundary.replayOutputs")(function*(evidence) {
@@ -667,6 +746,13 @@ export interface TestOptions {
   /** The paths `settle` reports as written. Defaults to none. */
   readonly changedPaths?: ReadonlyArray<string> | undefined
   /**
+   * Declared writes `settle` reports the step never produced. Paths the
+   * descriptor declares as `removes` are filtered out, exactly as the
+   * filesystem layer filters them: a declared removal is what makes an absence
+   * legitimate. Defaults to none.
+   */
+  readonly missingOutputs?: ReadonlyArray<string> | undefined
+  /**
    * What `prepare` reports as measured for the declared read set. Defaults
    * to the declaration itself; a test supplies a different snapshot to stand
    * for a file whose content moved out from under a stale declaration
@@ -713,17 +799,32 @@ export const layerTest = (options: TestOptions = {}): Layer.Layer<Service> => {
     }),
     settle: Effect.fn("StepBoundary.settle")(function*(prepared) {
       if (options.supported === false) return yield* Effect.fail(unsupported())
-      const undeclared = changedPaths.filter((path) => !prepared.descriptor.writeSet.includes(path))
-      if (undeclared.length > 0 && prepared.descriptor.boundaryMode === "hard") {
-        return yield* Effect.fail(new UndeclaredWrite({ code: "undeclared_write", paths: undeclared, diffIdentity }))
+      const removes = prepared.descriptor.removes ?? []
+      const declared = [...prepared.descriptor.writeSet, ...removes]
+      const undeclared = changedPaths.filter((path) => !declared.includes(path))
+      // The fixture states which declared writes the step failed to produce,
+      // so the test boundary can exercise the same rule the real one enforces
+      // rather than pretending every declaration was honoured.
+      const missing = (options.missingOutputs ?? []).filter((path) => !removes.includes(path))
+      if (prepared.descriptor.boundaryMode === "hard") {
+        if (undeclared.length > 0) {
+          return yield* Effect.fail(new UndeclaredWrite({ code: "undeclared_write", paths: undeclared, diffIdentity }))
+        }
+        if (missing.length > 0) {
+          return yield* Effect.fail(
+            new MissingDeclaredOutput({ code: "missing_declared_output", paths: missing, diffIdentity })
+          )
+        }
       }
       return {
         declaredOutputs: options.declaredOutputs ?? { paths: prepared.descriptor.writeSet },
         diffIdentity,
         ...(options.wholeTreeWriteDetection === false ? {} : { wholeTreeWritesVerified: true as const }),
-        ...(undeclared.length === 0
-          ? {}
-          : { deviation: { _tag: "ExpectedSetDeviation" as const, paths: undeclared, diffIdentity } })
+        ...(undeclared.length > 0
+          ? { deviation: { _tag: "ExpectedSetDeviation" as const, paths: undeclared, diffIdentity } }
+          : missing.length > 0
+          ? { deviation: { _tag: "MissingDeclaredOutput" as const, paths: missing, diffIdentity } }
+          : {})
       }
     }),
     replayOutputs: Effect.fn("StepBoundary.replayOutputs")(function*(evidence) {

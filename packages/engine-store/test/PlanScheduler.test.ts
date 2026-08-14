@@ -5,6 +5,7 @@
  * interleaving of two concurrently admitted nodes — rather than from the
  * `DeterministicHelper` the vault rejected. Nothing here sleeps.
  */
+import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
 import { Journal } from "@smthrs/journal-next"
 import { Jj } from "@smthrs/kernel-next"
 import { KeyMaterial, Plan, PlanStore } from "@smthrs/plan-next"
@@ -44,6 +45,7 @@ interface DraftOptions {
   readonly inputs?: ReadonlyArray<KeyMaterial.InputRef>
   readonly reads?: ReadonlyArray<string>
   readonly writes?: ReadonlyArray<string>
+  readonly removes?: ReadonlyArray<string>
   readonly kind?: Plan.PlanNode["kind"]
   readonly priority?: number
   readonly conflictStrategy?: Plan.PairStrategy
@@ -64,6 +66,7 @@ const draft = (id: string, options: DraftOptions = {}): Plan.NodeDraft => ({
   effects: {
     reads: options.reads ?? [],
     writes: options.writes ?? [`${id}.out`],
+    ...(options.removes === undefined ? {} : { removes: options.removes }),
     boundaryMode: options.boundaryMode ?? "hard"
   },
   ...(options.kind === undefined ? {} : { kind: options.kind }),
@@ -200,6 +203,37 @@ describe("PlanScheduler over a static graph", () => {
       sibling: "clean",
       "sibling-child": "clean"
     })
+  })
+
+  it("carries declared removals into the measured boundary and orders readers behind them", async () => {
+    // A removal moves a path's content exactly as a write does, so the plan
+    // orders the reader behind the remover, the scheduler treats the path as
+    // produced rather than pinning it as a source input, and the descriptor
+    // the boundary settles against says the absence was declared.
+    const plan = await runPromise(compile([
+      draft("reader", { reads: ["stale.txt"] }),
+      draft("remover", { writes: ["remover.out"], removes: ["stale.txt"] })
+    ]))
+    const seen: Array<FileBoundary> = []
+    const order: Array<string> = []
+    const executor: PlanScheduler.Executor = {
+      execute: ({ boundary, node }) =>
+        Effect.sync(() => {
+          order.push(node.id)
+          seen.push(boundary)
+          return { ran: node.id }
+        })
+    }
+    const program = Effect.gen(function*() {
+      yield* activate("run-removes")
+      const service = scheduler({ runId: "run-removes", executor })
+      yield* service.record(plan)
+      return yield* service.run(plan)
+    }).pipe(Effect.provide(harness({ runId: "run-removes", executor })), Effect.provide(TestStores.layer()))
+
+    expect(outcomes(await runPromise(program))).toEqual({ reader: "built", remover: "built" })
+    expect(order.indexOf("reader")).toBeGreaterThan(order.indexOf("remover"))
+    expect(seen.find((boundary) => boundary.removes !== undefined)?.removes).toEqual(["stale.txt"])
   })
 
   it("re-runs a dependent when the upstream's settled VALUE changes, not merely its declaration", async () => {

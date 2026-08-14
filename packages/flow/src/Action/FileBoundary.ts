@@ -26,9 +26,35 @@ export const FileBoundary = Schema.Struct({
   readSet: Schema.Array(FileInput),
   /** Files or patterns the action is allowed to write. */
   writeSet: Schema.Array(Schema.NonEmptyString),
+  /**
+   * Files the action is allowed to DELETE.
+   *
+   * A declared write that is absent when the action finishes is a defect —
+   * Bazel's `SkyframeActionExecutor.checkOutputs` reports "output was not
+   * created" and fails the action — because recording the absence as valid
+   * evidence caches the claim "this file should not exist", which a later
+   * replay then acts on by deleting the path. Deletion stays a feature here,
+   * but only when it was declared, and a declared removal is what makes an
+   * absent path legitimate rather than a crash mid-execution.
+   *
+   * Optional with an empty default, so boundaries persisted before it keep
+   * decoding. Disjoint from {@link writeSet}: a path cannot be both promised
+   * and disclaimed.
+   */
+  removes: Schema.optional(Schema.Array(Schema.NonEmptyString)),
   /** Whether undeclared access is rejected immediately or validated later. */
   boundaryMode: BoundaryMode
-})
+}).check(
+  Schema.makeFilter(
+    (boundary) => {
+      const writes = new Set(boundary.writeSet)
+      const both = (boundary.removes ?? []).filter((path) => writes.has(path))
+      return both.length === 0 ||
+        `a path cannot be both written and removed: ${both.join(", ")}`
+    },
+    { title: "disjointWritesAndRemoves" }
+  )
+)
 
 /**
  * The filesystem boundary of an action.

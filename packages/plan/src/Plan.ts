@@ -44,6 +44,14 @@ export const KeyDigest = Schema.String.check(Schema.isPattern(/^key1_[0-9a-f]{64
 export const NodeEffects = Schema.Struct({
   reads: Schema.Array(Schema.String),
   writes: Schema.Array(Schema.String),
+  /**
+   * Paths the node declares it will DELETE. Optional with an empty default, so
+   * plans persisted before it keep decoding. A removal mutates the world
+   * exactly as a write does, so {@link produces} folds the two together and
+   * both the conflict pass and the reader-after-writer pass see them as one
+   * set.
+   */
+  removes: Schema.optional(Schema.Array(Schema.String)),
   boundaryMode: Schema.Literals(["hard", "expected"])
 })
 
@@ -228,18 +236,35 @@ const pairStrategy = (left: PairStrategy, right: PairStrategy): PairStrategy =>
 const pairRuntime = (left: RuntimeStrategy, right: RuntimeStrategy): RuntimeStrategy =>
   left === "stop-merge" || right === "stop-merge" ? "stop-merge" : "delay-rebase"
 
-/** @private */
-const overlap = (left: NodeEffects, right: NodeEffects): ReadonlyArray<string> =>
-  left.writes.filter((path) => right.writes.includes(path))
-
 /**
- * Whether `reader` consumes a path `writer` produces. The conflict pass above
- * compares writes against writes, so this relation is the one it cannot see.
+ * Every path a node mutates. A removal moves a path's content exactly as a
+ * write does — a reader that runs before it sees different bytes than one that
+ * runs after — so both plan passes below treat the two as one set.
  *
  * @private
  */
-const readsWhatItWrites = (reader: NodeEffects, writer: NodeEffects): boolean =>
-  reader.reads.some((path) => writer.writes.includes(path))
+const produces = (effects: NodeEffects): ReadonlyArray<string> => [
+  ...effects.writes,
+  ...effects.removes ?? []
+]
+
+/** @private */
+const overlap = (left: NodeEffects, right: NodeEffects): ReadonlyArray<string> => {
+  const mutated = new Set(produces(right))
+  return produces(left).filter((path) => mutated.has(path))
+}
+
+/**
+ * Whether `reader` consumes a path `writer` produces. The conflict pass above
+ * compares write sets against write sets, so this relation is the one it cannot
+ * see.
+ *
+ * @private
+ */
+const readsWhatItWrites = (reader: NodeEffects, writer: NodeEffects): boolean => {
+  const mutated = new Set(produces(writer))
+  return reader.reads.some((path) => mutated.has(path))
+}
 
 /** @private */
 type Ordered =

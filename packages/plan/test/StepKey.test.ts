@@ -218,11 +218,11 @@ describe("StepKey", () => {
 })
 
 describe("StepKey.dispatchIdentity", () => {
-  const hermetic = {
+  const hermetic: NonNullable<StepKey.ContentIdentity["hermetic"]> = {
     readSet: [{ path: "src/a.ts", digest: "sha256:a" }],
     writeSet: ["out/a.js"],
     boundaryMode: "hard"
-  } as const
+  }
 
   const dispatch = (
     overrides: Partial<KeyMaterial.KeyMaterial>,

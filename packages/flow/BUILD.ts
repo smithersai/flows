@@ -2,13 +2,7 @@
  * API review targets. Every target in this file is a non-executing catalog
  * stub. This file shows StandardPackage desugared into three rule calls.
  */
-import {
-  EsLint,
-  TsBuild,
-  Vitest,
-  file,
-  glob
-} from "../../../tsflows/rules/src/index.ts"
+import { EsLint, file, glob, TsBuild, Vitest } from "../../../tsflows/rules/src/index.ts"
 import { rootJSDocConfig } from "../../BUILD.ts"
 import { lib as plan } from "../plan/BUILD.ts"
 

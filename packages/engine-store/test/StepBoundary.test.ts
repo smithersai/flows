@@ -64,6 +64,48 @@ describe("StepBoundary", () => {
     expect(replayed).toHaveLength(1)
   })
 
+  it("fails hard mode for a declared output the step never produced", async () => {
+    const program = Effect.gen(function*() {
+      const boundary = yield* StepBoundary.StepBoundary
+      const prepared = yield* boundary.prepare(descriptor)
+      return yield* Effect.flip(boundary.settle(prepared))
+    }).pipe(Effect.provide(StepBoundary.layerTest({ missingOutputs: ["output.txt"], diffIdentity: "d4" })))
+    await expect(runPromise(program)).resolves.toMatchObject({
+      _tag: "flows/engine-store/MissingDeclaredOutput",
+      code: "missing_declared_output",
+      paths: ["output.txt"],
+      diffIdentity: "d4"
+    })
+  })
+
+  it("records a missing declared output as an expected-mode deviation", async () => {
+    const program = Effect.gen(function*() {
+      const boundary = yield* StepBoundary.StepBoundary
+      const prepared = yield* boundary.prepare({ ...descriptor, boundaryMode: "expected" })
+      return yield* boundary.settle(prepared)
+    }).pipe(Effect.provide(StepBoundary.layerTest({ missingOutputs: ["output.txt"], diffIdentity: "d5" })))
+    // A deviation of ANY variant bars the evidence from the shared cache —
+    // `ActionPersistence` gates `recordCache` on `deviation === undefined` —
+    // so an unexplained absence never reaches another host in either mode.
+    await expect(runPromise(program)).resolves.toMatchObject({
+      deviation: { _tag: "MissingDeclaredOutput", paths: ["output.txt"], diffIdentity: "d5" }
+    })
+  })
+
+  it("legalizes an absence the boundary declared as a removal", async () => {
+    const program = Effect.gen(function*() {
+      const boundary = yield* StepBoundary.StepBoundary
+      const prepared = yield* boundary.prepare({
+        ...descriptor,
+        writeSet: ["output.txt"],
+        removes: ["stale.txt"]
+      })
+      return yield* boundary.settle(prepared)
+    }).pipe(Effect.provide(StepBoundary.layerTest({ missingOutputs: ["stale.txt"], changedPaths: ["stale.txt"] })))
+    const evidence = await runPromise(program)
+    expect(evidence.deviation).toBeUndefined()
+  })
+
   it("fails closed when the host does not support boundaries", async () => {
     const program = Effect.gen(function*() {
       const boundary = yield* StepBoundary.StepBoundary
@@ -193,6 +235,88 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
     expect(evidence.deviation).toMatchObject({ _tag: "ExpectedSetDeviation", paths: ["input.txt"] })
   })
 
+  it("hard-fails a declared output the body never produced", async () => {
+    // Bazel's `checkOutputs`. Recording the absence as `digest: null` would
+    // cache the claim "this file should not exist", and every later
+    // `replayOutputs` would act on it by DELETING the path on a workspace that
+    // never ran the step — a crash mid-body would poison the cache with an
+    // eraser.
+    const host = memoryFs({ "input.txt": "original" })
+    const failure = await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        const prepared = yield* boundary.prepare(declared("original"))
+        // The body never wrote `output.txt`.
+        return yield* Effect.flip(boundary.settle(prepared))
+      }).pipe(Effect.provide(host.layer))
+    )
+    expect(failure).toMatchObject({
+      _tag: "flows/engine-store/MissingDeclaredOutput",
+      code: "missing_declared_output",
+      paths: ["output.txt"]
+    })
+  })
+
+  it("records the absence as a deviation under an expected boundary", async () => {
+    const host = memoryFs({ "input.txt": "original" })
+    const evidence = await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        const prepared = yield* boundary.prepare({ ...declared("original"), boundaryMode: "expected" })
+        return yield* boundary.settle(prepared)
+      }).pipe(Effect.provide(host.layer))
+    )
+    expect(evidence.deviation).toMatchObject({ _tag: "MissingDeclaredOutput", paths: ["output.txt"] })
+  })
+
+  it("legalizes a declared removal, and replay still deletes it", async () => {
+    const producer = memoryFs({ "input.txt": "original", "stale.txt": "obsolete" })
+    const evidence = await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        const prepared = yield* boundary.prepare({
+          ...declared("original"),
+          writeSet: ["output.txt"],
+          removes: ["stale.txt"]
+        })
+        producer.files.set("output.txt", encoder.encode("built"))
+        producer.files.delete("stale.txt")
+        return yield* boundary.settle(prepared)
+      }).pipe(Effect.provide(producer.layer))
+    )
+    // Declared, therefore evidence rather than a defect — and it keeps the
+    // `digest: null` capture that makes replay delete the path.
+    expect(evidence.deviation).toBeUndefined()
+
+    const consumer = memoryFs({ "stale.txt": "still here" })
+    await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        yield* boundary.replayOutputs(evidence)
+      }).pipe(Effect.provide(consumer.layer))
+    )
+    expect(consumer.files.has("stale.txt")).toBe(false)
+    expect(decoder.decode(consumer.files.get("output.txt"))).toBe("built")
+  })
+
+  it("does not count a declared removal as an undeclared write", async () => {
+    const host = memoryFs({ "input.txt": "original", "output.txt": "built" })
+    const evidence = await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        const prepared = yield* boundary.prepare({
+          readSet: [{ path: "input.txt", digest: sha256("original") }],
+          writeSet: ["output.txt"],
+          removes: ["input.txt"],
+          boundaryMode: "hard"
+        })
+        host.files.delete("input.txt")
+        return yield* boundary.settle(prepared)
+      }).pipe(Effect.provide(host.layer))
+    )
+    expect(evidence.deviation).toBeUndefined()
+  })
+
   it("captures write-set outputs and re-materializes them on a fresh workspace", async () => {
     const producer = memoryFs({ "input.txt": "original" })
     const evidence = await runPromise(
@@ -218,7 +342,12 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
           // A declared read that is also a declared write is exempt from the
           // undeclared-mutation check: mutating it is the declared contract.
           readSet: [{ path: "output.txt", digest: sha256("pre-state") }],
-          writeSet: ["output.txt", "stale.txt", "gone.txt"],
+          writeSet: ["output.txt"],
+          // The digest-null capture that makes replay delete a path is now
+          // reachable only through a DECLARED removal: an undeclared absence
+          // is a `MissingDeclaredOutput` defect, because caching it would hand
+          // every later replay an eraser.
+          removes: ["stale.txt", "gone.txt"],
           boundaryMode: "hard"
         })
         replayer.files.set("output.txt", encoder.encode("produced artifact"))

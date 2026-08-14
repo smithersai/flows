@@ -18,6 +18,12 @@ import * as Schema from "effect/Schema"
 export const Effects = Schema.Struct({
   reads: Schema.Array(Schema.String),
   writes: Schema.Array(Schema.String),
+  /**
+   * Paths the flow declares it will DELETE. Optional with an empty default:
+   * an absent declared write is a defect, and a declared removal is what makes
+   * an absent path legitimate instead.
+   */
+  removes: Schema.optional(Schema.Array(Schema.String)),
   boundaryMode: Schema.Literals(["hard", "expected"])
 })
 

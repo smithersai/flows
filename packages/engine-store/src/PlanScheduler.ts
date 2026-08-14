@@ -413,12 +413,17 @@ export const make = (options: Options): Service => {
       }
 
       /**
-       * Which node declares each write path. First declaration wins, matching
-       * the plan compiler's declaration-order conflict resolution.
+       * Which node produces each path. First declaration wins, matching the
+       * plan compiler's declaration-order conflict resolution. A declared
+       * removal counts: the plan produces that path's post-state, so pinning
+       * it as an unproduced source input would measure the world at a moment
+       * the plan is about to move.
        */
       const indexWriters = () => {
         for (const node of plan.nodes) {
-          for (const path of node.effects.writes) if (!writers.has(path)) writers.set(path, node.id)
+          for (const path of [...node.effects.writes, ...node.effects.removes ?? []]) {
+            if (!writers.has(path)) writers.set(path, node.id)
+          }
         }
       }
       indexWriters()
@@ -463,6 +468,9 @@ export const make = (options: Options): Service => {
           return {
             readSet: node.effects.reads.map((path) => ({ path, digest: measured.get(path)! })),
             writeSet: node.effects.writes,
+            // Declared removals travel with the boundary: they are what makes
+            // an absent declared output legitimate rather than a defect.
+            ...(node.effects.removes === undefined ? {} : { removes: node.effects.removes }),
             boundaryMode: node.effects.boundaryMode
           } satisfies FileBoundary
         })

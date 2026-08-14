@@ -23,6 +23,7 @@ export const draft = (
     readonly inputs?: ReadonlyArray<KeyMaterial.InputRef>
     readonly reads?: ReadonlyArray<string>
     readonly writes?: ReadonlyArray<string>
+    readonly removes?: ReadonlyArray<string>
   } & Omit<Plan.NodeDraft, "id" | "material" | "effects"> = {}
 ): Plan.NodeDraft => ({
   id,
@@ -34,7 +35,10 @@ export const draft = (
     layers: [],
     capabilities: []
   },
-  effects: effects(options.reads ?? [], options.writes ?? []),
+  effects: {
+    ...effects(options.reads ?? [], options.writes ?? []),
+    ...(options.removes === undefined ? {} : { removes: options.removes })
+  },
   ...(options.kind === undefined ? {} : { kind: options.kind }),
   ...(options.priority === undefined ? {} : { priority: options.priority }),
   ...(options.conflictStrategy === undefined ? {} : { conflictStrategy: options.conflictStrategy }),
@@ -173,6 +177,26 @@ describe("Plan.compile reader-after-writer edges", () => {
     }
     return [...order.keys()].every(visit)
   }
+
+  it("treats a declared removal as a write for ordering and for conflict detection", async () => {
+    // A removal moves a path's content exactly as a write does: a reader that
+    // runs before it sees different bytes than one that runs after, and two
+    // nodes that both claim a path's post-state conflict whether either of
+    // them claims it by creating the path or by deleting it.
+    const ordered = await runPromise(compile([
+      draft("remover", { writes: ["remover.out"], removes: ["stale"] }),
+      draft("reader", { reads: ["stale"] })
+    ]))
+    expect(ordered.nodes.find((node) => node.id === "reader")!.dependsOn).toEqual(["remover"])
+
+    const conflicting = await runPromise(compile([
+      draft("writer", { writes: ["shared"] }),
+      draft("remover", { writes: ["remover.out"], removes: ["shared"] })
+    ]))
+    expect(conflicting.nodes.find((node) => node.id === "remover")!.conflicts).toMatchObject([
+      { with: "writer", paths: ["shared"] }
+    ])
+  })
 
   it("orders a reader behind the node that writes what it reads", async () => {
     const unrelated = await runPromise(compile([
