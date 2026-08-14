@@ -4,6 +4,8 @@ import * as Effect from "effect/Effect"
 import * as Encoding from "effect/Encoding"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
+import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as StepBoundary from "../src/StepBoundary.ts"
 
@@ -207,7 +209,9 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
     }
     for (const path of files.keys()) addParentDirectories(path)
     const failedReads = new Set<string>()
+    const mtimes = new Map<string, number>()
     const madeDirectories: Array<string> = []
+    const reads: Array<string> = []
     const removals: Array<string> = []
     const writes: Array<string> = []
     const present = (path: string) =>
@@ -218,6 +222,7 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
       exists: ((path: string) => Effect.succeed(present(path))) as never,
       readFile: ((path: string) =>
         Effect.suspend(() => {
+          reads.push(path)
           if (failedReads.delete(path)) return Effect.fail(new Error(`EIO: ${path}`))
           const bytes = files.get(path)
           return bytes === undefined ? Effect.fail(new Error(`ENOENT: ${path}`)) : Effect.succeed(bytes)
@@ -284,7 +289,13 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
         })) as never,
       stat: ((path: string) =>
         files.has(path)
-          ? Effect.succeed({ type: "File" })
+          ? Effect.succeed({
+            type: "File",
+            size: FileSystem.Size(files.get(path)!.length),
+            mtime: Option.some(new Date(mtimes.get(path) ?? Date.now())),
+            dev: 1,
+            ino: Option.some(1)
+          })
           : present(path)
           ? Effect.succeed({ type: "Directory" })
           : Effect.fail(new Error(`ENOENT: ${path}`))) as never
@@ -295,6 +306,8 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
       files,
       fs,
       madeDirectories,
+      mtimes,
+      reads,
       removals,
       writes,
       layer: StepBoundary.layer.pipe(Layer.provide(hostLayer(fs)))
@@ -318,6 +331,184 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
     // The stale declaration must be refused: the measured digest differs.
     expect(StepBoundary.readSetMatches(prepared)).toBe(false)
     expect(prepared.readSnapshot[0]!.digest).toBe(sha256("post-edit content"))
+  })
+
+  it("reads an unchanged, old file once across repeated measurements", async () => {
+    const host = memoryFs({ "memo.txt": "stable" })
+    host.mtimes.set("memo.txt", 0)
+    const boundary = StepBoundary.makeFileSystem(host.fs, ArtifactStore.makeNoop())
+    const snapshots = await runPromise(
+      Effect.gen(function*() {
+        yield* TestClock.setTime(3_000)
+        const descriptor: FileBoundary = {
+          readSet: [{ path: "memo.txt", digest: sha256("stable") }],
+          writeSet: [],
+          boundaryMode: "hard"
+        }
+        return [yield* boundary.prepare(descriptor), yield* boundary.prepare(descriptor)]
+      }).pipe(Effect.provide(TestClock.layer()))
+    )
+
+    expect(host.reads).toEqual(["memo.txt"])
+    expect(snapshots.map((snapshot) => snapshot.readSnapshot[0]?.digest)).toEqual([
+      sha256("stable"),
+      sha256("stable")
+    ])
+  })
+
+  it("reuses a trusted digest while capture reads the payload only once", async () => {
+    const host = memoryFs({ "memo.txt": "stable" })
+    host.mtimes.set("memo.txt", 0)
+    const boundary = StepBoundary.makeFileSystem(host.fs, ArtifactStore.makeNoop())
+    const evidence = await runPromise(
+      Effect.gen(function*() {
+        yield* TestClock.setTime(3_000)
+        const prepared = yield* boundary.prepare({
+          readSet: [{ path: "memo.txt", digest: sha256("stable") }],
+          writeSet: ["memo.txt"],
+          boundaryMode: "hard"
+        })
+        return yield* boundary.settle(prepared)
+      }).pipe(Effect.provide(TestClock.layer()))
+    )
+
+    // Prepare reads and hashes once. Capture trusts that digest, then performs
+    // only the content read it needs for the inline payload.
+    expect(host.reads).toEqual(["memo.txt", "memo.txt"])
+    expect(evidence.declaredOutputs).toMatchObject({
+      outputs: [{ path: "memo.txt", digest: sha256("stable") }]
+    })
+  })
+
+  it("re-hashes when stat identity changes and returns the new digest", async () => {
+    const host = memoryFs({ "memo.txt": "old" })
+    host.mtimes.set("memo.txt", 0)
+    const boundary = StepBoundary.makeFileSystem(host.fs, ArtifactStore.makeNoop())
+    const digests = await runPromise(
+      Effect.gen(function*() {
+        yield* TestClock.setTime(3_000)
+        const descriptor: FileBoundary = {
+          readSet: [{ path: "memo.txt", digest: sha256("old") }],
+          writeSet: [],
+          boundaryMode: "hard"
+        }
+        const before = yield* boundary.prepare(descriptor)
+        host.files.set("memo.txt", encoder.encode("new-size"))
+        const after = yield* boundary.prepare(descriptor)
+        return [before.readSnapshot[0]!.digest, after.readSnapshot[0]!.digest]
+      }).pipe(Effect.provide(TestClock.layer()))
+    )
+
+    expect(host.reads).toEqual(["memo.txt", "memo.txt"])
+    expect(digests).toEqual([sha256("old"), sha256("new-size")])
+  })
+
+  it("re-hashes a recent same-size rewrite even when its stat identity is unchanged", async () => {
+    const host = memoryFs({ "memo.txt": "before" })
+    host.mtimes.set("memo.txt", 10_000)
+    const boundary = StepBoundary.makeFileSystem(host.fs, ArtifactStore.makeNoop())
+    const digest = await runPromise(
+      Effect.gen(function*() {
+        yield* TestClock.setTime(10_000)
+        const descriptor: FileBoundary = {
+          readSet: [{ path: "memo.txt", digest: sha256("before") }],
+          writeSet: [],
+          boundaryMode: "hard"
+        }
+        yield* boundary.prepare(descriptor)
+        // Same path, size, mtime, device, and inode: only the recency guard
+        // keeps coarse timestamp granularity from hiding this rewrite.
+        host.files.set("memo.txt", encoder.encode("after!"))
+        return (yield* boundary.prepare(descriptor)).readSnapshot[0]!.digest
+      }).pipe(Effect.provide(TestClock.layer()))
+    )
+
+    expect(host.reads).toEqual(["memo.txt", "memo.txt"])
+    expect(digest).toBe(sha256("after!"))
+  })
+
+  it("evicts the least-recent digest at the configured cap", async () => {
+    const host = memoryFs({ "a.txt": "a", "b.txt": "b", "c.txt": "c" })
+    for (const path of host.files.keys()) host.mtimes.set(path, 0)
+    const boundary = StepBoundary.makeFileSystem(host.fs, ArtifactStore.makeNoop(), {
+      maxDigestMemoEntries: 2
+    })
+    const last = await runPromise(
+      Effect.gen(function*() {
+        yield* TestClock.setTime(3_000)
+        const measure = (path: string) =>
+          boundary.prepare({
+            readSet: [{ path, digest: "declared" }],
+            writeSet: [],
+            boundaryMode: "hard"
+          })
+        yield* measure("a.txt")
+        yield* measure("b.txt")
+        yield* measure("c.txt")
+        return (yield* measure("a.txt")).readSnapshot[0]!.digest
+      }).pipe(Effect.provide(TestClock.layer()))
+    )
+
+    expect(host.reads).toEqual(["a.txt", "b.txt", "c.txt", "a.txt"])
+    expect(last).toBe(sha256("a"))
+  })
+
+  it("falls back to read-and-hash without memoizing when stat is unavailable", async () => {
+    const reads: Array<string> = []
+    const fs = FileSystem.makeNoop({
+      exists: (() => Effect.succeed(true)) as never,
+      stat: (() => Effect.fail(new Error("ENOTSUP: stat"))) as never,
+      readFile: (() =>
+        Effect.sync(() => {
+          reads.push("fallback.txt")
+          return encoder.encode("fallback")
+        })) as never
+    })
+    const boundary = StepBoundary.makeFileSystem(fs, ArtifactStore.makeNoop())
+    const descriptor: FileBoundary = {
+      readSet: [{ path: "fallback.txt", digest: sha256("fallback") }],
+      writeSet: [],
+      boundaryMode: "hard"
+    }
+
+    const snapshots = await runPromise(Effect.all([
+      boundary.prepare(descriptor),
+      boundary.prepare(descriptor)
+    ]))
+    expect(reads).toEqual(["fallback.txt", "fallback.txt"])
+    expect(snapshots.every(StepBoundary.readSetMatches)).toBe(true)
+  })
+
+  it("does not trust stat identities whose optional mtime is unavailable", async () => {
+    const reads: Array<string> = []
+    const fs = FileSystem.makeNoop({
+      exists: (() => Effect.succeed(true)) as never,
+      stat: (() =>
+        Effect.succeed({
+          type: "File",
+          size: FileSystem.Size(8),
+          mtime: Option.none(),
+          dev: 1,
+          ino: Option.none()
+        })) as never,
+      readFile: (() =>
+        Effect.sync(() => {
+          reads.push("timeless.txt")
+          return encoder.encode("timeless")
+        })) as never
+    })
+    const boundary = StepBoundary.makeFileSystem(fs, ArtifactStore.makeNoop())
+    const descriptor: FileBoundary = {
+      readSet: [{ path: "timeless.txt", digest: sha256("timeless") }],
+      writeSet: [],
+      boundaryMode: "hard"
+    }
+
+    await runPromise(Effect.gen(function*() {
+      yield* boundary.prepare(descriptor)
+      yield* boundary.prepare(descriptor)
+    }))
+    expect(reads).toEqual(["timeless.txt", "timeless.txt"])
   })
 
   it("accepts a declaration that still matches the measured files", async () => {
