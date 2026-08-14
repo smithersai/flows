@@ -1,13 +1,12 @@
+import { describe, expect, it } from "@effect/vitest"
 import * as Capability from "@smthrs/capability-next/Capability"
 import * as Permission from "@smthrs/capability-next/Permission"
 import { Effect, FileSystem as EffectFileSystem, Option, Path as EffectPath, type PlatformError, Stream } from "effect"
-import { describe, expect, it } from "vitest"
 import * as FileSystem from "../src/FileSystem.ts"
 import { GrantStore } from "../src/GrantStore.ts"
 import * as Workspace from "../src/Workspace.ts"
 
-const itEffect = (name: string, effect: () => Effect.Effect<void, unknown, never>) =>
-  it(name, () => Effect.runPromise(effect()))
+const itEffect = (name: string, effect: () => Effect.Effect<void, unknown, never>) => it.effect(name, () => effect())
 
 /**
  * Effect's `FileSystem` tag fixes its error channel to `PlatformError`, so the

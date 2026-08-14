@@ -3,16 +3,16 @@
  * ordinary deferred completion path resumes it, and what a settled wait does on
  * replay.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { Action, DurableDeferred, Flow, FlowRuntime, Graph, Interpreter, WaitFor } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
-import { describe, expect, it } from "vitest"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 import { layerMemory, makeInstance } from "./MemoryFlowRuntime.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body()))
+  it.effect(name, () => withCrypto(body()))
 
 const pollComplete = <A, E, R>(
   poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>
@@ -62,22 +62,23 @@ const Other = Flow.make("waitFor/other", { payload: {}, body: () => Node.succeed
 const drive = <A, E>(
   effect: Effect.Effect<A, E, FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime | Action.Implementations>,
   instance: FlowRuntime.FlowInstance["Service"]
-): Promise<A> =>
-  runPromise(
+) =>
+  withCrypto(
     effect.pipe(
       Effect.provideService(FlowRuntime.FlowInstance, instance),
       Effect.provide(wired())
     )
   )
 
-const refusal = async (node: Node.Node<unknown, unknown>): Promise<unknown> => {
-  const exit = await drive(
-    Effect.exit(Interpreter.interpret(node)),
-    makeInstance(Host, "waitFor-refusal")
-  )
-  expect(Exit.isFailure(exit)).toBe(true)
-  return Exit.isFailure(exit) ? exit.cause.reasons[0] : undefined
-}
+const refusal = (node: Node.Node<unknown, unknown>) =>
+  Effect.gen(function*() {
+    const exit = yield* drive(
+      Effect.exit(Interpreter.interpret(node)),
+      makeInstance(Host, "waitFor-refusal")
+    )
+    expect(Exit.isFailure(exit)).toBe(true)
+    return Exit.isFailure(exit) ? exit.cause.reasons[0] : undefined
+  })
 
 describe("WaitFor as a plan node", () => {
   const Gated = Flow.make("waitFor/plan", {
@@ -174,110 +175,117 @@ describe("WaitFor parks", () => {
 })
 
 describe("WaitFor replays", () => {
-  it("does not park again once its result is recorded", async () => {
-    const instance = makeInstance(Host, "waitFor-replay")
-    await drive(
-      Effect.gen(function*() {
-        const gate = WaitFor.deferred("recorded")
-        const token = DurableDeferred.tokenFromExecutionId(gate, {
-          flow: Host,
-          executionId: "waitFor-replay"
-        })
-        yield* DurableDeferred.succeed(gate, { token, value: "already" })
+  it.effect("does not park again once its result is recorded", () =>
+    Effect.gen(function*() {
+      const instance = makeInstance(Host, "waitFor-replay")
+      yield* drive(
+        Effect.gen(function*() {
+          const gate = WaitFor.deferred("recorded")
+          const token = DurableDeferred.tokenFromExecutionId(gate, {
+            flow: Host,
+            executionId: "waitFor-replay"
+          })
+          yield* DurableDeferred.succeed(gate, { token, value: "already" })
 
-        const interpretation = yield* Interpreter.interpret(WaitFor.action.call({ name: "recorded" }))
-        expect(interpretation.value).toBe("already")
-      }),
-      instance
-    )
-    expect(instance.suspended).toBe(false)
-    // The persisted result consumes the declared classification, so a later
-    // suspension parks under its own reason.
-    expect(instance.waiting).toBeUndefined()
-  })
+          const interpretation = yield* Interpreter.interpret(WaitFor.action.call({ name: "recorded" }))
+          expect(interpretation.value).toBe("already")
+        }),
+        instance
+      )
+      expect(instance.suspended).toBe(false)
+      // The persisted result consumes the declared classification, so a later
+      // suspension parks under its own reason.
+      expect(instance.waiting).toBeUndefined()
+    }))
 
-  it("awaits the wait point an absolute token names", async () => {
-    const instance = makeInstance(Host, "waitFor-token")
-    await drive(
-      Effect.gen(function*() {
-        const gate = WaitFor.deferred("by-token")
-        const token = DurableDeferred.tokenFromExecutionId(gate, {
-          flow: Host,
-          executionId: "waitFor-token"
-        })
-        yield* DurableDeferred.succeed(gate, { token, value: ["resolved"] })
+  it.effect("awaits the wait point an absolute token names", () =>
+    Effect.gen(function*() {
+      const instance = makeInstance(Host, "waitFor-token")
+      yield* drive(
+        Effect.gen(function*() {
+          const gate = WaitFor.deferred("by-token")
+          const token = DurableDeferred.tokenFromExecutionId(gate, {
+            flow: Host,
+            executionId: "waitFor-token"
+          })
+          yield* DurableDeferred.succeed(gate, { token, value: ["resolved"] })
 
-        const interpretation = yield* Interpreter.interpret(WaitFor.action.call({ token }))
-        expect(interpretation.value).toEqual(["resolved"])
-      }),
-      instance
-    )
-    expect(instance.suspended).toBe(false)
-  })
+          const interpretation = yield* Interpreter.interpret(WaitFor.action.call({ token }))
+          expect(interpretation.value).toEqual(["resolved"])
+        }),
+        instance
+      )
+      expect(instance.suspended).toBe(false)
+    }))
 })
 
 describe("WaitFor refusals", () => {
-  it("refuses a payload that names no wait point", async () => {
-    expect(await refusal(WaitFor.action.call({}))).toMatchObject({
-      error: {
-        _tag: "@smthrs/flow-next/WaitForRequestInvalid",
-        code: "missing_target",
-        message: expect.stringContaining("neither")
-      }
-    })
-  })
+  it.effect("refuses a payload that names no wait point", () =>
+    Effect.gen(function*() {
+      expect(yield* refusal(WaitFor.action.call({}))).toMatchObject({
+        error: {
+          _tag: "@smthrs/flow-next/WaitForRequestInvalid",
+          code: "missing_target",
+          message: expect.stringContaining("neither")
+        }
+      })
+    }))
 
-  it("refuses a payload that names both a token and a name", async () => {
-    expect(
-      await refusal(WaitFor.action.call({ name: "gate", token: "anything" }))
-    ).toMatchObject({
-      error: {
-        _tag: "@smthrs/flow-next/WaitForRequestInvalid",
-        code: "ambiguous_target",
-        message: expect.stringContaining("one wait point")
-      }
-    })
-  })
+  it.effect("refuses a payload that names both a token and a name", () =>
+    Effect.gen(function*() {
+      expect(
+        yield* refusal(WaitFor.action.call({ name: "gate", token: "anything" }))
+      ).toMatchObject({
+        error: {
+          _tag: "@smthrs/flow-next/WaitForRequestInvalid",
+          code: "ambiguous_target",
+          message: expect.stringContaining("one wait point")
+        }
+      })
+    }))
 
-  it("refuses a token that is not a durable deferred token", async () => {
-    expect(await refusal(WaitFor.action.call({ token: "not a token" }))).toMatchObject({
-      error: {
-        _tag: "@smthrs/flow-next/WaitForRequestInvalid",
-        code: "malformed_token"
-      }
-    })
-  })
+  it.effect("refuses a token that is not a durable deferred token", () =>
+    Effect.gen(function*() {
+      expect(yield* refusal(WaitFor.action.call({ token: "not a token" }))).toMatchObject({
+        error: {
+          _tag: "@smthrs/flow-next/WaitForRequestInvalid",
+          code: "malformed_token"
+        }
+      })
+    }))
 
-  it("refuses a token addressed to another execution", async () => {
-    const foreign = DurableDeferred.tokenFromExecutionId(WaitFor.deferred("elsewhere"), {
-      flow: Host,
-      executionId: "some-other-execution"
-    })
+  it.effect("refuses a token addressed to another execution", () =>
+    Effect.gen(function*() {
+      const foreign = DurableDeferred.tokenFromExecutionId(WaitFor.deferred("elsewhere"), {
+        flow: Host,
+        executionId: "some-other-execution"
+      })
 
-    expect(await refusal(WaitFor.action.call({ token: foreign }))).toMatchObject({
-      error: {
-        _tag: "@smthrs/flow-next/WaitForRequestInvalid",
-        code: "foreign_execution",
-        message: expect.stringContaining("some-other-execution")
-      }
-    })
-  })
+      expect(yield* refusal(WaitFor.action.call({ token: foreign }))).toMatchObject({
+        error: {
+          _tag: "@smthrs/flow-next/WaitForRequestInvalid",
+          code: "foreign_execution",
+          message: expect.stringContaining("some-other-execution")
+        }
+      })
+    }))
 
-  it("refuses a same-execution token addressed to another flow", async () => {
-    // Completion is recorded against (flow name, execution id, deferred name),
-    // so a token minted for another flow would be satisfied under that flow
-    // while this one reads under its own: a park nothing ever wakes.
-    const foreign = DurableDeferred.tokenFromExecutionId(WaitFor.deferred("elsewhere"), {
-      flow: Other,
-      executionId: "waitFor-refusal"
-    })
+  it.effect("refuses a same-execution token addressed to another flow", () =>
+    Effect.gen(function*() {
+      // Completion is recorded against (flow name, execution id, deferred name),
+      // so a token minted for another flow would be satisfied under that flow
+      // while this one reads under its own: a park nothing ever wakes.
+      const foreign = DurableDeferred.tokenFromExecutionId(WaitFor.deferred("elsewhere"), {
+        flow: Other,
+        executionId: "waitFor-refusal"
+      })
 
-    expect(await refusal(WaitFor.action.call({ token: foreign }))).toMatchObject({
-      error: {
-        _tag: "@smthrs/flow-next/WaitForRequestInvalid",
-        code: "foreign_execution",
-        message: expect.stringContaining("waitFor/other")
-      }
-    })
-  })
+      expect(yield* refusal(WaitFor.action.call({ token: foreign }))).toMatchObject({
+        error: {
+          _tag: "@smthrs/flow-next/WaitForRequestInvalid",
+          code: "foreign_execution",
+          message: expect.stringContaining("waitFor/other")
+        }
+      })
+    }))
 })

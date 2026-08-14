@@ -1,5 +1,6 @@
 import * as NodeChildProcessSpawner from "@effect/platform-node/NodeChildProcessSpawner"
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
+import { afterEach, describe, expect, it } from "@effect/vitest"
 import { CapabilityPattern } from "@smthrs/capability-next/Capability"
 import * as Permission from "@smthrs/capability-next/Permission"
 import { Deferred, Effect, Fiber, Option, Path, type PlatformError } from "effect"
@@ -8,7 +9,6 @@ import { ChildProcessSpawner as EffectChildProcessSpawner } from "effect/unstabl
 import { access, mkdtemp, readFile, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
 import * as ChildProcessSpawner from "../src/ChildProcessSpawner.ts"
 import * as CommandLine from "../src/CommandLine.ts"
 import * as GrantStore from "../src/GrantStore.ts"
@@ -70,99 +70,102 @@ const waitForEsrch = async (pid: number): Promise<void> => {
 }
 
 describe("ChildProcessSpawner real Node lifecycle", () => {
-  it("leaves no process side effect when the real store denies before spawn", async () => {
-    const directory = await temporaryDirectory()
-    const token = join(directory, "denied-token")
-    const command = ChildProcess.make(process.execPath, [
-      "-e",
-      "require('node:fs').writeFileSync(process.argv[1], 'spawned')",
-      token
-    ])
+  it.effect("leaves no process side effect when the real store denies before spawn", () =>
+    Effect.gen(function*() {
+      const directory = yield* Effect.promise(() => temporaryDirectory())
+      const token = join(directory, "denied-token")
+      const command = ChildProcess.make(process.execPath, [
+        "-e",
+        "require('node:fs').writeFileSync(process.argv[1], 'spawned')",
+        token
+      ])
 
-    const failure = await Effect.runPromise(
-      withGuardedSpawner({ attended: false, runId: "denied-process" }, () =>
-        Effect.gen(function*() {
-          const spawner = yield* EffectChildProcessSpawner
-          return yield* Effect.flip(spawner.exitCode(command))
-        }))
-    )
-    const permission = Option.getOrThrow(
-      Permission.fromPlatformError(failure as PlatformError.PlatformError)
-    )
+      const failure = yield* (
+        withGuardedSpawner({ attended: false, runId: "denied-process" }, () =>
+          Effect.gen(function*() {
+            const spawner = yield* EffectChildProcessSpawner
+            return yield* Effect.flip(spawner.exitCode(command))
+          }))
+      )
+      const permission = Option.getOrThrow(
+        Permission.fromPlatformError(failure as PlatformError.PlatformError)
+      )
 
-    expect(permission).toBeInstanceOf(Permission.PermissionRequired)
-    expect(permission).toMatchObject({
-      code: "permission_required",
-      capability: { action: "proc:spawn", resource: CommandLine.render(command) }
-    })
-    expect(await exists(token)).toBe(false)
-  })
+      expect(permission).toBeInstanceOf(Permission.PermissionRequired)
+      expect(permission).toMatchObject({
+        code: "permission_required",
+        capability: { action: "proc:spawn", resource: CommandLine.render(command) }
+      })
+      expect(yield* Effect.promise(() => exists(token))).toBe(false)
+    }))
 
-  it("executes exactly once after replying to the attended pending request", async () => {
-    const directory = await temporaryDirectory()
-    const token = join(directory, "attended-token")
-    const command = ChildProcess.make(process.execPath, [
-      "-e",
-      "require('node:fs').appendFileSync(process.argv[1], 'x')",
-      token
-    ])
+  it.effect("executes exactly once after replying to the attended pending request", () =>
+    Effect.gen(function*() {
+      const directory = yield* Effect.promise(() => temporaryDirectory())
+      const token = join(directory, "attended-token")
+      const command = ChildProcess.make(process.execPath, [
+        "-e",
+        "require('node:fs').appendFileSync(process.argv[1], 'x')",
+        token
+      ])
 
-    const exitCode = await Effect.runPromise(
-      withGuardedSpawner({ runId: "attended-process" }, (store) =>
-        Effect.gen(function*() {
-          const spawner = yield* EffectChildProcessSpawner
-          const execution = yield* spawner.exitCode(command).pipe(
-            Effect.forkChild({ startImmediately: true })
-          )
-          const pending = yield* awaitPending(store)
-          expect(pending.capability).toMatchObject({
-            action: "proc:spawn",
-            resource: CommandLine.render(command)
-          })
-          expect(yield* Effect.promise(() => exists(token))).toBe(false)
-
-          yield* store.reply(pending.requestId, "once")
-          return yield* Fiber.join(execution)
-        }))
-    )
-
-    expect(exitCode).toBe(0)
-    expect(await readFile(token, "utf8")).toBe("x")
-  })
-
-  it("reaps a real child when its owning fiber is interrupted", async () => {
-    const command = ChildProcess.make(process.execPath, [
-      "-e",
-      "setInterval(() => {}, 1_000)"
-    ])
-    const pattern = new CapabilityPattern({
-      action: "proc:spawn",
-      resource: CommandLine.render(command)
-    })
-
-    const pid = await Effect.runPromise(
-      withGuardedSpawner({
-        attended: false,
-        rules: [new Permission.Rule({ effect: "allow", pattern })]
-      }, () =>
-        Effect.gen(function*() {
-          const spawner = yield* EffectChildProcessSpawner
-          const started = yield* Deferred.make<number>()
-          const owner = yield* Effect.scoped(
-            Effect.gen(function*() {
-              const handle = yield* spawner.spawn(command)
-              yield* Deferred.succeed(started, Number(handle.pid))
-              return yield* Effect.never
+      const exitCode = yield* (
+        withGuardedSpawner({ runId: "attended-process" }, (store) =>
+          Effect.gen(function*() {
+            const spawner = yield* EffectChildProcessSpawner
+            const execution = yield* spawner.exitCode(command).pipe(
+              Effect.forkChild({ startImmediately: true })
+            )
+            const pending = yield* awaitPending(store)
+            expect(pending.capability).toMatchObject({
+              action: "proc:spawn",
+              resource: CommandLine.render(command)
             })
-          ).pipe(Effect.forkChild({ startImmediately: true }))
-          const pid = yield* Deferred.await(started)
-          expect(() => process.kill(pid, 0)).not.toThrow()
-          yield* Fiber.interrupt(owner)
-          return pid
-        }))
-    )
+            expect(yield* Effect.promise(() => exists(token))).toBe(false)
 
-    await waitForEsrch(pid)
-    expect(() => process.kill(pid, 0)).toThrow(expect.objectContaining({ code: "ESRCH" }))
-  })
+            yield* store.reply(pending.requestId, "once")
+            return yield* Fiber.join(execution)
+          }))
+      )
+
+      expect(exitCode).toBe(0)
+      expect(yield* Effect.promise(() => readFile(token, "utf8"))).toBe("x")
+    }))
+
+  it.effect("reaps a real child when its owning fiber is interrupted", () =>
+    Effect.gen(function*() {
+      const command = ChildProcess.make(process.execPath, [
+        "-e",
+        "setInterval(() => {}, 1_000)"
+      ])
+      const pattern = new CapabilityPattern({
+        action: "proc:spawn",
+        resource: CommandLine.render(command)
+      })
+
+      const pid = yield* (
+        withGuardedSpawner({
+          attended: false,
+          rules: [new Permission.Rule({ effect: "allow", pattern })]
+        }, () =>
+          Effect.gen(function*() {
+            const spawner = yield* EffectChildProcessSpawner
+            const started = yield* Deferred.make<number>()
+            const owner = yield* Effect.scoped(
+              Effect.gen(function*() {
+                const handle = yield* spawner.spawn(command)
+                yield* Deferred.succeed(started, Number(handle.pid))
+                return yield* Effect.never
+              })
+            ).pipe(Effect.forkChild({ startImmediately: true }))
+            const pid = yield* Deferred.await(started)
+            expect(() => process.kill(pid, 0)).not.toThrow()
+            yield* Fiber.interrupt(owner)
+            return pid
+          }))
+      )
+
+      yield* Effect.promise(() => waitForEsrch(pid))
+      expect(() => process.kill(pid, 0)).toThrow(expect.objectContaining({ code: "ESRCH" }))
+    }))
 })

@@ -27,12 +27,10 @@ const memoryHarness: Harness = {
   label: "TestDatabase, one shared in-memory connection",
   realDriver: false,
   run: (body) =>
-    Effect.runPromise(
-      Effect.scoped(Effect.gen(function*() {
-        const side = yield* connect(TestDatabase.layer)
-        return yield* body({ a: side, b: side })
-      })) as Effect.Effect<never>
-    )
+    Effect.scoped(Effect.gen(function*() {
+      const side = yield* connect(TestDatabase.layer)
+      return yield* body({ a: side, b: side })
+    })) as Effect.Effect<never>
 }
 
 describeContract(memoryHarness)

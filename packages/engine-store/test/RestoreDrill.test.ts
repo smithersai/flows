@@ -17,6 +17,7 @@
  * 4. The source store is untouched: its owner keeps its fence there.
  */
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
+import { describe, expect, it } from "@effect/vitest"
 import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
 import { DurableWriter } from "@smthrs/database-next"
 import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
@@ -32,7 +33,6 @@ import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { mkdirSync, mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { describe, expect, it } from "vitest"
 import * as DisasterRecovery from "../src/DisasterRecovery.ts"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
@@ -41,7 +41,7 @@ import * as Migrations from "../src/Migrations.ts"
 import * as OwnerIdentity from "../src/OwnerIdentity.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
-import { runPromise, sha256 } from "./Sha256.ts"
+import { sha256, withCrypto } from "./Sha256.ts"
 
 const ownerA: Ownership.OwnerId = { hostId: "drill-host", pid: 11, nonce: "owner-a" }
 const ownerB: Ownership.OwnerId = { hostId: "drill-host", pid: 12, nonce: "owner-b" }
@@ -134,420 +134,422 @@ const snapshotOf = (row: RunStore.RunRow): RunStore.RunSnapshot => ({
 })
 
 describe("restore drill", () => {
-  it("restores and resumes a real registered flow from a mid-action hot backup", async () => {
-    const base = mkdtempSync(join(tmpdir(), "flows-drill-engine-"))
-    mkdirSync(join(base, "live"), { recursive: true })
-    const liveDatabase = join(base, "live", DisasterRecovery.databaseFileName)
-    const liveObjects = join(base, "live", DisasterRecovery.objectsDirectoryName)
-    const backupDirectory = join(base, "backup")
-    const targetDirectory = join(base, "restored")
-    const counters = { recorded: 0, inflightLive: 0, inflightRestored: 0 }
-    let mode: "live" | "restored" = "live"
-    let liveGate: Deferred.Deferred<void>
+  it.effect("restores and resumes a real registered flow from a mid-action hot backup", () =>
+    Effect.gen(function*() {
+      const base = mkdtempSync(join(tmpdir(), "flows-drill-engine-"))
+      mkdirSync(join(base, "live"), { recursive: true })
+      const liveDatabase = join(base, "live", DisasterRecovery.databaseFileName)
+      const liveObjects = join(base, "live", DisasterRecovery.objectsDirectoryName)
+      const backupDirectory = join(base, "backup")
+      const targetDirectory = join(base, "restored")
+      const counters = { recorded: 0, inflightLive: 0, inflightRestored: 0 }
+      let mode: "live" | "restored" = "live"
+      let liveGate: Deferred.Deferred<void>
 
-    const recorded = Action.make({
-      name: "restore-drill-recorded",
-      success: Schema.String,
-      tier: "sealed",
-      idempotencyKey: "restore-drill-recorded-v1",
-      execute: Effect.sync(() => {
-        counters.recorded++
-        return "recorded-live"
+      const recorded = Action.make({
+        name: "restore-drill-recorded",
+        success: Schema.String,
+        tier: "sealed",
+        idempotencyKey: "restore-drill-recorded-v1",
+        execute: Effect.sync(() => {
+          counters.recorded++
+          return "recorded-live"
+        })
       })
-    })
-    const inflight = Action.make({
-      name: "restore-drill-inflight",
-      success: Schema.String,
-      tier: "sealed",
-      idempotencyKey: "restore-drill-inflight-v1",
-      execute: Effect.gen(function*() {
-        if (mode === "live") {
-          counters.inflightLive++
-          yield* Deferred.await(liveGate)
-          return "inflight-live"
-        }
-        counters.inflightRestored++
-        return "inflight-restored"
+      const inflight = Action.make({
+        name: "restore-drill-inflight",
+        success: Schema.String,
+        tier: "sealed",
+        idempotencyKey: "restore-drill-inflight-v1",
+        execute: Effect.gen(function*() {
+          if (mode === "live") {
+            counters.inflightLive++
+            yield* Deferred.await(liveGate)
+            return "inflight-live"
+          }
+          counters.inflightRestored++
+          return "inflight-restored"
+        })
       })
-    })
-    const flow = Flow.make("RestoreDrill/Flow", {
-      payload: {},
-      success: Schema.String,
-      body: opaqueHandlerBody
-    })
-    const handler = () =>
-      Effect.gen(function*() {
-        const first = yield* recorded
-        const second = yield* inflight
-        return `${first}/${second}`
+      const flow = Flow.make("RestoreDrill/Flow", {
+        payload: {},
+        success: Schema.String,
+        body: opaqueHandlerBody
       })
-
-    const live = await runPromise(
-      Effect.scoped(
+      const handler = () =>
         Effect.gen(function*() {
-          liveGate = yield* Deferred.make<void>()
-          const engine = yield* EngineStore.make({
-            owner: { hostId: ownerA.hostId },
-            journalSource: "restore-drill-engine",
-            isAlive: () => Effect.succeed(false)
-          })
-          yield* engine.register(flow, handler)
-          const fiber = yield* engine.execute(flow, {
-            executionId: engineRunId,
-            payload: {},
-            discard: false
-          }).pipe(Effect.forkChild({ startImmediately: true }))
+          const first = yield* recorded
+          const second = yield* inflight
+          return `${first}/${second}`
+        })
 
-          const sql = yield* SqlClient.SqlClient
-          while (
-            (yield* sql<{ readonly state: string }>`
+      const live = yield* withCrypto(
+        Effect.scoped(
+          Effect.gen(function*() {
+            liveGate = yield* Deferred.make<void>()
+            const engine = yield* EngineStore.make({
+              owner: { hostId: ownerA.hostId },
+              journalSource: "restore-drill-engine",
+              isAlive: () => Effect.succeed(false)
+            })
+            yield* engine.register(flow, handler)
+            const fiber = yield* engine.execute(flow, {
+              executionId: engineRunId,
+              payload: {},
+              discard: false
+            }).pipe(Effect.forkChild({ startImmediately: true }))
+
+            const sql = yield* SqlClient.SqlClient
+            while (
+              (yield* sql<{ readonly state: string }>`
             SELECT state FROM flows_attempts
             WHERE run_id = ${engineRunId} AND state = 'running'
           `).length === 0
+            ) {
+              yield* Effect.sleep(Duration.millis(2))
+            }
+
+            const manifest = yield* DisasterRecovery.backup({
+              directory: backupDirectory,
+              objectsDirectory: liveObjects
+            }).pipe(Effect.provide(NodeDatabase.layer({ filename: liveDatabase })))
+
+            yield* Deferred.succeed(liveGate, undefined)
+            const value = yield* Fiber.join(fiber)
+            const runs = yield* RunStore.RunStore
+            return { manifest, value, row: yield* runs.get(engineRunId) }
+          }).pipe(Effect.provide(services(liveDatabase, liveObjects, ownerA)))
+        )
+      )
+
+      expect(live.value).toBe("recorded-live/inflight-live")
+      expect(live.row.status).toBe("completed")
+      expect(counters).toEqual({ recorded: 1, inflightLive: 1, inflightRestored: 0 })
+
+      const restored = yield* withCrypto(
+        DisasterRecovery.restore({ backupDirectory, targetDirectory }).pipe(
+          Effect.provide(NodeFileSystem.layer)
+        )
+      )
+      mode = "restored"
+
+      const drill = yield* withCrypto(
+        Effect.scoped(
+          Effect.gen(function*() {
+            const runs = yield* RunStore.RunStore
+            const beforeFenceRow = yield* runs.get(engineRunId)
+            const heartbeatBeforeFence = yield* runs.heartbeat(engineRunId, ownerA, yield* Clock.currentTimeMillis)
+            const summary = yield* DisasterRecovery.fence(restored.manifest)
+            const heartbeatAfterFence = yield* runs.heartbeat(engineRunId, ownerA, yield* Clock.currentTimeMillis)
+            const engine = yield* EngineStore.make({
+              owner: { hostId: ownerB.hostId },
+              journalSource: "restore-drill-engine-restored",
+              isAlive: () => Effect.succeed(false)
+            })
+            yield* engine.register(flow, handler)
+            const value = yield* engine.execute(flow, {
+              executionId: engineRunId,
+              payload: {},
+              discard: false
+            })
+            return {
+              beforeFenceRow,
+              heartbeatBeforeFence,
+              summary,
+              heartbeatAfterFence,
+              value,
+              row: yield* runs.get(engineRunId)
+            }
+          }).pipe(Effect.provide(services(restored.databaseFile, restored.objectsDirectory, ownerB)))
+        )
+      )
+
+      expect(drill.beforeFenceRow.status).toBe("running")
+      expect(drill.beforeFenceRow.owner).toEqual(ownerA)
+      expect(drill.heartbeatBeforeFence).toEqual({ _tag: "Updated" })
+      expect(drill.summary).toEqual({ clearedClaims: 0, suspendedRuns: 1 })
+      expect(drill.heartbeatAfterFence).toEqual({ _tag: "FenceLost" })
+      expect(drill.value).toBe("recorded-live/inflight-restored")
+      expect(drill.row.status).toBe("completed")
+      expect(counters).toEqual({ recorded: 1, inflightLive: 1, inflightRestored: 1 })
+    }))
+
+  it.effect("hot-backs-up mid-action, fences the pre-backup owner, and resumes on the restored store", () =>
+    Effect.gen(function*() {
+      const base = mkdtempSync(join(tmpdir(), "flows-drill-"))
+      mkdirSync(join(base, "live"), { recursive: true })
+      const liveDatabase = join(base, "live", DisasterRecovery.databaseFileName)
+      const liveObjects = join(base, "live", DisasterRecovery.objectsDirectoryName)
+      const backupDirectory = join(base, "backup")
+      const targetDirectory = join(base, "restored")
+
+      // Phase 1 — a live engine takes real writes, and the backup is captured
+      // mid-action from a second connection to the same file.
+      const live = yield* withCrypto(
+        Effect.gen(function*() {
+          const runs = yield* RunStore.RunStore
+          const attempts = yield* AttemptStore.AttemptStore
+          const journal = yield* Journal.Journal
+          const artifacts = yield* ArtifactStore.ArtifactStore
+
+          yield* runs.create(runId, "{}")
+          const created = yield* runs.get(runId)
+          const activatedAt = yield* Clock.currentTimeMillis
+          const activated = yield* runs.claimAndOwn(runId, snapshotOf(created), ownerA, activatedAt)
+
+          // A second run holding a pending claim, so the drill covers claim
+          // invalidation too.
+          yield* runs.create(claimedRunId, "{}")
+          const claimedRow = yield* runs.get(claimedRunId)
+          const claimedAt = yield* Clock.currentTimeMillis
+          const claimed = yield* runs.claim(claimedRunId, snapshotOf(claimedRow), staleClaimant, claimedAt)
+
+          const digestOne = yield* artifacts.put(encoder.encode("drill-artifact-one"))
+          const recordedCounter = { count: 0 }
+          const recorded = yield* dispatch({
+            owner: ownerA,
+            key: "drill/recorded",
+            execute: counted(recordedCounter, "recorded-live")
+          })
+
+          // Real writes that are provably inside the snapshot.
+          for (let seq = 0; seq < 5; seq++) {
+            yield* journal.emitDurable(hotEvent(seq), ownerA)
+          }
+
+          // An admitted attempt still executing when the backup runs.
+          const gate = yield* Deferred.make<void>()
+          const inflight = yield* dispatch({
+            owner: ownerA,
+            key: "drill/inflight",
+            execute: Deferred.await(gate).pipe(Effect.as("inflight-live"))
+          }).pipe(Effect.forkChild({ startImmediately: true }))
+          while (
+            Option.isNone(
+              yield* attempts.get({ runId, stepKeyDigest: sha256("drill/inflight"), attempt: 1 })
+            )
           ) {
             yield* Effect.sleep(Duration.millis(2))
           }
 
+          // A journal writer that keeps appending while the backup runs.
+          let hotSeq = 5
+          const writer = yield* Effect.gen(function*() {
+            yield* journal.emitDurable(hotEvent(hotSeq), ownerA)
+            hotSeq++
+            yield* Effect.sleep(Duration.millis(2))
+          }).pipe(Effect.forever, Effect.forkChild({ startImmediately: true }))
+
+          // The hot backup, over its own connection — the operator's view of a
+          // live store.
           const manifest = yield* DisasterRecovery.backup({
             directory: backupDirectory,
             objectsDirectory: liveObjects
           }).pipe(Effect.provide(NodeDatabase.layer({ filename: liveDatabase })))
 
-          yield* Deferred.succeed(liveGate, undefined)
-          const value = yield* Fiber.join(fiber)
-          const runs = yield* RunStore.RunStore
-          return { manifest, value, row: yield* runs.get(engineRunId) }
-        }).pipe(Effect.provide(services(liveDatabase, liveObjects, ownerA)))
+          yield* Fiber.interrupt(writer)
+          yield* Deferred.succeed(gate, undefined)
+          const inflightLive = yield* Fiber.join(inflight)
+
+          // Post-backup divergence: work that must be absent from the restore.
+          const digestTwo = yield* artifacts.put(encoder.encode("drill-artifact-two"))
+          const afterCounter = { count: 0 }
+          yield* dispatch({ owner: ownerA, key: "drill/after", execute: counted(afterCounter, "after-live") })
+
+          const row = yield* runs.get(runId)
+          const hotEvents = yield* hotEventCount
+          return {
+            activated,
+            claimed,
+            digestOne,
+            digestTwo,
+            recorded,
+            recordedExecutions: recordedCounter.count,
+            inflightLive,
+            manifest,
+            row,
+            hotEvents
+          }
+        }).pipe(Effect.provide(services(liveDatabase, liveObjects)))
       )
-    )
 
-    expect(live.value).toBe("recorded-live/inflight-live")
-    expect(live.row.status).toBe("completed")
-    expect(counters).toEqual({ recorded: 1, inflightLive: 1, inflightRestored: 0 })
+      expect(live.activated).toEqual({ _tag: "Activated" })
+      expect(live.claimed._tag).toBe("Claimed")
+      expect(live.recorded).toBe("recorded-live")
+      expect(live.recordedExecutions).toBe(1)
+      expect(live.inflightLive).toBe("inflight-live")
+      // The backup was captured while the run was running under a live owner.
+      expect(live.row.status).toBe("running")
+      expect(live.row.owner).toEqual(ownerA)
+      // The snapshot carries the pre-backup artifact and none of the later work.
+      expect(live.manifest.artifacts.map((entry) => entry.digest)).toContain(live.digestOne)
+      expect(live.manifest.artifacts.map((entry) => entry.digest)).not.toContain(live.digestTwo)
 
-    const restored = await runPromise(
-      DisasterRecovery.restore({ backupDirectory, targetDirectory }).pipe(
-        Effect.provide(NodeFileSystem.layer)
+      // Phase 2 — restore the backup into a fresh directory, files only.
+      const restored = yield* withCrypto(
+        DisasterRecovery.restore({ backupDirectory, targetDirectory }).pipe(
+          Effect.provide(NodeFileSystem.layer)
+        )
       )
-    )
-    mode = "restored"
+      expect(restored.databaseFile).toBe(join(targetDirectory, DisasterRecovery.databaseFileName))
 
-    const drill = await runPromise(
-      Effect.scoped(
+      // Phase 3 — the restored store: fence, prove the old owner is out, resume
+      // under a new owner.
+      const drill = yield* withCrypto(
         Effect.gen(function*() {
           const runs = yield* RunStore.RunStore
-          const beforeFenceRow = yield* runs.get(engineRunId)
-          const heartbeatBeforeFence = yield* runs.heartbeat(engineRunId, ownerA, yield* Clock.currentTimeMillis)
+          const attempts = yield* AttemptStore.AttemptStore
+          const journal = yield* Journal.Journal
+          const artifacts = yield* ArtifactStore.ArtifactStore
+
+          // The resurrection hazard the fence closes: before fencing, the
+          // restored store still records ownerA, so its heartbeat lands.
+          const preFenceAt = yield* Clock.currentTimeMillis
+          const preFenceHeartbeat = yield* runs.heartbeat(runId, ownerA, preFenceAt)
+          const preFenceRow = yield* runs.get(runId)
+
           const summary = yield* DisasterRecovery.fence(restored.manifest)
-          const heartbeatAfterFence = yield* runs.heartbeat(engineRunId, ownerA, yield* Clock.currentTimeMillis)
-          const engine = yield* EngineStore.make({
-            owner: { hostId: ownerB.hostId },
-            journalSource: "restore-drill-engine-restored",
-            isAlive: () => Effect.succeed(false)
+
+          // Every fenced operation from the pre-backup owner is now refused.
+          const fencedAt = yield* Clock.currentTimeMillis
+          const fencedHeartbeat = yield* runs.heartbeat(runId, ownerA, fencedAt)
+          const fencedTransition = yield* runs.transitionOwned(runId, ownerA, "completed")
+          const fencedAppend = yield* journal.emitDurable(
+            new Input({
+              runId: runId as RunId,
+              sourceId: "drill-zombie" as SourceId,
+              sourceSeq: 0 as SourceSeq,
+              eventType: "drill.zombie",
+              payload: null
+            }, { disableChecks: true }),
+            ownerA
+          ).pipe(Effect.exit)
+
+          const fencedRow = yield* runs.get(runId)
+          const claimedRow = yield* runs.get(claimedRunId)
+          const reclaimAt = yield* Clock.currentTimeMillis
+          const reclaimed = yield* runs.claim(claimedRunId, snapshotOf(claimedRow), freshClaimant, reclaimAt)
+
+          // The captured history is intact, and the post-backup work is absent.
+          const hotEvents = yield* hotEventCount
+          const recordedRow = yield* attempts.get({
+            runId,
+            stepKeyDigest: sha256("drill/recorded"),
+            attempt: 1
           })
-          yield* engine.register(flow, handler)
-          const value = yield* engine.execute(flow, {
-            executionId: engineRunId,
-            payload: {},
-            discard: false
+          const inflightRow = yield* attempts.get({
+            runId,
+            stepKeyDigest: sha256("drill/inflight"),
+            attempt: 1
           })
+          const afterRow = yield* attempts.get({ runId, stepKeyDigest: sha256("drill/after"), attempt: 1 })
+
+          // Resume under a fresh owner: the suspended run is claimable
+          // immediately, with no staleness wait and no liveness evidence.
+          const resumeAt = yield* Clock.currentTimeMillis
+          const resumed = yield* runs.claimAndOwn(runId, snapshotOf(fencedRow), ownerB, resumeAt)
+
+          const replayCounter = { count: 0 }
+          const replayed = yield* dispatch({
+            owner: ownerB,
+            key: "drill/recorded",
+            execute: counted(replayCounter, "must-not-run")
+          })
+          const inflightCounter = { count: 0 }
+          const inflightRestored = yield* dispatch({
+            owner: ownerB,
+            key: "drill/inflight",
+            execute: counted(inflightCounter, "inflight-restored")
+          })
+          const afterCounter = { count: 0 }
+          const afterRestored = yield* dispatch({
+            owner: ownerB,
+            key: "drill/after",
+            execute: counted(afterCounter, "after-restored")
+          })
+
+          const artifactOne = yield* artifacts.get(live.digestOne)
+          const artifactTwo = yield* artifacts.get(live.digestTwo).pipe(Effect.exit)
+          const completed = yield* runs.transitionOwned(runId, ownerB, "completed")
           return {
-            beforeFenceRow,
-            heartbeatBeforeFence,
+            preFenceHeartbeat,
+            preFenceRow,
             summary,
-            heartbeatAfterFence,
-            value,
-            row: yield* runs.get(engineRunId)
+            fencedHeartbeat,
+            fencedTransition,
+            fencedAppend,
+            fencedRow,
+            claimedRow,
+            reclaimed,
+            hotEvents,
+            recordedRow,
+            inflightRow,
+            afterRow,
+            resumed,
+            replayed,
+            replayExecutions: replayCounter.count,
+            inflightRestored,
+            inflightExecutions: inflightCounter.count,
+            afterRestored,
+            afterExecutions: afterCounter.count,
+            artifactOne,
+            artifactTwo,
+            completed
           }
-        }).pipe(Effect.provide(services(restored.databaseFile, restored.objectsDirectory, ownerB)))
+        }).pipe(Effect.provide(services(restored.databaseFile, restored.objectsDirectory)))
       )
-    )
 
-    expect(drill.beforeFenceRow.status).toBe("running")
-    expect(drill.beforeFenceRow.owner).toEqual(ownerA)
-    expect(drill.heartbeatBeforeFence).toEqual({ _tag: "Updated" })
-    expect(drill.summary).toEqual({ clearedClaims: 0, suspendedRuns: 1 })
-    expect(drill.heartbeatAfterFence).toEqual({ _tag: "FenceLost" })
-    expect(drill.value).toBe("recorded-live/inflight-restored")
-    expect(drill.row.status).toBe("completed")
-    expect(counters).toEqual({ recorded: 1, inflightLive: 1, inflightRestored: 1 })
-  })
+      // The hazard, then the fence.
+      expect(drill.preFenceHeartbeat).toEqual({ _tag: "Updated" })
+      expect(drill.preFenceRow.status).toBe("running")
+      expect(drill.preFenceRow.owner).toEqual(ownerA)
+      expect(drill.summary).toEqual({ clearedClaims: 1, suspendedRuns: 1 })
+      // The pre-backup owner is fenced out of the restored store.
+      expect(drill.fencedHeartbeat).toEqual({ _tag: "FenceLost" })
+      expect(drill.fencedTransition).toEqual({ _tag: "FenceLost" })
+      expect(Exit.isFailure(drill.fencedAppend)).toBe(true)
+      if (!Exit.isFailure(drill.fencedAppend)) {
+        throw new Error("expected the restored zombie append to be fenced")
+      }
+      expect((Cause.squash(drill.fencedAppend.cause) as { code: string }).code).toBe("fence_lost")
+      expect(drill.fencedRow.status).toBe("suspended")
+      expect(drill.fencedRow.owner).toBeNull()
+      // The stale claim is gone and the run is claimable by anyone fresh.
+      expect(drill.claimedRow.claim).toBeNull()
+      expect(drill.reclaimed._tag).toBe("Claimed")
+      // The captured history survived the round trip; the divergence did not.
+      expect(drill.hotEvents).toBeGreaterThanOrEqual(5)
+      expect(drill.hotEvents).toBeLessThanOrEqual(live.hotEvents)
+      expect(Option.getOrThrow(drill.recordedRow).state).toBe("succeeded")
+      expect(Option.getOrThrow(drill.inflightRow).state).toBe("running")
+      expect(Option.isNone(drill.afterRow)).toBe(true)
+      // The engine resumes from the restored state: recorded work replays
+      // without re-executing, in-flight work re-executes, missing work reruns.
+      expect(drill.resumed).toEqual({ _tag: "Activated" })
+      expect(drill.replayed).toBe("recorded-live")
+      expect(drill.replayExecutions).toBe(0)
+      expect(drill.inflightRestored).toBe("inflight-restored")
+      expect(drill.inflightExecutions).toBe(1)
+      expect(drill.afterRestored).toBe("after-restored")
+      expect(drill.afterExecutions).toBe(1)
+      expect(new TextDecoder().decode(drill.artifactOne)).toBe("drill-artifact-one")
+      expect(Exit.isFailure(drill.artifactTwo)).toBe(true)
+      expect(drill.completed).toEqual({ _tag: "Transitioned" })
 
-  it("hot-backs-up mid-action, fences the pre-backup owner, and resumes on the restored store", async () => {
-    const base = mkdtempSync(join(tmpdir(), "flows-drill-"))
-    mkdirSync(join(base, "live"), { recursive: true })
-    const liveDatabase = join(base, "live", DisasterRecovery.databaseFileName)
-    const liveObjects = join(base, "live", DisasterRecovery.objectsDirectoryName)
-    const backupDirectory = join(base, "backup")
-    const targetDirectory = join(base, "restored")
-
-    // Phase 1 — a live engine takes real writes, and the backup is captured
-    // mid-action from a second connection to the same file.
-    const live = await runPromise(
-      Effect.gen(function*() {
-        const runs = yield* RunStore.RunStore
-        const attempts = yield* AttemptStore.AttemptStore
-        const journal = yield* Journal.Journal
-        const artifacts = yield* ArtifactStore.ArtifactStore
-
-        yield* runs.create(runId, "{}")
-        const created = yield* runs.get(runId)
-        const activatedAt = yield* Clock.currentTimeMillis
-        const activated = yield* runs.claimAndOwn(runId, snapshotOf(created), ownerA, activatedAt)
-
-        // A second run holding a pending claim, so the drill covers claim
-        // invalidation too.
-        yield* runs.create(claimedRunId, "{}")
-        const claimedRow = yield* runs.get(claimedRunId)
-        const claimedAt = yield* Clock.currentTimeMillis
-        const claimed = yield* runs.claim(claimedRunId, snapshotOf(claimedRow), staleClaimant, claimedAt)
-
-        const digestOne = yield* artifacts.put(encoder.encode("drill-artifact-one"))
-        const recordedCounter = { count: 0 }
-        const recorded = yield* dispatch({
-          owner: ownerA,
-          key: "drill/recorded",
-          execute: counted(recordedCounter, "recorded-live")
-        })
-
-        // Real writes that are provably inside the snapshot.
-        for (let seq = 0; seq < 5; seq++) {
-          yield* journal.emitDurable(hotEvent(seq), ownerA)
-        }
-
-        // An admitted attempt still executing when the backup runs.
-        const gate = yield* Deferred.make<void>()
-        const inflight = yield* dispatch({
-          owner: ownerA,
-          key: "drill/inflight",
-          execute: Deferred.await(gate).pipe(Effect.as("inflight-live"))
-        }).pipe(Effect.forkChild({ startImmediately: true }))
-        while (
-          Option.isNone(
-            yield* attempts.get({ runId, stepKeyDigest: sha256("drill/inflight"), attempt: 1 })
-          )
-        ) {
-          yield* Effect.sleep(Duration.millis(2))
-        }
-
-        // A journal writer that keeps appending while the backup runs.
-        let hotSeq = 5
-        const writer = yield* Effect.gen(function*() {
-          yield* journal.emitDurable(hotEvent(hotSeq), ownerA)
-          hotSeq++
-          yield* Effect.sleep(Duration.millis(2))
-        }).pipe(Effect.forever, Effect.forkChild({ startImmediately: true }))
-
-        // The hot backup, over its own connection — the operator's view of a
-        // live store.
-        const manifest = yield* DisasterRecovery.backup({
-          directory: backupDirectory,
-          objectsDirectory: liveObjects
-        }).pipe(Effect.provide(NodeDatabase.layer({ filename: liveDatabase })))
-
-        yield* Fiber.interrupt(writer)
-        yield* Deferred.succeed(gate, undefined)
-        const inflightLive = yield* Fiber.join(inflight)
-
-        // Post-backup divergence: work that must be absent from the restore.
-        const digestTwo = yield* artifacts.put(encoder.encode("drill-artifact-two"))
-        const afterCounter = { count: 0 }
-        yield* dispatch({ owner: ownerA, key: "drill/after", execute: counted(afterCounter, "after-live") })
-
-        const row = yield* runs.get(runId)
-        const hotEvents = yield* hotEventCount
-        return {
-          activated,
-          claimed,
-          digestOne,
-          digestTwo,
-          recorded,
-          recordedExecutions: recordedCounter.count,
-          inflightLive,
-          manifest,
-          row,
-          hotEvents
-        }
-      }).pipe(Effect.provide(services(liveDatabase, liveObjects)))
-    )
-
-    expect(live.activated).toEqual({ _tag: "Activated" })
-    expect(live.claimed._tag).toBe("Claimed")
-    expect(live.recorded).toBe("recorded-live")
-    expect(live.recordedExecutions).toBe(1)
-    expect(live.inflightLive).toBe("inflight-live")
-    // The backup was captured while the run was running under a live owner.
-    expect(live.row.status).toBe("running")
-    expect(live.row.owner).toEqual(ownerA)
-    // The snapshot carries the pre-backup artifact and none of the later work.
-    expect(live.manifest.artifacts.map((entry) => entry.digest)).toContain(live.digestOne)
-    expect(live.manifest.artifacts.map((entry) => entry.digest)).not.toContain(live.digestTwo)
-
-    // Phase 2 — restore the backup into a fresh directory, files only.
-    const restored = await runPromise(
-      DisasterRecovery.restore({ backupDirectory, targetDirectory }).pipe(
-        Effect.provide(NodeFileSystem.layer)
+      // Phase 4 — the source store is untouched: its owner still holds the
+      // fence there, and the post-backup work is present.
+      const source = yield* withCrypto(
+        Effect.gen(function*() {
+          const runs = yield* RunStore.RunStore
+          const attempts = yield* AttemptStore.AttemptStore
+          const nowMs = yield* Clock.currentTimeMillis
+          return {
+            heartbeat: yield* runs.heartbeat(runId, ownerA, nowMs),
+            afterRow: yield* attempts.get({ runId, stepKeyDigest: sha256("drill/after"), attempt: 1 })
+          }
+        }).pipe(Effect.provide(services(liveDatabase, liveObjects)))
       )
-    )
-    expect(restored.databaseFile).toBe(join(targetDirectory, DisasterRecovery.databaseFileName))
-
-    // Phase 3 — the restored store: fence, prove the old owner is out, resume
-    // under a new owner.
-    const drill = await runPromise(
-      Effect.gen(function*() {
-        const runs = yield* RunStore.RunStore
-        const attempts = yield* AttemptStore.AttemptStore
-        const journal = yield* Journal.Journal
-        const artifacts = yield* ArtifactStore.ArtifactStore
-
-        // The resurrection hazard the fence closes: before fencing, the
-        // restored store still records ownerA, so its heartbeat lands.
-        const preFenceAt = yield* Clock.currentTimeMillis
-        const preFenceHeartbeat = yield* runs.heartbeat(runId, ownerA, preFenceAt)
-        const preFenceRow = yield* runs.get(runId)
-
-        const summary = yield* DisasterRecovery.fence(restored.manifest)
-
-        // Every fenced operation from the pre-backup owner is now refused.
-        const fencedAt = yield* Clock.currentTimeMillis
-        const fencedHeartbeat = yield* runs.heartbeat(runId, ownerA, fencedAt)
-        const fencedTransition = yield* runs.transitionOwned(runId, ownerA, "completed")
-        const fencedAppend = yield* journal.emitDurable(
-          new Input({
-            runId: runId as RunId,
-            sourceId: "drill-zombie" as SourceId,
-            sourceSeq: 0 as SourceSeq,
-            eventType: "drill.zombie",
-            payload: null
-          }, { disableChecks: true }),
-          ownerA
-        ).pipe(Effect.exit)
-
-        const fencedRow = yield* runs.get(runId)
-        const claimedRow = yield* runs.get(claimedRunId)
-        const reclaimAt = yield* Clock.currentTimeMillis
-        const reclaimed = yield* runs.claim(claimedRunId, snapshotOf(claimedRow), freshClaimant, reclaimAt)
-
-        // The captured history is intact, and the post-backup work is absent.
-        const hotEvents = yield* hotEventCount
-        const recordedRow = yield* attempts.get({
-          runId,
-          stepKeyDigest: sha256("drill/recorded"),
-          attempt: 1
-        })
-        const inflightRow = yield* attempts.get({
-          runId,
-          stepKeyDigest: sha256("drill/inflight"),
-          attempt: 1
-        })
-        const afterRow = yield* attempts.get({ runId, stepKeyDigest: sha256("drill/after"), attempt: 1 })
-
-        // Resume under a fresh owner: the suspended run is claimable
-        // immediately, with no staleness wait and no liveness evidence.
-        const resumeAt = yield* Clock.currentTimeMillis
-        const resumed = yield* runs.claimAndOwn(runId, snapshotOf(fencedRow), ownerB, resumeAt)
-
-        const replayCounter = { count: 0 }
-        const replayed = yield* dispatch({
-          owner: ownerB,
-          key: "drill/recorded",
-          execute: counted(replayCounter, "must-not-run")
-        })
-        const inflightCounter = { count: 0 }
-        const inflightRestored = yield* dispatch({
-          owner: ownerB,
-          key: "drill/inflight",
-          execute: counted(inflightCounter, "inflight-restored")
-        })
-        const afterCounter = { count: 0 }
-        const afterRestored = yield* dispatch({
-          owner: ownerB,
-          key: "drill/after",
-          execute: counted(afterCounter, "after-restored")
-        })
-
-        const artifactOne = yield* artifacts.get(live.digestOne)
-        const artifactTwo = yield* artifacts.get(live.digestTwo).pipe(Effect.exit)
-        const completed = yield* runs.transitionOwned(runId, ownerB, "completed")
-        return {
-          preFenceHeartbeat,
-          preFenceRow,
-          summary,
-          fencedHeartbeat,
-          fencedTransition,
-          fencedAppend,
-          fencedRow,
-          claimedRow,
-          reclaimed,
-          hotEvents,
-          recordedRow,
-          inflightRow,
-          afterRow,
-          resumed,
-          replayed,
-          replayExecutions: replayCounter.count,
-          inflightRestored,
-          inflightExecutions: inflightCounter.count,
-          afterRestored,
-          afterExecutions: afterCounter.count,
-          artifactOne,
-          artifactTwo,
-          completed
-        }
-      }).pipe(Effect.provide(services(restored.databaseFile, restored.objectsDirectory)))
-    )
-
-    // The hazard, then the fence.
-    expect(drill.preFenceHeartbeat).toEqual({ _tag: "Updated" })
-    expect(drill.preFenceRow.status).toBe("running")
-    expect(drill.preFenceRow.owner).toEqual(ownerA)
-    expect(drill.summary).toEqual({ clearedClaims: 1, suspendedRuns: 1 })
-    // The pre-backup owner is fenced out of the restored store.
-    expect(drill.fencedHeartbeat).toEqual({ _tag: "FenceLost" })
-    expect(drill.fencedTransition).toEqual({ _tag: "FenceLost" })
-    expect(Exit.isFailure(drill.fencedAppend)).toBe(true)
-    if (!Exit.isFailure(drill.fencedAppend)) {
-      throw new Error("expected the restored zombie append to be fenced")
-    }
-    expect((Cause.squash(drill.fencedAppend.cause) as { code: string }).code).toBe("fence_lost")
-    expect(drill.fencedRow.status).toBe("suspended")
-    expect(drill.fencedRow.owner).toBeNull()
-    // The stale claim is gone and the run is claimable by anyone fresh.
-    expect(drill.claimedRow.claim).toBeNull()
-    expect(drill.reclaimed._tag).toBe("Claimed")
-    // The captured history survived the round trip; the divergence did not.
-    expect(drill.hotEvents).toBeGreaterThanOrEqual(5)
-    expect(drill.hotEvents).toBeLessThanOrEqual(live.hotEvents)
-    expect(Option.getOrThrow(drill.recordedRow).state).toBe("succeeded")
-    expect(Option.getOrThrow(drill.inflightRow).state).toBe("running")
-    expect(Option.isNone(drill.afterRow)).toBe(true)
-    // The engine resumes from the restored state: recorded work replays
-    // without re-executing, in-flight work re-executes, missing work reruns.
-    expect(drill.resumed).toEqual({ _tag: "Activated" })
-    expect(drill.replayed).toBe("recorded-live")
-    expect(drill.replayExecutions).toBe(0)
-    expect(drill.inflightRestored).toBe("inflight-restored")
-    expect(drill.inflightExecutions).toBe(1)
-    expect(drill.afterRestored).toBe("after-restored")
-    expect(drill.afterExecutions).toBe(1)
-    expect(new TextDecoder().decode(drill.artifactOne)).toBe("drill-artifact-one")
-    expect(Exit.isFailure(drill.artifactTwo)).toBe(true)
-    expect(drill.completed).toEqual({ _tag: "Transitioned" })
-
-    // Phase 4 — the source store is untouched: its owner still holds the
-    // fence there, and the post-backup work is present.
-    const source = await runPromise(
-      Effect.gen(function*() {
-        const runs = yield* RunStore.RunStore
-        const attempts = yield* AttemptStore.AttemptStore
-        const nowMs = yield* Clock.currentTimeMillis
-        return {
-          heartbeat: yield* runs.heartbeat(runId, ownerA, nowMs),
-          afterRow: yield* attempts.get({ runId, stepKeyDigest: sha256("drill/after"), attempt: 1 })
-        }
-      }).pipe(Effect.provide(services(liveDatabase, liveObjects)))
-    )
-    expect(source.heartbeat).toEqual({ _tag: "Updated" })
-    expect(Option.getOrThrow(source.afterRow).state).toBe("succeeded")
-  })
+      expect(source.heartbeat).toEqual({ _tag: "Updated" })
+      expect(Option.getOrThrow(source.afterRow).state).toBe("succeeded")
+    }))
 })

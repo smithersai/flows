@@ -7,14 +7,14 @@ import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as Migrations from "../src/Migrations.ts"
 import { describeContract, type Harness, type HarnessContext } from "./contract/DurableEngineStateContract.ts"
-import { runPromise } from "./Sha256.ts"
+import { withCrypto } from "./Sha256.ts"
 
 const migratedDatabase = Layer.provideMerge(Migrations.layer, TestDatabase.layer)
 
 const sqlHarness: Harness = {
   label: "sql",
   run: (body) =>
-    runPromise(
+    withCrypto(
       Effect.gen(function*() {
         const sql = yield* Effect.service(SqlClient.SqlClient)
         const writer = yield* DurableWriter.DurableWriter
@@ -100,7 +100,7 @@ const memoryHarness: Harness = {
           runs.set(runId, { status, owner: null })
         })
     }
-    return runPromise(body(context) as Effect.Effect<never>)
+    return withCrypto(body(context) as Effect.Effect<never>)
   }
 }
 

@@ -1,3 +1,4 @@
+import { describe, expect, it } from "@effect/vitest"
 import { DurableWriter, type Service as WriterService } from "@smthrs/database-next/DurableWriter"
 import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import { type DurableReceipt, Journal, type JournalError, makeNoop } from "@smthrs/journal-next/Journal"
@@ -7,7 +8,6 @@ import * as SqlJournal from "@smthrs/journal-next/SqlJournal"
 import { Deferred, Effect, Layer } from "effect"
 import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
-import { describe, expect, it } from "vitest"
 import * as Migrations from "../src/Migrations.ts"
 
 const runId = (value: string): RunId => value as RunId
@@ -18,7 +18,7 @@ const ownerA: OwnerId = { hostId: "host-a", pid: 1, nonce: "nonce-a" }
 const ownerB: OwnerId = { hostId: "host-b", pid: 2, nonce: "nonce-b" }
 
 const effect = <E>(name: string, body: () => Effect.Effect<void, E>) =>
-  it(name, () => Effect.runPromise(body().pipe(Effect.provide(TestClock.layer()))))
+  it.effect(name, () => body().pipe(Effect.provide(TestClock.layer())))
 
 const input = (
   run: RunId,

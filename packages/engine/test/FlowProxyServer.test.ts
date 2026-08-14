@@ -1,18 +1,18 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer"
+import { describe, expect, expectTypeOf, it } from "@effect/vitest"
 import { Action, DurableDeferred, Flow, Interpreter } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Effect, Exit, FileSystem, Layer, Option, Path, Schema, Scope } from "effect"
 import { Etag, HttpPlatform, HttpRouter } from "effect/unstable/http"
 import { HttpApi, HttpApiBuilder, HttpApiClient, HttpApiTest } from "effect/unstable/httpapi"
 import { RpcTest } from "effect/unstable/rpc"
-import { describe, expect, expectTypeOf, it } from "vitest"
 import { FlowEngine, FlowProxy, FlowProxyServer } from "../src/index.ts"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Scope.Scope>) =>
-  it(name, () => runPromise(Effect.scoped(body())))
+  it.effect(name, () => withCrypto(Effect.scoped(body())))
 
 const EchoActionDeclaration = Action.make("Proxy/Echo/action", {
   payload: { value: Schema.Number },
@@ -234,6 +234,8 @@ describe("serving a flow is executing it", () => {
     >()
 
     // Never invoked: the assertion is that this expression does not compile.
+    // `Effect.runPromise` is the point — the Promise boundary is what refuses
+    // an Effect whose requirements are unmet.
     // @ts-expect-error -- the served bodies name two actions, and nothing in
     // this composition implements either.
     const unimplemented = () => Effect.runPromise(unmet)

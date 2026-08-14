@@ -1,3 +1,4 @@
+import { describe, expect, it } from "@effect/vitest"
 import * as DurableWriter from "@smthrs/database-next/DurableWriter"
 import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
 import * as Journal from "@smthrs/journal-next/Journal"
@@ -10,7 +11,6 @@ import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { describe, expect, it } from "vitest"
 import * as Replay from "../src/internal/Replay.ts"
 import * as Migrations from "../src/Migrations.ts"
 import { TimeTravel } from "../src/TimeTravel.ts"
@@ -68,27 +68,28 @@ const seed = Effect.gen(function*() {
 })
 
 describe("durable replay", () => {
-  it("replays gaps and an exact-tail frame identically across two file-backed layer lifetimes", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "flows-replay-durability-"))
-    const filename = join(directory, "journal.sqlite")
-    try {
-      const first = await Effect.runPromise(
-        Effect.scoped(seed.pipe(Effect.andThen(replay), Effect.provide(services(filename))))
-      )
-      const second = await Effect.runPromise(
-        Effect.scoped(replay.pipe(Effect.provide(services(filename))))
-      )
+  it.effect("replays gaps and an exact-tail frame identically across two file-backed layer lifetimes", () =>
+    Effect.gen(function*() {
+      const directory = yield* Effect.promise(() => mkdtemp(join(tmpdir(), "flows-replay-durability-")))
+      const filename = join(directory, "journal.sqlite")
+      try {
+        const first = yield* (
+          Effect.scoped(seed.pipe(Effect.andThen(replay), Effect.provide(services(filename))))
+        )
+        const second = yield* (
+          Effect.scoped(replay.pipe(Effect.provide(services(filename))))
+        )
 
-      expect(first).toEqual([
-        "0:zero:undefined",
-        "2:two:sealed-v1",
-        "5:five:undefined"
-      ])
-      expect(second).toEqual(first)
-    } finally {
-      await rm(directory, { recursive: true, force: true })
-    }
-  })
+        expect(first).toEqual([
+          "0:zero:undefined",
+          "2:two:sealed-v1",
+          "5:five:undefined"
+        ])
+        expect(second).toEqual(first)
+      } finally {
+        yield* Effect.promise(() => rm(directory, { recursive: true, force: true }))
+      }
+    }))
 
   // The finite budget covers a real engine replay and two independent file-backed service lifetimes.
   it.skipIf(!jjInstalled)(
@@ -156,67 +157,69 @@ describe("durable replay", () => {
   )
 
   // BUG: replay reads the mutable cache head, so later cache replacement changes an old frame's projection.
-  it.fails("keeps the projection stable when cache contents mutate between lifetimes", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "flows-replay-cache-mutation-"))
-    const filename = join(directory, "journal.sqlite")
-    try {
-      const first = await Effect.runPromise(
-        Effect.scoped(seed.pipe(Effect.andThen(replay), Effect.provide(services(filename))))
-      )
-      const second = await Effect.runPromise(
-        Effect.scoped(
-          Effect.gen(function*() {
-            const cache = yield* CacheStore.CacheStore
-            yield* cache.evict("sealed-key")
-            yield* cache.put({
-              keyDigest: "sealed-key",
-              result: "sealed-v2",
-              meta: {},
-              createdAtMs: 10,
-              recordedRunId: "other",
-              recordedEventSeq: 9
-            })
-            return yield* replay
-          }).pipe(Effect.provide(services(filename)))
+  it.effect.fails("keeps the projection stable when cache contents mutate between lifetimes", () =>
+    Effect.gen(function*() {
+      const directory = yield* Effect.promise(() => mkdtemp(join(tmpdir(), "flows-replay-cache-mutation-")))
+      const filename = join(directory, "journal.sqlite")
+      try {
+        const first = yield* (
+          Effect.scoped(seed.pipe(Effect.andThen(replay), Effect.provide(services(filename))))
         )
-      )
+        const second = yield* (
+          Effect.scoped(
+            Effect.gen(function*() {
+              const cache = yield* CacheStore.CacheStore
+              yield* cache.evict("sealed-key")
+              yield* cache.put({
+                keyDigest: "sealed-key",
+                result: "sealed-v2",
+                meta: {},
+                createdAtMs: 10,
+                recordedRunId: "other",
+                recordedEventSeq: 9
+              })
+              return yield* replay
+            }).pipe(Effect.provide(services(filename)))
+          )
+        )
 
-      expect(second).toEqual(first)
-    } finally {
-      await rm(directory, { recursive: true, force: true })
-    }
-  })
+        expect(second).toEqual(first)
+      } finally {
+        yield* Effect.promise(() => rm(directory, { recursive: true, force: true }))
+      }
+    }))
 
   // BUG: replay neither sorts nor deduplicates malformed duplicate/out-of-order journal pages.
-  it.fails("normalizes duplicate and out-of-order pages to the durable projection", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "flows-replay-pages-"))
-    const filename = join(directory, "journal.sqlite")
-    try {
-      const result = await Effect.runPromise(
-        Effect.scoped(
-          Effect.gen(function*() {
-            yield* seed
-            const real = yield* Journal.Journal
-            const page = yield* real.entries({ runId: "run" as JournalEvent.RunId, limit: 10 })
-            const malformed = Journal.makeNoop({
-              entries: () =>
-                Effect.succeed({
-                  entries: [page.entries[2]!, page.entries[0]!, page.entries[2]!, page.entries[1]!],
-                  hasMore: false
-                })
-            })
-            return yield* replay.pipe(Effect.provideService(Journal.Journal, malformed))
-          }).pipe(Effect.provide(services(filename)))
+  it.effect.fails("normalizes duplicate and out-of-order pages to the durable projection", () =>
+    Effect.gen(function*() {
+      const directory = yield* Effect.promise(() => mkdtemp(join(tmpdir(), "flows-replay-pages-")))
+      const filename = join(directory, "journal.sqlite")
+      try {
+        const result = yield* (
+          Effect.scoped(
+            Effect.gen(function*() {
+              yield* seed
+              const real = yield* Journal.Journal
+              const page = yield* real.entries({ runId: "run" as JournalEvent.RunId, limit: 10 })
+              const malformed = Journal.makeNoop({
+                entries: () =>
+                  Effect.succeed({
+                    entries: [page.entries[2]!, page.entries[0]!, page.entries[2]!, page.entries[1]!],
+                    hasMore: false
+                  })
+              })
+              return yield* replay.pipe(Effect.provideService(Journal.Journal, malformed))
+            }).pipe(Effect.provide(services(filename)))
+          )
         )
-      )
 
-      expect(result).toEqual([
-        "0:zero:undefined",
-        "2:two:sealed-v1",
-        "5:five:undefined"
-      ])
-    } finally {
-      await rm(directory, { recursive: true, force: true })
-    }
-  })
+        expect(result).toEqual([
+          "0:zero:undefined",
+          "2:two:sealed-v1",
+          "5:five:undefined"
+        ])
+      } finally {
+        yield* Effect.promise(() => rm(directory, { recursive: true, force: true }))
+      }
+    }))
 })

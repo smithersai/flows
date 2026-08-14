@@ -1,11 +1,11 @@
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
+import { afterEach, describe, expect, it } from "@effect/vitest"
 import { CapabilityPattern } from "@smthrs/capability-next/Capability"
 import { Rule } from "@smthrs/capability-next/Permission"
 import { Effect, Fiber, FileSystem as EffectFileSystem, Path as EffectPath } from "effect"
 import { mkdir, mkdtemp, readFile, rename, rm, symlink, unlink, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
 import * as FileSystem from "../src/FileSystem.ts"
 import * as GrantStore from "../src/GrantStore.ts"
 import * as Workspace from "../src/Workspace.ts"
@@ -52,71 +52,73 @@ describe("FileSystem real host confinement", () => {
   // BUG: The delegate opens the logical path after approval, so swapping that
   // path to an outside symlink while `GrantStore.check` is suspended writes
   // through the newly introduced link.
-  it.fails("does not follow a symlink swapped in while an attended write is pending", async () => {
-    const directory = await temporaryDirectory()
-    const workspace = join(directory, "workspace")
-    const outside = join(directory, "outside")
-    const target = join(workspace, "target.txt")
-    const original = join(workspace, "original.txt")
-    const secret = join(outside, "secret.txt")
-    await mkdir(workspace)
-    await mkdir(outside)
-    await writeFile(target, "inside", "utf8")
-    await writeFile(secret, "outside-original", "utf8")
+  it.effect.fails("does not follow a symlink swapped in while an attended write is pending", () =>
+    Effect.gen(function*() {
+      const directory = yield* Effect.promise(() => temporaryDirectory())
+      const workspace = join(directory, "workspace")
+      const outside = join(directory, "outside")
+      const target = join(workspace, "target.txt")
+      const original = join(workspace, "original.txt")
+      const secret = join(outside, "secret.txt")
+      yield* Effect.promise(() => mkdir(workspace))
+      yield* Effect.promise(() => mkdir(outside))
+      yield* Effect.promise(() => writeFile(target, "inside", "utf8"))
+      yield* Effect.promise(() => writeFile(secret, "outside-original", "utf8"))
 
-    const outcome = await Effect.runPromise(
-      withGuardedFileSystem(workspace, {}, (store) =>
-        Effect.gen(function*() {
-          const fileSystem = yield* EffectFileSystem.FileSystem
-          const write = yield* Effect.result(fileSystem.writeFileString(target, "attacker-data")).pipe(
-            Effect.forkChild({ startImmediately: true })
-          )
-          const pending = yield* awaitPending(store)
-          expect(pending.capability).toMatchObject({ action: "fs:write", resource: target })
+      const outcome = yield* (
+        withGuardedFileSystem(workspace, {}, (store) =>
+          Effect.gen(function*() {
+            const fileSystem = yield* EffectFileSystem.FileSystem
+            const write = yield* Effect.result(fileSystem.writeFileString(target, "attacker-data")).pipe(
+              Effect.forkChild({ startImmediately: true })
+            )
+            const pending = yield* awaitPending(store)
+            expect(pending.capability).toMatchObject({ action: "fs:write", resource: target })
 
-          yield* Effect.promise(() => rename(target, original))
-          yield* Effect.promise(() => symlink(secret, target))
-          yield* store.reply(pending.requestId, "once")
-          return yield* Fiber.join(write)
-        }))
-    )
+            yield* Effect.promise(() => rename(target, original))
+            yield* Effect.promise(() => symlink(secret, target))
+            yield* store.reply(pending.requestId, "once")
+            return yield* Fiber.join(write)
+          }))
+      )
 
-    expect(outcome._tag).toBe("Failure")
-    expect(await readFile(secret, "utf8")).toBe("outside-original")
-  })
+      expect(outcome._tag).toBe("Failure")
+      expect(yield* Effect.promise(() => readFile(secret, "utf8"))).toBe("outside-original")
+    }))
 
   // BUG: `wrapFile` re-authorizes the current pathname, then delegates to the
   // old descriptor; after rename/rebind that descriptor can name an inode now
   // outside the workspace even though the replacement path is still allowed.
-  it.fails("does not authorize an old descriptor by rechecking a rebound pathname", async () => {
-    const directory = await temporaryDirectory()
-    const workspace = join(directory, "workspace")
-    const outside = join(directory, "outside")
-    const target = join(workspace, "bound.txt")
-    const moved = join(outside, "moved.txt")
-    await mkdir(workspace)
-    await mkdir(outside)
-    await writeFile(target, "inside-original", "utf8")
+  it.effect.fails("does not authorize an old descriptor by rechecking a rebound pathname", () =>
+    Effect.gen(function*() {
+      const directory = yield* Effect.promise(() => temporaryDirectory())
+      const workspace = join(directory, "workspace")
+      const outside = join(directory, "outside")
+      const target = join(workspace, "bound.txt")
+      const moved = join(outside, "moved.txt")
+      yield* Effect.promise(() => mkdir(workspace))
+      yield* Effect.promise(() => mkdir(outside))
+      yield* Effect.promise(() => writeFile(target, "inside-original", "utf8"))
 
-    const workspaceFiles = new CapabilityPattern({ action: "fs:*", resource: `${workspace}/**` })
-    const outcome = await Effect.runPromise(
-      withGuardedFileSystem(workspace, {
-        attended: false,
-        rules: [new Rule({ effect: "allow", pattern: workspaceFiles })]
-      }, () =>
-        Effect.scoped(
-          Effect.gen(function*() {
-            const fileSystem = yield* EffectFileSystem.FileSystem
-            const file = yield* fileSystem.open(target, { flag: "r+" })
-            yield* Effect.promise(() => rename(target, moved))
-            yield* Effect.promise(() => writeFile(target, "replacement", "utf8"))
-            return yield* Effect.result(file.writeAll(new TextEncoder().encode("mutated")))
-          })
-        ))
-    )
+      const workspaceFiles = new CapabilityPattern({ action: "fs:*", resource: `${workspace}/**` })
+      const outcome = yield* (
+        withGuardedFileSystem(workspace, {
+          attended: false,
+          rules: [new Rule({ effect: "allow", pattern: workspaceFiles })]
+        }, () =>
+          Effect.scoped(
+            Effect.gen(function*() {
+              const fileSystem = yield* EffectFileSystem.FileSystem
+              const file = yield* fileSystem.open(target, { flag: "r+" })
+              yield* Effect.promise(() => rename(target, moved))
+              yield* Effect.promise(() => writeFile(target, "replacement", "utf8"))
+              return yield* Effect.result(file.writeAll(new TextEncoder().encode("mutated")))
+            })
+          ))
+      )
 
-    expect(outcome._tag).toBe("Failure")
-    expect(await readFile(moved, "utf8")).toBe("inside-original")
-    await unlink(target)
-  })
+      expect(outcome._tag).toBe("Failure")
+      expect(yield* Effect.promise(() => readFile(moved, "utf8"))).toBe("inside-original")
+      yield* Effect.promise(() => unlink(target))
+    }))
 })

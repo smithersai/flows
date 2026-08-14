@@ -1,7 +1,7 @@
+import { describe, expect, it } from "@effect/vitest"
 import { Capability, CapabilityPattern } from "@smthrs/capability-next/Capability"
 import type { Rule } from "@smthrs/capability-next/Permission"
 import { Effect, Fiber } from "effect"
-import { describe, expect, it } from "vitest"
 import type { GrantEvent } from "../src/GrantEvent.ts"
 import * as GrantStore from "../src/GrantStore.ts"
 import * as Workspace from "../src/Workspace.ts"
@@ -135,7 +135,7 @@ const envelopeCases: ReadonlyArray<EnvelopeCase> = [
 const make = (options?: GrantStore.MakeOptions) => GrantStore.make(options).pipe(Effect.provide(Workspace.layer(root)))
 
 const itEffect = <A, E>(name: string, body: () => Effect.Effect<A, E>): void => {
-  it(name, () => Effect.runPromise(body()))
+  it.effect(name, () => body())
 }
 
 const awaitPending = (
@@ -176,31 +176,29 @@ describe("GrantStore.isValidEnvelopePattern", () => {
 describe("GrantStore.reply", () => {
   // BUG: A runtime-invalid resolution falls through the exhaustive switch,
   // returns success, and leaves the attended request suspended forever.
-  it.fails("fails a runtime-invalid resolution without stranding its waiter", () =>
-    Effect.runPromise(
-      Effect.scoped(
-        Effect.gen(function*() {
-          const store = yield* make()
-          const waiter = yield* store.check(read).pipe(Effect.forkChild({ startImmediately: true }))
-          const [pending] = yield* awaitPending(store, 1)
-          const invalid = "allow-forever" as unknown as GrantStore.Resolution
-          const result = yield* store.reply(pending!.requestId, invalid).pipe(
-            Effect.map(() => ({ _tag: "Success" as const })),
-            Effect.catch((error) => Effect.succeed({ _tag: "Failure" as const, error }))
-          )
+  it.effect.fails("fails a runtime-invalid resolution without stranding its waiter", () =>
+    Effect.scoped(
+      Effect.gen(function*() {
+        const store = yield* make()
+        const waiter = yield* store.check(read).pipe(Effect.forkChild({ startImmediately: true }))
+        const [pending] = yield* awaitPending(store, 1)
+        const invalid = "allow-forever" as unknown as GrantStore.Resolution
+        const result = yield* store.reply(pending!.requestId, invalid).pipe(
+          Effect.map(() => ({ _tag: "Success" as const })),
+          Effect.catch((error) => Effect.succeed({ _tag: "Failure" as const, error }))
+        )
 
-          if (result._tag === "Failure") {
-            expect(result.error.code).toBe("invalid_resolution")
-            yield* Fiber.interrupt(waiter)
-            return
-          }
+        if (result._tag === "Failure") {
+          expect(result.error.code).toBe("invalid_resolution")
+          yield* Fiber.interrupt(waiter)
+          return
+        }
 
-          // A successful reply is also allowed by the boundary contract, but
-          // only if it settles the request instead of abandoning the waiter.
-          yield* Fiber.await(waiter).pipe(Effect.timeout("100 millis"))
-          expect(yield* store.list).toEqual([])
-        })
-      )
+        // A successful reply is also allowed by the boundary contract, but
+        // only if it settles the request instead of abandoning the waiter.
+        yield* Fiber.await(waiter).pipe(Effect.timeout("100 millis"))
+        expect(yield* store.list).toEqual([])
+      })
     ))
 
   itEffect("refuses a run grant when no plan digest is active", () =>
@@ -318,20 +316,18 @@ describe("GrantStore.reply", () => {
 describe("GrantStore malformed policy input", () => {
   // BUG: The runtime envelope scope reaches the schema constructor and dies
   // with a validation defect instead of returning typed `invalid_resolution`.
-  it.fails("rejects an invalid runtime envelope scope with a typed store error", () =>
-    Effect.runPromise(
-      Effect.scoped(
-        Effect.gen(function*() {
-          const store = yield* make({ planDigest: "plan-1" })
-          const failure = yield* Effect.flip(store.grantEnvelope({
-            planDigest: "plan-1",
-            patterns: [pattern("fs:read", "/workspace/**")],
-            scope: "once" as unknown as "run" | "remembered"
-          }))
-          expect(failure.code).toBe("invalid_resolution")
-          expect(yield* store.list).toEqual([])
-        })
-      )
+  it.effect.fails("rejects an invalid runtime envelope scope with a typed store error", () =>
+    Effect.scoped(
+      Effect.gen(function*() {
+        const store = yield* make({ planDigest: "plan-1" })
+        const failure = yield* Effect.flip(store.grantEnvelope({
+          planDigest: "plan-1",
+          patterns: [pattern("fs:read", "/workspace/**")],
+          scope: "once" as unknown as "run" | "remembered"
+        }))
+        expect(failure.code).toBe("invalid_resolution")
+        expect(yield* store.list).toEqual([])
+      })
     ))
 
   itEffect("treats a sparse nested ruleset as an empty configured policy", () =>

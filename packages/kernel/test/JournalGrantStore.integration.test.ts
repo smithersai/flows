@@ -1,3 +1,4 @@
+import { afterEach, describe, expect, it } from "@effect/vitest"
 import { Capability, CapabilityPattern } from "@smthrs/capability-next/Capability"
 import { PermissionRequired } from "@smthrs/capability-next/Permission"
 import { DatabaseError, DurableWriter, layer as writerLayer } from "@smthrs/database-next/DurableWriter"
@@ -10,7 +11,6 @@ import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
 import * as GrantStore from "../src/GrantStore.ts"
 import * as JournalGrantStore from "../src/JournalGrantStore.ts"
 import * as Workspace from "../src/Workspace.ts"
@@ -61,92 +61,94 @@ const options = {
 } as const
 
 describe("JournalGrantStore real SQL integration", () => {
-  it("persists a grant, recreates the service, and replays authority from disk", async () => {
-    const directory = await temporaryDirectory()
-    const filename = join(directory, "journal.sqlite")
-    const workspace = join(directory, "workspace")
-    const capability = new Capability({ action: "fs:read", resource: join(workspace, "readme.md") })
-    const pattern = new CapabilityPattern({ action: "fs:read", resource: `${workspace}/**` })
+  it.effect("persists a grant, recreates the service, and replays authority from disk", () =>
+    Effect.gen(function*() {
+      const directory = yield* Effect.promise(() => temporaryDirectory())
+      const filename = join(directory, "journal.sqlite")
+      const workspace = join(directory, "workspace")
+      const capability = new Capability({ action: "fs:read", resource: join(workspace, "readme.md") })
+      const pattern = new CapabilityPattern({ action: "fs:read", resource: `${workspace}/**` })
 
-    await Effect.runPromise(
-      Effect.scoped(
-        Effect.gen(function*() {
-          const store = yield* JournalGrantStore.make(options)
-          const waiter = yield* store.check(capability).pipe(
-            Effect.forkChild({ startImmediately: true })
-          )
-          const pending = yield* awaitPending(store)
-          yield* store.reply(pending.requestId, "remembered", pattern)
-          yield* Fiber.join(waiter)
-        }).pipe(Effect.provide(journalLayer(filename)))
-      ).pipe(Effect.provide(Workspace.layer(workspace)))
-    )
+      yield* (
+        Effect.scoped(
+          Effect.gen(function*() {
+            const store = yield* JournalGrantStore.make(options)
+            const waiter = yield* store.check(capability).pipe(
+              Effect.forkChild({ startImmediately: true })
+            )
+            const pending = yield* awaitPending(store)
+            yield* store.reply(pending.requestId, "remembered", pattern)
+            yield* Fiber.join(waiter)
+          }).pipe(Effect.provide(journalLayer(filename)))
+        ).pipe(Effect.provide(Workspace.layer(workspace)))
+      )
 
-    await Effect.runPromise(
-      Effect.scoped(
-        Effect.gen(function*() {
-          const replayed = yield* JournalGrantStore.make({ ...options, attended: false })
-          yield* replayed.check(capability)
-          const journal = yield* Journal
-          const page = yield* journal.entries({ runId: options.policyRunId as never, limit: 10 })
-          expect(page.entries).toHaveLength(1)
-        }).pipe(Effect.provide(journalLayer(filename)))
-      ).pipe(Effect.provide(Workspace.layer(workspace)))
-    )
-  })
+      yield* (
+        Effect.scoped(
+          Effect.gen(function*() {
+            const replayed = yield* JournalGrantStore.make({ ...options, attended: false })
+            yield* replayed.check(capability)
+            const journal = yield* Journal
+            const page = yield* journal.entries({ runId: options.policyRunId as never, limit: 10 })
+            expect(page.entries).toHaveLength(1)
+          }).pipe(Effect.provide(journalLayer(filename)))
+        ).pipe(Effect.provide(Workspace.layer(workspace)))
+      )
+    }))
 
-  it("rolls back an injected commit failure and activates no authority", async () => {
-    const directory = await temporaryDirectory()
-    const filename = join(directory, "journal.sqlite")
-    const workspace = join(directory, "workspace")
-    const capability = new Capability({ action: "fs:read", resource: join(workspace, "readme.md") })
-    const pattern = new CapabilityPattern({ action: "fs:read", resource: `${workspace}/**` })
+  it.effect("rolls back an injected commit failure and activates no authority", () =>
+    Effect.gen(function*() {
+      const directory = yield* Effect.promise(() => temporaryDirectory())
+      const filename = join(directory, "journal.sqlite")
+      const workspace = join(directory, "workspace")
+      const capability = new Capability({ action: "fs:read", resource: join(workspace, "readme.md") })
+      const pattern = new CapabilityPattern({ action: "fs:read", resource: `${workspace}/**` })
 
-    await Effect.runPromise(
-      Effect.scoped(
-        Effect.gen(function*() {
-          const sql = yield* SqlClient.SqlClient
-          const writer = yield* DurableWriter
-          const failingWriter = DurableWriter.of({
-            write: <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E | DatabaseError, R> =>
-              writer.write(
-                Effect.flatMap(effect, () => Effect.fail(new DatabaseError({ code: "constraint" })))
-              )
-          })
-          const failingServices = Layer.merge(
-            Layer.succeed(SqlClient.SqlClient)(sql),
-            Layer.succeed(DurableWriter)(failingWriter)
-          )
-          const failingJournal = yield* buildJournal(failingServices)
-          const store = yield* JournalGrantStore.make(options).pipe(
-            Effect.provideService(Journal, failingJournal)
-          )
-          const waiter = yield* store.check(capability).pipe(
-            Effect.forkChild({ startImmediately: true })
-          )
-          const pending = yield* awaitPending(store)
+      yield* (
+        Effect.scoped(
+          Effect.gen(function*() {
+            const sql = yield* SqlClient.SqlClient
+            const writer = yield* DurableWriter
+            const failingWriter = DurableWriter.of({
+              write: <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E | DatabaseError, R> =>
+                writer.write(
+                  Effect.flatMap(effect, () => Effect.fail(new DatabaseError({ code: "constraint" })))
+                )
+            })
+            const failingServices = Layer.merge(
+              Layer.succeed(SqlClient.SqlClient)(sql),
+              Layer.succeed(DurableWriter)(failingWriter)
+            )
+            const failingJournal = yield* buildJournal(failingServices)
+            const store = yield* JournalGrantStore.make(options).pipe(
+              Effect.provideService(Journal, failingJournal)
+            )
+            const waiter = yield* store.check(capability).pipe(
+              Effect.forkChild({ startImmediately: true })
+            )
+            const pending = yield* awaitPending(store)
 
-          const failure = yield* Effect.flip(store.reply(pending.requestId, "remembered", pattern))
-          expect(failure.code).toBe("journal_failed")
-          expect(waiter.pollUnsafe()).toBeUndefined()
-          expect(yield* store.list).toEqual([pending])
-          const rows = yield* sql<{ readonly count: number }>`
+            const failure = yield* Effect.flip(store.reply(pending.requestId, "remembered", pattern))
+            expect(failure.code).toBe("journal_failed")
+            expect(waiter.pollUnsafe()).toBeUndefined()
+            expect(yield* store.list).toEqual([pending])
+            const rows = yield* sql<{ readonly count: number }>`
             SELECT COUNT(*) AS count FROM flows_journal_events WHERE run_id = ${options.policyRunId}
           `
-          expect(rows[0]?.count).toBe(0)
-          yield* Fiber.interrupt(waiter)
+            expect(rows[0]?.count).toBe(0)
+            yield* Fiber.interrupt(waiter)
 
-          const healthyServices = Layer.merge(
-            Layer.succeed(SqlClient.SqlClient)(sql),
-            Layer.succeed(DurableWriter)(writer)
-          )
-          const healthyJournal = yield* buildJournal(healthyServices)
-          const replayed = yield* JournalGrantStore.make({ ...options, attended: false }).pipe(
-            Effect.provideService(Journal, healthyJournal)
-          )
-          expect(yield* Effect.flip(replayed.check(capability))).toBeInstanceOf(PermissionRequired)
-        }).pipe(Effect.provide(database(filename)))
-      ).pipe(Effect.provide(Workspace.layer(workspace)))
-    )
-  })
+            const healthyServices = Layer.merge(
+              Layer.succeed(SqlClient.SqlClient)(sql),
+              Layer.succeed(DurableWriter)(writer)
+            )
+            const healthyJournal = yield* buildJournal(healthyServices)
+            const replayed = yield* JournalGrantStore.make({ ...options, attended: false }).pipe(
+              Effect.provideService(Journal, healthyJournal)
+            )
+            expect(yield* Effect.flip(replayed.check(capability))).toBeInstanceOf(PermissionRequired)
+          }).pipe(Effect.provide(database(filename)))
+        ).pipe(Effect.provide(Workspace.layer(workspace)))
+      )
+    }))
 })

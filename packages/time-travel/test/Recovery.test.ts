@@ -1,3 +1,4 @@
+import { describe, expect, it } from "@effect/vitest"
 import * as Jj from "@smthrs/jj-next"
 import { Journal } from "@smthrs/journal-next"
 import type * as JournalEvent from "@smthrs/journal-next/JournalEvent"
@@ -7,7 +8,6 @@ import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"
 import * as Layer from "effect/Layer"
-import { describe, expect, it } from "vitest"
 import type { EffectRecord } from "../src/EffectBoundary.ts"
 import type { Result as CompensationResult } from "../src/internal/Compensation.ts"
 import * as EffectHandlerRegistry from "../src/internal/EffectHandlerRegistry.ts"
@@ -138,212 +138,216 @@ const runRecovery = (
   registry: EffectHandlerRegistry.Service,
   hasSuffix: boolean
 ) =>
-  Effect.runPromise(
-    Recovery.recover({ owner }).pipe(
-      Effect.provide(Layer.succeed(TimeTravelStore, store)),
-      Effect.provide(Layer.succeed(RunStore.RunStore, runs)),
-      Effect.provide(Layer.succeed(Journal.Journal, journal(hasSuffix))),
-      Effect.provide(Layer.succeed(Jj.Jj, jj)),
-      Effect.provide(Layer.succeed(EffectHandlerRegistry.EffectHandlerRegistry, registry))
-    )
+  Recovery.recover({ owner }).pipe(
+    Effect.provide(Layer.succeed(TimeTravelStore, store)),
+    Effect.provide(Layer.succeed(RunStore.RunStore, runs)),
+    Effect.provide(Layer.succeed(Journal.Journal, journal(hasSuffix))),
+    Effect.provide(Layer.succeed(Jj.Jj, jj)),
+    Effect.provide(Layer.succeed(EffectHandlerRegistry.EffectHandlerRegistry, registry))
   )
 
 describe("Recovery", () => {
-  it("finishes the suspended transition when the archive transaction committed", async () => {
-    const store = MemoryTimeTravelStore.make()
-    seed(store, audit("archive_committed"))
-    const runs = makeRuns()
-    const registry = EffectHandlerRegistry.makeNoop()
-    const jj = Jj.makeNoop({
-      snapshot: () => Effect.succeed({ changeId: "current" }),
-      restore: () => Effect.void
-    })
+  it.effect("finishes the suspended transition when the archive transaction committed", () =>
+    Effect.gen(function*() {
+      const store = MemoryTimeTravelStore.make()
+      seed(store, audit("archive_committed"))
+      const runs = makeRuns()
+      const registry = EffectHandlerRegistry.makeNoop()
+      const jj = Jj.makeNoop({
+        snapshot: () => Effect.succeed({ changeId: "current" }),
+        restore: () => Effect.void
+      })
 
-    const outcomes = await runRecovery(store, runs, jj, registry, false)
+      const outcomes = yield* runRecovery(store, runs, jj, registry, false)
 
-    expect(outcomes).toEqual([{ _tag: "Completed", auditId: "audit-archive_committed" }])
-    expect(runs.state()).toMatchObject({ status: "suspended", owner: null })
-    expect(store.state().audits).toMatchObject([
-      { id: "audit-archive_committed", status: "completed" }
-    ])
-  })
+      expect(outcomes).toEqual([{ _tag: "Completed", auditId: "audit-archive_committed" }])
+      expect(runs.state()).toMatchObject({ status: "suspended", owner: null })
+      expect(store.state().audits).toMatchObject([
+        { id: "audit-archive_committed", status: "completed" }
+      ])
+    }))
 
-  it("restores jj and handler receipts when the archive transaction did not commit", async () => {
-    const store = MemoryTimeTravelStore.make()
-    seed(store, audit("compensated", compensation))
-    const runs = makeRuns()
-    const external: Array<string> = []
-    const registry = Effect.runSync(
-      EffectHandlerRegistry.make([{
-        kind: "send",
-        tier: "irreversible",
-        requiresIdempotencyKey: true,
-        residue: () => "message residue",
-        revert: () => Effect.succeed({ value: "sent" }),
-        rollback: (_crossed, receipt) =>
+  it.effect("restores jj and handler receipts when the archive transaction did not commit", () =>
+    Effect.gen(function*() {
+      const store = MemoryTimeTravelStore.make()
+      seed(store, audit("compensated", compensation))
+      const runs = makeRuns()
+      const external: Array<string> = []
+      const registry = Effect.runSync(
+        EffectHandlerRegistry.make([{
+          kind: "send",
+          tier: "irreversible",
+          requiresIdempotencyKey: true,
+          residue: () => "message residue",
+          revert: () => Effect.succeed({ value: "sent" }),
+          rollback: (_crossed, receipt) =>
+            Effect.sync(() => {
+              external.push(String((receipt as { readonly value: string }).value))
+            })
+        }])
+      )
+      let pointer = "target"
+      const jj = Jj.makeNoop({
+        snapshot: () => Effect.succeed({ changeId: pointer }),
+        restore: (changeId) =>
           Effect.sync(() => {
-            external.push(String((receipt as { readonly value: string }).value))
+            pointer = changeId
           })
-      }])
-    )
-    let pointer = "target"
-    const jj = Jj.makeNoop({
-      snapshot: () => Effect.succeed({ changeId: pointer }),
-      restore: (changeId) =>
-        Effect.sync(() => {
-          pointer = changeId
-        })
-    })
+      })
 
-    const outcomes = await runRecovery(store, runs, jj, registry, true)
+      const outcomes = yield* runRecovery(store, runs, jj, registry, true)
 
-    expect(outcomes).toEqual([{ _tag: "RolledBack", auditId: "audit-compensated" }])
-    expect(pointer).toBe("current")
-    expect(external).toEqual(["sent"])
-    expect(runs.state()).toMatchObject({ status: "suspended", owner: null })
-    expect(store.state().audits).toMatchObject([
-      { id: "audit-compensated", status: "failed" }
-    ])
-  })
+      expect(outcomes).toEqual([{ _tag: "RolledBack", auditId: "audit-compensated" }])
+      expect(pointer).toBe("current")
+      expect(external).toEqual(["sent"])
+      expect(runs.state()).toMatchObject({ status: "suspended", owner: null })
+      expect(store.state().audits).toMatchObject([
+        { id: "audit-compensated", status: "failed" }
+      ])
+    }))
 
-  it("records an unrecoverable typed terminal failure without inventing a run status", async () => {
-    const store = MemoryTimeTravelStore.make()
-    seed(store, audit("compensated", compensation))
-    const runs = makeRuns()
-    const registry = Effect.runSync(
-      EffectHandlerRegistry.make([{
-        kind: "send",
-        tier: "irreversible",
-        requiresIdempotencyKey: true,
-        residue: () => "message residue",
-        revert: () => Effect.succeed({ value: "sent" }),
-        rollback: () => Effect.fail(error("compensation_failed", "rollback failed"))
-      }])
-    )
-    const jj = Jj.makeNoop({
-      snapshot: () => Effect.succeed({ changeId: "target" }),
-      restore: () => Effect.void
-    })
+  it.effect("records an unrecoverable typed terminal failure without inventing a run status", () =>
+    Effect.gen(function*() {
+      const store = MemoryTimeTravelStore.make()
+      seed(store, audit("compensated", compensation))
+      const runs = makeRuns()
+      const registry = Effect.runSync(
+        EffectHandlerRegistry.make([{
+          kind: "send",
+          tier: "irreversible",
+          requiresIdempotencyKey: true,
+          residue: () => "message residue",
+          revert: () => Effect.succeed({ value: "sent" }),
+          rollback: () => Effect.fail(error("compensation_failed", "rollback failed"))
+        }])
+      )
+      const jj = Jj.makeNoop({
+        snapshot: () => Effect.succeed({ changeId: "target" }),
+        restore: () => Effect.void
+      })
 
-    const outcomes = await runRecovery(store, runs, jj, registry, true)
+      const outcomes = yield* runRecovery(store, runs, jj, registry, true)
 
-    expect(outcomes[0]).toMatchObject({
-      _tag: "Failed",
-      auditId: "audit-compensated",
-      error: { code: "compensation_failed" }
-    })
-    expect(runs.state().status).toBe("running")
-    expect(["pending", "running", "suspended", "completed", "failed", "cancelled"]).toContain(
-      runs.state().status
-    )
-    expect(store.state().audits[0]).toMatchObject({
-      status: "failed",
-      detail: { phase: "terminal_failure" }
-    })
-  })
+      expect(outcomes[0]).toMatchObject({
+        _tag: "Failed",
+        auditId: "audit-compensated",
+        error: { code: "compensation_failed" }
+      })
+      expect(runs.state().status).toBe("running")
+      expect(["pending", "running", "suspended", "completed", "failed", "cancelled"]).toContain(
+        runs.state().status
+      )
+      expect(store.state().audits[0]).toMatchObject({
+        status: "failed",
+        detail: { phase: "terminal_failure" }
+      })
+    }))
 
-  it("isolates malformed audits so one terminal failure does not block later recovery", async () => {
-    const store = MemoryTimeTravelStore.make()
-    seed(store, {
-      id: "audit-malformed",
-      runId: "run",
-      frame,
-      status: "in_progress",
-      detail: { version: 2 }
-    })
-    seed(store, { ...audit("archive_committed"), id: "audit-good" })
-    const runs = makeRuns()
+  it.effect("isolates malformed audits so one terminal failure does not block later recovery", () =>
+    Effect.gen(function*() {
+      const store = MemoryTimeTravelStore.make()
+      seed(store, {
+        id: "audit-malformed",
+        runId: "run",
+        frame,
+        status: "in_progress",
+        detail: { version: 2 }
+      })
+      seed(store, { ...audit("archive_committed"), id: "audit-good" })
+      const runs = makeRuns()
 
-    const outcomes = await runRecovery(
-      store,
-      runs,
-      Jj.makeNoop({ restore: () => Effect.void }),
-      EffectHandlerRegistry.makeNoop(),
-      false
-    )
+      const outcomes = yield* runRecovery(
+        store,
+        runs,
+        Jj.makeNoop({ restore: () => Effect.void }),
+        EffectHandlerRegistry.makeNoop(),
+        false
+      )
 
-    expect(outcomes).toEqual([
-      expect.objectContaining({ _tag: "Failed", auditId: "audit-malformed" }),
-      { _tag: "Completed", auditId: "audit-good" }
-    ])
-    expect(store.state().audits.map((item) => ({ id: item.id, status: item.status }))).toEqual([
-      { id: "audit-malformed", status: "failed" },
-      { id: "audit-good", status: "completed" }
-    ])
-  })
+      expect(outcomes).toEqual([
+        expect.objectContaining({ _tag: "Failed", auditId: "audit-malformed" }),
+        { _tag: "Completed", auditId: "audit-good" }
+      ])
+      expect(store.state().audits.map((item) => ({ id: item.id, status: item.status }))).toEqual([
+        { id: "audit-malformed", status: "failed" },
+        { id: "audit-good", status: "completed" }
+      ])
+    }))
 
-  it("propagates a pending-audit persistence failure before touching run ownership", async () => {
-    let reads = 0
-    const failure = await Effect.runPromise(
-      Effect.flip(
-        Recovery.recover({ owner }).pipe(
-          Effect.provide(
-            Layer.succeed(
-              TimeTravelStore,
-              TimeTravelStore.of({
-                ...MemoryTimeTravelStore.make(),
-                pendingAudits: () => Effect.fail(error("unknown", "audit store unavailable"))
-              })
+  it.effect("propagates a pending-audit persistence failure before touching run ownership", () =>
+    Effect.gen(function*() {
+      let reads = 0
+      const failure = yield* (
+        Effect.flip(
+          Recovery.recover({ owner }).pipe(
+            Effect.provide(
+              Layer.succeed(
+                TimeTravelStore,
+                TimeTravelStore.of({
+                  ...MemoryTimeTravelStore.make(),
+                  pendingAudits: () => Effect.fail(error("unknown", "audit store unavailable"))
+                })
+              )
+            ),
+            Effect.provide(
+              Layer.succeed(
+                RunStore.RunStore,
+                RunStore.makeNoop({
+                  get: () =>
+                    Effect.sync(() => {
+                      reads += 1
+                      return makeRuns().state()
+                    })
+                })
+              )
+            ),
+            Effect.provide(Layer.succeed(Journal.Journal, journal(false))),
+            Effect.provide(Layer.succeed(Jj.Jj, Jj.makeNoop({}))),
+            Effect.provide(
+              Layer.succeed(EffectHandlerRegistry.EffectHandlerRegistry, EffectHandlerRegistry.makeNoop())
             )
-          ),
-          Effect.provide(
-            Layer.succeed(
-              RunStore.RunStore,
-              RunStore.makeNoop({
-                get: () =>
-                  Effect.sync(() => {
-                    reads += 1
-                    return makeRuns().state()
-                  })
-              })
-            )
-          ),
-          Effect.provide(Layer.succeed(Journal.Journal, journal(false))),
-          Effect.provide(Layer.succeed(Jj.Jj, Jj.makeNoop({}))),
-          Effect.provide(
-            Layer.succeed(EffectHandlerRegistry.EffectHandlerRegistry, EffectHandlerRegistry.makeNoop())
           )
         )
       )
-    )
 
-    expect(failure).toMatchObject({ code: "unknown", message: "audit store unavailable" })
-    expect(reads).toBe(0)
-  })
+      expect(failure).toMatchObject({ code: "unknown", message: "audit store unavailable" })
+      expect(reads).toBe(0)
+    }))
 
-  it("finishes the atomic recovery transition when interrupted mid-protocol", async () => {
-    const store = MemoryTimeTravelStore.make()
-    seed(store, audit("archive_committed"))
-    const entered = Effect.runSync(Deferred.make<void>())
-    const release = Effect.runSync(Deferred.make<void>())
-    const runs = RunStore.makeNoop({
-      get: () => Effect.succeed(makeRuns().state()),
-      transitionOwned: () =>
-        Deferred.succeed(entered, undefined).pipe(
-          Effect.andThen(Deferred.await(release)),
-          Effect.as({ _tag: "Transitioned" as const })
+  it.effect("finishes the atomic recovery transition when interrupted mid-protocol", () =>
+    Effect.gen(function*() {
+      const store = MemoryTimeTravelStore.make()
+      seed(store, audit("archive_committed"))
+      const entered = Effect.runSync(Deferred.make<void>())
+      const release = Effect.runSync(Deferred.make<void>())
+      const runs = RunStore.makeNoop({
+        get: () => Effect.succeed(makeRuns().state()),
+        transitionOwned: () =>
+          Deferred.succeed(entered, undefined).pipe(
+            Effect.andThen(Deferred.await(release)),
+            Effect.as({ _tag: "Transitioned" as const })
+          )
+      })
+      const program = Recovery.recover({ owner }).pipe(
+        Effect.provide(Layer.succeed(TimeTravelStore, store)),
+        Effect.provide(Layer.succeed(RunStore.RunStore, runs)),
+        Effect.provide(Layer.succeed(Journal.Journal, journal(false))),
+        Effect.provide(Layer.succeed(Jj.Jj, Jj.makeNoop({}))),
+        Effect.provide(
+          Layer.succeed(EffectHandlerRegistry.EffectHandlerRegistry, EffectHandlerRegistry.makeNoop())
         )
-    })
-    const program = Recovery.recover({ owner }).pipe(
-      Effect.provide(Layer.succeed(TimeTravelStore, store)),
-      Effect.provide(Layer.succeed(RunStore.RunStore, runs)),
-      Effect.provide(Layer.succeed(Journal.Journal, journal(false))),
-      Effect.provide(Layer.succeed(Jj.Jj, Jj.makeNoop({}))),
-      Effect.provide(
-        Layer.succeed(EffectHandlerRegistry.EffectHandlerRegistry, EffectHandlerRegistry.makeNoop())
       )
-    )
-    const fiber = Effect.runFork(program)
+      const fiber = Effect.runFork(program)
 
-    await Effect.runPromise(Deferred.await(entered))
-    const interrupt = Effect.runFork(Fiber.interrupt(fiber))
-    await Effect.runPromise(Deferred.succeed(release, undefined))
-    await Effect.runPromise(Fiber.join(interrupt))
-    const exit = await Effect.runPromise(Fiber.await(fiber))
+      yield* (Deferred.await(entered))
+      const interrupt = Effect.runFork(Fiber.interrupt(fiber))
+      yield* (Deferred.succeed(release, undefined))
+      yield* (Fiber.join(interrupt))
+      const exit = yield* (Fiber.await(fiber))
 
-    expect(exit._tag).toBe("Failure")
-    expect(store.state().audits).toMatchObject([
-      { id: "audit-archive_committed", status: "completed", detail: { phase: "completed" } }
-    ])
-  })
+      expect(exit._tag).toBe("Failure")
+      expect(store.state().audits).toMatchObject([
+        { id: "audit-archive_committed", status: "completed", detail: { phase: "completed" } }
+      ])
+    }))
 })

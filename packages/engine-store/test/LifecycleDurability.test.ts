@@ -3,6 +3,7 @@
  * the journal's durable (undroppable) channel, fenced to the owning process
  * where the write is owned — never the optimistic lossy queue.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { Journal, type JournalEvent } from "@smthrs/journal-next"
 import * as Notifying from "@smthrs/journal-next/test/Notifying"
 import { Jj } from "@smthrs/kernel-next"
@@ -18,12 +19,11 @@ import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
-import { describe, expect, it } from "vitest"
 import * as Inconsistency from "../src/Inconsistency.ts"
 import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
-import { runPromise, sha256 } from "./Sha256.ts"
+import { sha256, withCrypto } from "./Sha256.ts"
 
 const ownerA: Ownership.OwnerId = { hostId: "lifecycle-host-a", pid: 1, nonce: "lifecycle-owner-a" }
 const ownerB: Ownership.OwnerId = { hostId: "lifecycle-host-b", pid: 2, nonce: "lifecycle-owner-b" }
@@ -62,7 +62,7 @@ const run = <A, E>(
     | Crypto.Crypto
   >
 ) =>
-  runPromise(
+  withCrypto(
     effect.pipe(Effect.provide(layer), Effect.provide(TestClock.layer()), Effect.scoped) as Effect.Effect<
       A,
       E,
@@ -130,113 +130,116 @@ const eventTypes = (entries: ReadonlyArray<JournalEvent.Entry>): ReadonlyArray<s
   entries.map((entry) => entry.eventType)
 
 describe("lifecycle journal durability", () => {
-  it("lifecycle events survive a lossy channel that drops every ownerless admission", async () => {
-    const key = "lifecycle/drop-proof"
-    const result = await run(Effect.gen(function*() {
-      yield* activate("drop-proof", ownerA)
-      const journal = yield* Journal.Journal
-      const cache = yield* CacheStore.CacheStore
-      const executor = makeExecutor({ runId: "drop-proof", owner: ownerA, key, result: "v1" })
-      const value = yield* executor({
-        action: {},
-        attempt: 1,
-        key,
-        tier: "sealed",
-        metadata: boundary
-      }).pipe(Effect.provideService(Journal.Journal, droppingLossy(journal)))
-      yield* journal.flush
-      const entries = yield* journal.entries({ runId: "drop-proof" as never, limit: 100 })
-      const cached = yield* cache.get(sha256(key))
-      return { value, entries: entries.entries, cached }
+  it.effect("lifecycle events survive a lossy channel that drops every ownerless admission", () =>
+    Effect.gen(function*() {
+      const key = "lifecycle/drop-proof"
+      const result = yield* run(Effect.gen(function*() {
+        yield* activate("drop-proof", ownerA)
+        const journal = yield* Journal.Journal
+        const cache = yield* CacheStore.CacheStore
+        const executor = makeExecutor({ runId: "drop-proof", owner: ownerA, key, result: "v1" })
+        const value = yield* executor({
+          action: {},
+          attempt: 1,
+          key,
+          tier: "sealed",
+          metadata: boundary
+        }).pipe(Effect.provideService(Journal.Journal, droppingLossy(journal)))
+        yield* journal.flush
+        const entries = yield* journal.entries({ runId: "drop-proof" as never, limit: 100 })
+        const cached = yield* cache.get(sha256(key))
+        return { value, entries: entries.entries, cached }
+      }))
+
+      expect(result.value).toBe("v1")
+      const types = eventTypes(result.entries)
+      expect(types).toContain("flows.engine.attempt-started")
+      expect(types).toContain("flows.engine.attempt-finished")
+      expect(types).toContain("flows.engine.cache-provenance")
+      // The cache row's provenance must reference the committed cache-provenance
+      // event, not an optimistic (possibly dropped) receipt.
+      const provenanceSeq = result.entries.find(
+        (entry) => entry.eventType === "flows.engine.cache-provenance"
+      )!.seq
+      expect(Option.getOrThrow(result.cached).recordedEventSeq).toBe(provenanceSeq)
     }))
 
-    expect(result.value).toBe("v1")
-    const types = eventTypes(result.entries)
-    expect(types).toContain("flows.engine.attempt-started")
-    expect(types).toContain("flows.engine.attempt-finished")
-    expect(types).toContain("flows.engine.cache-provenance")
-    // The cache row's provenance must reference the committed cache-provenance
-    // event, not an optimistic (possibly dropped) receipt.
-    const provenanceSeq = result.entries.find(
-      (entry) => entry.eventType === "flows.engine.cache-provenance"
-    )!.seq
-    expect(Option.getOrThrow(result.cached).recordedEventSeq).toBe(provenanceSeq)
-  })
-
-  it("a zombie owner cannot journal attempt-finished after fence loss", async () => {
-    const key = "lifecycle/fence-proof"
-    const result = await run(Effect.gen(function*() {
-      yield* activate("fence-proof", ownerA)
-      const attempts = yield* AttemptStore.AttemptStore
-      const runs = yield* RunStore.RunStore
-      const journal = yield* Journal.Journal
-      // Steal the run to owner B in the window between the attempt row
-      // sealing and the attempt-finished journal append.
-      const stealing = Notifying.wrap(
-        attempts,
-        (op, order, args) =>
-          op === "finish" && order === "after" &&
-            (args[0] as { readonly state: string }).state === "succeeded"
-            ? takeover(runs, "fence-proof", ownerB).pipe(Effect.orDie)
-            : Effect.void
-      )
-      const executor = makeExecutor({ runId: "fence-proof", owner: ownerA, key, result: "v1" })
-      const exit = yield* executor({
-        action: {},
-        attempt: 1,
-        key,
-        tier: "sealed",
-        metadata: boundary
-      }).pipe(
-        Effect.provideService(AttemptStore.AttemptStore, stealing),
-        Effect.forkChild({ startImmediately: true }),
-        Effect.flatMap(Fiber.await)
-      )
-      yield* journal.flush
-      const entries = yield* journal.entries({ runId: "fence-proof" as never, limit: 100 })
-      return { exit, entries: entries.entries }
-    }))
-
-    expect(Exit.isSuccess(result.exit)).toBe(false)
-    expect(eventTypes(result.entries)).not.toContain("flows.engine.attempt-finished")
-  })
-
-  it("a tolerated cache conflict keeps its journal evidence even when the lossy channel drops", async () => {
-    const key = "lifecycle/conflict-proof"
-    const result = await run(Effect.gen(function*() {
-      yield* activate("conflict-proof", ownerA)
-      const journal = yield* Journal.Journal
-      const cache = yield* CacheStore.CacheStore
-      // A pre-existing divergent cache row forces cache.put into Conflict.
-      yield* cache.put({
-        keyDigest: sha256(key),
-        result: "other-value",
-        meta: { tier: "sealed" },
-        createdAtMs: 0,
-        recordedRunId: "some-other-run",
-        recordedEventSeq: 0
-      })
-      const lossy = droppingLossy(journal)
-      const executor = makeExecutor({ runId: "conflict-proof", owner: ownerA, key, result: "v1" })
-      const value = yield* executor({
-        action: {},
-        attempt: 1,
-        key,
-        tier: "sealed",
-        metadata: boundary
-      }).pipe(
-        Effect.provideService(Journal.Journal, lossy),
-        Effect.provideService(
-          Inconsistency.Inconsistency,
-          Inconsistency.make({ journal: lossy, verdict: "tolerate", owner: ownerA })
+  it.effect("a zombie owner cannot journal attempt-finished after fence loss", () =>
+    Effect.gen(function*() {
+      const key = "lifecycle/fence-proof"
+      const result = yield* run(Effect.gen(function*() {
+        yield* activate("fence-proof", ownerA)
+        const attempts = yield* AttemptStore.AttemptStore
+        const runs = yield* RunStore.RunStore
+        const journal = yield* Journal.Journal
+        // Steal the run to owner B in the window between the attempt row
+        // sealing and the attempt-finished journal append.
+        const stealing = Notifying.wrap(
+          attempts,
+          (op, order, args) =>
+            op === "finish" && order === "after" &&
+              (args[0] as { readonly state: string }).state === "succeeded"
+              ? takeover(runs, "fence-proof", ownerB).pipe(Effect.orDie)
+              : Effect.void
         )
-      )
-      yield* journal.flush
-      const entries = yield* journal.entries({ runId: "conflict-proof" as never, limit: 100 })
-      return { value, entries: entries.entries }
+        const executor = makeExecutor({ runId: "fence-proof", owner: ownerA, key, result: "v1" })
+        const exit = yield* executor({
+          action: {},
+          attempt: 1,
+          key,
+          tier: "sealed",
+          metadata: boundary
+        }).pipe(
+          Effect.provideService(AttemptStore.AttemptStore, stealing),
+          Effect.forkChild({ startImmediately: true }),
+          Effect.flatMap(Fiber.await)
+        )
+        yield* journal.flush
+        const entries = yield* journal.entries({ runId: "fence-proof" as never, limit: 100 })
+        return { exit, entries: entries.entries }
+      }))
+
+      expect(Exit.isSuccess(result.exit)).toBe(false)
+      expect(eventTypes(result.entries)).not.toContain("flows.engine.attempt-finished")
     }))
 
-    expect(result.value).toBe("v1")
-    expect(eventTypes(result.entries)).toContain("flows.engine.cache-conflict")
-  })
+  it.effect("a tolerated cache conflict keeps its journal evidence even when the lossy channel drops", () =>
+    Effect.gen(function*() {
+      const key = "lifecycle/conflict-proof"
+      const result = yield* run(Effect.gen(function*() {
+        yield* activate("conflict-proof", ownerA)
+        const journal = yield* Journal.Journal
+        const cache = yield* CacheStore.CacheStore
+        // A pre-existing divergent cache row forces cache.put into Conflict.
+        yield* cache.put({
+          keyDigest: sha256(key),
+          result: "other-value",
+          meta: { tier: "sealed" },
+          createdAtMs: 0,
+          recordedRunId: "some-other-run",
+          recordedEventSeq: 0
+        })
+        const lossy = droppingLossy(journal)
+        const executor = makeExecutor({ runId: "conflict-proof", owner: ownerA, key, result: "v1" })
+        const value = yield* executor({
+          action: {},
+          attempt: 1,
+          key,
+          tier: "sealed",
+          metadata: boundary
+        }).pipe(
+          Effect.provideService(Journal.Journal, lossy),
+          Effect.provideService(
+            Inconsistency.Inconsistency,
+            Inconsistency.make({ journal: lossy, verdict: "tolerate", owner: ownerA })
+          )
+        )
+        yield* journal.flush
+        const entries = yield* journal.entries({ runId: "conflict-proof" as never, limit: 100 })
+        return { value, entries: entries.entries }
+      }))
+
+      expect(result.value).toBe("v1")
+      expect(eventTypes(result.entries)).toContain("flows.engine.cache-conflict")
+    }))
 })

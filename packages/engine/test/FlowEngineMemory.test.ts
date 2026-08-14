@@ -1,19 +1,19 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
+import { describe, expect, it } from "@effect/vitest"
 import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Cause, Context, Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
-import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body()))
+  it.effect(name, () => withCrypto(body()))
 
 /** An `effect` case that documents a known defect: it passes while the bug stands. */
 const effectFails = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it.fails(name, () => runPromise(body()))
+  it.effect.fails(name, () => withCrypto(body()))
 
 describe("memory engine execution surface", () => {
   effect("dies when executing a flow that was never registered", () => {

@@ -17,6 +17,7 @@
  * close (`RunDriver.releaseRetainedScope`), so "exactly once" is a property of
  * the state machine rather than of a timing hook.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { Flow, FlowRuntime } from "@smthrs/flow-next"
 import { Journal } from "@smthrs/journal-next"
 import { Ownership, RunStore } from "@smthrs/run-store-next"
@@ -30,12 +31,11 @@ import * as Latch from "effect/Latch"
 import * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
-import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
 import * as TestStores from "../src/test/TestStores.ts"
 import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
-import { runPromise } from "./Sha256.ts"
+import { withCrypto } from "./Sha256.ts"
 
 const CascadeFlow = Flow.make("CancelCascade/Test", {
   payload: {},
@@ -105,130 +105,134 @@ const seedFamily = (
   })
 
 describe("cancellation cascades to linked children", () => {
-  it("a cancel observed from durable state reaches every transitive child", async () => {
-    const result = await runPromise(provide(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      const engineState = yield* DurableEngineState.DurableEngineState
-      const driver = yield* makeDriver("owner")
-      const family = yield* seedFamily(store, engineState, "cascade-observed")
+  it.effect("a cancel observed from durable state reaches every transitive child", () =>
+    Effect.gen(function*() {
+      const result = yield* withCrypto(provide(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const engineState = yield* DurableEngineState.DurableEngineState
+        const driver = yield* makeDriver("owner")
+        const family = yield* seedFamily(store, engineState, "cascade-observed")
 
-      const started = yield* Latch.make(false)
-      yield* driver.register(CascadeFlow, () => Latch.open(started).pipe(Effect.andThen(Effect.never)))
-      const fiber = yield* driver.execute(CascadeFlow, {
-        executionId: "cascade-observed",
-        payload: {},
-        discard: true
-      }).pipe(Effect.forkChild({ startImmediately: true }))
-      yield* Latch.await(started)
+        const started = yield* Latch.make(false)
+        yield* driver.register(CascadeFlow, () => Latch.open(started).pipe(Effect.andThen(Effect.never)))
+        const fiber = yield* driver.execute(CascadeFlow, {
+          executionId: "cascade-observed",
+          payload: {},
+          discard: true
+        }).pipe(Effect.forkChild({ startImmediately: true }))
+        yield* Latch.await(started)
 
-      // Another process durably requests cancellation of the parent only. No
-      // in-process interrupt is issued, so `FlowInstance.interrupted` is never
-      // set and the `FlowEngine.make` parent link cannot fire.
-      const nowMs = yield* Clock.currentTimeMillis
-      yield* store.requestCancel("cascade-observed", nowMs)
-      yield* TestClock.adjust(Duration.toMillis(Ownership.heartbeatInterval) * 2)
-      yield* Fiber.join(fiber)
+        // Another process durably requests cancellation of the parent only. No
+        // in-process interrupt is issued, so `FlowInstance.interrupted` is never
+        // set and the `FlowEngine.make` parent link cannot fire.
+        const nowMs = yield* Clock.currentTimeMillis
+        yield* store.requestCancel("cascade-observed", nowMs)
+        yield* TestClock.adjust(Duration.toMillis(Ownership.heartbeatInterval) * 2)
+        yield* Fiber.join(fiber)
 
-      const rows = yield* Effect.forEach(
-        ["cascade-observed", family.childA, family.childB, family.grandchild, family.unrelated],
-        (runId) => store.get(runId)
-      )
-      return { rows, family }
-    })))
+        const rows = yield* Effect.forEach(
+          ["cascade-observed", family.childA, family.childB, family.grandchild, family.unrelated],
+          (runId) => store.get(runId)
+        )
+        return { rows, family }
+      })))
 
-    const [parent, childA, childB, grandchild, unrelated] = result.rows
-    expect(parent!.status).toBe("cancelled")
-    expect(childA!.cancelRequestedAtMs).not.toBeNull()
-    expect(childB!.cancelRequestedAtMs).not.toBeNull()
-    // Transitive: a grandchild is linked through `childA`, not to the parent.
-    expect(grandchild!.cancelRequestedAtMs).not.toBeNull()
-    // A run with no edge to the cancelled family is untouched.
-    expect(unrelated!.cancelRequestedAtMs).toBeNull()
-  })
+      const [parent, childA, childB, grandchild, unrelated] = result.rows
+      expect(parent!.status).toBe("cancelled")
+      expect(childA!.cancelRequestedAtMs).not.toBeNull()
+      expect(childB!.cancelRequestedAtMs).not.toBeNull()
+      // Transitive: a grandchild is linked through `childA`, not to the parent.
+      expect(grandchild!.cancelRequestedAtMs).not.toBeNull()
+      // A run with no edge to the cancelled family is untouched.
+      expect(unrelated!.cancelRequestedAtMs).toBeNull()
+    }))
 
-  it("a driver that never ran the family still cascades from its own interrupt", async () => {
-    const result = await runPromise(provide(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      const engineState = yield* DurableEngineState.DurableEngineState
-      // driverA created nothing here either; the family is durable state, and
-      // driverB is the separate instance an operator CLI would hold.
-      const driverB = yield* makeDriver("cli")
-      const family = yield* seedFamily(store, engineState, "cascade-cli")
-      yield* store.create("cascade-cli", state("cascade-cli"))
+  it.effect("a driver that never ran the family still cascades from its own interrupt", () =>
+    Effect.gen(function*() {
+      const result = yield* withCrypto(provide(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const engineState = yield* DurableEngineState.DurableEngineState
+        // driverA created nothing here either; the family is durable state, and
+        // driverB is the separate instance an operator CLI would hold.
+        const driverB = yield* makeDriver("cli")
+        const family = yield* seedFamily(store, engineState, "cascade-cli")
+        yield* store.create("cascade-cli", state("cascade-cli"))
 
-      yield* driverB.interrupt(CascadeFlow, "cascade-cli")
+        yield* driverB.interrupt(CascadeFlow, "cascade-cli")
 
-      const rows = yield* Effect.forEach(
-        ["cascade-cli", family.childA, family.childB, family.grandchild, family.unrelated],
-        (runId) => store.get(runId)
-      )
-      return rows
-    })))
+        const rows = yield* Effect.forEach(
+          ["cascade-cli", family.childA, family.childB, family.grandchild, family.unrelated],
+          (runId) => store.get(runId)
+        )
+        return rows
+      })))
 
-    const [parent, childA, childB, grandchild, unrelated] = result
-    expect(parent!.cancelRequestedAtMs).not.toBeNull()
-    expect(childA!.cancelRequestedAtMs).not.toBeNull()
-    expect(childB!.cancelRequestedAtMs).not.toBeNull()
-    expect(grandchild!.cancelRequestedAtMs).not.toBeNull()
-    expect(unrelated!.cancelRequestedAtMs).toBeNull()
-  })
+      const [parent, childA, childB, grandchild, unrelated] = result
+      expect(parent!.cancelRequestedAtMs).not.toBeNull()
+      expect(childA!.cancelRequestedAtMs).not.toBeNull()
+      expect(childB!.cancelRequestedAtMs).not.toBeNull()
+      expect(grandchild!.cancelRequestedAtMs).not.toBeNull()
+      expect(unrelated!.cancelRequestedAtMs).toBeNull()
+    }))
 
-  it("is idempotent across repeated cancels and separate driver instances", async () => {
-    const result = await runPromise(provide(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      const engineState = yield* DurableEngineState.DurableEngineState
-      const driverA = yield* makeDriver("a")
-      const driverB = yield* makeDriver("b")
-      const family = yield* seedFamily(store, engineState, "cascade-idempotent")
-      yield* store.create("cascade-idempotent", state("cascade-idempotent"))
+  it.effect("is idempotent across repeated cancels and separate driver instances", () =>
+    Effect.gen(function*() {
+      const result = yield* withCrypto(provide(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const engineState = yield* DurableEngineState.DurableEngineState
+        const driverA = yield* makeDriver("a")
+        const driverB = yield* makeDriver("b")
+        const family = yield* seedFamily(store, engineState, "cascade-idempotent")
+        yield* store.create("cascade-idempotent", state("cascade-idempotent"))
 
-      yield* driverA.interrupt(CascadeFlow, "cascade-idempotent")
-      const first = yield* Effect.forEach(
-        [family.childA, family.childB, family.grandchild],
-        (runId) => store.get(runId).pipe(Effect.map((row) => row.cancelRequestedAtMs))
-      )
-      // Time moves on, so a second cascade that re-wrote the column would be
-      // visible as a different timestamp rather than hidden behind equality.
-      yield* TestClock.adjust(Duration.toMillis(Ownership.heartbeatInterval))
-      yield* driverA.interrupt(CascadeFlow, "cascade-idempotent")
-      yield* driverB.interrupt(CascadeFlow, "cascade-idempotent")
-      const second = yield* Effect.forEach(
-        [family.childA, family.childB, family.grandchild],
-        (runId) => store.get(runId).pipe(Effect.map((row) => row.cancelRequestedAtMs))
-      )
-      return { first, second }
-    })))
+        yield* driverA.interrupt(CascadeFlow, "cascade-idempotent")
+        const first = yield* Effect.forEach(
+          [family.childA, family.childB, family.grandchild],
+          (runId) => store.get(runId).pipe(Effect.map((row) => row.cancelRequestedAtMs))
+        )
+        // Time moves on, so a second cascade that re-wrote the column would be
+        // visible as a different timestamp rather than hidden behind equality.
+        yield* TestClock.adjust(Duration.toMillis(Ownership.heartbeatInterval))
+        yield* driverA.interrupt(CascadeFlow, "cascade-idempotent")
+        yield* driverB.interrupt(CascadeFlow, "cascade-idempotent")
+        const second = yield* Effect.forEach(
+          [family.childA, family.childB, family.grandchild],
+          (runId) => store.get(runId).pipe(Effect.map((row) => row.cancelRequestedAtMs))
+        )
+        return { first, second }
+      })))
 
-    expect(result.first.every((value) => value !== null)).toBe(true)
-    // First-writer-wins: three more cascades changed nothing.
-    expect(result.second).toEqual(result.first)
-  })
+      expect(result.first.every((value) => value !== null)).toBe(true)
+      // First-writer-wins: three more cascades changed nothing.
+      expect(result.second).toEqual(result.first)
+    }))
 
-  it("does not cascade when the parent completes normally", async () => {
-    const result = await runPromise(provide(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      const engineState = yield* DurableEngineState.DurableEngineState
-      const driver = yield* makeDriver("complete")
-      const family = yield* seedFamily(store, engineState, "cascade-complete")
+  it.effect("does not cascade when the parent completes normally", () =>
+    Effect.gen(function*() {
+      const result = yield* withCrypto(provide(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const engineState = yield* DurableEngineState.DurableEngineState
+        const driver = yield* makeDriver("complete")
+        const family = yield* seedFamily(store, engineState, "cascade-complete")
 
-      yield* driver.register(CascadeFlow, () => Effect.succeed("done"))
-      yield* driver.execute(CascadeFlow, {
-        executionId: "cascade-complete",
-        payload: {},
-        discard: true
-      })
+        yield* driver.register(CascadeFlow, () => Effect.succeed("done"))
+        yield* driver.execute(CascadeFlow, {
+          executionId: "cascade-complete",
+          payload: {},
+          discard: true
+        })
 
-      const rows = yield* Effect.forEach(
-        ["cascade-complete", family.childA, family.childB, family.grandchild],
-        (runId) => store.get(runId)
-      )
-      return rows
-    })))
+        const rows = yield* Effect.forEach(
+          ["cascade-complete", family.childA, family.childB, family.grandchild],
+          (runId) => store.get(runId)
+        )
+        return rows
+      })))
 
-    const [parent, ...children] = result
-    expect(parent!.status).toBe("completed")
-    expect(children.map((row) => row!.cancelRequestedAtMs)).toEqual([null, null, null])
-  })
+      const [parent, ...children] = result
+      expect(parent!.status).toBe("completed")
+      expect(children.map((row) => row!.cancelRequestedAtMs)).toEqual([null, null, null])
+    }))
 })
 
 describe("cancelling a parked flow closes its retained scope", () => {
@@ -277,187 +281,193 @@ describe("cancelling a parked flow closes its retained scope", () => {
       }
     }))
 
-  it("runs the parked finalizer exactly once and retains no scope afterwards", async () => {
-    const result = await runPromise(parkThenCancel("parked-finalizer", (driver) =>
-      Effect.gen(function*() {
-        yield* driver.interrupt(CascadeFlow, "parked-finalizer")
-        // The parked-run sweep wakes the cancel-requested row; the
-        // re-activation guard then closes it.
-        for (let index = 0; index < 5; index++) {
-          yield* TestClock.adjust(Duration.toMillis(Ownership.heartbeatInterval))
-          yield* Effect.yieldNow
-        }
-      })))
+  it.effect("runs the parked finalizer exactly once and retains no scope afterwards", () =>
+    Effect.gen(function*() {
+      const result = yield* withCrypto(parkThenCancel("parked-finalizer", (driver) =>
+        Effect.gen(function*() {
+          yield* driver.interrupt(CascadeFlow, "parked-finalizer")
+          // The parked-run sweep wakes the cancel-requested row; the
+          // re-activation guard then closes it.
+          for (let index = 0; index < 5; index++) {
+            yield* TestClock.adjust(Duration.toMillis(Ownership.heartbeatInterval))
+            yield* Effect.yieldNow
+          }
+        })))
 
-    expect(result.parkedStatus).toBe("suspended")
-    // While parked the scope is held — that is the behaviour `intoResult`
-    // asks for — but it is held by a named owner, not orphaned.
-    expect(result.retainedWhileParked).toEqual(["parked-finalizer"])
-    expect(result.finalizedWhileParked).toEqual([])
-    expect(result.row.status).toBe("cancelled")
-    // Exactly once, and nothing retained: no leak, no double-finalize.
-    expect(result.finalized).toEqual(["parked-finalizer"])
-    expect(result.retainedAfterCancel).toEqual([])
-  })
+      expect(result.parkedStatus).toBe("suspended")
+      // While parked the scope is held — that is the behaviour `intoResult`
+      // asks for — but it is held by a named owner, not orphaned.
+      expect(result.retainedWhileParked).toEqual(["parked-finalizer"])
+      expect(result.finalizedWhileParked).toEqual([])
+      expect(result.row.status).toBe("cancelled")
+      // Exactly once, and nothing retained: no leak, no double-finalize.
+      expect(result.finalized).toEqual(["parked-finalizer"])
+      expect(result.retainedAfterCancel).toEqual([])
+    }))
 
-  it("continues cancellation after a parked finalizer defects and releases its retained scope once", async () => {
-    let finalizerCalls = 0
-    const result = await runPromise(provide(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      const driver = yield* makeDriver("parked-defective-finalizer")
-      yield* driver.register(
-        CascadeFlow,
-        () =>
-          Effect.gen(function*() {
-            const instance = yield* FlowRuntime.FlowInstance
-            yield* Flow.addFinalizer(() =>
-              Effect.sync(() => finalizerCalls += 1).pipe(
-                Effect.andThen(Effect.die(new Error("finalizer failed")))
+  it.effect("continues cancellation after a parked finalizer defects and releases its retained scope once", () =>
+    Effect.gen(function*() {
+      let finalizerCalls = 0
+      const result = yield* withCrypto(provide(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const driver = yield* makeDriver("parked-defective-finalizer")
+        yield* driver.register(
+          CascadeFlow,
+          () =>
+            Effect.gen(function*() {
+              const instance = yield* FlowRuntime.FlowInstance
+              yield* Flow.addFinalizer(() =>
+                Effect.sync(() => finalizerCalls += 1).pipe(
+                  Effect.andThen(Effect.die(new Error("finalizer failed")))
+                )
               )
-            )
-            return yield* Flow.suspend(instance)
-          }) as never
-      )
-      yield* driver.execute(CascadeFlow, {
-        executionId: "parked-defective-finalizer",
-        payload: {},
-        discard: true
-      })
+              return yield* Flow.suspend(instance)
+            }) as never
+        )
+        yield* driver.execute(CascadeFlow, {
+          executionId: "parked-defective-finalizer",
+          payload: {},
+          discard: true
+        })
 
-      yield* driver.interrupt(CascadeFlow, "parked-defective-finalizer")
-      for (let index = 0; index < 5; index++) {
-        yield* TestClock.adjust(Duration.toMillis(Ownership.heartbeatInterval))
-        yield* Effect.yieldNow
-      }
-      return {
-        retained: [...(yield* driver.retainedRuns)],
-        row: yield* store.get("parked-defective-finalizer")
-      }
-    })))
-
-    expect(result.row.status).toBe("cancelled")
-    expect(result.retained).toEqual([])
-    expect(finalizerCalls).toBe(1)
-  })
-
-  it("releases the scope for a cancel that only ever existed in durable state", async () => {
-    const result = await runPromise(parkThenCancel("parked-cross-process", (_driver, store) =>
-      Effect.gen(function*() {
-        // No `driver.interrupt`: the request is written the way another
-        // process writes it, and only the sweep + activation guard deliver it.
-        const nowMs = yield* Clock.currentTimeMillis
-        yield* store.requestCancel("parked-cross-process", nowMs)
+        yield* driver.interrupt(CascadeFlow, "parked-defective-finalizer")
         for (let index = 0; index < 5; index++) {
           yield* TestClock.adjust(Duration.toMillis(Ownership.heartbeatInterval))
           yield* Effect.yieldNow
         }
+        return {
+          retained: [...(yield* driver.retainedRuns)],
+          row: yield* store.get("parked-defective-finalizer")
+        }
       })))
 
-    expect(result.row.status).toBe("cancelled")
-    expect(result.finalized).toEqual(["parked-cross-process"])
-    expect(result.retainedAfterCancel).toEqual([])
-  })
+      expect(result.row.status).toBe("cancelled")
+      expect(result.retained).toEqual([])
+      expect(finalizerCalls).toBe(1)
+    }))
 
-  it("closes a superseded parked scope when the run is re-driven instead", async () => {
-    const result = await runPromise(provide(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      const driver = yield* makeDriver("resume")
+  it.effect("releases the scope for a cancel that only ever existed in durable state", () =>
+    Effect.gen(function*() {
+      const result = yield* withCrypto(parkThenCancel("parked-cross-process", (_driver, store) =>
+        Effect.gen(function*() {
+          // No `driver.interrupt`: the request is written the way another
+          // process writes it, and only the sweep + activation guard deliver it.
+          const nowMs = yield* Clock.currentTimeMillis
+          yield* store.requestCancel("parked-cross-process", nowMs)
+          for (let index = 0; index < 5; index++) {
+            yield* TestClock.adjust(Duration.toMillis(Ownership.heartbeatInterval))
+            yield* Effect.yieldNow
+          }
+        })))
+
+      expect(result.row.status).toBe("cancelled")
+      expect(result.finalized).toEqual(["parked-cross-process"])
+      expect(result.retainedAfterCancel).toEqual([])
+    }))
+
+  it.effect("closes a superseded parked scope when the run is re-driven instead", () =>
+    Effect.gen(function*() {
+      const result = yield* withCrypto(provide(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const driver = yield* makeDriver("resume")
+        const finalized: Array<string> = []
+        let round = 0
+        yield* driver.register(
+          CascadeFlow,
+          () =>
+            Effect.gen(function*() {
+              const instance = yield* FlowRuntime.FlowInstance
+              round += 1
+              const ordinal = round
+              yield* Flow.addFinalizer(() => Effect.sync(() => finalized.push(`round-${ordinal}`)))
+              if (ordinal === 1) return yield* Flow.suspend(instance)
+              return "done"
+            }) as never
+        )
+        yield* driver.execute(CascadeFlow, { executionId: "resume-supersede", payload: {}, discard: true })
+        const retainedWhileParked = [...(yield* driver.retainedRuns)]
+        yield* driver.resume(CascadeFlow, "resume-supersede")
+        return {
+          retainedWhileParked,
+          finalized,
+          retainedAfterResume: [...(yield* driver.retainedRuns)],
+          row: yield* store.get("resume-supersede")
+        }
+      })))
+
+      expect(result.retainedWhileParked).toEqual(["resume-supersede"])
+      expect(result.row.status).toBe("completed")
+      // Round 1's superseded scope is released, and round 2 closed its own the
+      // ordinary way. Neither is finalized twice.
+      expect(result.finalized.filter((entry) => entry === "round-1")).toHaveLength(1)
+      expect(result.finalized.filter((entry) => entry === "round-2")).toHaveLength(1)
+      expect(result.retainedAfterResume).toEqual([])
+    }))
+
+  it.effect("releases every still-parked scope when the driver scope closes", () =>
+    Effect.gen(function*() {
       const finalized: Array<string> = []
-      let round = 0
-      yield* driver.register(
-        CascadeFlow,
-        () =>
-          Effect.gen(function*() {
-            const instance = yield* FlowRuntime.FlowInstance
-            round += 1
-            const ordinal = round
-            yield* Flow.addFinalizer(() => Effect.sync(() => finalized.push(`round-${ordinal}`)))
-            if (ordinal === 1) return yield* Flow.suspend(instance)
-            return "done"
-          }) as never
-      )
-      yield* driver.execute(CascadeFlow, { executionId: "resume-supersede", payload: {}, discard: true })
-      const retainedWhileParked = [...(yield* driver.retainedRuns)]
-      yield* driver.resume(CascadeFlow, "resume-supersede")
-      return {
-        retainedWhileParked,
-        finalized,
-        retainedAfterResume: [...(yield* driver.retainedRuns)],
-        row: yield* store.get("resume-supersede")
-      }
-    })))
+      yield* withCrypto(provide(Effect.gen(function*() {
+        const driver = yield* makeDriver("shutdown")
+        yield* driver.register(
+          CascadeFlow,
+          () =>
+            Effect.gen(function*() {
+              const instance = yield* FlowRuntime.FlowInstance
+              yield* Flow.addFinalizer(() => Effect.sync(() => finalized.push("shutdown")))
+              return yield* Flow.suspend(instance)
+            }) as never
+        )
+        yield* driver.execute(CascadeFlow, { executionId: "shutdown-park", payload: {}, discard: true })
+        expect([...(yield* driver.retainedRuns)]).toEqual(["shutdown-park"])
+      })))
 
-    expect(result.retainedWhileParked).toEqual(["resume-supersede"])
-    expect(result.row.status).toBe("completed")
-    // Round 1's superseded scope is released, and round 2 closed its own the
-    // ordinary way. Neither is finalized twice.
-    expect(result.finalized.filter((entry) => entry === "round-1")).toHaveLength(1)
-    expect(result.finalized.filter((entry) => entry === "round-2")).toHaveLength(1)
-    expect(result.retainedAfterResume).toEqual([])
-  })
-
-  it("releases every still-parked scope when the driver scope closes", async () => {
-    const finalized: Array<string> = []
-    await runPromise(provide(Effect.gen(function*() {
-      const driver = yield* makeDriver("shutdown")
-      yield* driver.register(
-        CascadeFlow,
-        () =>
-          Effect.gen(function*() {
-            const instance = yield* FlowRuntime.FlowInstance
-            yield* Flow.addFinalizer(() => Effect.sync(() => finalized.push("shutdown")))
-            return yield* Flow.suspend(instance)
-          }) as never
-      )
-      yield* driver.execute(CascadeFlow, { executionId: "shutdown-park", payload: {}, discard: true })
-      expect([...(yield* driver.retainedRuns)]).toEqual(["shutdown-park"])
-    })))
-
-    // The driver's own scope closed with the test's `Effect.scoped`, so the
-    // parked scope was released rather than stranded for the process lifetime.
-    expect(finalized).toEqual(["shutdown"])
-  })
+      // The driver's own scope closed with the test's `Effect.scoped`, so the
+      // parked scope was released rather than stranded for the process lifetime.
+      expect(finalized).toEqual(["shutdown"])
+    }))
 })
 
 describe("interrupt reports a cancellation it could not record", () => {
-  it("fails with CancelRequestFailed and cascades to nothing", async () => {
-    const result = await runPromise(provide(Effect.gen(function*() {
-      const base = yield* RunStore.RunStore
-      const engineState = yield* DurableEngineState.DurableEngineState
-      const broken = RunStore.makeNoop({
-        ...base,
-        requestCancel: (runId) =>
-          runId === "cancel-write-fails"
-            ? Effect.fail(
-              new RunStore.RunStoreError({
-                code: "persistence_failed",
-                method: "requestCancel",
-                message: "disk is on fire",
-                cause: undefined
-              })
-            )
-            : base.requestCancel(runId, 0)
-      })
-      const driver = yield* makeDriver("broken").pipe(Effect.provideService(RunStore.RunStore, broken))
-      const family = yield* seedFamily(base, engineState, "cancel-write-fails")
-      yield* base.create("cancel-write-fails", state("cancel-write-fails"))
+  it.effect("fails with CancelRequestFailed and cascades to nothing", () =>
+    Effect.gen(function*() {
+      const result = yield* withCrypto(provide(Effect.gen(function*() {
+        const base = yield* RunStore.RunStore
+        const engineState = yield* DurableEngineState.DurableEngineState
+        const broken = RunStore.makeNoop({
+          ...base,
+          requestCancel: (runId) =>
+            runId === "cancel-write-fails"
+              ? Effect.fail(
+                new RunStore.RunStoreError({
+                  code: "persistence_failed",
+                  method: "requestCancel",
+                  message: "disk is on fire",
+                  cause: undefined
+                })
+              )
+              : base.requestCancel(runId, 0)
+        })
+        const driver = yield* makeDriver("broken").pipe(Effect.provideService(RunStore.RunStore, broken))
+        const family = yield* seedFamily(base, engineState, "cancel-write-fails")
+        yield* base.create("cancel-write-fails", state("cancel-write-fails"))
 
-      const reported = yield* Effect.exit(driver.interrupt(CascadeFlow, "cancel-write-fails"))
-      return {
-        reported,
-        children: yield* Effect.forEach(
-          [family.childA, family.childB, family.grandchild],
-          (runId) => base.get(runId).pipe(Effect.map((row) => row.cancelRequestedAtMs))
-        )
-      }
-    })))
+        const reported = yield* Effect.exit(driver.interrupt(CascadeFlow, "cancel-write-fails"))
+        return {
+          reported,
+          children: yield* Effect.forEach(
+            [family.childA, family.childB, family.grandchild],
+            (runId) => base.get(runId).pipe(Effect.map((row) => row.cancelRequestedAtMs))
+          )
+        }
+      })))
 
-    expect(Exit.isFailure(result.reported)).toBe(true)
-    const failure = Cause.squash((result.reported as Exit.Failure<void, never>).cause)
-    expect(failure).toBeInstanceOf(FlowRuntime.CancelRequestFailed)
-    expect((failure as FlowRuntime.CancelRequestFailed).reason).toContain("disk is on fire")
-    // The parent was never cancelled, so cancelling its children would be a
-    // lie in the other direction.
-    expect(result.children).toEqual([null, null, null])
-  })
+      expect(Exit.isFailure(result.reported)).toBe(true)
+      const failure = Cause.squash((result.reported as Exit.Failure<void, never>).cause)
+      expect(failure).toBeInstanceOf(FlowRuntime.CancelRequestFailed)
+      expect((failure as FlowRuntime.CancelRequestFailed).reason).toContain("disk is on fire")
+      // The parent was never cancelled, so cancelling its children would be a
+      // lie in the other direction.
+      expect(result.children).toEqual([null, null, null])
+    }))
 })

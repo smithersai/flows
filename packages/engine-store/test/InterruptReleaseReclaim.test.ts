@@ -8,6 +8,7 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * durable `requestCancel`. The release must park with a durable reason so
  * the run is re-drivable and cancellable.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { Flow, FlowRuntime } from "@smthrs/flow-next"
 import type { Journal } from "@smthrs/journal-next"
 import { Node } from "@smthrs/plan-next"
@@ -20,11 +21,10 @@ import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
-import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
 import * as TestStores from "../src/test/TestStores.ts"
-import { runPromise } from "./Sha256.ts"
+import { withCrypto } from "./Sha256.ts"
 
 const TestFlow = Flow.make("InterruptReleaseReclaim/Test", {
   payload: {},
@@ -74,72 +74,75 @@ const releaseMidAction = (executionId: string) =>
   })
 
 describe("interrupt-released runs are reclaimable (issue #39)", () => {
-  it("parks the released run with a durable waiting reason", async () => {
-    const result = await runPromise(provideJournal(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      const state = yield* DurableEngineState.DurableEngineState
-      yield* releaseMidAction("release-parked")
-      const row = yield* store.get("release-parked")
-      const waiting = yield* state.waiting("release-parked")
-      return { row, waiting }
-    })))
+  it.effect("parks the released run with a durable waiting reason", () =>
+    Effect.gen(function*() {
+      const result = yield* withCrypto(provideJournal(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const state = yield* DurableEngineState.DurableEngineState
+        yield* releaseMidAction("release-parked")
+        const row = yield* store.get("release-parked")
+        const waiting = yield* state.waiting("release-parked")
+        return { row, waiting }
+      })))
 
-    expect(result.row.status).toBe("suspended")
-    expect(result.row.owner).toBeNull()
-    expect(Option.isSome(result.waiting)).toBe(true)
-    if (Option.isSome(result.waiting)) {
-      expect(result.waiting.value.reason).toBe("released")
-    }
-  })
-
-  it("a later worker's sweep re-drives the released run to completion", async () => {
-    const result = await runPromise(provideJournal(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      yield* releaseMidAction("release-redrive")
-
-      // A fresh worker over the same store: its sweep must find the
-      // released run and re-drive it without any operator action.
-      const successor = yield* makeDriver("owner-2")
-      yield* successor.register(TestFlow, () => Effect.succeed("reclaimed"))
-
-      let row = yield* store.get("release-redrive")
-      for (let i = 0; i < 10 && row.status !== "completed"; i++) {
-        yield* TestClock.adjust(Duration.toMillis(Ownership.heartbeatInterval))
-        row = yield* store.get("release-redrive")
+      expect(result.row.status).toBe("suspended")
+      expect(result.row.owner).toBeNull()
+      expect(Option.isSome(result.waiting)).toBe(true)
+      if (Option.isSome(result.waiting)) {
+        expect(result.waiting.value.reason).toBe("released")
       }
-      return { row }
-    })))
+    }))
 
-    expect(result.row.status).toBe("completed")
-  })
+  it.effect("a later worker's sweep re-drives the released run to completion", () =>
+    Effect.gen(function*() {
+      const result = yield* withCrypto(provideJournal(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        yield* releaseMidAction("release-redrive")
 
-  it("requestCancel against a released run is eventually delivered", async () => {
-    const result = await runPromise(provideJournal(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      yield* releaseMidAction("release-cancel")
+        // A fresh worker over the same store: its sweep must find the
+        // released run and re-drive it without any operator action.
+        const successor = yield* makeDriver("owner-2")
+        yield* successor.register(TestFlow, () => Effect.succeed("reclaimed"))
 
-      // Another process (the CLI) durably requests cancellation while
-      // nothing owns the run.
-      yield* store.requestCancel("release-cancel", 1)
+        let row = yield* store.get("release-redrive")
+        for (let i = 0; i < 10 && row.status !== "completed"; i++) {
+          yield* TestClock.adjust(Duration.toMillis(Ownership.heartbeatInterval))
+          row = yield* store.get("release-redrive")
+        }
+        return { row }
+      })))
 
-      const successor = yield* makeDriver("owner-2")
-      // The flow body must never re-run: the re-activation cancel guard
-      // closes the run instead.
-      let bodyRuns = 0
-      yield* successor.register(TestFlow, () =>
-        Effect.sync(() => {
-          bodyRuns += 1
-        }).pipe(Effect.andThen(Effect.never)))
+      expect(result.row.status).toBe("completed")
+    }))
 
-      let row = yield* store.get("release-cancel")
-      for (let i = 0; i < 10 && row.status !== "cancelled"; i++) {
-        yield* TestClock.adjust(Duration.toMillis(Ownership.heartbeatInterval))
-        row = yield* store.get("release-cancel")
-      }
-      return { row, bodyRuns }
-    })))
+  it.effect("requestCancel against a released run is eventually delivered", () =>
+    Effect.gen(function*() {
+      const result = yield* withCrypto(provideJournal(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        yield* releaseMidAction("release-cancel")
 
-    expect(result.row.status).toBe("cancelled")
-    expect(result.bodyRuns).toBe(0)
-  })
+        // Another process (the CLI) durably requests cancellation while
+        // nothing owns the run.
+        yield* store.requestCancel("release-cancel", 1)
+
+        const successor = yield* makeDriver("owner-2")
+        // The flow body must never re-run: the re-activation cancel guard
+        // closes the run instead.
+        let bodyRuns = 0
+        yield* successor.register(TestFlow, () =>
+          Effect.sync(() => {
+            bodyRuns += 1
+          }).pipe(Effect.andThen(Effect.never)))
+
+        let row = yield* store.get("release-cancel")
+        for (let i = 0; i < 10 && row.status !== "cancelled"; i++) {
+          yield* TestClock.adjust(Duration.toMillis(Ownership.heartbeatInterval))
+          row = yield* store.get("release-cancel")
+        }
+        return { row, bodyRuns }
+      })))
+
+      expect(result.row.status).toBe("cancelled")
+      expect(result.bodyRuns).toBe(0)
+    }))
 })

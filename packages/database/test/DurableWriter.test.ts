@@ -180,43 +180,45 @@ describe("DurableWriter", () => {
     expect(DurableWriter.fromSqlError(unknownSqlError({ code: "42P01" }))).toMatchObject({ code: "unknown" })
   })
 
-  it("retries a Postgres serialization failure through the same schedule", async () => {
-    let attempts = 0
-    const writer = DurableWriter.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
-    const program = Effect.gen(function*() {
-      const fiber = yield* writer.write(
-        Effect.suspend(() => {
-          attempts += 1
-          return attempts < 3 ? Effect.fail(unknownSqlError({ code: "40001" })) : Effect.succeed("written")
-        })
-      ).pipe(Effect.forkChild({ startImmediately: true }))
-      yield* Effect.yieldNow
-      yield* TestClock.adjust("1 second")
-      return yield* Fiber.join(fiber)
-    }).pipe(Effect.provide(TestClock.layer()))
+  it.effect("retries a Postgres serialization failure through the same schedule", () =>
+    Effect.gen(function*() {
+      let attempts = 0
+      const writer = DurableWriter.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
+      const program = Effect.gen(function*() {
+        const fiber = yield* writer.write(
+          Effect.suspend(() => {
+            attempts += 1
+            return attempts < 3 ? Effect.fail(unknownSqlError({ code: "40001" })) : Effect.succeed("written")
+          })
+        ).pipe(Effect.forkChild({ startImmediately: true }))
+        yield* Effect.yieldNow
+        yield* TestClock.adjust("1 second")
+        return yield* Fiber.join(fiber)
+      }).pipe(Effect.provide(TestClock.layer()))
 
-    await expect(Effect.runPromise(program)).resolves.toBe("written")
-    expect(attempts).toBe(3)
-  })
+      expect(yield* program).toBe("written")
+      expect(attempts).toBe(3)
+    }))
 
-  it("retries transient write errors using TestClock", async () => {
-    let attempts = 0
-    const writer = DurableWriter.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
-    const program = Effect.gen(function*() {
-      const fiber = yield* writer.write(
-        Effect.suspend(() => {
-          attempts += 1
-          return attempts < 3 ? Effect.fail(sqliteError("SQLITE_BUSY")) : Effect.succeed("written")
-        })
-      ).pipe(Effect.forkChild({ startImmediately: true }))
-      yield* Effect.yieldNow
-      yield* TestClock.adjust("1 second")
-      return yield* Fiber.join(fiber)
-    }).pipe(Effect.provide(TestClock.layer()))
+  it.effect("retries transient write errors using TestClock", () =>
+    Effect.gen(function*() {
+      let attempts = 0
+      const writer = DurableWriter.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
+      const program = Effect.gen(function*() {
+        const fiber = yield* writer.write(
+          Effect.suspend(() => {
+            attempts += 1
+            return attempts < 3 ? Effect.fail(sqliteError("SQLITE_BUSY")) : Effect.succeed("written")
+          })
+        ).pipe(Effect.forkChild({ startImmediately: true }))
+        yield* Effect.yieldNow
+        yield* TestClock.adjust("1 second")
+        return yield* Fiber.join(fiber)
+      }).pipe(Effect.provide(TestClock.layer()))
 
-    await expect(Effect.runPromise(program)).resolves.toBe("written")
-    expect(attempts).toBe(3)
-  })
+      expect(yield* program).toBe("written")
+      expect(attempts).toBe(3)
+    }))
 
   it.effect("surfaces busy after a permanently busy write exhausts its retry budget", () =>
     Effect.gen(function*() {
@@ -300,29 +302,30 @@ describe("DurableWriter", () => {
       expect(Exit.isFailure(exit)).toBe(true)
     }))
 
-  it("retries retryable driver defects through the same schedule", async () => {
-    let attempts = 0
-    const defectSql = {
-      ...retrySql,
-      withTransaction: <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-        Effect.suspend(() => {
-          attempts += 1
-          return attempts < 3
-            ? Effect.die(unknownSqlError({ message: "cannot rollback - no transaction is active" }))
-            : retrySql.withTransaction(effect)
-        })
-    } as SqlClient.SqlClient
-    const writer = DurableWriter.make(defectSql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
-    const program = Effect.gen(function*() {
-      const fiber = yield* writer.write(Effect.succeed("written")).pipe(Effect.forkChild({ startImmediately: true }))
-      yield* Effect.yieldNow
-      yield* TestClock.adjust("1 second")
-      return yield* Fiber.join(fiber)
-    }).pipe(Effect.provide(TestClock.layer()))
+  it.effect("retries retryable driver defects through the same schedule", () =>
+    Effect.gen(function*() {
+      let attempts = 0
+      const defectSql = {
+        ...retrySql,
+        withTransaction: <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+          Effect.suspend(() => {
+            attempts += 1
+            return attempts < 3
+              ? Effect.die(unknownSqlError({ message: "cannot rollback - no transaction is active" }))
+              : retrySql.withTransaction(effect)
+          })
+      } as SqlClient.SqlClient
+      const writer = DurableWriter.make(defectSql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
+      const program = Effect.gen(function*() {
+        const fiber = yield* writer.write(Effect.succeed("written")).pipe(Effect.forkChild({ startImmediately: true }))
+        yield* Effect.yieldNow
+        yield* TestClock.adjust("1 second")
+        return yield* Fiber.join(fiber)
+      }).pipe(Effect.provide(TestClock.layer()))
 
-    await expect(Effect.runPromise(program)).resolves.toBe("written")
-    expect(attempts).toBe(3)
-  })
+      expect(yield* program).toBe("written")
+      expect(attempts).toBe(3)
+    }))
 
   it("classifies a transient failure through a wrapping domain error's cause chain", () => {
     expect(WriteRetry.isRetryableWriteError({ _tag: "StoreError", cause: sqliteError("SQLITE_BUSY") })).toBe(true)
@@ -335,54 +338,56 @@ describe("DurableWriter", () => {
     ).toBe(true)
   })
 
-  it("does not retry a nested write; only the outermost transaction replays", async () => {
-    let outerBodies = 0
-    let innerBodies = 0
-    const writer = DurableWriter.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
-    const program = Effect.gen(function*() {
-      const fiber = yield* writer.write(
-        Effect.suspend(() => {
-          outerBodies += 1
-          return writer.write(
-            Effect.suspend(() => {
-              innerBodies += 1
-              return innerBodies < 3 ? Effect.fail(sqliteError("SQLITE_BUSY")) : Effect.succeed("written")
-            })
-          )
-        })
-      ).pipe(Effect.forkChild({ startImmediately: true }))
-      yield* Effect.yieldNow
-      yield* TestClock.adjust("1 second")
-      return yield* Fiber.join(fiber)
-    }).pipe(Effect.provide(TestClock.layer()))
+  it.effect("does not retry a nested write; only the outermost transaction replays", () =>
+    Effect.gen(function*() {
+      let outerBodies = 0
+      let innerBodies = 0
+      const writer = DurableWriter.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
+      const program = Effect.gen(function*() {
+        const fiber = yield* writer.write(
+          Effect.suspend(() => {
+            outerBodies += 1
+            return writer.write(
+              Effect.suspend(() => {
+                innerBodies += 1
+                return innerBodies < 3 ? Effect.fail(sqliteError("SQLITE_BUSY")) : Effect.succeed("written")
+              })
+            )
+          })
+        ).pipe(Effect.forkChild({ startImmediately: true }))
+        yield* Effect.yieldNow
+        yield* TestClock.adjust("1 second")
+        return yield* Fiber.join(fiber)
+      }).pipe(Effect.provide(TestClock.layer()))
 
-    await expect(Effect.runPromise(program)).resolves.toBe("written")
-    // Each transient conflict replays the whole outer transaction; the nested
-    // write never replays its savepoint alone.
-    expect(outerBodies).toBe(3)
-    expect(innerBodies).toBe(3)
-  })
+      expect(yield* program).toBe("written")
+      // Each transient conflict replays the whole outer transaction; the nested
+      // write never replays its savepoint alone.
+      expect(outerBodies).toBe(3)
+      expect(innerBodies).toBe(3)
+    }))
 
-  it("replays the outermost transaction when a domain error wraps the transient failure", async () => {
-    let attempts = 0
-    const writer = DurableWriter.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
-    const program = Effect.gen(function*() {
-      const fiber = yield* writer.write(
-        Effect.suspend(() => {
-          attempts += 1
-          return attempts < 3
-            ? Effect.fail({ _tag: "StoreError", cause: sqliteError("SQLITE_BUSY") } as const)
-            : Effect.succeed("written")
-        })
-      ).pipe(Effect.forkChild({ startImmediately: true }))
-      yield* Effect.yieldNow
-      yield* TestClock.adjust("1 second")
-      return yield* Fiber.join(fiber)
-    }).pipe(Effect.provide(TestClock.layer()))
+  it.effect("replays the outermost transaction when a domain error wraps the transient failure", () =>
+    Effect.gen(function*() {
+      let attempts = 0
+      const writer = DurableWriter.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
+      const program = Effect.gen(function*() {
+        const fiber = yield* writer.write(
+          Effect.suspend(() => {
+            attempts += 1
+            return attempts < 3
+              ? Effect.fail({ _tag: "StoreError", cause: sqliteError("SQLITE_BUSY") } as const)
+              : Effect.succeed("written")
+          })
+        ).pipe(Effect.forkChild({ startImmediately: true }))
+        yield* Effect.yieldNow
+        yield* TestClock.adjust("1 second")
+        return yield* Fiber.join(fiber)
+      }).pipe(Effect.provide(TestClock.layer()))
 
-    await expect(Effect.runPromise(program)).resolves.toBe("written")
-    expect(attempts).toBe(3)
-  })
+      expect(yield* program).toBe("written")
+      expect(attempts).toBe(3)
+    }))
 
   it.effect("does not retry constraint failures", () =>
     Effect.gen(function*() {

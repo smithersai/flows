@@ -11,16 +11,16 @@
  * instance over the same {@link DurableLog} — the process-restart shape,
  * without real process boundaries. See `DurableLogEngine.ts`.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { Action, DurableDeferred, Flow, Interpreter, RetryPolicy } from "@smthrs/flow-next"
 import { Cause, Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
-import { describe, expect, it } from "vitest"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 import { layerDurable, makeLog } from "./DurableLogEngine.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body().pipe(Effect.provide(TestClock.layer()))))
+  it.effect(name, () => withCrypto(body().pipe(Effect.provide(TestClock.layer()))))
 
 /** Polls a result until the predicate holds, bounded by scheduler turns. */
 const pollUntil = <A, E, R>(

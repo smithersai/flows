@@ -6,6 +6,7 @@
  * leading attempts, so the same run restored its retry origin under SQL
  * state and silently restarted its expiration budget under the fallback.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { DurableWriter } from "@smthrs/database-next"
 import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import { AttemptStore, type Ownership } from "@smthrs/run-store-next"
@@ -13,11 +14,10 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
-import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as AttemptProbe from "../src/internal/AttemptProbe.ts"
 import * as Migrations from "../src/Migrations.ts"
-import { runPromise } from "./Sha256.ts"
+import { withCrypto } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "survivor-parity", pid: 1, nonce: "owner" }
 
@@ -64,42 +64,43 @@ const shapes: ReadonlyArray<{ readonly name: string; readonly attempts: Readonly
 ]
 
 describe("attempt survivor discovery agrees across both paths (issue #96)", () => {
-  it.each(shapes)("$name", async ({ attempts, name }) => {
-    const digest = `digest-${name.replace(/\s/g, "-")}`
-    const runId = `parity-${digest}`
-    const probed = await runPromise(
-      Effect.gen(function*() {
-        yield* insertOwnedRun(runId)
-        for (const attempt of attempts) yield* insertAttempt(runId, digest, attempt)
-        const state = yield* DurableEngineState.make
-        const attemptStore = yield* AttemptStore.AttemptStore
-        const ranged = yield* AttemptProbe.probeAttempts(
-          attemptStore,
-          state.attemptSurvivors,
-          runId,
-          digest
-        )
-        const probes = yield* AttemptProbe.probeAttempts(attemptStore, undefined, runId, digest)
-        return { ranged, probes }
-      }).pipe(Effect.provide(layers))
-    )
+  it.effect.each(shapes)("$name", ({ attempts, name }) =>
+    Effect.gen(function*() {
+      const digest = `digest-${name.replace(/\s/g, "-")}`
+      const runId = `parity-${digest}`
+      const probed = yield* withCrypto(
+        Effect.gen(function*() {
+          yield* insertOwnedRun(runId)
+          for (const attempt of attempts) yield* insertAttempt(runId, digest, attempt)
+          const state = yield* DurableEngineState.make
+          const attemptStore = yield* AttemptStore.AttemptStore
+          const ranged = yield* AttemptProbe.probeAttempts(
+            attemptStore,
+            state.attemptSurvivors,
+            runId,
+            digest
+          )
+          const probes = yield* AttemptProbe.probeAttempts(attemptStore, undefined, runId, digest)
+          return { ranged, probes }
+        }).pipe(Effect.provide(layers))
+      )
 
-    expect(probed.ranged).toEqual(probed.probes)
+      expect(probed.ranged).toEqual(probed.probes)
 
-    const first = attempts[0]
-    if (first === undefined || first > AttemptProbe.prunedPrefixScanLimit) {
-      expect(Option.isNone(probed.ranged)).toBe(true)
-      return
-    }
-    let latest = first
-    for (const attempt of attempts.slice(1)) {
-      if (attempt !== latest + 1) break
-      latest = attempt
-    }
-    expect(Option.getOrThrow(probed.ranged)).toEqual({
-      earliestAttempt: first,
-      earliestStartedAtMs: 1000 + first,
-      latest
-    })
-  })
+      const first = attempts[0]
+      if (first === undefined || first > AttemptProbe.prunedPrefixScanLimit) {
+        expect(Option.isNone(probed.ranged)).toBe(true)
+        return
+      }
+      let latest = first
+      for (const attempt of attempts.slice(1)) {
+        if (attempt !== latest + 1) break
+        latest = attempt
+      }
+      expect(Option.getOrThrow(probed.ranged)).toEqual({
+        earliestAttempt: first,
+        earliestStartedAtMs: 1000 + first,
+        latest
+      })
+    }))
 })

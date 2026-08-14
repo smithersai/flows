@@ -7,15 +7,15 @@
  * attempt that first reached it. A nested block shares the enclosing block's
  * pinned ordinals and folds its own cursor positions back on exit.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
 import { Effect, Latch, Layer, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
-import { describe, expect, it } from "vitest"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 import { layerWired } from "./MemoryFlowRuntime.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body()))
+  it.effect(name, () => withCrypto(body()))
 
 /** The one step the host flow is made of; each case supplies its body. */
 const Block = Action.make("Retry/Block", {

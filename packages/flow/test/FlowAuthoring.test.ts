@@ -1,7 +1,7 @@
+import { describe, expect, expectTypeOf, it } from "@effect/vitest"
 import { Flow } from "@smthrs/flow-next"
 import { Node, Planned } from "@smthrs/plan-next"
 import { Context, Effect, Schema } from "effect"
-import { describe, expect, expectTypeOf, it } from "vitest"
 
 describe("Flow body and calls", () => {
   it("stores a plan-time body typed with the decoded payload", () => {
@@ -52,20 +52,19 @@ describe("Flow body and calls", () => {
 
 describe("Flow trampoline outcomes", () => {
   const roundTrip = <A extends Flow.Outcome>(value: A) =>
-    Effect.runPromise(
-      Effect.flatMap(
-        Schema.encodeEffect(Schema.toCodecJson(Flow.Outcome))(value),
-        Schema.decodeEffect(Schema.toCodecJson(Flow.Outcome))
-      )
+    Effect.flatMap(
+      Schema.encodeEffect(Schema.toCodecJson(Flow.Outcome))(value),
+      Schema.decodeEffect(Schema.toCodecJson(Flow.Outcome))
     )
 
-  it("constructs and round trips done", async () => {
-    const node = Flow.done({ answer: 42 })
-    expect(node.ast).toEqual({ _tag: "Succeed", value: { _tag: "Done", value: { answer: 42 } } })
-    const value = (node.ast as { readonly value: Flow.Outcome }).value
-    expect(value).toEqual({ _tag: "Done", value: { answer: 42 } })
-    expect(await roundTrip(value)).toEqual(value)
-  })
+  it.effect("constructs and round trips done", () =>
+    Effect.gen(function*() {
+      const node = Flow.done({ answer: 42 })
+      expect(node.ast).toEqual({ _tag: "Succeed", value: { _tag: "Done", value: { answer: 42 } } })
+      const value = (node.ast as { readonly value: Flow.Outcome }).value
+      expect(value).toEqual({ _tag: "Done", value: { answer: 42 } })
+      expect(yield* roundTrip(value)).toEqual(value)
+    }))
 
   it("constructs a typed next-flow invocation as a visible handoff node", () => {
     const flow = Flow.make("Authoring/next", {
@@ -82,40 +81,43 @@ describe("Flow trampoline outcomes", () => {
     })
   })
 
-  it("constructs and round trips park with the waiting reason vocabulary", async () => {
-    const node = Flow.park({ reason: "approval", wakeAt: 100, token: "request-1" })
-    const value = (node.ast as { readonly value: Flow.Park }).value
-    expect(value).toEqual({
-      _tag: "Park",
-      reason: { reason: "approval", wakeAt: 100, token: "request-1" }
-    })
-    expect(await roundTrip(value)).toEqual(value)
-  })
+  it.effect("constructs and round trips park with the waiting reason vocabulary", () =>
+    Effect.gen(function*() {
+      const node = Flow.park({ reason: "approval", wakeAt: 100, token: "request-1" })
+      const value = (node.ast as { readonly value: Flow.Park }).value
+      expect(value).toEqual({
+        _tag: "Park",
+        reason: { reason: "approval", wakeAt: 100, token: "request-1" }
+      })
+      expect(yield* roundTrip(value)).toEqual(value)
+    }))
 
-  it("constructs the same park from a positional reason and token", async () => {
-    const node = Flow.park("approval", "request-1")
-    const value = (node.ast as { readonly value: Flow.Park }).value
-    expect(value).toEqual({
-      _tag: "Park",
-      reason: { reason: "approval", token: "request-1" }
-    })
-    // The two forms are the same request, so the record spelling of this call
-    // produces the identical node.
-    expect(value).toEqual(
-      (Flow.park({ reason: "approval", token: "request-1" }).ast as { readonly value: Flow.Park }).value
-    )
-    expect(await roundTrip(value)).toEqual(value)
-  })
+  it.effect("constructs the same park from a positional reason and token", () =>
+    Effect.gen(function*() {
+      const node = Flow.park("approval", "request-1")
+      const value = (node.ast as { readonly value: Flow.Park }).value
+      expect(value).toEqual({
+        _tag: "Park",
+        reason: { reason: "approval", token: "request-1" }
+      })
+      // The two forms are the same request, so the record spelling of this call
+      // produces the identical node.
+      expect(value).toEqual(
+        (Flow.park({ reason: "approval", token: "request-1" }).ast as { readonly value: Flow.Park }).value
+      )
+      expect(yield* roundTrip(value)).toEqual(value)
+    }))
 
-  it("omits the token of a positional park that named none", async () => {
-    const node = Flow.park("quota")
-    const value = (node.ast as { readonly value: Flow.Park }).value
-    // Absent, not empty: a wake handler compares tokens, and `""` is a token
-    // that something could match.
-    expect(value).toEqual({ _tag: "Park", reason: { reason: "quota" } })
-    expect("token" in value.reason).toBe(false)
-    expect(await roundTrip(value)).toEqual(value)
-  })
+  it.effect("omits the token of a positional park that named none", () =>
+    Effect.gen(function*() {
+      const node = Flow.park("quota")
+      const value = (node.ast as { readonly value: Flow.Park }).value
+      // Absent, not empty: a wake handler compares tokens, and `""` is a token
+      // that something could match.
+      expect(value).toEqual({ _tag: "Park", reason: { reason: "quota" } })
+      expect("token" in value.reason).toBe(false)
+      expect(yield* roundTrip(value)).toEqual(value)
+    }))
 })
 
 describe("Flow authoring annotations", () => {

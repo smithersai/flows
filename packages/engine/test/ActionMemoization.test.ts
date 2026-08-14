@@ -6,15 +6,15 @@
  * re-driven dispatch runs again while every later same-key dispatch replays
  * the settled result.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { Action, DurableDeferred, Flow, Interpreter } from "@smthrs/flow-next"
 import { Effect, Exit, Layer, Option, Result, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
-import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body()))
+  it.effect(name, () => withCrypto(body()))
 
 /** Polls a result until the predicate holds, bounded by scheduler turns. */
 const pollUntil = <A, E, R>(

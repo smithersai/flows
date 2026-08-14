@@ -1,7 +1,7 @@
+import { describe, expect, it } from "@effect/vitest"
 import type * as Capability from "@smthrs/capability-next/Capability"
 import { permissionDenied } from "@smthrs/capability-next/Permission"
 import { Effect, FileSystem as EffectFileSystem, Path as EffectPath, Sink, Stream } from "effect"
-import { describe, expect, it } from "vitest"
 import * as FileSystem from "../src/FileSystem.ts"
 import { GrantStore } from "../src/GrantStore.ts"
 import * as Workspace from "../src/Workspace.ts"
@@ -382,81 +382,84 @@ const provide = <A, E>(
 
 describe("FileSystem operation guards", () => {
   for (const testCase of cases) {
-    it(`requests ${testCase.capabilities.length} capability check(s) for ${testCase.name}`, async () => {
+    it.effect(`requests ${testCase.capabilities.length} capability check(s) for ${testCase.name}`, () =>
+      Effect.gen(function*() {
+        const checks: Array<Capability.Capability> = []
+        const calls: Array<string> = []
+        const exit = yield* (
+          provide(testCase.run, hostFileSystem(calls), scriptedStore(() => true, checks))
+        )
+
+        expect(exit._tag).toBe("Success")
+        // The `<system-temp>` resource is resolved outside the workspace root.
+        expect(checks.map((check) => ({ ...check, resource: check.resource.replace("/workspace/..", "") })))
+          .toEqual(testCase.capabilities)
+        if (testCase.hostCall !== undefined) expect(calls).toContain(testCase.hostCall)
+      }))
+
+    it.effect(`denies ${testCase.name} before the host filesystem runs`, () =>
+      Effect.gen(function*() {
+        const checks: Array<Capability.Capability> = []
+        const calls: Array<string> = []
+        const exit = yield* (
+          provide(testCase.run, hostFileSystem(calls), scriptedStore(() => false, checks))
+        )
+
+        expect(exit._tag).toBe("Failure")
+        expect(checks).toHaveLength(1)
+        if (testCase.hostCall !== undefined) expect(calls).not.toContain(testCase.hostCall)
+      }))
+  }
+
+  it.effect("guards each operation on an open file handle", () =>
+    Effect.gen(function*() {
       const checks: Array<Capability.Capability> = []
       const calls: Array<string> = []
-      const exit = await Effect.runPromise(
-        provide(testCase.run, hostFileSystem(calls), scriptedStore(() => true, checks))
+      const exit = yield* (
+        provide(
+          (fileSystem) =>
+            Effect.scoped(
+              Effect.gen(function*() {
+                const handle = yield* fileSystem.open("a", { flag: "w+" })
+                yield* handle.stat
+                yield* handle.sync
+                yield* handle.read(new Uint8Array(1))
+                yield* handle.readAlloc(1)
+                yield* handle.truncate(0)
+                yield* handle.write(new Uint8Array(1))
+                yield* handle.writeAll(new Uint8Array(1))
+                yield* handle.seek(0, "current")
+              })
+            ),
+          hostFileSystem(calls),
+          scriptedStore(() => true, checks)
+        )
       )
 
       expect(exit._tag).toBe("Success")
-      // The `<system-temp>` resource is resolved outside the workspace root.
-      expect(checks.map((check) => ({ ...check, resource: check.resource.replace("/workspace/..", "") })))
-        .toEqual(testCase.capabilities)
-      if (testCase.hostCall !== undefined) expect(calls).toContain(testCase.hostCall)
-    })
-
-    it(`denies ${testCase.name} before the host filesystem runs`, async () => {
-      const checks: Array<Capability.Capability> = []
-      const calls: Array<string> = []
-      const exit = await Effect.runPromise(
-        provide(testCase.run, hostFileSystem(calls), scriptedStore(() => false, checks))
-      )
-
-      expect(exit._tag).toBe("Failure")
-      expect(checks).toHaveLength(1)
-      if (testCase.hostCall !== undefined) expect(calls).not.toContain(testCase.hostCall)
-    })
-  }
-
-  it("guards each operation on an open file handle", async () => {
-    const checks: Array<Capability.Capability> = []
-    const calls: Array<string> = []
-    const exit = await Effect.runPromise(
-      provide(
-        (fileSystem) =>
-          Effect.scoped(
-            Effect.gen(function*() {
-              const handle = yield* fileSystem.open("a", { flag: "w+" })
-              yield* handle.stat
-              yield* handle.sync
-              yield* handle.read(new Uint8Array(1))
-              yield* handle.readAlloc(1)
-              yield* handle.truncate(0)
-              yield* handle.write(new Uint8Array(1))
-              yield* handle.writeAll(new Uint8Array(1))
-              yield* handle.seek(0, "current")
-            })
-          ),
-        hostFileSystem(calls),
-        scriptedStore(() => true, checks)
-      )
-    )
-
-    expect(exit._tag).toBe("Success")
-    expect(calls.filter((call) => call !== "stat")).toEqual([
-      "open",
-      "file.stat",
-      "file.sync",
-      "file.read",
-      "file.readAlloc",
-      "file.truncate",
-      "file.write",
-      "file.writeAll",
-      "file.seek"
-    ])
-    // open (read+write) then one check per guarded handle operation; `seek`
-    // moves no bytes and needs none.
-    expect(checks.map((check) => check.action)).toEqual([
-      "fs:read",
-      "fs:write",
-      "fs:read",
-      "fs:write",
-      "fs:read",
-      "fs:read",
-      "fs:write",
-      "fs:write",
-      "fs:write"
-    ])
-  })
+      expect(calls.filter((call) => call !== "stat")).toEqual([
+        "open",
+        "file.stat",
+        "file.sync",
+        "file.read",
+        "file.readAlloc",
+        "file.truncate",
+        "file.write",
+        "file.writeAll",
+        "file.seek"
+      ])
+      // open (read+write) then one check per guarded handle operation; `seek`
+      // moves no bytes and needs none.
+      expect(checks.map((check) => check.action)).toEqual([
+        "fs:read",
+        "fs:write",
+        "fs:read",
+        "fs:write",
+        "fs:read",
+        "fs:read",
+        "fs:write",
+        "fs:write",
+        "fs:write"
+      ])
+    }))
 })

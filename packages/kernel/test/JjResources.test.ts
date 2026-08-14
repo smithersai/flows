@@ -1,9 +1,9 @@
+import { describe, expect, it } from "@effect/vitest"
 import type * as Capability from "@smthrs/capability-next/Capability"
 import { permissionDenied } from "@smthrs/capability-next/Permission"
 import * as HostJj from "@smthrs/jj-next"
 import { Effect, FileSystem as EffectFileSystem, Path } from "effect"
 import { systemError } from "effect/PlatformError"
-import { describe, expect, it } from "vitest"
 import { GrantStore, type Service } from "../src/GrantStore.ts"
 import * as Jj from "../src/Jj.ts"
 import * as Workspace from "../src/Workspace.ts"
@@ -15,8 +15,7 @@ import * as Workspace from "../src/Workspace.ts"
  * lane path must both produce stable, canonical resources.
  */
 
-const itEffect = (name: string, effect: () => Effect.Effect<void, unknown, never>) =>
-  it(name, () => Effect.runPromise(effect()))
+const itEffect = (name: string, effect: () => Effect.Effect<void, unknown, never>) => it.effect(name, () => effect())
 
 const scriptedStore = (checks: Array<Capability.Capability>) =>
   GrantStore.of({

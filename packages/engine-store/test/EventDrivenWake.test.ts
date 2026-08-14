@@ -8,6 +8,7 @@ import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
  * that drops every wake, the same scenario completes only after the
  * poll interval elapses.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { DurableDeferred, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow-next"
 import { Jj } from "@smthrs/kernel-next"
 import { RunStore } from "@smthrs/run-store-next"
@@ -18,13 +19,12 @@ import * as Fiber from "effect/Fiber"
 import type * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import { TestClock } from "effect/testing"
-import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
 import * as WakeBus from "../src/WakeBus.ts"
-import { runPromise } from "./Sha256.ts"
+import { withCrypto } from "./Sha256.ts"
 
 const jj = Jj.make({
   snapshot: () => Effect.succeed({ changeId: "wake-snapshot" as never }),
@@ -51,7 +51,7 @@ const withEngine = <A>(
     makeEngine: Effect.Effect<unknown, never, any>
   ) => Effect.Effect<A, any, any>
 ) =>
-  runPromise(
+  withCrypto(
     Effect.scoped(
       Effect.gen(function*() {
         const makeEngine = EngineStore.make({
@@ -88,126 +88,129 @@ const untilWaiters = (
   })
 
 describe("event-driven wake", () => {
-  it("a completed deferred wakes the waiting caller without a poll tick", async () => {
-    const EventFlow = Flow.make("Wake/event", {
-      payload: {},
-      success: Schema.String,
-      suspendedRetryPolicy: hourPolicy,
-      body: opaqueHandlerBody
-    })
-    const gate = DurableDeferred.make("wake-gate", { success: Schema.String })
-    const handler = () => Effect.map(DurableDeferred.await(gate), (value) => `gated:${value}`)
+  it.effect("a completed deferred wakes the waiting caller without a poll tick", () =>
+    Effect.gen(function*() {
+      const EventFlow = Flow.make("Wake/event", {
+        payload: {},
+        success: Schema.String,
+        suspendedRetryPolicy: hourPolicy,
+        body: opaqueHandlerBody
+      })
+      const gate = DurableDeferred.make("wake-gate", { success: Schema.String })
+      const handler = () => Effect.map(DurableDeferred.await(gate), (value) => `gated:${value}`)
 
-    const result = await withEngine(WakeBus.layer, (makeEngine) =>
-      Effect.gen(function*() {
-        const bus = yield* WakeBus.WakeBus
-        const engine = (yield* makeEngine) as FlowRuntime.FlowRuntime["Service"]
-        yield* engine.register(EventFlow as never, handler as never)
-        const caller = yield* engine.execute(EventFlow as never, {
-          executionId: "wake-event",
-          payload: {},
-          discard: false
-        }).pipe(Effect.forkChild({ startImmediately: true }))
-        // The caller has parked on the bus: its poll sleep is an hour of
-        // TestClock time that this test never grants.
-        yield* untilWaiters(bus, "wake-event", 1)
+      const result = yield* withEngine(WakeBus.layer, (makeEngine) =>
+        Effect.gen(function*() {
+          const bus = yield* WakeBus.WakeBus
+          const engine = (yield* makeEngine) as FlowRuntime.FlowRuntime["Service"]
+          yield* engine.register(EventFlow as never, handler as never)
+          const caller = yield* engine.execute(EventFlow as never, {
+            executionId: "wake-event",
+            payload: {},
+            discard: false
+          }).pipe(Effect.forkChild({ startImmediately: true }))
+          // The caller has parked on the bus: its poll sleep is an hour of
+          // TestClock time that this test never grants.
+          yield* untilWaiters(bus, "wake-event", 1)
 
-        yield* engine.deferredDone(gate as never, {
-          flowName: EventFlow._tag,
-          executionId: "wake-event",
-          deferredName: gate.name,
-          exit: Exit.succeed("open")
-        })
-        const value = yield* Fiber.join(caller)
-        return { value, nowMs: yield* Clock.currentTimeMillis }
-      }))
+          yield* engine.deferredDone(gate as never, {
+            flowName: EventFlow._tag,
+            executionId: "wake-event",
+            deferredName: gate.name,
+            exit: Exit.succeed("open")
+          })
+          const value = yield* Fiber.join(caller)
+          return { value, nowMs: yield* Clock.currentTimeMillis }
+        }))
 
-    expect(result.value).toBe("gated:open")
-    // The virtual clock never moved: no poll tick fired, so the resume was
-    // carried entirely by the wake bus.
-    expect(result.nowMs).toBe(0)
-  })
+      expect(result.value).toBe("gated:open")
+      // The virtual clock never moved: no poll tick fired, so the resume was
+      // carried entirely by the wake bus.
+      expect(result.nowMs).toBe(0)
+    }))
 
-  it("interrupting the waiting caller cleans up its bus subscription", async () => {
-    const InterruptFlow = Flow.make("Wake/interrupted", {
-      payload: {},
-      success: Schema.String,
-      suspendedRetryPolicy: hourPolicy,
-      body: opaqueHandlerBody
-    })
-    const gate = DurableDeferred.make("interrupted-gate", { success: Schema.String })
-    const handler = () => DurableDeferred.await(gate)
+  it.effect("interrupting the waiting caller cleans up its bus subscription", () =>
+    Effect.gen(function*() {
+      const InterruptFlow = Flow.make("Wake/interrupted", {
+        payload: {},
+        success: Schema.String,
+        suspendedRetryPolicy: hourPolicy,
+        body: opaqueHandlerBody
+      })
+      const gate = DurableDeferred.make("interrupted-gate", { success: Schema.String })
+      const handler = () => DurableDeferred.await(gate)
 
-    const waiters = await withEngine(WakeBus.layer, (makeEngine) =>
-      Effect.gen(function*() {
-        const bus = yield* WakeBus.WakeBus
-        const engine = (yield* makeEngine) as FlowRuntime.FlowRuntime["Service"]
-        yield* engine.register(InterruptFlow as never, handler as never)
-        const caller = yield* engine.execute(InterruptFlow as never, {
-          executionId: "wake-interrupted",
-          payload: {},
-          discard: false
-        }).pipe(Effect.forkChild({ startImmediately: true }))
-        yield* untilWaiters(bus, "wake-interrupted", 1)
+      const waiters = yield* withEngine(WakeBus.layer, (makeEngine) =>
+        Effect.gen(function*() {
+          const bus = yield* WakeBus.WakeBus
+          const engine = (yield* makeEngine) as FlowRuntime.FlowRuntime["Service"]
+          yield* engine.register(InterruptFlow as never, handler as never)
+          const caller = yield* engine.execute(InterruptFlow as never, {
+            executionId: "wake-interrupted",
+            payload: {},
+            discard: false
+          }).pipe(Effect.forkChild({ startImmediately: true }))
+          yield* untilWaiters(bus, "wake-interrupted", 1)
 
-        yield* Fiber.interrupt(caller)
-        return yield* bus.waiters("wake-interrupted")
-      }))
+          yield* Fiber.interrupt(caller)
+          return yield* bus.waiters("wake-interrupted")
+        }))
 
-    expect(waiters).toBe(0)
-  })
+      expect(waiters).toBe(0)
+    }))
 
-  it("the polling fallback still resumes the caller when the bus misses the wake", async () => {
-    const FallbackFlow = Flow.make("Wake/fallback", {
-      payload: {},
-      success: Schema.String,
-      suspendedRetryPolicy: RetryPolicy.make({
-        initialMs: 5_000,
-        factor: 1,
-        maxMs: 5_000
-      }),
-      body: opaqueHandlerBody
-    })
-    const gate = DurableDeferred.make("fallback-gate", { success: Schema.String })
-    const handler = () => Effect.map(DurableDeferred.await(gate), (value) => `polled:${value}`)
+  it.effect("the polling fallback still resumes the caller when the bus misses the wake", () =>
+    Effect.gen(function*() {
+      const FallbackFlow = Flow.make("Wake/fallback", {
+        payload: {},
+        success: Schema.String,
+        suspendedRetryPolicy: RetryPolicy.make({
+          initialMs: 5_000,
+          factor: 1,
+          maxMs: 5_000
+        }),
+        body: opaqueHandlerBody
+      })
+      const gate = DurableDeferred.make("fallback-gate", { success: Schema.String })
+      const handler = () => Effect.map(DurableDeferred.await(gate), (value) => `polled:${value}`)
 
-    // Every wake is dropped: the composition behaves as if the bus missed.
-    const result = await withEngine(WakeBus.layerNoop(), (makeEngine) =>
-      Effect.gen(function*() {
-        const store = yield* RunStore.RunStore
-        const engine = (yield* makeEngine) as FlowRuntime.FlowRuntime["Service"]
-        yield* engine.register(FallbackFlow as never, handler as never)
-        const caller = yield* engine.execute(FallbackFlow as never, {
-          executionId: "wake-fallback",
-          payload: {},
-          discard: false
-        }).pipe(Effect.forkChild({ startImmediately: true }))
-        // The first drive must durably park the run before the completion
-        // lands, or the caller would observe it on its FIRST poll and never
-        // sleep at all. The completion below then re-drives the RUN, but
-        // the dropped wake leaves the CALLER parked until its tick.
-        while (
-          "suspended" !== (yield* store.get("wake-fallback").pipe(
-            Effect.map((row) => row.status as string),
-            Effect.catch(() => Effect.succeed("missing"))
-          ))
-        ) {
-          yield* Effect.yieldNow
-        }
-        yield* engine.deferredDone(gate as never, {
-          flowName: FallbackFlow._tag,
-          executionId: "wake-fallback",
-          deferredName: gate.name,
-          exit: Exit.succeed("late")
-        })
-        for (let i = 0; i < 20; i++) yield* Effect.yieldNow
-        const before = caller.pollUnsafe()
-        yield* TestClock.adjust("5 seconds")
-        const value = yield* Fiber.join(caller)
-        return { before, value }
-      }))
+      // Every wake is dropped: the composition behaves as if the bus missed.
+      const result = yield* withEngine(WakeBus.layerNoop(), (makeEngine) =>
+        Effect.gen(function*() {
+          const store = yield* RunStore.RunStore
+          const engine = (yield* makeEngine) as FlowRuntime.FlowRuntime["Service"]
+          yield* engine.register(FallbackFlow as never, handler as never)
+          const caller = yield* engine.execute(FallbackFlow as never, {
+            executionId: "wake-fallback",
+            payload: {},
+            discard: false
+          }).pipe(Effect.forkChild({ startImmediately: true }))
+          // The first drive must durably park the run before the completion
+          // lands, or the caller would observe it on its FIRST poll and never
+          // sleep at all. The completion below then re-drives the RUN, but
+          // the dropped wake leaves the CALLER parked until its tick.
+          while (
+            "suspended" !== (yield* store.get("wake-fallback").pipe(
+              Effect.map((row) => row.status as string),
+              Effect.catch(() => Effect.succeed("missing"))
+            ))
+          ) {
+            yield* Effect.yieldNow
+          }
+          yield* engine.deferredDone(gate as never, {
+            flowName: FallbackFlow._tag,
+            executionId: "wake-fallback",
+            deferredName: gate.name,
+            exit: Exit.succeed("late")
+          })
+          for (let i = 0; i < 20; i++) yield* Effect.yieldNow
+          const before = caller.pollUnsafe()
+          yield* TestClock.adjust("5 seconds")
+          const value = yield* Fiber.join(caller)
+          return { before, value }
+        }))
 
-    expect(result.before).toBeUndefined()
-    expect(result.value).toBe("polled:late")
-  })
+      expect(result.before).toBeUndefined()
+      expect(result.value).toBe("polled:late")
+    }))
 })

@@ -1,7 +1,7 @@
+import { describe, expect, it } from "@effect/vitest"
 import { Capability, CapabilityPattern } from "@smthrs/capability-next/Capability"
 import { Effect, Fiber, Latch, Ref } from "effect"
 import { FastCheck } from "effect/testing"
-import { describe, expect, it } from "vitest"
 import * as CapabilitySets from "../src/CapabilitySet.ts"
 
 const actions = [
@@ -182,89 +182,91 @@ describe("CapabilitySet", () => {
     )
   })
 
-  it("attenuate nesting only shrinks child authority", async () => {
-    const parentPatterns = [
-      new CapabilityPattern({ action: "fs:*", resource: "src/**" }),
-      new CapabilityPattern({ action: "net:get", resource: "*.example.com" })
-    ]
-    const childPatterns = [
-      new CapabilityPattern({ action: "fs:read", resource: "src/**" }),
-      new CapabilityPattern({ action: "proc:spawn", resource: "**" })
-    ]
-    const capabilities = [
-      new Capability({ action: "fs:read", resource: "src/index.ts" }),
-      new Capability({ action: "fs:write", resource: "src/index.ts" }),
-      new Capability({ action: "net:get", resource: "api.example.com" }),
-      new Capability({ action: "proc:spawn", resource: "git" }),
-      new Capability({ action: "fs:read", resource: "README.md" })
-    ]
+  it.effect("attenuate nesting only shrinks child authority", () =>
+    Effect.gen(function*() {
+      const parentPatterns = [
+        new CapabilityPattern({ action: "fs:*", resource: "src/**" }),
+        new CapabilityPattern({ action: "net:get", resource: "*.example.com" })
+      ]
+      const childPatterns = [
+        new CapabilityPattern({ action: "fs:read", resource: "src/**" }),
+        new CapabilityPattern({ action: "proc:spawn", resource: "**" })
+      ]
+      const capabilities = [
+        new Capability({ action: "fs:read", resource: "src/index.ts" }),
+        new Capability({ action: "fs:write", resource: "src/index.ts" }),
+        new Capability({ action: "net:get", resource: "api.example.com" }),
+        new Capability({ action: "proc:spawn", resource: "git" }),
+        new Capability({ action: "fs:read", resource: "README.md" })
+      ]
 
-    const result = await Effect.runPromise(
-      Effect.gen(function*() {
-        const root = yield* CapabilitySets.current
-        const nested = yield* CapabilitySets.attenuate(parentPatterns)(
-          Effect.gen(function*() {
-            const parent = yield* CapabilitySets.current
-            const child = yield* CapabilitySets.attenuate(childPatterns)(
-              CapabilitySets.current
-            )
-            return { parent, child }
-          })
-        )
-        const after = yield* CapabilitySets.current
-        return { after, nested, root }
-      })
-    )
-
-    expect(CapabilitySets.equals(result.root, unrestricted)).toBe(true)
-    expect(CapabilitySets.equals(result.after, result.root)).toBe(true)
-    expect(capabilities.every((capability) =>
-      !CapabilitySets.allows(result.nested.child, capability) ||
-      CapabilitySets.allows(result.nested.parent, capability)
-    )).toBe(true)
-    expect(CapabilitySets.allows(
-      result.nested.child,
-      new Capability({ action: "fs:read", resource: "src/index.ts" })
-    )).toBe(true)
-    expect(CapabilitySets.allows(
-      result.nested.child,
-      new Capability({ action: "net:get", resource: "api.example.com" })
-    )).toBe(false)
-  })
-
-  it("isolates parallel sibling attenuation through fork and join", async () => {
-    const filePatterns = [new CapabilityPattern({ action: "fs:read", resource: "src/**" })]
-    const networkPatterns = [new CapabilityPattern({ action: "net:get", resource: "*.example.com" })]
-    const file = new Capability({ action: "fs:read", resource: "src/index.ts" })
-    const network = new Capability({ action: "net:get", resource: "api.example.com" })
-
-    const result = await Effect.runPromise(
-      Effect.gen(function*() {
-        const arrived = yield* Ref.make(0)
-        const barrier = yield* Latch.make(false)
-        const child = (patterns: ReadonlyArray<CapabilityPattern>) =>
-          CapabilitySets.attenuate(patterns)(
+      const result = yield* (
+        Effect.gen(function*() {
+          const root = yield* CapabilitySets.current
+          const nested = yield* CapabilitySets.attenuate(parentPatterns)(
             Effect.gen(function*() {
-              const count = yield* Ref.updateAndGet(arrived, (value) => value + 1)
-              if (count === 2) yield* Latch.open(barrier)
-              yield* Latch.await(barrier)
-              return yield* CapabilitySets.current
+              const parent = yield* CapabilitySets.current
+              const child = yield* CapabilitySets.attenuate(childPatterns)(
+                CapabilitySets.current
+              )
+              return { parent, child }
             })
           )
-        const left = yield* child(filePatterns).pipe(Effect.forkChild({ startImmediately: true }))
-        const right = yield* child(networkPatterns).pipe(Effect.forkChild({ startImmediately: true }))
-        const children = yield* Effect.all([Fiber.join(left), Fiber.join(right)])
-        const parent = yield* CapabilitySets.current
-        return { children, parent }
-      })
-    )
+          const after = yield* CapabilitySets.current
+          return { after, nested, root }
+        })
+      )
 
-    expect(CapabilitySets.allows(result.children[0], file)).toBe(true)
-    expect(CapabilitySets.allows(result.children[0], network)).toBe(false)
-    expect(CapabilitySets.allows(result.children[1], file)).toBe(false)
-    expect(CapabilitySets.allows(result.children[1], network)).toBe(true)
-    expect(CapabilitySets.equals(result.parent, unrestricted)).toBe(true)
-  })
+      expect(CapabilitySets.equals(result.root, unrestricted)).toBe(true)
+      expect(CapabilitySets.equals(result.after, result.root)).toBe(true)
+      expect(capabilities.every((capability) =>
+        !CapabilitySets.allows(result.nested.child, capability) ||
+        CapabilitySets.allows(result.nested.parent, capability)
+      )).toBe(true)
+      expect(CapabilitySets.allows(
+        result.nested.child,
+        new Capability({ action: "fs:read", resource: "src/index.ts" })
+      )).toBe(true)
+      expect(CapabilitySets.allows(
+        result.nested.child,
+        new Capability({ action: "net:get", resource: "api.example.com" })
+      )).toBe(false)
+    }))
+
+  it.effect("isolates parallel sibling attenuation through fork and join", () =>
+    Effect.gen(function*() {
+      const filePatterns = [new CapabilityPattern({ action: "fs:read", resource: "src/**" })]
+      const networkPatterns = [new CapabilityPattern({ action: "net:get", resource: "*.example.com" })]
+      const file = new Capability({ action: "fs:read", resource: "src/index.ts" })
+      const network = new Capability({ action: "net:get", resource: "api.example.com" })
+
+      const result = yield* (
+        Effect.gen(function*() {
+          const arrived = yield* Ref.make(0)
+          const barrier = yield* Latch.make(false)
+          const child = (patterns: ReadonlyArray<CapabilityPattern>) =>
+            CapabilitySets.attenuate(patterns)(
+              Effect.gen(function*() {
+                const count = yield* Ref.updateAndGet(arrived, (value) => value + 1)
+                if (count === 2) yield* Latch.open(barrier)
+                yield* Latch.await(barrier)
+                return yield* CapabilitySets.current
+              })
+            )
+          const left = yield* child(filePatterns).pipe(Effect.forkChild({ startImmediately: true }))
+          const right = yield* child(networkPatterns).pipe(Effect.forkChild({ startImmediately: true }))
+          const children = yield* Effect.all([Fiber.join(left), Fiber.join(right)])
+          const parent = yield* CapabilitySets.current
+          return { children, parent }
+        })
+      )
+
+      expect(CapabilitySets.allows(result.children[0], file)).toBe(true)
+      expect(CapabilitySets.allows(result.children[0], network)).toBe(false)
+      expect(CapabilitySets.allows(result.children[1], file)).toBe(false)
+      expect(CapabilitySets.allows(result.children[1], network)).toBe(true)
+      expect(CapabilitySets.equals(result.parent, unrestricted)).toBe(true)
+    }))
 
   it("allows every capability on a fiber with no ambient capability set (B8)", () => {
     // Recorded as intended, not merely observed. The default is `unrestricted`

@@ -1,7 +1,7 @@
+import { describe, expect, it } from "@effect/vitest"
 import type { JjError } from "@smthrs/jj-next"
 import { Effect, PlatformError, Stream } from "effect"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
-import { describe, expect, it } from "vitest"
 import * as ChildProcessSpawner from "../src/ChildProcessSpawner.ts"
 import * as Jj from "../src/Jj.ts"
 
@@ -12,85 +12,91 @@ import * as Jj from "../src/Jj.ts"
  * capability here" error rather than a permission decision.
  */
 describe("kernel stubs without any host", () => {
-  it("denies every derived spawner helper with a `NotFound` PlatformError naming the command", async () => {
-    const command = ChildProcess.make("ls", ["-al"])
-    const result = await Effect.runPromise(
-      Effect.gen(function*() {
-        const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
-        return {
-          string: yield* Effect.flip(spawner.string(command)),
-          exitCode: yield* Effect.flip(spawner.exitCode(command)),
-          streamed: yield* Effect.flip(Stream.runDrain(spawner.streamLines(command)))
-        }
-      }).pipe(Effect.provide(ChildProcessSpawner.layerNoop()))
-    )
+  it.effect("denies every derived spawner helper with a `NotFound` PlatformError naming the command", () =>
+    Effect.gen(function*() {
+      const command = ChildProcess.make("ls", ["-al"])
+      const result = yield* (
+        Effect.gen(function*() {
+          const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+          return {
+            string: yield* Effect.flip(spawner.string(command)),
+            exitCode: yield* Effect.flip(spawner.exitCode(command)),
+            streamed: yield* Effect.flip(Stream.runDrain(spawner.streamLines(command)))
+          }
+        }).pipe(Effect.provide(ChildProcessSpawner.layerNoop()))
+      )
 
-    for (const error of Object.values(result)) {
-      expect(error).toBeInstanceOf(PlatformError.PlatformError)
-      expect((error as PlatformError.PlatformError).reason._tag).toBe("NotFound")
-      expect(error.message).toContain("no process host for `ls -al`")
-    }
-  })
+      for (const error of Object.values(result)) {
+        expect(error).toBeInstanceOf(PlatformError.PlatformError)
+        expect((error as PlatformError.PlatformError).reason._tag).toBe("NotFound")
+        expect(error.message).toContain("no process host for `ls -al`")
+      }
+    }))
 
-  it("denies every jj operation with `not_installed`", async () => {
-    const jj = Jj.makeNoop({})
-    const errors = await Effect.runPromise(
-      Effect.all([
-        Effect.flip(jj.snapshot("m")),
-        Effect.flip(jj.restore("abc")),
-        Effect.flip(jj.diff("a", "b")),
-        Effect.flip(jj.workspaceAdd("lane", "/tmp/lane")),
-        Effect.flip(jj.workspaceForget("lane")),
-        Effect.flip(jj.status())
+  it.effect("denies every jj operation with `not_installed`", () =>
+    Effect.gen(function*() {
+      const jj = Jj.makeNoop({})
+      const errors = yield* (
+        Effect.all([
+          Effect.flip(jj.snapshot("m")),
+          Effect.flip(jj.restore("abc")),
+          Effect.flip(jj.diff("a", "b")),
+          Effect.flip(jj.workspaceAdd("lane", "/tmp/lane")),
+          Effect.flip(jj.workspaceForget("lane")),
+          Effect.flip(jj.status())
+        ])
+      )
+
+      expect(errors.map((error) => (error as JjError).code)).toEqual(Array.from({ length: 6 }, () => "not_installed"))
+      expect(errors.map((error) => (error as JjError).method)).toEqual([
+        "snapshot",
+        "restore",
+        "diff",
+        "workspaceAdd",
+        "workspaceForget",
+        "status"
       ])
-    )
+    }))
 
-    expect(errors.map((error) => (error as JjError).code)).toEqual(Array.from({ length: 6 }, () => "not_installed"))
-    expect(errors.map((error) => (error as JjError).method)).toEqual([
-      "snapshot",
-      "restore",
-      "diff",
-      "workspaceAdd",
-      "workspaceForget",
-      "status"
-    ])
-  })
-
-  it("lets overrides replace individual methods while the rest stay denied", async () => {
-    const command = ChildProcess.make("echo", ["hi"])
-    const spawner = await Effect.runPromise(
-      Effect.gen(function*() {
-        const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
-        return {
-          ok: yield* spawner.string(command),
-          denied: yield* Effect.flip(spawner.exitCode(command))
-        }
-      }).pipe(
-        Effect.provide(ChildProcessSpawner.layerNoop({ string: () => Effect.succeed("hi") }))
+  it.effect("lets overrides replace individual methods while the rest stay denied", () =>
+    Effect.gen(function*() {
+      const command = ChildProcess.make("echo", ["hi"])
+      const spawner = yield* (
+        Effect.gen(function*() {
+          const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+          return {
+            ok: yield* spawner.string(command),
+            denied: yield* Effect.flip(spawner.exitCode(command))
+          }
+        }).pipe(
+          Effect.provide(ChildProcessSpawner.layerNoop({ string: () => Effect.succeed("hi") }))
+        )
       )
-    )
-    const jj = Jj.make(Jj.makeNoop({ status: () => Effect.succeed("clean") }))
+      const jj = Jj.make(Jj.makeNoop({ status: () => Effect.succeed("clean") }))
 
-    expect(spawner.ok).toBe("hi")
-    expect((spawner.denied as PlatformError.PlatformError).reason._tag).toBe("NotFound")
-    await expect(Effect.runPromise(jj.status())).resolves.toBe("clean")
-    await expect(Effect.runPromise(Effect.flip(jj.snapshot()))).resolves.toMatchObject({ code: "not_installed" })
-  })
-
-  it("derives the whole helper surface from the one `spawn` it is given", async () => {
-    const command = ChildProcess.make("echo", ["hi"])
-    const spawner = ChildProcessSpawner.make(() =>
-      Effect.fail(
-        PlatformError.systemError({
-          _tag: "NotFound",
-          module: "ChildProcessSpawner",
-          method: "spawn",
-          description: "derived"
-        })
+      expect(spawner.ok).toBe("hi")
+      expect((spawner.denied as PlatformError.PlatformError).reason._tag).toBe("NotFound")
+      yield* Effect.promise(() => expect(Effect.runPromise(jj.status())).resolves.toBe("clean"))
+      yield* Effect.promise(() =>
+        expect(Effect.runPromise(Effect.flip(jj.snapshot()))).resolves.toMatchObject({ code: "not_installed" })
       )
-    )
-    const failure = await Effect.runPromise(Effect.flip(spawner.string(command)))
-    expect((failure as PlatformError.PlatformError).reason._tag).toBe("NotFound")
-    expect(failure.message).toContain("derived")
-  })
+    }))
+
+  it.effect("derives the whole helper surface from the one `spawn` it is given", () =>
+    Effect.gen(function*() {
+      const command = ChildProcess.make("echo", ["hi"])
+      const spawner = ChildProcessSpawner.make(() =>
+        Effect.fail(
+          PlatformError.systemError({
+            _tag: "NotFound",
+            module: "ChildProcessSpawner",
+            method: "spawn",
+            description: "derived"
+          })
+        )
+      )
+      const failure = yield* (Effect.flip(spawner.string(command)))
+      expect((failure as PlatformError.PlatformError).reason._tag).toBe("NotFound")
+      expect(failure.message).toContain("derived")
+    }))
 })

@@ -1,3 +1,4 @@
+import { describe, expect, it } from "@effect/vitest"
 import * as Capability from "@smthrs/capability-next/Capability"
 import * as Permission from "@smthrs/capability-next/Permission"
 import { Effect, Option, type PlatformError, Sink, Stream } from "effect"
@@ -9,12 +10,10 @@ import {
   makeHandle,
   ProcessId
 } from "effect/unstable/process/ChildProcessSpawner"
-import { describe, expect, it } from "vitest"
 import * as ChildProcessSpawner from "../src/ChildProcessSpawner.ts"
 import { GrantStore } from "../src/GrantStore.ts"
 
-const itEffect = (name: string, effect: () => Effect.Effect<void, unknown, never>) =>
-  it(name, () => Effect.runPromise(effect()))
+const itEffect = (name: string, effect: () => Effect.Effect<void, unknown, never>) => it.effect(name, () => effect())
 
 /**
  * Effect's spawner tag fixes its error channel to `PlatformError`, so the

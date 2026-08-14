@@ -28,6 +28,7 @@
  * There are no sleeps, and the assertions on `executed` are what prove the
  * flow body never ran.
  */
+import { describe, expect, it } from "@effect/vitest"
 import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import { Flow, FlowRuntime } from "@smthrs/flow-next"
 import { SqlJournal } from "@smthrs/journal-next"
@@ -40,12 +41,11 @@ import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
-import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as RunDriver from "../src/internal/RunDriver.ts"
 import * as Migrations from "../src/Migrations.ts"
 import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
-import { runPromise } from "./Sha256.ts"
+import { withCrypto } from "./Sha256.ts"
 
 const LateFlow = Flow.make("LateLinkedChildCancellation/Test", {
   payload: {},
@@ -69,8 +69,8 @@ const services = Layer.mergeAll(
   DurableEngineState.layer
 ).pipe(Layer.provideMerge(migratedDatabase))
 
-const run = <A, E, R>(effect: Effect.Effect<A, E, R>): Promise<A> =>
-  runPromise(
+const run = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+  withCrypto(
     Effect.scoped(effect as Effect.Effect<A, E, Scope.Scope>).pipe(
       Effect.provide(services),
       Effect.provide(TestClock.layer())
@@ -108,175 +108,179 @@ const admit = (
   })
 
 describe("cancellation that serializes before a child's admission", () => {
-  it("inherits the parent's durable cancellation onto the late-linked child", async () => {
-    const result = await run(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      const engineState = yield* DurableEngineState.DurableEngineState
-      const canceller = yield* makeDriver("canceller")
-      const admitter = yield* makeDriver("admitter")
-      const executed: Array<string> = []
-      yield* admitter.register(
-        LateFlow,
-        () => Effect.sync(() => (executed.push("child"), "ran"))
-      )
+  it.effect("inherits the parent's durable cancellation onto the late-linked child", () =>
+    Effect.gen(function*() {
+      const result = yield* run(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const engineState = yield* DurableEngineState.DurableEngineState
+        const canceller = yield* makeDriver("canceller")
+        const admitter = yield* makeDriver("admitter")
+        const executed: Array<string> = []
+        yield* admitter.register(
+          LateFlow,
+          () => Effect.sync(() => (executed.push("child"), "ran"))
+        )
 
-      // The parent exists durably and is driven by nobody in this process.
-      yield* store.create("late-parent", stateJson)
+        // The parent exists durably and is driven by nobody in this process.
+        yield* store.create("late-parent", stateJson)
 
-      // ORDER: the cancellation transaction commits FIRST. At this instant no
-      // edge exists, so the cascade provably had no child to request — which
-      // is exactly the window the race lived in.
-      yield* canceller.interrupt(LateFlow, "late-parent")
-      const cascadeSaw = yield* engineState.runChildren("late-parent")
-      const parentRow = yield* store.get("late-parent")
+        // ORDER: the cancellation transaction commits FIRST. At this instant no
+        // edge exists, so the cascade provably had no child to request — which
+        // is exactly the window the race lived in.
+        yield* canceller.interrupt(LateFlow, "late-parent")
+        const cascadeSaw = yield* engineState.runChildren("late-parent")
+        const parentRow = yield* store.get("late-parent")
 
-      // The admission transaction commits SECOND.
-      yield* admit(admitter, "late-child", "late-parent")
+        // The admission transaction commits SECOND.
+        yield* admit(admitter, "late-child", "late-parent")
 
-      return {
-        cascadeSaw,
-        parentRequestedAtMs: parentRow.cancelRequestedAtMs,
-        child: yield* store.get("late-child"),
-        edges: yield* engineState.runParents("late-child"),
-        executed
-      }
+        return {
+          cascadeSaw,
+          parentRequestedAtMs: parentRow.cancelRequestedAtMs,
+          child: yield* store.get("late-child"),
+          edges: yield* engineState.runParents("late-child"),
+          executed
+        }
+      }))
+
+      // The premise: the cascade could not have seen this child.
+      expect(result.cascadeSaw).toEqual([])
+      expect(result.parentRequestedAtMs).not.toBeNull()
+      // The invariant: the child is cancel-requested anyway, carrying the
+      // parent's own request timestamp rather than an independent later one.
+      expect(result.child.cancelRequestedAtMs).toBe(result.parentRequestedAtMs)
+      // And the activation guard turned that into a real terminal cancellation
+      // without ever running the flow body.
+      expect(result.child.status).toBe("cancelled")
+      expect(result.executed).toEqual([])
+      // Cycle detection's single source of truth is untouched by inheritance.
+      expect(result.edges.map((edge) => edge.parentId)).toEqual(["late-parent"])
     }))
 
-    // The premise: the cascade could not have seen this child.
-    expect(result.cascadeSaw).toEqual([])
-    expect(result.parentRequestedAtMs).not.toBeNull()
-    // The invariant: the child is cancel-requested anyway, carrying the
-    // parent's own request timestamp rather than an independent later one.
-    expect(result.child.cancelRequestedAtMs).toBe(result.parentRequestedAtMs)
-    // And the activation guard turned that into a real terminal cancellation
-    // without ever running the flow body.
-    expect(result.child.status).toBe("cancelled")
-    expect(result.executed).toEqual([])
-    // Cycle detection's single source of truth is untouched by inheritance.
-    expect(result.edges.map((edge) => edge.parentId)).toEqual(["late-parent"])
-  })
+  it.effect("inherits from a parent that is already terminally cancelled", () =>
+    Effect.gen(function*() {
+      const result = yield* run(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const canceller = yield* makeDriver("terminal-canceller")
+        const admitter = yield* makeDriver("terminal-admitter")
+        const executed: Array<string> = []
+        yield* admitter.register(
+          LateFlow,
+          () => Effect.sync(() => (executed.push("child"), "ran"))
+        )
 
-  it("inherits from a parent that is already terminally cancelled", async () => {
-    const result = await run(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      const canceller = yield* makeDriver("terminal-canceller")
-      const admitter = yield* makeDriver("terminal-admitter")
-      const executed: Array<string> = []
-      yield* admitter.register(
-        LateFlow,
-        () => Effect.sync(() => (executed.push("child"), "ran"))
-      )
+        // The parent runs, is cancelled, and settles terminally BEFORE the
+        // child is ever linked: its drive is gone, so nothing will walk the
+        // edge table on its behalf again.
+        const started = yield* Latch.make(false)
+        yield* canceller.register(
+          LateFlow,
+          () => Latch.open(started).pipe(Effect.andThen(Effect.never))
+        )
+        const parentFiber = yield* canceller.execute(LateFlow, {
+          executionId: "terminal-parent",
+          payload: {},
+          discard: true
+        }).pipe(Effect.forkChild({ startImmediately: true }))
+        yield* Latch.await(started)
+        yield* canceller.interrupt(LateFlow, "terminal-parent")
+        // The parent's drive fiber is interrupted by its own cancellation, so
+        // its exit is an interruption; only its durable settlement matters here.
+        yield* Fiber.await(parentFiber)
+        const parentRow = yield* store.get("terminal-parent")
 
-      // The parent runs, is cancelled, and settles terminally BEFORE the
-      // child is ever linked: its drive is gone, so nothing will walk the
-      // edge table on its behalf again.
-      const started = yield* Latch.make(false)
-      yield* canceller.register(
-        LateFlow,
-        () => Latch.open(started).pipe(Effect.andThen(Effect.never))
-      )
-      const parentFiber = yield* canceller.execute(LateFlow, {
-        executionId: "terminal-parent",
-        payload: {},
-        discard: true
-      }).pipe(Effect.forkChild({ startImmediately: true }))
-      yield* Latch.await(started)
-      yield* canceller.interrupt(LateFlow, "terminal-parent")
-      // The parent's drive fiber is interrupted by its own cancellation, so
-      // its exit is an interruption; only its durable settlement matters here.
-      yield* Fiber.await(parentFiber)
-      const parentRow = yield* store.get("terminal-parent")
+        yield* admit(admitter, "terminal-child", "terminal-parent")
 
-      yield* admit(admitter, "terminal-child", "terminal-parent")
+        return { parentRow, child: yield* store.get("terminal-child"), executed }
+      }))
 
-      return { parentRow, child: yield* store.get("terminal-child"), executed }
+      expect(result.parentRow.status).toBe("cancelled")
+      expect(result.child.cancelRequestedAtMs).not.toBeNull()
+      expect(result.child.status).toBe("cancelled")
+      expect(result.executed).toEqual([])
     }))
 
-    expect(result.parentRow.status).toBe("cancelled")
-    expect(result.child.cancelRequestedAtMs).not.toBeNull()
-    expect(result.child.status).toBe("cancelled")
-    expect(result.executed).toEqual([])
-  })
+  it.effect("inherits transitively onto a grandchild linked after its parent inherited", () =>
+    Effect.gen(function*() {
+      const result = yield* run(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const engineState = yield* DurableEngineState.DurableEngineState
+        const canceller = yield* makeDriver("nested-canceller")
+        const admitter = yield* makeDriver("nested-admitter")
+        const executed: Array<string> = []
+        yield* admitter.register(
+          LateFlow,
+          () => Effect.sync(() => (executed.push("body"), "ran"))
+        )
 
-  it("inherits transitively onto a grandchild linked after its parent inherited", async () => {
-    const result = await run(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      const engineState = yield* DurableEngineState.DurableEngineState
-      const canceller = yield* makeDriver("nested-canceller")
-      const admitter = yield* makeDriver("nested-admitter")
-      const executed: Array<string> = []
-      yield* admitter.register(
-        LateFlow,
-        () => Effect.sync(() => (executed.push("body"), "ran"))
-      )
+        yield* store.create("nested-parent", stateJson)
+        yield* canceller.interrupt(LateFlow, "nested-parent")
 
-      yield* store.create("nested-parent", stateJson)
-      yield* canceller.interrupt(LateFlow, "nested-parent")
+        // Generation one is admitted late and inherits.
+        yield* admit(admitter, "nested-child", "nested-parent")
+        const childRow = yield* store.get("nested-child")
+        // Generation two is admitted later still, under a parent that itself
+        // only ever held an INHERITED cancellation — no operator ever named it.
+        yield* admit(admitter, "nested-grandchild", "nested-child")
 
-      // Generation one is admitted late and inherits.
-      yield* admit(admitter, "nested-child", "nested-parent")
-      const childRow = yield* store.get("nested-child")
-      // Generation two is admitted later still, under a parent that itself
-      // only ever held an INHERITED cancellation — no operator ever named it.
-      yield* admit(admitter, "nested-grandchild", "nested-child")
+        return {
+          childRow,
+          grandchild: yield* store.get("nested-grandchild"),
+          grandchildEdges: yield* engineState.runParents("nested-grandchild"),
+          executed
+        }
+      }))
 
-      return {
-        childRow,
-        grandchild: yield* store.get("nested-grandchild"),
-        grandchildEdges: yield* engineState.runParents("nested-grandchild"),
-        executed
-      }
+      expect(result.childRow.cancelRequestedAtMs).not.toBeNull()
+      expect(result.grandchild.cancelRequestedAtMs).not.toBeNull()
+      expect(result.grandchild.status).toBe("cancelled")
+      expect(result.grandchildEdges.map((edge) => edge.parentId)).toEqual(["nested-child"])
+      expect(result.executed).toEqual([])
     }))
 
-    expect(result.childRow.cancelRequestedAtMs).not.toBeNull()
-    expect(result.grandchild.cancelRequestedAtMs).not.toBeNull()
-    expect(result.grandchild.status).toBe("cancelled")
-    expect(result.grandchildEdges.map((edge) => edge.parentId)).toEqual(["nested-child"])
-    expect(result.executed).toEqual([])
-  })
+  it.effect("is idempotent across repeated admissions and repeated cancellations", () =>
+    Effect.gen(function*() {
+      const result = yield* run(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const engineState = yield* DurableEngineState.DurableEngineState
+        const canceller = yield* makeDriver("idem-canceller")
+        const other = yield* makeDriver("idem-other")
+        const admitter = yield* makeDriver("idem-admitter")
+        const executed: Array<string> = []
+        yield* admitter.register(
+          LateFlow,
+          () => Effect.sync(() => (executed.push("body"), "ran"))
+        )
 
-  it("is idempotent across repeated admissions and repeated cancellations", async () => {
-    const result = await run(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      const engineState = yield* DurableEngineState.DurableEngineState
-      const canceller = yield* makeDriver("idem-canceller")
-      const other = yield* makeDriver("idem-other")
-      const admitter = yield* makeDriver("idem-admitter")
-      const executed: Array<string> = []
-      yield* admitter.register(
-        LateFlow,
-        () => Effect.sync(() => (executed.push("body"), "ran"))
-      )
+        yield* store.create("idem-parent", stateJson)
+        yield* canceller.interrupt(LateFlow, "idem-parent")
+        yield* admit(admitter, "idem-child", "idem-parent")
+        const first = yield* store.get("idem-child")
 
-      yield* store.create("idem-parent", stateJson)
-      yield* canceller.interrupt(LateFlow, "idem-parent")
-      yield* admit(admitter, "idem-child", "idem-parent")
-      const first = yield* store.get("idem-child")
+        // Time moves on, so a second write would be visible as a different
+        // timestamp rather than hidden behind equality.
+        yield* TestClock.adjust(Duration.minutes(1))
+        yield* admit(admitter, "idem-child", "idem-parent")
+        yield* canceller.interrupt(LateFlow, "idem-parent")
+        yield* other.interrupt(LateFlow, "idem-parent")
+        yield* admit(admitter, "idem-child", "idem-parent")
 
-      // Time moves on, so a second write would be visible as a different
-      // timestamp rather than hidden behind equality.
-      yield* TestClock.adjust(Duration.minutes(1))
-      yield* admit(admitter, "idem-child", "idem-parent")
-      yield* canceller.interrupt(LateFlow, "idem-parent")
-      yield* other.interrupt(LateFlow, "idem-parent")
-      yield* admit(admitter, "idem-child", "idem-parent")
+        return {
+          first,
+          second: yield* store.get("idem-child"),
+          edges: yield* engineState.runParents("idem-child"),
+          executed
+        }
+      }))
 
-      return {
-        first,
-        second: yield* store.get("idem-child"),
-        edges: yield* engineState.runParents("idem-child"),
-        executed
-      }
+      expect(result.first.cancelRequestedAtMs).not.toBeNull()
+      // First-writer-wins on both sides: nothing was rewritten, and the edge was
+      // not duplicated by the repeat admissions.
+      expect(result.second.cancelRequestedAtMs).toBe(result.first.cancelRequestedAtMs)
+      expect(result.second.status).toBe("cancelled")
+      expect(result.edges).toHaveLength(1)
+      expect(result.executed).toEqual([])
     }))
-
-    expect(result.first.cancelRequestedAtMs).not.toBeNull()
-    // First-writer-wins on both sides: nothing was rewritten, and the edge was
-    // not duplicated by the repeat admissions.
-    expect(result.second.cancelRequestedAtMs).toBe(result.first.cancelRequestedAtMs)
-    expect(result.second.status).toBe("cancelled")
-    expect(result.edges).toHaveLength(1)
-    expect(result.executed).toEqual([])
-  })
 })
 
 describe("the order the cancellation transaction writes in", () => {
@@ -289,120 +293,123 @@ describe("the order the cancellation transaction writes in", () => {
    * thing closing the interleaving. Pinned here so a refactor of `interrupt`
    * cannot reopen it silently.
    */
-  it("records the run's own request before it walks the edge table", async () => {
-    const order = await run(Effect.gen(function*() {
-      const engineState = yield* DurableEngineState.DurableEngineState
-      const observed: Array<string> = []
-      const observing: DurableEngineState.Service = {
-        ...engineState,
-        runChildren: (parentId) =>
-          Effect.sync(() => {
-            observed.push(`walk:${parentId}`)
-            return []
-          })
-      }
-      const store = RunStore.makeNoop({
-        requestCancel: (runId, nowMs) =>
-          Effect.sync(() => {
-            observed.push(`request:${runId}`)
-            return { _tag: "CancelRequested" as const, requestedAtMs: nowMs }
-          })
-      })
-      const driver = yield* makeDriver("ordering").pipe(
-        Effect.provideService(DurableEngineState.DurableEngineState, observing),
-        Effect.provideService(RunStore.RunStore, store)
-      )
+  it.effect("records the run's own request before it walks the edge table", () =>
+    Effect.gen(function*() {
+      const order = yield* run(Effect.gen(function*() {
+        const engineState = yield* DurableEngineState.DurableEngineState
+        const observed: Array<string> = []
+        const observing: DurableEngineState.Service = {
+          ...engineState,
+          runChildren: (parentId) =>
+            Effect.sync(() => {
+              observed.push(`walk:${parentId}`)
+              return []
+            })
+        }
+        const store = RunStore.makeNoop({
+          requestCancel: (runId, nowMs) =>
+            Effect.sync(() => {
+              observed.push(`request:${runId}`)
+              return { _tag: "CancelRequested" as const, requestedAtMs: nowMs }
+            })
+        })
+        const driver = yield* makeDriver("ordering").pipe(
+          Effect.provideService(DurableEngineState.DurableEngineState, observing),
+          Effect.provideService(RunStore.RunStore, store)
+        )
 
-      yield* driver.interrupt(LateFlow, "ordering-parent")
-      return observed
+        yield* driver.interrupt(LateFlow, "ordering-parent")
+        return observed
+      }))
+
+      expect(order).toEqual(["request:ordering-parent", "walk:ordering-parent"])
     }))
 
-    expect(order).toEqual(["request:ordering-parent", "walk:ordering-parent"])
-  })
+  it.effect("visits a diamond once and terminates defensively if persisted edges contain a cycle", () =>
+    Effect.gen(function*() {
+      const requested = yield* run(Effect.gen(function*() {
+        const engineState = yield* DurableEngineState.DurableEngineState
+        const graph: Readonly<Record<string, ReadonlyArray<DurableEngineState.RunParentEdge>>> = {
+          parent: [
+            { parentId: "parent", childId: "left", seq: 1 },
+            { parentId: "parent", childId: "right", seq: 2 }
+          ],
+          left: [{ parentId: "left", childId: "leaf", seq: 3 }],
+          right: [{ parentId: "right", childId: "leaf", seq: 4 }],
+          leaf: [{ parentId: "leaf", childId: "parent", seq: 5 }]
+        }
+        const cyclic: DurableEngineState.Service = {
+          ...engineState,
+          runChildren: (parentId) => Effect.succeed(graph[parentId] ?? [])
+        }
+        const observed: Array<string> = []
+        const store = RunStore.makeNoop({
+          requestCancel: (runId, nowMs) =>
+            Effect.sync(() => {
+              observed.push(runId)
+              return { _tag: "CancelRequested" as const, requestedAtMs: nowMs }
+            })
+        })
+        const driver = yield* makeDriver("diamond-cycle").pipe(
+          Effect.provideService(DurableEngineState.DurableEngineState, cyclic),
+          Effect.provideService(RunStore.RunStore, store)
+        )
 
-  it("visits a diamond once and terminates defensively if persisted edges contain a cycle", async () => {
-    const requested = await run(Effect.gen(function*() {
-      const engineState = yield* DurableEngineState.DurableEngineState
-      const graph: Readonly<Record<string, ReadonlyArray<DurableEngineState.RunParentEdge>>> = {
-        parent: [
-          { parentId: "parent", childId: "left", seq: 1 },
-          { parentId: "parent", childId: "right", seq: 2 }
-        ],
-        left: [{ parentId: "left", childId: "leaf", seq: 3 }],
-        right: [{ parentId: "right", childId: "leaf", seq: 4 }],
-        leaf: [{ parentId: "leaf", childId: "parent", seq: 5 }]
-      }
-      const cyclic: DurableEngineState.Service = {
-        ...engineState,
-        runChildren: (parentId) => Effect.succeed(graph[parentId] ?? [])
-      }
-      const observed: Array<string> = []
-      const store = RunStore.makeNoop({
-        requestCancel: (runId, nowMs) =>
-          Effect.sync(() => {
-            observed.push(runId)
-            return { _tag: "CancelRequested" as const, requestedAtMs: nowMs }
-          })
-      })
-      const driver = yield* makeDriver("diamond-cycle").pipe(
-        Effect.provideService(DurableEngineState.DurableEngineState, cyclic),
-        Effect.provideService(RunStore.RunStore, store)
-      )
+        yield* driver.interrupt(LateFlow, "parent")
+        return observed
+      }))
 
-      yield* driver.interrupt(LateFlow, "parent")
-      return observed
+      expect(requested).toEqual(["parent", "left", "right", "leaf"])
     }))
-
-    expect(requested).toEqual(["parent", "left", "right", "leaf"])
-  })
 })
 
 describe("admission that serializes before the parent's cancellation", () => {
-  it("lets the parent's own cascade reach the child over the committed edge", async () => {
-    const result = await run(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      const engineState = yield* DurableEngineState.DurableEngineState
-      const canceller = yield* makeDriver("early-canceller")
-      const admitter = yield* makeDriver("early-admitter")
-      const started = yield* Latch.make(false)
-      const release = yield* Latch.make(false)
-      yield* admitter.register(
-        LateFlow,
-        () => Latch.open(started).pipe(Effect.andThen(Latch.await(release)), Effect.as("ran"))
-      )
+  it.effect("lets the parent's own cascade reach the child over the committed edge", () =>
+    Effect.gen(function*() {
+      const result = yield* run(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const engineState = yield* DurableEngineState.DurableEngineState
+        const canceller = yield* makeDriver("early-canceller")
+        const admitter = yield* makeDriver("early-admitter")
+        const started = yield* Latch.make(false)
+        const release = yield* Latch.make(false)
+        yield* admitter.register(
+          LateFlow,
+          () => Latch.open(started).pipe(Effect.andThen(Latch.await(release)), Effect.as("ran"))
+        )
 
-      yield* store.create("early-parent", stateJson)
-      // ORDER: the admission transaction commits FIRST — the latch opens from
-      // inside the child's body, which only runs once the row and the edge are
-      // durable.
-      const childFiber = yield* admit(admitter, "early-child", "early-parent").pipe(
-        Effect.forkChild({ startImmediately: true })
-      )
-      yield* Latch.await(started)
-      const cascadeSaw = yield* engineState.runChildren("early-parent")
+        yield* store.create("early-parent", stateJson)
+        // ORDER: the admission transaction commits FIRST — the latch opens from
+        // inside the child's body, which only runs once the row and the edge are
+        // durable.
+        const childFiber = yield* admit(admitter, "early-child", "early-parent").pipe(
+          Effect.forkChild({ startImmediately: true })
+        )
+        yield* Latch.await(started)
+        const cascadeSaw = yield* engineState.runChildren("early-parent")
 
-      // The cancellation transaction commits SECOND and walks the edge itself.
-      yield* canceller.interrupt(LateFlow, "early-parent")
-      const requestedWhileRunning = yield* store.get("early-child")
+        // The cancellation transaction commits SECOND and walks the edge itself.
+        yield* canceller.interrupt(LateFlow, "early-parent")
+        const requestedWhileRunning = yield* store.get("early-child")
 
-      yield* Latch.open(release)
-      yield* Fiber.join(childFiber)
+        yield* Latch.open(release)
+        yield* Fiber.join(childFiber)
 
-      return {
-        cascadeSaw,
-        requestedWhileRunning,
-        child: yield* store.get("early-child")
-      }
+        return {
+          cascadeSaw,
+          requestedWhileRunning,
+          child: yield* store.get("early-child")
+        }
+      }))
+
+      // The premise: this ordering needs no inheritance, because the cascade
+      // sees the edge.
+      expect(result.cascadeSaw.map((edge) => edge.childId)).toEqual(["early-child"])
+      expect(result.requestedWhileRunning.cancelRequestedAtMs).not.toBeNull()
+      // The child's own terminal transition is cancel-guarded, so a body that
+      // finishes after the request still settles cancelled rather than completed.
+      expect(result.child.status).toBe("cancelled")
     }))
-
-    // The premise: this ordering needs no inheritance, because the cascade
-    // sees the edge.
-    expect(result.cascadeSaw.map((edge) => edge.childId)).toEqual(["early-child"])
-    expect(result.requestedWhileRunning.cancelRequestedAtMs).not.toBeNull()
-    // The child's own terminal transition is cancel-guarded, so a body that
-    // finishes after the request still settles cancelled rather than completed.
-    expect(result.child.status).toBe("cancelled")
-  })
 })
 
 /**
@@ -419,94 +426,97 @@ describe("admission that serializes before the parent's cancellation", () => {
  * with the row it reads.
  */
 describe("a terminally cancelled parent whose request timestamp was cleared", () => {
-  it("inherits from its status and stamps the request from the clock", async () => {
-    const result = await run(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      const executed: Array<string> = []
-      yield* store.create("compacted-parent", stateJson)
+  it.effect("inherits from its status and stamps the request from the clock", () =>
+    Effect.gen(function*() {
+      const result = yield* run(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const executed: Array<string> = []
+        yield* store.create("compacted-parent", stateJson)
 
-      // Non-zero and distinguishable, so the timestamp the child receives is
-      // provably read from the clock rather than defaulted.
-      yield* TestClock.adjust(Duration.millis(1234))
-      const clearedAtMs = yield* Effect.clockWith((clock) => clock.currentTimeMillis)
+        // Non-zero and distinguishable, so the timestamp the child receives is
+        // provably read from the clock rather than defaulted.
+        yield* TestClock.adjust(Duration.millis(1234))
+        const clearedAtMs = yield* Effect.clockWith((clock) => clock.currentTimeMillis)
 
-      const compacted: RunStore.Service = {
-        ...store,
-        get: (runId) =>
-          store.get(runId).pipe(
-            Effect.map((row) =>
-              runId === "compacted-parent"
-                ? { ...row, status: "cancelled" as const, cancelRequestedAtMs: null }
-                : row
+        const compacted: RunStore.Service = {
+          ...store,
+          get: (runId) =>
+            store.get(runId).pipe(
+              Effect.map((row) =>
+                runId === "compacted-parent"
+                  ? { ...row, status: "cancelled" as const, cancelRequestedAtMs: null }
+                  : row
+              )
             )
-          )
-      }
-      const admitter = yield* makeDriver("compacted").pipe(
-        Effect.provideService(RunStore.RunStore, compacted)
-      )
-      yield* admitter.register(
-        LateFlow,
-        () => Effect.sync(() => (executed.push("body"), "ran"))
-      )
+        }
+        const admitter = yield* makeDriver("compacted").pipe(
+          Effect.provideService(RunStore.RunStore, compacted)
+        )
+        yield* admitter.register(
+          LateFlow,
+          () => Effect.sync(() => (executed.push("body"), "ran"))
+        )
 
-      yield* admit(admitter, "compacted-child", "compacted-parent")
+        yield* admit(admitter, "compacted-child", "compacted-parent")
 
-      return { child: yield* store.get("compacted-child"), clearedAtMs, executed }
+        return { child: yield* store.get("compacted-child"), clearedAtMs, executed }
+      }))
+
+      expect(result.child.cancelRequestedAtMs).toBe(result.clearedAtMs)
+      expect(result.child.status).toBe("cancelled")
+      // The activation guard read the inherited request, so the body never ran.
+      expect(result.executed).toEqual([])
     }))
-
-    expect(result.child.cancelRequestedAtMs).toBe(result.clearedAtMs)
-    expect(result.child.status).toBe("cancelled")
-    // The activation guard read the inherited request, so the body never ran.
-    expect(result.executed).toEqual([])
-  })
 })
 
 describe("a parent that was never cancelled", () => {
-  it("does not cancel a child linked after it completed normally", async () => {
-    const result = await run(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      const driver = yield* makeDriver("normal")
-      const executed: Array<string> = []
-      yield* driver.register(
-        LateFlow,
-        () => Effect.sync(() => (executed.push("body"), "ran"))
-      )
+  it.effect("does not cancel a child linked after it completed normally", () =>
+    Effect.gen(function*() {
+      const result = yield* run(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const driver = yield* makeDriver("normal")
+        const executed: Array<string> = []
+        yield* driver.register(
+          LateFlow,
+          () => Effect.sync(() => (executed.push("body"), "ran"))
+        )
 
-      yield* driver.execute(LateFlow, {
-        executionId: "normal-parent",
-        payload: {},
-        discard: true
-      })
-      const parentRow = yield* store.get("normal-parent")
-      // Linked long after the parent settled — successfully.
-      yield* admit(driver, "normal-child", "normal-parent")
+        yield* driver.execute(LateFlow, {
+          executionId: "normal-parent",
+          payload: {},
+          discard: true
+        })
+        const parentRow = yield* store.get("normal-parent")
+        // Linked long after the parent settled — successfully.
+        yield* admit(driver, "normal-child", "normal-parent")
 
-      return { parentRow, child: yield* store.get("normal-child"), executed }
+        return { parentRow, child: yield* store.get("normal-child"), executed }
+      }))
+
+      expect(result.parentRow.status).toBe("completed")
+      expect(result.parentRow.cancelRequestedAtMs).toBeNull()
+      // Ordinary completion is not cancellation: nothing is inherited and the
+      // child runs.
+      expect(result.child.cancelRequestedAtMs).toBeNull()
+      expect(result.child.status).toBe("completed")
+      expect(result.executed).toEqual(["body", "body"])
     }))
 
-    expect(result.parentRow.status).toBe("completed")
-    expect(result.parentRow.cancelRequestedAtMs).toBeNull()
-    // Ordinary completion is not cancellation: nothing is inherited and the
-    // child runs.
-    expect(result.child.cancelRequestedAtMs).toBeNull()
-    expect(result.child.status).toBe("completed")
-    expect(result.executed).toEqual(["body", "body"])
-  })
+  it.effect("admits a child whose parent run row does not exist at all", () =>
+    Effect.gen(function*() {
+      const result = yield* run(Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const driver = yield* makeDriver("orphan")
+        yield* driver.register(LateFlow, () => Effect.succeed("ran"))
 
-  it("admits a child whose parent run row does not exist at all", async () => {
-    const result = await run(Effect.gen(function*() {
-      const store = yield* RunStore.RunStore
-      const driver = yield* makeDriver("orphan")
-      yield* driver.register(LateFlow, () => Effect.succeed("ran"))
+        // A detached spawn whose parent row was never created (or was already
+        // reaped) must still admit, and must inherit nothing.
+        yield* admit(driver, "orphan-child", "orphan-parent")
 
-      // A detached spawn whose parent row was never created (or was already
-      // reaped) must still admit, and must inherit nothing.
-      yield* admit(driver, "orphan-child", "orphan-parent")
+        return yield* store.get("orphan-child")
+      }))
 
-      return yield* store.get("orphan-child")
+      expect(result.cancelRequestedAtMs).toBeNull()
+      expect(result.status).toBe("completed")
     }))
-
-    expect(result.cancelRequestedAtMs).toBeNull()
-    expect(result.status).toBe("completed")
-  })
 })

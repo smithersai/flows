@@ -30,21 +30,18 @@ const connect = (filename: string) =>
 const nodeFileHarness: Harness = {
   label: "NodeDatabase, two connections over one file",
   realDriver: true,
-  run: async (body) => {
-    const directory = mkdtempSync(join(tmpdir(), "flows-db-contract-"))
-    const filename = join(directory, "contract.sqlite")
-    try {
-      return await Effect.runPromise(
+  run: (body) =>
+    Effect.acquireUseRelease(
+      Effect.sync(() => mkdtempSync(join(tmpdir(), "flows-db-contract-"))),
+      (directory) =>
         Effect.scoped(Effect.gen(function*() {
+          const filename = join(directory, "contract.sqlite")
           const a = yield* connect(filename)
           const b = yield* connect(filename)
           return yield* body({ a, b })
-        }))
-      )
-    } finally {
-      rmSync(directory, { recursive: true, force: true })
-    }
-  }
+        })),
+      (directory) => Effect.sync(() => rmSync(directory, { recursive: true, force: true }))
+    )
 }
 
 describeContract(nodeFileHarness)

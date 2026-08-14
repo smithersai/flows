@@ -13,16 +13,16 @@
  * before serving a hit — `StepBoundary.prepare` — lives in engine-store, not
  * here).
  */
+import { describe, expect, it } from "@effect/vitest"
 import { Action, Flow, Interpreter } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Cause, Effect, Exit, Layer, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
-import { describe, expect, it } from "vitest"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 import { layerDurable, makeLog } from "./DurableLogEngine.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body()))
+  it.effect(name, () => withCrypto(body()))
 
 const environment: Action.CacheEnvironment = {
   layers: ["Model=fixed"],

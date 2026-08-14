@@ -11,6 +11,7 @@
  * reports, which is Skyframe's dirty-check invariant (re-verify a node
  * against its dependencies' current values before reuse).
  */
+import { describe, expect, it } from "@effect/vitest"
 import type { FileInput } from "@smthrs/flow-next/FileInput"
 import { Journal } from "@smthrs/journal-next"
 import { Jj } from "@smthrs/kernel-next"
@@ -19,11 +20,10 @@ import { CacheStore } from "@smthrs/step-cache-next"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
-import { describe, expect, it } from "vitest"
 import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
-import { runPromise, sha256 } from "./Sha256.ts"
+import { sha256, withCrypto } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "read-set-host", pid: 21, nonce: "read-set-process" }
 
@@ -110,122 +110,128 @@ const replayWithMeasurement = (
   )
 
 describe("sealed cache hits verify the measured read set (issue #90)", () => {
-  it("serves the recorded result when every declared read still matches the host", async () => {
-    const result = await runPromise(
-      replayWithMeasurement("unchanged", [{ path: "config.json", digest: "D1" }])
-    )
-    expect(result.second).toBe("recorded")
-    expect(result.executions).toBe(1)
-    expect(result.replays).toBe(1)
-  })
+  it.effect("serves the recorded result when every declared read still matches the host", () =>
+    Effect.gen(function*() {
+      const result = yield* withCrypto(
+        replayWithMeasurement("unchanged", [{ path: "config.json", digest: "D1" }])
+      )
+      expect(result.second).toBe("recorded")
+      expect(result.executions).toBe(1)
+      expect(result.replays).toBe(1)
+    }))
 
-  it("ignores measured reads the declaration never claimed", async () => {
-    const result = await runPromise(
-      replayWithMeasurement("extra-reads", [
-        { path: "config.json", digest: "D1" },
-        { path: "incidental.txt", digest: "X" }
-      ])
-    )
-    expect(result.executions).toBe(1)
-    expect(result.replays).toBe(1)
-  })
+  it.effect("ignores measured reads the declaration never claimed", () =>
+    Effect.gen(function*() {
+      const result = yield* withCrypto(
+        replayWithMeasurement("extra-reads", [
+          { path: "config.json", digest: "D1" },
+          { path: "incidental.txt", digest: "X" }
+        ])
+      )
+      expect(result.executions).toBe(1)
+      expect(result.replays).toBe(1)
+    }))
 
-  it("re-executes when a declared read's digest has gone stale", async () => {
-    const result = await runPromise(
-      replayWithMeasurement("stale-digest", [{ path: "config.json", digest: "D2" }])
-    )
-    expect(result.second).toBe("recorded")
-    // The stale hit is refused: the action runs a second time instead of
-    // replaying the pre-edit result and its boundary outputs.
-    expect(result.executions).toBe(2)
-    expect(result.replays).toBe(0)
-  })
+  it.effect("re-executes when a declared read's digest has gone stale", () =>
+    Effect.gen(function*() {
+      const result = yield* withCrypto(
+        replayWithMeasurement("stale-digest", [{ path: "config.json", digest: "D2" }])
+      )
+      expect(result.second).toBe("recorded")
+      // The stale hit is refused: the action runs a second time instead of
+      // replaying the pre-edit result and its boundary outputs.
+      expect(result.executions).toBe(2)
+      expect(result.replays).toBe(0)
+    }))
 
-  it("re-executes when a declared read is missing from the measured set", async () => {
-    const result = await runPromise(replayWithMeasurement("vanished-read", []))
-    expect(result.executions).toBe(2)
-    expect(result.replays).toBe(0)
-  })
+  it.effect("re-executes when a declared read is missing from the measured set", () =>
+    Effect.gen(function*() {
+      const result = yield* withCrypto(replayWithMeasurement("vanished-read", []))
+      expect(result.executions).toBe(2)
+      expect(result.replays).toBe(0)
+    }))
 })
 
 describe("a refused stale hit invalidates the poisoned entry (issue #99)", () => {
-  it("records the differing re-executed result cleanly instead of permanently failing", async () => {
-    // A stale read set means the inputs changed, so a *different* result is
-    // the expected case. Without eviction the fresh result conflicted with
-    // the poisoned row under the same key digest, the strict verdict failed
-    // the run with cache_conflict_detected, and — the row never being
-    // removed — every later run repeated the same refuse → re-execute →
-    // conflict → fail cycle forever.
-    const key = "read-set/stale-differing-result"
-    const keyDigest = sha256(key)
-    const results = ["recorded", "fresh-1", "fresh-2"]
-    let executions = 0
-    const outcome = await runPromise(
-      Effect.gen(function*() {
-        const cache = yield* CacheStore.CacheStore
-        const run = (runId: string, measured: ReadonlyArray<FileInput>) =>
-          Effect.gen(function*() {
-            yield* activate(runId)
-            return yield* dispatch(runId, key, () => Effect.sync(() => results[executions++]))
-          }).pipe(Effect.provide(StepBoundary.layerTest({ readSnapshot: measured })))
-        const first = yield* run("stale-conflict-first", StepBoundary.exactReads(declared))
-        // The declared digest went stale: the hit is refused and the entry
-        // is invalidated, so the re-execution proceeds cleanly.
-        const second = yield* run("stale-conflict-second", [{ path: "config.json", digest: "D2" }])
-        // A permanently poisoned row made this third run fail forever; a
-        // clean invalidation lets it re-execute instead.
-        const third = yield* run("stale-conflict-third", [{ path: "config.json", digest: "D2" }])
-        const entry = yield* cache.get(keyDigest)
-        return { first, second, third, entry }
-      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
-    )
-    expect(outcome.first).toBe("recorded")
-    expect(outcome.second).toBe("fresh-1")
-    expect(outcome.third).toBe("fresh-2")
-    expect(executions).toBe(3)
-    // The stale-declaration executions were computed against content the
-    // key does not describe, so nothing may be re-recorded under it
-    // (issue #106) — the poisoned row is gone and stays gone.
-    expect(Option.isNone(outcome.entry)).toBe(true)
-  })
+  it.effect("records the differing re-executed result cleanly instead of permanently failing", () =>
+    Effect.gen(function*() {
+      // A stale read set means the inputs changed, so a *different* result is
+      // the expected case. Without eviction the fresh result conflicted with
+      // the poisoned row under the same key digest, the strict verdict failed
+      // the run with cache_conflict_detected, and — the row never being
+      // removed — every later run repeated the same refuse → re-execute →
+      // conflict → fail cycle forever.
+      const key = "read-set/stale-differing-result"
+      const keyDigest = sha256(key)
+      const results = ["recorded", "fresh-1", "fresh-2"]
+      let executions = 0
+      const outcome = yield* withCrypto(
+        Effect.gen(function*() {
+          const cache = yield* CacheStore.CacheStore
+          const run = (runId: string, measured: ReadonlyArray<FileInput>) =>
+            Effect.gen(function*() {
+              yield* activate(runId)
+              return yield* dispatch(runId, key, () => Effect.sync(() => results[executions++]))
+            }).pipe(Effect.provide(StepBoundary.layerTest({ readSnapshot: measured })))
+          const first = yield* run("stale-conflict-first", StepBoundary.exactReads(declared))
+          // The declared digest went stale: the hit is refused and the entry
+          // is invalidated, so the re-execution proceeds cleanly.
+          const second = yield* run("stale-conflict-second", [{ path: "config.json", digest: "D2" }])
+          // A permanently poisoned row made this third run fail forever; a
+          // clean invalidation lets it re-execute instead.
+          const third = yield* run("stale-conflict-third", [{ path: "config.json", digest: "D2" }])
+          const entry = yield* cache.get(keyDigest)
+          return { first, second, third, entry }
+        }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
+      )
+      expect(outcome.first).toBe("recorded")
+      expect(outcome.second).toBe("fresh-1")
+      expect(outcome.third).toBe("fresh-2")
+      expect(executions).toBe(3)
+      // The stale-declaration executions were computed against content the
+      // key does not describe, so nothing may be re-recorded under it
+      // (issue #106) — the poisoned row is gone and stays gone.
+      expect(Option.isNone(outcome.entry)).toBe(true)
+    }))
 })
 
 describe("cache provenance records a refused hit (issue #90)", () => {
-  it("emits a stale-read-set provenance record instead of a reuse record", async () => {
-    const key = "read-set/provenance"
-    const keyDigest = sha256(key)
-    const records = await runPromise(
-      Effect.gen(function*() {
-        const cache = yield* CacheStore.CacheStore
-        yield* cache.put({
-          keyDigest,
-          result: "recorded",
-          meta: {
-            tier: "sealed",
-            boundary: {
-              declaredOutputs: { paths: ["output.txt"] },
-              diffIdentity: "seeded-diff",
-              wholeTreeWritesVerified: true,
-              hermeticReadsVerified: true
-            }
-          },
-          createdAtMs: 1,
-          recordedRunId: "recorded-run",
-          recordedEventSeq: 0
-        })
-        yield* activate("provenance-run")
-        yield* dispatch("provenance-run", key, () => Effect.succeed("recorded")).pipe(
-          Effect.provide(StepBoundary.layerTest({ readSnapshot: [{ path: "config.json", digest: "D2" }] }))
-        )
-        const journal = yield* Journal.Journal
-        yield* journal.flush
-        const page = yield* journal.entries({ runId: "provenance-run" as never, limit: 50 })
-        return page.entries
-          .filter((entry) => entry.eventType === "flows.engine.cache-provenance")
-          .map((entry) => entry.payload as { readonly action?: string })
-      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
-    )
+  it.effect("emits a stale-read-set provenance record instead of a reuse record", () =>
+    Effect.gen(function*() {
+      const key = "read-set/provenance"
+      const keyDigest = sha256(key)
+      const records = yield* withCrypto(
+        Effect.gen(function*() {
+          const cache = yield* CacheStore.CacheStore
+          yield* cache.put({
+            keyDigest,
+            result: "recorded",
+            meta: {
+              tier: "sealed",
+              boundary: {
+                declaredOutputs: { paths: ["output.txt"] },
+                diffIdentity: "seeded-diff",
+                wholeTreeWritesVerified: true,
+                hermeticReadsVerified: true
+              }
+            },
+            createdAtMs: 1,
+            recordedRunId: "recorded-run",
+            recordedEventSeq: 0
+          })
+          yield* activate("provenance-run")
+          yield* dispatch("provenance-run", key, () => Effect.succeed("recorded")).pipe(
+            Effect.provide(StepBoundary.layerTest({ readSnapshot: [{ path: "config.json", digest: "D2" }] }))
+          )
+          const journal = yield* Journal.Journal
+          yield* journal.flush
+          const page = yield* journal.entries({ runId: "provenance-run" as never, limit: 50 })
+          return page.entries
+            .filter((entry) => entry.eventType === "flows.engine.cache-provenance")
+            .map((entry) => entry.payload as { readonly action?: string })
+        }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
+      )
 
-    expect(records.map((record) => record.action)).toContain("stale_read_set")
-  })
+      expect(records.map((record) => record.action)).toContain("stale_read_set")
+    }))
 })

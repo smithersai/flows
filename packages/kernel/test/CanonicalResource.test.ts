@@ -1,3 +1,4 @@
+import { describe, expect, it } from "@effect/vitest"
 import * as Permission from "@smthrs/capability-next/Permission"
 import {
   Effect,
@@ -8,7 +9,6 @@ import {
   Sink,
   Stream
 } from "effect"
-import { describe, expect, it } from "vitest"
 import * as FileSystem from "../src/FileSystem.ts"
 import { GrantStore } from "../src/GrantStore.ts"
 import * as Workspace from "../src/Workspace.ts"
@@ -36,7 +36,7 @@ const resolve = (
     return yield* FileSystem.canonicalResource(host, pathService, root, value)
   }).pipe(Effect.provide(path))
 
-const itEffect = <A, E>(name: string, body: () => Effect.Effect<A, E>) => it(name, () => Effect.runPromise(body()))
+const itEffect = <A, E>(name: string, body: () => Effect.Effect<A, E>) => it.effect(name, () => body())
 
 describe("canonicalResource", () => {
   itEffect("resolves a workspace-relative value against the workspace root", () =>

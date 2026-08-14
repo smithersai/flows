@@ -1,14 +1,21 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
+import { describe, expect, it } from "@effect/vitest"
 import { Action, DurableDeferred, Flow, FlowRuntime, Interpreter, RetryPolicy, StepIdentity } from "@smthrs/flow-next"
 import { Cause, Effect, Exit, Layer, Option, Result, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
-import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
-import { runPromise, runSync } from "./Crypto.ts"
+import { runSync, withCrypto } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body()))
+  it.effect(name, () => withCrypto(body()))
+
+/**
+ * The same wiring on the live clock, for cases that wait on the real elapsed
+ * time a retry or resume policy schedules rather than driving `TestClock`.
+ */
+const liveEffect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
+  it.live(name, () => withCrypto(body()))
 
 describe("Action.retry outside a flow", () => {
   effect("still advances CurrentAttempt when no engine dispatch fills the ordinal slot", () => {
@@ -216,7 +223,7 @@ describe("retry decisions on defects", () => {
     }).pipe(Effect.provide(layer))
   })
 
-  effect("a typed failure under the same policy is retried to the declared bound", () => {
+  liveEffect("a typed failure under the same policy is retried to the declared bound", () => {
     let attempts = 0
     const action = Action.make({
       name: "Edge/failing-action",

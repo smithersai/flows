@@ -1,7 +1,7 @@
+import { describe, expect, it } from "@effect/vitest"
 import { Capability, CapabilityPattern } from "@smthrs/capability-next/Capability"
 import { GrantStoreError, PermissionDenied, PermissionRequired, Rule } from "@smthrs/capability-next/Permission"
 import { Deferred, Effect, Fiber } from "effect"
-import { describe, expect, it } from "vitest"
 import { attenuate } from "../src/CapabilitySet.ts"
 import type { GrantEvent } from "../src/GrantEvent.ts"
 import { make as makeGrantStore, type MakeOptions, type PendingRequest, type Service } from "../src/GrantStore.ts"
@@ -39,7 +39,7 @@ const itEffect = <A, E>(
   name: string,
   body: () => Effect.Effect<A, E>
 ): void => {
-  it(name, () => Effect.runPromise(body()))
+  it.effect(name, () => body())
 }
 
 describe("GrantStore", () => {

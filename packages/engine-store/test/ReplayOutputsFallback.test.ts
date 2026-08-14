@@ -13,6 +13,7 @@
  * succeeded-attempt path returns the durable outcome with the refusal
  * journalled, and the production layer mkdirs parents before materializing.
  */
+import { describe, expect, it } from "@effect/vitest"
 import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
 import { Journal } from "@smthrs/journal-next"
 import { Jj } from "@smthrs/kernel-next"
@@ -22,7 +23,6 @@ import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
-import { describe, expect, it } from "vitest"
 import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 
@@ -33,7 +33,7 @@ import * as StepBoundary from "../src/StepBoundary.ts"
 const hostLayer = (fs: FileSystem.FileSystem) =>
   ArtifactStore.layerFileSystem().pipe(Layer.provideMerge(Layer.succeed(FileSystem.FileSystem)(fs)))
 import * as TestStores from "../src/test/TestStores.ts"
-import { runPromise, sha256 } from "./Sha256.ts"
+import { sha256, withCrypto } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "replay-fallback-host", pid: 51, nonce: "replay-fallback-process" }
 
@@ -114,59 +114,61 @@ const provenance = (runId: string) =>
   })
 
 describe("unreplayable evidence on a verified cache hit (issue #107)", () => {
-  it("falls back to a real execution instead of failing every run forever", async () => {
-    const key = "replay-fallback/cache-hit"
-    const outcome = await runPromise(
-      Effect.gen(function*() {
-        let executions = 0
-        const body = () =>
-          Effect.sync(() => {
-            executions++
-            return "recorded"
-          })
-        yield* activate("replay-fallback-first")
-        yield* dispatch("replay-fallback-first", key, body).pipe(Effect.provide(unreplayable()))
-        // Runs 2 and 3: the hit verifies, materialization fails — each run
-        // must re-execute for real rather than fail, and keep succeeding.
-        yield* activate("replay-fallback-second")
-        const second = yield* dispatch("replay-fallback-second", key, body).pipe(Effect.provide(unreplayable()))
-        yield* activate("replay-fallback-third")
-        const third = yield* dispatch("replay-fallback-third", key, body).pipe(Effect.provide(unreplayable()))
-        const records = yield* provenance("replay-fallback-second")
-        return { executions, second, third, records }
-      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
-    )
-    expect(outcome.second).toBe("recorded")
-    expect(outcome.third).toBe("recorded")
-    expect(outcome.executions).toBe(3)
-    // The refusal is visible, not silent.
-    expect(outcome.records.map((record) => record.action)).toContain("replay_failed")
-  })
+  it.effect("falls back to a real execution instead of failing every run forever", () =>
+    Effect.gen(function*() {
+      const key = "replay-fallback/cache-hit"
+      const outcome = yield* withCrypto(
+        Effect.gen(function*() {
+          let executions = 0
+          const body = () =>
+            Effect.sync(() => {
+              executions++
+              return "recorded"
+            })
+          yield* activate("replay-fallback-first")
+          yield* dispatch("replay-fallback-first", key, body).pipe(Effect.provide(unreplayable()))
+          // Runs 2 and 3: the hit verifies, materialization fails — each run
+          // must re-execute for real rather than fail, and keep succeeding.
+          yield* activate("replay-fallback-second")
+          const second = yield* dispatch("replay-fallback-second", key, body).pipe(Effect.provide(unreplayable()))
+          yield* activate("replay-fallback-third")
+          const third = yield* dispatch("replay-fallback-third", key, body).pipe(Effect.provide(unreplayable()))
+          const records = yield* provenance("replay-fallback-second")
+          return { executions, second, third, records }
+        }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
+      )
+      expect(outcome.second).toBe("recorded")
+      expect(outcome.third).toBe("recorded")
+      expect(outcome.executions).toBe(3)
+      // The refusal is visible, not silent.
+      expect(outcome.records.map((record) => record.action)).toContain("replay_failed")
+    }))
 
-  it("returns the durable outcome when a succeeded attempt's evidence cannot re-materialize", async () => {
-    const key = "replay-fallback/succeeded-row"
-    const outcome = await runPromise(
-      Effect.gen(function*() {
-        const cache = yield* CacheStore.CacheStore
-        yield* activate("replay-fallback-row")
-        yield* dispatch("replay-fallback-row", key, () => Effect.succeed("durable-outcome")).pipe(
-          Effect.provide(unreplayable())
-        )
-        // The cache row is evicted so the re-dispatch reaches the succeeded
-        // attempt row's replay branch rather than the cache-hit gate.
-        yield* cache.evict(sha256(key))
-        const replayed = yield* dispatch("replay-fallback-row", key, () => Effect.die("must not re-execute")).pipe(
-          Effect.provide(unreplayable())
-        )
-        const records = yield* provenance("replay-fallback-row")
-        return { replayed, records }
-      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
-    )
-    // The attempt durably succeeded: its outcome is the truth, and failing
-    // the run over a best-effort materialization recreated the #99 loop.
-    expect(outcome.replayed).toBe("durable-outcome")
-    expect(outcome.records.map((record) => record.action)).toContain("replay_failed")
-  })
+  it.effect("returns the durable outcome when a succeeded attempt's evidence cannot re-materialize", () =>
+    Effect.gen(function*() {
+      const key = "replay-fallback/succeeded-row"
+      const outcome = yield* withCrypto(
+        Effect.gen(function*() {
+          const cache = yield* CacheStore.CacheStore
+          yield* activate("replay-fallback-row")
+          yield* dispatch("replay-fallback-row", key, () => Effect.succeed("durable-outcome")).pipe(
+            Effect.provide(unreplayable())
+          )
+          // The cache row is evicted so the re-dispatch reaches the succeeded
+          // attempt row's replay branch rather than the cache-hit gate.
+          yield* cache.evict(sha256(key))
+          const replayed = yield* dispatch("replay-fallback-row", key, () => Effect.die("must not re-execute")).pipe(
+            Effect.provide(unreplayable())
+          )
+          const records = yield* provenance("replay-fallback-row")
+          return { replayed, records }
+        }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
+      )
+      // The attempt durably succeeded: its outcome is the truth, and failing
+      // the run over a best-effort materialization recreated the #99 loop.
+      expect(outcome.replayed).toBe("durable-outcome")
+      expect(outcome.records.map((record) => record.action)).toContain("replay_failed")
+    }))
 })
 
 describe("the production replayOutputs creates parent directories (issue #107)", () => {
@@ -212,30 +214,31 @@ describe("the production replayOutputs creates parent directories (issue #107)",
     return { files, layer: StepBoundary.layer.pipe(Layer.provide(hostLayer(fs))) }
   }
 
-  it("materializes an output whose parent directory the original body created", async () => {
-    // The producer's body mkdirs dist/ itself; the evidence must replay on
-    // a fresh clone that has no dist/ directory.
-    const producer = nodeLikeFs({ "input.txt": "original" })
-    const evidence = await runPromise(
-      Effect.gen(function*() {
-        const boundary = yield* StepBoundary.StepBoundary
-        const prepared = yield* boundary.prepare({
-          readSet: [{ path: "input.txt", digest: sha256("original") }],
-          writeSet: ["dist/manifest.json"],
-          boundaryMode: "hard"
-        })
-        producer.files.set("dist/manifest.json", encoder.encode("{\"artifact\":true}"))
-        return yield* boundary.settle(prepared)
-      }).pipe(Effect.provide(producer.layer))
-    )
+  it.effect("materializes an output whose parent directory the original body created", () =>
+    Effect.gen(function*() {
+      // The producer's body mkdirs dist/ itself; the evidence must replay on
+      // a fresh clone that has no dist/ directory.
+      const producer = nodeLikeFs({ "input.txt": "original" })
+      const evidence = yield* withCrypto(
+        Effect.gen(function*() {
+          const boundary = yield* StepBoundary.StepBoundary
+          const prepared = yield* boundary.prepare({
+            readSet: [{ path: "input.txt", digest: sha256("original") }],
+            writeSet: ["dist/manifest.json"],
+            boundaryMode: "hard"
+          })
+          producer.files.set("dist/manifest.json", encoder.encode("{\"artifact\":true}"))
+          return yield* boundary.settle(prepared)
+        }).pipe(Effect.provide(producer.layer))
+      )
 
-    const fresh = nodeLikeFs({})
-    await runPromise(
-      Effect.gen(function*() {
-        const boundary = yield* StepBoundary.StepBoundary
-        yield* boundary.replayOutputs(evidence)
-      }).pipe(Effect.provide(fresh.layer))
-    )
-    expect(decoder.decode(fresh.files.get("dist/manifest.json"))).toBe("{\"artifact\":true}")
-  })
+      const fresh = nodeLikeFs({})
+      yield* withCrypto(
+        Effect.gen(function*() {
+          const boundary = yield* StepBoundary.StepBoundary
+          yield* boundary.replayOutputs(evidence)
+        }).pipe(Effect.provide(fresh.layer))
+      )
+      expect(decoder.decode(fresh.files.get("dist/manifest.json"))).toBe("{\"artifact\":true}")
+    }))
 })

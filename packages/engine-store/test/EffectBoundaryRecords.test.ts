@@ -6,16 +6,16 @@
  * work only. These cases pin both halves and the shape the decoder in
  * `@smthrs/time-travel-next` reads them under.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { Journal } from "@smthrs/journal-next"
 import { Jj } from "@smthrs/kernel-next"
 import { type Ownership, RunStore } from "@smthrs/run-store-next"
 import { Effect, Layer } from "effect"
-import { describe, expect, it } from "vitest"
 import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as EffectRecords from "../src/internal/EffectRecords.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
-import { runPromise } from "./Sha256.ts"
+import { withCrypto } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "boundary", pid: 1, nonce: "owner" }
 
@@ -43,7 +43,7 @@ const dispatch = (options: {
   readonly idempotencyKey?: string
   readonly execute: Effect.Effect<unknown, unknown>
 }) =>
-  runPromise(
+  withCrypto(
     Effect.gen(function*() {
       const runs = yield* RunStore.RunStore
       yield* runs.create(options.runId, "{}")
@@ -74,71 +74,74 @@ const dispatch = (options: {
   )
 
 describe("effect-boundary records", () => {
-  it("brackets an irreversible dispatch with intended and succeeded, keyed by the action name", async () => {
-    const result = await dispatch({
-      runId: "boundary-ok",
-      action: { name: "billing/Charge" },
-      tier: "irreversible",
-      idempotencyKey: "charge-1",
-      execute: Effect.succeed("receipt")
-    })
-
-    expect(boundaries(result.entries)).toEqual([
-      {
-        id: expect.stringContaining("boundary-ok:"),
-        kind: "billing/Charge",
-        tier: "irreversible",
-        status: "intended",
+  it.effect("brackets an irreversible dispatch with intended and succeeded, keyed by the action name", () =>
+    Effect.gen(function*() {
+      const result = yield* dispatch({
         runId: "boundary-ok",
-        lineageId: "boundary-ok/root",
-        attempt: 1,
-        durableBoundary: true,
-        providerStream: false,
-        idempotencyKey: "charge-1"
-      },
-      {
-        id: expect.stringContaining("boundary-ok:"),
-        kind: "billing/Charge",
+        action: { name: "billing/Charge" },
         tier: "irreversible",
-        status: "succeeded",
-        runId: "boundary-ok",
-        lineageId: "boundary-ok/root",
-        attempt: 1,
-        durableBoundary: true,
-        providerStream: false,
         idempotencyKey: "charge-1",
-        output: "receipt"
-      }
-    ])
-  })
+        execute: Effect.succeed("receipt")
+      })
 
-  it("settles a failed irreversible dispatch as `unknown`, never as absent", async () => {
-    const result = await dispatch({
-      runId: "boundary-failed",
-      // No declared name and no idempotency key: the kind falls back to the
-      // constant, which resolves to no handler and therefore blocks a rewind.
-      action: {},
-      tier: "irreversible",
-      execute: Effect.fail("provider refused")
-    })
+      expect(boundaries(result.entries)).toEqual([
+        {
+          id: expect.stringContaining("boundary-ok:"),
+          kind: "billing/Charge",
+          tier: "irreversible",
+          status: "intended",
+          runId: "boundary-ok",
+          lineageId: "boundary-ok/root",
+          attempt: 1,
+          durableBoundary: true,
+          providerStream: false,
+          idempotencyKey: "charge-1"
+        },
+        {
+          id: expect.stringContaining("boundary-ok:"),
+          kind: "billing/Charge",
+          tier: "irreversible",
+          status: "succeeded",
+          runId: "boundary-ok",
+          lineageId: "boundary-ok/root",
+          attempt: 1,
+          durableBoundary: true,
+          providerStream: false,
+          idempotencyKey: "charge-1",
+          output: "receipt"
+        }
+      ])
+    }))
 
-    expect(result.exit._tag).toBe("Failure")
-    expect(boundaries(result.entries).map((effect) => [effect.kind, effect.status])).toEqual([
-      ["flows/engine-store/action", "intended"],
-      ["flows/engine-store/action", "unknown"]
-    ])
-  })
+  it.effect("settles a failed irreversible dispatch as `unknown`, never as absent", () =>
+    Effect.gen(function*() {
+      const result = yield* dispatch({
+        runId: "boundary-failed",
+        // No declared name and no idempotency key: the kind falls back to the
+        // constant, which resolves to no handler and therefore blocks a rewind.
+        action: {},
+        tier: "irreversible",
+        execute: Effect.fail("provider refused")
+      })
 
-  it("writes no boundary record for work that is not tier-3", async () => {
-    const result = await dispatch({
-      runId: "boundary-sealed",
-      action: { name: "reports/Read" },
-      tier: "sealed",
-      execute: Effect.succeed("read")
-    })
+      expect(result.exit._tag).toBe("Failure")
+      expect(boundaries(result.entries).map((effect) => [effect.kind, effect.status])).toEqual([
+        ["flows/engine-store/action", "intended"],
+        ["flows/engine-store/action", "unknown"]
+      ])
+    }))
 
-    expect(boundaries(result.entries)).toEqual([])
-  })
+  it.effect("writes no boundary record for work that is not tier-3", () =>
+    Effect.gen(function*() {
+      const result = yield* dispatch({
+        runId: "boundary-sealed",
+        action: { name: "reports/Read" },
+        tier: "sealed",
+        execute: Effect.succeed("read")
+      })
+
+      expect(boundaries(result.entries)).toEqual([])
+    }))
 
   it("carries every optional descriptor field, and omits the ones that are absent", () => {
     const full = EffectRecords.boundary(

@@ -1,3 +1,4 @@
+import { describe, expect, it } from "@effect/vitest"
 import * as Capability from "@smthrs/capability-next/Capability"
 import { PermissionRequired, Rule } from "@smthrs/capability-next/Permission"
 import * as JournalModule from "@smthrs/journal-next/Journal"
@@ -8,7 +9,6 @@ import * as TestJournal from "@smthrs/journal-next/test/TestJournal"
 import { Deferred, Effect, Fiber, Layer, Ref } from "effect"
 import type * as Scope from "effect/Scope"
 import { spawnSync } from "node:child_process"
-import { describe, expect, it } from "vitest"
 import * as GrantEvent from "../src/GrantEvent.ts"
 import { GrantStore } from "../src/GrantStore.ts"
 import * as JournalGrantStore from "../src/JournalGrantStore.ts"
@@ -110,7 +110,7 @@ const run = <A, E>(effect: Effect.Effect<A, E, Journal | Scope.Scope | Workspace
   )
 
 const itEffect = <A, E>(name: string, body: () => Effect.Effect<A, E>): void => {
-  it(name, () => Effect.runPromise(body()))
+  it.effect(name, () => body())
 }
 
 const encoded = (event: GrantEvent.GrantEvent): unknown => {
@@ -441,72 +441,68 @@ describe("JournalGrantStore construction envelopes", () => {
 
   // BUG: Envelope signatures sort but do not remove duplicate patterns, so a
   // semantically identical constructor emits a second durable envelope.
-  it.fails("deduplicates construction envelopes with repeated patterns", () =>
-    Effect.runPromise(
-      run(
-        Effect.gen(function*() {
-          const journal = yield* Journal
-          const readPattern = new Capability.CapabilityPattern({
-            action: "fs:read",
-            resource: "/workspace/**"
-          })
-          yield* JournalGrantStore.make({
-            ...options,
-            envelope: { patterns: [insidePattern, insidePattern, readPattern], scope: "run" }
-          })
-          yield* JournalGrantStore.make({
-            ...options,
-            envelope: { patterns: [readPattern, insidePattern], scope: "run" }
-          })
-
-          const page = yield* journal.entries({ runId: runId(options.runId), limit: 10 })
-          expect(page.entries).toHaveLength(1)
+  it.effect.fails("deduplicates construction envelopes with repeated patterns", () =>
+    run(
+      Effect.gen(function*() {
+        const journal = yield* Journal
+        const readPattern = new Capability.CapabilityPattern({
+          action: "fs:read",
+          resource: "/workspace/**"
         })
-      )
+        yield* JournalGrantStore.make({
+          ...options,
+          envelope: { patterns: [insidePattern, insidePattern, readPattern], scope: "run" }
+        })
+        yield* JournalGrantStore.make({
+          ...options,
+          envelope: { patterns: [readPattern, insidePattern], scope: "run" }
+        })
+
+        const page = yield* journal.entries({ runId: runId(options.runId), limit: 10 })
+        expect(page.entries).toHaveLength(1)
+      })
     ))
 
   // BUG: Two constructors can both replay absence before either persists, so
   // both append the same construction envelope.
-  it.fails("serializes concurrent construction-envelope deduplication", () =>
-    Effect.runPromise(
-      run(
-        Effect.gen(function*() {
-          const base = yield* Journal
-          const arrivals = yield* Ref.make(0)
-          const barrier = yield* Deferred.make<void>()
-          const journal = JournalModule.makeNoop({
-            entries: (entriesOptions) =>
-              base.entries(entriesOptions).pipe(
-                Effect.tap((page) => {
-                  if (
-                    entriesOptions.runId !== options.runId
-                    || entriesOptions.after !== undefined
-                    || page.entries.length !== 0
-                  ) {
-                    return Effect.void
-                  }
-                  return Ref.updateAndGet(arrivals, (value) => value + 1).pipe(
-                    Effect.flatMap((count) => count === 2 ? Deferred.succeed(barrier, undefined) : Effect.void),
-                    Effect.andThen(Deferred.await(barrier))
-                  )
-                })
-              ),
-            emitDurable: base.emitDurable
-          })
-          const withEnvelope = {
-            ...options,
-            envelope: { patterns: [insidePattern], scope: "run" as const }
-          }
-
-          yield* Effect.all([
-            JournalGrantStore.make(withEnvelope),
-            JournalGrantStore.make(withEnvelope)
-          ], { concurrency: "unbounded" }).pipe(Effect.provideService(Journal, journal))
-
-          const page = yield* base.entries({ runId: runId(options.runId), limit: 10 })
-          expect(page.entries).toHaveLength(1)
+  it.effect.fails("serializes concurrent construction-envelope deduplication", () =>
+    run(
+      Effect.gen(function*() {
+        const base = yield* Journal
+        const arrivals = yield* Ref.make(0)
+        const barrier = yield* Deferred.make<void>()
+        const journal = JournalModule.makeNoop({
+          entries: (entriesOptions) =>
+            base.entries(entriesOptions).pipe(
+              Effect.tap((page) => {
+                if (
+                  entriesOptions.runId !== options.runId
+                  || entriesOptions.after !== undefined
+                  || page.entries.length !== 0
+                ) {
+                  return Effect.void
+                }
+                return Ref.updateAndGet(arrivals, (value) => value + 1).pipe(
+                  Effect.flatMap((count) => count === 2 ? Deferred.succeed(barrier, undefined) : Effect.void),
+                  Effect.andThen(Deferred.await(barrier))
+                )
+              })
+            ),
+          emitDurable: base.emitDurable
         })
-      )
+        const withEnvelope = {
+          ...options,
+          envelope: { patterns: [insidePattern], scope: "run" as const }
+        }
+
+        yield* Effect.all([
+          JournalGrantStore.make(withEnvelope),
+          JournalGrantStore.make(withEnvelope)
+        ], { concurrency: "unbounded" }).pipe(Effect.provideService(Journal, journal))
+
+        const page = yield* base.entries({ runId: runId(options.runId), limit: 10 })
+        expect(page.entries).toHaveLength(1)
+      })
     ))
 
   itEffect("emits a remembered construction envelope once and replays it thereafter", () =>

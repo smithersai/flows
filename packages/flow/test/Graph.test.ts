@@ -1,8 +1,8 @@
+import { describe, expect, it } from "@effect/vitest"
 import { Action, Flow, Graph } from "@smthrs/flow-next"
 import { KeyMaterial, Node, Plan, Planned } from "@smthrs/plan-next"
 import { Effect, Schema } from "effect"
-import { describe, expect, it } from "vitest"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 
 const Read = Action.make("counter/read", {
   payload: { path: Schema.String },
@@ -57,8 +57,8 @@ const planNode = (plan: Plan.Plan, id: string): Plan.PlanNode => {
   return found!
 }
 
-const compile = (planId: string, flow: string, graph: Graph.Graph): Promise<Plan.Plan> =>
-  runPromise(Plan.compile({ planId, flow, nodes: Graph.drafts(graph) }))
+const compile = (planId: string, flow: string, graph: Graph.Graph) =>
+  withCrypto(Plan.compile({ planId, flow, nodes: Graph.drafts(graph) }))
 
 /**
  * An AST that crossed a serialization boundary, leaving its side tables behind.
@@ -559,17 +559,18 @@ describe("Graph.build diagnostics", () => {
 })
 
 describe("Graph.build into a plan", () => {
-  it("compiles hundreds of All members without dropping or aliasing nodes", async () => {
-    const members: Record<string, Node.Node<number>> = {}
-    for (let index = 0; index < 500; index++) members[`member-${index}`] = Node.succeed(index)
+  it.effect("compiles hundreds of All members without dropping or aliasing nodes", () =>
+    Effect.gen(function*() {
+      const members: Record<string, Node.Node<number>> = {}
+      for (let index = 0; index < 500; index++) members[`member-${index}`] = Node.succeed(index)
 
-    const graph = Graph.build(Node.all(members))
-    const plan = await compile("plan-wide-all", "wide-all", graph)
+      const graph = Graph.build(Node.all(members))
+      const plan = yield* compile("plan-wide-all", "wide-all", graph)
 
-    expect(Graph.nodes(graph)).toHaveLength(501)
-    expect(new Set(Graph.nodes(graph).map((current) => current.id)).size).toBe(501)
-    expect(plan.nodes).toHaveLength(501)
-  })
+      expect(Graph.nodes(graph)).toHaveLength(501)
+      expect(new Set(Graph.nodes(graph).map((current) => current.id)).size).toBe(501)
+      expect(plan.nodes).toHaveLength(501)
+    }))
 
   // BUG: Deep AndThen graphs recurse until a native stack overflow instead of returning a bounded typed refusal.
   it.fails("rejects a very deep AndThen graph with a typed error instead of overflowing the stack", () => {
@@ -601,81 +602,84 @@ describe("Graph.build into a plan", () => {
     }))
   })
 
-  it("rejects colliding structural ids before producing a partial plan", async () => {
-    const step = Node.succeed("value")
-    const graph = Graph.build(Node.all({
-      "a.all.b": step,
-      a: Node.all({ b: step })
-    }))
+  it.effect("rejects colliding structural ids before producing a partial plan", () =>
+    Effect.gen(function*() {
+      const step = Node.succeed("value")
+      const graph = Graph.build(Node.all({
+        "a.all.b": step,
+        a: Node.all({ b: step })
+      }))
 
-    const error = await runPromise(Effect.flip(
-      Plan.compile({ planId: "plan-structural-collision", flow: "collision", nodes: Graph.drafts(graph) })
-    ))
-
-    expect(error).toMatchObject({
-      _tag: "flows/plan/PlanError",
-      code: "duplicate_node",
-      message: expect.stringContaining("root.all.a.all.b")
-    })
-  })
-
-  it("rejects self-referential and dangling authored refs as typed PlanErrors", async () => {
-    const cases = [
-      {
-        code: "cycle",
-        dependency: "root",
-        graph: Graph.build(Node.succeed(Planned.make("root")))
-      },
-      {
-        code: "unknown_dependency",
-        dependency: "missing",
-        graph: Graph.build(Node.succeed(Planned.make("missing")))
-      }
-    ] as const
-
-    for (const current of cases) {
-      const error = await runPromise(Effect.flip(
-        Plan.compile({
-          planId: `plan-${current.code}`,
-          flow: current.code,
-          nodes: Graph.drafts(current.graph)
-        })
+      const error = yield* withCrypto(Effect.flip(
+        Plan.compile({ planId: "plan-structural-collision", flow: "collision", nodes: Graph.drafts(graph) })
       ))
 
       expect(error).toMatchObject({
         _tag: "flows/plan/PlanError",
-        code: current.code,
-        message: expect.stringContaining(current.dependency)
+        code: "duplicate_node",
+        message: expect.stringContaining("root.all.a.all.b")
       })
-    }
-  })
+    }))
 
-  it("shows protected and on-failure topology in the graph and compiled plan", async () => {
-    const graph = Graph.build(
-      Read.call({ path: "counter.txt" }).pipe(
-        Node.catch({ onFailure: (error) => Node.succeed({ recovered: error }) })
+  it.effect("rejects self-referential and dangling authored refs as typed PlanErrors", () =>
+    Effect.gen(function*() {
+      const cases = [
+        {
+          code: "cycle",
+          dependency: "root",
+          graph: Graph.build(Node.succeed(Planned.make("root")))
+        },
+        {
+          code: "unknown_dependency",
+          dependency: "missing",
+          graph: Graph.build(Node.succeed(Planned.make("missing")))
+        }
+      ] as const
+
+      for (const current of cases) {
+        const error = yield* withCrypto(Effect.flip(
+          Plan.compile({
+            planId: `plan-${current.code}`,
+            flow: current.code,
+            nodes: Graph.drafts(current.graph)
+          })
+        ))
+
+        expect(error).toMatchObject({
+          _tag: "flows/plan/PlanError",
+          code: current.code,
+          message: expect.stringContaining(current.dependency)
+        })
+      }
+    }))
+
+  it.effect("shows protected and on-failure topology in the graph and compiled plan", () =>
+    Effect.gen(function*() {
+      const graph = Graph.build(
+        Read.call({ path: "counter.txt" }).pipe(
+          Node.catch({ onFailure: (error) => Node.succeed({ recovered: error }) })
+        )
       )
-    )
-    const plan = await compile("plan-catch", "catch", graph)
+      const plan = yield* compile("plan-catch", "catch", graph)
 
-    expect(Graph.nodes(graph).map((observed) => [observed.id, observed.kind])).toEqual([
-      ["root.protected", "ActionCall"],
-      ["root.failure", "Succeed"],
-      ["root", "Catch"]
-    ])
-    expect(Graph.edges(graph)).toContainEqual({
-      from: "root.protected",
-      to: "root.failure",
-      reason: "failure"
-    })
-    expect(body(graph, "root")).toMatchObject({ _tag: "Catch" })
-    expect(plan.nodes.map((planned) => planned.id)).toEqual([
-      "root.protected",
-      "root.failure",
-      "root"
-    ])
-    expect(planNode(plan, "root.failure").dependsOn).toEqual(["root.protected"])
-  })
+      expect(Graph.nodes(graph).map((observed) => [observed.id, observed.kind])).toEqual([
+        ["root.protected", "ActionCall"],
+        ["root.failure", "Succeed"],
+        ["root", "Catch"]
+      ])
+      expect(Graph.edges(graph)).toContainEqual({
+        from: "root.protected",
+        to: "root.failure",
+        reason: "failure"
+      })
+      expect(body(graph, "root")).toMatchObject({ _tag: "Catch" })
+      expect(plan.nodes.map((planned) => planned.id)).toEqual([
+        "root.protected",
+        "root.failure",
+        "root"
+      ])
+      expect(planNode(plan, "root.failure").dependsOn).toEqual(["root.protected"])
+    }))
 
   it("keeps a captured outer catch subject inside a nested catch arm", () => {
     const graph = Graph.build(
@@ -699,66 +703,69 @@ describe("Graph.build into a plan", () => {
     })
   })
 
-  it("compiles drafts into a keyed plan whose edges are the material references", async () => {
-    const graph = Graph.build(Parent, { path: "counter.txt" })
-    const plan = await compile("plan-parent", "counter/parent", graph)
+  it.effect("compiles drafts into a keyed plan whose edges are the material references", () =>
+    Effect.gen(function*() {
+      const graph = Graph.build(Parent, { path: "counter.txt" })
+      const plan = yield* compile("plan-parent", "counter/parent", graph)
 
-    expect(plan.nodes.map((planned) => planned.id)).toEqual(Graph.drafts(graph).map((draft) => draft.id))
-    expect(plan.nodes.every((planned) => /^key1_[0-9a-f]{64}$/.test(planned.key))).toBe(true)
-    expect(planNode(plan, "root.flow.andThen.map").dependsOn).toEqual([
-      "root.flow.andThen.map.all.left",
-      "root.flow.andThen.map.all.right"
-    ])
-    expect(planNode(plan, "root.flow.then").dependsOn).toEqual(["root.flow.andThen", "root.flow.then.flow"])
-    expect(planNode(plan, "root.flow").dependsOn).toEqual(["root.flow.andThen", "root.flow.then"])
-    expect(planNode(plan, "root").dependsOn).toEqual(["root.flow"])
-    expect(planNode(plan, "root.flow.andThen.map.all.right").dependsOn).toEqual([])
-  })
+      expect(plan.nodes.map((planned) => planned.id)).toEqual(Graph.drafts(graph).map((draft) => draft.id))
+      expect(plan.nodes.every((planned) => /^key1_[0-9a-f]{64}$/.test(planned.key))).toBe(true)
+      expect(planNode(plan, "root.flow.andThen.map").dependsOn).toEqual([
+        "root.flow.andThen.map.all.left",
+        "root.flow.andThen.map.all.right"
+      ])
+      expect(planNode(plan, "root.flow.then").dependsOn).toEqual(["root.flow.andThen", "root.flow.then.flow"])
+      expect(planNode(plan, "root.flow").dependsOn).toEqual(["root.flow.andThen", "root.flow.then"])
+      expect(planNode(plan, "root").dependsOn).toEqual(["root.flow"])
+      expect(planNode(plan, "root.flow.andThen.map.all.right").dependsOn).toEqual([])
+    }))
 
-  it("re-keys exactly what reads an edited mapper, and nothing upstream of it", async () => {
-    const flowWith = (bump: (value: number) => number) =>
-      Flow.make("keys/map", {
-        payload: { path: Schema.String },
+  it.effect("re-keys exactly what reads an edited mapper, and nothing upstream of it", () =>
+    Effect.gen(function*() {
+      const flowWith = (bump: (value: number) => number) =>
+        Flow.make("keys/map", {
+          payload: { path: Schema.String },
+          success: Schema.Number,
+          body: ({ path }) =>
+            Increment.call({ path }).pipe(
+              Node.map(bump),
+              Node.andThen((value) => Write.call({ path, value }))
+            )
+        })
+      const before = yield* compile(
+        "plan-keys",
+        "keys/map",
+        Graph.build(flowWith((value) => value + 1), { path: "counter.txt" })
+      )
+      const after = yield* compile(
+        "plan-keys",
+        "keys/map",
+        Graph.build(flowWith((value) => value + 2), { path: "counter.txt" })
+      )
+
+      expect(after.nodes.map((planned) => planned.id)).toEqual(before.nodes.map((planned) => planned.id))
+      expect(planNode(after, "root.flow.andThen.map").key).toBe(planNode(before, "root.flow.andThen.map").key)
+      for (const id of ["root.flow.andThen", "root.flow.then", "root.flow", "root"]) {
+        expect(planNode(after, id).key, id).not.toBe(planNode(before, id).key)
+      }
+      expect(after.digest).not.toBe(before.digest)
+    }))
+
+  it.effect("appends a later round that consumes a node the plan already holds", () =>
+    Effect.gen(function*() {
+      const plan = yield* compile("plan-round", "counter/parent", Graph.build(Parent, { path: "counter.txt" }))
+      const Follow = Flow.make("counter/follow", {
+        payload: { seed: Schema.Number },
         success: Schema.Number,
-        body: ({ path }) =>
-          Increment.call({ path }).pipe(
-            Node.map(bump),
-            Node.andThen((value) => Write.call({ path, value }))
-          )
+        body: ({ seed }) => Write.call({ path: "counter.txt", value: seed })
       })
-    const before = await compile(
-      "plan-keys",
-      "keys/map",
-      Graph.build(flowWith((value) => value + 1), { path: "counter.txt" })
-    )
-    const after = await compile(
-      "plan-keys",
-      "keys/map",
-      Graph.build(flowWith((value) => value + 2), { path: "counter.txt" })
-    )
+      const next = Graph.build(Follow, { seed: Planned.make<number>("root.flow.then.flow") }, { root: "round-1" })
+      const grown = yield* withCrypto(Plan.append(plan, Graph.drafts(next)))
 
-    expect(after.nodes.map((planned) => planned.id)).toEqual(before.nodes.map((planned) => planned.id))
-    expect(planNode(after, "root.flow.andThen.map").key).toBe(planNode(before, "root.flow.andThen.map").key)
-    for (const id of ["root.flow.andThen", "root.flow.then", "root.flow", "root"]) {
-      expect(planNode(after, id).key, id).not.toBe(planNode(before, id).key)
-    }
-    expect(after.digest).not.toBe(before.digest)
-  })
-
-  it("appends a later round that consumes a node the plan already holds", async () => {
-    const plan = await compile("plan-round", "counter/parent", Graph.build(Parent, { path: "counter.txt" }))
-    const Follow = Flow.make("counter/follow", {
-      payload: { seed: Schema.Number },
-      success: Schema.Number,
-      body: ({ seed }) => Write.call({ path: "counter.txt", value: seed })
-    })
-    const next = Graph.build(Follow, { seed: Planned.make<number>("root.flow.then.flow") }, { root: "round-1" })
-    const grown = await runPromise(Plan.append(plan, Graph.drafts(next)))
-
-    expect(Graph.nodes(next).map((observed) => observed.id)).toEqual(["round-1.flow", "round-1"])
-    expect(grown.generation).toBe(1)
-    expect(planNode(grown, "round-1.flow").dependsOn).toEqual(["root.flow.then.flow"])
-    expect(planNode(grown, "round-1").dependsOn).toEqual(["root.flow.then.flow", "round-1.flow"])
-    expect(planNode(grown, "root").key).toBe(planNode(plan, "root").key)
-  })
+      expect(Graph.nodes(next).map((observed) => observed.id)).toEqual(["round-1.flow", "round-1"])
+      expect(grown.generation).toBe(1)
+      expect(planNode(grown, "round-1.flow").dependsOn).toEqual(["root.flow.then.flow"])
+      expect(planNode(grown, "round-1").dependsOn).toEqual(["root.flow.then.flow", "round-1.flow"])
+      expect(planNode(grown, "root").key).toBe(planNode(plan, "root").key)
+    }))
 })

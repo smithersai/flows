@@ -1,13 +1,13 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
+import { describe, expect, it } from "@effect/vitest"
 import { Action, Flow, FlowRuntime } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Clock, Effect, Exit, Fiber, Schedule, Schema } from "effect"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
-import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 
 const flow = Flow.make("RetryOnInterrupt/test", {
   payload: {},
@@ -24,8 +24,8 @@ const effect = (
     Scope.Scope | FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance
   >
 ) =>
-  it(name, () =>
-    runPromise(
+  it.effect(name, () =>
+    withCrypto(
       body().pipe(
         Effect.provide(FlowEngine.layerMemory),
         Effect.provideService(FlowRuntime.FlowInstance, instance),

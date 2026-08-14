@@ -67,11 +67,11 @@ describe("Jj facade", () => {
 })
 
 describe("Jj constructor", () => {
-  it("passes a complete implementation through `make` unchanged", async () => {
-    const jj = Jj.make(Jj.makeNoop({ status: () => Effect.succeed("clean") }))
+  it.effect("passes a complete implementation through `make` unchanged", () =>
+    Effect.gen(function*() {
+      const jj = Jj.make(Jj.makeNoop({ status: () => Effect.succeed("clean") }))
 
-    await expect(Effect.runPromise(jj.status())).resolves.toBe("clean")
-    await expect(Effect.runPromise(Effect.flip(jj.diff("a", "b"))))
-      .resolves.toMatchObject({ code: "not_installed", method: "diff" })
-  })
+      expect(yield* (jj.status())).toBe("clean")
+      expect(yield* (Effect.flip(jj.diff("a", "b")))).toMatchObject({ code: "not_installed", method: "diff" })
+    }))
 })

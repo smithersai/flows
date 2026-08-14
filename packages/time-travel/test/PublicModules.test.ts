@@ -1,3 +1,4 @@
+import { describe, expect, it } from "@effect/vitest"
 import * as Jj from "@smthrs/jj-next"
 import * as Journal from "@smthrs/journal-next/Journal"
 import * as RunStore from "@smthrs/run-store-next/RunStore"
@@ -5,7 +6,6 @@ import * as CacheStore from "@smthrs/step-cache-next/CacheStore"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
-import { describe, expect, it } from "vitest"
 import * as Frame from "../src/Frame.ts"
 import * as TimeTravel from "../src/index.ts"
 import * as EffectHandlerRegistry from "../src/internal/EffectHandlerRegistry.ts"
@@ -52,19 +52,17 @@ const runFork = (
   store: TimeTravelStore["Service"],
   jj: Jj.Jj
 ) =>
-  Effect.runPromise(
-    Effect.scoped(
-      Fork.fork({
-        parentRunId: "parent",
-        frame,
-        workspaceName: "fork-workspace",
-        workspacePath: "/tmp/fork-workspace"
-      }).pipe(
-        Effect.provide(Layer.succeed(RunStore.RunStore, runs)),
-        Effect.provide(Layer.succeed(TimeTravelStore, store)),
-        Effect.provide(Layer.succeed(Jj.Jj, jj)),
-        Effect.provide(forkDeps)
-      )
+  Effect.scoped(
+    Fork.fork({
+      parentRunId: "parent",
+      frame,
+      workspaceName: "fork-workspace",
+      workspacePath: "/tmp/fork-workspace"
+    }).pipe(
+      Effect.provide(Layer.succeed(RunStore.RunStore, runs)),
+      Effect.provide(Layer.succeed(TimeTravelStore, store)),
+      Effect.provide(Layer.succeed(Jj.Jj, jj)),
+      Effect.provide(forkDeps)
     )
   )
 
@@ -138,77 +136,31 @@ describe("public time-travel modules", () => {
 })
 
 describe("Fork.fork", () => {
-  it("creates the fork workspace and always forgets it when the scope closes", async () => {
-    const calls: Array<string> = []
-    const store = MemoryTimeTravelStore.make({
-      records: [{ runId: "parent", seq: 0, eventId: "e0", lineageId: "parent/root", payload: {} }]
-    })
-    const result = await runFork(
-      RunStore.makeNoop({ get: () => Effect.succeed(row()) }),
-      store,
-      Jj.makeNoop({
-        workspaceAdd: (name, path) => Effect.sync(() => calls.push(`add:${name}:${path}`)),
-        workspaceForget: (name) => Effect.sync(() => calls.push(`forget:${name}`))
+  it.effect("creates the fork workspace and always forgets it when the scope closes", () =>
+    Effect.gen(function*() {
+      const calls: Array<string> = []
+      const store = MemoryTimeTravelStore.make({
+        records: [{ runId: "parent", seq: 0, eventId: "e0", lineageId: "parent/root", payload: {} }]
       })
-    )
-
-    expect(result).toMatchObject({ edge: { parentRunId: "parent", parentSeq: 0, kind: "fork" } })
-    expect(calls).toEqual([
-      "add:fork-workspace:/tmp/fork-workspace",
-      "forget:fork-workspace"
-    ])
-  })
-
-  it("maps parent-read and workspace-add failures without leaking a workspace", async () => {
-    const addFailure = await Effect.runPromise(
-      Effect.flip(
-        Effect.scoped(
-          Fork.fork({
-            parentRunId: "parent",
-            frame,
-            workspaceName: "fork-workspace",
-            workspacePath: "/tmp/fork-workspace"
-          }).pipe(
-            Effect.provide(Layer.succeed(RunStore.RunStore, RunStore.makeNoop({ get: () => Effect.succeed(row()) }))),
-            Effect.provide(Layer.succeed(TimeTravelStore, MemoryTimeTravelStore.make())),
-            Effect.provide(Layer.succeed(Jj.Jj, Jj.makeNoop({}))),
-            Effect.provide(forkDeps)
-          )
-        )
+      const result = yield* runFork(
+        RunStore.makeNoop({ get: () => Effect.succeed(row()) }),
+        store,
+        Jj.makeNoop({
+          workspaceAdd: (name, path) => Effect.sync(() => calls.push(`add:${name}:${path}`)),
+          workspaceForget: (name) => Effect.sync(() => calls.push(`forget:${name}`))
+        })
       )
-    )
-    const readFailure = await Effect.runPromise(
-      Effect.flip(
-        Effect.scoped(
-          Fork.fork({
-            parentRunId: "parent",
-            frame,
-            workspaceName: "fork-workspace",
-            workspacePath: "/tmp/fork-workspace"
-          }).pipe(
-            Effect.provide(Layer.succeed(RunStore.RunStore, RunStore.makeNoop())),
-            Effect.provide(Layer.succeed(TimeTravelStore, MemoryTimeTravelStore.make())),
-            Effect.provide(Layer.succeed(Jj.Jj, Jj.makeNoop({}))),
-            Effect.provide(forkDeps)
-          )
-        )
-      )
-    )
 
-    expect(addFailure).toMatchObject({ code: "unknown", message: "could not add fork workspace" })
-    expect(readFailure).toMatchObject({ code: "unknown", message: "could not read parent" })
-  })
+      expect(result).toMatchObject({ edge: { parentRunId: "parent", parentSeq: 0, kind: "fork" } })
+      expect(calls).toEqual([
+        "add:fork-workspace:/tmp/fork-workspace",
+        "forget:fork-workspace"
+      ])
+    }))
 
-  it("rejects every live-parent signal before copying history or adding a workspace", async () => {
-    const liveRows = [
-      row({ status: "running", owner }),
-      row({ claim: owner, claimedAtMs: 1 }),
-      row({ owner, heartbeatAtMs: 1 })
-    ]
-    for (const liveRow of liveRows) {
-      let added = false
-      const store = MemoryTimeTravelStore.make()
-      const failure = await Effect.runPromise(
+  it.effect("maps parent-read and workspace-add failures without leaking a workspace", () =>
+    Effect.gen(function*() {
+      const addFailure = yield* (
         Effect.flip(
           Effect.scoped(
             Fork.fork({
@@ -217,25 +169,74 @@ describe("Fork.fork", () => {
               workspaceName: "fork-workspace",
               workspacePath: "/tmp/fork-workspace"
             }).pipe(
-              Effect.provide(
-                Layer.succeed(RunStore.RunStore, RunStore.makeNoop({ get: () => Effect.succeed(liveRow) }))
-              ),
-              Effect.provide(Layer.succeed(TimeTravelStore, store)),
-              Effect.provide(
-                Layer.succeed(
-                  Jj.Jj,
-                  Jj.makeNoop({ workspaceAdd: () => Effect.sync(() => void (added = true)) })
-                )
-              ),
+              Effect.provide(Layer.succeed(RunStore.RunStore, RunStore.makeNoop({ get: () => Effect.succeed(row()) }))),
+              Effect.provide(Layer.succeed(TimeTravelStore, MemoryTimeTravelStore.make())),
+              Effect.provide(Layer.succeed(Jj.Jj, Jj.makeNoop({}))),
+              Effect.provide(forkDeps)
+            )
+          )
+        )
+      )
+      const readFailure = yield* (
+        Effect.flip(
+          Effect.scoped(
+            Fork.fork({
+              parentRunId: "parent",
+              frame,
+              workspaceName: "fork-workspace",
+              workspacePath: "/tmp/fork-workspace"
+            }).pipe(
+              Effect.provide(Layer.succeed(RunStore.RunStore, RunStore.makeNoop())),
+              Effect.provide(Layer.succeed(TimeTravelStore, MemoryTimeTravelStore.make())),
+              Effect.provide(Layer.succeed(Jj.Jj, Jj.makeNoop({}))),
               Effect.provide(forkDeps)
             )
           )
         )
       )
 
-      expect(failure).toMatchObject({ code: "live_parent", message: "parent run parent is live" })
-      expect(store.state().records).toEqual([])
-      expect(added).toBe(false)
-    }
-  })
+      expect(addFailure).toMatchObject({ code: "unknown", message: "could not add fork workspace" })
+      expect(readFailure).toMatchObject({ code: "unknown", message: "could not read parent" })
+    }))
+
+  it.effect("rejects every live-parent signal before copying history or adding a workspace", () =>
+    Effect.gen(function*() {
+      const liveRows = [
+        row({ status: "running", owner }),
+        row({ claim: owner, claimedAtMs: 1 }),
+        row({ owner, heartbeatAtMs: 1 })
+      ]
+      for (const liveRow of liveRows) {
+        let added = false
+        const store = MemoryTimeTravelStore.make()
+        const failure = yield* (
+          Effect.flip(
+            Effect.scoped(
+              Fork.fork({
+                parentRunId: "parent",
+                frame,
+                workspaceName: "fork-workspace",
+                workspacePath: "/tmp/fork-workspace"
+              }).pipe(
+                Effect.provide(
+                  Layer.succeed(RunStore.RunStore, RunStore.makeNoop({ get: () => Effect.succeed(liveRow) }))
+                ),
+                Effect.provide(Layer.succeed(TimeTravelStore, store)),
+                Effect.provide(
+                  Layer.succeed(
+                    Jj.Jj,
+                    Jj.makeNoop({ workspaceAdd: () => Effect.sync(() => void (added = true)) })
+                  )
+                ),
+                Effect.provide(forkDeps)
+              )
+            )
+          )
+        )
+
+        expect(failure).toMatchObject({ code: "live_parent", message: "parent run parent is live" })
+        expect(store.state().records).toEqual([])
+        expect(added).toBe(false)
+      }
+    }))
 })

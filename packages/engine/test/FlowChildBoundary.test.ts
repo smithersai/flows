@@ -5,12 +5,12 @@
  * stands for is genuine, so the parent's interruption and the child's
  * suspension travel between them.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Effect, Exit, Fiber, Layer, Schema } from "effect"
-import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 
 const Bump = Action.make("boundary/bump", {
   payload: { value: Schema.Number },
@@ -71,8 +71,8 @@ const scripted = (result: Flow.Result<unknown, unknown>) => {
 const drive = (
   engine: FlowRuntime.FlowRuntime["Service"],
   instance: FlowRuntime.FlowInstance["Service"]
-): Promise<Exit.Exit<Interpreter.Interpretation, unknown>> =>
-  runPromise(
+) =>
+  withCrypto(
     Effect.gen(function*() {
       const fiber = yield* Effect.forkChild(
         Interpreter.interpret(Parent, { value: 4 }).pipe(
@@ -109,92 +109,98 @@ const live = () => {
 }
 
 describe("a child boundary on the real engine", () => {
-  it("opens the child with the parent instance, under an id derived from parent and node", async () => {
-    const { engine, requests } = scripted(new Flow.Complete({ exit: Exit.succeed(5) }))
-    const instance = FlowEngine.makeInstance(Parent, "boundary-parent")
+  it.effect("opens the child with the parent instance, under an id derived from parent and node", () =>
+    Effect.gen(function*() {
+      const { engine, requests } = scripted(new Flow.Complete({ exit: Exit.succeed(5) }))
+      const instance = FlowEngine.makeInstance(Parent, "boundary-parent")
 
-    const exit = await drive(engine, instance)
+      const exit = yield* drive(engine, instance)
 
-    expect(Exit.isSuccess(exit)).toBe(true)
-    expect(Exit.isSuccess(exit) && exit.value.value).toBe(50)
-    // One request, naming the parent: a durable driver records
-    // (child, parent) as the run-parent edge before the child's run row exists.
-    expect(requests).toEqual([{
-      executionId: await runPromise(Interpreter.childExecutionId("boundary-parent", boundaryNode, Child._tag, {
-        value: 4
-      })),
-      parent: "boundary-parent"
-    }])
-  })
+      expect(Exit.isSuccess(exit)).toBe(true)
+      expect(Exit.isSuccess(exit) && exit.value.value).toBe(50)
+      // One request, naming the parent: a durable driver records
+      // (child, parent) as the run-parent edge before the child's run row exists.
+      expect(requests).toEqual([{
+        executionId: yield* withCrypto(Interpreter.childExecutionId("boundary-parent", boundaryNode, Child._tag, {
+          value: 4
+        })),
+        parent: "boundary-parent"
+      }])
+    }))
 
-  it("suspends the parent when the child suspends", async () => {
-    const { engine, requests } = scripted(new Flow.Suspended({}))
-    const instance = FlowEngine.makeInstance(Parent, "boundary-suspended")
+  it.effect("suspends the parent when the child suspends", () =>
+    Effect.gen(function*() {
+      const { engine, requests } = scripted(new Flow.Suspended({}))
+      const instance = FlowEngine.makeInstance(Parent, "boundary-suspended")
 
-    const exit = await drive(engine, instance)
+      const exit = yield* drive(engine, instance)
 
-    // Suspension interrupts the running fiber rather than answering, which is
-    // how the engine parks a parent behind its child.
-    expect(Exit.isSuccess(exit)).toBe(false)
-    expect(instance.suspended).toBe(true)
-    expect(requests).toHaveLength(1)
-  })
+      // Suspension interrupts the running fiber rather than answering, which is
+      // how the engine parks a parent behind its child.
+      expect(Exit.isSuccess(exit)).toBe(false)
+      expect(instance.suspended).toBe(true)
+      expect(requests).toHaveLength(1)
+    }))
 
-  it("interrupts the child by its derived id when the parent is torn down interrupted", async () => {
-    const { engine, interrupts } = scripted(new Flow.Suspended({}))
-    const instance = FlowEngine.makeInstance(Parent, "boundary-interrupted")
-    instance.interrupted = true
+  it.effect("interrupts the child by its derived id when the parent is torn down interrupted", () =>
+    Effect.gen(function*() {
+      const { engine, interrupts } = scripted(new Flow.Suspended({}))
+      const instance = FlowEngine.makeInstance(Parent, "boundary-interrupted")
+      instance.interrupted = true
 
-    await drive(engine, instance)
+      yield* drive(engine, instance)
 
-    expect(interrupts).toEqual([
-      await runPromise(Interpreter.childExecutionId("boundary-interrupted", boundaryNode, Child._tag, { value: 4 }))
-    ])
-  })
+      expect(interrupts).toEqual([
+        yield* withCrypto(Interpreter.childExecutionId("boundary-interrupted", boundaryNode, Child._tag, { value: 4 }))
+      ])
+    }))
 
-  it("runs the child as a separate registered execution on the real engine", async () => {
-    const { calls, layer } = live()
+  it.effect("runs the child as a separate registered execution on the real engine", () =>
+    Effect.gen(function*() {
+      const { calls, layer } = live()
 
-    const value = await runPromise(
-      Parent.execute({ value: 4 }, { executionId: "boundary-live" }).pipe(Effect.provide(layer))
-    )
+      const value = yield* withCrypto(
+        Parent.execute({ value: 4 }, { executionId: "boundary-live" }).pipe(Effect.provide(layer))
+      )
 
-    expect(value).toBe(50)
-    expect(calls).toEqual(["bump:4"])
-  })
+      expect(value).toBe(50)
+      expect(calls).toEqual(["bump:4"])
+    }))
 
-  it("re-derives the same child id when the parent body is replayed, so the child runs once", async () => {
-    const { calls, layer } = live()
+  it.effect("re-derives the same child id when the parent body is replayed, so the child runs once", () =>
+    Effect.gen(function*() {
+      const { calls, layer } = live()
 
-    // Asking the engine for the same parent execution id twice answers from the
-    // settled parent without planning anything, so it can never observe a
-    // minted child id. Re-driving the BODY under one instance is the replay
-    // that reaches the boundary node a second time.
-    const replay = await runPromise(
-      Effect.gen(function*() {
-        const instance = FlowEngine.makeInstance(Parent, "boundary-replay")
-        const drive = Interpreter.interpret(Parent, { value: 4 }).pipe(
-          Effect.provideService(FlowRuntime.FlowInstance, instance)
-        )
-        const first = yield* drive
-        const second = yield* drive
-        return [first.value, second.value]
-      }).pipe(Effect.scoped, Effect.provide(layer))
-    )
+      // Asking the engine for the same parent execution id twice answers from the
+      // settled parent without planning anything, so it can never observe a
+      // minted child id. Re-driving the BODY under one instance is the replay
+      // that reaches the boundary node a second time.
+      const replay = yield* withCrypto(
+        Effect.gen(function*() {
+          const instance = FlowEngine.makeInstance(Parent, "boundary-replay")
+          const drive = Interpreter.interpret(Parent, { value: 4 }).pipe(
+            Effect.provideService(FlowRuntime.FlowInstance, instance)
+          )
+          const first = yield* drive
+          const second = yield* drive
+          return [first.value, second.value]
+        }).pipe(Effect.scoped, Effect.provide(layer))
+      )
 
-    expect(replay).toEqual([50, 50])
-    expect(calls).toEqual(["bump:4"])
-  })
+      expect(replay).toEqual([50, 50])
+      expect(calls).toEqual(["bump:4"])
+    }))
 
-  it("derives injective ids from the canonical parent, node, callee, and payload tuple", async () => {
-    const derive = (parent: string, node: string, callee: string, payload: unknown) =>
-      runPromise(Interpreter.childExecutionId(parent, node, callee, payload))
-    const base = await derive("a/child/b", "c", "boundary/child", { b: 2, a: 1 })
+  it.effect("derives injective ids from the canonical parent, node, callee, and payload tuple", () =>
+    Effect.gen(function*() {
+      const derive = (parent: string, node: string, callee: string, payload: unknown) =>
+        withCrypto(Interpreter.childExecutionId(parent, node, callee, payload))
+      const base = yield* derive("a/child/b", "c", "boundary/child", { b: 2, a: 1 })
 
-    expect(base).toMatch(/^[0-9a-f]{64}$/)
-    expect(await derive("a", "b/child/c", "boundary/child", { a: 1, b: 2 })).not.toBe(base)
-    expect(await derive("a/child/b", "c", "boundary/other", { a: 1, b: 2 })).not.toBe(base)
-    expect(await derive("a/child/b", "c", "boundary/child", { a: 1, b: 3 })).not.toBe(base)
-    expect(await derive("a/child/b", "c", "boundary/child", { a: 1, b: 2 })).toBe(base)
-  })
+      expect(base).toMatch(/^[0-9a-f]{64}$/)
+      expect(yield* derive("a", "b/child/c", "boundary/child", { a: 1, b: 2 })).not.toBe(base)
+      expect(yield* derive("a/child/b", "c", "boundary/other", { a: 1, b: 2 })).not.toBe(base)
+      expect(yield* derive("a/child/b", "c", "boundary/child", { a: 1, b: 3 })).not.toBe(base)
+      expect(yield* derive("a/child/b", "c", "boundary/child", { a: 1, b: 2 })).toBe(base)
+    }))
 })

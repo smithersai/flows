@@ -11,16 +11,16 @@
  * attempt is gone and the work must re-execute under its original attempt
  * number, then finish through the ordinary fenced transition.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { Jj } from "@smthrs/kernel-next"
 import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store-next"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
-import { describe, expect, it } from "vitest"
 import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
-import { runPromise, sha256 } from "./Sha256.ts"
+import { sha256, withCrypto } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "stale-host", pid: 21, nonce: "reclaimer" }
 
@@ -55,105 +55,107 @@ const activate = (runId: string) =>
   })
 
 describe("stale running attempt rows (issue #71)", () => {
-  it("re-executes an in-flight attempt row left by a hard-killed incarnation instead of rejecting admission", async () => {
-    let dispatches = 0
-    const key = "stale-running/redrive"
-    const result = await runPromise(
-      Effect.gen(function*() {
-        yield* activate("stale-running")
-        const attempts = yield* AttemptStore.AttemptStore
-        // The dead incarnation admitted attempt 1 and was SIGKILLed before
-        // finishing: the row stays `running` with its original start time.
-        const seeded = yield* attempts.put(
-          {
+  it.effect("re-executes an in-flight attempt row left by a hard-killed incarnation instead of rejecting admission", () =>
+    Effect.gen(function*() {
+      let dispatches = 0
+      const key = "stale-running/redrive"
+      const result = yield* withCrypto(
+        Effect.gen(function*() {
+          yield* activate("stale-running")
+          const attempts = yield* AttemptStore.AttemptStore
+          // The dead incarnation admitted attempt 1 and was SIGKILLed before
+          // finishing: the row stays `running` with its original start time.
+          const seeded = yield* attempts.put(
+            {
+              runId: "stale-running",
+              stepKeyDigest: sha256(key),
+              attempt: 1,
+              state: "running",
+              startedAtMs: 0,
+              meta: { tier: "sealed" }
+            },
+            owner
+          )
+          expect(seeded._tag).toBe("Inserted")
+
+          const outcome = yield* ActionPersistence.make({
             runId: "stale-running",
-            stepKeyDigest: sha256(key),
-            attempt: 1,
-            state: "running",
-            startedAtMs: 0,
-            meta: { tier: "sealed" }
-          },
-          owner
-        )
-        expect(seeded._tag).toBe("Inserted")
-
-        const outcome = yield* ActionPersistence.make({
-          runId: "stale-running",
-          owner,
-          sourceId: "stale-running-test",
-          execute: () =>
-            Effect.sync(() => {
-              dispatches++
-              return "recovered"
-            })
-        })({
-          action: {},
-          attempt: 1,
-          key,
-          tier: "sealed"
-        })
-
-        const row = yield* attempts.get({
-          runId: "stale-running",
-          stepKeyDigest: sha256(key),
-          attempt: 1
-        })
-        return { outcome, row }
-      }).pipe(Effect.provide(layer), Effect.scoped)
-    )
-
-    expect(dispatches).toBe(1)
-    expect(result.outcome).toBe("recovered")
-    expect(Option.isSome(result.row)).toBe(true)
-    if (Option.isSome(result.row)) {
-      expect(result.row.value.state).toBe("succeeded")
-      expect(result.row.value.outcome).toBe("recovered")
-    }
-  })
-
-  it("records the re-executed attempt's failure durably through the ordinary finish path", async () => {
-    const key = "stale-running/fails"
-    const result = await runPromise(
-      Effect.gen(function*() {
-        yield* activate("stale-running-fails")
-        const attempts = yield* AttemptStore.AttemptStore
-        yield* attempts.put(
-          {
-            runId: "stale-running-fails",
-            stepKeyDigest: sha256(key),
-            attempt: 1,
-            state: "running",
-            startedAtMs: 0,
-            meta: { tier: "sealed" }
-          },
-          owner
-        )
-        const exit = yield* Effect.exit(
-          ActionPersistence.make({
-            runId: "stale-running-fails",
             owner,
             sourceId: "stale-running-test",
-            execute: () => Effect.fail("boom")
+            execute: () =>
+              Effect.sync(() => {
+                dispatches++
+                return "recovered"
+              })
           })({
             action: {},
             attempt: 1,
             key,
             tier: "sealed"
           })
-        )
-        const row = yield* attempts.get({
-          runId: "stale-running-fails",
-          stepKeyDigest: sha256(key),
-          attempt: 1
-        })
-        return { exit, row }
-      }).pipe(Effect.provide(layer), Effect.scoped)
-    )
 
-    expect(result.exit._tag).toBe("Failure")
-    expect(Option.isSome(result.row)).toBe(true)
-    if (Option.isSome(result.row)) {
-      expect(result.row.value.state).toBe("failed")
-    }
-  })
+          const row = yield* attempts.get({
+            runId: "stale-running",
+            stepKeyDigest: sha256(key),
+            attempt: 1
+          })
+          return { outcome, row }
+        }).pipe(Effect.provide(layer), Effect.scoped)
+      )
+
+      expect(dispatches).toBe(1)
+      expect(result.outcome).toBe("recovered")
+      expect(Option.isSome(result.row)).toBe(true)
+      if (Option.isSome(result.row)) {
+        expect(result.row.value.state).toBe("succeeded")
+        expect(result.row.value.outcome).toBe("recovered")
+      }
+    }))
+
+  it.effect("records the re-executed attempt's failure durably through the ordinary finish path", () =>
+    Effect.gen(function*() {
+      const key = "stale-running/fails"
+      const result = yield* withCrypto(
+        Effect.gen(function*() {
+          yield* activate("stale-running-fails")
+          const attempts = yield* AttemptStore.AttemptStore
+          yield* attempts.put(
+            {
+              runId: "stale-running-fails",
+              stepKeyDigest: sha256(key),
+              attempt: 1,
+              state: "running",
+              startedAtMs: 0,
+              meta: { tier: "sealed" }
+            },
+            owner
+          )
+          const exit = yield* Effect.exit(
+            ActionPersistence.make({
+              runId: "stale-running-fails",
+              owner,
+              sourceId: "stale-running-test",
+              execute: () => Effect.fail("boom")
+            })({
+              action: {},
+              attempt: 1,
+              key,
+              tier: "sealed"
+            })
+          )
+          const row = yield* attempts.get({
+            runId: "stale-running-fails",
+            stepKeyDigest: sha256(key),
+            attempt: 1
+          })
+          return { exit, row }
+        }).pipe(Effect.provide(layer), Effect.scoped)
+      )
+
+      expect(result.exit._tag).toBe("Failure")
+      expect(Option.isSome(result.row)).toBe(true)
+      if (Option.isSome(result.row)) {
+        expect(result.row.value.state).toBe("failed")
+      }
+    }))
 })

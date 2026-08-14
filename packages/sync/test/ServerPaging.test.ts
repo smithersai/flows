@@ -3,9 +3,9 @@
  *
  * @since 0.1.0
  */
+import { describe, expect, it } from "@effect/vitest"
 import { Journal, JournalEvent } from "@smthrs/journal-next"
 import { Effect, Layer, Stream } from "effect"
-import { describe, expect, it } from "vitest"
 import * as RunCatalog from "../src/RunCatalog.ts"
 import { SyncError } from "../src/SyncError.ts"
 import * as SyncServer from "../src/SyncServer.ts"
@@ -55,110 +55,116 @@ const busy = runId("busy-run")
 const workspace = { _tag: "Workspace" } as const
 
 describe("SyncServer.read across a workspace", () => {
-  it("omits a run with no entries from the returned cursors", async () => {
-    const response = await Effect.runPromise(
-      Effect.gen(function*() {
-        const server = yield* makeServer(
-          [empty, busy],
-          pagesOf(new Map([[busy, [entry(busy, 0), entry(busy, 1)]]]))
-        )
-        return yield* server.read({ scope: workspace, cursors: [], limit: 10 })
-      })
-    )
-
-    expect(response.entries.map((value) => value.seq)).toEqual([0, 1])
-    expect(response.cursors).toEqual([{ runId: busy, afterSeq: 1 }])
-    expect(response.done).toBe(true)
-  })
-
-  it("preserves a supplied cursor for a run that yields no new entries", async () => {
-    const response = await Effect.runPromise(
-      Effect.gen(function*() {
-        const server = yield* makeServer(
-          [empty, busy],
-          pagesOf(new Map([[empty, [entry(empty, 7)]], [busy, [entry(busy, 0)]]]))
-        )
-        return yield* server.read({
-          scope: workspace,
-          cursors: [{ runId: empty, afterSeq: seq(7) }],
-          limit: 10
-        })
-      })
-    )
-
-    expect(response.entries.map((value) => value.runId)).toEqual([busy])
-    expect(response.cursors).toEqual([
-      { runId: empty, afterSeq: 7 },
-      { runId: busy, afterSeq: 0 }
-    ])
-  })
-
-  it("stops at the limit and reports the page as incomplete", async () => {
-    const response = await Effect.runPromise(
-      Effect.gen(function*() {
-        const server = yield* makeServer(
-          [busy, empty],
-          pagesOf(
-            new Map([
-              [busy, [entry(busy, 0), entry(busy, 1)]],
-              [empty, [entry(empty, 0)]]
-            ])
+  it.effect("omits a run with no entries from the returned cursors", () =>
+    Effect.gen(function*() {
+      const response = yield* (
+        Effect.gen(function*() {
+          const server = yield* makeServer(
+            [empty, busy],
+            pagesOf(new Map([[busy, [entry(busy, 0), entry(busy, 1)]]]))
           )
-        )
-        return yield* server.read({ scope: workspace, cursors: [], limit: 2 })
-      })
-    )
+          return yield* server.read({ scope: workspace, cursors: [], limit: 10 })
+        })
+      )
 
-    expect(response.entries.map((value) => value.runId)).toEqual([busy, busy])
-    expect(response.done).toBe(false)
-  })
+      expect(response.entries.map((value) => value.seq)).toEqual([0, 1])
+      expect(response.cursors).toEqual([{ runId: busy, afterSeq: 1 }])
+      expect(response.done).toBe(true)
+    }))
 
-  it("reports done as false when a single run still has more durable entries", async () => {
-    const response = await Effect.runPromise(
-      Effect.gen(function*() {
-        const server = yield* makeServer(
-          [busy],
-          pagesOf(new Map([[busy, [entry(busy, 0), entry(busy, 1), entry(busy, 2)]]]))
-        )
-        return yield* server.read({ scope: { _tag: "Run", runId: busy }, cursors: [], limit: 2 })
-      })
-    )
+  it.effect("preserves a supplied cursor for a run that yields no new entries", () =>
+    Effect.gen(function*() {
+      const response = yield* (
+        Effect.gen(function*() {
+          const server = yield* makeServer(
+            [empty, busy],
+            pagesOf(new Map([[empty, [entry(empty, 7)]], [busy, [entry(busy, 0)]]]))
+          )
+          return yield* server.read({
+            scope: workspace,
+            cursors: [{ runId: empty, afterSeq: seq(7) }],
+            limit: 10
+          })
+        })
+      )
 
-    expect(response.entries.map((value) => value.seq)).toEqual([0, 1])
-    expect(response.done).toBe(false)
-    expect(response.cursors).toEqual([{ runId: busy, afterSeq: 1 }])
-  })
+      expect(response.entries.map((value) => value.runId)).toEqual([busy])
+      expect(response.cursors).toEqual([
+        { runId: empty, afterSeq: 7 },
+        { runId: busy, afterSeq: 0 }
+      ])
+    }))
 
-  it("maps a journal read failure to a transport-neutral SyncError that keeps the cause", async () => {
-    const cause = new Journal.JournalError({ code: "journal_closed", message: "journal offline" })
-    const failure = await Effect.runPromise(
-      Effect.gen(function*() {
-        const server = yield* makeServer([busy], { entries: () => Effect.fail(cause) })
-        return yield* Effect.flip(server.read({ scope: workspace, cursors: [], limit: 10 }))
-      })
-    )
-    expect(failure).toBeInstanceOf(SyncError)
-    expect(failure.code).toBe("unknown")
-    expect(failure.cause).toBe(cause)
-  })
+  it.effect("stops at the limit and reports the page as incomplete", () =>
+    Effect.gen(function*() {
+      const response = yield* (
+        Effect.gen(function*() {
+          const server = yield* makeServer(
+            [busy, empty],
+            pagesOf(
+              new Map([
+                [busy, [entry(busy, 0), entry(busy, 1)]],
+                [empty, [entry(empty, 0)]]
+              ])
+            )
+          )
+          return yield* server.read({ scope: workspace, cursors: [], limit: 2 })
+        })
+      )
+
+      expect(response.entries.map((value) => value.runId)).toEqual([busy, busy])
+      expect(response.done).toBe(false)
+    }))
+
+  it.effect("reports done as false when a single run still has more durable entries", () =>
+    Effect.gen(function*() {
+      const response = yield* (
+        Effect.gen(function*() {
+          const server = yield* makeServer(
+            [busy],
+            pagesOf(new Map([[busy, [entry(busy, 0), entry(busy, 1), entry(busy, 2)]]]))
+          )
+          return yield* server.read({ scope: { _tag: "Run", runId: busy }, cursors: [], limit: 2 })
+        })
+      )
+
+      expect(response.entries.map((value) => value.seq)).toEqual([0, 1])
+      expect(response.done).toBe(false)
+      expect(response.cursors).toEqual([{ runId: busy, afterSeq: 1 }])
+    }))
+
+  it.effect("maps a journal read failure to a transport-neutral SyncError that keeps the cause", () =>
+    Effect.gen(function*() {
+      const cause = new Journal.JournalError({ code: "journal_closed", message: "journal offline" })
+      const failure = yield* (
+        Effect.gen(function*() {
+          const server = yield* makeServer([busy], { entries: () => Effect.fail(cause) })
+          return yield* Effect.flip(server.read({ scope: workspace, cursors: [], limit: 10 }))
+        })
+      )
+      expect(failure).toBeInstanceOf(SyncError)
+      expect(failure.code).toBe("unknown")
+      expect(failure.cause).toBe(cause)
+    }))
 })
 
 describe("SyncServer.subscribe over a workspace scope", () => {
-  it("interleaves catalog runs and stops at the credit limit", async () => {
-    const frames = await Effect.runPromise(
-      Effect.gen(function*() {
-        const server = yield* makeServer([busy, empty], {
-          stream: ({ runId: id }) => Stream.fromIterable([entry(id, 0), entry(id, 1)])
+  it.effect("interleaves catalog runs and stops at the credit limit", () =>
+    Effect.gen(function*() {
+      const frames = yield* (
+        Effect.gen(function*() {
+          const server = yield* makeServer([busy, empty], {
+            stream: ({ runId: id }) => Stream.fromIterable([entry(id, 0), entry(id, 1)])
+          })
+          return yield* Stream.runCollect(
+            server.subscribe({ scope: workspace, cursors: [], credit: 3 })
+          )
         })
-        return yield* Stream.runCollect(
-          server.subscribe({ scope: workspace, cursors: [], credit: 3 })
-        )
-      })
-    )
+      )
 
-    expect(frames.length).toBe(3)
-    expect(new Set(frames.map((frame) => (frame as { runId: string }).runId))).toEqual(
-      new Set([busy, empty])
-    )
-  })
+      expect(frames.length).toBe(3)
+      expect(new Set(frames.map((frame) => (frame as { runId: string }).runId))).toEqual(
+        new Set([busy, empty])
+      )
+    }))
 })

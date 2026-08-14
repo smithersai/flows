@@ -1,3 +1,4 @@
+import { describe, expect, it } from "@effect/vitest"
 import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import * as Jj from "@smthrs/jj-next"
 import * as Journal from "@smthrs/journal-next/Journal"
@@ -6,7 +7,6 @@ import * as RunStore from "@smthrs/run-store-next/RunStore"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
-import { describe, expect, it } from "vitest"
 import * as EffectHandlerRegistry from "../src/internal/EffectHandlerRegistry.ts"
 import * as Recovery from "../src/internal/Recovery.ts"
 import type { AuditDetail } from "../src/internal/Rewind.ts"
@@ -31,63 +31,61 @@ interface Corruption {
 }
 
 const recover = (corruption: Corruption) =>
-  Effect.runPromise(
-    Effect.scoped(
-      Effect.gen(function*() {
-        const sql = yield* Effect.service(SqlClient.SqlClient)
-        const store = yield* TimeTravelStore
-        yield* sql`
+  Effect.scoped(
+    Effect.gen(function*() {
+      const sql = yield* Effect.service(SqlClient.SqlClient)
+      const store = yield* TimeTravelStore
+      yield* sql`
           INSERT INTO flows_runs (run_id, status, created_at_ms, state_json)
           VALUES ('run', 'suspended', 0, ${JSON.stringify({ version: 1, flowName: "Recovery", payload: {} })})
         `
-        yield* sql`
+      yield* sql`
           INSERT INTO flows_journal_events
             (run_id, seq, event_id, source_id, source_seq, emitted_at_ms, event_type, payload_json, meta_json)
           VALUES ('run', 0, 'base', 'recovery', 0, 0, 'base', '{}',
                   ${JSON.stringify({ lineageId: "run/root" })})
         `
-        for (const row of corruption.suffixRows) {
-          yield* sql`
+      for (const row of corruption.suffixRows) {
+        yield* sql`
             INSERT INTO flows_journal_events
               (run_id, seq, event_id, source_id, source_seq, emitted_at_ms, event_type, payload_json, meta_json)
             VALUES ('run', ${row.seq}, ${`suffix-${row.seq}`}, 'recovery', ${row.seq}, 0,
                     'flows.time-travel.effect-boundary', ${row.payload},
                     ${JSON.stringify({ lineageId: "run/root" })})
           `
-        }
-        const detail: AuditDetail = {
-          version: 1,
-          phase: "compensated",
-          originalStatus: "suspended",
-          suffixCount: corruption.suffixCount,
-          suffixTailSeq: corruption.suffixTailSeq,
-          compensation: { handlerReceipts: [] },
-          warnings: [],
-          cancelledChildren: []
-        }
-        yield* store.writeAudit({
-          id: "audit",
-          runId: "run",
-          frame: { lineageId: "run/root", seq: 0 },
-          status: "in_progress",
-          detail
-        })
-        const outcomes = yield* Recovery.recover({ owner })
-        const audits = yield* sql<{ readonly status: string; readonly detail_json: string }>`
+      }
+      const detail: AuditDetail = {
+        version: 1,
+        phase: "compensated",
+        originalStatus: "suspended",
+        suffixCount: corruption.suffixCount,
+        suffixTailSeq: corruption.suffixTailSeq,
+        compensation: { handlerReceipts: [] },
+        warnings: [],
+        cancelledChildren: []
+      }
+      yield* store.writeAudit({
+        id: "audit",
+        runId: "run",
+        frame: { lineageId: "run/root", seq: 0 },
+        status: "in_progress",
+        detail
+      })
+      const outcomes = yield* Recovery.recover({ owner })
+      const audits = yield* sql<{ readonly status: string; readonly detail_json: string }>`
           SELECT status, detail_json FROM flows_time_travel_audits WHERE id = 'audit'
         `
-        const archive = yield* sql<{ readonly count: number }>`
+      const archive = yield* sql<{ readonly count: number }>`
           SELECT COUNT(*) AS count FROM flows_time_travel_archive WHERE run_id = 'run'
         `
-        const receipts = yield* sql<{ readonly count: number }>`
+      const receipts = yield* sql<{ readonly count: number }>`
           SELECT COUNT(*) AS count FROM flows_time_travel_receipts WHERE audit_id = 'audit'
         `
-        return { archive: Number(archive[0]!.count), audits, outcomes, receipts: Number(receipts[0]!.count) }
-      }).pipe(
-        Effect.provide(persistence),
-        Effect.provide(Layer.succeed(Jj.Jj)(Jj.makeNoop({ restore: () => Effect.void }))),
-        Effect.provide(EffectHandlerRegistry.layerNoop)
-      )
+      return { archive: Number(archive[0]!.count), audits, outcomes, receipts: Number(receipts[0]!.count) }
+    }).pipe(
+      Effect.provide(persistence),
+      Effect.provide(Layer.succeed(Jj.Jj)(Jj.makeNoop({ restore: () => Effect.void }))),
+      Effect.provide(EffectHandlerRegistry.layerNoop)
     )
   )
 
@@ -105,35 +103,39 @@ describe("SQL recovery corruption", () => {
     }
   })
 
-  it("rolls back when the recorded suffix tail is missing", async () => {
-    const result = await recover({ suffixRows: [{ seq: 1, payload: boundary }], suffixCount: 2, suffixTailSeq: 2 })
+  it.effect("rolls back when the recorded suffix tail is missing", () =>
+    Effect.gen(function*() {
+      const result = yield* recover({ suffixRows: [{ seq: 1, payload: boundary }], suffixCount: 2, suffixTailSeq: 2 })
 
-    expect(result.outcomes).toEqual([{ _tag: "RolledBack", auditId: "audit" }])
-    expect(result.audits[0]?.status).toBe("failed")
-    expect(result.archive).toBe(0)
-    expect(result.receipts).toBe(0)
-  })
+      expect(result.outcomes).toEqual([{ _tag: "RolledBack", auditId: "audit" }])
+      expect(result.audits[0]?.status).toBe("failed")
+      expect(result.archive).toBe(0)
+      expect(result.receipts).toBe(0)
+    }))
 
-  it("rolls back when only a partial suffix remains", async () => {
-    const result = await recover({ suffixRows: [{ seq: 2, payload: boundary }], suffixCount: 2, suffixTailSeq: 2 })
+  it.effect("rolls back when only a partial suffix remains", () =>
+    Effect.gen(function*() {
+      const result = yield* recover({ suffixRows: [{ seq: 2, payload: boundary }], suffixCount: 2, suffixTailSeq: 2 })
 
-    expect(result.outcomes).toEqual([{ _tag: "RolledBack", auditId: "audit" }])
-    expect(result.audits[0]?.status).toBe("failed")
-  })
+      expect(result.outcomes).toEqual([{ _tag: "RolledBack", auditId: "audit" }])
+      expect(result.audits[0]?.status).toBe("failed")
+    }))
 
-  it("rolls back rather than trusting a malformed boundary payload", async () => {
-    const result = await recover({ suffixRows: [{ seq: 1, payload: "{}" }], suffixCount: 1, suffixTailSeq: 1 })
+  it.effect("rolls back rather than trusting a malformed boundary payload", () =>
+    Effect.gen(function*() {
+      const result = yield* recover({ suffixRows: [{ seq: 1, payload: "{}" }], suffixCount: 1, suffixTailSeq: 1 })
 
-    expect(result.outcomes).toEqual([{ _tag: "RolledBack", auditId: "audit" }])
-    expect(JSON.parse(result.audits[0]!.detail_json)).toMatchObject({ phase: "rolled_back" })
-  })
+      expect(result.outcomes).toEqual([{ _tag: "RolledBack", auditId: "audit" }])
+      expect(JSON.parse(result.audits[0]!.detail_json)).toMatchObject({ phase: "rolled_back" })
+    }))
 
   // BUG: recovery has no archive-row evidence check before declaring the compensated audit complete.
-  it.fails("requires archive evidence when all live suffix rows are absent", async () => {
-    const result = await recover({ suffixRows: [], suffixCount: 1, suffixTailSeq: 1 })
+  it.effect.fails("requires archive evidence when all live suffix rows are absent", () =>
+    Effect.gen(function*() {
+      const result = yield* recover({ suffixRows: [], suffixCount: 1, suffixTailSeq: 1 })
 
-    expect(result.archive).toBe(0)
-    expect(result.outcomes[0]?._tag).not.toBe("Completed")
-    expect(result.audits[0]?.status).not.toBe("completed")
-  })
+      expect(result.archive).toBe(0)
+      expect(result.outcomes[0]?._tag).not.toBe("Completed")
+      expect(result.audits[0]?.status).not.toBe("completed")
+    }))
 })

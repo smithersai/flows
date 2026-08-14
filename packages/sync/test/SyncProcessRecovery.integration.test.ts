@@ -4,6 +4,7 @@
  * server generation.
  */
 import * as NodeSocket from "@effect/platform-node/NodeSocket"
+import { describe, expect, it } from "@effect/vitest"
 import { JournalEvent } from "@smthrs/journal-next"
 import { Effect, Schema, Stream } from "effect"
 import * as RpcClient from "effect/unstable/rpc/RpcClient"
@@ -15,7 +16,6 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { describe, expect, it } from "vitest"
 import * as BranchProjection from "../src/BranchProjection.ts"
 import * as BranchProtocol from "../src/BranchProtocol.ts"
 import * as SyncClient from "../src/SyncClient.ts"
@@ -121,95 +121,96 @@ const connect = (port: number) =>
   })
 
 describe("sync recovery across a killed server process", () => {
-  it(
+  it.effect(
     "resumes a partially consumed 256-entry page without loss, projection duplicates, or command replay",
-    async () => {
-      const directory = await mkdtemp(join(tmpdir(), "flows-sync-process-recovery-"))
-      const filename = join(directory, "sync.sqlite")
-      const cursorFilename = join(directory, "consumer-cursor.json")
-      const servers: Array<ServerHarness> = []
-      try {
-        const firstServer = startServer("first", filename)
-        servers.push(firstServer)
-        const firstReady = decodeReady(await firstServer.ready)
-        expect(firstReady).toMatchObject({ mode: "first", durableCount: entryCount })
+    () =>
+      Effect.gen(function*() {
+        const directory = yield* Effect.promise(() => mkdtemp(join(tmpdir(), "flows-sync-process-recovery-")))
+        const filename = join(directory, "sync.sqlite")
+        const cursorFilename = join(directory, "consumer-cursor.json")
+        const servers: Array<ServerHarness> = []
+        try {
+          const firstServer = startServer("first", filename)
+          servers.push(firstServer)
+          const firstReady = decodeReady(yield* Effect.promise(() => firstServer.ready))
+          expect(firstReady).toMatchObject({ mode: "first", durableCount: entryCount })
 
-        const first = await Effect.runPromise(
-          Effect.scoped(
-            Effect.gen(function*() {
-              const client = yield* connect(firstReady.port)
-              const entries = yield* Stream.runCollect(
-                Stream.take(
-                  client.subscribe({
-                    scope: { _tag: "Run", runId },
-                    cursors: [],
-                    capability: firstReady.capability
-                  }),
-                  firstPageConsumption
+          const first = yield* (
+            Effect.scoped(
+              Effect.gen(function*() {
+                const client = yield* connect(firstReady.port)
+                const entries = yield* Stream.runCollect(
+                  Stream.take(
+                    client.subscribe({
+                      scope: { _tag: "Run", runId },
+                      cursors: [],
+                      capability: firstReady.capability
+                    }),
+                    firstPageConsumption
+                  )
                 )
-              )
-              const cursors = yield* client.cursors
-              // Kill the server while this client/socket scope is still live,
-              // after only half of its 256-entry bootstrap page was admitted.
-              yield* Effect.promise(() => killHard(firstServer))
-              return { cursors, entries: Array.from(entries) }
-            })
+                const cursors = yield* client.cursors
+                // Kill the server while this client/socket scope is still live,
+                // after only half of its 256-entry bootstrap page was admitted.
+                yield* Effect.promise(() => killHard(firstServer))
+                return { cursors, entries: Array.from(entries) }
+              })
+            )
           )
-        )
 
-        await writeFile(cursorFilename, JSON.stringify(first.cursors))
-        const persistedCursors = Schema.decodeUnknownSync(SyncProtocol.WorkspaceCursor)(
-          JSON.parse(await readFile(cursorFilename, "utf8")) as unknown
-        )
-        expect(persistedCursors).toEqual(first.cursors)
+          yield* Effect.promise(() => writeFile(cursorFilename, JSON.stringify(first.cursors)))
+          const persistedCursors = Schema.decodeUnknownSync(SyncProtocol.WorkspaceCursor)(
+            JSON.parse(yield* Effect.promise(() => readFile(cursorFilename, "utf8"))) as unknown
+          )
+          expect(persistedCursors).toEqual(first.cursors)
 
-        const secondServer = startServer("second", filename)
-        servers.push(secondServer)
-        const secondReady = decodeReady(await secondServer.ready)
-        expect(secondReady).toMatchObject({
-          mode: "second",
-          durableCount: entryCount,
-          retry: { status: "duplicate" }
-        })
-        const second = await Effect.runPromise(
-          Effect.scoped(
-            Effect.gen(function*() {
-              const client = yield* connect(secondReady.port)
-              const entries = yield* Stream.runCollect(
-                Stream.take(
-                  client.subscribe({
-                    scope: { _tag: "Run", runId },
-                    cursors: persistedCursors,
-                    capability: secondReady.capability
-                  }),
-                  entryCount - firstPageConsumption
+          const secondServer = startServer("second", filename)
+          servers.push(secondServer)
+          const secondReady = decodeReady(yield* Effect.promise(() => secondServer.ready))
+          expect(secondReady).toMatchObject({
+            mode: "second",
+            durableCount: entryCount,
+            retry: { status: "duplicate" }
+          })
+          const second = yield* (
+            Effect.scoped(
+              Effect.gen(function*() {
+                const client = yield* connect(secondReady.port)
+                const entries = yield* Stream.runCollect(
+                  Stream.take(
+                    client.subscribe({
+                      scope: { _tag: "Run", runId },
+                      cursors: persistedCursors,
+                      capability: secondReady.capability
+                    }),
+                    entryCount - firstPageConsumption
+                  )
                 )
-              )
-              return Array.from(entries)
-            })
+                return Array.from(entries)
+              })
+            )
           )
-        )
 
-        const all = [...first.entries, ...second]
-        const projection = BranchProjection.project(branchId, all)
-        expect(first.entries).toHaveLength(firstPageConsumption)
-        expect(first.cursors).toEqual([{
-          runId,
-          afterSeq: first.entries[first.entries.length - 1]?.seq
-        }])
-        expect(second).toHaveLength(entryCount - firstPageConsumption)
-        expect(all.map((entry) => entry.seq)).toEqual(
-          Array.from({ length: entryCount }, (_, index) => index as JournalEvent.Seq)
-        )
-        expect(projection.commands).toHaveLength(entryCount)
-        expect(new Set(projection.commands.map((command) => command.commandId)).size).toBe(entryCount)
-      } finally {
-        await Promise.all(servers.map(killHard))
-        const failed = servers.find((server) => server.child.exitCode !== null && server.child.exitCode !== 0)
-        await rm(directory, { recursive: true, force: true })
-        if (failed !== undefined) throw new Error(`sync child failed\n${failed.stderr()}`)
-      }
-    },
+          const all = [...first.entries, ...second]
+          const projection = BranchProjection.project(branchId, all)
+          expect(first.entries).toHaveLength(firstPageConsumption)
+          expect(first.cursors).toEqual([{
+            runId,
+            afterSeq: first.entries[first.entries.length - 1]?.seq
+          }])
+          expect(second).toHaveLength(entryCount - firstPageConsumption)
+          expect(all.map((entry) => entry.seq)).toEqual(
+            Array.from({ length: entryCount }, (_, index) => index as JournalEvent.Seq)
+          )
+          expect(projection.commands).toHaveLength(entryCount)
+          expect(new Set(projection.commands.map((command) => command.commandId)).size).toBe(entryCount)
+        } finally {
+          yield* Effect.promise(() => Promise.all(servers.map(killHard)))
+          const failed = servers.find((server) => server.child.exitCode !== null && server.child.exitCode !== 0)
+          yield* Effect.promise(() => rm(directory, { recursive: true, force: true }))
+          if (failed !== undefined) throw new Error(`sync child failed\n${failed.stderr()}`)
+        }
+      }),
     timeoutMs
   )
 })

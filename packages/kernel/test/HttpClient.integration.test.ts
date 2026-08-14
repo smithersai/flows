@@ -1,13 +1,13 @@
 import * as NodeHttpClient from "@effect/platform-node/NodeHttpClient"
+import { afterEach, describe, expect, it } from "@effect/vitest"
 import { CapabilityPattern } from "@smthrs/capability-next/Capability"
 import { PermissionRequired, Rule } from "@smthrs/capability-next/Permission"
-import { Effect, Layer, Option } from "effect"
+import { Effect, Exit, Layer, Option } from "effect"
 import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient"
 import * as EffectHttpClient from "effect/unstable/http/HttpClient"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
 import { Buffer } from "node:buffer"
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http"
-import { afterEach, describe, expect, it } from "vitest"
 import * as GrantStore from "../src/GrantStore.ts"
 import * as HttpClient from "../src/HttpClient.ts"
 import * as Workspace from "../src/Workspace.ts"
@@ -85,22 +85,20 @@ const runGuarded = <A, E>(
   effect: Effect.Effect<A, E, EffectHttpClient.HttpClient>,
   patterns: ReadonlyArray<CapabilityPattern>,
   raw: Layer.Layer<EffectHttpClient.HttpClient> = NodeHttpClient.layerUndici
-): Promise<A> =>
-  Effect.runPromise(
-    Effect.scoped(
-      Effect.gen(function*() {
-        const store = yield* GrantStore.make({
-          attended: false,
-          rules: patterns.map((pattern) => new Rule({ effect: "allow", pattern }))
-        })
-        return yield* effect.pipe(
-          Effect.provide(HttpClient.layer),
-          Effect.provide(raw),
-          Effect.provideService(GrantStore.GrantStore, store)
-        )
+) =>
+  Effect.scoped(
+    Effect.gen(function*() {
+      const store = yield* GrantStore.make({
+        attended: false,
+        rules: patterns.map((pattern) => new Rule({ effect: "allow", pattern }))
       })
-    ).pipe(Effect.provide(Workspace.layer("/workspace")))
-  )
+      return yield* effect.pipe(
+        Effect.provide(HttpClient.layer),
+        Effect.provide(raw),
+        Effect.provideService(GrantStore.GrantStore, store)
+      )
+    })
+  ).pipe(Effect.provide(Workspace.layer("/workspace")))
 
 const requestOutcome = (url: string) =>
   Effect.gen(function*() {
@@ -109,159 +107,186 @@ const requestOutcome = (url: string) =>
   })
 
 describe("HttpClient real redirect isolation", () => {
-  it("blocks an ungranted redirect host before the second socket and guards both granted hops", async () => {
-    const firstHits: Array<Hit> = []
-    const secondHits: Array<Hit> = []
-    const second = await listen(async (request, response) => {
-      await record(request, secondHits)
-      response.writeHead(200).end("second")
-    })
-    const first = await listen(async (request, response) => {
-      await record(request, firstHits)
-      response.writeHead(302, { location: `${second.url}/target` }).end()
-    })
-
-    const denied = await runGuarded(requestOutcome(`${first.url}/start`), [allow("net:get", first.host)])
-    expect(denied._tag).toBe("Failure")
-    if (denied._tag !== "Failure") throw new Error("expected redirect denial")
-    const permission = Option.getOrThrow(HttpClient.fromHttpClientError(denied.failure))
-    expect(permission).toBeInstanceOf(PermissionRequired)
-    expect(permission).toMatchObject({
-      code: "permission_required",
-      capability: { action: "net:get", resource: second.host }
-    })
-    expect(firstHits).toHaveLength(1)
-    expect(secondHits).toHaveLength(0)
-
-    const allowed = await runGuarded(requestOutcome(`${first.url}/start`), [
-      allow("net:get", first.host),
-      allow("net:get", second.host)
-    ])
-    expect(allowed._tag).toBe("Success")
-    expect(firstHits).toHaveLength(2)
-    expect(secondHits).toHaveLength(1)
-  })
-
-  it("turns a 303 POST into a separately authorized GET", async () => {
-    const hits: Array<Hit> = []
-    const server = await listen(async (request, response) => {
-      await record(request, hits)
-      if (request.url === "/start") {
-        response.writeHead(303, { location: "/target" }).end()
-      } else {
-        response.writeHead(200).end("done")
-      }
-    })
-    const request = HttpClientRequest.post(`${server.url}/start`).pipe(
-      HttpClientRequest.bodyText("payload")
-    )
-
-    const response = await runGuarded(
-      Effect.gen(function*() {
-        const client = yield* EffectHttpClient.HttpClient
-        return yield* client.execute(request)
-      }),
-      [allow("net:post", server.host), allow("net:get", server.host)]
-    )
-
-    expect(response.status).toBe(200)
-    expect(hits).toEqual([
-      { method: "POST", url: "/start", body: "payload" },
-      { method: "GET", url: "/target", body: "" }
-    ])
-  })
-
-  it.each([307, 308] as const)("retains POST method and body across a %s redirect", async (status) => {
-    const hits: Array<Hit> = []
-    const server = await listen(async (request, response) => {
-      await record(request, hits)
-      if (request.url === "/start") {
-        response.writeHead(status, { location: "/target" }).end()
-      } else {
-        response.writeHead(200).end("done")
-      }
-    })
-    const request = HttpClientRequest.post(`${server.url}/start`).pipe(
-      HttpClientRequest.bodyText(`payload-${status}`)
-    )
-
-    const response = await runGuarded(
-      Effect.gen(function*() {
-        const client = yield* EffectHttpClient.HttpClient
-        return yield* client.execute(request)
-      }),
-      [allow("net:post", server.host)]
-    )
-
-    expect(response.status).toBe(200)
-    expect(hits).toEqual([
-      { method: "POST", url: "/start", body: `payload-${status}` },
-      { method: "POST", url: "/target", body: `payload-${status}` }
-    ])
-  })
-
-  it("resolves a relative Location against the guarded response URL", async () => {
-    const hits: Array<Hit> = []
-    const server = await listen(async (request, response) => {
-      await record(request, hits)
-      if (request.url === "/directory/start") {
-        response.writeHead(302, { location: "next" }).end()
-      } else {
-        response.writeHead(200).end("done")
-      }
-    })
-
-    const outcome = await runGuarded(
-      requestOutcome(`${server.url}/directory/start`),
-      [allow("net:get", server.host)]
-    )
-
-    expect(outcome._tag).toBe("Success")
-    expect(hits.map((hit) => hit.url)).toEqual(["/directory/start", "/directory/next"])
-  })
-
-  it("stops a redirect loop at the default ten-hop limit", async () => {
-    const hits: Array<Hit> = []
-    const server = await listen(async (request, response) => {
-      await record(request, hits)
-      response.writeHead(302, { location: "/loop" }).end()
-    })
-
-    const outcome = await runGuarded(requestOutcome(`${server.url}/loop`), [allow("net:get", server.host)])
-
-    expect(outcome._tag).toBe("Success")
-    if (outcome._tag !== "Success") throw new Error("expected bounded redirect response")
-    expect(outcome.success.status).toBe(302)
-    expect(hits).toHaveLength(11)
-  })
-
-  it("makes the redirect-isolation contract reject an auto-follow transport below the guard", async () => {
-    const firstHits: Array<Hit> = []
-    const secondHits: Array<Hit> = []
-    const second = await listen(async (request, response) => {
-      await record(request, secondHits)
-      response.writeHead(200).end("second")
-    })
-    const first = await listen(async (request, response) => {
-      await record(request, firstHits)
-      response.writeHead(302, { location: `${second.url}/target` }).end()
-    })
-    const assertRedirectIsolation = async (): Promise<void> => {
-      const outcome = await runGuarded(
-        requestOutcome(`${first.url}/start`),
-        [allow("net:get", first.host)],
-        FetchHttpClient.layer
+  it.effect("blocks an ungranted redirect host before the second socket and guards both granted hops", () =>
+    Effect.gen(function*() {
+      const firstHits: Array<Hit> = []
+      const secondHits: Array<Hit> = []
+      const second = yield* Effect.promise(() =>
+        listen(async (request, response) => {
+          await record(request, secondHits)
+          response.writeHead(200).end("second")
+        })
       )
-      expect(outcome._tag).toBe("Failure")
-      if (outcome._tag !== "Failure") throw new Error("auto-follow bypassed the redirect guard")
-      expect(Option.getOrThrow(HttpClient.fromHttpClientError(outcome.failure))).toMatchObject({
-        capability: { resource: second.host }
-      })
-      expect(secondHits).toHaveLength(0)
-    }
+      const first = yield* Effect.promise(() =>
+        listen(async (request, response) => {
+          await record(request, firstHits)
+          response.writeHead(302, { location: `${second.url}/target` }).end()
+        })
+      )
 
-    await expect(assertRedirectIsolation()).rejects.toThrow()
-    expect(firstHits).toHaveLength(1)
-    expect(secondHits).toHaveLength(1)
-  })
+      const denied = yield* runGuarded(requestOutcome(`${first.url}/start`), [allow("net:get", first.host)])
+      expect(denied._tag).toBe("Failure")
+      if (denied._tag !== "Failure") throw new Error("expected redirect denial")
+      const permission = Option.getOrThrow(HttpClient.fromHttpClientError(denied.failure))
+      expect(permission).toBeInstanceOf(PermissionRequired)
+      expect(permission).toMatchObject({
+        code: "permission_required",
+        capability: { action: "net:get", resource: second.host }
+      })
+      expect(firstHits).toHaveLength(1)
+      expect(secondHits).toHaveLength(0)
+
+      const allowed = yield* runGuarded(requestOutcome(`${first.url}/start`), [
+        allow("net:get", first.host),
+        allow("net:get", second.host)
+      ])
+      expect(allowed._tag).toBe("Success")
+      expect(firstHits).toHaveLength(2)
+      expect(secondHits).toHaveLength(1)
+    }))
+
+  it.effect("turns a 303 POST into a separately authorized GET", () =>
+    Effect.gen(function*() {
+      const hits: Array<Hit> = []
+      const server = yield* Effect.promise(() =>
+        listen(async (request, response) => {
+          await record(request, hits)
+          if (request.url === "/start") {
+            response.writeHead(303, { location: "/target" }).end()
+          } else {
+            response.writeHead(200).end("done")
+          }
+        })
+      )
+      const request = HttpClientRequest.post(`${server.url}/start`).pipe(
+        HttpClientRequest.bodyText("payload")
+      )
+
+      const response = yield* runGuarded(
+        Effect.gen(function*() {
+          const client = yield* EffectHttpClient.HttpClient
+          return yield* client.execute(request)
+        }),
+        [allow("net:post", server.host), allow("net:get", server.host)]
+      )
+
+      expect(response.status).toBe(200)
+      expect(hits).toEqual([
+        { method: "POST", url: "/start", body: "payload" },
+        { method: "GET", url: "/target", body: "" }
+      ])
+    }))
+
+  it.effect.each([307, 308] as const)(
+    "retains POST method and body across a %s redirect",
+    (status) =>
+      Effect.gen(function*() {
+        const hits: Array<Hit> = []
+        const server = yield* Effect.promise(() =>
+          listen(async (request, response) => {
+            await record(request, hits)
+            if (request.url === "/start") {
+              response.writeHead(status, { location: "/target" }).end()
+            } else {
+              response.writeHead(200).end("done")
+            }
+          })
+        )
+        const request = HttpClientRequest.post(`${server.url}/start`).pipe(
+          HttpClientRequest.bodyText(`payload-${status}`)
+        )
+
+        const response = yield* runGuarded(
+          Effect.gen(function*() {
+            const client = yield* EffectHttpClient.HttpClient
+            return yield* client.execute(request)
+          }),
+          [allow("net:post", server.host)]
+        )
+
+        expect(response.status).toBe(200)
+        expect(hits).toEqual([
+          { method: "POST", url: "/start", body: `payload-${status}` },
+          { method: "POST", url: "/target", body: `payload-${status}` }
+        ])
+      })
+  )
+
+  it.effect("resolves a relative Location against the guarded response URL", () =>
+    Effect.gen(function*() {
+      const hits: Array<Hit> = []
+      const server = yield* Effect.promise(() =>
+        listen(async (request, response) => {
+          await record(request, hits)
+          if (request.url === "/directory/start") {
+            response.writeHead(302, { location: "next" }).end()
+          } else {
+            response.writeHead(200).end("done")
+          }
+        })
+      )
+
+      const outcome = yield* runGuarded(
+        requestOutcome(`${server.url}/directory/start`),
+        [allow("net:get", server.host)]
+      )
+
+      expect(outcome._tag).toBe("Success")
+      expect(hits.map((hit) => hit.url)).toEqual(["/directory/start", "/directory/next"])
+    }))
+
+  it.effect("stops a redirect loop at the default ten-hop limit", () =>
+    Effect.gen(function*() {
+      const hits: Array<Hit> = []
+      const server = yield* Effect.promise(() =>
+        listen(async (request, response) => {
+          await record(request, hits)
+          response.writeHead(302, { location: "/loop" }).end()
+        })
+      )
+
+      const outcome = yield* runGuarded(requestOutcome(`${server.url}/loop`), [allow("net:get", server.host)])
+
+      expect(outcome._tag).toBe("Success")
+      if (outcome._tag !== "Success") throw new Error("expected bounded redirect response")
+      expect(outcome.success.status).toBe(302)
+      expect(hits).toHaveLength(11)
+    }))
+
+  it.effect("makes the redirect-isolation contract reject an auto-follow transport below the guard", () =>
+    Effect.gen(function*() {
+      const firstHits: Array<Hit> = []
+      const secondHits: Array<Hit> = []
+      const second = yield* Effect.promise(() =>
+        listen(async (request, response) => {
+          await record(request, secondHits)
+          response.writeHead(200).end("second")
+        })
+      )
+      const first = yield* Effect.promise(() =>
+        listen(async (request, response) => {
+          await record(request, firstHits)
+          response.writeHead(302, { location: `${second.url}/target` }).end()
+        })
+      )
+      const assertRedirectIsolation = Effect.gen(function*() {
+        const outcome = yield* runGuarded(
+          requestOutcome(`${first.url}/start`),
+          [allow("net:get", first.host)],
+          FetchHttpClient.layer
+        )
+        expect(outcome._tag).toBe("Failure")
+        if (outcome._tag !== "Failure") throw new Error("auto-follow bypassed the redirect guard")
+        expect(Option.getOrThrow(HttpClient.fromHttpClientError(outcome.failure))).toMatchObject({
+          capability: { resource: second.host }
+        })
+        expect(secondHits).toHaveLength(0)
+      })
+
+      // The contract is expected to break here: the assertions inside die, and
+      // the surviving defect is what proves the auto-follow transport followed.
+      expect(Exit.isFailure(yield* Effect.exit(assertRedirectIsolation))).toBe(true)
+      expect(firstHits).toHaveLength(1)
+      expect(secondHits).toHaveLength(1)
+    }))
 })

@@ -1,8 +1,8 @@
+import { describe, expect, it } from "@effect/vitest"
 import { Journal, JournalEvent } from "@smthrs/journal-next"
 import * as TestJournal from "@smthrs/journal-next/test/TestJournal"
 import { Effect, Exit, Layer } from "effect"
 import { TestClock } from "effect/testing"
-import { describe, expect, it } from "vitest"
 import * as BranchCommands from "../src/BranchCommands.ts"
 import * as BranchProtocol from "../src/BranchProtocol.ts"
 import * as BranchShare from "../src/BranchShare.ts"
@@ -35,94 +35,97 @@ const entry = (sequence: number, payload: unknown) =>
 
 describe("sync payload and frame limits", () => {
   // BUG: CommandSubmission.args has no encoded-size limit despite frame_too_large being public.
-  it.fails("refuses a multi-megabyte command before appending it", async () => {
-    const result = await Effect.runPromise(
-      Effect.gen(function*() {
-        const commands = yield* BranchCommands.makeLive
-        const share = yield* BranchShare.BranchShare
-        const journal = yield* Journal.Journal
-        const capability = yield* share.mint({
-          branchId,
-          capabilityId: "payload-capability",
-          access: "write",
-          ttlMs: 60_000
-        })
-        const exit = yield* Effect.exit(
-          commands.submit({
-            capability,
-            submission: BranchCommands.submission({
-              branchId,
-              commandId: "oversized-command" as BranchProtocol.CommandId,
-              participantId: "alice" as BranchProtocol.ParticipantId,
-              name: BranchProtocol.SayCommand,
-              args: twoMiB
-            })
+  it.effect.fails("refuses a multi-megabyte command before appending it", () =>
+    Effect.gen(function*() {
+      const result = yield* (
+        Effect.gen(function*() {
+          const commands = yield* BranchCommands.makeLive
+          const share = yield* BranchShare.BranchShare
+          const journal = yield* Journal.Journal
+          const capability = yield* share.mint({
+            branchId,
+            capabilityId: "payload-capability",
+            access: "write",
+            ttlMs: 60_000
           })
-        )
-        return { exit, page: yield* journal.entries({ runId: branchRunId, limit: 10 }) }
-      }).pipe(
-        Effect.provide(
-          Layer.mergeAll(
-            TestJournal.layer(),
-            BranchShare.layerHmac({ secret: "payload-secret" })
+          const exit = yield* Effect.exit(
+            commands.submit({
+              capability,
+              submission: BranchCommands.submission({
+                branchId,
+                commandId: "oversized-command" as BranchProtocol.CommandId,
+                participantId: "alice" as BranchProtocol.ParticipantId,
+                name: BranchProtocol.SayCommand,
+                args: twoMiB
+              })
+            })
           )
-        ),
-        Effect.provide(TestClock.layer())
+          return { exit, page: yield* journal.entries({ runId: branchRunId, limit: 10 }) }
+        }).pipe(
+          Effect.provide(
+            Layer.mergeAll(
+              TestJournal.layer(),
+              BranchShare.layerHmac({ secret: "payload-secret" })
+            )
+          ),
+          Effect.provide(TestClock.layer())
+        )
       )
-    )
 
-    expect(failureOf(result.exit)).toBeInstanceOf(SyncError)
-    expect(failureOf(result.exit)).toMatchObject({ code: "frame_too_large" })
-    expect(result.page.entries).toEqual([])
-  })
+      expect(failureOf(result.exit)).toBeInstanceOf(SyncError)
+      expect(failureOf(result.exit)).toMatchObject({ code: "frame_too_large" })
+      expect(result.page.entries).toEqual([])
+    }))
 
   // BUG: SyncServer.read returns one arbitrarily large journal payload without enforcing a frame ceiling.
-  it.fails("refuses a page containing one multi-megabyte journal payload", async () => {
-    const exit = await Effect.runPromise(
-      Effect.gen(function*() {
-        const server = yield* SyncServer.makeLive
-        return yield* Effect.exit(
-          server.read({ scope: { _tag: "Run", runId }, cursors: [], limit: 1 })
-        )
-      }).pipe(
-        Effect.provide(
-          Layer.mergeAll(
-            Journal.layerNoop({
-              entries: () => Effect.succeed({ entries: [entry(0, twoMiB)], hasMore: false })
-            }),
-            RunCatalog.layerStatic([runId])
+  it.effect.fails("refuses a page containing one multi-megabyte journal payload", () =>
+    Effect.gen(function*() {
+      const exit = yield* (
+        Effect.gen(function*() {
+          const server = yield* SyncServer.makeLive
+          return yield* Effect.exit(
+            server.read({ scope: { _tag: "Run", runId }, cursors: [], limit: 1 })
+          )
+        }).pipe(
+          Effect.provide(
+            Layer.mergeAll(
+              Journal.layerNoop({
+                entries: () => Effect.succeed({ entries: [entry(0, twoMiB)], hasMore: false })
+              }),
+              RunCatalog.layerStatic([runId])
+            )
           )
         )
       )
-    )
 
-    expect(failureOf(exit)).toBeInstanceOf(SyncError)
-    expect(failureOf(exit)).toMatchObject({ code: "frame_too_large" })
-  })
+      expect(failureOf(exit)).toBeInstanceOf(SyncError)
+      expect(failureOf(exit)).toMatchObject({ code: "frame_too_large" })
+    }))
 
   // BUG: aggregate ReadResponse size is unbounded even when each entry is individually moderate.
-  it.fails("refuses an aggregate page whose encoded entries exceed a frame ceiling", async () => {
-    const entries = Array.from(
-      { length: 4 },
-      (_, sequence) => entry(sequence, "x".repeat(384 * 1024))
-    )
-    const exit = await Effect.runPromise(
-      Effect.gen(function*() {
-        const server = yield* SyncServer.makeLive
-        return yield* Effect.exit(
-          server.read({ scope: { _tag: "Run", runId }, cursors: [], limit: entries.length })
-        )
-      }).pipe(
-        Effect.provide(
-          Layer.mergeAll(
-            Journal.layerNoop({ entries: () => Effect.succeed({ entries, hasMore: false }) }),
-            RunCatalog.layerStatic([runId])
+  it.effect.fails("refuses an aggregate page whose encoded entries exceed a frame ceiling", () =>
+    Effect.gen(function*() {
+      const entries = Array.from(
+        { length: 4 },
+        (_, sequence) => entry(sequence, "x".repeat(384 * 1024))
+      )
+      const exit = yield* (
+        Effect.gen(function*() {
+          const server = yield* SyncServer.makeLive
+          return yield* Effect.exit(
+            server.read({ scope: { _tag: "Run", runId }, cursors: [], limit: entries.length })
+          )
+        }).pipe(
+          Effect.provide(
+            Layer.mergeAll(
+              Journal.layerNoop({ entries: () => Effect.succeed({ entries, hasMore: false }) }),
+              RunCatalog.layerStatic([runId])
+            )
           )
         )
       )
-    )
 
-    expect(failureOf(exit)).toBeInstanceOf(SyncError)
-    expect(failureOf(exit)).toMatchObject({ code: "frame_too_large" })
-  })
+      expect(failureOf(exit)).toBeInstanceOf(SyncError)
+      expect(failureOf(exit)).toMatchObject({ code: "frame_too_large" })
+    }))
 })

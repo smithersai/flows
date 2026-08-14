@@ -6,6 +6,7 @@
  * sinks are exactly the two leaves and `build` is the node no verdict may
  * touch.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { Journal } from "@smthrs/journal-next"
 import { Jj } from "@smthrs/kernel-next"
 import { KeyMaterial, Plan } from "@smthrs/plan-next"
@@ -15,13 +16,12 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
-import { describe, expect, it } from "vitest"
 import * as JournalRecords from "../src/internal/JournalRecords.ts"
 import * as PlanScheduler from "../src/PlanScheduler.ts"
 import * as Selection from "../src/Selection.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
-import { runPromise, sha256 } from "./Sha256.ts"
+import { sha256, withCrypto } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "selection-host", pid: 47, nonce: "selection-process" }
 
@@ -176,165 +176,171 @@ const drive = (plan: Plan.Plan, options: DriveOptions) =>
   }).pipe(Effect.provide(TestStores.layer()))
 
 describe("Selection laws through the scheduler", () => {
-  it("changes nothing when nobody opted in — no layer, no options, no selection records", async () => {
-    const plan = await runPromise(compile(reviewGraph()))
-    const result = await runPromise(drive(plan, { runId: "run-default" }))
-    expect(outcomes(result.report)).toEqual({ build: "built", "engine-tests": "built", "lint-docs": "built" })
-    expect(result.events.some((entry) => entry.eventType.startsWith("flows.engine.selection-"))).toBe(false)
-  })
-
-  it("law 1: admitted work is byte-identical under layerNoop and layerHeuristic — same keys, same cache rows", async () => {
-    const plan = await runPromise(compile(reviewGraph()))
-    // Confidence 0.9 clears the threshold, so the heuristic admits the sink
-    // the edge names: both drives must produce the same everything.
-    const selection = { changed, beliefs: beliefs(edge({ confidence: 0.9 })), policy }
-    const noop = await runPromise(
-      drive(plan, { runId: "run-law1-noop", selection: Selection.layerNoop, options: selection })
-    )
-    const heuristic = await runPromise(
-      drive(plan, { runId: "run-law1-heuristic", selection: Selection.layerHeuristic, options: selection })
-    )
-    expect(outcomes(noop.report)).toEqual({ build: "built", "engine-tests": "built", "lint-docs": "built" })
-    expect(outcomes(heuristic.report)).toEqual(outcomes(noop.report))
-    const keys = (report: PlanScheduler.Report) =>
-      Object.fromEntries(report.settlements.map((settlement) => [settlement.nodeId, settlement.dispatchKey]))
-    expect(keys(heuristic.report)).toEqual(keys(noop.report))
-    expect(Object.values(noop.rows).every((row) => row !== null)).toBe(true)
-    expect(heuristic.rows).toEqual(noop.rows)
-  })
-
-  it("law 2: deferred is not passed — no execution, no cache row, a journaled debt distinct from skipped and clean", async () => {
-    const plan = await runPromise(compile(reviewGraph()))
-    const selection = { changed, beliefs: beliefs(edge()), policy }
-    // The control drive admits everything, which pins the dispatch key the
-    // deferred node WOULD have been recorded under — keys are deterministic
-    // across bundles, which is what law 1 just proved.
-    const control = await runPromise(drive(plan, { runId: "run-law2-control", options: selection }))
-    expect(outcomes(control.report)).toEqual({ build: "built", "engine-tests": "built", "lint-docs": "built" })
-    const lintKey = control.report.settlements.find((settlement) => settlement.nodeId === "lint-docs")!.dispatchKey
-    expect(control.rows["lint-docs"]).not.toBeNull()
-
-    const deferred = await runPromise(
-      drive(plan, {
-        runId: "run-law2-defer",
-        selection: Selection.layerHeuristic,
-        options: selection,
-        probe: [lintKey]
-      })
-    )
-    expect(outcomes(deferred.report)).toEqual({ build: "built", "engine-tests": "built", "lint-docs": "deferred" })
-    expect(deferred.executed).not.toContain("lint-docs")
-    expect(deferred.report.settlements.find((settlement) => settlement.nodeId === "lint-docs")).toMatchObject({
-      attempts: 0,
-      dispatchKey: "",
-      outcome: "deferred"
-    })
-    // No cache row under the key the work would have carried: the deferral
-    // wrote nothing the cache could ever serve as passed.
-    expect(deferred.probed[lintKey]).toBe(false)
-    const debts = deferred.events.filter((entry) => entry.eventType === "flows.engine.selection-deferred")
-    expect(debts).toHaveLength(1)
-    expect(debts[0]?.payload).toMatchObject({
-      edge: { affects: "lint-docs", scope: "packages/engine/**" },
-      likelihood: 0.03,
-      nodeId: "lint-docs",
-      planKey: plan.nodes.find((node) => node.id === "lint-docs")!.key
-    })
-  })
-
-  it("law 3: only sinks are offered, and a verdict naming a non-sink is ignored and journaled", async () => {
-    const plan = await runPromise(compile(reviewGraph()))
-    const offered: Array<ReadonlyArray<Selection.Candidate>> = []
-    // A rogue selector: it records what it was offered, then defers `build`,
-    // which the plan needs — the law says the guess cannot remove it —
-    // proposes a node the plan already contains, and proposes the plan's own
-    // flow name, which `present` also accounts for.
-    const rogue = Selection.layer(Selection.make({
-      select: (input) =>
-        Effect.sync(() => {
-          offered.push(input.sinks)
-          const verdicts: Array<Selection.Selected> = [
-            { nodeId: "build", verdict: { _tag: "Defer", edge: edge({ affects: "build" }), likelihood: 0.01 } },
-            {
-              nodeId: "build",
-              verdict: { _tag: "Propose", flow: "build", edge: edge({ affects: "build" }), confidence: 0.5 }
-            },
-            {
-              nodeId: "example/Review",
-              verdict: {
-                _tag: "Propose",
-                flow: "example/Review",
-                edge: edge({ affects: "example/Review" }),
-                confidence: 0.5
-              }
-            },
-            ...input.sinks.map((candidate): Selection.Selected => ({
-              nodeId: candidate.nodeId,
-              verdict: { _tag: "Admit" }
-            }))
-          ]
-          return verdicts
-        })
+  it.effect("changes nothing when nobody opted in — no layer, no options, no selection records", () =>
+    Effect.gen(function*() {
+      const plan = yield* withCrypto(compile(reviewGraph()))
+      const result = yield* withCrypto(drive(plan, { runId: "run-default" }))
+      expect(outcomes(result.report)).toEqual({ build: "built", "engine-tests": "built", "lint-docs": "built" })
+      expect(result.events.some((entry) => entry.eventType.startsWith("flows.engine.selection-"))).toBe(false)
     }))
-    const result = await runPromise(
-      drive(plan, { runId: "run-law3", selection: rogue, options: { changed, beliefs: beliefs(), policy } })
-    )
-    expect(offered).toHaveLength(1)
-    expect(offered[0]!.map((candidate) => candidate.nodeId)).toEqual(["engine-tests", "lint-docs"])
-    expect(outcomes(result.report)).toEqual({ build: "built", "engine-tests": "built", "lint-docs": "built" })
-    const observations = result.events.filter((entry) => entry.eventType === "flows.engine.selection-inconsistent")
-    expect(observations).toHaveLength(3)
-    expect(observations[0]?.payload).toMatchObject({
-      nodeId: "build",
-      reason: "not-a-deferrable-sink",
-      verdict: "Defer"
-    })
-    expect(observations[1]?.payload).toMatchObject({
-      nodeId: "build",
-      reason: "proposes-a-present-node",
-      verdict: "Propose"
-    })
-    expect(observations[2]?.payload).toMatchObject({
-      nodeId: "example/Review",
-      reason: "proposes-a-present-node",
-      verdict: "Propose"
-    })
-    expect(result.events.some((entry) => entry.eventType === "flows.engine.selection-proposed")).toBe(false)
-  })
 
-  it("law 4: the full override restores full execution and journals itself", async () => {
-    const plan = await runPromise(compile(reviewGraph()))
-    const result = await runPromise(
-      drive(plan, {
-        runId: "run-law4-full",
-        selection: Selection.layerHeuristic,
-        options: { changed, beliefs: beliefs(edge()), policy, full: true }
-      })
-    )
-    expect(outcomes(result.report)).toEqual({ build: "built", "engine-tests": "built", "lint-docs": "built" })
-    expect(result.events.some((entry) => entry.eventType === "flows.engine.selection-overridden")).toBe(true)
-    expect(result.events.some((entry) => entry.eventType === "flows.engine.selection-deferred")).toBe(false)
-  })
+  it.effect("law 1: admitted work is byte-identical under layerNoop and layerHeuristic — same keys, same cache rows", () =>
+    Effect.gen(function*() {
+      const plan = yield* withCrypto(compile(reviewGraph()))
+      // Confidence 0.9 clears the threshold, so the heuristic admits the sink
+      // the edge names: both drives must produce the same everything.
+      const selection = { changed, beliefs: beliefs(edge({ confidence: 0.9 })), policy }
+      const noop = yield* withCrypto(
+        drive(plan, { runId: "run-law1-noop", selection: Selection.layerNoop, options: selection })
+      )
+      const heuristic = yield* withCrypto(
+        drive(plan, { runId: "run-law1-heuristic", selection: Selection.layerHeuristic, options: selection })
+      )
+      expect(outcomes(noop.report)).toEqual({ build: "built", "engine-tests": "built", "lint-docs": "built" })
+      expect(outcomes(heuristic.report)).toEqual(outcomes(noop.report))
+      const keys = (report: PlanScheduler.Report) =>
+        Object.fromEntries(report.settlements.map((settlement) => [settlement.nodeId, settlement.dispatchKey]))
+      expect(keys(heuristic.report)).toEqual(keys(noop.report))
+      expect(Object.values(noop.rows).every((row) => row !== null)).toBe(true)
+      expect(heuristic.rows).toEqual(noop.rows)
+    }))
 
-  it("journals a proposal for a flow the plan cannot see, and appends nothing", async () => {
-    const plan = await runPromise(compile(reviewGraph()))
-    const result = await runPromise(
-      drive(plan, {
-        runId: "run-propose",
-        selection: Selection.layerHeuristic,
-        options: { changed, beliefs: beliefs(edge({ affects: "update-engine-docs", confidence: 0.82 })), policy }
+  it.effect("law 2: deferred is not passed — no execution, no cache row, a journaled debt distinct from skipped and clean", () =>
+    Effect.gen(function*() {
+      const plan = yield* withCrypto(compile(reviewGraph()))
+      const selection = { changed, beliefs: beliefs(edge()), policy }
+      // The control drive admits everything, which pins the dispatch key the
+      // deferred node WOULD have been recorded under — keys are deterministic
+      // across bundles, which is what law 1 just proved.
+      const control = yield* withCrypto(drive(plan, { runId: "run-law2-control", options: selection }))
+      expect(outcomes(control.report)).toEqual({ build: "built", "engine-tests": "built", "lint-docs": "built" })
+      const lintKey = control.report.settlements.find((settlement) => settlement.nodeId === "lint-docs")!.dispatchKey
+      expect(control.rows["lint-docs"]).not.toBeNull()
+
+      const deferred = yield* withCrypto(
+        drive(plan, {
+          runId: "run-law2-defer",
+          selection: Selection.layerHeuristic,
+          options: selection,
+          probe: [lintKey]
+        })
+      )
+      expect(outcomes(deferred.report)).toEqual({ build: "built", "engine-tests": "built", "lint-docs": "deferred" })
+      expect(deferred.executed).not.toContain("lint-docs")
+      expect(deferred.report.settlements.find((settlement) => settlement.nodeId === "lint-docs")).toMatchObject({
+        attempts: 0,
+        dispatchKey: "",
+        outcome: "deferred"
       })
-    )
-    expect(outcomes(result.report)).toEqual({ build: "built", "engine-tests": "built", "lint-docs": "built" })
-    expect(result.report.appended).toEqual([])
-    const proposals = result.events.filter((entry) => entry.eventType === "flows.engine.selection-proposed")
-    expect(proposals).toHaveLength(1)
-    expect(proposals[0]?.payload).toMatchObject({
-      confidence: 0.82,
-      edge: { scope: "packages/engine/**" },
-      flow: "update-engine-docs"
-    })
-  })
+      // No cache row under the key the work would have carried: the deferral
+      // wrote nothing the cache could ever serve as passed.
+      expect(deferred.probed[lintKey]).toBe(false)
+      const debts = deferred.events.filter((entry) => entry.eventType === "flows.engine.selection-deferred")
+      expect(debts).toHaveLength(1)
+      expect(debts[0]?.payload).toMatchObject({
+        edge: { affects: "lint-docs", scope: "packages/engine/**" },
+        likelihood: 0.03,
+        nodeId: "lint-docs",
+        planKey: plan.nodes.find((node) => node.id === "lint-docs")!.key
+      })
+    }))
+
+  it.effect("law 3: only sinks are offered, and a verdict naming a non-sink is ignored and journaled", () =>
+    Effect.gen(function*() {
+      const plan = yield* withCrypto(compile(reviewGraph()))
+      const offered: Array<ReadonlyArray<Selection.Candidate>> = []
+      // A rogue selector: it records what it was offered, then defers `build`,
+      // which the plan needs — the law says the guess cannot remove it —
+      // proposes a node the plan already contains, and proposes the plan's own
+      // flow name, which `present` also accounts for.
+      const rogue = Selection.layer(Selection.make({
+        select: (input) =>
+          Effect.sync(() => {
+            offered.push(input.sinks)
+            const verdicts: Array<Selection.Selected> = [
+              { nodeId: "build", verdict: { _tag: "Defer", edge: edge({ affects: "build" }), likelihood: 0.01 } },
+              {
+                nodeId: "build",
+                verdict: { _tag: "Propose", flow: "build", edge: edge({ affects: "build" }), confidence: 0.5 }
+              },
+              {
+                nodeId: "example/Review",
+                verdict: {
+                  _tag: "Propose",
+                  flow: "example/Review",
+                  edge: edge({ affects: "example/Review" }),
+                  confidence: 0.5
+                }
+              },
+              ...input.sinks.map((candidate): Selection.Selected => ({
+                nodeId: candidate.nodeId,
+                verdict: { _tag: "Admit" }
+              }))
+            ]
+            return verdicts
+          })
+      }))
+      const result = yield* withCrypto(
+        drive(plan, { runId: "run-law3", selection: rogue, options: { changed, beliefs: beliefs(), policy } })
+      )
+      expect(offered).toHaveLength(1)
+      expect(offered[0]!.map((candidate) => candidate.nodeId)).toEqual(["engine-tests", "lint-docs"])
+      expect(outcomes(result.report)).toEqual({ build: "built", "engine-tests": "built", "lint-docs": "built" })
+      const observations = result.events.filter((entry) => entry.eventType === "flows.engine.selection-inconsistent")
+      expect(observations).toHaveLength(3)
+      expect(observations[0]?.payload).toMatchObject({
+        nodeId: "build",
+        reason: "not-a-deferrable-sink",
+        verdict: "Defer"
+      })
+      expect(observations[1]?.payload).toMatchObject({
+        nodeId: "build",
+        reason: "proposes-a-present-node",
+        verdict: "Propose"
+      })
+      expect(observations[2]?.payload).toMatchObject({
+        nodeId: "example/Review",
+        reason: "proposes-a-present-node",
+        verdict: "Propose"
+      })
+      expect(result.events.some((entry) => entry.eventType === "flows.engine.selection-proposed")).toBe(false)
+    }))
+
+  it.effect("law 4: the full override restores full execution and journals itself", () =>
+    Effect.gen(function*() {
+      const plan = yield* withCrypto(compile(reviewGraph()))
+      const result = yield* withCrypto(
+        drive(plan, {
+          runId: "run-law4-full",
+          selection: Selection.layerHeuristic,
+          options: { changed, beliefs: beliefs(edge()), policy, full: true }
+        })
+      )
+      expect(outcomes(result.report)).toEqual({ build: "built", "engine-tests": "built", "lint-docs": "built" })
+      expect(result.events.some((entry) => entry.eventType === "flows.engine.selection-overridden")).toBe(true)
+      expect(result.events.some((entry) => entry.eventType === "flows.engine.selection-deferred")).toBe(false)
+    }))
+
+  it.effect("journals a proposal for a flow the plan cannot see, and appends nothing", () =>
+    Effect.gen(function*() {
+      const plan = yield* withCrypto(compile(reviewGraph()))
+      const result = yield* withCrypto(
+        drive(plan, {
+          runId: "run-propose",
+          selection: Selection.layerHeuristic,
+          options: { changed, beliefs: beliefs(edge({ affects: "update-engine-docs", confidence: 0.82 })), policy }
+        })
+      )
+      expect(outcomes(result.report)).toEqual({ build: "built", "engine-tests": "built", "lint-docs": "built" })
+      expect(result.report.appended).toEqual([])
+      const proposals = result.events.filter((entry) => entry.eventType === "flows.engine.selection-proposed")
+      expect(proposals).toHaveLength(1)
+      expect(proposals[0]?.payload).toMatchObject({
+        confidence: 0.82,
+        edge: { scope: "packages/engine/**" },
+        flow: "update-engine-docs"
+      })
+    }))
 })
 
 describe("Selection.layerHeuristic", () => {
@@ -349,86 +355,98 @@ describe("Selection.layerHeuristic", () => {
     ...overrides
   })
 
-  it("defers a sink whose best likelihood is below the threshold", async () => {
-    const verdicts = await runPromise(heuristic.select(input()))
-    expect(verdicts).toEqual([{
-      nodeId: "lint-docs",
-      verdict: { _tag: "Defer", edge: edge(), likelihood: 0.03 }
-    }])
-  })
+  it.effect("defers a sink whose best likelihood is below the threshold", () =>
+    Effect.gen(function*() {
+      const verdicts = yield* withCrypto(heuristic.select(input()))
+      expect(verdicts).toEqual([{
+        nodeId: "lint-docs",
+        verdict: { _tag: "Defer", edge: edge(), likelihood: 0.03 }
+      }])
+    }))
 
-  it("admits at exactly deferBelow — the threshold is strict", async () => {
-    const verdicts = await runPromise(heuristic.select(input({ beliefs: beliefs(edge({ confidence: 0.05 })) })))
-    expect(verdicts).toEqual([{ nodeId: "lint-docs", verdict: { _tag: "Admit" } }])
-  })
+  it.effect("admits at exactly deferBelow — the threshold is strict", () =>
+    Effect.gen(function*() {
+      const verdicts = yield* withCrypto(heuristic.select(input({ beliefs: beliefs(edge({ confidence: 0.05 })) })))
+      expect(verdicts).toEqual([{ nodeId: "lint-docs", verdict: { _tag: "Admit" } }])
+    }))
 
-  it("admits a sink no live edge names", async () => {
-    const verdicts = await runPromise(heuristic.select(input({ beliefs: beliefs(edge({ affects: "engine-tests" })) })))
-    expect(verdicts).toEqual([{ nodeId: "lint-docs", verdict: { _tag: "Admit" } }])
-  })
-
-  it("judges by the BEST likelihood among matching edges", async () => {
-    const confident = await runPromise(heuristic.select(input({
-      beliefs: beliefs(edge({ confidence: 0.02 }), edge({ confidence: 0.9 }))
-    })))
-    expect(confident).toEqual([{ nodeId: "lint-docs", verdict: { _tag: "Admit" } }])
-    const timid = await runPromise(heuristic.select(input({
-      beliefs: beliefs(edge({ confidence: 0.02 }), edge({ confidence: 0.04 }), edge({ confidence: 0.01 }))
-    })))
-    expect(timid).toEqual([{
-      nodeId: "lint-docs",
-      verdict: { _tag: "Defer", edge: edge({ confidence: 0.04 }), likelihood: 0.04 }
-    }])
-  })
-
-  it("matches scopes as path globs — `**` crosses separators, `*` and `?` do not", async () => {
-    const verdictFor = async (scope: string) =>
-      (await runPromise(heuristic.select(input({ beliefs: beliefs(edge({ scope })) }))))[0]!.verdict._tag
-    // The changed path is packages/engine/src/PlanScheduler.ts throughout: a
-    // matching scope makes the low-confidence edge live, which defers.
-    expect(await verdictFor("packages/engine/**")).toBe("Defer")
-    expect(await verdictFor("packages/*/src/PlanScheduler.ts")).toBe("Defer")
-    expect(await verdictFor("packages/engine/src/PlanScheduler.t?")).toBe("Defer")
-    expect(await verdictFor("packages/engine/src/PlanScheduler.ts")).toBe("Defer")
-    expect(await verdictFor("packages/*.ts")).toBe("Admit")
-    expect(await verdictFor("packages/engine/src")).toBe("Admit")
-  })
-
-  it("ignores an edge that is not yet valid at the snapshot's pin", async () => {
-    const verdicts = await runPromise(heuristic.select(input({
-      beliefs: beliefs(edge({ validFromMs: 5_000 }), edge({ affects: "docs-only", validFromMs: 5_000 }))
-    })))
-    expect(verdicts).toEqual([{ nodeId: "lint-docs", verdict: { _tag: "Admit" } }])
-  })
-
-  it("proposes a flow the plan does not contain, once, under the highest-confidence edge", async () => {
-    const verdicts = await runPromise(heuristic.select(input({
-      beliefs: beliefs(
-        edge({ affects: "update-engine-docs", confidence: 0.2 }),
-        edge({ affects: "update-engine-docs", confidence: 0.7 }),
-        edge({ affects: "update-engine-docs", confidence: 0.4 })
+  it.effect("admits a sink no live edge names", () =>
+    Effect.gen(function*() {
+      const verdicts = yield* withCrypto(
+        heuristic.select(input({ beliefs: beliefs(edge({ affects: "engine-tests" })) }))
       )
-    })))
-    expect(verdicts).toEqual([
-      { nodeId: "lint-docs", verdict: { _tag: "Admit" } },
-      {
-        nodeId: "update-engine-docs",
-        verdict: {
-          _tag: "Propose",
-          confidence: 0.7,
-          edge: edge({ affects: "update-engine-docs", confidence: 0.7 }),
-          flow: "update-engine-docs"
-        }
-      }
-    ])
-  })
+      expect(verdicts).toEqual([{ nodeId: "lint-docs", verdict: { _tag: "Admit" } }])
+    }))
 
-  it("never proposes a name the plan already accounts for", async () => {
-    const verdicts = await runPromise(heuristic.select(input({
-      beliefs: beliefs(edge({ affects: "build", confidence: 0.9 }), edge({ affects: "example/Review" }))
-    })))
-    expect(verdicts).toEqual([{ nodeId: "lint-docs", verdict: { _tag: "Admit" } }])
-  })
+  it.effect("judges by the BEST likelihood among matching edges", () =>
+    Effect.gen(function*() {
+      const confident = yield* withCrypto(heuristic.select(input({
+        beliefs: beliefs(edge({ confidence: 0.02 }), edge({ confidence: 0.9 }))
+      })))
+      expect(confident).toEqual([{ nodeId: "lint-docs", verdict: { _tag: "Admit" } }])
+      const timid = yield* withCrypto(heuristic.select(input({
+        beliefs: beliefs(edge({ confidence: 0.02 }), edge({ confidence: 0.04 }), edge({ confidence: 0.01 }))
+      })))
+      expect(timid).toEqual([{
+        nodeId: "lint-docs",
+        verdict: { _tag: "Defer", edge: edge({ confidence: 0.04 }), likelihood: 0.04 }
+      }])
+    }))
+
+  it.effect("matches scopes as path globs — `**` crosses separators, `*` and `?` do not", () =>
+    Effect.gen(function*() {
+      const verdictFor = (scope: string) =>
+        Effect.gen(function*() {
+          return (yield* withCrypto(heuristic.select(input({ beliefs: beliefs(edge({ scope })) }))))[0]!.verdict._tag
+        })
+      // The changed path is packages/engine/src/PlanScheduler.ts throughout: a
+      // matching scope makes the low-confidence edge live, which defers.
+      expect(yield* verdictFor("packages/engine/**")).toBe("Defer")
+      expect(yield* verdictFor("packages/*/src/PlanScheduler.ts")).toBe("Defer")
+      expect(yield* verdictFor("packages/engine/src/PlanScheduler.t?")).toBe("Defer")
+      expect(yield* verdictFor("packages/engine/src/PlanScheduler.ts")).toBe("Defer")
+      expect(yield* verdictFor("packages/*.ts")).toBe("Admit")
+      expect(yield* verdictFor("packages/engine/src")).toBe("Admit")
+    }))
+
+  it.effect("ignores an edge that is not yet valid at the snapshot's pin", () =>
+    Effect.gen(function*() {
+      const verdicts = yield* withCrypto(heuristic.select(input({
+        beliefs: beliefs(edge({ validFromMs: 5_000 }), edge({ affects: "docs-only", validFromMs: 5_000 }))
+      })))
+      expect(verdicts).toEqual([{ nodeId: "lint-docs", verdict: { _tag: "Admit" } }])
+    }))
+
+  it.effect("proposes a flow the plan does not contain, once, under the highest-confidence edge", () =>
+    Effect.gen(function*() {
+      const verdicts = yield* withCrypto(heuristic.select(input({
+        beliefs: beliefs(
+          edge({ affects: "update-engine-docs", confidence: 0.2 }),
+          edge({ affects: "update-engine-docs", confidence: 0.7 }),
+          edge({ affects: "update-engine-docs", confidence: 0.4 })
+        )
+      })))
+      expect(verdicts).toEqual([
+        { nodeId: "lint-docs", verdict: { _tag: "Admit" } },
+        {
+          nodeId: "update-engine-docs",
+          verdict: {
+            _tag: "Propose",
+            confidence: 0.7,
+            edge: edge({ affects: "update-engine-docs", confidence: 0.7 }),
+            flow: "update-engine-docs"
+          }
+        }
+      ])
+    }))
+
+  it.effect("never proposes a name the plan already accounts for", () =>
+    Effect.gen(function*() {
+      const verdicts = yield* withCrypto(heuristic.select(input({
+        beliefs: beliefs(edge({ affects: "build", confidence: 0.9 }), edge({ affects: "example/Review" }))
+      })))
+      expect(verdicts).toEqual([{ nodeId: "lint-docs", verdict: { _tag: "Admit" } }])
+    }))
 })
 
 describe("Selection.Verdict", () => {
@@ -445,219 +463,224 @@ describe("Selection.Verdict", () => {
 })
 
 describe("Selection.debt", () => {
-  it("round-trips: a deferral is owed until the run's guess-free full pass repays it", async () => {
-    const plan = await runPromise(compile(reviewGraph()))
-    const executor: PlanScheduler.Executor = { execute: ({ node }) => Effect.succeed({ ran: node.id }) }
-    const program = Effect.gen(function*() {
-      yield* activate("run-debt")
-      const guessing = PlanScheduler.make({
-        runId: "run-debt",
-        owner,
-        sourceId: "scheduler/run-debt",
-        selection: { changed, beliefs: beliefs(edge()), policy }
-      })
-      const first = yield* Effect.provide(
-        guessing.run(plan),
-        harness({ executor, selection: Selection.layerHeuristic })
-      )
-      const owedAfterFirst = yield* Selection.debt("run-debt")
-      // The follow-up is the guess-free full pass: same run, same plan,
-      // selection forced full. Cached branches stay clean; only the debt runs.
-      const repaying = PlanScheduler.make({
-        runId: "run-debt",
-        owner,
-        sourceId: "scheduler/run-debt-full",
-        selection: { changed, beliefs: beliefs(edge()), policy, full: true }
-      })
-      const second = yield* Effect.provide(
-        repaying.run(plan),
-        harness({ executor, selection: Selection.layerHeuristic })
-      )
-      const owedAfterSecond = yield* Selection.debt("run-debt")
-      const events = yield* JournalRecords.entries("run-debt", undefined, 512)
-      const recordedAt = events.entries.find((entry) => entry.eventType === "flows.engine.selection-deferred")!.seq
-      return { first, owedAfterFirst, owedAfterSecond, recordedAt, second }
-    }).pipe(Effect.provide(TestStores.layer()))
+  it.effect("round-trips: a deferral is owed until the run's guess-free full pass repays it", () =>
+    Effect.gen(function*() {
+      const plan = yield* withCrypto(compile(reviewGraph()))
+      const executor: PlanScheduler.Executor = { execute: ({ node }) => Effect.succeed({ ran: node.id }) }
+      const program = Effect.gen(function*() {
+        yield* activate("run-debt")
+        const guessing = PlanScheduler.make({
+          runId: "run-debt",
+          owner,
+          sourceId: "scheduler/run-debt",
+          selection: { changed, beliefs: beliefs(edge()), policy }
+        })
+        const first = yield* Effect.provide(
+          guessing.run(plan),
+          harness({ executor, selection: Selection.layerHeuristic })
+        )
+        const owedAfterFirst = yield* Selection.debt("run-debt")
+        // The follow-up is the guess-free full pass: same run, same plan,
+        // selection forced full. Cached branches stay clean; only the debt runs.
+        const repaying = PlanScheduler.make({
+          runId: "run-debt",
+          owner,
+          sourceId: "scheduler/run-debt-full",
+          selection: { changed, beliefs: beliefs(edge()), policy, full: true }
+        })
+        const second = yield* Effect.provide(
+          repaying.run(plan),
+          harness({ executor, selection: Selection.layerHeuristic })
+        )
+        const owedAfterSecond = yield* Selection.debt("run-debt")
+        const events = yield* JournalRecords.entries("run-debt", undefined, 512)
+        const recordedAt = events.entries.find((entry) => entry.eventType === "flows.engine.selection-deferred")!.seq
+        return { first, owedAfterFirst, owedAfterSecond, recordedAt, second }
+      }).pipe(Effect.provide(TestStores.layer()))
 
-    const { first, owedAfterFirst, owedAfterSecond, recordedAt, second } = await runPromise(program)
-    expect(outcomes(first)).toEqual({ build: "built", "engine-tests": "built", "lint-docs": "deferred" })
-    expect(owedAfterFirst).toHaveLength(1)
-    expect(owedAfterFirst[0]).toMatchObject({
-      edge: { affects: "lint-docs" },
-      likelihood: 0.03,
-      nodeId: "lint-docs",
-      planId: "plan-1",
-      planKey: plan.nodes.find((node) => node.id === "lint-docs")!.key
-    })
-    // The provenance points at the journal record itself.
-    expect(owedAfterFirst[0]!.seq).toBe(recordedAt)
-    expect(outcomes(second)).toEqual({ build: "clean", "engine-tests": "clean", "lint-docs": "built" })
-    expect(owedAfterSecond).toEqual([])
-  })
-
-  it("folds one run only: a settlement under another runId does not repay", async () => {
-    // Repayment is same-run: the fold reads one run's journal, so the same
-    // planKey settled `built` under a different runId leaves the debt open.
-    const plan = await runPromise(compile(reviewGraph()))
-    const executor: PlanScheduler.Executor = { execute: ({ node }) => Effect.succeed({ ran: node.id }) }
-    const program = Effect.gen(function*() {
-      yield* activate("run-debt-owing")
-      yield* activate("run-debt-foreign")
-      const guessing = PlanScheduler.make({
-        runId: "run-debt-owing",
-        owner,
-        sourceId: "scheduler/run-debt-owing",
-        selection: { changed, beliefs: beliefs(edge()), policy }
+      const { first, owedAfterFirst, owedAfterSecond, recordedAt, second } = yield* withCrypto(program)
+      expect(outcomes(first)).toEqual({ build: "built", "engine-tests": "built", "lint-docs": "deferred" })
+      expect(owedAfterFirst).toHaveLength(1)
+      expect(owedAfterFirst[0]).toMatchObject({
+        edge: { affects: "lint-docs" },
+        likelihood: 0.03,
+        nodeId: "lint-docs",
+        planId: "plan-1",
+        planKey: plan.nodes.find((node) => node.id === "lint-docs")!.key
       })
-      yield* Effect.provide(guessing.run(plan), harness({ executor, selection: Selection.layerHeuristic }))
-      const journal = yield* Journal.Journal
-      yield* journal.emitDurable(
-        JournalRecords.nodeSettled(
-          { runId: "run-debt-foreign", lineageId: "run-debt-foreign/root", sourceId: "scheduler/run-debt-foreign" },
-          { planKey: plan.nodes.find((node) => node.id === "lint-docs")!.key, outcome: "built" }
-        ),
-        owner
-      )
-      return yield* Selection.debt("run-debt-owing")
-    }).pipe(Effect.provide(TestStores.layer()))
-    const owed = await runPromise(program)
-    expect(owed).toHaveLength(1)
-    expect(owed[0]).toMatchObject({ nodeId: "lint-docs" })
-  })
+      // The provenance points at the journal record itself.
+      expect(owedAfterFirst[0]!.seq).toBe(recordedAt)
+      expect(outcomes(second)).toEqual({ build: "clean", "engine-tests": "clean", "lint-docs": "built" })
+      expect(owedAfterSecond).toEqual([])
+    }))
 
-  it("skips records it cannot decode and reads past the first page of the journal", async () => {
-    // The fold reads the journal a page at a time, and nothing follows it to
-    // pick up a deferral a single page left behind — so filler records push
-    // the only real one past page one, and malformed records of both event
-    // types prove an undecodable payload is skipped, not a crash.
-    const plan = await runPromise(compile(reviewGraph()))
-    const executor: PlanScheduler.Executor = { execute: ({ node }) => Effect.succeed({ ran: node.id }) }
-    const program = Effect.gen(function*() {
-      yield* activate("run-debt-paged")
-      const journal = yield* Journal.Journal
-      const at = (sourceId: string) => ({ runId: "run-debt-paged", lineageId: "run-debt-paged/root", sourceId })
-      yield* Effect.forEach(
-        Array.from({ length: 600 }, (_, index) => index),
-        (index) => journal.emitDurable(JournalRecords.runDecision(at(`filler/${index}`), { index }), owner),
-        { discard: true }
-      )
-      yield* journal.emitDurable(JournalRecords.selectionDeferred(at("malformed/deferred"), {}), owner)
-      yield* journal.emitDurable(JournalRecords.nodeSettled(at("malformed/settled"), {}), owner)
-      const service = PlanScheduler.make({
-        runId: "run-debt-paged",
-        owner,
-        sourceId: "scheduler/run-debt-paged",
-        selection: { changed, beliefs: beliefs(edge()), policy }
-      })
-      yield* Effect.provide(service.run(plan), harness({ executor, selection: Selection.layerHeuristic }))
-      return yield* Selection.debt("run-debt-paged")
-    }).pipe(Effect.provide(TestStores.layer()))
-    const owed = await runPromise(program)
-    expect(owed).toHaveLength(1)
-    expect(owed[0]).toMatchObject({ nodeId: "lint-docs" })
-  })
+  it.effect("folds one run only: a settlement under another runId does not repay", () =>
+    Effect.gen(function*() {
+      // Repayment is same-run: the fold reads one run's journal, so the same
+      // planKey settled `built` under a different runId leaves the debt open.
+      const plan = yield* withCrypto(compile(reviewGraph()))
+      const executor: PlanScheduler.Executor = { execute: ({ node }) => Effect.succeed({ ran: node.id }) }
+      const program = Effect.gen(function*() {
+        yield* activate("run-debt-owing")
+        yield* activate("run-debt-foreign")
+        const guessing = PlanScheduler.make({
+          runId: "run-debt-owing",
+          owner,
+          sourceId: "scheduler/run-debt-owing",
+          selection: { changed, beliefs: beliefs(edge()), policy }
+        })
+        yield* Effect.provide(guessing.run(plan), harness({ executor, selection: Selection.layerHeuristic }))
+        const journal = yield* Journal.Journal
+        yield* journal.emitDurable(
+          JournalRecords.nodeSettled(
+            { runId: "run-debt-foreign", lineageId: "run-debt-foreign/root", sourceId: "scheduler/run-debt-foreign" },
+            { planKey: plan.nodes.find((node) => node.id === "lint-docs")!.key, outcome: "built" }
+          ),
+          owner
+        )
+        return yield* Selection.debt("run-debt-owing")
+      }).pipe(Effect.provide(TestStores.layer()))
+      const owed = yield* withCrypto(program)
+      expect(owed).toHaveLength(1)
+      expect(owed[0]).toMatchObject({ nodeId: "lint-docs" })
+    }))
 
-  it("law 6: repaidBy is a pure widening — a listed run's real settlement closes, a skipped one does not", async () => {
-    const plan = await runPromise(compile(reviewGraph()))
-    const executor: PlanScheduler.Executor = { execute: ({ node }) => Effect.succeed({ ran: node.id }) }
-    const program = Effect.gen(function*() {
-      yield* activate("run-debt-widen")
-      yield* activate("run-recert-skip")
-      yield* activate("run-recert-real")
-      const guessing = PlanScheduler.make({
-        runId: "run-debt-widen",
-        owner,
-        sourceId: "scheduler/run-debt-widen",
-        selection: { changed, beliefs: beliefs(edge()), policy }
-      })
-      yield* Effect.provide(guessing.run(plan), harness({ executor, selection: Selection.layerHeuristic }))
-      const journal = yield* Journal.Journal
-      const lintKey = plan.nodes.find((node) => node.id === "lint-docs")!.key
-      const at = (runId: string, sourceId: string) => ({ runId, lineageId: `${runId}/root`, sourceId })
-      // A repaying run that only *skipped* the work has not repaid it.
-      yield* journal.emitDurable(
-        JournalRecords.nodeSettled(at("run-recert-skip", "scheduler/run-recert-skip"), {
-          planKey: lintKey,
-          outcome: "skipped"
-        }),
-        owner
-      )
-      // A repaying run's own deferral records are opens, and a repayment fold
-      // must never read them as new debt for the deferring run.
-      yield* journal.emitDurable(
-        JournalRecords.selectionDeferred(at("run-recert-real", "selection/foreign-deferred"), {
-          planId: "plan-other",
-          nodeId: "other-node",
-          planKey: "key-other",
-          edge: edge(),
-          likelihood: 0.01
-        }),
-        owner
-      )
-      yield* journal.emitDurable(
-        JournalRecords.nodeSettled(at("run-recert-real", "scheduler/run-recert-real"), {
-          planKey: lintKey,
-          outcome: "built"
-        }),
-        owner
-      )
-      const sameRun = yield* Selection.debt("run-debt-widen")
-      const skippedOnly = yield* Selection.debt("run-debt-widen", { repaidBy: ["run-recert-skip"] })
-      const repaid = yield* Selection.debt("run-debt-widen", { repaidBy: ["run-recert-real"] })
-      return { repaid, sameRun, skippedOnly }
-    }).pipe(Effect.provide(TestStores.layer()))
-    const { repaid, sameRun, skippedOnly } = await runPromise(program)
-    // The v1 same-run fold is untouched by the widening.
-    expect(sameRun).toHaveLength(1)
-    expect(skippedOnly).toHaveLength(1)
-    expect(repaid).toEqual([])
-  })
+  it.effect("skips records it cannot decode and reads past the first page of the journal", () =>
+    Effect.gen(function*() {
+      // The fold reads the journal a page at a time, and nothing follows it to
+      // pick up a deferral a single page left behind — so filler records push
+      // the only real one past page one, and malformed records of both event
+      // types prove an undecodable payload is skipped, not a crash.
+      const plan = yield* withCrypto(compile(reviewGraph()))
+      const executor: PlanScheduler.Executor = { execute: ({ node }) => Effect.succeed({ ran: node.id }) }
+      const program = Effect.gen(function*() {
+        yield* activate("run-debt-paged")
+        const journal = yield* Journal.Journal
+        const at = (sourceId: string) => ({ runId: "run-debt-paged", lineageId: "run-debt-paged/root", sourceId })
+        yield* Effect.forEach(
+          Array.from({ length: 600 }, (_, index) => index),
+          (index) => journal.emitDurable(JournalRecords.runDecision(at(`filler/${index}`), { index }), owner),
+          { discard: true }
+        )
+        yield* journal.emitDurable(JournalRecords.selectionDeferred(at("malformed/deferred"), {}), owner)
+        yield* journal.emitDurable(JournalRecords.nodeSettled(at("malformed/settled"), {}), owner)
+        const service = PlanScheduler.make({
+          runId: "run-debt-paged",
+          owner,
+          sourceId: "scheduler/run-debt-paged",
+          selection: { changed, beliefs: beliefs(edge()), policy }
+        })
+        yield* Effect.provide(service.run(plan), harness({ executor, selection: Selection.layerHeuristic }))
+        return yield* Selection.debt("run-debt-paged")
+      }).pipe(Effect.provide(TestStores.layer()))
+      const owed = yield* withCrypto(program)
+      expect(owed).toHaveLength(1)
+      expect(owed[0]).toMatchObject({ nodeId: "lint-docs" })
+    }))
+
+  it.effect("law 6: repaidBy is a pure widening — a listed run's real settlement closes, a skipped one does not", () =>
+    Effect.gen(function*() {
+      const plan = yield* withCrypto(compile(reviewGraph()))
+      const executor: PlanScheduler.Executor = { execute: ({ node }) => Effect.succeed({ ran: node.id }) }
+      const program = Effect.gen(function*() {
+        yield* activate("run-debt-widen")
+        yield* activate("run-recert-skip")
+        yield* activate("run-recert-real")
+        const guessing = PlanScheduler.make({
+          runId: "run-debt-widen",
+          owner,
+          sourceId: "scheduler/run-debt-widen",
+          selection: { changed, beliefs: beliefs(edge()), policy }
+        })
+        yield* Effect.provide(guessing.run(plan), harness({ executor, selection: Selection.layerHeuristic }))
+        const journal = yield* Journal.Journal
+        const lintKey = plan.nodes.find((node) => node.id === "lint-docs")!.key
+        const at = (runId: string, sourceId: string) => ({ runId, lineageId: `${runId}/root`, sourceId })
+        // A repaying run that only *skipped* the work has not repaid it.
+        yield* journal.emitDurable(
+          JournalRecords.nodeSettled(at("run-recert-skip", "scheduler/run-recert-skip"), {
+            planKey: lintKey,
+            outcome: "skipped"
+          }),
+          owner
+        )
+        // A repaying run's own deferral records are opens, and a repayment fold
+        // must never read them as new debt for the deferring run.
+        yield* journal.emitDurable(
+          JournalRecords.selectionDeferred(at("run-recert-real", "selection/foreign-deferred"), {
+            planId: "plan-other",
+            nodeId: "other-node",
+            planKey: "key-other",
+            edge: edge(),
+            likelihood: 0.01
+          }),
+          owner
+        )
+        yield* journal.emitDurable(
+          JournalRecords.nodeSettled(at("run-recert-real", "scheduler/run-recert-real"), {
+            planKey: lintKey,
+            outcome: "built"
+          }),
+          owner
+        )
+        const sameRun = yield* Selection.debt("run-debt-widen")
+        const skippedOnly = yield* Selection.debt("run-debt-widen", { repaidBy: ["run-recert-skip"] })
+        const repaid = yield* Selection.debt("run-debt-widen", { repaidBy: ["run-recert-real"] })
+        return { repaid, sameRun, skippedOnly }
+      }).pipe(Effect.provide(TestStores.layer()))
+      const { repaid, sameRun, skippedOnly } = yield* withCrypto(program)
+      // The v1 same-run fold is untouched by the widening.
+      expect(sameRun).toHaveLength(1)
+      expect(skippedOnly).toHaveLength(1)
+      expect(repaid).toEqual([])
+    }))
 })
 
 describe("PlanScheduler.recertify", () => {
-  it("re-drives the plan guess-free under a fresh run and reports the drained debt", async () => {
-    const plan = await runPromise(compile(reviewGraph()))
-    const executor: PlanScheduler.Executor = { execute: ({ node }) => Effect.succeed({ ran: node.id }) }
-    const program = Effect.gen(function*() {
-      yield* activate("run-recert-a")
-      yield* activate("run-recert-b")
-      const guessing = PlanScheduler.make({
-        runId: "run-recert-a",
-        owner,
-        sourceId: "scheduler/run-recert-a",
-        selection: { changed, beliefs: beliefs(edge()), policy }
-      })
-      const first = yield* Effect.provide(
-        guessing.run(plan),
-        harness({ executor, selection: Selection.layerHeuristic })
-      )
-      const result = yield* Effect.provide(
-        PlanScheduler.recertify({
-          plan,
-          deferringRunId: "run-recert-a",
-          options: {
-            runId: "run-recert-b",
-            owner,
-            sourceId: "scheduler/run-recert-b",
-            selection: { changed, beliefs: beliefs(edge()), policy }
-          }
-        }),
-        harness({ executor, selection: Selection.layerHeuristic })
-      )
-      const deferringStillOpenAlone = yield* Selection.debt("run-recert-a")
-      const overridden = yield* JournalRecords.entries("run-recert-b", undefined, 512)
-      return { deferringStillOpenAlone, first, overridden: overridden.entries, result }
-    }).pipe(Effect.provide(TestStores.layer()))
-    const { deferringStillOpenAlone, first, overridden, result } = await runPromise(program)
-    expect(outcomes(first)).toEqual({ build: "built", "engine-tests": "built", "lint-docs": "deferred" })
-    expect(result.runId).toBe("run-recert-b")
-    // Guess-free by construction: the repaying run journals the override.
-    expect(overridden.some((entry) => entry.eventType === "flows.engine.selection-overridden")).toBe(true)
-    expect(outcomes(result.report)).toEqual({ build: "clean", "engine-tests": "clean", "lint-docs": "built" })
-    expect(result.remaining).toEqual([])
-    // The deferring run's own journal was never written: same-run debt stays open.
-    expect(deferringStillOpenAlone).toHaveLength(1)
-  })
+  it.effect("re-drives the plan guess-free under a fresh run and reports the drained debt", () =>
+    Effect.gen(function*() {
+      const plan = yield* withCrypto(compile(reviewGraph()))
+      const executor: PlanScheduler.Executor = { execute: ({ node }) => Effect.succeed({ ran: node.id }) }
+      const program = Effect.gen(function*() {
+        yield* activate("run-recert-a")
+        yield* activate("run-recert-b")
+        const guessing = PlanScheduler.make({
+          runId: "run-recert-a",
+          owner,
+          sourceId: "scheduler/run-recert-a",
+          selection: { changed, beliefs: beliefs(edge()), policy }
+        })
+        const first = yield* Effect.provide(
+          guessing.run(plan),
+          harness({ executor, selection: Selection.layerHeuristic })
+        )
+        const result = yield* Effect.provide(
+          PlanScheduler.recertify({
+            plan,
+            deferringRunId: "run-recert-a",
+            options: {
+              runId: "run-recert-b",
+              owner,
+              sourceId: "scheduler/run-recert-b",
+              selection: { changed, beliefs: beliefs(edge()), policy }
+            }
+          }),
+          harness({ executor, selection: Selection.layerHeuristic })
+        )
+        const deferringStillOpenAlone = yield* Selection.debt("run-recert-a")
+        const overridden = yield* JournalRecords.entries("run-recert-b", undefined, 512)
+        return { deferringStillOpenAlone, first, overridden: overridden.entries, result }
+      }).pipe(Effect.provide(TestStores.layer()))
+      const { deferringStillOpenAlone, first, overridden, result } = yield* withCrypto(program)
+      expect(outcomes(first)).toEqual({ build: "built", "engine-tests": "built", "lint-docs": "deferred" })
+      expect(result.runId).toBe("run-recert-b")
+      // Guess-free by construction: the repaying run journals the override.
+      expect(overridden.some((entry) => entry.eventType === "flows.engine.selection-overridden")).toBe(true)
+      expect(outcomes(result.report)).toEqual({ build: "clean", "engine-tests": "clean", "lint-docs": "built" })
+      expect(result.remaining).toEqual([])
+      // The deferring run's own journal was never written: same-run debt stays open.
+      expect(deferringStillOpenAlone).toHaveLength(1)
+    }))
 })
 
 describe("Selection.card", () => {
@@ -759,29 +782,32 @@ describe("Selection.layerHeuristic stats", () => {
     ...overrides
   })
 
-  it("failure history keeps a flaky sink from being deferred", async () => {
-    const verdicts = await runPromise(
-      heuristic.select(input([{ nodeId: "lint-docs", planKey: "key-lint", stats: { failures: 1, runs: 2 } }]))
-    )
-    expect(verdicts).toEqual([{ nodeId: "lint-docs", verdict: { _tag: "Admit" } }])
-  })
-
-  it("a zero failure rate leaves the edge's likelihood in charge", async () => {
-    const verdicts = await runPromise(
-      heuristic.select(input([{ nodeId: "lint-docs", planKey: "key-lint", stats: { failures: 0, runs: 5 } }]))
-    )
-    expect(verdicts).toEqual([{
-      nodeId: "lint-docs",
-      verdict: { _tag: "Defer", edge: edge(), likelihood: 0.03 }
-    }])
-  })
-
-  it("stats alone never defer: a sink no live edge names is admitted whatever its history", async () => {
-    const verdicts = await runPromise(
-      heuristic.select(
-        input([{ nodeId: "engine-tests", planKey: "key-tests", stats: { failures: 9, runs: 9 } }])
+  it.effect("failure history keeps a flaky sink from being deferred", () =>
+    Effect.gen(function*() {
+      const verdicts = yield* withCrypto(
+        heuristic.select(input([{ nodeId: "lint-docs", planKey: "key-lint", stats: { failures: 1, runs: 2 } }]))
       )
-    )
-    expect(verdicts).toEqual([{ nodeId: "engine-tests", verdict: { _tag: "Admit" } }])
-  })
+      expect(verdicts).toEqual([{ nodeId: "lint-docs", verdict: { _tag: "Admit" } }])
+    }))
+
+  it.effect("a zero failure rate leaves the edge's likelihood in charge", () =>
+    Effect.gen(function*() {
+      const verdicts = yield* withCrypto(
+        heuristic.select(input([{ nodeId: "lint-docs", planKey: "key-lint", stats: { failures: 0, runs: 5 } }]))
+      )
+      expect(verdicts).toEqual([{
+        nodeId: "lint-docs",
+        verdict: { _tag: "Defer", edge: edge(), likelihood: 0.03 }
+      }])
+    }))
+
+  it.effect("stats alone never defer: a sink no live edge names is admitted whatever its history", () =>
+    Effect.gen(function*() {
+      const verdicts = yield* withCrypto(
+        heuristic.select(
+          input([{ nodeId: "engine-tests", planKey: "key-tests", stats: { failures: 9, runs: 9 } }])
+        )
+      )
+      expect(verdicts).toEqual([{ nodeId: "engine-tests", verdict: { _tag: "Admit" } }])
+    }))
 })

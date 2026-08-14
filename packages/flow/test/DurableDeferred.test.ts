@@ -1,15 +1,15 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
+import { describe, expect, it } from "@effect/vitest"
 import { Action, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Cause, Effect, Exit, Fiber, Latch, Layer, Option, Schema, Scope } from "effect"
 import type * as Crypto from "effect/Crypto"
-import { describe, expect, it } from "vitest"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 import { layerWired, makeInstance } from "./MemoryFlowRuntime.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body()))
+  it.effect(name, () => withCrypto(body()))
 
 const pollSuspended = <A, E, R>(
   poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>

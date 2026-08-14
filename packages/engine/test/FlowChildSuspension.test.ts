@@ -1,15 +1,22 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
+import { describe, expect, it } from "@effect/vitest"
 import { Action, DurableDeferred, Flow, FlowRuntime, Interpreter, RetryPolicy } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Effect, Exit, Fiber, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
-import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body()))
+  it.effect(name, () => withCrypto(body()))
+
+/**
+ * The same wiring on the live clock, for cases that wait on the real elapsed
+ * time a retry or resume policy schedules rather than driving `TestClock`.
+ */
+const liveEffect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
+  it.live(name, () => withCrypto(body()))
 
 const pollUntil = <A, E, R>(
   poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>,
@@ -303,7 +310,7 @@ describe("resumeSignal", () => {
     }).pipe(Effect.provide(Layer.succeed(FlowRuntime.FlowRuntime)(scripted)))
   })
 
-  effect("without a resumeSignal the engine falls back to the policy delay", () => {
+  liveEffect("without a resumeSignal the engine falls back to the policy delay", () => {
     const flow = Flow.make("Signal/no-waker", {
       payload: { id: Schema.String },
       success: Schema.String,

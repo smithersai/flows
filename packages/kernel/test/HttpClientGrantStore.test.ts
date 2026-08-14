@@ -1,9 +1,9 @@
+import { describe, expect, it } from "@effect/vitest"
 import { PermissionRequired } from "@smthrs/capability-next/Permission"
 import { Effect, Fiber, Option } from "effect"
 import * as EffectHttpClient from "effect/unstable/http/HttpClient"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
 import type * as HttpClientResponse from "effect/unstable/http/HttpClientResponse"
-import { describe, expect, it } from "vitest"
 import * as GrantStore from "../src/GrantStore.ts"
 import * as HttpClient from "../src/HttpClient.ts"
 import * as Workspace from "../src/Workspace.ts"
@@ -31,7 +31,7 @@ const provide = <A, E>(
   )
 
 const itEffect = <A, E>(name: string, body: () => Effect.Effect<A, E>): void => {
-  it(name, () => Effect.runPromise(body()))
+  it.effect(name, () => body())
 }
 
 describe("HttpClient with a real GrantStore lifecycle", () => {

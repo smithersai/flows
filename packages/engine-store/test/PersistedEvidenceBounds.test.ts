@@ -6,6 +6,7 @@
  * boundary cannot observe the whole tree, so its evidence must not enter the
  * shared cache even when the declared output capture succeeds.
  */
+import { describe, expect, it } from "@effect/vitest"
 import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
 import { Jj } from "@smthrs/kernel-next"
 import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store-next"
@@ -14,11 +15,10 @@ import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
-import { describe, expect, it } from "vitest"
 import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
-import { runPromise, sha256 } from "./Sha256.ts"
+import { sha256, withCrypto } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "evidence-bounds-host", pid: 59, nonce: "evidence-bounds-process" }
 const encoder = new TextEncoder()
@@ -77,73 +77,74 @@ const memoryFs = (seed: Record<string, string>) => {
 }
 
 describe("persisted evidence stays bounded through the real boundary (issue #125)", () => {
-  it("records bounded digest references without admitting the unverified boundary to cache", async () => {
-    const runId = "evidence-bounds-run"
-    const key = "evidence-bounds/over-inline"
-    const keyDigest = sha256(key)
-    // 4 KiB output against a 16-byte inline bound: the payload must never
-    // reach a persisted row.
-    const artifact = "x".repeat(4096)
-    const artifactDigest = sha256(artifact)
-    const host = memoryFs({ "input.txt": "original" })
-    const metadata: ActionPersistence.BoundaryMetadata = {
-      readSet: [{ path: "input.txt", digest: sha256("original") }],
-      writeSet: ["artifact.bin"],
-      boundaryMode: "hard"
-    }
-    const boundaryLayer = Layer.succeed(
-      StepBoundary.StepBoundary,
-      StepBoundary.makeFileSystem(
-        host.fs,
-        ArtifactStore.makeFileSystem(host.fs, { directory: ".objects" }),
-        { maxInlineBytes: 16 }
+  it.effect("records bounded digest references without admitting the unverified boundary to cache", () =>
+    Effect.gen(function*() {
+      const runId = "evidence-bounds-run"
+      const key = "evidence-bounds/over-inline"
+      const keyDigest = sha256(key)
+      // 4 KiB output against a 16-byte inline bound: the payload must never
+      // reach a persisted row.
+      const artifact = "x".repeat(4096)
+      const artifactDigest = sha256(artifact)
+      const host = memoryFs({ "input.txt": "original" })
+      const metadata: ActionPersistence.BoundaryMetadata = {
+        readSet: [{ path: "input.txt", digest: sha256("original") }],
+        writeSet: ["artifact.bin"],
+        boundaryMode: "hard"
+      }
+      const boundaryLayer = Layer.succeed(
+        StepBoundary.StepBoundary,
+        StepBoundary.makeFileSystem(
+          host.fs,
+          ArtifactStore.makeFileSystem(host.fs, { directory: ".objects" }),
+          { maxInlineBytes: 16 }
+        )
       )
-    )
-    const outcome = await runPromise(
-      Effect.gen(function*() {
-        const attempts = yield* AttemptStore.AttemptStore
-        const cache = yield* CacheStore.CacheStore
-        yield* activate(runId)
-        const result = yield* ActionPersistence.make({
-          runId,
-          owner,
-          sourceId: "evidence-bounds",
-          execute: () =>
-            Effect.sync(() => {
-              host.files.set("artifact.bin", encoder.encode(artifact))
-              return "done"
-            })
-        })({ action: {}, attempt: 1, key, tier: "sealed", metadata }).pipe(Effect.provide(boundaryLayer))
-        const entry = yield* cache.get(keyDigest)
-        const row = yield* attempts.get({ runId, stepKeyDigest: keyDigest, attempt: 1 })
-        return { result, entry, row }
-      }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
-    )
-    expect(outcome.result).toBe("done")
-    expect(Option.isNone(outcome.entry)).toBe(true)
-    expect(Option.isSome(outcome.row)).toBe(true)
-    const outputsOf = (meta: unknown) =>
-      (meta as {
-        readonly boundary: {
-          readonly declaredOutputs: {
-            readonly outputs: ReadonlyArray<{
-              readonly path: string
-              readonly digest: string | null
-              readonly content?: string
-            }>
+      const outcome = yield* withCrypto(
+        Effect.gen(function*() {
+          const attempts = yield* AttemptStore.AttemptStore
+          const cache = yield* CacheStore.CacheStore
+          yield* activate(runId)
+          const result = yield* ActionPersistence.make({
+            runId,
+            owner,
+            sourceId: "evidence-bounds",
+            execute: () =>
+              Effect.sync(() => {
+                host.files.set("artifact.bin", encoder.encode(artifact))
+                return "done"
+              })
+          })({ action: {}, attempt: 1, key, tier: "sealed", metadata }).pipe(Effect.provide(boundaryLayer))
+          const entry = yield* cache.get(keyDigest)
+          const row = yield* attempts.get({ runId, stepKeyDigest: keyDigest, attempt: 1 })
+          return { result, entry, row }
+        }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
+      )
+      expect(outcome.result).toBe("done")
+      expect(Option.isNone(outcome.entry)).toBe(true)
+      expect(Option.isSome(outcome.row)).toBe(true)
+      const outputsOf = (meta: unknown) =>
+        (meta as {
+          readonly boundary: {
+            readonly declaredOutputs: {
+              readonly outputs: ReadonlyArray<{
+                readonly path: string
+                readonly digest: string | null
+                readonly content?: string
+              }>
+            }
           }
-        }
-      }).boundary.declaredOutputs.outputs
-    const meta = Option.getOrThrow(outcome.row).meta
-    const [output] = outputsOf(meta)
-    // The digest reference is persisted; the payload is not.
-    expect(output!.digest).toBe(artifactDigest)
-    expect(output!.content).toBeUndefined()
-    expect(JSON.stringify(meta)).not.toContain("xxxxxxxx")
-    // The stated bound: a persisted meta row stays under 2 KiB even though
-    // the output was 4 KiB.
-    expect(JSON.stringify(meta).length).toBeLessThan(2048)
-    // The payload itself lives in the content-addressed object directory.
-    expect(host.files.has(`.objects/${artifactDigest.slice(0, 2)}/${artifactDigest}`)).toBe(true)
-  })
+        }).boundary.declaredOutputs.outputs
+      const meta = Option.getOrThrow(outcome.row).meta
+      const [output] = outputsOf(meta)
+      // The digest reference is persisted; the payload is not.
+      expect(output!.digest).toBe(artifactDigest)
+      expect(output!.content).toBeUndefined()
+      expect(JSON.stringify(meta)).not.toContain("xxxxxxxx")
+      // The stated bound: a persisted meta row stays under 2 KiB even though
+      // the output was 4 KiB.
+      expect(JSON.stringify(meta).length).toBeLessThan(2048)
+      // The payload itself lives in the content-addressed object directory.
+      expect(host.files.has(`.objects/${artifactDigest.slice(0, 2)}/${artifactDigest}`)).toBe(true)
+    }))
 })

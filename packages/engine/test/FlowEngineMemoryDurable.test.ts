@@ -9,20 +9,20 @@
  * suspension live in `@smthrs/flow-next`'s suite. What is asserted here is the
  * engine's side of the same interaction.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { Action, DurableClock, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
 import { Cause, Deferred, Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
-import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
-import { runPromise } from "./Crypto.ts"
+import { withCrypto } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it(name, () => runPromise(body().pipe(Effect.provide(TestClock.layer()))))
+  it.effect(name, () => withCrypto(body().pipe(Effect.provide(TestClock.layer()))))
 
 /** An `effect` case that documents a known defect: it passes while the bug stands. */
 const effectFails = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it.fails(name, () => runPromise(body().pipe(Effect.provide(TestClock.layer()))))
+  it.effect.fails(name, () => withCrypto(body().pipe(Effect.provide(TestClock.layer()))))
 
 const pollSuspended = <A, E, R>(
   poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>

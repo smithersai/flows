@@ -138,11 +138,12 @@ describe("BrowserFileSystem error mapping", () => {
       expect(written).toEqual([])
     }))
 
-  it("reports `exists` as false on failure rather than failing", async () => {
-    const fileSystem = BrowserFileSystem.make(throwingFs(codeError("ENOENT")))
+  it.effect("reports `exists` as false on failure rather than failing", () =>
+    Effect.gen(function*() {
+      const fileSystem = BrowserFileSystem.make(throwingFs(codeError("ENOENT")))
 
-    await expect(Effect.runPromise(fileSystem.exists("/missing"))).resolves.toBe(false)
-  })
+      expect(yield* (fileSystem.exists("/missing"))).toBe(false)
+    }))
 
   it.effect("dies rather than fails when closing a streamed handle throws", () =>
     Effect.gen(function*() {
@@ -167,21 +168,22 @@ describe("BrowserFileSystem error mapping", () => {
       })
     }))
 
-  it("reports SymbolicLink and Unknown for stats that are neither file nor directory", async () => {
-    const stats = (kind: "link" | "other"): BrowserFileSystem.ZenFsStatsLike => ({
-      size: 0,
-      mode: 0,
-      mtimeMs: 0,
-      isFile: () => false,
-      isDirectory: () => false,
-      isSymbolicLink: () => kind === "link"
-    })
-    const make = (kind: "link" | "other") =>
-      BrowserFileSystem.make({ ...throwingFs(codeError("ENOENT")), stat: async () => stats(kind) })
+  it.effect("reports SymbolicLink and Unknown for stats that are neither file nor directory", () =>
+    Effect.gen(function*() {
+      const stats = (kind: "link" | "other"): BrowserFileSystem.ZenFsStatsLike => ({
+        size: 0,
+        mode: 0,
+        mtimeMs: 0,
+        isFile: () => false,
+        isDirectory: () => false,
+        isSymbolicLink: () => kind === "link"
+      })
+      const make = (kind: "link" | "other") =>
+        BrowserFileSystem.make({ ...throwingFs(codeError("ENOENT")), stat: async () => stats(kind) })
 
-    await expect(Effect.runPromise(make("link").stat("/l"))).resolves.toMatchObject({ type: "SymbolicLink" })
-    await expect(Effect.runPromise(make("other").stat("/o"))).resolves.toMatchObject({ type: "Unknown" })
-  })
+      expect(yield* (make("link").stat("/l"))).toMatchObject({ type: "SymbolicLink" })
+      expect(yield* (make("other").stat("/o"))).toMatchObject({ type: "Unknown" })
+    }))
 
   // BUG: BrowserFileSystem documents makeTemp* as NotFound, but Effect's makeNoop defects instead.
   it.fails("fails every deliberately unsupported operation with NotFound", async () => {
@@ -334,16 +336,17 @@ describe("BrowserFileSystem operations over node:fs/promises", () => {
       expect(error.reason).toMatchObject({ _tag: "NotFound", method: "makeDirectory" })
     }))
 
-  it("resolves realPath and access only for paths that exist", async () => {
-    await expect(Effect.runPromise(fileSystem.realPath(path("a.txt")))).resolves.toBe(path("a.txt"))
-    await expect(Effect.runPromise(fileSystem.access(path("a.txt")))).resolves.toBeUndefined()
-    await expect(Effect.runPromise(Effect.flip(fileSystem.realPath(path("gone"))))).resolves.toMatchObject({
-      reason: { _tag: "NotFound", method: "realPath" }
-    })
-    await expect(Effect.runPromise(Effect.flip(fileSystem.access(path("gone"))))).resolves.toMatchObject({
-      reason: { _tag: "NotFound", method: "access" }
-    })
-  })
+  it.effect("resolves realPath and access only for paths that exist", () =>
+    Effect.gen(function*() {
+      expect(yield* (fileSystem.realPath(path("a.txt")))).toBe(path("a.txt"))
+      expect(yield* (fileSystem.access(path("a.txt")))).toBeUndefined()
+      expect(yield* (Effect.flip(fileSystem.realPath(path("gone"))))).toMatchObject({
+        reason: { _tag: "NotFound", method: "realPath" }
+      })
+      expect(yield* (Effect.flip(fileSystem.access(path("gone"))))).toMatchObject({
+        reason: { _tag: "NotFound", method: "access" }
+      })
+    }))
 
   it.effect("removes recursively, tolerates a forced removal of a missing path, and fails otherwise", () =>
     Effect.gen(function*() {
