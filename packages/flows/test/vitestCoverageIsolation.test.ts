@@ -321,24 +321,25 @@ describe("vitest coverage isolation conformance", () => {
     // directives that the earlier literal-`v8 ignore` grep never saw.
     const directive = /(?:istanbul|[cv]8|node:coverage)\s+ignore\s+(if|else|next|file|start|stop)(?=\W|$)/g
     const allowlist: Record<string, number> = {
-      // Eleven in the plan scheduler. Three unreachable-by-construction
-      // branches: the ready-set can never be empty while work is pending
-      // (the compiler rejects cycles), the dispatch key is built from
-      // strings so canonicalization cannot reject it, and the merge node's
-      // elaboration cannot hit any of `Plan.append`'s four refusals. Five
-      // host-refusal translations (one on source-glob expansion, four on
-      // produced-glob expansion) that share the typed boundary-unavailable
-      // path the prepare-failure tests exercise. The no-FileSystem refusal
-      // twin of the source-glob path, which the source-glob test exercises.
-      // And two filter arms: directory writer declarations and a tree
-      // writer's non-matching members are discarded, never read.
-      "engine-store/src/PlanScheduler.ts": 11,
-      // A host glob rooted under the validated workspace cannot escape it;
-      // its non-file matches are intentionally discarded.
-      "engine-store/src/WorkspaceSandbox.ts": 1,
-      // Host refusal translation on directory enumeration, the same typed
-      // path the scheduler's boundary-unavailable tests exercise.
+      // Three unreachable-by-construction branches in the plan scheduler: the
+      // ready-set can never be empty while work is pending (the compiler
+      // rejects cycles), the dispatch key is built from strings so
+      // canonicalization cannot reject it, and the merge node's elaboration
+      // cannot hit any of `Plan.append`'s four refusals. Six more sit on the
+      // per-file pinning and produced-match expansion paths: five
+      // host-refusal translations that share the typed boundary-unavailable
+      // path the prepare-failure tests exercise, and the no-FileSystem
+      // refusal in `expandProducedMatches`, unreachable because
+      // `observeReads` already failed the run for the same glob when no
+      // FileSystem was composed.
+      "engine-store/src/PlanScheduler.ts": 9,
+      // One `else` arm in recursive enumeration: special entries (symlinks,
+      // sockets) are neither materializable leaves nor prunable scaffolding
+      // and are intentionally discarded.
       "engine-store/src/internal/FileEnumeration.ts": 1,
+      // FileBoundary rejects upward and absolute removal declarations before
+      // they reach the sandbox.
+      "engine-store/src/WorkspaceSandbox.ts": 1,
       "engine-store/src/internal/RunCoordinator.ts": 1,
       "engine/src/FlowEngine/make.ts": 1,
       "journal/src/SqlJournal.ts": 1,

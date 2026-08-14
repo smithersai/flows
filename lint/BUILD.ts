@@ -19,6 +19,12 @@ const prompt = "You are reviewing a diff in `flows`, an Effect v4 coding-agent h
   "scratch. Report only violations of the rubric below. Judgment calls that the rubric does not " +
   "cover are not findings. Prefer no finding over a speculative one."
 
+/**
+ * Guards identity strings, migrations, persisted schemas, and durable keys.
+ *
+ * @since 0.1.0
+ * @category lint
+ */
 export const durableIdentityGuard = LlmLint({
   changes,
   include: [
@@ -54,21 +60,27 @@ export const durableIdentityGuard = LlmLint({
   failOn: "error"
 })
 
+/**
+ * Checks hand-written reference and concept documentation against public APIs.
+ *
+ * @since 0.1.0
+ * @category lint
+ */
 export const docsReferenceSync = LlmLint({
   changes,
   include: ["packages/*/src/**"],
-  context: ["docs/reference/*.md"],
+  context: ["docs/reference/*.md", "docs/concepts/**/*.md", "docs/guides/**/*.md"],
   deps: [],
   prompt,
   rubric: [
-    "The context files are the hand-written package reference pages. They did not change",
-    "in this diff. Compare them against the changed source.",
+    "The context files are the hand-written package reference, concept, and guide pages.",
+    "They did not change in this diff. Compare them against the changed source.",
     "1. A public export whose reference page still describes removed, renamed, or changed",
     "   behavior is a warning against the reference page.",
     "2. A new public export absent from its package's reference page is a warning against the",
     "   reference page.",
-    "3. A reference page that contradicts the change is a warning against that page.",
-    "Name the reference page in `file`. Do not report a source file for these.",
+    "3. A concept page contradicted by the change is a warning against the concept page.",
+    "Name the stale documentation page in `file`. Do not report a source file for these.",
     "Private helpers, tests, and internal modules are out of scope."
   ].join("\n"),
   engine: "codex",
@@ -77,6 +89,12 @@ export const docsReferenceSync = LlmLint({
   failOn: "warning"
 })
 
+/**
+ * Checks whether changed exported implementations still match their JSDoc.
+ *
+ * @since 0.1.0
+ * @category lint
+ */
 export const jsdocTruthfulness = LlmLint({
   changes,
   include: ["packages/*/src/**/*.ts"],

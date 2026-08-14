@@ -546,4 +546,96 @@ describe("a persisted plan driven end to end under the production composition", 
     expect(mergeReads.find((entry) => entry.path === "src/late.ts")?.digest).toBe(sha256("seen-at-append"))
     expect(await runPromise(read(join(root, "src/late.ts")))).toBe("changed-after-append")
   })
+
+  it("admits only the read glob's own members from an overlapping writer glob's scope", async () => {
+    const root = mkdtempSync(join(tmpdir(), "flows-plan-writer-scope-"))
+    const plan = await runPromise(Plan.compile({
+      planId: "writer-scope-plan",
+      flow: "example/WriterScope",
+      nodes: [
+        draft("generator", { writes: [{ _tag: "Glob", include: ["gen/**"] }] }),
+        draft("reader", { reads: [{ _tag: "Glob", include: ["gen/*.ts"] }] })
+      ]
+    }))
+    let readerBoundary: FileBoundary | undefined
+    const executor: PlanScheduler.Executor = {
+      execute: ({ boundary, node }) =>
+        Effect.gen(function*() {
+          const fs = yield* FileSystem.FileSystem
+          if (node.id === "generator") {
+            yield* fs.makeDirectory("gen", { recursive: true })
+            yield* fs.writeFileString("gen/typed.ts", "typed-member")
+            yield* fs.writeFileString("gen/blob.bin", "binary-member")
+            return node.id
+          }
+          readerBoundary = boundary
+          yield* fs.makeDirectory("out", { recursive: true })
+          yield* fs.writeFileString("out/reader.txt", node.id)
+          return node.id
+        }) as unknown as Effect.Effect<unknown, unknown>
+    }
+    const report = await runPromise(
+      Effect.gen(function*() {
+        yield* activate("prod-writer-scope")
+        return yield* Effect.provide(
+          PlanScheduler.make({ runId: "prod-writer-scope", owner, sourceId: "glob/writer-scope" }).run(plan),
+          Layer.merge(boundaryOnly(root), PlanScheduler.layerExecutor(executor))
+        )
+      }).pipe(Effect.provide(TestStores.layer()))
+    )
+    expect(outcomes(report)).toEqual({ generator: "built", reader: "built" })
+    const reads = StepBoundary.exactReads(readerBoundary!)
+    // The writer glob's scope holds both files; only the one the READ glob
+    // matches is a member of the reader's boundary.
+    expect(reads.find((entry) => entry.path === "gen/typed.ts")?.digest).toBe(sha256("typed-member"))
+    expect(reads.some((entry) => entry.path === "gen/blob.bin")).toBe(false)
+  })
+
+  it("skips an exact producer path that stats as a directory at dispatch", async () => {
+    const root = mkdtempSync(join(tmpdir(), "flows-plan-dir-producer-"))
+    const plan = await runPromise(Plan.compile({
+      planId: "dir-producer-plan",
+      flow: "example/DirProducer",
+      nodes: [
+        draft("producer", { writes: ["gen/artifact"] }),
+        draft("mutator", { inputs: [{ _tag: "Pending", from: "producer" }] }),
+        draft("reader", {
+          inputs: [{ _tag: "Pending", from: "mutator" }],
+          reads: [{ _tag: "Glob", include: ["gen/*"] }]
+        })
+      ]
+    }))
+    let readerBoundary: FileBoundary | undefined
+    const executor: PlanScheduler.Executor = {
+      execute: ({ boundary, node }) =>
+        Effect.gen(function*() {
+          const fs = yield* FileSystem.FileSystem
+          if (node.id === "reader") readerBoundary = boundary
+          if (node.id === "mutator") {
+            // Replace the produced file with a directory before the reader
+            // measures: a directory is not a measurable file input, so the
+            // reader's boundary must skip the path rather than fail on it.
+            yield* fs.remove("gen/artifact")
+            yield* fs.makeDirectory("gen/artifact", { recursive: true })
+          }
+          const output = FileSet.expand(node.effects.writes)[0]!
+          if (typeof output !== "string") return yield* Effect.die(new Error("test expects an exact output"))
+          yield* fs.makeDirectory(join(output, ".."), { recursive: true })
+          yield* fs.writeFileString(output, node.id)
+          return node.id
+        }) as unknown as Effect.Effect<unknown, unknown>
+    }
+    const report = await runPromise(
+      Effect.gen(function*() {
+        yield* activate("prod-dir-producer")
+        return yield* Effect.provide(
+          PlanScheduler.make({ runId: "prod-dir-producer", owner, sourceId: "glob/dir-producer" }).run(plan),
+          Layer.merge(boundaryOnly(root), PlanScheduler.layerExecutor(executor))
+        )
+      }).pipe(Effect.provide(TestStores.layer()))
+    )
+    expect(outcomes(report)).toEqual({ producer: "built", mutator: "built", reader: "built" })
+    const reads = StepBoundary.exactReads(readerBoundary!)
+    expect(reads.some((entry) => entry.path === "gen/artifact")).toBe(false)
+  })
 })
