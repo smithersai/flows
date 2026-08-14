@@ -34,7 +34,7 @@ The live layer requires `Journal` and `RunCatalog`. `RunCatalog` exposes `list` 
 
 `make({ client })` adapts an Effect RPC client; `layer` derives that client from `RpcClient.Protocol`. `makeNoop` and `layerNoop` provide a closed client.
 
-The client advances its local cursor as each entry is admitted to the consumer, so interruption of a partial frame does not acknowledge entries that were never observed.
+The client advances its local cursor as each entry is admitted to the consumer, so interruption of a partial frame does not acknowledge entries that were never observed. The acknowledged cursor set is shared service state in a `Ref`, and a commit only ever advances it, so concurrent subscriptions cannot move it backward. A live follow that loses its transport reconnects under exponential backoff (capped at five seconds), resuming from the acknowledged cursors; gaps, authorization refusals, and server closes propagate to the consumer instead of retrying.
 
 ## Errors
 

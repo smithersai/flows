@@ -11,7 +11,7 @@ The package depends on `effect` and `@smthrs/capability-next` — the interface 
 | `Jj` | interface + service tag | tag key `@smthrs/jj-next/Jj` |
 | `ChangeId` | type | the durable handle a run uses to name workspace state |
 | `snapshot`, `restore`, `diff`, `workspaceAdd`, `workspaceForget`, `status` | methods | every one fails with `JjError` |
-| `JjError` | class | tagged `@smthrs/jj-next/JjError`, carrying `code`, `module`, `method`, `message`, and the `command` that produced it |
+| `JjError` | class | tagged `@smthrs/jj-next/JjError`, carrying `code`, `module`, `method`, `message`, the `command` that produced it, and an optional `cause` holding the underlying host failure |
 | `JjErrorCode` | const + type | `not_installed`, `conflict`, `invalid_ref`, `unknown` |
 | `jjError` | constructor | builds a `JjError` from a code plus context |
 | `make`, `makeNoop`, `layerNoop` | constructors and layer | `makeNoop` fails every method with `not_installed` until overridden |

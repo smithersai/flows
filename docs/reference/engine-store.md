@@ -168,7 +168,7 @@ Still out of scope: CLI verbs because no CLI package exists here, approval routi
 
 <a id="selectionstore"></a>
 
-The durable suspected-edge store, tagged `flows/engine-store/SelectionStore`. `make` and `layer` follow the sibling store idiom and install through this package's `MigrationSet`.
+The durable suspected-edge store, tagged `@smthrs/engine-store-next/SelectionStore`. `make` and `layer` follow the sibling store idiom and install through this package's `MigrationSet`.
 
 `upsert(edges)` inserts or replaces by `(scope, affects)`, `list()` returns every edge, and `snapshot()` returns a `BeliefSnapshot` pinned at the injected clock's current time, never `Date.now()`. `train(observations)` updates only matching edges in one transaction, ignores unknown pairs, appends every observation to evidence, and uses the asymmetric rule: hit -> `confidence + 0.05 * (1 - confidence)`; miss -> `confidence * 0.5`. Training never creates edges and never writes journal records.
 

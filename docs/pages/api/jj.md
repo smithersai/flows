@@ -33,7 +33,7 @@ The package root holds the contract, its error, and the no-op layer only, so it 
 | `ChangeId` | type | string handle for workspace state |
 | `Jj` | interface | `snapshot`, `restore`, `diff`, `workspaceAdd`, `workspaceForget`, `status` |
 | `Jj` | service tag | `@smthrs/jj-next/Jj` — digested into step keys |
-| `JjError` | class | tagged `@smthrs/jj-next/JjError`; carries `code`, `module`, `method`, `message`, `command` |
+| `JjError` | class | tagged `@smthrs/jj-next/JjError`; carries `code`, `module`, `method`, `message`, `command`, and an optional `cause` |
 | `JjErrorCode` | const + type | `not_installed`, `conflict`, `invalid_ref`, `unknown` |
 | `jjError` | constructor | builds an error from a code plus context |
 | `make`, `makeNoop` | constructors | `makeNoop` fails every method `not_installed` |
