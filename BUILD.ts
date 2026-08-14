@@ -9,14 +9,10 @@ import {
   GithubCiGen,
   PnpmWorkspace,
   StandardPackage,
-  file,
-  glob
+  file
 } from "../tsflows/rules/src/index.ts"
 
 export const nodeModules = PnpmWorkspace({
-  projectRoot: ".",
-  lockfile: "pnpm-lock.yaml",
-  workspaceFile: "pnpm-workspace.yaml",
   packageManager: "pnpm@11.21.0"
 })
 
@@ -27,23 +23,10 @@ export const rootJSDocConfig = file("//eslint.jsdoc.js")
 export const pnpmWorkspace = file("//pnpm-workspace.yaml")
 
 export const ci = GithubCiGen({
-  workflowName: "CI",
-  pattern: "//...",
-  kinds: ["build", "test", "lint"],
-  pushBranches: ["main"],
-  pullRequest: true,
-  workflowDispatch: true,
-  runsOn: "ubuntu-latest",
-  nodeVersion: "22",
-  cacheUrlSecret: "TSFLOWS_CACHE_URL",
-  cancelInProgress: true,
-  output: ".github/workflows/ci.yml"
+  cacheUrlSecret: "TSFLOWS_CACHE_URL"
 })
 
-export const packageDefaults = DefaultRule.make({
-  directories: glob("packages/*"),
-  marker: "package.json",
-  unless: "BUILD.ts",
-  macro: StandardPackage,
-  attrs: { deps: [] }
+export const packageDefaults = DefaultRule({
+  directories: "packages/*",
+  macro: StandardPackage
 })
