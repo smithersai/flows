@@ -240,10 +240,13 @@ describe("cancelling a parked flow closes its retained scope", () => {
    * on that same scope, so the finalizer is exactly the resource a parked
    * cancel has to release.
    */
-  const parkThenCancel = (executionId: string, cancel: (
-    driver: RunDriver.Service,
-    store: RunStore.Service
-  ) => Effect.Effect<unknown, unknown>) =>
+  const parkThenCancel = (
+    executionId: string,
+    cancel: (
+      driver: RunDriver.Service,
+      store: RunStore.Service
+    ) => Effect.Effect<unknown, unknown>
+  ) =>
     provide(Effect.gen(function*() {
       const store = yield* RunStore.RunStore
       const driver = yield* makeDriver(executionId)
@@ -295,6 +298,46 @@ describe("cancelling a parked flow closes its retained scope", () => {
     // Exactly once, and nothing retained: no leak, no double-finalize.
     expect(result.finalized).toEqual(["parked-finalizer"])
     expect(result.retainedAfterCancel).toEqual([])
+  })
+
+  it("continues cancellation after a parked finalizer defects and releases its retained scope once", async () => {
+    let finalizerCalls = 0
+    const result = await runPromise(provide(Effect.gen(function*() {
+      const store = yield* RunStore.RunStore
+      const driver = yield* makeDriver("parked-defective-finalizer")
+      yield* driver.register(
+        CascadeFlow,
+        () =>
+          Effect.gen(function*() {
+            const instance = yield* FlowRuntime.FlowInstance
+            yield* Flow.addFinalizer(() =>
+              Effect.sync(() => finalizerCalls += 1).pipe(
+                Effect.andThen(Effect.die(new Error("finalizer failed")))
+              )
+            )
+            return yield* Flow.suspend(instance)
+          }) as never
+      )
+      yield* driver.execute(CascadeFlow, {
+        executionId: "parked-defective-finalizer",
+        payload: {},
+        discard: true
+      })
+
+      yield* driver.interrupt(CascadeFlow, "parked-defective-finalizer")
+      for (let index = 0; index < 5; index++) {
+        yield* TestClock.adjust(Duration.toMillis(Ownership.heartbeatInterval))
+        yield* Effect.yieldNow
+      }
+      return {
+        retained: [...(yield* driver.retainedRuns)],
+        row: yield* store.get("parked-defective-finalizer")
+      }
+    })))
+
+    expect(result.row.status).toBe("cancelled")
+    expect(result.retained).toEqual([])
+    expect(finalizerCalls).toBe(1)
   })
 
   it("releases the scope for a cancel that only ever existed in durable state", async () => {

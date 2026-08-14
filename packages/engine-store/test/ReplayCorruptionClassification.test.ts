@@ -18,6 +18,7 @@ import { Jj } from "@smthrs/kernel-next"
 import * as KernelFileSystem from "@smthrs/kernel-next/FileSystem"
 import * as GrantStore from "@smthrs/kernel-next/GrantStore"
 import * as KernelWorkspace from "@smthrs/kernel-next/Workspace"
+import * as AtomicFileSystem from "@smthrs/platform-node-next/AtomicFileSystem"
 import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store-next"
 import { CacheStore } from "@smthrs/step-cache-next"
 import * as Cause from "effect/Cause"
@@ -563,7 +564,7 @@ describe("replay-failed classification (issue #150)", () => {
     // The kernel-guarded filesystem rooted at the workspace: declarations are
     // workspace-relative, and replay refuses evidence naming anything else.
     const host = KernelFileSystem.layer.pipe(
-      Layer.provide(NodeFileSystem.layer),
+      Layer.provide(AtomicFileSystem.layer),
       Layer.provide(EffectPath.layer),
       Layer.provide(KernelWorkspace.layer(root)),
       Layer.provide(GrantStore.layerNoop)

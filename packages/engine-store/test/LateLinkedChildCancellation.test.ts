@@ -319,6 +319,42 @@ describe("the order the cancellation transaction writes in", () => {
 
     expect(order).toEqual(["request:ordering-parent", "walk:ordering-parent"])
   })
+
+  it("visits a diamond once and terminates defensively if persisted edges contain a cycle", async () => {
+    const requested = await run(Effect.gen(function*() {
+      const engineState = yield* DurableEngineState.DurableEngineState
+      const graph: Readonly<Record<string, ReadonlyArray<DurableEngineState.RunParentEdge>>> = {
+        parent: [
+          { parentId: "parent", childId: "left", seq: 1 },
+          { parentId: "parent", childId: "right", seq: 2 }
+        ],
+        left: [{ parentId: "left", childId: "leaf", seq: 3 }],
+        right: [{ parentId: "right", childId: "leaf", seq: 4 }],
+        leaf: [{ parentId: "leaf", childId: "parent", seq: 5 }]
+      }
+      const cyclic: DurableEngineState.Service = {
+        ...engineState,
+        runChildren: (parentId) => Effect.succeed(graph[parentId] ?? [])
+      }
+      const observed: Array<string> = []
+      const store = RunStore.makeNoop({
+        requestCancel: (runId, nowMs) =>
+          Effect.sync(() => {
+            observed.push(runId)
+            return { _tag: "CancelRequested" as const, requestedAtMs: nowMs }
+          })
+      })
+      const driver = yield* makeDriver("diamond-cycle").pipe(
+        Effect.provideService(DurableEngineState.DurableEngineState, cyclic),
+        Effect.provideService(RunStore.RunStore, store)
+      )
+
+      yield* driver.interrupt(LateFlow, "parent")
+      return observed
+    }))
+
+    expect(requested).toEqual(["parent", "left", "right", "leaf"])
+  })
 })
 
 describe("admission that serializes before the parent's cancellation", () => {

@@ -480,6 +480,17 @@ export interface Service {
    */
   readonly runParents: (childId: string) => Effect.Effect<ReadonlyArray<RunParentEdge>>
   /**
+   * Lists the durably recorded child edges of a run, oldest first.
+   *
+   * The reverse direction of `runParents`, and the only instance-independent
+   * way to find the runs a cancelled parent linked to itself. Cancellation
+   * cascade reads it rather than an in-process instance map, so a
+   * cross-process cancel observed by a driver that never spawned the children
+   * still reaches them (`docs/specs/Concepts/Subflows.md`). Served by the
+   * `flows_run_parents_parent_idx` index.
+   */
+  readonly runChildren: (parentId: string) => Effect.Effect<ReadonlyArray<RunParentEdge>>
+  /**
    * Runs `effect` inside one storage write transaction, so a caller can make
    * several store operations atomic — the run driver wraps the parent-edge
    * record and the run-row creation it guards, closing the crash window that
@@ -1275,6 +1286,21 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
     )
   )
 
+  const runChildren: Service["runChildren"] = Effect.fn("DurableEngineState.runChildren")((parentId) =>
+    sql<RunParentDatabaseRow>`
+      SELECT
+        child_id AS "childId",
+        parent_id AS "parentId",
+        seq AS "seq"
+      FROM flows_run_parents
+      WHERE parent_id = ${parentId}
+      ORDER BY seq
+    `.pipe(
+      Effect.orDie,
+      Effect.flatMap((rows) => Effect.forEach(rows, decodeRunParentEdge))
+    )
+  )
+
   return DurableEngineState.of({
     deferred,
     completeDeferred,
@@ -1293,6 +1319,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
     recordRunParent,
     removeRunParentsForRun,
     runParents,
+    runChildren,
     transaction
   })
 })
@@ -1655,6 +1682,16 @@ export const makeMemory = (options: MemoryOptions = {}): Service => {
           .map(([parentId, seq]) => ({ childId, parentId, seq }))
           .sort((left, right) => left.seq - right.seq)
       )
+    ),
+    runChildren: Effect.fn("DurableEngineState.runChildren")((parentId) =>
+      Effect.sync(() => {
+        const edges: Array<RunParentEdge> = []
+        for (const [childId, parents] of parentEdges) {
+          const seq = parents.get(parentId)
+          if (seq !== undefined) edges.push({ childId, parentId, seq })
+        }
+        return edges.sort((left, right) => left.seq - right.seq)
+      })
     ),
     // The in-memory twin has no crash windows between writes, so the
     // atomicity `transaction` exists to provide (issue #80) holds trivially;

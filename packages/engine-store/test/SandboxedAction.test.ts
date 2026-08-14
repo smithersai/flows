@@ -19,6 +19,7 @@ import * as KernelFileSystem from "@smthrs/kernel-next/FileSystem"
 import * as GrantStore from "@smthrs/kernel-next/GrantStore"
 import * as KernelWorkspace from "@smthrs/kernel-next/Workspace"
 import { Node } from "@smthrs/plan-next"
+import * as AtomicFileSystem from "@smthrs/platform-node-next/AtomicFileSystem"
 import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store-next"
 import { CacheStore } from "@smthrs/step-cache-next"
 import * as Effect from "effect/Effect"
@@ -67,7 +68,7 @@ const production = (root: string, sandboxed: boolean) => {
   // The kernel-guarded filesystem rooted at the workspace: declarations are
   // workspace-relative and resolve against `root` on every host operation.
   const host = KernelFileSystem.layer.pipe(
-    Layer.provide(NodeFileSystem.layer),
+    Layer.provide(AtomicFileSystem.layer),
     Layer.provide(EffectPath.layer),
     Layer.provide(KernelWorkspace.layer(root)),
     Layer.provide(GrantStore.layerNoop)

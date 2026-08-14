@@ -18,6 +18,7 @@ import * as GrantStore from "@smthrs/kernel-next/GrantStore"
 import * as KernelWorkspace from "@smthrs/kernel-next/Workspace"
 import { KeyMaterial, Plan } from "@smthrs/plan-next"
 import * as FileSet from "@smthrs/plan-next/FileSet"
+import * as AtomicFileSystem from "@smthrs/platform-node-next/AtomicFileSystem"
 import { type Ownership, RunStore } from "@smthrs/run-store-next"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
@@ -56,7 +57,7 @@ const jjLayer = Layer.succeed(
  */
 const production = (root: string) => {
   const workspaceFs = KernelFileSystem.layer.pipe(
-    Layer.provide(NodeFileSystem.layer),
+    Layer.provide(AtomicFileSystem.layer),
     Layer.provide(EffectPath.layer),
     Layer.provide(KernelWorkspace.layer(root)),
     Layer.provide(GrantStore.layerNoop)
@@ -77,7 +78,7 @@ const production = (root: string) => {
 /** The real filesystem boundary without the execution sandbox, for tests that deliberately move the host between rounds. */
 const boundaryOnly = (root: string) => {
   const workspaceFs = KernelFileSystem.layer.pipe(
-    Layer.provide(NodeFileSystem.layer),
+    Layer.provide(AtomicFileSystem.layer),
     Layer.provide(EffectPath.layer),
     Layer.provide(KernelWorkspace.layer(root)),
     Layer.provide(GrantStore.layerNoop)

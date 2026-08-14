@@ -117,7 +117,21 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
           if (!instance.interrupted || (Option.isSome(result) && result.value._tag === "Complete")) {
             return Effect.void
           }
-          return options.interrupt(roundFlow, roundExecutionId)
+          // A finalizer cannot report, so a durable engine's
+          // `CancelRequestFailed` is logged rather than swallowed silently.
+          // The child is not orphaned by it: the parent's own cancellation is
+          // already durable, and a durable engine cascades cancellation over
+          // the persisted parent-edge table independently of this in-process
+          // link (`RunDriver.cancelOwned`), so this path is the prompt
+          // delivery and not the guarantee.
+          return options.interrupt(roundFlow, roundExecutionId).pipe(
+            Effect.catch((error) =>
+              Effect.logWarning(
+                `engine: could not record the linked cancellation of child execution ${roundExecutionId}`,
+                error
+              )
+            )
+          )
         })
       }
       const runRound = (

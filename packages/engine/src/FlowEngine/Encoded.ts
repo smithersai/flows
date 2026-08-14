@@ -76,18 +76,21 @@ export interface Encoded {
   /**
    * Requests cancellation with normal cleanup and compensation semantics.
    * This is not a pause operation.
+   *
+   * Reports `FlowRuntime.CancelRequestFailed` when a durable implementation
+   * could not record the request; an in-memory one never raises it.
    */
   readonly interrupt: (
     flow: Flow.Any,
     executionId: string
-  ) => Effect.Effect<void>
+  ) => Effect.Effect<void, FlowRuntime.CancelRequestFailed>
   /**
    * Forces cancellation without guaranteeing cleanup or compensation.
    */
   readonly interruptUnsafe: (
     flow: Flow.Any,
     executionId: string
-  ) => Effect.Effect<void>
+  ) => Effect.Effect<void, FlowRuntime.CancelRequestFailed>
   /**
    * Re-drives a durably suspended execution; it does not undo cancellation.
    */
