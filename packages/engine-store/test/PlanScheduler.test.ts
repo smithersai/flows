@@ -8,8 +8,8 @@
 import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
 import { Journal } from "@smthrs/journal-next"
 import { Jj } from "@smthrs/kernel-next"
-import { KeyMaterial, Plan, PlanStore } from "@smthrs/plan-next"
-import { type Ownership, RunStore } from "@smthrs/run-store-next"
+import { KeyMaterial, Plan, PlanStore, StepKey } from "@smthrs/plan-next"
+import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store-next"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -24,7 +24,7 @@ import * as Reconciliation from "../src/Reconciliation.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
 import * as WorkspaceSandbox from "../src/WorkspaceSandbox.ts"
-import { runPromise } from "./Sha256.ts"
+import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "scheduler-host", pid: 91, nonce: "scheduler-process" }
 
@@ -481,6 +481,76 @@ const conflict = () =>
   })
 
 describe("PlanScheduler conflict strategies", () => {
+  it("recognizes live and rehydrated materialization conflicts", () => {
+    const live = conflict()
+    const rehydrated = { _tag: live._tag, paths: live.paths, message: live.message }
+    expect(WorkspaceSandbox.isMaterializationConflict(live)).toBe(true)
+    expect(WorkspaceSandbox.isMaterializationConflict(rehydrated)).toBe(true)
+    expect(WorkspaceSandbox.isMaterializationConflict({ ...rehydrated, _tag: "different" })).toBe(false)
+  })
+
+  it("delay/rebase replays a persisted conflict as a new attempt", async () => {
+    const plan = await runPromise(compile([draft("replayed-racer")]))
+    let dispatches = 0
+    const executor: PlanScheduler.Executor = {
+      execute: () =>
+        Effect.sync(() => {
+          dispatches = dispatches + 1
+          return "landed"
+        })
+    }
+    const report = await runPromise(
+      Effect.gen(function*() {
+        yield* activate("run-replayed-conflict")
+        const node = plan.nodes[0]!
+        const dispatchKey = yield* StepKey.dispatchIdentity({
+          material: node.material,
+          results: {},
+          hermetic: {
+            readSet: [],
+            writeSet: ["replayed-racer.out"],
+            boundaryMode: "hard"
+          }
+        })
+        const attempts = yield* AttemptStore.AttemptStore
+        const attemptId = {
+          runId: "run-replayed-conflict",
+          stepKeyDigest: sha256(dispatchKey),
+          attempt: 1
+        }
+        const inserted = yield* attempts.put({
+          ...attemptId,
+          state: "running",
+          startedAtMs: 1,
+          meta: { tier: "sealed" }
+        }, owner)
+        /* v8 ignore next -- the activated deterministic store cannot reject its first attempt row */
+        if (inserted._tag !== "Inserted") return yield* Effect.die(new Error("attempt seed was not inserted"))
+        const live = conflict()
+        const finished = yield* attempts.finish({
+          ...attemptId,
+          state: "failed",
+          finishedAtMs: 2,
+          error: {
+            reasons: [{
+              _tag: "Fail",
+              error: { _tag: live._tag, paths: live.paths, message: live.message }
+            }]
+          },
+          meta: { tier: "sealed" }
+        }, owner)
+        /* v8 ignore next -- the owner-fenced running row above has one valid terminal transition */
+        if (finished._tag !== "Finished") return yield* Effect.die(new Error("attempt seed was not finished"))
+        return yield* Effect.provide(
+          scheduler({ runId: "run-replayed-conflict", executor }).run(plan),
+          harness({ runId: "run-replayed-conflict", executor })
+        )
+      }).pipe(Effect.provide(TestStores.layer()))
+    )
+    expect(report.settlements[0]).toMatchObject({ outcome: "built", attempts: 2, rebases: 1 })
+    expect(dispatches).toBe(1)
+  })
+
   it("delay/rebase re-keys a new attempt and lands within its bound", async () => {
     const plan = await runPromise(compile([draft("racer", { writes: ["shared.out"] })]))
     const attempts = await runPromise(

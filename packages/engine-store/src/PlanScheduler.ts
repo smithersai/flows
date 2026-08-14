@@ -319,9 +319,7 @@ const unmeasured = "unmeasured"
 
 /** @private */
 const isConflict = (cause: Cause.Cause<unknown>): boolean =>
-  cause.reasons.some((reason) =>
-    Cause.isFailReason(reason) && reason.error instanceof WorkspaceSandbox.MaterializationConflict
-  )
+  cause.reasons.some((reason) => Cause.isFailReason(reason) && WorkspaceSandbox.isMaterializationConflict(reason.error))
 
 /** @private */
 const DeviationPayload = Schema.Struct({

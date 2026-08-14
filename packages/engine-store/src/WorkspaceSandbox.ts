@@ -351,6 +351,19 @@ export class MaterializationConflict extends Schema.TaggedError<MaterializationC
 ) {}
 
 /**
+ * Whether a failure is a materialization conflict in live or durable form.
+ * Persisted failures retain the schema tag but not the class prototype, so
+ * replay classification must recognize both representations.
+ *
+ * @category guards
+ * @since 0.1.0
+ */
+export const isMaterializationConflict = (error: unknown): boolean =>
+  error instanceof MaterializationConflict ||
+  (typeof error === "object" && error !== null && "_tag" in error &&
+    error._tag === MaterializationConflict.identifier)
+
+/**
  * The two-phase workspace transaction service.
  *
  * `execute` is speculative and never touches the host. `materialize` is the
