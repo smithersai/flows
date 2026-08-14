@@ -98,6 +98,30 @@ const crashingDatabase = (marker: string, shouldCrash: () => boolean): DatabaseD
     keepWriter
   )
 
+/** Replaces the rows of any statement whose compiled SQL satisfies `matches`. */
+const stubbedRows = (
+  matches: (sqlText: string) => boolean,
+  rows: () => ReadonlyArray<unknown> | undefined
+): DatabaseDecorator =>
+  Layer.merge(
+    Layer.effect(
+      SqlClient.SqlClient,
+      Effect.gen(function*() {
+        const base = yield* Effect.service(SqlClient.SqlClient)
+        return new Proxy(base, {
+          apply(target, thisArgument, argumentsList) {
+            const statement = Reflect.apply(target, thisArgument, argumentsList) as Statement.Statement<unknown>
+            if (typeof statement.compile !== "function" || !matches(statement.compile()[0])) {
+              return statement
+            }
+            return statement.pipe(Effect.map((real) => rows() ?? real))
+          }
+        }) as SqlClient.SqlClient
+      })
+    ),
+    keepWriter
+  )
+
 /** Parks every durable page read behind `gate`, announcing arrival once. */
 const gatedPageReads = (
   gate: Deferred.Deferred<void>,
@@ -535,6 +559,90 @@ describe("fencing across compaction", () => {
     }).pipe(Effect.provide(journal()), Effect.scoped))
 })
 
+describe("refused arguments and failing hosts", () => {
+  effect("refuses a compaction policy whose threshold is not a positive safe integer", () =>
+    Effect.gen(function*() {
+      const failure = yield* Effect.gen(function*() {
+        yield* Journal
+      }).pipe(
+        Effect.provide(journal({
+          compaction: { entryThreshold: 0, capture: () => Effect.succeed(null) }
+        })),
+        Effect.scoped,
+        Effect.flip
+      )
+      expect(failure).toBeInstanceOf(JournalError)
+      expect((failure as JournalError).code).toBe("invalid_event")
+    }))
+
+  effect(
+    "refuses checkpoint, latestCheckpoint, and compact arguments naming no run or sequence",
+    () =>
+      Effect.gen(function*() {
+        const service = yield* Journal
+        const emptyRun = yield* Effect.flip(service.checkpoint({ runId: runId(""), seq: seqOf(0), state: null }))
+        expect(emptyRun.code).toBe("invalid_event")
+        const negativeSeq = yield* Effect.flip(service.checkpoint({ runId: run, seq: seqOf(-1), state: null }))
+        expect(negativeSeq.code).toBe("invalid_event")
+        const fractionalSeq = yield* Effect.flip(service.checkpoint({ runId: run, seq: seqOf(1.5), state: null }))
+        expect(fractionalSeq.code).toBe("invalid_event")
+        const latestEmpty = yield* Effect.flip(service.latestCheckpoint(runId("")))
+        expect(latestEmpty.code).toBe("invalid_event")
+        const compactEmpty = yield* Effect.flip(service.compact({ runId: runId("") }))
+        expect(compactEmpty.code).toBe("invalid_event")
+      }).pipe(Effect.provide(journal()), Effect.scoped)
+  )
+
+  effect("names the requested sequence when the checkpoint to compact to is missing", () =>
+    Effect.gen(function*() {
+      const service = yield* Journal
+      yield* emitMany(service, 0, 3)
+      const failure = yield* Effect.flip(service.compact({ runId: run, upTo: seqOf(2) }))
+      expect(failure.code).toBe("checkpoint_invalid")
+      expect(failure.message).toContain("at sequence 2")
+    }).pipe(Effect.provide(journal()), Effect.scoped))
+
+  effect("a checkpoint row that no longer parses fails with decode_failed", () =>
+    Effect.gen(function*() {
+      const service = yield* Journal
+      yield* emitMany(service, 0, 3)
+      yield* service.checkpoint({ runId: run, seq: seqOf(2), state: { ok: true } })
+      const sql = yield* Effect.service(SqlClient.SqlClient)
+      yield* sql`PRAGMA ignore_check_constraints = ON`
+      yield* sql`UPDATE flows_journal_checkpoints SET state_json = ${"not json"} WHERE run_id = ${run}`
+      yield* sql`PRAGMA ignore_check_constraints = OFF`
+      const failure = yield* Effect.flip(service.latestCheckpoint(run))
+      expect(failure.code).toBe("decode_failed")
+    }).pipe(Effect.provide(journal()), Effect.scoped))
+
+  effect("reads and writes against a vanished checkpoint table surface typed errors", () =>
+    Effect.gen(function*() {
+      const service = yield* Journal
+      yield* emitMany(service, 0, 2)
+      const sql = yield* Effect.service(SqlClient.SqlClient)
+      yield* sql`DROP TABLE flows_journal_checkpoints`
+      // The floor read behind a page read, the latest-checkpoint read, and
+      // the checkpoint write each map the host failure instead of leaking it.
+      const page = yield* Effect.flip(service.entries({ runId: run, limit: 10 }))
+      expect(page.code).toBe("unknown")
+      const latest = yield* Effect.flip(service.latestCheckpoint(run))
+      expect(latest.code).toBe("unknown")
+      const written = yield* Effect.flip(service.checkpoint({ runId: run, seq: seqOf(1), state: null }))
+      expect(written.code).toBe("sink_failed")
+    }).pipe(Effect.provide(journal()), Effect.scoped))
+
+  effect("a compaction over a vanished events table fails as sink_failed", () =>
+    Effect.gen(function*() {
+      const service = yield* Journal
+      yield* emitMany(service, 0, 3)
+      yield* service.checkpoint({ runId: run, seq: seqOf(2), state: null })
+      const sql = yield* Effect.service(SqlClient.SqlClient)
+      yield* sql`DROP TABLE flows_journal_events`
+      const failure = yield* Effect.flip(service.compact({ runId: run }))
+      expect(failure.code).toBe("sink_failed")
+    }).pipe(Effect.provide(journal()), Effect.scoped))
+})
+
 describe("the compaction policy hook", () => {
   effect("is off by default: nothing is checkpointed or deleted", () =>
     Effect.gen(function*() {
@@ -606,6 +714,189 @@ describe("the compaction policy hook", () => {
       })),
       Effect.scoped
     ))
+
+  effect("an idempotent duplicate emit counts nothing toward the threshold", () =>
+    Effect.gen(function*() {
+      const service = yield* Journal
+      const first = yield* service.emitDurable(input(0))
+      const duplicate = yield* service.emitDurable(input(0))
+      expect(duplicate.seq).toBe(first.seq)
+      // Two emits, one committed entry: the duplicate reports zero committed
+      // rows, so the threshold of 2 is never crossed.
+      expect(Option.isNone(yield* service.latestCheckpoint(run))).toBe(true)
+      expect(yield* eventCount).toBe(1)
+    }).pipe(
+      Effect.provide(journal({
+        compaction: { entryThreshold: 2, capture: () => Effect.succeed(null) }
+      })),
+      Effect.scoped
+    ))
+
+  effect("a settlement while a compaction is in flight skips re-entry and still lands", () =>
+    Effect.gen(function*() {
+      const gate = yield* Deferred.make<void>()
+      const reachedCapture = yield* Deferred.make<void>()
+      yield* Effect.gen(function*() {
+        const service = yield* Journal
+        yield* service.emitLossy(input(0))
+        yield* Deferred.await(reachedCapture)
+        const next = yield* service.emitDurable(input(2)).pipe(
+          Effect.forkChild({ startImmediately: true })
+        )
+        const receipt = yield* Fiber.join(next)
+        expect(receipt.seq).toBe(1)
+        expect(Option.isNone(yield* service.latestCheckpoint(run))).toBe(true)
+        yield* Deferred.succeed(gate, undefined)
+        yield* service.flush
+        const latest = yield* service.latestCheckpoint(run)
+        expect(Option.getOrThrow(latest).seq).toBe(0)
+        expect(yield* eventCount).toBe(2)
+      }).pipe(
+        Effect.provide(journal({
+          compaction: {
+            entryThreshold: 1,
+            capture: () =>
+              Deferred.succeed(reachedCapture, undefined).pipe(
+                Effect.andThen(Deferred.await(gate)),
+                Effect.as(null)
+              )
+          }
+        })),
+        Effect.scoped
+      )
+    }))
+
+  effect("interrupting a caller parked in capture propagates the interruption", () =>
+    Effect.gen(function*() {
+      const gate = yield* Deferred.make<void>()
+      const reachedCapture = yield* Deferred.make<void>()
+      yield* Effect.gen(function*() {
+        const service = yield* Journal
+        const crossing = yield* service.emitDurable(input(0)).pipe(
+          Effect.forkChild({ startImmediately: true })
+        )
+        yield* Deferred.await(reachedCapture)
+        yield* Fiber.interrupt(crossing)
+        // The interruption is not damped into a retry: no checkpoint was
+        // captured, and the committed entry survives untouched.
+        expect(Option.isNone(yield* service.latestCheckpoint(run))).toBe(true)
+        expect(yield* eventCount).toBe(1)
+      }).pipe(
+        Effect.provide(journal({
+          compaction: {
+            entryThreshold: 1,
+            capture: () =>
+              Deferred.succeed(reachedCapture, undefined).pipe(
+                Effect.andThen(Deferred.await(gate)),
+                Effect.as(null)
+              )
+          }
+        })),
+        Effect.scoped
+      )
+    }))
+
+  effect("an interrupt-only policy attempt propagates without damping", () =>
+    Effect.gen(function*() {
+      yield* Effect.gen(function*() {
+        const service = yield* Journal
+        const exit = yield* Effect.exit(service.emitDurable(input(0)))
+        expect(Exit.isFailure(exit) && Cause.hasInterruptsOnly(exit.cause)).toBe(true)
+        expect(Option.isNone(yield* service.latestCheckpoint(run))).toBe(true)
+        expect(yield* eventCount).toBe(1)
+      }).pipe(
+        Effect.provide(journal({
+          compaction: {
+            entryThreshold: 1,
+            capture: () => Effect.interrupt
+          }
+        })),
+        Effect.scoped
+      )
+    }))
+
+  effect("a policy attempt over a run whose durable tail vanished stands down", () =>
+    Effect.gen(function*() {
+      let calls = 0
+      const captured: Array<unknown> = []
+      yield* Effect.gen(function*() {
+        const service = yield* Journal
+        // A concurrent process compacted-and-truncated between this process's
+        // commit and its tail read: MAX(seq) comes back NULL (first attempt)
+        // or the row itself is gone (second attempt). Both stand down.
+        yield* service.emitDurable(input(0))
+        yield* service.emitDurable(input(1))
+        expect(captured).toEqual([])
+        expect(Option.isNone(yield* service.latestCheckpoint(run))).toBe(true)
+      }).pipe(
+        Effect.provide(journal(
+          {
+            compaction: {
+              entryThreshold: 1,
+              capture: (_, upTo) =>
+                Effect.sync(() => {
+                  captured.push(upTo)
+                  return null
+                })
+            }
+          },
+          stubbedRows(
+            (text) => text.includes("MAX(seq) AS last"),
+            () => {
+              calls += 1
+              return calls === 1 ? [{ last: null }] : []
+            }
+          )
+        )),
+        Effect.scoped
+      )
+      expect(calls).toBe(2)
+    }))
+
+  effect("a threshold count that yields no row seeds to zero and still compacts", () =>
+    Effect.gen(function*() {
+      yield* Effect.gen(function*() {
+        const service = yield* Journal
+        // The seed count comes back rowless, so the first commit seeds zero
+        // and the second commit crosses the threshold.
+        yield* service.emitDurable(input(0))
+        expect(Option.isNone(yield* service.latestCheckpoint(run))).toBe(true)
+        yield* service.emitDurable(input(1))
+        const latest = yield* service.latestCheckpoint(run)
+        expect(Option.getOrThrow(latest).seq).toBe(1)
+        expect(Option.getOrThrow(latest).compactedAtMs).not.toBeNull()
+      }).pipe(
+        Effect.provide(journal(
+          {
+            compaction: { entryThreshold: 1, capture: () => Effect.succeed(null) }
+          },
+          stubbedRows(
+            (text) => text.includes("COUNT(*) AS total FROM flows_journal_events"),
+            () => []
+          )
+        )),
+        Effect.scoped
+      )
+    }))
+
+  effect("a failing threshold seed is logged and never fails the emit", () =>
+    Effect.gen(function*() {
+      yield* Effect.gen(function*() {
+        const service = yield* Journal
+        const durable = yield* service.emitDurable(input(0))
+        expect(durable.seq).toBe(0)
+        // The bookkeeping defect is logged and swallowed: nothing was
+        // checkpointed, and the emit itself settled durably.
+        expect(Option.isNone(yield* service.latestCheckpoint(run))).toBe(true)
+      }).pipe(
+        Effect.provide(journal(
+          { compaction: { entryThreshold: 1, capture: () => Effect.succeed(null) } },
+          crashingDatabase("COUNT(*) AS total FROM flows_journal_events", () => true)
+        )),
+        Effect.scoped
+      )
+      expect(yield* eventCount).toBe(1)
+    }))
 
   effect("a failed capture never fails the emit, and the policy retries later", () =>
     Effect.gen(function*() {
