@@ -1018,3 +1018,49 @@ export const make = (options: Options): Service => {
  * @category layers
  */
 export const layer = (options: Options): Layer.Layer<PlanScheduler> => Layer.succeed(PlanScheduler, make(options))
+
+/**
+ * What {@link recertify} returns: the repaying run's id, its report, and the
+ * deferring run's remaining debt after the repayment is counted.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export interface RecertifyResult {
+  readonly runId: string
+  readonly report: Report
+  readonly remaining: ReadonlyArray<Selection.DebtEntry>
+}
+
+/**
+ * The recertification driver: re-drives a compiled plan under a fresh,
+ * caller-supplied run with the `full` selection override — guess-free by
+ * construction — then reports the deferring run's remaining debt via
+ * `Selection.debt(deferringRunId, { repaidBy: [options.runId] })`.
+ *
+ * The design draft placed this beside the other Selection helpers; it lives
+ * here because it constructs a scheduler, and `Selection` must stay
+ * type-only toward this module to keep the dependency graph acyclic. The
+ * deferring run's journal is never written — repayment is a read-side join.
+ * Scheduling the cadence (nightly, per-merge) stays a product concern; this
+ * is only the primitive one pass runs.
+ *
+ * @since 0.1.0
+ * @category combinators
+ */
+export const recertify = Effect.fn("PlanScheduler.recertify")(
+  (input: {
+    readonly plan: Plan.Plan
+    readonly deferringRunId: string
+    readonly options: Options
+  }) =>
+    Effect.gen(function*() {
+      const scheduler = make({
+        ...input.options,
+        selection: { ...input.options.selection, full: true }
+      })
+      const report = yield* scheduler.run(input.plan)
+      const remaining = yield* Selection.debt(input.deferringRunId, { repaidBy: [input.options.runId] })
+      return { runId: input.options.runId, report, remaining } satisfies RecertifyResult
+    })
+)

@@ -13,7 +13,7 @@
  * or corrupt its consumers. Meta's Predictive Test Selection (ICSE-SEIP 2019)
  * skips tests under exactly this restriction: tests are sinks.
  *
- * Four laws bound what a verdict may do, and the scheduler's tests assert
+ * Four v1 laws bound what a verdict may do, and the scheduler's tests assert
  * each:
  *
  * 1. A verdict never enters key material and never changes a cache row: an
@@ -29,6 +29,13 @@
  * 4. Guesses add or postpone, never remove. A node the plan requires runs
  *    exactly as today, and the run-level `full` override restores full
  *    execution the way `--fresh` ignores the cache.
+ * 5. Training only moves confidence: it never creates edges or touches the
+ *    journal, and misses reduce confidence faster than hits accrue it.
+ * 6. Repayment is a pure widening: `debt(runId)` keeps the v1 same-run fold,
+ *    while `debt(runId, { repaidBy })` additionally accepts settlements from
+ *    listed recertification runs.
+ * 7. The plan card, risk annotation, and read-set proposal helpers are pure
+ *    functions of plain data and require no services.
  *
  * Pluggability is dependency injection at the owning seam, exactly as
  * `Reconciliation` beside it: {@link layerNoop} admits everything and is the
@@ -37,12 +44,13 @@
  * selector is a different `Layer`, lives outside this package, and this
  * package must not grow a model dependency.
  *
- * Deliberately absent from v1, recorded here so the absences read as
- * decisions rather than oversights: plan-card rendering of
- * `deferred`/`proposed` rows, the model-backed selection layer, belief
- * training and decay, read-set proposing, plan-level risk scoring, and
- * auto-appending proposed nodes — a `Propose` verdict is journaled and
- * surfaced, never executed.
+ * Deliberately still out of scope, recorded here so the absences read as
+ * decisions rather than oversights: the model-backed selection layer (this
+ * package must not grow a model dependency), CLI verbs (there is no CLI package
+ * in this repo), approval routing from risk (approval machinery lives
+ * elsewhere), auto-appending proposed nodes (pending human review), and
+ * scheduled recertification cadence (a product/system-flow concern; this
+ * module ships only the primitive).
  *
  * @since 0.1.0
  */
@@ -160,6 +168,11 @@ export interface Candidate {
   readonly nodeId: string
   /** The plan-time key: the identity the scheduler already holds. */
   readonly planKey: string
+  /** Historical failure rate for the sink, used only when a live edge already names it. */
+  readonly stats?: {
+    readonly failures: number
+    readonly runs: number
+  } | undefined
 }
 
 /**
@@ -281,17 +294,26 @@ const matchesScope = (scope: string, path: string): boolean => {
   return new RegExp(`^${expression}$`).test(path)
 }
 
+const liveEdges = (beliefs: BeliefSnapshot, paths: ReadonlyArray<string>): ReadonlyArray<SuspectedEdge> =>
+  beliefs.edges.filter((edge) =>
+    edge.validFromMs <= beliefs.pinnedAtMs
+    && paths.some((path) => matchesScope(edge.scope, path))
+  )
+
 /**
  * The deterministic default heuristics: pure, no IO, no model calls, a
  * function of nothing but its input.
  *
  * An edge is *live* when its `validFromMs` has been reached at the
  * snapshot's `pinnedAtMs` and some changed path matches its scope glob. A
- * live edge yields likelihood equal to its confidence. A sink whose best
+ * live edge yields likelihood equal to the maximum of its confidence and the
+ * candidate's historical `failures / max(runs, 1)` rate. A sink whose best
  * likelihood is strictly below `policy.deferBelow` is deferred under its
  * best edge; a sink no live edge names — or one at or above the threshold —
- * is admitted. A live edge whose `affects` names nothing the plan contains
- * proposes that flow, once per flow under its highest-confidence edge.
+ * is admitted. Stats alone never defer: they only keep a live edge from
+ * postponing a flaky sink. A live edge whose `affects` names nothing the plan
+ * contains proposes that flow, once per flow under its highest-confidence
+ * edge.
  *
  * @since 0.1.0
  * @category constructors
@@ -299,10 +321,7 @@ const matchesScope = (scope: string, path: string): boolean => {
 export const makeHeuristic = (): Service => ({
   select: Effect.fn("Selection.select")((input) =>
     Effect.sync(() => {
-      const live = input.beliefs.edges.filter((edge) =>
-        edge.validFromMs <= input.beliefs.pinnedAtMs
-        && input.changed.some((path) => matchesScope(edge.scope, path))
-      )
+      const live = liveEdges(input.beliefs, input.changed)
       const verdicts: Array<Selected> = []
       for (const candidate of input.sinks) {
         let best: SuspectedEdge | undefined = undefined
@@ -310,9 +329,13 @@ export const makeHeuristic = (): Service => ({
           if (edge.affects !== candidate.nodeId) continue
           if (best === undefined || edge.confidence > best.confidence) best = edge
         }
+        const failureLikelihood = candidate.stats === undefined
+          ? 0
+          : candidate.stats.failures / Math.max(candidate.stats.runs, 1)
+        const likelihood = Math.max(best?.confidence ?? 0, failureLikelihood)
         verdicts.push(
-          best !== undefined && best.confidence < input.policy.deferBelow
-            ? { nodeId: candidate.nodeId, verdict: { _tag: "Defer", edge: best, likelihood: best.confidence } }
+          best !== undefined && likelihood < input.policy.deferBelow
+            ? { nodeId: candidate.nodeId, verdict: { _tag: "Defer", edge: best, likelihood } }
             : { nodeId: candidate.nodeId, verdict: { _tag: "Admit" } }
         )
       }
@@ -392,6 +415,18 @@ const SettledPayload = Schema.Struct({
 const decodeSettled = Schema.decodeUnknownOption(SettledPayload)
 
 /**
+ * Options for {@link debt}: which recertification runs may repay this run's
+ * deferrals. The caller names the repaying runs explicitly — the fold never
+ * guesses which other runs were guess-free passes.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export interface DebtOptions {
+  readonly repaidBy?: ReadonlyArray<string> | undefined
+}
+
+/**
  * Lists the run's unpaid deferrals by folding the journal: every
  * `flows.engine.selection-deferred` record opens a debt under its plan key,
  * and a later `node-settled` under the same key with a real outcome —
@@ -400,11 +435,11 @@ const decodeSettled = Schema.decodeUnknownOption(SettledPayload)
  * guess-free pass executed the work and surfaced the miss, which is the
  * training signal the spec asks for.
  *
- * The fold reads exactly one run's journal, so only a settlement journaled
- * under the same `runId` closes a debt — the guess-free pass is the deferring
- * run driven again under the `full` override. A recertification run holds
- * its own runId and is invisible here; a cross-run repayment query is future
- * work.
+ * `debt(runId)` keeps the v1 same-run fold: only a settlement journaled
+ * under the same `runId` closes a debt. `debt(runId, { repaidBy })` is the
+ * pure widening of law 6 — settlements journaled under a listed
+ * recertification run also close, matched by plan key, and nothing else
+ * changes. `PlanScheduler.recertify` is the driver that produces such a run.
  *
  * The journal is read directly rather than projected into a table, for the
  * same reason the scheduler consumes deviations from it: a deferral is a
@@ -413,35 +448,163 @@ const decodeSettled = Schema.decodeUnknownOption(SettledPayload)
  * @since 0.1.0
  * @category queries
  */
-export const debt = Effect.fn("Selection.debt")((runId: string) =>
+export const debt = Effect.fn("Selection.debt")((runId: string, options?: DebtOptions) =>
   Effect.gen(function*() {
     const journal = yield* Journal.Journal
     const owed = new Map<string, DebtEntry>()
-    let cursor: number | undefined = undefined
-    while (true) {
-      const page: Journal.EntriesPage = yield* journal.entries({
-        runId: runId as JournalEvent.RunId,
-        ...(cursor === undefined ? {} : { after: cursor as JournalEvent.Seq }),
-        limit: 512
+
+    const fold = (run: string, closesOnly: boolean) =>
+      Effect.gen(function*() {
+        let cursor: number | undefined = undefined
+        while (true) {
+          const page: Journal.EntriesPage = yield* journal.entries({
+            runId: run as JournalEvent.RunId,
+            ...(cursor === undefined ? {} : { after: cursor as JournalEvent.Seq }),
+            limit: 512
+          })
+          for (const entry of page.entries) {
+            cursor = entry.seq
+            if (!closesOnly && entry.eventType === "flows.engine.selection-deferred") {
+              const payload = decodeDeferred(entry.payload)
+              if (Option.isNone(payload)) continue
+              owed.set(payload.value.planKey, { ...payload.value, seq: entry.seq })
+              continue
+            }
+            if (entry.eventType !== "flows.engine.node-settled") continue
+            const payload = decodeSettled(entry.payload)
+            if (Option.isNone(payload)) continue
+            const outcome = payload.value.outcome
+            if (outcome === "built" || outcome === "clean" || outcome === "failed") {
+              owed.delete(payload.value.planKey)
+            }
+          }
+          if (!page.hasMore) break
+        }
       })
-      for (const entry of page.entries) {
-        cursor = entry.seq
-        if (entry.eventType === "flows.engine.selection-deferred") {
-          const payload = decodeDeferred(entry.payload)
-          if (Option.isNone(payload)) continue
-          owed.set(payload.value.planKey, { ...payload.value, seq: entry.seq })
-          continue
-        }
-        if (entry.eventType !== "flows.engine.node-settled") continue
-        const payload = decodeSettled(entry.payload)
-        if (Option.isNone(payload)) continue
-        const outcome = payload.value.outcome
-        if (outcome === "built" || outcome === "clean" || outcome === "failed") {
-          owed.delete(payload.value.planKey)
-        }
-      }
-      if (!page.hasMore) break
+
+    yield* fold(runId, false)
+    for (const repayer of options?.repaidBy ?? []) {
+      yield* fold(repayer, true)
     }
     return [...owed.values()] as ReadonlyArray<DebtEntry>
   })
 )
+
+/**
+ * A pure risk annotation for a change, never a gate. The level comes from
+ * the live matching edges alone: `"high"` if any has confidence at or above
+ * `0.7`, `"medium"` at or above `0.4`, else `"low"`. Each contributing edge
+ * is named in `reasons` as `<scope> -> <affects> (<confidence>)`.
+ *
+ * The design draft passed the plan in this input; the pinned rule never
+ * reads it, so the shipped signature drops it — recorded here so the
+ * narrowing reads as a decision.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export interface Risk {
+  readonly level: "low" | "medium" | "high"
+  readonly reasons: ReadonlyArray<string>
+}
+
+/**
+ * Computes the {@link Risk} annotation for a change against the pinned
+ * belief snapshot. Pure: same input, same output, no services.
+ *
+ * @since 0.1.0
+ * @category combinators
+ */
+export const risk = (input: {
+  readonly changed: ReadonlyArray<string>
+  readonly beliefs: BeliefSnapshot
+}): Risk => {
+  const live = liveEdges(input.beliefs, input.changed)
+  const level = live.some((edge) => edge.confidence >= 0.7)
+    ? "high"
+    : live.some((edge) => edge.confidence >= 0.4)
+    ? "medium"
+    : "low"
+  return {
+    level,
+    reasons: live.map((edge) => `${edge.scope} -> ${edge.affects} (${edge.confidence})`)
+  }
+}
+
+/**
+ * What {@link card} renders from: settlements and deferral/proposal details
+ * as plain data, plus the recertification cadence label and an optional
+ * {@link Risk} annotation.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export interface CardInput {
+  readonly settlements: ReadonlyArray<{ readonly nodeId: string; readonly outcome: string }>
+  readonly deferrals: ReadonlyArray<{ readonly nodeId: string; readonly likelihood: number }>
+  readonly proposals: ReadonlyArray<{ readonly flow: string; readonly confidence: number; readonly scope: string }>
+  readonly cadence: string
+  readonly risk?: Risk | undefined
+}
+
+/**
+ * Renders the plan card, one string per line, in the spec's row grammar:
+ * `clean` renders as `cached`, `built` as `run`, `deferred` carries its fail
+ * likelihood and the recertification cadence, each proposal names the edge
+ * that suggested it, and any other outcome renders under its own name. Pure:
+ * no IO, no services.
+ *
+ * @since 0.1.0
+ * @category combinators
+ */
+export const card = (input: CardInput): ReadonlyArray<string> => {
+  const likelihoods = new Map(input.deferrals.map((deferral) => [deferral.nodeId, deferral.likelihood]))
+  const row = (label: string, rest: string) => `  ${label.padEnd(8)}  ${rest}`
+  const lines: Array<string> = []
+  for (const settlement of input.settlements) {
+    if (settlement.outcome === "clean") lines.push(row("cached", settlement.nodeId))
+    else if (settlement.outcome === "built") lines.push(row("run", settlement.nodeId))
+    else if (settlement.outcome === "deferred") {
+      const likelihood = likelihoods.get(settlement.nodeId) ?? 0
+      lines.push(row("deferred", `${settlement.nodeId}    fail likelihood ${likelihood} - recert ${input.cadence}`))
+    } else lines.push(row(settlement.outcome, settlement.nodeId))
+  }
+  for (const proposal of input.proposals) {
+    lines.push(row("proposed", `${proposal.flow}    suspected edge ${proposal.confidence} - ${proposal.scope} touched`))
+  }
+  if (input.risk !== undefined) {
+    lines.push(row("risk", `${input.risk.level} - ${input.risk.reasons.join("; ")}`))
+  }
+  return lines
+}
+
+/**
+ * The workspace paths a flow's live suspected edges select: the
+ * `boundaryMode: "expected"` feeder. A path is included when any edge valid
+ * at the snapshot's pin names the flow in `affects` and matches the path
+ * with its scope glob; the result is deduplicated and keeps input order.
+ * Pure: no IO, no services. Wiring this into an agent step is future work —
+ * no agent steps exist in this repo.
+ *
+ * @since 0.1.0
+ * @category combinators
+ */
+export const proposeReadSet = (input: {
+  readonly beliefs: BeliefSnapshot
+  readonly flow: string
+  readonly paths: ReadonlyArray<string>
+}): ReadonlyArray<string> => {
+  const edges = input.beliefs.edges.filter((edge) =>
+    edge.validFromMs <= input.beliefs.pinnedAtMs && edge.affects === input.flow
+  )
+  const seen = new Set<string>()
+  const selected: Array<string> = []
+  for (const path of input.paths) {
+    if (seen.has(path)) continue
+    if (edges.some((edge) => matchesScope(edge.scope, path))) {
+      seen.add(path)
+      selected.push(path)
+    }
+  }
+  return selected
+}
