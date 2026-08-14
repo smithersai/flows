@@ -44,13 +44,16 @@ import * as KeyMaterial from "@smthrs/plan-next/KeyMaterial"
 import * as Node from "@smthrs/plan-next/Node"
 import * as Planned from "@smthrs/plan-next/Planned"
 import * as StepKey from "@smthrs/plan-next/StepKey"
+import * as Cause from "effect/Cause"
 import type * as Crypto from "effect/Crypto"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Predicate from "effect/Predicate"
 import * as Schema from "effect/Schema"
+import * as Scope from "effect/Scope"
 import { type Implementation, Implementations } from "./Action/Implementations.ts"
 import type { Any as AnyFlow, AnyStructSchema, AnyWithProps, Flow } from "./Flow/Flow.ts"
 import * as Outcome from "./Flow/Outcome.ts"
@@ -326,19 +329,30 @@ export const interpret = (
      * The check-and-register below is the whole reason this is a `suspend` and
      * not a generator: the callback runs synchronously, so no other fiber can
      * observe the gap between the lookup and the insert.
+     *
+     * Every computation runs on a fiber forked into `nodes`, the
+     * interpretation's own scope, and every demand — the first included — is a
+     * join on the node's deferred. Ownership by the interpretation rather than
+     * by whichever demand arrived first is what makes a ref-diamond sound: a
+     * failing `All` interrupts its member JOINS, never a shared node's
+     * execution, so recovery arms above can still join the shared work; and
+     * when the walk itself ends, closing the scope interrupts whatever is
+     * still running, so an orphaned execution cannot outlive the
+     * interpretation or write a phantom success into `settled` afterwards
+     * (Skyframe's and `MemoMap`'s ownership model).
      */
     const inFlight = new Map<string, Deferred.Deferred<unknown, unknown>>()
+    const nodes = yield* Scope.make()
 
     const settle = (id: string): Effect.Effect<unknown, unknown, Services> =>
       Effect.suspend(() => {
         if (settled.has(id)) return Effect.succeed(settled.get(id))
         const waiting = inFlight.get(id)
-        // A second demand joins the first execution rather than starting one.
-        // It observes the same exit, interruption included.
+        // A later demand joins the execution rather than starting one.
         if (waiting !== undefined) return Deferred.await(waiting)
         const deferred = Deferred.makeUnsafe<unknown, unknown>()
         inFlight.set(id, deferred)
-        return compute(byId.get(id)!).pipe(
+        const execution = compute(byId.get(id)!).pipe(
           Effect.tap((value) =>
             Effect.sync(() => {
               settled.set(id, value)
@@ -349,7 +363,21 @@ export const interpret = (
               failed.set(id, error)
             })
           ),
-          Effect.onExit((exit) => Deferred.done(deferred, exit))
+          Effect.onExit((exit) => {
+            // An interrupted execution is evicted, not memoized: current
+            // joiners observe the interruption, but a LATER demand — a
+            // recovery arm, a re-driven walk — re-executes the node instead
+            // of replaying an interrupt that says nothing about it.
+            if (Exit.isFailure(exit) && Cause.hasInterruptsOnly(exit.cause)) inFlight.delete(id)
+            return Deferred.done(deferred, exit)
+          })
+        )
+        // `startImmediately` keeps the first demand's latency identical to the
+        // old inline execution: the node runs synchronously until its first
+        // real suspension, so a body that parks does so before the driver's
+        // next tick — the same observable cadence a sequential walk had.
+        return Effect.forkIn(execution, nodes, { startImmediately: true }).pipe(
+          Effect.andThen(Deferred.await(deferred))
         )
       })
 
@@ -422,10 +450,13 @@ export const interpret = (
           case "All": {
             // `All` is a combination, so its members settle concurrently — the
             // same semantics `PlanScheduler` gives the same graph. Fail-fast
-            // with sibling interruption is the accepted behaviour: it matches
-            // `Effect.forEach`'s default and the scheduler's halt rule, and a
-            // sibling interrupted mid-flight records nothing in `settled`, so
-            // it is reported as skipped rather than as a phantom success.
+            // matches `Effect.forEach`'s default and the scheduler's halt
+            // rule — with the ownership caveat: what a failure interrupts is
+            // each sibling's JOIN, not the node execution itself, which the
+            // interpretation owns and interrupts when the walk ends. A node
+            // whose execution was interrupted is evicted from the memo and
+            // records nothing, so it reports as skipped rather than as a
+            // phantom success.
             const members = Object.keys(ast.nodes)
             const values = yield* Effect.forEach(members, (_, index) => settle(children[index]!), {
               concurrency: "unbounded"
@@ -500,7 +531,14 @@ export const interpret = (
       }
     )
 
-    const value = yield* settle(options.root ?? "root")
+    // Closing the node scope on every exit — value, failure, or the
+    // interpretation's own interruption — is the fail-fast half of the
+    // ownership model: whatever is still running when the walk ends is
+    // interrupted before the interpretation reports, so no execution
+    // outlives it.
+    const value = yield* settle(options.root ?? "root").pipe(
+      Effect.onExit((exit) => Scope.close(nodes, exit))
+    )
     return {
       value,
       settled,
