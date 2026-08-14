@@ -54,6 +54,7 @@ import * as PlatformError from "effect/PlatformError"
 import * as Ref from "effect/Ref"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
+import * as FileEnumeration from "./internal/FileEnumeration.ts"
 
 /**
  * A protocol-neutral resource named in execution provenance.
@@ -348,6 +349,19 @@ export class MaterializationConflict extends Schema.TaggedError<MaterializationC
     message: Schema.String
   }
 ) {}
+
+/**
+ * Whether a failure is a materialization conflict in live or durable form.
+ * Persisted failures retain the schema tag but not the class prototype, so
+ * replay classification must recognize both representations.
+ *
+ * @category guards
+ * @since 0.1.0
+ */
+export const isMaterializationConflict = (error: unknown): boolean =>
+  error instanceof MaterializationConflict ||
+  (typeof error === "object" && error !== null && "_tag" in error &&
+    error._tag === MaterializationConflict.identifier)
 
 /**
  * The two-phase workspace transaction service.
@@ -690,9 +704,18 @@ const transaction = (base: ReadonlyMap<string, Uint8Array>, trace: Trace, root: 
       })
       : PlatformError.badArgument({ module: "FileSystem", method, description: error.message })
   const fileSystem = FileSystem.makeNoop({
+    // `exists` and `readDirectory` trace every PRESENCE they reveal: under a
+    // whole-tree-seeding host the map holds undeclared world state, and a
+    // probe that observes it is a read the key never folded. Absence stays
+    // untraced — under the declared-set host an undeclared path is absent by
+    // construction, the Bazel forest's own deterministic answer.
     exists: (path) =>
       resolvePath(path).pipe(
-        Effect.map((key) => files.has(key)),
+        Effect.map((key) => {
+          const present = files.has(key)
+          if (present) trace.attemptedReads.push({ path: key, produced: produced.has(key) })
+          return present
+        }),
         // A path the transaction cannot even name does not exist in it; that
         // is an answer, not a host failure.
         Effect.catch(() => Effect.succeed(false))
@@ -718,6 +741,8 @@ const transaction = (base: ReadonlyMap<string, Uint8Array>, trace: Trace, root: 
           const entries = new Set<string>()
           for (const candidate of files.keys()) {
             if (!candidate.startsWith(prefix)) continue
+            // A listing reveals each file it names, so each is a traced read.
+            trace.attemptedReads.push({ path: candidate, produced: produced.has(candidate) })
             entries.add(candidate.slice(prefix.length).split("/")[0]!)
           }
           return [...entries].sort()
@@ -873,7 +898,12 @@ export const makeHosted = (host: Host): Service => {
         )
       )
       if (Exit.isFailure(outcome)) {
-        if (undeclaredReads.length > 0) {
+        // Hard mode only, mirroring the success path below: in expected mode
+        // an undeclared read is a deviation the engine journals, and a body's
+        // own typed failure must surface as itself — converting it into an
+        // isolation verdict would both harden a soft boundary and mask the
+        // error the retry policy classifies on.
+        if (undeclaredReads.length > 0 && execution.descriptor.boundaryMode === "hard") {
           return {
             _tag: "Invalidated" as const,
             provenance: {
@@ -1193,26 +1223,13 @@ export const makeFileSystem = (
     snapshot: Effect.fn("WorkspaceSandbox.snapshot")(function*(descriptor) {
       const base = new Map<string, Uint8Array>()
       for (const entry of descriptor.readSet) {
+        // Through `FileEnumeration`, never the host `glob`: host results skip
+        // dotfiles, so a declared read glob covering one would seed a sandbox
+        // that silently hides it from the body.
         const paths = FileSet.isGlob(entry)
-          ? yield* Effect.gen(function*() {
-            const matched = new Set<string>()
-            for (const include of entry.include) {
-              const found = yield* fs.glob(hostPath(include), {
-                exclude: (entry.exclude ?? []).map(hostPath)
-              }).pipe(Effect.mapError(hostFailure))
-              for (const candidate of found) {
-                const normalized = normalizePath(root, candidate)
-                /* v8 ignore next -- a host glob rooted under the validated workspace cannot escape it */
-                if (Result.isFailure(normalized)) return yield* Effect.fail(normalized.failure)
-                const info = yield* fs.stat(candidate).pipe(Effect.mapError(hostFailure))
-                /* v8 ignore else -- non-file glob matches are intentionally discarded */
-                if (info.type === "File" && FileSet.matchesGlob(entry, normalized.success)) {
-                  matched.add(normalized.success)
-                }
-              }
-            }
-            return [...matched].sort()
-          })
+          ? yield* FileEnumeration.expandGlob(fs, entry, {
+            resolve: (path) => path === "" ? (root === "" ? "." : root) : hostPath(path)
+          }).pipe(Effect.mapError(hostFailure))
           : [entry.path]
         for (const path of paths) {
           const normalized = normalizePath(root, path)
@@ -1226,7 +1243,7 @@ export const makeFileSystem = (
       }
       for (const path of descriptor.removes ?? []) {
         const normalized = normalizePath(root, path)
-        /* v8 ignore next -- FileBoundary rejects upward and absolute removal declarations */
+        /* v8 ignore next -- `FileBoundary.removes` is `FileSet.Pattern`-checked, so a decoded boundary cannot carry an upward or absolute removal; the branch guards hand-built descriptors */
         if (Result.isFailure(normalized)) return yield* Effect.fail(normalized.failure)
         const content = yield* readIfPresent(hostPath(normalized.success))
         if (content !== undefined) base.set(normalized.success, content)

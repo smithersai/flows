@@ -389,7 +389,10 @@ describe("cache convergence from a succeeded attempt row", () => {
                 boundary: {
                   declaredOutputs: {},
                   diffIdentity: "identity",
-                  wholeTreeWritesVerified: true
+                  wholeTreeWritesVerified: true,
+                  // Convergence fails closed on BOTH proofs, exactly like the
+                  // fresh-completion publication gate.
+                  hermeticReadsVerified: true
                 },
                 // Convergence re-records only completions whose read set was
                 // verified at prepare time (issue #106).
@@ -413,6 +416,54 @@ describe("cache convergence from a succeeded attempt row", () => {
     const cached = Option.getOrThrow(result.cached)
     expect(cached.result).toBe("recorded-outcome")
     expect(cached.createdAtMs).toBeGreaterThan(0)
+  })
+
+  it("does not converge a row carrying the write proof alone", async () => {
+    // A durable succeeded row persisted before read verification existed
+    // carries `wholeTreeWritesVerified` only. Resume must serve the run its
+    // own recorded outcome but never promote the row into the shared cache:
+    // convergence fails closed on BOTH proofs.
+    const key = "edge/write-proof-only"
+    const keyDigest = sha256(key)
+    const result = await runPromise(
+      Effect.gen(function*() {
+        yield* activate("write-proof-only")
+        const attempts = yield* AttemptStore.AttemptStore
+        const succeeded = AttemptStore.makeNoop({
+          ...attempts,
+          get: () =>
+            Effect.succeedSome({
+              runId: "write-proof-only",
+              stepKeyDigest: keyDigest,
+              attempt: 1,
+              state: "succeeded",
+              startedAtMs: 0,
+              outcome: "recorded-outcome",
+              meta: {
+                tier: "sealed",
+                boundary: {
+                  declaredOutputs: {},
+                  diffIdentity: "identity",
+                  wholeTreeWritesVerified: true
+                },
+                readSetVerified: true
+              }
+            })
+        })
+        const value = yield* dispatch({
+          runId: "write-proof-only",
+          key,
+          tier: "sealed",
+          metadata: boundary,
+          execute: () => Effect.die("must not dispatch")
+        }).pipe(Effect.provideService(AttemptStore.AttemptStore, succeeded))
+        const cache = yield* CacheStore.CacheStore
+        return { value, cached: yield* cache.get(keyDigest) }
+      }).pipe(Effect.provide(base()), Effect.scoped)
+    )
+
+    expect(result.value).toBe("recorded-outcome")
+    expect(Option.isNone(result.cached)).toBe(true)
   })
 })
 

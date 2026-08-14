@@ -6,7 +6,7 @@
  *
  * @since 4.0.0
  */
-import { Action, type DurableDeferred, Flow, FlowRuntime, RetryPolicy } from "@smthrs/flow-next"
+import { Action, type DurableDeferred, Flow, FlowRuntime, RetryPolicy, StepIdentity } from "@smthrs/flow-next"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
@@ -21,6 +21,18 @@ import * as Round from "./Round.ts"
 import { SnapshotBoundary, type SnapshotBoundaryOptions } from "./SnapshotBoundary.ts"
 
 const toJsonExit = Exit.map((value: any) => value ?? null)
+
+/**
+ * The allocation scope derived once by the dispatch wrapper and consumed by
+ * the ordinal allocator inside it. Keeping one value in context makes the
+ * concurrent guard and allocation path incapable of checking different
+ * identities.
+ *
+ * @private
+ */
+const ActionOrdinalScope = Context.Service<never, string>(
+  "@smthrs/engine-next/FlowEngine/ActionOrdinalScope"
+)
 
 /**
  * Builds a typed `FlowRuntime` service from a low-level encoded
@@ -250,6 +262,7 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
       R
     >(action: Action.Action<Success, Error, R>, attempt: number) {
       const instance = yield* FlowRuntime.FlowInstance
+      const scope = yield* ActionOrdinalScope
       // `Action.retry` hands down an empty slot map rather than a number:
       // the ordinal can only be allocated here, where the action — and so
       // its allocation scope — is known (issue #73). The slot is keyed by
@@ -260,11 +273,6 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
       // declaration several times, and each dispatch owns its own identity —
       // allocated on the attempt that first reaches it, replayed by position
       // on every later attempt.
-      const scopeResult = yield* Effect.result(ordinalScope(action))
-      if (Result.isFailure(scopeResult)) {
-        return uncanonicalKey(action.name, scopeResult.failure)
-      }
-      const scope = scopeResult.success
       const slot = yield* Action.CurrentOrdinal
       let ordinal: number
       if (slot === undefined) {
@@ -472,11 +480,13 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
       // the step keys, attempt rows, and recorded outcomes — would be
       // assigned by fiber arrival order, and a crash-resume replaying the
       // fibers in the opposite order would silently hand one invocation the
-      // other's recorded outcome (issue #111). There is no engine-visible
-      // input material to order them by (inputs live in the execute
-      // closure), so the hazard is refused up front — Temporal's
-      // nondeterminism error, moved to the first run — and a declared
-      // idempotencyKey *distinguishing the invocations* is the way out.
+      // other's recorded outcome (issue #111). Interpreter graph nodes carry
+      // replay-stable structural sites, so distinct nodes refine the scope
+      // and may overlap. Indistinguishable dispatches — the same site, or
+      // handler-driven calls with no site — still have no engine-visible
+      // material to order them by (inputs live in the execute closure), so
+      // the hazard is refused up front. A declared idempotencyKey also
+      // distinguishes invocations when its values differ.
       // Only a sealed action with a key escapes the refusal: it takes a
       // pure cache key with no ordinal at all. A keyed action at any
       // other tier still resolves to an invocation key whose scope folds the
@@ -486,10 +496,17 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
       // would even hand both dispatches the same pinned ordinal (issue
       // #130). Distinct keys are distinct scopes and overlap freely.
       Effect.gen(function*() {
-        if (action.tier === "sealed" && action.idempotencyKey !== undefined) return yield* body
+        const dispatchSite = yield* Effect.serviceOption(StepIdentity.DispatchSite)
+        const site = Option.getOrUndefined(dispatchSite)
+        const scopeResult = yield* Effect.result(ordinalScope(action, site))
+        if (Result.isFailure(scopeResult)) {
+          return uncanonicalKey(action.name, scopeResult.failure)
+        }
+        const scope = scopeResult.success
+        const scopedBody = body.pipe(Effect.provideService(ActionOrdinalScope, scope))
+        if (action.tier === "sealed" && action.idempotencyKey !== undefined) return yield* scopedBody
         const instance = yield* FlowRuntime.FlowInstance
         const inFlight = instance.actionState.keylessInFlight
-        const scope = yield* ordinalScope(action).pipe(Effect.orDie)
         // The acquire and its release live in one uninterruptible region
         // (issue #139): a bare `add` followed by `Effect.ensuring` left a
         // one-op window — after the add, before the finalizer registered —
@@ -504,7 +521,7 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
           }),
           (acquired) =>
             acquired
-              ? body
+              ? scopedBody
               : Effect.die(
                 new Action.ConcurrentKeylessDispatch({ actionName: action.name })
               ),

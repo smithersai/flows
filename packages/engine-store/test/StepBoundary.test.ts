@@ -1,7 +1,7 @@
 import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
 import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
-import * as FileSet from "@smthrs/plan-next/FileSet"
 import * as Effect from "effect/Effect"
+import * as Encoding from "effect/Encoding"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"
@@ -126,6 +126,39 @@ describe("StepBoundary", () => {
     expect(evidence.deviation).toBeUndefined()
   })
 
+  it("hard-fails a surviving removal the fixture reports", async () => {
+    const program = Effect.gen(function*() {
+      const boundary = yield* StepBoundary.StepBoundary
+      const prepared = yield* boundary.prepare({
+        ...descriptor,
+        writeSet: ["output.txt"],
+        removes: ["stale.txt"]
+      })
+      return yield* Effect.flip(boundary.settle(prepared))
+    }).pipe(Effect.provide(StepBoundary.layerTest({ survivingRemovals: ["stale.txt"] })))
+    const failure = await runPromise(program)
+    expect(failure).toMatchObject({
+      _tag: "flows/engine-store/SurvivingDeclaredRemoval",
+      code: "surviving_declared_removal",
+      paths: ["stale.txt"]
+    })
+  })
+
+  it("records a fixture-reported surviving removal as a deviation in expected mode", async () => {
+    const program = Effect.gen(function*() {
+      const boundary = yield* StepBoundary.StepBoundary
+      const prepared = yield* boundary.prepare({
+        ...descriptor,
+        boundaryMode: "expected",
+        writeSet: ["output.txt"],
+        removes: ["stale.txt"]
+      })
+      return yield* boundary.settle(prepared)
+    }).pipe(Effect.provide(StepBoundary.layerTest({ survivingRemovals: ["stale.txt"] })))
+    const evidence = await runPromise(program)
+    expect(evidence.deviation).toMatchObject({ _tag: "SurvivingDeclaredRemoval", paths: ["stale.txt"] })
+  })
+
   it("fails closed when the host does not support boundaries", async () => {
     const program = Effect.gen(function*() {
       const boundary = yield* StepBoundary.StepBoundary
@@ -165,42 +198,107 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
     const files = new Map<string, Uint8Array>(
       Object.entries(seed).map(([path, content]) => [path, encoder.encode(content)])
     )
+    const directories = new Set<string>()
+    const addParentDirectories = (path: string) => {
+      const segments = path.split("/")
+      for (let index = 1; index < segments.length; index++) {
+        directories.add(segments.slice(0, index).join("/"))
+      }
+    }
+    for (const path of files.keys()) addParentDirectories(path)
+    const failedReads = new Set<string>()
+    const madeDirectories: Array<string> = []
+    const removals: Array<string> = []
+    const writes: Array<string> = []
+    const present = (path: string) =>
+      files.has(path) ||
+      directories.has(path) ||
+      [...files.keys(), ...directories].some((candidate) => candidate.startsWith(`${path}/`))
     const fs = FileSystem.makeNoop({
-      exists: ((path: string) =>
-        Effect.succeed(
-          files.has(path) || [...files.keys()].some((candidate) => candidate.startsWith(`${path}/`))
-        )) as never,
+      exists: ((path: string) => Effect.succeed(present(path))) as never,
       readFile: ((path: string) =>
-        files.has(path)
-          ? Effect.succeed(files.get(path)!)
-          : Effect.die(`missing file ${path}`)) as never,
+        Effect.suspend(() => {
+          if (failedReads.delete(path)) return Effect.fail(new Error(`EIO: ${path}`))
+          const bytes = files.get(path)
+          return bytes === undefined ? Effect.fail(new Error(`ENOENT: ${path}`)) : Effect.succeed(bytes)
+        })) as never,
       writeFile: ((path: string, bytes: Uint8Array) =>
         Effect.sync(() => {
+          writes.push(path)
+          addParentDirectories(path)
           files.set(path, bytes)
         })) as never,
       remove: ((path: string, options?: { readonly recursive?: boolean }) =>
-        Effect.sync(() => {
-          files.delete(path)
-          if (options?.recursive === true) {
+        Effect.suspend(() => {
+          const descendantFiles = [...files.keys()].filter((candidate) => candidate.startsWith(`${path}/`))
+          const descendantDirectories = [...directories].filter((candidate) => candidate.startsWith(`${path}/`))
+          if (
+            files.has(path) === false &&
+            options?.recursive !== true &&
+            (descendantFiles.length > 0 || descendantDirectories.length > 0)
+          ) return Effect.fail(new Error(`ENOTEMPTY: ${path}`))
+          return Effect.sync(() => {
+            removals.push(path)
+            files.delete(path)
+            directories.delete(path)
+            if (options?.recursive !== true) return
             for (const candidate of files.keys()) {
               if (candidate.startsWith(`${path}/`)) files.delete(candidate)
             }
+            for (const candidate of directories) {
+              if (candidate.startsWith(`${path}/`)) directories.delete(candidate)
+            }
+          })
+        })) as never,
+      makeDirectory: ((path: string, options?: { readonly recursive?: boolean }) =>
+        Effect.sync(() => {
+          madeDirectories.push(path)
+          if (options?.recursive !== true) {
+            directories.add(path)
+            return
+          }
+          const segments = path.split("/")
+          for (let index = 1; index <= segments.length; index++) {
+            directories.add(segments.slice(0, index).join("/"))
           }
         })) as never,
-      makeDirectory: (() => Effect.void) as never,
-      glob: ((pattern: string, options?: { readonly exclude?: ReadonlyArray<string> }) =>
-        Effect.succeed(
-          [...files.keys()].filter((path) =>
-            FileSet.matchesPattern(pattern, path) &&
-            !(options?.exclude ?? []).some((excluded) => FileSet.matchesPattern(excluded, path))
-          ).sort()
-        )) as never,
+      // Node-faithful: a recursive listing names intermediate directories
+      // too, and `stat` answers `Directory` for them — the walk skips or
+      // collects them exactly as it does over a real host. Directories with
+      // no files exist only in the `directories` set, so listings draw from
+      // both; a missing or non-directory path answers ENOENT as a host does.
+      readDirectory: ((directory: string, options?: { readonly recursive?: boolean }) =>
+        Effect.suspend(() => {
+          const root = directory === "."
+          if (!root && (!present(directory) || files.has(directory))) {
+            return Effect.fail(new Error(`ENOENT: ${directory}`))
+          }
+          const prefix = root ? "" : `${directory}/`
+          const entries = new Set<string>()
+          for (const candidate of [...directories, ...files.keys()]) {
+            if (prefix !== "" && !candidate.startsWith(prefix)) continue
+            const relative = prefix === "" ? candidate : candidate.slice(prefix.length)
+            entries.add(options?.recursive === true ? relative : relative.split("/")[0]!)
+          }
+          return Effect.succeed([...entries].sort())
+        })) as never,
       stat: ((path: string) =>
         files.has(path)
           ? Effect.succeed({ type: "File" })
-          : Effect.die(`missing stat ${path}`)) as never
+          : present(path)
+          ? Effect.succeed({ type: "Directory" })
+          : Effect.fail(new Error(`ENOENT: ${path}`))) as never
     })
-    return { files, layer: StepBoundary.layer.pipe(Layer.provide(hostLayer(fs))) }
+    return {
+      directories,
+      failedReads,
+      files,
+      fs,
+      madeDirectories,
+      removals,
+      writes,
+      layer: StepBoundary.layer.pipe(Layer.provide(hostLayer(fs)))
+    }
   }
 
   const declared = (content: string): FileBoundary => ({
@@ -362,6 +460,128 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
     expect(decoder.decode(consumer.files.get("output.txt"))).toBe("built")
   })
 
+  it("hard-fails a declared removal the body left in place", async () => {
+    // The dual of the missing-output rule: `removes` promises the post-state.
+    // A path that survived — here, quietly rewritten — must not settle as
+    // evidence, or the mutation is cached under a declaration that disclaimed
+    // it and replay materializes it everywhere.
+    const host = memoryFs({ "input.txt": "original", "stale.txt": "obsolete" })
+    const failure = await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        const prepared = yield* boundary.prepare({
+          ...declared("original"),
+          writeSet: ["output.txt"],
+          removes: ["stale.txt"]
+        })
+        host.files.set("output.txt", encoder.encode("built"))
+        host.files.set("stale.txt", encoder.encode("mutated, not deleted"))
+        return yield* Effect.flip(boundary.settle(prepared))
+      }).pipe(Effect.provide(host.layer))
+    )
+    expect(failure).toMatchObject({
+      _tag: "flows/engine-store/SurvivingDeclaredRemoval",
+      code: "surviving_declared_removal",
+      paths: ["stale.txt"]
+    })
+  })
+
+  it("records a surviving removal as a deviation under an expected boundary", async () => {
+    const host = memoryFs({ "input.txt": "original", "stale.txt": "obsolete" })
+    const evidence = await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        const prepared = yield* boundary.prepare({
+          ...declared("original"),
+          boundaryMode: "expected",
+          writeSet: ["output.txt"],
+          removes: ["stale.txt"]
+        })
+        host.files.set("output.txt", encoder.encode("built"))
+        return yield* boundary.settle(prepared)
+      }).pipe(Effect.provide(host.layer))
+    )
+    expect(evidence.deviation).toMatchObject({ _tag: "SurvivingDeclaredRemoval", paths: ["stale.txt"] })
+  })
+
+  it("refuses to replay evidence naming a path outside the workspace", async () => {
+    // Evidence can arrive from a foreign producer through cache sync, and
+    // replay DELETES what it names: confinement is the difference between a
+    // refusal and a wipe.
+    const host = memoryFs({})
+    const failure = await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        return yield* Effect.flip(boundary.replayOutputs({
+          declaredOutputs: { outputs: [{ path: "../escape.txt", digest: null }] },
+          diffIdentity: "tampered"
+        }))
+      }).pipe(Effect.provide(host.layer))
+    )
+    expect(failure).toMatchObject({ code: "unsupported_boundary" })
+    const absolute = await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        return yield* Effect.flip(boundary.replayOutputs({
+          declaredOutputs: { outputs: [], trees: [{ path: "/", identity: "x" }] },
+          diffIdentity: "tampered"
+        }))
+      }).pipe(Effect.provide(host.layer))
+    )
+    expect(absolute).toMatchObject({ code: "unsupported_boundary" })
+  })
+
+  it("expands root-level patterns and walks a shared include prefix once", async () => {
+    // A root-level pattern walks the workspace root itself; two includes with
+    // one static prefix walk that subtree once and still match through every
+    // include.
+    const host = memoryFs({ "a.out": "x", "docs/a.md": "m", "docs/b.txt": "t", "src/skip.js": "s" })
+    const evidence = await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        const prepared = yield* boundary.prepare({
+          readSet: [],
+          writeSet: [{ _tag: "Glob", include: ["*.out", "docs/*.md", "docs/*.txt"] }],
+          boundaryMode: "hard"
+        })
+        return yield* boundary.settle(prepared)
+      }).pipe(Effect.provide(host.layer))
+    )
+    const captured = (evidence.declaredOutputs as { outputs: ReadonlyArray<{ path: string }> }).outputs
+    expect(captured.map((output) => output.path)).toEqual(["a.out", "docs/a.md", "docs/b.txt"])
+  })
+
+  it("expands globs and trees over dotfiles, and replay restores them", async () => {
+    // Node's own glob skips dotfiles; the declared-pattern matcher does not.
+    // A tree capture that missed `.gitignore` would DELETE it on every
+    // cache-hit replay, because replay clears the tree first.
+    const host = memoryFs({ "dist/.hidden": "dot", "dist/app.js": "code" })
+    const evidence = await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        const prepared = yield* boundary.prepare({
+          readSet: [],
+          writeSet: [{ _tag: "TreeArtifact", path: "dist" }],
+          boundaryMode: "hard"
+        })
+        return yield* boundary.settle(prepared)
+      }).pipe(Effect.provide(host.layer))
+    )
+    const captured = (evidence.declaredOutputs as { outputs: ReadonlyArray<{ path: string }> }).outputs
+    expect(captured.map((output) => output.path).sort()).toEqual(["dist/.hidden", "dist/app.js"])
+
+    const consumer = memoryFs({ "dist/stale.js": "old" })
+    await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        yield* boundary.replayOutputs(evidence)
+      }).pipe(Effect.provide(consumer.layer))
+    )
+    expect(consumer.files.has("dist/stale.js")).toBe(false)
+    expect(decoder.decode(consumer.files.get("dist/.hidden"))).toBe("dot")
+    expect(decoder.decode(consumer.files.get("dist/app.js"))).toBe("code")
+  })
+
   it("does not count a declared removal as an undeclared write", async () => {
     const host = memoryFs({ "input.txt": "original", "output.txt": "built" })
     const evidence = await runPromise(
@@ -458,8 +678,116 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
     )).resolves.toBeDefined()
   })
 
-  it("captures and replays a tree artifact after clearing stale descendants", async () => {
-    const producer = memoryFs({ "tree/a.txt": "a", "tree/nested/b.txt": "b" })
+  it("makes a warm replay write-free without recreating parent directories", async () => {
+    const producer = memoryFs({ "dist/a.txt": "a", "dist/b.txt": "b" })
+    const evidence = await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        return yield* boundary.settle(
+          yield* boundary.prepare({
+            readSet: [],
+            writeSet: ["dist/a.txt", "dist/b.txt"],
+            boundaryMode: "hard"
+          })
+        )
+      }).pipe(Effect.provide(producer.layer))
+    )
+    const consumer = memoryFs({})
+    const replay = () =>
+      runPromise(
+        Effect.flatMap(StepBoundary.StepBoundary, (boundary) => boundary.replayOutputs(evidence)).pipe(
+          Effect.provide(consumer.layer)
+        )
+      )
+
+    await replay()
+    expect(consumer.writes).toEqual(["dist/a.txt", "dist/b.txt"])
+    consumer.writes.length = 0
+    consumer.madeDirectories.length = 0
+
+    await replay()
+    expect(consumer.writes).toEqual([])
+    expect(consumer.madeDirectories).toEqual([])
+    expect(decoder.decode(consumer.files.get("dist/a.txt"))).toBe("a")
+    expect(decoder.decode(consumer.files.get("dist/b.txt"))).toBe("b")
+  })
+
+  it("rewrites only a tampered output", async () => {
+    const producer = memoryFs({ "dist/a.txt": "a", "dist/b.txt": "b" })
+    const evidence = await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        return yield* boundary.settle(
+          yield* boundary.prepare({
+            readSet: [],
+            writeSet: ["dist/a.txt", "dist/b.txt"],
+            boundaryMode: "hard"
+          })
+        )
+      }).pipe(Effect.provide(producer.layer))
+    )
+    const consumer = memoryFs({ "dist/a.txt": "tampered", "dist/b.txt": "b" })
+
+    await runPromise(
+      Effect.flatMap(StepBoundary.StepBoundary, (boundary) => boundary.replayOutputs(evidence)).pipe(
+        Effect.provide(consumer.layer)
+      )
+    )
+
+    expect(consumer.writes).toEqual(["dist/a.txt"])
+    expect(decoder.decode(consumer.files.get("dist/a.txt"))).toBe("a")
+    expect(decoder.decode(consumer.files.get("dist/b.txt"))).toBe("b")
+  })
+
+  it("verifies the destination before decoding inline content or reading an artifact", async () => {
+    const host = memoryFs({ "inline.txt": "inline", "referenced.txt": "referenced" })
+    const boundary = StepBoundary.makeFileSystem(host.fs, ArtifactStore.makeNoop())
+
+    await runPromise(
+      boundary.replayOutputs({
+        declaredOutputs: {
+          outputs: [
+            { path: "inline.txt", digest: sha256("inline"), content: "%%%not-base64%%%" },
+            { path: "referenced.txt", digest: sha256("referenced") }
+          ]
+        },
+        diffIdentity: "warm-short-circuit"
+      })
+    )
+
+    // The first row would be corrupt if decoded and the second store refuses
+    // every read. Matching destination digests make both unnecessary.
+    expect(host.writes).toEqual([])
+  })
+
+  it("falls through to ordinary materialization when the destination probe fails", async () => {
+    const host = memoryFs({ "output.txt": "stale" })
+    host.failedReads.add("output.txt")
+    const boundary = StepBoundary.makeFileSystem(host.fs, ArtifactStore.makeNoop())
+
+    await runPromise(
+      boundary.replayOutputs({
+        declaredOutputs: {
+          outputs: [{
+            path: "output.txt",
+            digest: sha256("recorded"),
+            content: Encoding.encodeBase64(encoder.encode("recorded"))
+          }]
+        },
+        diffIdentity: "probe-refused"
+      })
+    )
+
+    expect(host.writes).toEqual(["output.txt"])
+    expect(decoder.decode(host.files.get("output.txt"))).toBe("recorded")
+  })
+
+  it("diffs a tree artifact, including dotfiles, and removes only stale empty directories", async () => {
+    const producer = memoryFs({
+      "tree/.kept": "dotfile",
+      "tree/a.txt": "a",
+      "tree/nested/b.txt": "b"
+    })
     const evidence = await runPromise(
       Effect.gen(function*() {
         const boundary = yield* StepBoundary.StepBoundary
@@ -476,17 +804,64 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
       readonly outputs: ReadonlyArray<{ readonly path: string }>
       readonly trees: ReadonlyArray<{ readonly path: string; readonly identity: string }>
     }
-    expect(outputs.outputs.map((entry) => entry.path)).toEqual(["tree/a.txt", "tree/nested/b.txt"])
+    expect(outputs.outputs.map((entry) => entry.path)).toEqual([
+      "tree/.kept",
+      "tree/a.txt",
+      "tree/nested/b.txt"
+    ])
     expect(outputs.trees[0]).toMatchObject({ path: "tree" })
     expect(outputs.trees[0]!.identity).toMatch(/^key1_/)
 
-    const consumer = memoryFs({ "tree/stale.txt": "stale" })
+    const consumer = memoryFs({
+      "tree/.kept": "dotfile",
+      "tree/a.txt": "a",
+      "tree/nested/b.txt": "tampered",
+      "tree/stale/.secret": "stale"
+    })
     await runPromise(
       Effect.flatMap(StepBoundary.StepBoundary, (boundary) => boundary.replayOutputs(evidence)).pipe(
         Effect.provide(consumer.layer)
       )
     )
+    expect([...consumer.files.keys()].sort()).toEqual([
+      "tree/.kept",
+      "tree/a.txt",
+      "tree/nested/b.txt"
+    ])
+    expect(consumer.writes).toEqual(["tree/nested/b.txt"])
+    expect(consumer.removals).toEqual(["tree/stale/.secret", "tree/stale"])
+    expect(consumer.directories.has("tree/stale")).toBe(false)
+    expect(decoder.decode(consumer.files.get("tree/nested/b.txt"))).toBe("b")
+  })
+
+  it("fully materializes a recorded tree when its root is missing", async () => {
+    const producer = memoryFs({ "tree/a.txt": "a", "tree/nested/b.txt": "b" })
+    const evidence = await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        return yield* boundary.settle(
+          yield* boundary.prepare({
+            readSet: [],
+            writeSet: [{ _tag: "TreeArtifact", path: "tree" }],
+            boundaryMode: "hard"
+          })
+        )
+      }).pipe(Effect.provide(producer.layer))
+    )
+    const consumer = memoryFs({ "tree/old.txt": "old" })
+    await runPromise(consumer.fs.remove("tree", { recursive: true, force: true }))
+    consumer.removals.length = 0
+
+    await runPromise(
+      Effect.flatMap(StepBoundary.StepBoundary, (boundary) => boundary.replayOutputs(evidence)).pipe(
+        Effect.provide(consumer.layer)
+      )
+    )
+
+    expect(consumer.writes).toEqual(["tree/a.txt", "tree/nested/b.txt"])
     expect([...consumer.files.keys()].sort()).toEqual(["tree/a.txt", "tree/nested/b.txt"])
+    expect(consumer.directories.has("tree")).toBe(true)
+    expect(consumer.directories.has("tree/nested")).toBe(true)
   })
 
   it("captures write-set outputs and re-materializes them on a fresh workspace", async () => {

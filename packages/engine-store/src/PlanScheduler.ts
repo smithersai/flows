@@ -74,6 +74,7 @@ import * as Option from "effect/Option"
 import * as Ref from "effect/Ref"
 import * as Schema from "effect/Schema"
 import * as ActionPersistence from "./internal/ActionPersistence.ts"
+import * as FileEnumeration from "./internal/FileEnumeration.ts"
 import * as JournalRecords from "./internal/JournalRecords.ts"
 import * as Reconciliation from "./Reconciliation.ts"
 import * as Selection from "./Selection.ts"
@@ -105,6 +106,19 @@ import * as WorkspaceSandbox from "./WorkspaceSandbox.ts"
 export type Outcome = "built" | "clean" | "failed" | "skipped" | "deferred"
 
 /**
+ * One material `Ref` input, resolved: the settled output of `from` projected
+ * along `path` — exactly the value whose digest the dispatch key folds.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export interface ResolvedInput {
+  readonly from: string
+  readonly path: ReadonlyArray<string>
+  readonly value: unknown
+}
+
+/**
  * What the scheduler hands a node's executor.
  *
  * @since 0.1.0
@@ -115,8 +129,14 @@ export interface NodeInput {
   readonly attempt: number
   /** The measured boundary this dispatch was keyed under. */
   readonly boundary: FileBoundary
-  /** Results of the node's dependencies, by node id. */
-  readonly inputs: Readonly<Record<string, unknown>>
+  /**
+   * The node's material `Ref` inputs, resolved through the same projection the
+   * dispatch key digests. Ordering (`Pending`) dependencies and unprojected
+   * sibling fields are deliberately absent: an executor may only see data the
+   * key folds, or a cached settlement could be served for an execution that
+   * consumed something else.
+   */
+  readonly inputs: ReadonlyArray<ResolvedInput>
 }
 
 /**
@@ -163,7 +183,7 @@ export interface Settlement {
   readonly nodeId: string
   /** The plan-time key: a pure function of declarations. */
   readonly planKey: string
-  /** The key dispatched under: the plan key folded with the measured boundary. */
+  /** The key dispatched under: the node's own material, the content of its consumed inputs, and the measured boundary — never the transitive plan key. */
   readonly dispatchKey: string
   readonly outcome: Outcome
   readonly attempts: number
@@ -196,6 +216,11 @@ export interface Options {
   readonly runId: string
   readonly owner: Ownership.OwnerId
   readonly sourceId: string
+  /**
+   * The engine-resolved execution environment each dispatch is keyed under.
+   * Omitting it preserves the existing dispatch identity.
+   */
+  readonly environment?: StepKey.EnvironmentIdentity | undefined
   /**
    * The admission caps. Both default to unbounded, because a cap the caller
    * did not declare is not the scheduler's to invent — `aspects.ts` owns the
@@ -299,9 +324,7 @@ const unmeasured = "unmeasured"
 
 /** @private */
 const isConflict = (cause: Cause.Cause<unknown>): boolean =>
-  cause.reasons.some((reason) =>
-    Cause.isFailReason(reason) && reason.error instanceof WorkspaceSandbox.MaterializationConflict
-  )
+  cause.reasons.some((reason) => Cause.isFailReason(reason) && WorkspaceSandbox.isMaterializationConflict(reason.error))
 
 /** @private */
 const DeviationPayload = Schema.Struct({
@@ -323,6 +346,13 @@ interface NodeState {
   rebases: number
   waited: number
   dispatchKey: string
+}
+
+/** @private */
+interface ObservedRead {
+  readonly entry: FileSet.ReadEntry
+  /** Source members observed when this declaration entered the run. */
+  readonly sourcePaths: ReadonlyArray<string>
 }
 
 /** @private */
@@ -419,11 +449,12 @@ export const make = (options: Options): Service => {
       let plan = initial
       const states = new Map<string, NodeState>()
       const results = new Map<string, unknown>()
+      const digestMemo = StepKey.makeDigestMemo()
       const verdicts: Array<{ nodeId: string; verdict: Reconciliation.Verdict }> = []
       const appended: Array<string> = []
       /** Ordering edges reconciliation discovered; live for this run only. */
       const discovered = new Map<string, Array<string>>()
-      const digestToNode = new Map<string, string>()
+      const digestToNode = new Map<string, Array<string>>()
       const deviationSignatures = new Map<string, string>()
       const writers = new Map<string, string>()
       const writerEntries: Array<{ readonly entry: FileSet.Entry; readonly nodeId: string }> = []
@@ -468,10 +499,10 @@ export const make = (options: Options): Service => {
 
       const expandReads = (entries: ReadonlyArray<FileSet.ReadEntry>, what: string) =>
         Effect.gen(function*() {
-          const paths = new Set<string>()
+          const expanded: Array<{ readonly entry: FileSet.ReadEntry; readonly paths: ReadonlyArray<string> }> = []
           for (const entry of entries) {
             if (typeof entry === "string") {
-              paths.add(entry)
+              expanded.push({ entry, paths: [entry] })
               continue
             }
             if (Option.isNone(fileSystem)) {
@@ -482,9 +513,54 @@ export const make = (options: Options): Service => {
                 })
               )
             }
-            for (const include of entry.include) {
-              const matches = yield* fileSystem.value.glob(include, { exclude: entry.exclude ?? [] }).pipe(
-                /* v8 ignore next 6 -- host refusal translation is the same typed boundary-unavailable path exercised by prepare failures */
+            // Through `FileEnumeration`, never the host `glob`: host results
+            // are absolute under the kernel FileSystem and skip dotfiles, so
+            // a workspace-relative pattern silently expanded to nothing.
+            const matches = yield* FileEnumeration.expandGlob(fileSystem.value, entry).pipe(
+              /* v8 ignore next 6 -- host refusal translation is the same typed boundary-unavailable path exercised by prepare failures */
+              Effect.mapError((cause) =>
+                new SchedulerError({
+                  code: "boundary_unavailable",
+                  message: `the host could not expand ${what}`,
+                  cause
+                })
+              )
+            )
+            expanded.push({ entry, paths: matches })
+          }
+          return expanded
+        })
+
+      const prepare = (paths: ReadonlyArray<string>, what: string) =>
+        boundaries.prepare({
+          readSet: [...new Set(paths)].sort().map((path) => ({ path, digest: unmeasured })),
+          writeSet: [],
+          boundaryMode: "hard"
+        }).pipe(
+          Effect.mapError((cause) =>
+            new SchedulerError({
+              code: "boundary_unavailable",
+              message: `the host could not measure ${what}`,
+              cause
+            })
+          )
+        )
+
+      const expandProducedMatches = (glob: FileSet.Glob, what: string) =>
+        Effect.gen(function*() {
+          if (Option.isNone(fileSystem)) {
+            return yield* Effect.fail(
+              new SchedulerError({
+                code: "boundary_unavailable",
+                message: `the host cannot expand ${what} without a FileSystem`
+              })
+            )
+          }
+          const paths = new Set<string>()
+          for (const { entry } of writerEntries) {
+            if (!FileSet.overlaps(glob, entry)) continue
+            if (typeof entry === "string") {
+              const present = yield* fileSystem.value.exists(entry).pipe(
                 Effect.mapError((cause) =>
                   new SchedulerError({
                     code: "boundary_unavailable",
@@ -493,75 +569,104 @@ export const make = (options: Options): Service => {
                   })
                 )
               )
-              for (const path of matches) {
-                /* v8 ignore next 6 -- host refusal translation is the same typed boundary-unavailable path exercised by prepare failures */
-                const info = yield* fileSystem.value.stat(path).pipe(Effect.mapError((cause) =>
+              if (!present) continue
+              const info = yield* fileSystem.value.stat(entry).pipe(
+                Effect.mapError((cause) =>
                   new SchedulerError({
                     code: "boundary_unavailable",
-                    message: `the host could not inspect ${what}`,
+                    message: `the host could not expand ${what}`,
                     cause
                   })
-                ))
-                /* v8 ignore else -- the negative branch deliberately filters directories returned by a host glob */
-                if (info.type === "File" && FileSet.matchesGlob(entry, path)) paths.add(path)
-              }
+                )
+              )
+              // Exact writer declarations name files; directory outputs use
+              // `TreeArtifact`, and only files are members of a read glob.
+              if (info.type === "File") paths.add(entry)
+              continue
+            }
+            const matches = FileSet.isGlob(entry)
+              ? yield* FileEnumeration.expandGlob(fileSystem.value, entry).pipe(
+                Effect.mapError((cause) =>
+                  new SchedulerError({
+                    code: "boundary_unavailable",
+                    message: `the host could not expand ${what}`,
+                    cause
+                  })
+                )
+              )
+              : yield* FileEnumeration.filesUnder(fileSystem.value, entry.path).pipe(
+                Effect.mapError((cause) =>
+                  new SchedulerError({
+                    code: "boundary_unavailable",
+                    message: `the host could not expand ${what}`,
+                    cause
+                  })
+                )
+              )
+            for (const path of matches) {
+              if (FileSet.matchesGlob(glob, path)) paths.add(path)
             }
           }
-          return [...paths].sort()
+          return [...paths].filter((path) => writerFor(path) !== undefined).sort()
         })
 
-      const prepare = (entries: ReadonlyArray<FileSet.ReadEntry>, what: string) =>
-        Effect.flatMap(expandReads(entries, what), (paths) =>
-          boundaries.prepare({
-            readSet: paths.map((path) => ({ path, digest: unmeasured })),
-            writeSet: [],
-            boundaryMode: "hard"
-          })).pipe(
-            Effect.mapError((cause) =>
-              new SchedulerError({
-                code: "boundary_unavailable",
-                message: `the host could not measure ${what}`,
-                cause
-              })
-            )
-          )
-
-      // The world, observed once: everything the plan reads that nothing in
-      // the plan writes is pinned before the first dispatch and never
-      // re-measured. That is the torn-run rule.
+      // A read declaration is observed only when its node enters this run:
+      // generation zero here, or one newly appended generation below. Paths
+      // already pinned by an earlier declaration reuse that digest; measuring
+      // them again would tear the run. A new source path is measured now,
+      // which is its first observation in this run.
       const pinned = new Map<string, string>()
-      const sourceEntries = plan.nodes.flatMap((node) => FileSet.expandReads(node.effects.reads))
-        .filter((entry) => !writerEntries.some((writer) => FileSet.overlaps(entry, writer.entry)))
-      if (sourceEntries.length > 0) {
-        const prepared = yield* prepare(sourceEntries, "the plan's source inputs")
-        for (const entry of prepared.readSnapshot) pinned.set(entry.path, entry.digest)
-      }
+      const observedReads = new Map<string, ReadonlyArray<ObservedRead>>()
+      const observeReads = (nodes: ReadonlyArray<Plan.PlanNode>, what: string) =>
+        Effect.gen(function*() {
+          const unpinned = new Set<string>()
+          for (const node of nodes) {
+            const observed: Array<ObservedRead> = []
+            for (const { entry, paths } of yield* expandReads(FileSet.expandReads(node.effects.reads), what)) {
+              // Coverage is tested against each concrete path, never against
+              // the declaration that happened to discover it. This is what
+              // keeps a mixed source/producer glob from becoming all producer.
+              const sourcePaths = paths.filter((path) => writerFor(path) === undefined)
+              for (const path of sourcePaths) {
+                if (!pinned.has(path)) unpinned.add(path)
+              }
+              observed.push({ entry, sourcePaths })
+            }
+            observedReads.set(node.id, observed)
+          }
+          if (unpinned.size === 0) return
+          const prepared = yield* prepare([...unpinned], what)
+          for (const entry of prepared.readSnapshot) pinned.set(entry.path, entry.digest)
+        })
+
+      // The world, observed once: expand every generation-zero read exactly
+      // once, then pin every concrete path that no declared writer covers.
+      // Source and producer membership are disjoint by construction.
+      yield* observeReads(plan.nodes, "the plan's source inputs")
 
       const measure = (node: Plan.PlanNode) =>
         Effect.gen(function*() {
           const measured = new Map<string, string>()
-          const produced: Array<FileSet.ReadEntry> = []
-          for (const entry of FileSet.expandReads(node.effects.reads)) {
-            const hasWriter = writerEntries.some((writer) => FileSet.overlaps(entry, writer.entry))
-            if (hasWriter) {
-              produced.push(entry)
+          const produced = new Set<string>()
+          const observed = observedReads.get(node.id)!
+          for (const read of observed) {
+            if (typeof read.entry === "string") {
+              if (read.sourcePaths.length === 0) produced.add(read.entry)
+              else measured.set(read.entry, pinned.get(read.entry)!)
               continue
             }
-            if (typeof entry === "string") {
-              const digest = pinned.get(entry)
-              /* v8 ignore else -- every source entry was measured into the pinned map before dispatch */
-              if (digest !== undefined) measured.set(entry, digest)
-            } else {
-              for (const [path, digest] of pinned) {
-                /* v8 ignore else -- nonmatching pinned paths are filtered by the independently tested glob predicate */
-                if (FileSet.matchesGlob(entry, path)) measured.set(path, digest)
-              }
+            for (const path of read.sourcePaths) measured.set(path, pinned.get(path)!)
+            // A glob's source membership is frozen above. Dispatch may only
+            // add paths derived from declared writer scopes: a mid-run file
+            // that no writer covers is outside this run's observed world.
+            for (const path of yield* expandProducedMatches(read.entry, `the inputs of ${node.id}`)) {
+              produced.add(path)
             }
           }
-          if (produced.length > 0) {
+          if (produced.size > 0) {
             // Produced paths are our own outputs, so measuring them once their
             // producer has settled is not re-observing the world.
-            const prepared = yield* prepare(produced, `the inputs of ${node.id}`)
+            const prepared = yield* prepare([...produced], `the inputs of ${node.id}`)
             for (const entry of prepared.readSnapshot) measured.set(entry.path, entry.digest)
           }
           return {
@@ -596,7 +701,13 @@ export const make = (options: Options): Service => {
       const dispatchKeyFor = (node: Plan.PlanNode, boundary: FileBoundary) =>
         StepKey.dispatchIdentity({
           material: node.material,
-          results: Object.fromEntries(results),
+          results: Object.fromEntries(
+            node.material.inputs.flatMap((input) =>
+              input._tag === "Ref" ? [[input.from, results.get(input.from)] as const] : []
+            )
+          ),
+          digestMemo,
+          environment: options.environment,
           hermetic: {
             ...boundary,
             readSet: StepBoundary.exactReads(boundary)
@@ -668,8 +779,14 @@ export const make = (options: Options): Service => {
       const dispatch = (node: Plan.PlanNode): Effect.Effect<Dispatched, SchedulerError, Requirements> =>
         Effect.gen(function*() {
           const state = stateOf(node)
-          const inputs = Object.fromEntries(
-            dependenciesOf(node).filter((id) => results.has(id)).map((id) => [id, results.get(id)])
+          // Only material `Ref` inputs, pre-projected. `dependenciesOf` also
+          // carries `Pending` and discovered ordering edges, but those never
+          // enter the dispatch key, so their results must never reach an
+          // executor either.
+          const inputs = node.material.inputs.flatMap((input) =>
+            input._tag === "Ref" && results.has(input.from)
+              ? [{ from: input.from, path: input.path, value: StepKey.project(results.get(input.from), input.path) }]
+              : []
           )
           while (true) {
             const boundary = yield* measure(node)
@@ -696,7 +813,10 @@ export const make = (options: Options): Service => {
               priority: node.priority,
               waited: state.waited
             }))
-            digestToNode.set(yield* Effect.orDie(digestOf(dispatchKey)), node.id)
+            const dispatchDigest = yield* Effect.orDie(digestOf(dispatchKey))
+            const dispatchedUnder = digestToNode.get(dispatchDigest)
+            if (dispatchedUnder === undefined) digestToNode.set(dispatchDigest, [node.id])
+            else if (!dispatchedUnder.includes(node.id)) dispatchedUnder.push(node.id)
             const ran = yield* Ref.make(false)
             const exit = yield* ActionPersistence.make({
               runId: options.runId,
@@ -762,7 +882,14 @@ export const make = (options: Options): Service => {
             )
           )
           plan = grown
+          // `appendMerge` copies the stopped node's effects byte-for-byte, so
+          // re-indexing adds no new writer coverage and cannot turn an
+          // already-pinned source path into a producer. The new generation's
+          // read declarations have not themselves been observed, however:
+          // expand them once now and pin only source paths this run has never
+          // measured. Existing pins are always reused.
           indexWriters()
+          yield* observeReads(Plan.generationNodes(grown), `generation ${grown.generation}'s source inputs`)
           appended.push(mergeId)
           yield* append(grown)
         })
@@ -802,8 +929,13 @@ export const make = (options: Options): Service => {
             if (entry.eventType !== "flows.engine.expected-set-deviation") continue
             const payload = decodeDeviation(entry.payload)
             if (Option.isNone(payload)) continue
-            const nodeId = digestToNode.get(payload.value.stepKeyDigest)
-            if (nodeId === undefined) continue
+            const nodeIds = digestToNode.get(payload.value.stepKeyDigest)
+            if (nodeIds === undefined) continue
+            // The attempt belongs to an executing node by construction. If
+            // its built settlement is absent from current bookkeeping — the
+            // record arrived first, or is being durably replayed into an
+            // all-clean invocation — preserve first dispatch order.
+            const nodeId = nodeIds.find((candidate) => states.get(candidate)!.outcome === "built") ?? nodeIds[0]!
             const signature = [...payload.value.paths].sort().join(" ")
             deviationSignatures.set(nodeId, signature)
             attributed.push({ nodeId, signature, payload: payload.value })

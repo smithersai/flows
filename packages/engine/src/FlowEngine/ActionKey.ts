@@ -34,8 +34,8 @@ const fileBoundary = (
 
 /**
  * The ordinal allocation scope of an action dispatch — its stable
- * declaration identity (issue #85), derived by the one canonical path in
- * `StepIdentity` (issue #101).
+ * declaration identity and optional structural interpreter site (issue #85),
+ * derived by the one canonical path in `StepIdentity` (issue #101).
  *
  * The action name always contributes (issue #73), and a declared
  * `idempotencyKey` refines the scope further — the string form and the
@@ -45,20 +45,25 @@ const fileBoundary = (
  * that reverses fiber-arrival order can never hand one invocation the
  * other's recorded outcome. Refining only the string form left object-keyed
  * actions on the name-only counter and exposed to exactly that swap.
- * Without a declared key, invocations of one name share a counter and
- * remain allocation-ordered — indistinguishable declarations have no
- * material to order them by.
+ * A structural interpreter site refines the scope again, so distinct graph
+ * nodes calling one declaration each own a counter even without a declared
+ * key. Without a site or a declared key, invocations of one name share a
+ * counter and remain allocation-ordered — indistinguishable dispatches have
+ * no material to order them by. Omitting the site preserves the prior scope
+ * encoding byte for byte.
  *
  * @private
  * @since 0.1.0
  */
 export const ordinalScope = (
-  action: Action.Any
+  action: Action.Any,
+  site?: string | undefined
 ): Effect.Effect<string, Schema.SchemaError, Crypto.Crypto> =>
   StepIdentity.allocationScope({
     kind: "action",
     name: action.name,
-    idempotency: action.idempotencyKey
+    idempotency: action.idempotencyKey,
+    site
   })
 
 /**
@@ -175,9 +180,9 @@ export const actionKey = Effect.fn("FlowEngine.actionKey")(function*(
   // concurrency a replay could hand `chargeCard` the ordinal `sendEmail`
   // recorded and replay the wrong attempt rows, checkpoint, and outcome.
   // Per-identity counters are stable under any interleaving of distinct
-  // declarations — distinct names, or one name with distinct declared
-  // idempotency keys; the scope also keeps two identities from sharing the
-  // number 1.
+  // declarations or structural dispatch sites — distinct names, one name
+  // with distinct declared idempotency keys, or distinct interpreter graph
+  // nodes; the scope also keeps two identities from sharing the number 1.
   return yield* StepIdentity.invocationKey({
     runId: executionId,
     parentScope: scope,

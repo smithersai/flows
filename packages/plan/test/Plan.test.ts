@@ -482,3 +482,61 @@ describe("PlanDiff.diff", () => {
     expect(PlanDiff.diff(before, reordered).unchanged).toEqual(["node"])
   })
 })
+
+describe("Plan.compile effects validation", () => {
+  // Drafts are typed values, never decoded rows, so the `FileSet.Pattern`
+  // schema filter has not seen them: admission is where absolute and aliased
+  // spellings — which defeat exact-string overlap detection — are refused.
+  it("refuses an absolute declared path", async () => {
+    const error = await runFailure(compile([draft("node", { writes: ["/etc/passwd"] })]))
+    expect(error).toMatchObject({ code: "invalid_effects" })
+  })
+
+  it("refuses upward traversal and aliasing spellings", async () => {
+    for (const spelling of ["../escape.txt", "./out.txt", "out//x.txt"]) {
+      const error = await runFailure(compile([draft("node", { reads: [spelling] })]))
+      expect(error).toMatchObject({ code: "invalid_effects" })
+    }
+  })
+
+  it("refuses a glob whose include leaves the workspace", async () => {
+    const error = await runFailure(compile([{
+      ...draft("node"),
+      effects: { reads: [{ _tag: "Glob", include: ["/abs/**"] }], writes: [], boundaryMode: "hard" }
+    }]))
+    expect(error).toMatchObject({ code: "invalid_effects" })
+  })
+
+  it("refuses a path declared as both a write and a removal", async () => {
+    const error = await runFailure(compile([draft("node", { writes: ["a.txt"], removes: ["a.txt"] })]))
+    expect(error).toMatchObject({ code: "invalid_effects" })
+  })
+
+  it("refuses a removal a write glob or tree output covers", async () => {
+    const viaGlob = await runFailure(compile([{
+      ...draft("node"),
+      effects: {
+        reads: [],
+        writes: [{ _tag: "Glob", include: ["out/*.txt"] }],
+        removes: ["out/stale.txt"],
+        boundaryMode: "hard"
+      }
+    }]))
+    expect(viaGlob).toMatchObject({ code: "invalid_effects" })
+    const viaTree = await runFailure(compile([{
+      ...draft("node"),
+      effects: {
+        reads: [],
+        writes: [{ _tag: "TreeArtifact", path: "dist" }],
+        removes: ["dist/old.bin"],
+        boundaryMode: "hard"
+      }
+    }]))
+    expect(viaTree).toMatchObject({ code: "invalid_effects" })
+  })
+
+  it("admits disjoint writes and removals", async () => {
+    const plan = await runPromise(compile([draft("node", { writes: ["a.txt"], removes: ["b.txt"] })]))
+    expect(plan.nodes).toHaveLength(1)
+  })
+})

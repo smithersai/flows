@@ -27,6 +27,7 @@
  */
 import { Key } from "@smthrs/keys-next"
 import type * as Crypto from "effect/Crypto"
+import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import type * as FileSet from "./FileSet.ts"
@@ -138,6 +139,50 @@ export interface EnvironmentIdentity {
   readonly layers: ReadonlyArray<string>
   readonly capabilities: Readonly<Record<string, ReadonlyArray<string>>>
   readonly runScope?: string | undefined
+}
+
+/**
+ * Caller-owned memoization context for projected dependency-value digests.
+ *
+ * This is the flows counterpart of Bazel's `ActionKeyContext`: one context is
+ * passed through related key computations so shared input material is hashed
+ * once. Concurrent requests for the same projection share the in-flight
+ * digest. Entries are sound only while each settled `from` value is immutable;
+ * callers must create a fresh memo when those values can change.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export interface DigestMemo {
+  readonly digest: (
+    from: string,
+    path: ReadonlyArray<string>,
+    compute: Effect.Effect<StepKey, Schema.SchemaError, Crypto.Crypto>
+  ) => Effect.Effect<StepKey, Schema.SchemaError, Crypto.Crypto>
+}
+
+/**
+ * Creates an empty projected-value digest memo. Projection addresses are
+ * JSON-encoded `[from, path]` tuples so segment boundaries are unambiguous.
+ *
+ * @since 0.1.0
+ * @category constructors
+ */
+export const makeDigestMemo = (): DigestMemo => {
+  const entries = new Map<string, Deferred.Deferred<StepKey, Schema.SchemaError>>()
+  return {
+    digest: (from, path, compute) =>
+      Effect.suspend(() => {
+        const address = JSON.stringify([from, path])
+        const existing = entries.get(address)
+        if (existing !== undefined) return Deferred.await(existing)
+        const pending = Deferred.makeUnsafe<StepKey, Schema.SchemaError>()
+        entries.set(address, pending)
+        return compute.pipe(
+          Effect.onExit((exit) => Deferred.done(pending, exit).pipe(Effect.asVoid))
+        )
+      })
+  }
 }
 
 /**
@@ -365,9 +410,16 @@ const orderingOnly = "ordering-only"
  * `undefined` drops out of the canonical form, so it hashes distinctly from
  * every JSON value including `null`.
  *
- * @private
+ * Exported because it is the ONE projection semantics for the value channel:
+ * {@link dispatchIdentity} digests what this returns, so every consumer that
+ * resolves a `Ref` at execution time must resolve it the same way, or two
+ * inputs that key identically could be consumed differently — a stale-hit
+ * vector.
+ *
+ * @since 0.1.0
+ * @category utilities
  */
-const project = (value: unknown, path: ReadonlyArray<string>): unknown => {
+export const project = (value: unknown, path: ReadonlyArray<string>): unknown => {
   let current = value
   for (const segment of path) {
     if (typeof current !== "object" || current === null) return undefined
@@ -406,6 +458,10 @@ export const dispatchIdentity = (options: {
   /** The settled output value of each dependency, by node id. */
   readonly results: Readonly<Record<string, unknown>>
   readonly hermetic: NonNullable<ContentIdentity["hermetic"]>
+  /** The engine-resolved execution environment this dispatch runs under. */
+  readonly environment?: EnvironmentIdentity | undefined
+  /** Reuses projected-value digests while the corresponding settled values remain immutable. */
+  readonly digestMemo?: DigestMemo | undefined
 }): Effect.Effect<StepKey, KeyMaterialError | Schema.SchemaError, Crypto.Crypto> =>
   Effect.gen(function*() {
     const material = options.material
@@ -432,7 +488,10 @@ export const dispatchIdentity = (options: {
           message: `Missing settled result for graph dependency ${input.from}`
         })
       }
-      const digest = yield* decodeKey({ kind: "input-value", value: project(options.results[input.from], input.path) })
+      const compute = decodeKey({ kind: "input-value", value: project(options.results[input.from], input.path) })
+      const digest = yield* (
+        options.digestMemo === undefined ? compute : options.digestMemo.digest(input.from, input.path, compute)
+      )
       inputs[String(index)] = input.path.length > 0
         ? digestInput(digest, { reference: "ref-projected", path: input.path })
         : digestInput(digest, { reference: "ref" })
@@ -442,6 +501,7 @@ export const dispatchIdentity = (options: {
       inputs,
       layers: material.layers,
       capabilities: { declared: material.capabilities },
+      environment: options.environment,
       hermetic: options.hermetic
     })
   })

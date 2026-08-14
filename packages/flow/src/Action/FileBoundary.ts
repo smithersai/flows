@@ -40,9 +40,11 @@ export const FileBoundary = Schema.Struct({
    *
    * Optional with an empty default, so boundaries persisted before it keep
    * decoding. Disjoint from {@link writeSet}: a path cannot be both promised
-   * and disclaimed.
+   * and disclaimed. Workspace-relative like every other declared path —
+   * replay acts on a removal by deleting it, so an absolute or upward
+   * spelling would hand evidence an eraser aimed outside the workspace.
    */
-  removes: Schema.optional(Schema.Array(Schema.NonEmptyString)),
+  removes: Schema.optional(Schema.Array(FileSet.Pattern)),
   /** Whether undeclared access is rejected immediately or validated later. */
   boundaryMode: BoundaryMode
 }).check(

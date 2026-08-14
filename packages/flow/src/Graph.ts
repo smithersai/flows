@@ -32,9 +32,12 @@
  * What comes out is `@smthrs/plan-next` shaped: {@link Graph.drafts} feeds
  * `Plan.compile` and `Plan.append` unchanged, and the `Ref`/`Pending` inputs a
  * node's key material names are what the compiler turns into dependency
- * digests and the plan turns into edges. Structural node ids are lookup
- * addresses only and never enter a hashed value, so renaming a node re-keys
- * nothing and editing a mapper re-keys exactly what reads it.
+ * digests and the plan turns into edges. Structural node ids are derived only
+ * from traversal positions and do not enter a plan draft's hashed value, so
+ * editing a mapper re-keys exactly what reads it. The interpreter does use an
+ * `ActionCall` id as durable dispatch-site material: it is the replay-stable
+ * discriminator that keeps identical declarations at distinct graph
+ * positions out of one arrival-ordered ordinal scope.
  *
  * Adapted from the agent repo's `@smthrs/core` `Graph.ts`. The lenient
  * placeholder, the model-shaped `Dynamic` node, the lane-merge elaboration,

@@ -52,7 +52,7 @@ export const NodeEffects = Schema.Struct({
    * both the conflict pass and the reader-after-writer pass see them as one
    * set.
    */
-  removes: Schema.optional(Schema.Array(Schema.String)),
+  removes: Schema.optional(Schema.Array(FileSet.Pattern)),
   boundaryMode: Schema.Literals(["hard", "expected"])
 })
 
@@ -213,7 +213,7 @@ export interface NodeDraft {
  * @category errors
  */
 export class PlanError extends Schema.TaggedError<PlanError>()("flows/plan/PlanError", {
-  code: Schema.Literals(["cycle", "unknown_dependency", "duplicate_node", "overlap_forbidden"]),
+  code: Schema.Literals(["cycle", "unknown_dependency", "duplicate_node", "overlap_forbidden", "invalid_effects"]),
   message: Schema.String
 }) {}
 
@@ -486,6 +486,47 @@ const digestOf = (
     capabilities: {}
   })
 
+/**
+ * Declared effects are admitted exactly once, here. Drafts arrive as typed
+ * values, never as decoded rows, so the `FileSet.Pattern` schema filter has
+ * not seen them: a plan built in-process could otherwise carry absolute or
+ * aliased spellings that defeat exact-string overlap detection, or declare
+ * one path as both a write and a removal — the overlap the `FileBoundary`
+ * schema refuses at the boundary but nothing refused at the plan.
+ *
+ * @private
+ */
+const validateEffects = (id: string, effects: NodeEffects): PlanError | undefined => {
+  const patterns = (entry: FileSet.Entry): ReadonlyArray<string> =>
+    typeof entry === "string"
+      ? [entry]
+      : entry._tag === "TreeArtifact"
+      ? [entry.path]
+      : [...entry.include, ...entry.exclude ?? []]
+  const removes = effects.removes ?? []
+  const writes = FileSet.expand(effects.writes)
+  const declared = [...FileSet.expandReads(effects.reads), ...writes, ...removes]
+  for (const entry of declared) {
+    for (const pattern of patterns(entry)) {
+      if (!FileSet.workspaceRelative(pattern)) {
+        return new PlanError({
+          code: "invalid_effects",
+          message: `Node ${id} declares ${pattern}, which is not workspace-relative`
+        })
+      }
+    }
+  }
+  for (const removal of removes) {
+    if (writes.some((entry) => FileSet.overlaps(entry, removal))) {
+      return new PlanError({
+        code: "invalid_effects",
+        message: `Node ${id} declares ${removal} as both a write and a removal`
+      })
+    }
+  }
+  return undefined
+}
+
 /** @private */
 const keyNodes = (
   drafts: ReadonlyArray<NodeDraft>,
@@ -515,6 +556,8 @@ const keyNodes = (
     if (!sorted.ok) return yield* Effect.fail(sorted.error)
     const keyed: Array<PlanNode> = []
     for (const draft of sorted.drafts) {
+      const invalid = validateEffects(draft.id, draft.effects)
+      if (invalid !== undefined) return yield* Effect.fail(invalid)
       const key = yield* StepKey.fromKeyMaterial(draft.material, digests)
       digests[draft.id] = key
       keyed.push({

@@ -9,10 +9,11 @@ import type * as Crypto from "effect/Crypto"
  * undetectable after the fact. Temporal fails such replays with a
  * nondeterminism error; the engine refuses the hazard on the first run
  * instead: a second in-flight keyless dispatch of one allocation scope dies
- * with `ConcurrentKeylessDispatch`, and declaring an `idempotencyKey` is the
- * sanctioned way to run distinguishable invocations concurrently.
+ * with `ConcurrentKeylessDispatch`. A declared `idempotencyKey` or an
+ * interpreter-provided structural site is the sanctioned way to make
+ * concurrent invocations distinguishable.
  */
-import { Action, Flow, FlowRuntime } from "@smthrs/flow-next"
+import { Action, Flow, FlowRuntime, StepIdentity } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Cause, Deferred, Effect, Exit, Fiber, Layer, Scheduler, Schema } from "effect"
 import { describe, expect, it } from "vitest"
@@ -95,6 +96,47 @@ const dies = (exit: Exit.Exit<unknown, unknown>): boolean =>
   )
 
 describe("concurrent keyless same-declaration dispatches are refused (issue #111)", () => {
+  effect("keeps a handler-driven keyless dispatch on the byte-identical name-only scope and key", () => {
+    return Effect.gen(function*() {
+      const keys: Array<string> = []
+      const engine = FlowEngine.makeUnsafe({
+        register: () => Effect.void,
+        execute: () => Effect.die("not used"),
+        poll: () => Effect.succeedNone,
+        interrupt: () => Effect.void,
+        interruptUnsafe: () => Effect.void,
+        resume: () => Effect.void,
+        actionExecute: (input) =>
+          Effect.sync(() => {
+            keys.push(input.key)
+            return new Flow.Complete({ exit: Exit.void })
+          }),
+        deferredResult: () => Effect.succeedNone,
+        deferredDone: () => Effect.void,
+        scheduleClock: () => Effect.void
+      })
+      const scope = yield* StepIdentity.allocationScope({
+        kind: "action",
+        name: keylessFetch.name
+      })
+      const expected = yield* StepIdentity.invocationKey({
+        runId: "keyless-handler-single",
+        parentScope: scope,
+        ordinal: 1,
+        tier: "irreversible"
+      })
+      yield* engine.actionExecute(keylessFetch, 1).pipe(
+        Effect.provideService(
+          FlowRuntime.FlowInstance,
+          FlowEngine.makeInstance(flow, "keyless-handler-single")
+        )
+      )
+
+      expect(scope).toBe("action/24:KeylessConcurrency/fetch")
+      expect(keys).toEqual([expected])
+    })
+  })
+
   effect("two overlapping keyless dispatches of one declaration die loudly", () => {
     return Effect.gen(function*() {
       const exit = yield* drive("keyless-overlap", (engine, gate) =>

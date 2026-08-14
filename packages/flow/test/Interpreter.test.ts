@@ -677,4 +677,61 @@ describe("Interpreter concurrency", () => {
     expect(state.entered).toEqual(["survivor"])
     expect(state.interrupted).toEqual(["survivor"])
   })
+
+  it("interrupts a shared upstream when the walk fails, instead of orphaning it", async () => {
+    // The ref-diamond case: the shared node's execution is owned by the
+    // interpretation, not by the failing `All`'s forEach, so fail-fast cannot
+    // reach it directly. Closing the interpretation's node scope on exit is
+    // what interrupts it — the orphan must not keep running past the failure
+    // and write a phantom success into `settled` afterwards.
+    const { layer, state } = concurrent()
+    const exit = await driveWith(
+      layer,
+      Effect.exit(Interpreter.interpret(
+        Parking.call({ name: "shared" }).pipe(
+          Node.andThen((shared) =>
+            Node.all({
+              use: Sum.call({ values: [shared], label: "use" }),
+              doomed: Failing.call({ name: "doomed" })
+            })
+          )
+        )
+      ))
+    )
+    expect(Exit.isFailure(exit)).toBe(true)
+    expect(state.entered).toEqual(["shared"])
+    expect(state.interrupted).toEqual(["shared"])
+  })
+
+  it("lets a Catch recovery arm join shared work the failed subtree demanded", async () => {
+    // The recovery arm references the same upstream the failed `All` was
+    // consuming. Because the interpretation owns the execution, the sibling
+    // failure interrupts only the dead subtree's JOINS: the shared node keeps
+    // running, the recovery arm's demand joins it, and the release member
+    // unparks it — no deadlock on an orphaned deferred.
+    const { layer, state } = concurrent()
+    const value = await driveWith(
+      layer,
+      Interpreter.interpret(
+        Parking.call({ name: "shared" }).pipe(
+          Node.andThen((shared) =>
+            Node.all({
+              use: Sum.call({ values: [shared], label: "use" }),
+              doomed: Failing.call({ name: "doomed" })
+            }).pipe(
+              Node.catch({
+                onFailure: () =>
+                  Node.all({
+                    recovered: Sum.call({ values: [shared], label: "recovery" }),
+                    release: Release.call({})
+                  })
+              })
+            )
+          )
+        )
+      )
+    )
+    expect(state.entered).toEqual(["shared"])
+    expect(value.value).toMatchObject({ recovered: 1 })
+  })
 })

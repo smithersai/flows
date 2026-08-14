@@ -28,8 +28,9 @@ export const makeInstance = (
   executionId: string
 ): FlowRuntime.FlowInstance["Service"] => {
   // Ordinals are counted per allocation scope, not per run: the engine
-  // scopes action dispatches by action name so a permuted fiber
-  // interleaving cannot renumber them across a replay (issue #73).
+  // scopes action dispatches by declaration identity and an optional
+  // structural interpreter site so a permuted fiber interleaving cannot
+  // renumber distinguishable dispatches across a replay (issue #73).
   const ordinals = new Map<string, number>()
   return FlowRuntime.FlowInstance.of({
     executionId,
