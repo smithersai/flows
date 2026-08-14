@@ -40,12 +40,12 @@ const run = <A, E>(
  * views of one in-process object.
  */
 const client = (server: SyncServer.Service) =>
-  SyncClient.make({
+  Effect.runSync(SyncClient.make({
     client: {
       "Sync.Read": server.read,
       "Sync.Subscribe": server.subscribe
     } as unknown as Parameters<typeof SyncClient.make>[0]["client"]
-  })
+  }))
 
 const collect = (
   sync: SyncClient.Service,

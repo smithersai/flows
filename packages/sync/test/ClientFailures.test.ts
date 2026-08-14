@@ -4,7 +4,10 @@
  * @since 0.1.0
  */
 import { JournalEvent } from "@smthrs/journal-next"
-import { Effect, Exit, Stream } from "effect"
+import { Cause, Effect, Exit, Fiber, Stream } from "effect"
+import * as Latch from "effect/Latch"
+import * as Logger from "effect/Logger"
+import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as SyncClient from "../src/SyncClient.ts"
 import { SyncError, SyncGapError } from "../src/SyncError.ts"
@@ -38,13 +41,13 @@ interface Stub {
 }
 
 const stubClient = (stub: Stub) =>
-  SyncClient.make({
+  Effect.runSync(SyncClient.make({
     client: {
       "Sync.Read": stub.read ??
         (() => Effect.succeed({ entries: [], cursors: [], done: true })),
       "Sync.Subscribe": stub.subscribe ?? (() => Stream.empty)
     } as unknown as Parameters<typeof SyncClient.make>[0]["client"]
-  })
+  }))
 
 const id = runId("failures")
 const scope = { _tag: "Run", runId: id } as const
@@ -274,6 +277,137 @@ describe("SyncClient failure paths", () => {
     expect(Array.from(entries).map((value) => value.seq)).toEqual([0, 1])
     expect(requested[0]).toEqual([])
     expect(reads).toBe(2)
+  })
+
+  it("waits out the reconnect backoff instead of re-dialing immediately, logging the failure cause", async () => {
+    let calls = 0
+    const client = stubClient({
+      subscribe: () => {
+        calls++
+        return calls === 1
+          ? Stream.fail(new Error("socket reset"))
+          : Stream.succeed<SyncProtocol.Frame>({
+            _tag: "Entries",
+            runId: id,
+            fromSeq: seq(0),
+            toSeq: seq(0),
+            entries: [entry("failures", 0)]
+          })
+      }
+    })
+    const logs: Array<{ readonly message: string; readonly cause: Cause.Cause<unknown> }> = []
+    const capture = Logger.make((options) => {
+      logs.push({ message: String(options.message), cause: options.cause })
+    })
+
+    const { callsBeforeBackoff, entries } = await Effect.runPromise(
+      Effect.gen(function*() {
+        const fiber = yield* Stream.runCollect(
+          client.subscribe({ scope, cursors: [] }).pipe(Stream.take(1))
+        ).pipe(Effect.forkChild({ startImmediately: true }))
+        // Without the schedule the second dial would already have happened —
+        // this is exactly the zero-backoff hot loop the policy prevents.
+        const dialed = calls
+        yield* TestClock.adjust(500)
+        return { callsBeforeBackoff: dialed, entries: yield* Fiber.join(fiber) }
+      }).pipe(
+        Effect.provide(Logger.layer([capture])),
+        Effect.provide(TestClock.layer())
+      )
+    )
+
+    expect(callsBeforeBackoff).toBe(1)
+    expect(calls).toBe(2)
+    expect(Array.from(entries).map((value) => value.seq)).toEqual([0])
+    const warning = logs.find((log) => log.message.includes("reconnecting with backoff"))
+    expect(warning).toBeDefined()
+    expect(
+      warning!.cause.reasons.filter(Cause.isFailReason).map((reason) => (reason.error as SyncError).code)
+    ).toEqual(["transport_failed"])
+  })
+
+  it("does not retry a gap failure through the reconnect policy", async () => {
+    let calls = 0
+    const client = stubClient({
+      subscribe: () => {
+        calls++
+        return Stream.succeed<SyncProtocol.Frame>({
+          _tag: "Entries",
+          runId: id,
+          fromSeq: seq(5),
+          toSeq: seq(5),
+          entries: [entry("failures", 5)]
+        })
+      }
+    })
+
+    const exit = await Effect.runPromiseExit(
+      client.subscribe({ scope, cursors: [] }).pipe(Stream.take(1), Stream.runCollect).pipe(
+        Effect.provide(TestClock.layer())
+      )
+    )
+
+    expect(Exit.isFailure(exit)).toBe(true)
+    expect(calls).toBe(1)
+  })
+
+  it("never regresses the shared acknowledged cursor when a lagging subscription commits", async () => {
+    const gate = Latch.makeUnsafe(false)
+    const laggingStarted = Latch.makeUnsafe(false)
+    let calls = 0
+    const client = stubClient({
+      subscribe: () => {
+        calls++
+        if (calls === 1) {
+          // The lagging subscription: entry 0 now, entry 1 once the gate opens.
+          return Stream.concat(
+            Stream.succeed<SyncProtocol.Frame>({
+              _tag: "Entries",
+              runId: id,
+              fromSeq: seq(0),
+              toSeq: seq(0),
+              entries: [entry("failures", 0)]
+            }),
+            Stream.concat(
+              Stream.drain(Stream.fromEffect(Latch.open(laggingStarted).pipe(Effect.andThen(Latch.await(gate))))),
+              Stream.succeed<SyncProtocol.Frame>({
+                _tag: "Entries",
+                runId: id,
+                fromSeq: seq(1),
+                toSeq: seq(1),
+                entries: [entry("failures", 1)]
+              })
+            )
+          )
+        }
+        // The fast subscription: catches the run up to seq 5.
+        return Stream.succeed<SyncProtocol.Frame>({
+          _tag: "Entries",
+          runId: id,
+          fromSeq: seq(1),
+          toSeq: seq(5),
+          entries: [entry("failures", 4), entry("failures", 5)]
+        })
+      }
+    })
+
+    const cursors = await Effect.runPromise(
+      Effect.gen(function*() {
+        const lagging = yield* Stream.runCollect(
+          client.subscribe({ scope, cursors: [] }).pipe(Stream.take(2))
+        ).pipe(Effect.forkChild({ startImmediately: true }))
+        yield* Latch.await(laggingStarted)
+        // A second subscription advances the shared cursor to 5 while the
+        // first still holds 0; the first's late commit of 1 must not move it
+        // backward.
+        yield* Stream.runDrain(client.subscribe({ scope, cursors: [] }).pipe(Stream.take(2)))
+        yield* Latch.open(gate)
+        yield* Fiber.join(lagging)
+        return yield* client.cursors
+      })
+    )
+
+    expect(cursors).toEqual([{ runId: id, afterSeq: 5 }])
   })
 
   it("makeNoop fails every subscription and reports no cursors", async () => {

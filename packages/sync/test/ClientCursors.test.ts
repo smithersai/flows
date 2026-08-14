@@ -28,17 +28,17 @@ const entry = (id: string, sequence: number) =>
   })
 
 const stubClient = (read: () => Effect.Effect<SyncProtocol.ReadResponse>) =>
-  SyncClient.make({
+  Effect.runSync(SyncClient.make({
     client: {
       "Sync.Read": read,
       "Sync.Subscribe": () => Stream.empty
     } as unknown as Parameters<typeof SyncClient.make>[0]["client"]
-  })
+  }))
 
 describe("SyncClient cursors", () => {
   it("canonicalizes duplicate supplied cursors through the Map key invariant", async () => {
     const reads: Array<SyncProtocol.WorkspaceCursor> = []
-    const client = SyncClient.make({
+    const client = Effect.runSync(SyncClient.make({
       client: {
         "Sync.Read": (request: SyncProtocol.ReadRequest) => {
           reads.push(request.cursors)
@@ -50,7 +50,7 @@ describe("SyncClient cursors", () => {
         },
         "Sync.Subscribe": () => Stream.empty
       } as unknown as Parameters<typeof SyncClient.make>[0]["client"]
-    })
+    }))
 
     const values = await Effect.runPromise(
       client.subscribe({
@@ -100,7 +100,7 @@ describe("SyncClient cursors", () => {
 
   it("carries acknowledged cursors into a later subscription so entries are not re-delivered", async () => {
     const reads: Array<SyncProtocol.WorkspaceCursor> = []
-    const client = SyncClient.make({
+    const client = Effect.runSync(SyncClient.make({
       client: {
         "Sync.Read": (request: SyncProtocol.ReadRequest) => {
           reads.push(request.cursors)
@@ -112,7 +112,7 @@ describe("SyncClient cursors", () => {
         },
         "Sync.Subscribe": () => Stream.empty
       } as unknown as Parameters<typeof SyncClient.make>[0]["client"]
-    })
+    }))
 
     const scope = { _tag: "Run", runId: runId("run") } as const
     await Effect.runPromise(

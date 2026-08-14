@@ -14,7 +14,7 @@ import { describe, expect, it } from "vitest"
 import { type BranchId, branchRunId, type ShareCapability } from "../src/BranchProtocol.ts"
 import * as BranchShare from "../src/BranchShare.ts"
 import * as RunCatalog from "../src/RunCatalog.ts"
-import type { SyncError } from "../src/SyncError.ts"
+import { SyncError } from "../src/SyncError.ts"
 import * as SyncServer from "../src/SyncServer.ts"
 
 const branchId = "guarded-branch" as BranchId
@@ -105,6 +105,29 @@ describe("branch read authorization", () => {
     )
 
     expect((error as SyncError).code).toBe("unauthorized")
+  })
+
+  it("propagates a share-authority infrastructure fault instead of reporting unauthorized", async () => {
+    const error = await program(
+      Effect.gen(function*() {
+        const { capability } = yield* rig
+        const journal = yield* Journal.Journal
+        const memory = yield* RunCatalog.makeMemory()
+        // The signer itself is broken — not a refused capability.
+        const broken = BranchShare.makeNoop({
+          verify: () =>
+            Effect.fail(new SyncError({ code: "unknown", message: "Web Crypto could not sign the share claims" }))
+        })
+        const server = yield* SyncServer.makeLive.pipe(
+          Effect.provideService(Journal.Journal, journal),
+          Effect.provideService(RunCatalog.RunCatalog, memory.catalog),
+          Effect.provideService(BranchShare.BranchShare, broken)
+        )
+        return yield* Effect.flip(readBranch(server, capability))
+      })
+    )
+
+    expect((error as SyncError).code).toBe("unknown")
   })
 
   it("serves a scoped branch read to a capability that verifies for the branch", async () => {

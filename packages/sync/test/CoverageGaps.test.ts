@@ -58,12 +58,12 @@ describe("sync malformed and terminal boundaries", () => {
 
   it("preserves a typed transport failure rather than wrapping it again", async () => {
     const failure = new SyncError({ code: "protocol_violation", message: "bad response" })
-    const client = SyncClient.make({
+    const client = Effect.runSync(SyncClient.make({
       client: {
         "Sync.Read": () => Effect.fail(failure),
         "Sync.Subscribe": () => Stream.empty
       } as unknown as Parameters<typeof SyncClient.make>[0]["client"]
-    })
+    }))
 
     const exit = await Effect.runPromiseExit(Stream.runCollect(client.subscribe({ scope, cursors: [] })))
 
@@ -74,12 +74,12 @@ describe("sync malformed and terminal boundaries", () => {
   })
 
   it("uses the stable fallback message for a non-Error transport rejection", async () => {
-    const client = SyncClient.make({
+    const client = Effect.runSync(SyncClient.make({
       client: {
         "Sync.Read": () => Effect.fail({ disconnected: true }),
         "Sync.Subscribe": () => Stream.empty
       } as unknown as Parameters<typeof SyncClient.make>[0]["client"]
-    })
+    }))
 
     const exit = await Effect.runPromiseExit(Stream.runCollect(client.subscribe({ scope, cursors: [] })))
 
@@ -93,7 +93,7 @@ describe("sync malformed and terminal boundaries", () => {
   })
 
   it("rejects a live frame whose covered interval begins after the cursor", async () => {
-    const client = SyncClient.make({
+    const client = Effect.runSync(SyncClient.make({
       client: {
         "Sync.Read": () => Effect.succeed({ entries: [], cursors: [], done: true }),
         "Sync.Subscribe": () =>
@@ -105,7 +105,7 @@ describe("sync malformed and terminal boundaries", () => {
             entries: [entry(1)]
           })
       } as unknown as Parameters<typeof SyncClient.make>[0]["client"]
-    })
+    }))
 
     const exit = await Effect.runPromiseExit(Stream.runCollect(client.subscribe({ scope, cursors: [] })))
 
@@ -116,7 +116,7 @@ describe("sync malformed and terminal boundaries", () => {
   })
 
   it("does not re-admit an interval ending exactly at the supplied cursor", async () => {
-    const client = SyncClient.make({
+    const client = Effect.runSync(SyncClient.make({
       client: {
         "Sync.Read": () => Effect.succeed({ entries: [], cursors: [], done: true }),
         "Sync.Subscribe": () =>
@@ -131,7 +131,7 @@ describe("sync malformed and terminal boundaries", () => {
             Stream.succeed({ _tag: "Closed" as const, reason: "complete" })
           )
       } as unknown as Parameters<typeof SyncClient.make>[0]["client"]
-    })
+    }))
 
     const exit = await Effect.runPromiseExit(
       Stream.runCollect(client.subscribe({ scope, cursors: [{ runId: runId("boundary"), afterSeq: seq(1) }] }))

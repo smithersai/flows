@@ -29,7 +29,7 @@ const entry = (sequence: number) =>
 
 describe("SyncClient covered-frame boundaries", () => {
   it("filters an entry exactly at the cursor while admitting the later entry in the same frame", async () => {
-    const client = SyncClient.make({
+    const client = Effect.runSync(SyncClient.make({
       client: {
         "Sync.Read": () => Effect.succeed({ entries: [], cursors: [], done: true }),
         "Sync.Subscribe": () =>
@@ -41,7 +41,7 @@ describe("SyncClient covered-frame boundaries", () => {
             entries: [entry(2), entry(3)]
           })
       } as unknown as Parameters<typeof SyncClient.make>[0]["client"]
-    })
+    }))
 
     const entries = await Effect.runPromise(
       client.subscribe({
@@ -66,7 +66,7 @@ describe("SyncClient covered-frame boundaries", () => {
       signature: "signed"
     })
     let received: BranchProtocol.ShareCapability | undefined
-    const client = SyncClient.make({
+    const client = Effect.runSync(SyncClient.make({
       client: {
         "Sync.Read": () => Effect.succeed({ entries: [], cursors: [], done: true }),
         "Sync.Subscribe": (request: { readonly capability?: BranchProtocol.ShareCapability }) => {
@@ -80,7 +80,7 @@ describe("SyncClient covered-frame boundaries", () => {
           })
         }
       } as unknown as Parameters<typeof SyncClient.make>[0]["client"]
-    })
+    }))
 
     const entries = await Effect.runPromise(
       client.subscribe({

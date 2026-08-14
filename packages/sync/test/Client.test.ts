@@ -77,7 +77,7 @@ describe("SyncClient", () => {
 
   it("advances a bootstrap cursor only after each entry is consumed", async () => {
     const id = runId("partial-page")
-    const client = SyncClient.make({
+    const client = Effect.runSync(SyncClient.make({
       client: {
         "Sync.Read": () =>
           Effect.succeed({
@@ -87,7 +87,7 @@ describe("SyncClient", () => {
           }),
         "Sync.Subscribe": () => Stream.empty
       } as unknown as Parameters<typeof SyncClient.make>[0]["client"]
-    })
+    }))
 
     const values = await Effect.runPromise(
       client.subscribe({ scope: { _tag: "Run", runId: id }, cursors: [] }).pipe(

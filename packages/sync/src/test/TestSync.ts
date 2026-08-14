@@ -94,5 +94,5 @@ export const connect = (pair: Pair) =>
     const client = yield* RpcClient.make(SyncRpcs.SyncRpcs).pipe(
       Effect.provideService(RpcClient.Protocol, protocol)
     )
-    return SyncClient.make({ client })
+    return yield* SyncClient.make({ client })
   })

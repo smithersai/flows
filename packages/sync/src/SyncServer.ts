@@ -101,20 +101,28 @@ export const makeLive = Effect.gen(function*() {
 
   const covered = Effect.map(catalog.list, (ids) => [...ids].sort())
 
-  /** A branch read is granted only by a capability that verifies for it. */
+  /**
+   * A branch read is granted only by a capability that verifies for it. Only
+   * an `unauthorized` refusal folds to `false`; an infrastructure fault (Web
+   * Crypto rejecting the HMAC) propagates, so "the signer is broken" is never
+   * reported as "not authorized".
+   */
   const canReadBranch = (
     branchId: BranchId,
     capability: ShareCapability | undefined
-  ): Effect.Effect<boolean> =>
+  ): Effect.Effect<boolean, SyncError> =>
     Option.isNone(share) || capability === undefined
       ? Effect.succeed(false)
       : share.value.verify(capability, { branchId, access: "read" }).pipe(
         Effect.as(true),
-        Effect.catch(() => Effect.succeed(false))
+        Effect.catch((error) => error.code === "unauthorized" ? Effect.succeed(false) : Effect.fail(error))
       )
 
   /** Whether one catalog-advertised run may be followed by this request. */
-  const canFollow = (runId: JournalEvent.RunId, capability: ShareCapability | undefined): Effect.Effect<boolean> => {
+  const canFollow = (
+    runId: JournalEvent.RunId,
+    capability: ShareCapability | undefined
+  ): Effect.Effect<boolean, SyncError> => {
     const branchId = branchOfRunId(runId)
     return branchId === null ? Effect.succeed(true) : canReadBranch(branchId, capability)
   }
