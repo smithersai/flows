@@ -44,6 +44,7 @@ export default defineConfig({
     { text: "Observability", link: "/observability" },
     { text: "Checkpoints and compaction", link: "/compaction" },
     { text: "Artifact GC", link: "/artifact-gc" },
+    { text: "Probabilistic Selection", link: "/selection" },
     { text: "Disaster recovery", link: "/disaster-recovery" },
     { text: "Telemetry", link: "/telemetry" },
     { text: "Examples", link: "/examples" },
