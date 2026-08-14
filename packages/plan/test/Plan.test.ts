@@ -114,6 +114,48 @@ describe("Plan.compile", () => {
     expect(keyOf(plan, "second")).toBe(keyOf(disjoint, "second"))
   })
 
+  it("uses conservative pattern overlap for conflicts and reader-after-writer edges", async () => {
+    const writer: Plan.NodeDraft = {
+      ...draft("a-tree-writer"),
+      effects: {
+        reads: [],
+        writes: [{ _tag: "TreeArtifact", path: "dist" }],
+        boundaryMode: "hard"
+      }
+    }
+    const globWriter: Plan.NodeDraft = {
+      ...draft("z-glob-writer"),
+      effects: {
+        reads: [],
+        writes: [{ _tag: "Glob", include: ["dist/**/*.js"] }],
+        boundaryMode: "hard"
+      }
+    }
+    const reader: Plan.NodeDraft = {
+      ...draft("reader"),
+      effects: {
+        reads: [{ _tag: "Glob", include: ["dist/**"] }],
+        writes: [],
+        boundaryMode: "hard"
+      }
+    }
+    const plan = await runPromise(compile([writer, globWriter, reader]))
+    expect(plan.nodes.find((node) => node.id === "z-glob-writer")!.dependsOn).toEqual(["a-tree-writer"])
+    expect(plan.nodes.find((node) => node.id === "reader")!.dependsOn).toEqual([
+      "a-tree-writer",
+      "z-glob-writer"
+    ])
+  })
+
+  it("names a glob when a conservative glob conflict is serialized", async () => {
+    const pattern = { _tag: "Glob" as const, include: ["dist/**"] as const }
+    const plan = await runPromise(compile([
+      draft("a-pattern", { writes: [pattern] }),
+      draft("b-pattern", { writes: [pattern] })
+    ]))
+    expect(plan.nodes[0]!.conflicts[0]!.paths).toEqual(["dist/**"])
+  })
+
   it("gives both writers lane annotations when either asks for a lane", async () => {
     const plan = await runPromise(compile([
       draft("first", { writes: ["out"] }),

@@ -31,6 +31,12 @@ export * as KeyMaterial from "./KeyMaterial.ts"
  * @since 0.1.0
  * @category models
  */
+export * as FileSet from "./FileSet.ts"
+
+/**
+ * @since 0.1.0
+ * @category models
+ */
 export * as Node from "./Node.ts"
 
 /**

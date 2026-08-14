@@ -14,6 +14,7 @@ import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
 import { Jj } from "@smthrs/kernel-next"
 import * as KernelWorkspace from "@smthrs/kernel-next/Workspace"
 import { KeyMaterial, Plan } from "@smthrs/plan-next"
+import * as FileSet from "@smthrs/plan-next/FileSet"
 import { type Ownership, RunStore } from "@smthrs/run-store-next"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
@@ -25,8 +26,8 @@ import { describe, expect, it } from "vitest"
 import * as JournalRecords from "../src/internal/JournalRecords.ts"
 import * as PlanScheduler from "../src/PlanScheduler.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as StepSandbox from "../src/StepSandbox.ts"
 import * as TestStores from "../src/test/TestStores.ts"
-import * as WorkspaceSandbox from "../src/WorkspaceSandbox.ts"
 import { runPromise } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "plan-host", pid: 55, nonce: "plan-process" }
@@ -51,7 +52,7 @@ const production = (root: string) => {
   return Layer.mergeAll(
     StepBoundary.layer.pipe(Layer.provide(artifacts)),
     jjLayer,
-    WorkspaceSandbox.layerFileSystem().pipe(
+    StepSandbox.layer.pipe(
       Layer.provide(artifacts),
       Layer.provide(KernelWorkspace.layer(root))
     )
@@ -91,12 +92,13 @@ const activate = (runId: string) =>
  * point of the executor seam.
  */
 const renderer = (ran: Array<string>): PlanScheduler.Executor => ({
-  execute: ({ node }) =>
+  execute: ({ boundary, node }) =>
     Effect.gen(function*() {
       const fs = yield* FileSystem.FileSystem
       const parts: Array<string> = []
-      for (const path of node.effects.reads) parts.push(yield* fs.readFileString(path))
-      const output = node.effects.writes[0]!
+      for (const entry of StepBoundary.exactReads(boundary)) parts.push(yield* fs.readFileString(entry.path))
+      const output = FileSet.expand(node.effects.writes)[0]!
+      if (typeof output !== "string") return yield* Effect.die(new Error("renderer expects an exact output"))
       yield* fs.makeDirectory(join(output, ".."), { recursive: true })
       yield* fs.writeFileString(output, `${node.id}(${parts.join("+")})`)
       ran.push(node.id)
@@ -227,5 +229,52 @@ describe("a persisted plan driven end to end under the production composition", 
         (entry.payload as { action?: string }).action === undefined
       )
     ).toBe(true)
+  })
+
+  it("pins a source-glob expansion once per run and re-keys when a new file matches", async () => {
+    const root = mkdtempSync(join(tmpdir(), "flows-plan-glob-"))
+    const output = join(root, "out/glob.txt")
+    const plan = await runPromise(Plan.compile({
+      planId: "prod-glob-plan",
+      flow: "example/Glob",
+      nodes: [{
+        id: "render-glob",
+        material: {
+          version: KeyMaterial.version,
+          kind: "sealed",
+          body: { action: "render-glob" },
+          inputs: [],
+          layers: [],
+          capabilities: []
+        },
+        effects: {
+          reads: [{ _tag: "Glob", include: [`${root}/src/*.txt`] }],
+          writes: [output],
+          boundaryMode: "hard"
+        }
+      }]
+    }))
+    const stores = TestStores.layer()
+    const runs: Array<string> = []
+    const program = Effect.gen(function*() {
+      yield* write(join(root, "src/a.txt"), "a")
+      yield* activate("prod-glob-1")
+      const first = yield* Effect.provide(
+        PlanScheduler.make({ runId: "prod-glob-1", owner, sourceId: "glob/1" }).run(plan),
+        Layer.merge(production(root), PlanScheduler.layerExecutor(renderer(runs)))
+      )
+      yield* write(join(root, "src/b.txt"), "b")
+      yield* activate("prod-glob-2")
+      const second = yield* Effect.provide(
+        PlanScheduler.make({ runId: "prod-glob-2", owner, sourceId: "glob/2" }).run(plan),
+        Layer.merge(production(root), PlanScheduler.layerExecutor(renderer(runs)))
+      )
+      return { first, second }
+    }).pipe(Effect.provide(stores))
+    const result = await runPromise(program)
+    expect(outcomes(result.first)).toEqual({ "render-glob": "built" })
+    expect(outcomes(result.second)).toEqual({ "render-glob": "built" })
+    expect(runs).toEqual(["render-glob", "render-glob"])
+    expect(await runPromise(read(output))).toBe("render-glob(a+b)")
   })
 })

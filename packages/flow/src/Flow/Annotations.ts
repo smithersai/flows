@@ -5,6 +5,7 @@
  *
  * @since 4.0.0
  */
+import * as FileSet from "@smthrs/plan-next/FileSet"
 import * as Context from "effect/Context"
 import { constFalse, constTrue } from "effect/Function"
 import * as Schema from "effect/Schema"
@@ -16,8 +17,8 @@ import * as Schema from "effect/Schema"
  * @since 0.1.0
  */
 export const Effects = Schema.Struct({
-  reads: Schema.Array(Schema.String),
-  writes: Schema.Array(Schema.String),
+  reads: Schema.Array(FileSet.ReadDeclaration),
+  writes: Schema.Array(FileSet.Declaration),
   /**
    * Paths the flow declares it will DELETE. Optional with an empty default:
    * an absent declared write is a defect, and a declared removal is what makes
