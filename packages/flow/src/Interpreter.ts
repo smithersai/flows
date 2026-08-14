@@ -43,6 +43,7 @@ import { Key } from "@smthrs/keys-next/Key"
 import * as KeyMaterial from "@smthrs/plan-next/KeyMaterial"
 import * as Node from "@smthrs/plan-next/Node"
 import * as Planned from "@smthrs/plan-next/Planned"
+import * as StepKey from "@smthrs/plan-next/StepKey"
 import type * as Crypto from "effect/Crypto"
 import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
@@ -272,9 +273,14 @@ export const interpret = (
     const settled = new Map<string, unknown>()
     const failed = new Map<string, unknown>()
 
-    /** Projects a settled value along the property path a `Ref` recorded. */
-    const project = (value: unknown, path: ReadonlyArray<string>): unknown =>
-      path.reduce<unknown>((current, key) => (current as Record<string, unknown>)[key], value)
+    /**
+     * Projects a settled value along the property path a `Ref` recorded —
+     * through `StepKey.project`, the one projection semantics for the value
+     * channel. The scheduler digests exactly what this returns; resolving a
+     * `Ref` any other way here would let two executions that key identically
+     * consume different values.
+     */
+    const project = StepKey.project
 
     /**
      * Replaces every placeholder in a hydrated payload with what it stands for.

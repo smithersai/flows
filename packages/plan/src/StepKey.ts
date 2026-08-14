@@ -365,9 +365,16 @@ const orderingOnly = "ordering-only"
  * `undefined` drops out of the canonical form, so it hashes distinctly from
  * every JSON value including `null`.
  *
- * @private
+ * Exported because it is the ONE projection semantics for the value channel:
+ * {@link dispatchIdentity} digests what this returns, so every consumer that
+ * resolves a `Ref` at execution time must resolve it the same way, or two
+ * inputs that key identically could be consumed differently — a stale-hit
+ * vector.
+ *
+ * @since 0.1.0
+ * @category utilities
  */
-const project = (value: unknown, path: ReadonlyArray<string>): unknown => {
+export const project = (value: unknown, path: ReadonlyArray<string>): unknown => {
   let current = value
   for (const segment of path) {
     if (typeof current !== "object" || current === null) return undefined
