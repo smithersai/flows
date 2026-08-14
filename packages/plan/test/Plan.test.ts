@@ -149,9 +149,13 @@ describe("Plan.compile", () => {
 
   it("names a glob when a conservative glob conflict is serialized", async () => {
     const pattern = { _tag: "Glob" as const, include: ["dist/**"] as const }
+    const patterned = (id: string): Plan.NodeDraft => ({
+      ...draft(id),
+      effects: { reads: [], writes: [pattern], boundaryMode: "hard" }
+    })
     const plan = await runPromise(compile([
-      draft("a-pattern", { writes: [pattern] }),
-      draft("b-pattern", { writes: [pattern] })
+      patterned("a-pattern"),
+      patterned("b-pattern")
     ]))
     expect(plan.nodes[0]!.conflicts[0]!.paths).toEqual(["dist/**"])
   })
