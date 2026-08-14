@@ -17,7 +17,7 @@ that arbitrate a run's owner. `RunStore` only _validates_ supplied evidence; it
 never probes a process or a network itself.
 
 ```sh
-npm install @smthrs/run-store-next
+pnpm add @smthrs/run-store-next
 ```
 
 ## Public API

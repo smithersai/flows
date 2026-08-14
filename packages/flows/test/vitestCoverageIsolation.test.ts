@@ -161,8 +161,8 @@ describe("vitest coverage isolation conformance", () => {
   it.each(packages.map((name) => ({ name })))(
     "$name pins the test script CI actually invokes (issue #158)",
     ({ name }) => {
-      // CI runs the root `npm test`, which is `npm run test --workspaces
-      // --if-present`: a package that deletes or stubs its `scripts.test` is
+      // CI runs the root `pnpm test`, which recursively runs every workspace's
+      // test script: a package that deletes or stubs its `scripts.test` is
       // silently never run while every config-level assertion above stays
       // green. The script CI invokes is therefore pinned here to the exact
       // canonical value every package ships — plain `vitest`, whose default
@@ -188,16 +188,31 @@ describe("vitest coverage isolation conformance", () => {
     // and no coverage gate, and the universe derivation above still reads
     // `packages/` only, so it adds no ungated publishable surface. It is a
     // workspace so its end-to-end suite resolves the real `@smthrs/*`
-    // packages and runs under the root `npm test` fan-out.
-    const root = JSON.parse(readFileSync(join(packagesDir, "..", "package.json"), "utf8")) as {
-      readonly workspaces?: ReadonlyArray<string>
-    }
-    expect(root.workspaces).toEqual(["packages/*", "examples"])
+    // packages and runs under the root `pnpm test` fan-out.
+    const workspace = readFileSync(join(packagesDir, "..", "pnpm-workspace.yaml"), "utf8")
+    expect(workspace).toBe(
+      [
+        "packages:",
+        "  - \"packages/*\"",
+        "  - \"examples\"",
+        "",
+        "allowBuilds:",
+        "  dprint: false",
+        "  es5-ext: false",
+        "  esbuild: false",
+        "  msgpackr-extract: false",
+        "  unrs-resolver: false",
+        "  vue-demi: false",
+        "",
+        "linkWorkspacePackages: true",
+        ""
+      ].join("\n")
+    )
   })
 
   it("pins the root aggregator scripts CI invokes (issue #166)", () => {
     // The per-package `scripts.test` pin (issue #158) covered the leaves but
-    // not the root: CI runs `npm test`, and the root aggregator is what fans
+    // not the root: CI runs `pnpm test`, and the root aggregator is what fans
     // that out across every workspace. Narrowing it — e.g. to
     // `--workspace packages/flows` — silently dropped siblings from CI while
     // every per-package cell and the workspaces-glob cell stayed green. The
@@ -212,30 +227,30 @@ describe("vitest coverage isolation conformance", () => {
     }
     expect(root.scripts).toEqual({
       browser: "node scripts/browser-check.mjs",
-      check: "npm run check --workspaces --if-present",
-      circular: "npm run circular --workspaces --if-present",
-      lint: "npm run lint --workspaces --if-present",
-      test: "npm run test --workspaces --if-present",
-      "test:examples": "npm run test --workspace @smthrs/examples"
+      check: "pnpm --recursive --if-present run check",
+      circular: "pnpm --recursive --if-present run circular",
+      lint: "pnpm --recursive --if-present run lint",
+      test: "pnpm --recursive --if-present run test",
+      "test:examples": "pnpm --filter @smthrs/examples run test"
     })
   })
 
   it("pins the CI steps that reach the aggregators and the jj install (issue #166)", () => {
-    // The yml is the last unpinned hop: a step that stops calling `npm test`
+    // The yml is the last unpinned hop: a step that stops calling `pnpm test`
     // (or drops the jj install the real-binary host suite requires, issue
     // #163) skips enforcement with every conformance cell green. Source-text
     // pins, matching the config-source approach used across this suite.
     const ci = readFileSync(join(packagesDir, "..", ".github", "workflows", "ci.yml"), "utf8")
-    expect(ci).toMatch(/npm install --global npm@\d+\.\d+\.\d+ --ignore-scripts/)
-    expect(ci).toMatch(/^\s*- run: npm ci --ignore-scripts$/m)
-    expect(ci).toMatch(/^\s*run: npm run check$/m)
-    expect(ci).toMatch(/^\s*run: npm run lint$/m)
-    expect(ci).toMatch(/^\s*run: npm run circular$/m)
-    // Browser support is a hard requirement met through layers; `npm run
+    expect(ci).toMatch(/^\s*- uses: pnpm\/action-setup@v6$/m)
+    expect(ci).toMatch(/^\s*- run: pnpm install --frozen-lockfile --ignore-scripts$/m)
+    expect(ci).toMatch(/^\s*run: pnpm run check$/m)
+    expect(ci).toMatch(/^\s*run: pnpm run lint$/m)
+    expect(ci).toMatch(/^\s*run: pnpm run circular$/m)
+    // Browser support is a hard requirement met through layers; `pnpm run
     // browser` is the only thing that proves it, so CI has to call it
     // (REVIEW.md blocker 7).
-    expect(ci).toMatch(/^\s*run: npm run browser$/m)
-    expect(ci).toMatch(/^\s*run: npm test$/m)
+    expect(ci).toMatch(/^\s*run: pnpm run browser$/m)
+    expect(ci).toMatch(/^\s*run: pnpm test$/m)
     expect(ci).toMatch(/tool: jj-cli@\d+\.\d+\.\d+/)
     expect(ci).toMatch(/^\s*run: jj git init --colocate$/m)
   })
@@ -248,16 +263,16 @@ describe("vitest coverage isolation conformance", () => {
     expect(publish).toBeGreaterThan(smoke)
     expect(release).toContain("node scripts/pack-release.mjs \"$PACK_DIR\"")
     expect(release).toContain("node scripts/smoke-release.mjs \"$PACK_DIR\"")
-    // The publish CLI must be the exact npm CI validated, so the two
-    // workflows' pins may only move together.
-    const pinPattern = /npm install --global npm@(\d+\.\d+\.\d+) --ignore-scripts/
-    const releasePin = release.match(pinPattern)
-    const ciPin = readFileSync(join(packagesDir, "..", ".github", "workflows", "ci.yml"), "utf8")
-      .match(pinPattern)
-    expect(releasePin?.[1]).toBeDefined()
-    expect(releasePin?.[1]).toBe(ciPin?.[1])
-    expect(release).toContain("npm publish \"$PACK_DIR/$tarball\"")
-    expect(release).toContain("npm view \"$spec\" version")
+    // Both workflows install the pnpm version pinned once in package.json.
+    const root = JSON.parse(readFileSync(join(packagesDir, "..", "package.json"), "utf8")) as {
+      readonly packageManager?: string
+    }
+    expect(root.packageManager).toMatch(/^pnpm@\d+\.\d+\.\d+$/)
+    expect(release).toMatch(/^\s*- uses: pnpm\/action-setup@v6$/m)
+    const ci = readFileSync(join(packagesDir, "..", ".github", "workflows", "ci.yml"), "utf8")
+    expect(ci).toMatch(/^\s*- uses: pnpm\/action-setup@v6$/m)
+    expect(release).toContain("pnpm publish \"$PACK_DIR/$tarball\"")
+    expect(release).toContain("pnpm view \"$spec\" version")
     // The published set and its order are read out of the pack manifest, so a
     // restated package list cannot drift from what was packed. `scripts/
     // pack-release.test.mjs` holds the rest of that conformance suite.
@@ -266,8 +281,10 @@ describe("vitest coverage isolation conformance", () => {
     const packScript = readFileSync(join(packagesDir, "..", "scripts", "pack-release.mjs"), "utf8")
     const smokeScript = readFileSync(join(packagesDir, "..", "scripts", "smoke-release.mjs"), "utf8")
     expect(packScript).toContain("publicationManifest(manifest)")
-    expect(packScript).toContain("\"npm\",")
+    expect(packScript).toContain("\"pnpm\",")
     expect(packScript).toContain("\"pack\"")
+    expect(smokeScript).toContain("\"pnpm\",")
+    expect(smokeScript).toContain("\"add\"")
     expect(smokeScript).toContain("await import('@smthrs/flows-next')")
     expect(smokeScript).toContain("require('@smthrs/flows-next')")
     // Validation after publish cannot protect the release that was just
@@ -313,9 +330,12 @@ describe("vitest coverage isolation conformance", () => {
       "engine-store/src/internal/RunCoordinator.ts": 1,
       "engine/src/FlowEngine/make.ts": 1,
       "journal/src/SqlJournal.ts": 1,
-      // Plan order closes every dependency before its dependent, so the
-      // transitive-closure fallback is unreachable.
-      "plan/src/Plan.ts": 1,
+      // Two unreachable-by-construction fallbacks in the plan compiler. Plan
+      // order closes every dependency before its dependent, so the
+      // transitive-closure fallback is unreachable; and the reader-after-writer
+      // pass walks an edge map keyed by every node of the plan, whose values
+      // hold node ids only, so its `edges.get(current)` lookup always hits.
+      "plan/src/Plan.ts": 2,
       // Every `flows_plans` column carries a CHECK constraint, so a row that
       // fails the row decode cannot be written.
       "plan/src/PlanStore.ts": 1,

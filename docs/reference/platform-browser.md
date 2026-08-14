@@ -106,7 +106,7 @@ runs, which is why the layer requires both.
 ## Browser support
 
 `@smthrs/platform-browser-next` is gated as a browser entry point by
-`scripts/browser-check.mjs` (`npm run browser`, and one CI step). Nothing in the
+`scripts/browser-check.mjs` (`pnpm run browser`, and one CI step). Nothing in the
 package resolves a `node:` built-in.
 
 See [browser support](../architecture/browser-support.md), the

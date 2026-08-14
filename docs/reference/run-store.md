@@ -83,7 +83,7 @@ therefore take no `redact` option at all — `RunStore.layer` and
 
 The root holds the stores and their contracts, all written against the
 driver-neutral `@smthrs/database-next` service, and it bundles for the browser
-(`npm run browser`). The test double binds a Node SQLite database and is
+(`pnpm run browser`). The test double binds a Node SQLite database and is
 therefore imported from `@smthrs/run-store-next/test/TestRunStore`. A consumer that
 needs the journal, the run store, and the step cache over ONE database takes
 `@smthrs/engine-store-next/test/TestStores`. See

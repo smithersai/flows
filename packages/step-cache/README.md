@@ -15,7 +15,7 @@ underneath, which is why it is its own package and depends only on
 `@smthrs/database-next`.
 
 ```sh
-npm install @smthrs/step-cache-next
+pnpm add @smthrs/step-cache-next
 ```
 
 ## Public API

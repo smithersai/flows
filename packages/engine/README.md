@@ -7,7 +7,7 @@ volatile in-memory implementation of it; `@smthrs/engine-store-next` supplies
 durable persistence over the same seam.
 
 ```sh
-npm install @smthrs/engine-next @smthrs/flow-next
+pnpm add @smthrs/engine-next @smthrs/flow-next
 ```
 
 ## Mental model

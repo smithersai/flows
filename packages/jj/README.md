@@ -5,7 +5,7 @@ working copy around every step, so jj is host access — it goes through a layer
 like the filesystem does, not through an ad-hoc `spawn`.
 
 ```sh
-npm install @smthrs/jj-next
+pnpm add @smthrs/jj-next
 ```
 
 ## Entry points
@@ -22,7 +22,7 @@ importing the contract never resolves a `node:` built-in.
 | `@smthrs/jj-next/node/NodeJj`       | Node (`node:child_process`)                         |
 | `@smthrs/jj-next/bun/BunJj`         | Bun, reusing the Node adapter                       |
 
-`npm run browser` at the repository root pins that table.
+`pnpm run browser` at the repository root pins that table.
 
 ## Public API
 
@@ -88,7 +88,7 @@ const program = Effect.gen(function*() {
 
 The wasm artifact ships in the package at `wasm/flows_jj.wasm`; how it becomes
 a URL is the bundler's business (Vite: `?url` import, or copy it as an asset).
-It is rebuilt reproducibly with `npm run build:wasm` in this package, which
+It is rebuilt reproducibly with `pnpm run build:wasm` in this package, which
 drives `crates/flows-jj/build-wasm.mjs` (`cargo build --release --target
 wasm32-wasip1` + copy).
 

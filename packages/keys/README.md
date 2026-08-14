@@ -3,7 +3,7 @@
 An Effect schema for canonical flow keys.
 
 ```sh
-npm install @smthrs/keys-next
+pnpm add @smthrs/keys-next
 ```
 
 ```ts

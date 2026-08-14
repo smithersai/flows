@@ -9,7 +9,7 @@ Effect ships a workflow package of its own; this engine vendors that surface rat
 You will need Node.js 22.19 or later.
 
 ```sh
-npm install @smthrs/flow-next @smthrs/engine-next effect@4.0.0-rc.108 @effect/platform-node@4.0.0-rc.108
+pnpm add @smthrs/flow-next @smthrs/engine-next effect@4.0.0-rc.108 @effect/platform-node@4.0.0-rc.108
 ```
 
 The only way to learn a new system is to write programs in it. The first program to write is the same as it has always been: print a greeting.
@@ -59,7 +59,7 @@ The engine above keeps its state in the process, which is fine for a first progr
 
 ## Examples
 
-There are nine, in [`examples/src`](examples/src), numbered in reading order. `npm run test:examples` runs every one against the real packages.
+There are nine, in [`examples/src`](examples/src), numbered in reading order. `pnpm run test:examples` runs every one against the real packages.
 
 - [`01-define-and-run.ts`](examples/src/01-define-and-run.ts) — define a typed flow and run it on the in-memory engine
 - [`02-run-durably.ts`](examples/src/02-run-durably.ts) — run a flow on the durable engine and read the journal it wrote
@@ -114,4 +114,4 @@ There are nine, in [`examples/src`](examples/src), numbered in reading order. `n
 
 ## Documentation
 
-`npx vocs dev` serves the documentation site locally; the pages are under [docs/pages](docs/pages).
+`pnpm exec vocs dev` serves the documentation site locally; the pages are under [docs/pages](docs/pages).

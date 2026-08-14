@@ -3,22 +3,25 @@
   "private": true,
   "type": "module",
   "version": "0.0.0",
-  "workspaces": [
-    "packages/*",
-    "examples"
-  ],
+  "packageManager": "pnpm@11.21.0",
   "scripts": {
     "browser": "node scripts/browser-check.mjs",
-    "check": "npm run check --workspaces --if-present",
-    "circular": "npm run circular --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
-    "test:examples": "npm run test --workspace @smthrs/examples"
+    "check": "pnpm --recursive --if-present run check",
+    "circular": "pnpm --recursive --if-present run circular",
+    "lint": "pnpm --recursive --if-present run lint",
+    "test": "pnpm --recursive --if-present run test",
+    "test:examples": "pnpm --filter @smthrs/examples run test"
   },
   "engines": {
     "node": ">=22.19.0"
   },
   "devDependencies": {
+    "@effect/platform-node": "4.0.0-rc.108",
+    "@smthrs/database-next": "workspace:*",
+    "@smthrs/engine-store-next": "workspace:*",
+    "effect": "4.0.0-rc.108",
+    "esbuild": "0.28.1",
+    "eslint-plugin-jsdoc": "64.1.0",
     "mermaid": "^11.16.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

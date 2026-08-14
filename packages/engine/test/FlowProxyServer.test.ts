@@ -177,7 +177,7 @@ describe("FlowProxyServer.layerRpcHandlers", () => {
 describe("serving a flow is executing it", () => {
   // Serving happens on the side of the boundary that drives the body, so the
   // compile-time gate on a missing action implementation has to hold here
-  // too. A type test: `tsc -p tsconfig.test.json` in `npm run check` fails on
+  // too. A type test: `tsc -p tsconfig.test.json` in `pnpm run check` fails on
   // a red assertion whether or not the suite is run.
   it("requires the action implementations of every flow it serves", () => {
     type Served = Layer.Services<ReturnType<typeof FlowProxyServer.layerRpcHandlers<typeof flows>>>

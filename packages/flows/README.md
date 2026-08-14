@@ -6,7 +6,7 @@ without flattening neighboring service constructors; `namespaces` lists those
 runtime namespace names.
 
 ```sh
-npm install @smthrs/flows-next
+pnpm add @smthrs/flows-next
 ```
 
 ```ts
@@ -44,7 +44,7 @@ is chosen by the program that runs, not by the library it depends on.
 
 ## The barrel is a browser entry point
 
-`@smthrs/flows-next` bundles for a browser, and `npm run browser` gates it along
+`@smthrs/flows-next` bundles for a browser, and `pnpm run browser` gates it along
 with every package root it re-exports: `@smthrs/canonical-next`,
 `@smthrs/capability-next`, `@smthrs/crypto-next`, `@smthrs/jj-next`,
 `@smthrs/jj-next/browser/BrowserJj`, `@smthrs/platform-browser-next`,

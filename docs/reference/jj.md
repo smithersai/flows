@@ -43,6 +43,6 @@ The tag key `@smthrs/jj-next/Jj` and the error `_tag` `@smthrs/jj-next/JjError` 
 
 ## Browser support
 
-`@smthrs/jj-next` and `@smthrs/jj-next/browser/BrowserJj` are gated as browser entry points by `scripts/browser-check.mjs` (`npm run browser`, and one CI step). The same gate asserts `@smthrs/jj-next/node/NodeJj` and `@smthrs/jj-next/bun/BunJj` still do *not* bundle, and that the reason is `node:child_process`.
+`@smthrs/jj-next` and `@smthrs/jj-next/browser/BrowserJj` are gated as browser entry points by `scripts/browser-check.mjs` (`pnpm run browser`, and one CI step). The same gate asserts `@smthrs/jj-next/node/NodeJj` and `@smthrs/jj-next/bun/BunJj` still do *not* bundle, and that the reason is `node:child_process`.
 
 See [Hosts and capabilities](../concepts/hosts-and-capabilities.md), the [`@smthrs/kernel-next` reference](kernel.md), and [time travel](../concepts/time-travel.md), which uses `Jj` for workspace snapshot and restore.

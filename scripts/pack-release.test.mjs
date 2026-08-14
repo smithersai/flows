@@ -5,6 +5,7 @@ import test from "node:test"
 import { fileURLToPath } from "node:url"
 import {
   dependencyOrder,
+  packResultFilename,
   publicationManifest,
   readWorkspaceManifests,
   workspaceDependencies,
@@ -15,14 +16,14 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const workflow = (name) => readFileSync(join(repoRoot, ".github", "workflows", name), "utf8")
 
 /**
- * Extracts the commands a workflow runs as gates: `npm run <script>`,
- * `npm test`, and the release scripts driven directly through node.
+ * Extracts the commands a workflow runs as gates: `pnpm run <script>`,
+ * `pnpm test`, and the release scripts driven directly through node.
  */
 const gateCommands = (source) =>
   new Set(
     [
-      ...source.matchAll(/\bnpm run [a-z][a-z:-]*/g),
-      ...source.matchAll(/\bnpm test\b/g),
+      ...source.matchAll(/\bpnpm run [a-z][a-z:-]*/g),
+      ...source.matchAll(/\bpnpm test\b/g),
       ...source.matchAll(/\bnode (?:--test )?scripts\/[\w.-]+\.mjs/g)
     ].map((match) => match[0])
   )
@@ -62,6 +63,20 @@ test("publicationManifest replaces source exports without mutating the input", (
   })
   assert.equal(manifest.exports["."], "./src/index.ts")
   assert.ok("exports" in manifest.publishConfig)
+})
+
+test("packResultFilename makes pnpm's absolute pack result portable", () => {
+  assert.equal(
+    packResultFilename(
+      { filename: "/tmp/release/smthrs-example-0.1.0.tgz" },
+      "@smthrs/example"
+    ),
+    "smthrs-example-0.1.0.tgz"
+  )
+  assert.throws(
+    () => packResultFilename({}, "@smthrs/example"),
+    /pnpm pack returned no filename/
+  )
 })
 
 test("publicationManifest rejects a package without publication exports", () => {

@@ -6,7 +6,7 @@ executed against. `@smthrs/engine-next` implements that port; `@smthrs/engine-st
 makes it durable.
 
 ```sh
-npm install @smthrs/flow-next
+pnpm add @smthrs/flow-next
 ```
 
 ## Mental model

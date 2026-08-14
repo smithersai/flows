@@ -4,7 +4,7 @@ Browser implementations of Effect platform services backed by ZenFS and
 just-bash — the two `@effect/platform-browser` does not ship.
 
 ```sh
-npm install @smthrs/platform-browser-next
+pnpm add @smthrs/platform-browser-next
 ```
 
 `effect`'s own browser platform package covers HTTP, sockets, workers,
@@ -91,5 +91,5 @@ Everything else behaves as `NodeFileSystem` does, including `flag` on
 `writeFile`/`writeFileString` — an `"a"` appends rather than truncating, and a
 `"wx"` over an existing path fails as `AlreadyExists`.
 
-Everything here bundles for the browser; `npm run browser` at the repository
+Everything here bundles for the browser; `pnpm run browser` at the repository
 root pins that property.

@@ -5,7 +5,7 @@ run ownership, attempts, cache provenance, deferreds, clocks, and workspace
 snapshot boundaries into a `FlowEngine` layer.
 
 ```sh
-npm install @smthrs/engine-store-next
+pnpm add @smthrs/engine-store-next
 ```
 
 ## Bundles for the browser, runs on SQLite

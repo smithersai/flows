@@ -44,7 +44,7 @@ dependency footprint, or when a runtime target cannot carry every engine
 package. The barrel pulls in every one of them.
 
 **A browser is not one of those targets.** Every package root the barrel
-re-exports bundles for a browser, and `npm run browser` gates `@smthrs/flows-next`
+re-exports bundles for a browser, and `pnpm run browser` gates `@smthrs/flows-next`
 itself alongside them — see [browser support](../architecture/browser-support.md).
 Bundling is still weaker than running: the durable composition needs a SQL
 client behind the `DurableWriter` contract, and the only ones shipped here are

@@ -80,7 +80,7 @@ High-value properties include:
 Run all package checks with:
 
 ```sh
-npm run check
+pnpm run check
 ```
 
 See [Determinism and replay](../concepts/determinism-and-replay.md) and the package references for [`@smthrs/kernel-next`](../reference/kernel.md), [`@smthrs/journal-next`](../reference/journal.md), [`@smthrs/run-store-next`](../reference/run-store.md), and [`@smthrs/step-cache-next`](../reference/step-cache.md).

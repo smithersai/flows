@@ -10,12 +10,12 @@ Every package runs `vitest` under v8 coverage with 100% thresholds on branches, 
 
 | Gate | Command |
 | --- | --- |
-| typecheck | `npm run check` |
-| unit and integration tests | `npm test` |
-| lint and formatting | `npm run lint` |
-| import cycles | `npm run circular` |
-| browser and Node entry contract | `npm run browser` |
-| runnable examples | `npm run test:examples` |
+| typecheck | `pnpm run check` |
+| unit and integration tests | `pnpm test` |
+| lint and formatting | `pnpm run lint` |
+| import cycles | `pnpm run circular` |
+| browser and Node entry contract | `pnpm run browser` |
+| runnable examples | `pnpm run test:examples` |
 
 ## Required non-mocked cases
 

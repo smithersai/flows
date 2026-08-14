@@ -26,7 +26,7 @@
   uses — ZenFS in production, `node:fs` in tests. All six contract operations
   work against jj's Simple backend; git interop is out of scope (separate
   ticket). The wasm artifact ships at `wasm/flows_jj.wasm` and rebuilds via
-  `npm run build:wasm`. `layerUnsupported` remains exported for hosts without
+  `pnpm run build:wasm`. `layerUnsupported` remains exported for hosts without
   a wasm module, and `not_installed` is now produced only on the TS side.
   Hosts own durability: call `fs.sync()` after operations (see README).
 - Split the `Jj` contract, `JjError`, and the Node, Bun, and browser adapters

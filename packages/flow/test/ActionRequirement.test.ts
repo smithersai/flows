@@ -10,7 +10,7 @@
  *
  * Most of it is therefore a TYPE test. The repo's convention for those is
  * vitest's `expectTypeOf` beside `@ts-expect-error`, checked by
- * `tsc -p tsconfig.test.json` in `npm run check`, so a red type assertion
+ * `tsc -p tsconfig.test.json` in `pnpm run check`, so a red type assertion
  * fails the gate whether or not the suite is run.
  */
 import { Action, Flow, FlowRuntime, Graph, Interpreter, Sleep, WaitFor } from "@smthrs/flow-next"

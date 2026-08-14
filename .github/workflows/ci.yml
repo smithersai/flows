@@ -11,18 +11,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v4
         with:
           node-version: 22.19.0
-          cache: npm
-      # Node 22.19.0 bundles npm 10.9.3, while trusted publishing requires
-      # npm 11.5.1 or newer. Pin the same CLI used by the release workflow.
-      # 11.5.1 itself crashes in Arborist ("Cannot read properties of null
-      # (reading 'edgesOut')") when installing release tarballs alongside
-      # registry packages, which the smoke test does.
-      - name: Install npm with trusted publishing support
-        run: npm install --global npm@11.16.0 --ignore-scripts
-      - run: npm ci --ignore-scripts
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       # Issue #163: the real-binary NodeJj suite requires jj on PATH; without
       # it the suite fails loudly on CI (it no longer skips silently).
       # install-action fetches the prebuilt jj-cli release binary — no cargo
@@ -37,19 +31,19 @@ jobs:
       - name: Initialize colocated jj repository
         run: jj git init --colocate
       - name: Typecheck all workspaces
-        run: npm run check
+        run: pnpm run check
       # Issue #38: lint (eslint --max-warnings=0 + dprint) and the
       # circular-dependency guard gate every workspace — the issue-#8 class
       # of lint-only regression can no longer merge green.
       - name: Lint all workspaces
-        run: npm run lint
+        run: pnpm run lint
       - name: Circular-dependency guard
-        run: npm run circular
+        run: pnpm run circular
       # Browser support is a hard requirement met through layers: the contract
       # entry points must bundle for the browser, and the documented Node-only
       # ones must still be Node-only. scripts/browser-check.mjs gates both.
       - name: Browser bundle guard
-        run: npm run browser
+        run: pnpm run browser
       - name: Release manifest unit test
         run: node --test scripts/pack-release.test.mjs
       # The operator's backup/verify/restore entry point, driven the way an
@@ -59,11 +53,11 @@ jobs:
       # Package vitest configs with `coverage.enabled: true` compute and
       # enforce their coverage thresholds on every run — a red gate fails CI.
       - name: Test all workspaces
-        run: npm test
+        run: pnpm test
       - name: Build all workspaces from clean artifacts
         run: |
           find packages -type d -name dist -prune -exec rm -rf {} +
-          npm run build --workspaces --if-present
+          pnpm --recursive --if-present run build
       - name: Pack and smoke-test release artifacts
         env:
           PACK_DIR: ${{ runner.temp }}/release-packs
@@ -150,14 +144,15 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v4
         with:
           node-version: 22.19.0
-          cache: npm
+          cache: pnpm
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.4.0
-      - run: npm ci --ignore-scripts
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       # Same jj setup as the Node job: the Bun host contract exercises a
       # successful `jj status` when the binary is present.
       - name: Install jj
@@ -169,7 +164,7 @@ jobs:
       - name: Test bun-compatible suites
         run: |
           for pkg in artifacts canonical capability crypto engine flow keys platform-browser platform-bun sandbox; do
-            (cd "packages/$pkg" && bun ../../node_modules/vitest/vitest.mjs run --coverage.enabled=false)
+            (cd "packages/$pkg" && bun node_modules/vitest/vitest.mjs run --coverage.enabled=false)
           done
 
   # The browser contract as its own gate. scripts/browser-check.mjs bundles
@@ -183,13 +178,14 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v4
         with:
           node-version: 22.19.0
-          cache: npm
-      - run: npm ci --ignore-scripts
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Browser bundle guard
-        run: npm run browser
+        run: pnpm run browser
 
   # Advisory OS coverage for the Node suite. Both jobs become required (drop
   # continue-on-error) once they prove a stable green streak. Windows path
@@ -201,11 +197,12 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v4
         with:
           node-version: 22.19.0
-          cache: npm
-      - run: npm ci --ignore-scripts
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Install jj
         uses: taiki-e/install-action@v2
         with:
@@ -213,7 +210,7 @@ jobs:
       - name: Initialize colocated jj repository
         run: jj git init --colocate
       - name: Test all workspaces
-        run: npm test
+        run: pnpm test
 
   node-windows:
     name: node suite (Windows, advisory)
@@ -222,11 +219,12 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v4
         with:
           node-version: 22.19.0
-          cache: npm
-      - run: npm ci --ignore-scripts
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Install jj
         uses: taiki-e/install-action@v2
         with:
@@ -234,4 +232,4 @@ jobs:
       - name: Initialize colocated jj repository
         run: jj git init --colocate
       - name: Test all workspaces
-        run: npm test
+        run: pnpm test

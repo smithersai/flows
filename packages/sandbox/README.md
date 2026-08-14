@@ -6,7 +6,7 @@ Provider packages adapt their SDK sessions to
 Effect's `ChildProcessSpawner` contract and the sandbox health taxonomy.
 
 ```sh
-npm install @smthrs/sandbox-next
+pnpm add @smthrs/sandbox-next
 ```
 
 ## Public API
@@ -25,7 +25,7 @@ their semantics. Output `pipe` / `ignore` / `inherit` dispositions and output
 sinks are honored by the adapter.
 
 The package is browser-bundleable: it adapts a provider a caller hands it and
-owns no host access of its own. `npm run browser` at the repository root pins
+owns no host access of its own. `pnpm run browser` at the repository root pins
 that property.
 
 ```ts

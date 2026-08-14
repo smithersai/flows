@@ -7,11 +7,11 @@ This guide runs a typed flow with the in-memory engine. It is the shortest execu
 Install Node.js 22.19 or newer, then install the engine and Effect:
 
 ```sh
-npm install @smthrs/flow-next @smthrs/engine-next effect
+pnpm add @smthrs/flow-next @smthrs/engine-next effect
 ```
 
-For source development in this repository, run `npm install` followed by
-`npm run check` from the workspace root.
+For source development in this repository, run `pnpm install` followed by
+`pnpm run check` from the workspace root.
 
 ## Define and run a flow
 

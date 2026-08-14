@@ -7,6 +7,8 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 
+const repoRoot = resolve(import.meta.dirname, "..")
+
 const run = (command, args, cwd) =>
   new Promise((resolveRun, reject) => {
     const child = spawn(command, args, { cwd, stdio: "inherit" })
@@ -44,16 +46,32 @@ try {
     join(smokeRoot, "package.json"),
     '{\n  "private": true,\n  "type": "module"\n}\n'
   )
-  await run(
-    "npm",
+  // The packages are not published yet, and pnpm resolves each transitive
+  // exact-version edge independently even when every tarball is also passed
+  // to `pnpm add`. Override those internal edges to the tarballs under test so
+  // the smoke project cannot fall back to an older registry copy.
+  await writeFile(
+    join(smokeRoot, "pnpm-workspace.yaml"),
     [
-      "install",
+      "overrides:",
+      ...packManifest.map((entry) =>
+        `  ${JSON.stringify(entry.name)}: ${JSON.stringify(`file:${join(absolutePackDirectory, entry.filename)}`)}`
+      ),
+      ""
+    ].join("\n")
+  )
+  await run(
+    "pnpm",
+    [
+      "--dir",
+      smokeRoot,
+      "add",
       "--ignore-scripts",
       ...tarballs.map((filename) => join(absolutePackDirectory, filename)),
       "typescript@6.0.3",
       "vitest@4.1.9"
     ],
-    smokeRoot
+    repoRoot
   )
   await run(
     "node",

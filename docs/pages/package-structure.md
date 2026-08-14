@@ -1,6 +1,6 @@
 # Package structure
 
-Twenty-three npm workspaces under `packages/`, one closed dependency set. This page is the map: who owns which data, which package may import which, and which entry points bundle for a browser.
+Twenty-three pnpm workspaces under `packages/`, one closed dependency set. This page is the map: who owns which data, which package may import which, and which entry points bundle for a browser.
 
 ## Workspaces
 
@@ -173,15 +173,15 @@ flowchart LR
 | `@smthrs/observability-next` | nothing in the workspace | nothing; an application composes it beside the engine, the way it composes a `platform-*` bundle |
 | `@smthrs/flows-next` | every package except the three `platform-*` bundles | nothing |
 
-`npm run circular` fails the build on an import cycle, within a package or across them.
+`pnpm run circular` fails the build on an import cycle, within a package or across them.
 
-The one cycle at *package* granularity is `kernel` ↔ `platform-browser`: the kernel's deterministic `TestHost` bundle (a test-only subpath) mounts the browser filesystem and interpreter, and `BrowserChildProcessSpawner` renders command lines with the kernel's `CommandLine`. Removing `HttpTransport` cut the network half of it — `BrowserHost` now provides Effect's own `HttpClient` and no longer fills a kernel-owned slot. No module-level cycle exists, which is what `npm run circular` checks.
+The one cycle at *package* granularity is `kernel` ↔ `platform-browser`: the kernel's deterministic `TestHost` bundle (a test-only subpath) mounts the browser filesystem and interpreter, and `BrowserChildProcessSpawner` renders command lines with the kernel's `CommandLine`. Removing `HttpTransport` cut the network half of it — `BrowserHost` now provides Effect's own `HttpClient` and no longer fills a kernel-owned slot. No module-level cycle exists, which is what `pnpm run circular` checks.
 
 ## Entry point matrix
 
 A package root exports contracts. A platform implementation lives under a subpath named for its platform, the way `effect` keeps `@effect/platform-node` out of `effect`. A root that re-exports an implementation resolves that implementation's imports for every consumer, including browser ones, before any bundler can tree-shake it.
 
-`scripts/browser-check.mjs` executes this table. It bundles each browser entry point with esbuild `platform: "browser"` and fails if one breaks, and it bundles each Node entry point and fails if one stops failing. `npm run browser` runs it locally and CI runs it as a step.
+`scripts/browser-check.mjs` executes this table. It bundles each browser entry point with esbuild `platform: "browser"` and fails if one breaks, and it bundles each Node entry point and fails if one stops failing. `pnpm run browser` runs it locally and CI runs it as a step.
 
 | Entry point | Browser | Node | Why |
 | --- | --- | --- | --- |

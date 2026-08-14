@@ -18,18 +18,13 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v4
         with:
           node-version: 22.19.0
-          cache: npm
+          cache: pnpm
           registry-url: https://registry.npmjs.org
-      # Node 22.19.0 bundles npm 10.9.3; npm trusted publishing requires
-      # npm 11.5.1 or newer. Pin the same CLI as ci.yml — 11.5.1 itself
-      # crashes in Arborist when installing tarballs alongside registry
-      # packages.
-      - name: Install npm with trusted publishing support
-        run: npm install --global npm@11.16.0 --ignore-scripts
-      - run: npm ci --ignore-scripts
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - name: Install jj
         uses: taiki-e/install-action@v2
         with:
@@ -53,19 +48,19 @@ jobs:
             fi
           done
       - name: Typecheck all workspaces
-        run: npm run check
+        run: pnpm run check
       - name: Test all workspaces
-        run: npm test
+        run: pnpm test
       - name: Lint all workspaces
-        run: npm run lint
+        run: pnpm run lint
       - name: Circular-dependency guard
-        run: npm run circular
+        run: pnpm run circular
       # The gate roster here must stay a superset of ci.yml's. The browser
       # guard and the release manifest unit test are the two that used to run
       # only on the pull-request path, so a re-tag or a hotfix tag could
       # publish without them. scripts/pack-release.test.mjs asserts that.
       - name: Browser bundle guard
-        run: npm run browser
+        run: pnpm run browser
       - name: Release manifest unit test
         run: node --test scripts/pack-release.test.mjs
       - name: Disaster-recovery script test
@@ -73,7 +68,7 @@ jobs:
       - name: Build all workspaces from clean artifacts
         run: |
           find packages -type d -name dist -prune -exec rm -rf {} +
-          npm run build --workspaces --if-present
+          pnpm --recursive --if-present run build
       # Pack from staging manifests whose exports point at built artifacts.
       # Repository manifests retain Effect's source-first export shape.
       - name: Pack and smoke-test release artifacts
@@ -102,9 +97,9 @@ jobs:
           ' > "$PUBLISH_ORDER"
           while read -r workspace tarball; do
             spec="$workspace@$release_version"
-            if npm view "$spec" version --json >/dev/null 2>&1; then
+            if pnpm view "$spec" version --json >/dev/null 2>&1; then
               echo "$spec is already published; leaving the immutable version in place."
               continue
             fi
-            npm publish "$PACK_DIR/$tarball" --provenance --access public --tag "$publish_tag"
+            pnpm publish "$PACK_DIR/$tarball" --provenance --access public --tag "$publish_tag"
           done < "$PUBLISH_ORDER"

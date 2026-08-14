@@ -12,7 +12,7 @@ are Effect's own tags — `FileSystem`, `Path`, `ChildProcessSpawner`, and
 around them.
 
 ```sh
-npm install @smthrs/kernel-next
+pnpm add @smthrs/kernel-next
 ```
 
 ## Public API

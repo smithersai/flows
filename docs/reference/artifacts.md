@@ -79,7 +79,7 @@ dropped upload costs one re-upload and never correctness.
 ## Entry points
 
 The root is written against Effect's `FileSystem` and `HttpClient` contracts and
-bundles for the browser (`npm run browser`). See
+bundles for the browser (`pnpm run browser`). See
 [browser support](../architecture/browser-support.md).
 
 ## Not here

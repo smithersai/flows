@@ -2,7 +2,7 @@
  * Packs publishable workspace tarballs without changing the Effect-style
  * source exports used by this repository.
  *
- * npm preserves `package.json#exports` when packing; it does not replace it
+ * pnpm preserves `package.json#exports` when packing; it does not replace it
  * with `publishConfig.exports`. Each package intentionally follows Effect's
  * source-first manifest shape, so release packing happens from a temporary
  * copy whose exports are rewritten to the already-built ESM/CJS artifacts.
@@ -110,6 +110,20 @@ export const workspaces = dependencyOrder(workspaceDependencies(readWorkspaceMan
 const isRecord = (value) => typeof value === "object" && value !== null && !Array.isArray(value)
 
 /**
+ * Extracts the portable tarball name from pnpm's pack result.
+ *
+ * pnpm returns an absolute `filename` when `--pack-destination` is absolute,
+ * while the release manifest deliberately stores names relative to its pack
+ * directory so CI can move and publish that directory as one artifact.
+ */
+export const packResultFilename = (result, packageName) => {
+  if (!isRecord(result) || typeof result.filename !== "string") {
+    throw new Error(`pnpm pack returned no filename for ${String(packageName)}`)
+  }
+  return basename(result.filename)
+}
+
+/**
  * Produces the manifest that belongs in a registry tarball.
  */
 export const publicationManifest = (manifest) => {
@@ -201,18 +215,22 @@ const packWorkspace = async (name, outputDirectory, stagingRoot) => {
   )
 
   const output = await run(
-    "npm",
-    ["pack", stagedPackage, "--json", "--ignore-scripts", "--pack-destination", outputDirectory]
+    "pnpm",
+    [
+      "--dir",
+      stagedPackage,
+      "pack",
+      "--json",
+      "--config.ignore-scripts=true",
+      "--pack-destination",
+      outputDirectory
+    ]
   )
   const result = JSON.parse(output)
-  const filename = result[0]?.filename
-  if (typeof filename !== "string") {
-    throw new Error(`npm pack returned no filename for ${String(manifest.name)}`)
-  }
   return {
     name: manifest.name,
     version: manifest.version,
-    filename
+    filename: packResultFilename(result, manifest.name)
   }
 }
 

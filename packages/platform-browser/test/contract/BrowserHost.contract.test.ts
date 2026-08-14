@@ -77,7 +77,7 @@ if (wasmBytes === undefined) {
   console.warn(
     "[BrowserHost.contract] packages/jj/wasm/flows_jj.wasm is not built — the jj capability "
       + "is asserted as the instantiation failure instead of the real-wasm contract. Build it "
-      + "with `npm run build:wasm -w @smthrs/jj-next`."
+      + "with `pnpm --filter @smthrs/jj-next run build:wasm`."
   )
 }
 

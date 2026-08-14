@@ -2,7 +2,7 @@
  * Use the library from a browser bundle.
  *
  * Every import in this file comes from an entry point that the repository's
- * browser gate (`npm run browser`) bundles with esbuild `platform: "browser"`:
+ * browser gate (`pnpm run browser`) bundles with esbuild `platform: "browser"`:
  * the `@smthrs/engine-next`, `@smthrs/keys-next`, `@smthrs/journal-next`, and
  * `@smthrs/platform-browser-next` roots never statically resolve a `node:`
  * built-in, because platform access lives in layers, and the Node and Bun

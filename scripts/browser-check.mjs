@@ -12,7 +12,7 @@
  * point nor silently disappear from a documented Node-only one without this
  * gate saying so.
  *
- * Run it with `npm run browser` from the repository root.
+ * Run it with `pnpm run browser` from the repository root.
  */
 import { relative, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
@@ -97,7 +97,7 @@ const NODE_ONLY = [
 ]
 
 const esbuild = await import("esbuild").catch((cause) => {
-  console.error("browser-check needs esbuild from the workspace toolchain — run `npm ci` first.")
+  console.error("browser-check needs esbuild from the workspace toolchain — run `pnpm install` first.")
   console.error(cause)
   process.exit(1)
 })

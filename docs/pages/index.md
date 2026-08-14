@@ -9,7 +9,7 @@ You declare an action once with Schema-typed payload, success, and error, attach
 Requires Node.js 22.19 or later.
 
 ```sh
-npm install @smthrs/flow-next @smthrs/engine-next effect
+pnpm add @smthrs/flow-next @smthrs/engine-next effect
 ```
 
 ```ts
@@ -52,7 +52,7 @@ Effect.runPromise(program).then(console.log)
 // "Hello, Ada."
 ```
 
-That engine keeps its state in the process. To survive a crash, drive the same flow with `EngineStore.layer` over SQLite. [Examples](/examples) walks the nine runnable programs that do it, and `npm run test:examples` executes every one of them against the real packages.
+That engine keeps its state in the process. To survive a crash, drive the same flow with `EngineStore.layer` over SQLite. [Examples](/examples) walks the nine runnable programs that do it, and `pnpm run test:examples` executes every one of them against the real packages.
 
 ## Where to go next
 

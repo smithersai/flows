@@ -53,7 +53,7 @@ its own `CacheSync` seam. See [`@smthrs/artifacts-next`](artifacts.md) and
 ## Entry points
 
 The root is written against the driver-neutral `@smthrs/database-next` service and
-bundles for the browser (`npm run browser`). The test double binds a Node
+bundles for the browser (`pnpm run browser`). The test double binds a Node
 SQLite database and is therefore imported from
 `@smthrs/step-cache-next/test/TestCacheStore`. See
 [browser support](../architecture/browser-support.md).

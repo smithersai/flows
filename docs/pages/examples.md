@@ -3,8 +3,8 @@
 Nine programs under `examples/src`, each one paired with a test under `examples/test` that runs it against the real packages. Nothing in this directory is mocked: the durable examples open a real SQLite file, the host example spawns a real process, and the browser example is bundled by a real bundler.
 
 ```sh
-npm install
-npm run test:examples
+pnpm install
+pnpm run test:examples
 ```
 
 The suite is a gate, so a snippet that stops compiling or stops producing the documented answer fails the build rather than drifting quietly.

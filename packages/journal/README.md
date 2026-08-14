@@ -24,7 +24,7 @@ Committing locally is not remote atomicity — external effects still need
 idempotency keys, fencing tokens, or compensation.
 
 ```sh
-npm install @smthrs/journal-next
+pnpm add @smthrs/journal-next
 ```
 
 ## Public API

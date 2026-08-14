@@ -6,7 +6,7 @@ Node/in-memory SQLite client layers; queries go through Effect's own
 `SqlClient` service, and journal schema and queries stay in `@smthrs/journal-next`.
 
 ```sh
-npm install @smthrs/database-next
+pnpm add @smthrs/database-next
 ```
 
 ## Public API

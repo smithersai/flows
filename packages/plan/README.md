@@ -107,5 +107,5 @@ actually bites.
 
 ## Browser support
 
-Browser-safe. The package resolves no `node:` built-in; `npm run browser` at the
+Browser-safe. The package resolves no `node:` built-in; `pnpm run browser` at the
 repository root executes that claim.

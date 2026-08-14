@@ -4,19 +4,19 @@ For people changing the repository rather than using it. Read [Internal details]
 
 ## Setup and gates
 
-Node.js 22.19 or later. `npm install` at the root installs every workspace.
+Node.js 22.19 or later. `pnpm install` at the root installs every workspace.
 
 | Gate | Command | What it proves |
 | --- | --- | --- |
-| typecheck | `npm run check` | every workspace compiles, including `examples` |
-| tests | `npm test` | every package suite at 100% coverage over `src/**` |
-| lint | `npm run lint` | formatting and lint rules |
-| cycles | `npm run circular` | no import cycle inside or across packages |
-| entry contract | `npm run browser` | ten entry points bundle for the browser and the Node-only ones still do not |
-| examples | `npm run test:examples` | every documented example runs against the real packages |
-| docs | `npx vocs build` | the site builds and no page links to a dead route |
+| typecheck | `pnpm run check` | every workspace compiles, including `examples` |
+| tests | `pnpm test` | every package suite at 100% coverage over `src/**` |
+| lint | `pnpm run lint` | formatting and lint rules |
+| cycles | `pnpm run circular` | no import cycle inside or across packages |
+| entry contract | `pnpm run browser` | ten entry points bundle for the browser and the Node-only ones still do not |
+| examples | `pnpm run test:examples` | every documented example runs against the real packages |
+| docs | `pnpm exec vocs build` | the site builds and no page links to a dead route |
 
-`npx vocs dev` serves the site locally.
+`pnpm exec vocs dev` serves the site locally.
 
 All seven run before a pull request. Coverage thresholds are absolute, so a new branch in `src` without a new case fails the gate rather than passing quietly.
 

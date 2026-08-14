@@ -85,6 +85,6 @@ The two channels also fail independently, and neither failure is permanent. A ba
 
 ## Entry points
 
-The root holds the journal and its contracts, written against the driver-neutral `@smthrs/database-next` service, and it bundles for the browser (`npm run browser`). The test doubles bind a Node SQLite database and are therefore imported from `@smthrs/journal-next/test/TestJournal` and `@smthrs/journal-next/test/Notifying`. See [browser support](../architecture/browser-support.md).
+The root holds the journal and its contracts, written against the driver-neutral `@smthrs/database-next` service, and it bundles for the browser (`pnpm run browser`). The test doubles bind a Node SQLite database and are therefore imported from `@smthrs/journal-next/test/TestJournal` and `@smthrs/journal-next/test/Notifying`. See [browser support](../architecture/browser-support.md).
 
 See [Journal semantics](../concepts/journal.md), [Concurrency](../concepts/concurrency.md), and the [`@smthrs/engine-store-next` reference](engine-store.md).

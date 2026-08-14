@@ -44,6 +44,6 @@ Reasons, like the host error codes, are a stable public contract: never repurpos
 
 ## Browser support
 
-`@smthrs/sandbox-next` is gated as a browser entry point by `scripts/browser-check.mjs` (`npm run browser`, and one CI step). The probe only runs the effect a provider hands it, and host access stays behind the provider layer.
+`@smthrs/sandbox-next` is gated as a browser entry point by `scripts/browser-check.mjs` (`pnpm run browser`, and one CI step). The probe only runs the effect a provider hands it, and host access stays behind the provider layer.
 
 See [Hosts and capabilities](../concepts/hosts-and-capabilities.md), the [`@smthrs/kernel-next` reference](kernel.md), and [failure and retry](../concepts/failure-and-retry.md).

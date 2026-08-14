@@ -13,7 +13,7 @@ key; every operation authorizes through a signed, expiring, branch-scoped share
 capability.
 
 ```sh
-npm install @smthrs/sync-next
+pnpm add @smthrs/sync-next
 ```
 
 ## Public API

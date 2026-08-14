@@ -21,7 +21,7 @@ const Build = Flow.make("example/Build", {
 })
 ```
 
-This entry point bundles for the browser: it re-exports only package roots, each of which is itself browser-safe, and `npm run browser` gates all of them. Bundling is not running — the durable composition still needs a SQL client behind the `DurableWriter` contract, and the only ones shipped here are `node:sqlite`-backed.
+This entry point bundles for the browser: it re-exports only package roots, each of which is itself browser-safe, and `pnpm run browser` gates all of them. Bundling is not running — the durable composition still needs a SQL client behind the `DurableWriter` contract, and the only ones shipped here are `node:sqlite`-backed.
 
 ## Entry point
 
@@ -65,4 +65,3 @@ The rest of `@smthrs/time-travel-next` — `Frame`, `TimeTravelStore`, its two s
 ## When to use the barrel
 
 Take the barrel when you want the whole engine in one dependency. Take the individual packages when you want a narrower dependency footprint.
-

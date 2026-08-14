@@ -27,7 +27,7 @@ packages/ai/src/providers/.model-generation-*/
 *~
 
 # Package specific
-.npm/
+.pnpm-store/
 coverage/
 .nyc_output/
 .pi_config/

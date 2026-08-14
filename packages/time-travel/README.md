@@ -5,7 +5,7 @@ and engine-store contracts. It owns both in-memory and SQL state stores and
 records effect-boundary evidence used to make time-travel decisions.
 
 ```sh
-npm install @smthrs/time-travel-next
+pnpm add @smthrs/time-travel-next
 ```
 
 ## Public API

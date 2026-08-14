@@ -1,0 +1,13 @@
+packages:
+  - "packages/*"
+  - "examples"
+
+allowBuilds:
+  dprint: false
+  es5-ext: false
+  esbuild: false
+  msgpackr-extract: false
+  unrs-resolver: false
+  vue-demi: false
+
+linkWorkspacePackages: true
