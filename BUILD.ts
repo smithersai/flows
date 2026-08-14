@@ -11,7 +11,7 @@ import {
   StandardPackage,
   file,
   glob
-} from "../tsflows/rules/src/index.ts"
+} from "tsflows-rules"
 
 export const nodeModules = PnpmWorkspace({
   projectRoot: ".",
