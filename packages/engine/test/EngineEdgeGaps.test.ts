@@ -32,8 +32,9 @@ describe("Action.retry outside a flow", () => {
 
   effect("allocates a single stable ordinal for all attempts inside a flow", () => {
     // The engine fills the retry sequence's slot on the first dispatch and
-    // every later attempt reuses it, so the action keeps one identity
-    // across the whole sequence (issue #73).
+    // every later attempt reuses it under the enclosing interpreter action's
+    // structural site, so the action keeps one identity across the whole
+    // sequence (issue #73).
     const ordinals: Array<number | undefined> = []
     let attempts = 0
     const action = Action.make({
@@ -48,7 +49,8 @@ describe("Action.retry outside a flow", () => {
     const scope = runSync(
       StepIdentity.allocationScope({
         kind: "action",
-        name: "Edge/retry-ordinal-action"
+        name: "Edge/retry-ordinal-action",
+        site: "root.flow"
       }).pipe(Effect.orDie)
     )
     const body = Effect.gen(function*() {

@@ -107,11 +107,12 @@ export class FlowInstance extends Context.Service<
       readonly snapshots: Map<string, unknown>
       /**
        * Allocation scopes with a keyless dispatch currently in flight
-       * (issue #111). Keyless invocations of one declaration are
+       * (issue #111). Indistinguishable invocations of one declaration are
        * allocation-ordered, so two in flight at once would take their
        * ordinals from the fiber schedule and a replay could swap their
        * recorded outcomes undetected; the engine refuses the second dispatch
-       * instead.
+       * instead. Distinct interpreter graph sites refine the scope and do not
+       * contend here.
        */
       readonly keylessInFlight: Set<string>
     }

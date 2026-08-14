@@ -4,7 +4,7 @@
  * value, what a duplicate execute of an in-flight execution id does, and what a
  * body re-driven after a park does with the effects it already ran.
  */
-import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
+import { Action, Flow, FlowRuntime, Interpreter, StepIdentity } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Deferred, Effect, Exit, Fiber, Layer, Option, Schema } from "effect"
 import { describe, expect, it } from "vitest"
@@ -249,22 +249,10 @@ describe("bodied flow on the memory engine", () => {
 })
 
 /**
- * Item 6's open question, answered against the real engine rather than
- * assumed: now that `All` members settle concurrently, what happens when two
- * members call the SAME keyless declaration?
- *
- * REALITY CHECK (2026-08-13). The vault note assumed "distinct nodes are
- * distinct scopes". They are not. `ActionKey.ordinalScope` folds the
- * declaration's `{kind, name, idempotencyKey}` and nothing else — no graph
- * node id — so two interpreter nodes calling one keyless declaration share an
- * allocation scope, and the engine refuses the overlap.
- *
- * That refusal is the guard working, not a defect the interpreter introduced.
- * A keyless dispatch takes its ordinal from fiber arrival order, and arrival
- * order between two concurrent fibers is not stable across a replay, so such a
- * graph was never replay-safe to run concurrently — the sequential walk was
- * only accidentally hiding it. Distinct scopes, which is what distinct
- * declarations give, overlap freely.
+ * Concurrent `All` members carry their graph node ids into action identity.
+ * Distinct structural sites therefore own distinct ordinal scopes even when
+ * they call one keyless declaration, while indistinguishable handler-driven
+ * dispatches remain guarded by `ConcurrentKeylessDispatch`.
  */
 describe("concurrent `All` members against the engine's keyless guard", () => {
   const Left = Action.make("body/left", { payload: {}, success: Schema.String })
@@ -290,6 +278,7 @@ describe("concurrent `All` members against the engine's keyless guard", () => {
    */
   const rendezvous = (registration: Layer.Layer<never, never, FlowRuntime.FlowRuntime | Action.Implementations>) => {
     const entered: Array<string> = []
+    const dispatches: Array<{ readonly attempt: number; readonly key: string; readonly name: string }> = []
     let release = () => {}
     const opened = new Promise<void>((resolve) => {
       release = resolve
@@ -304,27 +293,78 @@ describe("concurrent `All` members against the engine's keyless guard", () => {
         }
         return name
       })
+    const observe = (name: string) =>
+      Effect.gen(function*() {
+        const attempt = yield* Action.CurrentAttempt
+        const key = yield* Action.CurrentInvocationKey
+        if (key === undefined) return yield* Effect.die("engine omitted the dispatch invocation key")
+        dispatches.push({ attempt, key, name })
+        return yield* park(name)
+      })
     const layer = Layer.mergeAll(
-      Shared.toLayer(({ name }) => park(name)),
-      Left.toLayer(() => park("left")),
-      Right.toLayer(() => park("right")),
+      Shared.toLayer(({ name }) => observe(name)),
+      Left.toLayer(() => observe("left")),
+      Right.toLayer(() => observe("right")),
       registration
     ).pipe(Layer.provideMerge(Action.layerImplementations), Layer.provideMerge(FlowEngine.layerMemory))
-    return { entered, layer }
+    return { dispatches, entered, layer }
   }
 
-  it("refuses two concurrent members that share one keyless allocation scope", async () => {
-    const { layer } = rendezvous(Interpreter.layer(Colliding))
-    const exit = await runPromise(
-      Colliding.execute({}, { executionId: "body-colliding" }).pipe(Effect.provide(layer), Effect.exit)
+  it("overlaps one keyless declaration at distinct structural sites, each at ordinal one", async () => {
+    const executionId = "body-colliding"
+    const { dispatches, entered, layer } = rendezvous(Interpreter.layer(Colliding))
+    const observed = await runPromise(
+      Effect.gen(function*() {
+        const value = yield* Colliding.execute({}, { executionId })
+        const left = yield* StepIdentity.invocationKey({
+          runId: executionId,
+          parentScope: "action/11:body/shared/g:18:root.flow.all.left",
+          ordinal: 1,
+          tier: "unsealed"
+        })
+        const right = yield* StepIdentity.invocationKey({
+          runId: executionId,
+          parentScope: "action/11:body/shared/g:19:root.flow.all.right",
+          ordinal: 1,
+          tier: "unsealed"
+        })
+        return { expected: { left, right }, value }
+      }).pipe(Effect.provide(layer))
     )
-    expect(Exit.isFailure(exit)).toBe(true)
-    expect(
-      Exit.isFailure(exit) &&
-        exit.cause.reasons.some((reason) =>
-          "defect" in reason && reason.defect instanceof Action.ConcurrentKeylessDispatch
-        )
-    ).toBe(true)
+    expect(observed.value).toEqual({ left: "left", right: "right" })
+    expect(entered).toEqual(["left", "right"])
+    expect(dispatches.map(({ attempt }) => attempt)).toEqual([1, 1])
+    expect(Object.fromEntries(dispatches.map(({ key, name }) => [name, key]))).toEqual(observed.expected)
+  })
+
+  it("replays the same structural keys and pins each site's ordinal across retry attempts", async () => {
+    const executionId = "body-colliding-retry"
+    const { dispatches, layer } = rendezvous(Interpreter.layer(Colliding))
+    const instance = FlowEngine.makeInstance(Colliding, executionId)
+    let drives = 0
+    const value = await runPromise(
+      Effect.gen(function*() {
+        drives++
+        const interpretation = yield* Interpreter.interpret(Colliding, {})
+        if (drives === 1) return yield* Effect.fail("replay once")
+        return interpretation.value
+      }).pipe(
+        Action.retry({ times: 1 }),
+        Effect.orDie,
+        Effect.provideService(FlowRuntime.FlowInstance, instance),
+        Effect.provide(layer)
+      )
+    )
+    const keysAt = (attempt: number) =>
+      Object.fromEntries(
+        dispatches.filter((dispatch) => dispatch.attempt === attempt).map(({ key, name }) => [name, key])
+      )
+
+    expect(value).toEqual({ left: "left", right: "right" })
+    expect(drives).toBe(2)
+    expect(dispatches).toHaveLength(4)
+    expect(keysAt(2)).toEqual(keysAt(1))
+    expect(new Set(Object.values(keysAt(1))).size).toBe(2)
   })
 
   it("overlaps two concurrent members of distinct declarations", async () => {

@@ -13,9 +13,11 @@
  * `ActionCall` runs its declaration's implementation — looked up by tag in
  * {@link module:Implementations.Implementations} before the walk starts — as
  * the ordinary durable action `toLayer` built, so a node driven here takes
- * the same invocation key, attempt journal, retry policy, and tier as the same
- * action called from a handler. A `Map` applies its deferred function to the real
- * upstream value. A `Branch` evaluates its digested predicate on the real
+ * the same attempt journal, retry policy, and tier as the same action called
+ * from a handler. Its invocation identity additionally folds this node's
+ * structural address, keeping concurrent graph sites replay-stable. A `Map`
+ * applies its deferred function to the real upstream value. A `Branch`
+ * evaluates its digested predicate on the real
  * subject and settles ONLY the arm it took: the other arm is topology the plan
  * shows and the run skipped, and it is reported as such rather than silently
  * absent. An `All` joins its members by name, a `Succeed` yields its value, and
@@ -55,6 +57,7 @@ import * as Predicate from "effect/Predicate"
 import * as Schema from "effect/Schema"
 import * as Scope from "effect/Scope"
 import { type Implementation, Implementations } from "./Action/Implementations.ts"
+import { DispatchSite } from "./Action/StepIdentity.ts"
 import type { Any as AnyFlow, AnyStructSchema, AnyWithProps, Flow } from "./Flow/Flow.ts"
 import * as Outcome from "./Flow/Outcome.ts"
 import { Handoff } from "./Flow/Result.ts"
@@ -436,8 +439,12 @@ export const interpret = (
         switch (ast._tag) {
           case "ActionCall":
             // Resolved by the pre-pass above, which refuses the whole graph
-            // when an action it names has no implementation.
-            return yield* implementations.get(ast.action)!.action(resolve(node.payload))
+            // when an action it names has no implementation. The structural
+            // node address is durable dispatch identity, scoped to this one
+            // implementation call; it never comes from fiber arrival order.
+            return yield* implementations.get(ast.action)!.action(resolve(node.payload)).pipe(
+              Effect.provideService(DispatchSite, node.id)
+            )
           case "Succeed":
             return resolve(node.payload)
           case "Map": {
