@@ -62,8 +62,6 @@ export const probe = (
         )
     }
   ).pipe(
-    Effect.tap((state) =>
-      Effect.annotateCurrentSpan({ outcome: state._tag === "Healthy" ? "healthy" : state.reason })
-    ),
+    Effect.tap((state) => Effect.annotateCurrentSpan({ outcome: state._tag === "Healthy" ? "healthy" : state.reason })),
     Effect.withSpan("SandboxHealth.probe", {}, { captureStackTrace: false })
   )
