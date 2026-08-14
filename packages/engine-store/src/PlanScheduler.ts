@@ -831,7 +831,14 @@ export const make = (options: Options): Service => {
                 Ref.set(ran, true).pipe(
                   Effect.andThen(executor.execute({ node, attempt: state.attempts, boundary, inputs }))
                 )
-            })({ action: {}, attempt: state.attempts, key: dispatchKey, tier: "sealed", metadata: boundary }).pipe(
+            })({
+              action: {},
+              attempt: state.attempts,
+              key: dispatchKey,
+              tier: "sealed",
+              nondeterministic: node.material.nondeterministic,
+              metadata: boundary
+            }).pipe(
               Effect.exit
             )
             if (Exit.isSuccess(exit)) {

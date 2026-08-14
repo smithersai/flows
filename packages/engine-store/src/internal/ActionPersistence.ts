@@ -62,6 +62,12 @@ export interface ActionInput {
   readonly attempt: number
   readonly key: string
   readonly tier: Action.Tier
+  /**
+   * The caller declares this sealed step's recorded result is one of many
+   * legitimate results; a same-key divergence is expected, not a hermeticity
+   * violation.
+   */
+  readonly nondeterministic?: true | undefined
   readonly metadata?: BoundaryMetadata | undefined
 }
 
@@ -304,6 +310,11 @@ export interface Dependencies {
 
 const AttemptMeta = Schema.Struct({
   tier: Schema.Literals(["sealed", "compensable", "irreversible"]),
+  /**
+   * The sealed declaration admits multiple legitimate recorded results under
+   * this key. Absence remains the durable determinism claim.
+   */
+  nondeterministic: Schema.optional(Schema.Literal(true)),
   boundary: Schema.optional(StepBoundary.BoundaryEvidence),
   /**
    * The prepare-time measurement matched the caller-declared read set the
@@ -492,6 +503,10 @@ export const make = (deps: Dependencies) => {
       // their key cannot prove which expansion it names and must stay local.
       const readsKeyedExactly = input.metadata?.readSet.every((entry) => !FileSet.isGlob(entry)) ?? true
       const cacheable = input.tier === "sealed" && input.metadata?.boundaryMode === "hard" && readsKeyedExactly
+      const declarationMeta = {
+        tier: input.tier,
+        ...(input.nondeterministic === undefined ? {} : { nondeterministic: input.nondeterministic })
+      } satisfies AttemptMeta
 
       /**
        * Cache-provenance producer identity (issue #124): the plain
@@ -647,6 +662,27 @@ export const make = (deps: Dependencies) => {
           }
           if (recording.outcome._tag === "Conflict") {
             const conflicting = yield* cache.get(keyDigest)
+            if (options.meta.nondeterministic === true) {
+              const recorded = Option.map(conflicting, (entry) => ({
+                runId: entry.recordedRunId,
+                eventSeq: entry.recordedEventSeq
+              }))
+              // Declared output nondeterminism is not a hermeticity violation,
+              // so it does not enter the Inconsistency receiver. The key folds
+              // the declaration, making first-writer-wins safe for both sides.
+              yield* emitLifecycle(
+                JournalRecords.cacheProvenance(
+                  cacheSource("conflict_first_writer", Option.getOrUndefined(recorded)),
+                  {
+                    keyDigest,
+                    action: "conflict_first_writer",
+                    recordedRunId: Option.getOrNull(Option.map(recorded, (value) => value.runId)),
+                    recordedEventSeq: Option.getOrNull(Option.map(recorded, (value) => value.eventSeq))
+                  }
+                )
+              )
+              return
+            }
             const receiverOption = yield* Effect.serviceOption(Inconsistency.Inconsistency)
             // Core default is STRICT: journal the conflict and fail the run,
             // which is Skyframe's throwing `GraphInconsistencyReceiver`
@@ -1131,7 +1167,7 @@ export const make = (deps: Dependencies) => {
           yield* atomically(Effect.gen(function*() {
             if (!adopted) {
               const now = yield* Clock.currentTimeMillis
-              const initialMeta: AttemptMeta = { tier: input.tier, admittedBy: deps.owner }
+              const initialMeta: AttemptMeta = { ...declarationMeta, admittedBy: deps.owner }
               const put = yield* attempts.put(
                 { ...attemptId, state: "running", startedAtMs: now, meta: initialMeta },
                 deps.owner
@@ -1164,7 +1200,7 @@ export const make = (deps: Dependencies) => {
               // snapshot) intact. A vanished row means the durable state moved
               // under us — surface it as self-interruption like the fence losses.
               const rehomed = yield* attempts.patch(attemptId, {
-                meta: { ...runningMeta, tier: input.tier, admittedBy: deps.owner } satisfies AttemptMeta
+                meta: { ...runningMeta, ...declarationMeta, admittedBy: deps.owner } satisfies AttemptMeta
               })
               if (rehomed._tag !== "Patched") return yield* Effect.interrupt
             }
@@ -1235,7 +1271,7 @@ export const make = (deps: Dependencies) => {
               // outside: a host call must never run inside a write transaction.
               yield* atomically(
                 attempts.patch(attemptId, {
-                  meta: { tier: input.tier, admittedBy: deps.owner, snapshotId } satisfies AttemptMeta
+                  meta: { ...declarationMeta, admittedBy: deps.owner, snapshotId } satisfies AttemptMeta
                 }).pipe(Effect.andThen(announceSnapshot(snapshotId)))
               )
             }
@@ -1257,7 +1293,7 @@ export const make = (deps: Dependencies) => {
               // A boundary is prepared only for sealed work, while snapshots are
               // created only for compensable work. The two capabilities are
               // disjoint, so a preparation failure can never carry a snapshot.
-              meta: { tier: input.tier, hardViolation: true }
+              meta: { ...declarationMeta, hardViolation: true }
             }, [
               JournalRecords.hardViolation(attemptSource("hard-violation"), {
                 ...attemptId,
@@ -1298,7 +1334,7 @@ export const make = (deps: Dependencies) => {
               state: "failed",
               finishedAtMs,
               error: persistCause(opened.cause),
-              meta: { tier: input.tier, hardViolation: true }
+              meta: { ...declarationMeta, hardViolation: true }
             }, [
               JournalRecords.hardViolation(attemptSource("hard-violation"), {
                 ...attemptId,
@@ -1380,7 +1416,7 @@ export const make = (deps: Dependencies) => {
               finishedAtMs,
               error: persistCause(outcome.cause),
               meta: {
-                tier: input.tier,
+                ...declarationMeta,
                 ...(violation ? { hardViolation: true as const } : {}),
                 ...(snapshotId === undefined ? {} : { snapshotId })
               }
@@ -1445,7 +1481,7 @@ export const make = (deps: Dependencies) => {
               error: persistCause(settled.cause),
               // Settlement, like preparation, runs only for sealed work; a
               // compensable snapshot is therefore unreachable on this path.
-              meta: { tier: input.tier, hardViolation: true }
+              meta: { ...declarationMeta, hardViolation: true }
             }, [
               JournalRecords.hardViolation(attemptSource("hard-violation"), { ...attemptId, error: settled.cause }),
               JournalRecords.attemptFinished(attemptSource("finished"), { ...attemptId, state: "failed" })
@@ -1496,7 +1532,7 @@ export const make = (deps: Dependencies) => {
           // fine, but the completion must never enter the shared cache.
           const readSetVerified = prepared !== undefined && StepBoundary.readSetMatches(prepared)
           const meta: AttemptMeta = {
-            tier: input.tier,
+            ...declarationMeta,
             ...(snapshotId === undefined ? {} : { snapshotId }),
             ...(evidence === undefined ? {} : { boundary: evidence }),
             ...(readSetVerified ? { readSetVerified: true as const } : {})

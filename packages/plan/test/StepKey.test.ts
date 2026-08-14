@@ -2,6 +2,7 @@ import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
 import * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as Schema from "effect/Schema"
 import { describe, expect, it } from "vitest"
 import * as KeyMaterial from "../src/KeyMaterial.ts"
 import * as StepKey from "../src/StepKey.ts"
@@ -227,6 +228,15 @@ describe("StepKey", () => {
     expect(new Set([base, withEffects, withPlacement]).size).toBe(3)
   })
 
+  it("folds declared nondeterminism without moving the absent plan key", async () => {
+    const deterministic = await runPromise(StepKey.fromKeyMaterial(material(), {}))
+    const nondeterministic = await runPromise(
+      StepKey.fromKeyMaterial(material({ nondeterministic: true }), {})
+    )
+    expect(deterministic).toBe("key1_594e55424285180f3bcb35e6075d0e6961b6506cc15d78de0613eac91eeb9cd9")
+    expect(nondeterministic).not.toBe(deterministic)
+  })
+
   it("refuses material with no digest for a declared dependency", async () => {
     const failure = await runFailure(
       StepKey.fromKeyMaterial(material({ inputs: [{ _tag: "Ref", from: "missing", path: [] }] }), {})
@@ -314,6 +324,13 @@ describe("StepKey.dispatchIdentity", () => {
     expect(absent).toBe("key1_70bc16b1ef9256f7301167c9d11f332d39383c61d9f630d99bdc920c066b6ac2")
     expect(present).not.toBe(absent)
     expect(scoped).not.toBe(present)
+  })
+
+  it("folds declared nondeterminism without moving the absent dispatch key", async () => {
+    const deterministic = await runPromise(dispatch({}, {}))
+    const nondeterministic = await runPromise(dispatch({ nondeterministic: true }, {}))
+    expect(deterministic).toBe("key1_70bc16b1ef9256f7301167c9d11f332d39383c61d9f630d99bdc920c066b6ac2")
+    expect(nondeterministic).not.toBe(deterministic)
   })
 
   it("folds the settled output value of a `Ref`, never the upstream's identity", async () => {
@@ -418,5 +435,13 @@ describe("KeyMaterial.dependencies", () => {
         { _tag: "Ref", from: "b", path: ["x"] }
       ]
     }))).toEqual(["b", "a"])
+  })
+
+  it("decodes persisted material without a nondeterminism declaration", () => {
+    const decoded = Schema.decodeUnknownResult(KeyMaterial.KeyMaterial)(material())
+    expect(decoded._tag).toBe("Success")
+    if (decoded._tag === "Success") {
+      expect(decoded.success.nondeterministic).toBeUndefined()
+    }
   })
 })
