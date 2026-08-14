@@ -53,6 +53,11 @@ reference/*
 # Cargo build output (crates/flows-jj and friends)
 /target
 
+# flows engine state (artifact CAS under .flows/objects, fork lanes under
+# .flows/forks) — derived and engine-owned. jj must not snapshot it: a restore
+# to a pre-publication change would delete CAS blobs live cache rows reference.
+.flows/
+
 # Smithers run store (ephemeral — never commit)
 smithers.db
 smithers.db-shm
