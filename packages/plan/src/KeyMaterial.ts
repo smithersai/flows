@@ -63,6 +63,8 @@ export const version = "flows/key-material/v1"
 export const KeyMaterial = Schema.Struct({
   version: Schema.Literal(version),
   kind: Schema.Literals(["sealed", "compensable", "irreversible"]),
+  // Absence claims determinism; only the explicit declaration changes identity.
+  nondeterministic: Schema.optional(Schema.Literal(true)),
   body: Schema.Unknown,
   inputs: Schema.Array(InputRef),
   layers: Schema.Array(Schema.String),

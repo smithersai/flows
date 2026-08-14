@@ -46,7 +46,7 @@ The store packages open one `Effect.fn` span per service operation, named `Modul
 | Path | Attributes |
 | --- | --- |
 | dispatch (`FlowEngine.actionExecute`, `ActionPersistence.execute`) | `runId`, `key`/`keyDigest`, `attempt`, `tier`, `outcome`; child boundary and sandbox spans inherit the dispatch identity |
-| scheduler (`PlanScheduler.run`/`.dispatch`) | `runId`, `planId`, `round`, `nodeId`, `dispatchKey`, `attempt`, `outcome` |
+| scheduler (`PlanScheduler.run`/`.dispatch`) | `runId`, `planId`, `admissions`, `nodeId`, `dispatchKey`, `attempt`, `outcome` |
 | claims and transitions (`RunDriver.claimAndActivate`, `RunStore.*`) | `runId`, `status`, `outcome`, the CAS target and claimant |
 | attempts (`AttemptStore.*`) | `runId`, `stepKeyDigest`, `attempt` |
 | cache (`CacheStore.*`, remote and combined tiers) | `keyDigest` |
@@ -59,7 +59,7 @@ Every span sets `captureStackTrace: false`. The queue worker is the one place tr
 
 ## Metrics
 
-The store packages define `Metric` handles beside the code that updates them, one `<Service>Metrics` module per package: journal write receipts, durable write replays, run claim and heartbeat and transition outcomes (fencing events included), step-cache lookups and recordings, artifact puts and gets, and — through `EngineStoreMetrics` — the engine-store hot paths: dispatch outcomes with a latency histogram, scheduler rounds, wave latency and per-node outcomes, sandbox executions and materializations with their copy-back conflicts, boundary settlements by classification, and the run driver's claim decisions. Durations land in `Metric.timer` histograms through Effect's own `Effect.trackDuration`, and outcome counters observe the exit through `Effect.onExit`, so instrumentation can never alter a result or a cause. [Telemetry](/telemetry) tables every series with its attributes and shows the export wiring; the handles themselves are exported, so a program can read them with `Metric.value` without any exporter.
+The store packages define `Metric` handles beside the code that updates them, one `<Service>Metrics` module per package: journal write receipts, durable write replays, run claim and heartbeat and transition outcomes (fencing events included), step-cache lookups and recordings, artifact puts and gets, and — through `EngineStoreMetrics` — the engine-store hot paths: dispatch outcomes with a latency histogram, scheduler admissions, per-dispatch latency and per-node outcomes, sandbox executions and materializations with their copy-back conflicts, boundary settlements by classification, and the run driver's claim decisions. Durations land in `Metric.timer` histograms through Effect's own `Effect.trackDuration`, and outcome counters observe the exit through `Effect.onExit`, so instrumentation can never alter a result or a cause. [Telemetry](/telemetry) tables every series with its attributes and shows the export wiring; the handles themselves are exported, so a program can read them with `Metric.value` without any exporter.
 
 ## Logging
 
@@ -77,7 +77,7 @@ Logging is sparse and deliberate. The engine logs where an operator needs to kno
 | run activated | debug | a drive claimed and re-entered a run, with its flow name |
 | action dispatch lifecycle | trace | a durable dispatch started or settled, with run, key, attempt, tier, and outcome context |
 | scheduler lifecycle | debug | a plan run started or completed, with its plan identity and settlement totals |
-| scheduler round admitted | debug | one wavefront round's admission summary: round, pending, ready, admitted, agents |
+| scheduler admission launched | debug | one admission pass that opened dispatch permits: admission, ready, admitted, agents, in-flight counts |
 
 Ambient log context rides on `Effect.annotateLogs`: the run driver annotates `runId` across an entire drive (every log a flow body emits inherits it), `ActionPersistence` annotates `runId` across a dispatch, and `PlanScheduler` annotates `runId` and `planId` across a plan run. `DurableQueue` (`package`, `module`, `fiber`, `queueName`) and `FlowProxyServer` annotate their own fibers as before.
 
@@ -103,6 +103,6 @@ Ambient log context rides on `Effect.annotateLogs`: the run driver annotates `ru
 | A run inspector or dashboard | Planned; the journal and sync are the substrate one would build on |
 | Structured audit of permission decisions beyond the grant events | Planned |
 
-Latency histograms and store-span attributes, formerly listed here as planned or absent, shipped: dispatch, scheduler-wave, and sandbox durations are `Metric.timer` histograms in `EngineStoreMetrics`, and the store spans carry the identifier attributes tabled under Tracing above.
+Latency histograms and store-span attributes, formerly listed here as planned or absent, shipped: dispatch, scheduler-dispatch, and sandbox durations are `Metric.timer` histograms in `EngineStoreMetrics`, and the store spans carry the identifier attributes tabled under Tracing above.
 
 Journal checkpointing and compaction, formerly listed here as planned, shipped in `@smthrs/journal-next`: [Checkpoints and compaction](/compaction).

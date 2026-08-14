@@ -1,5 +1,5 @@
 /**
- * The engine-store hot-path metrics: scheduler rounds and node outcomes,
+ * The engine-store hot-path metrics: scheduler admissions and node outcomes,
  * dispatch outcomes with latency, sandbox executions, materializations and
  * their conflicts, and the boundary-settlement classification — all landing
  * in the registry the caller provided, with the instrumented effect's exit
@@ -90,7 +90,7 @@ describe("EngineStoreMetrics", () => {
       const report = yield* service.run(plan)
       return {
         report,
-        rounds: yield* count(EngineStoreMetrics.schedulerRounds),
+        admissions: yield* count(EngineStoreMetrics.schedulerAdmissions),
         built: yield* count(EngineStoreMetrics.node.built),
         failed: yield* count(EngineStoreMetrics.node.failed),
         dispatched: yield* count(EngineStoreMetrics.dispatch.Success),
@@ -99,8 +99,8 @@ describe("EngineStoreMetrics", () => {
           Metric.value(EngineStoreMetrics.dispatchDuration),
           (state) => state.count
         ),
-        waveDurations: yield* Effect.map(
-          Metric.value(EngineStoreMetrics.schedulerWaveDuration),
+        schedulerDispatchDurations: yield* Effect.map(
+          Metric.value(EngineStoreMetrics.schedulerDispatchDuration),
           (state) => state.count
         )
       }
@@ -117,18 +117,21 @@ describe("EngineStoreMetrics", () => {
 
     const observed = await runPromise(program)
     expect(observed.report.settlements.map((settlement) => settlement.outcome)).toEqual(["built", "built"])
-    expect(observed.rounds).toBe(1)
+    // Both nodes are independent, so the initial admission pass launches
+    // them together; the settlement-driven passes that follow admit nothing
+    // and must not count.
+    expect(observed.admissions).toBe(1)
     expect(observed.built).toBe(2)
     expect(observed.failed).toBe(0)
     expect(observed.dispatched).toBe(2)
     expect(observed.settledClean).toBe(2)
     expect(observed.dispatchDurations).toBe(2)
-    expect(observed.waveDurations).toBe(1)
+    expect(observed.schedulerDispatchDurations).toBe(2)
 
     const runSpan = spans.find((span) => span.name === "PlanScheduler.run")
     expect(runSpan?.attributes.get("runId")).toBe("run-metrics")
     expect(runSpan?.attributes.get("planId")).toBe("plan-metrics")
-    expect(runSpan?.attributes.get("round")).toBe(1)
+    expect(runSpan?.attributes.get("admissions")).toBe(1)
     expect(runSpan?.attributes.get("outcome")).toBe("success")
 
     const dispatchSpans = spans.filter((span) => span.name === "PlanScheduler.dispatch")

@@ -68,6 +68,12 @@ export * as Selection from "./Selection.ts"
  * @since 0.1.0
  * @category services
  */
+export * as SelectionStore from "./SelectionStore.ts"
+
+/**
+ * @since 0.1.0
+ * @category services
+ */
 export * as StepBoundary from "./StepBoundary.ts"
 
 /**

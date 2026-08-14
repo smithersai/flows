@@ -58,6 +58,7 @@ describe("durable engine migrations", () => {
       "flows_plan_nodes",
       "flows_plans",
       "flows_runs",
+      "flows_selection_suspected_edges",
       "flows_step_cache"
     ])
     expect(schema.master.some((row) => row.name === "flows_journal_events_event_type_idx" && row.type === "index"))
@@ -133,6 +134,13 @@ describe("durable engine migrations", () => {
         "waiting_reason",
         "waiting_token",
         "waiting_wake_at_ms"
+      ],
+      flows_selection_suspected_edges: [
+        "affects",
+        "confidence",
+        "evidence_json",
+        "scope",
+        "valid_from_ms"
       ],
       flows_step_cache: [
         "created_at_ms",

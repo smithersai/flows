@@ -61,7 +61,7 @@ Metrics are the hot-path series the store packages define beside the code that u
 | `flows_artifact_puts` | none | `@smthrs/artifacts-next` local stores, once per successful put, dedupe included |
 | `flows_artifact_gets` | none | once per successful digest-verified get; typed misses are error evidence, not throughput |
 | `flows_engine_dispatches` | `outcome` = `success` \| `failure` \| `interrupt` | `@smthrs/engine-store-next` `ActionPersistence`, once per durable dispatch — cache-served and fresh alike |
-| `flows_engine_scheduler_rounds` | none | `PlanScheduler`, once per wavefront round |
+| `flows_engine_scheduler_admissions` | none | `PlanScheduler`, once per admission pass that launched at least one dispatch |
 | `flows_engine_scheduler_nodes` | `outcome` = `built` \| `clean` \| `failed` \| `skipped` \| `deferred` | `PlanScheduler`, once per node settlement |
 | `flows_engine_sandbox_executions` | `outcome` = `success` \| `failure` \| `interrupt` | `WorkspaceSandbox.execute` |
 | `flows_engine_sandbox_materializations` | `outcome` = `success` \| `failure` \| `interrupt` | `WorkspaceSandbox.materialize` — the one host write |
@@ -74,7 +74,7 @@ Durations are `Metric.timer` histograms recorded through Effect's `Effect.trackD
 | Timer | Measures |
 | --- | --- |
 | `flows_engine_dispatch_duration` | one durable dispatch, admission through settlement |
-| `flows_engine_scheduler_wave_duration` | one admitted scheduler dispatch wave |
+| `flows_engine_scheduler_dispatch_duration` | one scheduler dispatch, admission through terminal event, rebase turns included |
 | `flows_engine_sandbox_execution_duration` | one isolated workspace execution |
 | `flows_engine_sandbox_materialization_duration` | one copy-back |
 

@@ -119,27 +119,29 @@ export const dispatchDuration = Metric.timer("flows_engine_dispatch_duration", {
 export const dispatch = byOutcome(dispatches, {}, exitTags)
 
 /**
- * Counter over scheduler wavefront rounds. One round is one pass of the
- * ready-set computation: settling blocked nodes, applying deferrals, and
- * dispatching the admitted wave each count as the round they happen in.
+ * Counter over scheduler admission passes that launched work. The
+ * completion-driven scheduler re-computes the ready set after every terminal
+ * event; only a pass that admits at least one node counts, so the series
+ * reads as "how many times the scheduler opened dispatch permits", not as
+ * event-loop noise.
  *
  * @category metrics
  * @since 0.1.0
  */
-export const schedulerRounds = Metric.counter("flows_engine_scheduler_rounds", {
-  description: "Plan scheduler wavefront rounds"
+export const schedulerAdmissions = Metric.counter("flows_engine_scheduler_admissions", {
+  description: "Plan scheduler admission passes that launched at least one dispatch"
 })
 
 /**
- * Latency histogram over one admitted dispatch wave — the
- * `Effect.forEach(admitted, dispatch)` barrier inside a round, which is where
- * a round spends its time.
+ * Latency histogram over one scheduler dispatch, admission through terminal
+ * event: measurement, keying, the durable-action seam, and every rebase turn
+ * of the same node's loop land in a single observation.
  *
  * @category metrics
  * @since 0.1.0
  */
-export const schedulerWaveDuration = Metric.timer("flows_engine_scheduler_wave_duration", {
-  description: "Duration of one admitted scheduler dispatch wave"
+export const schedulerDispatchDuration = Metric.timer("flows_engine_scheduler_dispatch_duration", {
+  description: "Duration of one scheduler dispatch, admission through terminal event"
 })
 
 /**

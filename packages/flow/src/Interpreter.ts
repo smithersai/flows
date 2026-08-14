@@ -428,7 +428,7 @@ export const interpret = (
         // Dependency order, from the key material: the same `Ref` and `Pending`
         // inputs the plan turns into edges, settled before the node that reads
         // them — and settled CONCURRENTLY, because independent dependencies are
-        // exactly what the scheduler's wavefront admits in one round. Two
+        // exactly what the scheduler admits under separate permits. Two
         // execution surfaces disagreeing about concurrency is a correctness
         // hazard, not just a latency one.
         yield* Effect.forEach(

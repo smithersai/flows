@@ -74,7 +74,7 @@ const production = (root: string) => {
   ).pipe(Layer.provideMerge(artifacts))
 }
 
-/** The real filesystem boundary without the execution sandbox, for tests that deliberately move the host between rounds. */
+/** The real filesystem boundary without the execution sandbox, for tests that deliberately move the host between dispatches. */
 const boundaryOnly = (root: string) => {
   const workspaceFs = KernelFileSystem.layer.pipe(
     Layer.provide(NodeFileSystem.layer),
@@ -363,7 +363,7 @@ describe("a persisted plan driven end to end under the production composition", 
           if (node.id.startsWith("reader-")) seen.set(node.id, boundary)
           if (node.id === "move-world") {
             // The scheduler has already observed the run's source world. Move
-            // one member and add another between the two reader rounds.
+            // one member and add another between the two reader dispatches.
             yield* write(join(root, "src/lib.ts"), "library-after-start")
             yield* write(join(root, "src/arrival.ts"), "arrived-mid-run")
           }
@@ -397,7 +397,7 @@ describe("a persisted plan driven end to end under the production composition", 
       entries.find((entry) => entry.path === path)?.digest
 
     // Both readers key the source member to the run-start bytes, even though
-    // the host moved between their dispatch rounds.
+    // the host moved between their dispatches.
     expect(digestAt(first, "src/lib.ts")).toBe(sha256("library-at-start"))
     expect(digestAt(second, "src/lib.ts")).toBe(sha256("library-at-start"))
     // The exact producer path is discovered after its writer settles.
@@ -504,8 +504,9 @@ describe("a persisted plan driven end to end under the production composition", 
             )
           }
           if (node.id === "move-after-append") {
-            // This node wins the next capped round after append. If the merge
-            // re-observed its source at dispatch, it would see these bytes.
+            // This node wins the next capped admission pass after append. If
+            // the merge re-observed its source at dispatch, it would see these
+            // bytes.
             yield* write(join(root, "src/late.ts"), "changed-after-append")
           }
           if (node.kind === "merge") mergeBoundary = boundary

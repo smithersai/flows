@@ -556,4 +556,232 @@ describe("Selection.debt", () => {
     expect(owed).toHaveLength(1)
     expect(owed[0]).toMatchObject({ nodeId: "lint-docs" })
   })
+
+  it("law 6: repaidBy is a pure widening — a listed run's real settlement closes, a skipped one does not", async () => {
+    const plan = await runPromise(compile(reviewGraph()))
+    const executor: PlanScheduler.Executor = { execute: ({ node }) => Effect.succeed({ ran: node.id }) }
+    const program = Effect.gen(function*() {
+      yield* activate("run-debt-widen")
+      yield* activate("run-recert-skip")
+      yield* activate("run-recert-real")
+      const guessing = PlanScheduler.make({
+        runId: "run-debt-widen",
+        owner,
+        sourceId: "scheduler/run-debt-widen",
+        selection: { changed, beliefs: beliefs(edge()), policy }
+      })
+      yield* Effect.provide(guessing.run(plan), harness({ executor, selection: Selection.layerHeuristic }))
+      const journal = yield* Journal.Journal
+      const lintKey = plan.nodes.find((node) => node.id === "lint-docs")!.key
+      const at = (runId: string, sourceId: string) => ({ runId, lineageId: `${runId}/root`, sourceId })
+      // A repaying run that only *skipped* the work has not repaid it.
+      yield* journal.emitDurable(
+        JournalRecords.nodeSettled(at("run-recert-skip", "scheduler/run-recert-skip"), {
+          planKey: lintKey,
+          outcome: "skipped"
+        }),
+        owner
+      )
+      // A repaying run's own deferral records are opens, and a repayment fold
+      // must never read them as new debt for the deferring run.
+      yield* journal.emitDurable(
+        JournalRecords.selectionDeferred(at("run-recert-real", "selection/foreign-deferred"), {
+          planId: "plan-other",
+          nodeId: "other-node",
+          planKey: "key-other",
+          edge: edge(),
+          likelihood: 0.01
+        }),
+        owner
+      )
+      yield* journal.emitDurable(
+        JournalRecords.nodeSettled(at("run-recert-real", "scheduler/run-recert-real"), {
+          planKey: lintKey,
+          outcome: "built"
+        }),
+        owner
+      )
+      const sameRun = yield* Selection.debt("run-debt-widen")
+      const skippedOnly = yield* Selection.debt("run-debt-widen", { repaidBy: ["run-recert-skip"] })
+      const repaid = yield* Selection.debt("run-debt-widen", { repaidBy: ["run-recert-real"] })
+      return { repaid, sameRun, skippedOnly }
+    }).pipe(Effect.provide(TestStores.layer()))
+    const { repaid, sameRun, skippedOnly } = await runPromise(program)
+    // The v1 same-run fold is untouched by the widening.
+    expect(sameRun).toHaveLength(1)
+    expect(skippedOnly).toHaveLength(1)
+    expect(repaid).toEqual([])
+  })
+})
+
+describe("PlanScheduler.recertify", () => {
+  it("re-drives the plan guess-free under a fresh run and reports the drained debt", async () => {
+    const plan = await runPromise(compile(reviewGraph()))
+    const executor: PlanScheduler.Executor = { execute: ({ node }) => Effect.succeed({ ran: node.id }) }
+    const program = Effect.gen(function*() {
+      yield* activate("run-recert-a")
+      yield* activate("run-recert-b")
+      const guessing = PlanScheduler.make({
+        runId: "run-recert-a",
+        owner,
+        sourceId: "scheduler/run-recert-a",
+        selection: { changed, beliefs: beliefs(edge()), policy }
+      })
+      const first = yield* Effect.provide(
+        guessing.run(plan),
+        harness({ executor, selection: Selection.layerHeuristic })
+      )
+      const result = yield* Effect.provide(
+        PlanScheduler.recertify({
+          plan,
+          deferringRunId: "run-recert-a",
+          options: {
+            runId: "run-recert-b",
+            owner,
+            sourceId: "scheduler/run-recert-b",
+            selection: { changed, beliefs: beliefs(edge()), policy }
+          }
+        }),
+        harness({ executor, selection: Selection.layerHeuristic })
+      )
+      const deferringStillOpenAlone = yield* Selection.debt("run-recert-a")
+      const overridden = yield* JournalRecords.entries("run-recert-b", undefined, 512)
+      return { deferringStillOpenAlone, first, overridden: overridden.entries, result }
+    }).pipe(Effect.provide(TestStores.layer()))
+    const { deferringStillOpenAlone, first, overridden, result } = await runPromise(program)
+    expect(outcomes(first)).toEqual({ build: "built", "engine-tests": "built", "lint-docs": "deferred" })
+    expect(result.runId).toBe("run-recert-b")
+    // Guess-free by construction: the repaying run journals the override.
+    expect(overridden.some((entry) => entry.eventType === "flows.engine.selection-overridden")).toBe(true)
+    expect(outcomes(result.report)).toEqual({ build: "clean", "engine-tests": "clean", "lint-docs": "built" })
+    expect(result.remaining).toEqual([])
+    // The deferring run's own journal was never written: same-run debt stays open.
+    expect(deferringStillOpenAlone).toHaveLength(1)
+  })
+})
+
+describe("Selection.card", () => {
+  it("renders the spec's row grammar exactly", () => {
+    const lines = Selection.card({
+      settlements: [
+        { nodeId: "read-pr", outcome: "clean" },
+        { nodeId: "run-tests", outcome: "built" },
+        { nodeId: "lint-docs", outcome: "deferred" },
+        { nodeId: "flaky", outcome: "failed" }
+      ],
+      deferrals: [{ nodeId: "lint-docs", likelihood: 0.03 }],
+      proposals: [{ flow: "update-engine-docs", confidence: 0.81, scope: "packages/engine/src/**" }],
+      cadence: "nightly",
+      risk: { level: "medium", reasons: ["packages/kernel/** -> security-review (0.5)"] }
+    })
+    expect(lines).toEqual([
+      "  cached    read-pr",
+      "  run       run-tests",
+      "  deferred  lint-docs    fail likelihood 0.03 - recert nightly",
+      "  failed    flaky",
+      "  proposed  update-engine-docs    suspected edge 0.81 - packages/engine/src/** touched",
+      "  risk      medium - packages/kernel/** -> security-review (0.5)"
+    ])
+  })
+
+  it("omits the risk line when no annotation is passed and defaults an unmatched deferral to zero", () => {
+    const lines = Selection.card({
+      settlements: [{ nodeId: "lint-docs", outcome: "deferred" }],
+      deferrals: [],
+      proposals: [],
+      cadence: "per-merge"
+    })
+    expect(lines).toEqual(["  deferred  lint-docs    fail likelihood 0 - recert per-merge"])
+  })
+})
+
+describe("Selection.risk", () => {
+  const changedEngine = ["packages/engine/src/PlanScheduler.ts"]
+
+  it("levels sit on the pinned boundaries: 0.4 opens medium, 0.7 opens high", () => {
+    const at = (confidence: number) =>
+      Selection.risk({ changed: changedEngine, beliefs: beliefs(edge({ confidence })) })
+    expect(at(0.39).level).toBe("low")
+    expect(at(0.4).level).toBe("medium")
+    expect(at(0.69).level).toBe("medium")
+    expect(at(0.7).level).toBe("high")
+  })
+
+  it("names each contributing edge and excludes non-matching or not-yet-valid ones", () => {
+    const annotated = Selection.risk({
+      changed: changedEngine,
+      beliefs: beliefs(
+        edge({ confidence: 0.8 }),
+        edge({ affects: "security-review", confidence: 0.5, scope: "packages/kernel/**" }),
+        edge({ affects: "future", confidence: 0.99, validFromMs: 2_000 })
+      )
+    })
+    expect(annotated.level).toBe("high")
+    expect(annotated.reasons).toEqual(["packages/engine/** -> lint-docs (0.8)"])
+    const quiet = Selection.risk({ changed: ["docs/README.md"], beliefs: beliefs(edge()) })
+    expect(quiet).toEqual({ level: "low", reasons: [] })
+  })
+})
+
+describe("Selection.proposeReadSet", () => {
+  it("selects matching workspace paths for the flow's live edges, deduplicated, in input order", () => {
+    const selected = Selection.proposeReadSet({
+      beliefs: beliefs(
+        edge({ affects: "update-engine-docs", scope: "packages/engine/src/**" }),
+        edge({ affects: "other-flow", scope: "docs/**" }),
+        edge({ affects: "update-engine-docs", scope: "packages/plan/**", validFromMs: 2_000 })
+      ),
+      flow: "update-engine-docs",
+      paths: [
+        "packages/engine/src/PlanScheduler.ts",
+        "docs/pages/selection.md",
+        "packages/engine/src/PlanScheduler.ts",
+        "packages/plan/src/Plan.ts",
+        "packages/engine/src/Selection.ts"
+      ]
+    })
+    expect(selected).toEqual([
+      "packages/engine/src/PlanScheduler.ts",
+      "packages/engine/src/Selection.ts"
+    ])
+  })
+})
+
+describe("Selection.layerHeuristic stats", () => {
+  const heuristic = Selection.makeHeuristic()
+
+  const input = (sinks: Selection.Input["sinks"], overrides: Partial<Selection.Input> = {}): Selection.Input => ({
+    changed,
+    sinks,
+    present: ["example/Review", "build", "engine-tests", "lint-docs"],
+    beliefs: beliefs(edge()),
+    policy,
+    ...overrides
+  })
+
+  it("failure history keeps a flaky sink from being deferred", async () => {
+    const verdicts = await runPromise(
+      heuristic.select(input([{ nodeId: "lint-docs", planKey: "key-lint", stats: { failures: 1, runs: 2 } }]))
+    )
+    expect(verdicts).toEqual([{ nodeId: "lint-docs", verdict: { _tag: "Admit" } }])
+  })
+
+  it("a zero failure rate leaves the edge's likelihood in charge", async () => {
+    const verdicts = await runPromise(
+      heuristic.select(input([{ nodeId: "lint-docs", planKey: "key-lint", stats: { failures: 0, runs: 5 } }]))
+    )
+    expect(verdicts).toEqual([{
+      nodeId: "lint-docs",
+      verdict: { _tag: "Defer", edge: edge(), likelihood: 0.03 }
+    }])
+  })
+
+  it("stats alone never defer: a sink no live edge names is admitted whatever its history", async () => {
+    const verdicts = await runPromise(
+      heuristic.select(
+        input([{ nodeId: "engine-tests", planKey: "key-tests", stats: { failures: 9, runs: 9 } }])
+      )
+    )
+    expect(verdicts).toEqual([{ nodeId: "engine-tests", verdict: { _tag: "Admit" } }])
+  })
 })

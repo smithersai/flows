@@ -22,6 +22,7 @@ import * as RunStoreMigrations from "@smthrs/run-store-next/Migrations"
 import * as StepCacheMigrations from "@smthrs/step-cache-next/Migrations"
 import * as Layer from "effect/Layer"
 import initial from "./migrations/0001_initial.ts"
+import selectionStore from "./migrations/0002_selection_store.ts"
 
 /**
  * Engine-store's own namespaced migration set.
@@ -33,7 +34,8 @@ export const set: DatabaseMigrations.MigrationSet = {
   namespace: "engine-store",
   idOffset: DatabaseMigrations.idBlock * 3,
   migrations: {
-    "0001_initial": initial
+    "0001_initial": initial,
+    "0002_selection_store": selectionStore
   }
 }
 

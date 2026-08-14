@@ -13,6 +13,7 @@ import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store-next"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
+import * as Fiber from "effect/Fiber"
 import * as Latch from "effect/Latch"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
@@ -94,6 +95,19 @@ const activate = (runId: string) =>
 
 const outcomes = (report: PlanScheduler.Report): Record<string, PlanScheduler.Outcome> =>
   Object.fromEntries(report.settlements.map((settlement) => [settlement.nodeId, settlement.outcome]))
+
+const awaitNodeSettlement = (runId: string, nodeId: string) =>
+  Effect.gen(function*() {
+    while (true) {
+      const page = yield* JournalRecords.entries(runId, undefined, 512)
+      const settled = page.entries.find((entry) =>
+        entry.eventType === "flows.engine.node-settled" &&
+        (entry.payload as { readonly nodeId?: string }).nodeId === nodeId
+      )
+      if (settled !== undefined) return settled.payload
+      yield* Effect.yieldNow
+    }
+  })
 
 interface Harness {
   readonly runId: string
@@ -390,11 +404,11 @@ describe("PlanScheduler over a static graph", () => {
 })
 
 describe("PlanScheduler admission", () => {
-  it("admits by cap, orders by priority, and ages waiting work so nothing starves", async () => {
+  it("admits by cap and effective priority while journaling event-driven aging", async () => {
     const plan = await runPromise(compile([
-      draft("low-first"),
+      draft("low"),
       draft("high", { priority: 5 }),
-      draft("low-second")
+      draft("medium", { priority: 2 })
     ]))
     const order: Array<string> = []
     const executor: PlanScheduler.Executor = {
@@ -404,16 +418,24 @@ describe("PlanScheduler admission", () => {
           return node.id
         })
     }
-    await runPromise(
+    const waited = await runPromise(
       Effect.gen(function*() {
         yield* activate("run-priority")
-        return yield* scheduler({ runId: "run-priority", executor, options: { concurrency: { steps: 1 } } }).run(plan)
+        yield* scheduler({ runId: "run-priority", executor, options: { concurrency: { steps: 1 } } }).run(plan)
+        const events = yield* JournalRecords.entries("run-priority", undefined, 512)
+        return events.entries
+          .filter((entry) => entry.eventType === "flows.engine.node-scheduled")
+          .map((entry) => {
+            const payload = entry.payload as { readonly nodeId: string; readonly waited: number }
+            return [payload.nodeId, payload.waited] as const
+          })
       }).pipe(Effect.provide(harness({ runId: "run-priority", executor })), Effect.provide(TestStores.layer()))
     )
-    // Round 1 admits `high` (5 > 0). Rounds 2 and 3 admit the two low-priority
-    // nodes, which each gained a point of age: priority changed latency, and
-    // nothing starved.
-    expect(order).toEqual(["high", "low-first", "low-second"])
+    // The initial pass admits `high`; `medium` and `low` are passed over once.
+    // The next completion opens a pass that admits `medium` and ages `low` a
+    // second time. The journal records those exact capacity decisions.
+    expect(order).toEqual(["high", "medium", "low"])
+    expect(waited).toEqual([["high", 0], ["medium", 1], ["low", 2]])
   })
 
   it("charges an agent node against both caps", async () => {
@@ -422,7 +444,6 @@ describe("PlanScheduler admission", () => {
       draft("agent-b", { kind: "agent" }),
       draft("compute")
     ]))
-    const rounds: Array<Array<string>> = []
     const started = new Set<string>()
     const executor: PlanScheduler.Executor = {
       execute: ({ node }) =>
@@ -439,13 +460,11 @@ describe("PlanScheduler admission", () => {
           executor,
           options: { concurrency: { steps: 2, agents: 1 } }
         })
-        const report = yield* service.run(plan)
-        rounds.push(report.settlements.map((settlement) => settlement.nodeId))
-        return report
+        return yield* service.run(plan)
       }).pipe(Effect.provide(harness({ runId: "run-agents", executor })), Effect.provide(TestStores.layer()))
     )
-    // Two step permits, one agent permit: the first round runs one agent and
-    // the compute node, so the second agent waits a round.
+    // Two step permits, one agent permit: one agent and the compute node run
+    // together, while the second agent waits for an agent permit.
     expect(started.size).toBe(3)
   })
 
@@ -475,18 +494,108 @@ describe("PlanScheduler admission", () => {
     expect(outcomes(report)).toEqual({ left: "built", right: "built" })
   })
 
+  it("admits a dependent as soon as its own dependency settles", async () => {
+    const plan = await runPromise(compile([
+      draft("fast"),
+      draft("slow"),
+      draft("dependent", { inputs: [{ _tag: "Pending", from: "fast" }] })
+    ]))
+    const observed = await runPromise(
+      Effect.gen(function*() {
+        const slowGate = yield* Latch.make()
+        const slowStarted = yield* Latch.make()
+        const executor: PlanScheduler.Executor = {
+          execute: ({ node }) =>
+            node.id === "slow"
+              ? Latch.open(slowStarted).pipe(Effect.andThen(Latch.await(slowGate)), Effect.as(node.id))
+              : Effect.succeed(node.id)
+        }
+        yield* activate("run-no-barrier")
+        const running = yield* Effect.provide(
+          scheduler({ runId: "run-no-barrier", executor }).run(plan),
+          harness({ runId: "run-no-barrier", executor })
+        ).pipe(Effect.forkChild({ startImmediately: true }))
+        yield* Latch.await(slowStarted)
+        const dependent = yield* awaitNodeSettlement("run-no-barrier", "dependent")
+        const beforeRelease = yield* JournalRecords.entries("run-no-barrier", undefined, 512)
+        yield* Latch.open(slowGate)
+        const report = yield* Fiber.join(running)
+        return {
+          dependent,
+          report,
+          slowHadSettled: beforeRelease.entries.some((entry) =>
+            entry.eventType === "flows.engine.node-settled" &&
+            (entry.payload as { readonly nodeId?: string }).nodeId === "slow"
+          )
+        }
+      }).pipe(Effect.provide(TestStores.layer()))
+    )
+    expect(observed.dependent).toMatchObject({ nodeId: "dependent", outcome: "built" })
+    expect(observed.slowHadSettled).toBe(false)
+    expect(outcomes(observed.report)).toEqual({ fast: "built", slow: "built", dependent: "built" })
+  })
+
+  it("applies a deviation verdict before admitting the deviating node's dependent", async () => {
+    const plan = await runPromise(compile([
+      draft("deviator", { writes: ["own.out"], boundaryMode: "expected" }),
+      draft("unrelated", { writes: ["shared.out"] }),
+      draft("dependent", { inputs: [{ _tag: "Pending", from: "deviator" }] })
+    ]))
+    const observed = await runPromise(
+      Effect.gen(function*() {
+        const unrelatedGate = yield* Latch.make()
+        const unrelatedStarted = yield* Latch.make()
+        const executed: Array<string> = []
+        const executor: PlanScheduler.Executor = {
+          execute: ({ node }) =>
+            Effect.sync(() => {
+              executed.push(node.id)
+            }).pipe(
+              Effect.andThen(
+                node.id === "unrelated"
+                  ? Latch.open(unrelatedStarted).pipe(Effect.andThen(Latch.await(unrelatedGate)))
+                  : Effect.void
+              ),
+              Effect.as(node.id)
+            )
+        }
+        const reconciliation = Reconciliation.layer({
+          onDeviation: () => Effect.succeed({ _tag: "Fail", reason: "test verdict" }),
+          onConflict: () => Effect.succeed({ _tag: "Fail", reason: "unused" })
+        })
+        yield* activate("run-deviation-order")
+        const running = yield* Effect.provide(
+          scheduler({ runId: "run-deviation-order", executor }).run(plan),
+          harness({
+            runId: "run-deviation-order",
+            executor,
+            boundary: StepBoundary.layerTest({ changedPaths: ["shared.out"] }),
+            reconciliation
+          })
+        ).pipe(Effect.forkChild({ startImmediately: true }))
+        yield* Latch.await(unrelatedStarted)
+        const dependent = yield* awaitNodeSettlement("run-deviation-order", "dependent")
+        yield* Latch.open(unrelatedGate)
+        return { dependent, executed, report: yield* Fiber.join(running) }
+      }).pipe(Effect.provide(TestStores.layer()))
+    )
+    expect(observed.dependent).toMatchObject({ nodeId: "dependent", outcome: "skipped" })
+    expect(observed.executed).not.toContain("dependent")
+    expect(outcomes(observed.report)).toEqual({ deviator: "failed", unrelated: "built", dependent: "skipped" })
+  })
+
   /**
    * The reader-after-writer edge, observed where it matters: a node that reads
-   * a path another node writes must not be in the same wavefront round as its
-   * producer, or it measures pre-producer bytes and the dispatch key records
-   * that wrong execution as a legitimate one.
+   * a path another node writes must not dispatch before its producer settles,
+   * or it measures pre-producer bytes and the dispatch key records that wrong
+   * execution as a legitimate one.
    *
    * The trace is read as an interleaving. Each body announces itself, yields,
-   * and announces its end, so two nodes admitted in one round always interleave
-   * and two nodes in different rounds never can. The first assertion is the
+   * and announces its end, so concurrently admitted nodes interleave while a
+   * dependent begins only after its producer ends. The first assertion is the
    * control that proves the probe discriminates.
    */
-  it("never admits a reader in the same round as the node that writes what it reads", async () => {
+  it("never admits a reader before the node that writes what it reads settles", async () => {
     const traced = (runId: string, plan: Plan.Plan) => {
       const trace: Array<string> = []
       const executor: PlanScheduler.Executor = {
@@ -680,6 +789,63 @@ describe("PlanScheduler conflict strategies", () => {
     expect(Option.getOrThrow(persisted).nodes.map((node) => node.id)).toEqual(["lane-a", "lane-b", "lane-b+merge"])
     expect(Option.getOrThrow(persisted).generation).toBe(1)
   })
+
+  it("appends and settles a stop/merge node while unrelated work remains in flight", async () => {
+    const plan = await runPromise(compile([
+      draft("lane-a", { writes: ["shared.out"] }),
+      draft("lane-b", { writes: ["shared.out"], conflictStrategy: "lane", runtimeStrategy: "stop-merge" }),
+      draft("unrelated")
+    ]))
+    const observed = await runPromise(
+      Effect.gen(function*() {
+        const conflictGate = yield* Latch.make()
+        const unrelatedGate = yield* Latch.make()
+        const unrelatedStarted = yield* Latch.make()
+        const executor: PlanScheduler.Executor = {
+          execute: ({ node }) => {
+            if (node.id === "lane-b") return Latch.await(conflictGate).pipe(Effect.andThen(Effect.fail(conflict())))
+            if (node.id === "unrelated") {
+              return Latch.open(unrelatedStarted).pipe(
+                Effect.andThen(Latch.await(unrelatedGate)),
+                Effect.as(node.id)
+              )
+            }
+            return Effect.succeed(node.id)
+          }
+        }
+        yield* activate("run-merge-mid-flight")
+        const service = scheduler({ runId: "run-merge-mid-flight", executor })
+        yield* service.record(plan)
+        const running = yield* Effect.provide(
+          service.run(plan),
+          harness({ runId: "run-merge-mid-flight", executor })
+        ).pipe(Effect.forkChild({ startImmediately: true }))
+        yield* Latch.await(unrelatedStarted)
+        yield* awaitNodeSettlement("run-merge-mid-flight", "lane-a")
+        yield* Latch.open(conflictGate)
+        const merge = yield* awaitNodeSettlement("run-merge-mid-flight", "lane-b+merge")
+        const beforeRelease = yield* JournalRecords.entries("run-merge-mid-flight", undefined, 512)
+        yield* Latch.open(unrelatedGate)
+        return {
+          merge,
+          report: yield* Fiber.join(running),
+          unrelatedHadSettled: beforeRelease.entries.some((entry) =>
+            entry.eventType === "flows.engine.node-settled" &&
+            (entry.payload as { readonly nodeId?: string }).nodeId === "unrelated"
+          )
+        }
+      }).pipe(Effect.provide(TestStores.layer()))
+    )
+    expect(observed.merge).toMatchObject({ nodeId: "lane-b+merge", outcome: "built" })
+    expect(observed.unrelatedHadSettled).toBe(false)
+    expect(observed.report.appended).toEqual(["lane-b+merge"])
+    expect(outcomes(observed.report)).toEqual({
+      "lane-a": "built",
+      "lane-b": "skipped",
+      unrelated: "built",
+      "lane-b+merge": "built"
+    })
+  })
 })
 
 describe("PlanScheduler reconciliation", () => {
@@ -837,11 +1003,11 @@ describe("PlanScheduler reconciliation", () => {
   })
 
   it("drains deviations past the first page of the journal", async () => {
-    // The reconciliation seam reads the journal a page at a time. A wide round
-    // journals more records than one page holds, and the last round has no
-    // successor to pick up the remainder — so a deviation beyond the cursor
-    // would never reach the seam at all. Filler records push the only real
-    // deviation off the first page.
+    // The reconciliation seam reads the journal a page at a time. Concurrent
+    // dispatches can journal more records than one page holds, and the final
+    // completion has no successor to pick up the remainder — so a deviation
+    // beyond the cursor would never reach the seam at all. Filler records push
+    // the only real deviation off the first page.
     const plan = await runPromise(compile([draft("late", { boundaryMode: "expected" })]))
     const executor: PlanScheduler.Executor = { execute: ({ node }) => Effect.succeed(node.id) }
     const report = await runPromise(
@@ -926,6 +1092,35 @@ describe("PlanScheduler elaboration", () => {
     expect(Exit.isFailure(exit) && Cause.hasInterruptsOnly(exit.cause)).toBe(true)
   })
 
+  it("interrupts the run when an in-flight dispatch loses its fence", async () => {
+    const plan = await runPromise(compile([draft("running")]))
+    const observed = await runPromise(
+      Effect.gen(function*() {
+        const gate = yield* Latch.make()
+        const started = yield* Latch.make()
+        const executor: PlanScheduler.Executor = {
+          execute: ({ node }) =>
+            Latch.open(started).pipe(
+              Effect.andThen(Latch.await(gate)),
+              Effect.as(node.id)
+            )
+        }
+        yield* activate("run-fence-mid-flight")
+        const running = yield* Effect.provide(
+          scheduler({ runId: "run-fence-mid-flight", executor }).run(plan),
+          harness({ runId: "run-fence-mid-flight", executor })
+        ).pipe(Effect.forkChild({ startImmediately: true }))
+        yield* Latch.await(started)
+        const runs = yield* RunStore.RunStore
+        const fenced = yield* runs.transitionOwned("run-fence-mid-flight", owner, "failed")
+        yield* Latch.open(gate)
+        return { exit: yield* Fiber.await(running), fenced }
+      }).pipe(Effect.provide(TestStores.layer()))
+    )
+    expect(observed.fenced).toEqual({ _tag: "Transitioned" })
+    expect(Exit.isFailure(observed.exit) && Cause.hasInterruptsOnly(observed.exit.cause)).toBe(true)
+  })
+
   it("surfaces a host that cannot measure the plan's inputs", async () => {
     const plan = await runPromise(compile([draft("reader", { reads: ["absent.txt"] })]))
     const executor: PlanScheduler.Executor = { execute: ({ node }) => Effect.succeed(node.id) }
@@ -939,6 +1134,63 @@ describe("PlanScheduler elaboration", () => {
       }).pipe(Effect.provide(TestStores.layer()))
     )
     expect(failure).toMatchObject({ code: "boundary_unavailable" })
+  })
+
+  it("fails fast on a dispatch SchedulerError and interrupts in-flight siblings", async () => {
+    const plan = await runPromise(compile([
+      draft("slow"),
+      draft("unmeasurable", { reads: ["unmeasurable.out"], writes: ["unmeasurable.out"] })
+    ]))
+    const observed = await runPromise(
+      Effect.gen(function*() {
+        const slowStarted = yield* Latch.make()
+        const slowInterrupted = yield* Latch.make()
+        const boundary = Layer.succeed(
+          StepBoundary.StepBoundary,
+          StepBoundary.make({
+            prepare: (descriptor) =>
+              Effect.gen(function*() {
+                if (StepBoundary.exactReads(descriptor).some((entry) => entry.path === "unmeasurable.out")) {
+                  yield* Latch.await(slowStarted)
+                  return yield* Effect.fail(
+                    new StepBoundary.UnsupportedBoundary({
+                      code: "unsupported_boundary",
+                      message: "test measurement refusal"
+                    })
+                  )
+                }
+                return { descriptor, readSnapshot: StepBoundary.exactReads(descriptor) }
+              }),
+            settle: (prepared) =>
+              Effect.succeed({
+                declaredOutputs: { paths: prepared.descriptor.writeSet },
+                diffIdentity: "scheduler-error-test",
+                wholeTreeWritesVerified: true,
+                hermeticReadsVerified: true
+              }),
+            replayOutputs: () => Effect.void
+          })
+        )
+        const executor: PlanScheduler.Executor = {
+          execute: () =>
+            Latch.open(slowStarted).pipe(
+              Effect.andThen(Effect.never),
+              Effect.onInterrupt(() => Latch.open(slowInterrupted))
+            )
+        }
+        yield* activate("run-dispatch-error")
+        const running = yield* Effect.provide(
+          scheduler({ runId: "run-dispatch-error", executor }).run(plan),
+          harness({ runId: "run-dispatch-error", executor, boundary })
+        ).pipe(Effect.forkChild({ startImmediately: true }))
+        const exit = yield* Fiber.await(running)
+        yield* Latch.await(slowInterrupted)
+        return exit
+      }).pipe(Effect.provide(TestStores.layer()))
+    )
+    expect(Exit.isFailure(observed) ? Cause.squash(observed.cause) : undefined).toMatchObject({
+      code: "boundary_unavailable"
+    })
   })
 })
 
