@@ -447,7 +447,7 @@ export const make = (options: Options): Service => {
       const appended: Array<string> = []
       /** Ordering edges reconciliation discovered; live for this run only. */
       const discovered = new Map<string, Array<string>>()
-      const digestToNode = new Map<string, string>()
+      const digestToNode = new Map<string, Array<string>>()
       const deviationSignatures = new Map<string, string>()
       const writers = new Map<string, string>()
       const writerEntries: Array<{ readonly entry: FileSet.Entry; readonly nodeId: string }> = []
@@ -722,7 +722,10 @@ export const make = (options: Options): Service => {
               priority: node.priority,
               waited: state.waited
             }))
-            digestToNode.set(yield* Effect.orDie(digestOf(dispatchKey)), node.id)
+            const dispatchDigest = yield* Effect.orDie(digestOf(dispatchKey))
+            const dispatchedUnder = digestToNode.get(dispatchDigest)
+            if (dispatchedUnder === undefined) digestToNode.set(dispatchDigest, [node.id])
+            else if (!dispatchedUnder.includes(node.id)) dispatchedUnder.push(node.id)
             const ran = yield* Ref.make(false)
             const exit = yield* ActionPersistence.make({
               runId: options.runId,
@@ -828,8 +831,13 @@ export const make = (options: Options): Service => {
             if (entry.eventType !== "flows.engine.expected-set-deviation") continue
             const payload = decodeDeviation(entry.payload)
             if (Option.isNone(payload)) continue
-            const nodeId = digestToNode.get(payload.value.stepKeyDigest)
-            if (nodeId === undefined) continue
+            const nodeIds = digestToNode.get(payload.value.stepKeyDigest)
+            if (nodeIds === undefined) continue
+            // The attempt belongs to an executing node by construction. If
+            // its built settlement is absent from current bookkeeping — the
+            // record arrived first, or is being durably replayed into an
+            // all-clean invocation — preserve first dispatch order.
+            const nodeId = nodeIds.find((candidate) => states.get(candidate)!.outcome === "built") ?? nodeIds[0]!
             const signature = [...payload.value.paths].sort().join(" ")
             deviationSignatures.set(nodeId, signature)
             attributed.push({ nodeId, signature, payload: payload.value })

@@ -261,50 +261,50 @@ describe("PlanScheduler over a static graph", () => {
   })
 
   it("re-keys one leaf and re-runs only its cone — every unchanged branch is a cache hit", async () => {
-  const graph = (seed: number) => [
-    draft("source", { body: { seed } }),
-    draft("derived", { inputs: [{ _tag: "Ref", from: "source", path: [] }] }),
-    draft("sibling"),
-    draft("sibling-child", { inputs: [{ _tag: "Pending", from: "sibling" }] })
-  ]
-  const before = await runPromise(compile(graph(1)))
-  const after = await runPromise(compile(graph(2)))
-  const executor: PlanScheduler.Executor = { execute: ({ node }) => Effect.succeed({ ran: node.id }) }
-  const stores = TestStores.layer()
-  const program = Effect.gen(function*() {
-    yield* activate("run-rekey")
-    const service = scheduler({ runId: "run-rekey", executor })
-    yield* service.record(before)
-    const first = yield* service.run(before)
-    const second = yield* service.run(after)
-    return { first, second }
-  }).pipe(Effect.provide(harness({ runId: "run-rekey", executor })), Effect.provide(stores))
+    const graph = (seed: number) => [
+      draft("source", { body: { seed } }),
+      draft("derived", { inputs: [{ _tag: "Ref", from: "source", path: [] }] }),
+      draft("sibling"),
+      draft("sibling-child", { inputs: [{ _tag: "Pending", from: "sibling" }] })
+    ]
+    const before = await runPromise(compile(graph(1)))
+    const after = await runPromise(compile(graph(2)))
+    const executor: PlanScheduler.Executor = { execute: ({ node }) => Effect.succeed({ ran: node.id }) }
+    const stores = TestStores.layer()
+    const program = Effect.gen(function*() {
+      yield* activate("run-rekey")
+      const service = scheduler({ runId: "run-rekey", executor })
+      yield* service.record(before)
+      const first = yield* service.run(before)
+      const second = yield* service.run(after)
+      return { first, second }
+    }).pipe(Effect.provide(harness({ runId: "run-rekey", executor })), Effect.provide(stores))
 
-  const { first, second } = await runPromise(program)
-  expect(outcomes(first)).toEqual({
-    source: "built",
-    derived: "built",
-    sibling: "built",
-    "sibling-child": "built"
+    const { first, second } = await runPromise(program)
+    expect(outcomes(first)).toEqual({
+      source: "built",
+      derived: "built",
+      sibling: "built",
+      "sibling-child": "built"
+    })
+    // THE BAZEL-SHAPED PROMISE: the edited leaf re-ran and the branch nothing
+    // touched was served from the content-addressed cache.
+    //
+    // `derived` is `clean` here, and that is the early cutoff working. The
+    // edit changed `source`'s declaration, so `source` re-ran — but this
+    // executor returns `{ran: node.id}` for either seed, so the value
+    // `derived` consumes is byte-identical to what it consumed before. A
+    // dispatch key that folded the upstream PLAN key would have re-run it
+    // anyway; `StepKey.dispatchIdentity` folds the upstream's settled output
+    // instead, so invalidation stops at unchanged content the way Bazel's
+    // `ActionCacheChecker` does.
+    expect(outcomes(second)).toEqual({
+      source: "built",
+      derived: "clean",
+      sibling: "clean",
+      "sibling-child": "clean"
+    })
   })
-  // THE BAZEL-SHAPED PROMISE: the edited leaf re-ran and the branch nothing
-  // touched was served from the content-addressed cache.
-  //
-  // `derived` is `clean` here, and that is the early cutoff working. The
-  // edit changed `source`'s declaration, so `source` re-ran — but this
-  // executor returns `{ran: node.id}` for either seed, so the value
-  // `derived` consumes is byte-identical to what it consumed before. A
-  // dispatch key that folded the upstream PLAN key would have re-run it
-  // anyway; `StepKey.dispatchIdentity` folds the upstream's settled output
-  // instead, so invalidation stops at unchanged content the way Bazel's
-  // `ActionCacheChecker` does.
-  expect(outcomes(second)).toEqual({
-    source: "built",
-    derived: "clean",
-    sibling: "clean",
-    "sibling-child": "clean"
-  })
-})
 
   it("carries declared removals into the measured boundary and orders readers behind them", async () => {
     // A removal moves a path's content exactly as a write does, so the plan
@@ -684,6 +684,51 @@ describe("PlanScheduler conflict strategies", () => {
 
 describe("PlanScheduler reconciliation", () => {
   const deviating = (paths: ReadonlyArray<string>) => StepBoundary.layerTest({ changedPaths: paths })
+
+  it("attributes an identical-key deviation to the node that executed", async () => {
+    const shared = {
+      body: { action: "install" },
+      writes: ["installed.out"],
+      boundaryMode: "expected" as const
+    }
+    const plan = await runPromise(compile([
+      draft("install-first", shared),
+      draft("install-twin", shared)
+    ]))
+    const executor: PlanScheduler.Executor = { execute: () => Effect.succeed("installed") }
+    const seen: Array<Reconciliation.Deviation> = []
+    const recorder = Reconciliation.layer({
+      onDeviation: (deviation) =>
+        Effect.sync(() => {
+          seen.push(deviation)
+          return { _tag: "FactorOut", paths: deviation.paths, reason: "observed" } as const
+        }),
+      /* v8 ignore next -- identical successful dispatches never enter conflict reconciliation */
+      onConflict: () => Effect.succeed({ _tag: "Fail", reason: "unused" } as const)
+    })
+    const { replayed, report } = await runPromise(
+      Effect.gen(function*() {
+        yield* activate("run-identical-deviation")
+        const service = scheduler({ runId: "run-identical-deviation", executor })
+        const report = yield* service.run(plan)
+        const replayed = yield* service.run(plan)
+        return { replayed, report }
+      }).pipe(
+        Effect.provide(harness({
+          runId: "run-identical-deviation",
+          executor,
+          boundary: deviating(["node_modules/.bin/tool"]),
+          reconciliation: recorder
+        })),
+        Effect.provide(TestStores.layer())
+      )
+    )
+    const built = report.settlements.find((settlement) => settlement.outcome === "built")!
+    const clean = report.settlements.find((settlement) => settlement.outcome === "clean")!
+    expect(replayed.settlements.every((settlement) => settlement.outcome === "clean")).toBe(true)
+    expect(new Set(seen.map((deviation) => deviation.nodeId))).toEqual(new Set([built.nodeId]))
+    expect(seen.map((deviation) => deviation.nodeId)).not.toContain(clean.nodeId)
+  })
 
   it("gives the expected-set-deviation event its first consumer", async () => {
     const plan = await runPromise(compile([draft("loose", { writes: ["declared.out"], boundaryMode: "expected" })]))
