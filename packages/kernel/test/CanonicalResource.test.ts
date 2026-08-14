@@ -134,10 +134,10 @@ describe("FileSystem.sink failures", () => {
       list: Effect.succeed([]),
       grantEnvelope: () => Effect.void
     })
-    const host = EffectFileSystem.makeNoop({
+    const host = FileSystem.withIsolatedFileSystem(EffectFileSystem.makeNoop({
       realPath: (value) => Effect.succeed(value),
       sink: () => Sink.forEach(() => Effect.fail(platformError("ENOSPC")))
-    })
+    }))
     return Effect.gen(function*() {
       const fileSystem = yield* EffectFileSystem.FileSystem
       const failure = yield* Effect.flip(
@@ -161,7 +161,7 @@ describe("FileSystem.sink failures", () => {
       list: Effect.succeed([]),
       grantEnvelope: () => Effect.void
     })
-    const host = EffectFileSystem.makeNoop({
+    const host = FileSystem.withIsolatedFileSystem(EffectFileSystem.makeNoop({
       realPath: (value) => Effect.succeed(value),
       sink: () =>
         Sink.forEach(() =>
@@ -169,7 +169,7 @@ describe("FileSystem.sink failures", () => {
             opened = true
           })
         )
-    })
+    }))
     return Effect.gen(function*() {
       const fileSystem = yield* EffectFileSystem.FileSystem
       const failure = yield* Effect.flip(

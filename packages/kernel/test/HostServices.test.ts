@@ -6,6 +6,7 @@ import { Effect, Fiber, FileSystem as EffectFileSystem, Option, Path as EffectPa
 import * as EffectHttpClient from "effect/unstable/http/HttpClient"
 import * as ChildProcess from "effect/unstable/process/ChildProcess"
 import { ChildProcessSpawner as EffectChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
+import * as FileSystem from "../src/FileSystem.ts"
 import * as GrantStore from "../src/GrantStore.ts"
 import * as HostServices from "../src/HostServices.ts"
 import * as KernelHttpClient from "../src/HttpClient.ts"
@@ -21,7 +22,7 @@ const allowAll = GrantStore.GrantStore.of({
 
 const denial = (error: unknown) => Option.getOrThrow(Permission.fromPlatformError(error as PlatformError.PlatformError))
 
-const fileSystem = EffectFileSystem.makeNoop({
+const fileSystem = FileSystem.withIsolatedFileSystem(EffectFileSystem.makeNoop({
   realPath: (path) => Effect.succeed(path),
   stat: (path) =>
     Effect.succeed({
@@ -29,7 +30,7 @@ const fileSystem = EffectFileSystem.makeNoop({
       nlink: Option.none()
     } as EffectFileSystem.File.Info),
   readFile: () => Effect.succeed(new Uint8Array())
-})
+}))
 
 describe("HostServices", () => {
   it("shares one closed platform-port list with one tag per slot", () => {

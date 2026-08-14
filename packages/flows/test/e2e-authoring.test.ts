@@ -27,7 +27,6 @@ import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Fiber from "effect/Fiber"
-import * as Latch from "effect/Latch"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
@@ -108,7 +107,7 @@ const services = Layer.mergeAll(
 /** Runs one body against a fresh database and the real durable stores. */
 const durableWith = <A, E, R>(
   body: Effect.Effect<A, E, R>,
-  layer: Layer.Layer<never>
+  layer: Layer.Layer<never, unknown>
 ) => Effect.scoped(body.pipe(Effect.provide(layer), Effect.provide(hostCrypto))) as Effect.Effect<A>
 
 /** Runs one body against a fresh database and the real durable stores. */
@@ -1107,7 +1106,7 @@ describe("journal admission is visible at the authoring boundary", () => {
           // next admission then occupies the queue's sole remaining slot.
           yield* Effect.yieldNow
           yield* journal.emitLossy(event(1))
-          const overflow = yield* Effect.flip(journal.emitLossy(event(2)))
+          const overflow = yield* Effect.flip(journal.emitLossy(event(2))).pipe(Effect.orDie)
           yield* Deferred.succeed(overflowSeen, overflow)
           return yield* Effect.fail(overflow)
         })
@@ -1204,22 +1203,23 @@ describe("wide authored graphs stay linear enough for the suite budget", () => {
 })
 
 describe("live ownership races stay fenced", () => {
-  // The round drives its own `TestClock` through `durableTimed`, so the test
-  // itself keeps the live environment the `Effect.runPromise` boundary had.
-  it.live(
+  it.effect(
     "lets one incarnation drive each round while the loser observes unsettled owned state",
     () =>
       Effect.gen(function*() {
         const calls: Array<string> = []
         const probes: Array<RunStorePackage.Ownership.OwnerId> = []
-        const started = [Latch.makeUnsafe(false), Latch.makeUnsafe(false)]
-        const release = [Latch.makeUnsafe(false), Latch.makeUnsafe(false)]
+        const started = [yield* Deferred.make<void>(), yield* Deferred.make<void>()]
+        const release = [yield* Deferred.make<void>(), yield* Deferred.make<void>()]
 
-        const observed = yield* durableTimed(Effect.gen(function*() {
+        const observed = yield* durable(Effect.gen(function*() {
           const store = yield* RunStore.RunStore
           const noHeartbeat = RunStore.makeNoop({
             ...store,
-            heartbeat: () => Effect.never
+            // Keep the owner fiber alive without refreshing the persisted
+            // timestamp, so the competing incarnation can observe a stale
+            // lease while the first action is still blocked.
+            heartbeat: () => Effect.succeed({ _tag: "Updated" })
           })
           const isAlive = (owner: RunStorePackage.Ownership.OwnerId) =>
             Effect.sync(() => {
@@ -1240,8 +1240,8 @@ describe("live ownership races stay fenced", () => {
             Increment.toLayer(({ value }) =>
               Effect.gen(function*() {
                 calls.push(`first:${value}`)
-                yield* Latch.open(started[value]!)
-                yield* Latch.await(release[value]!)
+                yield* Deferred.succeed(started[value]!, undefined)
+                yield* Deferred.await(release[value]!)
                 return value + 1
               })
             ) as Implementation
@@ -1262,7 +1262,7 @@ describe("live ownership races stay fenced", () => {
             }).pipe(Effect.provide(firstWiring)),
             { startImmediately: true }
           )
-          yield* Latch.await(started[0]!)
+          yield* Deferred.await(started[0]!)
           yield* TestClock.adjust("31 seconds")
           yield* CountTo.execute({ value: 0, target: 2 }, {
             executionId: "ownership-race",
@@ -1271,16 +1271,16 @@ describe("live ownership races stay fenced", () => {
           const rootWhileContended = yield* store.get("ownership-race")
           const rootPoll = yield* CountTo.poll("ownership-race").pipe(Effect.provide(secondWiring))
 
-          yield* Latch.open(release[0]!)
+          yield* Deferred.succeed(release[0]!, undefined)
           yield* Fiber.join(rootFiber)
-          yield* Latch.await(started[1]!)
+          yield* Deferred.await(started[1]!)
           const successorId = roundId("ownership-race", 1)
           yield* TestClock.adjust("31 seconds")
           yield* second.resume(CountTo, successorId)
           const successorWhileContended = yield* store.get(successorId)
           const successorPoll = yield* CountTo.poll(successorId).pipe(Effect.provide(secondWiring))
 
-          yield* Latch.open(release[1]!)
+          yield* Deferred.succeed(release[1]!, undefined)
           let successor = yield* store.get(successorId)
           for (let attempt = 0; attempt < 50 && successor.status !== "completed"; attempt++) {
             yield* Effect.yieldNow

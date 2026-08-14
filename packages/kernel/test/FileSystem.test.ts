@@ -29,10 +29,10 @@ const scriptedStore = (allowed: ReadonlySet<string>, checks: Array<Capability.Ca
   })
 
 const hostFileSystem = (overrides: Partial<EffectFileSystem.FileSystem>) =>
-  EffectFileSystem.makeNoop({
+  FileSystem.withIsolatedFileSystem(EffectFileSystem.makeNoop({
     realPath: (path) => Effect.succeed(path),
     ...overrides
-  })
+  }))
 
 const provide = (
   effect: Effect.Effect<void, unknown, EffectFileSystem.FileSystem>,

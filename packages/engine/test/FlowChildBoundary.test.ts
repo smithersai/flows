@@ -38,7 +38,10 @@ const boundaryNode = "root.flow.map"
  * driver records exactly that pair as the run-parent edge before it creates the
  * child's run row.
  */
-const scripted = (result: Flow.Result<unknown, unknown>) => {
+const scripted = (
+  result: Flow.Result<unknown, unknown>,
+  interruptFailure?: FlowRuntime.CancelRequestFailed
+) => {
   const requests: Array<{ readonly executionId: string; readonly parent: string | undefined }> = []
   const interrupts: Array<string> = []
   const engine = FlowEngine.makeUnsafe({
@@ -52,7 +55,12 @@ const scripted = (result: Flow.Result<unknown, unknown>) => {
         return result
       })) as never,
     poll: () => Effect.succeedNone,
-    interrupt: (_flow, executionId) => Effect.sync(() => void interrupts.push(executionId)),
+    interrupt: (_flow, executionId) =>
+      Effect.sync(() => void interrupts.push(executionId)).pipe(
+        Effect.andThen(
+          interruptFailure === undefined ? Effect.void : Effect.fail(interruptFailure)
+        )
+      ),
     interruptUnsafe: () => Effect.void,
     resume: () => Effect.void,
     actionExecute: () => Effect.succeed(new Flow.Complete({ exit: Exit.void })),
@@ -152,6 +160,32 @@ describe("a child boundary on the real engine", () => {
 
       expect(interrupts).toEqual([
         yield* withCrypto(Interpreter.childExecutionId("boundary-interrupted", boundaryNode, Child._tag, { value: 4 }))
+      ])
+    }))
+
+  it.effect("absorbs a linked-cancellation recording failure after logging it", () =>
+    Effect.gen(function*() {
+      const failure = new FlowRuntime.CancelRequestFailed({
+        code: "cancel_request_failed",
+        executionId: "boundary-interrupt-failure",
+        reason: "database unavailable"
+      })
+      const { engine, interrupts } = scripted(new Flow.Suspended({}), failure)
+      const instance = FlowEngine.makeInstance(Parent, "boundary-interrupt-failure")
+      instance.interrupted = true
+
+      const exit = yield* drive(engine, instance)
+
+      expect(Exit.isFailure(exit)).toBe(true)
+      expect(interrupts).toEqual([
+        yield* withCrypto(
+          Interpreter.childExecutionId(
+            "boundary-interrupt-failure",
+            boundaryNode,
+            Child._tag,
+            { value: 4 }
+          )
+        )
       ])
     }))
 

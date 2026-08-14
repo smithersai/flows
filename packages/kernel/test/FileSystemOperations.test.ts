@@ -67,7 +67,7 @@ const file = (calls: Array<string>): EffectFileSystem.File => ({
     })
 } as unknown as EffectFileSystem.File)
 
-const hostFileSystem = (calls: Array<string>): EffectFileSystem.FileSystem => {
+const makeHostFileSystem = (calls: Array<string>): EffectFileSystem.FileSystem => {
   const record = <A>(name: string, value: A) =>
     Effect.sync(() => {
       calls.push(name)
@@ -111,6 +111,9 @@ const hostFileSystem = (calls: Array<string>): EffectFileSystem.FileSystem => {
     writeFileString: () => record("writeFileString", undefined)
   })
 }
+
+const hostFileSystem = (calls: Array<string>): EffectFileSystem.FileSystem =>
+  FileSystem.withIsolatedFileSystem(makeHostFileSystem(calls))
 
 interface Case {
   readonly name: string
@@ -461,5 +464,42 @@ describe("FileSystem operation guards", () => {
         "fs:write",
         "fs:write"
       ])
+    }))
+
+  it.effect("fails closed when a host has no isolated filesystem attestation", () =>
+    Effect.gen(function*() {
+      const checks: Array<Capability.Capability> = []
+      const calls: Array<string> = []
+      const host = makeHostFileSystem(calls)
+      const grants = scriptedStore(() => true, checks)
+      const operations: ReadonlyArray<Case["run"]> = [
+        (fs) => fs.access("a"),
+        (fs) => fs.copy("a", "b"),
+        (fs) => fs.rename("a", "b"),
+        (fs) => fs.stat("a"),
+        (fs) => fs.makeTempDirectory(),
+        (fs) => fs.makeTempDirectory({ directory: "scratch" }),
+        (fs) => Effect.scoped(fs.makeTempDirectoryScoped()),
+        (fs) => Effect.scoped(fs.makeTempDirectoryScoped({ directory: "scratch" })),
+        (fs) => fs.makeTempFile(),
+        (fs) => fs.makeTempFile({ directory: "scratch" }),
+        (fs) => Effect.scoped(fs.makeTempFileScoped()),
+        (fs) => Effect.scoped(fs.makeTempFileScoped({ directory: "scratch" })),
+        (fs) => Stream.make(new Uint8Array()).pipe(Stream.run(fs.sink("a"))),
+        (fs) => Stream.runDrain(fs.stream("a")),
+        (fs) => Stream.runDrain(fs.watch("a"))
+      ]
+
+      const exits = yield* Effect.forEach(operations, (operation) => provide(operation, host, grants))
+
+      expect(exits.every((exit) => exit._tag === "Failure")).toBe(true)
+      expect(checks).toEqual([])
+      expect(calls).toEqual([])
+
+      const isolated = FileSystem.withIsolatedFileSystem(host)
+      const unsupported = yield* Effect.exit(
+        isolated[FileSystem.AtomicFileSystemTypeId].execute({ operation: "unsupported" })
+      )
+      expect(unsupported._tag).toBe("Failure")
     }))
 })
