@@ -86,6 +86,7 @@
     "coverage": "vitest --coverage"
   },
   "dependencies": {
+    "@smthrs/crypto-next": "0.1.0",
     "@smthrs/flow-next": "0.1.0",
     "@smthrs/keys-next": "0.1.0",
     "effect": "4.0.0-rc.108"
@@ -94,6 +95,7 @@
     "@effect/language-service": "0.87.1",
     "@effect/platform-node": "4.0.0-rc.108",
     "@eslint/js": "9.39.1",
+    "@smthrs/plan-next": "0.1.0",
     "@types/node": "25.9.5",
     "@vitest/coverage-v8": "4.1.9",
     "dprint": "0.55.2",
