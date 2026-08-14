@@ -164,10 +164,10 @@ interface Service {
     present: ReadonlyArray<string>
     beliefs: BeliefSnapshot
     policy: { deferBelow: number }
-  }): Effect<ReadonlyArray<{ nodeId: string; verdict: SelectionVerdict }>>
+  }): Effect<ReadonlyArray<{ nodeId: string; verdict: Verdict }>>
 }
 
-type SelectionVerdict =
+type Verdict =
   | { _tag: "Admit" }
   | { _tag: "Defer"; edge: SuspectedEdge; likelihood: number }
   | { _tag: "Propose"; flow: string; edge: SuspectedEdge; confidence: number }

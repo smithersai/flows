@@ -113,6 +113,10 @@ export type BeliefSnapshot = typeof BeliefSnapshot.Type
  * What selection decided: admit the work (the default), postpone it to a
  * guess-free pass, or propose a flow no real dependency reaches.
  *
+ * The design draft names this union `SelectionVerdict`; here the `Selection`
+ * namespace carries that prefix, so the export is `Verdict`, the same shape
+ * `Reconciliation.Verdict` takes beside it.
+ *
  * @since 0.1.0
  * @category schemas
  */
