@@ -128,6 +128,7 @@ const program = Effect.scoped(
   }).pipe(Effect.provide(services))
 )
 
+// A process entrypoint: running the Effect here is the intended boundary.
 Effect.runPromise(program).then(
   () => process.stdin.pause(),
   (cause: unknown) => {

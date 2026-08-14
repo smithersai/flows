@@ -6,6 +6,10 @@
  * test cannot reliably stage. The classification is the contract, so the binary
  * is scripted instead and the service is exercised end to end through it.
  */
+// Every case here runs on real elapsed time — subprocess spawns, file locks,
+// mtimes, and poll loops — so the suite uses `it.live`; `it.effect`'s
+// TestClock never advances for them.
+
 import { afterAll, beforeAll, describe, expect, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as Fiber from "effect/Fiber"

@@ -10,7 +10,8 @@ const inFlight = Effect.sync(() => {
   process.stdout.write(`${JSON.stringify({ status: "in-flight" })}\n`)
 }).pipe(Effect.andThen(Effect.never))
 
-await runRealEngine(databaseFile, hostId, parkSealedFlow(runId, inFlight))
+// A process entrypoint: running the Effect here is the intended boundary.
+await Effect.runPromise(runRealEngine(databaseFile, hostId, parkSealedFlow(runId, inFlight)))
 
 // The parent always SIGKILLs this process after observing a durable heartbeat.
 process.exitCode = 2

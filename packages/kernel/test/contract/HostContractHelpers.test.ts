@@ -4,11 +4,11 @@
  * normalizer must not invent a code, and the failure assertion must not let a
  * capability declared unsupported quietly succeed.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { JjError } from "@smthrs/jj-next"
-import { Effect } from "effect"
+import { Cause, Effect, Exit } from "effect"
 import { tmpdir } from "node:os"
 import { isAbsolute, relative, sep } from "node:path"
-import { describe, expect, it } from "vitest"
 import { assertFailure, defaultScratchPath, errorCode } from "./HostContract.ts"
 
 describe("errorCode", () => {
@@ -37,24 +37,29 @@ describe("errorCode", () => {
 })
 
 describe("assertFailure", () => {
-  it("passes when the effect fails with the declared code", async () => {
-    await expect(
-      Effect.runPromise(assertFailure(Effect.fail(new JjError({ code: "conflict", message: "slow" })), "conflict"))
-    ).resolves.toBeUndefined()
-  })
+  it.effect("passes when the effect fails with the declared code", () =>
+    Effect.gen(function*() {
+      expect(yield* assertFailure(Effect.fail(new JjError({ code: "conflict", message: "slow" })), "conflict"))
+        .toBeUndefined()
+    }))
 
-  it("rejects a capability declared unsupported that actually succeeds", async () => {
-    await expect(Effect.runPromise(assertFailure(Effect.succeed("worked"), "unsupported")))
-      .rejects.toThrow("expected typed failure unsupported")
-  })
+  it.effect("rejects a capability declared unsupported that actually succeeds", () =>
+    Effect.gen(function*() {
+      // The helper throws rather than failing, so the refusal arrives as a defect.
+      const exit = yield* Effect.exit(assertFailure(Effect.succeed("worked"), "unsupported"))
+      expect(Exit.isFailure(exit)).toBe(true)
+      expect(Cause.squash((exit as Exit.Failure<never, never>).cause)).toMatchObject({
+        message: expect.stringContaining("expected typed failure unsupported")
+      })
+    }))
 
-  it("rejects a failure carrying a different code", async () => {
-    await expect(
-      Effect.runPromise(
+  it.effect("rejects a failure carrying a different code", () =>
+    Effect.gen(function*() {
+      const exit = yield* Effect.exit(
         assertFailure(Effect.fail(new JjError({ code: "not_installed", message: "no" })), "unsupported")
       )
-    ).rejects.toThrow()
-  })
+      expect(Exit.isFailure(exit)).toBe(true)
+    }))
 })
 
 describe("defaultScratchPath", () => {

@@ -144,6 +144,7 @@ describe("downloads", () => {
       expect((errorOf(exit) as ArtifactStore.ArtifactStoreError).code).toBe("transport_failed")
     }))
 
+  // Real elapsed time: `it.effect`'s TestClock would stall this.
   it.live("fails a download that exceeds its deadline instead of waiting forever", () =>
     Effect.gen(function*() {
       // Headers arrive but the body never does. The deadline covers the whole

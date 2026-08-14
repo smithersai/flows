@@ -525,6 +525,7 @@ describe("JournalRecords.entries", () => {
 })
 
 describe("RunDriver stale-owner recovery", () => {
+  // Real elapsed time: `it.effect`'s TestClock would stall this.
   it.live("labels a same-host steal as a dead pid and runs the flow itself", () =>
     Effect.gen(function*() {
       const evidence: Array<unknown> = []

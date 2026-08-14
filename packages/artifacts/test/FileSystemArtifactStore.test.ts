@@ -321,6 +321,7 @@ describe("the orphan sweep (issue #138)", () => {
   const stale = `.flows/objects/aa/old.tmp-dead-0`
   const fresh = `.flows/objects/aa/live.tmp-live-0`
 
+  // Real elapsed time: `it.effect`'s TestClock would stall this.
   it.live("sweeps stale orphans on first put, keeps fresh temps, and sweeps once", () =>
     Effect.gen(function*() {
       const now = Date.now()

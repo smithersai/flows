@@ -20,6 +20,7 @@
  * (`reference/temporal/service/history/shard/context_impl.go`,
  * `renewRangeLocked`), reduced to one SQL predicate.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { DurableWriter, layer as writerLayer } from "@smthrs/database-next/DurableWriter"
 import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
 import { Context, Deferred, Effect, Fiber, Layer } from "effect"
@@ -27,7 +28,6 @@ import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { describe, expect, it } from "vitest"
 import { Journal, JournalError, type Service } from "../src/Journal.ts"
 import { Input, type RunId, type SourceId, type SourceSeq } from "../src/JournalEvent.ts"
 import * as Migrations from "../src/Migrations.ts"
@@ -53,14 +53,12 @@ const input = (source: SourceId, sequence: number, payload: unknown): Input =>
 
 const options: SqlJournal.SqlJournalOptions = { capacity: 64, overflow: "reject" }
 
-const withTempFile = async <A>(body: (filename: string) => Promise<A>): Promise<A> => {
-  const directory = await mkdtemp(join(tmpdir(), "flows-journal-fence-"))
-  try {
-    return await body(join(directory, "journal.sqlite"))
-  } finally {
-    await rm(directory, { recursive: true, force: true })
-  }
-}
+const withTempFile = <A, E>(body: (filename: string) => Effect.Effect<A, E>): Effect.Effect<A, E> =>
+  Effect.acquireUseRelease(
+    Effect.promise(() => mkdtemp(join(tmpdir(), "flows-journal-fence-"))),
+    (directory) => body(join(directory, "journal.sqlite")),
+    (directory) => Effect.promise(() => rm(directory, { recursive: true, force: true }))
+  )
 
 /** The `flows_runs` columns the fenced append's `WHERE EXISTS` reads. */
 const fenceTable = Layer.effectDiscard(Effect.gen(function*() {
@@ -152,78 +150,76 @@ const rowsOf = (filename: string) =>
   )
 
 describe("SqlJournal durable fencing across connections", () => {
-  it(
+  it.effect(
     "fails a stale append with fence_lost while the successor's entry survives",
     () =>
       withTempFile((filename) =>
-        Effect.runPromise(
-          Effect.scoped(
-            Effect.gen(function*() {
-              yield* onOwnConnection(
-                filename,
-                Effect.flatMap(
-                  Effect.service(SqlClient.SqlClient),
-                  (sql) =>
-                    sql`INSERT INTO flows_runs (run_id, status, owner_host_id, owner_pid, owner_nonce)
+        Effect.scoped(
+          Effect.gen(function*() {
+            yield* onOwnConnection(
+              filename,
+              Effect.flatMap(
+                Effect.service(SqlClient.SqlClient),
+                (sql) =>
+                  sql`INSERT INTO flows_runs (run_id, status, owner_host_id, owner_pid, owner_nonce)
                       VALUES (${run}, 'running', ${stale.hostId}, ${stale.pid}, ${stale.nonce})`
-                )
               )
+            )
 
-              const reached = yield* Deferred.make<void>()
-              const gate = yield* Deferred.make<void>()
-              const zombie = yield* connection(filename, parkFirstWrite(reached, gate))
-              const winner = yield* connection(filename)
+            const reached = yield* Deferred.make<void>()
+            const gate = yield* Deferred.make<void>()
+            const zombie = yield* connection(filename, parkFirstWrite(reached, gate))
+            const winner = yield* connection(filename)
 
-              // The stale owner enters its fenced append — input validated,
-              // sequence allocated — and parks on the threshold of its write
-              // transaction, still holding the run per `flows_runs`.
-              const appending = yield* Effect.forkChild(
-                Effect.flip(zombie.emitDurable(input(sourceId("zombie"), 0, { decision: "stale" }), stale)),
-                { startImmediately: true }
-              )
-              yield* Deferred.await(reached)
+            // The stale owner enters its fenced append — input validated,
+            // sequence allocated — and parks on the threshold of its write
+            // transaction, still holding the run per `flows_runs`.
+            const appending = yield* Effect.forkChild(
+              Effect.flip(zombie.emitDurable(input(sourceId("zombie"), 0, { decision: "stale" }), stale)),
+              { startImmediately: true }
+            )
+            yield* Deferred.await(reached)
 
-              // A successor takes the run on its own connection and appends. Both
-              // commit while the stale writer is parked mid-append.
-              yield* onOwnConnection(
-                filename,
-                Effect.flatMap(
-                  Effect.service(SqlClient.SqlClient),
-                  (sql) =>
-                    sql`UPDATE flows_runs
+            // A successor takes the run on its own connection and appends. Both
+            // commit while the stale writer is parked mid-append.
+            yield* onOwnConnection(
+              filename,
+              Effect.flatMap(
+                Effect.service(SqlClient.SqlClient),
+                (sql) =>
+                  sql`UPDATE flows_runs
                       SET owner_host_id = ${successor.hostId},
                           owner_pid = ${successor.pid},
                           owner_nonce = ${successor.nonce}
                       WHERE run_id = ${run}`
-                )
               )
-              const survivor = yield* winner.emitDurable(
-                input(sourceId("successor"), 0, { decision: "took-over" }),
-                successor
-              )
-              expect(survivor._tag).toBe("Accepted")
+            )
+            const survivor = yield* winner.emitDurable(
+              input(sourceId("successor"), 0, { decision: "took-over" }),
+              successor
+            )
+            expect(survivor._tag).toBe("Accepted")
 
-              yield* Deferred.succeed(gate, undefined)
-              const failure = yield* Fiber.join(appending)
+            yield* Deferred.succeed(gate, undefined)
+            const failure = yield* Fiber.join(appending)
 
-              // The zombie is told it lost the run rather than writing behind the
-              // live owner.
-              expect(failure).toBeInstanceOf(JournalError)
-              expect((failure as JournalError).code).toBe("fence_lost")
+            // The zombie is told it lost the run rather than writing behind the
+            // live owner.
+            expect(failure).toBeInstanceOf(JournalError)
+            expect((failure as JournalError).code).toBe("fence_lost")
 
-              // Retrying the same append does not launder the lost fence into a
-              // `Duplicate` or an `Accepted`: the run is still not the zombie's.
-              const retry = yield* Effect.flip(
-                zombie.emitDurable(input(sourceId("zombie"), 0, { decision: "stale" }), stale)
-              )
-              expect((retry as JournalError).code).toBe("fence_lost")
+            // Retrying the same append does not launder the lost fence into a
+            // `Duplicate` or an `Accepted`: the run is still not the zombie's.
+            const retry = yield* Effect.flip(
+              zombie.emitDurable(input(sourceId("zombie"), 0, { decision: "stale" }), stale)
+            )
+            expect((retry as JournalError).code).toBe("fence_lost")
 
-              // Exactly the successor's entry is durable.
-              const rows = yield* rowsOf(filename)
-              expect(rows.map((row) => row.source_id)).toEqual(["successor"])
-              expect(rows.map((row) => row.seq)).toEqual([survivor.seq])
-            })
-          )
+            // Exactly the successor's entry is durable.
+            const rows = yield* rowsOf(filename)
+            expect(rows.map((row) => row.source_id)).toEqual(["successor"])
+            expect(rows.map((row) => row.seq)).toEqual([survivor.seq])
+          })
         )
       ),
     30_000
@@ -233,47 +229,45 @@ describe("SqlJournal durable fencing across connections", () => {
   // hit returns `Duplicate` without ever evaluating the ownership predicate — a
   // zombie owner is told its event is committed instead of `fence_lost`,
   // contradicting the fence's own doc comment in `SqlJournal.ts`.
-  it.fails(
+  it.effect.fails(
     "refuses a stale append whose source identity already names a committed entry",
     () =>
       withTempFile((filename) =>
-        Effect.runPromise(
-          Effect.scoped(
-            Effect.gen(function*() {
-              yield* onOwnConnection(
-                filename,
-                Effect.flatMap(
-                  Effect.service(SqlClient.SqlClient),
-                  (sql) =>
-                    sql`INSERT INTO flows_runs (run_id, status, owner_host_id, owner_pid, owner_nonce)
+        Effect.scoped(
+          Effect.gen(function*() {
+            yield* onOwnConnection(
+              filename,
+              Effect.flatMap(
+                Effect.service(SqlClient.SqlClient),
+                (sql) =>
+                  sql`INSERT INTO flows_runs (run_id, status, owner_host_id, owner_pid, owner_nonce)
                       VALUES (${run}, 'running', ${successor.hostId}, ${successor.pid}, ${successor.nonce})`
-                )
               )
-              const zombie = yield* connection(filename)
+            )
+            const zombie = yield* connection(filename)
 
-              // The successor commits an entry, then the stale owner re-emits the
-              // *same source identity*: identical `(runId, sourceId, sourceSeq)`,
-              // which is the durable dedup key (`UNIQUE (run_id, source_id,
-              // source_seq)`). Dedup must be evaluated only after the fenced
-              // insert has produced no row, so a zombie cannot launder its lost
-              // fence into an `Idempotent`/`Duplicate` receipt by resubmitting
-              // work the live owner already committed.
-              const shared = sourceId("shared")
-              const winner = yield* connection(filename)
-              yield* winner.emitDurable(input(shared, 0, { decision: "took-over" }), successor)
+            // The successor commits an entry, then the stale owner re-emits the
+            // *same source identity*: identical `(runId, sourceId, sourceSeq)`,
+            // which is the durable dedup key (`UNIQUE (run_id, source_id,
+            // source_seq)`). Dedup must be evaluated only after the fenced
+            // insert has produced no row, so a zombie cannot launder its lost
+            // fence into an `Idempotent`/`Duplicate` receipt by resubmitting
+            // work the live owner already committed.
+            const shared = sourceId("shared")
+            const winner = yield* connection(filename)
+            yield* winner.emitDurable(input(shared, 0, { decision: "took-over" }), successor)
 
-              const failure = yield* Effect.flip(
-                zombie.emitDurable(input(shared, 0, { decision: "took-over" }), stale)
-              )
-              expect((failure as JournalError).code).toBe("fence_lost")
+            const failure = yield* Effect.flip(
+              zombie.emitDurable(input(shared, 0, { decision: "took-over" }), stale)
+            )
+            expect((failure as JournalError).code).toBe("fence_lost")
 
-              // Exactly the successor's single entry; the zombie's resubmission
-              // neither appended nor was answered from the dedup index.
-              const rows = yield* rowsOf(filename)
-              expect(rows.map((row) => row.source_id)).toEqual(["shared"])
-              expect(rows).toHaveLength(1)
-            })
-          )
+            // Exactly the successor's single entry; the zombie's resubmission
+            // neither appended nor was answered from the dedup index.
+            const rows = yield* rowsOf(filename)
+            expect(rows.map((row) => row.source_id)).toEqual(["shared"])
+            expect(rows).toHaveLength(1)
+          })
         )
       ),
     30_000

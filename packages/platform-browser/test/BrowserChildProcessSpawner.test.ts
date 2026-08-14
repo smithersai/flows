@@ -477,6 +477,7 @@ describe("BrowserChildProcessSpawner boundary", () => {
       expect(finished).toBe(true)
     }))
 
+  // Real elapsed time: `it.effect`'s TestClock would stall this.
   it.live("waits for the interpreter before reporting a timeout", () =>
     Effect.gen(function*() {
       let finished = false
@@ -531,6 +532,8 @@ describe("BrowserChildProcessSpawner boundary", () => {
       const { bash, calls } = stub(async (command) => {
         if (command === "first") {
           Deferred.doneUnsafe(firstStarted, Exit.void)
+          // The adapter under test hands this stub a Promise contract, so
+          // running the Effect here is the boundary being exercised.
           await Effect.runPromise(Deferred.await(releaseFirst))
         }
         if (command === "third") Deferred.doneUnsafe(thirdStarted, Exit.void)

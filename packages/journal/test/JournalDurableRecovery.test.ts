@@ -19,6 +19,7 @@
  * `DataLoss` rather than replaying a prefix
  * (`reference/temporal/common/persistence/history_manager.go`).
  */
+import { describe, expect, it } from "@effect/vitest"
 import { DurableWriter, layer as writerLayer } from "@smthrs/database-next/DurableWriter"
 import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
 import { Context, Effect, Exit, Layer } from "effect"
@@ -27,7 +28,6 @@ import type * as Statement from "effect/unstable/sql/Statement"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { describe, expect, it } from "vitest"
 import { Journal, type JournalError, type Service } from "../src/Journal.ts"
 import { Input, type RunId, type Seq, type SourceId, type SourceSeq } from "../src/JournalEvent.ts"
 import * as Migrations from "../src/Migrations.ts"
@@ -47,14 +47,12 @@ const input = (run: RunId, source: SourceId, eventType: string, payload: unknown
 
 const options: SqlJournal.SqlJournalOptions = { capacity: 64, overflow: "reject" }
 
-const withTempFile = async <A>(body: (filename: string) => Promise<A>): Promise<A> => {
-  const directory = await mkdtemp(join(tmpdir(), "flows-journal-recovery-"))
-  try {
-    return await body(join(directory, "journal.sqlite"))
-  } finally {
-    await rm(directory, { recursive: true, force: true })
-  }
-}
+const withTempFile = <A, E>(body: (filename: string) => Effect.Effect<A, E>): Effect.Effect<A, E> =>
+  Effect.acquireUseRelease(
+    Effect.promise(() => mkdtemp(join(tmpdir(), "flows-journal-recovery-"))),
+    (directory) => body(join(directory, "journal.sqlite")),
+    (directory) => Effect.promise(() => rm(directory, { recursive: true, force: true }))
+  )
 
 const migrated = (filename: string) =>
   Layer.provideMerge(
@@ -141,138 +139,132 @@ const corrupt = (filename: string, statement: string) =>
   )
 
 describe("SqlJournal append recovery on a real file", () => {
-  it(
+  it.effect(
     "leaves no phantom entry, identity, or sequence when the writer dies before commit",
     () =>
       withTempFile((filename) =>
-        Effect.runPromise(
-          Effect.gen(function*() {
-            const run = runId("crashed")
-            const source = sourceId("driver")
-            const doomed = input(run, source, "third", { value: 2 }, 2)
-            let crashing = false
+        Effect.gen(function*() {
+          const run = runId("crashed")
+          const source = sourceId("driver")
+          const doomed = input(run, source, "third", { value: 2 }, 2)
+          let crashing = false
 
-            const exit = yield* Effect.exit(
-              Effect.scoped(
-                Effect.gen(function*() {
-                  const journal = yield* connection(filename, crashAfterInsert(() => crashing))
-                  yield* journal.emitDurable(input(run, source, "first", { value: 0 }, 0))
-                  yield* journal.emitDurable(input(run, source, "second", { value: 1 }, 1))
-                  crashing = true
-                  yield* journal.emitDurable(doomed)
-                })
-              )
-            )
-
-            // The append died rather than failing: a killed process has no typed
-            // error to report, and the journal must not convert one into a
-            // receipt.
-            expect(Exit.isFailure(exit) ? exit.cause.reasons.map((reason) => reason._tag) : "Success").toEqual(["Die"])
-
-            // A cold connection re-reads the file. The doomed INSERT rolled back
-            // with its transaction, so seq 2 was never committed.
-            expect((yield* rowsOf(filename, run)).map((row) => row.seq)).toEqual([0, 1])
-
-            yield* Effect.scoped(
+          const exit = yield* Effect.exit(
+            Effect.scoped(
               Effect.gen(function*() {
-                const journal = yield* connection(filename)
-                // No phantom identity: the producer's retry of the exact input
-                // the dead writer issued is a fresh admission, never a
-                // `Duplicate` receipt for a row that does not exist.
-                const receipt = yield* journal.emitDurable(doomed)
-                expect(receipt._tag).toBe("Accepted")
-                // The next sequence continues from the durable floor, not from
-                // the number the dead writer had already claimed in memory.
-                expect(receipt.seq).toBe(2)
-                expect(receipt.sourceSeq).toBe(2)
+                const journal = yield* connection(filename, crashAfterInsert(() => crashing))
+                yield* journal.emitDurable(input(run, source, "first", { value: 0 }, 0))
+                yield* journal.emitDurable(input(run, source, "second", { value: 1 }, 1))
+                crashing = true
+                yield* journal.emitDurable(doomed)
               })
             )
+          )
 
-            const rows = yield* rowsOf(filename, run)
-            expect(rows.map((row) => row.seq)).toEqual([0, 1, 2])
-            expect(rows.map((row) => row.source_seq)).toEqual([0, 1, 2])
-            expect(rows.map((row) => row.event_type)).toEqual(["first", "second", "third"])
-          })
-        )
+          // The append died rather than failing: a killed process has no typed
+          // error to report, and the journal must not convert one into a
+          // receipt.
+          expect(Exit.isFailure(exit) ? exit.cause.reasons.map((reason) => reason._tag) : "Success").toEqual(["Die"])
+
+          // A cold connection re-reads the file. The doomed INSERT rolled back
+          // with its transaction, so seq 2 was never committed.
+          expect((yield* rowsOf(filename, run)).map((row) => row.seq)).toEqual([0, 1])
+
+          yield* Effect.scoped(
+            Effect.gen(function*() {
+              const journal = yield* connection(filename)
+              // No phantom identity: the producer's retry of the exact input
+              // the dead writer issued is a fresh admission, never a
+              // `Duplicate` receipt for a row that does not exist.
+              const receipt = yield* journal.emitDurable(doomed)
+              expect(receipt._tag).toBe("Accepted")
+              // The next sequence continues from the durable floor, not from
+              // the number the dead writer had already claimed in memory.
+              expect(receipt.seq).toBe(2)
+              expect(receipt.sourceSeq).toBe(2)
+            })
+          )
+
+          const rows = yield* rowsOf(filename, run)
+          expect(rows.map((row) => row.seq)).toEqual([0, 1, 2])
+          expect(rows.map((row) => row.source_seq)).toEqual([0, 1, 2])
+          expect(rows.map((row) => row.event_type)).toEqual(["first", "second", "third"])
+        })
       ),
     30_000
   )
 
-  it(
+  it.effect(
     "refuses to open on a corrupted durable event row instead of replaying a prefix",
     () =>
       withTempFile((filename) =>
-        Effect.runPromise(
-          Effect.gen(function*() {
-            const run = runId("corrupt-event")
-            const source = sourceId("driver")
-            yield* Effect.scoped(
-              Effect.gen(function*() {
-                const journal = yield* connection(filename)
-                yield* journal.emitDurable(input(run, source, "first", { value: 0 }, 0))
-                yield* journal.emitDurable(input(run, source, "second", { value: 1 }, 1))
-              })
-            )
+        Effect.gen(function*() {
+          const run = runId("corrupt-event")
+          const source = sourceId("driver")
+          yield* Effect.scoped(
+            Effect.gen(function*() {
+              const journal = yield* connection(filename)
+              yield* journal.emitDurable(input(run, source, "first", { value: 0 }, 0))
+              yield* journal.emitDurable(input(run, source, "second", { value: 1 }, 1))
+            })
+          )
 
-            yield* corrupt(
-              filename,
-              `UPDATE flows_journal_events SET payload_json = 'not-json' WHERE seq = 1`
-            )
+          yield* corrupt(
+            filename,
+            `UPDATE flows_journal_events SET payload_json = 'not-json' WHERE seq = 1`
+          )
 
-            // Opening the journal decodes the recent durable window, so the
-            // damaged row is caught before any caller can observe a partial
-            // history: the layer itself fails, typed.
-            const exit = yield* Effect.exit(Effect.scoped(connection(filename)))
-            const failure = (Exit.isFailure(exit) ? exit.cause.reasons[0] : undefined) as unknown as {
-              readonly error: JournalError
-            } | undefined
-            expect(failure?.error.code).toBe("decode_failed")
+          // Opening the journal decodes the recent durable window, so the
+          // damaged row is caught before any caller can observe a partial
+          // history: the layer itself fails, typed.
+          const exit = yield* Effect.exit(Effect.scoped(connection(filename)))
+          const failure = (Exit.isFailure(exit) ? exit.cause.reasons[0] : undefined) as unknown as {
+            readonly error: JournalError
+          } | undefined
+          expect(failure?.error.code).toBe("decode_failed")
 
-            // Nothing was replayed, repaired, or deleted on the way out.
-            expect((yield* rowsOf(filename, run)).map((row) => row.seq)).toEqual([0, 1])
-          })
-        )
+          // Nothing was replayed, repaired, or deleted on the way out.
+          expect((yield* rowsOf(filename, run)).map((row) => row.seq)).toEqual([0, 1])
+        })
       ),
     30_000
   )
 
-  it(
+  it.effect(
     "reports decode_failed for a corrupted checkpoint while the entry history stays intact",
     () =>
       withTempFile((filename) =>
-        Effect.runPromise(
-          Effect.gen(function*() {
-            const run = runId("corrupt-checkpoint")
-            const source = sourceId("driver")
-            yield* Effect.scoped(
-              Effect.gen(function*() {
-                const journal = yield* connection(filename)
-                yield* journal.emitDurable(input(run, source, "first", { value: 0 }, 0))
-                yield* journal.emitDurable(input(run, source, "second", { value: 1 }, 1))
-                yield* journal.checkpoint({ runId: run, seq: 1 as Seq, state: { at: 1 } })
-              })
-            )
+        Effect.gen(function*() {
+          const run = runId("corrupt-checkpoint")
+          const source = sourceId("driver")
+          yield* Effect.scoped(
+            Effect.gen(function*() {
+              const journal = yield* connection(filename)
+              yield* journal.emitDurable(input(run, source, "first", { value: 0 }, 0))
+              yield* journal.emitDurable(input(run, source, "second", { value: 1 }, 1))
+              yield* journal.checkpoint({ runId: run, seq: 1 as Seq, state: { at: 1 } })
+            })
+          )
 
-            yield* corrupt(
-              filename,
-              `UPDATE flows_journal_checkpoints SET state_json = 'not-json'`
-            )
+          yield* corrupt(
+            filename,
+            `UPDATE flows_journal_checkpoints SET state_json = 'not-json'`
+          )
 
-            yield* Effect.scoped(
-              Effect.gen(function*() {
-                const journal = yield* connection(filename)
-                const failure = yield* Effect.flip(journal.latestCheckpoint(run))
-                expect(failure.code).toBe("decode_failed")
-                // A resume point that cannot be decoded must not silently degrade
-                // into a partial replay: the entries are still complete and are
-                // still the only history the caller is offered.
-                const page = yield* journal.entries({ runId: run, limit: 10 })
-                expect(page.entries.map((entry) => entry.seq)).toEqual([0, 1])
-                expect(page.hasMore).toBe(false)
-              })
-            )
-          })
-        )
+          yield* Effect.scoped(
+            Effect.gen(function*() {
+              const journal = yield* connection(filename)
+              const failure = yield* Effect.flip(journal.latestCheckpoint(run))
+              expect(failure.code).toBe("decode_failed")
+              // A resume point that cannot be decoded must not silently degrade
+              // into a partial replay: the entries are still complete and are
+              // still the only history the caller is offered.
+              const page = yield* journal.entries({ runId: run, limit: 10 })
+              expect(page.entries.map((entry) => entry.seq)).toEqual([0, 1])
+              expect(page.hasMore).toBe(false)
+            })
+          )
+        })
       ),
     30_000
   )

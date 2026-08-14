@@ -17,95 +17,78 @@ const sourceId = (value: string): SourceId => value as SourceId
 const seq = (value: number): Seq => value as Seq
 
 describe("SqlJournal paging properties", () => {
-  it.effect("concatenated pages reproduce the full sequence for arbitrary page sizes and cursors", () =>
-    Effect.gen(function*() {
-      // The paging invariant every follower relies on: walking `entries` page by
-      // page — whatever the page size, and wherever the cursor starts — yields
-      // exactly the committed sequence, with no entry duplicated or lost at a
-      // page boundary, and `hasMore` only ever true on a full page.
-      yield* (
-        Effect.gen(function*() {
-          const journal = yield* Journal
-          let iteration = 0
-          yield* Effect.promise(() =>
-            FastCheck.assert(
-              FastCheck.asyncProperty(
-                FastCheck.nat({ max: 24 }),
-                FastCheck.integer({ min: 1, max: 7 }),
-                FastCheck.nat({ max: 24 }),
-                async (count, limit, startAfter) => {
-                  iteration += 1
-                  const run = runId(`paging-${iteration}`)
-                  await Effect.runPromise(
-                    Effect.gen(function*() {
-                      yield* Effect.forEach(
-                        Array.from({ length: count }, (_, index) => index),
-                        (index) =>
-                          journal.emitDurable({
-                            runId: run,
-                            sourceId: sourceId("producer"),
-                            eventType: "paging.event",
-                            payload: { index }
-                          }),
-                        { discard: true }
-                      )
+  // The paging invariant every follower relies on: walking `entries` page by
+  // page — whatever the page size, and wherever the cursor starts — yields
+  // exactly the committed sequence, with no entry duplicated or lost at a
+  // page boundary, and `hasMore` only ever true on a full page.
+  it.effect.prop(
+    "concatenated pages reproduce the full sequence for arbitrary page sizes and cursors",
+    [FastCheck.nat({ max: 24 }), FastCheck.integer({ min: 1, max: 7 }), FastCheck.nat({ max: 24 })],
+    ([count, limit, startAfter]) =>
+      Effect.gen(function*() {
+        const journal = yield* Journal
+        const run = runId("paging")
+        yield* Effect.forEach(
+          Array.from({ length: count }, (_, index) => index),
+          (index) =>
+            journal.emitDurable({
+              runId: run,
+              sourceId: sourceId("producer"),
+              eventType: "paging.event",
+              payload: { index }
+            }),
+          { discard: true }
+        )
 
-                      // One oversized read is the reference sequence.
-                      const full = yield* journal.entries({ runId: run, limit: count + 1 })
-                      expect(full.hasMore).toBe(false)
-                      expect(full.entries.map((entry) => entry.seq)).toEqual(
-                        Array.from({ length: count }, (_, index) => index)
-                      )
+        // One oversized read is the reference sequence.
+        const full = yield* journal.entries({ runId: run, limit: count + 1 })
+        expect(full.hasMore).toBe(false)
+        expect(full.entries.map((entry) => entry.seq)).toEqual(
+          Array.from({ length: count }, (_, index) => index)
+        )
 
-                      // Page through with the generated page size.
-                      const collected: Array<Entry> = []
-                      let cursor: number | undefined = undefined
-                      for (let pages = 0;; pages++) {
-                        expect(pages).toBeLessThanOrEqual(count + 1)
-                        const page: EntriesPage = yield* journal.entries({
-                          runId: run,
-                          ...(cursor === undefined ? {} : { after: seq(cursor) }),
-                          limit
-                        })
-                        expect(page.entries.length).toBeLessThanOrEqual(limit)
-                        if (page.hasMore) {
-                          // A page claiming more must be full — a short page with
-                          // hasMore would stall a follower.
-                          expect(page.entries.length).toBe(limit)
-                        }
-                        collected.push(...page.entries)
-                        const last: Entry | undefined = page.entries.at(-1)
-                        if (!page.hasMore) break
-                        expect(last).toBeDefined()
-                        cursor = last!.seq
-                      }
+        // Page through with the generated page size.
+        const collected: Array<Entry> = []
+        let cursor: number | undefined = undefined
+        for (let pages = 0;; pages++) {
+          expect(pages).toBeLessThanOrEqual(count + 1)
+          const page: EntriesPage = yield* journal.entries({
+            runId: run,
+            ...(cursor === undefined ? {} : { after: seq(cursor) }),
+            limit
+          })
+          expect(page.entries.length).toBeLessThanOrEqual(limit)
+          if (page.hasMore) {
+            // A page claiming more must be full — a short page with hasMore
+            // would stall a follower.
+            expect(page.entries.length).toBe(limit)
+          }
+          collected.push(...page.entries)
+          const last: Entry | undefined = page.entries.at(-1)
+          if (!page.hasMore) break
+          expect(last).toBeDefined()
+          cursor = last!.seq
+        }
 
-                      expect(collected.map((entry) => entry.seq)).toEqual(
-                        full.entries.map((entry) => entry.seq)
-                      )
-                      expect(collected.map((entry) => entry.eventId)).toEqual(
-                        full.entries.map((entry) => entry.eventId)
-                      )
-                      expect(collected.map((entry) => entry.payload)).toEqual(
-                        Array.from({ length: count }, (_, index) => ({ index }))
-                      )
+        expect(collected.map((entry) => entry.seq)).toEqual(
+          full.entries.map((entry) => entry.seq)
+        )
+        expect(collected.map((entry) => entry.eventId)).toEqual(
+          full.entries.map((entry) => entry.eventId)
+        )
+        expect(collected.map((entry) => entry.payload)).toEqual(
+          Array.from({ length: count }, (_, index) => ({ index }))
+        )
 
-                      // An arbitrary cursor reproduces exactly the suffix after
-                      // it: `after` is exclusive, `after + 1` is included.
-                      const after = Math.min(startAfter, count)
-                      const suffix = yield* journal.entries({ runId: run, after: seq(after), limit: count + 1 })
-                      expect(suffix.hasMore).toBe(false)
-                      expect(suffix.entries.map((entry) => entry.seq)).toEqual(
-                        Array.from({ length: Math.max(count - after - 1, 0) }, (_, index) => after + 1 + index)
-                      )
-                    })
-                  )
-                }
-              ),
-              { ...params, examples: [[0, 1, 0], [6, 3, 2], [7, 3, 7], [1, 7, 0]] }
-            )
-          )
-        }).pipe(Effect.provide(TestJournal.layer()), Effect.scoped)
-      )
-    }))
+        // An arbitrary cursor reproduces exactly the suffix after it: `after`
+        // is exclusive, `after + 1` is included.
+        const after = Math.min(startAfter, count)
+        const suffix = yield* journal.entries({ runId: run, after: seq(after), limit: count + 1 })
+        expect(suffix.hasMore).toBe(false)
+        expect(suffix.entries.map((entry) => entry.seq)).toEqual(
+          Array.from({ length: Math.max(count - after - 1, 0) }, (_, index) => after + 1 + index)
+        )
+      }).pipe(Effect.provide(TestJournal.layer()), Effect.scoped),
+    { fastCheck: { ...params, examples: [[0, 1, 0], [6, 3, 2], [7, 3, 7], [1, 7, 0]] } }
+  )
 })

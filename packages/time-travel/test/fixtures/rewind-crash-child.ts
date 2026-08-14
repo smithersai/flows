@@ -16,7 +16,8 @@ const checkpoint = Effect.sync(() => {
   process.stdout.write(`${JSON.stringify({ stage })}\n`)
 })
 
-await runReal(
+// A process entrypoint: running the Effect here is the intended boundary.
+await Effect.runPromise(runReal(
   filename,
   Effect.gen(function*() {
     const store = yield* TimeTravelStore
@@ -49,7 +50,7 @@ await runReal(
       Effect.provide(EffectHandlerRegistry.layerNoop)
     )
   })
-)
+))
 
 // The parent always SIGKILLs at a checkpoint. Reaching here is a fixture defect.
 process.exitCode = 2

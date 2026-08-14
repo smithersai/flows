@@ -190,6 +190,7 @@ describe("the interpreter settles a body's root outcome", () => {
       ).toEqual({ count: "2" })
     }))
 
+  // Real elapsed time: `it.effect`'s TestClock would stall this.
   it.live("parks under the reason the body declared", () =>
     Effect.gen(function*() {
       const result = yield* withCrypto(

@@ -14,6 +14,7 @@
  * boundary the SQLite locking protocol actually arbitrates; the process
  * boundary above it adds no further serialization.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { DurableWriter } from "@smthrs/database-next"
 import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
 import * as Context from "effect/Context"
@@ -26,7 +27,6 @@ import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { describe, expect, it } from "vitest"
 import { CacheStore } from "../src/CacheStore.ts"
 import * as CacheStoreLive from "../src/CacheStore.ts"
 import * as CombinedCacheStore from "../src/CombinedCacheStore.ts"
@@ -41,14 +41,12 @@ const entry: CacheStoreLive.CacheEntry = {
   recordedEventSeq: 7
 }
 
-const withTempFile = async <A>(body: (filename: string) => Promise<A>): Promise<A> => {
-  const directory = await mkdtemp(join(tmpdir(), "flows-step-cache-durable-"))
-  try {
-    return await body(join(directory, "cache.sqlite"))
-  } finally {
-    await rm(directory, { recursive: true, force: true })
-  }
-}
+const withTempFile = <A, E>(body: (filename: string) => Effect.Effect<A, E>): Effect.Effect<A, E> =>
+  Effect.acquireUseRelease(
+    Effect.promise(() => mkdtemp(join(tmpdir(), "flows-step-cache-durable-"))),
+    (directory) => body(join(directory, "cache.sqlite")),
+    (directory) => Effect.promise(() => rm(directory, { recursive: true, force: true }))
+  )
 
 const migrated = (filename: string) =>
   Layer.provideMerge(
@@ -88,179 +86,173 @@ const rowsOf = (filename: string) =>
   )
 
 describe("CacheStore across real connections", () => {
-  it(
+  it.effect(
     "admits exactly one durable winner when two connections put different results at once",
     () =>
       withTempFile((filename) =>
-        Effect.runPromise(
-          Effect.scoped(
-            Effect.gen(function*() {
-              // Migrate once so both writers open an already-provisioned file.
-              yield* Effect.scoped(Effect.provide(Effect.void, migrated(filename)))
-              const left = yield* connection(filename)
-              const right = yield* connection(filename)
-              const start = yield* Deferred.make<void>()
-              const put = (store: CacheStoreLive.Service, output: string) =>
-                Deferred.await(start).pipe(
-                  Effect.andThen(store.put({ ...entry, result: { output }, recordedRunId: `run-${output}` }))
-                )
-              const leftFiber = yield* Effect.forkChild(put(left, "left"), { startImmediately: true })
-              const rightFiber = yield* Effect.forkChild(put(right, "right"), { startImmediately: true })
-              // Both writers are parked on the latch; releasing it is the only
-              // ordering this test imposes.
-              yield* Deferred.succeed(start, undefined)
-              const outcomes = [yield* Fiber.join(leftFiber), yield* Fiber.join(rightFiber)]
+        Effect.scoped(
+          Effect.gen(function*() {
+            // Migrate once so both writers open an already-provisioned file.
+            yield* Effect.scoped(Effect.provide(Effect.void, migrated(filename)))
+            const left = yield* connection(filename)
+            const right = yield* connection(filename)
+            const start = yield* Deferred.make<void>()
+            const put = (store: CacheStoreLive.Service, output: string) =>
+              Deferred.await(start).pipe(
+                Effect.andThen(store.put({ ...entry, result: { output }, recordedRunId: `run-${output}` }))
+              )
+            const leftFiber = yield* Effect.forkChild(put(left, "left"), { startImmediately: true })
+            const rightFiber = yield* Effect.forkChild(put(right, "right"), { startImmediately: true })
+            // Both writers are parked on the latch; releasing it is the only
+            // ordering this test imposes.
+            yield* Deferred.succeed(start, undefined)
+            const outcomes = [yield* Fiber.join(leftFiber), yield* Fiber.join(rightFiber)]
 
-              // First-writer-wins: whichever connection reached SQLite first
-              // inserted, and the loser is told its result differs rather than
-              // overwriting the row.
-              expect(outcomes.map((outcome) => outcome._tag).sort()).toEqual(["Conflict", "Inserted"])
+            // First-writer-wins: whichever connection reached SQLite first
+            // inserted, and the loser is told its result differs rather than
+            // overwriting the row.
+            expect(outcomes.map((outcome) => outcome._tag).sort()).toEqual(["Conflict", "Inserted"])
 
-              const rows = yield* rowsOf(filename)
-              expect(rows).toHaveLength(1)
-              const row = rows[0]!
-              // The surviving row is one writer's entry end to end — never a mix
-              // of one writer's result with the other's provenance.
-              const winner = JSON.parse(row.result_json) as { readonly output: string }
-              expect(["left", "right"]).toContain(winner.output)
-              expect(row.recorded_run_id).toBe(`run-${winner.output}`)
-              expect(row.key_digest).toBe(entry.keyDigest)
-              expect(row.created_at_ms).toBe(entry.createdAtMs)
-              expect(row.recorded_event_seq).toBe(entry.recordedEventSeq)
-              expect(JSON.parse(row.meta_json)).toEqual(entry.meta)
-            })
-          )
+            const rows = yield* rowsOf(filename)
+            expect(rows).toHaveLength(1)
+            const row = rows[0]!
+            // The surviving row is one writer's entry end to end — never a mix
+            // of one writer's result with the other's provenance.
+            const winner = JSON.parse(row.result_json) as { readonly output: string }
+            expect(["left", "right"]).toContain(winner.output)
+            expect(row.recorded_run_id).toBe(`run-${winner.output}`)
+            expect(row.key_digest).toBe(entry.keyDigest)
+            expect(row.created_at_ms).toBe(entry.createdAtMs)
+            expect(row.recorded_event_seq).toBe(entry.recordedEventSeq)
+            expect(JSON.parse(row.meta_json)).toEqual(entry.meta)
+          })
         )
       ),
     30_000
   )
 
-  it(
+  it.effect(
     "serves whole entries and keeps the winner while a reader, a writer, and a stale evict race",
     () =>
       withTempFile((filename) =>
-        Effect.runPromise(
-          Effect.scoped(
-            Effect.gen(function*() {
-              yield* Effect.scoped(Effect.provide(Effect.void, migrated(filename)))
-              const owner = yield* connection(filename)
-              const foreign = yield* connection(filename)
-              yield* owner.put(entry)
+        Effect.scoped(
+          Effect.gen(function*() {
+            yield* Effect.scoped(Effect.provide(Effect.void, migrated(filename)))
+            const owner = yield* connection(filename)
+            const foreign = yield* connection(filename)
+            yield* owner.put(entry)
 
-              const start = yield* Deferred.make<void>()
-              const gated = <A, E>(effect: Effect.Effect<A, E>) => Deferred.await(start).pipe(Effect.andThen(effect))
-              // Ten readers, one conflicting writer, and one fenced evict naming
-              // provenance the row no longer carries — all released together.
-              const readers = yield* Effect.forkChild(
-                gated(
-                  Effect.forEach(
-                    Array.from({ length: 10 }, (_, index) => index),
-                    () => foreign.get(entry.keyDigest)
-                  )
-                ),
-                { startImmediately: true }
-              )
-              const writer = yield* Effect.forkChild(
-                gated(foreign.put({ ...entry, result: { output: "contender" } })),
-                { startImmediately: true }
-              )
-              const staleEvict = yield* Effect.forkChild(
-                gated(
-                  foreign.evict(entry.keyDigest, {
-                    ifRecordedBy: { runId: entry.recordedRunId, eventSeq: entry.recordedEventSeq + 1 }
-                  })
-                ),
-                { startImmediately: true }
-              )
-              yield* Deferred.succeed(start, undefined)
-              const observed = yield* Fiber.join(readers)
-              const contended = yield* Fiber.join(writer)
-              const evicted = yield* Fiber.join(staleEvict)
+            const start = yield* Deferred.make<void>()
+            const gated = <A, E>(effect: Effect.Effect<A, E>) => Deferred.await(start).pipe(Effect.andThen(effect))
+            // Ten readers, one conflicting writer, and one fenced evict naming
+            // provenance the row no longer carries — all released together.
+            const readers = yield* Effect.forkChild(
+              gated(
+                Effect.forEach(
+                  Array.from({ length: 10 }, (_, index) => index),
+                  () => foreign.get(entry.keyDigest)
+                )
+              ),
+              { startImmediately: true }
+            )
+            const writer = yield* Effect.forkChild(
+              gated(foreign.put({ ...entry, result: { output: "contender" } })),
+              { startImmediately: true }
+            )
+            const staleEvict = yield* Effect.forkChild(
+              gated(
+                foreign.evict(entry.keyDigest, {
+                  ifRecordedBy: { runId: entry.recordedRunId, eventSeq: entry.recordedEventSeq + 1 }
+                })
+              ),
+              { startImmediately: true }
+            )
+            yield* Deferred.succeed(start, undefined)
+            const observed = yield* Fiber.join(readers)
+            const contended = yield* Fiber.join(writer)
+            const evicted = yield* Fiber.join(staleEvict)
 
-              // Every read decoded, and every read that saw a row saw the whole
-              // seeded entry — no torn row, no `decode_failed`.
-              expect(observed).toHaveLength(10)
-              for (const found of observed) {
-                expect(Option.getOrThrow(found)).toEqual(entry)
-              }
-              // The contending write never replaced the winner.
-              expect(contended).toEqual({ _tag: "Conflict" })
-              // A fence naming provenance the row does not carry deletes nothing.
-              expect(evicted).toBe(false)
-              const survivor = yield* owner.get(entry.keyDigest)
-              expect(Option.getOrThrow(survivor)).toEqual(entry)
-              expect(yield* rowsOf(filename)).toHaveLength(1)
-            })
-          )
+            // Every read decoded, and every read that saw a row saw the whole
+            // seeded entry — no torn row, no `decode_failed`.
+            expect(observed).toHaveLength(10)
+            for (const found of observed) {
+              expect(Option.getOrThrow(found)).toEqual(entry)
+            }
+            // The contending write never replaced the winner.
+            expect(contended).toEqual({ _tag: "Conflict" })
+            // A fence naming provenance the row does not carry deletes nothing.
+            expect(evicted).toBe(false)
+            const survivor = yield* owner.get(entry.keyDigest)
+            expect(Option.getOrThrow(survivor)).toEqual(entry)
+            expect(yield* rowsOf(filename)).toHaveLength(1)
+          })
         )
       ),
     30_000
   )
 
-  it(
+  it.effect(
     "rejects a poisoned durable row on reopen before any write-back reaches it",
     () =>
       withTempFile((filename) =>
-        Effect.runPromise(
-          Effect.gen(function*() {
-            yield* Effect.scoped(
+        Effect.gen(function*() {
+          yield* Effect.scoped(
+            Effect.gen(function*() {
+              const store = yield* connection(filename)
+              yield* store.put(entry)
+            })
+          )
+          // Poison the durable row the way an interrupted write or a foreign
+          // writer would: valid SQLite, invalid JSON in a column the store
+          // decodes. The CHECK constraint is bypassed exactly as the row would
+          // arrive from outside this schema's enforcement.
+          yield* Effect.scoped(
+            Effect.provide(
               Effect.gen(function*() {
-                const store = yield* connection(filename)
-                yield* store.put(entry)
-              })
+                const sql = yield* Effect.service(SqlClient.SqlClient)
+                yield* sql`PRAGMA ignore_check_constraints = ON`
+                yield* sql`UPDATE flows_step_cache SET result_json = 'not-json'`
+              }),
+              migrated(filename)
             )
-            // Poison the durable row the way an interrupted write or a foreign
-            // writer would: valid SQLite, invalid JSON in a column the store
-            // decodes. The CHECK constraint is bypassed exactly as the row would
-            // arrive from outside this schema's enforcement.
-            yield* Effect.scoped(
-              Effect.provide(
-                Effect.gen(function*() {
-                  const sql = yield* Effect.service(SqlClient.SqlClient)
-                  yield* sql`PRAGMA ignore_check_constraints = ON`
-                  yield* sql`UPDATE flows_step_cache SET result_json = 'not-json'`
-                }),
-                migrated(filename)
-              )
-            )
+          )
 
-            // A cold process reopens the file. The poisoned row must be a typed
-            // failure, not a decoded value and not a defect.
-            yield* Effect.scoped(
-              Effect.gen(function*() {
-                const store = yield* connection(filename)
-                const failure = yield* Effect.flip(store.get(entry.keyDigest))
-                expect(failure.code).toBe("decode_failed")
-              })
-            )
+          // A cold process reopens the file. The poisoned row must be a typed
+          // failure, not a decoded value and not a defect.
+          yield* Effect.scoped(
+            Effect.gen(function*() {
+              const store = yield* connection(filename)
+              const failure = yield* Effect.flip(store.get(entry.keyDigest))
+              expect(failure.code).toBe("decode_failed")
+            })
+          )
 
-            // Composed as the local tier, the poison stops the lookup before the
-            // shared tier is consulted: a poisoned local row must never become a
-            // remote round trip whose answer is then written back over it.
-            const remoteReads: Array<string> = []
-            yield* Effect.scoped(
-              Effect.gen(function*() {
-                const local = yield* connection(filename)
-                const remote: CacheStoreLive.Service = {
-                  get: (keyDigest) =>
-                    Effect.sync(() => {
-                      remoteReads.push(keyDigest)
-                      return Option.some({ ...entry, result: { output: "from-remote" } })
-                    }),
-                  put: () => Effect.succeed({ _tag: "Inserted" }),
-                  evict: () => Effect.succeed(false)
-                }
-                const combined = CombinedCacheStore.make({ local, remote })
-                const failure = yield* Effect.flip(combined.get(entry.keyDigest))
-                expect(failure.code).toBe("decode_failed")
-              })
-            )
-            expect(remoteReads).toEqual([])
-            // The poisoned row is still exactly one row: nothing wrote back over
-            // it and nothing silently dropped it.
-            expect(yield* rowsOf(filename)).toHaveLength(1)
-          })
-        )
+          // Composed as the local tier, the poison stops the lookup before the
+          // shared tier is consulted: a poisoned local row must never become a
+          // remote round trip whose answer is then written back over it.
+          const remoteReads: Array<string> = []
+          yield* Effect.scoped(
+            Effect.gen(function*() {
+              const local = yield* connection(filename)
+              const remote: CacheStoreLive.Service = {
+                get: (keyDigest) =>
+                  Effect.sync(() => {
+                    remoteReads.push(keyDigest)
+                    return Option.some({ ...entry, result: { output: "from-remote" } })
+                  }),
+                put: () => Effect.succeed({ _tag: "Inserted" }),
+                evict: () => Effect.succeed(false)
+              }
+              const combined = CombinedCacheStore.make({ local, remote })
+              const failure = yield* Effect.flip(combined.get(entry.keyDigest))
+              expect(failure.code).toBe("decode_failed")
+            })
+          )
+          expect(remoteReads).toEqual([])
+          // The poisoned row is still exactly one row: nothing wrote back over
+          // it and nothing silently dropped it.
+          expect(yield* rowsOf(filename)).toHaveLength(1)
+        })
       ),
     30_000
   )

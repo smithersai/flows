@@ -55,6 +55,7 @@ const holdWriteLock = (filename: string): { readonly release: () => void } => {
 }
 
 describe("NodeDatabase concurrent open", () => {
+  // Real elapsed time: `it.effect`'s TestClock would stall this.
   it.live("waits for a peer holding the file lock instead of failing the open", () =>
     Effect.gen(function*() {
       const filename = tempFile()

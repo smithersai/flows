@@ -119,6 +119,7 @@ export const describeContract = (harness: Harness): void => {
         expect(result).toBe(2)
       }))
 
+    // Real elapsed time: `it.effect`'s TestClock would stall this.
     it.live("admits exactly one of two writers that each check for absence then insert", () =>
       Effect.gen(function*() {
         const result = yield* harness.run((context) =>

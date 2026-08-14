@@ -15,6 +15,10 @@
  * `AtomicFileSystem.test.ts` pins the confinement races and the operation
  * semantics; this file pins the helper protocol itself.
  */
+// Every case here runs on real elapsed time — subprocess spawns, file locks,
+// mtimes, and poll loops — so the suite uses `it.live`; `it.effect`'s
+// TestClock never advances for them.
+
 import { afterEach, describe, expect, it } from "@effect/vitest"
 import * as KernelFileSystem from "@smthrs/kernel-next/FileSystem"
 import * as GrantStore from "@smthrs/kernel-next/GrantStore"

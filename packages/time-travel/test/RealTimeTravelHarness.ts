@@ -36,26 +36,30 @@ export interface RealFixture {
   readonly repository: string
 }
 
-export const withRealFixture = async <A>(
+export const withRealFixture = <A, E>(
   prefix: string,
-  body: (fixture: RealFixture) => Promise<A>
-): Promise<A> => {
-  const directory = await mkdtemp(join(tmpdir(), prefix))
-  const repository = join(directory, "repository")
-  execFileSync("jj", ["git", "init", repository], { stdio: "ignore" })
-  const previousCwd = process.cwd()
-  const previousEditor = process.env.JJ_EDITOR
-  process.env.JJ_EDITOR = "true"
-  process.chdir(repository)
-  try {
-    return await body({ databaseFile: join(directory, "flows.sqlite"), directory, repository })
-  } finally {
-    process.chdir(previousCwd)
-    if (previousEditor === undefined) delete process.env.JJ_EDITOR
-    else process.env.JJ_EDITOR = previousEditor
-    await rm(directory, { recursive: true, force: true })
-  }
-}
+  body: (fixture: RealFixture) => Effect.Effect<A, E>
+): Effect.Effect<A, E> =>
+  Effect.acquireUseRelease(
+    Effect.promise(async () => {
+      const directory = await mkdtemp(join(tmpdir(), prefix))
+      const repository = join(directory, "repository")
+      execFileSync("jj", ["git", "init", repository], { stdio: "ignore" })
+      const previousCwd = process.cwd()
+      const previousEditor = process.env.JJ_EDITOR
+      process.env.JJ_EDITOR = "true"
+      process.chdir(repository)
+      return { directory, repository, previousCwd, previousEditor }
+    }),
+    ({ directory, repository }) => body({ databaseFile: join(directory, "flows.sqlite"), directory, repository }),
+    ({ directory, previousCwd, previousEditor }) =>
+      Effect.promise(async () => {
+        process.chdir(previousCwd)
+        if (previousEditor === undefined) delete process.env.JJ_EDITOR
+        else process.env.JJ_EDITOR = previousEditor
+        await rm(directory, { recursive: true, force: true })
+      })
+  )
 
 export const realLayer = (filename: string) => {
   const database = Layer.provideMerge(DurableWriter.layer(), NodeDatabase.layer({ filename }))
@@ -121,10 +125,7 @@ export const runRealEngine = <A, E, R>(
   filename: string,
   hostId: string,
   effect: Effect.Effect<A, E, R>
-): Promise<A> =>
-  Effect.runPromise(
-    Effect.scoped(effect.pipe(Effect.provide(realEngineLayer(filename, hostId)))) as Effect.Effect<A>
-  )
+): Effect.Effect<A> => Effect.scoped(effect.pipe(Effect.provide(realEngineLayer(filename, hostId)))) as Effect.Effect<A>
 
 const SealedStep = Action.make("time-travel/e2e/sealed-step", {
   payload: {},
@@ -218,10 +219,7 @@ export const parkCompensableFlow = (
 export const runReal = <A, E, R>(
   filename: string,
   effect: Effect.Effect<A, E, R>
-): Promise<A> =>
-  Effect.runPromise(
-    Effect.scoped(effect.pipe(Effect.provide(realLayer(filename)))) as Effect.Effect<A>
-  )
+): Effect.Effect<A> => Effect.scoped(effect.pipe(Effect.provide(realLayer(filename)))) as Effect.Effect<A>
 
 export const runState = (flowName: string): string => JSON.stringify({ version: 1, flowName, payload: {} })
 

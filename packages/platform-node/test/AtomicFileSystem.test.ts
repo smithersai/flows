@@ -1,3 +1,7 @@
+// Every case here runs on real elapsed time — subprocess spawns, file locks,
+// mtimes, and poll loops — so the suite uses `it.live`; `it.effect`'s
+// TestClock never advances for them.
+
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
 import { afterEach, describe, expect, it } from "@effect/vitest"
 import * as KernelFileSystem from "@smthrs/kernel-next/FileSystem"

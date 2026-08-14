@@ -8,6 +8,10 @@
  * what protect a writer racing the collector, and a crash mid-sweep leaves a
  * store the next collection converges from.
  */
+// Every case here runs on real elapsed time — subprocess spawns, file locks,
+// mtimes, and poll loops — so the suite uses `it.live`; `it.effect`'s
+// TestClock never advances for them.
+
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
 import { describe, expect, it } from "@effect/vitest"
 import { ArtifactStore, ArtifactSweep } from "@smthrs/artifacts-next"

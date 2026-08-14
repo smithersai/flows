@@ -311,6 +311,7 @@ describe("layers", () => {
 })
 
 describe("put freshens a deduplicated blob (git's loose-object freshening)", () => {
+  // Real elapsed time: `it.effect`'s TestClock would stall this.
   it.live("re-stamps the mtime instead of rewriting, so the grace fence protects it", () =>
     Effect.gen(function*() {
       const host = memoryFs({ seed: { [blobPath]: artifact }, mtimes: { [blobPath]: 1_000 } })

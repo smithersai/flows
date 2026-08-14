@@ -95,6 +95,7 @@ const layer = BrowserHost.layer({
 let jj: Jj
 beforeAll(async () => {
   fsModule.writeFileSync(join(host, "repo", "seed.txt"), "seed\n")
+  // A vitest hook is a Promise boundary; @effect/vitest has no Effect hook.
   jj = await Effect.runPromise(Effect.provide(Jj, layer))
   await Effect.runPromise(jj.snapshot("browser host contract seed"))
 }, 60_000)

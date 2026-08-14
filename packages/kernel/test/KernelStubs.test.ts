@@ -76,10 +76,8 @@ describe("kernel stubs without any host", () => {
 
       expect(spawner.ok).toBe("hi")
       expect((spawner.denied as PlatformError.PlatformError).reason._tag).toBe("NotFound")
-      yield* Effect.promise(() => expect(Effect.runPromise(jj.status())).resolves.toBe("clean"))
-      yield* Effect.promise(() =>
-        expect(Effect.runPromise(Effect.flip(jj.snapshot()))).resolves.toMatchObject({ code: "not_installed" })
-      )
+      expect(yield* jj.status()).toBe("clean")
+      expect(yield* Effect.flip(jj.snapshot())).toMatchObject({ code: "not_installed" })
     }))
 
   it.effect("derives the whole helper surface from the one `spawn` it is given", () =>

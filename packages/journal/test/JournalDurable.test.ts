@@ -255,14 +255,12 @@ describe("SqlJournal durable emission", () => {
  * SQLite busy/snapshot retry in `@smthrs/database-next`, whose backoff sleeps.
  */
 describe("SqlJournal durable emission across connections", () => {
-  const withTempFile = async <A>(body: (filename: string) => Promise<A>): Promise<A> => {
-    const directory = await mkdtemp(join(tmpdir(), "flows-journal-durable-"))
-    try {
-      return await body(join(directory, "journal.sqlite"))
-    } finally {
-      await rm(directory, { recursive: true, force: true })
-    }
-  }
+  const withTempFile = <A, E>(body: (filename: string) => Effect.Effect<A, E>): Effect.Effect<A, E> =>
+    Effect.acquireUseRelease(
+      Effect.promise(() => mkdtemp(join(tmpdir(), "flows-journal-durable-"))),
+      (directory) => body(join(directory, "journal.sqlite")),
+      (directory) => Effect.promise(() => rm(directory, { recursive: true, force: true }))
+    )
 
   const migrated = (filename: string) =>
     Layer.provideMerge(
@@ -282,48 +280,47 @@ describe("SqlJournal durable emission across connections", () => {
   // (Effect-TS/effect#7235, fixed unreleased by Effect-TS/effect#7236).
   // `withWriteRetry` classifies that defect as transient write contention and
   // retries it, so this holds as a real assertion.
-  it(
+  it.effect(
     "emitDurable never collides when two connections write one run concurrently",
     () =>
       withTempFile((filename) =>
-        Effect.runPromise(
-          Effect.scoped(
-            Effect.gen(function*() {
-              // Migrate once so both writers open an already-provisioned file.
-              yield* Effect.scoped(Effect.provide(Effect.void, migrated(filename)))
-              const left = yield* connection(filename)
-              const right = yield* connection(filename)
-              const run = runId("shared")
-              const writes = 8
-              const emit = (journal: Service, source: string) =>
-                Effect.forEach(
-                  Array.from({ length: writes }, (_, index) => index),
-                  (index) => journal.emitDurable(input(run, sourceId(source), `${source}${index}`, index)),
-                  { discard: true }
-                )
-              yield* Effect.all([emit(left, "left"), emit(right, "right")], { concurrency: 2, discard: true })
-              yield* Effect.scoped(
-                Effect.provide(
-                  Effect.gen(function*() {
-                    const sql = yield* Effect.service(SqlClient.SqlClient)
-                    const rows = yield* seqsOf(sql, run)
-                    expect(rows.map((row) => row.seq)).toEqual(
-                      Array.from({ length: writes * 2 }, (_, index) => index)
-                    )
-                  }),
-                  migrated(filename)
-                )
+        Effect.scoped(
+          Effect.gen(function*() {
+            // Migrate once so both writers open an already-provisioned file.
+            yield* Effect.scoped(Effect.provide(Effect.void, migrated(filename)))
+            const left = yield* connection(filename)
+            const right = yield* connection(filename)
+            const run = runId("shared")
+            const writes = 8
+            const emit = (journal: Service, source: string) =>
+              Effect.forEach(
+                Array.from({ length: writes }, (_, index) => index),
+                (index) => journal.emitDurable(input(run, sourceId(source), `${source}${index}`, index)),
+                { discard: true }
               )
-            })
-          )
+            yield* Effect.all([emit(left, "left"), emit(right, "right")], { concurrency: 2, discard: true })
+            yield* Effect.scoped(
+              Effect.provide(
+                Effect.gen(function*() {
+                  const sql = yield* Effect.service(SqlClient.SqlClient)
+                  const rows = yield* seqsOf(sql, run)
+                  expect(rows.map((row) => row.seq)).toEqual(
+                    Array.from({ length: writes * 2 }, (_, index) => index)
+                  )
+                }),
+                migrated(filename)
+              )
+            )
+          })
         )
       ),
     30_000
   )
 
-  it("emitDurable resumes from the durable floor after a restart", () =>
-    withTempFile((filename) =>
-      Effect.runPromise(
+  it.effect(
+    "emitDurable resumes from the durable floor after a restart",
+    () =>
+      withTempFile((filename) =>
         Effect.gen(function*() {
           const run = runId("restarted")
           yield* Effect.scoped(
@@ -344,6 +341,7 @@ describe("SqlJournal durable emission across connections", () => {
             })
           )
         })
-      )
-    ), 30_000)
+      ),
+    30_000
+  )
 })

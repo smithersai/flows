@@ -142,6 +142,7 @@ const program = Effect.scoped(
   }).pipe(Effect.provide(stack))
 )
 
+// A process entrypoint: running the Effect here is the intended boundary.
 Effect.runPromise(program).catch((cause: unknown) => {
   process.stderr.write(`${String(cause)}\n`)
   process.exitCode = 1

@@ -372,6 +372,7 @@ describe("boundary violations on a compensable-snapshotted attempt", () => {
 })
 
 describe("cache convergence from a succeeded attempt row", () => {
+  // Real elapsed time: `it.effect`'s TestClock would stall this.
   it.live("stamps the cache entry with the current time when the attempt records no finish time", () =>
     Effect.gen(function*() {
       const key = "edge/no-finish-time"

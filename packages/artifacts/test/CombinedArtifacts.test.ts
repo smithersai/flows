@@ -168,6 +168,7 @@ describe("writes", () => {
       expect(uploads).toHaveLength(2)
     }))
 
+  // Real elapsed time: `it.effect`'s TestClock would stall this.
   it.live("releases a joined waiter when the shared upload is interrupted", () =>
     Effect.gen(function*() {
       // The waiter joined the leader's deferred; the leader's interruption must
@@ -201,6 +202,7 @@ describe("writes", () => {
       expect(published).toBe(digest)
     }))
 
+  // Real elapsed time: `it.effect`'s TestClock would stall this.
   it.live("bounds the opportunistic upload with the configured deadline", () =>
     Effect.gen(function*() {
       // A remote that stalls instead of refusing must not hold the local answer

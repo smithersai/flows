@@ -11,12 +11,12 @@
  * `crates/flows-jj/build-wasm.mjs`). When it is absent the suite skips —
  * loudly, so a missing artifact is never mistaken for passing coverage.
  */
+import { afterAll, beforeAll, describe, expect, it } from "@effect/vitest"
 import * as Effect from "effect/Effect"
 import * as fsModule from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { fileURLToPath } from "node:url"
-import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import * as BrowserJj from "../src/browser/BrowserJj.ts"
 import { Jj } from "../src/Jj.ts"
 import { rootedSyncFs } from "./RootedSyncFs.ts"
@@ -57,6 +57,7 @@ describe.skipIf(wasmBytes === undefined)("BrowserJj over flows_jj.wasm", () => {
   beforeAll(async () => {
     host = fsModule.mkdtempSync(join(tmpdir(), "flows-browser-jj-"))
     fsModule.mkdirSync(join(host, "repo"))
+    // A vitest hook is a Promise boundary; @effect/vitest has no Effect hook.
     jj = await Effect.runPromise(Effect.provide(Jj, layer()))
   })
 
@@ -64,68 +65,78 @@ describe.skipIf(wasmBytes === undefined)("BrowserJj over flows_jj.wasm", () => {
     fsModule.rmSync(host, { recursive: true, force: true })
   })
 
-  it("snapshots the working copy and diffs between snapshots", { timeout }, async () => {
-    write("note.txt", "first\n")
-    const { changeId: first } = await Effect.runPromise(jj.snapshot("first commit"))
-    expect(first).toMatch(/^[a-z0-9]+$/)
+  it.effect("snapshots the working copy and diffs between snapshots", () =>
+    Effect.gen(function*() {
+      write("note.txt", "first\n")
+      const { changeId: first } = yield* (jj.snapshot("first commit"))
+      expect(first).toMatch(/^[a-z0-9]+$/)
 
-    write("note.txt", "second\n")
-    const { changeId: second } = await Effect.runPromise(jj.snapshot("second commit"))
-    expect(second).not.toBe(first)
+      write("note.txt", "second\n")
+      const { changeId: second } = yield* (jj.snapshot("second commit"))
+      expect(second).not.toBe(first)
 
-    const diff = await Effect.runPromise(jj.diff(first, second))
-    expect(diff).toContain("diff --git")
-    expect(diff).toContain("note.txt")
-    expect(diff).toContain("+second")
-    expect(diff).toContain("-first")
+      const diff = yield* (jj.diff(first, second))
+      expect(diff).toContain("diff --git")
+      expect(diff).toContain("note.txt")
+      expect(diff).toContain("+second")
+      expect(diff).toContain("-first")
 
-    const status = await Effect.runPromise(jj.status())
-    expect(status.length).toBeGreaterThan(0)
-  })
+      const status = yield* (jj.status())
+      expect(status.length).toBeGreaterThan(0)
+    }), { timeout })
 
-  it("snapshots without a message when none is supplied", { timeout }, async () => {
-    write("unnamed.txt", "x\n")
-    const { changeId } = await Effect.runPromise(jj.snapshot())
-    expect(changeId).toMatch(/^[a-z0-9]+$/)
-  })
+  it.effect("snapshots without a message when none is supplied", () =>
+    Effect.gen(function*() {
+      write("unnamed.txt", "x\n")
+      const { changeId } = yield* (jj.snapshot())
+      expect(changeId).toMatch(/^[a-z0-9]+$/)
+    }), { timeout })
 
-  it("restores working-copy files from a snapshot", { timeout }, async () => {
-    write("keep.txt", "keep\n")
-    const { changeId } = await Effect.runPromise(jj.snapshot("before mutation"))
-    write("keep.txt", "mutated\n")
-    await Effect.runPromise(jj.restore(changeId))
-    expect(read("keep.txt")).toBe("keep\n")
-  })
+  it.effect("restores working-copy files from a snapshot", () =>
+    Effect.gen(function*() {
+      write("keep.txt", "keep\n")
+      const { changeId } = yield* (jj.snapshot("before mutation"))
+      write("keep.txt", "mutated\n")
+      yield* (jj.restore(changeId))
+      expect(read("keep.txt")).toBe("keep\n")
+    }), { timeout })
 
-  it("adds and forgets a named workspace lane", { timeout }, async () => {
-    await Effect.runPromise(jj.workspaceAdd("lane", "/lane1"))
-    expect(fsModule.existsSync(join(host, "lane1"))).toBe(true)
-    await Effect.runPromise(jj.workspaceForget("lane"))
-  })
+  it.effect("adds and forgets a named workspace lane", () =>
+    Effect.gen(function*() {
+      yield* (jj.workspaceAdd("lane", "/lane1"))
+      expect(fsModule.existsSync(join(host, "lane1"))).toBe(true)
+      yield* (jj.workspaceForget("lane"))
+    }), { timeout })
 
-  it("classifies an unknown revision as invalid_ref", { timeout }, async () => {
-    const error = await Effect.runPromise(Effect.flip(jj.restore("nosuchchangeid")))
-    expect(error.code).toBe("invalid_ref")
-    // Exactly one method prefix: the bridge prefixes, the crate must not —
-    // "jj restore: jj restore: ..." was a real regression.
-    expect(error.message).toMatch(/^jj restore: /)
-    expect(error.message).not.toContain("jj restore: jj restore:")
+  it.effect("classifies an unknown revision as invalid_ref", () =>
+    Effect.gen(function*() {
+      const error = yield* (Effect.flip(jj.restore("nosuchchangeid")))
+      expect(error.code).toBe("invalid_ref")
+      // Exactly one method prefix: the bridge prefixes, the crate must not —
+      // "jj restore: jj restore: ..." was a real regression.
+      expect(error.message).toMatch(/^jj restore: /)
+      expect(error.message).not.toContain("jj restore: jj restore:")
 
-    const diffError = await Effect.runPromise(Effect.flip(jj.diff("zzznotachange", "alsonotachange")))
-    expect(diffError.code).toBe("invalid_ref")
-  })
+      const diffError = yield* (Effect.flip(jj.diff("zzznotachange", "alsonotachange")))
+      expect(diffError.code).toBe("invalid_ref")
+    }), { timeout })
 
-  it("survives a reload: a fresh instance over the same tree sees prior snapshots", { timeout }, async () => {
-    write("durable.txt", "persisted\n")
-    const { changeId } = await Effect.runPromise(jj.snapshot("durable state"))
+  it.effect(
+    "survives a reload: a fresh instance over the same tree sees prior snapshots",
+    () =>
+      Effect.gen(function*() {
+        write("durable.txt", "persisted\n")
+        const { changeId } = yield* (jj.snapshot("durable state"))
 
-    // a second, independent instantiation — the browser-refresh case
-    const reloaded = await Effect.runPromise(Effect.provide(Jj, layer()))
-    const status = await Effect.runPromise(reloaded.status())
-    expect(status.length).toBeGreaterThan(0)
+        // a second, independent instantiation — the browser-refresh case
+        const reloaded = yield* (Effect.provide(Jj, layer()))
+        const status = yield* (reloaded.status())
+        expect(status.length).toBeGreaterThan(0)
 
-    write("durable.txt", "scribbled\n")
-    await Effect.runPromise(reloaded.restore(changeId))
-    expect(read("durable.txt")).toBe("persisted\n")
-  })
+        write("durable.txt", "scribbled\n")
+        yield* (reloaded.restore(changeId))
+        expect(read("durable.txt")).toBe("persisted\n")
+      }),
+    { timeout }
+  )
 })

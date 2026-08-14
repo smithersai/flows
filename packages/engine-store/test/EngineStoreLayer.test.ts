@@ -187,6 +187,7 @@ describe("EngineStore.layer", () => {
 })
 
 describe("EngineStore.make liveness", () => {
+  // Real elapsed time: `it.effect`'s TestClock would stall this.
   it.live("uses the required liveness probe, so a live foreign owner is never stolen from", () =>
     Effect.gen(function*() {
       let executions = 0

@@ -18,6 +18,7 @@
  * is a second `NodeDatabase` connection in this process. The SQLite transaction
  * boundary it commits across is the same one a second process would cross.
  */
+import { describe, expect, it } from "@effect/vitest"
 import { DurableWriter, layer as writerLayer } from "@smthrs/database-next/DurableWriter"
 import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
 import { Context, Deferred, Effect, Fiber, Layer } from "effect"
@@ -26,7 +27,6 @@ import type * as Statement from "effect/unstable/sql/Statement"
 import { mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
-import { describe, expect, it } from "vitest"
 import { Journal, type Service } from "../src/Journal.ts"
 import { Input, type RunId, type Seq, type SourceId, type SourceSeq } from "../src/JournalEvent.ts"
 import * as Migrations from "../src/Migrations.ts"
@@ -49,14 +49,12 @@ const input = (sequence: number): Input =>
 
 const options: SqlJournal.SqlJournalOptions = { capacity: 64, overflow: "reject" }
 
-const withTempFile = async <A>(body: (filename: string) => Promise<A>): Promise<A> => {
-  const directory = await mkdtemp(join(tmpdir(), "flows-journal-compaction-"))
-  try {
-    return await body(join(directory, "journal.sqlite"))
-  } finally {
-    await rm(directory, { recursive: true, force: true })
-  }
-}
+const withTempFile = <A, E>(body: (filename: string) => Effect.Effect<A, E>): Effect.Effect<A, E> =>
+  Effect.acquireUseRelease(
+    Effect.promise(() => mkdtemp(join(tmpdir(), "flows-journal-compaction-"))),
+    (directory) => body(join(directory, "journal.sqlite")),
+    (directory) => Effect.promise(() => rm(directory, { recursive: true, force: true }))
+  )
 
 const migrated = (filename: string) =>
   Layer.provideMerge(
@@ -121,100 +119,96 @@ const seed = (journal: Service, count: number) =>
   })
 
 describe("SqlJournal reader and compactor on one file", () => {
-  it(
+  it.effect(
     "fails a page read with compacted rather than returning a shortened history",
     () =>
       withTempFile((filename) =>
-        Effect.runPromise(
-          Effect.scoped(
-            Effect.gen(function*() {
-              const reached = yield* Deferred.make<void>()
-              const gate = yield* Deferred.make<void>()
+        Effect.scoped(
+          Effect.gen(function*() {
+            const reached = yield* Deferred.make<void>()
+            const gate = yield* Deferred.make<void>()
 
-              yield* Effect.scoped(
-                Effect.gen(function*() {
-                  const writer = yield* connection(filename)
-                  yield* seed(writer, 6)
-                  yield* writer.checkpoint({ runId: run, seq: 5 as Seq, state: { at: 5 } })
-                })
-              )
+            yield* Effect.scoped(
+              Effect.gen(function*() {
+                const writer = yield* connection(filename)
+                yield* seed(writer, 6)
+                yield* writer.checkpoint({ runId: run, seq: 5 as Seq, state: { at: 5 } })
+              })
+            )
 
-              const reader = yield* connection(filename, parkBetweenPageAndFloor(reached, gate))
-              const compactor = yield* connection(filename)
+            const reader = yield* connection(filename, parkBetweenPageAndFloor(reached, gate))
+            const compactor = yield* connection(filename)
 
-              // The reader has the full page in hand and has not yet read the
-              // floor.
-              const reading = yield* Effect.forkChild(
-                Effect.exit(reader.entries({ runId: run, limit: 10 })),
-                { startImmediately: true }
-              )
-              yield* Deferred.await(reached)
+            // The reader has the full page in hand and has not yet read the
+            // floor.
+            const reading = yield* Effect.forkChild(
+              Effect.exit(reader.entries({ runId: run, limit: 10 })),
+              { startImmediately: true }
+            )
+            yield* Deferred.await(reached)
 
-              // A compactor on its own connection truncates everything below the
-              // checkpoint and commits.
-              const compacted = yield* compactor.compact({ runId: run })
-              expect(compacted.deleted).toBe(5)
-              expect(compacted.checkpointSeq).toBe(5)
+            // A compactor on its own connection truncates everything below the
+            // checkpoint and commits.
+            const compacted = yield* compactor.compact({ runId: run })
+            expect(compacted.deleted).toBe(5)
+            expect(compacted.checkpointSeq).toBe(5)
 
-              yield* Deferred.succeed(gate, undefined)
-              const exit = yield* Fiber.join(reading)
+            yield* Deferred.succeed(gate, undefined)
+            const exit = yield* Fiber.join(reading)
 
-              // The floor read happens after the DELETE committed, so the reader
-              // is told to resync rather than handed the rows it read before the
-              // truncation.
-              expect(exit._tag).toBe("Failure")
-              const failure = (exit._tag === "Failure" ? exit.cause.reasons[0] : undefined) as unknown as {
-                readonly error: { readonly code: string; readonly checkpointSeq: number }
-              }
-              expect(failure.error.code).toBe("compacted")
-              expect(failure.error.checkpointSeq).toBe(5)
-            })
-          )
+            // The floor read happens after the DELETE committed, so the reader
+            // is told to resync rather than handed the rows it read before the
+            // truncation.
+            expect(exit._tag).toBe("Failure")
+            const failure = (exit._tag === "Failure" ? exit.cause.reasons[0] : undefined) as unknown as {
+              readonly error: { readonly code: string; readonly checkpointSeq: number }
+            }
+            expect(failure.error.code).toBe("compacted")
+            expect(failure.error.checkpointSeq).toBe(5)
+          })
         )
       ),
     30_000
   )
 
-  it(
+  it.effect(
     "serves a complete page to a cursor at the floor while a compactor commits beneath it",
     () =>
       withTempFile((filename) =>
-        Effect.runPromise(
-          Effect.scoped(
-            Effect.gen(function*() {
-              const reached = yield* Deferred.make<void>()
-              const gate = yield* Deferred.make<void>()
+        Effect.scoped(
+          Effect.gen(function*() {
+            const reached = yield* Deferred.make<void>()
+            const gate = yield* Deferred.make<void>()
 
-              yield* Effect.scoped(
-                Effect.gen(function*() {
-                  const writer = yield* connection(filename)
-                  yield* seed(writer, 7)
-                  yield* writer.checkpoint({ runId: run, seq: 5 as Seq, state: { at: 5 } })
-                })
-              )
+            yield* Effect.scoped(
+              Effect.gen(function*() {
+                const writer = yield* connection(filename)
+                yield* seed(writer, 7)
+                yield* writer.checkpoint({ runId: run, seq: 5 as Seq, state: { at: 5 } })
+              })
+            )
 
-              const reader = yield* connection(filename, parkBetweenPageAndFloor(reached, gate))
-              const compactor = yield* connection(filename)
+            const reader = yield* connection(filename, parkBetweenPageAndFloor(reached, gate))
+            const compactor = yield* connection(filename)
 
-              // This reader is already at sequence 4, so the truncation about to
-              // commit deletes nothing it still needs.
-              const reading = yield* Effect.forkChild(
-                Effect.exit(reader.entries({ runId: run, after: 4 as Seq, limit: 10 })),
-                { startImmediately: true }
-              )
-              yield* Deferred.await(reached)
-              expect((yield* compactor.compact({ runId: run })).deleted).toBe(5)
-              yield* Deferred.succeed(gate, undefined)
+            // This reader is already at sequence 4, so the truncation about to
+            // commit deletes nothing it still needs.
+            const reading = yield* Effect.forkChild(
+              Effect.exit(reader.entries({ runId: run, after: 4 as Seq, limit: 10 })),
+              { startImmediately: true }
+            )
+            yield* Deferred.await(reached)
+            expect((yield* compactor.compact({ runId: run })).deleted).toBe(5)
+            yield* Deferred.succeed(gate, undefined)
 
-              const exit = yield* Fiber.join(reading)
-              // The other permitted outcome: a complete tail, never a gapped or
-              // silently truncated one.
-              expect(exit._tag).toBe("Success")
-              const page = exit._tag === "Success" ? exit.value : undefined
-              expect(page?.entries.map((entry) => entry.seq)).toEqual([5, 6])
-              expect(page?.hasMore).toBe(false)
-            })
-          )
+            const exit = yield* Fiber.join(reading)
+            // The other permitted outcome: a complete tail, never a gapped or
+            // silently truncated one.
+            expect(exit._tag).toBe("Success")
+            const page = exit._tag === "Success" ? exit.value : undefined
+            expect(page?.entries.map((entry) => entry.seq)).toEqual([5, 6])
+            expect(page?.hasMore).toBe(false)
+          })
         )
       ),
     30_000

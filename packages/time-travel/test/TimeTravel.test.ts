@@ -392,47 +392,49 @@ describe("TimeTravel wiring", () => {
     }))
 
   // The finite budget covers two independent production engine/service lifetimes over one file database.
-  it.skipIf(!jjInstalled)(
+  it.effect.skipIf(!jjInstalled)(
     "keeps the TimeTravel service-key component of step identity stable across an engine restart",
-    { timeout: 30_000 },
-    async () => {
-      await withRealFixture("flows-time-travel-identity-", async (fixture) => {
-        let dispatches = 0
-        const execute = Effect.sync(() => {
-          dispatches += 1
-          return "stable"
-        })
-        const drive = (hostId: string) =>
-          runRealEngine(
-            fixture.databaseFile,
-            hostId,
-            Effect.gen(function*() {
-              yield* parkSealedFlow("identity-run", execute)
-              const journal = yield* Journal.Journal
-              yield* journal.flush
-              const sql = yield* Effect.service(SqlClient.SqlClient)
-              return yield* sql<{
-                readonly attempt: number
-                readonly step_key_digest: string
-              }>`
+    () =>
+      Effect.gen(function*() {
+        yield* withRealFixture("flows-time-travel-identity-", (fixture) =>
+          Effect.gen(function*() {
+            let dispatches = 0
+            const execute = Effect.sync(() => {
+              dispatches += 1
+              return "stable"
+            })
+            const drive = (hostId: string) =>
+              runRealEngine(
+                fixture.databaseFile,
+                hostId,
+                Effect.gen(function*() {
+                  yield* parkSealedFlow("identity-run", execute)
+                  const journal = yield* Journal.Journal
+                  yield* journal.flush
+                  const sql = yield* Effect.service(SqlClient.SqlClient)
+                  return yield* sql<{
+                    readonly attempt: number
+                    readonly step_key_digest: string
+                  }>`
                 SELECT step_key_digest, attempt
                 FROM flows_attempts
                 WHERE run_id = 'identity-run'
                 ORDER BY step_key_digest, attempt
               `
-            })
-          )
+                })
+              )
 
-        const first = await drive("identity-first")
-        const restarted = await drive("identity-second")
+            const first = yield* drive("identity-first")
+            const restarted = yield* drive("identity-second")
 
-        expect(first).toHaveLength(2)
-        expect(restarted).toEqual(first)
-        expect(new Set(restarted.map((row) => row.step_key_digest)).size).toBe(2)
-        expect(dispatches).toBe(1)
-        expect(TimeTravel.key).toBe("@smthrs/time-travel-next/TimeTravel")
-      })
-    }
+            expect(first).toHaveLength(2)
+            expect(restarted).toEqual(first)
+            expect(new Set(restarted.map((row) => row.step_key_digest)).size).toBe(2)
+            expect(dispatches).toBe(1)
+            expect(TimeTravel.key).toBe("@smthrs/time-travel-next/TimeTravel")
+          }))
+      }),
+    { timeout: 30_000 }
   )
 
   it.effect("logs and continues when the frame-anchor projection cannot run", () =>

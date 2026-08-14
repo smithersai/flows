@@ -92,68 +92,70 @@ describe("durable replay", () => {
     }))
 
   // The finite budget covers a real engine replay and two independent file-backed service lifetimes.
-  it.skipIf(!jjInstalled)(
+  it.effect.skipIf(!jjInstalled)(
     "replays a registered sealed action after restart without dispatching it again",
-    { timeout: 30_000 },
-    async () => {
-      await withRealFixture("flows-replay-engine-", async (fixture) => {
-        let dispatches = 0
-        const execute = Effect.sync(() => {
-          dispatches += 1
-          return "recorded-result"
-        })
-        const fold = {
-          initial: [] as Array<string>,
-          reduce: (state: Array<string>, entry: JournalEvent.Entry) => [
-            ...state,
-            `${entry.seq}:${entry.eventType}`
-          ]
-        }
-        const first = await runRealEngine(
-          fixture.databaseFile,
-          "replay-engine-first",
+    () =>
+      Effect.gen(function*() {
+        yield* withRealFixture("flows-replay-engine-", (fixture) =>
           Effect.gen(function*() {
-            yield* parkSealedFlow("replay-engine-run", execute)
-            const journal = yield* Journal.Journal
-            yield* journal.flush
-            const sql = yield* Effect.service(SqlClient.SqlClient)
-            const rows = yield* sql<{ readonly tail: number }>`
+            let dispatches = 0
+            const execute = Effect.sync(() => {
+              dispatches += 1
+              return "recorded-result"
+            })
+            const fold = {
+              initial: [] as Array<string>,
+              reduce: (state: Array<string>, entry: JournalEvent.Entry) => [
+                ...state,
+                `${entry.seq}:${entry.eventType}`
+              ]
+            }
+            const first = yield* runRealEngine(
+              fixture.databaseFile,
+              "replay-engine-first",
+              Effect.gen(function*() {
+                yield* parkSealedFlow("replay-engine-run", execute)
+                const journal = yield* Journal.Journal
+                yield* journal.flush
+                const sql = yield* Effect.service(SqlClient.SqlClient)
+                const rows = yield* sql<{ readonly tail: number }>`
               SELECT MAX(seq) AS tail FROM flows_journal_events WHERE run_id = 'replay-engine-run'
             `
-            const tail = rows[0]!.tail
-            const timeTravel = yield* TimeTravel
-            const state = yield* timeTravel.inspect(
-              { runId: "replay-engine-run", frame: { lineageId: "replay-engine-run/root", seq: tail } },
-              fold
+                const tail = rows[0]!.tail
+                const timeTravel = yield* TimeTravel
+                const state = yield* timeTravel.inspect(
+                  { runId: "replay-engine-run", frame: { lineageId: "replay-engine-run/root", seq: tail } },
+                  fold
+                )
+                return { state, tail }
+              })
             )
-            return { state, tail }
-          })
-        )
-        const second = await runRealEngine(
-          fixture.databaseFile,
-          "replay-engine-second",
-          Effect.gen(function*() {
-            // This drives the persisted run through the same registered
-            // implementation. The cache/attempt evidence, not this closure,
-            // must answer the action after restart.
-            yield* parkSealedFlow("replay-engine-run", execute)
-            const journal = yield* Journal.Journal
-            yield* journal.flush
-            const timeTravel = yield* TimeTravel
-            return yield* timeTravel.inspect(
-              {
-                runId: "replay-engine-run",
-                frame: { lineageId: "replay-engine-run/root", seq: first.tail }
-              },
-              fold
+            const second = yield* runRealEngine(
+              fixture.databaseFile,
+              "replay-engine-second",
+              Effect.gen(function*() {
+                // This drives the persisted run through the same registered
+                // implementation. The cache/attempt evidence, not this closure,
+                // must answer the action after restart.
+                yield* parkSealedFlow("replay-engine-run", execute)
+                const journal = yield* Journal.Journal
+                yield* journal.flush
+                const timeTravel = yield* TimeTravel
+                return yield* timeTravel.inspect(
+                  {
+                    runId: "replay-engine-run",
+                    frame: { lineageId: "replay-engine-run/root", seq: first.tail }
+                  },
+                  fold
+                )
+              })
             )
-          })
-        )
 
-        expect(second).toEqual(first.state)
-        expect(dispatches).toBe(1)
-      })
-    }
+            expect(second).toEqual(first.state)
+            expect(dispatches).toBe(1)
+          }))
+      }),
+    { timeout: 30_000 }
   )
 
   // BUG: replay reads the mutable cache head, so later cache replacement changes an old frame's projection.

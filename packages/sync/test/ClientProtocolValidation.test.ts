@@ -1,6 +1,6 @@
+import { describe, expect, it } from "@effect/vitest"
 import { JournalEvent } from "@smthrs/journal-next"
 import { Effect, Exit, Stream } from "effect"
-import { describe, expect, it } from "vitest"
 import * as SyncClient from "../src/SyncClient.ts"
 import { SyncError } from "../src/SyncError.ts"
 import type * as SyncProtocol from "../src/SyncProtocol.ts"
@@ -54,26 +54,30 @@ const cases: ReadonlyArray<Case> = [
 
 describe("SyncClient protocol consistency validation", () => {
   // BUG: schema-valid Entries frames are trusted without checking their internal run/range/sequence consistency.
-  it.fails.each(cases)("$name and leaves cursors intact", async ({ cursors = [], frame }) => {
-    const client = SyncClient.make({
-      client: {
-        "Sync.Read": () => Effect.succeed({ entries: [], cursors: [], done: true }),
-        "Sync.Subscribe": () => Stream.succeed<SyncProtocol.Frame>(frame)
-      } as unknown as Parameters<typeof SyncClient.make>[0]["client"]
-    })
+  // `it.effect.fails` has no `each`, so the corpus is iterated directly.
+  for (const { cursors = [], frame, name } of cases) {
+    it.effect.fails(`${name} and leaves cursors intact`, () =>
+      Effect.gen(function*() {
+        const client = SyncClient.make({
+          client: {
+            "Sync.Read": () => Effect.succeed({ entries: [], cursors: [], done: true }),
+            "Sync.Subscribe": () => Stream.succeed<SyncProtocol.Frame>(frame)
+          } as unknown as Parameters<typeof SyncClient.make>[0]["client"]
+        })
 
-    const exit = await Effect.runPromiseExit(
-      client.subscribe({ scope: { _tag: "Run", runId }, cursors }).pipe(
-        Stream.take(1),
-        Stream.runCollect
-      )
-    )
-    const failure = Exit.isFailure(exit)
-      ? exit.cause.reasons.find((reason) => reason._tag === "Fail")?.error
-      : undefined
+        const exit = yield* Effect.exit(
+          client.subscribe({ scope: { _tag: "Run", runId }, cursors }).pipe(
+            Stream.take(1),
+            Stream.runCollect
+          )
+        )
+        const failure = Exit.isFailure(exit)
+          ? exit.cause.reasons.find((reason) => reason._tag === "Fail")?.error
+          : undefined
 
-    expect(failure).toBeInstanceOf(SyncError)
-    expect(failure).toMatchObject({ code: "protocol_violation" })
-    expect(await Effect.runPromise(client.cursors)).toEqual([])
-  })
+        expect(failure).toBeInstanceOf(SyncError)
+        expect(failure).toMatchObject({ code: "protocol_violation" })
+        expect(yield* client.cursors).toEqual([])
+      }))
+  }
 })
