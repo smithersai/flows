@@ -262,11 +262,13 @@ export const make = (
     })
 
     const encoded: FlowEngine.Encoded = {
-      register: Effect.fn("FlowEngine.register")((flow, execute) =>
+      // Unspanned here: `driver.register` already opens the
+      // `FlowEngine.register` span, and a second identical wrapper would nest
+      // two same-name spans around one operation.
+      register: (flow, execute) =>
         driver.register(flow, execute).pipe(
           Effect.tap(() => deferred.sweepDue(flow._tag))
-        )
-      ),
+        ),
       execute: driver.execute,
       poll: driver.poll,
       interrupt: driver.interrupt,

@@ -6,7 +6,15 @@
  *
  * @since 4.0.0
  */
-import { Action, type DurableDeferred, Flow, FlowRuntime, RetryPolicy, StepIdentity } from "@smthrs/flow-next"
+import {
+  Action,
+  type DurableClock,
+  type DurableDeferred,
+  Flow,
+  FlowRuntime,
+  RetryPolicy,
+  StepIdentity
+} from "@smthrs/flow-next"
 import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Context from "effect/Context"
@@ -588,20 +596,20 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
         { captureStackTrace: false }
       )
     ),
-    scheduleClock: Effect.fn("FlowEngine.scheduleClock")((flow, opts) =>
-      options.scheduleClock(flow, opts).pipe(
-        Effect.withSpan(
-          "FlowEngine.scheduleClock",
-          {
-            attributes: {
-              executionId: opts.executionId,
-              name: opts.clock.name
-            }
-          },
-          {
-            captureStackTrace: false
-          }
-        )
+    // Untraced because the explicit span below carries clock attributes.
+    scheduleClock: Effect.fnUntraced(
+      function*(
+        flow: Flow.Any,
+        opts: { readonly executionId: string; readonly clock: DurableClock.DurableClock }
+      ) {
+        return yield* options.scheduleClock(flow, opts)
+      },
+      Effect.withSpan(
+        "FlowEngine.scheduleClock",
+        (_, opts) => ({
+          attributes: { executionId: opts.executionId, name: opts.clock.name }
+        }),
+        { captureStackTrace: false }
       )
     )
   })

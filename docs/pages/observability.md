@@ -41,7 +41,7 @@ Executable state is deliberately outside that chokepoint. Run state, attempt che
 | `FlowEngine.scheduleClock` | `executionId`, `name` | `@smthrs/engine-next` `FlowEngine/make.ts` |
 | `DurableQueue/<name>/worker` | parented to the offering span through `Tracer.externalSpan` | `@smthrs/flow-next` `DurableQueue.ts` |
 
-The store packages open one `Effect.fn` span per service operation, named `Module.method` (`RunStore.claim`, `CacheStore.get`, `Journal.emitDurable`, `ActionPersistence.execute`, `PlanScheduler.dispatch`, `WorkspaceSandbox.materialize`, `TimeTravel.fork`, `BranchShare.verify`, and so on). Every hot-path span annotates the identifiers a debugger needs, as the operation's first statement (`Effect.annotateCurrentSpan`), with values computed mid-operation — a key digest, a diff identity — annotated the moment they exist:
+The store packages open one `Effect.fn` span per service operation, named `Module.method` (`RunStore.claim`, `CacheStore.get`, `Journal.emitDurable`, `ActionPersistence.execute`, `PlanScheduler.dispatch`, `WorkspaceSandbox.materialize`, `TimeTravel.fork`, `BranchShare.verify`, `SandboxHealth.probe`, and so on). Every hot-path span annotates the identifiers a debugger needs, as the operation's first statement (`Effect.annotateCurrentSpan`), with values computed mid-operation — a key digest, a diff identity — annotated the moment they exist:
 
 | Path | Attributes |
 | --- | --- |
@@ -55,7 +55,7 @@ The store packages open one `Effect.fn` span per service operation, named `Modul
 | time-travel (`TimeTravel.*`, `TimeTravelStore.*`) | `runId`, `lineageId`, `seq` |
 | sync (`BranchShare.*`, `BranchPresence.*`, `BranchCommands.*`) | `branchId`, `participantId`, `access` — never capability material |
 
-Every span sets `captureStackTrace: false`. The queue worker is the one place trace context crosses a durable boundary: the offer records `traceId`, `spanId`, and `sampled` on the item, and the worker reattaches to that external span, so a persisted queue item stays connected to the flow that offered it.
+The explicit `Effect.withSpan` and `useSpan` sites set `captureStackTrace: false`; `Effect.fn` spans keep Effect's default capture behavior. The queue worker is the one place trace context crosses a durable boundary: the offer records `traceId`, `spanId`, and `sampled` on the item, and the worker reattaches to that external span, so a persisted queue item stays connected to the flow that offered it.
 
 ## Metrics
 

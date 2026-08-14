@@ -1,4 +1,4 @@
-import { Effect } from "effect"
+import { Cause, Effect, Logger, References, Tracer } from "effect"
 import { describe, expect, it } from "vitest"
 import { ProviderError } from "../src/RemoteChildProcessSpawner/index.ts"
 import * as SandboxHealth from "../src/SandboxHealth/index.ts"
@@ -49,6 +49,47 @@ describe("SandboxHealth.probe", () => {
       expect(state.reason).toBe("ping_failed")
       expect(state.message).toBe("session is gone")
     }
+  })
+
+  it("opens one SandboxHealth.probe span annotated with the outcome", async () => {
+    const spans: Array<Tracer.NativeSpan> = []
+    const tracer = Tracer.make({
+      span(options) {
+        const span = new Tracer.NativeSpan(options)
+        spans.push(span)
+        return span
+      }
+    })
+
+    await Effect.runPromise(
+      Effect.gen(function*() {
+        yield* SandboxHealth.probe(healthyProvider, { deadline: "1 second" })
+        yield* SandboxHealth.probe(refusingProvider)
+      }).pipe(Effect.provideService(Tracer.Tracer, tracer))
+    )
+
+    expect(
+      spans.filter((span) => span.name === "SandboxHealth.probe").map((span) => span.attributes.get("outcome"))
+    ).toEqual(["healthy", "ping_failed"])
+  })
+
+  it("logs the full ping failure cause instead of flattening it to the message", async () => {
+    const causes: Array<Cause.Cause<unknown>> = []
+    const capture = Logger.make((options) => {
+      if (String(options.message).includes("sandbox ping failed")) causes.push(options.cause)
+    })
+
+    await Effect.runPromise(
+      SandboxHealth.probe(refusingProvider).pipe(
+        Effect.provide(Logger.layer([capture])),
+        Effect.provideService(References.MinimumLogLevel, "Debug")
+      )
+    )
+
+    const errors = causes.flatMap((cause) => cause.reasons.filter(Cause.isFailReason).map((reason) => reason.error))
+    expect(errors).toHaveLength(1)
+    expect(errors[0]).toBeInstanceOf(ProviderError)
+    expect((errors[0] as ProviderError).code).toBe("unavailable")
   })
 })
 
