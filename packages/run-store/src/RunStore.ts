@@ -377,6 +377,10 @@ const guardFailed = { _tag: "GuardFailed" } as const
 /** Rewrites an outcome tag (`HeartbeatFresh`) as a span attribute value (`heartbeat_fresh`). */
 const outcomeValue = (tag: string): string => tag.replace(/(?<=[a-z0-9])(?=[A-Z])/g, "_").toLowerCase()
 
+/** Classifies a non-success exit for the span `outcome` attribute. */
+const causeOutcome = <E>(cause: Cause.Cause<E>): "failure" | "interrupt" =>
+  Cause.hasInterruptsOnly(cause) ? "interrupt" : "failure"
+
 /**
  * Observes a store operation's exit onto its span, and — when the operation
  * has an outcome-keyed counter — updates it in the same observation: the
@@ -395,9 +399,21 @@ const observeOutcome = <A extends { readonly _tag: string }>(
         ? Effect.annotateCurrentSpan({ outcome: outcomeValue(exit.value._tag) }).pipe(
           Effect.andThen(metricOf === undefined ? Effect.void : Metric.update(metricOf(exit.value), 1))
         )
-        : Effect.annotateCurrentSpan({
-          outcome: Cause.hasInterruptsOnly(exit.cause) ? "interrupt" : "failure"
-        })
+        : Effect.annotateCurrentSpan({ outcome: causeOutcome(exit.cause) })
+    )
+  )
+
+/**
+ * `observeOutcome` for operations whose success carries no domain outcome
+ * tag — `create` inserts or fails, `get` returns the row or fails — so the
+ * span still closes with `success`, `failure`, or `interrupt`.
+ */
+const observeExit = <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
+  effect.pipe(
+    Effect.onExit((exit) =>
+      Effect.annotateCurrentSpan({
+        outcome: exit._tag === "Success" ? "success" : causeOutcome(exit.cause)
+      })
     )
   )
 
@@ -610,28 +626,29 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
 
   const create = Effect.fn("RunStore.create")(
     (runId: string, stateJson: string, options?: CreateOptions | undefined): Effect.Effect<void, RunStoreError> =>
-      Effect.annotateCurrentSpan({ runId }).pipe(Effect.andThen(Effect.suspend(() => {
-        const parentRunId = options?.parentRunId ?? null
-        const lineageId = options?.lineageId ?? null
-        const roundOrdinal = options?.roundOrdinal ?? null
-        const invalidLineage = (lineageId === null) !== (roundOrdinal === null) ||
-          (lineageId !== null && lineageId.length === 0) ||
-          (roundOrdinal !== null && (!Number.isSafeInteger(roundOrdinal) || roundOrdinal < 0))
-        if (
-          runId.length === 0 ||
-          !isJsonString(stateJson) ||
-          parentRunId?.length === 0 ||
-          invalidLineage
-        ) {
-          return Effect.fail(
-            invalidRunError("create", { runId, stateJson, parentRunId, lineageId, roundOrdinal })
-          )
-        }
-        return Clock.currentTimeMillis.pipe(
-          Effect.flatMap((createdAtMs) =>
-            write(
-              "create",
-              sql`
+      Effect.annotateCurrentSpan({ runId }).pipe(
+        Effect.andThen(Effect.suspend(() => {
+          const parentRunId = options?.parentRunId ?? null
+          const lineageId = options?.lineageId ?? null
+          const roundOrdinal = options?.roundOrdinal ?? null
+          const invalidLineage = (lineageId === null) !== (roundOrdinal === null) ||
+            (lineageId !== null && lineageId.length === 0) ||
+            (roundOrdinal !== null && (!Number.isSafeInteger(roundOrdinal) || roundOrdinal < 0))
+          if (
+            runId.length === 0 ||
+            !isJsonString(stateJson) ||
+            parentRunId?.length === 0 ||
+            invalidLineage
+          ) {
+            return Effect.fail(
+              invalidRunError("create", { runId, stateJson, parentRunId, lineageId, roundOrdinal })
+            )
+          }
+          return Clock.currentTimeMillis.pipe(
+            Effect.flatMap((createdAtMs) =>
+              write(
+                "create",
+                sql`
             INSERT INTO flows_runs (
               run_id,
               status,
@@ -670,10 +687,12 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
               ${stateJson}
             )
           `.pipe(Effect.asVoid)
+              )
             )
           )
-        )
-      })))
+        })),
+        observeExit
+      )
   )
 
   const get = Effect.fn("RunStore.get")((runId: string): Effect.Effect<RunRow, RunStoreError> =>
@@ -686,7 +705,8 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
               : decodeRunRow("get", rows[0])
           )
         )
-      )
+      ),
+      observeExit
     )
   )
 
@@ -694,50 +714,53 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
     runId: string,
     nowMs: number
   ): Effect.Effect<RequestCancelOutcome, RunStoreError> =>
-    Effect.annotateCurrentSpan({ runId }).pipe(Effect.andThen(Effect.suspend(() => {
-      if (!Number.isSafeInteger(nowMs) || nowMs < 0) {
-        return Effect.fail(invalidRunError("requestCancel", { runId, nowMs }))
-      }
-      return write(
-        "requestCancel",
-        Effect.gen(function*() {
-          const record = () =>
-            sql<{ readonly requestedAtMs: number }>`
+    Effect.annotateCurrentSpan({ runId }).pipe(
+      Effect.andThen(Effect.suspend(() => {
+        if (!Number.isSafeInteger(nowMs) || nowMs < 0) {
+          return Effect.fail(invalidRunError("requestCancel", { runId, nowMs }))
+        }
+        return write(
+          "requestCancel",
+          Effect.gen(function*() {
+            const record = () =>
+              sql<{ readonly requestedAtMs: number }>`
           UPDATE flows_runs
           SET cancel_requested_at_ms = ${nowMs}
           WHERE run_id = ${runId}
             AND cancel_requested_at_ms IS NULL
           RETURNING cancel_requested_at_ms AS "requestedAtMs"
         `
-          const rows = yield* record()
-          if (rows[0] !== undefined) {
-            return { _tag: "CancelRequested", requestedAtMs: Number(rows[0].requestedAtMs) } as const
-          }
-          const current = yield* sql<{ readonly requestedAtMs: number | null }>`
+            const rows = yield* record()
+            if (rows[0] !== undefined) {
+              return { _tag: "CancelRequested", requestedAtMs: Number(rows[0].requestedAtMs) } as const
+            }
+            const current = yield* sql<{ readonly requestedAtMs: number | null }>`
           SELECT cancel_requested_at_ms AS "requestedAtMs" FROM flows_runs WHERE run_id = ${runId}
         `
-          const row = current[0]
-          if (row === undefined) {
-            return notFound
-          }
-          if (row.requestedAtMs !== null) {
-            return { _tag: "AlreadyRequested", requestedAtMs: Number(row.requestedAtMs) } as const
-          }
-          // The row is present and the column is NULL. `row === undefined` and
-          // `requestedAtMs === null` used to collapse into one `== null` test, so
-          // a writer on another connection clearing the column between the UPDATE
-          // and this read made a live run report `NotFound` — and the caller
-          // skipped the retry it performs for a genuine race. The UPDATE's own
-          // precondition holds again, so re-run it. Only a row that is really
-          // gone reports `NotFound`.
-          const retried = yield* record()
-          const recorded = retried[0]
-          return recorded === undefined
-            ? notFound
-            : { _tag: "CancelRequested", requestedAtMs: Number(recorded.requestedAtMs) } as const
-        })
-      )
-    })))
+            const row = current[0]
+            if (row === undefined) {
+              return notFound
+            }
+            if (row.requestedAtMs !== null) {
+              return { _tag: "AlreadyRequested", requestedAtMs: Number(row.requestedAtMs) } as const
+            }
+            // The row is present and the column is NULL. `row === undefined` and
+            // `requestedAtMs === null` used to collapse into one `== null` test, so
+            // a writer on another connection clearing the column between the UPDATE
+            // and this read made a live run report `NotFound` — and the caller
+            // skipped the retry it performs for a genuine race. The UPDATE's own
+            // precondition holds again, so re-run it. Only a row that is really
+            // gone reports `NotFound`.
+            const retried = yield* record()
+            const recorded = retried[0]
+            return recorded === undefined
+              ? notFound
+              : { _tag: "CancelRequested", requestedAtMs: Number(recorded.requestedAtMs) } as const
+          })
+        )
+      })),
+      observeOutcome<RequestCancelOutcome>()
+    )
   )
 
   const claim = Effect.fn("RunStore.claim")((

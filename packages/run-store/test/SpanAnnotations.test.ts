@@ -3,9 +3,9 @@
  * `Effect.annotateCurrentSpan` runs at the top of each operation, so a trace
  * viewer can tell which run a span operated on without reading its SQL.
  */
-import type { DurableWriter } from "@smthrs/database-next"
+import { DurableWriter } from "@smthrs/database-next"
 import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
-import { Effect, Metric, Tracer } from "effect"
+import { Effect, Fiber, Layer, Metric, Tracer } from "effect"
 import { TestClock } from "effect/testing"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
@@ -49,6 +49,76 @@ describe("SpanAnnotations", () => {
     const getSpan = spans.find((span) => span.name === "RunStore.get")
     expect(getSpan).toBeDefined()
     expect(getSpan!.attributes.get("runId")).toBe("run-span")
+  })
+
+  it("closes create, get, and requestCancel spans with an outcome", async () => {
+    const spans: Array<Tracer.NativeSpan> = []
+    const tracer = Tracer.make({
+      span(options) {
+        const span = new Tracer.NativeSpan(options)
+        spans.push(span)
+        return span
+      }
+    })
+
+    await migrated(
+      Effect.gen(function*() {
+        const store = yield* RunStore
+        yield* store.create("run-exit", "{}")
+        yield* store.get("run-exit")
+        const cancel = yield* store.requestCancel("run-exit", 7)
+        expect(cancel._tag).toBe("CancelRequested")
+        yield* Effect.exit(store.get("run-exit-missing"))
+      }).pipe(Effect.provideService(Tracer.Tracer, tracer))
+    )
+
+    const outcomes = spans
+      .filter((span) => span.name.startsWith("RunStore."))
+      .map((span) => [span.name, span.attributes.get("outcome")])
+    expect(outcomes).toEqual([
+      ["RunStore.create", "success"],
+      ["RunStore.get", "success"],
+      ["RunStore.requestCancel", "cancel_requested"],
+      ["RunStore.get", "failure"]
+    ])
+  })
+
+  it("closes an interrupted operation span with the interrupt outcome", async () => {
+    const spans: Array<Tracer.NativeSpan> = []
+    const tracer = Tracer.make({
+      span(options) {
+        const span = new Tracer.NativeSpan(options)
+        spans.push(span)
+        return span
+      }
+    })
+    // A writer that never completes parks `create` mid-operation, so the
+    // interruption below lands while its span is still open.
+    const hangingWriter = Layer.succeed(DurableWriter.DurableWriter)(
+      DurableWriter.DurableWriter.of({ write: () => Effect.never })
+    )
+
+    await Effect.runPromise(
+      Effect.gen(function*() {
+        const store = yield* RunStore
+        const fiber = yield* store.create("run-interrupted", "{}").pipe(
+          Effect.forkChild({ startImmediately: true })
+        )
+        yield* Effect.yieldNow
+        yield* Fiber.interrupt(fiber)
+      }).pipe(
+        Effect.provideService(Tracer.Tracer, tracer),
+        Effect.provide(RunStoreLive.layer.pipe(Layer.provide(hangingWriter))),
+        Effect.provide(Migrations.layer),
+        Effect.provide(TestDatabase.layer),
+        Effect.provide(TestClock.layer()),
+        Effect.provideService(Metric.MetricRegistry, new Map())
+      )
+    )
+
+    const created = spans.find((span) => span.name === "RunStore.create")
+    expect(created).toBeDefined()
+    expect(created!.attributes.get("outcome")).toBe("interrupt")
   })
 
   it("annotates domain outcomes and failures without replacing the operation exit", async () => {

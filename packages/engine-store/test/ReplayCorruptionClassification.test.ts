@@ -25,12 +25,14 @@ import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
+import * as Metric from "effect/Metric"
 import * as Option from "effect/Option"
 import * as EffectPath from "effect/Path"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { describe, expect, it } from "vitest"
+import * as EngineStoreMetrics from "../src/EngineStoreMetrics.ts"
 import * as Inconsistency from "../src/Inconsistency.ts"
 import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
@@ -870,5 +872,69 @@ describe("replay-failed classification (issue #150)", () => {
     // per-(key, action, recorded-provenance), so the varying attempt above
     // must not multiply `replay_failed` rows either.
     expect(outcome.provenance.filter((payload) => payload.action === "replay_failed")).toHaveLength(1)
+  })
+})
+
+describe("the effective decision counter under replay failure", () => {
+  const replayFailedCount = Effect.map(
+    Metric.value(EngineStoreMetrics.stepCacheDecision.ReplayFailed),
+    (state) => state.count
+  )
+
+  it("records no replay_failed decision when the strict corruption verdict terminates the dispatch", async () => {
+    const key = "corruption/metered-strict"
+    const observed = await runPromise(
+      Effect.gen(function*() {
+        yield* activate("metered-strict-first")
+        yield* dispatch("metered-strict-first", key, () => Effect.succeed("recorded")).pipe(
+          Effect.provide(failingReplay(corruptionError))
+        )
+        yield* activate("metered-strict-second")
+        const failed = yield* dispatch("metered-strict-second", key, () => Effect.die("must not execute")).pipe(
+          Effect.provide(failingReplay(corruptionError)),
+          Effect.flip
+        )
+        return { failed, replayFailed: yield* replayFailedCount }
+      }).pipe(
+        Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)),
+        Effect.scoped,
+        Effect.provideService(Metric.MetricRegistry, new Map())
+      )
+    )
+    expect(observed.failed).toBeInstanceOf(ActionPersistence.CacheCorruptionDetected)
+    // `replay_failed` is the fall-through decision: the strict verdict failed
+    // the dispatch instead of re-executing, so nothing lands in the series —
+    // the failed dispatch's exit is what `flows_engine_dispatches` records.
+    expect(observed.replayFailed).toBe(0)
+  })
+
+  it("counts replay_failed for the tolerated fall-through that re-executes", async () => {
+    const key = "corruption/metered-tolerated"
+    const observed = await runPromise(
+      Effect.gen(function*() {
+        let executions = 0
+        const body = () =>
+          Effect.sync(() => {
+            executions++
+            return "recorded"
+          })
+        yield* activate("metered-tolerated-first")
+        yield* dispatch("metered-tolerated-first", key, body).pipe(
+          Effect.provide(Layer.mergeAll(failingReplay(corruptionError), Inconsistency.layerTolerant))
+        )
+        yield* activate("metered-tolerated-second")
+        const second = yield* dispatch("metered-tolerated-second", key, body).pipe(
+          Effect.provide(Layer.mergeAll(failingReplay(corruptionError), Inconsistency.layerTolerant))
+        )
+        return { executions, second, replayFailed: yield* replayFailedCount }
+      }).pipe(
+        Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)),
+        Effect.scoped,
+        Effect.provideService(Metric.MetricRegistry, new Map())
+      )
+    )
+    expect(observed.second).toBe("recorded")
+    expect(observed.executions).toBe(2)
+    expect(observed.replayFailed).toBe(1)
   })
 })

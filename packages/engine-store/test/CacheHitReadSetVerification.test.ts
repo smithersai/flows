@@ -199,7 +199,8 @@ describe("the effective cache decision is metered exactly once per consult", () 
     return {
       miss: yield* read(EngineStoreMetrics.stepCacheDecision.Miss),
       verifiedHit: yield* read(EngineStoreMetrics.stepCacheDecision.VerifiedHit),
-      staleReadSet: yield* read(EngineStoreMetrics.stepCacheDecision.StaleReadSet)
+      staleReadSet: yield* read(EngineStoreMetrics.stepCacheDecision.StaleReadSet),
+      replayFailed: yield* read(EngineStoreMetrics.stepCacheDecision.ReplayFailed)
     }
   })
 
@@ -214,7 +215,7 @@ describe("the effective cache decision is metered exactly once per consult", () 
     expect(observed.result.replays).toBe(1)
     // Two dispatches consulted the cache, so exactly two decisions land:
     // the recording run's miss and the second run's verified hit.
-    expect(observed.counts).toEqual({ miss: 1, verifiedHit: 1, staleReadSet: 0 })
+    expect(observed.counts).toEqual({ miss: 1, verifiedHit: 1, staleReadSet: 0, replayFailed: 0 })
   })
 
   it("counts a measured mismatch as a stale-read-set fall-through, not a hit or a raw-row hit", async () => {
@@ -227,7 +228,50 @@ describe("the effective cache decision is metered exactly once per consult", () 
     expect(observed.result.executions).toBe(2)
     // The row was present — `flows_step_cache_lookups` would call it a hit —
     // but the effective decision refused it after measurement.
-    expect(observed.counts).toEqual({ miss: 1, verifiedHit: 0, staleReadSet: 1 })
+    expect(observed.counts).toEqual({ miss: 1, verifiedHit: 0, staleReadSet: 1, replayFailed: 0 })
+  })
+
+  it("records no decision when the hit's provenance emit fails before the result is served", async () => {
+    // `verified_hit` means the cached result was actually returned. A journal
+    // failure on the reuse-provenance emit fails the dispatch first, so the
+    // consult must land NO decision — the failed dispatch's exit is what
+    // `flows_engine_dispatches` records.
+    const key = "read-set/metered-emit-failure"
+    const boundary = StepBoundary.layerTest({ readSnapshot: StepBoundary.exactReads(declared) })
+    const observed = await runPromise(
+      Effect.gen(function*() {
+        const journal = yield* Journal.Journal
+        let executions = 0
+        const body = () =>
+          Effect.sync(() => {
+            executions++
+            return "recorded"
+          })
+        yield* activate("metered-emit-first")
+        yield* dispatch("metered-emit-first", key, body).pipe(Effect.provide(boundary))
+        const failing: Journal.Service = {
+          ...journal,
+          emitDurable: (record, emitOwner) =>
+            record.eventType === "flows.engine.cache-provenance"
+              ? Effect.fail(new Journal.JournalError({ code: "sink_failed", message: "journal sink down" }))
+              : journal.emitDurable(record, emitOwner)
+        }
+        yield* activate("metered-emit-second")
+        const failed = yield* dispatch("metered-emit-second", key, body).pipe(
+          Effect.provide(boundary),
+          Effect.provideService(Journal.Journal, failing),
+          Effect.flip
+        )
+        return { executions, failed, counts: yield* decisionCounts }
+      }).pipe(
+        Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)),
+        Effect.scoped,
+        Effect.provideService(Metric.MetricRegistry, new Map())
+      )
+    )
+    expect(observed.executions).toBe(1)
+    expect(observed.failed).toMatchObject({ code: "sink_failed" })
+    expect(observed.counts).toEqual({ miss: 1, verifiedHit: 0, staleReadSet: 0, replayFailed: 0 })
   })
 })
 

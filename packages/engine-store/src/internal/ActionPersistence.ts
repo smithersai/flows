@@ -824,7 +824,6 @@ export const make = (deps: Dependencies) => {
                     }
                   }
                   if (Exit.isSuccess(materialized)) {
-                    yield* Metric.update(EngineStoreMetrics.stepCacheDecision.VerifiedHit, 1)
                     const recorded = {
                       runId: cached.value.recordedRunId,
                       eventSeq: cached.value.recordedEventSeq
@@ -834,6 +833,12 @@ export const make = (deps: Dependencies) => {
                       recordedRunId: cached.value.recordedRunId,
                       recordedEventSeq: cached.value.recordedEventSeq
                     }))
+                    // Counted after the provenance emit: `verified_hit` means
+                    // the cached result was served, and a journal failure on
+                    // the emit fails the dispatch before any result is
+                    // returned. A dispatch that dies mid-decision records no
+                    // decision; its exit lands in `flows_engine_dispatches`.
+                    yield* Metric.update(EngineStoreMetrics.stepCacheDecision.VerifiedHit, 1)
                     return cached.value.result
                   }
                   // Evidence the host cannot re-materialize — a transient
@@ -849,7 +854,6 @@ export const make = (deps: Dependencies) => {
                   // content-addressed blob path, `host` for everything else —
                   // a failing disk corrupting many blobs must never journal
                   // identically to a one-off EIO.
-                  yield* Metric.update(EngineStoreMetrics.stepCacheDecision.ReplayFailed, 1)
                   const corruption = replayCorruption(materialized.cause)
                   yield* emitConverging(
                     JournalRecords.cacheProvenance(
@@ -919,8 +923,13 @@ export const make = (deps: Dependencies) => {
                       )
                     }
                   }
+                  // `replay_failed` is a fall-through decision, so it is
+                  // counted only once the refusal emit landed and the strict
+                  // corruption verdict above has NOT terminated the dispatch:
+                  // a dispatch that fails instead of re-executing records no
+                  // decision.
+                  yield* Metric.update(EngineStoreMetrics.stepCacheDecision.ReplayFailed, 1)
                 } else if (Option.isSome(measured)) {
-                  yield* Metric.update(EngineStoreMetrics.stepCacheDecision.StaleReadSet, 1)
                   // Only a *measured* mismatch is evidence the inputs changed
                   // (issue #110): a host that cannot measure right now — a
                   // transient EIO/EACCES on any declared read path — says
@@ -968,6 +977,10 @@ export const make = (deps: Dependencies) => {
                       eventSeq: cached.value.recordedEventSeq
                     }
                   })
+                  // The fall-through decision is counted once the refusal is
+                  // durable and the poisoned row is gone: a fenced-out zombie
+                  // self-interrupts at the emit above and records no decision.
+                  yield* Metric.update(EngineStoreMetrics.stepCacheDecision.StaleReadSet, 1)
                 } else {
                   // The host could not measure the read set at all, so the
                   // hit is merely refused for this dispatch; the row survives.

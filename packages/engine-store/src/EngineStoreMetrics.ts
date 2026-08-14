@@ -275,8 +275,13 @@ export const boundarySettlement = byOutcome(
  * `unverifiable_evidence` a row whose recorded evidence cannot justify reuse,
  * `unmeasurable` a host that could not re-measure the read set,
  * `stale_read_set` a measured mismatch, `replay_failed` verified evidence the
- * host could not re-materialize). Exactly one decision is counted per
- * cache-consulting dispatch.
+ * host could not re-materialize). Each decision is counted where it takes
+ * effect: `verified_hit` as the cached result is returned, a fall-through
+ * outcome as the dispatch proceeds past its refusal handling — so a
+ * cache-consulting dispatch that fails or is fenced out mid-decision (a
+ * journal failure on the provenance emit, a strict corruption verdict)
+ * records no decision, and its exit lands in {@link dispatches}. At most one
+ * decision is counted per cache-consulting dispatch.
  *
  * @category metrics
  * @since 0.1.0
