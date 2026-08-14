@@ -5,8 +5,8 @@
  * walks the persisted graph, dispatches ready nodes through the same
  * `internal/ActionPersistence` seam every action uses — so the shared step
  * cache, the workspace sandbox's execute→materialize transaction, attempt
- * rows, and the fenced journal all apply unchanged — and records one of four
- * evaluation outcomes per node.
+ * rows, and the fenced journal all apply unchanged — and records an
+ * evaluation outcome per node.
  *
  * ## What it is, and what it is not
  *
@@ -74,12 +74,13 @@ import * as Schema from "effect/Schema"
 import * as ActionPersistence from "./internal/ActionPersistence.ts"
 import * as JournalRecords from "./internal/JournalRecords.ts"
 import * as Reconciliation from "./Reconciliation.ts"
+import * as Selection from "./Selection.ts"
 import * as StepBoundary from "./StepBoundary.ts"
 import * as WorkspaceSandbox from "./WorkspaceSandbox.ts"
 
 /**
- * The four evaluation outcomes: Skyframe's `EvaluationState` adapted to a
- * content-addressed store.
+ * The evaluation outcomes: Skyframe's `EvaluationState` adapted to a
+ * content-addressed store, plus the selection debt.
  *
  * - `built` — the node executed (`SUCCESS_VERSION_CHANGED`).
  * - `clean` — the shared cache served it and nothing ran
@@ -90,11 +91,16 @@ import * as WorkspaceSandbox from "./WorkspaceSandbox.ts"
  *   a `stop-merge` strategy stopped it in favour of a merge node. Skyframe
  *   splits failure by version instead; a content-addressed store never serves
  *   a failure from cache, so that split has no meaning here and this one does.
+ * - `deferred` — a selection guess postponed this sink
+ *   (`docs/specs/Concepts/Probabilistic Selection.md`). It never dispatched,
+ *   wrote no cache row, and is journaled as a debt for a later guess-free
+ *   pass. Distinct from `skipped` — the work was runnable, a guess postponed
+ *   it — and never reported as passed.
  *
  * @since 0.1.0
  * @category models
  */
-export type Outcome = "built" | "clean" | "failed" | "skipped"
+export type Outcome = "built" | "clean" | "failed" | "skipped" | "deferred"
 
 /**
  * What the scheduler hands a node's executor.
@@ -204,6 +210,24 @@ export interface Options {
    * unbounded rebase loop is a livelock with good manners.
    */
   readonly rebaseLimit?: number | undefined
+  /**
+   * Probabilistic selection input for this run (`Selection`). Every field is
+   * optional because every default is inert: no changed paths and no beliefs
+   * admit everything, so a caller that never opted in runs exactly as today.
+   * `full: true` is the run-level override — every verdict is treated as
+   * `Admit` and the override is journaled, the way `--fresh` ignores the
+   * cache.
+   */
+  readonly selection?: {
+    /** Changed paths the belief edges are matched against. */
+    readonly changed?: ReadonlyArray<string> | undefined
+    /** The belief snapshot pinned before planning. */
+    readonly beliefs?: Selection.BeliefSnapshot | undefined
+    /** Deferral policy; `deferBelow` defaults to zero, which defers nothing. */
+    readonly policy?: Selection.Policy | undefined
+    /** Force full selection: treat every verdict as `Admit`, journaled. */
+    readonly full?: boolean | undefined
+  } | undefined
 }
 
 /**
@@ -383,6 +407,10 @@ export const make = (options: Options): Service => {
       const reconciler = Option.getOrElse(
         yield* Effect.serviceOption(Reconciliation.Reconciliation),
         Reconciliation.makeDefault
+      )
+      const selector = Option.getOrElse(
+        yield* Effect.serviceOption(Selection.Selection),
+        Selection.makeNoop
       )
 
       let plan = initial
@@ -728,6 +756,63 @@ export const make = (options: Options): Service => {
         }
       })
 
+      /**
+       * The selection consult, once per run, against the initial plan and the
+       * pinned belief snapshot (`docs/specs/Concepts/Probabilistic
+       * Selection.md`). Only sinks — nodes nothing in the plan depends on —
+       * are offered, because deferring a node something consumes would block
+       * or corrupt its consumers. A verdict may postpone or propose, never
+       * remove: `Admit` is a no-op, a `Defer` marks the sink for the loop
+       * below, a `Propose` is journaled and nothing more (v1 never
+       * auto-appends), and a Defer or Propose naming a non-sink is ignored
+       * and journaled as an inconsistency observation. Elaboration cannot
+       * invalidate the marks: an appended merge node depends only on nodes
+       * that produced results, and a deferred node never executes, so a
+       * deferred sink can never gain a dependent mid-run.
+       */
+      const deferrals = new Map<string, { edge: Selection.SuspectedEdge; likelihood: number }>()
+      if (options.selection?.full === true) {
+        yield* emit(JournalRecords.selectionOverridden(source("selection/override"), {
+          planId: plan.planId,
+          mode: "full"
+        }))
+      } else {
+        const dependedOn = new Set(plan.nodes.flatMap((node) => node.dependsOn))
+        const sinks = plan.nodes.filter((node) => !dependedOn.has(node.id))
+        const nodeIds = new Set(plan.nodes.map((node) => node.id))
+        const sinkIds = new Set(sinks.map((node) => node.id))
+        const selected = yield* selector.select({
+          changed: options.selection?.changed ?? [],
+          sinks: sinks.map((node) => ({ nodeId: node.id, planKey: node.key })),
+          present: [plan.flow, ...plan.nodes.map((node) => node.id)],
+          beliefs: options.selection?.beliefs ?? { pinnedAtMs: 0, edges: [] },
+          policy: options.selection?.policy ?? { deferBelow: 0 }
+        })
+        for (let index = 0; index < selected.length; index++) {
+          const { nodeId, verdict } = selected[index]!
+          if (verdict._tag === "Admit") continue
+          if (verdict._tag === "Defer" && sinkIds.has(nodeId)) {
+            deferrals.set(nodeId, { edge: verdict.edge, likelihood: verdict.likelihood })
+            continue
+          }
+          if (verdict._tag === "Propose" && !nodeIds.has(nodeId)) {
+            yield* emit(JournalRecords.selectionProposed(source(`selection/proposed/${index}`), {
+              planId: plan.planId,
+              flow: verdict.flow,
+              edge: verdict.edge,
+              confidence: verdict.confidence
+            }))
+            continue
+          }
+          yield* emit(JournalRecords.selectionInconsistent(source(`selection/inconsistent/${index}`), {
+            planId: plan.planId,
+            nodeId,
+            verdict: verdict._tag,
+            reason: verdict._tag === "Defer" ? "not-a-deferrable-sink" : "proposes-a-present-node"
+          }))
+        }
+      }
+
       while ([...states.values()].filter((state) => state.status === "settled").length < plan.nodes.length) {
         const pending = plan.nodes.filter((node) => stateOf(node).status === "pending")
         const blocked: Array<Plan.PlanNode> = []
@@ -747,6 +832,25 @@ export const make = (options: Options): Service => {
         // agree on.
         for (const node of blocked) yield* settle(node, "skipped")
         if (blocked.length > 0) continue
+        // A deferral is a postponement, never a removal, and it only takes
+        // effect on work that was genuinely runnable: a marked sink whose
+        // cone failed settles `skipped` above instead, because work that
+        // could not have run is not a debt. The debt record precedes the
+        // settlement so `Selection.debt` reads them in cause-then-effect
+        // order.
+        const postponed = ready.filter((node) => deferrals.has(node.id))
+        for (const node of postponed) {
+          const debt = deferrals.get(node.id)!
+          yield* emit(JournalRecords.selectionDeferred(source(`node/${node.id}/selection-deferred`), {
+            planId: plan.planId,
+            nodeId: node.id,
+            planKey: node.key,
+            edge: debt.edge,
+            likelihood: debt.likelihood
+          }))
+          yield* settle(node, "deferred")
+        }
+        if (postponed.length > 0) continue
         /* v8 ignore next -- the plan compiler rejects cycles, so a round with pending work and nothing ready is unreachable */
         if (ready.length === 0) break
 
