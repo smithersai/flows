@@ -308,14 +308,122 @@ export const fromKeyMaterial = (
       : digestInput(digest, { reference: "ref" })
   }
   return content({
-    body: {
-      version: material.version,
-      declaration: material.body,
-      ...(material.effects === undefined ? {} : { effects: material.effects }),
-      ...(material.placement === undefined ? {} : { placement: material.placement })
-    },
+    body: materialBody(material),
     inputs,
     layers: material.layers,
     capabilities: { declared: material.capabilities }
   })
 }
+
+/**
+ * The node's own declaration, hashed. Shared by {@link fromKeyMaterial} and
+ * {@link dispatchIdentity} so the two derivations can never drift about what
+ * "the node itself" means.
+ *
+ * @private
+ */
+const materialBody = (material: KeyMaterial.KeyMaterial) => ({
+  version: material.version,
+  declaration: material.body,
+  ...(material.effects === undefined ? {} : { effects: material.effects }),
+  ...(material.placement === undefined ? {} : { placement: material.placement })
+})
+
+/**
+ * The digest a `Pending` input contributes to a dispatch key. It is a
+ * constant, and that is the point: `Pending` is an ordering reference, and
+ * ordering does not change what a node consumes, so it must not change what
+ * the node caches under. The string is self-describing, so a reader of a
+ * hashed payload can see that no upstream value was folded.
+ *
+ * @private
+ */
+const orderingOnly = "ordering-only"
+
+/**
+ * Projects a settled result along a `Ref` path. A segment that does not exist
+ * yields `undefined`, which is a stable, distinct value — a projection that
+ * walks off the end of a result is a fact about the graph, not a failure.
+ * `undefined` drops out of the canonical form, so it hashes distinctly from
+ * every JSON value including `null`.
+ *
+ * @private
+ */
+const project = (value: unknown, path: ReadonlyArray<string>): unknown => {
+  let current = value
+  for (const segment of path) {
+    if (typeof current !== "object" || current === null) return undefined
+    current = (current as Record<string, unknown>)[segment]
+  }
+  return current
+}
+
+/**
+ * The key a dispatch is *cached* under, as distinct from the plan key a node
+ * is *identified* by.
+ *
+ * A plan key folds the resolved keys of every upstream node, transitively, so
+ * an edit anywhere upstream re-keys everything below it — even when the edited
+ * node's output value is byte for byte what it was before. Bazel does not work
+ * that way: `ActionCacheChecker` keys an action by the *content* of its
+ * inputs, so an unchanged output stops invalidation dead. The file channel in
+ * flows already had that property through the measured boundary digests; the
+ * JSON value channel did not, and this is what gives it one.
+ *
+ * The derivation folds the node's OWN material — body, version, effects,
+ * placement, layers, capabilities — and never an upstream key. Each material
+ * input contributes content instead: a `Literal` its value, a `Ref` the digest
+ * of the settled result of `from` projected along `path`, and a `Pending`
+ * nothing beyond its tag. The measured hermetic boundary is folded unchanged.
+ *
+ * `results` must hold every dependency the material names. The scheduler's
+ * halt rule guarantees it: a dependent of failed or skipped work never
+ * dispatches, so a `Ref` always resolves against a success.
+ *
+ * @since 0.1.0
+ * @category constructors
+ */
+export const dispatchIdentity = (options: {
+  readonly material: KeyMaterial.KeyMaterial
+  /** The settled output value of each dependency, by node id. */
+  readonly results: Readonly<Record<string, unknown>>
+  readonly hermetic: NonNullable<ContentIdentity["hermetic"]>
+}): Effect.Effect<StepKey, KeyMaterialError | Schema.SchemaError, Crypto.Crypto> =>
+  Effect.gen(function*() {
+    const material = options.material
+    if (material.kind !== "sealed") {
+      return yield* new KeyMaterialError({
+        code: "non_content_material",
+        message: `Cannot create a dispatch key for ${material.kind} material`
+      })
+    }
+    const inputs: Record<string, unknown> = {}
+    for (let index = 0; index < material.inputs.length; index++) {
+      const input = material.inputs[index]!
+      if (input._tag === "Literal") {
+        inputs[String(index)] = input.value
+        continue
+      }
+      if (input._tag === "Pending") {
+        inputs[String(index)] = digestInput(orderingOnly, { reference: "pending" })
+        continue
+      }
+      if (!Object.hasOwn(options.results, input.from)) {
+        return yield* new KeyMaterialError({
+          code: "missing_dependency",
+          message: `Missing settled result for graph dependency ${input.from}`
+        })
+      }
+      const digest = yield* decodeKey({ kind: "input-value", value: project(options.results[input.from], input.path) })
+      inputs[String(index)] = input.path.length > 0
+        ? digestInput(digest, { reference: "ref-projected", path: input.path })
+        : digestInput(digest, { reference: "ref" })
+    }
+    return yield* content({
+      body: materialBody(material),
+      inputs,
+      layers: material.layers,
+      capabilities: { declared: material.capabilities },
+      hermetic: options.hermetic
+    })
+  })

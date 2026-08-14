@@ -217,6 +217,105 @@ describe("StepKey", () => {
   })
 })
 
+describe("StepKey.dispatchIdentity", () => {
+  const hermetic = {
+    readSet: [{ path: "src/a.ts", digest: "sha256:a" }],
+    writeSet: ["out/a.js"],
+    boundaryMode: "hard"
+  } as const
+
+  const dispatch = (
+    overrides: Partial<KeyMaterial.KeyMaterial>,
+    results: Readonly<Record<string, unknown>>,
+    boundary: typeof hermetic = hermetic
+  ) => StepKey.dispatchIdentity({ material: material(overrides), results, hermetic: boundary })
+
+  it("folds the settled output value of a `Ref`, never the upstream's identity", async () => {
+    // The early cutoff: the derivation is handed the upstream's VALUE and
+    // nothing else, so there is no channel through which an upstream body
+    // edit that left the output byte-identical could reach this key.
+    const inputs = [{ _tag: "Ref", from: "upstream", path: [] }] as const
+    const first = await runPromise(dispatch({ inputs }, { upstream: { count: 1 } }))
+    const again = await runPromise(dispatch({ inputs }, { upstream: { count: 1 } }))
+    const changed = await runPromise(dispatch({ inputs }, { upstream: { count: 2 } }))
+    expect(first).toBe(again)
+    expect(first).not.toBe(changed)
+  })
+
+  it("projects a `Ref` path, so a sibling field of the upstream result cannot re-key it", async () => {
+    const inputs = [{ _tag: "Ref", from: "upstream", path: ["taken"] }] as const
+    const base = await runPromise(dispatch({ inputs }, { upstream: { taken: "x", ignored: 1 } }))
+    const sibling = await runPromise(dispatch({ inputs }, { upstream: { taken: "x", ignored: 2 } }))
+    const projected = await runPromise(dispatch({ inputs }, { upstream: { taken: "y", ignored: 1 } }))
+    expect(base).toBe(sibling)
+    expect(base).not.toBe(projected)
+  })
+
+  it("digests a projection that walks off the end as a stable, distinct value", async () => {
+    const deep = [{ _tag: "Ref", from: "upstream", path: ["a", "b"] }] as const
+    const offScalar = await runPromise(dispatch({ inputs: deep }, { upstream: { a: "scalar" } }))
+    const offNull = await runPromise(dispatch({ inputs: deep }, { upstream: { a: null } }))
+    const offMissing = await runPromise(dispatch({ inputs: deep }, { upstream: {} }))
+    const present = await runPromise(dispatch({ inputs: deep }, { upstream: { a: { b: null } } }))
+    // Every way of missing is the same absence; an explicit `null` is not it.
+    expect(new Set([offScalar, offNull, offMissing]).size).toBe(1)
+    expect(present).not.toBe(offScalar)
+  })
+
+  it("keeps a projected reference distinct from the unprojected one", async () => {
+    const flat = await runPromise(dispatch({ inputs: [{ _tag: "Ref", from: "u", path: [] }] }, { u: { a: 1 } }))
+    const nested = await runPromise(dispatch({ inputs: [{ _tag: "Ref", from: "u", path: ["a"] }] }, { u: { a: 1 } }))
+    const bare = await runPromise(dispatch({ inputs: [{ _tag: "Ref", from: "u", path: [] }] }, { u: 1 }))
+    expect(nested).not.toBe(bare)
+    expect(flat).not.toBe(nested)
+  })
+
+  it("folds nothing but a tag for `Pending`: ordering does not change what a node consumes", async () => {
+    const inputs = [{ _tag: "Pending", from: "before" }] as const
+    const one = await runPromise(dispatch({ inputs }, { before: { anything: 1 } }))
+    const other = await runPromise(dispatch({ inputs }, { before: "completely different" }))
+    expect(one).toBe(other)
+  })
+
+  it("keeps a literal that spells a resolved reference distinct from the reference", async () => {
+    const reference = await runPromise(dispatch({ inputs: [{ _tag: "Ref", from: "u", path: [] }] }, { u: 1 }))
+    const digest = await runPromise(StepKey.content({ body: 0, inputs: { "0": 1 }, layers: [], capabilities: {} }))
+    const impostor = await runPromise(
+      dispatch({ inputs: [{ _tag: "Literal", value: { kind: "digest", digest, reference: "ref" } }] }, { u: 1 })
+    )
+    expect(reference).not.toBe(impostor)
+  })
+
+  it("folds the node's own declaration and the measured boundary", async () => {
+    const base = await runPromise(dispatch({}, {}))
+    const body = await runPromise(dispatch({ body: { action: "compile" } }, {}))
+    const effects = await runPromise(dispatch({ effects: { net: true } }, {}))
+    const placement = await runPromise(dispatch({ placement: "edge" }, {}))
+    const layers = await runPromise(dispatch({ layers: ["fs"] }, {}))
+    const capabilities = await runPromise(dispatch({ capabilities: ["fs:read"] }, {}))
+    const measured = await runPromise(
+      dispatch({}, {}, { ...hermetic, readSet: [{ path: "src/a.ts", digest: "sha256:b" }] })
+    )
+    expect(new Set([base, body, effects, placement, layers, capabilities, measured]).size).toBe(7)
+  })
+
+  it("refuses material naming a dependency that has not settled", async () => {
+    const failure = await runFailure(dispatch({ inputs: [{ _tag: "Ref", from: "missing", path: [] }] }, {}))
+    expect(failure).toMatchObject({ code: "missing_dependency" })
+  })
+
+  it("refuses non-content material", async () => {
+    expect(await runFailure(dispatch({ kind: "irreversible" }, {}))).toMatchObject({ code: "non_content_material" })
+  })
+
+  it("surfaces a canonicalization failure as a typed schema error", async () => {
+    const failure = await runFailure(
+      Effect.asVoid(dispatch({ inputs: [{ _tag: "Ref", from: "u", path: [] }] }, { u: 1n }))
+    )
+    expect(failure).toBeDefined()
+  })
+})
+
 describe("KeyMaterial.dependencies", () => {
   it("lists graph references once, in declaration order, skipping literals", () => {
     expect(KeyMaterial.dependencies(material({

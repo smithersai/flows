@@ -468,21 +468,28 @@ export const make = (options: Options): Service => {
         })
 
       /**
-       * The key a dispatch is recorded under: the plan key — a pure function
-       * of declarations — folded with what the host just measured. The plan
-       * key alone could not be it: two runs whose input files differ declare
-       * the same graph, and serving one the other's result is exactly the
-       * staleness the boundary exists to prevent.
+       * The key a dispatch is recorded under: the node's own declaration
+       * folded with the CONTENT of everything it consumes — the digests the
+       * host just measured for its files, and the digest of each upstream
+       * node's settled output value.
+       *
+       * Not the plan key. That key folds every upstream key transitively, so
+       * an edit anywhere upstream re-ran everything below it even when the
+       * edited node's output value was byte-identical. Bazel's
+       * `ActionCacheChecker` stops invalidation at unchanged content, and
+       * `StepKey.dispatchIdentity` is how this does.
+       *
+       * The plan key alone could never have been it either: two runs whose
+       * input files differ declare the same graph, and serving one the other's
+       * result is exactly the staleness the boundary exists to prevent.
        */
       const dispatchKeyFor = (node: Plan.PlanNode, boundary: FileBoundary) =>
-        StepKey.content({
-          body: { plan: node.key },
-          inputs: {},
-          layers: [],
-          capabilities: {},
+        StepKey.dispatchIdentity({
+          material: node.material,
+          results: Object.fromEntries(results),
           hermetic: boundary
         }).pipe(
-          /* v8 ignore next 3 -- the hashed value is built here from strings and the node's own key, so canonicalization cannot reject it; the branch exists because `content` is honest about its error channel */
+          /* v8 ignore next 3 -- every plan node is sealed (`Plan.annotate` refuses otherwise), a dependent of unsettled work never dispatches, and settled outputs are already durably serialized, so none of the three failures is reachable from here; the branch exists because the derivation is honest about its error channel */
           Effect.mapError((cause) =>
             new SchedulerError({ code: "key_uncomputable", message: `could not key ${node.id}`, cause })
           )

@@ -183,14 +183,50 @@ describe("PlanScheduler over a static graph", () => {
       sibling: "built",
       "sibling-child": "built"
     })
-    // THE BAZEL-SHAPED PROMISE: the edited leaf and its dependent re-ran; the
-    // branch nothing touched was served from the content-addressed cache.
+    // THE BAZEL-SHAPED PROMISE: the edited leaf re-ran and the branch nothing
+    // touched was served from the content-addressed cache.
+    //
+    // `derived` is `clean` here, and that is the early cutoff working. The
+    // edit changed `source`'s declaration, so `source` re-ran — but this
+    // executor returns `{ran: node.id}` for either seed, so the value
+    // `derived` consumes is byte-identical to what it consumed before. A
+    // dispatch key that folded the upstream PLAN key would have re-run it
+    // anyway; `StepKey.dispatchIdentity` folds the upstream's settled output
+    // instead, so invalidation stops at unchanged content the way Bazel's
+    // `ActionCacheChecker` does.
     expect(outcomes(second)).toEqual({
       source: "built",
-      derived: "built",
+      derived: "clean",
       sibling: "clean",
       "sibling-child": "clean"
     })
+  })
+
+  it("re-runs a dependent when the upstream's settled VALUE changes, not merely its declaration", async () => {
+    // The other half of the cutoff: content, not identity, is the trigger. The
+    // executor makes `source`'s output track the seed, so the same edit that
+    // was invisible above must now propagate.
+    const graph = (seed: number) => [
+      draft("source", { body: { seed } }),
+      draft("derived", { inputs: [{ _tag: "Ref", from: "source", path: [] }] })
+    ]
+    const before = await runPromise(compile(graph(1)))
+    const after = await runPromise(compile(graph(2)))
+    const executor: PlanScheduler.Executor = {
+      execute: ({ node }) =>
+        Effect.succeed(
+          node.id === "source" ? { seed: (node.material.body as { seed: number }).seed } : { ran: node.id }
+        )
+    }
+    const program = Effect.gen(function*() {
+      yield* activate("run-value")
+      const service = scheduler({ runId: "run-value", executor })
+      yield* service.record(before)
+      yield* service.run(before)
+      return yield* service.run(after)
+    }).pipe(Effect.provide(harness({ runId: "run-value", executor })), Effect.provide(TestStores.layer()))
+
+    expect(outcomes(await runPromise(program))).toEqual({ source: "built", derived: "built" })
   })
 
   it("halts the cone below a failure", async () => {
