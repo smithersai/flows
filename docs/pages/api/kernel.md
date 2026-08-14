@@ -100,7 +100,6 @@ Each module below exports a `layer` that decorates the matching service tag in p
 | Export | Kind | Notes |
 | --- | --- | --- |
 | `HostService`, `HostServiceTags`, `HostServiceIds` | type + consts | the one closed list of Host tags — the kernel decorates each in place, so there is no second "protected" list |
-| `HostBuiltinNames` | const | `effect/Clock` and `effect/Random`, named for completeness but provided by Effect |
 | `layer` | layer | decorates every service in the list, composed over a raw host bundle with `Layer.provide` |
 
 ## What the kernel does not do

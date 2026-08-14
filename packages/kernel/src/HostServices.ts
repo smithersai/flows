@@ -52,9 +52,9 @@ import * as Path from "./Path.ts"
  * network whose contract never mentions permission.
  *
  * `Clock` and `Random` are Effect core built-ins: already port-shaped, already
- * swappable via `Effect.provideService`, so they are named in
- * {@link HostBuiltinNames} for completeness but are not ours to define.
- * `ChildProcessSpawner` is the same story one layer out: process spawning is
+ * swappable via `Effect.provideService`, and never decorated here — a `Clock`
+ * or a `Random` carries no host authority to guard, so they are not ours to
+ * define. `ChildProcessSpawner` is the same story one layer out: process spawning is
  * `effect/unstable/process`, and the slot holds Effect's tag rather than a
  * `flows` wrapper around it.
  *
@@ -103,18 +103,6 @@ export const HostServiceIds = [
   "@smthrs/jj-next/Jj",
   "effect/HttpClient"
 ] as const
-
-/**
- * Built-ins provided by Effect itself; listed by name only.
- *
- * They are named rather than tagged because the kernel never decorates them —
- * a `Clock` or a `Random` carries no host authority to guard — but a step key
- * still has to record that they were in the resolved service set.
- *
- * @category models
- * @since 0.1.0
- */
-export const HostBuiltinNames = ["effect/Clock", "effect/Random"] as const
 
 /**
  * Builds the full protected Host surface over a host platform bundle and a

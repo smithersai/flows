@@ -30,7 +30,6 @@ This entry point bundles for the browser. The two host reads it once made direct
 | `Options` | interface | `owner.hostId`, `journalSource`, `isAlive`, optional `clockFireRetryPolicy` |
 | `make` | constructor | builds the engine from the required services |
 | `layer` | layer | the same as a `Layer` |
-| `EngineCompositionError` | class | `code: "engine_not_composed"` |
 
 Required services: `Journal`, `RunStore`, `AttemptStore`, `CacheStore`, `DurableEngineState`, kernel `Jj`, `StepBoundary`, [`OwnerIdentity`](#owneridentity), and a `Scope`. [`WorkspaceSandbox`](#workspacesandbox) and its `EffectDispatcher` are optional; when present, `make` resolves them here and re-provides them onto the engine's own fiber, which does not carry the store's layer context.
 
