@@ -122,7 +122,7 @@ export type BeliefSnapshot = typeof BeliefSnapshot.Type
  */
 export const Verdict = Schema.Union([
   Schema.TaggedStruct("Admit", {}),
-  Schema.TaggedStruct("Defer", { edge: SuspectedEdge, likelihood: Schema.Number }),
+  Schema.TaggedStruct("Defer", { edge: SuspectedEdge, likelihood: Confidence }),
   Schema.TaggedStruct("Propose", { flow: Schema.NonEmptyString, edge: SuspectedEdge, confidence: Confidence })
 ])
 
@@ -367,7 +367,12 @@ export const DebtEntry = Schema.Struct({
  */
 export type DebtEntry = typeof DebtEntry.Type
 
-/** The `flows.engine.selection-deferred` payload the scheduler writes. */
+/**
+ * The `flows.engine.selection-deferred` payload the scheduler writes. Read
+ * tolerantly: `likelihood` stays an unrefined number here — unlike the
+ * `Verdict` union's `[0, 1]` refinement — so a historically journaled
+ * out-of-range value cannot silently drop a real debt.
+ */
 const DeferredPayload = Schema.Struct({
   planId: Schema.NonEmptyString,
   nodeId: Schema.NonEmptyString,

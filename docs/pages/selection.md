@@ -131,7 +131,8 @@ only edge that exists at all.
   `Defer` writes no cache row and settles its node as the new `"deferred"`
   outcome, distinct from `clean`/`built` and from the existing
   dependency-failure `"skipped"`; a `Propose` is journaled, not
-  auto-appended; a run-level override treats every verdict as `Admit`.
+  auto-appended; a run-level override skips the consult for one run, so
+  nothing is deferred or proposed under it.
 - The `Selection.debt` query.
 
 See `packages/engine-store/README.md` for the API and `docs/reference/engine-store.md`

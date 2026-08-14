@@ -14,6 +14,7 @@ import { CacheStore } from "@smthrs/step-cache-next"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import * as Schema from "effect/Schema"
 import { describe, expect, it } from "vitest"
 import * as JournalRecords from "../src/internal/JournalRecords.ts"
 import * as PlanScheduler from "../src/PlanScheduler.ts"
@@ -245,8 +246,9 @@ describe("Selection laws through the scheduler", () => {
     const plan = await runPromise(compile(reviewGraph()))
     const offered: Array<ReadonlyArray<Selection.Candidate>> = []
     // A rogue selector: it records what it was offered, then defers `build`,
-    // which the plan needs — the law says the guess cannot remove it — and
-    // proposes a node the plan already contains.
+    // which the plan needs — the law says the guess cannot remove it —
+    // proposes a node the plan already contains, and proposes the plan's own
+    // flow name, which `present` also accounts for.
     const rogue = Selection.layer(Selection.make({
       select: (input) =>
         Effect.sync(() => {
@@ -256,6 +258,15 @@ describe("Selection laws through the scheduler", () => {
             {
               nodeId: "build",
               verdict: { _tag: "Propose", flow: "build", edge: edge({ affects: "build" }), confidence: 0.5 }
+            },
+            {
+              nodeId: "example/Review",
+              verdict: {
+                _tag: "Propose",
+                flow: "example/Review",
+                edge: edge({ affects: "example/Review" }),
+                confidence: 0.5
+              }
             },
             ...input.sinks.map((candidate): Selection.Selected => ({
               nodeId: candidate.nodeId,
@@ -272,7 +283,7 @@ describe("Selection laws through the scheduler", () => {
     expect(offered[0]!.map((candidate) => candidate.nodeId)).toEqual(["engine-tests", "lint-docs"])
     expect(outcomes(result.report)).toEqual({ build: "built", "engine-tests": "built", "lint-docs": "built" })
     const observations = result.events.filter((entry) => entry.eventType === "flows.engine.selection-inconsistent")
-    expect(observations).toHaveLength(2)
+    expect(observations).toHaveLength(3)
     expect(observations[0]?.payload).toMatchObject({
       nodeId: "build",
       reason: "not-a-deferrable-sink",
@@ -280,6 +291,11 @@ describe("Selection laws through the scheduler", () => {
     })
     expect(observations[1]?.payload).toMatchObject({
       nodeId: "build",
+      reason: "proposes-a-present-node",
+      verdict: "Propose"
+    })
+    expect(observations[2]?.payload).toMatchObject({
+      nodeId: "example/Review",
       reason: "proposes-a-present-node",
       verdict: "Propose"
     })
@@ -412,6 +428,19 @@ describe("Selection.layerHeuristic", () => {
       beliefs: beliefs(edge({ affects: "build", confidence: 0.9 }), edge({ affects: "example/Review" }))
     })))
     expect(verdicts).toEqual([{ nodeId: "lint-docs", verdict: { _tag: "Admit" } }])
+  })
+})
+
+describe("Selection.Verdict", () => {
+  const decode = Schema.decodeUnknownOption(Selection.Verdict)
+
+  it("refines Defer.likelihood to [0, 1], symmetric with Propose.confidence", () => {
+    const within = decode({ _tag: "Defer", edge: edge(), likelihood: 0.5 })
+    expect(Option.isSome(within)).toBe(true)
+    const above = decode({ _tag: "Defer", edge: edge(), likelihood: 1.5 })
+    expect(Option.isNone(above)).toBe(true)
+    const below = decode({ _tag: "Defer", edge: edge(), likelihood: -0.1 })
+    expect(Option.isNone(below)).toBe(true)
   })
 })
 

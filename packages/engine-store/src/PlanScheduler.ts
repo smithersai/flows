@@ -841,8 +841,13 @@ export const make = (options: Options): Service => {
        * or corrupt its consumers. A verdict may postpone or propose, never
        * remove: `Admit` is a no-op, a `Defer` marks the sink for the loop
        * below, a `Propose` is journaled and nothing more (v1 never
-       * auto-appends), and a Defer or Propose naming a non-sink is ignored
-       * and journaled as an inconsistency observation. Elaboration cannot
+       * auto-appends), and a Defer naming a non-sink — or a Propose naming
+       * anything the plan already accounts for, its flow included — is
+       * ignored and journaled as an inconsistency observation, against the
+       * same `present` set the layer was shown. The `full` override skips
+       * the consult entirely: nothing is deferred and nothing is proposed
+       * under it, and the override record is what makes that visible.
+       * Elaboration cannot
        * invalidate the marks: an appended merge node depends only on nodes
        * that produced results, and a deferred node never executes, so a
        * deferred sink can never gain a dependent mid-run.
@@ -856,12 +861,12 @@ export const make = (options: Options): Service => {
       } else {
         const dependedOn = new Set(plan.nodes.flatMap((node) => node.dependsOn))
         const sinks = plan.nodes.filter((node) => !dependedOn.has(node.id))
-        const nodeIds = new Set(plan.nodes.map((node) => node.id))
+        const present = new Set([plan.flow, ...plan.nodes.map((node) => node.id)])
         const sinkIds = new Set(sinks.map((node) => node.id))
         const selected = yield* selector.select({
           changed: options.selection?.changed ?? [],
           sinks: sinks.map((node) => ({ nodeId: node.id, planKey: node.key })),
-          present: [plan.flow, ...plan.nodes.map((node) => node.id)],
+          present: [...present],
           beliefs: options.selection?.beliefs ?? { pinnedAtMs: 0, edges: [] },
           policy: options.selection?.policy ?? { deferBelow: 0 }
         })
@@ -872,7 +877,7 @@ export const make = (options: Options): Service => {
             deferrals.set(nodeId, { edge: verdict.edge, likelihood: verdict.likelihood })
             continue
           }
-          if (verdict._tag === "Propose" && !nodeIds.has(nodeId)) {
+          if (verdict._tag === "Propose" && !present.has(nodeId)) {
             yield* emit(JournalRecords.selectionProposed(source(`selection/proposed/${index}`), {
               planId: plan.planId,
               flow: verdict.flow,
@@ -890,6 +895,12 @@ export const make = (options: Options): Service => {
         }
       }
 
+      // Fail closed: a dependent never dispatches against an upstream with
+      // any of these outcomes. `deferred` is listed defensively — only sinks
+      // are deferrable today, so no dependent can observe it — to keep a
+      // future non-sink deferral from reaching dispatch with a missing
+      // upstream result.
+      const blockingOutcomes = new Set(["failed", "skipped", "deferred"])
       while ([...states.values()].filter((state) => state.status === "settled").length < plan.nodes.length) {
         const pending = plan.nodes.filter((node) => stateOf(node).status === "pending")
         const blocked: Array<Plan.PlanNode> = []
@@ -897,7 +908,7 @@ export const make = (options: Options): Service => {
         for (const node of pending) {
           const dependencies = dependenciesOf(node).map((id) => states.get(id))
           if (dependencies.some((state) => state === undefined || state.status === "pending")) continue
-          if (dependencies.some((state) => state!.outcome === "failed" || state!.outcome === "skipped")) {
+          if (dependencies.some((state) => blockingOutcomes.has(state!.outcome))) {
             blocked.push(node)
             continue
           }

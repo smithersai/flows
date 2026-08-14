@@ -118,8 +118,9 @@ with the node id, dispatch/plan key, the edge, and the likelihood.
 `Propose { flow, edge, confidence }` records a flow no real dependency
 reaches, journaled as `flows.engine.selection-proposed`; v1 records and
 surfaces proposals, it does not append plan nodes automatically. A run-level
-override treats every verdict as `Admit` for one run, journaled the way
-`--fresh` bypasses the cache.
+override (`selection.full`) skips the consult for one run — nothing is
+deferred and nothing is proposed — and is journaled the way `--fresh`
+bypasses the cache.
 
 **The four laws**, each pinned by a test:
 
