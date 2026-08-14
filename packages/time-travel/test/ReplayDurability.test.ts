@@ -1,0 +1,222 @@
+import * as DurableWriter from "@smthrs/database-next/DurableWriter"
+import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
+import * as Journal from "@smthrs/journal-next/Journal"
+import type * as JournalEvent from "@smthrs/journal-next/JournalEvent"
+import * as SqlJournal from "@smthrs/journal-next/SqlJournal"
+import * as CacheStore from "@smthrs/step-cache-next/CacheStore"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
+import { mkdtemp, rm } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
+import { describe, expect, it } from "vitest"
+import * as Replay from "../src/internal/Replay.ts"
+import * as Migrations from "../src/Migrations.ts"
+import { TimeTravel } from "../src/TimeTravel.ts"
+import { jjInstalled, parkSealedFlow, runRealEngine, withRealFixture } from "./RealTimeTravelHarness.ts"
+
+const services = (filename: string) => {
+  const database = Layer.provideMerge(DurableWriter.layer(), NodeDatabase.layer({ filename }))
+  const migrated = Layer.provideMerge(Migrations.layer, database)
+  return Layer.mergeAll(
+    SqlJournal.layer({ capacity: 32, overflow: "reject" }),
+    CacheStore.layer
+  ).pipe(Layer.provideMerge(migrated))
+}
+
+const projection = {
+  initial: [] as Array<string>,
+  reduce: (state: Array<string>, entry: JournalEvent.Entry, sealed: unknown | undefined) => [
+    ...state,
+    `${entry.seq}:${String((entry.payload as { readonly value: string }).value)}:${String(sealed)}`
+  ]
+}
+
+const replay = Replay.rederive(
+  { lineageId: "run/root", seq: 5 },
+  projection,
+  { runId: "run", pageSize: 2 }
+)
+
+const seed = Effect.gen(function*() {
+  const sql = yield* Effect.service(SqlClient.SqlClient)
+  const cache = yield* CacheStore.CacheStore
+  for (
+    const [seq, value, cacheKey] of [
+      [0, "zero", undefined],
+      [2, "two", "sealed-key"],
+      [5, "five", undefined]
+    ] as const
+  ) {
+    yield* sql`
+      INSERT INTO flows_journal_events
+        (run_id, seq, event_id, source_id, source_seq, emitted_at_ms, event_type, payload_json, meta_json)
+      VALUES ('run', ${seq}, ${`event-${seq}`}, 'replay', ${seq}, ${seq}, 'projection',
+              ${JSON.stringify({ value })},
+              ${JSON.stringify({ lineageId: "run/root", ...(cacheKey === undefined ? {} : { cacheKey }) })})
+    `
+  }
+  yield* cache.put({
+    keyDigest: "sealed-key",
+    result: "sealed-v1",
+    meta: {},
+    createdAtMs: 0,
+    recordedRunId: "run",
+    recordedEventSeq: 2
+  })
+})
+
+describe("durable replay", () => {
+  it("replays gaps and an exact-tail frame identically across two file-backed layer lifetimes", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "flows-replay-durability-"))
+    const filename = join(directory, "journal.sqlite")
+    try {
+      const first = await Effect.runPromise(
+        Effect.scoped(seed.pipe(Effect.andThen(replay), Effect.provide(services(filename))))
+      )
+      const second = await Effect.runPromise(
+        Effect.scoped(replay.pipe(Effect.provide(services(filename))))
+      )
+
+      expect(first).toEqual([
+        "0:zero:undefined",
+        "2:two:sealed-v1",
+        "5:five:undefined"
+      ])
+      expect(second).toEqual(first)
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  // The finite budget covers a real engine replay and two independent file-backed service lifetimes.
+  it.skipIf(!jjInstalled)(
+    "replays a registered sealed action after restart without dispatching it again",
+    { timeout: 30_000 },
+    async () => {
+      await withRealFixture("flows-replay-engine-", async (fixture) => {
+        let dispatches = 0
+        const execute = Effect.sync(() => {
+          dispatches += 1
+          return "recorded-result"
+        })
+        const fold = {
+          initial: [] as Array<string>,
+          reduce: (state: Array<string>, entry: JournalEvent.Entry) => [
+            ...state,
+            `${entry.seq}:${entry.eventType}`
+          ]
+        }
+        const first = await runRealEngine(
+          fixture.databaseFile,
+          "replay-engine-first",
+          Effect.gen(function*() {
+            yield* parkSealedFlow("replay-engine-run", execute)
+            const journal = yield* Journal.Journal
+            yield* journal.flush
+            const sql = yield* Effect.service(SqlClient.SqlClient)
+            const rows = yield* sql<{ readonly tail: number }>`
+              SELECT MAX(seq) AS tail FROM flows_journal_events WHERE run_id = 'replay-engine-run'
+            `
+            const tail = rows[0]!.tail
+            const timeTravel = yield* TimeTravel
+            const state = yield* timeTravel.inspect(
+              { runId: "replay-engine-run", frame: { lineageId: "replay-engine-run/root", seq: tail } },
+              fold
+            )
+            return { state, tail }
+          })
+        )
+        const second = await runRealEngine(
+          fixture.databaseFile,
+          "replay-engine-second",
+          Effect.gen(function*() {
+            // This drives the persisted run through the same registered
+            // implementation. The cache/attempt evidence, not this closure,
+            // must answer the action after restart.
+            yield* parkSealedFlow("replay-engine-run", execute)
+            const journal = yield* Journal.Journal
+            yield* journal.flush
+            const timeTravel = yield* TimeTravel
+            return yield* timeTravel.inspect(
+              {
+                runId: "replay-engine-run",
+                frame: { lineageId: "replay-engine-run/root", seq: first.tail }
+              },
+              fold
+            )
+          })
+        )
+
+        expect(second).toEqual(first.state)
+        expect(dispatches).toBe(1)
+      })
+    }
+  )
+
+  // BUG: replay reads the mutable cache head, so later cache replacement changes an old frame's projection.
+  it.fails("keeps the projection stable when cache contents mutate between lifetimes", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "flows-replay-cache-mutation-"))
+    const filename = join(directory, "journal.sqlite")
+    try {
+      const first = await Effect.runPromise(
+        Effect.scoped(seed.pipe(Effect.andThen(replay), Effect.provide(services(filename))))
+      )
+      const second = await Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function*() {
+            const cache = yield* CacheStore.CacheStore
+            yield* cache.evict("sealed-key")
+            yield* cache.put({
+              keyDigest: "sealed-key",
+              result: "sealed-v2",
+              meta: {},
+              createdAtMs: 10,
+              recordedRunId: "other",
+              recordedEventSeq: 9
+            })
+            return yield* replay
+          }).pipe(Effect.provide(services(filename)))
+        )
+      )
+
+      expect(second).toEqual(first)
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  // BUG: replay neither sorts nor deduplicates malformed duplicate/out-of-order journal pages.
+  it.fails("normalizes duplicate and out-of-order pages to the durable projection", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "flows-replay-pages-"))
+    const filename = join(directory, "journal.sqlite")
+    try {
+      const result = await Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function*() {
+            yield* seed
+            const real = yield* Journal.Journal
+            const page = yield* real.entries({ runId: "run" as JournalEvent.RunId, limit: 10 })
+            const malformed = Journal.makeNoop({
+              entries: () =>
+                Effect.succeed({
+                  entries: [page.entries[2]!, page.entries[0]!, page.entries[2]!, page.entries[1]!],
+                  hasMore: false
+                })
+            })
+            return yield* replay.pipe(Effect.provideService(Journal.Journal, malformed))
+          }).pipe(Effect.provide(services(filename)))
+        )
+      )
+
+      expect(result).toEqual([
+        "0:zero:undefined",
+        "2:two:sealed-v1",
+        "5:five:undefined"
+      ])
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+})

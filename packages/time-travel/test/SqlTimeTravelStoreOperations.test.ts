@@ -1,8 +1,16 @@
 import * as DatabaseModule from "@smthrs/database-next/DurableWriter"
+import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
 import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import * as Migrations from "@smthrs/engine-store-next/Migrations"
+import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
+import * as Fiber from "effect/Fiber"
+import * as Layer from "effect/Layer"
+import * as Schema from "effect/Schema"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
+import { mkdtemp, rm } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { describe, expect, it } from "vitest"
 import * as Frame from "../src/Frame.ts"
 import * as SqlTimeTravelStore from "../src/SqlTimeTravelStore.ts"
@@ -22,6 +30,24 @@ const run = <A>(
       return yield* body(store, sql)
     }).pipe(Effect.provide(TestDatabase.layer)) as Effect.Effect<A, unknown>
   )
+
+const fileHandle = <A>(
+  filename: string,
+  body: (
+    store: TimeTravelStore.Service,
+    sql: SqlClient.SqlClient
+  ) => Effect.Effect<A, unknown, DatabaseModule.DurableWriter | SqlClient.SqlClient>
+) => {
+  const database = Layer.provideMerge(DatabaseModule.layer(), NodeDatabase.layer({ filename }))
+  return Effect.scoped(
+    Effect.gen(function*() {
+      yield* Migrations.run
+      const sql = yield* Effect.service(SqlClient.SqlClient)
+      const store = yield* SqlTimeTravelStore.make
+      return yield* body(store, sql)
+    }).pipe(Effect.provide(database))
+  ) as Effect.Effect<A, unknown>
+}
 
 const insertRun = (
   sql: SqlClient.SqlClient,
@@ -88,6 +114,56 @@ describe("SqlTimeTravelStore.snapshotAt", () => {
     expect(result.beforeAny).toBeUndefined()
     expect(result.otherLineage?.changeId).toBe("x7")
     expect(result.otherRun).toBeUndefined()
+  })
+
+  it("round-trips a roughly one-megabyte state projection without truncation", async () => {
+    const large = "x".repeat(1024 * 1024)
+    const state = { version: 1, flowName: "Large", payload: { large } }
+    const stateJson = await run((store, sql) =>
+      Effect.gen(function*() {
+        yield* sql`
+          INSERT INTO flows_journal_events
+            (run_id, seq, event_id, source_id, source_seq, emitted_at_ms, event_type, payload_json, meta_json)
+          VALUES ('large', 0, 'large-0', 'large', 0, 0, 'flows.engine.run-decision',
+                  ${JSON.stringify({ state })}, ${JSON.stringify({ lineageId: "large/root" })})
+        `
+        return yield* store.stateAt("large", { lineageId: "large/root", seq: 0 })
+      })
+    )
+
+    expect(stateJson).toBe(JSON.stringify(state))
+    expect(stateJson?.length).toBeGreaterThan(1024 * 1024)
+  })
+
+  it("accepts MAX_SAFE_INTEGER and rejects one-past it at the SQL boundary", async () => {
+    const result = await run((store) =>
+      Effect.gen(function*() {
+        yield* store.writeAudit({
+          id: "safe",
+          runId: "run",
+          frame: { lineageId: "main", seq: Number.MAX_SAFE_INTEGER },
+          status: "in_progress"
+        })
+        const unsafe = yield* Effect.flip(store.writeAudit({
+          id: "unsafe",
+          runId: "run",
+          frame: { lineageId: "main", seq: Number.MAX_SAFE_INTEGER + 1 },
+          status: "in_progress"
+        }))
+        return { pending: yield* store.pendingAudits(), unsafe }
+      })
+    )
+
+    expect(result.pending).toMatchObject([{
+      id: "safe",
+      frame: { lineageId: "main", seq: 9007199254740991 }
+    }])
+    expect(result.unsafe).toMatchObject({ code: "unknown", message: "time-travel persistence failed" })
+  })
+
+  it("keeps Frame schema parity with the MAX_SAFE_INTEGER SQL constraint", () => {
+    expect(() => Schema.decodeUnknownSync(Frame.Frame)({ lineageId: "main", seq: Number.MAX_SAFE_INTEGER + 1 }))
+      .toThrow()
   })
 })
 
@@ -496,6 +572,73 @@ describe("SqlTimeTravelStore derived reads", () => {
 })
 
 describe("SqlTimeTravelStore.createFork", () => {
+  it("creates distinct coherent forks when two store handles race at one parent frame", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "flows-time-travel-store-race-"))
+    const filename = join(directory, "store.sqlite")
+    try {
+      await Effect.runPromise(
+        fileHandle(filename, (_store, sql) =>
+          Effect.gen(function*() {
+            yield* insertRun(sql, "concurrent-parent")
+            yield* sql`
+              INSERT INTO flows_journal_events
+                (run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
+                 event_type, payload_json, meta_json)
+              VALUES ('concurrent-parent', 0, 'concurrent-0', 'source', 0, 0,
+                      'flows.engine.run-decision',
+                      ${JSON.stringify({ state: { version: 1, flowName: "Demo", payload: {} } })},
+                      ${JSON.stringify({ lineageId: "concurrent-parent/root" })})
+            `
+          }))
+      )
+
+      const result = await Effect.runPromise(
+        Effect.gen(function*() {
+          const readyA = yield* Deferred.make<void>()
+          const readyB = yield* Deferred.make<void>()
+          const release = yield* Deferred.make<void>()
+          const race = (ready: Deferred.Deferred<void>) =>
+            fileHandle(filename, (store) =>
+              Deferred.succeed(ready, undefined).pipe(
+                Effect.andThen(Deferred.await(release)),
+                Effect.andThen(
+                  store.createFork("concurrent-parent", { lineageId: "concurrent-parent/root", seq: 0 })
+                )
+              ))
+          // Each child scope constructs its own NodeDatabase, SqlClient,
+          // DurableWriter, and SqlTimeTravelStore over the same file.
+          const fiberA = yield* Effect.forkChild(race(readyA), { startImmediately: true })
+          const fiberB = yield* Effect.forkChild(race(readyB), { startImmediately: true })
+          yield* Deferred.await(readyA)
+          yield* Deferred.await(readyB)
+          yield* Deferred.succeed(release, undefined)
+          return { first: yield* Fiber.join(fiberA), second: yield* Fiber.join(fiberB) }
+        })
+      )
+      const edges = await Effect.runPromise(
+        fileHandle(filename, (_store, sql) =>
+          sql<{
+            readonly parent_run_id: string
+            readonly parent_seq: number
+            readonly child_run_id: string
+          }>`
+            SELECT parent_run_id, parent_seq, child_run_id
+            FROM flows_time_travel_edges
+            WHERE parent_run_id = 'concurrent-parent'
+            ORDER BY child_run_id
+          `)
+      )
+
+      expect(result.first.runId).not.toBe(result.second.runId)
+      expect(edges).toEqual([
+        { parent_run_id: "concurrent-parent", parent_seq: 0, child_run_id: result.first.runId },
+        { parent_run_id: "concurrent-parent", parent_seq: 0, child_run_id: result.second.runId }
+      ].sort((left, right) => left.child_run_id.localeCompare(right.child_run_id)))
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
   it("derives state and attempts AT the frame, marks the fork, and numbers repeated forks", async () => {
     const result = await run((store, sql) =>
       Effect.gen(function*() {

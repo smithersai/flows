@@ -1,10 +1,21 @@
+import * as DurableWriter from "@smthrs/database-next/DurableWriter"
+import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
 import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import * as Migrations from "@smthrs/engine-store-next/Migrations"
+import * as Jj from "@smthrs/jj-next"
+import * as SqlJournal from "@smthrs/journal-next/SqlJournal"
 import * as RunStore from "@smthrs/run-store-next/RunStore"
+import * as CacheStore from "@smthrs/step-cache-next/CacheStore"
 import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
+import { mkdtemp, rm } from "node:fs/promises"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { describe, expect, it } from "vitest"
+import * as TimeTravelMigrations from "../src/Migrations.ts"
 import * as SqlTimeTravelStore from "../src/SqlTimeTravelStore.ts"
+import { TimeTravel } from "../src/TimeTravel.ts"
 
 const seed = (runId: string) =>
   Effect.gen(function*() {
@@ -63,5 +74,121 @@ describe("fork lineage", () => {
 
     expect(row.parentRunId).toBe("root")
     expect(row.status).toBe("pending")
+  })
+
+  // BUG: public fork-of-fork reconstructs an anchor for the parent but does not materialize it for the new child.
+  it.fails("copies public fork prefixes, attempts, and anchors across an engine restart", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "flows-public-fork-lineage-"))
+    const filename = join(directory, "lineage.sqlite")
+    const layer = () => {
+      const database = Layer.provideMerge(DurableWriter.layer(), NodeDatabase.layer({ filename }))
+      const migrated = Layer.provideMerge(TimeTravelMigrations.layer, database)
+      const persistence = Layer.mergeAll(
+        SqlJournal.layer({ capacity: 32, overflow: "reject" }),
+        RunStore.layer,
+        CacheStore.layer,
+        SqlTimeTravelStore.layer,
+        Layer.succeed(Jj.Jj)(Jj.makeNoop({
+          workspaceAdd: () => Effect.void,
+          workspaceForget: () => Effect.void
+        }))
+      ).pipe(Layer.provideMerge(migrated))
+      return TimeTravel.layer.pipe(Layer.provideMerge(persistence))
+    }
+    try {
+      const child = await Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function*() {
+            const sql = yield* Effect.service(SqlClient.SqlClient)
+            yield* sql`
+              INSERT INTO flows_runs (run_id, status, created_at_ms, state_json)
+              VALUES ('public-root', 'suspended', 0,
+                      ${JSON.stringify({ version: 1, flowName: "Lineage", payload: {} })})
+            `
+            for (
+              const [seq, eventType, payload] of [
+                [0, "flows.engine.run-decision", { state: { version: 1, flowName: "Lineage", payload: {} } }],
+                [1, "flows.engine.snapshot-identified", { snapshotId: "change-a" }],
+                [2, "flows.engine.attempt-started", { stepKeyDigest: "digest", attempt: 0 }]
+              ] as const
+            ) {
+              yield* sql`
+                INSERT INTO flows_journal_events
+                  (run_id, seq, event_id, source_id, source_seq, emitted_at_ms, event_type, payload_json, meta_json)
+                VALUES ('public-root', ${seq}, ${`root-${seq}`}, 'fork-lineage', ${seq}, 0,
+                        ${eventType}, ${JSON.stringify(payload)},
+                        ${JSON.stringify({ lineageId: "public-root/root" })})
+              `
+            }
+            yield* sql`
+              INSERT INTO flows_attempts
+                (run_id, step_key_digest, attempt, state, started_at_ms, finished_at_ms,
+                 heartbeat_at_ms, checkpoint_json, error_json, outcome_json, meta_json)
+              VALUES ('public-root', 'digest', 0, 'succeeded', 0, 1, 1, NULL, NULL, '{}', '{}')
+            `
+            const timeTravel = yield* TimeTravel
+            return yield* timeTravel.fork({
+              runId: "public-root",
+              frame: { lineageId: "public-root/root", seq: 2 }
+            }, { workspaceRoot: directory })
+          }).pipe(Effect.provide(layer()))
+        )
+      )
+
+      const result = await Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function*() {
+            const timeTravel = yield* TimeTravel
+            const grandchild = yield* timeTravel.fork({
+              runId: child.runId,
+              // Fork at the inherited tail rather than copying the child's
+              // own marker; this keeps the source identity unique and lets
+              // the test reach the anchor-copy contract below.
+              frame: { lineageId: "public-root/root", seq: 2 }
+            }, { workspaceRoot: directory })
+            const sql = yield* Effect.service(SqlClient.SqlClient)
+            const attempts = yield* sql<{ readonly run_id: string; readonly step_key_digest: string }>`
+              SELECT run_id, step_key_digest FROM flows_attempts
+              WHERE run_id IN (${child.runId}, ${grandchild.runId}) ORDER BY run_id
+            `
+            const markers = yield* sql<
+              { readonly run_id: string; readonly seq: number; readonly payload_json: string }
+            >`
+              SELECT run_id, seq, payload_json FROM flows_journal_events
+              WHERE run_id IN (${child.runId}, ${grandchild.runId})
+                AND event_type = 'flows.time-travel.fork-created'
+              ORDER BY run_id, seq
+            `
+            const edges = yield* sql<{ readonly parent_run_id: string; readonly child_run_id: string }>`
+              SELECT parent_run_id, child_run_id FROM flows_time_travel_edges ORDER BY child_run_id
+            `
+            const anchors = yield* sql<{ readonly run_id: string; readonly change_id: string }>`
+              SELECT run_id, change_id FROM flows_time_travel_snapshots ORDER BY run_id
+            `
+            return { anchors, attempts, edges, grandchild, markers }
+          }).pipe(Effect.provide(layer()))
+        )
+      )
+
+      expect(result.attempts.map((row) => row.step_key_digest)).toEqual(["digest", "digest"])
+      expect(result.edges).toEqual([
+        { parent_run_id: "public-root", child_run_id: child.runId },
+        { parent_run_id: child.runId, child_run_id: result.grandchild.runId }
+      ])
+      expect(
+        result.markers.map((row) => ({ runId: row.run_id, offset: JSON.parse(row.payload_json).forkJournalOffset }))
+      )
+        .toEqual([
+          { runId: child.runId, offset: 2 },
+          { runId: result.grandchild.runId, offset: 2 }
+        ])
+      expect(result.anchors).toEqual([
+        { run_id: "public-root", change_id: "change-a" },
+        { run_id: child.runId, change_id: "change-a" },
+        { run_id: result.grandchild.runId, change_id: "change-a" }
+      ])
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
   })
 })

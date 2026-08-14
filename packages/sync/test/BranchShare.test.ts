@@ -18,6 +18,27 @@ const mintWrite = Effect.flatMap(
 )
 
 describe("BranchShare", () => {
+  it("refuses an empty HMAC key but accepts and uses a one-byte key", async () => {
+    const [empty, shortClaims] = await run(
+      Effect.gen(function*() {
+        const empty = yield* Effect.exit(BranchShare.makeHmac({ secret: "" }))
+        const short = yield* BranchShare.makeHmac({ secret: "x" })
+        const capability = yield* short.mint({
+          branchId,
+          capabilityId: "short-key",
+          access: "read",
+          ttlMs: 1_000
+        })
+        return [empty, yield* short.verify(capability, { branchId, access: "read" })] as const
+      })
+    )
+
+    // CONTRACT: WebCrypto rejects only the zero-byte key here; this service
+    // currently imposes no minimum strength policy of its own.
+    expect(Exit.isFailure(empty)).toBe(true)
+    expect(shortClaims.capabilityId).toBe("short-key")
+  })
+
   it("mints a capability whose claims are scoped, timed, and verifiable", async () => {
     const [capability, claims] = await run(
       Effect.gen(function*() {

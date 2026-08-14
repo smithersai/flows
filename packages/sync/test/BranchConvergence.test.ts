@@ -16,6 +16,7 @@ import * as BranchProtocol from "../src/BranchProtocol.ts"
 import * as BranchShare from "../src/BranchShare.ts"
 import * as RunCatalog from "../src/RunCatalog.ts"
 import * as SyncClient from "../src/SyncClient.ts"
+import type * as SyncProtocol from "../src/SyncProtocol.ts"
 import * as SyncServer from "../src/SyncServer.ts"
 
 const branchId = "live-branch" as BranchProtocol.BranchId
@@ -195,5 +196,71 @@ describe("branch convergence", () => {
     expect(entryCount).toBe(1)
     expect(projections[0]).toEqual(projections[1])
     expect(projections[0]?.messages).toHaveLength(1)
+  })
+
+  // BUG: BranchProjection advances seq on a high arrival and permanently drops a later lower-sequence edit.
+  it.fails("converges two writers on one target under duplicate and out-of-order client delivery", async () => {
+    const [left, right] = await run(
+      Effect.gen(function*() {
+        const commands = yield* BranchCommands.makeLive
+        const journal = yield* Journal.Journal
+        const capability = yield* Effect.flatMap(
+          BranchShare.BranchShare,
+          (share) => share.mint({ branchId, capabilityId: "field-cap", access: "write", ttlMs: 600_000 })
+        )
+        yield* commands.submit({
+          capability,
+          submission: BranchCommands.submission({
+            branchId,
+            commandId: "alice-title" as BranchProtocol.CommandId,
+            participantId: alice,
+            name: "branch.rename",
+            args: "Alice title",
+            target: "title"
+          })
+        })
+        yield* commands.submit({
+          capability,
+          submission: BranchCommands.submission({
+            branchId,
+            commandId: "bob-title" as BranchProtocol.CommandId,
+            participantId: bob,
+            name: "branch.rename",
+            args: "Bob title",
+            target: "title"
+          })
+        })
+        const page = yield* journal.entries({ runId, limit: 10 })
+        const first = page.entries[0]
+        const second = page.entries[1]
+        if (first === undefined || second === undefined) {
+          return yield* Effect.die(new Error("expected both canonical edits"))
+        }
+        const delivered = (entries: ReadonlyArray<typeof first>) =>
+          SyncClient.make({
+            client: {
+              "Sync.Read": () => Effect.succeed({ entries, cursors: [], done: true }),
+              "Sync.Subscribe": () => Stream.never as Stream.Stream<SyncProtocol.Frame>
+            } as unknown as Parameters<typeof SyncClient.make>[0]["client"]
+          })
+        const leftClient = delivered([first, first, second])
+        const rightClient = delivered([second, first, second])
+        const leftEntries = yield* Stream.runCollect(
+          Stream.take(leftClient.subscribe({ scope, cursors: [], capability }), 3)
+        )
+        const rightEntries = yield* Stream.runCollect(
+          Stream.take(rightClient.subscribe({ scope, cursors: [], capability }), 3)
+        )
+        return [
+          BranchProjection.project(branchId, leftEntries),
+          BranchProjection.project(branchId, rightEntries)
+        ] as const
+      })
+    )
+
+    expect(left).toEqual(right)
+    expect(left.commands).toHaveLength(2)
+    expect(right.commands).toHaveLength(2)
+    expect(left.fields).toEqual([{ target: "title", value: "Bob title", seq: left.seq, participantId: bob }])
   })
 })

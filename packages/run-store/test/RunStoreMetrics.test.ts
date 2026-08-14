@@ -38,6 +38,96 @@ const snapshot = (row: RunRow): RunSnapshot => ({
 })
 
 describe("RunStoreMetrics", () => {
+  it("pins every outcome label and every transition target attribute", async () => {
+    expect(Object.keys(RunStoreMetrics.claim)).toEqual([
+      "Claimed",
+      "NotFound",
+      "AlreadyClaimed",
+      "HeartbeatFresh",
+      "SnapshotChanged"
+    ])
+    expect(Object.keys(RunStoreMetrics.claimAndOwn)).toEqual([
+      "Activated",
+      "NotFound",
+      "AlreadyClaimed",
+      "HeartbeatFresh",
+      "SnapshotChanged",
+      "EvidenceRequired"
+    ])
+    expect(Object.keys(RunStoreMetrics.activate)).toEqual(["Activated", "ClaimLost", "SnapshotChanged"])
+    expect(Object.keys(RunStoreMetrics.steal)).toEqual([
+      "Claimed",
+      "NotFound",
+      "AlreadyClaimed",
+      "HeartbeatFresh",
+      "SnapshotChanged"
+    ])
+    expect(Object.keys(RunStoreMetrics.heartbeat)).toEqual(["Updated", "FenceLost", "NotFound"])
+    expect(Object.keys(RunStoreMetrics.transition)).toEqual([
+      "Transitioned",
+      "FenceLost",
+      "NotFound",
+      "GuardFailed"
+    ])
+
+    const claims = [
+      [RunStoreMetrics.claim.Claimed, { op: "claim", outcome: "claimed" }],
+      [RunStoreMetrics.claim.NotFound, { op: "claim", outcome: "not_found" }],
+      [RunStoreMetrics.claim.AlreadyClaimed, { op: "claim", outcome: "already_claimed" }],
+      [RunStoreMetrics.claim.HeartbeatFresh, { op: "claim", outcome: "heartbeat_fresh" }],
+      [RunStoreMetrics.claim.SnapshotChanged, { op: "claim", outcome: "snapshot_changed" }],
+      [RunStoreMetrics.claimAndOwn.Activated, { op: "claim_and_own", outcome: "activated" }],
+      [RunStoreMetrics.claimAndOwn.NotFound, { op: "claim_and_own", outcome: "not_found" }],
+      [RunStoreMetrics.claimAndOwn.AlreadyClaimed, { op: "claim_and_own", outcome: "already_claimed" }],
+      [RunStoreMetrics.claimAndOwn.HeartbeatFresh, { op: "claim_and_own", outcome: "heartbeat_fresh" }],
+      [RunStoreMetrics.claimAndOwn.SnapshotChanged, { op: "claim_and_own", outcome: "snapshot_changed" }],
+      [RunStoreMetrics.claimAndOwn.EvidenceRequired, { op: "claim_and_own", outcome: "evidence_required" }],
+      [RunStoreMetrics.activate.Activated, { op: "activate", outcome: "activated" }],
+      [RunStoreMetrics.activate.ClaimLost, { op: "activate", outcome: "claim_lost" }],
+      [RunStoreMetrics.activate.SnapshotChanged, { op: "activate", outcome: "snapshot_changed" }],
+      [RunStoreMetrics.steal.Claimed, { op: "steal", outcome: "claimed" }],
+      [RunStoreMetrics.steal.NotFound, { op: "steal", outcome: "not_found" }],
+      [RunStoreMetrics.steal.AlreadyClaimed, { op: "steal", outcome: "already_claimed" }],
+      [RunStoreMetrics.steal.HeartbeatFresh, { op: "steal", outcome: "heartbeat_fresh" }],
+      [RunStoreMetrics.steal.SnapshotChanged, { op: "steal", outcome: "snapshot_changed" }]
+    ] as const
+    const heartbeat = [
+      [RunStoreMetrics.heartbeat.Updated, { outcome: "updated" }],
+      [RunStoreMetrics.heartbeat.FenceLost, { outcome: "fence_lost" }],
+      [RunStoreMetrics.heartbeat.NotFound, { outcome: "not_found" }]
+    ] as const
+    const statuses = ["pending", "running", "suspended", "completed", "failed", "cancelled"] as const
+    const transitions = statuses.flatMap((to) =>
+      [
+        [Metric.withAttributes(RunStoreMetrics.transition.Transitioned, { to }), { outcome: "transitioned", to }],
+        [Metric.withAttributes(RunStoreMetrics.transition.FenceLost, { to }), { outcome: "fence_lost", to }],
+        [Metric.withAttributes(RunStoreMetrics.transition.NotFound, { to }), { outcome: "not_found", to }],
+        [Metric.withAttributes(RunStoreMetrics.transition.GuardFailed, { to }), { outcome: "guard_failed", to }]
+      ] as const
+    )
+    const matrix = [...claims, ...heartbeat, ...transitions]
+    const registry = new Map()
+    await Effect.runPromise(
+      Effect.forEach(matrix, ([metric]) => Metric.update(metric, 1), { discard: true }).pipe(
+        Effect.provideService(Metric.MetricRegistry, registry)
+      )
+    )
+
+    const normalized = (value: { readonly id: string; readonly attributes: Readonly<Record<string, string>> }) =>
+      `${value.id}:${JSON.stringify(Object.entries(value.attributes).sort())}`
+    const actual = Array.from(registry.values(), (metadata) => ({
+      id: metadata.id,
+      attributes: metadata.attributes
+    })).sort((left, right) => normalized(left).localeCompare(normalized(right)))
+    const expected = matrix.map(([metric, attributes]) => ({
+      id: metric.id,
+      attributes
+    })).sort((left, right) => normalized(left).localeCompare(normalized(right)))
+
+    expect(matrix).toHaveLength(46)
+    expect(actual).toEqual(expected)
+  })
+
   it("counts claim, activation, heartbeat, and transition outcomes through the provided registry", async () => {
     await migrated(Effect.gen(function*() {
       const store = yield* RunStore

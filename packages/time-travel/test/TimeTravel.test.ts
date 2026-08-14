@@ -13,15 +13,22 @@ import { Journal } from "@smthrs/journal-next"
 import type * as JournalEvent from "@smthrs/journal-next/JournalEvent"
 import { RunStore } from "@smthrs/run-store-next"
 import { CacheStore } from "@smthrs/step-cache-next"
+import * as Clock from "effect/Clock"
+import * as Context from "effect/Context"
+import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
+import * as Fiber from "effect/Fiber"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import * as Random from "effect/Random"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as CompensationHandlers from "../src/CompensationHandlers.ts"
 import * as MemoryTimeTravelStore from "../src/MemoryTimeTravelStore.ts"
 import { TimeTravel } from "../src/TimeTravel.ts"
 import type { Audit } from "../src/TimeTravelStore.ts"
 import { TimeTravelStore } from "../src/TimeTravelStore.ts"
+import { jjInstalled, parkSealedFlow, runRealEngine, withRealFixture } from "./RealTimeTravelHarness.ts"
 
 const lineageId = "run/root"
 
@@ -271,6 +278,156 @@ describe("TimeTravel", () => {
 })
 
 describe("TimeTravel wiring", () => {
+  it("mints distinct deterministic owners while preserving the durable service key across restart layers", async () => {
+    const store = MemoryTimeTravelStore.make({
+      records: [
+        record(0, 10),
+        record(1, 20)
+      ]
+    })
+    let current = row("run")
+    const claimedOwners: Array<{ readonly hostId: string; readonly nonce: string }> = []
+    const runs = RunStore.makeNoop({
+      get: () => Effect.succeed({ ...current }),
+      claim: (_runId, _expected, claimant, nowMs) =>
+        Effect.sync(() => {
+          claimedOwners.push(claimant)
+          if (current.status === "running" || current.claim !== null) {
+            return { _tag: "AlreadyClaimed" as const }
+          }
+          current = { ...current, claim: claimant, claimedAtMs: nowMs }
+          return { _tag: "Claimed" as const, claimedAtMs: nowMs }
+        }),
+      activate: (_runId, claimant, claimedAtMs) =>
+        Effect.sync(() => {
+          if (current.claim?.nonce !== claimant.nonce) return { _tag: "ClaimLost" as const }
+          current = {
+            ...current,
+            status: "running",
+            owner: claimant,
+            heartbeatAtMs: claimedAtMs,
+            claim: null,
+            claimedAtMs: null
+          }
+          return { _tag: "Activated" as const }
+        }),
+      transitionOwned: (_runId, claimant, status) =>
+        Effect.sync(() => {
+          if (current.owner?.nonce !== claimant.nonce) return { _tag: "FenceLost" as const }
+          current = { ...current, status, owner: null, heartbeatAtMs: null }
+          return { _tag: "Transitioned" as const }
+        })
+    })
+    const entered = Effect.runSync(Deferred.make<void>())
+    const release = Effect.runSync(Deferred.make<void>())
+    let suffixReaders = 0
+    const blockingJournal = Journal.makeNoop({
+      entries: ({ after, limit }) => {
+        const page = makeJournal(store).entries({
+          runId: "run" as JournalEvent.RunId,
+          ...(after === undefined ? {} : { after }),
+          limit
+        })
+        if (after === undefined || suffixReaders > 0) return page
+        suffixReaders += 1
+        return Deferred.succeed(entered, undefined).pipe(
+          Effect.andThen(Deferred.await(release)),
+          Effect.andThen(page)
+        )
+      }
+    })
+    const dependencies = Layer.mergeAll(
+      Layer.succeed(TimeTravelStore)(store),
+      Layer.succeed(RunStore.RunStore)(runs),
+      Layer.succeed(Journal.Journal)(blockingJournal),
+      Layer.succeed(Jj.Jj)(Jj.makeNoop({ snapshot: () => Effect.succeed({ changeId: "current" }) })),
+      CacheStore.layerNoop()
+    )
+    const serviceLayer = TimeTravel.layer.pipe(Layer.provide(dependencies))
+    const fixedClock: Clock.Clock = {
+      currentTimeMillisUnsafe: () => 1_000,
+      currentTimeMillis: Effect.succeed(1_000),
+      currentTimeNanosUnsafe: () => 1_000_000_000n,
+      currentTimeNanos: Effect.succeed(1_000_000_000n),
+      monotonicTimeNanosUnsafe: () => 1_000_000_000n,
+      monotonicTimeNanos: Effect.succeed(1_000_000_000n),
+      sleep: () => Effect.void
+    }
+
+    const result = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function*() {
+          const firstContext = yield* Layer.build(serviceLayer).pipe(Random.withSeed("owner-a"))
+          const secondContext = yield* Layer.build(serviceLayer).pipe(Random.withSeed("owner-b"))
+          const first = Context.get(firstContext, TimeTravel)
+          const second = Context.get(secondContext, TimeTravel)
+          const position = { runId: "run", frame: { lineageId, seq: 0 } } as const
+          const winner = yield* Effect.forkChild(first.rewind(position), { startImmediately: true })
+          yield* Deferred.await(entered)
+          const loser = yield* Effect.exit(second.rewind(position))
+          yield* Deferred.succeed(release, undefined)
+          const won = yield* Fiber.join(winner)
+          const completedAfterRace = store.state().audits.filter((audit) => audit.status === "completed").length
+          const secondPass = yield* second.rewind(position)
+          return { completedAfterRace, loser, secondPass, won }
+        }).pipe(Effect.provideService(Clock.Clock, fixedClock))
+      )
+    )
+
+    expect(result.won.archive.archived).toBe(1)
+    expect(result.loser._tag).toBe("Failure")
+    expect(result.completedAfterRace).toBe(1)
+    expect(result.secondPass.archive.archived).toBe(0)
+    expect(claimedOwners).toHaveLength(2)
+    expect(claimedOwners[0]).not.toEqual(claimedOwners[1])
+    expect(TimeTravel.key).toBe("@smthrs/time-travel-next/TimeTravel")
+    expect(store.state().audits.filter((audit) => audit.status === "completed")).toHaveLength(2)
+  })
+
+  // The finite budget covers two independent production engine/service lifetimes over one file database.
+  it.skipIf(!jjInstalled)(
+    "keeps the TimeTravel service-key component of step identity stable across an engine restart",
+    { timeout: 30_000 },
+    async () => {
+      await withRealFixture("flows-time-travel-identity-", async (fixture) => {
+        let dispatches = 0
+        const execute = Effect.sync(() => {
+          dispatches += 1
+          return "stable"
+        })
+        const drive = (hostId: string) =>
+          runRealEngine(
+            fixture.databaseFile,
+            hostId,
+            Effect.gen(function*() {
+              yield* parkSealedFlow("identity-run", execute)
+              const journal = yield* Journal.Journal
+              yield* journal.flush
+              const sql = yield* Effect.service(SqlClient.SqlClient)
+              return yield* sql<{
+                readonly attempt: number
+                readonly step_key_digest: string
+              }>`
+                SELECT step_key_digest, attempt
+                FROM flows_attempts
+                WHERE run_id = 'identity-run'
+                ORDER BY step_key_digest, attempt
+              `
+            })
+          )
+
+        const first = await drive("identity-first")
+        const restarted = await drive("identity-second")
+
+        expect(first).toHaveLength(2)
+        expect(restarted).toEqual(first)
+        expect(new Set(restarted.map((row) => row.step_key_digest)).size).toBe(2)
+        expect(dispatches).toBe(1)
+        expect(TimeTravel.key).toBe("@smthrs/time-travel-next/TimeTravel")
+      })
+    }
+  )
+
   it("logs and continues when the frame-anchor projection cannot run", async () => {
     // The anchor table is a cache of journal facts, so a journal that cannot be
     // paged for anchoring must not turn a verb into a failure of its own. The

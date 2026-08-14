@@ -477,6 +477,9 @@ importers:
       '@smthrs/plan-next':
         specifier: 0.1.0
         version: link:../plan
+      '@smthrs/platform-node-next':
+        specifier: 0.1.0
+        version: link:../platform-node
       '@smthrs/run-store-next':
         specifier: 0.1.0
         version: link:../run-store

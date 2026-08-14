@@ -3,6 +3,7 @@
  *
  * @since 0.1.0
  */
+import { withIsolatedFileSystem } from "@smthrs/kernel-next/FileSystem"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import { make } from "./make.ts"
@@ -15,4 +16,4 @@ import type { ZenFsPromisesLike } from "./ZenFsPromisesLike.ts"
  * @since 0.1.0
  */
 export const layer = (fs: ZenFsPromisesLike): Layer.Layer<FileSystem.FileSystem> =>
-  Layer.succeed(FileSystem.FileSystem)(make(fs))
+  Layer.succeed(FileSystem.FileSystem)(withIsolatedFileSystem(make(fs)))

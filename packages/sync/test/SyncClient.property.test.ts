@@ -146,8 +146,8 @@ describe("SyncClient properties", () => {
   // internal run/range/sequence consistency, so inconsistent frames are
   // admitted (duplicates delivered twice, foreign-run and out-of-interval
   // entries accepted) and advance the cursor instead of failing with
-  // protocol_violation. Corroborates the accepted-inconsistent-frame cases
-  // pinned as it.fails in the example suite (ClientProtocolValidation).
+  // protocol_violation. Corroborates the pinned cases in
+  // ClientProtocolValidation.test.ts.
   it.fails("rejects arbitrary inconsistent frames with protocol_violation and never moves the cursor", async () => {
     const mutationArb = FastCheck.constantFrom(
       "duplicate-seq",

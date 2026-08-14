@@ -81,7 +81,7 @@ describe("RunStore heartbeat timestamp ordering", () => {
 
     // CONTRACT: heartbeat has no explicit timestamp validator; invalid values
     // fail through persistence rather than RunStore's invalid_run vocabulary.
-    expect(result.exits.every(Exit.isFailure)).toBe(true)
+    expect(result.exits.every((exit) => Exit.isFailure(exit))).toBe(true)
     expect(
       result.exits.map((exit) =>
         Exit.isFailure(exit)

@@ -332,3 +332,68 @@ describe("FlowProxyServer.layerHttpApi", () => {
     }).pipe(provide(layer))
   })
 })
+
+describe("FlowProxy.toHttpApiGroup path lowering", () => {
+  it("folds case-distinct flow tags onto one colliding HTTP path", () => {
+    // `tagToPath` only lowercases, so two flows whose tags differ by case
+    // alone keep distinct endpoint names — the RPC side stays unambiguous —
+    // while every HTTP endpoint they generate lands on ONE path per
+    // operation. Mounting both in one API is a route collision; this pins
+    // the lossy lowering so a fix to it is a deliberate contract change.
+    const CaseUpper = Flow.make("Proxy/Collide", {
+      payload: { value: Schema.Number },
+      success: Schema.Void,
+      body: () => Node.succeed(undefined)
+    })
+    const caseLower = Flow.make("proxy/collide", {
+      payload: { value: Schema.Number },
+      success: Schema.Void,
+      body: () => Node.succeed(undefined)
+    })
+    const group = FlowProxy.toHttpApiGroup("collide", [CaseUpper, caseLower])
+    const endpoints = group.endpoints as Record<string, { readonly path: string; readonly method: string }>
+
+    expect(Object.keys(endpoints).sort()).toEqual([
+      "Proxy/Collide",
+      "Proxy/CollideDiscard",
+      "Proxy/CollideResume",
+      "proxy/collide",
+      "proxy/collideDiscard",
+      "proxy/collideResume"
+    ])
+    expect(endpoints["Proxy/Collide"]!.path).toBe("/proxy/collide")
+    expect(endpoints["proxy/collide"]!.path).toBe("/proxy/collide")
+    expect(endpoints["Proxy/CollideDiscard"]!.path).toBe(endpoints["proxy/collideDiscard"]!.path)
+    expect(endpoints["Proxy/CollideResume"]!.path).toBe(endpoints["proxy/collideResume"]!.path)
+  })
+})
+
+describe("FlowProxyServer over a real HTTP listener", () => {
+  effect("round-trips execute through a live server, with wire identity deduplication", () => {
+    // Unlike `HttpApiTest`, this serves the API on a real Node listener on an
+    // ephemeral port and calls it through a real fetch-backed client: the
+    // payload and result cross genuine wire serialization.
+    const { calls, layer } = makeLayer((value) => Effect.succeed(value + 1))
+    const served = HttpRouter.serve(
+      HttpApiBuilder.layer(ProxyApi).pipe(
+        Layer.provide(
+          FlowProxyServer.layerHttpApi(ProxyApi, "flows", flows).pipe(Layer.provideMerge(layer))
+        )
+      )
+    ).pipe(Layer.provideMerge(NodeHttpServer.layerTest))
+    return Effect.gen(function*() {
+      const client = yield* HttpApiClient.make(ProxyApi)
+      const result = yield* client.flows["Proxy/Echo"]({
+        payload: { payload: { value: 41 }, executionId: "wire-execute" }
+      })
+      expect(result).toBe(42)
+      expect(calls()).toBe(1)
+      // The same wire identity dedupes across a second real HTTP request.
+      const repeat = yield* client.flows["Proxy/Echo"]({
+        payload: { payload: { value: 41 }, executionId: "wire-execute" }
+      })
+      expect(repeat).toBe(42)
+      expect(calls()).toBe(1)
+    }).pipe(Effect.provide(served))
+  })
+})

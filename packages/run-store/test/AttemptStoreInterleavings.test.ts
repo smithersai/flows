@@ -1,7 +1,5 @@
-import { DurableWriter } from "@smthrs/database-next/DurableWriter"
 import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import { Effect, Layer, Option } from "effect"
-import type * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as AttemptStore from "../src/AttemptStore.ts"
 import * as Migrations from "../src/Migrations.ts"
@@ -17,11 +15,7 @@ const layer = Layer.mergeAll(RunStore.layer, AttemptStore.layer).pipe(
 )
 
 const migrated = <A, E>(
-  effect: Effect.Effect<
-    A,
-    E,
-    RunStore.RunStore | AttemptStore.AttemptStore | DurableWriter | SqlClient.SqlClient
-  >
+  effect: Effect.Effect<A, E, RunStore.RunStore | AttemptStore.AttemptStore>
 ) => Effect.runPromise(effect.pipe(Effect.provide(layer), Effect.scoped))
 
 const arrange = Effect.gen(function*() {
@@ -135,7 +129,7 @@ describe("AttemptStore ownership interleavings", () => {
         // write from ownerA but the store has no way to authenticate it.
         const patch = yield* attempts.patch(id, {
           outcome: { writer: "old", terminal: false },
-          meta: { writer: "old" }
+          meta: { writer: "delayed-old" }
         })
         return { patch, stored: Option.getOrThrow(yield* attempts.get(id)) }
       })

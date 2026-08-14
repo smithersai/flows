@@ -7,18 +7,23 @@
  * pin the disclosure wording, the paging of a long suffix, and what a fork says
  * when the frame has no pointer to restore.
  */
+import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import * as Jj from "@smthrs/jj-next"
 import * as Journal from "@smthrs/journal-next/Journal"
 import type * as JournalEvent from "@smthrs/journal-next/JournalEvent"
+import * as SqlJournal from "@smthrs/journal-next/SqlJournal"
 import * as RunStore from "@smthrs/run-store-next/RunStore"
 import * as CacheStore from "@smthrs/step-cache-next/CacheStore"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
+import * as SqlClient from "effect/unstable/sql/SqlClient"
 import { describe, expect, it } from "vitest"
 import * as EffectBoundary from "../src/EffectBoundary.ts"
 import * as EffectHandlerRegistry from "../src/internal/EffectHandlerRegistry.ts"
 import * as Fork from "../src/internal/Fork.ts"
 import * as MemoryTimeTravelStore from "../src/MemoryTimeTravelStore.ts"
+import * as Migrations from "../src/Migrations.ts"
+import * as SqlTimeTravelStore from "../src/SqlTimeTravelStore.ts"
 import { TimeTravelStore } from "../src/TimeTravelStore.ts"
 
 const frame = { lineageId: "parent/root", seq: 0 } as const
@@ -268,6 +273,111 @@ describe("fork boundary assessment", () => {
 
     expect(readFailure.message).toBe("could not read fork suffix for parent")
     expect(workspaceFailure.message).toBe("could not add fork workspace")
+  })
+
+  // BUG: createFork commits before workspaceAdd, so a failed workspace leaves a durable orphan child and edge.
+  it.fails("leaves no child run, lineage edge, or copied records when workspace creation fails", async () => {
+    const store = MemoryTimeTravelStore.make({
+      records: [{ runId: "parent", seq: 0, eventId: "parent-0", lineageId: frame.lineageId, payload: {} }]
+    })
+    const before = store.state()
+
+    const failure = await Effect.runPromise(
+      Effect.flip(
+        Effect.scoped(
+          Fork.fork({
+            parentRunId: "parent",
+            frame,
+            workspaceName: "fork-workspace",
+            workspacePath: "/tmp/fork-workspace"
+          }).pipe(
+            Effect.provide(
+              Layer.succeed(RunStore.RunStore, RunStore.makeNoop({ get: () => Effect.succeed(row()) }))
+            ),
+            Effect.provide(Layer.succeed(TimeTravelStore, store)),
+            Effect.provide(Layer.succeed(Jj.Jj, Jj.makeNoop({ workspaceForget: () => Effect.void }))),
+            Effect.provide(journalOf([], 1)),
+            Effect.provide(Layer.succeed(CacheStore.CacheStore, CacheStore.makeNoop())),
+            Effect.provide(EffectHandlerRegistry.layerNoop)
+          )
+        )
+      )
+    )
+
+    expect(failure).toMatchObject({ code: "unknown", message: "could not add fork workspace" })
+    expect(store.state().edges).toEqual(before.edges)
+    expect(store.state().records).toEqual(before.records)
+  })
+
+  // BUG: the SQL createFork transaction commits the child, edge, copied journal prefix, and copied attempt before
+  // workspaceAdd runs; the typed workspace failure has no compensating transaction to remove that durable orphan.
+  it.fails("rolls back every SQL fork row when workspace creation fails", async () => {
+    const migrated = Layer.provideMerge(Migrations.layer, TestDatabase.layer)
+    const services = Layer.mergeAll(
+      RunStore.layer,
+      SqlJournal.layer({ capacity: 32, overflow: "reject" }),
+      CacheStore.layer,
+      SqlTimeTravelStore.layer
+    ).pipe(Layer.provideMerge(migrated))
+
+    const result = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function*() {
+          const sql = yield* Effect.service(SqlClient.SqlClient)
+          yield* sql`
+            INSERT INTO flows_runs (run_id, status, created_at_ms, state_json)
+            VALUES ('parent', 'suspended', 0, ${JSON.stringify({ version: 1, flowName: "ForkParent", payload: {} })})
+          `
+          yield* sql`
+            INSERT INTO flows_journal_events
+              (run_id, seq, event_id, source_id, source_seq, emitted_at_ms, event_type, payload_json, meta_json)
+            VALUES ('parent', 0, 'parent-attempt', 'fork-boundary', 0, 0,
+                    'flows.engine.attempt-started',
+                    ${JSON.stringify({ stepKeyDigest: "parent-step", attempt: 1 })},
+                    ${JSON.stringify({ lineageId: frame.lineageId })})
+          `
+          yield* sql`
+            INSERT INTO flows_attempts
+              (run_id, step_key_digest, attempt, state, started_at_ms, meta_json)
+            VALUES ('parent', 'parent-step', 1, 'succeeded', 0, '{}')
+          `
+          const failure = yield* Effect.flip(
+            Fork.fork({
+              parentRunId: "parent",
+              frame,
+              workspaceName: "fork-workspace",
+              workspacePath: "/tmp/fork-workspace"
+            }).pipe(
+              Effect.provide(Layer.succeed(Jj.Jj, Jj.makeNoop({ workspaceForget: () => Effect.void }))),
+              Effect.provide(EffectHandlerRegistry.layerNoop)
+            )
+          )
+          const children = yield* sql<{ readonly run_id: string }>`
+            SELECT run_id FROM flows_runs WHERE run_id <> 'parent'
+          `
+          const edges = yield* sql<{ readonly child_run_id: string }>`
+            SELECT child_run_id FROM flows_time_travel_edges
+          `
+          const copiedJournal = yield* sql<{ readonly run_id: string; readonly seq: number }>`
+            SELECT run_id, seq FROM flows_journal_events WHERE run_id <> 'parent'
+          `
+          const copiedAttempts = yield* sql<{ readonly run_id: string }>`
+            SELECT run_id FROM flows_attempts WHERE run_id <> 'parent'
+          `
+          const copiedSnapshots = yield* sql<{ readonly run_id: string }>`
+            SELECT run_id FROM flows_time_travel_snapshots WHERE run_id <> 'parent'
+          `
+          return { children, copiedAttempts, copiedJournal, copiedSnapshots, edges, failure }
+        }).pipe(Effect.provide(services))
+      )
+    )
+
+    expect(result.failure).toMatchObject({ code: "unknown", message: "could not add fork workspace" })
+    expect(result.children).toEqual([])
+    expect(result.edges).toEqual([])
+    expect(result.copiedJournal).toEqual([])
+    expect(result.copiedAttempts).toEqual([])
+    expect(result.copiedSnapshots).toEqual([])
   })
 })
 

@@ -7,7 +7,7 @@
  */
 import { Journal } from "@smthrs/journal-next"
 import * as TestJournal from "@smthrs/journal-next/test/TestJournal"
-import { Deferred, Effect, Fiber, Layer, Option, Queue, type Scope, Stream } from "effect"
+import { Deferred, Effect, Exit, Fiber, Layer, Option, Queue, Schema, type Scope, Stream } from "effect"
 import { TestClock } from "effect/testing"
 import * as RpcClient from "effect/unstable/rpc/RpcClient"
 import type * as RpcClientError from "effect/unstable/rpc/RpcClientError"
@@ -260,6 +260,36 @@ describe("BranchRpcs over the wire", () => {
     const bobSighting = rosters[0]?.[1]
     expect(bobSighting?.displayName).toBe("Bob")
     expect(bobSighting?.cursor).toMatchObject({ cardId: "branch-card", offset: 12 })
+  })
+
+  it("decodes an empty displayName at the RPC schema and refuses it inside presence", async () => {
+    const [decodedName, exit, roster] = await program(
+      Effect.gen(function*() {
+        const pair = yield* TestSocket.makePair()
+        const client = yield* connect(pair)
+        const presence = yield* BranchPresence.BranchPresence
+        const created = yield* client["Branch.CreateBranch"]({ ttlMs: 600_000 })
+        const payload = Schema.decodeUnknownSync(BranchRpcs.AnnouncePayload)({
+          capability: created.capability,
+          branchId: created.branchId,
+          participantId: alice,
+          displayName: "",
+          cursor: null
+        })
+        const outcome = yield* Effect.exit(client["Branch.Announce"](payload))
+        const current = yield* presence.list({
+          capability: created.capability,
+          branchId: created.branchId
+        })
+        return [payload.displayName, outcome, current] as const
+      })
+    )
+
+    // CONTRACT: the wire schema accepts the empty string; constructing the
+    // service's NonEmpty Participant fails before the roster is mutated.
+    expect(decodedName).toBe("")
+    expect(Exit.isFailure(exit)).toBe(true)
+    expect(roster).toEqual([])
   })
 
   it("denies the roster to a capability for another branch and to an expired one", async () => {

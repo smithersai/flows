@@ -1104,6 +1104,173 @@ describe("RunStore", () => {
   })
 })
 
+describe("RunStore ownership evidence boundaries", () => {
+  it("uses a strict cutoff for claimAndOwn, recoverClaim, and steal", async () => {
+    const staleAfterMs = Duration.toMillis(heartbeatStaleAfter)
+    const points = [staleAfterMs - 1, staleAfterMs, staleAfterMs + 1] as const
+    const outcomes = await migrated(Effect.gen(function*() {
+      const store = yield* RunStore
+      const claimAndOwn: Array<string> = []
+      const recoverClaim: Array<string> = []
+      const steal: Array<string> = []
+
+      for (const [index, nowMs] of points.entries()) {
+        const direct = yield* activateNew(store, `boundary-direct-${index}`, ownerA)
+        claimAndOwn.push(
+          (yield* store.claimAndOwn(
+            direct.runId,
+            snapshot(direct),
+            ownerB,
+            nowMs,
+            staleEvidence(ownerA, ownerB, nowMs)
+          ))._tag
+        )
+
+        const claimRunId = `boundary-claim-${index}`
+        yield* store.create(claimRunId, "{}")
+        const pending = snapshot(yield* store.get(claimRunId))
+        yield* store.claim(claimRunId, pending, ownerA, 0)
+        recoverClaim.push(
+          (yield* store.recoverClaim(
+            claimRunId,
+            ownerA,
+            0,
+            ownerB,
+            nowMs,
+            staleEvidence(ownerA, ownerB, nowMs)
+          ))._tag
+        )
+
+        const running = yield* activateNew(store, `boundary-steal-${index}`, ownerA)
+        steal.push(
+          (yield* store.steal(
+            running.runId,
+            snapshot(running),
+            ownerC,
+            nowMs,
+            staleEvidence(ownerA, ownerC, nowMs)
+          ))._tag
+        )
+      }
+      return { claimAndOwn, recoverClaim, steal }
+    }))
+
+    expect(outcomes).toEqual({
+      claimAndOwn: ["HeartbeatFresh", "HeartbeatFresh", "Activated"],
+      recoverClaim: ["ClaimFresh", "ClaimFresh", "Recovered"],
+      steal: ["HeartbeatFresh", "HeartbeatFresh", "Claimed"]
+    })
+  })
+
+  it("rejects stale checkedAtMs values and same-host/cross-host evidence kind mismatches", async () => {
+    const nowMs = Duration.toMillis(heartbeatStaleAfter) + 1
+    const variants = [
+      {
+        name: "wrong-time",
+        observer: ownerB,
+        evidence: { expectedOwner: ownerA, checkedAtMs: nowMs - 1, kind: "same-host-pid-dead" }
+      },
+      {
+        name: "same-host-cross-kind",
+        observer: ownerB,
+        evidence: { expectedOwner: ownerA, checkedAtMs: nowMs, kind: "cross-host-unreachable-stale" }
+      },
+      {
+        name: "cross-host-same-kind",
+        observer: ownerC,
+        evidence: { expectedOwner: ownerA, checkedAtMs: nowMs, kind: "same-host-pid-dead" }
+      }
+    ] as const
+
+    const outcomes = await migrated(Effect.gen(function*() {
+      const store = yield* RunStore
+      const result: Array<{
+        readonly claimAndOwn: string
+        readonly recoverClaim: string
+        readonly steal: string
+      }> = []
+      for (const variant of variants) {
+        const direct = yield* activateNew(store, `evidence-direct-${variant.name}`, ownerA)
+        const claimAndOwn = yield* store.claimAndOwn(
+          direct.runId,
+          snapshot(direct),
+          variant.observer,
+          nowMs,
+          variant.evidence
+        )
+
+        const claimRunId = `evidence-claim-${variant.name}`
+        yield* store.create(claimRunId, "{}")
+        const pending = snapshot(yield* store.get(claimRunId))
+        yield* store.claim(claimRunId, pending, ownerA, 0)
+        const recoverClaim = yield* store.recoverClaim(
+          claimRunId,
+          ownerA,
+          0,
+          variant.observer,
+          nowMs,
+          variant.evidence
+        )
+
+        const running = yield* activateNew(store, `evidence-steal-${variant.name}`, ownerA)
+        const steal = yield* store.steal(
+          running.runId,
+          snapshot(running),
+          variant.observer,
+          nowMs,
+          variant.evidence
+        )
+        result.push({ claimAndOwn: claimAndOwn._tag, recoverClaim: recoverClaim._tag, steal: steal._tag })
+      }
+      return result
+    }))
+
+    expect(outcomes).toEqual(variants.map(() => ({
+      claimAndOwn: "EvidenceRequired",
+      recoverClaim: "LivenessUnconfirmed",
+      steal: "SnapshotChanged"
+    })))
+  })
+
+  it("pins both ten-second clock-skew edges around the stale lease boundary", async () => {
+    const staleAtMs = Duration.toMillis(heartbeatStaleAfter) + 1
+    const skewMs = Duration.toMillis(heartbeatSkewAllowance)
+    const result = await migrated(Effect.gen(function*() {
+      const store = yield* RunStore
+      const behind = yield* activateNew(store, "skew-behind", ownerA)
+      const ahead = yield* activateNew(store, "skew-ahead", ownerA)
+      const behindAtMs = staleAtMs - skewMs
+      const aheadAtMs = staleAtMs + skewMs
+      return {
+        ahead: yield* store.steal(
+          ahead.runId,
+          snapshot(ahead),
+          ownerC,
+          aheadAtMs,
+          staleEvidence(ownerA, ownerC, aheadAtMs)
+        ),
+        aheadAtMs,
+        behind: yield* store.steal(
+          behind.runId,
+          snapshot(behind),
+          ownerC,
+          behindAtMs,
+          staleEvidence(ownerA, ownerC, behindAtMs)
+        ),
+        behindAtMs
+      }
+    }))
+
+    // CONTRACT: the store judges the supplied wall-clock instant literally;
+    // heartbeatLoop's write-tolerance budget, not the SQL predicate, absorbs skew.
+    expect(skewMs).toBe(10_000)
+    expect(result.behindAtMs).toBe(20_001)
+    expect(result.behind).toEqual({ _tag: "HeartbeatFresh" })
+    expect(result.aheadAtMs).toBe(40_001)
+    expect(result.ahead).toEqual({ _tag: "Claimed", claimedAtMs: 40_001 })
+  })
+})
+
 /**
  * The three run-store cases the 2026-08-12 review names as unpinned. Each drives
  * a branch the existing suite reaches only incidentally, or not at all.

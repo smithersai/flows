@@ -20,6 +20,7 @@ import { make as makeCapability } from "@smthrs/capability-next/Capability"
 import { permissionDenied, type PermissionError, toPlatformError } from "@smthrs/capability-next/Permission"
 import {
   Effect,
+  Encoding,
   FileSystem as EffectFileSystem,
   Layer,
   Option,
@@ -32,6 +33,122 @@ import { GrantStore } from "./GrantStore.ts"
 import { Workspace } from "./Workspace.ts"
 
 const FileSystemTypeId = "~effect/platform/FileSystem"
+
+/**
+ * Host-private extension used for race-free, descriptor-relative filesystem
+ * operations. A plain path-based `FileSystem` cannot provide confinement: an
+ * attacker can replace any checked component before the delegate resolves it.
+ * Platform adapters opt in only when they can pin a root handle and reject
+ * symlinks while traversing from it. Hosts without this extension fail closed.
+ *
+ * @since 0.1.0
+ * @category security
+ */
+export const AtomicFileSystemTypeId = Symbol.for("@smthrs/kernel/AtomicFileSystem")
+
+/** A serializable operation executed relative to a pinned filesystem root.
+ *
+ * @since 0.1.0
+ * @category security
+ */
+export interface AtomicRequest {
+  readonly operation: string
+  readonly boundaryRoot?: string | undefined
+  readonly logicalRoot?: string | undefined
+  readonly path?: string | undefined
+  readonly from?: string | undefined
+  readonly to?: string | undefined
+  readonly pattern?: string | undefined
+  readonly root?: string | undefined
+  readonly data?: string | undefined
+  readonly encoding?: string | undefined
+  readonly options?: object | undefined
+}
+
+/** Trusted host extension implementing atomic path resolution and operation.
+ *
+ * @since 0.1.0
+ * @category security
+ */
+export interface AtomicFileSystem {
+  readonly execute: <A>(request: AtomicRequest) => Effect.Effect<A, PlatformError.PlatformError>
+  /**
+   * A filesystem already confined by an enforceable process/filesystem
+   * boundary (for example an in-memory browser volume). Methods not expressible
+   * as one descriptor-relative request may delegate only through this surface.
+   */
+  readonly isolated?: EffectFileSystem.FileSystem | undefined
+}
+
+/** An Effect filesystem carrying the atomic host extension.
+ *
+ * @since 0.1.0
+ * @category security
+ */
+export type AtomicHostFileSystem = EffectFileSystem.FileSystem & {
+  readonly [AtomicFileSystemTypeId]: AtomicFileSystem
+}
+
+/** Attaches a trusted platform's descriptor-relative executor to its service.
+ *
+ * @since 0.1.0
+ * @category security
+ */
+export const withAtomicFileSystem = (
+  fileSystem: EffectFileSystem.FileSystem,
+  atomic: AtomicFileSystem
+): AtomicHostFileSystem => Object.assign(fileSystem, { [AtomicFileSystemTypeId]: atomic })
+
+/**
+ * Attests that a host filesystem is already isolated as a whole. Intended for
+ * browser/test volumes whose implementation cannot address the host
+ * filesystem at all; native path-based adapters must not use this shortcut.
+ *
+ * @since 0.1.0
+ * @category security
+ */
+export const withIsolatedFileSystem = (
+  fileSystem: EffectFileSystem.FileSystem
+): AtomicHostFileSystem =>
+  withAtomicFileSystem(fileSystem, {
+    isolated: fileSystem,
+    execute: (request) => {
+      switch (request.operation) {
+        case "glob":
+          return fileSystem.glob(request.pattern!, { root: request.root })
+        case "exists":
+          return fileSystem.exists(request.path!)
+        case "makeDirectory":
+          return fileSystem.makeDirectory(request.path!, request.options)
+        case "readDirectory":
+          return fileSystem.readDirectory(request.path!, request.options)
+        case "readFile":
+          return fileSystem.readFile(request.path!)
+        case "readFileString":
+          return fileSystem.readFileString(request.path!, request.encoding)
+        case "readLink":
+          return fileSystem.readLink(request.path!)
+        case "realPath":
+          return fileSystem.realPath(request.path!)
+        case "remove":
+          return fileSystem.remove(request.path!, request.options)
+        case "rename":
+          return fileSystem.rename(request.from!, request.to!)
+        case "stat":
+          return fileSystem.stat(request.path!)
+        case "writeFile":
+          return Encoding.decodeBase64(request.data!).pipe(
+            Effect.fromResult,
+            Effect.orDie,
+            Effect.flatMap((data) => fileSystem.writeFile(request.path!, data, request.options))
+          )
+        case "writeFileString":
+          return fileSystem.writeFileString(request.path!, request.data!, request.options)
+        default:
+          return Effect.die(`unsupported isolated filesystem operation: ${request.operation}`)
+      }
+    }
+  } as AtomicFileSystem)
 
 const readableOpenFlags: ReadonlySet<EffectFileSystem.OpenFlag> = new Set([
   "r",
@@ -149,10 +266,12 @@ export const layer: Layer.Layer<
     const path = yield* EffectPath.Path
     const workspace = yield* Workspace
     const grants = yield* GrantStore
+    const atomic = (fileSystem as Partial<AtomicHostFileSystem>)[AtomicFileSystemTypeId]
     const normalizeFrom = (base: string, value: string): string =>
       path.normalize(path.isAbsolute(value) ? value : path.resolve(base, value))
     const normalize = (value: string): string => normalizeFrom(workspace.root, value)
-    yield* fileSystem.realPath(normalize(workspace.root))
+    const logicalRoot = normalize(workspace.root)
+    const boundaryRoot = yield* fileSystem.realPath(logicalRoot)
     const refuse = (method: string, resource: string) => (error: PermissionError): PlatformError.PlatformError =>
       toPlatformError({ module: "FileSystem", method, pathOrDescriptor: resource, error })
     const guard = (
@@ -185,8 +304,66 @@ export const layer: Layer.Layer<
     }
     const read = (value: string) => guard("fs:read", value)
     const write = (value: string) => guard("fs:write", value)
-    const readWrite = (from: string, to: string) => read(from).pipe(Effect.andThen(write(to)))
-    const writeWrite = (from: string, to: string) => write(from).pipe(Effect.andThen(write(to)))
+    const atomicUnavailable = (
+      action: "fs:read" | "fs:write",
+      value: string,
+      method: string
+    ): PlatformError.PlatformError => {
+      const resource = normalize(value)
+      return toPlatformError({
+        module: "FileSystem",
+        method,
+        pathOrDescriptor: resource,
+        error: permissionDenied(
+          makeCapability(action, resource),
+          "host does not provide descriptor-relative, no-follow filesystem isolation"
+        )
+      })
+    }
+    const atomicOne = <A>(
+      action: "fs:read" | "fs:write",
+      value: string,
+      method: string,
+      request: AtomicRequest
+    ): Effect.Effect<A, PlatformError.PlatformError> =>
+      atomic === undefined
+        ? Effect.fail(atomicUnavailable(action, value, method))
+        : guard(action, value).pipe(
+          Effect.andThen(atomic.execute<A>({ ...request, boundaryRoot, logicalRoot }))
+        )
+    const atomicTwo = <A>(
+      first: readonly ["fs:read" | "fs:write", string],
+      second: readonly ["fs:read" | "fs:write", string],
+      method: string,
+      request: AtomicRequest
+    ): Effect.Effect<A, PlatformError.PlatformError> =>
+      atomic === undefined
+        ? Effect.fail(atomicUnavailable(first[0], first[1], method))
+        : guard(first[0], first[1]).pipe(
+          Effect.andThen(guard(second[0], second[1])),
+          Effect.andThen(atomic.execute<A>({ ...request, boundaryRoot, logicalRoot }))
+        )
+    const isolatedOne = <A>(
+      action: "fs:read" | "fs:write",
+      value: string,
+      method: string,
+      use: (isolated: EffectFileSystem.FileSystem) => Effect.Effect<A, PlatformError.PlatformError>
+    ): Effect.Effect<A, PlatformError.PlatformError> =>
+      atomic?.isolated === undefined
+        ? Effect.fail(atomicUnavailable(action, value, method))
+        : guard(action, value).pipe(Effect.andThen(use(atomic.isolated)))
+    const isolatedTwo = <A>(
+      first: readonly ["fs:read" | "fs:write", string],
+      second: readonly ["fs:read" | "fs:write", string],
+      method: string,
+      use: (isolated: EffectFileSystem.FileSystem) => Effect.Effect<A, PlatformError.PlatformError>
+    ): Effect.Effect<A, PlatformError.PlatformError> =>
+      atomic?.isolated === undefined
+        ? Effect.fail(atomicUnavailable(first[0], first[1], method))
+        : guard(first[0], first[1]).pipe(
+          Effect.andThen(guard(second[0], second[1])),
+          Effect.andThen(use(atomic.isolated))
+        )
     const temp = (directory: string | undefined) =>
       directory === undefined
         ? write(path.resolve(workspace.root, "..", "<system-temp>"))
@@ -226,117 +403,201 @@ export const layer: Layer.Layer<
     const guarded: EffectFileSystem.FileSystem = {
       [FileSystemTypeId]: FileSystemTypeId,
       access: Effect.fn("FileSystem.access")((value, options) =>
-        read(value).pipe(Effect.andThen(fileSystem.access(normalize(value), options)))
+        isolatedOne("fs:read", value, "access", (host) => host.access(normalize(value), options))
       ),
       copy: Effect.fn("FileSystem.copy")((from, to, options) =>
-        readWrite(from, to).pipe(Effect.andThen(fileSystem.copy(normalize(from), normalize(to), options)))
+        isolatedTwo(
+          ["fs:read", from],
+          ["fs:write", to],
+          "copy",
+          (host) => host.copy(normalize(from), normalize(to), options)
+        )
       ),
       copyFile: Effect.fn("FileSystem.copyFile")((from, to) =>
-        readWrite(from, to).pipe(Effect.andThen(fileSystem.copyFile(normalize(from), normalize(to))))
+        isolatedTwo(
+          ["fs:read", from],
+          ["fs:write", to],
+          "copyFile",
+          (host) => host.copyFile(normalize(from), normalize(to))
+        )
       ),
       chmod: Effect.fn("FileSystem.chmod")((value, mode) =>
-        write(value).pipe(Effect.andThen(fileSystem.chmod(normalize(value), mode)))
+        isolatedOne("fs:write", value, "chmod", (host) => host.chmod(normalize(value), mode))
       ),
       chown: Effect.fn("FileSystem.chown")((value, uid, gid) =>
-        write(value).pipe(Effect.andThen(fileSystem.chown(normalize(value), uid, gid)))
+        isolatedOne("fs:write", value, "chown", (host) => host.chown(normalize(value), uid, gid))
       ),
       glob: Effect.fn("FileSystem.glob")((pattern, options) => {
         const root = options?.root === undefined ? workspace.root : normalize(options.root)
         const normalizedPattern = normalizeFrom(root, pattern)
-        return read(normalizedPattern).pipe(
-          Effect.andThen(
-            fileSystem.glob(
-              normalizedPattern,
-              options?.root === undefined ? options : { ...options, root }
-            )
-          )
-        )
+        return atomicOne<Array<string>>("fs:read", normalizedPattern, "glob", {
+          operation: "glob",
+          pattern: normalizedPattern,
+          root,
+          options: options === undefined ? undefined : { exclude: options.exclude ?? [] }
+        })
       }),
       exists: Effect.fn("FileSystem.exists")((value) =>
-        read(value).pipe(Effect.andThen(fileSystem.exists(normalize(value))))
+        atomicOne<boolean>("fs:read", value, "exists", {
+          operation: "exists",
+          path: normalize(value)
+        })
       ),
       link: Effect.fn("FileSystem.link")((from, to) =>
-        readWrite(from, to).pipe(Effect.andThen(fileSystem.link(normalize(from), normalize(to))))
+        isolatedTwo(["fs:read", from], ["fs:write", to], "link", (host) => host.link(normalize(from), normalize(to)))
       ),
       makeDirectory: Effect.fn("FileSystem.makeDirectory")((value, options) =>
-        write(value).pipe(Effect.andThen(fileSystem.makeDirectory(normalize(value), options)))
+        atomicOne<void>("fs:write", value, "makeDirectory", {
+          operation: "makeDirectory",
+          path: normalize(value),
+          options
+        })
       ),
       makeTempDirectory: Effect.fn("FileSystem.makeTempDirectory")((options) =>
-        temp(options?.directory).pipe(Effect.andThen(fileSystem.makeTempDirectory(normalizeTempOptions(options))))
+        atomic?.isolated === undefined
+          ? Effect.fail(atomicUnavailable("fs:write", options?.directory ?? "../<system-temp>", "makeTempDirectory"))
+          : temp(options?.directory).pipe(
+            Effect.andThen(atomic.isolated.makeTempDirectory(normalizeTempOptions(options)))
+          )
       ),
       makeTempDirectoryScoped: Effect.fn("FileSystem.makeTempDirectoryScoped")((options) =>
-        temp(options?.directory).pipe(
-          Effect.andThen(fileSystem.makeTempDirectoryScoped(normalizeTempOptions(options)))
-        )
+        atomic?.isolated === undefined
+          ? Effect.fail(
+            atomicUnavailable("fs:write", options?.directory ?? "../<system-temp>", "makeTempDirectoryScoped")
+          )
+          : temp(options?.directory).pipe(
+            Effect.andThen(atomic.isolated.makeTempDirectoryScoped(normalizeTempOptions(options)))
+          )
       ),
       makeTempFile: Effect.fn("FileSystem.makeTempFile")((options) =>
-        temp(options?.directory).pipe(Effect.andThen(fileSystem.makeTempFile(normalizeTempOptions(options))))
+        atomic?.isolated === undefined
+          ? Effect.fail(atomicUnavailable("fs:write", options?.directory ?? "../<system-temp>", "makeTempFile"))
+          : temp(options?.directory).pipe(
+            Effect.andThen(atomic.isolated.makeTempFile(normalizeTempOptions(options)))
+          )
       ),
       makeTempFileScoped: Effect.fn("FileSystem.makeTempFileScoped")((options) =>
-        temp(options?.directory).pipe(Effect.andThen(fileSystem.makeTempFileScoped(normalizeTempOptions(options))))
+        atomic?.isolated === undefined
+          ? Effect.fail(atomicUnavailable("fs:write", options?.directory ?? "../<system-temp>", "makeTempFileScoped"))
+          : temp(options?.directory).pipe(
+            Effect.andThen(atomic.isolated.makeTempFileScoped(normalizeTempOptions(options)))
+          )
       ),
       open: Effect.fn("FileSystem.open")((value, options) =>
-        openChecks(value, options?.flag ?? "r").pipe(
-          Effect.andThen(fileSystem.open(normalize(value), options)),
-          Effect.map((file) => wrapFile(file, value))
-        )
+        atomic?.isolated === undefined
+          ? Effect.fail(atomicUnavailable("fs:read", value, "open"))
+          : openChecks(value, options?.flag ?? "r").pipe(
+            Effect.andThen(atomic.isolated.open(normalize(value), options)),
+            Effect.map((file) => wrapFile(file, value))
+          )
       ),
       readDirectory: Effect.fn("FileSystem.readDirectory")((value, options) =>
-        read(value).pipe(Effect.andThen(fileSystem.readDirectory(normalize(value), options)))
+        atomicOne<Array<string>>("fs:read", value, "readDirectory", {
+          operation: "readDirectory",
+          path: normalize(value),
+          options
+        })
       ),
       readFile: Effect.fn("FileSystem.readFile")((value) =>
-        read(value).pipe(Effect.andThen(fileSystem.readFile(normalize(value))))
+        atomicOne<Uint8Array>("fs:read", value, "readFile", {
+          operation: "readFile",
+          path: normalize(value)
+        })
       ),
       readFileString: Effect.fn("FileSystem.readFileString")((value, encoding) =>
-        read(value).pipe(Effect.andThen(fileSystem.readFileString(normalize(value), encoding)))
+        atomicOne<string>("fs:read", value, "readFileString", {
+          operation: "readFileString",
+          path: normalize(value),
+          encoding
+        })
       ),
       readLink: Effect.fn("FileSystem.readLink")((value) =>
-        read(value).pipe(Effect.andThen(fileSystem.readLink(normalize(value))))
+        atomicOne<string>("fs:read", value, "readLink", {
+          operation: "readLink",
+          path: normalize(value)
+        })
       ),
       realPath: Effect.fn("FileSystem.realPath")((value) =>
-        read(value).pipe(Effect.andThen(fileSystem.realPath(normalize(value))))
+        atomicOne<string>("fs:read", value, "realPath", {
+          operation: "realPath",
+          path: normalize(value)
+        })
       ),
       remove: Effect.fn("FileSystem.remove")((value, options) =>
-        write(value).pipe(Effect.andThen(fileSystem.remove(normalize(value), options)))
+        atomicOne<void>("fs:write", value, "remove", {
+          operation: "remove",
+          path: normalize(value),
+          options
+        })
       ),
       rename: Effect.fn("FileSystem.rename")((from, to) =>
-        writeWrite(from, to).pipe(Effect.andThen(fileSystem.rename(normalize(from), normalize(to))))
+        atomicTwo<void>(["fs:write", from], ["fs:write", to], "rename", {
+          operation: "rename",
+          from: normalize(from),
+          to: normalize(to)
+        })
       ),
       sink: (value, options) =>
         Sink.unwrap(
           Effect.fn("FileSystem.sink")(
-            () => Effect.suspend(() => write(value).pipe(Effect.map(() => fileSystem.sink(normalize(value), options))))
+            () =>
+              Effect.suspend(() =>
+                atomic?.isolated === undefined
+                  ? Effect.fail(atomicUnavailable("fs:write", value, "sink"))
+                  : write(value).pipe(Effect.map(() => atomic.isolated!.sink(normalize(value), options)))
+              )
           )()
         ),
       stat: Effect.fn("FileSystem.stat")((value) =>
-        read(value).pipe(Effect.andThen(fileSystem.stat(normalize(value))))
+        atomicOne<EffectFileSystem.File.Info>("fs:read", value, "stat", {
+          operation: "stat",
+          path: normalize(value)
+        })
       ),
       stream: (value, options) =>
         Stream.unwrap(
           Effect.fn("FileSystem.stream")(() =>
-            Effect.suspend(() => read(value).pipe(Effect.map(() => fileSystem.stream(normalize(value), options))))
+            Effect.suspend(() =>
+              atomic?.isolated === undefined
+                ? Effect.fail(atomicUnavailable("fs:read", value, "stream"))
+                : read(value).pipe(Effect.map(() => atomic.isolated!.stream(normalize(value), options)))
+            )
           )()
         ),
       symlink: Effect.fn("FileSystem.symlink")((from, to) =>
-        write(to).pipe(Effect.andThen(fileSystem.symlink(from, normalize(to))))
+        isolatedOne("fs:write", to, "symlink", (host) => host.symlink(from, normalize(to)))
       ),
       truncate: Effect.fn("FileSystem.truncate")((value, length) =>
-        write(value).pipe(Effect.andThen(fileSystem.truncate(normalize(value), length)))
+        isolatedOne("fs:write", value, "truncate", (host) => host.truncate(normalize(value), length))
       ),
       utimes: Effect.fn("FileSystem.utimes")((value, atime, mtime) =>
-        write(value).pipe(Effect.andThen(fileSystem.utimes(normalize(value), atime, mtime)))
+        isolatedOne("fs:write", value, "utimes", (host) => host.utimes(normalize(value), atime, mtime))
       ),
       watch: (value) =>
         Stream.unwrap(
           Effect.fn("FileSystem.watch")(() =>
-            Effect.suspend(() => read(value).pipe(Effect.map(() => fileSystem.watch(normalize(value)))))
+            Effect.suspend(() =>
+              atomic?.isolated === undefined
+                ? Effect.fail(atomicUnavailable("fs:read", value, "watch"))
+                : read(value).pipe(Effect.map(() => atomic.isolated!.watch(normalize(value))))
+            )
           )()
         ),
       writeFile: Effect.fn("FileSystem.writeFile")((value, data, options) =>
-        write(value).pipe(Effect.andThen(fileSystem.writeFile(normalize(value), data, options)))
+        atomicOne<void>("fs:write", value, "writeFile", {
+          operation: "writeFile",
+          path: normalize(value),
+          data: Encoding.encodeBase64(data),
+          options
+        })
       ),
       writeFileString: Effect.fn("FileSystem.writeFileString")((value, data, options) =>
-        write(value).pipe(Effect.andThen(fileSystem.writeFileString(normalize(value), data, options)))
+        atomicOne<void>("fs:write", value, "writeFileString", {
+          operation: "writeFileString",
+          path: normalize(value),
+          data,
+          options
+        })
       )
     }
     return guarded

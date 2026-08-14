@@ -40,6 +40,14 @@ behind the capability kernel's back. Bun does **not** depend on
 | `BunHost`       | The complete closed Host bundle, plus `layer`; re-exports Effect's `BunChildProcessSpawner` and `BunHttpClient` |
 | `BunFileSystem` | Bun's `FileSystem`, which is Effect's Node implementation                                                       |
 
+**No atomic filesystem adapter yet.** `BunFileSystem.layer` is the raw
+`@effect/platform-node` filesystem, so it carries no descriptor-relative,
+no-follow extension. Under `@smthrs/kernel-next`'s `FileSystem.layer` every
+path operation therefore fails closed with a typed `PermissionDenied` instead
+of performing a check-then-path operation that a symlink swap could redirect.
+`@smthrs/platform-node-next`'s `AtomicFileSystem.layer` is the adapter Bun
+needs; wiring it here is tracked work, not a supported configuration today.
+
 **Node-only by construction.** The bundle falls back to the
 `@effect/platform-node` adapters off Bun and resolves `node:` built-ins;
 `scripts/browser-check.mjs` at the repository root pins that.

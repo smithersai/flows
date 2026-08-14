@@ -4,7 +4,8 @@
  * @since 0.1.0
  */
 import { JournalEvent } from "@smthrs/journal-next"
-import { Effect, Exit, Stream } from "effect"
+import { Effect, Exit, Fiber, Stream } from "effect"
+import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as SyncClient from "../src/SyncClient.ts"
 import { SyncError, SyncGapError } from "../src/SyncError.ts"
@@ -229,6 +230,61 @@ describe("SyncClient failure paths", () => {
     expect(seen[2]).toEqual([{ runId: id, afterSeq: 0 }])
   })
 
+  // BUG: transport retries recurse immediately with no clock-driven backoff or no-progress budget.
+  it.fails("does not spin through repeated live disconnects before retry time advances", async () => {
+    let calls = 0
+    const client = stubClient({
+      subscribe: () => {
+        calls += 1
+        return calls <= 3 ? Stream.fail(new Error("socket reset")) : Stream.never
+      }
+    })
+
+    const attemptsBeforeTimeAdvanced = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function*() {
+          const fiber = yield* Stream.runDrain(client.subscribe({ scope, cursors: [] })).pipe(
+            Effect.forkChild({ startImmediately: true })
+          )
+          for (let turn = 0; turn < 8; turn += 1) yield* Effect.yieldNow
+          const attempts = calls
+          yield* Fiber.interrupt(fiber)
+          return attempts
+        })
+      ).pipe(Effect.provide(TestClock.layer()))
+    )
+
+    expect(attemptsBeforeTimeAdvanced).toBe(1)
+  })
+
+  it("stops live work when the consumer cancels the subscription", async () => {
+    let calls = 0
+    const client = stubClient({
+      subscribe: () => {
+        calls += 1
+        return Stream.never
+      }
+    })
+
+    const result = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function*() {
+          const fiber = yield* Stream.runDrain(client.subscribe({ scope, cursors: [] })).pipe(
+            Effect.forkChild({ startImmediately: true })
+          )
+          yield* Effect.yieldNow
+          yield* Fiber.interrupt(fiber)
+          const atCancellation = calls
+          yield* TestClock.adjust("1 day")
+          yield* Effect.yieldNow
+          return { afterTimeAdvanced: calls, atCancellation }
+        })
+      ).pipe(Effect.provide(TestClock.layer()))
+    )
+
+    expect(result).toEqual({ atCancellation: 1, afterTimeAdvanced: 1 })
+  })
+
   it("surfaces a bootstrap transport failure as a transport error", async () => {
     const client = stubClient({
       read: () => Effect.fail(new Error("read failed"))
@@ -274,6 +330,35 @@ describe("SyncClient failure paths", () => {
     expect(Array.from(entries).map((value) => value.seq)).toEqual([0, 1])
     expect(requested[0]).toEqual([])
     expect(reads).toBe(2)
+  })
+
+  // BUG: done:false with an empty page recursively issues reads without cursor progress or delay.
+  it.fails("does not spin on an incomplete bootstrap page that makes no progress", async () => {
+    let reads = 0
+    const client = stubClient({
+      read: () => {
+        reads += 1
+        return reads <= 3
+          ? Effect.succeed({ entries: [], cursors: [], done: false })
+          : Effect.never
+      }
+    })
+
+    const readsBeforeTimeAdvanced = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function*() {
+          const fiber = yield* Stream.runDrain(client.subscribe({ scope, cursors: [] })).pipe(
+            Effect.forkChild({ startImmediately: true })
+          )
+          for (let turn = 0; turn < 8; turn += 1) yield* Effect.yieldNow
+          const count = reads
+          yield* Fiber.interrupt(fiber)
+          return count
+        })
+      ).pipe(Effect.provide(TestClock.layer()))
+    )
+
+    expect(readsBeforeTimeAdvanced).toBe(1)
   })
 
   it("makeNoop fails every subscription and reports no cursors", async () => {
