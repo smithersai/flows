@@ -30,6 +30,21 @@ The prompt: what to change and why, in plain prose.
 
 ## Operating it today
 
-Until the factory flow ships (item 0003), the smithers DDD pack is the
-operator. Drive an item by starting a run whose prompt is the item file;
-update `status` in the file as the phases complete.
+Until the factory flow ships (item 0003), the operator is the local smithers
+workflow `queue-driver` (`.smithers/workflows/queue-driver.tsx`, UI at
+`.smithers/ui/queue-driver.tsx`; both untracked). Run it from the repo root:
+
+```sh
+smithers workflow run queue-driver                      # highest-priority queued item
+smithers workflow run queue-driver --input item=<slug>  # a specific item
+```
+
+Pass `--input requireApproval=true` to add a human approval gate before
+landing. One run processes one item: pick flips its `status` to
+`in-progress`, then docs → implement → verify → land run in an isolated
+worktree lane (`.smithers/workflows/.worktrees/queue-<slug>`, branch
+`queue/<slug>`, based on `main`). Land rebases the lane onto `origin/main`
+and pushes `main` only while `vibe` is parked; a final wrap step flips the
+item's `status` to `landed` or `blocked` and pushes that bookkeeping commit.
+The workflow owns the `status` field; do not edit it by hand while a run is
+active.
