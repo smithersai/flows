@@ -232,6 +232,34 @@ describe("PlanScheduler over a static graph", () => {
     })
   })
 
+  it("threads the engine-resolved environment into dispatch identity", async () => {
+    const plan = await runPromise(compile([draft("environment")], "environment-plan"))
+    const executor: PlanScheduler.Executor = { execute: ({ node }) => Effect.succeed(node.id) }
+    const { absent, present } = await runPromise(
+      Effect.gen(function*() {
+        yield* activate("run-environment-absent")
+        const absent = yield* scheduler({ runId: "run-environment-absent", executor }).run(plan)
+        yield* activate("run-environment-present")
+        const present = yield* scheduler({
+          runId: "run-environment-present",
+          executor,
+          options: {
+            environment: {
+              declared: true,
+              layers: ["workspace"],
+              capabilities: { fs: ["read"] }
+            }
+          }
+        }).run(plan)
+        return { absent, present }
+      }).pipe(
+        Effect.provide(harness({ runId: "run-environment", executor })),
+        Effect.provide(TestStores.layer())
+      )
+    )
+    expect(present.settlements[0]?.dispatchKey).not.toBe(absent.settlements[0]?.dispatchKey)
+  })
+
   it("re-keys one leaf and re-runs only its cone — every unchanged branch is a cache hit", async () => {
   const graph = (seed: number) => [
     draft("source", { body: { seed } }),

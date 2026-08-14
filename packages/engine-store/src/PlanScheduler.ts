@@ -217,6 +217,11 @@ export interface Options {
   readonly owner: Ownership.OwnerId
   readonly sourceId: string
   /**
+   * The engine-resolved execution environment each dispatch is keyed under.
+   * Omitting it preserves the existing dispatch identity.
+   */
+  readonly environment?: StepKey.EnvironmentIdentity | undefined
+  /**
    * The admission caps. Both default to unbounded, because a cap the caller
    * did not declare is not the scheduler's to invent — `aspects.ts` owns the
    * policy and narrows it. Both floor at one: a cap of zero admits nothing,
@@ -611,6 +616,7 @@ export const make = (options: Options): Service => {
             )
           ),
           digestMemo,
+          environment: options.environment,
           hermetic: {
             ...boundary,
             readSet: StepBoundary.exactReads(boundary)

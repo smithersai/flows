@@ -458,6 +458,8 @@ export const dispatchIdentity = (options: {
   /** The settled output value of each dependency, by node id. */
   readonly results: Readonly<Record<string, unknown>>
   readonly hermetic: NonNullable<ContentIdentity["hermetic"]>
+  /** The engine-resolved execution environment this dispatch runs under. */
+  readonly environment?: EnvironmentIdentity | undefined
   /** Reuses projected-value digests while the corresponding settled values remain immutable. */
   readonly digestMemo?: DigestMemo | undefined
 }): Effect.Effect<StepKey, KeyMaterialError | Schema.SchemaError, Crypto.Crypto> =>
@@ -499,6 +501,7 @@ export const dispatchIdentity = (options: {
       inputs,
       layers: material.layers,
       capabilities: { declared: material.capabilities },
+      environment: options.environment,
       hermetic: options.hermetic
     })
   })

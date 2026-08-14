@@ -292,6 +292,30 @@ describe("StepKey.dispatchIdentity", () => {
     expect(memoized).toEqual([unmemoized, unmemoized])
   })
 
+  it("folds an engine-resolved environment without moving the absent identity", async () => {
+    const absent = await runPromise(dispatch({}, {}))
+    const environment: StepKey.EnvironmentIdentity = {
+      declared: false,
+      layers: ["node-crypto", "workspace"],
+      capabilities: { fs: ["read", "write"] }
+    }
+    const present = await runPromise(StepKey.dispatchIdentity({
+      material: material(),
+      results: {},
+      hermetic,
+      environment
+    }))
+    const scoped = await runPromise(StepKey.dispatchIdentity({
+      material: material(),
+      results: {},
+      hermetic,
+      environment: { ...environment, runScope: "run-1" }
+    }))
+    expect(absent).toBe("key1_70bc16b1ef9256f7301167c9d11f332d39383c61d9f630d99bdc920c066b6ac2")
+    expect(present).not.toBe(absent)
+    expect(scoped).not.toBe(present)
+  })
+
   it("folds the settled output value of a `Ref`, never the upstream's identity", async () => {
     // The early cutoff: the derivation is handed the upstream's VALUE and
     // nothing else, so there is no channel through which an upstream body
