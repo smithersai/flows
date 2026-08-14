@@ -46,7 +46,8 @@ const digest = sha256(payload)
 const evidence: StepBoundary.BoundaryEvidence = {
   declaredOutputs: { outputs: [{ path: "artifact.bin", digest, sizeBytes: payload.length }] },
   diffIdentity: "remote-cache-diff",
-  wholeTreeWritesVerified: true
+  wholeTreeWritesVerified: true,
+  hermeticReadsVerified: true
 }
 
 /**
@@ -58,7 +59,7 @@ const boundaryLayer = (replayOutputs: StepBoundary.Service["replayOutputs"]) =>
   Layer.succeed(
     StepBoundary.StepBoundary,
     StepBoundary.make({
-      prepare: (descriptor) => Effect.succeed({ descriptor, readSnapshot: descriptor.readSet }),
+      prepare: (descriptor) => Effect.succeed({ descriptor, readSnapshot: StepBoundary.exactReads(descriptor) }),
       settle: () => Effect.succeed(evidence),
       replayOutputs
     })

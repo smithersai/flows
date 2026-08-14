@@ -90,7 +90,7 @@ describe("succeeded-row corruption quarantines its evidence and heals on resume 
     const boundary = Layer.succeed(
       StepBoundary.StepBoundary,
       StepBoundary.make({
-        prepare: (descriptor) => Effect.succeed({ descriptor, readSnapshot: descriptor.readSet }),
+        prepare: (descriptor) => Effect.succeed({ descriptor, readSnapshot: StepBoundary.exactReads(descriptor) }),
         settle: () =>
           Effect.succeed({
             declaredOutputs: { outputs: [] },

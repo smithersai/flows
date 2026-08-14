@@ -108,7 +108,7 @@ const eventsOf = (runId: string, eventType: string) =>
     return page.entries.filter((entry) => entry.eventType === eventType)
   })
 
-const boundary = StepBoundary.layerTest({ readSnapshot: declared.readSet })
+const boundary = StepBoundary.layerTest({ readSnapshot: StepBoundary.exactReads(declared) })
 
 const evidence = {
   declaredOutputs: [],

@@ -1,5 +1,6 @@
 import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
 import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
+import * as FileSet from "@smthrs/plan-next/FileSet"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
@@ -45,6 +46,25 @@ describe("StepBoundary", () => {
       declaredOutputs: { paths: ["output.txt"] },
       deviation: { _tag: "ExpectedSetDeviation", paths: ["surprise.txt"], diffIdentity: "d2" }
     })
+  })
+
+  it("recognizes tree and glob coverage in the deterministic whole-tree fixture", async () => {
+    const program = Effect.gen(function*() {
+      const boundary = yield* StepBoundary.StepBoundary
+      const prepared = yield* boundary.prepare({
+        readSet: [],
+        writeSet: [
+          { _tag: "TreeArtifact", path: "tree" },
+          { _tag: "Glob", include: ["generated/**/*.js"] }
+        ],
+        boundaryMode: "hard"
+      })
+      return yield* boundary.settle(prepared)
+    }).pipe(Effect.provide(StepBoundary.layerTest({
+      changedPaths: ["tree/a.txt", "generated/nested/a.js"],
+      hermeticReadDetection: false
+    })))
+    await expect(runPromise(program)).resolves.toMatchObject({ wholeTreeWritesVerified: true })
   })
 
   it("captures outputs and re-materializes them on replay", async () => {
@@ -120,7 +140,7 @@ describe("StepBoundary", () => {
   it("fails closed during settlement and output replay", async () => {
     const program = Effect.gen(function*() {
       const boundary = yield* StepBoundary.StepBoundary
-      const prepared: StepBoundary.PreparedBoundary = { descriptor, readSnapshot: descriptor.readSet }
+      const prepared: StepBoundary.PreparedBoundary = { descriptor, readSnapshot: StepBoundary.exactReads(descriptor) }
       const settle = yield* Effect.flip(boundary.settle(prepared))
       const replay = yield* Effect.flip(boundary.replayOutputs({ declaredOutputs: {}, diffIdentity: "d3" }))
       return [settle, replay]
@@ -146,7 +166,10 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
       Object.entries(seed).map(([path, content]) => [path, encoder.encode(content)])
     )
     const fs = FileSystem.makeNoop({
-      exists: ((path: string) => Effect.succeed(files.has(path))) as never,
+      exists: ((path: string) =>
+        Effect.succeed(
+          files.has(path) || [...files.keys()].some((candidate) => candidate.startsWith(`${path}/`))
+        )) as never,
       readFile: ((path: string) =>
         files.has(path)
           ? Effect.succeed(files.get(path)!)
@@ -155,10 +178,27 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
         Effect.sync(() => {
           files.set(path, bytes)
         })) as never,
-      remove: ((path: string) =>
+      remove: ((path: string, options?: { readonly recursive?: boolean }) =>
         Effect.sync(() => {
           files.delete(path)
-        })) as never
+          if (options?.recursive === true) {
+            for (const candidate of files.keys()) {
+              if (candidate.startsWith(`${path}/`)) files.delete(candidate)
+            }
+          }
+        })) as never,
+      makeDirectory: (() => Effect.void) as never,
+      glob: ((pattern: string, options?: { readonly exclude?: ReadonlyArray<string> }) =>
+        Effect.succeed(
+          [...files.keys()].filter((path) =>
+            FileSet.matchesPattern(pattern, path) &&
+            !(options?.exclude ?? []).some((excluded) => FileSet.matchesPattern(excluded, path))
+          ).sort()
+        )) as never,
+      stat: ((path: string) =>
+        files.has(path)
+          ? Effect.succeed({ type: "File" })
+          : Effect.die(`missing stat ${path}`)) as never
     })
     return { files, layer: StepBoundary.layer.pipe(Layer.provide(hostLayer(fs))) }
   }
@@ -191,6 +231,29 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
       }).pipe(Effect.provide(host.layer))
     )
     expect(StepBoundary.readSetMatches(prepared)).toBe(true)
+  })
+
+  it("expands read globs deterministically but refuses an unkeyed direct cache hit", async () => {
+    const host = memoryFs({
+      "src/a.ts": "a",
+      "src/nested/b.ts": "b",
+      "src/skip.js": "skip"
+    })
+    const prepared = await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        return yield* boundary.prepare({
+          readSet: [{ _tag: "Glob", include: ["src/**/*.ts"] }],
+          writeSet: [],
+          boundaryMode: "hard"
+        })
+      }).pipe(Effect.provide(host.layer))
+    )
+    expect(prepared.readSnapshot.map((entry) => entry.path)).toEqual(["src/a.ts", "src/nested/b.ts"])
+    // PlanScheduler replaces source globs with this exact measured snapshot
+    // before keying. A direct action retains the pattern, so it cannot prove
+    // that the snapshot was folded into its key and must miss conservatively.
+    expect(StepBoundary.readSetMatches(prepared)).toBe(false)
   })
 
   it("reports a vanished declared read as a mismatch", async () => {
@@ -315,6 +378,115 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
       }).pipe(Effect.provide(host.layer))
     )
     expect(evidence.deviation).toBeUndefined()
+  })
+
+  it("treats mutations covered by tree and glob outputs as declared", async () => {
+    const host = memoryFs({ "tree/a.txt": "before", "generated/a.js": "before" })
+    const evidence = await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        const prepared = yield* boundary.prepare({
+          readSet: [
+            { path: "tree/a.txt", digest: sha256("before") },
+            { path: "generated/a.js", digest: sha256("before") }
+          ],
+          writeSet: [
+            { _tag: "TreeArtifact", path: "tree" },
+            { _tag: "Glob", include: ["generated/**/*.js"] }
+          ],
+          boundaryMode: "hard"
+        })
+        host.files.set("tree/a.txt", encoder.encode("after"))
+        host.files.set("generated/a.js", encoder.encode("after"))
+        return yield* boundary.settle(prepared)
+      }).pipe(Effect.provide(host.layer))
+    )
+    expect(evidence.deviation).toBeUndefined()
+  })
+
+  it("expands write globs deterministically, applies exclusions, and allows zero matches", async () => {
+    const host = memoryFs({
+      "dist/a.js": "a",
+      "dist/nested/b.js": "b",
+      "dist/skip/c.js": "skip",
+      "dist/readme.txt": "text"
+    })
+    const evidence = await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        const prepared = yield* boundary.prepare({
+          readSet: [],
+          writeSet: [{
+            _tag: "Glob",
+            include: ["dist/**/*.js"],
+            exclude: ["dist/skip/**"]
+          }],
+          boundaryMode: "hard"
+        })
+        return yield* boundary.settle(prepared)
+      }).pipe(Effect.provide(host.layer))
+    )
+    expect(
+      (evidence.declaredOutputs as { outputs: ReadonlyArray<{ path: string }> }).outputs.map((entry) => entry.path)
+    )
+      .toEqual(["dist/a.js", "dist/nested/b.js"])
+
+    const empty = memoryFs({})
+    await expect(runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        return yield* boundary.settle(
+          yield* boundary.prepare({
+            readSet: [],
+            writeSet: [{ _tag: "Glob", include: ["none/**"] }],
+            boundaryMode: "hard"
+          })
+        )
+      }).pipe(Effect.provide(empty.layer))
+    )).resolves.toBeDefined()
+    await expect(runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        return yield* boundary.settle(
+          yield* boundary.prepare({
+            readSet: [],
+            writeSet: [{ _tag: "TreeArtifact", path: "none" }],
+            boundaryMode: "hard"
+          })
+        )
+      }).pipe(Effect.provide(empty.layer))
+    )).resolves.toBeDefined()
+  })
+
+  it("captures and replays a tree artifact after clearing stale descendants", async () => {
+    const producer = memoryFs({ "tree/a.txt": "a", "tree/nested/b.txt": "b" })
+    const evidence = await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        return yield* boundary.settle(
+          yield* boundary.prepare({
+            readSet: [],
+            writeSet: [{ _tag: "TreeArtifact", path: "tree" }],
+            boundaryMode: "hard"
+          })
+        )
+      }).pipe(Effect.provide(producer.layer))
+    )
+    const outputs = evidence.declaredOutputs as {
+      readonly outputs: ReadonlyArray<{ readonly path: string }>
+      readonly trees: ReadonlyArray<{ readonly path: string; readonly identity: string }>
+    }
+    expect(outputs.outputs.map((entry) => entry.path)).toEqual(["tree/a.txt", "tree/nested/b.txt"])
+    expect(outputs.trees[0]).toMatchObject({ path: "tree" })
+    expect(outputs.trees[0]!.identity).toMatch(/^key1_/)
+
+    const consumer = memoryFs({ "tree/stale.txt": "stale" })
+    await runPromise(
+      Effect.flatMap(StepBoundary.StepBoundary, (boundary) => boundary.replayOutputs(evidence)).pipe(
+        Effect.provide(consumer.layer)
+      )
+    )
+    expect([...consumer.files.keys()].sort()).toEqual(["tree/a.txt", "tree/nested/b.txt"])
   })
 
   it("captures write-set outputs and re-materializes them on a fresh workspace", async () => {

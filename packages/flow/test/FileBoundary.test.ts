@@ -34,6 +34,23 @@ describe("FileBoundary", () => {
     expect(decoded._tag).toBe("Success")
   })
 
+  it("decodes read globs and tree outputs while rejecting upward traversal", () => {
+    expect(
+      decode({
+        readSet: [{ _tag: "Glob", include: ["src/**/*.ts"], exclude: ["src/**/generated.ts"] }],
+        writeSet: [{ _tag: "TreeArtifact", path: "dist" }],
+        boundaryMode: "hard"
+      })._tag
+    ).toBe("Success")
+    expect(
+      decode({
+        readSet: [{ _tag: "Glob", include: ["../secret"] }],
+        writeSet: [],
+        boundaryMode: "hard"
+      })._tag
+    ).toBe("Failure")
+  })
+
   it("refuses a path that is both written and removed", () => {
     const decoded = decode({
       readSet: [],
@@ -42,5 +59,24 @@ describe("FileBoundary", () => {
       boundaryMode: "hard"
     })
     expect(decoded._tag).toBe("Failure")
+  })
+
+  it("refuses removals covered by a write glob or tree artifact", () => {
+    expect(
+      decode({
+        readSet: [],
+        writeSet: [{ _tag: "Glob", include: ["dist/**"] }],
+        removes: ["dist/a.js"],
+        boundaryMode: "hard"
+      })._tag
+    ).toBe("Failure")
+    expect(
+      decode({
+        readSet: [],
+        writeSet: [{ _tag: "TreeArtifact", path: "dist" }],
+        removes: ["dist/a.js"],
+        boundaryMode: "hard"
+      })._tag
+    ).toBe("Failure")
   })
 })

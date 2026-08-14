@@ -88,12 +88,13 @@ const failingReplay = (error: StepBoundary.UnsupportedBoundary | StepBoundary.Bo
   Layer.succeed(
     StepBoundary.StepBoundary,
     StepBoundary.make({
-      prepare: (descriptor) => Effect.succeed({ descriptor, readSnapshot: descriptor.readSet }),
+      prepare: (descriptor) => Effect.succeed({ descriptor, readSnapshot: StepBoundary.exactReads(descriptor) }),
       settle: () =>
         Effect.succeed({
           declaredOutputs: { outputs: [] },
           diffIdentity: "corruption-diff",
-          wholeTreeWritesVerified: true
+          wholeTreeWritesVerified: true,
+          hermeticReadsVerified: true
         }),
       replayOutputs: () => Effect.fail(error)
     })
@@ -443,12 +444,13 @@ describe("replay-failed classification (issue #150)", () => {
     const healthyReplay = Layer.succeed(
       StepBoundary.StepBoundary,
       StepBoundary.make({
-        prepare: (descriptor) => Effect.succeed({ descriptor, readSnapshot: descriptor.readSet }),
+        prepare: (descriptor) => Effect.succeed({ descriptor, readSnapshot: StepBoundary.exactReads(descriptor) }),
         settle: () =>
           Effect.succeed({
             declaredOutputs: { outputs: [] },
             diffIdentity: "corruption-diff",
-            wholeTreeWritesVerified: true
+            wholeTreeWritesVerified: true,
+            hermeticReadsVerified: true
           }),
         replayOutputs: () => Effect.void
       })

@@ -18,6 +18,7 @@ import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as StepSandbox from "../src/StepSandbox.ts"
 import * as TestStores from "../src/test/TestStores.ts"
 import { runPromise, sha256 } from "./Sha256.ts"
 
@@ -79,7 +80,10 @@ describe("cache recording requires a verified read set (issue #106)", () => {
             executions++
             return "result-computed-from-D2"
           })).pipe(
-            Effect.provide(StepBoundary.layerTest({ readSnapshot: [{ path: "config.json", digest: "D2" }] }))
+            Effect.provide(Layer.merge(
+              StepBoundary.layerTest({ readSnapshot: [{ path: "config.json", digest: "D2" }] }),
+              StepSandbox.layerTest({ "config.json": "D2" })
+            ))
           )
         const poisoned = yield* cache.get(keyDigest)
         // Run 2: a workspace where config.json genuinely is D1. The dirty
@@ -91,7 +95,10 @@ describe("cache recording requires a verified read set (issue #106)", () => {
             executions++
             return "result-computed-from-D1"
           })).pipe(
-            Effect.provide(StepBoundary.layerTest({ readSnapshot: declared.readSet }))
+            Effect.provide(Layer.merge(
+              StepBoundary.layerTest({ readSnapshot: StepBoundary.exactReads(declared) }),
+              StepSandbox.layerTest({ "config.json": "D1" })
+            ))
           )
         // Run 3: the accurate run's result was recorded (its declaration
         // matched its measurement), so this run replays the RIGHT value.
@@ -101,7 +108,10 @@ describe("cache recording requires a verified read set (issue #106)", () => {
             executions++
             return "never-runs"
           })).pipe(
-            Effect.provide(StepBoundary.layerTest({ readSnapshot: declared.readSet }))
+            Effect.provide(Layer.merge(
+              StepBoundary.layerTest({ readSnapshot: StepBoundary.exactReads(declared) }),
+              StepSandbox.layerTest({ "config.json": "D1" })
+            ))
           )
         return { first, second, third, poisoned, executions }
       }).pipe(Effect.provide(Layer.mergeAll(TestStores.layer(), jjLayer)), Effect.scoped)
