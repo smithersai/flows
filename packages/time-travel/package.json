@@ -90,6 +90,7 @@
     "@eslint/js": "9.39.1",
     "@smthrs/engine-next": "0.1.0",
     "@smthrs/flow-next": "0.1.0",
+    "@smthrs/kernel-next": "0.1.0",
     "@types/node": "25.9.5",
     "@vitest/coverage-v8": "4.1.9",
     "dprint": "0.55.2",

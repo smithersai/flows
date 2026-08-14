@@ -1502,6 +1502,9 @@ importers:
       '@smthrs/flow-next':
         specifier: 0.1.0
         version: link:../flow
+      '@smthrs/kernel-next':
+        specifier: 0.1.0
+        version: link:../kernel
       '@types/node':
         specifier: 25.9.5
         version: 25.9.5
