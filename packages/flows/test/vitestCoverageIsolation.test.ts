@@ -325,21 +325,21 @@ describe("vitest coverage isolation conformance", () => {
       // ready-set can never be empty while work is pending (the compiler
       // rejects cycles), the dispatch key is built from strings so
       // canonicalization cannot reject it, and the merge node's elaboration
-      // cannot hit any of `Plan.append`'s four refusals. Five more sit on the
-      // sandbox measurement path: two host-refusal translations that share
-      // the typed boundary-unavailable path the prepare-failure tests
-      // exercise, and three `else` arms that filter directories and
-      // already-measured pinned paths out of host glob results.
-      "engine-store/src/PlanScheduler.ts": 8,
-      // Two `else` arms in tree-artifact collection: non-file glob matches
-      // and nested traversal directories are intentionally discarded, never
-      // leaves.
-      "engine-store/src/StepBoundary.ts": 2,
-      // A host glob rooted under the validated workspace cannot escape it,
-      // its non-file matches are intentionally discarded, and FileBoundary
-      // rejects upward and absolute removal declarations before they reach
-      // the sandbox.
-      "engine-store/src/WorkspaceSandbox.ts": 3,
+      // cannot hit any of `Plan.append`'s four refusals. Six more sit on the
+      // per-file pinning and produced-match expansion paths: five
+      // host-refusal translations that share the typed boundary-unavailable
+      // path the prepare-failure tests exercise, and the no-FileSystem
+      // refusal in `expandProducedMatches`, unreachable because
+      // `observeReads` already failed the run for the same glob when no
+      // FileSystem was composed.
+      "engine-store/src/PlanScheduler.ts": 9,
+      // One `else` arm in recursive enumeration: special entries (symlinks,
+      // sockets) are neither materializable leaves nor prunable scaffolding
+      // and are intentionally discarded.
+      "engine-store/src/internal/FileEnumeration.ts": 1,
+      // FileBoundary rejects upward and absolute removal declarations before
+      // they reach the sandbox.
+      "engine-store/src/WorkspaceSandbox.ts": 1,
       "engine-store/src/internal/RunCoordinator.ts": 1,
       "engine/src/FlowEngine/make.ts": 1,
       "journal/src/SqlJournal.ts": 1,

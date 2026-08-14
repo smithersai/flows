@@ -548,6 +548,7 @@ export const make = (options: Options): Service => {
 
       const expandProducedMatches = (glob: FileSet.Glob, what: string) =>
         Effect.gen(function*() {
+          /* v8 ignore next 8 -- a producer-covered glob reaches here only after `observeReads` expanded the same glob, and that expansion already failed the run when no FileSystem was composed */
           if (Option.isNone(fileSystem)) {
             return yield* Effect.fail(
               new SchedulerError({
@@ -561,6 +562,7 @@ export const make = (options: Options): Service => {
             if (!FileSet.overlaps(glob, entry)) continue
             if (typeof entry === "string") {
               const present = yield* fileSystem.value.exists(entry).pipe(
+                /* v8 ignore next 7 -- host refusal translation is the same typed boundary-unavailable path exercised by prepare failures */
                 Effect.mapError((cause) =>
                   new SchedulerError({
                     code: "boundary_unavailable",
@@ -571,6 +573,7 @@ export const make = (options: Options): Service => {
               )
               if (!present) continue
               const info = yield* fileSystem.value.stat(entry).pipe(
+                /* v8 ignore next 7 -- host refusal translation is the same typed boundary-unavailable path exercised by prepare failures */
                 Effect.mapError((cause) =>
                   new SchedulerError({
                     code: "boundary_unavailable",
@@ -586,6 +589,7 @@ export const make = (options: Options): Service => {
             }
             const matches = FileSet.isGlob(entry)
               ? yield* FileEnumeration.expandGlob(fileSystem.value, entry).pipe(
+                /* v8 ignore next 7 -- host refusal translation is the same typed boundary-unavailable path exercised by prepare failures */
                 Effect.mapError((cause) =>
                   new SchedulerError({
                     code: "boundary_unavailable",
@@ -595,6 +599,7 @@ export const make = (options: Options): Service => {
                 )
               )
               : yield* FileEnumeration.filesUnder(fileSystem.value, entry.path).pipe(
+                /* v8 ignore next 7 -- host refusal translation is the same typed boundary-unavailable path exercised by prepare failures */
                 Effect.mapError((cause) =>
                   new SchedulerError({
                     code: "boundary_unavailable",
