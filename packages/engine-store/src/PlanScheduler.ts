@@ -550,13 +550,13 @@ export const make = (options: Options): Service => {
         Effect.gen(function*() {
           /* v8 ignore next 8 -- a producer-covered glob reaches here only after `observeReads` expanded the same glob, and that expansion already failed the run when no FileSystem was composed */
           if (Option.isNone(fileSystem)) {
-          return yield* Effect.fail(
-            new SchedulerError({
-              code: "boundary_unavailable",
-              message: `the host cannot expand ${what} without a FileSystem`
-            })
-          )
-        }
+            return yield* Effect.fail(
+              new SchedulerError({
+                code: "boundary_unavailable",
+                message: `the host cannot expand ${what} without a FileSystem`
+              })
+            )
+          }
           const paths = new Set<string>()
           for (const { entry } of writerEntries) {
             if (!FileSet.overlaps(glob, entry)) continue
@@ -564,27 +564,26 @@ export const make = (options: Options): Service => {
               const present = yield* fileSystem.value.exists(entry).pipe(
                 /* v8 ignore next 7 -- host refusal translation is the same typed boundary-unavailable path exercised by prepare failures */
                 Effect.mapError((cause) =>
-                new SchedulerError({
-                  code: "boundary_unavailable",
-                  message: `the host could not expand ${what}`,
-                  cause
-                })
-              )
+                  new SchedulerError({
+                    code: "boundary_unavailable",
+                    message: `the host could not expand ${what}`,
+                    cause
+                  })
+                )
               )
               if (!present) continue
               const info = yield* fileSystem.value.stat(entry).pipe(
                 /* v8 ignore next 7 -- host refusal translation is the same typed boundary-unavailable path exercised by prepare failures */
                 Effect.mapError((cause) =>
-                new SchedulerError({
-                  code: "boundary_unavailable",
-                  message: `the host could not expand ${what}`,
-                  cause
-                })
-              )
+                  new SchedulerError({
+                    code: "boundary_unavailable",
+                    message: `the host could not expand ${what}`,
+                    cause
+                  })
+                )
               )
               // Exact writer declarations name files; directory outputs use
               // `TreeArtifact`, and only files are members of a read glob.
-              /* v8 ignore next -- directory writer declarations are filtered out: only files are members of a read glob */
               if (info.type === "File") paths.add(entry)
               continue
             }
@@ -592,25 +591,24 @@ export const make = (options: Options): Service => {
               ? yield* FileEnumeration.expandGlob(fileSystem.value, entry).pipe(
                 /* v8 ignore next 7 -- host refusal translation is the same typed boundary-unavailable path exercised by prepare failures */
                 Effect.mapError((cause) =>
-              new SchedulerError({
-                code: "boundary_unavailable",
-                message: `the host could not expand ${what}`,
-                cause
-              })
-            )
+                  new SchedulerError({
+                    code: "boundary_unavailable",
+                    message: `the host could not expand ${what}`,
+                    cause
+                  })
+                )
               )
               : yield* FileEnumeration.filesUnder(fileSystem.value, entry.path).pipe(
                 /* v8 ignore next 7 -- host refusal translation is the same typed boundary-unavailable path exercised by prepare failures */
                 Effect.mapError((cause) =>
-              new SchedulerError({
-                code: "boundary_unavailable",
-                message: `the host could not expand ${what}`,
-                cause
-              })
-            )
+                  new SchedulerError({
+                    code: "boundary_unavailable",
+                    message: `the host could not expand ${what}`,
+                    cause
+                  })
+                )
               )
             for (const path of matches) {
-              /* v8 ignore next -- a tree writer's non-matching members are filtered, never read */
               if (FileSet.matchesGlob(glob, path)) paths.add(path)
             }
           }
