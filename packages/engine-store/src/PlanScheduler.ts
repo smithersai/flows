@@ -74,6 +74,7 @@ import * as Option from "effect/Option"
 import * as Ref from "effect/Ref"
 import * as Schema from "effect/Schema"
 import * as ActionPersistence from "./internal/ActionPersistence.ts"
+import * as FileEnumeration from "./internal/FileEnumeration.ts"
 import * as JournalRecords from "./internal/JournalRecords.ts"
 import * as Reconciliation from "./Reconciliation.ts"
 import * as Selection from "./Selection.ts"
@@ -501,30 +502,20 @@ export const make = (options: Options): Service => {
                 })
               )
             }
-            for (const include of entry.include) {
-              const matches = yield* fileSystem.value.glob(include, { exclude: entry.exclude ?? [] }).pipe(
-                /* v8 ignore next 6 -- host refusal translation is the same typed boundary-unavailable path exercised by prepare failures */
-                Effect.mapError((cause) =>
-                  new SchedulerError({
-                    code: "boundary_unavailable",
-                    message: `the host could not expand ${what}`,
-                    cause
-                  })
-                )
+            // Through `FileEnumeration`, never the host `glob`: host results
+            // are absolute under the kernel FileSystem and skip dotfiles, so
+            // a workspace-relative pattern silently expanded to nothing.
+            const matches = yield* FileEnumeration.expandGlob(fileSystem.value, entry).pipe(
+              /* v8 ignore next 6 -- host refusal translation is the same typed boundary-unavailable path exercised by prepare failures */
+              Effect.mapError((cause) =>
+                new SchedulerError({
+                  code: "boundary_unavailable",
+                  message: `the host could not expand ${what}`,
+                  cause
+                })
               )
-              for (const path of matches) {
-                /* v8 ignore next 6 -- host refusal translation is the same typed boundary-unavailable path exercised by prepare failures */
-                const info = yield* fileSystem.value.stat(path).pipe(Effect.mapError((cause) =>
-                  new SchedulerError({
-                    code: "boundary_unavailable",
-                    message: `the host could not inspect ${what}`,
-                    cause
-                  })
-                ))
-                /* v8 ignore else -- the negative branch deliberately filters directories returned by a host glob */
-                if (info.type === "File" && FileSet.matchesGlob(entry, path)) paths.add(path)
-              }
-            }
+            )
+            for (const path of matches) paths.add(path)
           }
           return [...paths].sort()
         })

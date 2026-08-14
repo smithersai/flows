@@ -2,7 +2,6 @@ import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
 import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
 import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
 import * as KernelWorkspace from "@smthrs/kernel-next/Workspace"
-import * as FileSet from "@smthrs/plan-next/FileSet"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
@@ -474,16 +473,28 @@ describe("WorkspaceSandbox transaction filesystem", () => {
 describe("WorkspaceSandbox filesystem host", () => {
   const hostLayer = (files: Map<string, Uint8Array>) => {
     const fs = FileSystem.makeNoop({
-      exists: (path) => Effect.succeed(files.has(String(path))),
+      exists: (path) =>
+        Effect.succeed(
+          files.has(String(path)) || [...files.keys()].some((candidate) => candidate.startsWith(`${String(path)}/`))
+        ),
       readFile: (path) => Effect.succeed(files.get(String(path))!),
       writeFile: (path, data) => Effect.sync(() => void files.set(String(path), data)),
       remove: (path) => Effect.sync(() => void files.delete(String(path))),
       makeDirectory: () => Effect.void,
-      glob: (pattern) =>
-        Effect.succeed(
-          [...files.keys()].filter((path) => FileSet.matchesPattern(String(pattern), path)).sort()
-        ),
-      stat: (() => Effect.succeed({ type: "File" })) as never
+      readDirectory: ((directory: string, options?: { readonly recursive?: boolean }) => {
+        const prefix = `${directory}/`
+        const names = new Set<string>()
+        for (const path of files.keys()) {
+          if (!path.startsWith(prefix)) continue
+          const rest = path.slice(prefix.length)
+          names.add(options?.recursive === true ? rest : rest.split("/")[0]!)
+        }
+        return Effect.succeed([...names].sort())
+      }) as never,
+      stat: ((path: string) =>
+        files.has(path)
+          ? Effect.succeed({ type: "File" })
+          : Effect.succeed({ type: "Directory" })) as never
     })
     return ArtifactStore.layerMemory.pipe(Layer.provideMerge(Layer.succeed(FileSystem.FileSystem)(fs)))
   }

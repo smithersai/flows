@@ -1,6 +1,5 @@
 import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
 import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
-import * as FileSet from "@smthrs/plan-next/FileSet"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
@@ -188,13 +187,16 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
           }
         })) as never,
       makeDirectory: (() => Effect.void) as never,
-      glob: ((pattern: string, options?: { readonly exclude?: ReadonlyArray<string> }) =>
-        Effect.succeed(
-          [...files.keys()].filter((path) =>
-            FileSet.matchesPattern(pattern, path) &&
-            !(options?.exclude ?? []).some((excluded) => FileSet.matchesPattern(excluded, path))
-          ).sort()
-        )) as never,
+      readDirectory: ((directory: string, options?: { readonly recursive?: boolean }) => {
+        const prefix = directory === "." ? "" : `${directory}/`
+        const names = new Set<string>()
+        for (const path of files.keys()) {
+          if (!path.startsWith(prefix)) continue
+          const rest = path.slice(prefix.length)
+          names.add(options?.recursive === true ? rest : rest.split("/")[0]!)
+        }
+        return Effect.succeed([...names].sort())
+      }) as never,
       stat: ((path: string) =>
         files.has(path)
           ? Effect.succeed({ type: "File" })
@@ -360,6 +362,108 @@ describe("StepBoundary.layer (filesystem-backed)", () => {
     )
     expect(consumer.files.has("stale.txt")).toBe(false)
     expect(decoder.decode(consumer.files.get("output.txt"))).toBe("built")
+  })
+
+  it("hard-fails a declared removal the body left in place", async () => {
+    // The dual of the missing-output rule: `removes` promises the post-state.
+    // A path that survived — here, quietly rewritten — must not settle as
+    // evidence, or the mutation is cached under a declaration that disclaimed
+    // it and replay materializes it everywhere.
+    const host = memoryFs({ "input.txt": "original", "stale.txt": "obsolete" })
+    const failure = await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        const prepared = yield* boundary.prepare({
+          ...declared("original"),
+          writeSet: ["output.txt"],
+          removes: ["stale.txt"]
+        })
+        host.files.set("output.txt", encoder.encode("built"))
+        host.files.set("stale.txt", encoder.encode("mutated, not deleted"))
+        return yield* Effect.flip(boundary.settle(prepared))
+      }).pipe(Effect.provide(host.layer))
+    )
+    expect(failure).toMatchObject({
+      _tag: "flows/engine-store/SurvivingDeclaredRemoval",
+      code: "surviving_declared_removal",
+      paths: ["stale.txt"]
+    })
+  })
+
+  it("records a surviving removal as a deviation under an expected boundary", async () => {
+    const host = memoryFs({ "input.txt": "original", "stale.txt": "obsolete" })
+    const evidence = await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        const prepared = yield* boundary.prepare({
+          ...declared("original"),
+          boundaryMode: "expected",
+          writeSet: ["output.txt"],
+          removes: ["stale.txt"]
+        })
+        host.files.set("output.txt", encoder.encode("built"))
+        return yield* boundary.settle(prepared)
+      }).pipe(Effect.provide(host.layer))
+    )
+    expect(evidence.deviation).toMatchObject({ _tag: "SurvivingDeclaredRemoval", paths: ["stale.txt"] })
+  })
+
+  it("refuses to replay evidence naming a path outside the workspace", async () => {
+    // Evidence can arrive from a foreign producer through cache sync, and
+    // replay DELETES what it names: confinement is the difference between a
+    // refusal and a wipe.
+    const host = memoryFs({})
+    const failure = await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        return yield* Effect.flip(boundary.replayOutputs({
+          declaredOutputs: { outputs: [{ path: "../escape.txt", digest: null }] },
+          diffIdentity: "tampered"
+        }))
+      }).pipe(Effect.provide(host.layer))
+    )
+    expect(failure).toMatchObject({ code: "unsupported_boundary" })
+    const absolute = await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        return yield* Effect.flip(boundary.replayOutputs({
+          declaredOutputs: { outputs: [], trees: [{ path: "/", identity: "x" }] },
+          diffIdentity: "tampered"
+        }))
+      }).pipe(Effect.provide(host.layer))
+    )
+    expect(absolute).toMatchObject({ code: "unsupported_boundary" })
+  })
+
+  it("expands globs and trees over dotfiles, and replay restores them", async () => {
+    // Node's own glob skips dotfiles; the declared-pattern matcher does not.
+    // A tree capture that missed `.gitignore` would DELETE it on every
+    // cache-hit replay, because replay clears the tree first.
+    const host = memoryFs({ "dist/.hidden": "dot", "dist/app.js": "code" })
+    const evidence = await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        const prepared = yield* boundary.prepare({
+          readSet: [],
+          writeSet: [{ _tag: "TreeArtifact", path: "dist" }],
+          boundaryMode: "hard"
+        })
+        return yield* boundary.settle(prepared)
+      }).pipe(Effect.provide(host.layer))
+    )
+    const captured = (evidence.declaredOutputs as { outputs: ReadonlyArray<{ path: string }> }).outputs
+    expect(captured.map((output) => output.path).sort()).toEqual(["dist/.hidden", "dist/app.js"])
+
+    const consumer = memoryFs({ "dist/stale.js": "old" })
+    await runPromise(
+      Effect.gen(function*() {
+        const boundary = yield* StepBoundary.StepBoundary
+        yield* boundary.replayOutputs(evidence)
+      }).pipe(Effect.provide(consumer.layer))
+    )
+    expect(consumer.files.has("dist/stale.js")).toBe(false)
+    expect(decoder.decode(consumer.files.get("dist/.hidden"))).toBe("dot")
+    expect(decoder.decode(consumer.files.get("dist/app.js"))).toBe("code")
   })
 
   it("does not count a declared removal as an undeclared write", async () => {

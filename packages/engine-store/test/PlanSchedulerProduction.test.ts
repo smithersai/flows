@@ -12,6 +12,8 @@
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
 import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
 import { Jj } from "@smthrs/kernel-next"
+import * as KernelFileSystem from "@smthrs/kernel-next/FileSystem"
+import * as GrantStore from "@smthrs/kernel-next/GrantStore"
 import * as KernelWorkspace from "@smthrs/kernel-next/Workspace"
 import { KeyMaterial, Plan } from "@smthrs/plan-next"
 import * as FileSet from "@smthrs/plan-next/FileSet"
@@ -19,6 +21,7 @@ import { type Ownership, RunStore } from "@smthrs/run-store-next"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
+import * as EffectPath from "effect/Path"
 import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -44,10 +47,20 @@ const jjLayer = Layer.succeed(
   })
 )
 
-/** The production composition: real filesystem, real boundary, real sandbox. */
+/**
+ * The production composition: the kernel-guarded filesystem rooted at the
+ * workspace — the seam every declaration's workspace-relative path resolves
+ * through — plus the real boundary and the real sandbox.
+ */
 const production = (root: string) => {
+  const workspaceFs = KernelFileSystem.layer.pipe(
+    Layer.provide(NodeFileSystem.layer),
+    Layer.provide(EffectPath.layer),
+    Layer.provide(KernelWorkspace.layer(root)),
+    Layer.provide(GrantStore.layerNoop)
+  )
   const artifacts = ArtifactStore.layerFileSystem({ directory: join(root, ".flows/objects") }).pipe(
-    Layer.provideMerge(NodeFileSystem.layer)
+    Layer.provideMerge(workspaceFs)
   )
   return Layer.mergeAll(
     StepBoundary.layer.pipe(Layer.provide(artifacts)),
@@ -106,7 +119,7 @@ const renderer = (ran: Array<string>): PlanScheduler.Executor => ({
     }).pipe(Effect.orDie) as unknown as Effect.Effect<unknown, unknown>
 })
 
-const graph = (root: string): ReadonlyArray<Plan.NodeDraft> => [
+const graph = (): ReadonlyArray<Plan.NodeDraft> => [
   {
     id: "render-a",
     material: {
@@ -118,8 +131,8 @@ const graph = (root: string): ReadonlyArray<Plan.NodeDraft> => [
       capabilities: []
     },
     effects: {
-      reads: [join(root, "src/a.txt")],
-      writes: [join(root, "out/a.txt")],
+      reads: ["src/a.txt"],
+      writes: ["out/a.txt"],
       boundaryMode: "hard" as const
     }
   },
@@ -134,8 +147,8 @@ const graph = (root: string): ReadonlyArray<Plan.NodeDraft> => [
       capabilities: []
     },
     effects: {
-      reads: [join(root, "src/b.txt")],
-      writes: [join(root, "out/b.txt")],
+      reads: ["src/b.txt"],
+      writes: ["out/b.txt"],
       boundaryMode: "hard" as const
     }
   },
@@ -153,8 +166,8 @@ const graph = (root: string): ReadonlyArray<Plan.NodeDraft> => [
       capabilities: []
     },
     effects: {
-      reads: [join(root, "out/a.txt"), join(root, "out/b.txt")],
-      writes: [join(root, "out/all.txt")],
+      reads: ["out/a.txt", "out/b.txt"],
+      writes: ["out/all.txt"],
       boundaryMode: "hard" as const
     }
   }
@@ -166,7 +179,7 @@ const outcomes = (report: PlanScheduler.Report) =>
 describe("a persisted plan driven end to end under the production composition", () => {
   it("re-runs only the cone below an edited input; every unchanged branch is a cache hit", async () => {
     const root = mkdtempSync(join(tmpdir(), "flows-plan-"))
-    const plan = await runPromise(Plan.compile({ planId: "prod-plan", flow: "example/Render", nodes: graph(root) }))
+    const plan = await runPromise(Plan.compile({ planId: "prod-plan", flow: "example/Render", nodes: graph() }))
     const first: Array<string> = []
     const second: Array<string> = []
 
@@ -248,8 +261,8 @@ describe("a persisted plan driven end to end under the production composition", 
           capabilities: []
         },
         effects: {
-          reads: [{ _tag: "Glob", include: [`${root}/src/*.txt`] }],
-          writes: [output],
+          reads: [{ _tag: "Glob", include: ["src/*.txt"] }],
+          writes: ["out/glob.txt"],
           boundaryMode: "hard"
         }
       }]

@@ -15,6 +15,8 @@ import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
 import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
 import { Action, Flow } from "@smthrs/flow-next"
 import { Jj } from "@smthrs/kernel-next"
+import * as KernelFileSystem from "@smthrs/kernel-next/FileSystem"
+import * as GrantStore from "@smthrs/kernel-next/GrantStore"
 import * as KernelWorkspace from "@smthrs/kernel-next/Workspace"
 import { Node } from "@smthrs/plan-next"
 import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store-next"
@@ -23,6 +25,7 @@ import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import * as EffectPath from "effect/Path"
 import * as Schema from "effect/Schema"
 import { mkdtempSync } from "node:fs"
 import { tmpdir } from "node:os"
@@ -61,7 +64,14 @@ const jjLayer = Layer.succeed(
  * `layerTest` anywhere.
  */
 const production = (root: string, sandboxed: boolean) => {
-  const host = NodeFileSystem.layer
+  // The kernel-guarded filesystem rooted at the workspace: declarations are
+  // workspace-relative and resolve against `root` on every host operation.
+  const host = KernelFileSystem.layer.pipe(
+    Layer.provide(NodeFileSystem.layer),
+    Layer.provide(EffectPath.layer),
+    Layer.provide(KernelWorkspace.layer(root)),
+    Layer.provide(GrantStore.layerNoop)
+  )
   const artifacts = ArtifactStore.layerFileSystem({ directory: join(root, ".flows/objects") }).pipe(
     Layer.provideMerge(host)
   )
@@ -148,8 +158,8 @@ describe("sealed actions under the production composition", () => {
     const root = workspace()
     const key = "sandbox/admitted"
     const metadata: ActionPersistence.BoundaryMetadata = {
-      readSet: [{ path: join(root, "src/in.txt"), digest: sha256("hello") }],
-      writeSet: [join(root, "out/result.txt")],
+      readSet: [{ path: "src/in.txt", digest: sha256("hello") }],
+      writeSet: ["out/result.txt"],
       boundaryMode: "hard"
     }
     const program = Effect.gen(function*() {
@@ -185,8 +195,8 @@ describe("sealed actions under the production composition", () => {
     const root = workspace()
     const key = "sandbox/unsandboxed"
     const metadata: ActionPersistence.BoundaryMetadata = {
-      readSet: [{ path: join(root, "src/in.txt"), digest: sha256("hello") }],
-      writeSet: [join(root, "out/result.txt")],
+      readSet: [{ path: "src/in.txt", digest: sha256("hello") }],
+      writeSet: ["out/result.txt"],
       boundaryMode: "hard"
     }
     const program = Effect.gen(function*() {
@@ -552,8 +562,8 @@ describe("cache-hit replay under a sandboxed composition", () => {
     const root = workspace()
     const key = "sandbox/replay"
     const metadata: ActionPersistence.BoundaryMetadata = {
-      readSet: [{ path: join(root, "src/in.txt"), digest: sha256("hello") }],
-      writeSet: [join(root, "out/result.txt")],
+      readSet: [{ path: "src/in.txt", digest: sha256("hello") }],
+      writeSet: ["out/result.txt"],
       boundaryMode: "hard"
     }
     const program = Effect.gen(function*() {
@@ -564,7 +574,7 @@ describe("cache-hit replay under a sandboxed composition", () => {
           yield* activate(runId)
           return yield* dispatch(runId, key, metadata, () =>
             Effect.sync(() => executions++).pipe(
-              Effect.andThen(renderer(join(root, "src/in.txt"), join(root, "out/result.txt")))
+              Effect.andThen(renderer("src/in.txt", "out/result.txt"))
             )).pipe(Effect.provide(production(root, true)))
         })
       yield* run("sandbox-replay-first")

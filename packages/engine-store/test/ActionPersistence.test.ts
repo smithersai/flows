@@ -7,6 +7,7 @@ import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import * as Schema from "effect/Schema"
 import { describe, expect, it } from "vitest"
 import * as Inconsistency from "../src/Inconsistency.ts"
 import * as ActionPersistence from "../src/internal/ActionPersistence.ts"
@@ -296,5 +297,56 @@ describe("ActionPersistence", () => {
 
     expect(result.value).toBe("run-local")
     expect(Option.isNone(result.cached)).toBe(true)
+  })
+
+  it("does not publish a hard-boundary result without hermetic read proof", async () => {
+    // The converse of the whole-tree case: publication fails closed on BOTH
+    // proofs. Write verification alone describes what the body changed, not
+    // what it observed — a row persisted by an unsandboxed producer must stay
+    // run-local.
+    const key = "cache/no-hermetic-read-proof"
+    const keyDigest = sha256(key)
+    const result = await runPromise(
+      Effect.gen(function*() {
+        yield* activate("no-hermetic-read-proof")
+        const value = yield* ActionPersistence.make({
+          runId: "no-hermetic-read-proof",
+          owner,
+          sourceId: "action-test",
+          execute: () => Effect.succeed("run-local")
+        })({ action: {}, attempt: 1, key, tier: "sealed", metadata: boundary })
+        const cache = yield* CacheStore.CacheStore
+        return { value, cached: yield* cache.get(keyDigest) }
+      }).pipe(
+        Effect.provide(
+          Layer.mergeAll(
+            TestStores.layer(),
+            StepBoundary.layerTest({ hermeticReadDetection: false }),
+            jj
+          )
+        ),
+        Effect.scoped
+      )
+    )
+
+    expect(result.value).toBe("run-local")
+    expect(Option.isNone(result.cached)).toBe(true)
+  })
+
+  it("decodes a persisted row carrying the write proof alone, and refuses to serve it", async () => {
+    // The pre-sandbox evidence shape: `wholeTreeWritesVerified` only. The row
+    // must keep decoding forever (the LegacyInlineOutput rule), and the hit
+    // gate must refuse it for want of the read proof.
+    const legacy = {
+      declaredOutputs: { outputs: [{ path: "out.txt", digest: sha256("built") }] },
+      diffIdentity: "legacy-diff",
+      wholeTreeWritesVerified: true
+    }
+    const decoded = Schema.decodeUnknownResult(StepBoundary.BoundaryEvidence)(legacy)
+    expect(decoded._tag).toBe("Success")
+    if (decoded._tag === "Success") {
+      expect(decoded.success.wholeTreeWritesVerified).toBe(true)
+      expect(decoded.success.hermeticReadsVerified).toBeUndefined()
+    }
   })
 })

@@ -178,6 +178,40 @@ describe("PlanScheduler over a static graph", () => {
     expect(types.filter((type) => type === "flows.engine.node-settled").length).toBe(3)
   })
 
+  it("hands an executor only projected Ref inputs, never ordering results", async () => {
+    // An executor may only see data the dispatch key folds. The key folds a
+    // Ref's PROJECTED digest and a constant for Pending, so the input record
+    // carries exactly the projections — a Pending dependency's result or a
+    // Ref's unprojected sibling fields would let a body consume state the key
+    // never described, and a `clean` verdict would then serve a stale result.
+    const plan = await runPromise(compile([
+      draft("source"),
+      draft("orderer"),
+      draft("consumer", {
+        inputs: [
+          { _tag: "Ref", from: "source", path: ["nested", "field"] },
+          { _tag: "Pending", from: "orderer" }
+        ]
+      })
+    ]))
+    const seen: Array<PlanScheduler.NodeInput["inputs"]> = []
+    const executor: PlanScheduler.Executor = {
+      execute: ({ inputs, node }) =>
+        Effect.sync(() => {
+          if (node.id === "consumer") seen.push(inputs)
+          return node.id === "source" ? { nested: { field: "projected" }, sibling: "hidden" } : { ran: node.id }
+        })
+    }
+    const program = Effect.gen(function*() {
+      yield* activate("run-projected-inputs")
+      return yield* scheduler({ runId: "run-projected-inputs", executor }).run(plan)
+    }).pipe(Effect.provide(harness({ runId: "run-projected-inputs", executor })), Effect.provide(TestStores.layer()))
+
+    const report = await runPromise(program)
+    expect(outcomes(report)).toEqual({ source: "built", orderer: "built", consumer: "built" })
+    expect(seen).toEqual([[{ from: "source", path: ["nested", "field"], value: "projected" }]])
+  })
+
   it("re-keys one leaf and re-runs only its cone — every unchanged branch is a cache hit", async () => {
     const graph = (seed: number) => [
       draft("source", { body: { seed } }),

@@ -15,6 +15,8 @@ import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
 import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
 import { Journal } from "@smthrs/journal-next"
 import { Jj } from "@smthrs/kernel-next"
+import * as KernelFileSystem from "@smthrs/kernel-next/FileSystem"
+import * as GrantStore from "@smthrs/kernel-next/GrantStore"
 import * as KernelWorkspace from "@smthrs/kernel-next/Workspace"
 import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store-next"
 import { CacheStore } from "@smthrs/step-cache-next"
@@ -24,6 +26,7 @@ import * as Exit from "effect/Exit"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import * as EffectPath from "effect/Path"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -553,11 +556,18 @@ describe("replay-failed classification (issue #150)", () => {
     const artifactDigest = sha256(artifact)
     const artifactPath = join(objectsDirectory, artifactDigest.slice(0, 2), artifactDigest)
     const metadata: ActionPersistence.BoundaryMetadata = {
-      readSet: [{ path: inputPath, digest: sha256("source") }],
-      writeSet: [outputPath],
+      readSet: [{ path: "src/input.txt", digest: sha256("source") }],
+      writeSet: ["dist/artifact.bin"],
       boundaryMode: "hard"
     }
-    const host = NodeFileSystem.layer
+    // The kernel-guarded filesystem rooted at the workspace: declarations are
+    // workspace-relative, and replay refuses evidence naming anything else.
+    const host = KernelFileSystem.layer.pipe(
+      Layer.provide(NodeFileSystem.layer),
+      Layer.provide(EffectPath.layer),
+      Layer.provide(KernelWorkspace.layer(root)),
+      Layer.provide(GrantStore.layerNoop)
+    )
     const artifacts = ArtifactStore.layerFileSystem({ directory: objectsDirectory }).pipe(
       Layer.provideMerge(host)
     )
@@ -581,7 +591,7 @@ describe("replay-failed classification (issue #150)", () => {
             Effect.gen(function*() {
               executions++
               const sandboxFs = yield* FileSystem.FileSystem
-              yield* sandboxFs.writeFile(outputPath, artifact)
+              yield* sandboxFs.writeFile("dist/artifact.bin", artifact)
               return "recorded"
             }).pipe(Effect.orDie) as unknown as Effect.Effect<unknown, unknown>
           const realDispatch = (runId: string) =>
@@ -662,7 +672,7 @@ describe("replay-failed classification (issue #150)", () => {
       expect(outcome.corruption).toEqual([
         expect.objectContaining({
           keyDigest,
-          path: outputPath,
+          path: "dist/artifact.bin",
           recordedDigest: artifactDigest,
           measuredDigest: sha256("truncated")
         })

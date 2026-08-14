@@ -1023,6 +1023,11 @@ export const make = (deps: Dependencies) => {
                 meta.boundary !== undefined &&
                 meta.boundary.deviation === undefined &&
                 meta.boundary.wholeTreeWritesVerified === true &&
+                // Fail-closed on BOTH proofs, exactly like the fresh-completion
+                // gate below: a durable row persisted before read verification
+                // existed carries the write proof alone, and convergence must
+                // not promote it into the shared cache on resume.
+                meta.boundary.hermeticReadsVerified === true &&
                 meta.readSetVerified === true
               ) {
                 yield* recordCache({
@@ -1281,10 +1286,33 @@ export const make = (deps: Dependencies) => {
           const stepSandbox = boundary === undefined || input.metadata === undefined
             ? Option.none<StepSandbox.Service>()
             : yield* Effect.serviceOption(StepSandbox.StepSandbox)
+          const opened = Option.isSome(stepSandbox) ? yield* stepSandbox.value.open.pipe(Effect.exit) : undefined
+          if (opened !== undefined && Exit.isFailure(opened)) {
+            // A host that cannot isolate (`layerNoop`, a refusing forest) is a
+            // typed refusal, not a crash: settle the attempt exactly like a
+            // prepare failure, or the row stays "running" and reads as an
+            // abandoned attempt to the reclaim machinery.
+            const finishedAtMs = yield* Clock.currentTimeMillis
+            const finished = yield* settleAttempt({
+              ...attemptId,
+              state: "failed",
+              finishedAtMs,
+              error: persistCause(opened.cause),
+              meta: { tier: input.tier, hardViolation: true }
+            }, [
+              JournalRecords.hardViolation(attemptSource("hard-violation"), {
+                ...attemptId,
+                error: opened.cause
+              }),
+              JournalRecords.attemptFinished(attemptSource("finished"), { ...attemptId, state: "failed" })
+            ])
+            if (!finished) return yield* Effect.interrupt
+            return yield* Effect.failCause(opened.cause)
+          }
           const sandbox = boundary === undefined || input.metadata === undefined
             ? undefined
-            : Option.isSome(stepSandbox)
-            ? yield* stepSandbox.value.open
+            : opened !== undefined
+            ? opened.value
             : Option.getOrUndefined(yield* Effect.serviceOption(WorkspaceSandbox.WorkspaceSandbox))
           const isolated = sandbox === undefined || input.metadata === undefined
             ? undefined
