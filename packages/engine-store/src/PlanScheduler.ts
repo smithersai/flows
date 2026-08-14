@@ -99,6 +99,19 @@ import * as WorkspaceSandbox from "./WorkspaceSandbox.ts"
 export type Outcome = "built" | "clean" | "failed" | "skipped"
 
 /**
+ * One material `Ref` input, resolved: the settled output of `from` projected
+ * along `path` — exactly the value whose digest the dispatch key folds.
+ *
+ * @since 0.1.0
+ * @category models
+ */
+export interface ResolvedInput {
+  readonly from: string
+  readonly path: ReadonlyArray<string>
+  readonly value: unknown
+}
+
+/**
  * What the scheduler hands a node's executor.
  *
  * @since 0.1.0
@@ -109,8 +122,14 @@ export interface NodeInput {
   readonly attempt: number
   /** The measured boundary this dispatch was keyed under. */
   readonly boundary: FileBoundary
-  /** Results of the node's dependencies, by node id. */
-  readonly inputs: Readonly<Record<string, unknown>>
+  /**
+   * The node's material `Ref` inputs, resolved through the same projection the
+   * dispatch key digests. Ordering (`Pending`) dependencies and unprojected
+   * sibling fields are deliberately absent: an executor may only see data the
+   * key folds, or a cached settlement could be served for an execution that
+   * consumed something else.
+   */
+  readonly inputs: ReadonlyArray<ResolvedInput>
 }
 
 /**
@@ -157,7 +176,7 @@ export interface Settlement {
   readonly nodeId: string
   /** The plan-time key: a pure function of declarations. */
   readonly planKey: string
-  /** The key dispatched under: the plan key folded with the measured boundary. */
+  /** The key dispatched under: the node's own material, the content of its consumed inputs, and the measured boundary — never the transitive plan key. */
   readonly dispatchKey: string
   readonly outcome: Outcome
   readonly attempts: number
@@ -640,8 +659,14 @@ export const make = (options: Options): Service => {
       const dispatch = (node: Plan.PlanNode): Effect.Effect<Dispatched, SchedulerError, Requirements> =>
         Effect.gen(function*() {
           const state = stateOf(node)
-          const inputs = Object.fromEntries(
-            dependenciesOf(node).filter((id) => results.has(id)).map((id) => [id, results.get(id)])
+          // Only material `Ref` inputs, pre-projected. `dependenciesOf` also
+          // carries `Pending` and discovered ordering edges, but those never
+          // enter the dispatch key, so their results must never reach an
+          // executor either.
+          const inputs = node.material.inputs.flatMap((input) =>
+            input._tag === "Ref" && results.has(input.from)
+              ? [{ from: input.from, path: input.path, value: StepKey.project(results.get(input.from), input.path) }]
+              : []
           )
           while (true) {
             const boundary = yield* measure(node)
