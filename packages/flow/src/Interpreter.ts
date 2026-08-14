@@ -44,6 +44,7 @@ import * as KeyMaterial from "@smthrs/plan-next/KeyMaterial"
 import * as Node from "@smthrs/plan-next/Node"
 import * as Planned from "@smthrs/plan-next/Planned"
 import type * as Crypto from "effect/Crypto"
+import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
@@ -307,18 +308,44 @@ export const interpret = (
       return output
     }
 
-    // Untraced because the walk re-enters itself once per node.
-    const settle: (id: string) => Effect.Effect<unknown, unknown, Services> = Effect.fnUntraced(
-      function*(id: string) {
-        if (settled.has(id)) return settled.get(id)
-        const value = yield* compute(byId.get(id)!).pipe(Effect.catch((error) => {
-          failed.set(id, error)
-          return Effect.fail(error)
-        }))
-        settled.set(id, value)
-        return value
-      }
-    )
+    /**
+     * The settlement currently in flight for a node, for as long as it is.
+     *
+     * `settled.has(id)` alone is not a memo once the walk runs concurrently: it
+     * answers "has this node FINISHED", and two demands that arrive while the
+     * node is still running both see `false` and both execute it. A diamond
+     * would then run its shared node twice, which for an action with effects is
+     * a correctness bug rather than a wasted cycle.
+     *
+     * The check-and-register below is the whole reason this is a `suspend` and
+     * not a generator: the callback runs synchronously, so no other fiber can
+     * observe the gap between the lookup and the insert.
+     */
+    const inFlight = new Map<string, Deferred.Deferred<unknown, unknown>>()
+
+    const settle = (id: string): Effect.Effect<unknown, unknown, Services> =>
+      Effect.suspend(() => {
+        if (settled.has(id)) return Effect.succeed(settled.get(id))
+        const waiting = inFlight.get(id)
+        // A second demand joins the first execution rather than starting one.
+        // It observes the same exit, interruption included.
+        if (waiting !== undefined) return Deferred.await(waiting)
+        const deferred = Deferred.makeUnsafe<unknown, unknown>()
+        inFlight.set(id, deferred)
+        return compute(byId.get(id)!).pipe(
+          Effect.tap((value) =>
+            Effect.sync(() => {
+              settled.set(id, value)
+            })
+          ),
+          Effect.tapError((error) =>
+            Effect.sync(() => {
+              failed.set(id, error)
+            })
+          ),
+          Effect.onExit((exit) => Deferred.done(deferred, exit))
+        )
+      })
 
     const compute: (node: Graph.GraphNode) => Effect.Effect<unknown, unknown, Services> = Effect.fnUntraced(
       function*(node: Graph.GraphNode) {
@@ -363,10 +390,15 @@ export const interpret = (
         }
         // Dependency order, from the key material: the same `Ref` and `Pending`
         // inputs the plan turns into edges, settled before the node that reads
-        // them.
-        for (const dependency of KeyMaterial.dependencies(node.draft.material)) {
-          if (!failed.has(dependency)) yield* settle(dependency)
-        }
+        // them — and settled CONCURRENTLY, because independent dependencies are
+        // exactly what the scheduler's wavefront admits in one round. Two
+        // execution surfaces disagreeing about concurrency is a correctness
+        // hazard, not just a latency one.
+        yield* Effect.forEach(
+          KeyMaterial.dependencies(node.draft.material).filter((dependency) => !failed.has(dependency)),
+          settle,
+          { concurrency: "unbounded", discard: true }
+        )
         switch (ast._tag) {
           case "ActionCall":
             // Resolved by the pre-pass above, which refuses the whole graph
@@ -382,11 +414,18 @@ export const interpret = (
             return transform(yield* settle(children[0]!))
           }
           case "All": {
-            const joined: Record<string, unknown> = {}
+            // `All` is a combination, so its members settle concurrently — the
+            // same semantics `PlanScheduler` gives the same graph. Fail-fast
+            // with sibling interruption is the accepted behaviour: it matches
+            // `Effect.forEach`'s default and the scheduler's halt rule, and a
+            // sibling interrupted mid-flight records nothing in `settled`, so
+            // it is reported as skipped rather than as a phantom success.
             const members = Object.keys(ast.nodes)
-            for (let index = 0; index < members.length; index++) {
-              joined[members[index]!] = yield* settle(children[index]!)
-            }
+            const values = yield* Effect.forEach(members, (_, index) => settle(children[index]!), {
+              concurrency: "unbounded"
+            })
+            const joined: Record<string, unknown> = {}
+            for (let index = 0; index < members.length; index++) joined[members[index]!] = values[index]
             return joined
           }
           case "AndThen":

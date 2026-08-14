@@ -4,7 +4,7 @@
  * value, what a duplicate execute of an in-flight execution id does, and what a
  * body re-driven after a park does with the effects it already ran.
  */
-import { Action, Flow, Interpreter } from "@smthrs/flow-next"
+import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
 import { Deferred, Effect, Exit, Fiber, Layer, Option, Schema } from "effect"
 import { describe, expect, it } from "vitest"
@@ -245,5 +245,95 @@ describe("bodied flow on the memory engine", () => {
 
     expect(Exit.isFailure(exit)).toBe(true)
     expect(Exit.isFailure(exit) && exit.cause.toString()).toContain("requires SnapshotBoundary")
+  })
+})
+
+/**
+ * Item 6's open question, answered against the real engine rather than
+ * assumed: now that `All` members settle concurrently, what happens when two
+ * members call the SAME keyless declaration?
+ *
+ * REALITY CHECK (2026-08-13). The vault note assumed "distinct nodes are
+ * distinct scopes". They are not. `ActionKey.ordinalScope` folds the
+ * declaration's `{kind, name, idempotencyKey}` and nothing else — no graph
+ * node id — so two interpreter nodes calling one keyless declaration share an
+ * allocation scope, and the engine refuses the overlap.
+ *
+ * That refusal is the guard working, not a defect the interpreter introduced.
+ * A keyless dispatch takes its ordinal from fiber arrival order, and arrival
+ * order between two concurrent fibers is not stable across a replay, so such a
+ * graph was never replay-safe to run concurrently — the sequential walk was
+ * only accidentally hiding it. Distinct scopes, which is what distinct
+ * declarations give, overlap freely.
+ */
+describe("concurrent `All` members against the engine's keyless guard", () => {
+  const Left = Action.make("body/left", { payload: {}, success: Schema.String })
+  const Right = Action.make("body/right", { payload: {}, success: Schema.String })
+  const Shared = Action.make("body/shared", { payload: { name: Schema.String }, success: Schema.String })
+
+  const Colliding = Flow.make("body/colliding", {
+    payload: {},
+    success: Schema.Struct({ left: Schema.String, right: Schema.String }),
+    body: () => Node.all({ left: Shared.call({ name: "left" }), right: Shared.call({ name: "right" }) })
+  })
+
+  const Distinct = Flow.make("body/distinct", {
+    payload: {},
+    success: Schema.Struct({ left: Schema.String, right: Schema.String }),
+    body: () => Node.all({ left: Left.call({}), right: Right.call({}) })
+  })
+
+  /**
+   * Two bodies that each park until the other has entered, so the members
+   * genuinely overlap in the engine's action path. A sequential walk would
+   * deadlock here rather than pass.
+   */
+  const rendezvous = (registration: Layer.Layer<never, never, FlowRuntime.FlowRuntime | Action.Implementations>) => {
+    const entered: Array<string> = []
+    let release = () => {}
+    const opened = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const park = (name: string) =>
+      Effect.gen(function*() {
+        entered.push(name)
+        if (entered.length === 1) {
+          yield* Effect.promise(() => opened)
+        } else {
+          release()
+        }
+        return name
+      })
+    const layer = Layer.mergeAll(
+      Shared.toLayer(({ name }) => park(name)),
+      Left.toLayer(() => park("left")),
+      Right.toLayer(() => park("right")),
+      registration
+    ).pipe(Layer.provideMerge(Action.layerImplementations), Layer.provideMerge(FlowEngine.layerMemory))
+    return { entered, layer }
+  }
+
+  it("refuses two concurrent members that share one keyless allocation scope", async () => {
+    const { layer } = rendezvous(Interpreter.layer(Colliding))
+    const exit = await runPromise(
+      Colliding.execute({}, { executionId: "body-colliding" }).pipe(Effect.provide(layer), Effect.exit)
+    )
+    expect(Exit.isFailure(exit)).toBe(true)
+    expect(
+      Exit.isFailure(exit) &&
+        exit.cause.reasons.some((reason) =>
+          "defect" in reason && reason.defect instanceof Action.ConcurrentKeylessDispatch
+        )
+    ).toBe(true)
+  })
+
+  it("overlaps two concurrent members of distinct declarations", async () => {
+    const { entered, layer } = rendezvous(Interpreter.layer(Distinct))
+    const value = await runPromise(
+      Distinct.execute({}, { executionId: "body-distinct" }).pipe(Effect.provide(layer))
+    )
+    expect(value).toEqual({ left: "left", right: "right" })
+    // Both entered before either returned: the members really did overlap.
+    expect(entered).toEqual(["left", "right"])
   })
 })

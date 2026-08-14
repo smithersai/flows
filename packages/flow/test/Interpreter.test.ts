@@ -541,3 +541,140 @@ describe("a flow's behavior is its body", () => {
     expect(calls).toEqual(["write:bodied.txt:1"])
   })
 })
+
+/**
+ * Concurrency parity with `PlanScheduler`.
+ *
+ * The walk settled material dependencies and `All` members strictly
+ * sequentially, so the same graph ran parallel under the scheduler and serial
+ * here. Two execution surfaces disagreeing about concurrency is a correctness
+ * hazard, not just a latency one.
+ *
+ * Nothing here sleeps: overlap is proved by a body that parks until another
+ * body releases it, so a sequential walk deadlocks rather than passing slowly.
+ */
+describe("Interpreter concurrency", () => {
+  /** Parks until {@link Release} runs, then reports the value it was given. */
+  const Parking = Action.make("interpreter/parking", {
+    payload: { name: Schema.String },
+    success: Schema.Number
+  })
+
+  /** Releases every parked body. */
+  const Release = Action.make("interpreter/release", { payload: {}, success: Schema.Number })
+
+  const Failing = Action.make("interpreter/failing", {
+    payload: { name: Schema.String },
+    success: Schema.Number,
+    error: Schema.String
+  })
+
+  interface Trace {
+    readonly entered: Array<string>
+    readonly interrupted: Array<string>
+    readonly release: () => void
+    readonly opened: Promise<void>
+  }
+
+  const concurrent = () => {
+    let release = () => {}
+    const opened = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const state: Trace = { entered: [], interrupted: [], release: () => release(), opened }
+    const layer = Layer.mergeAll(
+      Parking.toLayer(({ name }) =>
+        Effect.gen(function*() {
+          state.entered.push(name)
+          yield* Effect.promise(() => state.opened)
+          return state.entered.length
+        }).pipe(
+          Effect.onInterrupt(() =>
+            Effect.sync(() => {
+              state.interrupted.push(name)
+            })
+          )
+        )
+      ),
+      Release.toLayer(() =>
+        Effect.sync(() => {
+          state.release()
+          return 0
+        })
+      ),
+      Failing.toLayer(({ name }) => Effect.fail(`${name} failed`))
+    )
+    return { state, layer }
+  }
+
+  const driveWith = <A, E>(
+    layer: Wiring,
+    effect: Effect.Effect<A, E, FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime | Action.Implementations>
+  ) =>
+    drive(
+      effect,
+      Layer.mergeAll(implementations, layer).pipe(
+        Layer.provideMerge(Action.layerImplementations),
+        Layer.provideMerge(layerMemory)
+      )
+    )
+
+  it("settles `All` members concurrently", async () => {
+    // `left` parks. Only `release`, a sibling member, unparks it — so this
+    // resolves at all only because the two members overlapped.
+    const { layer, state } = concurrent()
+    const value = await driveWith(
+      layer,
+      Interpreter.interpret(Node.all({
+        left: Parking.call({ name: "left" }),
+        release: Release.call({})
+      }))
+    )
+    expect(state.entered).toEqual(["left"])
+    expect(value.value).toMatchObject({ release: 0 })
+  })
+
+  it("settles a shared dependency exactly once under concurrent demand", async () => {
+    // A diamond: two `All` members whose material inputs both reference the
+    // same upstream node. `settled.has()` answers "has this FINISHED", so two
+    // demands arriving while the upstream is still parked would both execute
+    // it. The in-flight deferred map is what makes the second one join the
+    // first instead.
+    const { layer, state } = concurrent()
+    const value = await driveWith(
+      layer,
+      Interpreter.interpret(
+        Parking.call({ name: "shared" }).pipe(
+          Node.andThen((shared) =>
+            Node.all({
+              left: Sum.call({ values: [shared], label: "left" }),
+              right: Sum.call({ values: [shared], label: "right" }),
+              release: Release.call({})
+            })
+          )
+        )
+      )
+    )
+    // Executed once despite two concurrent demands.
+    expect(state.entered).toEqual(["shared"])
+    expect(value.value).toMatchObject({ left: 1, right: 1 })
+  })
+
+  it("fails the parent and interrupts the surviving sibling", async () => {
+    // Fail-fast with sibling interruption is the accepted semantics: it
+    // matches `Effect.forEach`'s default and the scheduler's halt rule. The
+    // interrupted sibling records nothing in `settled`, so it is reported as
+    // skipped rather than as a phantom success.
+    const { layer, state } = concurrent()
+    const exit = await driveWith(
+      layer,
+      Effect.exit(Interpreter.interpret(Node.all({
+        survivor: Parking.call({ name: "survivor" }),
+        doomed: Failing.call({ name: "doomed" })
+      })))
+    )
+    expect(Exit.isFailure(exit)).toBe(true)
+    expect(state.entered).toEqual(["survivor"])
+    expect(state.interrupted).toEqual(["survivor"])
+  })
+})
