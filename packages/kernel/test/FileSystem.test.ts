@@ -242,6 +242,65 @@ describe("FileSystem", () => {
     )
   })
 
+  itEffect("rechecks dynamic authority before every read and write on an open handle", () => {
+    const checks: Array<Capability.Capability> = []
+    let allowed = true
+    let reads = 0
+    let writes = 0
+    const grants = GrantStore.of({
+      check: (capability) => {
+        checks.push(capability)
+        return allowed
+          ? Effect.void
+          : Effect.fail(Permission.permissionDenied(capability, "authority changed"))
+      },
+      reply: () => Effect.die("not used by filesystem decorator tests"),
+      list: Effect.succeed([]),
+      grantEnvelope: () => Effect.void
+    })
+    const handle: EffectFileSystem.File = {
+      [EffectFileSystem.FileTypeId]: EffectFileSystem.FileTypeId,
+      stat: Effect.die("not used"),
+      seek: () => Effect.succeed(EffectFileSystem.Size(0)),
+      sync: Effect.void,
+      read: () => Effect.sync(() => EffectFileSystem.Size(++reads)),
+      readAlloc: () => Effect.succeed(Option.none()),
+      truncate: () => Effect.void,
+      write: () => Effect.sync(() => EffectFileSystem.Size(++writes)),
+      writeAll: () => Effect.void
+    }
+    const host = hostFileSystem({ open: () => Effect.succeed(handle) })
+
+    return provide(
+      Effect.scoped(
+        Effect.gen(function*() {
+          const fileSystem = yield* EffectFileSystem.FileSystem
+          const file = yield* fileSystem.open("dynamic", { flag: "w+" })
+          allowed = false
+
+          expect(denial(yield* Effect.flip(file.read(new Uint8Array(1))))).toMatchObject({
+            capability: { action: "fs:read", resource: "/workspace/dynamic" },
+            reason: "authority changed"
+          })
+          expect(denial(yield* Effect.flip(file.write(new Uint8Array(1))))).toMatchObject({
+            capability: { action: "fs:write", resource: "/workspace/dynamic" },
+            reason: "authority changed"
+          })
+          expect(reads).toBe(0)
+          expect(writes).toBe(0)
+          expect(checks.map((check) => check.action)).toEqual([
+            "fs:read",
+            "fs:write",
+            "fs:read",
+            "fs:write"
+          ])
+        })
+      ),
+      host,
+      grants
+    )
+  })
+
   itEffect("checks a stream lazily, before the host stream is acquired", () => {
     const checks: Array<Capability.Capability> = []
     let acquired = false

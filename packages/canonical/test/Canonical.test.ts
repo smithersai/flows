@@ -130,6 +130,140 @@ describe("toJSON", () => {
   })
 })
 
+describe("toJSON well-formedness", () => {
+  // BUG: `validateUnicode` walks the input value, never the `toJSON` result, so a lone surrogate minted by `toJSON`
+  // is serialized as `"\ud800"` instead of being refused.
+  it.fails("has no canonical form for a lone surrogate returned by toJSON", () => {
+    // The module docblock promises a value carrying a lone surrogate has no
+    // canonical form and decoding fails rather than approximates. `toJSON` is
+    // the one door into the serializer that the well-formedness pass does not
+    // guard, so the promise does not hold there.
+    expect(failure({ toJSON: () => "\ud800" })).toEqual(expect.objectContaining({ _tag: "SchemaError" }))
+  })
+
+  // BUG: the same hole on the key side - `toJSON` returning `{ "\ud800": 1 }` canonicalizes to `{"\ud800":1}`.
+  it.fails("has no canonical form for a lone surrogate key returned by toJSON", () => {
+    expect(failure({ toJSON: () => ({ ["\ud800"]: 1 }) })).toEqual(expect.objectContaining({ _tag: "SchemaError" }))
+  })
+})
+
+describe("boxed primitives", () => {
+  // RFC 8785 defers number and string serialization to ECMAScript, and
+  // `JSON.stringify` unwraps a wrapper object through `valueOf`
+  // (`JSON.stringify(new Number(1))` is `"1"`). This serializer has no
+  // unwrapping step: it sees an object with no `toJSON` and walks its own
+  // enumerable keys. The results below therefore diverge from both RFC 8785
+  // and `JSON.stringify`. Pinned as current behavior, not endorsed.
+  it.each([
+    ["new Number(1) loses its value entirely", new Number(1), "{}"],
+    ["new String(\"ab\") becomes an index-keyed object", new String("ab"), "{\"0\":\"a\",\"1\":\"b\"}"]
+  ])("serializes %s", (_name, input, expected) => {
+    expect(serialize(input)).toBe(expected)
+  })
+})
+
+describe("host object shapes", () => {
+  it("uses Date's toJSON, so a Date becomes an ISO string", () => {
+    expect(serialize(new Date(0))).toBe("\"1970-01-01T00:00:00.000Z\"")
+  })
+
+  it("serializes a Uint8Array as an index-keyed object, not an array", () => {
+    expect(serialize(new Uint8Array([1, 2, 255]))).toBe("{\"0\":1,\"1\":2,\"2\":255}")
+  })
+
+  it.each([
+    ["Map", new Map([["a", 1]])],
+    ["Set", new Set([1, 2])]
+  ])("silently loses every entry of a %s", (_name, input) => {
+    // Entries live in internal slots, not own enumerable properties, so a
+    // populated collection and an empty one produce the same document and the
+    // same digest. Callers must convert to a plain value before keying.
+    expect(serialize(input)).toBe("{}")
+  })
+
+  it("walks a null-prototype object and honors only an own toJSON", () => {
+    // `hasToJson` probes with `in`, which is safe on a null-prototype object
+    // and finds nothing inherited, so the object is walked as plain data.
+    const plain = Object.create(null) as Record<string, unknown>
+    plain.a = 1
+    expect(serialize(plain)).toBe("{\"a\":1}")
+
+    // An own `toJSON` on a null-prototype object is still found and used.
+    const withToJson = Object.create(null) as Record<string, unknown>
+    withToJson.toJSON = () => ({ z: 9 })
+    expect(serialize(withToJson)).toBe("{\"z\":9}")
+  })
+})
+
+describe("prototype-pollution property names", () => {
+  it("treats __proto__ as an ordinary member name however it was created", () => {
+    // A digest must not depend on how the caller built the object. A parsed
+    // document and a computed-key literal both carry an own `__proto__`
+    // property, so both must canonicalize to the same bytes.
+    const parsed = JSON.parse("{\"__proto__\":1}") as unknown
+    expect(serialize(parsed)).toBe("{\"__proto__\":1}")
+    expect(serialize({ ["__proto__"]: 1 })).toBe(serialize(parsed))
+  })
+
+  it("round trips __proto__, constructor and prototype with every property intact", () => {
+    const input = JSON.parse("{\"__proto__\":1,\"constructor\":2,\"prototype\":3}") as unknown
+    const document = serialize(input)
+    expect(document).toBe("{\"__proto__\":1,\"constructor\":2,\"prototype\":3}")
+
+    const decoded = Schema.encodeUnknownSync(Canonical)(document) as object
+    expect(Object.keys(decoded)).toEqual(["__proto__", "constructor", "prototype"])
+    // Read through descriptors: plain member access on `constructor` would
+    // find the inherited one and hide a lost own property.
+    expect(Object.getOwnPropertyDescriptor(decoded, "__proto__")?.value).toBe(1)
+    expect(Object.getOwnPropertyDescriptor(decoded, "constructor")?.value).toBe(2)
+    expect(Object.getOwnPropertyDescriptor(decoded, "prototype")?.value).toBe(3)
+  })
+})
+
+describe("recursion depth", () => {
+  it("surfaces stack exhaustion as a schema error rather than a raw RangeError", () => {
+    // Open contract question: the docblock names lone surrogates, non-finite
+    // numbers and cycles as the values with no canonical form. Nesting depth is
+    // not on that list, yet `canonicalize` recurses once per level and a deep
+    // enough document exhausts the host stack. `Effect.try` catches the
+    // RangeError, so the failure is at least typed - but its message is a host
+    // stack-size artifact and the depth at which it starts is unspecified, so
+    // two hosts can disagree on whether a document is representable.
+    let input: unknown = "leaf"
+    for (let index = 0; index < 100_000; index++) input = { child: input }
+
+    let thrown: unknown
+    try {
+      Effect.runSync(Schema.decodeUnknownEffect(Canonical)(input))
+    } catch (error) {
+      thrown = error
+    }
+
+    // Assert on the class and the message only: the offending value is 100k
+    // levels deep and must never reach a diff.
+    expect(thrown).toBeInstanceOf(Error)
+    expect(thrown).not.toBeInstanceOf(RangeError)
+    expect((thrown as { readonly _tag?: string })._tag).toBe("SchemaError")
+    expect((thrown as Error).message).toContain("Maximum call stack size exceeded")
+  })
+})
+
+describe("Unicode normalization of property names", () => {
+  // Canonicalization must not normalize. Precomposed U+00E9 and decomposed
+  // `e` + U+0301 are different key strings. Written as escapes throughout: the
+  // two spellings render identically as literal source text, and an editor or
+  // a filesystem may silently fold one into the other.
+  it("keeps NFC and NFD spellings of a key distinct", () => {
+    expect(serialize({ ["\u00e9"]: 1 })).not.toBe(serialize({ ["e\u0301"]: 1 }))
+  })
+
+  it("orders NFC and NFD keys by UTF-16 code unit", () => {
+    // Both spellings in one document stay two separate members, ordered by
+    // code unit: `e` is U+0065 and sorts before the precomposed U+00E9.
+    expect(serialize({ ["\u00e9"]: 1, ["e\u0301"]: 2 })).toBe("{\"e\u0301\":2,\"\u00e9\":1}")
+  })
+})
+
 describe("circular references", () => {
   it("rejects an object referencing itself", () => {
     const input: Record<string, unknown> = {}

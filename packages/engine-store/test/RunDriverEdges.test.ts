@@ -9,7 +9,7 @@ import * as Exit from "effect/Exit"
 import * as Fiber from "effect/Fiber"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
-import type * as Scope from "effect/Scope"
+import * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
@@ -417,7 +417,7 @@ describe("RunDriver scheduleResume", () => {
 })
 
 describe("RunDriver interruption settlement", () => {
-  it("releases an interrupted run for reclaim when the cancel lookup fails", async () => {
+  it("leaves a running run unchanged when its durable cancel request fails", async () => {
     const result = await runPromise(provideJournal(Effect.gen(function*() {
       const base = yield* RunStore.RunStore
       let started = false
@@ -451,20 +451,34 @@ describe("RunDriver interruption settlement", () => {
         discard: true
       }).pipe(Effect.forkChild({ startImmediately: true }))
       yield* Deferred.await(running)
-      yield* driver.interrupt(EdgeFlow, "interrupted-release")
-      yield* Fiber.await(fiber)
+      const reported = yield* Effect.exit(driver.interrupt(EdgeFlow, "interrupted-release"))
       started = false
+      const row = yield* base.get("interrupted-release")
+      const decisions = yield* decisionsFor("interrupted-release")
+      // Test cleanup is a shutdown interruption, which remains reclaimable.
+      yield* Fiber.interrupt(fiber)
       return {
-        row: yield* base.get("interrupted-release"),
-        decisions: yield* decisionsFor("interrupted-release")
+        reported,
+        row,
+        decisions
       }
     })))
 
-    // Released, not cancelled: an interruption with no durable cancel request
-    // must leave the run claimable again.
-    expect(result.row.status).toBe("suspended")
-    expect(result.row.owner).toBeNull()
-    expect(result.decisions).toContain("interrupt-released")
+    // The caller is told the cancellation was never recorded instead of being
+    // handed a false success (the request used to be `Effect.ignore`d).
+    expect(Exit.isFailure(result.reported)).toBe(true)
+    const failure = Cause.squash((result.reported as Exit.Failure<void, never>).cause)
+    expect(failure).toBeInstanceOf(FlowRuntime.CancelRequestFailed)
+    expect((failure as FlowRuntime.CancelRequestFailed).code).toBe("cancel_request_failed")
+    expect((failure as FlowRuntime.CancelRequestFailed).executionId).toBe("interrupted-release")
+    // The public call failed, so it did not interrupt the drive fiber or make
+    // any durable lifecycle transition. The caller can retry against the same
+    // owned run instead of observing a false-success side effect.
+    expect(result.row.status).toBe("running")
+    expect(result.row.owner).not.toBeNull()
+    expect(result.row.cancelRequestedAtMs).toBeNull()
+    expect(result.decisions).not.toContain("interrupt-released")
+    expect(result.decisions).not.toContain("transitioned")
   })
 })
 
@@ -796,17 +810,16 @@ describe("RunDriver released-marker cleanup", () => {
       const wrapped: DurableEngineState.Service = { ...state, ...stateOverrides(state) }
       const fenceLost = RunStore.makeNoop({
         ...store,
-        // No cancel request can be recorded, so the interruption settles as a
-        // release (shutdown), not a cancellation.
-        requestCancel: () => Effect.fail(storeError("persistence_failed", "requestCancel")),
         transitionOwned: (runId, claimant, status, persisted, guard) =>
           status === "suspended"
             ? store.transitionOwned(runId, { hostId: "other", pid: 2, nonce: "other" }, status, persisted, guard)
             : store.transitionOwned(runId, claimant, status, persisted, guard)
       })
+      const driverScope = yield* Scope.make()
       const driver = yield* makeDriver().pipe(
         Effect.provideService(RunStore.RunStore, fenceLost),
-        Effect.provideService(DurableEngineState.DurableEngineState, wrapped)
+        Effect.provideService(DurableEngineState.DurableEngineState, wrapped),
+        Effect.provideService(Scope.Scope, driverScope)
       )
       void baseState
       const running = yield* Deferred.make<void>()
@@ -820,7 +833,9 @@ describe("RunDriver released-marker cleanup", () => {
         discard: true
       }).pipe(Effect.forkChild({ startImmediately: true }))
       yield* Deferred.await(running)
-      yield* driver.interrupt(EdgeFlow, "release-marker")
+      // A shutdown/lease interruption has no durable operator-cancel request,
+      // so it settles through the reclaimable release path under test.
+      yield* Scope.close(driverScope, Exit.void)
       yield* Fiber.await(fiber)
       return {
         waiting: yield* state.waiting("release-marker"),

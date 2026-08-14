@@ -9,7 +9,7 @@
  * against a real filesystem rather than against a second in-memory
  * implementation we would then have to keep honest.
  */
-import { Cause, Effect, Option, Stream } from "effect"
+import { Cause, Effect, Exit, Option, PlatformError, Stream } from "effect"
 import { mkdtemp, rm } from "node:fs/promises"
 import * as NodeFsPromises from "node:fs/promises"
 import { tmpdir } from "node:os"
@@ -175,6 +175,44 @@ describe("BrowserFileSystem error mapping", () => {
 
     await expect(Effect.runPromise(make("link").stat("/l"))).resolves.toMatchObject({ type: "SymbolicLink" })
     await expect(Effect.runPromise(make("other").stat("/o"))).resolves.toMatchObject({ type: "Unknown" })
+  })
+
+  // BUG: BrowserFileSystem documents makeTemp* as NotFound, but Effect's makeNoop defects instead.
+  it.fails("fails every deliberately unsupported operation with NotFound", async () => {
+    const fileSystem = BrowserFileSystem.make(throwingFs(codeError("ENOENT")))
+    const operations: ReadonlyArray<
+      readonly [string, Effect.Effect<unknown, PlatformError.PlatformError>]
+    > = [
+      ["chmod", fileSystem.chmod("/p", 0o644)],
+      ["chown", fileSystem.chown("/p", 1, 1)],
+      ["copy", fileSystem.copy("/from", "/to")],
+      ["copyFile", fileSystem.copyFile("/from", "/to")],
+      ["glob", fileSystem.glob("**/*.txt")],
+      ["link", fileSystem.link("/from", "/to")],
+      ["symlink", fileSystem.symlink("/from", "/to")],
+      ["readLink", fileSystem.readLink("/p")],
+      ["open", Effect.scoped(fileSystem.open("/p"))],
+      ["rename", fileSystem.rename("/from", "/to")],
+      ["sink", Stream.run(Stream.make(encoder.encode("x")), fileSystem.sink("/p"))],
+      ["truncate", fileSystem.truncate("/p", 0)],
+      ["utimes", fileSystem.utimes("/p", 0, 0)],
+      ["watch", Stream.runDrain(fileSystem.watch("/p"))],
+      ["makeTempDirectory", fileSystem.makeTempDirectory()],
+      ["makeTempDirectoryScoped", Effect.scoped(fileSystem.makeTempDirectoryScoped())],
+      ["makeTempFile", fileSystem.makeTempFile()],
+      ["makeTempFileScoped", Effect.scoped(fileSystem.makeTempFileScoped())]
+    ]
+
+    const observed = await Promise.all(
+      operations.map(async ([name, operation]) => {
+        const exit = await Effect.runPromiseExit(operation)
+        if (Exit.isSuccess(exit)) return [name, "Success"] as const
+        const failure = Option.getOrUndefined(Cause.findErrorOption(exit.cause))
+        return [name, failure?.reason._tag ?? "Defect"] as const
+      })
+    )
+
+    expect(observed).toEqual(operations.map(([name]) => [name, "NotFound"]))
   })
 })
 

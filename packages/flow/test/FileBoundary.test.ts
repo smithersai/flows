@@ -9,12 +9,79 @@
  * sets stay disjoint.
  */
 import { FileBoundary } from "@smthrs/flow-next/FileBoundary"
+import { FileSet } from "@smthrs/plan-next"
 import * as Schema from "effect/Schema"
 import { describe, expect, it } from "vitest"
 
 const decode = Schema.decodeUnknownResult(FileBoundary)
 
+const expectSchemaFailure = (input: unknown) => {
+  const result = decode(input)
+  expect(result._tag).toBe("Failure")
+  if (result._tag === "Failure") expect(result.failure).toMatchObject({ _tag: "SchemaError" })
+}
+
 describe("FileBoundary", () => {
+  it("accepts nonempty measured-file spellings while Pattern fields stay workspace-relative", () => {
+    const measured = decode({
+      readSet: [
+        { path: "/absolute/input", digest: "a" },
+        { path: "../measured/input", digest: "b" },
+        { path: "src\\windows.ts", digest: "c" },
+        { path: "资料/输入.ts", digest: "d" },
+        { path: "资料/输入.ts", digest: "d" }
+      ],
+      writeSet: ["dist\\windows.js", "资料/输出.js", "资料/输出.js"],
+      removes: ["旧/输出.js"],
+      boundaryMode: "hard"
+    })
+
+    expect(measured._tag).toBe("Success")
+  })
+
+  it("rejects empty measured fields and unsafe writable path spellings", () => {
+    for (const readSet of [[{ path: "", digest: "x" }], [{ path: "a", digest: "" }]]) {
+      expectSchemaFailure({ readSet, writeSet: [], boundaryMode: "hard" })
+    }
+    for (const path of ["", "/absolute", "C:\\absolute", ".", "..", "a/./b", "a/../b", "a//b"]) {
+      expectSchemaFailure({ readSet: [], writeSet: [path], boundaryMode: "hard" })
+      expectSchemaFailure({ readSet: [], writeSet: [], removes: [path], boundaryMode: "hard" })
+      expectSchemaFailure({
+        readSet: [{ _tag: "Glob", include: [path] }],
+        writeSet: [],
+        boundaryMode: "hard"
+      })
+      expectSchemaFailure({
+        readSet: [],
+        writeSet: [{ _tag: "TreeArtifact", path }],
+        boundaryMode: "hard"
+      })
+    }
+  })
+
+  it("accepts a very large declaration set without truncating entries", () => {
+    const writeSet = Array.from({ length: 10_000 }, (_, index) => `generated/${index}.js`)
+    const decoded = decode({ readSet: [], writeSet, boundaryMode: "expected" })
+
+    expect(decoded._tag).toBe("Success")
+    if (decoded._tag === "Success") expect(decoded.success.writeSet).toHaveLength(writeSet.length)
+  })
+
+  // BUG: Backslash and slash spellings denote one workspace path but overlap compares them as distinct strings.
+  it.fails("normalizes Windows and POSIX separator spellings when comparing overlaps", () => {
+    expect(FileSet.overlaps("dist\\same.js", "dist/same.js")).toBe(true)
+  })
+
+  // BUG: FileBoundary accepts one path as both written and removed when its separators differ.
+  it.fails("rejects separator variants of the same written and removed path", () => {
+    expectSchemaFailure({
+      readSet: [],
+      writeSet: ["dist\\same.js"],
+      removes: ["dist/same.js"],
+      boundaryMode: "hard"
+    })
+  })
+
   it("decodes a boundary that declares no removals, and defaults it to absent", () => {
     const decoded = decode({ readSet: [], writeSet: ["out.js"], boundaryMode: "hard" })
     expect(decoded._tag).toBe("Success")

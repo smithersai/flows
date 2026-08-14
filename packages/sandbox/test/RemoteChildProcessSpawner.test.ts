@@ -1,4 +1,5 @@
-import { Deferred, Effect, Fiber, PlatformError, Sink, Stream } from "effect"
+import { Deferred, Effect, Exit, Fiber, PlatformError, Sink, Stream } from "effect"
+import * as Scope from "effect/Scope"
 import { ChildProcess } from "effect/unstable/process"
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
 import { describe, expect, it } from "vitest"
@@ -103,6 +104,75 @@ describe("RemoteChildProcessSpawner", () => {
     expect(provider.state.cancellations).toBe(1)
   })
 
+  it("releases the provider session when a stdout consumer is interrupted", async () => {
+    const provider = RemoteChildProcessSpawner.TestRemote.make({ scripts: { pending: { pending: true } } })
+
+    await Effect.runPromise(
+      Effect.gen(function*() {
+        const fiber = yield* Effect.flatMap(
+          ChildProcessSpawner,
+          (spawner) => Stream.runDrain(spawner.streamString(ChildProcess.make("pending")))
+        ).pipe(
+          Effect.provide(RemoteChildProcessSpawner.layer(provider)),
+          Effect.forkChild({ startImmediately: true })
+        )
+        yield* Effect.yieldNow
+        yield* Fiber.interrupt(fiber)
+      })
+    )
+
+    expect(provider.state.commands).toEqual(["pending"])
+    expect(provider.state.cancellations).toBe(1)
+  })
+
+  it.each(["failure", "defect"] as const)(
+    "surfaces a provider open-scope release %s without hanging",
+    async (kind) => {
+      const releaseFailure = new RemoteChildProcessSpawner.ProviderError({
+        code: "unknown",
+        message: "provider scope release failed"
+      })
+      const release = kind === "failure"
+        // Scope finalizers are typed as infallible in Effect, so a provider's
+        // typed release failure reaches the close boundary as a defect.
+        ? Effect.fail(releaseFailure).pipe(Effect.orDie)
+        : Effect.die("provider scope release defect")
+      const provider = RemoteChildProcessSpawner.Provider.of({
+        session: "release-failure",
+        open: () =>
+          Effect.gen(function*() {
+            const scope = yield* Effect.scope
+            yield* Scope.addFinalizer(scope, release)
+          }),
+        spawn: () =>
+          Effect.succeed({
+            stdout: Stream.empty,
+            stderr: Stream.empty,
+            exitCode: Effect.succeed(0)
+          })
+      })
+
+      const exit = await Effect.runPromise(
+        Effect.flatMap(ChildProcessSpawner, (spawner) => spawner.exitCode(ChildProcess.make("quiet"))).pipe(
+          Effect.provide(RemoteChildProcessSpawner.layer(provider)),
+          Effect.scoped,
+          Effect.exit
+        )
+      )
+
+      expect(Exit.isFailure(exit)).toBe(true)
+      if (!Exit.isFailure(exit)) return
+      expect(exit.cause.reasons).toEqual(expect.arrayContaining([
+        expect.objectContaining(
+          kind === "failure"
+            ? { _tag: "Die", defect: releaseFailure }
+            : { _tag: "Die", defect: "provider scope release defect" }
+        )
+      ]))
+    },
+    1_000
+  )
+
   it("maps typed provider failures onto normalized PlatformError reasons", async () => {
     const provider = RemoteChildProcessSpawner.TestRemote.make({
       scripts: {
@@ -130,6 +200,106 @@ describe("RemoteChildProcessSpawner", () => {
 
     expect(errors.map(reason)).toEqual(["Unknown", "TimedOut"])
     expect(errors[0]?.message).toContain("`fail`: provider rejected command")
+  })
+
+  it.each(["aborted", "unknown"] as const)("maps provider code %s to the documented Unknown reason", async (code) => {
+    const provider = RemoteChildProcessSpawner.TestRemote.make({
+      scripts: {
+        fail: {
+          failure: new RemoteChildProcessSpawner.ProviderError({
+            code,
+            message: `${code} provider failure`
+          })
+        }
+      }
+    })
+
+    const error = await Effect.runPromise(
+      Effect.flip(
+        Effect.flatMap(ChildProcessSpawner, (spawner) => spawner.string(ChildProcess.make("fail")))
+      ).pipe(Effect.provide(RemoteChildProcessSpawner.layer(provider)))
+    )
+
+    expect(reason(error)).toBe("Unknown")
+    expect(error.reason).toMatchObject({ module: "ChildProcess", method: "spawn" })
+  })
+
+  it.each(["stdout", "stderr"] as const)(
+    "maps a provider %s stream failure after preserving earlier output",
+    async (output) => {
+      const providerFailure = new RemoteChildProcessSpawner.ProviderError({
+        code: "unknown",
+        message: `${output} stream disconnected`
+      })
+      const failedStream = Stream.concat(
+        Stream.succeed(new TextEncoder().encode("before")),
+        Stream.fail(providerFailure)
+      )
+      const provider = RemoteChildProcessSpawner.Provider.of({
+        session: `failed-${output}`,
+        open: () => Effect.void,
+        spawn: () =>
+          Effect.succeed({
+            stdout: output === "stdout" ? failedStream : Stream.empty,
+            stderr: output === "stderr" ? failedStream : Stream.empty,
+            exitCode: Effect.succeed(0)
+          })
+      })
+
+      const observed = await Effect.runPromise(
+        Effect.gen(function*() {
+          const spawner = yield* ChildProcessSpawner
+          const handle = yield* spawner.spawn(ChildProcess.make("stream-failure"))
+          const chunks: Array<string> = []
+          const error = yield* Effect.flip(
+            Stream.runForEach(handle[output], (chunk) =>
+              Effect.sync(() => {
+                chunks.push(new TextDecoder().decode(chunk))
+              }))
+          )
+          return { chunks, error }
+        }).pipe(Effect.scoped, Effect.provide(RemoteChildProcessSpawner.layer(provider)))
+      )
+
+      expect(observed.chunks).toEqual(["before"])
+      expect(reason(observed.error)).toBe("Unknown")
+      expect(observed.error.reason).toMatchObject({ module: "ChildProcess", method: output })
+    }
+  )
+
+  // BUG: handleOf only clears `isRunning` after a successful provider exit code.
+  it.fails("maps an exitCode failure and then reports the handle as no longer running", async () => {
+    const providerFailure = new RemoteChildProcessSpawner.ProviderError({
+      code: "unknown",
+      message: "remote process vanished"
+    })
+    const provider = RemoteChildProcessSpawner.Provider.of({
+      session: "exit-failure",
+      open: () => Effect.void,
+      spawn: () =>
+        Effect.succeed({
+          stdout: Stream.empty,
+          stderr: Stream.empty,
+          exitCode: Effect.fail(providerFailure)
+        })
+    })
+
+    const observed = await Effect.runPromise(
+      Effect.gen(function*() {
+        const spawner = yield* ChildProcessSpawner
+        const handle = yield* spawner.spawn(ChildProcess.make("exit-failure"))
+        const before = yield* handle.isRunning
+        const error = yield* Effect.flip(handle.exitCode)
+        yield* Effect.yieldNow
+        const after = yield* handle.isRunning
+        return { before, error, after }
+      }).pipe(Effect.scoped, Effect.provide(RemoteChildProcessSpawner.layer(provider)))
+    )
+
+    expect(reason(observed.error)).toBe("Unknown")
+    expect(observed.error.reason).toMatchObject({ module: "ChildProcess", method: "exitCode" })
+    expect(observed.before).toBe(true)
+    expect(observed.after).toBe(false)
   })
 
   it("provides a spawner that fails every command when opening the session fails", async () => {
@@ -257,6 +427,35 @@ describe("RemoteChildProcessSpawner", () => {
     expect(provider.state.commands).toEqual([])
   })
 
+  it.each([
+    [
+      "the left side of an outer pipe",
+      ChildProcess.pipeTo(
+        ChildProcess.pipeTo(ChildProcess.make("left"), ChildProcess.make("middle"), { from: "stderr" }),
+        ChildProcess.make("right")
+      )
+    ],
+    [
+      "the right side of an outer pipe",
+      ChildProcess.pipeTo(
+        ChildProcess.make("left"),
+        ChildProcess.pipeTo(ChildProcess.make("middle"), ChildProcess.make("right"), { from: "stderr" })
+      )
+    ]
+  ])("rejects an inner stderr pipe nested on %s", async (_position, command) => {
+    const provider = RemoteChildProcessSpawner.TestRemote.make({})
+
+    const error = await Effect.runPromise(
+      Effect.flip(Effect.flatMap(ChildProcessSpawner, (spawner) => spawner.exitCode(command))).pipe(
+        Effect.provide(RemoteChildProcessSpawner.layer(provider))
+      )
+    )
+
+    expect(reason(error)).toBe("BadArgument")
+    expect(error.message).toContain("pipe from stderr")
+    expect(provider.state.commands).toEqual([])
+  })
+
   it("honors output dispositions and sinks", async () => {
     const provider = RemoteChildProcessSpawner.TestRemote.make({
       scripts: { noisy: { stdout: "out", stderr: "err" } }
@@ -377,6 +576,29 @@ describe("RemoteChildProcessSpawner test double scripting", () => {
 })
 
 describe("RemoteChildProcessSpawner handle state", () => {
+  it("allocates concurrent handles independently while recording commands in call order", async () => {
+    const provider = RemoteChildProcessSpawner.TestRemote.make({
+      session: "concurrent-session",
+      scripts: { first: {}, second: {} }
+    })
+
+    const pids = await Effect.runPromise(
+      Effect.gen(function*() {
+        const spawner = yield* ChildProcessSpawner
+        const handles = yield* Effect.all([
+          spawner.spawn(ChildProcess.make("first")),
+          spawner.spawn(ChildProcess.make("second"))
+        ], { concurrency: 2 })
+        return handles.map((handle) => handle.pid)
+      }).pipe(Effect.scoped, Effect.provide(RemoteChildProcessSpawner.layer(provider)))
+    )
+
+    expect(pids[0]).not.toBe(pids[1])
+    expect(pids).toEqual([1, 2])
+    expect(provider.state.openedSessions).toEqual(["concurrent-session"])
+    expect(provider.state.commands).toEqual(["first", "second"])
+  })
+
   it("does not share observable pid state between two spawner layers (D8)", async () => {
     // `layer.ts:117` was a module-level `let nextPid = 1`: process-global
     // mutable state in a repository whose rule is that host access goes

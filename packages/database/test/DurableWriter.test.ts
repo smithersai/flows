@@ -1,4 +1,4 @@
-import { Cause, Effect, Exit, Fiber, Result } from "effect"
+import { Cause, Effect, Exit, Fiber, Random, Result } from "effect"
 import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as SqlError from "effect/unstable/sql/SqlError"
@@ -70,6 +70,34 @@ describe("DurableWriter", () => {
     )
 
     expect(failures.map((failure) => failure.code)).toEqual(shapes.map(() => "unsupported"))
+  })
+
+  // BUG: affectedRows accepts integers above JavaScript's safe range even though their exact count is unreadable.
+  it.fails("rejects an affected-row count one past Number.MAX_SAFE_INTEGER", async () => {
+    const failure = await Effect.runPromise(
+      Effect.flip(DurableWriter.affectedRows({ changes: Number.MAX_SAFE_INTEGER + 1 }))
+    )
+
+    expect(failure).toBeInstanceOf(DurableWriter.DatabaseError)
+    expect(failure.code).toBe("unsupported")
+  })
+
+  it("rejects NaN as an affected-row count", async () => {
+    const failure = await Effect.runPromise(
+      Effect.flip(DurableWriter.affectedRows({ changes: Number.NaN }))
+    )
+
+    expect(failure).toBeInstanceOf(DurableWriter.DatabaseError)
+    expect(failure.code).toBe("unsupported")
+  })
+
+  // BUG: affectedRows reads inherited properties instead of requiring a driver's own result field.
+  it.fails("rejects a prototype-inherited affected-row count", async () => {
+    const raw = Object.create({ changes: 3 }) as object
+    const failure = await Effect.runPromise(Effect.flip(DurableWriter.affectedRows(raw)))
+
+    expect(failure).toBeInstanceOf(DurableWriter.DatabaseError)
+    expect(failure.code).toBe("unsupported")
   })
 
   it("normalizes SQLite errors into stable DatabaseError codes", () => {
@@ -182,6 +210,82 @@ describe("DurableWriter", () => {
 
     await expect(Effect.runPromise(program)).resolves.toBe("written")
     expect(attempts).toBe(3)
+  })
+
+  it("surfaces busy after a permanently busy write exhausts its retry budget", async () => {
+    let attempts = 0
+    const writer = DurableWriter.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts: 3 })
+    const program = Effect.gen(function*() {
+      const fiber = yield* writer.write(
+        Effect.suspend(() => {
+          attempts += 1
+          return Effect.fail(sqliteError("SQLITE_BUSY"))
+        })
+      ).pipe(Effect.flip, Effect.forkChild({ startImmediately: true }))
+      yield* Effect.yieldNow
+      yield* TestClock.adjust("1 second")
+      return yield* Fiber.join(fiber)
+    }).pipe(
+      Effect.provide(TestClock.layer()),
+      Random.withSeed(1)
+    )
+
+    const failure = await Effect.runPromise(program)
+    expect(failure).toBeInstanceOf(DurableWriter.DatabaseError)
+    if (failure instanceof DurableWriter.DatabaseError) {
+      expect(failure.code).toBe("busy")
+    }
+    expect(attempts).toBe(3)
+  })
+
+  it.each([0, -5, 1.7])("clamps maxAttempts $maxAttempts to one attempt", async (maxAttempts) => {
+    let attempts = 0
+    const writer = DurableWriter.make(retrySql, { baseDelayMs: 1, maxDelayMs: 1, maxAttempts })
+    const program = Effect.gen(function*() {
+      const fiber = yield* writer.write(
+        Effect.suspend(() => {
+          attempts += 1
+          return Effect.fail(sqliteError("SQLITE_BUSY"))
+        })
+      ).pipe(Effect.flip, Effect.forkChild({ startImmediately: true }))
+      yield* Effect.yieldNow
+      yield* TestClock.adjust("1 second")
+      return yield* Fiber.join(fiber)
+    }).pipe(Effect.provide(TestClock.layer()))
+
+    const failure = await Effect.runPromise(program)
+    expect(failure).toBeInstanceOf(DurableWriter.DatabaseError)
+    if (failure instanceof DurableWriter.DatabaseError) {
+      expect(failure.code).toBe("busy")
+    }
+    expect(attempts).toBe(1)
+  })
+
+  // BUG: jitter runs after the maxDelayMs cap and can extend a retry beyond the documented upper bound.
+  it.fails("caps every exponential retry delay at maxDelayMs under TestClock", async () => {
+    let attempts = 0
+    const writer = DurableWriter.make(retrySql, { baseDelayMs: 4, maxDelayMs: 5, maxAttempts: 3 })
+    const program = Effect.gen(function*() {
+      const fiber = yield* writer.write(
+        Effect.suspend(() => {
+          attempts += 1
+          return Effect.fail(sqliteError("SQLITE_BUSY"))
+        })
+      ).pipe(Effect.exit, Effect.forkChild({ startImmediately: true }))
+      yield* Effect.yieldNow
+      expect(attempts).toBe(1)
+      yield* TestClock.adjust("4 millis")
+      expect(attempts).toBe(2)
+      yield* TestClock.adjust("5 millis")
+      expect(attempts).toBe(3)
+      return yield* Fiber.join(fiber)
+    }).pipe(
+      Effect.provide(TestClock.layer()),
+      Random.withSeed(1)
+    )
+
+    const exit = await Effect.runPromise(program)
+    expect(Exit.isFailure(exit)).toBe(true)
   })
 
   it("retries retryable driver defects through the same schedule", async () => {

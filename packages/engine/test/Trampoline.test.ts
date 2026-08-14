@@ -5,7 +5,7 @@
  */
 import { Action, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
-import { Cause, Effect, Exit, Layer, Schema } from "effect"
+import { Cause, Effect, Exit, Layer, Option, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
 import { runPromise } from "./Crypto.ts"
@@ -56,6 +56,7 @@ const declare = (tag: string, maxRounds?: number) => {
 
 const Counter = declare("trampoline/counter")
 const Bounded = declare("trampoline/bounded", 2)
+const Single = declare("trampoline/single-round", 1)
 const UnboundedTarget = Flow.make("trampoline/unbounded-target", {
   payload: { value: Schema.Number },
   success: Schema.Number,
@@ -159,6 +160,32 @@ describe("FlowEngine.Round", () => {
     expect(error).toBeInstanceOf(Flow.MaxRoundsExceeded)
     expect(error instanceof Flow.MaxRoundsExceeded && error.roundOrdinal).toBe(2)
   })
+
+  it("refuses the first advance under a zero and under a negative budget", async () => {
+    // The budget arithmetic is `advanced.ordinal >= budget`, so 0 and any
+    // negative value refuse ordinal 1 — the first advance a lineage can ask
+    // for. Round 0 itself is out of `next`'s reach by construction: it is the
+    // caller's own execution and no advance mints it.
+    const zero = await runPromise(
+      Effect.exit(
+        FlowEngine.Round.next({ lineageId: "run-a", ordinal: 0 }, { flowName: "f", maxRounds: 0 })
+      )
+    )
+    const negative = await runPromise(
+      Effect.exit(
+        FlowEngine.Round.next({ lineageId: "run-a", ordinal: 0 }, { flowName: "f", maxRounds: -1 })
+      )
+    )
+
+    for (const exit of [zero, negative]) {
+      expect(Exit.isFailure(exit)).toBe(true)
+      const error = Exit.isFailure(exit) ? exit.cause.reasons.find(Cause.isFailReason)?.error : undefined
+      expect(error).toBeInstanceOf(Flow.MaxRoundsExceeded)
+      expect(error instanceof Flow.MaxRoundsExceeded && error.roundOrdinal).toBe(1)
+    }
+    const zeroError = Exit.isFailure(zero) ? zero.cause.reasons.find(Cause.isFailReason)?.error : undefined
+    expect(zeroError instanceof Flow.MaxRoundsExceeded && zeroError.maxRounds).toBe(0)
+  })
 })
 
 describe("a lineage on the memory engine", () => {
@@ -248,6 +275,36 @@ describe("a lineage on the memory engine", () => {
     expect(calls).toEqual([0, 1, 2])
   })
 
+  it("refuses zero, negative, and fractional round budgets at declaration time", () => {
+    // The round-budget contract starts at 1: `maxRounds: 1` means "no handoff
+    // at all" and the engine never has to interpret a budget that promises
+    // less than the caller's own execution. Invalid budgets are refused where
+    // the declaration is written, so `Round.next`'s `>= budget` arithmetic
+    // only ever defends against drivers that bypass `Flow.make`.
+    expect(() => counter("trampoline/budget-zero", 0)).toThrow(RangeError)
+    expect(() => counter("trampoline/budget-negative", -1)).toThrow(RangeError)
+    expect(() => counter("trampoline/budget-fraction", 1.5)).toThrow(RangeError)
+  })
+
+  it("runs round 0 in full under the smallest legal budget and refuses its first handoff", async () => {
+    // `maxRounds: 1` bounds HANDOFFS, not the caller's own execution: round 0
+    // is the execution the caller asked for, so its work runs — the budget is
+    // only consulted when the settled round asks to open round 1.
+    const { calls, layer } = wire(Interpreter.layer(Single))
+
+    const exit = await runPromise(
+      Single.execute({ value: 0, target: 99 }, { executionId: "memory-single-round" }).pipe(
+        Effect.exit,
+        Effect.provide(layer)
+      )
+    )
+
+    expect(Exit.isFailure(exit)).toBe(true)
+    expect(Exit.isFailure(exit) && exit.cause.toString()).toContain("MaxRoundsExceeded")
+    // Round 0 dispatched its increment before the refusal; round 1 never ran.
+    expect(calls).toEqual([0])
+  })
+
   it("refuses a handoff to a flow the engine was never told about", async () => {
     const Stranger = Flow.make("trampoline/stranger", {
       payload: { value: Schema.Number },
@@ -270,5 +327,89 @@ describe("a lineage on the memory engine", () => {
 
     expect(Exit.isFailure(exit)).toBe(true)
     expect(Exit.isFailure(exit) && exit.cause.toString()).toContain("is not registered with this engine")
+  })
+
+  // BUG: layerMemory.register overwrites its flows map without a scope-aware
+  // restore. After an inner scoped registration of the same tag closes, the
+  // engine keeps executing through the stale inner entry — whose registration
+  // scope is already closed, so the round fiber forked into it is interrupted
+  // immediately and poll dies with `Die(Interrupt)` — instead of serving the
+  // still-open outer registration. `make.register`'s declaration table does
+  // splice the inner entry out; the memory driver's execution table never does.
+  it.fails("serves the outer registration after an inner scoped registration of the same tag closes", async () => {
+    await runPromise(
+      Effect.gen(function*() {
+        const runtime = yield* FlowRuntime.FlowRuntime
+        yield* Effect.scoped(
+          Effect.gen(function*() {
+            yield* runtime.register(Counter, () => Effect.succeed(1))
+            yield* Effect.scoped(runtime.register(Counter, () => Effect.succeed(2)))
+            // The inner scope is closed; the outer registration must serve
+            // this execution.
+            yield* runtime.execute(Counter, {
+              executionId: "memory-scoped-lifetime",
+              payload: { value: 0, target: 1 },
+              discard: true
+            })
+            let polled: Exit.Exit<Option.Option<Flow.Result<unknown, unknown>>> = yield* Effect.exit(
+              runtime.poll(Counter, "memory-scoped-lifetime")
+            )
+            for (let index = 0; index < 50; index++) {
+              polled = yield* Effect.exit(runtime.poll(Counter, "memory-scoped-lifetime"))
+              if (Exit.isFailure(polled) || (Exit.isSuccess(polled) && Option.isSome(polled.value))) break
+              yield* Effect.yieldNow
+            }
+            expect(
+              Exit.isSuccess(polled) && Option.isSome(polled.value) &&
+                polled.value.value._tag === "Complete" &&
+                Exit.isSuccess(polled.value.value.exit) && polled.value.value.exit.value
+            ).toBe(1)
+          })
+        )
+      }).pipe(Effect.provide(FlowEngine.layerMemory))
+    )
+  })
+
+  it("dies on a handoff whose journaled payload no longer decodes under the registered target's schema", async () => {
+    // The handoff payload is serializable data that crossed a journal: the
+    // sender encodes it under the declaration its body was authored against,
+    // and the engine decodes it under the declaration REGISTERED for the tag.
+    // When the registered flow's payload schema has since changed shape, the
+    // decode is the wiring error `execute` answers with a defect — and the
+    // refused round must never dispatch any of the target's work.
+    const EvolvedV1 = Flow.make("trampoline/evolved-target", {
+      payload: { value: Schema.Number },
+      success: Schema.Number,
+      body: ({ value }) => Increment.call({ value })
+    })
+    const EvolvedV2 = Flow.make("trampoline/evolved-target", {
+      payload: { value: Schema.Number, gate: Schema.String },
+      success: Schema.Number,
+      body: ({ value }) => Increment.call({ value })
+    })
+    const Sender = Flow.make("trampoline/evolved-sender", {
+      payload: { value: Schema.Number },
+      success: Schema.Number,
+      body: ({ value }) => EvolvedV1.to({ value })
+    })
+    const { calls, layer } = wire(Interpreter.layer(Sender), Interpreter.layer(EvolvedV2))
+
+    const exit = await runPromise(
+      Sender.execute({ value: 1 }, { executionId: "memory-evolved-handoff" }).pipe(
+        Effect.exit,
+        Effect.provide(layer)
+      )
+    )
+
+    expect(Exit.isFailure(exit)).toBe(true)
+    const defect = Exit.isFailure(exit)
+      ? exit.cause.reasons.find((reason) => reason._tag === "Die")?.defect
+      : undefined
+    // The terminal cause is the typed schema error naming the missing field,
+    // recorded as the caller's defect rather than a typed flow failure.
+    expect(defect).toBeInstanceOf(Schema.SchemaError)
+    expect(String(defect)).toContain("gate")
+    // No next-round side effect: the target's increment never dispatched.
+    expect(calls).toEqual([])
   })
 })

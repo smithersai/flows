@@ -3,7 +3,9 @@
  * shape of `CombinedCache.downloadActionResult`
  * (`reference/bazel/.../remote/CombinedCache.java`, lines 230-303).
  */
+import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
+import * as Fiber from "effect/Fiber"
 import * as Option from "effect/Option"
 import { describe, expect, it } from "vitest"
 import * as CacheStore from "../src/CacheStore.ts"
@@ -44,6 +46,62 @@ const tier = (options: { readonly putOutcome?: CacheStore.PutResult } = {}) => {
       })
   }
   return { rows, calls, store }
+}
+
+/**
+ * A first-writer-wins tier that decides `ExistingSame` versus `Conflict` on the
+ * stored result the way the SQL store does, with optional deferred gating so an
+ * interleaving can be pinned without a sleep.
+ */
+const durableTier = (
+  options: {
+    readonly gateGet?: Deferred.Deferred<void>
+    readonly reachedGet?: Deferred.Deferred<void>
+    readonly failPut?: CacheStore.CacheStoreError
+  } = {}
+) => {
+  const rows = new Map<string, CacheStore.CacheEntry>()
+  const calls: Array<string> = []
+  const outcomes: Array<CacheStore.PutResult> = []
+  const store: CacheStore.Service = {
+    get: (keyDigest: string): Effect.Effect<Option.Option<CacheStore.CacheEntry>, CacheStore.CacheStoreError> =>
+      Effect.suspend(() => {
+        calls.push("get")
+        const announce = options.reachedGet === undefined
+          ? Effect.void
+          : Deferred.succeed(options.reachedGet, undefined)
+        const wait = options.gateGet === undefined ? Effect.void : Deferred.await(options.gateGet)
+        return announce.pipe(
+          Effect.andThen(wait),
+          Effect.map(() => {
+            const row = rows.get(keyDigest)
+            return row === undefined ? Option.none() : Option.some(row)
+          })
+        )
+      }),
+    put: (candidate: CacheStore.CacheEntry): Effect.Effect<CacheStore.PutResult, CacheStore.CacheStoreError> =>
+      Effect.suspend((): Effect.Effect<CacheStore.PutResult, CacheStore.CacheStoreError> => {
+        calls.push("put")
+        if (options.failPut !== undefined) return Effect.fail(options.failPut)
+        const existing = rows.get(candidate.keyDigest)
+        if (existing === undefined) {
+          rows.set(candidate.keyDigest, candidate)
+          outcomes.push({ _tag: "Inserted" })
+          return Effect.succeed({ _tag: "Inserted" })
+        }
+        const outcome: CacheStore.PutResult = JSON.stringify(existing.result) === JSON.stringify(candidate.result)
+          ? { _tag: "ExistingSame" }
+          : { _tag: "Conflict" }
+        outcomes.push(outcome)
+        return Effect.succeed(outcome)
+      }),
+    evict: (keyDigest: string) =>
+      Effect.sync(() => {
+        calls.push("evict")
+        return rows.delete(keyDigest)
+      })
+  }
+  return { rows, calls, outcomes, store }
 }
 
 describe("lookups", () => {
@@ -109,6 +167,82 @@ describe("publications", () => {
     const combined = CombinedCacheStore.make({ local: local.store, remote: remote.store })
     expect(await Effect.runPromise(combined.put(entry))).toEqual({ _tag: "Conflict" })
     expect(remote.calls).toEqual([])
+  })
+})
+
+describe("write-back races", () => {
+  const localEntry: CacheStore.CacheEntry = { ...entry, result: { ok: "local" } }
+  const remoteEntry: CacheStore.CacheEntry = { ...entry, result: { ok: "remote" } }
+
+  // BUG: CombinedCacheStore.get ignores the write-back put's Conflict/ExistingSame
+  // outcome, so the caller is served the remote result while the durable local
+  // row this machine replays from holds a different one.
+  it.fails("serves the durable local winner when a concurrent put wins the write-back", async () => {
+    const gate = Deferred.makeUnsafe<void>()
+    const reached = Deferred.makeUnsafe<void>()
+    const local = durableTier()
+    const remote = durableTier({ gateGet: gate, reachedGet: reached })
+    await Effect.runPromise(remote.store.put(remoteEntry))
+    const combined = CombinedCacheStore.make({ local: local.store, remote: remote.store })
+
+    const observed = await Effect.runPromise(
+      Effect.gen(function*() {
+        // The lookup misses locally, then parks inside the remote read.
+        const lookup = yield* Effect.forkChild(combined.get(entry.keyDigest), { startImmediately: true })
+        yield* Deferred.await(reached)
+        // A sibling run on this machine records a *different* result under the
+        // same key and wins the durable row.
+        const winner = yield* local.store.put(localEntry)
+        expect(winner).toEqual({ _tag: "Inserted" })
+        yield* Deferred.succeed(gate, undefined)
+        return yield* Fiber.join(lookup)
+      })
+    )
+
+    // The write-back lost: the local tier reports the row it kept is a
+    // different result under the same key.
+    expect(local.outcomes).toEqual([{ _tag: "Inserted" }, { _tag: "Conflict" }])
+    expect(local.rows.get(entry.keyDigest)).toEqual(localEntry)
+    // The caller must never be handed a result the durable tier disagrees with:
+    // this machine replays `localEntry`, so serving `remoteEntry` is a cache
+    // collision the caller cannot detect.
+    expect(Option.getOrThrow(observed)).toEqual(localEntry)
+  })
+
+  it("keeps the local row and fails the caller when the shared publication fails", async () => {
+    // Partial success: the local insert committed and the shared write did not.
+    // The local row is what this machine replays from, so it survives; the
+    // caller sees the transport failure and the shared tier holds nothing.
+    const local = durableTier()
+    const refused = new CacheStore.CacheStoreError({
+      code: "persistence_failed",
+      message: "the remote cache tier refused a publication"
+    })
+    const failed = durableTier({ failPut: refused })
+    const combined = CombinedCacheStore.make({
+      local: local.store,
+      remote: failed.store
+    })
+
+    const failure = await Effect.runPromise(Effect.flip(combined.put(entry)))
+    expect(failure.code).toBe("persistence_failed")
+    expect(failed.calls).toEqual(["put"])
+    expect(failed.outcomes).toEqual([])
+    expect(failed.rows.size).toBe(0)
+    expect(Option.isNone(await Effect.runPromise(failed.store.get(entry.keyDigest)))).toBe(true)
+    expect(local.rows.get(entry.keyDigest)).toEqual(entry)
+    expect(local.outcomes).toEqual([{ _tag: "Inserted" }])
+
+    // Retry semantics, pinned: the same `put` against a healthy shared tier
+    // republishes and reports `ExistingSame` off the surviving local row. It is
+    // never a `Conflict`, so a retry after an outage cannot fail the run
+    // through the `Inconsistency` receiver.
+    const healthy = durableTier()
+    const retried = await Effect.runPromise(
+      CombinedCacheStore.make({ local: local.store, remote: healthy.store }).put(entry)
+    )
+    expect(retried).toEqual({ _tag: "ExistingSame" })
+    expect(healthy.rows.get(entry.keyDigest)).toEqual(entry)
   })
 })
 

@@ -84,6 +84,7 @@
     "@smthrs/journal-next": "0.1.0",
     "@smthrs/kernel-next": "0.1.0",
     "@smthrs/keys-next": "0.1.0",
+    "@smthrs/platform-node-next": "0.1.0",
     "@smthrs/plan-next": "0.1.0",
     "@smthrs/run-store-next": "0.1.0",
     "@smthrs/step-cache-next": "0.1.0",

@@ -1,15 +1,89 @@
 import { Action, Flow, FlowRuntime, Graph } from "@smthrs/flow-next"
 import { Node, Planned } from "@smthrs/plan-next"
-import { Context, Effect, Layer, Schema } from "effect"
+import { Cause, Context, Effect, Exit, Layer, Schema } from "effect"
+import type * as Scope from "effect/Scope"
 import { describe, expect, it } from "vitest"
 import { runPromise } from "./Crypto.ts"
-import { layerMemory } from "./MemoryFlowRuntime.ts"
+import { layerMemory, makeInstance } from "./MemoryFlowRuntime.ts"
 
 const Label = Context.Reference<string>("ActionDeclared/Label", {
   defaultValue: () => "missing"
 })
 
+const InlineHost = Flow.make("ActionDeclared/inline-host", {
+  payload: {},
+  body: () => Node.succeed(undefined)
+})
+
+const runInline = <A, E>(
+  effect: Effect.Effect<A, E, FlowRuntime.FlowRuntime | FlowRuntime.FlowInstance | Scope.Scope>
+): Promise<A> =>
+  runPromise(
+    Effect.scoped(effect).pipe(
+      Effect.provideService(FlowRuntime.FlowInstance, makeInstance(InlineHost, "inline-host")),
+      Effect.provide(layerMemory)
+    )
+  )
+
 describe("Action.make declared overload", () => {
+  it("round-trips transformed executeEncoded successes and failures on annotated copies", async () => {
+    const success = Action.make({
+      name: "Inline/transformed-success",
+      success: Schema.NumberFromString,
+      execute: Effect.succeed(42)
+    })
+    const failure = Action.make({
+      name: "Inline/transformed-failure",
+      error: Schema.NumberFromString,
+      execute: Effect.fail(7)
+    })
+    const successCopies = [
+      success,
+      success.annotate(Label, "annotated"),
+      success.annotateMerge(Context.make(Label, "merged"))
+    ]
+    const failureCopies = [
+      failure,
+      failure.annotate(Label, "annotated"),
+      failure.annotateMerge(Context.make(Label, "merged"))
+    ]
+
+    for (const copy of successCopies) {
+      const encoded = await runInline(copy.executeEncoded)
+      expect(encoded).toBe("42")
+      expect(Schema.decodeUnknownSync(copy.successSchema)(encoded)).toBe(42)
+    }
+    for (const copy of failureCopies) {
+      const encoded = await runInline(Effect.flip(copy.executeEncoded))
+      expect(encoded).toBe("7")
+      expect(Schema.decodeUnknownSync(copy.errorSchema)(encoded)).toBe(7)
+    }
+  })
+
+  it("reports invalid executeEncoded success and error values as schema defects", async () => {
+    const invalid = [
+      Action.make({
+        name: "Inline/invalid-success",
+        success: Schema.NumberFromString,
+        execute: Effect.succeed("not-a-number" as unknown as number)
+      }),
+      Action.make({
+        name: "Inline/invalid-error",
+        error: Schema.NumberFromString,
+        execute: Effect.fail("not-a-number" as unknown as number)
+      })
+    ]
+
+    for (const action of invalid) {
+      const exit = await runInline(Effect.exit(action.executeEncoded))
+      expect(Exit.isFailure(exit)).toBe(true)
+      if (!Exit.isFailure(exit)) continue
+      expect(exit.cause.reasons.some(Cause.isFailReason)).toBe(false)
+      const defect = exit.cause.reasons.find(Cause.isDieReason)
+      expect(defect?.defect).toMatchObject({ _tag: "SchemaError" })
+    }
+  })
+
   it("discriminates declared and inline actions by the first argument", () => {
     const declared = Action.make("Declared/discrimination", {
       payload: { value: Schema.Number }

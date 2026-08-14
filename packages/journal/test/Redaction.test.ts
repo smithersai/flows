@@ -102,6 +102,49 @@ describe("Redaction", () => {
       Effect.scoped
     ))
 
+  it("applies an empty rule set literally, keeping only the structural redaction", () => {
+    // `rules` is caller-supplied, and `[]` is not nullish, so it replaces the
+    // defaults rather than falling back to them: no textual rule fires. The
+    // by-field-name redaction is not rule-driven and therefore still applies —
+    // that split is the contract a custom rule set inherits.
+    const redactor = Redaction.make({ rules: [] })
+    expect(redactor({ note: "use sk-proj-abcdefghij", apiKey: "sk-proj-abcdefghij" })).toEqual({
+      note: "use sk-proj-abcdefghij",
+      apiKey: Redaction.placeholder
+    })
+    // Nothing unexpected is retained either: the default rules are genuinely
+    // gone rather than merged in behind the caller's set.
+    expect(redactor({ env: "ANTHROPIC_API_KEY=shhh" })).toEqual({ env: "ANTHROPIC_API_KEY=shhh" })
+  })
+
+  it("does not leak global regexp state between calls with overlapping rules", () => {
+    // Every rule carries a `g` flag, so each `RegExp` object holds a mutable
+    // `lastIndex`. Two rules that match overlapping spans of the same string,
+    // reused across calls, are where a stale `lastIndex` would show up — as a
+    // second call redacting less than the first.
+    const rules: ReadonlyArray<Redaction.Rule> = [
+      { id: "wide", pattern: /token-[a-z0-9]+/g, replace: "[WIDE]" },
+      { id: "narrow", pattern: /[a-z0-9]{6,}/g, replace: "[NARROW]" }
+    ]
+    const redactor = Redaction.make({ rules })
+    const value = { a: "token-abc123 and token-def456", b: "token-abc123 and token-def456" }
+
+    const first = redactor(value)
+    const second = redactor(value)
+    const third = redactor({ ...value, c: "token-abc123" })
+
+    expect(first).toEqual({
+      a: "[WIDE] and [WIDE]",
+      b: "[WIDE] and [WIDE]"
+    })
+    // Identical input, identical output — three times, over two rules that both
+    // match every span.
+    expect(second).toEqual(first)
+    expect(third).toEqual({ ...(first as Record<string, unknown>), c: "[WIDE]" })
+    // The shared rule objects are left rewound for the next caller.
+    expect(rules.map((rule) => rule.pattern.lastIndex)).toEqual([0, 0])
+  })
+
   it("redactJsonString returns the input when it cannot re-encode it", () => {
     expect(Redaction.redactJsonString("{ not json", Redaction.make())).toBe("{ not json")
     // A redactor that drops the value entirely has nothing to encode; the

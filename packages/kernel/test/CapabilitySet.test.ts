@@ -1,5 +1,5 @@
 import { Capability, CapabilityPattern } from "@smthrs/capability-next/Capability"
-import { Effect } from "effect"
+import { Effect, Fiber, Latch, Ref } from "effect"
 import { FastCheck } from "effect/testing"
 import { describe, expect, it } from "vitest"
 import * as CapabilitySets from "../src/CapabilitySet.ts"
@@ -230,6 +230,40 @@ describe("CapabilitySet", () => {
       result.nested.child,
       new Capability({ action: "net:get", resource: "api.example.com" })
     )).toBe(false)
+  })
+
+  it("isolates parallel sibling attenuation through fork and join", async () => {
+    const filePatterns = [new CapabilityPattern({ action: "fs:read", resource: "src/**" })]
+    const networkPatterns = [new CapabilityPattern({ action: "net:get", resource: "*.example.com" })]
+    const file = new Capability({ action: "fs:read", resource: "src/index.ts" })
+    const network = new Capability({ action: "net:get", resource: "api.example.com" })
+
+    const result = await Effect.runPromise(
+      Effect.gen(function*() {
+        const arrived = yield* Ref.make(0)
+        const barrier = yield* Latch.make(false)
+        const child = (patterns: ReadonlyArray<CapabilityPattern>) =>
+          CapabilitySets.attenuate(patterns)(
+            Effect.gen(function*() {
+              const count = yield* Ref.updateAndGet(arrived, (value) => value + 1)
+              if (count === 2) yield* Latch.open(barrier)
+              yield* Latch.await(barrier)
+              return yield* CapabilitySets.current
+            })
+          )
+        const left = yield* child(filePatterns).pipe(Effect.forkChild({ startImmediately: true }))
+        const right = yield* child(networkPatterns).pipe(Effect.forkChild({ startImmediately: true }))
+        const children = yield* Effect.all([Fiber.join(left), Fiber.join(right)])
+        const parent = yield* CapabilitySets.current
+        return { children, parent }
+      })
+    )
+
+    expect(CapabilitySets.allows(result.children[0], file)).toBe(true)
+    expect(CapabilitySets.allows(result.children[0], network)).toBe(false)
+    expect(CapabilitySets.allows(result.children[1], file)).toBe(false)
+    expect(CapabilitySets.allows(result.children[1], network)).toBe(true)
+    expect(CapabilitySets.equals(result.parent, unrestricted)).toBe(true)
   })
 
   it("allows every capability on a fiber with no ambient capability set (B8)", () => {

@@ -261,6 +261,43 @@ describe("system actions require nothing of a caller", () => {
 })
 
 describe("toLayer provides the requirement it mints", () => {
+  // BUG: A nested layerImplementations provision reuses and replaces the enclosing table's same-tag entry.
+  it.fails("confines a duplicate tag replacement to its nested implementation table", async () => {
+    const Duplicate = Action.make("requirement/duplicate", {
+      payload: { value: Schema.Number },
+      success: Schema.Number
+    })
+    const outer = Duplicate.toLayer(({ value }) => Effect.succeed(value + 1)).pipe(
+      Layer.provideMerge(Action.layerImplementations),
+      Layer.provideMerge(layerMemory)
+    )
+    const inner = Duplicate.toLayer(({ value }) => Effect.succeed(value + 2)).pipe(
+      Layer.provideMerge(Action.layerImplementations),
+      Layer.provideMerge(layerMemory)
+    )
+
+    const observed = await runPromise(
+      Effect.gen(function*() {
+        const outerTable = yield* Action.Implementations
+        const before = yield* outerTable.get(Duplicate.name)
+        const nested = yield* Effect.gen(function*() {
+          const innerTable = yield* Action.Implementations
+          return yield* innerTable.get(Duplicate.name)
+        }).pipe(Effect.provide(inner))
+        const after = yield* outerTable.get(Duplicate.name)
+        return { before, nested, after }
+      }).pipe(Effect.provide(outer))
+    )
+
+    expect(Option.isSome(observed.before)).toBe(true)
+    expect(Option.isSome(observed.nested)).toBe(true)
+    expect(Option.isSome(observed.after)).toBe(true)
+    if (Option.isSome(observed.before) && Option.isSome(observed.nested) && Option.isSome(observed.after)) {
+      expect(observed.after.value).toBe(observed.before.value)
+      expect(observed.nested.value).not.toBe(observed.before.value)
+    }
+  })
+
   it("answers with the same implementation the name-keyed table holds", async () => {
     const both = Layer.mergeAll(charges, refunds).pipe(
       Layer.provideMerge(Action.layerImplementations),

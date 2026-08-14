@@ -7,7 +7,7 @@
  * flow scope helpers, and the waiting annotation a durable driver reads.
  */
 import { Action, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
-import { Cause, Context, Effect, Exit, Layer, Option, Schedule, Schema, Scope } from "effect"
+import { Cause, Context, Effect, Exit, Fiber, Latch, Layer, Option, Schedule, Schema, Scope } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { describe, expect, it } from "vitest"
 import { runPromise } from "./Crypto.ts"
@@ -61,6 +61,25 @@ describe("Action.CacheEnvironment", () => {
       )
       expect(seen).toEqual(environment)
     }))
+
+  it("preserves duplicate values and distinct Unicode capability names", () => {
+    const decoded = Schema.decodeUnknownExit(Action.CacheEnvironment)({
+      layers: ["node@22", "node@22", "工具@1"],
+      capabilities: {
+        net: ["dns", "dns"],
+        "café": ["read"],
+        "café": ["write"],
+        "🧪": ["run"]
+      }
+    })
+
+    expect(Exit.isSuccess(decoded)).toBe(true)
+    if (!Exit.isSuccess(decoded)) return
+    expect(decoded.value.layers).toEqual(["node@22", "node@22", "工具@1"])
+    expect(decoded.value.capabilities.net).toEqual(["dns", "dns"])
+    expect(Object.keys(decoded.value.capabilities)).toContain("café")
+    expect(Object.keys(decoded.value.capabilities)).toContain("café")
+  })
 })
 
 describe("Action.idempotencyKey", () => {
@@ -81,6 +100,58 @@ describe("Action.idempotencyKey", () => {
         expect(new Set([plain, alsoPlain, scoped, byAttempt]).size).toBe(4)
       }))
   )
+
+  effect("keeps concurrent parent scopes on independent deterministic counters", () =>
+    Effect.gen(function*() {
+      const baselineInstance = makeInstance(Host, "concurrent-keys")
+      const baseline = yield* Effect.all([
+        Action.idempotencyKey("left", { parentScope: "scope:left" }),
+        Action.idempotencyKey("right", { parentScope: "scope:right" })
+      ]).pipe(Effect.provideService(FlowRuntime.FlowInstance, baselineInstance))
+
+      const concurrentInstance = makeInstance(Host, "concurrent-keys")
+      const release = yield* Latch.make()
+      const left = yield* Effect.forkChild(
+        release.await.pipe(
+          Effect.andThen(Action.idempotencyKey("left", { parentScope: "scope:left" })),
+          Effect.provideService(FlowRuntime.FlowInstance, concurrentInstance)
+        )
+      )
+      const right = yield* Effect.forkChild(
+        release.await.pipe(
+          Effect.andThen(Action.idempotencyKey("right", { parentScope: "scope:right" })),
+          Effect.provideService(FlowRuntime.FlowInstance, concurrentInstance)
+        )
+      )
+      yield* release.open
+      const concurrent = yield* Effect.all([Fiber.join(left), Fiber.join(right)])
+
+      expect(concurrent).toEqual(baseline)
+      expect(new Set(concurrent).size).toBe(2)
+    }))
+
+  effect("gives an explicit parent scope precedence over the current attempt", () =>
+    Effect.gen(function*() {
+      const withBoth = yield* Action.idempotencyKey("offer", {
+        includeAttempt: true,
+        parentScope: "queue:parent"
+      }).pipe(
+        Effect.provideService(Action.CurrentAttempt, 7),
+        Effect.provideService(FlowRuntime.FlowInstance, makeInstance(Host, "attempt-parent"))
+      )
+      const parentOnly = yield* Action.idempotencyKey("renamed diagnostic", {
+        parentScope: "queue:parent"
+      }).pipe(
+        Effect.provideService(FlowRuntime.FlowInstance, makeInstance(Host, "attempt-parent"))
+      )
+      const attemptOnly = yield* Action.idempotencyKey("offer", { includeAttempt: true }).pipe(
+        Effect.provideService(Action.CurrentAttempt, 7),
+        Effect.provideService(FlowRuntime.FlowInstance, makeInstance(Host, "attempt-parent"))
+      )
+
+      expect(withBoth).toBe(parentOnly)
+      expect(attemptOnly).not.toBe(parentOnly)
+    }))
 })
 
 describe("Action infrastructure-interrupt retry", () => {

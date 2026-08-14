@@ -217,6 +217,57 @@ describe("GrantStore construction-time envelope", () => {
 })
 
 describe("GrantStore.grantEnvelope", () => {
+  // BUG: A runtime envelope persists duplicate predicates verbatim instead of
+  // treating its pattern list as a capability set.
+  it.fails("persists each predicate only once inside a runtime envelope", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function*() {
+          const { events, persist } = recorder()
+          const store = yield* make({ attended: false, planDigest: "plan-1", persist })
+          yield* store.grantEnvelope({
+            planDigest: "plan-1",
+            patterns: [workspaceReads, workspaceReads],
+            scope: "run"
+          })
+
+          expect(events).toHaveLength(1)
+          expect(events[0]).toMatchObject({ patterns: [workspaceReads] })
+        })
+      )
+    ))
+
+  // BUG: Repeated approvals are appended and persisted again; reordered
+  // patterns therefore create duplicate durable envelope evidence.
+  it.fails("makes repeated and reordered runtime envelopes idempotent", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function*() {
+          const { events, persist } = recorder()
+          const store = yield* make({ attended: false, planDigest: "plan-1", persist })
+          yield* store.grantEnvelope({
+            planDigest: "plan-1",
+            patterns: [workspaceReads, workspaceWrites],
+            scope: "run"
+          })
+          yield* store.grantEnvelope({
+            planDigest: "plan-1",
+            patterns: [workspaceWrites, workspaceReads],
+            scope: "run"
+          })
+          yield* store.grantEnvelope({
+            planDigest: "plan-1",
+            patterns: [workspaceReads, workspaceWrites],
+            scope: "run"
+          })
+
+          expect(events).toHaveLength(1)
+          yield* store.check(insideRead)
+          yield* store.check(insideWrite)
+        })
+      )
+    ))
+
   itEffect("accepts an empty pattern list as a no-op without persisting", () =>
     Effect.scoped(
       Effect.gen(function*() {

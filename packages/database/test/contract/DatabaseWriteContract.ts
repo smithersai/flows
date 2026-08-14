@@ -17,13 +17,19 @@
  * edges that jointly close a cycle, exactly the later one fails" — is exactly
  * these tests.
  */
+import * as Cause from "effect/Cause"
 import * as Deferred from "effect/Deferred"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
+import * as Fiber from "effect/Fiber"
+import * as Result from "effect/Result"
 import type * as SqlClient from "effect/unstable/sql/SqlClient"
+import * as SqlError from "effect/unstable/sql/SqlError"
 import { describe, expect, it } from "vitest"
 import type * as DurableWriter from "../../src/DurableWriter.ts"
 import { affectedRows } from "../../src/DurableWriter.ts"
+import * as WriteRetry from "../../src/internal/WriteRetry.ts"
 
 /**
  * One connection's client paired with its durable writer.
@@ -45,8 +51,10 @@ export interface ContractContext {
 
 export interface Harness {
   readonly label: string
+  /** Enables assertions that require two genuine file-backed connections. */
+  readonly realDriver: boolean
   /** Runs `body` against a freshly created, empty store. */
-  readonly run: <A>(body: (context: ContractContext) => Effect.Effect<A, any, never>) => Promise<A>
+  readonly run: <A, E>(body: (context: ContractContext) => Effect.Effect<A, E, never>) => Promise<A>
 }
 
 /**
@@ -206,5 +214,126 @@ export const describeContract = (harness: Harness): void => {
 
       expect(result).toEqual({ matched: 1, unmatched: 0 })
     })
+
+    if (harness.realDriver) {
+      it("classifies a genuine SQLITE_BUSY from a second file connection as retryable", async () => {
+        const error = await harness.run((context) =>
+          Effect.gen(function*() {
+            yield* context.a.sql`CREATE TABLE busy_rows (id INTEGER PRIMARY KEY)`
+            yield* context.a.sql.unsafe("BEGIN EXCLUSIVE")
+            return yield* Effect.flip(
+              context.b.sql`INSERT INTO busy_rows (id) VALUES (1)`
+            ).pipe(
+              Effect.ensuring(context.a.sql.unsafe("ROLLBACK").pipe(Effect.orDie))
+            )
+          })
+        )
+
+        expect(SqlError.isSqlError(error)).toBe(true)
+        expect(WriteRetry.isRetryableWriteError(error)).toBe(true)
+      })
+
+      it("rolls a failed nested write back to its savepoint while the outer write commits", async () => {
+        const result = await harness.run((context) =>
+          Effect.gen(function*() {
+            yield* context.a.sql`CREATE TABLE savepoint_rows (id INTEGER PRIMARY KEY, source TEXT NOT NULL)`
+            const innerFailure = yield* context.a.write(
+              Effect.gen(function*() {
+                yield* context.a.sql`INSERT INTO savepoint_rows (id, source) VALUES (1, 'outer-before')`
+                const failure = yield* Effect.flip(
+                  context.a.write(
+                    Effect.gen(function*() {
+                      yield* context.a.sql`INSERT INTO savepoint_rows (id, source) VALUES (2, 'inner')`
+                      return yield* Effect.fail("inner-abandoned" as const)
+                    })
+                  )
+                )
+                yield* context.a.sql`INSERT INTO savepoint_rows (id, source) VALUES (3, 'outer-after')`
+                return failure
+              })
+            )
+            const rows = yield* context.b.sql<
+              { readonly id: number; readonly source: string }
+            >`SELECT id, source FROM savepoint_rows ORDER BY id`
+            return { innerFailure, rows }
+          })
+        )
+
+        expect(result.innerFailure).toBe("inner-abandoned")
+        expect(result.rows).toEqual([
+          { id: 1, source: "outer-before" },
+          { id: 3, source: "outer-after" }
+        ])
+      })
+
+      it("rolls a write defect back on the real driver", async () => {
+        const result = await harness.run((context) =>
+          Effect.gen(function*() {
+            const defect = new Error("write defect")
+            yield* context.a.sql`CREATE TABLE defect_rows (id INTEGER PRIMARY KEY)`
+            const exit = yield* Effect.exit(
+              context.a.write(
+                Effect.gen(function*() {
+                  yield* context.a.sql`INSERT INTO defect_rows (id) VALUES (1)`
+                  return yield* Effect.die(defect)
+                })
+              )
+            )
+            const rows = yield* context.b.sql<{ readonly id: number }>`SELECT id FROM defect_rows`
+            return { defect, exit, rows }
+          })
+        )
+
+        expect(Exit.isFailure(result.exit)).toBe(true)
+        if (Exit.isFailure(result.exit)) {
+          const found = Cause.findDefect(result.exit.cause)
+          expect(Result.isSuccess(found)).toBe(true)
+          if (Result.isSuccess(found)) {
+            expect(found.success).toBe(result.defect)
+          }
+        }
+        expect(result.rows).toEqual([])
+      })
+
+      it("rolls an interrupted write back on the real driver", async () => {
+        const rows = await harness.run((context) =>
+          Effect.gen(function*() {
+            const inserted = yield* Deferred.make<void>()
+            const never = yield* Deferred.make<void>()
+            yield* context.a.sql`CREATE TABLE interrupted_rows (id INTEGER PRIMARY KEY)`
+            const fiber = yield* context.a.write(
+              Effect.gen(function*() {
+                yield* context.a.sql`INSERT INTO interrupted_rows (id) VALUES (1)`
+                yield* Deferred.succeed(inserted, undefined)
+                yield* Deferred.await(never)
+              })
+            ).pipe(Effect.forkChild({ startImmediately: true }))
+            yield* Deferred.await(inserted)
+            yield* Fiber.interrupt(fiber)
+            return yield* context.b.sql<{ readonly id: number }>`SELECT id FROM interrupted_rows`
+          })
+        )
+
+        expect(rows).toEqual([])
+      })
+
+      it("writes and reads a four-megabyte blob on the real driver", async () => {
+        const size = 4 * 1024 * 1024
+        const blob = new Uint8Array(size).fill(0xa5)
+        const rows = await harness.run((context) =>
+          Effect.gen(function*() {
+            yield* context.a.sql`CREATE TABLE blob_rows (id INTEGER PRIMARY KEY, payload BLOB NOT NULL)`
+            yield* context.a.write(
+              context.a.sql`INSERT INTO blob_rows (id, payload) VALUES (1, ${blob})`
+            )
+            return yield* context.b.sql<
+              { readonly prefix: string; readonly size: number }
+            >`SELECT hex(substr(payload, 1, 4)) AS prefix, length(payload) AS size FROM blob_rows WHERE id = 1`
+          })
+        )
+
+        expect(rows).toEqual([{ prefix: "A5A5A5A5", size }])
+      })
+    }
   })
 }

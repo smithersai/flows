@@ -1,9 +1,11 @@
 // Deep reviewed and polished by a human on 2026-08-10.
 
+import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer"
 import { Action, DurableDeferred, Flow, Interpreter } from "@smthrs/flow-next"
+import { Node } from "@smthrs/plan-next"
 import { Effect, Exit, FileSystem, Layer, Option, Path, Schema, Scope } from "effect"
-import { Etag, HttpPlatform } from "effect/unstable/http"
-import { HttpApi, HttpApiTest } from "effect/unstable/httpapi"
+import { Etag, HttpPlatform, HttpRouter } from "effect/unstable/http"
+import { HttpApi, HttpApiBuilder, HttpApiClient, HttpApiTest } from "effect/unstable/httpapi"
 import { RpcTest } from "effect/unstable/rpc"
 import { describe, expect, expectTypeOf, it } from "vitest"
 import { FlowEngine, FlowProxy, FlowProxyServer } from "../src/index.ts"
@@ -151,6 +153,38 @@ describe("FlowProxyServer.layerRpcHandlers", () => {
       if (Option.isSome(result) && result.value._tag === "Complete" && Exit.isSuccess(result.value.exit)) {
         expect(result.value.exit.value).toBe(9)
       }
+    }).pipe(
+      Effect.provide(FlowProxyServer.layerRpcHandlers(flows).pipe(Layer.provideMerge(layer)))
+    )
+  })
+
+  effect("derives the execution identity from the flow's idempotency key when the request omits executionId", () => {
+    const { calls, layer } = makeLayer((value) => Effect.succeed(value + 1))
+    return Effect.gen(function*() {
+      const client = yield* RpcTest.makeClient(FlowProxy.toRpcGroup(flows))
+      const first = yield* client["Proxy/Echo"]({ payload: { value: 41 } })
+      const repeat = yield* client["Proxy/Echo"]({ payload: { value: 41 } })
+      expect([first, repeat]).toEqual([42, 42])
+      // Echo declares `idempotencyKey: String(value)`, so both requests
+      // derive one identity and the second replays instead of re-running.
+      expect(calls()).toBe(1)
+      // A different payload derives a different identity and runs.
+      expect(yield* client["Proxy/Echo"]({ payload: { value: 10 } })).toBe(11)
+      expect(calls()).toBe(2)
+    }).pipe(
+      Effect.provide(FlowProxyServer.layerRpcHandlers(flows).pipe(Layer.provide(layer)))
+    )
+  })
+
+  effect("resume with an unknown or empty execution id is a no-op success", () => {
+    const { calls, layer } = makeLayer((value) => Effect.succeed(value))
+    return Effect.gen(function*() {
+      const client = yield* RpcTest.makeClient(FlowProxy.toRpcGroup(flows))
+      yield* client["Proxy/EchoResume"]({ executionId: "proxy-never-started" })
+      yield* client["Proxy/SuspendsResume"]({ executionId: "" })
+      // Nothing was started, dispatched, or invented for the unknown id.
+      expect(Option.isNone(yield* Echo.poll("proxy-never-started"))).toBe(true)
+      expect(calls()).toBe(0)
     }).pipe(
       Effect.provide(FlowProxyServer.layerRpcHandlers(flows).pipe(Layer.provideMerge(layer)))
     )

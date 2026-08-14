@@ -20,9 +20,13 @@
  * store binds to.
  */
 import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
+import * as DurableWriter from "@smthrs/database-next/DurableWriter"
 import * as Crypto from "effect/Crypto"
+import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
+import * as Fiber from "effect/Fiber"
+import * as Latch from "effect/Latch"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
@@ -102,10 +106,16 @@ const services = Layer.mergeAll(
 )
 
 /** Runs one body against a fresh database and the real durable stores. */
-const durable = <A, E, R>(body: Effect.Effect<A, E, R>): Promise<A> =>
+const durableWith = <A, E, R>(
+  body: Effect.Effect<A, E, R>,
+  layer: Layer.Layer<never>
+): Promise<A> =>
   Effect.runPromise(
-    Effect.scoped(body.pipe(Effect.provide(services), Effect.provide(hostCrypto))) as Effect.Effect<A>
+    Effect.scoped(body.pipe(Effect.provide(layer), Effect.provide(hostCrypto))) as Effect.Effect<A>
   )
+
+/** Runs one body against a fresh database and the real durable stores. */
+const durable = <A, E, R>(body: Effect.Effect<A, E, R>): Promise<A> => durableWith(body, services)
 
 /** The same, with time under the test's control so a durable timer can fire. */
 const durableTimed = <A, E, R>(body: Effect.Effect<A, E, R>): Promise<A> =>
@@ -117,6 +127,21 @@ const durableTimed = <A, E, R>(body: Effect.Effect<A, E, R>): Promise<A> =>
 
 /** The layer type an action implementation registers itself through. */
 type Implementation = Layer.Layer<never, never, Action.Implementations | FlowRuntime.FlowRuntime>
+
+const wiringFor = (
+  engine: FlowRuntime.FlowRuntime["Service"],
+  flows: ReadonlyArray<Flow.Any>,
+  implementations: ReadonlyArray<Implementation>
+): Implementation =>
+  [
+    ...implementations,
+    // A body's registration cannot state the schema services its own
+    // topology hides, which is the erasure every sibling suite makes here.
+    ...flows.map((flow) => Interpreter.layer(flow as never) as Implementation)
+  ].reduce<Implementation>((left, right) => Layer.merge(left, right), Layer.empty).pipe(
+    Layer.provideMerge(Action.layerImplementations),
+    Layer.provideMerge(Layer.succeed(FlowRuntime.FlowRuntime, engine))
+  )
 
 /**
  * One engine incarnation over already-provided stores, with the flows it can
@@ -134,15 +159,7 @@ const incarnation = (options: {
       journalSource: `e2e-${options.hostId}`,
       isAlive: () => Effect.succeed(false)
     })
-    const wiring = [
-      ...options.implementations,
-      // A body's registration cannot state the schema services its own
-      // topology hides, which is the erasure every sibling suite makes here.
-      ...options.flows.map((flow) => Interpreter.layer(flow as never) as Implementation)
-    ].reduce<Implementation>((left, right) => Layer.merge(left, right), Layer.empty).pipe(
-      Layer.provideMerge(Action.layerImplementations),
-      Layer.provideMerge(Layer.succeed(FlowRuntime.FlowRuntime, engine))
-    )
+    const wiring = wiringFor(engine, options.flows, options.implementations)
     return { engine, wiring }
   })
 
@@ -1016,4 +1033,262 @@ describe("a plan is a value that grows round over round", () => {
     expect(entry?.changed).toContain("input[0]")
     expect(observed.rekeyed.map((node) => node.id)).toContain("root")
   })
+})
+
+describe("journal admission is visible at the authoring boundary", () => {
+  it("surfaces a typed queue overflow and leaves the execution failed", async () => {
+    const writeGate = Deferred.makeUnsafe<void>()
+    const overflowSeen = Deferred.makeUnsafe<JournalPackage.Journal.JournalError>()
+    let blockWrites = false
+    const gatedWriter = Layer.effect(
+      DurableWriter.DurableWriter,
+      Effect.gen(function*() {
+        const writer = yield* DurableWriter.DurableWriter
+        const write: DurableWriter.Service["write"] = (effect) =>
+          Effect.suspend(() =>
+            blockWrites
+              ? Deferred.await(writeGate).pipe(Effect.andThen(writer.write(effect)))
+              : writer.write(effect)
+          )
+        return DurableWriter.DurableWriter.of({ write })
+      })
+    )
+    const gatedDatabase = Layer.provideMerge(gatedWriter, TestDatabase.layer)
+    const overflowServices = Layer.mergeAll(
+      SqlJournal.layer({ capacity: 1, overflow: "reject", batchSize: 1 }),
+      RunStore.layer,
+      AttemptStore.layer,
+      CacheStore.layer,
+      PlanStore.layer,
+      DurableEngineState.layer
+    ).pipe(
+      Layer.provideMerge(Layer.provideMerge(Migrations.layer, gatedDatabase)),
+      Layer.merge(OwnerIdentity.layer),
+      Layer.merge(StepBoundary.layerTest()),
+      Layer.merge(Layer.succeed(Jj.Jj, jj))
+    )
+
+    const Saturate = Action.make("e2e/saturate-journal", {
+      payload: {},
+      success: Schema.String,
+      error: JournalPackage.Journal.JournalError
+    })
+    const SaturatingFlow = Flow.make("e2e/saturating-flow", {
+      payload: {},
+      success: Schema.String,
+      error: JournalPackage.Journal.JournalError,
+      body: () => Saturate.call({})
+    })
+    const implementation = Saturate.toLayer(() =>
+      Effect.gen(function*() {
+        const journal = yield* JournalPackage.Journal.Journal
+        blockWrites = true
+        const event = (index: number) =>
+          new JournalPackage.JournalEvent.Input({
+            runId: "overflow-run" as never,
+            sourceId: "overflow-action" as never,
+            sourceSeq: index as never,
+            eventType: "author.telemetry",
+            payload: { index }
+          }, { disableChecks: true })
+        yield* journal.emitLossy(event(0))
+        // Let the writer take the first entry and block on persistence; the
+        // next admission then occupies the queue's sole remaining slot.
+        yield* Effect.yieldNow
+        yield* journal.emitLossy(event(1))
+        const overflow = yield* Effect.flip(journal.emitLossy(event(2)))
+        yield* Deferred.succeed(overflowSeen, overflow)
+        return yield* Effect.fail(overflow)
+      })
+    ) as Implementation
+
+    const observed = await durableWith(
+      Effect.gen(function*() {
+        const store = yield* RunStore.RunStore
+        const { wiring } = yield* incarnation({
+          hostId: "journal-overflow",
+          flows: [SaturatingFlow],
+          implementations: [implementation]
+        })
+        const fiber = yield* Effect.forkChild(
+          SaturatingFlow.execute({}, { executionId: "overflow-run" }).pipe(
+            Effect.provide(wiring),
+            Effect.exit
+          ),
+          { startImmediately: true }
+        )
+        const overflow = yield* Deferred.await(overflowSeen)
+        const during = yield* store.get("overflow-run")
+        yield* Deferred.succeed(writeGate, undefined)
+        const exit = yield* Fiber.join(fiber)
+        return { during, exit, overflow, settled: yield* store.get("overflow-run") }
+      }).pipe(Effect.ensuring(Deferred.succeed(writeGate, undefined))),
+      overflowServices
+    )
+
+    expect(observed.overflow._tag).toBe("flows/journal/JournalError")
+    expect(observed.overflow.code).toBe("queue_overflow")
+    expect(observed.overflow.message).toContain("journal admission queue is full")
+    expect(observed.during.status).toBe("running")
+    expect(Exit.isFailure(observed.exit)).toBe(true)
+    if (Exit.isFailure(observed.exit)) {
+      const reason = observed.exit.cause.reasons.find((candidate) => candidate._tag === "Fail")
+      expect(reason?._tag === "Fail" ? reason.error : undefined).toMatchObject({
+        _tag: "flows/journal/JournalError",
+        code: "queue_overflow"
+      })
+    }
+    expect(observed.settled.status).toBe("failed")
+    expect(observed.settled.owner).toBeNull()
+  })
+})
+
+describe("wide authored graphs stay linear enough for the suite budget", () => {
+  it("builds, compiles, and diffs 300 parallel steps as 302 plan nodes", async () => {
+    const WideStep = Action.make("e2e/wide-step", {
+      payload: { index: Schema.Number },
+      success: Schema.Number
+    })
+    const members = Object.fromEntries(
+      Array.from({ length: 300 }, (_, index) => [
+        `step-${index}`,
+        WideStep.call({ index })
+      ])
+    )
+    const Wide = Flow.make("e2e/wide-flow", {
+      payload: {},
+      success: Schema.Any,
+      body: () => Node.all(members)
+    })
+
+    const graph = Graph.build(Wide, {})
+    const before = await Effect.runPromise(
+      Plan.compile({
+        planId: "e2e-wide-plan",
+        flow: Wide._tag,
+        nodes: Graph.drafts(graph)
+      }).pipe(Effect.provide(hostCrypto))
+    )
+    const rebuilt = Graph.build(Wide, {})
+    const after = await Effect.runPromise(
+      Plan.compile({
+        planId: "e2e-wide-plan",
+        flow: Wide._tag,
+        nodes: Graph.drafts(rebuilt)
+      }).pipe(Effect.provide(hostCrypto))
+    )
+    const diff = PlanDiff.diff(before, after)
+
+    expect(Graph.nodes(graph)).toHaveLength(302)
+    expect(before.nodes).toHaveLength(302)
+    expect(after.nodes).toHaveLength(302)
+    expect(diff).toEqual({
+      added: [],
+      removed: [],
+      rekeyed: [],
+      unchanged: before.nodes.map((node) => node.id)
+    })
+  }, 10_000)
+})
+
+describe("live ownership races stay fenced", () => {
+  it("lets one incarnation drive each round while the loser observes unsettled owned state", async () => {
+    const calls: Array<string> = []
+    const probes: Array<RunStorePackage.Ownership.OwnerId> = []
+    const started = [Latch.makeUnsafe(false), Latch.makeUnsafe(false)]
+    const release = [Latch.makeUnsafe(false), Latch.makeUnsafe(false)]
+
+    const observed = await durableTimed(Effect.gen(function*() {
+      const store = yield* RunStore.RunStore
+      const noHeartbeat = RunStore.makeNoop({
+        ...store,
+        heartbeat: () => Effect.never
+      })
+      const isAlive = (owner: RunStorePackage.Ownership.OwnerId) =>
+        Effect.sync(() => {
+          probes.push(owner)
+          return true
+        })
+      const first = yield* EngineStore.make({
+        owner: { hostId: "race-first" },
+        journalSource: "e2e-race-first",
+        isAlive
+      }).pipe(Effect.provideService(RunStore.RunStore, noHeartbeat))
+      const second = yield* EngineStore.make({
+        owner: { hostId: "race-second" },
+        journalSource: "e2e-race-second",
+        isAlive
+      })
+      const firstWiring = wiringFor(first, [CountTo], [
+        Increment.toLayer(({ value }) =>
+          Effect.gen(function*() {
+            calls.push(`first:${value}`)
+            yield* Latch.open(started[value]!)
+            yield* Latch.await(release[value]!)
+            return value + 1
+          })
+        ) as Implementation
+      ])
+      const secondWiring = wiringFor(second, [CountTo], [
+        Increment.toLayer(({ value }) =>
+          Effect.sync(() => {
+            calls.push(`second:${value}`)
+            return value + 1
+          })
+        ) as Implementation
+      ])
+
+      const rootFiber = yield* Effect.forkChild(
+        CountTo.execute({ value: 0, target: 2 }, {
+          executionId: "ownership-race",
+          discard: true
+        }).pipe(Effect.provide(firstWiring)),
+        { startImmediately: true }
+      )
+      yield* Latch.await(started[0]!)
+      yield* TestClock.adjust("31 seconds")
+      yield* CountTo.execute({ value: 0, target: 2 }, {
+        executionId: "ownership-race",
+        discard: true
+      }).pipe(Effect.provide(secondWiring))
+      const rootWhileContended = yield* store.get("ownership-race")
+      const rootPoll = yield* CountTo.poll("ownership-race").pipe(Effect.provide(secondWiring))
+
+      yield* Latch.open(release[0]!)
+      yield* Fiber.join(rootFiber)
+      yield* Latch.await(started[1]!)
+      const successorId = roundId("ownership-race", 1)
+      yield* TestClock.adjust("31 seconds")
+      yield* second.resume(CountTo, successorId)
+      const successorWhileContended = yield* store.get(successorId)
+      const successorPoll = yield* CountTo.poll(successorId).pipe(Effect.provide(secondWiring))
+
+      yield* Latch.open(release[1]!)
+      let successor = yield* store.get(successorId)
+      for (let attempt = 0; attempt < 50 && successor.status !== "completed"; attempt++) {
+        yield* Effect.yieldNow
+        successor = yield* store.get(successorId)
+      }
+      return {
+        root: yield* store.get("ownership-race"),
+        rootPoll,
+        rootWhileContended,
+        successor,
+        successorPoll,
+        successorWhileContended
+      }
+    }))
+
+    expect(calls).toEqual(["first:0", "first:1"])
+    expect(probes.some((owner) => owner.hostId === "race-first")).toBe(true)
+    expect(observed.rootWhileContended.status).toBe("running")
+    expect(observed.rootWhileContended.owner?.hostId).toBe("race-first")
+    expect(Option.isNone(observed.rootPoll)).toBe(true)
+    expect(observed.successorWhileContended.status).toBe("running")
+    expect(observed.successorWhileContended.owner?.hostId).toBe("race-first")
+    expect(Option.isNone(observed.successorPoll)).toBe(true)
+    expect(observed.root.status).toBe("completed")
+    expect(observed.successor.status).toBe("completed")
+    expect(observed.successor.owner).toBeNull()
+  }, 20_000)
 })

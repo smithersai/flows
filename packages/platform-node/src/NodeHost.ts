@@ -29,6 +29,7 @@ import * as Layer from "effect/Layer"
 import * as Path from "effect/Path"
 import type { HttpClient } from "effect/unstable/http/HttpClient"
 import type { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
+import * as AtomicFileSystem from "./AtomicFileSystem.ts"
 
 /**
  * The Node platform modules Effect ships, re-exported so a program that wants
@@ -38,7 +39,7 @@ import type { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSp
  * @category re-exports
  * @since 0.1.0
  */
-export { NodeChildProcessSpawner, NodeFileSystem, NodeHttpClient }
+export { AtomicFileSystem, NodeChildProcessSpawner, NodeFileSystem, NodeHttpClient }
 
 /**
  * The union of host services provided by the Node host layer.
@@ -49,7 +50,7 @@ export { NodeChildProcessSpawner, NodeFileSystem, NodeHttpClient }
 export type NodeHost = FileSystem | Path.Path | ChildProcessSpawner | Jj | HttpClient
 
 /** The two services `NodeChildProcessSpawner` resolves paths and files with. */
-const platform = Layer.mergeAll(NodeFileSystem.layer, Path.layer)
+const platform = Layer.mergeAll(AtomicFileSystem.layer, Path.layer)
 
 /**
  * Provides the default Node implementations for the whole closed Host surface.

@@ -9,12 +9,13 @@
  * directory rather than a double.
  */
 import * as CommandLine from "@smthrs/kernel-next/CommandLine"
-import { Deferred, Effect, Exit, Fiber, Layer, Path, Sink, Stream } from "effect"
+import { Deferred, Effect, Exit, Fiber, Layer, Option, Path, Sink, Stream } from "effect"
 import { ChildProcess } from "effect/unstable/process"
 import { ChildProcessSpawner } from "effect/unstable/process/ChildProcessSpawner"
 import { mkdtemp, rm } from "node:fs/promises"
 import * as NodeFsPromises from "node:fs/promises"
 import { tmpdir } from "node:os"
+import { relative } from "node:path"
 import { afterAll, beforeAll, describe, expect, it } from "vitest"
 import * as BrowserChildProcessSpawner from "../src/BrowserChildProcessSpawner/index.ts"
 import * as BrowserFileSystem from "../src/BrowserFileSystem/index.ts"
@@ -219,6 +220,24 @@ describe("BrowserChildProcessSpawner", () => {
 
     expect(calls[0]?.cwd).toBe(root)
     expect(calls[0]?.env).toEqual({ KEEP: "yes" })
+  })
+
+  it("resolves a relative cwd against the Node process cwd", async () => {
+    const { bash, calls } = stub(ok())
+    const relativeCwd = relative(process.cwd(), root)
+
+    await run(
+      bash,
+      Effect.flatMap(
+        ChildProcessSpawner,
+        (spawner) => spawner.exitCode(ChildProcess.make("thing", [], { cwd: relativeCwd }))
+      )
+    )
+
+    // Effect's POSIX Path layer consults globalThis.process.cwd() under Node.
+    // A real browser tab has no process, so callers should pass an absolute
+    // virtual cwd when they need the same resolution on a mounted filesystem.
+    expect(calls[0]?.cwd).toBe(root)
   })
 
   it("omits cwd and env entirely when the command declares neither", async () => {
@@ -479,6 +498,63 @@ describe("BrowserChildProcessSpawner boundary", () => {
     )
 
     expect(overlapped).toBe(false)
+  })
+
+  it("removes an interrupted queued run without leaking the semaphore permit", async () => {
+    const firstStarted = Deferred.makeUnsafe<void>()
+    const releaseFirst = Deferred.makeUnsafe<void>()
+    const thirdStarted = Deferred.makeUnsafe<void>()
+    const { bash, calls } = stub(async (command) => {
+      if (command === "first") {
+        Deferred.doneUnsafe(firstStarted, Exit.void)
+        await Effect.runPromise(Deferred.await(releaseFirst))
+      }
+      if (command === "third") Deferred.doneUnsafe(thirdStarted, Exit.void)
+      return { stdout: "", stderr: "", exitCode: 0 }
+    })
+
+    const observed = await run(
+      bash,
+      Effect.gen(function*() {
+        const spawner = yield* ChildProcessSpawner
+        const first = yield* Effect.forkChild(spawner.exitCode(ChildProcess.make("first")), {
+          startImmediately: true
+        })
+        yield* Deferred.await(firstStarted)
+
+        // startImmediately drives the child to its first suspension: with the
+        // first run holding the sole permit, the second is now queued at it.
+        const second = yield* Effect.forkChild(spawner.exitCode(ChildProcess.make("second")), {
+          startImmediately: true
+        })
+        const callsWhileQueued = calls.map((call) => call.command)
+        yield* Fiber.interrupt(second)
+        const secondExit = yield* Fiber.await(second)
+
+        Deferred.doneUnsafe(releaseFirst, Exit.void)
+        yield* Fiber.join(first)
+
+        const third = yield* Effect.forkChild(spawner.exitCode(ChildProcess.make("third")), {
+          startImmediately: true
+        })
+        const thirdDidStart = Option.isSome(yield* Deferred.poll(thirdStarted))
+        if (!thirdDidStart) yield* Fiber.interrupt(third)
+        const thirdExit = yield* Fiber.await(third)
+        return {
+          callsWhileQueued,
+          secondExit,
+          thirdDidStart,
+          thirdExit,
+          calls: calls.map((call) => call.command)
+        }
+      })
+    )
+
+    expect(observed.callsWhileQueued).toEqual(["first"])
+    expect(Exit.isFailure(observed.secondExit)).toBe(true)
+    expect(observed.thirdDidStart).toBe(true)
+    expect(Exit.isSuccess(observed.thirdExit)).toBe(true)
+    expect(observed.calls).toEqual(["first", "third"])
   })
 
   it("derives `lines` and `streamLines` from the same buffered output", async () => {

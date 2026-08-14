@@ -1,6 +1,6 @@
 import { Action, Flow, Graph } from "@smthrs/flow-next"
 import { KeyMaterial, Node, Plan, Planned } from "@smthrs/plan-next"
-import { Schema } from "effect"
+import { Effect, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { runPromise } from "./Crypto.ts"
 
@@ -559,6 +559,97 @@ describe("Graph.build diagnostics", () => {
 })
 
 describe("Graph.build into a plan", () => {
+  it("compiles hundreds of All members without dropping or aliasing nodes", async () => {
+    const members: Record<string, Node.Node<number>> = {}
+    for (let index = 0; index < 500; index++) members[`member-${index}`] = Node.succeed(index)
+
+    const graph = Graph.build(Node.all(members))
+    const plan = await compile("plan-wide-all", "wide-all", graph)
+
+    expect(Graph.nodes(graph)).toHaveLength(501)
+    expect(new Set(Graph.nodes(graph).map((current) => current.id)).size).toBe(501)
+    expect(plan.nodes).toHaveLength(501)
+  })
+
+  // BUG: Deep AndThen graphs recurse until a native stack overflow instead of returning a bounded typed refusal.
+  it.fails("rejects a very deep AndThen graph with a typed error instead of overflowing the stack", () => {
+    let deep: Node.Node<number> = Node.succeed(0)
+    for (let index = 1; index <= 10_000; index++) deep = Node.andThen(deep, Node.succeed(index))
+
+    expect(() => Graph.build(deep)).toThrowError(expect.objectContaining({
+      _tag: "flows/plan/GraphBuildError"
+    }))
+  })
+
+  // BUG: Cyclic unknown payloads recurse in graph hydration instead of returning a typed build refusal.
+  it.fails("rejects a cyclic unknown payload with a typed error instead of overflowing the stack", () => {
+    const cyclic: { self?: unknown } = {}
+    cyclic.self = cyclic
+
+    expect(() => Graph.build(Node.succeed(cyclic))).toThrowError(expect.objectContaining({
+      _tag: "flows/plan/GraphBuildError"
+    }))
+  })
+
+  // BUG: Very deep unknown payloads recurse in graph hydration instead of returning a bounded typed refusal.
+  it.fails("rejects a very deep unknown payload with a typed error instead of overflowing the stack", () => {
+    let payload: Record<string, unknown> = { value: "leaf" }
+    for (let index = 0; index < 20_000; index++) payload = { next: payload }
+
+    expect(() => Graph.build(Node.succeed(payload))).toThrowError(expect.objectContaining({
+      _tag: "flows/plan/GraphBuildError"
+    }))
+  })
+
+  it("rejects colliding structural ids before producing a partial plan", async () => {
+    const step = Node.succeed("value")
+    const graph = Graph.build(Node.all({
+      "a.all.b": step,
+      a: Node.all({ b: step })
+    }))
+
+    const error = await runPromise(Effect.flip(
+      Plan.compile({ planId: "plan-structural-collision", flow: "collision", nodes: Graph.drafts(graph) })
+    ))
+
+    expect(error).toMatchObject({
+      _tag: "flows/plan/PlanError",
+      code: "duplicate_node",
+      message: expect.stringContaining("root.all.a.all.b")
+    })
+  })
+
+  it("rejects self-referential and dangling authored refs as typed PlanErrors", async () => {
+    const cases = [
+      {
+        code: "cycle",
+        dependency: "root",
+        graph: Graph.build(Node.succeed(Planned.make("root")))
+      },
+      {
+        code: "unknown_dependency",
+        dependency: "missing",
+        graph: Graph.build(Node.succeed(Planned.make("missing")))
+      }
+    ] as const
+
+    for (const current of cases) {
+      const error = await runPromise(Effect.flip(
+        Plan.compile({
+          planId: `plan-${current.code}`,
+          flow: current.code,
+          nodes: Graph.drafts(current.graph)
+        })
+      ))
+
+      expect(error).toMatchObject({
+        _tag: "flows/plan/PlanError",
+        code: current.code,
+        message: expect.stringContaining(current.dependency)
+      })
+    }
+  })
+
   it("shows protected and on-failure topology in the graph and compiled plan", async () => {
     const graph = Graph.build(
       Read.call({ path: "counter.txt" }).pipe(

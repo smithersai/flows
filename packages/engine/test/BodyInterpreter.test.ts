@@ -6,7 +6,7 @@
  */
 import { Action, Flow, FlowRuntime, Interpreter, StepIdentity } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
-import { Deferred, Effect, Exit, Fiber, Layer, Option, Schema } from "effect"
+import { Cause, Deferred, Effect, Exit, Fiber, Layer, Option, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
 import { runPromise } from "./Crypto.ts"
@@ -245,6 +245,122 @@ describe("bodied flow on the memory engine", () => {
 
     expect(Exit.isFailure(exit)).toBe(true)
     expect(Exit.isFailure(exit) && exit.cause.toString()).toContain("requires SnapshotBoundary")
+  })
+})
+
+describe("graph failure semantics on the memory engine", () => {
+  it("stops a dependency chain at a dying action: no downstream dispatch, the defect is the cause", async () => {
+    // `Pipeline` is Read -> Double -> map. When Read dies, the chain must
+    // stop at the failed node: Double is downstream of the dead value and can
+    // never be dispatched, and the flow's cause is exactly Read's defect.
+    const calls: Array<string> = []
+    const layer = Layer.mergeAll(
+      Read.toLayer(({ path }) =>
+        Effect.suspend((): Effect.Effect<{ value: number; files: Array<string> }> => {
+          calls.push(`read:${path}`)
+          return Effect.die("read-kaboom")
+        })
+      ),
+      Double.toLayer(({ value }) =>
+        Effect.sync(() => {
+          calls.push(`double:${value}`)
+          return value * 2
+        })
+      ),
+      Interpreter.layer(Pipeline)
+    ).pipe(
+      Layer.provideMerge(Action.layerImplementations),
+      Layer.provideMerge(FlowEngine.layerMemory)
+    )
+
+    const exit = await runPromise(
+      Pipeline.execute({ path: "counter.txt" }, { executionId: "body-chain-defect" }).pipe(
+        Effect.exit,
+        Effect.provide(layer)
+      )
+    )
+
+    expect(Exit.isFailure(exit)).toBe(true)
+    expect(Exit.isFailure(exit) && Cause.hasDies(exit.cause)).toBe(true)
+    expect(Exit.isFailure(exit) && String(exit.cause)).toContain("read-kaboom")
+    // Evaluation reached Read and nothing after it.
+    expect(calls).toEqual(["read:counter.txt"])
+  })
+
+  it("interrupts the active sibling of a failed `All` member and propagates exactly the member's cause", async () => {
+    // One member fails while its sibling is genuinely mid-flight: the sibling
+    // must be torn down (its cleanup observed before the flow reports), the
+    // node after the `All` must never dispatch, and the flow's typed cause is
+    // the failing member's error alone — the sibling's interruption is
+    // engine plumbing, not part of the answer.
+    const Fails = Action.make("body/all-fails", {
+      payload: {},
+      success: Schema.String,
+      error: Schema.String
+    })
+    const Slow = Action.make("body/all-slow", { payload: {}, success: Schema.String })
+    const After = Action.make("body/all-after", {
+      payload: { left: Schema.String, right: Schema.String },
+      success: Schema.String
+    })
+    const Pair = Flow.make("body/pair", {
+      payload: {},
+      success: Schema.String,
+      error: Schema.String,
+      body: () =>
+        Node.all({ left: Fails.call({}), right: Slow.call({}) }).pipe(
+          Node.andThen(({ left, right }) => After.call({ left, right }))
+        )
+    })
+
+    const events: Array<string> = []
+    const observed = await runPromise(Effect.gen(function*() {
+      const entered = yield* Deferred.make<void>()
+      const layer = Layer.mergeAll(
+        Fails.toLayer(() =>
+          Effect.gen(function*() {
+            // Fail only once the sibling is provably active, so the failure
+            // races a genuinely running fiber rather than an undispatched one.
+            yield* Deferred.await(entered)
+            events.push("fails:settle")
+            return yield* Effect.fail("left-broke")
+          })
+        ),
+        Slow.toLayer(() =>
+          Effect.gen(function*() {
+            events.push("slow:start")
+            yield* Deferred.succeed(entered, undefined)
+            // `Effect.never` can only exit by interruption, so the `ensuring`
+            // firing is proof the sibling's fiber was torn down.
+            return yield* Effect.never.pipe(
+              Effect.ensuring(Effect.sync(() => void events.push("slow:cleanup")))
+            )
+          })
+        ),
+        After.toLayer(() =>
+          Effect.sync(() => {
+            events.push("after")
+            return "after"
+          })
+        ),
+        Interpreter.layer(Pair)
+      ).pipe(
+        Layer.provideMerge(Action.layerImplementations),
+        Layer.provideMerge(FlowEngine.layerMemory)
+      )
+      return yield* Pair.execute({}, { executionId: "body-all-failure" }).pipe(
+        Effect.exit,
+        Effect.provide(layer)
+      )
+    }))
+
+    expect(Exit.isFailure(observed)).toBe(true)
+    // Exactly the member's typed error; the sibling's interruption does not
+    // pollute the propagated cause.
+    expect(Exit.isFailure(observed) && Cause.squash(observed.cause)).toBe("left-broke")
+    // The sibling was active when the member failed, and its cleanup ran
+    // before the flow reported.
+    expect(events).toEqual(["slow:start", "fails:settle", "slow:cleanup"])
   })
 })
 

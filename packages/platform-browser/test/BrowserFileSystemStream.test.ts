@@ -54,4 +54,62 @@ describe("BrowserFileSystem", () => {
     expect(largestRead).toBeLessThanOrEqual(4_096)
     expect(closed).toBe(true)
   })
+
+  it("fails with the mapped stream error when handle.read rejects after a successful chunk", async () => {
+    const readError = Object.assign(new Error("EIO: read failed"), { code: "EIO" })
+    const delivered: Array<Array<number>> = []
+    let reads = 0
+    let closed = false
+    const backend: BrowserFileSystem.ZenFsPromisesLike = {
+      open: async () => ({
+        read: async (buffer, offset) => {
+          reads += 1
+          if (reads === 1) {
+            buffer.set([1, 2, 3], offset)
+            return { bytesRead: 3 }
+          }
+          throw readError
+        },
+        close: async () => {
+          closed = true
+        }
+      }),
+      readFile: async () => {
+        throw new Error("stream must not call readFile")
+      },
+      writeFile: async () => {},
+      mkdir: async () => {},
+      readdir: async () => [],
+      stat: async () => ({
+        size: 6,
+        mode: 0,
+        mtimeMs: 0,
+        isFile: () => true,
+        isDirectory: () => false,
+        isSymbolicLink: () => false
+      }),
+      rm: async () => {}
+    }
+    const fileSystem = BrowserFileSystem.make(backend)
+
+    const error = await Effect.runPromise(
+      Effect.flip(
+        fileSystem.stream("/partial", { chunkSize: 3 }).pipe(
+          Stream.tap((chunk) => Effect.sync(() => delivered.push(Array.from(chunk)))),
+          Stream.runCollect
+        )
+      )
+    )
+
+    expect(delivered).toEqual([[1, 2, 3]])
+    expect(reads).toBe(2)
+    expect(error.reason).toMatchObject({
+      _tag: "Unknown",
+      method: "stream.read",
+      pathOrDescriptor: "/partial",
+      description: "EIO: read failed",
+      cause: readError
+    })
+    expect(closed).toBe(true)
+  })
 })

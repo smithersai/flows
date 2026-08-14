@@ -10,7 +10,7 @@
  * engine's side of the same interaction.
  */
 import { Action, DurableClock, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
-import { Effect, Layer, Option, Schema } from "effect"
+import { Cause, Deferred, Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
 import { describe, expect, it } from "vitest"
@@ -19,6 +19,10 @@ import { runPromise } from "./Crypto.ts"
 
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
   it(name, () => runPromise(body().pipe(Effect.provide(TestClock.layer()))))
+
+/** An `effect` case that documents a known defect: it passes while the bug stands. */
+const effectFails = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
+  it.fails(name, () => runPromise(body().pipe(Effect.provide(TestClock.layer()))))
 
 const pollSuspended = <A, E, R>(
   poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>
@@ -120,4 +124,106 @@ describe("FlowEngine.layerMemory durable waits", () => {
       yield* TestClock.adjust("10 minutes")
       expect(Option.isSome(yield* read)).toBe(true)
     }).pipe(Effect.provide(FlowEngine.layerMemory)))
+})
+
+describe("FlowEngine.layerMemory normal interrupt of a live action", () => {
+  /** A flow whose single action is genuinely RUNNING — blocked on an in-process
+   * deferred, never parked — so `interrupt` targets live work rather than a
+   * settled `Suspended` round. */
+  const liveCase = (tag: string) => {
+    const events: Array<string> = []
+    const actionDeclaration = Action.make(`${tag}/action`, {
+      payload: { id: Schema.String },
+      success: Schema.String
+    })
+    const flow = Flow.make(tag, {
+      payload: { id: Schema.String },
+      success: Schema.String,
+      idempotencyKey: ({ id }) => id,
+      body: (payload) => actionDeclaration.call(payload)
+    })
+    return { actionDeclaration, events, flow }
+  }
+
+  effect("a cancel requested mid-flight becomes the terminal result when the live action settles", () => {
+    const { actionDeclaration, events, flow } = liveCase("Memory/LiveSettle")
+    return Effect.gen(function*() {
+      const entered = yield* Deferred.make<void>()
+      const release = yield* Deferred.make<void>()
+      const layer = Layer.mergeAll(
+        actionDeclaration.toLayer(() =>
+          Effect.gen(function*() {
+            events.push("enter")
+            yield* Deferred.succeed(entered, undefined)
+            yield* Deferred.await(release)
+            events.push("settle")
+            return "done"
+          }).pipe(Effect.ensuring(Effect.sync(() => void events.push("cleanup"))))
+        ),
+        Interpreter.layer(flow)
+      ).pipe(
+        Layer.provideMerge(Action.layerImplementations)
+      ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+      return yield* Effect.gen(function*() {
+        const executionId = yield* flow.execute({ id: "live-settle" }, { discard: true })
+        yield* Deferred.await(entered)
+        // The action is live; the normal interrupt records the request and
+        // returns without settling anything.
+        yield* flow.interrupt(executionId)
+        yield* Effect.yieldNow
+        expect(Option.isNone(yield* flow.poll(executionId))).toBe(true)
+        // The action then settles on its own — and the recorded cancellation,
+        // not the action's value, is the round's terminal result.
+        yield* Deferred.succeed(release, undefined)
+        const polled = yield* pollComplete(flow.poll(executionId))
+        expect(Option.isSome(polled) && polled.value._tag).toBe("Complete")
+        const exit = Option.isSome(polled) && polled.value._tag === "Complete"
+          ? polled.value.exit
+          : undefined
+        expect(exit !== undefined && Exit.isFailure(exit)).toBe(true)
+        expect(
+          exit !== undefined && Exit.isFailure(exit) &&
+            exit.cause.reasons.some(Cause.isInterruptReason)
+        ).toBe(true)
+        // The action ran to completion and its cleanup fired before the
+        // cancellation reported.
+        expect(events).toEqual(["enter", "settle", "cleanup"])
+      }).pipe(Effect.provide(layer))
+    })
+  })
+
+  // BUG: layerMemory.interrupt is inert against a LIVE execution. `resume`
+  // returns while the fiber is running and nothing else delivers the
+  // interruption, so an action blocked in flight is never cancelled: the run
+  // stays live forever, its finalizers never run, and poll never reaches a
+  // terminal state — despite `interrupt`'s contract that the engine
+  // "interrupts active work while preserving its normal cleanup".
+  effectFails("normal interrupt cancels a live blocked action promptly with its cleanup", () => {
+    const { actionDeclaration, events, flow } = liveCase("Memory/LivePrompt")
+    return Effect.gen(function*() {
+      const entered = yield* Deferred.make<void>()
+      const layer = Layer.mergeAll(
+        actionDeclaration.toLayer(() =>
+          Effect.gen(function*() {
+            events.push("enter")
+            yield* Deferred.succeed(entered, undefined)
+            return yield* Effect.never
+          }).pipe(Effect.ensuring(Effect.sync(() => void events.push("cleanup"))))
+        ),
+        Interpreter.layer(flow)
+      ).pipe(
+        Layer.provideMerge(Action.layerImplementations)
+      ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+      return yield* Effect.gen(function*() {
+        const executionId = yield* flow.execute({ id: "live-prompt" }, { discard: true })
+        yield* Deferred.await(entered)
+        yield* flow.interrupt(executionId)
+        const polled = yield* pollComplete(flow.poll(executionId))
+        // The advertised contract: active work is interrupted, its cleanup
+        // runs, and the poll observes the terminal cancellation.
+        expect(Option.isSome(polled) && polled.value._tag).toBe("Complete")
+        expect(events).toContain("cleanup")
+      }).pipe(Effect.provide(layer))
+    })
+  })
 })

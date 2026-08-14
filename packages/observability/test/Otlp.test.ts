@@ -1,19 +1,33 @@
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Metric from "effect/Metric"
+import { TestClock } from "effect/testing"
 import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient"
+import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 import { Otlp } from "../src/index.ts"
 
+interface RecordedRequest {
+  readonly url: string
+  readonly body: unknown
+  readonly headers: globalThis.Headers
+}
+
 /** A `fetch` stand-in that records every export request and never networks. */
-const recordingFetch = () => {
-  const requests: Array<{ readonly url: string; readonly body: unknown }> = []
+const recordingFetch = (
+  respond: () => Promise<Response> = () => Promise.resolve(new Response("{}", { status: 200 }))
+) => {
+  const requests: Array<RecordedRequest> = []
   const fetch: typeof globalThis.fetch = (input, init) => {
     const body = typeof init?.body === "string"
       ? init.body
       : new TextDecoder().decode(init?.body as Uint8Array)
-    requests.push({ url: String(input), body: JSON.parse(body) })
-    return Promise.resolve(new Response("{}", { status: 200 }))
+    requests.push({
+      url: String(input),
+      body: JSON.parse(body),
+      headers: new globalThis.Headers(init?.headers)
+    })
+    return respond()
   }
   return { requests, fetch }
 }
@@ -32,7 +46,22 @@ const runExporting = <A>(
     )
   )
 
-const resourceAttributes = (request: { readonly body: unknown }): Record<string, unknown> => {
+/** The same export harness under a controllable clock, for retry assertions. */
+const runExportingTimed = <A>(
+  effect: Effect.Effect<A>,
+  layer: Layer.Layer<never>,
+  fetch: typeof globalThis.fetch
+): Promise<A> =>
+  Effect.runPromise(
+    effect.pipe(
+      Effect.provide(layer),
+      Effect.provideService(FetchHttpClient.Fetch, fetch),
+      Effect.provideService(Metric.MetricRegistry, new Map()),
+      Effect.provide(TestClock.layer())
+    )
+  )
+
+const resourceAttributes = (request: RecordedRequest): Record<string, unknown> => {
   const body = request.body as {
     readonly resourceMetrics: ReadonlyArray<{
       readonly resource: { readonly attributes: ReadonlyArray<{ key: string; value: { stringValue: string } }> }
@@ -44,6 +73,14 @@ const resourceAttributes = (request: { readonly body: unknown }): Record<string,
 }
 
 describe("Otlp", () => {
+  it("keeps defaultServiceVersion equal to the package release version", () => {
+    const manifest = JSON.parse(
+      readFileSync(new URL("../package.json", import.meta.url), "utf8")
+    ) as { readonly version: string }
+
+    expect(Otlp.defaultServiceVersion).toBe(manifest.version)
+  })
+
   it("exports registered metrics to the collector with flows resource defaults", async () => {
     const collector = recordingFetch()
     const counter = Metric.counter("observability_test_events")
@@ -79,6 +116,84 @@ describe("Otlp", () => {
     expect(attributes["service.name"]).toBe("my-harness")
     expect(attributes["service.version"]).toBe("9.9.9")
     expect(attributes["deployment.environment.name"]).toBe("test")
+  })
+
+  it("sends caller headers and a non-empty metric payload through layer directly", async () => {
+    const collector = recordingFetch()
+    const directLayer = Otlp.layer({
+      baseUrl: "http://collector.invalid:4318",
+      serviceName: "direct-http-client",
+      headers: {
+        authorization: "Bearer test-token",
+        "x-tenant": "judge-suite"
+      }
+    }).pipe(Layer.provide(FetchHttpClient.layer))
+
+    await runExporting(
+      Metric.update(Metric.counter("observability_direct_metric"), 7),
+      directLayer,
+      collector.fetch
+    )
+
+    const request = collector.requests.find((candidate) => candidate.url.endsWith("/v1/metrics"))
+    expect(request).toBeDefined()
+    expect(request?.headers.get("authorization")).toBe("Bearer test-token")
+    expect(request?.headers.get("x-tenant")).toBe("judge-suite")
+    expect(resourceAttributes(request!)["service.name"]).toBe("direct-http-client")
+    const body = request?.body as {
+      readonly resourceMetrics?: ReadonlyArray<{
+        readonly scopeMetrics?: ReadonlyArray<{ readonly metrics?: ReadonlyArray<unknown> }>
+      }>
+    }
+    expect(body.resourceMetrics?.[0]?.scopeMetrics?.[0]?.metrics?.length).toBeGreaterThan(0)
+    expect(JSON.stringify(body)).toContain("observability_direct_metric")
+  })
+
+  it.each([
+    {
+      label: "an HTTP 500",
+      respond: () => Promise.resolve(new Response("collector failed", { status: 500 }))
+    },
+    {
+      label: "a rejected fetch",
+      respond: () => Promise.reject(new TypeError("network down"))
+    }
+  ])("degrades on $label without failing the app or leaking a rejection", async ({ respond }) => {
+    const collector = recordingFetch(respond)
+    const unhandled: Array<unknown> = []
+    const onUnhandled = (reason: unknown) => {
+      unhandled.push(reason)
+    }
+    process.on("unhandledRejection", onUnhandled)
+    try {
+      const result = await runExportingTimed(
+        Effect.gen(function*() {
+          yield* Effect.void.pipe(Effect.withSpan("observability_failed_export"))
+          // One initial request plus the three transient retries completes by
+          // four seconds. The exporter then disables itself for 60 seconds.
+          yield* TestClock.adjust("5 seconds")
+          yield* Effect.void.pipe(Effect.withSpan("observability_dropped_while_disabled"))
+          yield* TestClock.adjust("5 seconds")
+          return "application-completed"
+        }),
+        Otlp.layerFetch({
+          baseUrl: "http://collector.invalid:4318",
+          exportInterval: "1 second",
+          shutdownTimeout: "1 second"
+        }),
+        collector.fetch
+      )
+      await new Promise<void>((resolve) => setImmediate(resolve))
+
+      expect(result).toBe("application-completed")
+      expect(unhandled).toEqual([])
+      const traceRequests = collector.requests.filter((request) => request.url.endsWith("/v1/traces"))
+      expect(traceRequests).toHaveLength(4)
+      expect(JSON.stringify(traceRequests[0]?.body)).toContain("observability_failed_export")
+      expect(JSON.stringify(traceRequests)).not.toContain("observability_dropped_while_disabled")
+    } finally {
+      process.off("unhandledRejection", onUnhandled)
+    }
   })
 
   it("posts every signal below the configured base URL", async () => {

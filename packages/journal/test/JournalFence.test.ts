@@ -90,6 +90,44 @@ describe("SqlJournal durable fencing", () => {
     expect((failure as JournalError).code).toBe("fence_lost")
   })
 
+  it("treats a malformed owner as a lost fence rather than a driver failure", async () => {
+    // `OwnerId` is `Schema.String`/`Schema.Number` with no runtime refinement,
+    // so a caller can hand the fence an empty identifier or a non-integral pid.
+    // The fence is a `WHERE EXISTS` comparison, so none of these can match the
+    // claimed row — the contract being pinned is that each is reported as the
+    // typed `fence_lost` a zombie owner gets, never a raw SQL/driver error and
+    // never a silent append behind the live owner.
+    const malformed: ReadonlyArray<OwnerId> = [
+      { hostId: "", pid: 42, nonce: "nonce-a" },
+      { hostId: "host-a", pid: 42, nonce: "" },
+      { hostId: "host-a", pid: 42.5, nonce: "nonce-a" },
+      { hostId: "host-a", pid: Number.NaN, nonce: "nonce-a" },
+      { hostId: "host-a", pid: Number.POSITIVE_INFINITY, nonce: "nonce-a" }
+    ]
+
+    const result = await withStack(Effect.gen(function*() {
+      const journal = yield* Journal
+      const sql = yield* Effect.service(SqlClient.SqlClient)
+      const run = runId("fenced-malformed")
+      yield* claim(sql, run, owner)
+      const failures = yield* Effect.forEach(
+        malformed,
+        (holder, index) => Effect.flip(journal.emitDurable(input(run, sourceId("driver"), index), holder))
+      )
+      const rows = yield* sql<{ readonly total: number }>`
+        SELECT COUNT(*) AS total FROM flows_journal_events WHERE run_id = ${run}
+      `
+      return { failures, total: Number(rows[0]!.total) }
+    }))
+
+    for (const failure of result.failures) {
+      expect(failure).toBeInstanceOf(JournalError)
+      expect((failure as JournalError).code).toBe("fence_lost")
+    }
+    // The legitimate owner's run gains no rows from any of them.
+    expect(result.total).toBe(0)
+  })
+
   it("stays idempotent when a fenced retry re-emits an already-committed entry", async () => {
     const receipts = await withStack(Effect.gen(function*() {
       const journal = yield* Journal

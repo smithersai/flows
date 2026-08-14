@@ -227,6 +227,48 @@ const cases: ReadonlyArray<Case> = [
     run: (fs) => Effect.scoped(fs.open("a", { flag: "w+" }))
   },
   {
+    name: "open with r+",
+    capabilities: [read("/workspace/a"), write("/workspace/a")],
+    hostCall: "open",
+    run: (fs) => Effect.scoped(fs.open("a", { flag: "r+" }))
+  },
+  {
+    name: "open with wx",
+    capabilities: [write("/workspace/a")],
+    hostCall: "open",
+    run: (fs) => Effect.scoped(fs.open("a", { flag: "wx" }))
+  },
+  {
+    name: "open with wx+",
+    capabilities: [read("/workspace/a"), write("/workspace/a")],
+    hostCall: "open",
+    run: (fs) => Effect.scoped(fs.open("a", { flag: "wx+" }))
+  },
+  {
+    name: "open with a",
+    capabilities: [write("/workspace/a")],
+    hostCall: "open",
+    run: (fs) => Effect.scoped(fs.open("a", { flag: "a" }))
+  },
+  {
+    name: "open with a+",
+    capabilities: [read("/workspace/a"), write("/workspace/a")],
+    hostCall: "open",
+    run: (fs) => Effect.scoped(fs.open("a", { flag: "a+" }))
+  },
+  {
+    name: "open with ax",
+    capabilities: [write("/workspace/a")],
+    hostCall: "open",
+    run: (fs) => Effect.scoped(fs.open("a", { flag: "ax" }))
+  },
+  {
+    name: "open with ax+",
+    capabilities: [read("/workspace/a"), write("/workspace/a")],
+    hostCall: "open",
+    run: (fs) => Effect.scoped(fs.open("a", { flag: "ax+" }))
+  },
+  {
     name: "readDirectory",
     capabilities: [read("/workspace/a")],
     hostCall: "readDirectory",

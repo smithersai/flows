@@ -88,6 +88,78 @@ describe("ChildProcessSpawner", () => {
     )
   })
 
+  itEffect("preserves PermissionRequired through the PlatformError projection", () => {
+    let invoked = false
+    const store = GrantStore.of({
+      check: (capability) =>
+        Effect.fail(Permission.permissionRequired({
+          requestId: "permission-7",
+          runId: "run-1",
+          capability,
+          tier: "irreversible",
+          meta: { surface: "process" }
+        })),
+      reply: () => Effect.die("not used by decorator tests"),
+      list: Effect.succeed([]),
+      grantEnvelope: () => Effect.void
+    })
+
+    return Effect.gen(function*() {
+      const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+      const failure = denial(yield* Effect.flip(spawner.exitCode(ChildProcess.make("blocked"))))
+      expect(failure).toBeInstanceOf(Permission.PermissionRequired)
+      expect(failure).toMatchObject({
+        code: "permission_required",
+        requestId: "permission-7",
+        runId: "run-1",
+        capability: { action: "proc:spawn", resource: "blocked" },
+        meta: { surface: "process" }
+      })
+      expect(invoked).toBe(false)
+    }).pipe(
+      Effect.provide(ChildProcessSpawner.layer),
+      Effect.provideService(
+        HostChildProcessSpawner,
+        hostSpawner({ stdout: "never", onSpawn: () => (invoked = true) })
+      ),
+      Effect.provideService(GrantStore, store)
+    )
+  })
+
+  itEffect("preserves GrantStoreError through the PlatformError projection", () => {
+    let invoked = false
+    const store = GrantStore.of({
+      check: () =>
+        Effect.fail(
+          new Permission.GrantStoreError({
+            code: "journal_failed",
+            message: "permission journal unavailable"
+          })
+        ),
+      reply: () => Effect.die("not used by decorator tests"),
+      list: Effect.succeed([]),
+      grantEnvelope: () => Effect.void
+    })
+
+    return Effect.gen(function*() {
+      const spawner = yield* ChildProcessSpawner.ChildProcessSpawner
+      const failure = denial(yield* Effect.flip(spawner.exitCode(ChildProcess.make("blocked"))))
+      expect(failure).toBeInstanceOf(Permission.GrantStoreError)
+      expect(failure).toMatchObject({
+        code: "journal_failed",
+        message: "permission journal unavailable"
+      })
+      expect(invoked).toBe(false)
+    }).pipe(
+      Effect.provide(ChildProcessSpawner.layer),
+      Effect.provideService(
+        HostChildProcessSpawner,
+        hostSpawner({ stdout: "never", onSpawn: () => (invoked = true) })
+      ),
+      Effect.provideService(GrantStore, store)
+    )
+  })
+
   itEffect("delegates allowed commands without changing their result", () => {
     const checks: Array<Capability.Capability> = []
 

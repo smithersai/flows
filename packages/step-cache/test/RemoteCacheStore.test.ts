@@ -183,6 +183,39 @@ describe("publications", () => {
     expect(errorOf(exit).code).toBe("invalid_cache")
     expect(tier.calls).toEqual([])
   })
+
+  // BUG: RemoteCacheStore.put encodes `result`/`meta` as Schema.Unknown and then
+  // serializes with bodyJsonUnsafe, so a BigInt or cyclic value escapes as a
+  // JSON.stringify TypeError defect instead of a typed invalid_cache, and an
+  // `undefined` value is silently published as a body with the field missing.
+  it.fails("refuses a result or meta that has no JSON form, without a request or a defect", async () => {
+    const cyclic: Record<string, unknown> = { name: "cycle" }
+    cyclic["self"] = cyclic
+    const malformed: ReadonlyArray<CacheStore.CacheEntry> = [
+      { ...entry, result: undefined },
+      { ...entry, result: BigInt(1) },
+      { ...entry, result: cyclic },
+      { ...entry, meta: undefined },
+      { ...entry, meta: BigInt(1) },
+      { ...entry, meta: cyclic }
+    ]
+    const tier = tierOf(() => new Response(null, { status: 201 }))
+    const exits = await Effect.runPromise(
+      Effect.forEach(
+        malformed,
+        (candidate) => Effect.flatMap(tier.store, (store) => store.put(candidate)).pipe(Effect.exit)
+      )
+    )
+
+    // `CacheStore.put` already holds this line; the shared tier is the same
+    // poisoning boundary and must not differ. A defect (`Die`) is the specific
+    // outcome being ruled out: it escapes the typed error channel entirely.
+    expect(exits.map((exit) => (Exit.isFailure(exit) ? exit.cause.reasons[0]!._tag : "Success"))).toEqual(
+      malformed.map(() => "Fail")
+    )
+    expect(exits.map((exit) => errorOf(exit).code)).toEqual(malformed.map(() => "invalid_cache"))
+    expect(tier.calls).toEqual([])
+  })
 })
 
 describe("evictions", () => {
@@ -216,6 +249,23 @@ describe("evictions", () => {
       Effect.flatMap(tier.store, (store) => store.evict(entry.keyDigest)).pipe(Effect.exit)
     )
     expect(errorOf(exit).code).toBe("persistence_failed")
+  })
+
+  // BUG: RemoteCacheStore.evict has no empty-key preflight, so `evict("")`
+  // sends DELETE to the collection root `/ac/` instead of failing invalid_cache.
+  it.fails("refuses an empty key without issuing a DELETE to the /ac/ root", async () => {
+    // `get` already refuses an empty key without a round trip; `evict` is the
+    // more dangerous half, because a malformed key targets a collection-like
+    // endpoint with a destructive verb.
+    const tier = tierOf(() => new Response(null, { status: 204 }))
+    const exit = await Effect.runPromise(
+      Effect.flatMap(tier.store, (store) => store.evict("")).pipe(Effect.exit)
+    )
+    // The request log is asserted first because it is the finding: today this
+    // records a `DELETE https://cache.example.com/ac/`, the collection root.
+    expect(tier.calls).toEqual([])
+    expect(Exit.isFailure(exit)).toBe(true)
+    expect(errorOf(exit).code).toBe("invalid_cache")
   })
 })
 

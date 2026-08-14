@@ -2,10 +2,12 @@ import { DurableWriter } from "@smthrs/database-next"
 import * as NodeDatabase from "@smthrs/database-next/node/NodeDatabase"
 import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
 import * as SqlError from "effect/unstable/sql/SqlError"
+import type * as Statement from "effect/unstable/sql/Statement"
 import { mkdtempSync, rmSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
@@ -16,14 +18,27 @@ import * as Migrations from "../src/Migrations.ts"
 
 const run = <A, E>(effect: Effect.Effect<A, E, never>) => Effect.runPromise(effect)
 
-const migrated = <A, E>(effect: Effect.Effect<A, E, DurableWriter.DurableWriter | SqlClient.SqlClient | CacheStore>) =>
-  run(
+type DatabaseDecorator = Layer.Layer<
+  DurableWriter.DurableWriter | SqlClient.SqlClient,
+  never,
+  DurableWriter.DurableWriter | SqlClient.SqlClient
+>
+
+const migrated = <A, E>(
+  effect: Effect.Effect<A, E, DurableWriter.DurableWriter | SqlClient.SqlClient | CacheStore>,
+  database?: DatabaseDecorator
+) => {
+  const store = database === undefined
+    ? CacheStoreLive.layer
+    : CacheStoreLive.layer.pipe(Layer.provide(database))
+  return run(
     effect.pipe(
-      Effect.provide(CacheStoreLive.layer),
+      Effect.provide(store),
       Effect.provide(Migrations.layer),
       Effect.provide(TestDatabase.layer)
     )
   )
+}
 
 const entry = {
   keyDigest: "digest-1",
@@ -33,6 +48,13 @@ const entry = {
   recordedRunId: "run-1",
   recordedEventSeq: 7
 } as const
+
+/** Names an eviction outcome — its error code, or the boolean it returned. */
+const outcomeOf = (exit: Exit.Exit<boolean, CacheStoreLive.CacheStoreError>): string => {
+  if (Exit.isSuccess(exit)) return `evicted:${exit.value}`
+  const reason = exit.cause.reasons[0]!
+  return reason._tag === "Fail" ? reason.error.code : reason._tag
+}
 
 const failingDatabase = (cause: unknown): Layer.Layer<DurableWriter.DurableWriter | SqlClient.SqlClient> => {
   const sql = new Proxy(
@@ -61,6 +83,28 @@ const postgresShapedDatabase = (
     Layer.succeed(DurableWriter.DurableWriter)(DurableWriter.DurableWriter.of({ write }))
   )
 }
+
+/** Records compiled cache-row deletes while preserving the in-memory database. */
+const recordingDatabase = (deletes: Array<string>): DatabaseDecorator =>
+  Layer.merge(
+    Layer.effect(
+      SqlClient.SqlClient,
+      Effect.gen(function*() {
+        const base = yield* Effect.service(SqlClient.SqlClient)
+        return new Proxy(base, {
+          apply(target, thisArgument, argumentsList) {
+            const statement = Reflect.apply(target, thisArgument, argumentsList) as Statement.Statement<unknown>
+            if (typeof statement.compile === "function") {
+              const [query] = statement.compile()
+              if (query.includes("DELETE FROM flows_step_cache")) deletes.push(query)
+            }
+            return statement
+          }
+        }) as SqlClient.SqlClient
+      })
+    ),
+    Layer.effect(DurableWriter.DurableWriter, Effect.service(DurableWriter.DurableWriter))
+  )
 
 describe("CacheStore", () => {
   it("returns none for a cache miss", async () => {
@@ -256,6 +300,49 @@ describe("CacheStore", () => {
     } finally {
       rmSync(directory, { recursive: true, force: true })
     }
+  })
+
+  // BUG: CacheStore.evict validates only `keyDigest`; a malformed `ifRecordedBy`
+  // fence is bound straight into the DELETE, so a compare-and-swap the caller
+  // could never satisfy silently reports `false` instead of failing invalid_cache.
+  it.fails("rejects a malformed eviction fence with invalid_cache and no DELETE", async () => {
+    // The fence is a compare-and-swap the caller supplies at runtime. A value
+    // that can name no row is a caller defect, and reporting it as an ordinary
+    // "nothing matched" hides an eviction that never had a chance to run.
+    const deletes: Array<string> = []
+    const result = await migrated(
+      Effect.gen(function*() {
+        const sql = yield* Effect.service(SqlClient.SqlClient)
+        const store = yield* CacheStore
+        yield* store.put(entry)
+        const malformed: ReadonlyArray<{ readonly runId: string; readonly eventSeq: number }> = [
+          { runId: "", eventSeq: entry.recordedEventSeq },
+          { runId: entry.recordedRunId, eventSeq: -1 },
+          { runId: entry.recordedRunId, eventSeq: 0.5 },
+          { runId: entry.recordedRunId, eventSeq: Number.NaN },
+          { runId: entry.recordedRunId, eventSeq: Number.MAX_SAFE_INTEGER + 1 }
+        ]
+        // `Effect.exit`, not `Effect.flip`: a fence that succeeds must surface as
+        // the value it returned, so the recorded failure names the behaviour
+        // being reported rather than throwing the raw `false` out of the run.
+        const outcomes = yield* Effect.forEach(
+          malformed,
+          (ifRecordedBy) => Effect.exit(store.evict(entry.keyDigest, { ifRecordedBy })).pipe(Effect.map(outcomeOf))
+        )
+        const rows = yield* sql<{ readonly count: number }>`
+        SELECT count(*) AS count FROM flows_step_cache
+      `
+        return { outcomes, count: rows[0]!.count }
+      }),
+      recordingDatabase(deletes)
+    )
+
+    expect(deletes).toEqual([])
+    // Today every one of these reads `evicted:false` — an eviction that could
+    // never have matched, reported as an ordinary miss.
+    expect(result.outcomes).toEqual(Array.from({ length: 5 }, () => "invalid_cache"))
+    // The row the fence could not name is untouched.
+    expect(result.count).toBe(1)
   })
 
   it("counts affected rows on a driver that reports rowCount rather than changes", async () => {

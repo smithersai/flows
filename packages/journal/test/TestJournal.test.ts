@@ -1,7 +1,7 @@
-import { Effect } from "effect"
+import { Effect, Exit } from "effect"
 import { describe, expect, it } from "vitest"
-import { Journal } from "../src/Journal.ts"
-import { type RunId, type SourceId } from "../src/JournalEvent.ts"
+import { Journal, type JournalError } from "../src/Journal.ts"
+import { type RunId, type SourceId, type SourceSeq } from "../src/JournalEvent.ts"
 import * as TestJournal from "../src/test/TestJournal.ts"
 
 describe("TestJournal", () => {
@@ -42,5 +42,56 @@ describe("TestJournal", () => {
     )
 
     expect(receipts.map((receipt) => receipt._tag)).toEqual(["Accepted", "Accepted"])
+  })
+
+  it("forwards capacity and every overflow policy to the lossy queue", async () => {
+    // `emitDurable` writes straight through the transaction and never touches
+    // the admission queue, so the cell above would stay green even if the
+    // bundle stopped forwarding `capacity`/`overflow` entirely. `emitLossy` is
+    // the only channel that observes them.
+    const emitThree = (policy: NonNullable<TestJournal.TestJournalOptions["overflow"]>) =>
+      Effect.gen(function*() {
+        const journal = yield* Journal
+        const emit = (sequence: number) =>
+          journal.emitLossy({
+            runId: `queue-${policy}` as RunId,
+            sourceId: "producer" as SourceId,
+            sourceSeq: sequence as SourceSeq,
+            eventType: "queued",
+            payload: { sequence }
+          })
+        // Capacity 1: the first admission fills the queue and the second
+        // overflows, so the policy decides the second receipt.
+        const first = yield* emit(0)
+        const second = yield* Effect.exit(emit(1))
+        return { first, second }
+      }).pipe(
+        Effect.provide(TestJournal.layer({ capacity: 1, overflow: policy, batchSize: 1 })),
+        Effect.scoped
+      )
+
+    const failureOf = (exit: Exit.Exit<unknown, JournalError>): JournalError | undefined => {
+      if (!Exit.isFailure(exit)) return undefined
+      const reason = exit.cause.reasons[0]!
+      return reason._tag === "Fail" ? reason.error : undefined
+    }
+
+    const rejected = await Effect.runPromise(emitThree("reject"))
+    expect(rejected.first._tag).toBe("Accepted")
+    expect(failureOf(rejected.second)?.code).toBe("queue_overflow")
+
+    const newest = await Effect.runPromise(emitThree("drop-newest"))
+    expect(newest.first._tag).toBe("Accepted")
+    expect(Exit.isSuccess(newest.second) ? newest.second.value : undefined).toMatchObject({
+      _tag: "Dropped",
+      policy: "drop-newest"
+    })
+
+    const oldest = await Effect.runPromise(emitThree("drop-oldest"))
+    expect(oldest.first._tag).toBe("Accepted")
+    expect(Exit.isSuccess(oldest.second) ? oldest.second.value : undefined).toMatchObject({
+      _tag: "Accepted",
+      evicted: { policy: "drop-oldest", count: 1 }
+    })
   })
 })

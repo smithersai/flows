@@ -5,8 +5,8 @@
  * is derived without a runtime. The engine's use of these decisions — the
  * retry loop itself — is tested in `@smthrs/engine-next`.
  */
-import { RetryPolicy } from "@smthrs/flow-next"
-import { Effect, Option, Random } from "effect"
+import { Action, RetryPolicy } from "@smthrs/flow-next"
+import { Cause, Effect, Exit, Option, Random, Schema } from "effect"
 import { describe, expect, it } from "vitest"
 import { runPromise } from "./Crypto.ts"
 
@@ -161,6 +161,55 @@ describe("expiration (issue #36)", () => {
 })
 
 describe("decide", () => {
+  it("classifies tagged failures identically after an action Exit JSON round trip", () => {
+    class CallerFatal extends Schema.TaggedError<CallerFatal>()("Retry/CallerFatal", {
+      reason: Schema.String
+    }) {}
+    class CacheCorruption extends Schema.TaggedError<CacheCorruption>()(
+      "flows/engine-store/CacheCorruptionDetected",
+      { row: Schema.String }
+    ) {}
+    const failureSchema = Schema.Union([CallerFatal, CacheCorruption])
+    const action = Action.make({
+      name: "Retry/rehydrated",
+      success: Schema.Number,
+      error: failureSchema,
+      execute: Effect.succeed(1)
+    })
+    const exitCodec = Schema.toCodecJson(action.exitSchema)
+    const callerPolicy = RetryPolicy.make({
+      initialMs: 100,
+      factor: 2,
+      maxMs: 1000,
+      nonRetryable: ["Retry/CallerFatal"]
+    })
+    const defaultPolicy = RetryPolicy.make({ initialMs: 100, factor: 2, maxMs: 1000 })
+    const cases = [
+      { live: new CallerFatal({ reason: "do not retry" }), policy: callerPolicy },
+      { live: new CacheCorruption({ row: "attempt-7" }), policy: defaultPolicy }
+    ] as const
+
+    for (const current of cases) {
+      const encoded = Schema.encodeUnknownSync(exitCodec)(Exit.fail(current.live))
+      const decoded = Schema.decodeUnknownSync(exitCodec)(JSON.parse(JSON.stringify(encoded)))
+      expect(Exit.isFailure(decoded)).toBe(true)
+      if (!Exit.isFailure(decoded)) continue
+      const failureReason = decoded.cause.reasons.find(Cause.isFailReason)
+      expect(failureReason).toBeDefined()
+      if (failureReason === undefined) continue
+      const rehydrated = failureReason.error
+
+      expect(rehydrated).toEqual(current.live)
+      expect(RetryPolicy.errorTag(rehydrated)).toBe(current.live._tag)
+      expect(RetryPolicy.decide(current.policy, { attempt: 1, error: rehydrated })).toEqual(
+        RetryPolicy.decide(current.policy, { attempt: 1, error: current.live })
+      )
+      expect(RetryPolicy.decide(current.policy, { attempt: 1, error: rehydrated })).toEqual(
+        RetryPolicy.giveUp("nonRetryable")
+      )
+    }
+  })
+
   it("short-circuits a nonRetryable-tagged error to giveUp on attempt 1", () => {
     const policy = RetryPolicy.make({
       initialMs: 100,
