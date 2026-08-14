@@ -10,9 +10,10 @@
  *
  * Counters over an effect's exit are keyed by {@link ExitTag} records, so an
  * update is a lookup rather than a branch, and durations land in
- * `Metric.timer` histograms through Effect's own `Effect.trackDuration` — the
- * exit-observing combinators (`Effect.onExit`, `Effect.trackDuration`) never
- * alter the instrumented effect's result or cause.
+ * `Metric.timer` histograms through Effect's own `Effect.trackDuration`. The
+ * same exit observation annotates the operation span with its outcome; none of
+ * the instrumentation combinators alters the instrumented effect's result or
+ * cause.
  *
  * @since 0.1.0
  */
@@ -59,9 +60,10 @@ export const exitTag = <A, E>(exit: Exit.Exit<A, E>): ExitTag =>
  *
  * Composes Effect's own `Effect.trackDuration` (monotonic clock, records on
  * success, failure, and interruption alike) with an `Effect.onExit` counter
- * update, so the instrumented effect's exit — value, cause, and interruption
- * — propagates byte-identically. This is the dual-instrument shape
- * production Effect services use for hot-path operations.
+ * update and current-span annotation, so the instrumented effect's exit —
+ * value, cause, and interruption — propagates byte-identically. This is the
+ * dual-instrument shape production Effect services use for hot-path
+ * operations.
  *
  * @category combinators
  * @since 0.1.0
@@ -73,7 +75,12 @@ export const observe = (instruments: {
 <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
   effect.pipe(
     Effect.trackDuration(instruments.timer),
-    Effect.onExit((exit) => Metric.update(instruments.counter[exitTag(exit)], 1))
+    Effect.onExit((exit) => {
+      const tag = exitTag(exit)
+      return Effect.annotateCurrentSpan({ outcome: attributeValue(tag) }).pipe(
+        Effect.andThen(Metric.update(instruments.counter[tag], 1))
+      )
+    })
   )
 
 const exitTags = ["Success", "Failure", "Interrupt"] as const

@@ -354,7 +354,12 @@ const makeExecute = Effect.fnUntraced(function*<
   const engine = yield* FlowRuntime
   const instance = yield* FlowInstance
   const attempt = yield* CurrentAttempt
-  yield* Effect.annotateCurrentSpan({ executionId: instance.executionId, attempt, action: action.name })
+  yield* Effect.annotateCurrentSpan({
+    executionId: instance.executionId,
+    action: action.name,
+    attempt,
+    tier: action.tier
+  })
   const result = yield* Flow.wrapActionResult(
     engine.actionExecute(action, attempt),
     (_) => _._tag === "Suspended"
@@ -364,10 +369,12 @@ const makeExecute = Effect.fnUntraced(function*<
   // narrowing is written as "not complete" so the third result variant needs
   // no unreachable arm of its own.
   if (result._tag !== "Complete") {
+    yield* Effect.annotateCurrentSpan({ outcome: "suspended" })
     return yield* Flow.suspend(instance)
   }
+  yield* Effect.annotateCurrentSpan({ outcome: result.exit._tag === "Success" ? "success" : "failure" })
   return yield* result.exit
-}, (effect, action) =>
-  Effect.withSpan(effect, action.name, {
+}, (effect) =>
+  Effect.withSpan(effect, "Action.execute", {
     captureStackTrace: false
   }))

@@ -13,6 +13,7 @@ import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
 import * as Metric from "effect/Metric"
+import * as Tracer from "effect/Tracer"
 import { describe, expect, it } from "vitest"
 import * as EngineStoreMetrics from "../src/EngineStoreMetrics.ts"
 import * as PlanScheduler from "../src/PlanScheduler.ts"
@@ -67,6 +68,14 @@ const activate = (runId: string) =>
 
 describe("EngineStoreMetrics", () => {
   it("counts scheduler rounds, node outcomes, dispatches, and boundary settlements", async () => {
+    const spans: Array<Tracer.NativeSpan> = []
+    const tracer = Tracer.make({
+      span(options) {
+        const span = new Tracer.NativeSpan(options)
+        spans.push(span)
+        return span
+      }
+    })
     const plan = await runPromise(Plan.compile({
       planId: "plan-metrics",
       flow: "example/Metrics",
@@ -102,6 +111,7 @@ describe("EngineStoreMetrics", () => {
         PlanScheduler.layerExecutor(executor)
       )),
       Effect.provide(TestStores.layer()),
+      Effect.provideService(Tracer.Tracer, tracer),
       Effect.provideService(Metric.MetricRegistry, new Map())
     )
 
@@ -114,6 +124,29 @@ describe("EngineStoreMetrics", () => {
     expect(observed.settledClean).toBe(2)
     expect(observed.dispatchDurations).toBe(2)
     expect(observed.waveDurations).toBe(1)
+
+    const runSpan = spans.find((span) => span.name === "PlanScheduler.run")
+    expect(runSpan?.attributes.get("runId")).toBe("run-metrics")
+    expect(runSpan?.attributes.get("planId")).toBe("plan-metrics")
+    expect(runSpan?.attributes.get("round")).toBe(1)
+    expect(runSpan?.attributes.get("outcome")).toBe("success")
+
+    const dispatchSpans = spans.filter((span) => span.name === "PlanScheduler.dispatch")
+    expect(dispatchSpans).toHaveLength(2)
+    expect(dispatchSpans.map((span) => span.attributes.get("nodeId")).sort()).toEqual(["left", "right"])
+    expect(dispatchSpans.every((span) => span.attributes.get("outcome") === "built")).toBe(true)
+
+    const persisted = spans.filter((span) => span.name === "ActionPersistence.execute")
+    expect(persisted).toHaveLength(2)
+    expect(persisted.every((span) => span.attributes.get("runId") === "run-metrics")).toBe(true)
+    expect(persisted.every((span) => span.attributes.get("attempt") === 1)).toBe(true)
+    expect(persisted.every((span) => span.attributes.get("tier") === "sealed")).toBe(true)
+    expect(persisted.every((span) => span.attributes.get("outcome") === "success")).toBe(true)
+
+    const boundary = spans.find((span) => span.name === "StepBoundary.prepare")
+    expect(boundary?.attributes.get("runId")).toBe("run-metrics")
+    expect(boundary?.attributes.get("key")).toEqual(expect.any(String))
+    expect(boundary?.attributes.get("attempt")).toBe(1)
   })
 
   it("classifies a settle-time host refusal as a refused boundary settlement", async () => {
@@ -214,6 +247,14 @@ describe("EngineStoreMetrics", () => {
   })
 
   it("observe preserves the instrumented effect's exit — value, cause, and interruption", async () => {
+    const spans: Array<Tracer.NativeSpan> = []
+    const tracer = Tracer.make({
+      span(options) {
+        const span = new Tracer.NativeSpan(options)
+        spans.push(span)
+        return span
+      }
+    })
     const timer = Metric.timer("engine_store_metrics_test_duration")
     const counter = Metric.counter("engine_store_metrics_test_total")
     const views = {
@@ -225,11 +266,14 @@ describe("EngineStoreMetrics", () => {
     const defect = new Error("boom")
 
     const program = Effect.gen(function*() {
+      // Capture the four exits without a surrounding tracing frame so the
+      // equality below isolates `observe` itself: no span may decorate the
+      // cause being compared.
       const succeeded = yield* observe(Effect.succeed("value"))
       const failed = yield* observe(Effect.fail("typed")).pipe(Effect.exit)
       const died = yield* observe(Effect.die(defect)).pipe(Effect.exit)
       const interrupted = yield* observe(Effect.interrupt).pipe(Effect.exit)
-      return {
+      const observed = {
         succeeded,
         failed,
         died,
@@ -239,7 +283,18 @@ describe("EngineStoreMetrics", () => {
         interrupt: yield* count(views.Interrupt),
         durations: yield* Effect.map(Metric.value(timer), (state) => state.count)
       }
-    }).pipe(Effect.provideService(Metric.MetricRegistry, new Map()))
+      // A second set runs under spans solely to assert the attributes. Their
+      // exits are intentionally discarded; the metric snapshot above remains
+      // the exact four-operation assertion.
+      yield* Effect.withSpan(observe(Effect.succeed("span")), "Observe.success").pipe(Effect.asVoid)
+      yield* Effect.withSpan(observe(Effect.fail("span")), "Observe.failure").pipe(Effect.exit)
+      yield* Effect.withSpan(observe(Effect.die("span")), "Observe.defect").pipe(Effect.exit)
+      yield* Effect.withSpan(observe(Effect.interrupt), "Observe.interrupt").pipe(Effect.exit)
+      return observed
+    }).pipe(
+      Effect.provideService(Tracer.Tracer, tracer),
+      Effect.provideService(Metric.MetricRegistry, new Map())
+    )
 
     const observed = await runPromise(program)
     expect(observed.succeeded).toBe("value")
@@ -254,5 +309,9 @@ describe("EngineStoreMetrics", () => {
     expect(observed.failure).toBe(2)
     expect(observed.interrupt).toBe(1)
     expect(observed.durations).toBe(4)
+    expect(spans.find((span) => span.name === "Observe.success")?.attributes.get("outcome")).toBe("success")
+    expect(spans.find((span) => span.name === "Observe.failure")?.attributes.get("outcome")).toBe("failure")
+    expect(spans.find((span) => span.name === "Observe.defect")?.attributes.get("outcome")).toBe("failure")
+    expect(spans.find((span) => span.name === "Observe.interrupt")?.attributes.get("outcome")).toBe("interrupt")
   })
 })

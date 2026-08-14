@@ -35,7 +35,7 @@ Executable state is deliberately outside that chokepoint. Run state, attempt che
 | `<FlowTag>.poll` | `executionId` | `@smthrs/flow-next` `Flow/make.ts` |
 | `<FlowTag>.interrupt` | `executionId` | `@smthrs/flow-next` `Flow/make.ts` |
 | `<FlowTag>.resume` | `executionId` | `@smthrs/flow-next` `Flow/make.ts` |
-| `<action name>` | `executionId`, `attempt`, `action` | `@smthrs/flow-next` `Action/make.ts`, around every action dispatch |
+| `Action.execute` | `executionId`, `action`, `attempt`, `tier`, `outcome` | `@smthrs/flow-next` `Action/make.ts`, around every action dispatch; the computed key is on its `FlowEngine.actionExecute` child span |
 | `FlowEngine.deferredResult` | `name`, `executionId` | `@smthrs/engine-next` `FlowEngine/make.ts` |
 | `FlowEngine.deferredDone` | `name`, `executionId` | `@smthrs/engine-next` `FlowEngine/make.ts` |
 | `FlowEngine.scheduleClock` | `executionId`, `name` | `@smthrs/engine-next` `FlowEngine/make.ts` |
@@ -45,9 +45,9 @@ The store packages open one `Effect.fn` span per service operation, named `Modul
 
 | Path | Attributes |
 | --- | --- |
-| dispatch (`FlowEngine.actionExecute`, `ActionPersistence.execute`) | `runId`, `key`/`keyDigest`, `attempt`, `tier` |
-| scheduler (`PlanScheduler.run`/`.dispatch`) | `runId`, `planId`, `nodeId`, `dispatchKey`, `attempt` |
-| claims and transitions (`RunDriver.claimAndActivate`, `RunStore.*`) | `runId`, `status`, the CAS target and claimant |
+| dispatch (`FlowEngine.actionExecute`, `ActionPersistence.execute`) | `runId`, `key`/`keyDigest`, `attempt`, `tier`, `outcome`; child boundary and sandbox spans inherit the dispatch identity |
+| scheduler (`PlanScheduler.run`/`.dispatch`) | `runId`, `planId`, `round`, `nodeId`, `dispatchKey`, `attempt`, `outcome` |
+| claims and transitions (`RunDriver.claimAndActivate`, `RunStore.*`) | `runId`, `status`, `outcome`, the CAS target and claimant |
 | attempts (`AttemptStore.*`) | `runId`, `stepKeyDigest`, `attempt` |
 | cache (`CacheStore.*`, remote and combined tiers) | `keyDigest` |
 | boundary and sandbox (`StepBoundary.*`, `WorkspaceSandbox.*`) | `boundaryMode`, read/write/change counts, `diffIdentity`, `path` |
@@ -75,6 +75,8 @@ Logging is sparse and deliberate. The engine logs where an operator needs to kno
 | time-travel anchor refresh failure | warning | a fork or rewind proceeds on the last recorded anchors; the cause travels structurally, `runId` in the annotations |
 | run claim decisions | debug | steal refused, claim lost, or activation lost, with the store outcome |
 | run activated | debug | a drive claimed and re-entered a run, with its flow name |
+| action dispatch lifecycle | trace | a durable dispatch started or settled, with run, key, attempt, tier, and outcome context |
+| scheduler lifecycle | debug | a plan run started or completed, with its plan identity and settlement totals |
 | scheduler round admitted | debug | one wavefront round's admission summary: round, pending, ready, admitted, agents |
 
 Ambient log context rides on `Effect.annotateLogs`: the run driver annotates `runId` across an entire drive (every log a flow body emits inherits it), `ActionPersistence` annotates `runId` across a dispatch, and `PlanScheduler` annotates `runId` and `planId` across a plan run. `DurableQueue` (`package`, `module`, `fiber`, `queueName`) and `FlowProxyServer` annotate their own fibers as before.

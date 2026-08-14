@@ -1571,7 +1571,21 @@ export const make = (deps: Dependencies) => {
         })
       )
     }).pipe(
-      Effect.annotateLogs({ runId: deps.runId }),
+      // The operation's own span is annotated above once the digest exists;
+      // this ambient context gives every child store, boundary, and sandbox
+      // span the dispatch identity as it opens.
+      Effect.annotateSpans({
+        runId: deps.runId,
+        key: input.key,
+        attempt: input.attempt,
+        tier: input.tier
+      }),
+      Effect.annotateLogs({
+        runId: deps.runId,
+        key: input.key,
+        attempt: input.attempt,
+        tier: input.tier
+      }),
       EngineStoreMetrics.observe({
         timer: EngineStoreMetrics.dispatchDuration,
         counter: EngineStoreMetrics.dispatch

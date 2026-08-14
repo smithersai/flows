@@ -103,9 +103,16 @@ export const requirements = (filename: string) =>
     StepBoundary.layer,
     WorkspaceSandbox.layerFileSystem(),
     stubJj,
-    OwnerIdentity.layer,
-    NodeCrypto.layer
-  ).pipe(Layer.provideMerge(hostLayer(filename)))
+    OwnerIdentity.layer
+  ).pipe(
+    // `OwnerIdentity.layer` consumes Crypto while it is built, and action
+    // keys/boundaries consume the same service later at execution time.
+    // `provideMerge` does both: it satisfies construction and keeps Crypto in
+    // the resulting engine environment. A sibling in `mergeAll` would expose
+    // Crypto without feeding it to the owner layer.
+    Layer.provideMerge(NodeCrypto.layer),
+    Layer.provideMerge(hostLayer(filename))
+  )
 
 /**
  * A durable `FlowEngine` over the SQLite file at `filename`.

@@ -16,6 +16,12 @@ import { layerWired, makeInstance } from "./MemoryFlowRuntime.ts"
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
   it(name, () => runPromise(body()))
 
+describe("FlowRuntime service identity", () => {
+  it("matches its defining module path", () => {
+    expect(FlowRuntime.FlowRuntime.key).toBe("@smthrs/flow-next/FlowRuntime/FlowRuntime")
+  })
+})
+
 /** The one step the host flow is made of; each case supplies its body. */
 const Block = Action.make("Gaps/Block", {
   payload: { id: Schema.String },

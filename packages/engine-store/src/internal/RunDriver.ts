@@ -279,6 +279,7 @@ export const make = (
       return yield* Effect.gen(function*() {
         yield* Effect.annotateCurrentSpan({ runId: row.runId, status: row.status })
         if (row.status === "completed" || row.status === "failed" || row.status === "cancelled") {
+          yield* Effect.annotateCurrentSpan({ outcome: "terminal" })
           yield* Metric.update(EngineStoreMetrics.claim.Terminal, 1)
           return false
         }
@@ -293,6 +294,7 @@ export const make = (
             row.heartbeatAtMs === null ||
             row.heartbeatAtMs >= nowMs - Duration.toMillis(Ownership.heartbeatStaleAfter)
           ) {
+            yield* Effect.annotateCurrentSpan({ outcome: "heartbeat_fresh" })
             yield* Metric.update(EngineStoreMetrics.claim.HeartbeatFresh, 1)
             return false
           }
@@ -302,6 +304,7 @@ export const make = (
               expectedOwner: row.owner,
               heartbeatAtMs: row.heartbeatAtMs
             })
+            yield* Effect.annotateCurrentSpan({ outcome: "steal_refused_owner_alive" })
             yield* Metric.update(EngineStoreMetrics.claim.StealRefusedOwnerAlive, 1)
             yield* Effect.logDebug("run steal refused, recorded owner is alive", {
               runId: row.runId,
@@ -337,6 +340,7 @@ export const make = (
             outcome: claim._tag,
             expected
           })
+          yield* Effect.annotateCurrentSpan({ outcome: "claim_lost" })
           yield* Metric.update(EngineStoreMetrics.claim.ClaimLost, 1)
           yield* Effect.logDebug("run claim lost", { runId: row.runId, outcome: claim._tag })
           return false
@@ -369,10 +373,12 @@ export const make = (
             outcome: activation._tag,
             expected
           })
+          yield* Effect.annotateCurrentSpan({ outcome: "activation_lost" })
           yield* Metric.update(EngineStoreMetrics.claim.ActivationLost, 1)
           yield* Effect.logDebug("run activation lost", { runId: row.runId, outcome: activation._tag })
           return false
         }
+        yield* Effect.annotateCurrentSpan({ outcome: "activated" })
         yield* Metric.update(EngineStoreMetrics.claim.Activated, 1)
         return true
       })

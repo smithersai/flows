@@ -414,6 +414,7 @@ export const make = (options: Options): Service => {
       const store = yield* PlanStore.PlanStore
       const now = yield* Clock.currentTimeMillis
       const outcome = yield* store.record(plan, now).pipe(Effect.mapError(storeFailure("could not record the plan")))
+      yield* Effect.annotateCurrentSpan({ outcome: outcome._tag })
       yield* emit(JournalRecords.planRecorded(source(`plan/${plan.planId}`), {
         planId: plan.planId,
         flow: plan.flow,
@@ -437,6 +438,7 @@ export const make = (options: Options): Service => {
       })
       const store = yield* PlanStore.PlanStore
       yield* store.append(plan).pipe(Effect.mapError(storeFailure("could not append the subgraph")))
+      yield* Effect.annotateCurrentSpan({ outcome: "appended" })
       yield* emit(JournalRecords.subgraphAppended(source(`plan/${plan.planId}/${plan.generation}`), {
         planId: plan.planId,
         digest: plan.digest,
@@ -467,6 +469,10 @@ export const make = (options: Options): Service => {
         yield* Effect.serviceOption(Selection.Selection),
         Selection.makeNoop
       )
+      yield* Effect.logDebug("scheduler run started", {
+        digest: initial.digest,
+        nodes: initial.nodes.length
+      })
 
       let plan = initial
       const states = new Map<string, NodeState>()
@@ -883,7 +889,9 @@ export const make = (options: Options): Service => {
             }
             return { outcome: "conflicted", strategy } as const
           }
-        })
+        }).pipe(
+          Effect.tap((result) => Effect.annotateCurrentSpan({ outcome: result.outcome }))
+        )
       })
 
       /**
@@ -1075,6 +1083,7 @@ export const make = (options: Options): Service => {
       let round = 0
       while ([...states.values()].filter((state) => state.status === "settled").length < plan.nodes.length) {
         round = round + 1
+        yield* Effect.annotateCurrentSpan({ round })
         yield* Metric.update(EngineStoreMetrics.schedulerRounds, 1)
         const pending = plan.nodes.filter((node) => stateOf(node).status === "pending")
         const blocked: Array<Plan.PlanNode> = []
@@ -1170,25 +1179,38 @@ export const make = (options: Options): Service => {
         yield* drainDeviations
       }
 
+      const settlements = plan.nodes.map((node) => {
+        const state = stateOf(node)
+        return {
+          nodeId: node.id,
+          planKey: node.key,
+          dispatchKey: state.dispatchKey,
+          outcome: state.outcome,
+          attempts: state.attempts,
+          rebases: state.rebases
+        }
+      })
+      yield* Effect.logDebug("scheduler run completed", {
+        round,
+        built: settlements.filter((settlement) => settlement.outcome === "built").length,
+        clean: settlements.filter((settlement) => settlement.outcome === "clean").length,
+        failed: settlements.filter((settlement) => settlement.outcome === "failed").length,
+        skipped: settlements.filter((settlement) => settlement.outcome === "skipped").length,
+        deferred: settlements.filter((settlement) => settlement.outcome === "deferred").length
+      })
       return {
         planId: plan.planId,
         digest: plan.digest,
-        settlements: plan.nodes.map((node) => {
-          const state = stateOf(node)
-          return {
-            nodeId: node.id,
-            planKey: node.key,
-            dispatchKey: state.dispatchKey,
-            outcome: state.outcome,
-            attempts: state.attempts,
-            rebases: state.rebases
-          }
-        }),
+        settlements,
         results: Object.fromEntries(results),
         verdicts,
         appended
       }
-    }).pipe(Effect.annotateLogs({ runId: options.runId, planId: initial.planId }))
+    }).pipe(
+      Effect.annotateSpans({ runId: options.runId, planId: initial.planId }),
+      Effect.annotateLogs({ runId: options.runId, planId: initial.planId }),
+      Effect.onExit((exit) => Effect.annotateCurrentSpan({ outcome: EngineStoreMetrics.exitTag(exit).toLowerCase() }))
+    )
   )
 
   return { record, append, run }

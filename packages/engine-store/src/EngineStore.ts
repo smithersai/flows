@@ -176,6 +176,7 @@ export const make = (
       const parent = yield* FlowRuntime.FlowInstance
       yield* Effect.annotateCurrentSpan({
         runId: parent.executionId,
+        action: input.action.name,
         key: input.key,
         attempt: input.attempt,
         tier: input.tier
@@ -198,7 +199,15 @@ export const make = (
       // on a settled wait travels out the same way (issue #42).
       const waitingBefore = parent.waiting
       instance.waiting = waitingBefore
-      return yield* ActionPersistence.make({
+      const logContext = {
+        runId: parent.executionId,
+        action: input.action.name,
+        key: input.key,
+        attempt: input.attempt,
+        tier: input.tier
+      }
+      yield* Effect.logTrace("action dispatch started", logContext)
+      const result = yield* ActionPersistence.make({
         runId: parent.executionId,
         owner,
         sourceId: options.journalSource,
@@ -244,6 +253,12 @@ export const make = (
           if (parent.waiting === waitingBefore) parent.waiting = instance.waiting
         }))
       )
+      const outcome = result._tag === "Complete"
+        ? result.exit._tag === "Success" ? "success" : "failure"
+        : result._tag.toLowerCase()
+      yield* Effect.annotateCurrentSpan({ outcome })
+      yield* Effect.logTrace("action dispatch settled", { ...logContext, outcome })
+      return result
     })
 
     const encoded: FlowEngine.Encoded = {
