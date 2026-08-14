@@ -14,6 +14,7 @@ import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
 import { Journal, type JournalEvent } from "@smthrs/journal-next"
 import { Jj } from "@smthrs/kernel-next"
 import { Key } from "@smthrs/keys-next"
+import * as FileSet from "@smthrs/plan-next/FileSet"
 import { AttemptStore, Ownership, RunStore } from "@smthrs/run-store-next"
 import { CacheStore } from "@smthrs/step-cache-next"
 import * as Cause from "effect/Cause"
@@ -24,6 +25,7 @@ import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
 import * as Inconsistency from "../Inconsistency.ts"
 import * as StepBoundary from "../StepBoundary.ts"
+import * as StepSandbox from "../StepSandbox.ts"
 import * as WorkspaceSandbox from "../WorkspaceSandbox.ts"
 import * as AttemptAdmission from "./AttemptAdmission.ts"
 import * as CachePublication from "./CachePublication.ts"
@@ -261,7 +263,10 @@ const actionKind = (action: unknown): string =>
     : "flows/engine-store/action"
 
 const declarationViolated = (cause: Cause.Cause<unknown>): boolean =>
-  cause.reasons.some((reason) => Cause.isFailReason(reason) && reason.error instanceof StepBoundary.UndeclaredWrite)
+  cause.reasons.some((reason) =>
+    Cause.isFailReason(reason) &&
+    (reason.error instanceof StepBoundary.UndeclaredWrite || reason.error instanceof StepSandbox.UndeclaredRead)
+  )
 
 /**
  * What the action dispatcher is constructed with: the run it belongs to, the
@@ -482,7 +487,11 @@ export const make = (deps: Dependencies) => {
         )
       }
 
-      const cacheable = input.tier === "sealed" && input.metadata?.boundaryMode === "hard"
+      // A source glob is cacheable only after the scheduler pins and replaces
+      // it with exact measured inputs. Direct actions retain the pattern, so
+      // their key cannot prove which expansion it names and must stay local.
+      const readsKeyedExactly = input.metadata?.readSet.every((entry) => !FileSet.isGlob(entry)) ?? true
+      const cacheable = input.tier === "sealed" && input.metadata?.boundaryMode === "hard" && readsKeyedExactly
 
       /**
        * Cache-provenance producer identity (issue #124): the plain
@@ -720,7 +729,8 @@ export const make = (deps: Dependencies) => {
                 meta?.tier === "sealed" &&
                 meta.boundary !== undefined &&
                 meta.boundary.deviation === undefined &&
-                meta.boundary.wholeTreeWritesVerified === true
+                meta.boundary.wholeTreeWritesVerified === true &&
+                meta.boundary.hermeticReadsVerified === true
               ) {
                 const boundary = yield* StepBoundary.StepBoundary
                 // Skyframe's dirty check, not "the declaration changed" (issue
@@ -1268,8 +1278,13 @@ export const make = (deps: Dependencies) => {
            * against the host, exactly as before, and its evidence keeps the
            * honest omission that withholds it from the shared cache.
            */
+          const stepSandbox = boundary === undefined || input.metadata === undefined
+            ? Option.none<StepSandbox.Service>()
+            : yield* Effect.serviceOption(StepSandbox.StepSandbox)
           const sandbox = boundary === undefined || input.metadata === undefined
             ? undefined
+            : Option.isSome(stepSandbox)
+            ? yield* stepSandbox.value.open
             : Option.getOrUndefined(yield* Effect.serviceOption(WorkspaceSandbox.WorkspaceSandbox))
           const isolated = sandbox === undefined || input.metadata === undefined
             ? undefined
@@ -1430,7 +1445,13 @@ export const make = (deps: Dependencies) => {
             : {
               ...settledEvidence,
               ...(settlement.deviations.length === 0
-                ? { wholeTreeWritesVerified: true as const }
+                ? {
+                  wholeTreeWritesVerified: true as const,
+                  // `StepSandbox` is the injectable façade; the legacy
+                  // `WorkspaceSandbox` service is the same isolated
+                  // transaction backend and proves the same read property.
+                  hermeticReadsVerified: true as const
+                }
                 : {
                   deviation: {
                     _tag: "ExpectedSetDeviation" as const,
@@ -1469,7 +1490,8 @@ export const make = (deps: Dependencies) => {
           if (
             cacheable &&
             evidence?.deviation === undefined &&
-            evidence?.wholeTreeWritesVerified === true
+            evidence?.wholeTreeWritesVerified === true &&
+            evidence?.hermeticReadsVerified === true
           ) {
             if (readSetVerified) {
               yield* recordCache({ result: outcome.value, meta, createdAtMs: finishedAtMs })

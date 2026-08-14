@@ -83,7 +83,8 @@ const flappingBoundary = (measurements: Array<ReadonlyArray<FileInput>>) =>
         Effect.succeed({
           declaredOutputs: { paths: prepared.descriptor.writeSet },
           diffIdentity: "generation-diff",
-          wholeTreeWritesVerified: true
+          wholeTreeWritesVerified: true,
+          hermeticReadsVerified: true
         }),
       replayOutputs: () => Effect.void
     })
@@ -187,7 +188,7 @@ describe("identical-content re-records collapse into the original provenance", (
             })
         })
         const dispatch = execute({ action: {}, attempt: 1, key, tier: "sealed", metadata: declared }).pipe(
-          Effect.provide(StepBoundary.layerTest({ readSnapshot: declared.readSet }))
+          Effect.provide(StepBoundary.layerTest({ readSnapshot: StepBoundary.exactReads(declared) }))
         )
         yield* dispatch
         const original = yield* cache.get(keyDigest)
@@ -337,7 +338,7 @@ describe("the generation digest is canonical, not key-order-coincident (B7)", ()
           execute: () => Effect.succeed("recorded")
         })
         const dispatch = execute({ action: {}, attempt: 1, key, tier: "sealed", metadata: declared }).pipe(
-          Effect.provide(StepBoundary.layerTest({ readSnapshot: declared.readSet }))
+          Effect.provide(StepBoundary.layerTest({ readSnapshot: StepBoundary.exactReads(declared) }))
         )
         yield* dispatch
         const rewrite = yield* rewriteMeta(runId, transform)

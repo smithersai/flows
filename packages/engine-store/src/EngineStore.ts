@@ -31,6 +31,7 @@ import * as DeferredPersistence from "./internal/DeferredPersistence.ts"
 import * as RunDriver from "./internal/RunDriver.ts"
 import * as OwnerIdentity from "./OwnerIdentity.ts"
 import * as StepBoundary from "./StepBoundary.ts"
+import * as StepSandbox from "./StepSandbox.ts"
 import * as WakeBus from "./WakeBus.ts"
 import * as WorkspaceSandbox from "./WorkspaceSandbox.ts"
 
@@ -136,6 +137,7 @@ export const make = (
      * sending it.
      */
     const workspaceSandbox = yield* Effect.serviceOption(WorkspaceSandbox.WorkspaceSandbox)
+    const stepSandbox = yield* Effect.serviceOption(StepSandbox.StepSandbox)
     const effectDispatcher = yield* Effect.serviceOption(WorkspaceSandbox.EffectDispatcher)
     const engineState = yield* DurableEngineState.DurableEngineState
     const attemptSurvivors = engineState.attemptSurvivors
@@ -220,6 +222,10 @@ export const make = (
         Effect.provideService(Jj.Jj, jj),
         Effect.provideService(RunStore.RunStore, runStore),
         Effect.provideService(StepBoundary.StepBoundary, stepBoundary),
+        (dispatch) =>
+          Option.isNone(stepSandbox)
+            ? dispatch
+            : Effect.provideService(dispatch, StepSandbox.StepSandbox, stepSandbox.value),
         (dispatch) =>
           Option.isNone(workspaceSandbox)
             ? dispatch

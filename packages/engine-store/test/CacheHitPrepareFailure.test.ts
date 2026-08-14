@@ -91,7 +91,7 @@ describe("transient prepare host errors on a cache hit (issue #110)", () => {
         // First run records the entry under a healthy boundary.
         yield* activate("prepare-transient-first")
         yield* dispatch("prepare-transient-first", key, body).pipe(
-          Effect.provide(StepBoundary.layerTest({ readSnapshot: declared.readSet }))
+          Effect.provide(StepBoundary.layerTest({ readSnapshot: StepBoundary.exactReads(declared) }))
         )
         // Second run's host dies measuring the read set: every prepare —
         // the cache-hit gate and the dispatch path's own — fails.
@@ -134,7 +134,7 @@ describe("transient prepare host errors on a cache hit (issue #110)", () => {
                   message: "transient EIO measuring the read set"
                 })
               )
-              : Effect.succeed({ descriptor, readSnapshot: descriptor.readSet }),
+              : Effect.succeed({ descriptor, readSnapshot: StepBoundary.exactReads(descriptor) }),
           settle: (prepared) =>
             Effect.succeed({
               declaredOutputs: { paths: prepared.descriptor.writeSet },
@@ -155,7 +155,7 @@ describe("transient prepare host errors on a cache hit (issue #110)", () => {
           })
         yield* activate("prepare-transient-recovery-first")
         yield* dispatch("prepare-transient-recovery-first", key, body).pipe(
-          Effect.provide(StepBoundary.layerTest({ readSnapshot: declared.readSet }))
+          Effect.provide(StepBoundary.layerTest({ readSnapshot: StepBoundary.exactReads(declared) }))
         )
         yield* activate("prepare-transient-recovery-second")
         const result = yield* dispatch("prepare-transient-recovery-second", key, body).pipe(
@@ -184,7 +184,7 @@ describe("transient prepare host errors on a cache hit (issue #110)", () => {
         const cache = yield* CacheStore.CacheStore
         yield* activate("prepare-stale-first")
         yield* dispatch("prepare-stale-first", key, () => Effect.succeed("recorded")).pipe(
-          Effect.provide(StepBoundary.layerTest({ readSnapshot: declared.readSet }))
+          Effect.provide(StepBoundary.layerTest({ readSnapshot: StepBoundary.exactReads(declared) }))
         )
         yield* activate("prepare-stale-second")
         yield* dispatch("prepare-stale-second", key, () => Effect.succeed("fresh")).pipe(
@@ -212,7 +212,7 @@ describe("transient prepare host errors on a cache hit (issue #110)", () => {
         const cache = yield* CacheStore.CacheStore
         yield* activate("prepare-race-first")
         yield* dispatch("prepare-race-first", key, () => Effect.succeed("recorded")).pipe(
-          Effect.provide(StepBoundary.layerTest({ readSnapshot: declared.readSet }))
+          Effect.provide(StepBoundary.layerTest({ readSnapshot: StepBoundary.exactReads(declared) }))
         )
         // A racing dispatch observes the first row, decides it is stale, and
         // — between its `get` and its `evict` — a *foreign process* replaces

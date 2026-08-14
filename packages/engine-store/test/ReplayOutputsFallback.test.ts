@@ -84,13 +84,14 @@ const unreplayable = (options: { readonly onPrepare?: () => void } = {}) =>
       prepare: (descriptor) =>
         Effect.sync(() => {
           options.onPrepare?.()
-          return { descriptor, readSnapshot: descriptor.readSet }
+          return { descriptor, readSnapshot: StepBoundary.exactReads(descriptor) }
         }),
       settle: () =>
         Effect.succeed({
           declaredOutputs: { outputs: [] },
           diffIdentity: "replay-fallback-diff",
-          wholeTreeWritesVerified: true
+          wholeTreeWritesVerified: true,
+          hermeticReadsVerified: true
         }),
       replayOutputs: () =>
         Effect.fail(

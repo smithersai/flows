@@ -105,6 +105,33 @@ describe("StepKey", () => {
     expect(left).toBe(right)
   })
 
+  it("normalizes tree, glob, and removal declarations", async () => {
+    const identity = (
+      writeSet: NonNullable<StepKey.ContentIdentity["hermetic"]>["writeSet"],
+      removes: ReadonlyArray<string>
+    ) =>
+      StepKey.content({
+        body: 1,
+        inputs: {},
+        layers: [],
+        capabilities: {},
+        hermetic: { readSet: [], writeSet, removes, boundaryMode: "hard" }
+      })
+    const left = await runPromise(identity([
+      { _tag: "Glob", include: ["src/**/*.ts", "src/**/*.ts"], exclude: ["src/z.ts", "src/a.ts"] },
+      { _tag: "Glob", include: ["assets/**"] },
+      { _tag: "TreeArtifact", path: "dist" },
+      "out"
+    ], ["stale/z", "stale/a", "stale/a"]))
+    const right = await runPromise(identity([
+      "out",
+      { _tag: "Glob", include: ["assets/**"] },
+      { _tag: "TreeArtifact", path: "dist" },
+      { _tag: "Glob", include: ["src/**/*.ts"], exclude: ["src/a.ts", "src/z.ts"] }
+    ], ["stale/a", "stale/z"]))
+    expect(left).toBe(right)
+  })
+
   it("makes an ordinal key run-local", async () => {
     const first = await runPromise(StepKey.ordinal({ runId: "run-1", ordinal: 1, tier: "unsealed" }))
     const second = await runPromise(StepKey.ordinal({ runId: "run-2", ordinal: 1, tier: "unsealed" }))
@@ -297,6 +324,12 @@ describe("StepKey.dispatchIdentity", () => {
       dispatch({}, {}, { ...hermetic, readSet: [{ path: "src/a.ts", digest: "sha256:b" }] })
     )
     expect(new Set([base, body, effects, placement, layers, capabilities, measured]).size).toBe(7)
+  })
+
+  it("folds declared removals into the dispatch identity", async () => {
+    const base = await runPromise(dispatch({}, {}))
+    const removing = await runPromise(dispatch({}, {}, { ...hermetic, removes: ["out/stale.js"] }))
+    expect(removing).not.toBe(base)
   })
 
   it("refuses material naming a dependency that has not settled", async () => {

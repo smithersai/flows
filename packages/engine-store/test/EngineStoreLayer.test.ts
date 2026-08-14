@@ -13,6 +13,7 @@ import { describe, expect, it } from "vitest"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
+import * as StepSandbox from "../src/StepSandbox.ts"
 import * as TestStores from "../src/test/TestStores.ts"
 import { opaqueHandlerBody } from "./fixtures/OpaqueHandlerBody.ts"
 import { runPromise } from "./Sha256.ts"
@@ -338,6 +339,7 @@ describe("EngineStore boundary metadata", () => {
         Effect.provide(
           Layer.mergeAll(
             baseLayers(recordingJj([]), state),
+            StepSandbox.layerTest(),
             // Cross-run reuse is only offered once the composition states the
             // environment its sealed keys were computed under: an undeclared
             // environment pins the key to its own execution, so the two runs

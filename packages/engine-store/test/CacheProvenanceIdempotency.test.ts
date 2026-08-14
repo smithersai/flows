@@ -55,7 +55,7 @@ const activate = (runId: string) =>
 const unreplayableBoundary = Layer.succeed(
   StepBoundary.StepBoundary,
   StepBoundary.make({
-    prepare: (descriptor) => Effect.succeed({ descriptor, readSnapshot: descriptor.readSet }),
+    prepare: (descriptor) => Effect.succeed({ descriptor, readSnapshot: StepBoundary.exactReads(descriptor) }),
     settle: (prepared) =>
       Effect.succeed({ declaredOutputs: { paths: prepared.descriptor.writeSet }, diffIdentity: "idem-diff" }),
     replayOutputs: () =>
@@ -91,7 +91,7 @@ describe("cacheProvenance emissions are idempotent per observation (issue #124)"
           sourceId: "provenance-idem-first",
           execute: () => Effect.succeed("recorded")
         })({ action: {}, attempt: 1, key, tier: "sealed", metadata: declared }).pipe(
-          Effect.provide(StepBoundary.layerTest({ readSnapshot: declared.readSet }))
+          Effect.provide(StepBoundary.layerTest({ readSnapshot: StepBoundary.exactReads(declared) }))
         )
         // Second run's boundary verifies the hit but can never replay it,
         // and its body fails — so the same refusal is observed again on the

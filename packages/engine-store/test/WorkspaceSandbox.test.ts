@@ -2,6 +2,7 @@ import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
 import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
 import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
 import * as KernelWorkspace from "@smthrs/kernel-next/Workspace"
+import * as FileSet from "@smthrs/plan-next/FileSet"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
@@ -16,6 +17,7 @@ const decoder = new TextDecoder()
 const descriptor = (input: Partial<FileBoundary> = {}): FileBoundary => ({
   readSet: input.readSet ?? [],
   writeSet: input.writeSet ?? [],
+  ...(input.removes === undefined ? {} : { removes: input.removes }),
   boundaryMode: input.boundaryMode ?? "hard"
 })
 
@@ -79,6 +81,25 @@ describe("WorkspaceSandbox conformance", () => {
     }])
     expect(decoder.decode(accepted.result.files[0]?.after)).toBe("hello world")
     expect(text(after, "out/result.txt")).toBe("hello world")
+  })
+
+  it("accepts writes covered by tree-artifact and glob declarations", async () => {
+    const test = await runPromise(WorkspaceSandbox.makeMemory())
+    const accepted = await runPromise(test.service.execute({
+      descriptor: descriptor({
+        writeSet: [
+          { _tag: "TreeArtifact", path: "tree" },
+          { _tag: "Glob", include: ["generated/**/*.js"], exclude: ["generated/skip/**"] },
+          { _tag: "Glob", include: ["assets/**"] }
+        ]
+      }),
+      workflow: Effect.gen(function*() {
+        const fs = yield* FileSystem.FileSystem
+        yield* fs.writeFileString("tree/a.txt", "a")
+        yield* fs.writeFileString("generated/nested/a.js", "a")
+      })
+    }))
+    expect(accepted._tag).toBe("Accepted")
   })
 
   it("invalidates and discards undeclared reads and writes", async () => {
@@ -175,7 +196,7 @@ describe("WorkspaceSandbox conformance", () => {
     const program = Effect.gen(function*() {
       const test = yield* WorkspaceSandbox.makeMemory({ "out/old.txt": "old" })
       const execution = {
-        descriptor: descriptor({ writeSet: ["out/old.txt"] }),
+        descriptor: descriptor({ removes: ["out/old.txt"] }),
         cacheKey: "removal",
         workflow: Effect.gen(function*() {
           runs = runs + 1
@@ -398,7 +419,11 @@ describe("WorkspaceSandbox transaction filesystem", () => {
       const test = yield* WorkspaceSandbox.makeMemory({ "src/in.txt": "seed", "src/nested/deep.txt": "deep" })
       const accepted = yield* test.service.execute({
         descriptor: descriptor({
-          readSet: [read("src/in.txt", "seed"), read("src/nested/deep.txt", "deep")],
+          readSet: [
+            read("src/in.txt", "seed"),
+            read("src/nested/deep.txt", "deep"),
+            read("out/nope.txt", "absent")
+          ],
           writeSet: ["out/**", "src/in.txt"]
         }),
         workflow: Effect.gen(function*() {
@@ -453,7 +478,12 @@ describe("WorkspaceSandbox filesystem host", () => {
       readFile: (path) => Effect.succeed(files.get(String(path))!),
       writeFile: (path, data) => Effect.sync(() => void files.set(String(path), data)),
       remove: (path) => Effect.sync(() => void files.delete(String(path))),
-      makeDirectory: () => Effect.void
+      makeDirectory: () => Effect.void,
+      glob: (pattern) =>
+        Effect.succeed(
+          [...files.keys()].filter((path) => FileSet.matchesPattern(String(pattern), path)).sort()
+        ),
+      stat: (() => Effect.succeed({ type: "File" })) as never
     })
     return ArtifactStore.layerMemory.pipe(Layer.provideMerge(Layer.succeed(FileSystem.FileSystem)(fs)))
   }
@@ -484,6 +514,45 @@ describe("WorkspaceSandbox filesystem host", () => {
     const accepted = await runPromise(program)
     if (accepted._tag !== "Accepted") throw new Error("expected accepted execution")
     expect(accepted.result.output).toEqual({ declared: true, undeclared: false })
+  })
+
+  it("expands declared read globs once and seeds declared removals", async () => {
+    const files = new Map<string, Uint8Array>([
+      ["/w/src/a.ts", encoder.encode("a")],
+      ["/w/src/nested/b.ts", encoder.encode("b")],
+      ["/w/src/skip.js", encoder.encode("skip")],
+      ["/w/stale.txt", encoder.encode("stale")]
+    ])
+    const program = Effect.gen(function*() {
+      const sandbox = WorkspaceSandbox.makeFileSystem(
+        yield* FileSystem.FileSystem,
+        yield* ArtifactStore.ArtifactStore,
+        "/w"
+      )
+      return yield* sandbox.execute({
+        descriptor: descriptor({
+          readSet: [
+            { _tag: "Glob", include: ["src/**/*.ts"], exclude: ["src/**/skip.ts"] },
+            { _tag: "Glob", include: ["src/a.ts"] }
+          ],
+          removes: ["stale.txt", "absent.txt"]
+        }),
+        workflow: Effect.gen(function*() {
+          const fs = yield* FileSystem.FileSystem
+          const visible: Array<string> = []
+          for (const path of ["src/a.ts", "src/nested/b.ts", "src/skip.js"]) {
+            if (yield* fs.exists(path)) visible.push(path)
+          }
+          yield* fs.readFileString("src/a.ts")
+          yield* fs.remove("stale.txt")
+          return visible
+        })
+      })
+    }).pipe(Effect.provide(hostLayer(files)))
+    const accepted = await runPromise(program)
+    if (accepted._tag !== "Accepted") throw new Error("expected accepted execution")
+    expect(accepted.result.output).toEqual(["src/a.ts", "src/nested/b.ts"])
+    expect(accepted.result.files.map((change) => change.path)).toEqual(["stale.txt"])
   })
 
   it("copies back through a beforeDigest compare-and-set, retaining oversized products by digest", async () => {

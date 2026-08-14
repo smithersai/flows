@@ -90,7 +90,10 @@ const replayWithMeasurement = (
 
     // One journal/cache/run store shared by both runs, so the second run sees
     // the first run's recorded entry — the cross-run reuse path.
-    const first = yield* run(`${label}-first`, StepBoundary.layerTest({ readSnapshot: declared.readSet }))
+    const first = yield* run(
+      `${label}-first`,
+      StepBoundary.layerTest({ readSnapshot: StepBoundary.exactReads(declared) })
+    )
     const second = yield* run(
       `${label}-second`,
       StepBoundary.layerTest({
@@ -165,7 +168,7 @@ describe("a refused stale hit invalidates the poisoned entry (issue #99)", () =>
             yield* activate(runId)
             return yield* dispatch(runId, key, () => Effect.sync(() => results[executions++]))
           }).pipe(Effect.provide(StepBoundary.layerTest({ readSnapshot: measured })))
-        const first = yield* run("stale-conflict-first", declared.readSet)
+        const first = yield* run("stale-conflict-first", StepBoundary.exactReads(declared))
         // The declared digest went stale: the hit is refused and the entry
         // is invalidated, so the re-execution proceeds cleanly.
         const second = yield* run("stale-conflict-second", [{ path: "config.json", digest: "D2" }])
@@ -202,7 +205,8 @@ describe("cache provenance records a refused hit (issue #90)", () => {
             boundary: {
               declaredOutputs: { paths: ["output.txt"] },
               diffIdentity: "seeded-diff",
-              wholeTreeWritesVerified: true
+              wholeTreeWritesVerified: true,
+              hermeticReadsVerified: true
             }
           },
           createdAtMs: 1,

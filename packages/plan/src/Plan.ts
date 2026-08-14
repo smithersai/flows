@@ -22,6 +22,7 @@
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
+import * as FileSet from "./FileSet.ts"
 import * as KeyMaterial from "./KeyMaterial.ts"
 import * as StepKey from "./StepKey.ts"
 
@@ -42,8 +43,8 @@ export const KeyDigest = Schema.String.check(Schema.isPattern(/^key1_[0-9a-f]{64
  * @category schemas
  */
 export const NodeEffects = Schema.Struct({
-  reads: Schema.Array(Schema.String),
-  writes: Schema.Array(Schema.String),
+  reads: Schema.Array(FileSet.ReadDeclaration),
+  writes: Schema.Array(FileSet.Declaration),
   /**
    * Paths the node declares it will DELETE. Optional with an empty default, so
    * plans persisted before it keep decoding. A removal mutates the world
@@ -243,16 +244,24 @@ const pairRuntime = (left: RuntimeStrategy, right: RuntimeStrategy): RuntimeStra
  *
  * @private
  */
-const produces = (effects: NodeEffects): ReadonlyArray<string> => [
-  ...effects.writes,
+const produces = (effects: NodeEffects): ReadonlyArray<FileSet.Entry> => [
+  ...FileSet.expand(effects.writes),
   ...effects.removes ?? []
 ]
 
 /** @private */
-const overlap = (left: NodeEffects, right: NodeEffects): ReadonlyArray<string> => {
-  const mutated = new Set(produces(right))
-  return produces(left).filter((path) => mutated.has(path))
-}
+const overlap = (left: NodeEffects, right: NodeEffects): ReadonlyArray<string> =>
+  produces(left).flatMap((leftEntry) =>
+    produces(right).some((rightEntry) => FileSet.overlaps(leftEntry, rightEntry))
+      ? [
+        typeof leftEntry === "string"
+          ? leftEntry
+          : leftEntry._tag === "TreeArtifact"
+          ? leftEntry.path
+          : leftEntry.include.join(",")
+      ]
+      : []
+  )
 
 /**
  * Whether `reader` consumes a path `writer` produces. The conflict pass above
@@ -262,8 +271,8 @@ const overlap = (left: NodeEffects, right: NodeEffects): ReadonlyArray<string> =
  * @private
  */
 const readsWhatItWrites = (reader: NodeEffects, writer: NodeEffects): boolean => {
-  const mutated = new Set(produces(writer))
-  return reader.reads.some((path) => mutated.has(path))
+  const mutated = produces(writer)
+  return FileSet.expandReads(reader.reads).some((entry) => mutated.some((output) => FileSet.overlaps(entry, output)))
 }
 
 /** @private */

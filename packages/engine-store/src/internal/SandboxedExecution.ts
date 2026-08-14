@@ -19,6 +19,7 @@ import * as Exit from "effect/Exit"
 import type * as FileSystem from "effect/FileSystem"
 import * as Schema from "effect/Schema"
 import * as StepBoundary from "../StepBoundary.ts"
+import * as StepSandbox from "../StepSandbox.ts"
 import * as WorkspaceSandbox from "../WorkspaceSandbox.ts"
 
 /**
@@ -111,13 +112,26 @@ export const execute = (options: {
         // NOTHING IS RETURNED FROM AN INVALIDATED EXECUTION. The candidate
         // output, its files, and its queued effects are not on the shape at
         // all; only the violations and the provenance identifying them are.
+        const paths = executed.violations.map((violation) => violation.resource.id)
+        const identity = yield* bundleIdentity(
+          executed.provenance.outputs.map((output) => [output.resource.id, undefined, output.digest])
+        )
+        if (executed.violations.some((violation) => violation.kind === "undeclared-read")) {
+          return yield* Effect.fail(
+            new StepSandbox.UndeclaredRead({
+              code: "undeclared_read",
+              paths: executed.violations
+                .filter((violation) => violation.kind === "undeclared-read")
+                .map((violation) => violation.resource.id),
+              diffIdentity: identity
+            })
+          )
+        }
         return yield* Effect.fail(
           new StepBoundary.UndeclaredWrite({
             code: "undeclared_write",
-            paths: executed.violations.map((violation) => violation.resource.id),
-            diffIdentity: yield* bundleIdentity(
-              executed.provenance.outputs.map((output) => [output.resource.id, undefined, output.digest])
-            )
+            paths,
+            diffIdentity: identity
           })
         )
       }

@@ -11,6 +11,7 @@
  *
  * @since 0.1.0
  */
+import * as FileSet from "@smthrs/plan-next/FileSet"
 import * as Schema from "effect/Schema"
 import { BoundaryMode } from "./BoundaryMode.ts"
 import { FileInput } from "./FileInput.ts"
@@ -22,10 +23,10 @@ import { FileInput } from "./FileInput.ts"
  * @since 0.1.0
  */
 export const FileBoundary = Schema.Struct({
-  /** Files read by the action and the digests observed for them. */
-  readSet: Schema.Array(FileInput),
+  /** Exact files already measured, or globs to expand while preparing. */
+  readSet: Schema.Array(Schema.Union([FileInput, FileSet.Glob])),
   /** Files or patterns the action is allowed to write. */
-  writeSet: Schema.Array(Schema.NonEmptyString),
+  writeSet: Schema.Array(FileSet.Entry),
   /**
    * Files the action is allowed to DELETE.
    *
@@ -47,8 +48,9 @@ export const FileBoundary = Schema.Struct({
 }).check(
   Schema.makeFilter(
     (boundary) => {
-      const writes = new Set(boundary.writeSet)
-      const both = (boundary.removes ?? []).filter((path) => writes.has(path))
+      const both = (boundary.removes ?? []).filter((path) =>
+        boundary.writeSet.some((entry) => FileSet.overlaps(entry, path))
+      )
       return both.length === 0 ||
         `a path cannot be both written and removed: ${both.join(", ")}`
     },

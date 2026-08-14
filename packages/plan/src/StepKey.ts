@@ -29,6 +29,7 @@ import { Key } from "@smthrs/keys-next"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
+import type * as FileSet from "./FileSet.ts"
 import type * as KeyMaterial from "./KeyMaterial.ts"
 
 /**
@@ -153,7 +154,8 @@ export interface ContentIdentity {
   readonly environment?: EnvironmentIdentity | undefined
   readonly hermetic?: {
     readonly readSet: ReadonlyArray<{ readonly path: string; readonly digest: string }>
-    readonly writeSet: ReadonlyArray<string>
+    readonly writeSet: ReadonlyArray<FileSet.Entry>
+    readonly removes?: ReadonlyArray<string> | undefined
     readonly boundaryMode: "hard" | "expected"
   } | undefined
 }
@@ -220,7 +222,23 @@ const normalizeHermetic = (hermetic: NonNullable<ContentIdentity["hermetic"]>) =
     .filter((entry, index, entries) =>
       index === 0 || entry.path !== entries[index - 1]!.path || entry.digest !== entries[index - 1]!.digest
     )
-  return { readSet, writeSet: sortStrings(hermetic.writeSet), boundaryMode: hermetic.boundaryMode }
+  const normalizedWrites = [...hermetic.writeSet].map((entry) => {
+    if (typeof entry === "string") return entry.normalize("NFC")
+    if (entry._tag === "TreeArtifact") return { ...entry, path: entry.path.normalize("NFC") }
+    return {
+      ...entry,
+      include: sortStrings(entry.include),
+      ...(entry.exclude === undefined ? {} : { exclude: sortStrings(entry.exclude) })
+    }
+  })
+  const writeSet = [...new Map(normalizedWrites.map((entry) => [JSON.stringify(entry), entry])).values()]
+    .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)))
+  return {
+    readSet,
+    writeSet,
+    ...(hermetic.removes === undefined ? {} : { removes: sortStrings(hermetic.removes) }),
+    boundaryMode: hermetic.boundaryMode
+  }
 }
 
 const decodeKey = Schema.decodeUnknownEffect(Key)

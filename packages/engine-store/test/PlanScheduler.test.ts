@@ -120,6 +120,25 @@ const scheduler = (options: Harness) =>
   })
 
 describe("PlanScheduler over a static graph", () => {
+  it("refuses a source glob when no filesystem service can expand it", async () => {
+    const plan = await runPromise(compile([{
+      ...draft("glob-source"),
+      effects: {
+        reads: [{ _tag: "Glob", include: ["src/**"] }],
+        writes: ["glob-source.out"],
+        boundaryMode: "hard"
+      }
+    }]))
+    const executor: PlanScheduler.Executor = { execute: () => Effect.die("must not execute") }
+    const failure = await runPromise(
+      Effect.gen(function*() {
+        yield* activate("run-glob-no-fs")
+        return yield* Effect.flip(scheduler({ runId: "run-glob-no-fs", executor }).run(plan))
+      }).pipe(Effect.provide(harness({ runId: "run-glob-no-fs", executor })), Effect.provide(TestStores.layer()))
+    )
+    expect(failure).toMatchObject({ code: "boundary_unavailable" })
+  })
+
   it("records the plan, builds every node, and reports the plan digest", async () => {
     const plan = await runPromise(compile([
       draft("source"),
@@ -736,7 +755,10 @@ describe("PlanScheduler invalidation and journal plumbing", () => {
         prepare: Effect.fn("prepare")(function*(descriptor) {
           counter = counter + 1
           const digest = `measured-${counter}`
-          return { descriptor, readSnapshot: descriptor.readSet.map((entry) => ({ path: entry.path, digest })) }
+          return {
+            descriptor,
+            readSnapshot: StepBoundary.exactReads(descriptor).map((entry) => ({ path: entry.path, digest }))
+          }
         }),
         settle: Effect.fn("settle")(function*(prepared) {
           return {

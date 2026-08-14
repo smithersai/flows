@@ -71,7 +71,7 @@ const observableBoundary = () => {
   const layer = Layer.succeed(
     StepBoundary.StepBoundary,
     StepBoundary.make({
-      prepare: (descriptor) => span(Effect.succeed({ descriptor, readSnapshot: descriptor.readSet })),
+      prepare: (descriptor) => span(Effect.succeed({ descriptor, readSnapshot: StepBoundary.exactReads(descriptor) })),
       settle: (prepared) =>
         span(Effect.succeed({
           declaredOutputs: { paths: prepared.descriptor.writeSet },
@@ -96,7 +96,7 @@ describe("the cache-hit block runs under the per-key admission permit (issue #11
           sourceId: "cache-serial-first",
           execute: () => Effect.succeed("recorded")
         })({ action: {}, attempt: 1, key, tier: "sealed", metadata: declared }).pipe(
-          Effect.provide(StepBoundary.layerTest({ readSnapshot: declared.readSet }))
+          Effect.provide(StepBoundary.layerTest({ readSnapshot: StepBoundary.exactReads(declared) }))
         )
         // Second run dispatches the same key twice, concurrently, through one
         // executor (one shared admission mutex). Both take the cache-hit
@@ -138,7 +138,7 @@ describe("the cache-hit block runs under the per-key admission permit (issue #11
           sourceId: "cache-serial-skew-first",
           execute: () => Effect.succeed("recorded")
         })({ action: {}, attempt: 1, key, tier: "sealed", metadata: declared }).pipe(
-          Effect.provide(StepBoundary.layerTest({ readSnapshot: declared.readSet }))
+          Effect.provide(StepBoundary.layerTest({ readSnapshot: StepBoundary.exactReads(declared) }))
         )
         yield* activate("cache-serial-skew-second")
         const boundary = observableBoundary()

@@ -42,6 +42,7 @@ import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
 import { Sha256 } from "@smthrs/crypto-next"
 import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
 import { Workspace as KernelWorkspace } from "@smthrs/kernel-next/Workspace"
+import * as FileSet from "@smthrs/plan-next/FileSet"
 import * as Cause from "effect/Cause"
 import * as Context from "effect/Context"
 import type * as Crypto from "effect/Crypto"
@@ -467,20 +468,12 @@ const normalizePath = (root: string, path: string): Result.Result<string, Worksp
  * honored so a declaration written as a glob per
  * `docs/specs/Concepts/Effect Taxonomy.md` still means what it says.
  */
-const covers = (pattern: string, path: string): boolean => {
-  if (pattern === path) return true
-  if (!pattern.includes("*")) return false
-  const source = pattern
-    .replaceAll(/[.+?^${}()|[\]\\]/g, "\\$&")
-    // The placeholder is NUL because a filesystem path cannot contain one:
-    // any printable stand-in would be rewritten inside a pattern that
-    // legitimately contained that character. It is written as an escape,
-    // never as a literal control byte in the source.
-    .replaceAll("**", "\u0000")
-    .replaceAll("*", "[^/]*")
-    .replaceAll("\u0000", ".*")
-  return new RegExp(`^${source}$`).test(path)
-}
+const covers = (entry: FileSet.Entry, path: string): boolean =>
+  typeof entry === "string"
+    ? entry === path || (entry.includes("*") && FileSet.matchesPattern(entry, path))
+    : entry._tag === "TreeArtifact"
+    ? path === entry.path || path.startsWith(`${entry.path}/`)
+    : FileSet.matchesGlob(entry, path)
 
 const resource = (path: string): Resource => ({ kind: "file", id: path })
 
@@ -502,8 +495,27 @@ const workspaceRelative = (root: string, descriptor: FileBoundary): FileBoundary
     return Result.isFailure(normalized) ? path : normalized.success
   }
   return {
-    readSet: descriptor.readSet.map((entry) => ({ ...entry, path: relative(entry.path) })),
-    writeSet: descriptor.writeSet.map(relative),
+    readSet: descriptor.readSet.map((entry) =>
+      FileSet.isGlob(entry)
+        ? {
+          ...entry,
+          include: [relative(entry.include[0]), ...entry.include.slice(1).map(relative)],
+          ...(entry.exclude === undefined ? {} : { exclude: entry.exclude.map(relative) })
+        }
+        : { ...entry, path: relative(entry.path) }
+    ),
+    writeSet: descriptor.writeSet.map((entry) =>
+      typeof entry === "string"
+        ? relative(entry)
+        : entry._tag === "TreeArtifact"
+        ? { ...entry, path: relative(entry.path) }
+        : {
+          ...entry,
+          include: [relative(entry.include[0]), ...entry.include.slice(1).map(relative)],
+          ...(entry.exclude === undefined ? {} : { exclude: entry.exclude.map(relative) })
+        }
+    ),
+    ...(descriptor.removes === undefined ? {} : { removes: descriptor.removes.map(relative) }),
     boundaryMode: descriptor.boundaryMode
   }
 }
@@ -619,6 +631,7 @@ export interface Host {
  */
 interface Trace {
   readonly inputs: Array<{ readonly path: string; readonly content: Uint8Array }>
+  readonly attemptedReads: Array<{ readonly path: string; readonly produced: boolean }>
   readonly effects: Array<QueuedEffect>
 }
 
@@ -637,12 +650,14 @@ const notFound = (path: string): WorkspaceError =>
  */
 const transaction = (base: ReadonlyMap<string, Uint8Array>, trace: Trace, root: string) => {
   const files = new Map(base)
+  const produced = new Set<string>()
   const resolvePath = (path: string): Effect.Effect<string, WorkspaceError> => {
     const normalized = normalizePath(root, path)
     return Result.isFailure(normalized) ? Effect.fail(normalized.failure) : Effect.succeed(normalized.success)
   }
   const readBytes = Effect.fn("WorkspaceSandbox.read")(function*(path: string) {
     const key = yield* resolvePath(path)
+    trace.attemptedReads.push({ path: key, produced: produced.has(key) })
     const content = files.get(key)
     if (content === undefined) return yield* Effect.fail(notFound(key))
     trace.inputs.push({ path: key, content })
@@ -650,10 +665,12 @@ const transaction = (base: ReadonlyMap<string, Uint8Array>, trace: Trace, root: 
   })
   const writeBytes = Effect.fn("WorkspaceSandbox.write")(function*(path: string, content: Uint8Array) {
     const key = yield* resolvePath(path)
+    produced.add(key)
     files.set(key, content.slice())
   })
   const removePath = Effect.fn("WorkspaceSandbox.remove")(function*(path: string) {
     const key = yield* resolvePath(path)
+    produced.add(key)
     files.delete(key)
   })
   const workspace = Workspace.of({
@@ -776,7 +793,7 @@ const revisionOf = Effect.fn("WorkspaceSandbox.revision")(function*(base: Readon
 /**
  * Everything the declaration failed to predict, deduplicated.
  *
- * Reads are checked against the declared read set's literal paths; writes
+ * Reads and writes are checked against the declaration's exact paths and patterns; writes
  * against the declared write set's patterns. A read of a file the body itself
  * produced is not undeclared — the transaction, not the host, supplied it.
  *
@@ -788,13 +805,20 @@ export const violations = (
   base: ReadonlyMap<string, Uint8Array>,
   provenance: Provenance
 ): ReadonlyArray<DeclarationViolation> => {
-  const declaredReads = new Set(descriptor.readSet.map((entry) => entry.path))
+  const declaredReads = descriptor.readSet
   const observed: Array<DeclarationViolation> = [
     ...provenance.inputs
-      .filter((input) => base.has(input.resource.id) && !declaredReads.has(input.resource.id))
+      .filter((input) =>
+        base.has(input.resource.id) &&
+        !declaredReads.some((entry) =>
+          FileSet.isGlob(entry) ? FileSet.matchesGlob(entry, input.resource.id) : entry.path === input.resource.id
+        )
+      )
       .map((input): DeclarationViolation => ({ kind: "undeclared-read", resource: input.resource })),
     ...provenance.outputs
-      .filter((output) => !descriptor.writeSet.some((pattern) => covers(pattern, output.resource.id)))
+      .filter((output) =>
+        ![...descriptor.writeSet, ...descriptor.removes ?? []].some((entry) => covers(entry, output.resource.id))
+      )
       .map((output): DeclarationViolation => ({ kind: "undeclared-write", resource: output.resource }))
   ]
   return [
@@ -830,17 +854,45 @@ export const makeHosted = (host: Host): Service => {
         }
       }
       const base = yield* host.snapshot(execution.descriptor)
-      const trace: Trace = { inputs: [], effects: [] }
+      const trace: Trace = { inputs: [], attemptedReads: [], effects: [] }
       const isolated = transaction(base, trace, host.root)
-      const output = yield* execution.workflow.pipe(
+      const outcome = yield* execution.workflow.pipe(
         Effect.provideService(Workspace, isolated.workspace),
-        Effect.provideService(FileSystem.FileSystem, isolated.fileSystem)
+        Effect.provideService(FileSystem.FileSystem, isolated.fileSystem),
+        Effect.exit
       )
-      const files = yield* changes(base, isolated.files, host)
       const inputs: Array<InputObservation> = []
       for (const input of trace.inputs) {
         inputs.push({ resource: resource(input.path), digest: yield* digestOf(input.content) })
       }
+      const descriptor = workspaceRelative(host.root, execution.descriptor)
+      const undeclaredReads = trace.attemptedReads.filter((attempt) =>
+        !attempt.produced &&
+        !descriptor.readSet.some((entry) =>
+          FileSet.isGlob(entry) ? FileSet.matchesGlob(entry, attempt.path) : entry.path === attempt.path
+        )
+      )
+      if (Exit.isFailure(outcome)) {
+        if (undeclaredReads.length > 0) {
+          return {
+            _tag: "Invalidated" as const,
+            provenance: {
+              baseRevision: yield* revisionOf(base),
+              inputs,
+              outputs: []
+            },
+            violations: [
+              ...new Map(undeclaredReads.map((attempt) => [attempt.path, {
+                kind: "undeclared-read" as const,
+                resource: resource(attempt.path)
+              }])).values()
+            ]
+          }
+        }
+        return yield* Effect.failCause(outcome.cause)
+      }
+      const output = outcome.value
+      const files = yield* changes(base, isolated.files, host)
       const provenance: Provenance = {
         baseRevision: yield* revisionOf(base),
         inputs,
@@ -850,7 +902,15 @@ export const makeHosted = (host: Host): Service => {
           digest: change.afterDigest
         }))
       }
-      const invalid = violations(workspaceRelative(host.root, execution.descriptor), base, provenance)
+      const invalid = [
+        ...new Map([
+          ...violations(descriptor, base, provenance),
+          ...undeclaredReads.map((attempt) => ({
+            kind: "undeclared-read" as const,
+            resource: resource(attempt.path)
+          }))
+        ].map((violation) => [`${violation.kind}:${violation.resource.id}`, violation])).values()
+      ]
       // Hard mode discards; expected mode admits the result and leaves the
       // deviation for the engine to journal and reconcile
       // (`Effect Taxonomy.md`, "Expected sets — the soft mode"). Either way
@@ -1133,12 +1193,42 @@ export const makeFileSystem = (
     snapshot: Effect.fn("WorkspaceSandbox.snapshot")(function*(descriptor) {
       const base = new Map<string, Uint8Array>()
       for (const entry of descriptor.readSet) {
-        const normalized = normalizePath(root, entry.path)
+        const paths = FileSet.isGlob(entry)
+          ? yield* Effect.gen(function*() {
+            const matched = new Set<string>()
+            for (const include of entry.include) {
+              const found = yield* fs.glob(hostPath(include), {
+                exclude: (entry.exclude ?? []).map(hostPath)
+              }).pipe(Effect.mapError(hostFailure))
+              for (const candidate of found) {
+                const normalized = normalizePath(root, candidate)
+                /* v8 ignore next -- a host glob rooted under the validated workspace cannot escape it */
+                if (Result.isFailure(normalized)) return yield* Effect.fail(normalized.failure)
+                const info = yield* fs.stat(candidate).pipe(Effect.mapError(hostFailure))
+                /* v8 ignore else -- non-file glob matches are intentionally discarded */
+                if (info.type === "File" && FileSet.matchesGlob(entry, normalized.success)) {
+                  matched.add(normalized.success)
+                }
+              }
+            }
+            return [...matched].sort()
+          })
+          : [entry.path]
+        for (const path of paths) {
+          const normalized = normalizePath(root, path)
+          if (Result.isFailure(normalized)) return yield* Effect.fail(normalized.failure)
+          const content = yield* readIfPresent(hostPath(normalized.success))
+          // A declared read that does not exist is seeded as absent, not as an
+          // error: `StepBoundary.prepare` already records the mismatch as the
+          // evidence that refuses the cache hit.
+          if (content !== undefined) base.set(normalized.success, content)
+        }
+      }
+      for (const path of descriptor.removes ?? []) {
+        const normalized = normalizePath(root, path)
+        /* v8 ignore next -- FileBoundary rejects upward and absolute removal declarations */
         if (Result.isFailure(normalized)) return yield* Effect.fail(normalized.failure)
         const content = yield* readIfPresent(hostPath(normalized.success))
-        // A declared read that does not exist is seeded as absent, not as an
-        // error: `StepBoundary.prepare` already records the mismatch as the
-        // evidence that refuses the cache hit.
         if (content !== undefined) base.set(normalized.success, content)
       }
       return base

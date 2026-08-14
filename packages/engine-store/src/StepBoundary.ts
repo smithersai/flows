@@ -9,6 +9,7 @@ import { Sha256 } from "@smthrs/crypto-next"
 import { FileBoundary } from "@smthrs/flow-next/FileBoundary"
 import { FileInput } from "@smthrs/flow-next/FileInput"
 import { Key } from "@smthrs/keys-next"
+import * as FileSet from "@smthrs/plan-next/FileSet"
 import * as Context from "effect/Context"
 import type * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
@@ -49,6 +50,15 @@ export const PreparedBoundary = Schema.Struct({
 export type PreparedBoundary = typeof PreparedBoundary.Type
 
 /**
+ * Exact read inputs from a boundary after ignoring declarations that still need expansion.
+ *
+ * @category accessors
+ * @since 0.1.0
+ */
+export const exactReads = (descriptor: FileBoundary): ReadonlyArray<FileInput> =>
+  descriptor.readSet.filter((entry): entry is FileInput => !FileSet.isGlob(entry))
+
+/**
  * Whether every declared read still matches what the host measured.
  *
  * Reads the host reports but the declaration never claimed are ignored: the
@@ -61,6 +71,7 @@ export type PreparedBoundary = typeof PreparedBoundary.Type
  */
 export const readSetMatches = (prepared: PreparedBoundary): boolean =>
   prepared.descriptor.readSet.every((entry) =>
+    !FileSet.isGlob(entry) &&
     prepared.readSnapshot.some((measured) => measured.path === entry.path && measured.digest === entry.digest)
   )
 
@@ -144,6 +155,8 @@ export const BoundaryEvidence = Schema.Struct({
    * boundaries that can inspect declared paths only omit it.
    */
   wholeTreeWritesVerified: Schema.optional(Schema.Literal(true)),
+  /** The body could observe only declared filesystem inputs. */
+  hermeticReadsVerified: Schema.optional(Schema.Literal(true)),
   deviation: Schema.optional(BoundaryDeviation)
 })
 
@@ -348,7 +361,11 @@ const LegacyInlineOutput = Schema.Struct({
 })
 
 const MaterializedOutputs = Schema.Struct({
-  outputs: Schema.Array(Schema.Union([DigestReferencedOutput, LegacyInlineOutput]))
+  outputs: Schema.Array(Schema.Union([DigestReferencedOutput, LegacyInlineOutput])),
+  trees: Schema.optional(Schema.Array(Schema.Struct({
+    path: Schema.String,
+    identity: Schema.String
+  })))
 })
 
 /**
@@ -511,6 +528,30 @@ export const makeFileSystem = (
       ),
       Effect.mapError(hostFailure)
     )
+  const expandGlob = Effect.fn("StepBoundary.expandGlob")(function*(glob: FileSet.Glob) {
+    const matched = new Set<string>()
+    for (const include of glob.include) {
+      const paths = yield* fs.glob(include, { exclude: glob.exclude ?? [] }).pipe(Effect.mapError(hostFailure))
+      for (const path of paths) {
+        const info = yield* fs.stat(path).pipe(Effect.mapError(hostFailure))
+        /* v8 ignore else -- non-file glob matches are intentionally discarded */
+        if (info.type === "File" && FileSet.matchesGlob(glob, path)) matched.add(path)
+      }
+    }
+    return [...matched].sort()
+  })
+  const treeFiles = Effect.fn("StepBoundary.treeFiles")(function*(path: string) {
+    const present = yield* fs.exists(path).pipe(Effect.mapError(hostFailure))
+    if (!present) return []
+    const paths = yield* fs.glob(`${path}/**/*`).pipe(Effect.mapError(hostFailure))
+    const files: Array<string> = []
+    for (const candidate of paths) {
+      const info = yield* fs.stat(candidate).pipe(Effect.mapError(hostFailure))
+      /* v8 ignore else -- nested directories are traversal scaffolding, not tree-artifact leaves */
+      if (info.type === "File") files.push(candidate)
+    }
+    return files.sort()
+  })
   const capture = Effect.fn("StepBoundary.capture")(function*(path: string, inlineBudget: number) {
     const present = yield* fs.exists(path).pipe(Effect.mapError(hostFailure))
     if (!present) return { output: { path, digest: null } satisfies MaterializedOutput, inlinedBytes: 0 }
@@ -609,8 +650,11 @@ export const makeFileSystem = (
       // (issue #104).
       const readSnapshot: Array<FileInput> = []
       for (const entry of descriptor.readSet) {
-        readSnapshot.push({ path: entry.path, digest: yield* measure(entry.path) })
+        if (FileSet.isGlob(entry)) {
+          for (const path of yield* expandGlob(entry)) readSnapshot.push({ path, digest: yield* measure(path) })
+        } else readSnapshot.push({ path: entry.path, digest: yield* measure(entry.path) })
       }
+      readSnapshot.sort((left, right) => left.path.localeCompare(right.path))
       return { descriptor, readSnapshot }
     }),
     settle: Effect.fn("StepBoundary.settle")(function*(prepared) {
@@ -621,10 +665,18 @@ export const makeFileSystem = (
       // limitation of this layer rather than a silent pass — the read set
       // is exactly the material cacheability rests on.
       const removes = prepared.descriptor.removes ?? []
-      const declaredWrites = new Set([...prepared.descriptor.writeSet, ...removes])
+      const declaredWrites = [...prepared.descriptor.writeSet, ...removes]
+      const declaredCovers = (path: string) =>
+        declaredWrites.some((entry) =>
+          typeof entry === "string"
+            ? entry === path
+            : entry._tag === "TreeArtifact"
+            ? path === entry.path || path.startsWith(`${entry.path}/`)
+            : FileSet.matchesGlob(entry, path)
+        )
       const undeclared: Array<string> = []
       for (const entry of prepared.readSnapshot) {
-        if (declaredWrites.has(entry.path)) continue
+        if (declaredCovers(entry.path)) continue
         if ((yield* measure(entry.path)) !== entry.digest) undeclared.push(entry.path)
       }
       const outputs: Array<MaterializedOutput> = []
@@ -633,21 +685,43 @@ export const makeFileSystem = (
       // here the absence was declared, so it is evidence rather than a defect.
       const missing: Array<string> = []
       let inlinedBytes = 0
-      for (const path of [...prepared.descriptor.writeSet, ...removes]) {
+      const outputPaths: Array<string> = []
+      const trees: Array<{ readonly path: string; readonly identity: string }> = []
+      for (const entry of prepared.descriptor.writeSet) {
+        if (typeof entry === "string") outputPaths.push(entry)
+        else if (entry._tag === "Glob") outputPaths.push(...yield* expandGlob(entry))
+        else {
+          const files = yield* treeFiles(entry.path)
+          outputPaths.push(...files)
+          const pairs: Array<readonly [string, string]> = []
+          for (const path of files) pairs.push([path.slice(entry.path.length + 1), yield* measure(path)])
+          trees.push({
+            path: entry.path,
+            identity: yield* Schema.decodeUnknownEffect(Key)({ kind: "tree-artifact", files: pairs }).pipe(Effect.orDie)
+          })
+        }
+      }
+      outputPaths.push(...removes)
+      for (const path of [...new Set(outputPaths)].sort()) {
         const captured = yield* capture(path, maxTotalInlineBytes - inlinedBytes)
         // `capture` reports the bytes it actually inlined (zero for a
         // digest-only reference), so the aggregate budget never has to
         // re-derive them from the row it just built.
         inlinedBytes += captured.inlinedBytes
         outputs.push(captured.output)
-        if (captured.output.digest === null && !removes.includes(path)) missing.push(path)
+        if (
+          captured.output.digest === null &&
+          !removes.includes(path) &&
+          prepared.descriptor.writeSet.some((entry) => typeof entry === "string" && entry === path)
+        ) missing.push(path)
       }
       // Through `Key` — the repo's one hashing chokepoint — so the identity is
       // a digest of the RFC 8785 canonical form rather than of whatever
       // `JSON.stringify` happened to emit for this shape.
       const diffIdentity = yield* Schema.decodeUnknownEffect(Key)({
         kind: "diff-identity",
-        outputs: outputs.map((output) => [output.path, output.digest])
+        outputs: outputs.map((output) => [output.path, output.digest]),
+        trees
       }).pipe(Effect.orDie)
       if (prepared.descriptor.boundaryMode === "hard") {
         if (undeclared.length > 0) {
@@ -665,7 +739,7 @@ export const makeFileSystem = (
         }
       }
       return {
-        declaredOutputs: { outputs },
+        declaredOutputs: { outputs, ...(trees.length === 0 ? {} : { trees }) },
         diffIdentity,
         // This filesystem-only boundary cannot observe writes elsewhere in
         // the tree. Omission is deliberate: ActionPersistence treats the
@@ -693,6 +767,9 @@ export const makeFileSystem = (
             message: "the recorded boundary evidence carries no materializable outputs"
           })
         )
+      }
+      for (const tree of decoded.success.trees ?? []) {
+        yield* fs.remove(tree.path, { recursive: true, force: true }).pipe(Effect.mapError(hostFailure))
       }
       for (const recorded of decoded.success.outputs) {
         const output = "digest" in recorded ? recorded : yield* fromLegacyOutput(recorded)
@@ -767,6 +844,8 @@ export interface TestOptions {
   readonly supported?: boolean | undefined
   /** Whether `changedPaths` represents a whole-tree observation. Defaults to true. */
   readonly wholeTreeWriteDetection?: boolean | undefined
+  /** Whether the fixture models an isolated read surface. Defaults to true. */
+  readonly hermeticReadDetection?: boolean | undefined
   /** Observes each `replayOutputs` call, so a test can assert replay happened. */
   readonly onReplay?: (evidence: BoundaryEvidence) => void
 }
@@ -795,13 +874,24 @@ export const layerTest = (options: TestOptions = {}): Layer.Layer<Service> => {
   const service = make({
     prepare: Effect.fn("StepBoundary.prepare")(function*(descriptor) {
       if (options.supported === false) return yield* Effect.fail(unsupported())
-      return { descriptor, readSnapshot: options.readSnapshot ?? descriptor.readSet }
+      return {
+        descriptor,
+        readSnapshot: options.readSnapshot ?? exactReads(descriptor)
+      }
     }),
     settle: Effect.fn("StepBoundary.settle")(function*(prepared) {
       if (options.supported === false) return yield* Effect.fail(unsupported())
       const removes = prepared.descriptor.removes ?? []
       const declared = [...prepared.descriptor.writeSet, ...removes]
-      const undeclared = changedPaths.filter((path) => !declared.includes(path))
+      const undeclared = changedPaths.filter((path) =>
+        !declared.some((entry) =>
+          typeof entry === "string"
+            ? entry === path
+            : entry._tag === "TreeArtifact"
+            ? path === entry.path || path.startsWith(`${entry.path}/`)
+            : FileSet.matchesGlob(entry, path)
+        )
+      )
       // The fixture states which declared writes the step failed to produce,
       // so the test boundary can exercise the same rule the real one enforces
       // rather than pretending every declaration was honoured.
@@ -820,6 +910,7 @@ export const layerTest = (options: TestOptions = {}): Layer.Layer<Service> => {
         declaredOutputs: options.declaredOutputs ?? { paths: prepared.descriptor.writeSet },
         diffIdentity,
         ...(options.wholeTreeWriteDetection === false ? {} : { wholeTreeWritesVerified: true as const }),
+        ...(options.hermeticReadDetection === false ? {} : { hermeticReadsVerified: true as const }),
         ...(undeclared.length > 0
           ? { deviation: { _tag: "ExpectedSetDeviation" as const, paths: undeclared, diffIdentity } }
           : missing.length > 0
