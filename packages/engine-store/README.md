@@ -29,21 +29,22 @@ See [browser support](../../docs/architecture/browser-support.md).
 The root exports these namespaces; each is also available from its matching
 `@smthrs/engine-store-next/*` subpath.
 
-| Namespace            | Public exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| -------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DurableEngineState` | `DurableEngineState` / `Service` persist deferreds, clocks, and parked-run state through `deferred`, `completeDeferred`, `clock`, `scheduleClock`, `completeClock`, `dueClocks`, `completedDeferreds`, `park`, `wake`, `waiting`, and `waitingRuns`. Address/row types are `DeferredAddress`, `DeferredRow`, `ClockAddress`, `ClockRow`, `Waiting`, `WaitingRow`, and `WaitingRunsFilter`; outcome types are `CompleteDeferredOutcome`, `ScheduleClockOutcome`, `CompleteClockOutcome`, `ParkOutcome`, and `WakeOutcome`; `WaitingReason` is the open wait taxonomy. `make` / `layer` use `DurableWriter`; `makeMemory` / `layerMemory` are deterministic in-memory variants.                |
-| `EngineStore`        | `Options` configures owner identity, journal source, liveness probing, and the optional `clockFireRetryPolicy` (defaults to exponential from 100ms capped at 30s, forever). `make` builds the service and `layer` provides `FlowEngine` plus `SnapshotBoundary`; `EngineCompositionError` is the stable composition error.                                                                                                                                                                                                                                                                                                                                                                   |
-| `StepBoundary`       | `PreparedBoundary`, `BoundaryDeviation`, `BoundaryEvidence`, `Service`, and `StepBoundary`; errors `UndeclaredWrite`, `UnsupportedBoundary`, and `BoundaryCorruption`; production and test layers. The shared declaration types `FileBoundary`, `BoundaryMode`, and `FileInput` live in `@smthrs/flow-next`'s `Action` namespace.                                                                                                                                                                                                                                                                                                                                                            |
-| `WorkspaceSandbox`   | The functional workspace transaction. Models `Resource`, `InputObservation`, `OutputObservation`, `Provenance`, `FileChange`, `QueuedEffect`, `WorkflowResult`, `Execution`, `DeclarationViolation`, `CacheDisposition`, `Accepted` / `Invalidated` / `ExecutionResult`, and `Host`; services `Workspace` (the in-transaction filesystem and effect outbox) and `EffectDispatcher`; errors `WorkspaceError` and `MaterializationConflict`; the `violations` accessor; `make` / `layer`, `makeHosted`, `makeMemory` (deterministic, browser-safe), and `makeFileSystem` / `layerFileSystem` / `layerDispatcher`.                                                                              |
-| `PlanScheduler`      | Drives a persisted `@smthrs/plan-next` `Plan`. `Options` configures the run, the admission caps (`concurrency.steps` / `concurrency.agents`, both defaulting to unbounded and both flooring at one), and the `rebaseLimit`; `make` / `layer` build the `Service` (`record`, `append`, `run`) and `PlanScheduler` is its tag. `NodeExecutor` / `Executor` / `layerExecutor` are the DI seam that turns a `NodeInput` into work, `Outcome` is the four-way evaluation result, `Settlement` and `Report` are what a run reports, `Requirements` is what driving one needs, and `SchedulerError` is the scheduler's own refusal.                                                                 |
-| `Reconciliation`     | The pluggable seam that answers a `Deviation` or a `Conflict` with a `Verdict` (`Fail` / `Reorder` / `FactorOut`). `Reconciliation` / `Service` are the tag and shape; `make` / `layer` install one; `makeDefault` / `layerDefault` are the deterministic default. It is the first consumer `flows.engine.expected-set-deviation` has had.                                                                                                                                                                                                                                                                                                                                                   |
-| `Selection`          | The advisory seam that guesses which sink nodes are safe to postpone and which flows a plan is missing — a guess schedules work, it never decides what is cached or correct. `SuspectedEdge`, `BeliefSnapshot`, and the `Verdict` union (`Admit` / `Defer` / `Propose`) are its schemas; `Selection` / `Service` are the tag and shape; `select` returns one verdict per candidate. `layerNoop` — the default — admits everything, so engine behavior with no `Selection` layer provided is byte-identical to today; `layerHeuristic` is the pure, deterministic glob-match default. `debt` lists a run's deferred entries as `DebtEntry` rows for the run's later guess-free pass to repay. |
-| `ArtifactGc`         | Explicit mark/sweep garbage collection for the artifact store. `ArtifactGc` / `Service` expose `gc(options)`; `GcOptions` / `GcReport` are its contract; `ArtifactGcPolicy` / `Policy` / `layerPolicy` are the opt-in policy seam (grace bound, pinned digests — configures, never schedules); `defaultGraceMs` is git's two-week prune default; `ArtifactGcError` carries `mark_failed` / `sweep_failed`; `make` / `MakeOptions` / `layer` need `SqlClient` and `@smthrs/artifacts-next`'s `ArtifactSweep`.                                                                                                                                                                                 |
-| `Inconsistency`      | `Inconsistency` / `Service` receive `CacheConflict` and return `InconsistencyVerdict`. `MakeOptions`, `make`, `makeNoop`, and `layerNoop` build receivers; `layerStrict` journals and returns `"fail"`, while `layerTolerant` journals and returns `"tolerate"`.                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `OwnerIdentity`      | `OwnerIdentity` / `Service` mint the `OwnerId` an incarnation fences its writes with. `make` builds one from an implementation, `makeDefault` / `layer` supply the platform default, and `layerConstant(owner)` pins a fixed identity for a test or a host that already holds a lease.                                                                                                                                                                                                                                                                                                                                                                                                       |
-| `RunState`           | The versioned run-state envelope schema the engine stores in each run row.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `Migrations`         | `set` is this package's own `MigrationSet`; `sets` is the composed, dependency-ordered list an engine installs; `run` and `layer` execute it through `@smthrs/database-next`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
-| `Errors`             | Stable `FlowCycleDetected`, `AttemptAdmissionRejected`, and `CacheConflictDetected` errors.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Namespace            | Public exports                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DurableEngineState` | `DurableEngineState` / `Service` persist deferreds, clocks, and parked-run state through `deferred`, `completeDeferred`, `clock`, `scheduleClock`, `completeClock`, `dueClocks`, `completedDeferreds`, `park`, `wake`, `waiting`, and `waitingRuns`. Address/row types are `DeferredAddress`, `DeferredRow`, `ClockAddress`, `ClockRow`, `Waiting`, `WaitingRow`, and `WaitingRunsFilter`; outcome types are `CompleteDeferredOutcome`, `ScheduleClockOutcome`, `CompleteClockOutcome`, `ParkOutcome`, and `WakeOutcome`; `WaitingReason` is the open wait taxonomy. `make` / `layer` use `DurableWriter`; `makeMemory` / `layerMemory` are deterministic in-memory variants. |
+| `EngineStore`        | `Options` configures owner identity, journal source, liveness probing, and the optional `clockFireRetryPolicy` (defaults to exponential from 100ms capped at 30s, forever). `make` builds the service and `layer` provides `FlowEngine` plus `SnapshotBoundary`; `EngineCompositionError` is the stable composition error.                                                                                                                                                                                                                                                                                                                                                    |
+| `StepBoundary`       | `PreparedBoundary`, `BoundaryDeviation`, `BoundaryEvidence`, `Service`, and `StepBoundary`; errors `UndeclaredWrite`, `UnsupportedBoundary`, and `BoundaryCorruption`; production and test layers. The shared declaration types `FileBoundary`, `BoundaryMode`, and `FileInput` live in `@smthrs/flow-next`'s `Action` namespace.                                                                                                                                                                                                                                                                                                                                             |
+| `WorkspaceSandbox`   | The functional workspace transaction. Models `Resource`, `InputObservation`, `OutputObservation`, `Provenance`, `FileChange`, `QueuedEffect`, `WorkflowResult`, `Execution`, `DeclarationViolation`, `CacheDisposition`, `Accepted` / `Invalidated` / `ExecutionResult`, and `Host`; services `Workspace` (the in-transaction filesystem and effect outbox) and `EffectDispatcher`; errors `WorkspaceError` and `MaterializationConflict`; the `violations` accessor; `make` / `layer`, `makeHosted`, `makeMemory` (deterministic, browser-safe), and `makeFileSystem` / `layerFileSystem` / `layerDispatcher`.                                                               |
+| `PlanScheduler`      | Drives a persisted `@smthrs/plan-next` `Plan`. `Options` configures the run, the admission caps (`concurrency.steps` / `concurrency.agents`, both defaulting to unbounded and both flooring at one), and the `rebaseLimit`; `make` / `layer` build the `Service` (`record`, `append`, `run`) and `PlanScheduler` is its tag. `NodeExecutor` / `Executor` / `layerExecutor` are the DI seam that turns a `NodeInput` into work, `Outcome` is the four-way evaluation result, `Settlement` and `Report` are what a run reports, `Requirements` is what driving one needs, and `SchedulerError` is the scheduler's own refusal.                                                  |
+| `Reconciliation`     | The pluggable seam that answers a `Deviation` or a `Conflict` with a `Verdict` (`Fail` / `Reorder` / `FactorOut`). `Reconciliation` / `Service` are the tag and shape; `make` / `layer` install one; `makeDefault` / `layerDefault` are the deterministic default. It is the first consumer `flows.engine.expected-set-deviation` has had.                                                                                                                                                                                                                                                                                                                                    |
+| `Selection`          | The advisory seam that guesses which sink nodes are safe to postpone and which flows a plan is missing. `SuspectedEdge`, `BeliefSnapshot`, `Candidate`, and the `Verdict` union (`Admit` / `Defer` / `Propose`) are its schemas; `Selection` / `Service` are the tag and shape; `select` returns one verdict per candidate. `layerNoop` admits everything; `layerHeuristic` is the pure glob-match default with optional failure-history stats. `DebtEntry`, `debt`, `card`, `risk`, and `proposeReadSet` are the v2 recertification and presentation helpers; the `recertify` driver ships on `PlanScheduler`, which owns scheduling.                                        |
+| `SelectionStore`     | The durable suspected-edge store. `SelectionStore` / `Service` expose `upsert`, `list`, `snapshot`, and `train`; `make` / `layer` persist through this package's migration set. `snapshot` pins the injected clock, and `train` applies the asymmetric hit/miss confidence rule without creating unknown edges.                                                                                                                                                                                                                                                                                                                                                               |
+| `ArtifactGc`         | Explicit mark/sweep garbage collection for the artifact store. `ArtifactGc` / `Service` expose `gc(options)`; `GcOptions` / `GcReport` are its contract; `ArtifactGcPolicy` / `Policy` / `layerPolicy` are the opt-in policy seam (grace bound, pinned digests — configures, never schedules); `defaultGraceMs` is git's two-week prune default; `ArtifactGcError` carries `mark_failed` / `sweep_failed`; `make` / `MakeOptions` / `layer` need `SqlClient` and `@smthrs/artifacts-next`'s `ArtifactSweep`.                                                                                                                                                                  |
+| `Inconsistency`      | `Inconsistency` / `Service` receive `CacheConflict` and return `InconsistencyVerdict`. `MakeOptions`, `make`, `makeNoop`, and `layerNoop` build receivers; `layerStrict` journals and returns `"fail"`, while `layerTolerant` journals and returns `"tolerate"`.                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `OwnerIdentity`      | `OwnerIdentity` / `Service` mint the `OwnerId` an incarnation fences its writes with. `make` builds one from an implementation, `makeDefault` / `layer` supply the platform default, and `layerConstant(owner)` pins a fixed identity for a test or a host that already holds a lease.                                                                                                                                                                                                                                                                                                                                                                                        |
+| `RunState`           | The versioned run-state envelope schema the engine stores in each run row.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `Migrations`         | `set` is this package's own `MigrationSet`; `sets` is the composed, dependency-ordered list an engine installs; `run` and `layer` execute it through `@smthrs/database-next`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `Errors`             | Stable `FlowCycleDetected`, `AttemptAdmissionRejected`, and `CacheConflictDetected` errors.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 
 ```ts
 import { EngineStore } from "@smthrs/engine-store-next"
@@ -95,105 +96,97 @@ idempotency keys, fencing, or compensation.
 
 The pluggable seam that turns recorded belief — which changed paths tend to
 affect which flows — into scheduling advice for `PlanScheduler`. A guess may
-suggest extra work, postpone a low-risk step, or order the queue;
-a guess never decides what is cached, correct, or up to date. That split is
-structural: `Selection.select` is a pure function of a `BeliefSnapshot` pinned
-before planning, and its verdicts never enter a step's key or its cache row.
+suggest extra work, postpone a low-risk sink, or order the queue; it never
+decides what is cached, correct, or up to date. `Selection.select`,
+`card`, `risk`, and `proposeReadSet` are pure functions of caller-supplied
+data, and selection verdicts never enter a step key or cache row.
 
-`layerNoop` is the default. With no `Selection` layer provided — or
-`layerNoop` explicitly — every candidate is `Admit`, and engine behavior is
-byte-identical to today. This is the hard compatibility bar: installing the
-seam changes nothing until a deployment opts a heuristic or model-backed
-layer in.
+`layerNoop` is the default: every candidate is `Admit`, so installing the
+package changes nothing until a deployment opts into another layer.
+`layerHeuristic` is the shipped deterministic layer. It considers only
+live suspected edges (`validFromMs <= beliefs.pinnedAtMs`) whose `scope`
+matches a changed path; a sink can be deferred only when a live edge names
+that sink. A `Candidate` may also carry `stats?: { failures: number; runs:
+number }`; the likelihood is `max(bestLiveEdgeConfidence, failures /
+max(runs, 1))`. Stats alone never defer a sink, but failure history can keep
+a flaky sink running inline where a low-confidence edge would otherwise defer
+it.
 
-**Verdicts.** `Admit` is the pass-through outcome: the node schedules and
-runs exactly as it does without `Selection`. `Defer { edge, likelihood }`
-postpones the node to a scheduled guess-free full pass; only sink candidates
-(no dependents in the plan) are ever offered a verdict, so a `Defer` for a
-non-sink is ignored and journaled as an inconsistency observation rather than
-honored. A deferred node settles with a new outcome, `"deferred"` — distinct
-from `clean`/`built` and from the existing dependency-failure `"skipped"` — it
-writes no step-cache row and is journaled as `flows.engine.selection-deferred`
-with the node id, dispatch/plan key, the edge, and the likelihood.
-`Propose { flow, edge, confidence }` records a flow no real dependency
-reaches, journaled as `flows.engine.selection-proposed`; v1 records and
-surfaces proposals, it does not append plan nodes automatically. A run-level
-override (`selection.full`) skips the consult for one run — nothing is
-deferred and nothing is proposed — and is journaled the way `--fresh`
-bypasses the cache.
+**Verdicts.** `Admit` is the pass-through outcome. `Defer { edge, likelihood }`
+postpones a sink to a guess-free pass; a deferred node settles as
+`"deferred"`, writes no cache row, and journals
+`flows.engine.selection-deferred`. `Propose { flow, edge, confidence }`
+journals `flows.engine.selection-proposed` for a flow no exact dependency
+reaches. Proposals are visible advice; this package deliberately does not
+append them to the plan automatically.
 
-**The four laws**, each pinned by a test:
+**SelectionStore.** `SelectionStore` is the durable suspected-edge store,
+tagged `flows/engine-store/SelectionStore`. `upsert(edges)` inserts or
+replaces by the natural key `(scope, affects)`, `list()` returns every edge,
+and `snapshot()` returns a `BeliefSnapshot` pinned at the injected clock's
+current time rather than `Date.now()`. `train(observations)` updates only
+matching stored edges, ignores unknown `(scope, affects)` pairs, and appends
+each observation to the edge's evidence list. The training rule is asymmetric:
+a hit moves `confidence` to `confidence + 0.05 * (1 - confidence)`, while a
+miss halves it. A miss is a recertified deferral that failed; a hit is one
+that passed. Training is one storage transaction and has no clock read inside
+the rule.
 
-1. Guesses never touch keys or the cache — step keys and cache rows for
-   admitted nodes are identical with `layerNoop` and with `layerHeuristic`.
-2. `deferred` is never `passed` — a distinct outcome, no cache row, a
-   journaled debt.
-3. Only sinks are deferrable — a node with dependents is never consulted and
-   can never end deferred.
-4. Guesses add or postpone, never remove — a node the plan requires executes
-   exactly as today, and the override option restores full execution.
+**Selection debt and recertification.** `Selection.debt(runId)` is
+byte-identical to v1: a `selection-deferred` record from that run opens debt, and
+a same-run `node-settled` record with outcome `built`, `clean`, or `failed`
+closes the matching plan key; `skipped` never closes it. v2 widens the query
+with `Selection.debt(runId, { repaidBy })`: opens still come only from the
+deferring run, while closes may also come from the listed repaying runs'
+settlements when their plan key matches. `PlanScheduler.recertify(input)` is the
+primitive for that repayment: it re-drives the compiled plan through
+`PlanScheduler` under a caller-supplied fresh run id with selection full
+override, then returns the repaying run id and the remaining debt computed
+with `debt(deferringRunId, { repaidBy: [freshRunId] })`. The deferring run's
+journal is not rewritten.
 
-**Usage**, composing `layerHeuristic` — pure and deterministic, no IO, no
-model calls — with a pinned `BeliefSnapshot`:
+**Cards, risk, and read-set proposals.** `Selection.card(input)` renders the
+plan card rows from plain data: `cached`, `run`, `deferred`, and `proposed`
+rows, plus an optional trailing `risk` row. Columns are padded by at least two
+spaces and the templates are fixed by tests:
 
-```ts
-import { Selection } from "@smthrs/engine-store-next"
-import * as Effect from "effect/Effect"
-
-const beliefs: Selection.BeliefSnapshot = {
-  pinnedAtMs: Date.now(),
-  edges: [
-    {
-      scope: "packages/engine/src/**",
-      affects: "update-engine-docs",
-      confidence: 0.6,
-      validFromMs: Date.now(),
-      evidence: ["seeded by hand"]
-    }
-  ]
-}
-
-const program = Effect.gen(function*() {
-  const selection = yield* Selection.Selection
-  return yield* selection.select({
-    changed: ["packages/engine/src/PlanScheduler.ts"],
-    sinks: [{ nodeId: "lint-docs", planKey: "key-lint" }],
-    present: ["example/Review", "build", "engine-tests", "lint-docs"],
-    beliefs,
-    policy: { deferBelow: 0.05 }
-  })
-}).pipe(Effect.provide(Selection.layerHeuristic))
+```text
+cached    <node>
+run       <node>
+deferred  <node>    fail likelihood <l> - recert <cadence>
+proposed  <flow>    suspected edge <confidence> - <scope> touched
+risk      <level> - <reasons joined with '; '>
 ```
 
-`layerHeuristic` glob-matches `changed` against the scope of each edge live
-at the pin (`validFromMs <= pinnedAtMs`); a match yields
-`likelihood = edge.confidence`; a sink whose best matching likelihood is
-strictly below `policy.deferBelow` becomes `Defer` under its best edge; a
-live edge whose `affects` names nothing in `present` — the plan's flow and
-its node ids — becomes `Propose`, once per flow under its highest-confidence
-edge, carried under the proposed flow's name since it maps to no plan node;
-everything else is `Admit`. A model-backed layer is a different composition —
-this package has no model dependency and must not grow one.
+`Selection.risk({ changed, beliefs })` is a pure annotation, never a gate: high means any live
+matching edge has confidence `>= 0.7`, medium means any has `>= 0.4`, and low
+means none do; reasons are named as `<scope> -> <affects> (<confidence>)`.
+`Selection.proposeReadSet({ beliefs, flow, paths })` returns the workspace
+paths matching the scope of any live edge whose `affects` names that flow,
+deduplicated in input order. It feeds `boundaryMode: "expected"`; agent-step
+wiring is outside this package.
 
-**Selection debt.** `Selection.debt(runId)` lists that run's open deferred
-entries — node, plan key, edge, likelihood, and journal provenance. It folds
-exactly one run's journal rather than projecting into a table: a
-`flows.engine.selection-deferred` record opens a debt under its plan key,
-and a later `flows.engine.node-settled` journaled under the same run and
-key with outcome `built`, `clean`, or `failed` closes it — `skipped` does
-not, because that work never ran and is still owed. Repayment is therefore
-same-run: the guess-free pass that closes a debt is the deferring run
-driven again under the `full` override, so its settlements land under the
-runId the fold reads. A recertification run holds its own runId and is
-invisible to this fold; a cross-run repayment query is future work, not
-shipped in v1. The journal is read for the same reason the scheduler
-consumes deviations from it: a deferral is a durable, replayable fact, and
-a second store would be a cache of one.
+**The laws**, pinned by tests:
 
-**Not in v1:** rendering `deferred`/`proposed` rows in a plan card, a
-model-backed `Selection` layer, belief training or confidence decay, a
-read-set proposer for agent steps, plan-level risk scoring, and
-automatically appending a `Propose` verdict as a plan node.
+1. Guesses never touch keys or the cache.
+2. `deferred` is never `passed`.
+3. Only sinks are deferrable.
+4. Guesses add or postpone, never remove work the plan requires.
+5. Training only moves confidence; it never creates edges or touches any
+   journal, and a miss decays confidence faster than a hit can raise it.
+6. `debt(runId, { repaidBy })` is a pure widening of v1 debt: omitted options
+   preserve v1 byte-for-byte, and listed repayers only close matching plan
+   keys they actually settled as `built`, `clean`, or `failed`.
+7. `card`, `risk`, and `proposeReadSet` are pure functions with no service
+   requirements.
+
+**Still out of scope:** a model-backed `Selection` layer, because
+`engine-store` must not grow a model dependency; CLI verbs, because this repo
+has no CLI package; approval routing from risk levels, because no approval
+machinery lives here; auto-appending proposals, because that design still
+needs human review; and scheduled recertification cadence, because scheduling
+nightly or per-merge full passes is a product/system-flow concern. The
+recertification primitive itself ships here.
 
 See the [engine-store reference](../../docs/reference/engine-store.md),
 [durable execution model](../../docs/concepts/durable-execution-model.md), and

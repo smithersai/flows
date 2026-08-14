@@ -154,36 +154,23 @@ A model-backed reconciler is a different `Layer`. It lives in the agent reposito
 
 <a id="selection"></a>
 
-The advisory seam: it may schedule work, it may never decide what is cached, correct, or up to date. `docs/specs/Concepts/Probabilistic Selection.md` (`status: draft`) is the design; this package implements v1 of it.
+The advisory scheduler seam. `Selection.select` may return `Admit`, `Defer`, or `Propose` verdicts for sink candidates and missing flows; it never changes a step key, cache row, or correctness decision. `SuspectedEdge` is the belief shape (`scope`, `affects`, `confidence`, `validFromMs`, `evidence`), and `BeliefSnapshot` pins the edge set at plan time.
 
-```ts
-interface Service {
-  select(input: {
-    changed: ReadonlyArray<string>
-    sinks: ReadonlyArray<{ nodeId: string; planKey: string }>
-    present: ReadonlyArray<string>
-    beliefs: BeliefSnapshot
-    policy: { deferBelow: number }
-  }): Effect<ReadonlyArray<{ nodeId: string; verdict: Verdict }>>
-}
+`layerNoop` admits everything. `layerHeuristic` is pure glob matching over live edges (`validFromMs <= pinnedAtMs`): a matching edge supplies likelihood, a sink can defer only when a live edge names it, and a `Candidate.stats` failure ratio raises likelihood so flaky sinks stay inline. Stats alone never defer. A model-backed layer is out of scope because `engine-store` must not depend on a model.
 
-type Verdict =
-  | { _tag: "Admit" }
-  | { _tag: "Defer"; edge: SuspectedEdge; likelihood: number }
-  | { _tag: "Propose"; flow: string; edge: SuspectedEdge; confidence: number }
-```
+`Selection.debt(runId)` is the v1 same-run fold: `selection-deferred` opens by plan key, and `node-settled` with `built`, `clean`, or `failed` closes; `skipped` does not. `Selection.debt(runId, { repaidBy })` widens only the close side, accepting matching settlements from explicitly named repaying runs while leaving omitted options byte-identical to v1. `PlanScheduler.recertify(input)` re-drives the compiled plan through `PlanScheduler` under the caller's fresh run id with full-selection override, then returns that repayer and the remaining debt computed with `repaidBy`.
 
-`BeliefSnapshot` (`pinnedAtMs`, `edges: ReadonlyArray<SuspectedEdge>`) is pinned before planning, and `select` is a pure function of it — no IO, no clock read mid-call. `SuspectedEdge` is `{ scope, affects, confidence, validFromMs, evidence }`, a path glob paired with the flow it is believed to affect. `present` lists every name the plan accounts for — its flow and its node ids — because whether an edge's `affects` names work outside the plan is undecidable from the sink list alone. In the result, `nodeId` names the offered candidate for `Admit` and `Defer`; a `Propose` names work outside the plan, so its entry carries the proposed flow's name instead of a plan node id.
+`Selection.card(input)` is a pure plan-card renderer for `cached`, `run`, `deferred`, `proposed`, and optional `risk` rows; its row strings are test-pinned. `Selection.risk({ changed, beliefs })` is a pure annotation, never a gate: `high` at confidence `>= 0.7`, `medium` at `>= 0.4`, otherwise `low`, with reasons named `<scope> -> <affects> (<confidence>)`. `Selection.proposeReadSet({ beliefs, flow, paths })` returns matching workspace paths for live edges whose `affects` names the flow, deduped in input order; wiring that into agent steps is out of scope.
 
-`layerNoop` is the default: every candidate is `Admit`, so engine behavior with no `Selection` layer, or with `layerNoop`, is byte-identical to today. `layerHeuristic` is the only other shipped layer — pure and deterministic, no IO, no model calls: it glob-matches `changed` against the scope of each edge live at the pin (`validFromMs <= pinnedAtMs`), a match yields `likelihood = edge.confidence`, a sink whose best likelihood is strictly below `policy.deferBelow` becomes `Defer` under its best edge, a live edge whose `affects` names nothing in `present` becomes `Propose` — once per flow, under its highest-confidence edge — and everything else is `Admit`. A model-backed layer is a different composition; this package has no model dependency and must not grow one, the same rule `Reconciliation` follows.
+Still out of scope: CLI verbs because no CLI package exists here, approval routing because approval machinery is not in this package, auto-appending proposals because the design needs human review, and scheduled recertification cadence because cadence is a product/system-flow concern rather than the store primitive.
 
-`PlanScheduler` consults `Selection` only for sink candidates — nodes with no dependents in the plan. A `Defer` naming a non-sink — or a `Propose` naming anything the plan already accounts for, its flow included — is not honored; it is ignored and journaled as an inconsistency observation, checked against the same `present` set the layer is shown. A `Defer` settles its node with a new outcome, `"deferred"` — distinct from `clean`/`built` and from the existing dependency-failure `"skipped"` — writes no step-cache row, and is journaled as `flows.engine.selection-deferred` with the node id, dispatch/plan key, the edge, and the likelihood. A `Propose` is journaled as `flows.engine.selection-proposed` (flow, edge, confidence); v1 records and surfaces it and does not append a plan node. A run-level override (`selection.full`) skips the consult for one run — nothing is deferred and nothing is proposed — and is journaled the way `--fresh` bypasses the cache.
+## `SelectionStore`
 
-Four laws hold regardless of which layer is installed: guesses never enter a step key or change a cache row (admitted nodes are byte-identical under `layerNoop` and `layerHeuristic`); `deferred` is never `passed`; only a sink can ever end deferred; and a guess only adds or postpones work, never removes a node the plan requires — the override option restores full execution.
+<a id="selectionstore"></a>
 
-`Selection.debt(runId)` lists that run's open deferred entries as `DebtEntry` values — node, plan key, edge, likelihood, journal provenance. It folds exactly one run's journal rather than projecting into a table: a `flows.engine.selection-deferred` record opens a debt under its plan key, and a later `flows.engine.node-settled` journaled under the same run and key with outcome `built`, `clean`, or `failed` closes it — `skipped` does not, because that work never ran and is still owed. Repayment is therefore same-run: the guess-free pass that closes a debt is the deferring run driven again under the `full` override, so its settlements land under the runId the fold reads. A recertification run holds its own runId and is invisible to this fold; a cross-run repayment query is future work, not shipped in v1. The journal-read matches how the scheduler consumes deviations: a deferral is a durable, replayable fact, and a second store would be a cache of one.
+The durable suspected-edge store, tagged `flows/engine-store/SelectionStore`. `make` and `layer` follow the sibling store idiom and install through this package's `MigrationSet`.
 
-Not in v1: plan-card rendering of `deferred`/`proposed` rows, a model-backed layer, belief training or confidence decay, a read-set proposer for agent steps, plan-level risk scoring, and auto-appending a `Propose` verdict as a plan node.
+`upsert(edges)` inserts or replaces by `(scope, affects)`, `list()` returns every edge, and `snapshot()` returns a `BeliefSnapshot` pinned at the injected clock's current time, never `Date.now()`. `train(observations)` updates only matching edges in one transaction, ignores unknown pairs, appends every observation to evidence, and uses the asymmetric rule: hit -> `confidence + 0.05 * (1 - confidence)`; miss -> `confidence * 0.5`. Training never creates edges and never writes journal records.
 
 ## `ArtifactSync`
 
