@@ -11,13 +11,26 @@ import * as Schema from "effect/Schema"
  */
 export const Pattern = Schema.NonEmptyString.check(
   Schema.makeFilter(
-    (pattern) =>
-      !pattern.startsWith("/") &&
-        !pattern.replaceAll("\\", "/").split("/").some((segment) => segment === "..") ||
-      "file patterns must be workspace-relative and cannot traverse upward",
+    (pattern) => workspaceRelative(pattern) || "file patterns must be workspace-relative and cannot traverse upward",
     { title: "workspaceRelativePattern" }
   )
 )
+
+/**
+ * Whether a declared path or pattern stays inside the workspace and names it
+ * one way only. Refuses absolute paths (POSIX and drive-letter), upward
+ * traversal, and the aliasing forms — `.` segments, empty segments — that
+ * would let two spellings of one file defeat exact-string overlap detection.
+ *
+ * @category predicates
+ * @since 0.1.0
+ */
+export const workspaceRelative = (pattern: string): boolean => {
+  if (pattern.startsWith("/")) return false
+  const segments = pattern.replaceAll("\\", "/").split("/")
+  if (segments[0]!.endsWith(":")) return false
+  return segments.every((segment) => segment !== ".." && segment !== "." && segment !== "")
+}
 
 /** Bazel-style file glob.
  * @category schemas
@@ -52,7 +65,7 @@ export type TreeArtifact = typeof TreeArtifact.Type
  * @category schemas
  * @since 0.1.0
  */
-export const Entry = Schema.Union([Schema.NonEmptyString, Glob, TreeArtifact])
+export const Entry = Schema.Union([Pattern, Glob, TreeArtifact])
 
 /** One leaf of a named filegroup.
  * @category models
@@ -64,7 +77,7 @@ export type Entry = typeof Entry.Type
  * @category schemas
  * @since 0.1.0
  */
-export const ReadEntry = Schema.Union([Schema.NonEmptyString, Glob])
+export const ReadEntry = Schema.Union([Pattern, Glob])
 
 /** A declaration valid in a read set.
  * @category models

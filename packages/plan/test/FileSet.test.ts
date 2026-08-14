@@ -58,3 +58,26 @@ describe("FileSet", () => {
     expect(FileSet.overlaps(glob, tree)).toBe(true)
   })
 })
+
+describe("FileSet.workspaceRelative", () => {
+  it("admits ordinary relative paths and patterns", () => {
+    for (const path of ["a.txt", "src/deep/b.ts", "src/**/*.ts", ".env", "a*b/c"]) {
+      expect(FileSet.workspaceRelative(path)).toBe(true)
+    }
+  })
+
+  it("refuses absolute, upward, and aliasing spellings", () => {
+    // Aliasing forms matter as much as escapes: `./a.txt` and `a.txt` name
+    // one file with two spellings, which defeats exact-string overlap.
+    for (const path of ["/abs", "../up", "a/../b", "./a.txt", "a//b", "a/", "C:/win"]) {
+      expect(FileSet.workspaceRelative(path)).toBe(false)
+    }
+  })
+
+  it("is the Pattern schema's own filter", () => {
+    expect(Schema.decodeUnknownResult(FileSet.Pattern)("./aliased.txt")._tag).toBe("Failure")
+    expect(Schema.decodeUnknownResult(FileSet.Entry)("../escape")._tag).toBe("Failure")
+    expect(Schema.decodeUnknownResult(FileSet.ReadEntry)("/absolute")._tag).toBe("Failure")
+    expect(Schema.decodeUnknownResult(FileSet.Entry)("src/ok.ts")._tag).toBe("Success")
+  })
+})
