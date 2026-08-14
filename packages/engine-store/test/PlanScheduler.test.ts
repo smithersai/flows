@@ -8,8 +8,8 @@
 import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
 import { Journal } from "@smthrs/journal-next"
 import { Jj } from "@smthrs/kernel-next"
-import { KeyMaterial, Plan, PlanStore } from "@smthrs/plan-next"
-import { type Ownership, RunStore } from "@smthrs/run-store-next"
+import { KeyMaterial, Plan, PlanStore, StepKey } from "@smthrs/plan-next"
+import { AttemptStore, type Ownership, RunStore } from "@smthrs/run-store-next"
 import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
@@ -24,7 +24,7 @@ import * as Reconciliation from "../src/Reconciliation.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as TestStores from "../src/test/TestStores.ts"
 import * as WorkspaceSandbox from "../src/WorkspaceSandbox.ts"
-import { runPromise } from "./Sha256.ts"
+import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "scheduler-host", pid: 91, nonce: "scheduler-process" }
 
@@ -210,6 +210,54 @@ describe("PlanScheduler over a static graph", () => {
     const report = await runPromise(program)
     expect(outcomes(report)).toEqual({ source: "built", orderer: "built", consumer: "built" })
     expect(seen).toEqual([[{ from: "source", path: ["nested", "field"], value: "projected" }]])
+  })
+
+  it("preserves every dispatch key in a diamond plan", async () => {
+    const plan = await runPromise(compile([
+      draft("producer"),
+      draft("left", { inputs: [{ _tag: "Ref", from: "producer", path: [] }] }),
+      draft("right", { inputs: [{ _tag: "Ref", from: "producer", path: [] }] })
+    ], "diamond-plan"))
+    const executor: PlanScheduler.Executor = { execute: ({ node }) => Effect.succeed({ ran: node.id }) }
+    const report = await runPromise(
+      Effect.gen(function*() {
+        yield* activate("run-diamond")
+        return yield* scheduler({ runId: "run-diamond", executor }).run(plan)
+      }).pipe(Effect.provide(harness({ runId: "run-diamond", executor })), Effect.provide(TestStores.layer()))
+    )
+    expect(Object.fromEntries(report.settlements.map(({ dispatchKey, nodeId }) => [nodeId, dispatchKey]))).toEqual({
+      producer: "key1_a2f7c76258f4ab3fa6df7e1668397e17ad3ec97158279b24b8f0f7688cfb50e8",
+      left: "key1_e9e2811e03fa18cf7e5ddae49b3e6a52354f87de283b8a244c02090549c4b623",
+      right: "key1_b556bfd989cf1c299166399064880ded26b2abc2ea43398c6bcc6110352c5002"
+    })
+  })
+
+  it("threads the engine-resolved environment into dispatch identity", async () => {
+    const plan = await runPromise(compile([draft("environment")], "environment-plan"))
+    const executor: PlanScheduler.Executor = { execute: ({ node }) => Effect.succeed(node.id) }
+    const { absent, present } = await runPromise(
+      Effect.gen(function*() {
+        yield* activate("run-environment-absent")
+        const absent = yield* scheduler({ runId: "run-environment-absent", executor }).run(plan)
+        yield* activate("run-environment-present")
+        const present = yield* scheduler({
+          runId: "run-environment-present",
+          executor,
+          options: {
+            environment: {
+              declared: true,
+              layers: ["workspace"],
+              capabilities: { fs: ["read"] }
+            }
+          }
+        }).run(plan)
+        return { absent, present }
+      }).pipe(
+        Effect.provide(harness({ runId: "run-environment", executor })),
+        Effect.provide(TestStores.layer())
+      )
+    )
+    expect(present.settlements[0]?.dispatchKey).not.toBe(absent.settlements[0]?.dispatchKey)
   })
 
   it("re-keys one leaf and re-runs only its cone — every unchanged branch is a cache hit", async () => {
@@ -481,6 +529,76 @@ const conflict = () =>
   })
 
 describe("PlanScheduler conflict strategies", () => {
+  it("recognizes live and rehydrated materialization conflicts", () => {
+    const live = conflict()
+    const rehydrated = { _tag: live._tag, paths: live.paths, message: live.message }
+    expect(WorkspaceSandbox.isMaterializationConflict(live)).toBe(true)
+    expect(WorkspaceSandbox.isMaterializationConflict(rehydrated)).toBe(true)
+    expect(WorkspaceSandbox.isMaterializationConflict({ ...rehydrated, _tag: "different" })).toBe(false)
+  })
+
+  it("delay/rebase replays a persisted conflict as a new attempt", async () => {
+    const plan = await runPromise(compile([draft("replayed-racer")]))
+    let dispatches = 0
+    const executor: PlanScheduler.Executor = {
+      execute: () =>
+        Effect.sync(() => {
+          dispatches = dispatches + 1
+          return "landed"
+        })
+    }
+    const report = await runPromise(
+      Effect.gen(function*() {
+        yield* activate("run-replayed-conflict")
+        const node = plan.nodes[0]!
+        const dispatchKey = yield* StepKey.dispatchIdentity({
+          material: node.material,
+          results: {},
+          hermetic: {
+            readSet: [],
+            writeSet: ["replayed-racer.out"],
+            boundaryMode: "hard"
+          }
+        })
+        const attempts = yield* AttemptStore.AttemptStore
+        const attemptId = {
+          runId: "run-replayed-conflict",
+          stepKeyDigest: sha256(dispatchKey),
+          attempt: 1
+        }
+        const inserted = yield* attempts.put({
+          ...attemptId,
+          state: "running",
+          startedAtMs: 1,
+          meta: { tier: "sealed" }
+        }, owner)
+        /* v8 ignore next -- the activated deterministic store cannot reject its first attempt row */
+        if (inserted._tag !== "Inserted") return yield* Effect.die(new Error("attempt seed was not inserted"))
+        const live = conflict()
+        const finished = yield* attempts.finish({
+          ...attemptId,
+          state: "failed",
+          finishedAtMs: 2,
+          error: {
+            reasons: [{
+              _tag: "Fail",
+              error: { _tag: live._tag, paths: live.paths, message: live.message }
+            }]
+          },
+          meta: { tier: "sealed" }
+        }, owner)
+        /* v8 ignore next -- the owner-fenced running row above has one valid terminal transition */
+        if (finished._tag !== "Finished") return yield* Effect.die(new Error("attempt seed was not finished"))
+        return yield* Effect.provide(
+          scheduler({ runId: "run-replayed-conflict", executor }).run(plan),
+          harness({ runId: "run-replayed-conflict", executor })
+        )
+      }).pipe(Effect.provide(TestStores.layer()))
+    )
+    expect(report.settlements[0]).toMatchObject({ outcome: "built", attempts: 2, rebases: 1 })
+    expect(dispatches).toBe(1)
+  })
+
   it("delay/rebase re-keys a new attempt and lands within its bound", async () => {
     const plan = await runPromise(compile([draft("racer", { writes: ["shared.out"] })]))
     const attempts = await runPromise(
@@ -566,6 +684,51 @@ describe("PlanScheduler conflict strategies", () => {
 
 describe("PlanScheduler reconciliation", () => {
   const deviating = (paths: ReadonlyArray<string>) => StepBoundary.layerTest({ changedPaths: paths })
+
+  it("attributes an identical-key deviation to the node that executed", async () => {
+    const shared = {
+      body: { action: "install" },
+      writes: ["installed.out"],
+      boundaryMode: "expected" as const
+    }
+    const plan = await runPromise(compile([
+      draft("install-first", shared),
+      draft("install-twin", shared)
+    ]))
+    const executor: PlanScheduler.Executor = { execute: () => Effect.succeed("installed") }
+    const seen: Array<Reconciliation.Deviation> = []
+    const recorder = Reconciliation.layer({
+      onDeviation: (deviation) =>
+        Effect.sync(() => {
+          seen.push(deviation)
+          return { _tag: "FactorOut", paths: deviation.paths, reason: "observed" } as const
+        }),
+      /* v8 ignore next -- identical successful dispatches never enter conflict reconciliation */
+      onConflict: () => Effect.succeed({ _tag: "Fail", reason: "unused" } as const)
+    })
+    const { replayed, report } = await runPromise(
+      Effect.gen(function*() {
+        yield* activate("run-identical-deviation")
+        const service = scheduler({ runId: "run-identical-deviation", executor })
+        const report = yield* service.run(plan)
+        const replayed = yield* service.run(plan)
+        return { replayed, report }
+      }).pipe(
+        Effect.provide(harness({
+          runId: "run-identical-deviation",
+          executor,
+          boundary: deviating(["node_modules/.bin/tool"]),
+          reconciliation: recorder
+        })),
+        Effect.provide(TestStores.layer())
+      )
+    )
+    const built = report.settlements.find((settlement) => settlement.outcome === "built")!
+    const clean = report.settlements.find((settlement) => settlement.outcome === "clean")!
+    expect(replayed.settlements.every((settlement) => settlement.outcome === "clean")).toBe(true)
+    expect(new Set(seen.map((deviation) => deviation.nodeId))).toEqual(new Set([built.nodeId]))
+    expect(seen.map((deviation) => deviation.nodeId)).not.toContain(clean.nodeId)
+  })
 
   it("gives the expected-set-deviation event its first consumer", async () => {
     const plan = await runPromise(compile([draft("loose", { writes: ["declared.out"], boundaryMode: "expected" })]))

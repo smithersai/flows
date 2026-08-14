@@ -1,4 +1,7 @@
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
+import * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
 import { describe, expect, it } from "vitest"
 import * as KeyMaterial from "../src/KeyMaterial.ts"
 import * as StepKey from "../src/StepKey.ts"
@@ -256,6 +259,62 @@ describe("StepKey.dispatchIdentity", () => {
     results: Readonly<Record<string, unknown>>,
     boundary: typeof hermetic = hermetic
   ) => StepKey.dispatchIdentity({ material: material(overrides), results, hermetic: boundary })
+
+  it("memoizes a projected value digest across concurrent key computations", async () => {
+    let digestCalls = 0
+    const countingCrypto = Layer.effect(
+      Crypto.Crypto,
+      Effect.map(Crypto.Crypto, (crypto) =>
+        Crypto.Crypto.of({
+          ...crypto,
+          digest: (algorithm, data) =>
+            Effect.sync(() => {
+              digestCalls = digestCalls + 1
+            }).pipe(Effect.andThen(crypto.digest(algorithm, data)))
+        }))
+    ).pipe(Layer.provide(NodeCrypto.layer))
+    const inputs = [{ _tag: "Ref", from: "upstream", path: ["value"] }] as const
+    const options = {
+      material: material({ inputs }),
+      results: { upstream: { value: { nested: true } } },
+      hermetic
+    }
+    const digestMemo = StepKey.makeDigestMemo()
+    const memoized = await Effect.runPromise(
+      Effect.all([
+        StepKey.dispatchIdentity({ ...options, digestMemo }),
+        StepKey.dispatchIdentity({ ...options, digestMemo })
+      ], { concurrency: "unbounded" }).pipe(Effect.provide(countingCrypto))
+    )
+    const unmemoized = await runPromise(StepKey.dispatchIdentity(options))
+    // One projected-value digest plus one final key digest per call.
+    expect(digestCalls).toBe(3)
+    expect(memoized).toEqual([unmemoized, unmemoized])
+  })
+
+  it("folds an engine-resolved environment without moving the absent identity", async () => {
+    const absent = await runPromise(dispatch({}, {}))
+    const environment: StepKey.EnvironmentIdentity = {
+      declared: false,
+      layers: ["node-crypto", "workspace"],
+      capabilities: { fs: ["read", "write"] }
+    }
+    const present = await runPromise(StepKey.dispatchIdentity({
+      material: material(),
+      results: {},
+      hermetic,
+      environment
+    }))
+    const scoped = await runPromise(StepKey.dispatchIdentity({
+      material: material(),
+      results: {},
+      hermetic,
+      environment: { ...environment, runScope: "run-1" }
+    }))
+    expect(absent).toBe("key1_70bc16b1ef9256f7301167c9d11f332d39383c61d9f630d99bdc920c066b6ac2")
+    expect(present).not.toBe(absent)
+    expect(scoped).not.toBe(present)
+  })
 
   it("folds the settled output value of a `Ref`, never the upstream's identity", async () => {
     // The early cutoff: the derivation is handed the upstream's VALUE and

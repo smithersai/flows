@@ -11,6 +11,7 @@
  */
 import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
 import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
+import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
 import { Jj } from "@smthrs/kernel-next"
 import * as KernelFileSystem from "@smthrs/kernel-next/FileSystem"
 import * as GrantStore from "@smthrs/kernel-next/GrantStore"
@@ -31,7 +32,8 @@ import * as PlanScheduler from "../src/PlanScheduler.ts"
 import * as StepBoundary from "../src/StepBoundary.ts"
 import * as StepSandbox from "../src/StepSandbox.ts"
 import * as TestStores from "../src/test/TestStores.ts"
-import { runPromise } from "./Sha256.ts"
+import * as WorkspaceSandbox from "../src/WorkspaceSandbox.ts"
+import { runPromise, sha256 } from "./Sha256.ts"
 
 const owner: Ownership.OwnerId = { hostId: "plan-host", pid: 55, nonce: "plan-process" }
 
@@ -69,6 +71,23 @@ const production = (root: string) => {
       Layer.provide(artifacts),
       Layer.provide(KernelWorkspace.layer(root))
     )
+  ).pipe(Layer.provideMerge(artifacts))
+}
+
+/** The real filesystem boundary without the execution sandbox, for tests that deliberately move the host between rounds. */
+const boundaryOnly = (root: string) => {
+  const workspaceFs = KernelFileSystem.layer.pipe(
+    Layer.provide(NodeFileSystem.layer),
+    Layer.provide(EffectPath.layer),
+    Layer.provide(KernelWorkspace.layer(root)),
+    Layer.provide(GrantStore.layerNoop)
+  )
+  const artifacts = ArtifactStore.layerFileSystem({ directory: join(root, ".flows/objects") }).pipe(
+    Layer.provideMerge(workspaceFs)
+  )
+  return Layer.mergeAll(
+    StepBoundary.layer.pipe(Layer.provide(artifacts)),
+    jjLayer
   ).pipe(Layer.provideMerge(artifacts))
 }
 
@@ -175,6 +194,35 @@ const graph = (): ReadonlyArray<Plan.NodeDraft> => [
 
 const outcomes = (report: PlanScheduler.Report) =>
   Object.fromEntries(report.settlements.map((settlement) => [settlement.nodeId, settlement.outcome]))
+
+interface DraftOptions {
+  readonly inputs?: ReadonlyArray<KeyMaterial.InputRef>
+  readonly reads?: Plan.NodeEffects["reads"]
+  readonly writes?: Plan.NodeEffects["writes"]
+  readonly removes?: ReadonlyArray<string>
+  readonly conflictStrategy?: Plan.PairStrategy
+  readonly runtimeStrategy?: Plan.RuntimeStrategy
+}
+
+const draft = (id: string, options: DraftOptions = {}): Plan.NodeDraft => ({
+  id,
+  material: {
+    version: KeyMaterial.version,
+    kind: "sealed",
+    body: { action: id },
+    inputs: options.inputs ?? [],
+    layers: [],
+    capabilities: []
+  },
+  effects: {
+    reads: options.reads ?? [],
+    writes: options.writes ?? [`out/${id}.txt`],
+    ...(options.removes === undefined ? {} : { removes: options.removes }),
+    boundaryMode: "hard"
+  },
+  ...(options.conflictStrategy === undefined ? {} : { conflictStrategy: options.conflictStrategy }),
+  ...(options.runtimeStrategy === undefined ? {} : { runtimeStrategy: options.runtimeStrategy })
+})
 
 describe("a persisted plan driven end to end under the production composition", () => {
   it("re-runs only the cone below an edited input; every unchanged branch is a cache hit", async () => {
@@ -289,5 +337,305 @@ describe("a persisted plan driven end to end under the production composition", 
     expect(outcomes(result.second)).toEqual({ "render-glob": "built" })
     expect(runs).toEqual(["render-glob", "render-glob"])
     expect(await runPromise(read(output))).toBe("render-glob(a+b)")
+  })
+
+  it("pins source members of a mixed glob while observing producer outputs after settlement", async () => {
+    const root = mkdtempSync(join(tmpdir(), "flows-plan-mixed-glob-"))
+    const glob: FileSet.Glob = { _tag: "Glob", include: ["src/**"] }
+    const plan = await runPromise(Plan.compile({
+      planId: "mixed-glob-plan",
+      flow: "example/MixedGlob",
+      nodes: [
+        draft("writer", { writes: ["src/gen.ts"] }),
+        draft("reader-first", { reads: [glob] }),
+        draft("move-world", { inputs: [{ _tag: "Pending", from: "reader-first" }] }),
+        draft("reader-second", {
+          inputs: [{ _tag: "Pending", from: "move-world" }],
+          reads: [glob]
+        })
+      ]
+    }))
+    const seen = new Map<string, FileBoundary>()
+    const executor: PlanScheduler.Executor = {
+      execute: ({ boundary, node }) =>
+        Effect.gen(function*() {
+          const fs = yield* FileSystem.FileSystem
+          if (node.id.startsWith("reader-")) seen.set(node.id, boundary)
+          if (node.id === "move-world") {
+            // The scheduler has already observed the run's source world. Move
+            // one member and add another between the two reader rounds.
+            yield* write(join(root, "src/lib.ts"), "library-after-start")
+            yield* write(join(root, "src/arrival.ts"), "arrived-mid-run")
+          }
+          const output = FileSet.expand(node.effects.writes)[0]!
+          if (typeof output !== "string") return yield* Effect.die(new Error("test expects an exact output"))
+          yield* fs.makeDirectory(join(output, ".."), { recursive: true })
+          yield* fs.writeFileString(output, node.id === "writer" ? "generated-after-producer" : node.id)
+          return node.id
+        }) as unknown as Effect.Effect<unknown, unknown>
+    }
+    const report = await runPromise(
+      Effect.gen(function*() {
+        yield* write(join(root, "src/lib.ts"), "library-at-start")
+        yield* activate("prod-mixed-glob")
+        return yield* Effect.provide(
+          PlanScheduler.make({ runId: "prod-mixed-glob", owner, sourceId: "glob/mixed" }).run(plan),
+          Layer.merge(boundaryOnly(root), PlanScheduler.layerExecutor(executor))
+        )
+      }).pipe(Effect.provide(TestStores.layer()))
+    )
+
+    expect(outcomes(report)).toEqual({
+      writer: "built",
+      "reader-first": "built",
+      "move-world": "built",
+      "reader-second": "built"
+    })
+    const first = StepBoundary.exactReads(seen.get("reader-first")!)
+    const second = StepBoundary.exactReads(seen.get("reader-second")!)
+    const digestAt = (entries: ReadonlyArray<{ readonly path: string; readonly digest: string }>, path: string) =>
+      entries.find((entry) => entry.path === path)?.digest
+
+    // Both readers key the source member to the run-start bytes, even though
+    // the host moved between their dispatch rounds.
+    expect(digestAt(first, "src/lib.ts")).toBe(sha256("library-at-start"))
+    expect(digestAt(second, "src/lib.ts")).toBe(sha256("library-at-start"))
+    // The exact producer path is discovered after its writer settles.
+    expect(digestAt(first, "src/gen.ts")).toBe(sha256("generated-after-producer"))
+    expect(digestAt(second, "src/gen.ts")).toBe(sha256("generated-after-producer"))
+    // An unproduced arrival was not part of the run-start expansion and never
+    // enters a later boundary.
+    expect(second.some((entry) => entry.path === "src/arrival.ts")).toBe(false)
+  })
+
+  it("enumerates producer candidates only inside exact, glob, and tree writer scopes", async () => {
+    const root = mkdtempSync(join(tmpdir(), "flows-plan-writer-scopes-"))
+    const plan = await runPromise(Plan.compile({
+      planId: "writer-scope-plan",
+      flow: "example/WriterScopes",
+      nodes: [
+        draft("scoped-writer", {
+          writes: [
+            "src/exact.ts",
+            { _tag: "Glob", include: ["src/generated/**"] },
+            { _tag: "TreeArtifact", path: "src/tree" }
+          ],
+          removes: ["src/removed.ts"]
+        }),
+        draft("scoped-reader", { reads: [{ _tag: "Glob", include: ["src/**"] }] })
+      ]
+    }))
+    let boundary: FileBoundary | undefined
+    const executor: PlanScheduler.Executor = {
+      execute: ({ boundary: measured, node }) =>
+        Effect.gen(function*() {
+          const fs = yield* FileSystem.FileSystem
+          const put = (path: string, content: string) =>
+            fs.makeDirectory(join(path, ".."), { recursive: true }).pipe(
+              Effect.andThen(fs.writeFileString(path, content))
+            )
+          if (node.id === "scoped-writer") {
+            yield* put("src/exact.ts", "exact")
+            yield* put("src/generated/nested.ts", "glob")
+            yield* put("src/tree/member.ts", "tree")
+            yield* fs.remove("src/removed.ts")
+          } else {
+            boundary = measured
+            yield* put("out/scoped-reader.txt", "reader")
+          }
+          return node.id
+        }) as unknown as Effect.Effect<unknown, unknown>
+    }
+    await runPromise(
+      Effect.gen(function*() {
+        yield* write(join(root, "src/source.ts"), "source")
+        yield* write(join(root, "src/removed.ts"), "remove-me")
+        yield* activate("prod-writer-scopes")
+        return yield* Effect.provide(
+          PlanScheduler.make({ runId: "prod-writer-scopes", owner, sourceId: "glob/scopes" }).run(plan),
+          Layer.merge(boundaryOnly(root), PlanScheduler.layerExecutor(executor))
+        )
+      }).pipe(Effect.provide(TestStores.layer()))
+    )
+
+    expect(StepBoundary.exactReads(boundary!).map((entry) => entry.path)).toEqual([
+      "src/exact.ts",
+      "src/generated/nested.ts",
+      "src/source.ts",
+      "src/tree/member.ts"
+    ])
+  })
+
+  it("pins a newly observed appended-generation source at append time exactly once", async () => {
+    const root = mkdtempSync(join(tmpdir(), "flows-plan-append-pin-"))
+    const sourceGlob: FileSet.Glob = { _tag: "Glob", include: ["src/**"] }
+    const plan = await runPromise(Plan.compile({
+      planId: "append-pin-plan",
+      flow: "example/AppendPin",
+      nodes: [
+        draft("lane-a", {
+          writes: ["shared.out"],
+          conflictStrategy: "lane",
+          runtimeStrategy: "stop-merge"
+        }),
+        draft("lane-b", {
+          reads: [sourceGlob],
+          writes: ["shared.out"],
+          conflictStrategy: "lane",
+          runtimeStrategy: "stop-merge"
+        }),
+        draft("move-after-append", { inputs: [{ _tag: "Pending", from: "lane-a" }] })
+      ]
+    }))
+    let mergeBoundary: FileBoundary | undefined
+    const executor: PlanScheduler.Executor = {
+      execute: ({ boundary, node }) =>
+        Effect.gen(function*() {
+          const fs = yield* FileSystem.FileSystem
+          if (node.id === "lane-b") {
+            // This path did not exist in generation zero's expansion. The
+            // appended merge generation observes and pins these bytes.
+            yield* write(join(root, "src/late.ts"), "seen-at-append")
+            return yield* Effect.fail(
+              new WorkspaceSandbox.MaterializationConflict({
+                paths: ["shared.out"],
+                message: "force stop-merge elaboration"
+              })
+            )
+          }
+          if (node.id === "move-after-append") {
+            // This node wins the next capped round after append. If the merge
+            // re-observed its source at dispatch, it would see these bytes.
+            yield* write(join(root, "src/late.ts"), "changed-after-append")
+          }
+          if (node.kind === "merge") mergeBoundary = boundary
+          const output = FileSet.expand(node.effects.writes)[0]!
+          if (typeof output !== "string") return yield* Effect.die(new Error("test expects an exact output"))
+          yield* fs.makeDirectory(join(output, ".."), { recursive: true })
+          yield* fs.writeFileString(output, node.id)
+          return node.id
+        }) as unknown as Effect.Effect<unknown, unknown>
+    }
+    const report = await runPromise(
+      Effect.gen(function*() {
+        yield* write(join(root, "src/base.ts"), "base-at-start")
+        yield* activate("prod-append-pin")
+        const service = PlanScheduler.make({
+          runId: "prod-append-pin",
+          owner,
+          sourceId: "glob/append",
+          concurrency: { steps: 1 }
+        })
+        yield* service.record(plan)
+        return yield* Effect.provide(
+          service.run(plan),
+          Layer.merge(boundaryOnly(root), PlanScheduler.layerExecutor(executor))
+        )
+      }).pipe(Effect.provide(TestStores.layer()))
+    )
+
+    expect(report.appended).toEqual(["lane-b+merge"])
+    expect(outcomes(report)).toEqual({
+      "lane-a": "built",
+      "lane-b": "skipped",
+      "move-after-append": "built",
+      "lane-b+merge": "built"
+    })
+    const mergeReads = StepBoundary.exactReads(mergeBoundary!)
+    expect(mergeReads.find((entry) => entry.path === "src/base.ts")?.digest).toBe(sha256("base-at-start"))
+    expect(mergeReads.find((entry) => entry.path === "src/late.ts")?.digest).toBe(sha256("seen-at-append"))
+    expect(await runPromise(read(join(root, "src/late.ts")))).toBe("changed-after-append")
+  })
+
+  it("admits only the read glob's own members from an overlapping writer glob's scope", async () => {
+    const root = mkdtempSync(join(tmpdir(), "flows-plan-writer-scope-"))
+    const plan = await runPromise(Plan.compile({
+      planId: "writer-scope-plan",
+      flow: "example/WriterScope",
+      nodes: [
+        draft("generator", { writes: [{ _tag: "Glob", include: ["gen/**"] }] }),
+        draft("reader", { reads: [{ _tag: "Glob", include: ["gen/*.ts"] }] })
+      ]
+    }))
+    let readerBoundary: FileBoundary | undefined
+    const executor: PlanScheduler.Executor = {
+      execute: ({ boundary, node }) =>
+        Effect.gen(function*() {
+          const fs = yield* FileSystem.FileSystem
+          if (node.id === "generator") {
+            yield* fs.makeDirectory("gen", { recursive: true })
+            yield* fs.writeFileString("gen/typed.ts", "typed-member")
+            yield* fs.writeFileString("gen/blob.bin", "binary-member")
+            return node.id
+          }
+          readerBoundary = boundary
+          yield* fs.makeDirectory("out", { recursive: true })
+          yield* fs.writeFileString("out/reader.txt", node.id)
+          return node.id
+        }) as unknown as Effect.Effect<unknown, unknown>
+    }
+    const report = await runPromise(
+      Effect.gen(function*() {
+        yield* activate("prod-writer-scope")
+        return yield* Effect.provide(
+          PlanScheduler.make({ runId: "prod-writer-scope", owner, sourceId: "glob/writer-scope" }).run(plan),
+          Layer.merge(boundaryOnly(root), PlanScheduler.layerExecutor(executor))
+        )
+      }).pipe(Effect.provide(TestStores.layer()))
+    )
+    expect(outcomes(report)).toEqual({ generator: "built", reader: "built" })
+    const reads = StepBoundary.exactReads(readerBoundary!)
+    // The writer glob's scope holds both files; only the one the READ glob
+    // matches is a member of the reader's boundary.
+    expect(reads.find((entry) => entry.path === "gen/typed.ts")?.digest).toBe(sha256("typed-member"))
+    expect(reads.some((entry) => entry.path === "gen/blob.bin")).toBe(false)
+  })
+
+  it("skips an exact producer path that stats as a directory at dispatch", async () => {
+    const root = mkdtempSync(join(tmpdir(), "flows-plan-dir-producer-"))
+    const plan = await runPromise(Plan.compile({
+      planId: "dir-producer-plan",
+      flow: "example/DirProducer",
+      nodes: [
+        draft("producer", { writes: ["gen/artifact"] }),
+        draft("mutator", { inputs: [{ _tag: "Pending", from: "producer" }] }),
+        draft("reader", {
+          inputs: [{ _tag: "Pending", from: "mutator" }],
+          reads: [{ _tag: "Glob", include: ["gen/*"] }]
+        })
+      ]
+    }))
+    let readerBoundary: FileBoundary | undefined
+    const executor: PlanScheduler.Executor = {
+      execute: ({ boundary, node }) =>
+        Effect.gen(function*() {
+          const fs = yield* FileSystem.FileSystem
+          if (node.id === "reader") readerBoundary = boundary
+          if (node.id === "mutator") {
+            // Replace the produced file with a directory before the reader
+            // measures: a directory is not a measurable file input, so the
+            // reader's boundary must skip the path rather than fail on it.
+            yield* fs.remove("gen/artifact")
+            yield* fs.makeDirectory("gen/artifact", { recursive: true })
+          }
+          const output = FileSet.expand(node.effects.writes)[0]!
+          if (typeof output !== "string") return yield* Effect.die(new Error("test expects an exact output"))
+          yield* fs.makeDirectory(join(output, ".."), { recursive: true })
+          yield* fs.writeFileString(output, node.id)
+          return node.id
+        }) as unknown as Effect.Effect<unknown, unknown>
+    }
+    const report = await runPromise(
+      Effect.gen(function*() {
+        yield* activate("prod-dir-producer")
+        return yield* Effect.provide(
+          PlanScheduler.make({ runId: "prod-dir-producer", owner, sourceId: "glob/dir-producer" }).run(plan),
+          Layer.merge(boundaryOnly(root), PlanScheduler.layerExecutor(executor))
+        )
+      }).pipe(Effect.provide(TestStores.layer()))
+    )
+    expect(outcomes(report)).toEqual({ producer: "built", mutator: "built", reader: "built" })
+    const reads = StepBoundary.exactReads(readerBoundary!)
+    expect(reads.some((entry) => entry.path === "gen/artifact")).toBe(false)
   })
 })

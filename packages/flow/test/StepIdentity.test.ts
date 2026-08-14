@@ -4,11 +4,11 @@
  * Issues #98/#100/#101: the canonical allocation-scope derivation.
  *
  * Action identity has produced residuals for three review rounds because
- * each surface (string keys, object keys, internal operations) derived its
- * scope its own way. `StepIdentity.allocationScope` is now the single path,
- * and these property tests pin its two contracts: distinct declarations
- * never alias, and identical declarations are stable across repeated
- * derivation.
+ * each surface (string keys, object keys, internal operations, structural
+ * dispatch sites) derived its scope its own way. `StepIdentity.allocationScope`
+ * is now the single path, and these property tests pin its two contracts:
+ * distinct identities never alias, and identical identities are stable
+ * across repeated derivation.
  */
 import { StepIdentity } from "@smthrs/flow-next"
 import { Effect, Schema } from "effect"
@@ -53,7 +53,8 @@ describe("StepIdentity.allocationScope", () => {
           ? undefined
           : rand() < 0.5
           ? randomName(rand)
-          : content({ n: Math.floor(rand() * 4) })
+          : content({ n: Math.floor(rand() * 4) }),
+        site: rand() < 0.5 ? undefined : randomName(rand)
       }
       expect(allocationScope(identity)).toBe(
         allocationScope({ ...identity })
@@ -72,7 +73,8 @@ describe("StepIdentity.allocationScope", () => {
           ? ["s", identity.idempotency]
           : identity.idempotency === undefined
           ? null
-          : ["c", identity.idempotency]
+          : ["c", identity.idempotency],
+        identity.site ?? null
       ])
       const scope = allocationScope(identity)
       const prior = seen.get(scope)
@@ -88,6 +90,7 @@ describe("StepIdentity.allocationScope", () => {
       record({ kind: "action", name, idempotency: randomName(rand) })
       record({ kind: "action", name, idempotency: content({ i: Math.floor(rand() * 50) }) })
       record({ kind: "internal", name: "idempotency", idempotency: name })
+      record({ kind: "action", name, site: randomName(rand) })
     }
     expect(seen.size).toBeGreaterThan(1000)
   })
@@ -109,6 +112,14 @@ describe("StepIdentity.allocationScope", () => {
         { kind: "action", name: "pay", idempotency: "b" }
       ],
       [
+        { kind: "action", name: "pay", site: "root/s:key/g:4:tail" },
+        { kind: "action", name: "pay", site: "root/s:key/g:5:tail!" }
+      ],
+      [
+        { kind: "action", name: "pay" },
+        { kind: "action", name: "pay", site: "" }
+      ],
+      [
         { kind: "action", name: "pay" },
         { kind: "internal", name: "pay" }
       ]
@@ -116,6 +127,19 @@ describe("StepIdentity.allocationScope", () => {
     for (const [left, right] of pairs) {
       expect(allocationScope(left)).not.toBe(allocationScope(right))
     }
+  })
+
+  it("appends a length-prefixed structural site without moving the absent-site scope", () => {
+    expect(allocationScope({ kind: "action", name: "body/shared" })).toBe(
+      "action/11:body/shared"
+    )
+    expect(allocationScope({
+      kind: "action",
+      name: "body/shared",
+      site: "root.flow.all.left"
+    })).toBe(
+      "action/11:body/shared/g:18:root.flow.all.left"
+    )
   })
 
   it("keeps the string form and the object form disjoint even when the string spells the object's digest", () => {
