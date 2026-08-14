@@ -96,7 +96,7 @@ describe("RunDriver cycle detection", () => {
     const failure = findCycleFailure(exit.cause)
     expect(failure).toBeInstanceOf(RunDriver.FlowCycleDetected)
     expect((failure as RunDriver.FlowCycleDetected).code).toBe("flow_cycle_detected")
-    expect((failure as RunDriver.FlowCycleDetected)._tag).toBe("flows/engine/FlowCycleDetected")
+    expect((failure as RunDriver.FlowCycleDetected)._tag).toBe("@smthrs/flow-next/FlowCycleDetected")
     expect((failure as RunDriver.FlowCycleDetected).path).toEqual(["self"])
   })
 
@@ -143,7 +143,7 @@ describe("RunDriver cycle detection", () => {
     const failure = findCycleFailure(exit.cause)
     expect(failure).toBeInstanceOf(RunDriver.FlowCycleDetected)
     expect((failure as RunDriver.FlowCycleDetected).code).toBe("flow_cycle_detected")
-    expect((failure as RunDriver.FlowCycleDetected)._tag).toBe("flows/engine/FlowCycleDetected")
+    expect((failure as RunDriver.FlowCycleDetected)._tag).toBe("@smthrs/flow-next/FlowCycleDetected")
     expect((failure as RunDriver.FlowCycleDetected).path).toEqual(["a", "b"])
   })
 
@@ -170,7 +170,7 @@ describe("RunDriver cycle detection", () => {
     const failure = findCycleFailure(exit.cause)
     expect(failure).toBeInstanceOf(RunDriver.FlowCycleDetected)
     expect((failure as RunDriver.FlowCycleDetected).code).toBe("flow_cycle_detected")
-    expect((failure as RunDriver.FlowCycleDetected)._tag).toBe("flows/engine/FlowCycleDetected")
+    expect((failure as RunDriver.FlowCycleDetected)._tag).toBe("@smthrs/flow-next/FlowCycleDetected")
     expect((failure as RunDriver.FlowCycleDetected).path).toEqual(["x", "y", "z"])
   })
 

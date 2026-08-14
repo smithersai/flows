@@ -206,14 +206,20 @@ export const make = (options: Options = {}): TimeTravelStore.Service & { readonl
     })
   const service = TimeTravelStore.make({
     snapshotAt: Effect.fn("TimeTravelStore.snapshotAt")((runId, frame) =>
-      Effect.sync(() =>
-        snapshots.filter((snapshot) =>
-          snapshot.runId === runId && snapshot.frame.lineageId === frame.lineageId && snapshot.frame.seq <= frame.seq
-        ).sort((a, b) => b.frame.seq - a.frame.seq)[0]
-      )
+      Effect.annotateCurrentSpan({ runId, lineageId: frame.lineageId, seq: frame.seq }).pipe(Effect.andThen(
+        Effect.sync(() =>
+          snapshots.filter((snapshot) =>
+            snapshot.runId === runId && snapshot.frame.lineageId === frame.lineageId && snapshot.frame.seq <= frame.seq
+          ).sort((a, b) => b.frame.seq - a.frame.seq)[0]
+        )
+      ))
     ),
     recordSnapshot: Effect.fn("TimeTravelStore.recordSnapshot")((snapshot) =>
-      atomic(() => {
+      Effect.annotateCurrentSpan({
+        runId: snapshot.runId,
+        lineageId: snapshot.frame.lineageId,
+        seq: snapshot.frame.seq
+      }).pipe(Effect.andThen(atomic(() => {
         fail("recordSnapshot")
         snapshots = [
           ...snapshots.filter((existing) =>
@@ -225,114 +231,133 @@ export const make = (options: Options = {}): TimeTravelStore.Service & { readonl
           ),
           snapshot
         ]
-      })
+      })))
     ),
     stateAt: Effect.fn("TimeTravelStore.stateAt")((runId, frame) =>
-      Effect.sync(() => {
-        let state: unknown = undefined
-        for (const record of framed(runId, frame, "flows.engine.run-decision")) {
-          const payload = record.payload as { readonly state?: unknown } | null
-          if (payload !== null && payload !== undefined && payload.state !== undefined) state = payload.state
-        }
-        return state === undefined ? undefined : JSON.stringify(state)
-      })
+      Effect.annotateCurrentSpan({ runId, lineageId: frame.lineageId, seq: frame.seq }).pipe(Effect.andThen(
+        Effect.sync(() => {
+          let state: unknown = undefined
+          for (const record of framed(runId, frame, "flows.engine.run-decision")) {
+            const payload = record.payload as { readonly state?: unknown } | null
+            if (payload !== null && payload !== undefined && payload.state !== undefined) state = payload.state
+          }
+          return state === undefined ? undefined : JSON.stringify(state)
+        })
+      ))
     ),
     attemptsAt: Effect.fn("TimeTravelStore.attemptsAt")((runId, frame) =>
-      Effect.sync(() => {
-        const refs = new Map<string, TimeTravelStore.AttemptRef>()
-        for (const record of framed(runId, frame, "flows.engine.attempt-started")) {
-          const payload = record.payload as
-            | { readonly stepKeyDigest?: unknown; readonly attempt?: unknown }
-            | null
-          if (typeof payload?.stepKeyDigest !== "string" || typeof payload.attempt !== "number") continue
-          refs.set(`${payload.stepKeyDigest}:${payload.attempt}`, {
-            stepKeyDigest: payload.stepKeyDigest,
-            attempt: payload.attempt
-          })
-        }
-        return [...refs.values()]
-      })
+      Effect.annotateCurrentSpan({ runId, lineageId: frame.lineageId, seq: frame.seq }).pipe(Effect.andThen(
+        Effect.sync(() => {
+          const refs = new Map<string, TimeTravelStore.AttemptRef>()
+          for (const record of framed(runId, frame, "flows.engine.attempt-started")) {
+            const payload = record.payload as
+              | { readonly stepKeyDigest?: unknown; readonly attempt?: unknown }
+              | null
+            if (typeof payload?.stepKeyDigest !== "string" || typeof payload.attempt !== "number") continue
+            refs.set(`${payload.stepKeyDigest}:${payload.attempt}`, {
+              stepKeyDigest: payload.stepKeyDigest,
+              attempt: payload.attempt
+            })
+          }
+          return [...refs.values()]
+        })
+      ))
     ),
     descendants: Effect.fn("TimeTravelStore.descendants")((runId, frame) =>
-      Effect.sync(() => {
-        const descendants = descendantsFrom(edges, runId, frame)
-        return { attached: descendants.attached, detached: descendants.detached }
-      })
+      Effect.annotateCurrentSpan({ runId, lineageId: frame.lineageId, seq: frame.seq }).pipe(Effect.andThen(
+        Effect.sync(() => {
+          const descendants = descendantsFrom(edges, runId, frame)
+          return { attached: descendants.attached, detached: descendants.detached }
+        })
+      ))
     ),
     writeAudit: Effect.fn("TimeTravelStore.writeAudit")((audit) =>
-      atomic(() => {
+      Effect.annotateCurrentSpan({
+        auditId: audit.id,
+        runId: audit.runId,
+        lineageId: audit.frame.lineageId,
+        seq: audit.frame.seq
+      }).pipe(Effect.andThen(atomic(() => {
         fail("writeAudit")
         audits.push(audit)
-      })
+      })))
     ),
     updateAudit: Effect.fn("TimeTravelStore.updateAudit")((id, patch) =>
-      atomic(() => {
+      Effect.annotateCurrentSpan({ auditId: id }).pipe(Effect.andThen(atomic(() => {
         fail("updateAudit")
         const index = audits.findIndex((audit) => audit.id === id)
         if (index < 0) throw error("not_found", `audit ${id} was not found`)
         audits[index] = { ...audits[index]!, ...patch }
-      })
+      })))
     ),
     pendingAudits: Effect.fn("TimeTravelStore.pendingAudits")(() =>
       Effect.sync(() => audits.filter((audit) => audit.status === "in_progress"))
     ),
     archiveAndTruncate: Effect.fn("TimeTravelStore.archiveAndTruncate")((runId, frame, newReceipts) =>
-      atomic(() => {
-        fail("archiveAndTruncate:start")
-        const descendants = descendantsFrom(edges, runId, frame)
-        const doomed = records.filter((record) =>
-          (record.runId === runId && record.seq > frame.seq) ||
-          descendants.attachedRunIds.has(record.runId)
-        )
-        fail("archiveAndTruncate:before-archive")
-        archived.push(...doomed)
-        fail("archiveAndTruncate:before-truncate")
-        records = records.filter((record) =>
-          !(
+      Effect.annotateCurrentSpan({ runId, lineageId: frame.lineageId, seq: frame.seq }).pipe(
+        Effect.andThen(atomic(() => {
+          fail("archiveAndTruncate:start")
+          const descendants = descendantsFrom(edges, runId, frame)
+          const doomed = records.filter((record) =>
             (record.runId === runId && record.seq > frame.seq) ||
             descendants.attachedRunIds.has(record.runId)
           )
-        )
-        const attachedChildren = new Set(descendants.attached.map((edge) => edge.childRunId))
-        edges = edges.filter((edge) => !attachedChildren.has(edge.childRunId))
-        receipts.push(...newReceipts)
-        fail("archiveAndTruncate:commit")
-        return { archived: doomed.length, orphaned: descendants.detached }
-      })
+          fail("archiveAndTruncate:before-archive")
+          archived.push(...doomed)
+          fail("archiveAndTruncate:before-truncate")
+          records = records.filter((record) =>
+            !(
+              (record.runId === runId && record.seq > frame.seq) ||
+              descendants.attachedRunIds.has(record.runId)
+            )
+          )
+          const attachedChildren = new Set(descendants.attached.map((edge) => edge.childRunId))
+          edges = edges.filter((edge) => !attachedChildren.has(edge.childRunId))
+          receipts.push(...newReceipts)
+          fail("archiveAndTruncate:commit")
+          return { archived: doomed.length, orphaned: descendants.detached }
+        }))
+      )
     ),
     createFork: Effect.fn("TimeTravelStore.createFork")((parentRunId, frame) =>
-      atomic(() => {
-        fail("createFork:start")
-        let currentRunId: string | undefined = parentRunId
-        const seen = new Set<string>()
-        while (currentRunId !== undefined && !seen.has(currentRunId)) {
-          seen.add(currentRunId)
-          if (liveRuns.has(currentRunId)) {
-            throw error("live_parent", `ancestor run ${currentRunId} is live`)
+      Effect.annotateCurrentSpan({ parentRunId, lineageId: frame.lineageId, seq: frame.seq }).pipe(
+        Effect.andThen(atomic(() => {
+          fail("createFork:start")
+          let currentRunId: string | undefined = parentRunId
+          const seen = new Set<string>()
+          while (currentRunId !== undefined && !seen.has(currentRunId)) {
+            seen.add(currentRunId)
+            if (liveRuns.has(currentRunId)) {
+              throw error("live_parent", `ancestor run ${currentRunId} is live`)
+            }
+            currentRunId = edges.find((edge) => edge.childRunId === currentRunId)?.parentRunId
           }
-          currentRunId = edges.find((edge) => edge.childRunId === currentRunId)?.parentRunId
-        }
-        const runId = `${parentRunId}:fork:${++sequence}`
-        const prefix = records.filter((record) => record.runId === parentRunId && record.seq <= frame.seq)
-        fail("createFork:copy")
-        records.push(...prefix.map((record) => ({ ...record, runId, eventId: `fork:${runId}:${record.seq}` })))
-        const edge: LineageEdge = {
-          parentRunId,
-          parentSeq: frame.seq,
-          childRunId: runId,
-          kind: "fork",
-          attached: false
-        }
-        edges.push(edge)
-        fail("createFork:commit")
-        return { runId, edge, warnings: [] }
-      })
+          const runId = `${parentRunId}:fork:${++sequence}`
+          const prefix = records.filter((record) => record.runId === parentRunId && record.seq <= frame.seq)
+          fail("createFork:copy")
+          records.push(...prefix.map((record) => ({ ...record, runId, eventId: `fork:${runId}:${record.seq}` })))
+          const edge: LineageEdge = {
+            parentRunId,
+            parentSeq: frame.seq,
+            childRunId: runId,
+            kind: "fork",
+            attached: false
+          }
+          edges.push(edge)
+          fail("createFork:commit")
+          return { runId, edge, warnings: [] }
+        }))
+      )
     ),
     recordReceipt: Effect.fn("TimeTravelStore.recordReceipt")((receipt) =>
-      atomic(() => {
+      Effect.annotateCurrentSpan({
+        receiptId: receipt.id,
+        auditId: receipt.auditId,
+        effectId: receipt.effectId
+      }).pipe(Effect.andThen(atomic(() => {
         fail("recordReceipt")
         receipts.push(receipt)
-      })
+      })))
     )
   })
   return Object.assign(service, { state })

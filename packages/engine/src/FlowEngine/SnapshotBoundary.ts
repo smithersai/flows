@@ -44,4 +44,4 @@ export class SnapshotBoundary extends Context.Service<
       options: SnapshotBoundaryOptions
     ) => Effect.Effect<unknown>
   }
->()("flows/engine/SnapshotBoundary") {}
+>()("@smthrs/engine-next/FlowEngine/SnapshotBoundary") {}

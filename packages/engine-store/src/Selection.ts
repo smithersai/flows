@@ -215,7 +215,7 @@ export interface Service {
  * @since 0.1.0
  * @category services
  */
-export class Selection extends Context.Service<Selection, Service>()("flows/engine-store/Selection") {}
+export class Selection extends Context.Service<Selection, Service>()("@smthrs/engine-store-next/Selection") {}
 
 /**
  * Names a {@link Service} implementation as a selector.

@@ -10,7 +10,7 @@ describe("GraphBuildError", () => {
       message: "A flow cannot call itself inline. Use .to() to hand off, or .child() for a boundary."
     })
     expect(error).toBeInstanceOf(Error)
-    expect(error._tag).toBe("flows/plan/GraphBuildError")
+    expect(error._tag).toBe("@smthrs/plan-next/GraphBuildError")
     expect(error.code).toBe("recursion_requires_boundary")
     expect(error.node).toBe("counter/count-to-100")
   })

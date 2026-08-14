@@ -330,7 +330,7 @@ describe("Graph.build planned values", () => {
         )
     })
     expect(() => Graph.build(flow, { path: "counter.txt" })).toThrowError(expect.objectContaining({
-      _tag: "flows/plan/GraphBuildError",
+      _tag: "@smthrs/plan-next/GraphBuildError",
       code: "planned_value_computed",
       node: "root.flow.andThen",
       path: ["value"],
@@ -351,7 +351,7 @@ describe("Graph.build planned values", () => {
         )
     })
     expect(() => Graph.build(flow, { path: "counter.txt" })).toThrowError(expect.objectContaining({
-      _tag: "flows/plan/GraphBuildError",
+      _tag: "@smthrs/plan-next/GraphBuildError",
       code: "planned_value_computed",
       node: expect.stringMatching(/^branch\/subject\/\d+$/),
       path: [],
@@ -380,7 +380,7 @@ describe("Graph.build composition", () => {
       body: ({ depth }): Node.Node<unknown> => Recursive.call({ depth })
     })
     expect(() => Graph.build(Recursive, { depth: 0 })).toThrowError(expect.objectContaining({
-      _tag: "flows/plan/GraphBuildError",
+      _tag: "@smthrs/plan-next/GraphBuildError",
       code: "recursion_requires_boundary",
       node: "root.flow",
       path: [],
@@ -401,7 +401,7 @@ describe("Graph.build composition", () => {
       body: ({ depth }): Node.Node<unknown> => Ping.call({ depth })
     })
     expect(() => Graph.build(Ping, { depth: 0 })).toThrowError(expect.objectContaining({
-      _tag: "flows/plan/GraphBuildError",
+      _tag: "@smthrs/plan-next/GraphBuildError",
       code: "recursion_requires_boundary",
       node: "root.flow.flow",
       message: expect.stringContaining("recursion/ping.to(payload)")

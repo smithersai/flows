@@ -324,7 +324,7 @@ export const makeSystem = <
     never
   >
 
-const isInfraInterrupt = Predicate.isTagged("@smthrs/engine-next/InfraInterrupt")
+const isInfraInterrupt = Predicate.isTagged("@smthrs/flow-next/InfraInterrupt")
 
 const retryInfraInterrupt = (
   name: string,
@@ -354,7 +354,7 @@ const makeExecute = Effect.fnUntraced(function*<
   const engine = yield* FlowRuntime
   const instance = yield* FlowInstance
   const attempt = yield* CurrentAttempt
-  yield* Effect.annotateCurrentSpan({ executionId: instance.executionId })
+  yield* Effect.annotateCurrentSpan({ executionId: instance.executionId, attempt, action: action.name })
   const result = yield* Flow.wrapActionResult(
     engine.actionExecute(action, attempt),
     (_) => _._tag === "Suspended"

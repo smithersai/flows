@@ -104,7 +104,7 @@ describe("non-retryable classification against the real error class (issue #165)
       recordedDigest: "aa".repeat(32),
       measuredDigest: "bb".repeat(32)
     })
-    expect(RetryPolicy.errorTag(corruption)).toBe("flows/engine-store/CacheCorruptionDetected")
+    expect(RetryPolicy.errorTag(corruption)).toBe("@smthrs/engine-store-next/CacheCorruptionDetected")
     expect(RetryPolicy.defaultNonRetryable).toContain(RetryPolicy.errorTag(corruption))
     const policy = RetryPolicy.make({ initialMs: 1, factor: 2, maxMs: 10, maxAttempts: 10 })
     expect(RetryPolicy.isNonRetryable(policy, corruption)).toBe(true)

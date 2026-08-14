@@ -63,7 +63,7 @@ export type JournalErrorCode = typeof JournalErrorCode.Type
  * @category errors
  * @since 0.1.0
  */
-export class JournalError extends Schema.TaggedError<JournalError>()("flows/journal/JournalError", {
+export class JournalError extends Schema.TaggedError<JournalError>()("@smthrs/journal-next/JournalError", {
   code: JournalErrorCode,
   message: Schema.String,
   cause: Schema.optional(Schema.Unknown),
@@ -276,7 +276,7 @@ export type EntriesPage = typeof EntriesPage.Type
  * @category models
  * @since 0.1.0
  */
-export class Checkpoint extends Schema.Class<Checkpoint>("flows/journal/Journal/Checkpoint")({
+export class Checkpoint extends Schema.Class<Checkpoint>("@smthrs/journal-next/Journal/Checkpoint")({
   runId: RunId,
   seq: Seq,
   state: Schema.Unknown,
@@ -492,7 +492,7 @@ export interface Service {
  * @category services
  * @since 0.1.0
  */
-export class Journal extends Context.Service<Journal, Service>()("flows/journal/Journal") {}
+export class Journal extends Context.Service<Journal, Service>()("@smthrs/journal-next/Journal") {}
 
 /**
  * Constructs a journal service from an implementation.

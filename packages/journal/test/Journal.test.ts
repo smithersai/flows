@@ -1,6 +1,6 @@
 import { DatabaseError, DurableWriter, type Service as WriterService } from "@smthrs/database-next/DurableWriter"
 import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
-import { Deferred, Effect, Fiber, Layer, PubSub, Stream } from "effect"
+import { Deferred, Effect, Fiber, Layer, PubSub, Stream, Tracer } from "effect"
 import type * as Scope from "effect/Scope"
 import { TestClock } from "effect/testing"
 import * as SqlClient from "effect/unstable/sql/SqlClient"
@@ -1442,5 +1442,36 @@ describe("makeEventId injectivity (D5)", () => {
 
   it("is a pure function of the triple", () => {
     expect(id("run", "source", 3)).toBe(id("run", "source", 3))
+  })
+})
+
+describe("span attributes", () => {
+  // Effect.fn does not auto-capture arguments, so each journal operation
+  // annotates its own span. The capturing tracer follows
+  // `reference/effect/packages/effect/test/unstable/http/HttpMiddleware.test.ts`.
+  effect("Journal.emitDurable annotates its span with the event identity", () => {
+    const spans: Array<Tracer.NativeSpan> = []
+    const tracer = Tracer.make({
+      span(options) {
+        const span = new Tracer.NativeSpan(options)
+        spans.push(span)
+        return span
+      }
+    })
+    return runJournal(
+      Effect.gen(function*() {
+        const journal = yield* Journal
+        yield* journal.emitDurable(input(runId("run-span"), sourceId("source-span"), "step.started", { ok: true }))
+      })
+    ).pipe(
+      Effect.provideService(Tracer.Tracer, tracer),
+      Effect.map(() => {
+        const span = spans.find((candidate) => candidate.name === "Journal.emitDurable")
+        expect(span).toBeDefined()
+        expect(span?.attributes.get("runId")).toBe("run-span")
+        expect(span?.attributes.get("sourceId")).toBe("source-span")
+        expect(span?.attributes.get("eventType")).toBe("step.started")
+      })
+    )
   })
 })

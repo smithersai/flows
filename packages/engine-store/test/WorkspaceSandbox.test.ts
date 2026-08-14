@@ -2,6 +2,7 @@ import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem"
 import * as ArtifactStore from "@smthrs/artifacts-next/ArtifactStore"
 import type { FileBoundary } from "@smthrs/flow-next/FileBoundary"
 import * as KernelWorkspace from "@smthrs/kernel-next/Workspace"
+import * as Cause from "effect/Cause"
 import * as Effect from "effect/Effect"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
@@ -184,7 +185,7 @@ describe("WorkspaceSandbox conformance", () => {
 
     const { conflict, files } = await runPromise(program)
     expect(conflict).toMatchObject({
-      _tag: "flows/engine-store/MaterializationConflict",
+      _tag: "@smthrs/engine-store-next/MaterializationConflict",
       paths: ["out/result.txt"]
     })
     expect(text(files, "out/result.txt")).toBe("current")
@@ -246,7 +247,7 @@ describe("WorkspaceSandbox conformance", () => {
   it("rejects invalid paths and missing files", async () => {
     for (const path of ["", "/absolute.txt", "nested/../escape.txt", "."]) {
       const invalid = await runPromise(Effect.flip(WorkspaceSandbox.makeMemory({ [path]: "invalid" })))
-      expect(invalid).toMatchObject({ _tag: "flows/engine-store/WorkspaceError", code: "invalid_path" })
+      expect(invalid).toMatchObject({ _tag: "@smthrs/engine-store-next/WorkspaceError", code: "invalid_path" })
     }
 
     const program = Effect.gen(function*() {
@@ -640,7 +641,7 @@ describe("WorkspaceSandbox filesystem host", () => {
     expect(decoder.decode(files.get("/w/out/large.txt"))).toBe(large)
     expect(decoder.decode(files.get("/w/out/small.txt"))).toBe("ok")
     expect(files.has("/w/src/in.txt")).toBe(false)
-    expect(conflict._tag).toBe("flows/engine-store/MaterializationConflict")
+    expect(conflict._tag).toBe("@smthrs/engine-store-next/MaterializationConflict")
   })
 
   it("refuses a declared read path that escapes the workspace", async () => {
@@ -908,8 +909,10 @@ describe("WorkspaceSandbox filesystem host atomicity", () => {
     }).pipe(Effect.provide(faultLayer(files, (call) => call === 2)))
 
     const refused = await runPromise(program)
-    expect(refused).toMatchObject({ _tag: "flows/engine-store/WorkspaceError", code: "host_unavailable" })
-    expect(refused.message).toContain("injected")
+    expect(refused).toMatchObject({ _tag: "@smthrs/engine-store-next/WorkspaceError", code: "host_unavailable" })
+    // The refusing host failure travels whole in `cause`, never flattened
+    // into the message.
+    expect(String((refused.cause as PlatformError.PlatformError).message)).toContain("injected")
     expect([...files.keys()].sort()).toEqual(["/w/0del.txt", "/w/a.txt"])
     expect(decoder.decode(files.get("/w/0del.txt"))).toBe("DEL-OLD")
     expect(decoder.decode(files.get("/w/a.txt"))).toBe("A-OLD")
@@ -982,7 +985,14 @@ describe("WorkspaceSandbox filesystem host atomicity", () => {
     const refused = await runPromise(program)
     expect(refused).toMatchObject({ code: "host_unavailable" })
     expect(refused.message).toContain("rollback could not restore")
-    expect(refused.message).toContain("injected")
+    // The compound rollback cause carries each refusal whole; the injected
+    // device failure is reachable through the nested causes rather than
+    // stringified away.
+    const rollback = refused.cause as Cause.Cause<WorkspaceSandbox.WorkspaceError>
+    const inner = rollback.reasons.filter(Cause.isFailReason).map((reason) => reason.error.cause)
+    expect(
+      inner.some((cause) => String((cause as PlatformError.PlatformError).message).includes("injected"))
+    ).toBe(true)
   })
 })
 
@@ -1037,7 +1047,7 @@ describe("WorkspaceSandbox filesystem host confinement", () => {
 
     const { outsideContent, refused, stillLink } = await runPromise(program)
     expect(refused).toMatchObject({
-      _tag: "flows/engine-store/WorkspaceError",
+      _tag: "@smthrs/engine-store-next/WorkspaceError",
       code: "path_escapes_workspace"
     })
     expect(outsideContent).toBe("OUTSIDE-ORIGINAL")
@@ -1176,7 +1186,7 @@ describe("WorkspaceSandbox filesystem host confinement", () => {
 
     const { a, bExists, insideExists, keep, qExists, refused } = await runPromise(program)
     expect(refused).toMatchObject({ code: "host_unavailable" })
-    expect(refused.message).toContain("injected")
+    expect(String((refused.cause as PlatformError.PlatformError).message)).toContain("injected")
     expect(a).toBe("old-a")
     expect(bExists).toBe(false)
     expect(qExists).toBe(false)

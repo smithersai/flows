@@ -36,7 +36,7 @@ const layer = SqlJournal.layer({ capacity: 1024, overflow: "reject" }).pipe(
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `Journal` | service tag | `flows/journal/Journal` |
+| `Journal` | service tag | `@smthrs/journal-next/Journal` |
 | `Service` | interface | the methods below |
 | `make`, `makeNoop` | constructors | |
 | `layerNoop` | layer | |

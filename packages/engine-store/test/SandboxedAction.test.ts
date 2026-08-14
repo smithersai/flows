@@ -250,7 +250,7 @@ describe("sealed actions under the production composition", () => {
 
     const { failure, records, row } = await runPromise(program)
     expect(failure).toMatchObject({
-      _tag: "flows/engine-store/UndeclaredWrite",
+      _tag: "@smthrs/engine-store-next/UndeclaredWrite",
       paths: ["out/surprise.txt"]
     })
     // The row records the violation so a crash-replay re-emits it, and the
@@ -509,7 +509,7 @@ describe("copy-back conflict retry", () => {
       }))
     })
 
-    expect(await runPromise(program)).toMatchObject({ _tag: "flows/engine-store/MaterializationConflict" })
+    expect(await runPromise(program)).toMatchObject({ _tag: "@smthrs/engine-store-next/MaterializationConflict" })
     expect(harness.counts()).toEqual({ executions: 2, materializations: 2 })
   })
 

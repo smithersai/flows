@@ -51,7 +51,7 @@ export const TypeId: TypeId = internal.TypeId
  * @since 0.1.0
  * @category type ids
  */
-export type TypeId = "~flows/plan/Node"
+export type TypeId = "~@smthrs/plan-next/Node"
 
 /**
  * The inspectable AST a node stores: closure-free, and JSON serializable for

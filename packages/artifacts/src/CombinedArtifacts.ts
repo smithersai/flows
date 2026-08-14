@@ -113,6 +113,7 @@ export const make = (options: Options): ArtifactStore.Service => {
       // this machine's replays resolve against, so a remote tier that is down
       // must not stop an artifact from being recorded locally.
       const digest = yield* local.put(bytes)
+      yield* Effect.annotateCurrentSpan({ digest })
       // Which means the upload is opportunistic, and a refusal is dropped
       // rather than propagated. Failing here would fail whatever produced the
       // bytes — a step's `settle`, say — because a *cache* was unreachable,
@@ -133,36 +134,53 @@ export const make = (options: Options): ArtifactStore.Service => {
   )
 
   const get: ArtifactStore.Service["get"] = Effect.fn("CombinedArtifacts.get")((digest: string) =>
-    local.get(digest).pipe(
-      // A local miss AND local corruption both fall through to the remote
-      // tier. Corruption is the interesting one: the write-back below hands
-      // the correct bytes to `local.put`, whose own digest verification finds
-      // the mismatched blob and atomically rewrites it, so a read-through
-      // heals a corrupt local address instead of failing on it forever.
-      Effect.catchTags({
-        "@smthrs/artifacts-next/ArtifactMissing": () => Effect.void,
-        "@smthrs/artifacts-next/ArtifactCorruption": () => Effect.void
-      }),
-      Effect.flatMap((cached) =>
-        cached === undefined
-          ? Effect.tap(remote.get(digest), (bytes) => local.put(bytes))
-          : Effect.succeed(cached)
+    Effect.annotateCurrentSpan({ digest }).pipe(Effect.andThen(
+      local.get(digest).pipe(
+        // A local miss AND local corruption both fall through to the remote
+        // tier. Corruption is the interesting one: the write-back below hands
+        // the correct bytes to `local.put`, whose own digest verification finds
+        // the mismatched blob and atomically rewrites it, so a read-through
+        // heals a corrupt local address instead of failing on it forever.
+        Effect.catchTags({
+          "@smthrs/artifacts-next/ArtifactMissing": () => Effect.void,
+          "@smthrs/artifacts-next/ArtifactCorruption": () => Effect.void
+        }),
+        Effect.flatMap((cached) =>
+          cached === undefined
+            ? Effect.tap(remote.get(digest), (bytes) => local.put(bytes))
+            : Effect.succeed(cached)
+        )
+      )
+    ))
+  )
+
+  const has: ArtifactStore.Service["has"] = Effect.fn("CombinedArtifacts.has")((digest: string) =>
+    Effect.annotateCurrentSpan({ digest }).pipe(
+      Effect.andThen(
+        Effect.flatMap(local.has(digest), (present) => present ? Effect.succeed(true) : remote.has(digest))
       )
     )
   )
 
-  const has: ArtifactStore.Service["has"] = Effect.fn("CombinedArtifacts.has")((digest: string) =>
-    Effect.flatMap(local.has(digest), (present) => present ? Effect.succeed(true) : remote.has(digest))
-  )
-
   const findMissing: ArtifactStore.Service["findMissing"] = Effect.fn("CombinedArtifacts.findMissing")(
-    (digests: Iterable<string>) =>
+    (digests: Iterable<string>) => {
+      // The iterable is materialized once: it may be single-pass, and both the
+      // annotation and the local probe need it.
+      const requested = [...digests]
       // Missing means missing from BOTH tiers, and the remote probe is asked
       // only about what the local tier could not answer — one network round
       // trip, over the smallest possible set. The result stays a subset of the
       // input because each stage filters the previous stage's output.
-      Effect.flatMap(local.findMissing(digests), (missingLocally) =>
-        missingLocally.length === 0 ? Effect.succeed(missingLocally) : remote.findMissing(missingLocally))
+      return Effect.annotateCurrentSpan({ count: requested.length }).pipe(
+        Effect.andThen(
+          Effect.flatMap(
+            local.findMissing(requested),
+            (missingLocally) =>
+              missingLocally.length === 0 ? Effect.succeed(missingLocally) : remote.findMissing(missingLocally)
+          )
+        )
+      )
+    }
   )
 
   return { put, get, has, findMissing }

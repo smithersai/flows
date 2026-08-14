@@ -270,7 +270,9 @@ export interface Service {
  * @since 0.1.0
  * @category services
  */
-export class TimeTravelStore extends Context.Service<TimeTravelStore, Service>()("flows/time-travel/TimeTravelStore") {}
+export class TimeTravelStore extends Context.Service<TimeTravelStore, Service>()(
+  "@smthrs/time-travel-next/TimeTravelStore"
+) {}
 /**
  * Brands a {@link Service} implementation as a `TimeTravelStore`, so a new
  * backend is written against the interface and checked at its definition site

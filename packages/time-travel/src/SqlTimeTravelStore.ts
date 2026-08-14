@@ -326,24 +326,31 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter |
 
     return TimeTravelStore.make({
       snapshotAt: Effect.fn("TimeTravelStore.snapshotAt")((runId, frame) =>
-        sql<
-          { readonly change_id: string; readonly seq: number; readonly plan_digest: string | null }
-        >`SELECT change_id, seq, plan_digest FROM flows_time_travel_snapshots WHERE run_id = ${runId} AND lineage_id = ${frame.lineageId} AND seq <= ${frame.seq} ORDER BY seq DESC LIMIT 1`
-          .pipe(
-            Effect.map((rows) =>
-              rows[0] === undefined ? undefined : {
-                runId,
-                frame: { lineageId: frame.lineageId, seq: rows[0].seq },
-                changeId: rows[0].change_id,
-                ...(rows[0].plan_digest === null ? {} : { planDigest: rows[0].plan_digest })
-              }
-            ),
-            Effect.mapError(mapError)
-          )
+        Effect.annotateCurrentSpan({ runId, lineageId: frame.lineageId, seq: frame.seq }).pipe(Effect.andThen(
+          sql<
+            { readonly change_id: string; readonly seq: number; readonly plan_digest: string | null }
+          >`SELECT change_id, seq, plan_digest FROM flows_time_travel_snapshots WHERE run_id = ${runId} AND lineage_id = ${frame.lineageId} AND seq <= ${frame.seq} ORDER BY seq DESC LIMIT 1`
+            .pipe(
+              Effect.map((rows) =>
+                rows[0] === undefined ? undefined : {
+                  runId,
+                  frame: { lineageId: frame.lineageId, seq: rows[0].seq },
+                  changeId: rows[0].change_id,
+                  ...(rows[0].plan_digest === null ? {} : { planDigest: rows[0].plan_digest })
+                }
+              ),
+              Effect.mapError(mapError)
+            )
+        ))
       ),
       recordSnapshot: Effect.fn("TimeTravelStore.recordSnapshot")((snapshot) =>
-        writer.write(
-          sql`
+        Effect.annotateCurrentSpan({
+          runId: snapshot.runId,
+          lineageId: snapshot.frame.lineageId,
+          seq: snapshot.frame.seq
+        }).pipe(Effect.andThen(
+          writer.write(
+            sql`
             INSERT INTO flows_time_travel_snapshots (run_id, lineage_id, seq, change_id, plan_digest)
             VALUES (
               ${snapshot.runId},
@@ -356,60 +363,80 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter |
               change_id = excluded.change_id,
               plan_digest = excluded.plan_digest
           `
-        ).pipe(Effect.asVoid, Effect.mapError(mapError))
+          ).pipe(Effect.asVoid, Effect.mapError(mapError))
+        ))
       ),
-      stateAt: Effect.fn("TimeTravelStore.stateAt")(stateAtFrame),
-      attemptsAt: Effect.fn("TimeTravelStore.attemptsAt")(attemptsAtFrame),
-      descendants: Effect.fn("TimeTravelStore.descendants")((runId, frame) =>
-        allEdges.pipe(
-          Effect.map((rows) => {
-            const descendants = descendantsFrom(rows, runId, frame)
-            return { attached: descendants.attached, detached: descendants.detached }
-          }),
-          Effect.mapError(mapError)
+      stateAt: Effect.fn("TimeTravelStore.stateAt")((runId, frame) =>
+        Effect.annotateCurrentSpan({ runId, lineageId: frame.lineageId, seq: frame.seq }).pipe(
+          Effect.andThen(stateAtFrame(runId, frame))
         )
       ),
+      attemptsAt: Effect.fn("TimeTravelStore.attemptsAt")((runId, frame) =>
+        Effect.annotateCurrentSpan({ runId, lineageId: frame.lineageId, seq: frame.seq }).pipe(
+          Effect.andThen(attemptsAtFrame(runId, frame))
+        )
+      ),
+      descendants: Effect.fn("TimeTravelStore.descendants")((runId, frame) =>
+        Effect.annotateCurrentSpan({ runId, lineageId: frame.lineageId, seq: frame.seq }).pipe(Effect.andThen(
+          allEdges.pipe(
+            Effect.map((rows) => {
+              const descendants = descendantsFrom(rows, runId, frame)
+              return { attached: descendants.attached, detached: descendants.detached }
+            }),
+            Effect.mapError(mapError)
+          )
+        ))
+      ),
       writeAudit: Effect.fn("TimeTravelStore.writeAudit")((audit) =>
-        writer.write(
-          Effect.gen(function*() {
-            const rateLimit = audit.rateLimit === undefined ? null : yield* encodeJson(audit.rateLimit)
-            const detail = audit.detail === undefined ? null : yield* encodeJson(audit.detail)
-            yield* sql`INSERT INTO flows_time_travel_audits (id, run_id, lineage_id, seq, status, rate_limit_json, detail_json) VALUES (${audit.id}, ${audit.runId}, ${audit.frame.lineageId}, ${audit.frame.seq}, ${audit.status}, ${rateLimit}, ${detail})`
-          })
-        ).pipe(Effect.asVoid, Effect.mapError(mapError))
+        Effect.annotateCurrentSpan({
+          auditId: audit.id,
+          runId: audit.runId,
+          lineageId: audit.frame.lineageId,
+          seq: audit.frame.seq
+        }).pipe(Effect.andThen(
+          writer.write(
+            Effect.gen(function*() {
+              const rateLimit = audit.rateLimit === undefined ? null : yield* encodeJson(audit.rateLimit)
+              const detail = audit.detail === undefined ? null : yield* encodeJson(audit.detail)
+              yield* sql`INSERT INTO flows_time_travel_audits (id, run_id, lineage_id, seq, status, rate_limit_json, detail_json) VALUES (${audit.id}, ${audit.runId}, ${audit.frame.lineageId}, ${audit.frame.seq}, ${audit.status}, ${rateLimit}, ${detail})`
+            })
+          ).pipe(Effect.asVoid, Effect.mapError(mapError))
+        ))
       ),
       updateAudit: Effect.fn("TimeTravelStore.updateAudit")((id, patch) =>
-        writer.write(
-          Effect.gen(function*() {
-            const rows = yield* sql<
-              {
-                readonly id: string
-                readonly run_id: string
-                readonly lineage_id: string
-                readonly seq: number
-                readonly status: TimeTravelStore.Audit["status"]
-                readonly rate_limit_json: string | null
-                readonly detail_json: string | null
+        Effect.annotateCurrentSpan({ auditId: id }).pipe(Effect.andThen(
+          writer.write(
+            Effect.gen(function*() {
+              const rows = yield* sql<
+                {
+                  readonly id: string
+                  readonly run_id: string
+                  readonly lineage_id: string
+                  readonly seq: number
+                  readonly status: TimeTravelStore.Audit["status"]
+                  readonly rate_limit_json: string | null
+                  readonly detail_json: string | null
+                }
+              >`SELECT * FROM flows_time_travel_audits WHERE id = ${id}`
+              if (rows[0] === undefined) return yield* Effect.fail(error("not_found", `audit ${id} was not found`))
+              const row = rows[0]
+              const rateLimit = yield* decodeJson(row.rate_limit_json)
+              const detail = yield* decodeJson(row.detail_json)
+              const audit = {
+                id: row.id,
+                runId: row.run_id,
+                frame: { lineageId: row.lineage_id, seq: row.seq },
+                status: row.status,
+                rateLimit,
+                detail
               }
-            >`SELECT * FROM flows_time_travel_audits WHERE id = ${id}`
-            if (rows[0] === undefined) return yield* Effect.fail(error("not_found", `audit ${id} was not found`))
-            const row = rows[0]
-            const rateLimit = yield* decodeJson(row.rate_limit_json)
-            const detail = yield* decodeJson(row.detail_json)
-            const audit = {
-              id: row.id,
-              runId: row.run_id,
-              frame: { lineageId: row.lineage_id, seq: row.seq },
-              status: row.status,
-              rateLimit,
-              detail
-            }
-            const next = { ...audit, ...patch }
-            const rateLimitJson = next.rateLimit === undefined ? null : yield* encodeJson(next.rateLimit)
-            const detailJson = next.detail === undefined ? null : yield* encodeJson(next.detail)
-            yield* sql`UPDATE flows_time_travel_audits SET status = ${next.status}, rate_limit_json = ${rateLimitJson}, detail_json = ${detailJson} WHERE id = ${id}`
-          }).pipe(Effect.mapError(mapError))
-        ).pipe(Effect.mapError(mapError), Effect.asVoid)
+              const next = { ...audit, ...patch }
+              const rateLimitJson = next.rateLimit === undefined ? null : yield* encodeJson(next.rateLimit)
+              const detailJson = next.detail === undefined ? null : yield* encodeJson(next.detail)
+              yield* sql`UPDATE flows_time_travel_audits SET status = ${next.status}, rate_limit_json = ${rateLimitJson}, detail_json = ${detailJson} WHERE id = ${id}`
+            }).pipe(Effect.mapError(mapError))
+          ).pipe(Effect.mapError(mapError), Effect.asVoid)
+        ))
       ),
       pendingAudits: Effect.fn("TimeTravelStore.pendingAudits")(() =>
         sql<
@@ -442,47 +469,48 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter |
         )
       ),
       archiveAndTruncate: Effect.fn("TimeTravelStore.archiveAndTruncate")((runId, frame, receipts) =>
-        writer.write(
-          Effect.gen(function*() {
-            const rows = yield* allEdges
-            const descendants = descendantsFrom(rows, runId, frame)
-            const nowMs = yield* Clock.currentTimeMillis
-            const parentCount = yield* sql<{ readonly count: number }>`
+        Effect.annotateCurrentSpan({ runId, lineageId: frame.lineageId, seq: frame.seq }).pipe(Effect.andThen(
+          writer.write(
+            Effect.gen(function*() {
+              const rows = yield* allEdges
+              const descendants = descendantsFrom(rows, runId, frame)
+              const nowMs = yield* Clock.currentTimeMillis
+              const parentCount = yield* sql<{ readonly count: number }>`
             SELECT COUNT(*) AS count FROM flows_journal_events
             WHERE run_id = ${runId} AND seq > ${frame.seq}
           `
-            let archived = Number(parentCount[0]!.count)
-            yield* sql`
+              let archived = Number(parentCount[0]!.count)
+              yield* sql`
             INSERT OR IGNORE INTO flows_time_travel_archive
             SELECT run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
                    event_type, payload_json, meta_json, ${nowMs}
             FROM flows_journal_events
             WHERE run_id = ${runId} AND seq > ${frame.seq}
           `
-            yield* sql`
+              yield* sql`
             DELETE FROM flows_journal_events
             WHERE run_id = ${runId} AND seq > ${frame.seq}
           `
-            for (const childRunId of descendants.attachedRunIds) {
-              const count = yield* sql<{ readonly count: number }>`
+              for (const childRunId of descendants.attachedRunIds) {
+                const count = yield* sql<{ readonly count: number }>`
               SELECT COUNT(*) AS count FROM flows_journal_events
               WHERE run_id = ${childRunId}
             `
-              archived += Number(count[0]!.count)
-              yield* sql`
+                archived += Number(count[0]!.count)
+                yield* sql`
               INSERT OR IGNORE INTO flows_time_travel_archive
               SELECT run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
                      event_type, payload_json, meta_json, ${nowMs}
               FROM flows_journal_events WHERE run_id = ${childRunId}
             `
-              yield* sql`DELETE FROM flows_journal_events WHERE run_id = ${childRunId}`
-            }
-            for (const edge of descendants.attached) {
-              yield* sql`DELETE FROM flows_time_travel_edges WHERE child_run_id = ${edge.childRunId}`
-            }
-            for (const receipt of receipts) {
-              const receiptJson = yield* encodeJson(receipt.receipt)
-              yield* sql`
+                yield* sql`DELETE FROM flows_journal_events WHERE run_id = ${childRunId}`
+              }
+              for (const edge of descendants.attached) {
+                yield* sql`DELETE FROM flows_time_travel_edges WHERE child_run_id = ${edge.childRunId}`
+              }
+              for (const receipt of receipts) {
+                const receiptJson = yield* encodeJson(receipt.receipt)
+                yield* sql`
               INSERT INTO flows_time_travel_receipts
                 (id, audit_id, effect_id, receipt_json)
               VALUES (
@@ -492,75 +520,77 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter |
                 ${receiptJson}
               )
             `
-            }
-            return { archived, orphaned: descendants.detached }
-          }).pipe(Effect.mapError(mapError))
-        ).pipe(Effect.mapError(mapError))
+              }
+              return { archived, orphaned: descendants.detached }
+            }).pipe(Effect.mapError(mapError))
+          ).pipe(Effect.mapError(mapError))
+        ))
       ),
       createFork: Effect.fn("TimeTravelStore.createFork")((parentRunId, frame) =>
-        writer.write(
-          Effect.gen(function*() {
-            let currentRunId: string | undefined = parentRunId
-            const seen = new Set<string>()
-            while (currentRunId !== undefined && !seen.has(currentRunId)) {
-              seen.add(currentRunId)
-              const current = yield* sql<{
-                readonly status: string
-                readonly owner_host_id: string | null
-                readonly claim_host_id: string | null
-              }>`
+        Effect.annotateCurrentSpan({ parentRunId, lineageId: frame.lineageId, seq: frame.seq }).pipe(Effect.andThen(
+          writer.write(
+            Effect.gen(function*() {
+              let currentRunId: string | undefined = parentRunId
+              const seen = new Set<string>()
+              while (currentRunId !== undefined && !seen.has(currentRunId)) {
+                seen.add(currentRunId)
+                const current = yield* sql<{
+                  readonly status: string
+                  readonly owner_host_id: string | null
+                  readonly claim_host_id: string | null
+                }>`
               SELECT status, owner_host_id, claim_host_id
               FROM flows_runs WHERE run_id = ${currentRunId}
             `
-              if (current[0] === undefined) {
-                return yield* Effect.fail(error("not_found", `parent ${currentRunId} was not found`))
-              }
-              if (
-                current[0].status === "running" ||
-                current[0].owner_host_id !== null ||
-                current[0].claim_host_id !== null
-              ) {
-                return yield* Effect.fail(error("live_parent", `parent ${currentRunId} is live`))
-              }
-              const parentEdges: ReadonlyArray<{ readonly parent_run_id: string }> = yield* sql<{
-                readonly parent_run_id: string
-              }>`
+                if (current[0] === undefined) {
+                  return yield* Effect.fail(error("not_found", `parent ${currentRunId} was not found`))
+                }
+                if (
+                  current[0].status === "running" ||
+                  current[0].owner_host_id !== null ||
+                  current[0].claim_host_id !== null
+                ) {
+                  return yield* Effect.fail(error("live_parent", `parent ${currentRunId} is live`))
+                }
+                const parentEdges: ReadonlyArray<{ readonly parent_run_id: string }> = yield* sql<{
+                  readonly parent_run_id: string
+                }>`
               SELECT parent_run_id FROM flows_time_travel_edges
               WHERE child_run_id = ${currentRunId}
             `
-              currentRunId = parentEdges[0]?.parent_run_id
-            }
-            const existing = yield* sql<{ readonly count: number }>`
+                currentRunId = parentEdges[0]?.parent_run_id
+              }
+              const existing = yield* sql<{ readonly count: number }>`
             SELECT COUNT(*) AS count FROM flows_time_travel_edges
             WHERE parent_run_id = ${parentRunId} AND parent_seq = ${frame.seq}
           `
-            const runId = `${parentRunId}:fork:${frame.seq}:${Number(existing[0]!.count) + 1}`
-            const nowMs = yield* Clock.currentTimeMillis
-            /**
-             * THE CHILD'S STATE IS THE STATE **AT** THE FRAME.
-             *
-             * Copying `flows_runs.state_json` copied the parent's state NOW —
-             * a fork at seq 3 of a run that later reached seq 40 started from
-             * seq 40's payload and parent pointer. `stateAt` folds the
-             * run-decision records up to the frame instead, exactly the
-             * derive-don't-copy rule `ndc/state_rebuilder.go` follows. The
-             * run row stays the fallback for a journal written before
-             * decisions carried state; both then pass through
-             * `restartableStateJson`, because a fork must not inherit the
-             * parent's recorded result or cancellation.
-             */
-            const derived = yield* stateAtFrame(parentRunId, frame)
-            // The liveness walk above already proved the parent row exists, so
-            // the fallback read cannot come back empty.
-            const parentState = yield* sql<{ readonly state_json: string }>`
+              const runId = `${parentRunId}:fork:${frame.seq}:${Number(existing[0]!.count) + 1}`
+              const nowMs = yield* Clock.currentTimeMillis
+              /**
+               * THE CHILD'S STATE IS THE STATE **AT** THE FRAME.
+               *
+               * Copying `flows_runs.state_json` copied the parent's state NOW —
+               * a fork at seq 3 of a run that later reached seq 40 started from
+               * seq 40's payload and parent pointer. `stateAt` folds the
+               * run-decision records up to the frame instead, exactly the
+               * derive-don't-copy rule `ndc/state_rebuilder.go` follows. The
+               * run row stays the fallback for a journal written before
+               * decisions carried state; both then pass through
+               * `restartableStateJson`, because a fork must not inherit the
+               * parent's recorded result or cancellation.
+               */
+              const derived = yield* stateAtFrame(parentRunId, frame)
+              // The liveness walk above already proved the parent row exists, so
+              // the fallback read cannot come back empty.
+              const parentState = yield* sql<{ readonly state_json: string }>`
             SELECT state_json FROM flows_runs WHERE run_id = ${parentRunId}
           `
-            const stateJson = yield* restartableStateJson(derived ?? parentState[0]!.state_json)
-            yield* sql`
+              const stateJson = yield* restartableStateJson(derived ?? parentState[0]!.state_json)
+              yield* sql`
             INSERT INTO flows_runs (run_id, status, created_at_ms, parent_run_id, state_json)
             VALUES (${runId}, 'pending', ${nowMs}, ${parentRunId}, ${stateJson})
           `
-            yield* sql`
+              yield* sql`
             INSERT INTO flows_journal_events
               (run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
                event_type, payload_json, meta_json)
@@ -570,18 +600,18 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter |
             FROM flows_journal_events
             WHERE run_id = ${parentRunId} AND seq <= ${frame.seq}
           `
-            /**
-             * THE ATTEMPTS ARE FILTERED TO THE FRAME.
-             *
-             * The copy had no predicate at all: a fork at seq 3 inherited every
-             * attempt row the parent ever wrote, including the ones its own
-             * copied journal has no record of, so the child replayed results
-             * from a future it was forked away from. The `attempt-started`
-             * fold names exactly the rows the copied prefix can explain.
-             */
-            const attempts = yield* attemptsAtFrame(parentRunId, frame)
-            for (const ref of attempts) {
-              yield* sql`
+              /**
+               * THE ATTEMPTS ARE FILTERED TO THE FRAME.
+               *
+               * The copy had no predicate at all: a fork at seq 3 inherited every
+               * attempt row the parent ever wrote, including the ones its own
+               * copied journal has no record of, so the child replayed results
+               * from a future it was forked away from. The `attempt-started`
+               * fold names exactly the rows the copied prefix can explain.
+               */
+              const attempts = yield* attemptsAtFrame(parentRunId, frame)
+              for (const ref of attempts) {
+                yield* sql`
               INSERT INTO flows_attempts (
                 run_id, step_key_digest, attempt, state, started_at_ms, finished_at_ms,
                 heartbeat_at_ms, checkpoint_json, error_json, outcome_json, meta_json
@@ -594,20 +624,20 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter |
                 AND step_key_digest = ${ref.stepKeyDigest}
                 AND attempt = ${ref.attempt}
             `
-            }
-            yield* sql`
+              }
+              yield* sql`
             INSERT INTO flows_time_travel_edges
               (parent_run_id, parent_seq, child_run_id, kind, attached)
             VALUES (${parentRunId}, ${frame.seq}, ${runId}, 'fork', 0)
           `
-            /**
-             * The fork-created marker `docs/specs/Concepts/Forensics.md` §68
-             * asks for: written on the CHILD, above the copied prefix, naming
-             * the parent and the offset it was cut at. A cross-fork timeline
-             * can now start from any child and find its origin without
-             * consulting the edge table.
-             */
-            yield* sql`
+              /**
+               * The fork-created marker `docs/specs/Concepts/Forensics.md` §68
+               * asks for: written on the CHILD, above the copied prefix, naming
+               * the parent and the offset it was cut at. A cross-fork timeline
+               * can now start from any child and find its origin without
+               * consulting the edge table.
+               */
+              yield* sql`
             INSERT INTO flows_journal_events
               (run_id, seq, event_id, source_id, source_seq, emitted_at_ms,
                event_type, payload_json, meta_json)
@@ -623,27 +653,34 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter |
               ${JSON.stringify({ lineageId: frame.lineageId })}
             )
           `
-            return {
-              runId,
-              edge: {
-                parentRunId,
-                parentSeq: frame.seq,
-                childRunId: runId,
-                kind: "fork" as const,
-                attached: false
-              },
-              warnings: []
-            }
-          }).pipe(Effect.mapError(mapError))
-        ).pipe(Effect.mapError(mapError))
+              return {
+                runId,
+                edge: {
+                  parentRunId,
+                  parentSeq: frame.seq,
+                  childRunId: runId,
+                  kind: "fork" as const,
+                  attached: false
+                },
+                warnings: []
+              }
+            }).pipe(Effect.mapError(mapError))
+          ).pipe(Effect.mapError(mapError))
+        ))
       ),
       recordReceipt: Effect.fn("TimeTravelStore.recordReceipt")((receipt) =>
-        writer.write(
-          Effect.gen(function*() {
-            const receiptJson = yield* encodeJson(receipt.receipt)
-            yield* sql`INSERT INTO flows_time_travel_receipts (id, audit_id, effect_id, receipt_json) VALUES (${receipt.id}, ${receipt.auditId}, ${receipt.effectId}, ${receiptJson})`
-          })
-        ).pipe(Effect.asVoid, Effect.mapError(mapError))
+        Effect.annotateCurrentSpan({
+          receiptId: receipt.id,
+          auditId: receipt.auditId,
+          effectId: receipt.effectId
+        }).pipe(Effect.andThen(
+          writer.write(
+            Effect.gen(function*() {
+              const receiptJson = yield* encodeJson(receipt.receipt)
+              yield* sql`INSERT INTO flows_time_travel_receipts (id, audit_id, effect_id, receipt_json) VALUES (${receipt.id}, ${receipt.auditId}, ${receipt.effectId}, ${receiptJson})`
+            })
+          ).pipe(Effect.asVoid, Effect.mapError(mapError))
+        ))
       )
     })
   }

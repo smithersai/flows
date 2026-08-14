@@ -16,11 +16,13 @@ import * as Deferred from "effect/Deferred"
 import * as Duration from "effect/Duration"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
+import * as Metric from "effect/Metric"
 import * as Option from "effect/Option"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
 import * as DurableEngineState from "../DurableEngineState.ts"
+import * as EngineStoreMetrics from "../EngineStoreMetrics.ts"
 import { RunState } from "../RunState.ts"
 import * as WakeBus from "../WakeBus.ts"
 import * as ActionPersistence from "./ActionPersistence.ts"
@@ -271,11 +273,13 @@ export const make = (
         Effect.orDie
       )
 
-    const claimAndActivate = (
-      row: RunStore.RunRow
-    ): Effect.Effect<boolean> =>
-      Effect.gen(function*() {
+    const claimAndActivate: (row: RunStore.RunRow) => Effect.Effect<boolean> = Effect.fn(
+      "RunDriver.claimAndActivate"
+    )(function*(row: RunStore.RunRow) {
+      return yield* Effect.gen(function*() {
+        yield* Effect.annotateCurrentSpan({ runId: row.runId, status: row.status })
         if (row.status === "completed" || row.status === "failed" || row.status === "cancelled") {
+          yield* Metric.update(EngineStoreMetrics.claim.Terminal, 1)
           return false
         }
 
@@ -289,12 +293,18 @@ export const make = (
             row.heartbeatAtMs === null ||
             row.heartbeatAtMs >= nowMs - Duration.toMillis(Ownership.heartbeatStaleAfter)
           ) {
+            yield* Metric.update(EngineStoreMetrics.claim.HeartbeatFresh, 1)
             return false
           }
           if (yield* dependencies.isAlive(row.owner)) {
             yield* emitDecision(row.runId, {
               decision: "steal-refused-owner-alive",
               expectedOwner: row.owner,
+              heartbeatAtMs: row.heartbeatAtMs
+            })
+            yield* Metric.update(EngineStoreMetrics.claim.StealRefusedOwnerAlive, 1)
+            yield* Effect.logDebug("run steal refused, recorded owner is alive", {
+              runId: row.runId,
               heartbeatAtMs: row.heartbeatAtMs
             })
             return false
@@ -327,6 +337,8 @@ export const make = (
             outcome: claim._tag,
             expected
           })
+          yield* Metric.update(EngineStoreMetrics.claim.ClaimLost, 1)
+          yield* Effect.logDebug("run claim lost", { runId: row.runId, outcome: claim._tag })
           return false
         }
 
@@ -357,10 +369,14 @@ export const make = (
             outcome: activation._tag,
             expected
           })
+          yield* Metric.update(EngineStoreMetrics.claim.ActivationLost, 1)
+          yield* Effect.logDebug("run activation lost", { runId: row.runId, outcome: activation._tag })
           return false
         }
+        yield* Metric.update(EngineStoreMetrics.claim.Activated, 1)
         return true
       })
+    })
 
     const cancelOwned = (
       runId: string,
@@ -796,6 +812,7 @@ export const make = (
           return
         }
         if (!(yield* claimAndActivate(initial))) return
+        yield* Effect.logDebug("run activated", { flowName: state.flowName })
 
         const activeState = withoutResult(state)
         // The activation transition carries the cancel guard: a run whose
@@ -953,7 +970,7 @@ export const make = (
             yield* wakeBus.wake(activeState.parentExecutionId)
           }
         }
-      })
+      }).pipe(Effect.annotateLogs({ runId: executionId }))
 
     const coordinator = yield* RunCoordinator.make<string, never, Crypto.Crypto>({
       drain: drive
@@ -1182,7 +1199,8 @@ export const make = (
       })
 
     const poll: Service["poll"] = Effect.fn("FlowEngine.poll")((flow, executionId) =>
-      store.get(executionId).pipe(
+      Effect.annotateCurrentSpan({ executionId, flow: flow._tag }).pipe(
+        Effect.andThen(store.get(executionId)),
         Effect.catch((error) =>
           error.code === "not_found_row"
             ? Effect.succeed(undefined)
@@ -1228,6 +1246,7 @@ export const make = (
             | undefined
         }
       ) {
+        yield* Effect.annotateCurrentSpan({ executionId: options.executionId, flow: flow._tag })
         if (!registrations.has(flow._tag)) {
           return yield* Effect.die(
             new Error(`Flow ${flow._tag} is not registered`)
@@ -1253,6 +1272,7 @@ export const make = (
       executionId: string
     ): Effect.Effect<void> =>
       Effect.gen(function*() {
+        yield* Effect.annotateCurrentSpan({ executionId })
         const instance = liveInstances.get(executionId)
         if (instance !== undefined) instance.interrupted = true
         // Operator intent is recorded durably before the fiber interrupt so
@@ -1271,6 +1291,7 @@ export const make = (
       reason
     ) =>
       Effect.gen(function*() {
+        yield* Effect.annotateCurrentSpan({ executionId, flow: flowName, reason })
         const row = yield* store.get(executionId).pipe(
           Effect.catch((error) =>
             error.code === "not_found_row"
@@ -1316,7 +1337,8 @@ export const make = (
       interrupt,
       interruptUnsafe: Effect.fn("FlowEngine.interruptUnsafe")(interrupt),
       resume: Effect.fn("FlowEngine.resume")((flow, executionId) =>
-        scheduleResume(flow._tag, executionId, "operator").pipe(
+        Effect.annotateCurrentSpan({ executionId, flow: flow._tag }).pipe(
+          Effect.andThen(scheduleResume(flow._tag, executionId, "operator")),
           Effect.andThen(coordinator.run(executionId))
         )
       ),

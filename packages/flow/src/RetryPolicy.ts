@@ -159,7 +159,7 @@ export const giveUp = (reason: GiveUp["reason"]): RetryDecision => ({
  * @since 0.1.0
  */
 export class RetryPolicyExpired extends Schema.TaggedError<RetryPolicyExpired>()(
-  "@smthrs/engine-next/RetryPolicyExpired",
+  "@smthrs/flow-next/RetryPolicyExpired",
   {
     code: Schema.Literal("retry_policy_expired").pipe(
       Schema.withConstructorDefault(Effect.succeed("retry_policy_expired"))
@@ -178,7 +178,7 @@ export class RetryPolicyExpired extends Schema.TaggedError<RetryPolicyExpired>()
  * @since 0.1.0
  */
 export class RetryAttemptsExhausted extends Schema.TaggedError<RetryAttemptsExhausted>()(
-  "@smthrs/engine-next/RetryAttemptsExhausted",
+  "@smthrs/flow-next/RetryAttemptsExhausted",
   {
     code: Schema.Literal("retry_attempts_exhausted").pipe(
       Schema.withConstructorDefault(Effect.succeed("retry_attempts_exhausted"))
@@ -305,8 +305,8 @@ export const errorTag = (error: unknown): string | undefined => {
  * @since 0.1.0
  */
 export const defaultNonRetryable: ReadonlyArray<string> = [
-  "flows/engine-store/CacheCorruptionDetected",
-  "flows/engine-store/AttemptEvidenceQuarantined"
+  "@smthrs/engine-store-next/CacheCorruptionDetected",
+  "@smthrs/engine-store-next/AttemptEvidenceQuarantined"
 ]
 
 /**

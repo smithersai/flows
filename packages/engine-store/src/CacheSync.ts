@@ -66,13 +66,10 @@ export interface Service {
 /**
  * Service tag for the shared step-result publication seam.
  *
- * The identity string is a new one, so it equals this module's path — unlike
- * the three deliberately frozen `flows/journal/…` store ids.
- *
  * @since 0.1.0
  * @category services
  */
-export class CacheSync extends Context.Service<CacheSync, Service>()("flows/engine-store/CacheSync") {}
+export class CacheSync extends Context.Service<CacheSync, Service>()("@smthrs/engine-store-next/CacheSync") {}
 
 /**
  * The single-tier implementation: there is no shared step-result tier, so a

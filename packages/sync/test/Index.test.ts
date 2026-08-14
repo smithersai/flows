@@ -59,10 +59,10 @@ describe("@smthrs/sync-next barrel", () => {
 
   it("exposes the tagged error classes with their canonical tags", () => {
     expect(new Sync.SyncError.SyncError({ code: "unknown", message: "x" })._tag).toBe(
-      "flows/sync/SyncError"
+      "@smthrs/sync-next/SyncError"
     )
     expect(
       new Sync.SyncError.SyncGapError({ runId: "run" as never, expectedFrom: 1, receivedFrom: 3 } as never)._tag
-    ).toBe("flows/sync/SyncGapError")
+    ).toBe("@smthrs/sync-next/SyncGapError")
   })
 })

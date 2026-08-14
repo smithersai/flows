@@ -71,7 +71,7 @@ export type ArtifactGcErrorCode = typeof ArtifactGcErrorCode.Type
  * @since 0.1.0
  */
 export class ArtifactGcError extends Schema.TaggedError<ArtifactGcError>()(
-  "flows/engine-store/ArtifactGcError",
+  "@smthrs/engine-store-next/ArtifactGcError",
   {
     code: ArtifactGcErrorCode,
     message: Schema.String,
@@ -104,7 +104,7 @@ export interface Policy {
  * @since 0.1.0
  */
 export class ArtifactGcPolicy extends Context.Service<ArtifactGcPolicy, Policy>()(
-  "flows/engine-store/ArtifactGcPolicy"
+  "@smthrs/engine-store-next/ArtifactGcPolicy"
 ) {}
 
 /**
@@ -175,7 +175,7 @@ export interface Service {
  * @category services
  * @since 0.1.0
  */
-export class ArtifactGc extends Context.Service<ArtifactGc, Service>()("flows/engine-store/ArtifactGc") {}
+export class ArtifactGc extends Context.Service<ArtifactGc, Service>()("@smthrs/engine-store-next/ArtifactGc") {}
 
 /**
  * Two weeks, git's `gc.pruneExpire` default. The bound is deliberately far

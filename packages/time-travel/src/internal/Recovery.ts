@@ -277,6 +277,7 @@ export const recover = (
 > =>
   Effect.fn("Recovery.recover")(() =>
     Effect.gen(function*() {
+      yield* Effect.annotateCurrentSpan({ ownerHostId: options.owner.hostId })
       const store = yield* TimeTravelStore
       const audits = yield* store.pendingAudits()
       return yield* Effect.forEach(audits, (audit) => recoverOne(audit, options), {

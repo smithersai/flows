@@ -1,6 +1,6 @@
-import { Duration, Effect, Exit } from "effect"
+import { Duration, Effect, Exit, Tracer } from "effect"
 import { TestClock } from "effect/testing"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import * as BranchProtocol from "../src/BranchProtocol.ts"
 import * as BranchShare from "../src/BranchShare.ts"
 import { SyncError } from "../src/SyncError.ts"
@@ -206,5 +206,62 @@ describe("BranchShare", () => {
   it("keeps `make` an identity over an implementation", () => {
     const implementation = BranchShare.makeNoop()
     expect(BranchShare.make(implementation).verify).toBe(implementation.verify)
+  })
+
+  it("maps a Web Crypto rejection into a typed SyncError carrying the cause", async () => {
+    const importFailure = new Error("import refused")
+    const importKeySpy = vi.spyOn(crypto.subtle, "importKey").mockRejectedValueOnce(importFailure)
+    const importError = await run(Effect.flip(BranchShare.makeHmac({ secret: "broken" })))
+    importKeySpy.mockRestore()
+
+    const [share, capability] = await run(
+      Effect.gen(function*() {
+        const built = yield* authority
+        return [built, yield* built.mint({ branchId, capabilityId: "cap-x", access: "write", ttlMs: 60_000 })] as const
+      })
+    )
+    const signFailure = new Error("sign refused")
+    const signSpy = vi.spyOn(crypto.subtle, "sign").mockRejectedValueOnce(signFailure)
+    const verifyError = await run(Effect.flip(share.verify(capability, { branchId, access: "write" })))
+    signSpy.mockRestore()
+
+    expect(importError).toBeInstanceOf(SyncError)
+    expect(importError.code).toBe("unknown")
+    expect(importError.cause).toBe(importFailure)
+    expect(verifyError).toBeInstanceOf(SyncError)
+    expect(verifyError.code).toBe("unknown")
+    expect(verifyError.cause).toBe(signFailure)
+  })
+
+  it("annotates mint and verify spans with the branch identity, never the capability material", async () => {
+    const spans: Array<Tracer.NativeSpan> = []
+    const tracer = Tracer.make({
+      span(options) {
+        const span = new Tracer.NativeSpan(options)
+        spans.push(span)
+        return span
+      }
+    })
+
+    await run(
+      Effect.gen(function*() {
+        const share = yield* authority
+        const capability = yield* share.mint({ branchId, capabilityId: "cap-span", access: "write", ttlMs: 60_000 })
+        return yield* share.verify(capability, { branchId, access: "write" })
+      }).pipe(Effect.provideService(Tracer.Tracer, tracer))
+    )
+
+    const mintSpan = spans.find((span) => span.name === "BranchShare.mint")
+    const verifySpan = spans.find((span) => span.name === "BranchShare.verify")
+    expect(mintSpan?.attributes.get("branchId")).toBe(branchId)
+    expect(mintSpan?.attributes.get("access")).toBe("write")
+    expect(verifySpan?.attributes.get("branchId")).toBe(branchId)
+    expect(verifySpan?.attributes.get("access")).toBe("write")
+    for (const span of spans) {
+      const keys = [...span.attributes.keys()]
+      expect(keys).not.toContain("secret")
+      expect(keys).not.toContain("signature")
+      expect(keys).not.toContain("key")
+    }
   })
 })

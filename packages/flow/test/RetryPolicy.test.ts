@@ -320,7 +320,7 @@ describe("nextDelay numeric boundaries", () => {
     // the same bytes — so the default classification refuses it even under a
     // policy that declared no nonRetryable tags at all.
     const policy = RetryPolicy.make({ initialMs: 100, factor: 2, maxMs: 1000, maxAttempts: 5 })
-    const corruption = { _tag: "flows/engine-store/CacheCorruptionDetected" }
+    const corruption = { _tag: "@smthrs/engine-store-next/CacheCorruptionDetected" }
     expect(RetryPolicy.isNonRetryable(policy, corruption)).toBe(true)
     expect(RetryPolicy.decide(policy, { attempt: 1, error: corruption })).toEqual(
       RetryPolicy.giveUp("nonRetryable")

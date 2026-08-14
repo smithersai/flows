@@ -68,6 +68,7 @@ export const make = (options: Options): CacheStore.Service => {
 
   const get: CacheStore.Service["get"] = Effect.fn("CombinedCacheStore.get")((keyDigest: string) =>
     Effect.gen(function*() {
+      yield* Effect.annotateCurrentSpan({ keyDigest })
       const cached = yield* local.get(keyDigest)
       if (Option.isSome(cached)) return cached
       const shared = yield* remote.get(keyDigest)
@@ -85,6 +86,7 @@ export const make = (options: Options): CacheStore.Service => {
 
   const put: CacheStore.Service["put"] = Effect.fn("CombinedCacheStore.put")((entry: CacheStore.CacheEntry) =>
     Effect.gen(function*() {
+      yield* Effect.annotateCurrentSpan({ keyDigest: entry.keyDigest })
       // Local first, and the local outcome is the answer: first-writer-wins
       // conflict detection is what drives the `Inconsistency` receiver, and it
       // has to be decided against the durable row this machine will actually
@@ -110,7 +112,7 @@ export const make = (options: Options): CacheStore.Service => {
     // explicit release verb (`docs/specs/Concepts/Reconciliation.md`) and is
     // ticketed (`.smithers/tickets/cas-garbage-collection.md`), never a side
     // effect of one host's failed replay.
-    local.evict(keyDigest, evictOptions)
+    Effect.annotateCurrentSpan({ keyDigest }).pipe(Effect.andThen(local.evict(keyDigest, evictOptions)))
   )
 
   return { get, put, evict }

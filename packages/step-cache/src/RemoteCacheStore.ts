@@ -91,6 +91,7 @@ export const make = (
 
     const get: CacheStore.Service["get"] = Effect.fn("RemoteCacheStore.get")((keyDigest: string) =>
       Effect.gen(function*() {
+        yield* Effect.annotateCurrentSpan({ keyDigest })
         if (keyDigest.length === 0) {
           return yield* Effect.fail(
             new CacheStore.CacheStoreError({ code: "invalid_cache", message: "keyDigest must not be empty" })
@@ -128,6 +129,7 @@ export const make = (
 
     const put: CacheStore.Service["put"] = Effect.fn("RemoteCacheStore.put")((entry: CacheStore.CacheEntry) =>
       Effect.gen(function*() {
+        yield* Effect.annotateCurrentSpan({ keyDigest: entry.keyDigest })
         const encoded = yield* Schema.encodeEffect(CacheStore.CacheEntry)(entry).pipe(
           Effect.mapError((cause) =>
             new CacheStore.CacheStoreError({
@@ -149,6 +151,7 @@ export const make = (
 
     const evict: CacheStore.Service["evict"] = Effect.fn("RemoteCacheStore.evict")((keyDigest, evictOptions) =>
       Effect.gen(function*() {
+        yield* Effect.annotateCurrentSpan({ keyDigest })
         const fenced = evictOptions?.ifRecordedBy
         // The provenance fence rides in the request the same way it rides in
         // the SQL `DELETE`: the server compares before deleting, so a fresher

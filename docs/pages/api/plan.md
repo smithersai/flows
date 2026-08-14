@@ -205,7 +205,7 @@ The verdict is the key: two nodes with the same id and the same key are the same
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `PlanStore` | service tag | `flows/plan/PlanStore` |
+| `PlanStore` | service tag | `@smthrs/plan-next/PlanStore` |
 | `Service` | interface | `record`, `append`, `get` |
 | `make`, `layer` | SQL implementation | over `DurableWriter` and Effect's `SqlClient` |
 | `RecordResult` | type | `Recorded`, `ExistingSame`, or `Conflict` carrying the existing digest |

@@ -221,4 +221,4 @@ export class FlowRuntime extends Context.Service<
       }
     ) => Effect.Effect<void>
   }
->()("effect/flow/FlowEngine") {}
+>()("@smthrs/flow-next/FlowRuntime") {}

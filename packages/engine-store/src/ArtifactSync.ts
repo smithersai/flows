@@ -43,7 +43,7 @@ import * as Schema from "effect/Schema"
  * @category errors
  */
 export class ArtifactPublicationFailed extends Schema.TaggedError<ArtifactPublicationFailed>()(
-  "flows/engine-store/ArtifactPublicationFailed",
+  "@smthrs/engine-store-next/ArtifactPublicationFailed",
   {
     code: Schema.Literal("artifact_publication_failed"),
     digests: Schema.Array(Schema.String),
@@ -93,7 +93,7 @@ export interface Service {
  * @since 0.1.0
  * @category services
  */
-export class ArtifactSync extends Context.Service<ArtifactSync, Service>()("flows/engine-store/ArtifactSync") {}
+export class ArtifactSync extends Context.Service<ArtifactSync, Service>()("@smthrs/engine-store-next/ArtifactSync") {}
 
 /**
  * The single-tier implementation: there is no shared artifact store, so there

@@ -39,7 +39,7 @@ export type DatabaseErrorCode = typeof DatabaseErrorCode.Type
  * @category errors
  * @since 0.1.0
  */
-export class DatabaseError extends Schema.TaggedError<DatabaseError>()("flows/database/DatabaseError", {
+export class DatabaseError extends Schema.TaggedError<DatabaseError>()("@smthrs/database-next/DatabaseError", {
   code: DatabaseErrorCode,
   cause: Schema.optional(Schema.Defect())
 }) {}
@@ -84,7 +84,7 @@ export interface Service {
  * @category services
  * @since 0.1.0
  */
-export class DurableWriter extends Context.Service<DurableWriter, Service>()("flows/database/DurableWriter") {}
+export class DurableWriter extends Context.Service<DurableWriter, Service>()("@smthrs/database-next/DurableWriter") {}
 
 const causeCode = (cause: unknown): string | undefined => {
   if (typeof cause !== "object" || cause === null || !("code" in cause)) {
@@ -186,16 +186,23 @@ export const make = (sql: SqlClient.SqlClient, options?: WriteRetry.WriteRetryOp
     write: Effect.fn("DurableWriter.write")(<A, E, R>(
       effect: Effect.Effect<A, E, R>
     ): Effect.Effect<A, E | DatabaseError, R> =>
-      Effect.flatMap(Effect.serviceOption(sql.transactionService), (enclosing) =>
-        (Option.isSome(enclosing)
-          // Inside the client's transaction this write is a savepoint, and a
-          // transient conflict dooms the enclosing transaction's snapshot:
-          // replaying the savepoint alone can never resolve it, so the retry
-          // belongs to the outermost write only.
-          ? sql.withTransaction(effect)
-          : WriteRetry.withWriteRetry(sql.withTransaction(effect), options)).pipe(
-            Effect.catchIf(SqlError.isSqlError, (error) => Effect.fail(fromSqlError(error)))
-          ))
+      Effect.flatMap(
+        Effect.serviceOption(sql.transactionService),
+        (enclosing) =>
+          Effect.annotateCurrentSpan({ nested: Option.isSome(enclosing) }).pipe(
+            Effect.andThen(
+              (Option.isSome(enclosing)
+                // Inside the client's transaction this write is a savepoint, and a
+                // transient conflict dooms the enclosing transaction's snapshot:
+                // replaying the savepoint alone can never resolve it, so the retry
+                // belongs to the outermost write only.
+                ? sql.withTransaction(effect)
+                : WriteRetry.withWriteRetry(sql.withTransaction(effect), options)).pipe(
+                  Effect.catchIf(SqlError.isSqlError, (error) => Effect.fail(fromSqlError(error)))
+                )
+            )
+          )
+      )
     )
   })
 

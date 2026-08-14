@@ -21,7 +21,7 @@ import * as WorkspaceSandbox from "./WorkspaceSandbox.ts"
  * @since 0.1.0
  */
 export class UndeclaredRead extends Schema.TaggedError<UndeclaredRead>()(
-  "flows/engine-store/UndeclaredRead",
+  "@smthrs/engine-store-next/UndeclaredRead",
   {
     code: Schema.Literal("undeclared_read"),
     paths: Schema.Array(Schema.String),
@@ -46,7 +46,7 @@ export interface Service {
  * @since 0.1.0
  */
 export const StepSandbox: Context.Service<Service, Service> = Context.Service<Service>(
-  "flows/engine-store/StepSandbox"
+  "@smthrs/engine-store-next/StepSandbox"
 )
 
 /**

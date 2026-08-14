@@ -334,7 +334,7 @@ export type AttemptSurvivors = typeof AttemptSurvivors.Type
  * @category errors
  */
 export class RunParentCycleError extends Schema.TaggedError<RunParentCycleError>()(
-  "flows/engine-store/RunParentCycleError",
+  "@smthrs/engine-store-next/RunParentCycleError",
   {
     path: Schema.Array(Schema.String)
   }
@@ -500,7 +500,7 @@ export interface Service {
  * @category services
  */
 export class DurableEngineState extends Context.Service<DurableEngineState, Service>()(
-  "flows/engine-store/DurableEngineState"
+  "@smthrs/engine-store-next/DurableEngineState"
 ) {}
 
 /** @private */

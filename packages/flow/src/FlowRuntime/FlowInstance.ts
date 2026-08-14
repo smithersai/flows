@@ -116,4 +116,4 @@ export class FlowInstance extends Context.Service<
       readonly keylessInFlight: Set<string>
     }
   }
->()("effect/flow/FlowEngine/FlowInstance") {}
+>()("@smthrs/flow-next/FlowRuntime/FlowInstance") {}

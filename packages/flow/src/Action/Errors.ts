@@ -22,7 +22,7 @@ import * as Schema from "effect/Schema"
  * @since 0.1.0
  */
 export class InfraInterrupt extends Schema.TaggedError<InfraInterrupt>()(
-  "@smthrs/engine-next/InfraInterrupt",
+  "@smthrs/flow-next/InfraInterrupt",
   {
     code: Schema.Literal("infra_interrupt").pipe(
       Schema.withConstructorDefault(Effect.succeed("infra_interrupt"))
@@ -40,7 +40,7 @@ export class InfraInterrupt extends Schema.TaggedError<InfraInterrupt>()(
  */
 export class IrreversibleRetryRequiresIdempotencyKey
   extends Schema.TaggedError<IrreversibleRetryRequiresIdempotencyKey>()(
-    "@smthrs/engine-next/IrreversibleRetryRequiresIdempotencyKey",
+    "@smthrs/flow-next/IrreversibleRetryRequiresIdempotencyKey",
     {
       code: Schema.Literal("irreversible_retry_requires_idempotency_key").pipe(
         Schema.withConstructorDefault(Effect.succeed("irreversible_retry_requires_idempotency_key"))
@@ -68,7 +68,7 @@ export class IrreversibleRetryRequiresIdempotencyKey
  * @since 0.1.0
  */
 export class ConcurrentKeylessDispatch extends Schema.TaggedError<ConcurrentKeylessDispatch>()(
-  "@smthrs/engine-next/ConcurrentKeylessDispatch",
+  "@smthrs/flow-next/ConcurrentKeylessDispatch",
   {
     code: Schema.Literal("concurrent_keyless_dispatch").pipe(
       Schema.withConstructorDefault(Effect.succeed("concurrent_keyless_dispatch"))
@@ -87,7 +87,7 @@ export class ConcurrentKeylessDispatch extends Schema.TaggedError<ConcurrentKeyl
  * @since 0.1.0
  */
 export class UncanonicalIdempotencyKey extends Schema.TaggedError<UncanonicalIdempotencyKey>()(
-  "@smthrs/engine-next/UncanonicalIdempotencyKey",
+  "@smthrs/flow-next/UncanonicalIdempotencyKey",
   {
     code: Schema.Literal("uncanonical_idempotency_key").pipe(
       Schema.withConstructorDefault(Effect.succeed("uncanonical_idempotency_key"))

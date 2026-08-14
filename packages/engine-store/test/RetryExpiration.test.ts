@@ -194,7 +194,7 @@ describe("expirationMs survives a restart mid-retry (issue #45)", () => {
     }
     expect(persisted.result.exit.cause.some((cause) =>
       cause._tag === "Die" &&
-      cause.defect.name === "@smthrs/engine-next/RetryPolicyExpired"
+      cause.defect.name === "@smthrs/flow-next/RetryPolicyExpired"
     )).toBe(true)
     // The rebuilt engine never re-dispatched the action body: the budget
     // was already spent according to the durable origin.

@@ -174,8 +174,7 @@ export interface Service {
  * Service tag for the content-addressed artifact store.
  *
  * The identity string equals this module's package path, per the house rule
- * that a new identity is the defining module path. It is not one of the three
- * deliberately frozen `flows/journal/…` ids.
+ * that an identity is the defining module path.
  *
  * @category services
  * @since 0.1.0
@@ -353,6 +352,7 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
   const put: Service["put"] = Effect.fn("ArtifactStore.put")((bytes: Uint8Array) =>
     Effect.gen(function*() {
       const digest = yield* measure(bytes)
+      yield* Effect.annotateCurrentSpan({ digest })
       const blob = fanout(directory, digest)
       const stored = yield* fs.exists(blob.path).pipe(Effect.mapError(hostFailure))
       // Existence alone is not validity: a truncated blob left by a crashing
@@ -421,6 +421,7 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
 
   const get: Service["get"] = Effect.fn("ArtifactStore.get")((digest: string) =>
     Effect.gen(function*() {
+      yield* Effect.annotateCurrentSpan({ digest })
       yield* validateDigest(digest)
       const blob = fanout(directory, digest)
       const present = yield* fs.exists(blob.path).pipe(Effect.mapError(hostFailure))
@@ -445,6 +446,7 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
 
   const has: Service["has"] = Effect.fn("ArtifactStore.has")((digest: string) =>
     Effect.gen(function*() {
+      yield* Effect.annotateCurrentSpan({ digest })
       yield* validateDigest(digest)
       return yield* fs.exists(fanout(directory, digest).path).pipe(Effect.mapError(hostFailure))
     })
@@ -452,8 +454,10 @@ export const makeFileSystem = (fs: FileSystem.FileSystem, options: FileSystemOpt
 
   const findMissing: Service["findMissing"] = Effect.fn("ArtifactStore.findMissing")((digests: Iterable<string>) =>
     Effect.gen(function*() {
+      const requested = distinct(digests)
+      yield* Effect.annotateCurrentSpan({ count: requested.length })
       const missing: Array<string> = []
-      for (const digest of distinct(digests)) {
+      for (const digest of requested) {
         if (!(yield* has(digest))) missing.push(digest)
       }
       return missing
@@ -494,7 +498,9 @@ export const makeMemory = (): Service => {
   const measure = (bytes: Uint8Array): Effect.Effect<Digest, never, Crypto.Crypto> =>
     Schema.decodeUnknownEffect(Sha256)(bytes).pipe(Effect.orDie)
   const has: Service["has"] = Effect.fn("ArtifactStore.has")((digest: string) =>
-    Effect.map(validateDigest(digest), () => blobs.has(digest))
+    Effect.annotateCurrentSpan({ digest }).pipe(
+      Effect.andThen(Effect.map(validateDigest(digest), () => blobs.has(digest)))
+    )
   )
   return {
     put: Effect.fn("ArtifactStore.put")((bytes: Uint8Array) =>
@@ -504,10 +510,14 @@ export const makeMemory = (): Service => {
         // let that mutation corrupt the stored content for its digest.
         blobs.set(digest, bytes.slice())
         return digest
-      }).pipe(Effect.tap(() => Metric.update(ArtifactStoreMetrics.puts, 1)))
+      }).pipe(
+        Effect.tap((digest) => Effect.annotateCurrentSpan({ digest })),
+        Effect.tap(() => Metric.update(ArtifactStoreMetrics.puts, 1))
+      )
     ),
     get: Effect.fn("ArtifactStore.get")((digest: string) =>
       Effect.gen(function*() {
+        yield* Effect.annotateCurrentSpan({ digest })
         yield* validateDigest(digest)
         const bytes = blobs.get(digest)
         if (bytes === undefined) {
@@ -523,8 +533,10 @@ export const makeMemory = (): Service => {
     has,
     findMissing: Effect.fn("ArtifactStore.findMissing")((digests: Iterable<string>) =>
       Effect.gen(function*() {
+        const requested = distinct(digests)
+        yield* Effect.annotateCurrentSpan({ count: requested.length })
         const missing: Array<string> = []
-        for (const digest of distinct(digests)) {
+        for (const digest of requested) {
           if (!(yield* has(digest))) missing.push(digest)
         }
         return missing

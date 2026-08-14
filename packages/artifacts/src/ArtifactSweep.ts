@@ -161,6 +161,7 @@ export const makeFileSystem = (
 
   const remove: Service["remove"] = Effect.fn("ArtifactSweep.remove")((digest, removeOptions) =>
     Effect.gen(function*() {
+      yield* Effect.annotateCurrentSpan({ digest })
       yield* ArtifactStore.validateDigest(digest)
       const path = blobPath(digest)
       const bound = removeOptions?.ifUnmodifiedSinceMs

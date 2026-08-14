@@ -90,7 +90,7 @@ type Requirements =
  * @category errors
  */
 export class EngineCompositionError extends Schema.TaggedError<EngineCompositionError>()(
-  "flows/engine-store/EngineCompositionError",
+  "@smthrs/engine-store-next/EngineCompositionError",
   {
     code: Schema.Literal("engine_not_composed"),
     message: Schema.String
@@ -174,6 +174,12 @@ export const make = (
       readonly metadata: unknown
     }) {
       const parent = yield* FlowRuntime.FlowInstance
+      yield* Effect.annotateCurrentSpan({
+        runId: parent.executionId,
+        key: input.key,
+        attempt: input.attempt,
+        tier: input.tier
+      })
       const instance = FlowEngine.makeInstance(
         parent.flow,
         parent.executionId
@@ -324,14 +330,21 @@ export const layer = (
     Effect.map(Jj.Jj, (jj) =>
       FlowEngine.SnapshotBoundary.of({
         snapshot: Effect.fn("SnapshotBoundary.snapshot")(({ key, attempt }) =>
-          jj.snapshot(`flows action ${key} attempt ${attempt}`).pipe(
+          Effect.annotateCurrentSpan({ key, attempt }).pipe(
+            Effect.andThen(jj.snapshot(`flows action ${key} attempt ${attempt}`)),
             Effect.orDie,
             Effect.map((snapshot) => snapshot.changeId)
           )
         ),
-        restore: Effect.fn("SnapshotBoundary.restore")((snapshot) => jj.restore(snapshot as never).pipe(Effect.orDie)),
+        restore: Effect.fn("SnapshotBoundary.restore")((snapshot) =>
+          Effect.annotateCurrentSpan({ snapshot: String(snapshot) }).pipe(
+            Effect.andThen(jj.restore(snapshot as never)),
+            Effect.orDie
+          )
+        ),
         diff: Effect.fn("SnapshotBoundary.diff")((snapshot, { key, attempt }) =>
-          jj.snapshot(`flows action ${key} attempt ${attempt} settled`).pipe(
+          Effect.annotateCurrentSpan({ key, attempt }).pipe(
+            Effect.andThen(jj.snapshot(`flows action ${key} attempt ${attempt} settled`)),
             Effect.orDie,
             Effect.flatMap((current) => jj.diff(snapshot as never, current.changeId).pipe(Effect.orDie))
           )

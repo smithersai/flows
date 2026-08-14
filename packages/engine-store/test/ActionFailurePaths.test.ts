@@ -179,7 +179,7 @@ describe("action executor failure paths", () => {
     const failure = Exit.isFailure(result.exit)
       ? Cause.squash(result.exit.cause) as { readonly _tag?: string }
       : {}
-    expect(failure._tag).toBe("flows/engine-store/UnsupportedBoundary")
+    expect(failure._tag).toBe("@smthrs/engine-store-next/UnsupportedBoundary")
     expect(Option.getOrThrow(result.row).state).toBe("failed")
     const eventTypes = result.events.map((event) => event.eventType)
     expect(eventTypes).toContain("flows.engine.hard-violation")
@@ -216,7 +216,7 @@ describe("action executor failure paths", () => {
     const failure = Exit.isFailure(result.exit)
       ? Cause.squash(result.exit.cause) as { readonly _tag?: string }
       : {}
-    expect(failure._tag).toBe("flows/engine-store/UnsupportedBoundary")
+    expect(failure._tag).toBe("@smthrs/engine-store-next/UnsupportedBoundary")
     expect(Option.getOrThrow(result.row).state).toBe("failed")
     const eventTypes = result.events.map((event) => event.eventType)
     expect(eventTypes).toContain("flows.engine.hard-violation")
@@ -251,7 +251,7 @@ describe("action executor failure paths", () => {
     const failure = Exit.isFailure(result.exit)
       ? Cause.squash(result.exit.cause) as { readonly _tag?: string }
       : {}
-    expect(failure._tag).toBe("flows/engine-store/UndeclaredWrite")
+    expect(failure._tag).toBe("@smthrs/engine-store-next/UndeclaredWrite")
     expect(Option.getOrThrow(result.row).state).toBe("failed")
     expect(Option.isNone(result.cached)).toBe(true)
     const eventTypes = result.events.map((event) => event.eventType)
@@ -283,7 +283,7 @@ describe("action executor failure paths", () => {
     const failure = Exit.isFailure(result.exit)
       ? Cause.squash(result.exit.cause) as { readonly _tag?: string }
       : {}
-    expect(failure._tag).toBe("flows/engine-store/AttemptSuspended")
+    expect(failure._tag).toBe("@smthrs/engine-store-next/AttemptSuspended")
   })
 
   it("fence lost while finishing a FAILED attempt: the finish is discarded and no failed lifecycle record leaks", async () => {

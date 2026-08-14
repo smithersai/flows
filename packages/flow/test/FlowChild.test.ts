@@ -158,7 +158,7 @@ describe("Graph.build placement refusal", () => {
     }).annotate(Flow.Placement, { host: "worker" })
 
     expect(() => Graph.build(Local, {})).toThrowError(expect.objectContaining({
-      _tag: "flows/plan/GraphBuildError",
+      _tag: "@smthrs/plan-next/GraphBuildError",
       code: "placement_requires_boundary",
       node: "root.flow",
       path: [],

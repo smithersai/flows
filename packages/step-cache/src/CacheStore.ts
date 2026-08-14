@@ -49,15 +49,14 @@ export type CacheStoreErrorCode = typeof CacheStoreErrorCode.Type
 /**
  * Error raised by cache persistence operations.
  *
- * The identity string is frozen at its pre-split `flows/journal/…` value for
- * the same reason the service tag beside it is: it is journaled and digested,
- * so a rename is a cache invalidation, never a file move.
+ * The identity string equals the defining module path, like every other
+ * identity in this repository.
  *
  * @category errors
  * @since 0.1.0
  */
 export class CacheStoreError extends Schema.TaggedError<CacheStoreError>()(
-  "flows/journal/CacheStoreError",
+  "@smthrs/step-cache-next/CacheStoreError",
   {
     code: CacheStoreErrorCode,
     message: Schema.String,
@@ -145,20 +144,15 @@ export interface Service {
 /**
  * Service tag for content-addressed recorded step results.
  *
- * The identity string is DELIBERATELY FROZEN at its pre-split
- * `flows/journal/…` value. It is not drift, and it must not be re-cut to match
- * this module's path: service identities are digested into step keys, so
- * renaming one invalidates every cached step that named it — see
- * `docs/specs/Concepts/Step Keys.md`, "frozen strings, not module paths". The
- * split moved this implementation byte for byte, so by that rule it is the
- * same implementation and therefore the same step. New identities in new
- * modules do equal their module path (`@smthrs/artifacts-next/ArtifactStore`); only
- * these three survivors of `docs/specs/Concepts/Journal Split.md` do not.
+ * The identity string equals the defining module path, like every other
+ * service identity in this repository. The pre-split `flows/journal/CacheStore`
+ * identity from `docs/specs/Concepts/Journal Split.md` was retired pre-release,
+ * while no persisted journal or step-key digest named it.
  *
  * @category services
  * @since 0.1.0
  */
-export class CacheStore extends Context.Service<CacheStore, Service>()("flows/journal/CacheStore") {}
+export class CacheStore extends Context.Service<CacheStore, Service>()("@smthrs/step-cache-next/CacheStore") {}
 
 const CacheRow = Schema.Struct({
   key_digest: Schema.NonEmptyString,
@@ -255,6 +249,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
 
   const get: Service["get"] = Effect.fn("CacheStore.get")((keyDigest) =>
     Effect.gen(function*() {
+      yield* Effect.annotateCurrentSpan({ keyDigest })
       yield* validateKey(keyDigest)
       const rows = yield* sql<Record<string, unknown>>`
         SELECT key_digest, result_json, meta_json, created_at_ms, recorded_run_id, recorded_event_seq
@@ -272,6 +267,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
 
   const put: Service["put"] = Effect.fn("CacheStore.put")((entry) =>
     Effect.gen(function*() {
+      yield* Effect.annotateCurrentSpan({ keyDigest: entry.keyDigest })
       yield* validateEntry(entry)
       const result = yield* encode(entry.result, "result")
       const meta = yield* encode(entry.meta, "meta")
@@ -307,6 +303,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
 
   const evict: Service["evict"] = Effect.fn("CacheStore.evict")((keyDigest, options) =>
     Effect.gen(function*() {
+      yield* Effect.annotateCurrentSpan({ keyDigest })
       yield* validateKey(keyDigest)
       // The provenance predicate rides in the DELETE itself (issue #119):
       // a read-then-delete leaves a window in which another *process* records

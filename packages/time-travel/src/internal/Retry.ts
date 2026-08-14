@@ -119,6 +119,11 @@ export const retry = <A, E, R>(
 > =>
   Effect.fn("Retry.retry")(() =>
     Effect.gen(function*() {
+      yield* Effect.annotateCurrentSpan({
+        effectId: options.effect.id,
+        tier: options.effect.tier,
+        previousAttempt: options.previousAttempt
+      })
       const attempt = options.previousAttempt + 1
       const nonce = yield* freshNonce(options, attempt)
       const blocked = (

@@ -300,7 +300,7 @@ describe("infrastructure interrupt retry", () => {
       expect(Exit.isFailure(exit) && Cause.hasFails(exit.cause)).toBe(true)
       expect(
         Exit.isFailure(exit) && (Cause.squash(exit.cause) as Action.InfraInterrupt)._tag
-      ).toBe("@smthrs/engine-next/InfraInterrupt")
+      ).toBe("@smthrs/flow-next/InfraInterrupt")
     }).pipe(provideHost)
   })
 })

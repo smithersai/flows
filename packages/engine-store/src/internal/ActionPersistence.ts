@@ -21,8 +21,10 @@ import * as Cause from "effect/Cause"
 import * as Clock from "effect/Clock"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
+import * as Metric from "effect/Metric"
 import * as Option from "effect/Option"
 import * as Schema from "effect/Schema"
+import * as EngineStoreMetrics from "../EngineStoreMetrics.ts"
 import * as Inconsistency from "../Inconsistency.ts"
 import * as StepBoundary from "../StepBoundary.ts"
 import * as StepSandbox from "../StepSandbox.ts"
@@ -76,7 +78,7 @@ export interface ActionInput {
  * @category errors
  */
 export class AttemptSuspended extends Schema.TaggedError<AttemptSuspended>()(
-  "flows/engine-store/AttemptSuspended",
+  "@smthrs/engine-store-next/AttemptSuspended",
   {
     code: Schema.Literal("attempt_suspended"),
     runId: Schema.String,
@@ -99,7 +101,7 @@ export class AttemptSuspended extends Schema.TaggedError<AttemptSuspended>()(
  */
 export class IrreversibleRetryRequiresIdempotencyKey
   extends Schema.TaggedError<IrreversibleRetryRequiresIdempotencyKey>()(
-    "flows/engine-store/IrreversibleRetryRequiresIdempotencyKey",
+    "@smthrs/engine-store-next/IrreversibleRetryRequiresIdempotencyKey",
     {
       code: Schema.Literal("irreversible_retry_requires_idempotency_key"),
       key: Schema.String
@@ -118,7 +120,7 @@ export class IrreversibleRetryRequiresIdempotencyKey
  * @category errors
  */
 export class AttemptAdmissionRejected extends Schema.TaggedError<AttemptAdmissionRejected>()(
-  "flows/engine-store/AttemptAdmissionRejected",
+  "@smthrs/engine-store-next/AttemptAdmissionRejected",
   {
     code: Schema.Literal("attempt_admission_rejected"),
     keyDigest: Schema.String,
@@ -138,7 +140,7 @@ export class AttemptAdmissionRejected extends Schema.TaggedError<AttemptAdmissio
  * @category errors
  */
 export class CacheConflictDetected extends Schema.TaggedError<CacheConflictDetected>()(
-  "flows/engine-store/CacheConflictDetected",
+  "@smthrs/engine-store-next/CacheConflictDetected",
   {
     code: Schema.Literal("cache_conflict_detected"),
     keyDigest: Schema.String,
@@ -157,7 +159,7 @@ export class CacheConflictDetected extends Schema.TaggedError<CacheConflictDetec
  * @category errors
  */
 export class CacheCorruptionDetected extends Schema.TaggedError<CacheCorruptionDetected>()(
-  "flows/engine-store/CacheCorruptionDetected",
+  "@smthrs/engine-store-next/CacheCorruptionDetected",
   {
     code: Schema.Literal("cache_corruption_detected"),
     keyDigest: Schema.String,
@@ -185,7 +187,7 @@ export class CacheCorruptionDetected extends Schema.TaggedError<CacheCorruptionD
  * @category errors
  */
 export class AttemptEvidenceQuarantined extends Schema.TaggedError<AttemptEvidenceQuarantined>()(
-  "flows/engine-store/AttemptEvidenceQuarantined",
+  "@smthrs/engine-store-next/AttemptEvidenceQuarantined",
   {
     code: Schema.Literal("attempt_evidence_quarantined"),
     keyDigest: Schema.String,
@@ -266,6 +268,20 @@ const declarationViolated = (cause: Cause.Cause<unknown>): boolean =>
   cause.reasons.some((reason) =>
     Cause.isFailReason(reason) &&
     (reason.error instanceof StepBoundary.UndeclaredWrite || reason.error instanceof StepSandbox.UndeclaredRead)
+  )
+
+/**
+ * Whether a failed settle carries one of the boundary's own contract
+ * violations, as opposed to a host refusal. Classification for the
+ * `boundarySettlements` counter only — the journal record stays the source
+ * of truth.
+ */
+const settlementViolated = (cause: Cause.Cause<unknown>): boolean =>
+  cause.reasons.some((reason) =>
+    Cause.isFailReason(reason) &&
+    (reason.error instanceof StepBoundary.UndeclaredWrite ||
+      reason.error instanceof StepBoundary.MissingDeclaredOutput ||
+      reason.error instanceof StepBoundary.SurvivingDeclaredRemoval)
   )
 
 /**
@@ -418,11 +434,17 @@ export const make = (deps: Dependencies) => {
   const lineageId = FlowEngine.Lineage.root(deps.runId)
   return Effect.fn("ActionPersistence.execute")((input: ActionInput) =>
     Effect.gen(function*() {
+      yield* Effect.annotateCurrentSpan({
+        runId: deps.runId,
+        attempt: input.attempt,
+        tier: input.tier
+      })
       const attempts = yield* AttemptStore.AttemptStore
       const cache = yield* CacheStore.CacheStore
       const journal = yield* Journal.Journal
       const runs = yield* RunStore.RunStore
       const keyDigest = yield* Schema.decodeUnknownEffect(Sha256)(input.key).pipe(Effect.orDie)
+      yield* Effect.annotateCurrentSpan({ keyDigest })
       const attemptId = { runId: deps.runId, stepKeyDigest: keyDigest, attempt: input.attempt }
       /**
        * Lifecycle events take the journal's durable channel, fenced to the
@@ -1436,6 +1458,16 @@ export const make = (deps: Dependencies) => {
           const settled = prepared === undefined || boundary === undefined
             ? undefined
             : yield* boundary.settle(prepared).pipe(Effect.exit)
+          yield* settled === undefined ? Effect.void : Metric.update(
+            EngineStoreMetrics.boundarySettlement[
+              Exit.isSuccess(settled)
+                ? settled.value.deviation === undefined ? "Clean" : "Deviation"
+                : settlementViolated(settled.cause)
+                ? "Violation"
+                : "Refused"
+            ],
+            1
+          )
           if (settled !== undefined && Exit.isFailure(settled)) {
             const failedAtMs = yield* Clock.currentTimeMillis
             const finished = yield* settleAttempt({
@@ -1538,6 +1570,12 @@ export const make = (deps: Dependencies) => {
           return outcome.value
         })
       )
-    })
+    }).pipe(
+      Effect.annotateLogs({ runId: deps.runId }),
+      EngineStoreMetrics.observe({
+        timer: EngineStoreMetrics.dispatchDuration,
+        counter: EngineStoreMetrics.dispatch
+      })
+    )
   )
 }

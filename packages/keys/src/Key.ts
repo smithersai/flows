@@ -28,7 +28,7 @@ import * as SchemaGetter from "effect/SchemaGetter"
  * @since 0.1.0
  */
 const KeyValue = Schema.String.check(Schema.isPattern(/^key1_[0-9a-f]{64}$/)).pipe(
-  Schema.brand("flows/keys/Key")
+  Schema.brand("@smthrs/keys-next/Key")
 )
 
 /**

@@ -66,7 +66,7 @@ describe("succeeded-row corruption quarantines its evidence and heals on resume 
       recordedDigest: "aa".repeat(32),
       measuredDigest: "bb".repeat(32)
     })
-    expect(RetryPolicy.errorTag(quarantined)).toBe("flows/engine-store/AttemptEvidenceQuarantined")
+    expect(RetryPolicy.errorTag(quarantined)).toBe("@smthrs/engine-store-next/AttemptEvidenceQuarantined")
     expect(RetryPolicy.defaultNonRetryable).toContain(RetryPolicy.errorTag(quarantined))
     const policy = RetryPolicy.make({ initialMs: 1, factor: 2, maxMs: 10, maxAttempts: 10 })
     expect(RetryPolicy.isNonRetryable(policy, quarantined)).toBe(true)
@@ -107,9 +107,8 @@ describe("succeeded-row corruption quarantines its evidence and heals on resume 
         Layer.succeed(DurableEngineState.DurableEngineState, state),
         Layer.succeed(Jj.Jj, jj),
         Action.layerCacheEnvironment({ layers: [], capabilities: {} }),
-        NodeCrypto.layer,
         boundary
-      )
+      ).pipe(Layer.provideMerge(NodeCrypto.layer))
     )
     const run = <A, E>(effect: Effect.Effect<A, E, unknown>) =>
       runtime.runPromise(

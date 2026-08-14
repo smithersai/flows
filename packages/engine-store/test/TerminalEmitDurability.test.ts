@@ -193,7 +193,7 @@ describe("replay re-emission tolerates a foreign-lineage terminal record (issue 
       const reason = outcome.replayed.cause.reasons[0]
       expect(reason?._tag).toBe("Fail")
       expect((reason as { readonly error?: unknown }).error).toMatchObject({
-        _tag: "flows/journal/JournalError",
+        _tag: "@smthrs/journal-next/JournalError",
         code: "queue_overflow"
       })
     }

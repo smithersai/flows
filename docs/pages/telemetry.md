@@ -47,7 +47,7 @@ Operators who configure through the standard `OTEL_*` environment variables can 
 
 Traces are the spans listed in [Observability](/observability): every store operation, flow lifecycle step, and engine dispatch, connected across the durable queue boundary.
 
-Metrics are the hot-path counters the store packages define beside the code that updates them, one `<Service>Metrics` module per package:
+Metrics are the hot-path series the store packages define beside the code that updates them, one `<Service>Metrics` module per package:
 
 | Counter | Attributes | Updated by |
 | --- | --- | --- |
@@ -60,8 +60,25 @@ Metrics are the hot-path counters the store packages define beside the code that
 | `flows_step_cache_puts` | `outcome` = `inserted` \| `existing_same` \| `conflict` | `CacheStore.put`, after the write transaction returns |
 | `flows_artifact_puts` | none | `@smthrs/artifacts-next` local stores, once per successful put, dedupe included |
 | `flows_artifact_gets` | none | once per successful digest-verified get; typed misses are error evidence, not throughput |
+| `flows_engine_dispatches` | `outcome` = `success` \| `failure` \| `interrupt` | `@smthrs/engine-store-next` `ActionPersistence`, once per durable dispatch — cache-served and fresh alike |
+| `flows_engine_scheduler_rounds` | none | `PlanScheduler`, once per wavefront round |
+| `flows_engine_scheduler_nodes` | `outcome` = `built` \| `clean` \| `failed` \| `skipped` \| `deferred` | `PlanScheduler`, once per node settlement |
+| `flows_engine_sandbox_executions` | `outcome` = `success` \| `failure` \| `interrupt` | `WorkspaceSandbox.execute` |
+| `flows_engine_sandbox_materializations` | `outcome` = `success` \| `failure` \| `interrupt` | `WorkspaceSandbox.materialize` — the one host write |
+| `flows_engine_sandbox_conflicts` | none | copy-back preflight, once per compare-and-set refusal |
+| `flows_engine_boundary_settlements` | `outcome` = `clean` \| `deviation` \| `violation` \| `refused` | the dispatch seam, once per boundary settle |
+| `flows_engine_claims` | `outcome` = `activated` \| `terminal` \| `heartbeat_fresh` \| `steal_refused_owner_alive` \| `claim_lost` \| `activation_lost` | `RunDriver.claimAndActivate` — the engine-level decisions before and after the store CAS |
 
-The handles are exported (`JournalMetrics`, `RunStoreMetrics`, `CacheStoreMetrics`, `ArtifactStoreMetrics`, `DatabaseMetrics`), so a program can read them with `Metric.value` without an exporter at all.
+Durations are `Metric.timer` histograms recorded through Effect's `Effect.trackDuration` (monotonic clock; success, failure, and interruption alike):
+
+| Timer | Measures |
+| --- | --- |
+| `flows_engine_dispatch_duration` | one durable dispatch, admission through settlement |
+| `flows_engine_scheduler_wave_duration` | one admitted scheduler dispatch wave |
+| `flows_engine_sandbox_execution_duration` | one isolated workspace execution |
+| `flows_engine_sandbox_materialization_duration` | one copy-back |
+
+The handles are exported (`JournalMetrics`, `RunStoreMetrics`, `CacheStoreMetrics`, `ArtifactStoreMetrics`, `DatabaseMetrics`, `EngineStoreMetrics`), so a program can read them with `Metric.value` without an exporter at all.
 
 ## Testing without a network
 

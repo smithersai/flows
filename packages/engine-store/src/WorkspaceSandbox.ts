@@ -50,10 +50,12 @@ import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
+import * as Metric from "effect/Metric"
 import * as PlatformError from "effect/PlatformError"
 import * as Ref from "effect/Ref"
 import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
+import * as EngineStoreMetrics from "./EngineStoreMetrics.ts"
 import * as FileEnumeration from "./internal/FileEnumeration.ts"
 
 /**
@@ -187,7 +189,7 @@ export interface Workspace {
  * @since 0.1.0
  */
 export const Workspace: Context.Service<Workspace, Workspace> = Context.Service<Workspace>(
-  "flows/engine-store/WorkspaceSandbox/Workspace"
+  "@smthrs/engine-store-next/WorkspaceSandbox/Workspace"
 )
 
 /**
@@ -319,14 +321,19 @@ export type WorkspaceErrorCode = typeof WorkspaceErrorCode.Type
  * A body could not execute inside — or its result could not be moved through —
  * an isolated workspace.
  *
+ * `cause` carries the refusing host or artifact-store failure whole, so a
+ * debugger sees the original error instead of a flattened message
+ * (`PlatformError`'s own convention).
+ *
  * @category errors
  * @since 0.1.0
  */
 export class WorkspaceError extends Schema.TaggedError<WorkspaceError>()(
-  "flows/engine-store/WorkspaceError",
+  "@smthrs/engine-store-next/WorkspaceError",
   {
     code: WorkspaceErrorCode,
-    message: Schema.String
+    message: Schema.String,
+    cause: Schema.optional(Schema.Defect())
   }
 ) {}
 
@@ -343,7 +350,7 @@ export class WorkspaceError extends Schema.TaggedError<WorkspaceError>()(
  * @since 0.1.0
  */
 export class MaterializationConflict extends Schema.TaggedError<MaterializationConflict>()(
-  "flows/engine-store/MaterializationConflict",
+  "@smthrs/engine-store-next/MaterializationConflict",
   {
     paths: Schema.Array(Schema.String),
     message: Schema.String
@@ -375,7 +382,7 @@ export interface Service {
  * @since 0.1.0
  */
 export const WorkspaceSandbox: Context.Service<Service, Service> = Context.Service<Service>(
-  "flows/engine-store/WorkspaceSandbox"
+  "@smthrs/engine-store-next/WorkspaceSandbox"
 )
 
 /**
@@ -421,7 +428,7 @@ export interface Dispatcher {
  * @since 0.1.0
  */
 export const EffectDispatcher: Context.Service<Dispatcher, Dispatcher> = Context.Service<Dispatcher>(
-  "flows/engine-store/WorkspaceSandbox/EffectDispatcher"
+  "@smthrs/engine-store-next/WorkspaceSandbox/EffectDispatcher"
 )
 
 /**
@@ -849,106 +856,131 @@ export const makeHosted = (host: Host): Service => {
     string,
     { readonly result: WorkflowResult<never>; readonly violations: ReadonlyArray<DeclarationViolation> }
   >()
-  return make({
-    execute: Effect.fn("WorkspaceSandbox.execute")(function*<Output, Error>(
-      execution: Execution<Output, Error>
-    ) {
-      const key = execution.cacheKey
-      if (key !== undefined) {
-        const hit = memo.get(key)
-        if (hit !== undefined) {
-          return {
-            _tag: "Accepted" as const,
-            result: hit.result as unknown as WorkflowResult<Output>,
-            violations: hit.violations,
-            cache: { status: "hit" as const, key }
-          }
+  /**
+   * The speculative half, untraced: the `execute` span below wraps it, so
+   * the transaction body reports under one span with its metrics.
+   */
+  const executeBody = Effect.fnUntraced(function*<Output, Error>(
+    execution: Execution<Output, Error>
+  ) {
+    const key = execution.cacheKey
+    if (key !== undefined) {
+      const hit = memo.get(key)
+      if (hit !== undefined) {
+        return {
+          _tag: "Accepted" as const,
+          result: hit.result as unknown as WorkflowResult<Output>,
+          violations: hit.violations,
+          cache: { status: "hit" as const, key }
         }
       }
-      const base = yield* host.snapshot(execution.descriptor)
-      const trace: Trace = { inputs: [], attemptedReads: [], effects: [] }
-      const isolated = transaction(base, trace, host.root)
-      const outcome = yield* execution.workflow.pipe(
-        Effect.provideService(Workspace, isolated.workspace),
-        Effect.provideService(FileSystem.FileSystem, isolated.fileSystem),
-        Effect.exit
+    }
+    const base = yield* host.snapshot(execution.descriptor)
+    const trace: Trace = { inputs: [], attemptedReads: [], effects: [] }
+    const isolated = transaction(base, trace, host.root)
+    const outcome = yield* execution.workflow.pipe(
+      Effect.provideService(Workspace, isolated.workspace),
+      Effect.provideService(FileSystem.FileSystem, isolated.fileSystem),
+      Effect.exit
+    )
+    const inputs: Array<InputObservation> = []
+    for (const input of trace.inputs) {
+      inputs.push({ resource: resource(input.path), digest: yield* digestOf(input.content) })
+    }
+    const descriptor = workspaceRelative(host.root, execution.descriptor)
+    const undeclaredReads = trace.attemptedReads.filter((attempt) =>
+      !attempt.produced &&
+      !descriptor.readSet.some((entry) =>
+        FileSet.isGlob(entry) ? FileSet.matchesGlob(entry, attempt.path) : entry.path === attempt.path
       )
-      const inputs: Array<InputObservation> = []
-      for (const input of trace.inputs) {
-        inputs.push({ resource: resource(input.path), digest: yield* digestOf(input.content) })
-      }
-      const descriptor = workspaceRelative(host.root, execution.descriptor)
-      const undeclaredReads = trace.attemptedReads.filter((attempt) =>
-        !attempt.produced &&
-        !descriptor.readSet.some((entry) =>
-          FileSet.isGlob(entry) ? FileSet.matchesGlob(entry, attempt.path) : entry.path === attempt.path
-        )
-      )
-      if (Exit.isFailure(outcome)) {
-        // Hard mode only, mirroring the success path below: in expected mode
-        // an undeclared read is a deviation the engine journals, and a body's
-        // own typed failure must surface as itself — converting it into an
-        // isolation verdict would both harden a soft boundary and mask the
-        // error the retry policy classifies on.
-        if (undeclaredReads.length > 0 && execution.descriptor.boundaryMode === "hard") {
-          return {
-            _tag: "Invalidated" as const,
-            provenance: {
-              baseRevision: yield* revisionOf(base),
-              inputs,
-              outputs: []
-            },
-            violations: [
-              ...new Map(undeclaredReads.map((attempt) => [attempt.path, {
-                kind: "undeclared-read" as const,
-                resource: resource(attempt.path)
-              }])).values()
-            ]
-          }
+    )
+    if (Exit.isFailure(outcome)) {
+      // Hard mode only, mirroring the success path below: in expected mode
+      // an undeclared read is a deviation the engine journals, and a body's
+      // own typed failure must surface as itself — converting it into an
+      // isolation verdict would both harden a soft boundary and mask the
+      // error the retry policy classifies on.
+      if (undeclaredReads.length > 0 && execution.descriptor.boundaryMode === "hard") {
+        return {
+          _tag: "Invalidated" as const,
+          provenance: {
+            baseRevision: yield* revisionOf(base),
+            inputs,
+            outputs: []
+          },
+          violations: [
+            ...new Map(undeclaredReads.map((attempt) => [attempt.path, {
+              kind: "undeclared-read" as const,
+              resource: resource(attempt.path)
+            }])).values()
+          ]
         }
-        return yield* Effect.failCause(outcome.cause)
       }
-      const output = outcome.value
-      const files = yield* changes(base, isolated.files, host)
-      const provenance: Provenance = {
-        baseRevision: yield* revisionOf(base),
-        inputs,
-        outputs: files.map((change) => ({
-          resource: resource(change.path),
-          operation: change.afterDigest === undefined ? "remove" as const : "write" as const,
-          digest: change.afterDigest
+      return yield* Effect.failCause(outcome.cause)
+    }
+    const output = outcome.value
+    const files = yield* changes(base, isolated.files, host)
+    const provenance: Provenance = {
+      baseRevision: yield* revisionOf(base),
+      inputs,
+      outputs: files.map((change) => ({
+        resource: resource(change.path),
+        operation: change.afterDigest === undefined ? "remove" as const : "write" as const,
+        digest: change.afterDigest
+      }))
+    }
+    const invalid = [
+      ...new Map([
+        ...violations(descriptor, base, provenance),
+        ...undeclaredReads.map((attempt) => ({
+          kind: "undeclared-read" as const,
+          resource: resource(attempt.path)
         }))
-      }
-      const invalid = [
-        ...new Map([
-          ...violations(descriptor, base, provenance),
-          ...undeclaredReads.map((attempt) => ({
-            kind: "undeclared-read" as const,
-            resource: resource(attempt.path)
-          }))
-        ].map((violation) => [`${violation.kind}:${violation.resource.id}`, violation])).values()
-      ]
-      // Hard mode discards; expected mode admits the result and leaves the
-      // deviation for the engine to journal and reconcile
-      // (`Effect Taxonomy.md`, "Expected sets — the soft mode"). Either way
-      // the host has not been touched.
-      if (invalid.length > 0 && execution.descriptor.boundaryMode === "hard") {
-        return { _tag: "Invalidated" as const, provenance, violations: invalid }
-      }
-      const result: WorkflowResult<Output> = { output, files, provenance, effects: trace.effects }
-      if (key !== undefined) {
-        memo.set(key, { result: result as unknown as WorkflowResult<never>, violations: invalid })
-      }
-      return {
-        _tag: "Accepted" as const,
-        result,
-        violations: invalid,
-        cache: key === undefined ? { status: "disabled" as const } : { status: "miss" as const, key }
-      }
-    }),
-    materialize: Effect.fn("WorkspaceSandbox.materialize")(function*(accepted) {
-      yield* host.commit(accepted.result.files)
-    })
+      ].map((violation) => [`${violation.kind}:${violation.resource.id}`, violation])).values()
+    ]
+    // Hard mode discards; expected mode admits the result and leaves the
+    // deviation for the engine to journal and reconcile
+    // (`Effect Taxonomy.md`, "Expected sets — the soft mode"). Either way
+    // the host has not been touched.
+    if (invalid.length > 0 && execution.descriptor.boundaryMode === "hard") {
+      return { _tag: "Invalidated" as const, provenance, violations: invalid }
+    }
+    const result: WorkflowResult<Output> = { output, files, provenance, effects: trace.effects }
+    if (key !== undefined) {
+      memo.set(key, { result: result as unknown as WorkflowResult<never>, violations: invalid })
+    }
+    return {
+      _tag: "Accepted" as const,
+      result,
+      violations: invalid,
+      cache: key === undefined ? { status: "disabled" as const } : { status: "miss" as const, key }
+    }
+  })
+  return make({
+    execute: Effect.fn("WorkspaceSandbox.execute")(
+      function*<Output, Error>(
+        execution: Execution<Output, Error>
+      ) {
+        yield* Effect.annotateCurrentSpan({ boundaryMode: execution.descriptor.boundaryMode })
+        return yield* executeBody(execution)
+      },
+      (effect) =>
+        EngineStoreMetrics.observe({
+          timer: EngineStoreMetrics.sandboxExecutionDuration,
+          counter: EngineStoreMetrics.sandboxExecution
+        })(effect)
+    ),
+    materialize: Effect.fn("WorkspaceSandbox.materialize")(
+      function*<Output>(accepted: Accepted<Output>) {
+        yield* Effect.annotateCurrentSpan({ changes: accepted.result.files.length })
+        yield* host.commit(accepted.result.files)
+      },
+      (effect) =>
+        EngineStoreMetrics.observe({
+          timer: EngineStoreMetrics.materializationDuration,
+          counter: EngineStoreMetrics.materialization
+        })(effect)
+    )
   })
 }
 
@@ -1020,9 +1052,13 @@ export const makeMemory = (
       baseline: () => Effect.succeed(undefined),
       retain: (bytes) => Effect.succeed(bytes.slice()),
       commit: Effect.fn("WorkspaceSandbox.commit")(function*(changes) {
+        yield* Effect.annotateCurrentSpan({ changes: changes.length })
         const current = yield* Ref.get(host)
         const { conflict } = yield* preflight(changes, (path) => Effect.succeed(current.get(path)))
-        if (conflict !== undefined) return yield* Effect.fail(conflict)
+        if (conflict !== undefined) {
+          yield* Metric.update(EngineStoreMetrics.materializationConflicts, 1)
+          return yield* Effect.fail(conflict)
+        }
         const next = new Map(current)
         for (const change of changes) {
           if (change.afterDigest === undefined) next.delete(change.path)
@@ -1068,13 +1104,15 @@ const defaultMaxInlineBytes = 1024 * 1024
 const hostFailure = (cause: unknown): WorkspaceError =>
   new WorkspaceError({
     code: "host_unavailable",
-    message: `the host filesystem could not serve the workspace transaction: ${String(cause)}`
+    message: "the host filesystem could not serve the workspace transaction",
+    cause
   })
 
 const artifactFailure = (cause: { readonly message: string }): WorkspaceError =>
   new WorkspaceError({
     code: "host_unavailable",
-    message: `the artifact store could not serve the workspace transaction: ${cause.message}`
+    message: `the artifact store could not serve the workspace transaction: ${cause.message}`,
+    cause
   })
 
 const escapesWorkspace = (path: string, resolved: string): WorkspaceError =>
@@ -1208,6 +1246,10 @@ export const makeFileSystem = (
   return makeHosted({
     root,
     snapshot: Effect.fn("WorkspaceSandbox.snapshot")(function*(descriptor) {
+      yield* Effect.annotateCurrentSpan({
+        reads: descriptor.readSet.length,
+        boundaryMode: descriptor.boundaryMode
+      })
       const base = new Map<string, Uint8Array>()
       for (const entry of descriptor.readSet) {
         // Through `FileEnumeration`, never the host `glob`: host results skip
@@ -1249,6 +1291,7 @@ export const makeFileSystem = (
         ? Effect.succeed(bytes)
         : artifacts.put(bytes).pipe(Effect.mapError(artifactFailure), Effect.as(undefined)),
     commit: Effect.fn("WorkspaceSandbox.commit")(function*(changes) {
+      yield* Effect.annotateCurrentSpan({ changes: changes.length })
       // PRECONDITIONS FIRST, WRITES SECOND — and the writes are journaled.
       // Confinement, the compare-and-set, artifact resolution, and the
       // directory plan all run before any byte lands, so every refusal they
@@ -1259,7 +1302,10 @@ export const makeFileSystem = (
       // failure no in-process journal can undo.
       yield* assertConfined(changes)
       const { before, conflict } = yield* preflight(changes, (path) => readIfPresent(hostPath(path)))
-      if (conflict !== undefined) return yield* Effect.fail(conflict)
+      if (conflict !== undefined) {
+        yield* Metric.update(EngineStoreMetrics.materializationConflicts, 1)
+        return yield* Effect.fail(conflict)
+      }
       const resolved = new Map<string, Uint8Array>()
       for (const change of changes) {
         if (change.afterDigest === undefined) continue
@@ -1269,7 +1315,8 @@ export const makeFileSystem = (
               ? artifactFailure(error)
               : new WorkspaceError({
                 code: "not_found",
-                message: `the retained bytes for ${change.path} are unavailable: ${error.message}`
+                message: `the retained bytes for ${change.path} are unavailable: ${error.message}`,
+                cause: error
               })
           )
         ))
@@ -1344,7 +1391,8 @@ export const makeFileSystem = (
                 code: "host_unavailable",
                 message: `copy-back failed mid-apply and rollback could not restore the workspace: ${
                   reasons.join("; ")
-                }`
+                }`,
+                cause: restored.cause
               })
             )
           })

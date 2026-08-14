@@ -70,9 +70,11 @@ import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
+import * as Metric from "effect/Metric"
 import * as Option from "effect/Option"
 import * as Ref from "effect/Ref"
 import * as Schema from "effect/Schema"
+import * as EngineStoreMetrics from "./EngineStoreMetrics.ts"
 import * as ActionPersistence from "./internal/ActionPersistence.ts"
 import * as FileEnumeration from "./internal/FileEnumeration.ts"
 import * as JournalRecords from "./internal/JournalRecords.ts"
@@ -159,7 +161,7 @@ export interface Executor {
  * @since 0.1.0
  * @category services
  */
-export class NodeExecutor extends Context.Service<NodeExecutor, Executor>()("flows/engine-store/NodeExecutor") {}
+export class NodeExecutor extends Context.Service<NodeExecutor, Executor>()("@smthrs/engine-store-next/NodeExecutor") {}
 
 /**
  * Provides a plain {@link Executor} value as the {@link NodeExecutor} service.
@@ -276,7 +278,7 @@ export type Requirements =
  * @since 0.1.0
  * @category errors
  */
-export class SchedulerError extends Schema.TaggedError<SchedulerError>()("flows/engine-store/SchedulerError", {
+export class SchedulerError extends Schema.TaggedError<SchedulerError>()("@smthrs/engine-store-next/SchedulerError", {
   code: Schema.Literals(["boundary_unavailable", "key_uncomputable", "elaboration_failed", "store_failed"]),
   message: Schema.String,
   cause: Schema.optional(Schema.Unknown)
@@ -305,7 +307,9 @@ export interface Service {
  * @since 0.1.0
  * @category services
  */
-export class PlanScheduler extends Context.Service<PlanScheduler, Service>()("flows/engine-store/PlanScheduler") {}
+export class PlanScheduler
+  extends Context.Service<PlanScheduler, Service>()("@smthrs/engine-store-next/PlanScheduler")
+{}
 
 /**
  * The declared digest handed to `StepBoundary.prepare` when the scheduler is
@@ -391,6 +395,12 @@ export const make = (options: Options): Service => {
 
   const record: Service["record"] = Effect.fn("PlanScheduler.record")((plan) =>
     Effect.gen(function*() {
+      yield* Effect.annotateCurrentSpan({
+        runId: options.runId,
+        planId: plan.planId,
+        digest: plan.digest,
+        generation: plan.generation
+      })
       const store = yield* PlanStore.PlanStore
       const now = yield* Clock.currentTimeMillis
       const outcome = yield* store.record(plan, now).pipe(Effect.mapError(storeFailure("could not record the plan")))
@@ -409,6 +419,12 @@ export const make = (options: Options): Service => {
 
   const append: Service["append"] = Effect.fn("PlanScheduler.append")((plan) =>
     Effect.gen(function*() {
+      yield* Effect.annotateCurrentSpan({
+        runId: options.runId,
+        planId: plan.planId,
+        digest: plan.digest,
+        generation: plan.generation
+      })
       const store = yield* PlanStore.PlanStore
       yield* store.append(plan).pipe(Effect.mapError(storeFailure("could not append the subgraph")))
       yield* emit(JournalRecords.subgraphAppended(source(`plan/${plan.planId}/${plan.generation}`), {
@@ -423,6 +439,12 @@ export const make = (options: Options): Service => {
 
   const run: Service["run"] = Effect.fn("PlanScheduler.run")((initial) =>
     Effect.gen(function*() {
+      yield* Effect.annotateCurrentSpan({
+        runId: options.runId,
+        planId: initial.planId,
+        digest: initial.digest,
+        nodes: initial.nodes.length
+      })
       const boundaries = yield* StepBoundary.StepBoundary
       const fileSystem = yield* Effect.serviceOption(FileSystem.FileSystem)
       const executor = yield* NodeExecutor
@@ -640,6 +662,7 @@ export const make = (options: Options): Service => {
             attempts: state.attempts,
             rebases: state.rebases
           }))
+          yield* Metric.update(EngineStoreMetrics.node[outcome], 1)
         })
 
       const applyVerdict = (nodeId: string, verdict: Reconciliation.Verdict, trigger: string) =>
@@ -675,8 +698,17 @@ export const make = (options: Options): Service => {
           // collapse to one key by themselves, so the second is a `clean`.
         })
 
-      const dispatch = (node: Plan.PlanNode): Effect.Effect<Dispatched, SchedulerError, Requirements> =>
-        Effect.gen(function*() {
+      const dispatch: (node: Plan.PlanNode) => Effect.Effect<Dispatched, SchedulerError, Requirements> = Effect.fn(
+        "PlanScheduler.dispatch"
+      )(function*(node: Plan.PlanNode) {
+        return yield* Effect.gen(function*() {
+          yield* Effect.annotateCurrentSpan({
+            runId: options.runId,
+            planId: plan.planId,
+            nodeId: node.id,
+            kind: node.kind,
+            planKey: node.key
+          })
           const state = stateOf(node)
           // Only material `Ref` inputs, pre-projected. `dependenciesOf` also
           // carries `Pending` and discovered ordering edges, but those never
@@ -702,6 +734,7 @@ export const make = (options: Options): Service => {
             }
             state.dispatchKey = dispatchKey
             state.attempts = state.attempts + 1
+            yield* Effect.annotateCurrentSpan({ dispatchKey, attempt: state.attempts })
             yield* emit(JournalRecords.nodeScheduled(source(`node/${node.id}/${state.attempts}`), {
               planId: plan.planId,
               nodeId: node.id,
@@ -742,6 +775,7 @@ export const make = (options: Options): Service => {
             return { outcome: "conflicted", strategy } as const
           }
         })
+      })
 
       /**
        * `stop-merge`: the losing action is stopped and both lanes are routed
@@ -917,7 +951,10 @@ export const make = (options: Options): Service => {
       // future non-sink deferral from reaching dispatch with a missing
       // upstream result.
       const blockingOutcomes = new Set(["failed", "skipped", "deferred"])
+      let round = 0
       while ([...states.values()].filter((state) => state.status === "settled").length < plan.nodes.length) {
+        round = round + 1
+        yield* Metric.update(EngineStoreMetrics.schedulerRounds, 1)
         const pending = plan.nodes.filter((node) => stateOf(node).status === "pending")
         const blocked: Array<Plan.PlanNode> = []
         const ready: Array<Plan.PlanNode> = []
@@ -975,7 +1012,16 @@ export const make = (options: Options): Service => {
           if (!admitted.includes(node)) stateOf(node).waited = stateOf(node).waited + 1
         }
 
-        const dispatched = yield* Effect.forEach(admitted, dispatch, { concurrency: "unbounded" })
+        yield* Effect.logDebug("scheduler round admitted", {
+          round,
+          pending: pending.length,
+          ready: ready.length,
+          admitted: admitted.length,
+          agents
+        })
+        const dispatched = yield* Effect.forEach(admitted, dispatch, { concurrency: "unbounded" }).pipe(
+          Effect.trackDuration(EngineStoreMetrics.schedulerWaveDuration)
+        )
         for (let index = 0; index < admitted.length; index++) {
           const node = admitted[index]!
           const result = dispatched[index]!
@@ -1021,7 +1067,7 @@ export const make = (options: Options): Service => {
         verdicts,
         appended
       }
-    })
+    }).pipe(Effect.annotateLogs({ runId: options.runId, planId: initial.planId }))
   )
 
   return { record, append, run }

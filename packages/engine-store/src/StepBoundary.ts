@@ -199,7 +199,7 @@ export type BoundaryEvidence = typeof BoundaryEvidence.Type
  * @category errors
  */
 export class UndeclaredWrite extends Schema.TaggedError<UndeclaredWrite>()(
-  "flows/engine-store/UndeclaredWrite",
+  "@smthrs/engine-store-next/UndeclaredWrite",
   {
     code: Schema.Literal("undeclared_write"),
     paths: Schema.Array(Schema.String),
@@ -225,7 +225,7 @@ export class UndeclaredWrite extends Schema.TaggedError<UndeclaredWrite>()(
  * @category errors
  */
 export class MissingDeclaredOutput extends Schema.TaggedError<MissingDeclaredOutput>()(
-  "flows/engine-store/MissingDeclaredOutput",
+  "@smthrs/engine-store-next/MissingDeclaredOutput",
   {
     code: Schema.Literal("missing_declared_output"),
     paths: Schema.Array(Schema.String),
@@ -245,7 +245,7 @@ export class MissingDeclaredOutput extends Schema.TaggedError<MissingDeclaredOut
  * @category errors
  */
 export class SurvivingDeclaredRemoval extends Schema.TaggedError<SurvivingDeclaredRemoval>()(
-  "flows/engine-store/SurvivingDeclaredRemoval",
+  "@smthrs/engine-store-next/SurvivingDeclaredRemoval",
   {
     code: Schema.Literal("surviving_declared_removal"),
     paths: Schema.Array(Schema.String),
@@ -266,10 +266,16 @@ export class SurvivingDeclaredRemoval extends Schema.TaggedError<SurvivingDeclar
  * @category errors
  */
 export class UnsupportedBoundary extends Schema.TaggedError<UnsupportedBoundary>()(
-  "flows/engine-store/UnsupportedBoundary",
+  "@smthrs/engine-store-next/UnsupportedBoundary",
   {
     code: Schema.Literal("unsupported_boundary"),
-    message: Schema.String
+    message: Schema.String,
+    /**
+     * The refusing host or artifact-store failure, carried whole rather than
+     * flattened into the message (`PlatformError`'s own convention), so the
+     * journal record and a live debugger both see the original error.
+     */
+    cause: Schema.optional(Schema.Defect())
   }
 ) {}
 
@@ -284,7 +290,7 @@ export class UnsupportedBoundary extends Schema.TaggedError<UnsupportedBoundary>
  * @category errors
  */
 export class BoundaryCorruption extends Schema.TaggedError<BoundaryCorruption>()(
-  "flows/engine-store/BoundaryCorruption",
+  "@smthrs/engine-store-next/BoundaryCorruption",
   {
     code: Schema.Literal("boundary_corruption"),
     path: Schema.String,
@@ -305,7 +311,7 @@ export class BoundaryCorruption extends Schema.TaggedError<BoundaryCorruption>()
  * @category errors
  */
 export class MissingArtifact extends Schema.TaggedError<MissingArtifact>()(
-  "flows/engine-store/MissingArtifact",
+  "@smthrs/engine-store-next/MissingArtifact",
   {
     code: Schema.Literal("missing_artifact"),
     path: Schema.String,
@@ -349,7 +355,7 @@ export interface Service {
  * @category services
  */
 export const StepBoundary: Context.Service<Service, Service> = Context.Service<Service>(
-  "flows/engine-store/StepBoundary"
+  "@smthrs/engine-store-next/StepBoundary"
 )
 
 /**
@@ -450,7 +456,8 @@ const fromLegacyOutput = Effect.fn("StepBoundary.fromLegacyOutput")(function*(
 const hostFailure = (cause: unknown): UnsupportedBoundary =>
   new UnsupportedBoundary({
     code: "unsupported_boundary",
-    message: `the host filesystem could not enforce the step boundary: ${String(cause)}`
+    message: "the host filesystem could not enforce the step boundary",
+    cause
   })
 
 /**
@@ -462,7 +469,8 @@ const hostFailure = (cause: unknown): UnsupportedBoundary =>
 const artifactFailure = (cause: ArtifactStore.ArtifactStoreError): UnsupportedBoundary =>
   new UnsupportedBoundary({
     code: "unsupported_boundary",
-    message: `the artifact store could not serve the step boundary: ${cause.message}`
+    message: `the artifact store could not serve the step boundary: ${cause.message}`,
+    cause
   })
 
 /**
@@ -583,6 +591,7 @@ export const makeFileSystem = (
     return yield* FileEnumeration.entriesUnder(fs, path).pipe(Effect.mapError(hostFailure))
   })
   const capture = Effect.fn("StepBoundary.capture")(function*(path: string, inlineBudget: number) {
+    yield* Effect.annotateCurrentSpan({ path })
     const present = yield* fs.exists(path).pipe(Effect.mapError(hostFailure))
     if (!present) return { output: { path, digest: null } satisfies MaterializedOutput, inlinedBytes: 0 }
     const bytes = yield* fs.readFile(path).pipe(Effect.mapError(hostFailure))
@@ -609,6 +618,7 @@ export const makeFileSystem = (
     return { output: { path, digest, sizeBytes: bytes.length } satisfies MaterializedOutput, inlinedBytes: 0 }
   })
   const materialize = Effect.fn("StepBoundary.materialize")(function*(output: MaterializedOutput) {
+    yield* Effect.annotateCurrentSpan({ path: output.path })
     // The filesystem is the cheapest source of truth for a warm workspace.
     // Probe before decoding inline bytes or consulting the artifact store; a
     // transient probe refusal merely forfeits the optimization and the
@@ -682,6 +692,10 @@ export const makeFileSystem = (
   })
   return make({
     prepare: Effect.fn("StepBoundary.prepare")(function*(descriptor) {
+      yield* Effect.annotateCurrentSpan({
+        reads: descriptor.readSet.length,
+        boundaryMode: descriptor.boundaryMode
+      })
       // The dirty check's evidence (issue #90): what the host actually
       // measured for every declared read, never the declaration itself —
       // defaulting the snapshot to the declaration made `readSetMatches`
@@ -697,6 +711,10 @@ export const makeFileSystem = (
       return { descriptor, readSnapshot }
     }),
     settle: Effect.fn("StepBoundary.settle")(function*(prepared) {
+      yield* Effect.annotateCurrentSpan({
+        writes: prepared.descriptor.writeSet.length,
+        boundaryMode: prepared.descriptor.boundaryMode
+      })
       // Undeclared-write detection is scoped to the declared read set: a
       // declared read whose content moved during the body and is not also a
       // declared write was mutated outside the contract. Whole-tree change
@@ -767,6 +785,7 @@ export const makeFileSystem = (
         outputs: outputs.map((output) => [output.path, output.digest]),
         trees
       }).pipe(Effect.orDie)
+      yield* Effect.annotateCurrentSpan({ diffIdentity })
       if (prepared.descriptor.boundaryMode === "hard") {
         if (undeclared.length > 0) {
           return yield* Effect.fail(
@@ -808,6 +827,7 @@ export const makeFileSystem = (
       }
     }),
     replayOutputs: Effect.fn("StepBoundary.replayOutputs")(function*(evidence) {
+      yield* Effect.annotateCurrentSpan({ diffIdentity: evidence.diffIdentity })
       const decoded = Schema.decodeUnknownResult(MaterializedOutputs)(evidence.declaredOutputs)
       if (decoded._tag === "Failure") {
         // Evidence recorded by a different boundary implementation carries

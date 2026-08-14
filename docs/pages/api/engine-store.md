@@ -167,7 +167,7 @@ The unwired core default is strict.
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `OwnerIdentity` | service tag | `flows/engine-store/OwnerIdentity` |
+| `OwnerIdentity` | service tag | `@smthrs/engine-store-next/OwnerIdentity` |
 | `Service` | interface | `ownerId(hostId)` mints the `OwnerId` this incarnation fences with |
 | `make` | constructor | from an implementation |
 | `makeDefault`, `layer` | default implementation | the platform's process id where one exists, a `Random`-drawn incarnation number where none does, paired with a `crypto.randomUUID` nonce |

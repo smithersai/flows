@@ -14,7 +14,7 @@ const document = Schema.decodeUnknownSync(Canonical)({ b: 2, a: 1 })
 
 ```typescript
 /** An RFC 8785 canonical JSON document. */
-type Canonical = string & Brand<"flows/canonical/Canonical">
+type Canonical = string & Brand<"@smthrs/canonical-next/Canonical">
 
 /** Converts a JSON value into an RFC 8785 canonical JSON document. */
 const Canonical: Schema.Codec<unknown, Canonical>

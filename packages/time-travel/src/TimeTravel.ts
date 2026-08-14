@@ -236,37 +236,60 @@ export const make: Effect.Effect<Service, TimeTravelError, Requirements | Scope.
   const refreshAnchors = (runId: string) =>
     SnapshotProjector.project(runId).pipe(
       Effect.catchCause((cause) =>
-        Effect.logWarning(`time-travel: could not refresh frame anchors for ${runId}`, cause)
+        Effect.logWarning("time-travel: could not refresh frame anchors", cause).pipe(
+          Effect.annotateLogs({ runId })
+        )
       )
     )
 
   return {
-    inspect: (position, projection) =>
-      provided(
-        Replay.rederive(position.frame, projection, { runId: position.runId })
-      ),
-    fork: (position, options) =>
-      provided(
-        // The anchors a fork restores from are a projection of the engine's own
-        // records, folded on demand: an ordinary engine run writes journal
-        // rows, never this package's tables.
-        refreshAnchors(position.runId).pipe(Effect.andThen(ForkOperation.fork({
-          parentRunId: position.runId,
-          frame: position.frame,
-          workspaceName: workspaceSlug(position),
-          workspacePath: `${options?.workspaceRoot ?? workspaceRoot}/${workspaceSlug(position)}`
-        })))
-      ),
-    rewind: (position, options) =>
-      provided(
-        refreshAnchors(position.runId).pipe(Effect.andThen(Rewind.rewind({
+    inspect: <S>(position: Position, projection: Projection<S>) =>
+      Effect.fn("TimeTravel.inspect")(function*() {
+        yield* Effect.annotateCurrentSpan({
           runId: position.runId,
-          frame: position.frame,
-          owner,
-          detachedChildPolicy: options?.detachedChildren ?? "block",
-          ...(options?.pageSize === undefined ? {} : { pageSize: options.pageSize })
-        })))
-      )
+          lineageId: position.frame.lineageId,
+          seq: position.frame.seq
+        })
+        return yield* provided(
+          Replay.rederive(position.frame, projection, { runId: position.runId })
+        )
+      })(),
+    fork: (position, options) =>
+      Effect.fn("TimeTravel.fork")(function*() {
+        yield* Effect.annotateCurrentSpan({
+          runId: position.runId,
+          lineageId: position.frame.lineageId,
+          seq: position.frame.seq
+        })
+        return yield* provided(
+          // The anchors a fork restores from are a projection of the engine's
+          // own records, folded on demand: an ordinary engine run writes
+          // journal rows, never this package's tables.
+          refreshAnchors(position.runId).pipe(Effect.andThen(ForkOperation.fork({
+            parentRunId: position.runId,
+            frame: position.frame,
+            workspaceName: workspaceSlug(position),
+            workspacePath: `${options?.workspaceRoot ?? workspaceRoot}/${workspaceSlug(position)}`
+          })))
+        )
+      })(),
+    rewind: (position, options) =>
+      Effect.fn("TimeTravel.rewind")(function*() {
+        yield* Effect.annotateCurrentSpan({
+          runId: position.runId,
+          lineageId: position.frame.lineageId,
+          seq: position.frame.seq
+        })
+        return yield* provided(
+          refreshAnchors(position.runId).pipe(Effect.andThen(Rewind.rewind({
+            runId: position.runId,
+            frame: position.frame,
+            owner,
+            detachedChildPolicy: options?.detachedChildren ?? "block",
+            ...(options?.pageSize === undefined ? {} : { pageSize: options.pageSize })
+          })))
+        )
+      })()
   }
 })
 

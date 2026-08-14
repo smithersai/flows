@@ -198,13 +198,17 @@ export const makeLive: Effect.Effect<Service, never, Journal.Journal | BranchSha
         return receipt
       })
 
-    const submit = (request: SubmitRequest): Effect.Effect<CommandReceipt, SyncError> =>
-      Effect.flatMap(
-        share.verify(request.capability, { branchId: request.submission.branchId, access: "write" }),
-        // The permit is taken AFTER authorization so an unauthorized caller
-        // cannot serialize (and therefore stall) legitimate collaborators.
-        () => permit.withPermits(1)(admit(request))
-      )
+    const submit = Effect.fn("BranchCommands.submit")(function*(request: SubmitRequest) {
+      yield* Effect.annotateCurrentSpan({
+        branchId: request.submission.branchId,
+        commandId: request.submission.commandId,
+        participantId: request.submission.participantId
+      })
+      yield* share.verify(request.capability, { branchId: request.submission.branchId, access: "write" })
+      // The permit is taken AFTER authorization so an unauthorized caller
+      // cannot serialize (and therefore stall) legitimate collaborators.
+      return yield* permit.withPermits(1)(admit(request))
+    })
 
     return make({ submit })
   }

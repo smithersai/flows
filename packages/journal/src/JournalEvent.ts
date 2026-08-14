@@ -13,7 +13,7 @@ import * as Schema from "effect/Schema"
  * @category schemas
  * @since 0.1.0
  */
-export const RunId = Schema.String.pipe(Schema.brand("flows/journal/RunId"))
+export const RunId = Schema.String.pipe(Schema.brand("@smthrs/journal-next/JournalEvent/RunId"))
 
 /**
  * Branded identifier of one durable run.
@@ -29,7 +29,9 @@ export type RunId = typeof RunId.Type
  * @category schemas
  * @since 0.1.0
  */
-export const Seq = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)).pipe(Schema.brand("flows/journal/Seq"))
+export const Seq = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)).pipe(
+  Schema.brand("@smthrs/journal-next/JournalEvent/Seq")
+)
 
 /**
  * Canonical durable per-run sequence number.
@@ -45,7 +47,7 @@ export type Seq = typeof Seq.Type
  * @category schemas
  * @since 0.1.0
  */
-export const SourceId = Schema.String.pipe(Schema.brand("flows/journal/SourceId"))
+export const SourceId = Schema.String.pipe(Schema.brand("@smthrs/journal-next/JournalEvent/SourceId"))
 
 /**
  * Identifier of an event producer.
@@ -62,7 +64,7 @@ export type SourceId = typeof SourceId.Type
  * @since 0.1.0
  */
 export const SourceSeq = Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)).pipe(
-  Schema.brand("flows/journal/SourceSeq")
+  Schema.brand("@smthrs/journal-next/JournalEvent/SourceSeq")
 )
 
 /**
@@ -82,7 +84,7 @@ export type SourceSeq = typeof SourceSeq.Type
  * @category schemas
  * @since 0.1.0
  */
-export class Input extends Schema.Class<Input>("flows/journal/JournalEvent/Input")({
+export class Input extends Schema.Class<Input>("@smthrs/journal-next/JournalEvent/Input")({
   runId: RunId,
   sourceId: SourceId,
   sourceSeq: Schema.optional(SourceSeq),
@@ -101,7 +103,7 @@ export class Input extends Schema.Class<Input>("flows/journal/JournalEvent/Input
  * @category schemas
  * @since 0.1.0
  */
-export class Entry extends Schema.Class<Entry>("flows/journal/JournalEvent/Entry")({
+export class Entry extends Schema.Class<Entry>("@smthrs/journal-next/JournalEvent/Entry")({
   runId: RunId,
   seq: Seq,
   eventId: Schema.String,

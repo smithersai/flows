@@ -466,7 +466,7 @@ describe("action retry give-up reasons", () => {
       if (result._tag === "Complete") {
         expect(Exit.isFailure(result.exit)).toBe(true)
         expect(Exit.isFailure(result.exit) && Cause.squash(result.exit.cause)).toMatchObject({
-          _tag: "@smthrs/engine-next/RetryPolicyExpired",
+          _tag: "@smthrs/flow-next/RetryPolicyExpired",
           actionName: "Gaps/durable-retry-origin",
           attempt: 1,
           expirationMs: 1,
@@ -518,7 +518,7 @@ describe("action retry give-up reasons", () => {
       expect(Exit.isFailure(exit)).toBe(true)
       const defect = Exit.isFailure(exit) ? Cause.squash(exit.cause) : undefined
       expect((defect as RetryPolicy.RetryAttemptsExhausted)._tag).toBe(
-        "@smthrs/engine-next/RetryAttemptsExhausted"
+        "@smthrs/flow-next/RetryAttemptsExhausted"
       )
       expect((defect as RetryPolicy.RetryAttemptsExhausted).attempt).toBe(1)
       expect((defect as RetryPolicy.RetryAttemptsExhausted).maxAttempts).toBe(1)

@@ -25,7 +25,7 @@ The root is the contract, so it bundles for the browser. The SQLite drivers are 
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `DurableWriter` | service tag | `flows/database/DurableWriter` |
+| `DurableWriter` | service tag | `@smthrs/database-next/DurableWriter` |
 | `Service` | interface | `sql: SqlClient`, `write: (effect) => Effect` |
 | `DatabaseError` | class | carries a `DatabaseErrorCode` |
 | `DatabaseErrorCode` | const + type | includes `busy`, `constraint`, `io` |

@@ -58,9 +58,10 @@ const requirements = (filename: string) => {
     ),
     migratedDatabase
   )
+  // NodeCrypto feeds the merged stack rather than sitting beside it:
+  // OwnerIdentity.layer consumes the Crypto service at construction.
   return Layer.mergeAll(
     sqlServices,
-    NodeCrypto.layer,
     StepBoundary.layerTest(),
     OwnerIdentity.layer,
     Layer.succeed(Jj.Jj, jj),
@@ -69,7 +70,7 @@ const requirements = (filename: string) => {
     // to one execution, so the fork would re-dispatch instead of replaying;
     // declaring the environment is what lets identity cross the fork boundary.
     Action.layerCacheEnvironment({ layers: [], capabilities: {} })
-  )
+  ).pipe(Layer.provideMerge(NodeCrypto.layer))
 }
 
 describe("SQL fork execution", () => {

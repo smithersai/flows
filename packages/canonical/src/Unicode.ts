@@ -31,7 +31,7 @@ const Unicode = Schema.String.check(
     }
     return true
   })
-).pipe(Schema.brand("flows/canonical/Unicode"))
+).pipe(Schema.brand("@smthrs/canonical-next/Unicode"))
 
 /**
  * Validates every string and property name in a JSON-like value.

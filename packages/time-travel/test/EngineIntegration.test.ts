@@ -150,13 +150,14 @@ const engineLayer = (harness: Harness, handlers: ReadonlyArray<CompensationHandl
       })
     ),
     Layer.provideMerge(
+      // NodeCrypto feeds the merged stack rather than sitting beside it:
+      // OwnerIdentity.layer consumes the Crypto service at construction.
       Layer.mergeAll(
         stores,
         StepBoundary.layerTest(),
         recordingJj(harness.jjCalls),
-        OwnerIdentity.layer,
-        NodeCrypto.layer
-      )
+        OwnerIdentity.layer
+      ).pipe(Layer.provideMerge(NodeCrypto.layer))
     ),
     Layer.provideMerge(TestDatabase.layer)
   )

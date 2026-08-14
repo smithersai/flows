@@ -47,7 +47,7 @@ interface Rig {
 }
 
 /** A server with a share authority, one without, and capabilities for two branches. */
-const rig: Effect.Effect<Rig, never, Journal.Journal | BranchShare.BranchShare> = Effect.gen(function*() {
+const rig: Effect.Effect<Rig, SyncError, Journal.Journal | BranchShare.BranchShare> = Effect.gen(function*() {
   const journal = yield* Journal.Journal
   const share = yield* BranchShare.BranchShare
   const memory = yield* RunCatalog.makeMemory()

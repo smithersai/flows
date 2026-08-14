@@ -189,9 +189,9 @@ export const addFinalizer: <R>(
   Effect.fnUntraced(function*<R>(
     f: (exit: Exit.Exit<unknown, unknown>) => Effect.Effect<void, never, R>
   ) {
-    const scope = (yield* FlowInstance).scope
+    const instance = yield* FlowInstance
     const services = yield* Effect.context<R>()
-    yield* Scope.addFinalizerExit(scope, (exit) => Effect.provideContext(f(exit), services))
+    yield* Scope.addFinalizerExit(instance.scope, (exit) => Effect.provideContext(f(exit), services))
   })
 
 /**

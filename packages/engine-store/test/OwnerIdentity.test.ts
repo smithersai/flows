@@ -5,15 +5,23 @@
  *
  * @since 0.1.0
  */
+import * as NodeCrypto from "@effect/platform-node/NodeCrypto"
+import * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import { describe, expect, it } from "vitest"
 import * as OwnerIdentity from "../src/OwnerIdentity.ts"
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
+/** Builds the incarnation source over the node `Crypto` implementation. */
+const incarnation = (pid: number | undefined) =>
+  Effect.map(Crypto.Crypto, (crypto) => OwnerIdentity.makeIncarnation(pid, crypto)).pipe(
+    Effect.provide(NodeCrypto.layer)
+  )
+
 describe("OwnerIdentity", () => {
   it("mints the reported process id and a fresh nonce per call", async () => {
-    const identity = OwnerIdentity.makeIncarnation(4242)
+    const identity = await Effect.runPromise(incarnation(4242))
     const first = await Effect.runPromise(identity.ownerId("some-host"))
     const second = await Effect.runPromise(identity.ownerId("some-host"))
 
@@ -26,7 +34,7 @@ describe("OwnerIdentity", () => {
   })
 
   it("draws an incarnation number on a host with no process (a browser tab)", async () => {
-    const identity = OwnerIdentity.makeIncarnation(undefined)
+    const identity = await Effect.runPromise(incarnation(undefined))
     const owner = await Effect.runPromise(identity.ownerId("tab-host"))
 
     expect(Number.isSafeInteger(owner.pid)).toBe(true)
@@ -37,7 +45,8 @@ describe("OwnerIdentity", () => {
   it("provides the platform default through the layer", async () => {
     const owner = await Effect.runPromise(
       Effect.flatMap(OwnerIdentity.OwnerIdentity, (identity) => identity.ownerId("layer-host")).pipe(
-        Effect.provide(OwnerIdentity.layer)
+        Effect.provide(OwnerIdentity.layer),
+        Effect.provide(NodeCrypto.layer)
       )
     )
 

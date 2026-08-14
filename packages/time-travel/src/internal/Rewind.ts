@@ -449,6 +449,11 @@ export const rewind = (
 > =>
   Effect.fn("Rewind.rewind")(() =>
     Effect.gen(function*() {
+      yield* Effect.annotateCurrentSpan({
+        runId: options.runId,
+        lineageId: options.frame.lineageId,
+        seq: options.frame.seq
+      })
       const runs = yield* RunStore.RunStore
       const journal = yield* Journal.Journal
       const store = yield* TimeTravelStore

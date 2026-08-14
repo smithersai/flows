@@ -42,6 +42,12 @@ export * as EngineStore from "./EngineStore.ts"
 
 /**
  * @since 0.1.0
+ * @category metrics
+ */
+export * as EngineStoreMetrics from "./EngineStoreMetrics.ts"
+
+/**
+ * @since 0.1.0
  * @category services
  */
 export * as PlanScheduler from "./PlanScheduler.ts"

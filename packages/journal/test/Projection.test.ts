@@ -2,7 +2,7 @@ import * as TestDatabase from "@smthrs/database-next/test/TestDatabase"
 import { Cause, Deferred, Effect, Exit, Fiber, Layer, Result, Stream } from "effect"
 import { describe, expect, it } from "vitest"
 import { Journal } from "../src/Journal.ts"
-import { Input, type RunId, type SourceId } from "../src/JournalEvent.ts"
+import { Input, type RunId, type Seq, type SourceId } from "../src/JournalEvent.ts"
 import * as Migrations from "../src/Migrations.ts"
 import * as Projection from "../src/Projection.ts"
 import * as SqlJournal from "../src/SqlJournal.ts"
@@ -73,6 +73,13 @@ describe("Projection", () => {
         const second = yield* replay()
         expect(first).toEqual([0, 1, 3, 6])
         expect(second).toEqual(first)
+
+        // Resuming from a cursor folds only the entries after it.
+        const resumed = yield* journal.project(sumProjection, { runId: run, afterSequence: 1 as Seq }).pipe(
+          Stream.take(2),
+          Stream.runCollect
+        )
+        expect(resumed).toEqual([0, 3])
       })
     )
   })

@@ -230,7 +230,7 @@ const error = (code: JournalError["code"], message: string, cause?: unknown): Jo
  * transactions never see each other's list.
  */
 class Settlements extends Context.Service<Settlements, Array<Effect.Effect<void>>>()(
-  "flows/journal/SqlJournal/Settlements"
+  "@smthrs/journal-next/SqlJournal/Settlements"
 ) {}
 
 const sourceKey = (runId: RunId, sourceId: SourceId): string => `${runId.length}:${runId}${sourceId.length}:${sourceId}`
@@ -526,132 +526,138 @@ export const layer = (
         })
 
       const queuedEmit: Service["emitLossy"] = Effect.fn("Journal.emitLossy")((input: Input) =>
-        allocation.withPermit(Effect.flatMap(Clock.currentTimeMillis, (emittedAtMs) =>
-          Effect.flatMap(
-            Effect.suspend(() => Effect.fromResult(prepare(input, emittedAtMs))),
-            (prepared) =>
-              Effect.flatMap(
-                ensureFloors(prepared.validated.runId, prepared.validated.sourceId),
-                (floors) =>
-                  Effect.fromResult(
-                    Result.gen(function*() {
-                      const { metaJson, payloadJson, validated } = prepared
-                      const key = sourceKey(validated.runId, validated.sourceId)
-                      const nextSourceSeq = floors.sourceSeq
-                      const sourceSeq: SourceSeq = validated.sourceSeq ?? (nextSourceSeq as SourceSeq)
-                      if (
-                        !Number.isSafeInteger(sourceSeq) ||
-                        sourceSeq < 0 ||
-                        sourceSeq === Number.MAX_SAFE_INTEGER
-                      ) {
-                        return yield* Result.fail(
-                          error("invalid_event", "journal sequence is outside the allocatable safe integer range")
-                        )
-                      }
-                      const identity = sourceEventKey(validated.runId, validated.sourceId, sourceSeq)
-                      const existing = state.sourceEvents.get(identity)
-                      if (existing !== undefined) {
+        Effect.annotateCurrentSpan({
+          runId: input.runId,
+          sourceId: input.sourceId,
+          eventType: input.eventType
+        }).pipe(Effect.andThen(
+          allocation.withPermit(Effect.flatMap(Clock.currentTimeMillis, (emittedAtMs) =>
+            Effect.flatMap(
+              Effect.suspend(() => Effect.fromResult(prepare(input, emittedAtMs))),
+              (prepared) =>
+                Effect.flatMap(
+                  ensureFloors(prepared.validated.runId, prepared.validated.sourceId),
+                  (floors) =>
+                    Effect.fromResult(
+                      Result.gen(function*() {
+                        const { metaJson, payloadJson, validated } = prepared
+                        const key = sourceKey(validated.runId, validated.sourceId)
+                        const nextSourceSeq = floors.sourceSeq
+                        const sourceSeq: SourceSeq = validated.sourceSeq ?? (nextSourceSeq as SourceSeq)
                         if (
-                          existing.eventType !== validated.eventType ||
-                          existing.payloadJson !== payloadJson ||
-                          existing.metaJson !== metaJson
+                          !Number.isSafeInteger(sourceSeq) ||
+                          sourceSeq < 0 ||
+                          sourceSeq === Number.MAX_SAFE_INTEGER
                         ) {
-                          return yield* Result.fail(error(
-                            "idempotency_conflict",
-                            `source event ${validated.sourceId}:${sourceSeq} for run ${validated.runId} was reused with different content`
-                          ))
-                        }
-                        return {
-                          _tag: "Duplicate",
-                          seq: existing.seq,
-                          sourceSeq,
-                          status: existing.status
-                        } satisfies EmitReceipt
-                      }
-                      const nextSeq = floors.seq
-                      if (
-                        !Number.isSafeInteger(nextSeq) ||
-                        nextSeq < 0 ||
-                        nextSeq === Number.MAX_SAFE_INTEGER
-                      ) {
-                        return yield* Result.fail(
-                          error("invalid_event", "journal sequence is outside the allocatable safe integer range")
-                        )
-                      }
-                      const seq = nextSeq as Seq
-                      raiseSequenceFloor(validated.runId, seq)
-                      state.sourceSequences.set(key, Math.max(nextSourceSeq, sourceSeq + 1))
-
-                      const queued: QueuedEntry = {
-                        runId: validated.runId,
-                        seq,
-                        eventId: makeEventId(validated.runId, validated.sourceId, sourceSeq),
-                        sourceId: validated.sourceId,
-                        sourceSeq,
-                        emittedAtMs,
-                        eventType: validated.eventType,
-                        payloadJson,
-                        metaJson
-                      }
-                      let evicted: QueuedEntry | undefined
-                      if (Queue.sizeUnsafe(queue) >= options.capacity && options.overflow === "drop-oldest") {
-                        const exit = Queue.takeUnsafe(queue)
-                        /* v8 ignore next -- size and take run synchronously while the journal and queue are open */
-                        if (exit === undefined || !Exit.isSuccess(exit)) {
                           return yield* Result.fail(
-                            error("journal_closed", "journal admission queue is unavailable")
+                            error("invalid_event", "journal sequence is outside the allocatable safe integer range")
                           )
                         }
-                        evicted = exit.value
-                        const evictedIdentity = sourceEventKey(
-                          evicted.runId,
-                          evicted.sourceId,
-                          evicted.sourceSeq
-                        )
-                        state.sourceEvents.delete(evictedIdentity)
-                        state.pending = Math.max(0, state.pending - 1)
-                      }
-                      const accepted = Queue.offerUnsafe(queue, queued)
-                      if (!accepted) {
-                        if (options.overflow === "reject") {
-                          return yield* Result.fail(error("queue_overflow", "journal admission queue is full"))
+                        const identity = sourceEventKey(validated.runId, validated.sourceId, sourceSeq)
+                        const existing = state.sourceEvents.get(identity)
+                        if (existing !== undefined) {
+                          if (
+                            existing.eventType !== validated.eventType ||
+                            existing.payloadJson !== payloadJson ||
+                            existing.metaJson !== metaJson
+                          ) {
+                            return yield* Result.fail(error(
+                              "idempotency_conflict",
+                              `source event ${validated.sourceId}:${sourceSeq} for run ${validated.runId} was reused with different content`
+                            ))
+                          }
+                          return {
+                            _tag: "Duplicate",
+                            seq: existing.seq,
+                            sourceSeq,
+                            status: existing.status
+                          } satisfies EmitReceipt
                         }
-                        return {
-                          _tag: "Dropped",
-                          seq,
-                          sourceSeq,
-                          policy: "drop-newest"
-                        } satisfies EmitReceipt
-                      }
+                        const nextSeq = floors.seq
+                        if (
+                          !Number.isSafeInteger(nextSeq) ||
+                          nextSeq < 0 ||
+                          nextSeq === Number.MAX_SAFE_INTEGER
+                        ) {
+                          return yield* Result.fail(
+                            error("invalid_event", "journal sequence is outside the allocatable safe integer range")
+                          )
+                        }
+                        const seq = nextSeq as Seq
+                        raiseSequenceFloor(validated.runId, seq)
+                        state.sourceSequences.set(key, Math.max(nextSourceSeq, sourceSeq + 1))
 
-                      retain(identity, {
-                        seq,
-                        eventType: validated.eventType,
-                        payloadJson,
-                        metaJson,
-                        status: "pending"
-                      })
-                      state.pending += 1
-                      if (evicted !== undefined) {
+                        const queued: QueuedEntry = {
+                          runId: validated.runId,
+                          seq,
+                          eventId: makeEventId(validated.runId, validated.sourceId, sourceSeq),
+                          sourceId: validated.sourceId,
+                          sourceSeq,
+                          emittedAtMs,
+                          eventType: validated.eventType,
+                          payloadJson,
+                          metaJson
+                        }
+                        let evicted: QueuedEntry | undefined
+                        if (Queue.sizeUnsafe(queue) >= options.capacity && options.overflow === "drop-oldest") {
+                          const exit = Queue.takeUnsafe(queue)
+                          /* v8 ignore next -- size and take run synchronously while the journal and queue are open */
+                          if (exit === undefined || !Exit.isSuccess(exit)) {
+                            return yield* Result.fail(
+                              error("journal_closed", "journal admission queue is unavailable")
+                            )
+                          }
+                          evicted = exit.value
+                          const evictedIdentity = sourceEventKey(
+                            evicted.runId,
+                            evicted.sourceId,
+                            evicted.sourceSeq
+                          )
+                          state.sourceEvents.delete(evictedIdentity)
+                          state.pending = Math.max(0, state.pending - 1)
+                        }
+                        const accepted = Queue.offerUnsafe(queue, queued)
+                        if (!accepted) {
+                          if (options.overflow === "reject") {
+                            return yield* Result.fail(error("queue_overflow", "journal admission queue is full"))
+                          }
+                          return {
+                            _tag: "Dropped",
+                            seq,
+                            sourceSeq,
+                            policy: "drop-newest"
+                          } satisfies EmitReceipt
+                        }
+
+                        retain(identity, {
+                          seq,
+                          eventType: validated.eventType,
+                          payloadJson,
+                          metaJson,
+                          status: "pending"
+                        })
+                        state.pending += 1
+                        if (evicted !== undefined) {
+                          return {
+                            _tag: "Accepted",
+                            seq,
+                            sourceSeq,
+                            evicted: {
+                              policy: "drop-oldest",
+                              count: 1
+                            }
+                          } satisfies EmitReceipt
+                        }
                         return {
                           _tag: "Accepted",
                           seq,
-                          sourceSeq,
-                          evicted: {
-                            policy: "drop-oldest",
-                            count: 1
-                          }
+                          sourceSeq
                         } satisfies EmitReceipt
-                      }
-                      return {
-                        _tag: "Accepted",
-                        seq,
-                        sourceSeq
-                      } satisfies EmitReceipt
-                    })
-                  )
-              )
-          ))).pipe(Effect.tap((receipt) => Metric.update(JournalMetrics.lossy[receipt._tag], 1)))
+                      })
+                    )
+                )
+            ))).pipe(Effect.tap((receipt) => Metric.update(JournalMetrics.lossy[receipt._tag], 1)))
+        ))
       )
 
       /**
@@ -673,6 +679,11 @@ export const layer = (
 
       const readPage: Service["entries"] = Effect.fn("Journal.entries")((pageOptions) =>
         Effect.gen(function*() {
+          yield* Effect.annotateCurrentSpan({
+            runId: pageOptions.runId,
+            limit: pageOptions.limit,
+            ...(pageOptions.after === undefined ? {} : { after: pageOptions.after })
+          })
           if (pageOptions.runId.length === 0) {
             return yield* Effect.fail(error("invalid_event", "runId must not be empty"))
           }
@@ -745,6 +756,10 @@ export const layer = (
       const stream = (streamOptions: StreamOptions): Stream.Stream<Entry, JournalError> =>
         Stream.unwrap(
           Effect.fn("Journal.stream")(function*() {
+            yield* Effect.annotateCurrentSpan({
+              runId: streamOptions.runId,
+              ...(streamOptions.afterSequence === undefined ? {} : { afterSequence: streamOptions.afterSequence })
+            })
             const wake = yield* subscribeRun(streamOptions.runId)
             // The cursor lives in a registered box for the stream's lifetime
             // so `compact` can see how far every live follower has read.
@@ -1131,7 +1146,11 @@ export const layer = (
         input: Input,
         owner?: OwnerId
       ) =>
-        allocation.withPermit(Effect.flatMap(Clock.currentTimeMillis, (emittedAtMs) =>
+        Effect.annotateCurrentSpan({
+          runId: input.runId,
+          sourceId: input.sourceId,
+          eventType: input.eventType
+        }).pipe(Effect.andThen(allocation.withPermit(Effect.flatMap(Clock.currentTimeMillis, (emittedAtMs) =>
           Effect.flatMap(Effect.fromResult(prepare(input, emittedAtMs)), ({ metaJson, payloadJson, validated }) =>
             writer.write(
               Effect.gen(function*() {
@@ -1201,9 +1220,7 @@ export const layer = (
                * transaction — so `settle` parks both effects until the
                * outermost transaction commits.
                */
-              Effect.tap(({ commit, queued }) =>
-                settleCommit(queued, commit)
-              ),
+              Effect.tap(({ commit, queued }) => settleCommit(queued, commit)),
               Effect.map(({ commit, sourceSeq }) =>
                 commit.inserted
                   ? { _tag: "Accepted", seq: commit.entry.seq, sourceSeq } as const
@@ -1215,7 +1232,7 @@ export const layer = (
               Effect.mapError((cause) =>
                 isJournalError(cause) ? cause : error("sink_failed", "durable journal write failed", cause)
               )
-            ))))
+            ))))))
       )
 
       const emitLossy: Service["emitLossy"] = queuedEmit
@@ -1252,6 +1269,10 @@ export const layer = (
         owner?: OwnerId
       ) =>
         Effect.gen(function*() {
+          yield* Effect.annotateCurrentSpan({
+            runId: checkpointOptions.runId,
+            seq: checkpointOptions.seq
+          })
           if (checkpointOptions.runId.length === 0) {
             return yield* Effect.fail(error("invalid_event", "runId must not be empty"))
           }
@@ -1316,6 +1337,7 @@ export const layer = (
 
       const latestCheckpoint: Service["latestCheckpoint"] = Effect.fn("Journal.latestCheckpoint")((runId: RunId) =>
         Effect.gen(function*() {
+          yield* Effect.annotateCurrentSpan({ runId })
           if (runId.length === 0) {
             return yield* Effect.fail(error("invalid_event", "runId must not be empty"))
           }
@@ -1338,6 +1360,10 @@ export const layer = (
         owner?: OwnerId
       ) =>
         Effect.gen(function*() {
+          yield* Effect.annotateCurrentSpan({
+            runId: compactOptions.runId,
+            ...(compactOptions.upTo === undefined ? {} : { upTo: compactOptions.upTo })
+          })
           if (compactOptions.runId.length === 0) {
             return yield* Effect.fail(error("invalid_event", "runId must not be empty"))
           }
@@ -1629,7 +1655,11 @@ export const layer = (
               activeProjection: Projection<S2, E2, R2>,
               activeOptions: StreamOptions
             ) =>
-              Effect.succeed(
+              Effect.annotateCurrentSpan({
+                projection: activeProjection.name,
+                runId: activeOptions.runId,
+                ...(activeOptions.afterSequence === undefined ? {} : { afterSequence: activeOptions.afterSequence })
+              }).pipe(Effect.andThen(Effect.succeed(
                 stream(activeOptions).pipe(
                   Stream.scanEffect(activeProjection.initial, (state, entry) =>
                     Effect.suspend(() => activeProjection.reduce(state, entry)).pipe(
@@ -1646,7 +1676,7 @@ export const layer = (
                       )
                     ))
                 )
-              )
+              )))
           )(projection, streamOptions)
         )
 
@@ -1658,7 +1688,11 @@ export const layer = (
         entries: readPage,
         changes: PubSub.subscribe(changes),
         project,
-        flush: Effect.fn("Journal.flush")(() => flushInternal)(),
+        flush: Effect.fn("Journal.flush")(() =>
+          Effect.suspend(() => Effect.annotateCurrentSpan({ pending: state.pending })).pipe(
+            Effect.andThen(flushInternal)
+          )
+        )(),
         checkpoint,
         latestCheckpoint,
         compact

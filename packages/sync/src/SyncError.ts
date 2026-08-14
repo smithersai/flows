@@ -26,7 +26,7 @@ export const ErrorCode = Schema.Literals([
   "optimistic_timeout",
   "closed",
   "unknown"
-]).annotate({ identifier: "flows/sync/ErrorCode" })
+]).annotate({ identifier: "@smthrs/sync-next/ErrorCode" })
 
 /**
  * Stable error code returned by a sync operation.
@@ -42,7 +42,7 @@ export type ErrorCode = typeof ErrorCode.Type
  * @category errors
  * @since 0.1.0
  */
-export class SyncError extends Schema.TaggedError<SyncError>()("flows/sync/SyncError", {
+export class SyncError extends Schema.TaggedError<SyncError>()("@smthrs/sync-next/SyncError", {
   code: ErrorCode,
   message: Schema.String,
   cause: Schema.optional(Schema.Unknown)
@@ -52,7 +52,7 @@ export class SyncError extends Schema.TaggedError<SyncError>()("flows/sync/SyncE
    *
    * @since 0.1.0
    */
-  static readonly is = (value: unknown): value is SyncError => Predicate.isTagged(value, "flows/sync/SyncError")
+  static readonly is = (value: unknown): value is SyncError => Predicate.isTagged(value, "@smthrs/sync-next/SyncError")
 }
 
 /**
@@ -62,7 +62,7 @@ export class SyncError extends Schema.TaggedError<SyncError>()("flows/sync/SyncE
  * @category errors
  * @since 0.1.0
  */
-export class SyncGapError extends Schema.TaggedError<SyncGapError>()("flows/sync/SyncGapError", {
+export class SyncGapError extends Schema.TaggedError<SyncGapError>()("@smthrs/sync-next/SyncGapError", {
   runId: JournalEvent.RunId,
   expectedFrom: JournalEvent.Seq,
   receivedFrom: JournalEvent.Seq

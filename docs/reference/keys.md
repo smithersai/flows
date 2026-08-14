@@ -4,7 +4,7 @@ The package turns canonical JSON into a validated flow key.
 
 ```typescript
 /** A versioned SHA-256 key derived from canonical JSON. */
-export type Key = string & Brand<"flows/keys/Key">
+export type Key = string & Brand<"@smthrs/keys-next/Key">
 
 /** Converts any RFC 8785-compatible JSON value to `Key`. */
 export const Key: Schema<

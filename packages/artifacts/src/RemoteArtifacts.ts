@@ -208,6 +208,7 @@ export const make = (
     const put: ArtifactStore.Service["put"] = Effect.fn("RemoteArtifacts.put")((bytes: Uint8Array) =>
       Effect.gen(function*() {
         const digest = yield* measure(bytes)
+        yield* Effect.annotateCurrentSpan({ digest })
         const response = yield* send(
           "an upload",
           HttpClientRequest.put(casUrl(digest)).pipe(
@@ -221,6 +222,7 @@ export const make = (
 
     const get: ArtifactStore.Service["get"] = Effect.fn("RemoteArtifacts.get")((digest: string) =>
       Effect.gen(function*() {
+        yield* Effect.annotateCurrentSpan({ digest })
         yield* ArtifactStore.validateDigest(digest)
         // The deadline covers the whole exchange — request, headers, body —
         // because a tier that stalls mid-body is exactly as unanswering as
@@ -249,6 +251,7 @@ export const make = (
 
     const has: ArtifactStore.Service["has"] = Effect.fn("RemoteArtifacts.has")((digest: string) =>
       Effect.gen(function*() {
+        yield* Effect.annotateCurrentSpan({ digest })
         yield* ArtifactStore.validateDigest(digest)
         const response = yield* send("an existence probe", HttpClientRequest.head(casUrl(digest)))
         if (response.status === 404) return false
@@ -261,6 +264,7 @@ export const make = (
       (digests: Iterable<string>) =>
         Effect.gen(function*() {
           const requested = [...new Set(digests)]
+          yield* Effect.annotateCurrentSpan({ count: requested.length })
           if (requested.length === 0) return []
           // The batch travels in a JSON body rather than a path, but an
           // unusable address is still an unusable address, and the local tier

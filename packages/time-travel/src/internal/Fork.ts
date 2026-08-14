@@ -115,6 +115,12 @@ export const fork = (
 > =>
   Effect.fn("Fork.fork")(() =>
     Effect.gen(function*() {
+      yield* Effect.annotateCurrentSpan({
+        parentRunId: options.parentRunId,
+        lineageId: options.frame.lineageId,
+        seq: options.frame.seq,
+        workspaceName: options.workspaceName
+      })
       const runs = yield* RunStore.RunStore
       const parent = yield* runs.get(options.parentRunId).pipe(
         Effect.mapError((cause) => error("unknown", "could not read parent", cause))

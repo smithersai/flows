@@ -63,6 +63,11 @@ export const rederive = <S>(
 ): Effect.Effect<S, TimeTravelError, Journal.Journal | CacheStore.CacheStore> =>
   Effect.fn("Replay.rederive")(() =>
     Effect.gen(function*() {
+      yield* Effect.annotateCurrentSpan({
+        runId: options.runId,
+        lineageId: frame.lineageId,
+        seq: frame.seq
+      })
       const journal = yield* Journal.Journal
       const cache = yield* CacheStore.CacheStore
       let after: Seq | undefined

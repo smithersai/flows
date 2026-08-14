@@ -94,7 +94,7 @@ export const derived: ExecutionIdSource = {
  * @since 0.1.0
  */
 export const CurrentExecutionIds = Context.Reference<ExecutionIdSource>(
-  "flows/flow/Flow/CurrentExecutionIds",
+  "@smthrs/flow-next/Flow/CurrentExecutionIds",
   { defaultValue: () => derived }
 )
 

@@ -51,15 +51,14 @@ export type AttemptStoreErrorCode = typeof AttemptStoreErrorCode.Type
 /**
  * Error raised by attempt persistence operations.
  *
- * The identity string is frozen at its pre-split `flows/journal/…` value for
- * the same reason the service tag beside it is: it is journaled and digested,
- * so a rename is a cache invalidation, never a file move.
+ * The identity string equals the defining module path, like every other
+ * identity in this repository.
  *
  * @category errors
  * @since 0.1.0
  */
 export class AttemptStoreError extends Schema.TaggedError<AttemptStoreError>()(
-  "flows/journal/AttemptStoreError",
+  "@smthrs/run-store-next/AttemptStoreError",
   {
     code: AttemptStoreErrorCode,
     message: Schema.String,
@@ -272,20 +271,16 @@ export interface Service {
 /**
  * Service tag for durable step attempts.
  *
- * The identity string is DELIBERATELY FROZEN at its pre-split
- * `flows/journal/…` value. It is not drift, and it must not be re-cut to match
- * this module's path: service identities are digested into step keys, so
- * renaming one invalidates every cached step that named it — see
- * `docs/specs/Concepts/Step Keys.md`, "frozen strings, not module paths". The
- * split moved this implementation byte for byte, so by that rule it is the
- * same implementation and therefore the same step. New identities in new
- * modules do equal their module path (`@smthrs/artifacts-next/ArtifactStore`); only
- * these three survivors of `docs/specs/Concepts/Journal Split.md` do not.
+ * The identity string equals the defining module path, like every other
+ * service identity in this repository. The pre-split
+ * `flows/journal/AttemptStore` identity from
+ * `docs/specs/Concepts/Journal Split.md` was retired pre-release, while no
+ * persisted journal or step-key digest named it.
  *
  * @category services
  * @since 0.1.0
  */
-export class AttemptStore extends Context.Service<AttemptStore, Service>()("flows/journal/AttemptStore") {}
+export class AttemptStore extends Context.Service<AttemptStore, Service>()("@smthrs/run-store-next/AttemptStore") {}
 
 const NonNegativeSafeInt = Schema.Int.check(
   Schema.isGreaterThanOrEqualTo(0),
@@ -464,6 +459,11 @@ export const makeWith = (
 
     const put: Service["put"] = Effect.fn("AttemptStore.put")((attempt, owner) =>
       Effect.gen(function*() {
+        yield* Effect.annotateCurrentSpan({
+          runId: attempt.runId,
+          stepKeyDigest: attempt.stepKeyDigest,
+          attempt: attempt.attempt
+        })
         yield* validateId(attempt)
         if (
           attempt.state.length === 0 ||
@@ -569,6 +569,11 @@ export const makeWith = (
 
     const get: Service["get"] = Effect.fn("AttemptStore.get")((id) =>
       Effect.gen(function*() {
+        yield* Effect.annotateCurrentSpan({
+          runId: id.runId,
+          stepKeyDigest: id.stepKeyDigest,
+          attempt: id.attempt
+        })
         yield* validateId(id)
         const rows = yield* sql<Record<string, unknown>>`
         SELECT run_id, step_key_digest, attempt, state, started_at_ms, finished_at_ms,
@@ -589,6 +594,7 @@ export const makeWith = (
       checkpointValue
     ) =>
       Effect.gen(function*() {
+        yield* Effect.annotateCurrentSpan({ runId, stepKeyDigest, attempt })
         yield* validateId({ runId, stepKeyDigest, attempt })
         if (!Number.isSafeInteger(nowMs) || nowMs < 0) {
           return yield* Effect.fail(error("invalid_attempt", "nowMs must be a non-negative safe integer"))
@@ -639,6 +645,11 @@ export const makeWith = (
 
     const finish: Service["finish"] = Effect.fn("AttemptStore.finish")((attempt, owner) =>
       Effect.gen(function*() {
+        yield* Effect.annotateCurrentSpan({
+          runId: attempt.runId,
+          stepKeyDigest: attempt.stepKeyDigest,
+          attempt: attempt.attempt
+        })
         yield* validateId(attempt)
         if (
           attempt.state.length === 0 ||
@@ -701,6 +712,11 @@ export const makeWith = (
 
     const patch: Service["patch"] = Effect.fn("AttemptStore.patch")((id, fields) =>
       Effect.gen(function*() {
+        yield* Effect.annotateCurrentSpan({
+          runId: id.runId,
+          stepKeyDigest: id.stepKeyDigest,
+          attempt: id.attempt
+        })
         yield* validateId(id)
         const checkpoint = yield* encodeCheckpoint(fields.checkpoint)
         const attemptError = yield* encodeOptional(fields.error, "error")

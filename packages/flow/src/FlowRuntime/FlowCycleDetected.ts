@@ -26,7 +26,7 @@ import * as Schema from "effect/Schema"
  * @since 0.1.0
  */
 export class FlowCycleDetected extends Schema.TaggedError<FlowCycleDetected>()(
-  "flows/engine/FlowCycleDetected",
+  "@smthrs/flow-next/FlowCycleDetected",
   {
     /** Stable public error code. */
     code: Schema.Literal("flow_cycle_detected"),

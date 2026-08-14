@@ -51,7 +51,7 @@ export type PlanStoreErrorCode = typeof PlanStoreErrorCode.Type
  * @since 0.1.0
  * @category errors
  */
-export class PlanStoreError extends Schema.TaggedError<PlanStoreError>()("flows/plan/PlanStoreError", {
+export class PlanStoreError extends Schema.TaggedError<PlanStoreError>()("@smthrs/plan-next/PlanStoreError", {
   code: PlanStoreErrorCode,
   message: Schema.String,
   cause: Schema.optional(Schema.Unknown)
@@ -92,7 +92,7 @@ export interface Service {
  * @since 0.1.0
  * @category services
  */
-export class PlanStore extends Context.Service<PlanStore, Service>()("flows/plan/PlanStore") {}
+export class PlanStore extends Context.Service<PlanStore, Service>()("@smthrs/plan-next/PlanStore") {}
 
 const error = (code: PlanStoreErrorCode, message: string, cause: unknown): PlanStoreError =>
   new PlanStoreError({ code, message, cause })

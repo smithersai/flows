@@ -48,7 +48,7 @@ describe("StepSandbox", () => {
       workflow: Effect.flatMap(FileSystem.FileSystem, (fs) => fs.readFileString("src/secret.txt"))
     })))
     expect(failure).toMatchObject({
-      _tag: "flows/engine-store/UndeclaredRead",
+      _tag: "@smthrs/engine-store-next/UndeclaredRead",
       code: "undeclared_read",
       paths: ["src/secret.txt"]
     })
@@ -68,7 +68,7 @@ describe("StepSandbox", () => {
       workflow: Effect.flatMap(FileSystem.FileSystem, (fs) => fs.readFileString("src/secret.txt"))
     })))
     expect(failure).toMatchObject({
-      _tag: "flows/engine-store/UndeclaredRead",
+      _tag: "@smthrs/engine-store-next/UndeclaredRead",
       code: "undeclared_read",
       paths: ["src/secret.txt"]
     })

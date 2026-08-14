@@ -181,36 +181,39 @@ export const makeMemory = (options: PresenceOptions): Effect.Effect<Service, nev
       return remaining.sort((left, right) => left.participantId < right.participantId ? -1 : 1)
     }
 
-    const announce = (announcement: Announcement): Effect.Effect<Participant, SyncError> =>
-      Effect.gen(function*() {
-        yield* share.verify(announcement.capability, { branchId: announcement.branchId, access: "write" })
-        const nowMs = yield* Clock.currentTimeMillis
-        const participant = new Participant({
-          branchId: announcement.branchId,
-          participantId: announcement.participantId,
-          displayName: announcement.displayName,
-          cursor: announcement.cursor === null
-            ? null
-            : new Cursor({ cardId: announcement.cursor.cardId, offset: announcement.cursor.offset }),
-          leaseExpiresAtMs: nowMs + options.leaseMs
-        })
-        roster.set(key(announcement.branchId, announcement.participantId), participant)
-        yield* PubSub.publish(changes, announcement.branchId)
-        return participant
+    const announce = Effect.fn("BranchPresence.announce")(function*(announcement: Announcement) {
+      yield* Effect.annotateCurrentSpan({
+        branchId: announcement.branchId,
+        participantId: announcement.participantId
       })
+      yield* share.verify(announcement.capability, { branchId: announcement.branchId, access: "write" })
+      const nowMs = yield* Clock.currentTimeMillis
+      const participant = new Participant({
+        branchId: announcement.branchId,
+        participantId: announcement.participantId,
+        displayName: announcement.displayName,
+        cursor: announcement.cursor === null
+          ? null
+          : new Cursor({ cardId: announcement.cursor.cardId, offset: announcement.cursor.offset }),
+        leaseExpiresAtMs: nowMs + options.leaseMs
+      })
+      roster.set(key(announcement.branchId, announcement.participantId), participant)
+      yield* PubSub.publish(changes, announcement.branchId)
+      return participant
+    })
 
-    const leave = (request: LeaveRequest): Effect.Effect<void, SyncError> =>
-      Effect.gen(function*() {
-        yield* share.verify(request.capability, { branchId: request.branchId, access: "write" })
-        roster.delete(key(request.branchId, request.participantId))
-        yield* PubSub.publish(changes, request.branchId)
-      })
+    const leave = Effect.fn("BranchPresence.leave")(function*(request: LeaveRequest) {
+      yield* Effect.annotateCurrentSpan({ branchId: request.branchId, participantId: request.participantId })
+      yield* share.verify(request.capability, { branchId: request.branchId, access: "write" })
+      roster.delete(key(request.branchId, request.participantId))
+      yield* PubSub.publish(changes, request.branchId)
+    })
 
-    const list = (request: RosterRequest): Effect.Effect<ReadonlyArray<Participant>, SyncError> =>
-      Effect.gen(function*() {
-        yield* share.verify(request.capability, { branchId: request.branchId, access: "read" })
-        return live(request.branchId, yield* Clock.currentTimeMillis)
-      })
+    const list = Effect.fn("BranchPresence.list")(function*(request: RosterRequest) {
+      yield* Effect.annotateCurrentSpan({ branchId: request.branchId })
+      yield* share.verify(request.capability, { branchId: request.branchId, access: "read" })
+      return live(request.branchId, yield* Clock.currentTimeMillis)
+    })
 
     return make({ announce, leave, list, changes: Stream.fromPubSub(changes) })
   })

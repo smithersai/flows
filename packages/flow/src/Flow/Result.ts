@@ -164,7 +164,7 @@ export class Complete<A, E> extends Data.TaggedClass("Complete")<{
  * @since 4.0.0
  */
 export class Suspended extends Schema.Class<Suspended>(
-  "effect/flow/Flow/Suspended"
+  "@smthrs/flow-next/Flow/Suspended"
 )({
   _tag: Schema.tag("Suspended"),
   cause: Schema.optional(Schema.Cause(Schema.Never, Schema.Defect()))
@@ -202,7 +202,7 @@ export class Suspended extends Schema.Class<Suspended>(
  * @since 0.1.0
  */
 export class Handoff extends Schema.Class<Handoff>(
-  "effect/flow/Flow/Handoff"
+  "@smthrs/flow-next/Flow/Handoff"
 )({
   _tag: Schema.tag("Handoff"),
   flow: Schema.NonEmptyString,

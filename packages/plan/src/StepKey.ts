@@ -179,7 +179,7 @@ export interface OrdinalIdentity {
  * @since 0.1.0
  * @category errors
  */
-export class KeyMaterialError extends Schema.TaggedError<KeyMaterialError>()("flows/plan/KeyMaterialError", {
+export class KeyMaterialError extends Schema.TaggedError<KeyMaterialError>()("@smthrs/plan-next/KeyMaterialError", {
   code: Schema.Literals(["missing_dependency", "non_content_material"]),
   message: Schema.String
 }) {}

@@ -90,7 +90,7 @@ export const Placement = Context.Service<PlacementDirective>("@smthrs/flow-next/
  * @since 4.0.0
  */
 export const CaptureDefects = Context.Reference<boolean>(
-  "effect/flow/Flow/CaptureDefects",
+  "@smthrs/flow-next/Flow/CaptureDefects",
   {
     defaultValue: constTrue
   }
@@ -107,7 +107,7 @@ export const CaptureDefects = Context.Reference<boolean>(
  * @since 4.0.0
  */
 export const SuspendOnFailure = Context.Reference<boolean>(
-  "effect/flow/Flow/SuspendOnFailure",
+  "@smthrs/flow-next/Flow/SuspendOnFailure",
   {
     defaultValue: constFalse
   }

@@ -25,7 +25,7 @@ import { validateUnicode } from "./Unicode.ts"
 
 /** @private */
 const CanonicalString = Schema.String.pipe(
-  Schema.brand("flows/canonical/Canonical")
+  Schema.brand("@smthrs/canonical-next/Canonical")
 )
 
 /**

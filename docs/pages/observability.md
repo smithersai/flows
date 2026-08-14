@@ -31,21 +31,35 @@ Executable state is deliberately outside that chokepoint. Run state, attempt che
 
 | Span | Attributes | Source |
 | --- | --- | --- |
-| `<FlowTag>.execute` | none | `@smthrs/flow-next` `Flow/make.ts` |
+| `<FlowTag>.execute` | `executionId` | `@smthrs/flow-next` `Flow/make.ts` |
 | `<FlowTag>.poll` | `executionId` | `@smthrs/flow-next` `Flow/make.ts` |
 | `<FlowTag>.interrupt` | `executionId` | `@smthrs/flow-next` `Flow/make.ts` |
 | `<FlowTag>.resume` | `executionId` | `@smthrs/flow-next` `Flow/make.ts` |
-| `<action name>` | none | `@smthrs/flow-next` `Action/make.ts`, around every action dispatch |
-| `FlowEngine.deferredResult` | `name` | `@smthrs/engine-next` `FlowEngine/make.ts` |
+| `<action name>` | `executionId`, `attempt`, `action` | `@smthrs/flow-next` `Action/make.ts`, around every action dispatch |
+| `FlowEngine.deferredResult` | `name`, `executionId` | `@smthrs/engine-next` `FlowEngine/make.ts` |
 | `FlowEngine.deferredDone` | `name`, `executionId` | `@smthrs/engine-next` `FlowEngine/make.ts` |
 | `FlowEngine.scheduleClock` | `executionId`, `name` | `@smthrs/engine-next` `FlowEngine/make.ts` |
 | `DurableQueue/<name>/worker` | parented to the offering span through `Tracer.externalSpan` | `@smthrs/flow-next` `DurableQueue.ts` |
+
+The store packages open one `Effect.fn` span per service operation, named `Module.method` (`RunStore.claim`, `CacheStore.get`, `Journal.emitDurable`, `ActionPersistence.execute`, `PlanScheduler.dispatch`, `WorkspaceSandbox.materialize`, `TimeTravel.fork`, `BranchShare.verify`, and so on). Every hot-path span annotates the identifiers a debugger needs, as the operation's first statement (`Effect.annotateCurrentSpan`), with values computed mid-operation — a key digest, a diff identity — annotated the moment they exist:
+
+| Path | Attributes |
+| --- | --- |
+| dispatch (`FlowEngine.actionExecute`, `ActionPersistence.execute`) | `runId`, `key`/`keyDigest`, `attempt`, `tier` |
+| scheduler (`PlanScheduler.run`/`.dispatch`) | `runId`, `planId`, `nodeId`, `dispatchKey`, `attempt` |
+| claims and transitions (`RunDriver.claimAndActivate`, `RunStore.*`) | `runId`, `status`, the CAS target and claimant |
+| attempts (`AttemptStore.*`) | `runId`, `stepKeyDigest`, `attempt` |
+| cache (`CacheStore.*`, remote and combined tiers) | `keyDigest` |
+| boundary and sandbox (`StepBoundary.*`, `WorkspaceSandbox.*`) | `boundaryMode`, read/write/change counts, `diffIdentity`, `path` |
+| journal (`Journal.*`) | `runId`, `sourceId`, `eventType`, cursors |
+| time-travel (`TimeTravel.*`, `TimeTravelStore.*`) | `runId`, `lineageId`, `seq` |
+| sync (`BranchShare.*`, `BranchPresence.*`, `BranchCommands.*`) | `branchId`, `participantId`, `access` — never capability material |
 
 Every span sets `captureStackTrace: false`. The queue worker is the one place trace context crosses a durable boundary: the offer records `traceId`, `spanId`, and `sampled` on the item, and the worker reattaches to that external span, so a persisted queue item stays connected to the flow that offered it.
 
 ## Metrics
 
-The store packages define `Metric` counters beside the code that updates them, one `<Service>Metrics` module per package: journal write receipts, durable write replays, run claim and heartbeat and transition outcomes (fencing events included), step-cache lookups and recordings, artifact puts and gets. [Telemetry](/telemetry) tables every counter with its attributes and shows the export wiring; the handles themselves are exported, so a program can read them with `Metric.value` without any exporter.
+The store packages define `Metric` handles beside the code that updates them, one `<Service>Metrics` module per package: journal write receipts, durable write replays, run claim and heartbeat and transition outcomes (fencing events included), step-cache lookups and recordings, artifact puts and gets, and — through `EngineStoreMetrics` — the engine-store hot paths: dispatch outcomes with a latency histogram, scheduler rounds, wave latency and per-node outcomes, sandbox executions and materializations with their copy-back conflicts, boundary settlements by classification, and the run driver's claim decisions. Durations land in `Metric.timer` histograms through Effect's own `Effect.trackDuration`, and outcome counters observe the exit through `Effect.onExit`, so instrumentation can never alter a result or a cause. [Telemetry](/telemetry) tables every series with its attributes and shows the export wiring; the handles themselves are exported, so a program can read them with `Metric.value` without any exporter.
 
 ## Logging
 
@@ -58,8 +72,12 @@ Logging is sparse and deliberate. The engine logs where an operator needs to kno
 | deferred persistence failure | warning | a lossy-sink failure after the durable completion already committed |
 | queue worker failure | warning | a worker handler cause, before the loop continues |
 | journal auto-compaction failure | warning | a compaction-policy attempt failed or was refused; damped and retried after the next threshold |
+| time-travel anchor refresh failure | warning | a fork or rewind proceeds on the last recorded anchors; the cause travels structurally, `runId` in the annotations |
+| run claim decisions | debug | steal refused, claim lost, or activation lost, with the store outcome |
+| run activated | debug | a drive claimed and re-entered a run, with its flow name |
+| scheduler round admitted | debug | one wavefront round's admission summary: round, pending, ready, admitted, agents |
 
-Log annotations are attached by `DurableQueue` (`package`, `module`, `fiber`, `queueName`) and by `FlowProxyServer` around its handlers. Everything else inherits whatever annotations the caller has set.
+Ambient log context rides on `Effect.annotateLogs`: the run driver annotates `runId` across an entire drive (every log a flow body emits inherits it), `ActionPersistence` annotates `runId` across a dispatch, and `PlanScheduler` annotates `runId` and `planId` across a plan run. `DurableQueue` (`package`, `module`, `fiber`, `queueName`) and `FlowProxyServer` annotate their own fibers as before.
 
 ## Debugging aids
 
@@ -79,9 +97,10 @@ Log annotations are attached by `DurableQueue` (`package`, `module`, `fiber`, `q
 
 | Surface | Status |
 | --- | --- |
-| Latency histograms or gauges; the shipped metrics are counters over outcomes | Planned |
-| Documented spans outside `@smthrs/flow-next` and `@smthrs/engine-next` | `@smthrs/database-next`, `@smthrs/journal-next`, `@smthrs/run-store-next`, `@smthrs/step-cache-next`, `@smthrs/plan-next`, `@smthrs/artifacts-next`, `@smthrs/engine-store-next`, `@smthrs/kernel-next`, `@smthrs/sync-next`, and `@smthrs/time-travel-next` each open one `Effect.fn` span per service operation, named after that operation and declaring no attributes; this page does not enumerate them |
+| Gauges (queue depths, roster sizes); the shipped series are counters and duration histograms | Planned |
 | A run inspector or dashboard | Planned; the journal and sync are the substrate one would build on |
 | Structured audit of permission decisions beyond the grant events | Planned |
+
+Latency histograms and store-span attributes, formerly listed here as planned or absent, shipped: dispatch, scheduler-wave, and sandbox durations are `Metric.timer` histograms in `EngineStoreMetrics`, and the store spans carry the identifier attributes tabled under Tracing above.
 
 Journal checkpointing and compaction, formerly listed here as planned, shipped in `@smthrs/journal-next`: [Checkpoints and compaction](/compaction).

@@ -144,7 +144,7 @@ describe("engine-store action tiers", () => {
     const result = await runPromise(program)
     expect(result.withoutKey).toMatchObject({
       _tag: "Failure",
-      failure: { _tag: "flows/engine-store/IrreversibleRetryRequiresIdempotencyKey" }
+      failure: { _tag: "@smthrs/engine-store-next/IrreversibleRetryRequiresIdempotencyKey" }
     })
     expect(result.withKey).toBe("once")
   })
@@ -172,7 +172,7 @@ describe("engine-store action tiers", () => {
     )
     expect(await runPromise(hard)).toMatchObject({
       _tag: "Failure",
-      failure: { _tag: "flows/engine-store/UndeclaredWrite" }
+      failure: { _tag: "@smthrs/engine-store-next/UndeclaredWrite" }
     })
 
     const expected = Effect.gen(function*() {

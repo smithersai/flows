@@ -14,6 +14,7 @@
  */
 import type { OwnerId } from "@smthrs/journal-next/OwnerId"
 import * as Context from "effect/Context"
+import * as Crypto from "effect/Crypto"
 import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Random from "effect/Random"
@@ -39,7 +40,9 @@ export interface Service {
  * @category services
  * @since 0.1.0
  */
-export class OwnerIdentity extends Context.Service<OwnerIdentity, Service>()("flows/engine-store/OwnerIdentity") {}
+export class OwnerIdentity
+  extends Context.Service<OwnerIdentity, Service>()("@smthrs/engine-store-next/OwnerIdentity")
+{}
 
 /**
  * Constructs an owner identity source from an implementation.
@@ -54,14 +57,16 @@ export const make = (service: Service): Service => OwnerIdentity.of(service)
  *
  * Read off `globalThis` rather than through a bare `process` reference so the
  * module carries no Node binding at all: a browser bundle sees `undefined`
- * here and falls through to a drawn incarnation number instead. This is the one
- * place in the package that looks at the platform, which is exactly what makes
- * it replaceable — a host that knows better provides its own {@link Service}.
+ * here and falls through to a drawn incarnation number instead. The read
+ * happens at layer construction — {@link layer} — so importing the module
+ * touches nothing.
  */
-const hostProcessId = (globalThis as { readonly process?: { readonly pid?: number } }).process?.pid
+const hostProcessId = (): number | undefined =>
+  (globalThis as { readonly process?: { readonly pid?: number } }).process?.pid
 
 /**
- * Builds the standard identity source over an explicitly supplied process id.
+ * Builds the standard identity source over an explicitly supplied process id
+ * and the injected `Crypto` service.
  *
  * On node and bun `pid` is the real process id, so the minted token is exactly
  * what the store produced before this service existed. A browser tab has no
@@ -72,45 +77,42 @@ const hostProcessId = (globalThis as { readonly process?: { readonly pid?: numbe
  * where a backend exposes no connection pid (`reference/effect`
  * `unstable/cluster/SqlRunnerStorage.ts`).
  *
- * The nonce is a fresh Web Crypto UUID — the same generator the removed
- * `node:crypto` import reached, and a global on node, bun, and in a secure
- * browser context, so one implementation serves every supported host.
+ * The nonce is a UUIDv4 drawn from the injected `effect/Crypto` service — the
+ * closed-host seam every composition already provides for digesting — so no
+ * ambient `crypto` global is reached from a hot path. A host whose crypto
+ * cannot mint a UUID cannot fence anything, so that refusal is a defect.
  *
  * @category constructors
  * @since 0.1.0
  */
-export const makeIncarnation = (pid: number | undefined): Service => {
+export const makeIncarnation = (pid: number | undefined, crypto: Crypto.Crypto): Service => {
   const incarnationId: Effect.Effect<number> = pid === undefined
     ? Random.nextIntBetween(0, Number.MAX_SAFE_INTEGER, { halfOpen: true })
     : Effect.succeed(pid)
   return make({
     ownerId: Effect.fn("OwnerIdentity.ownerId")(function*(hostId) {
+      yield* Effect.annotateCurrentSpan({ hostId })
       return {
         hostId,
         pid: yield* incarnationId,
-        nonce: crypto.randomUUID()
+        nonce: yield* crypto.randomUUIDv4.pipe(Effect.orDie)
       } satisfies OwnerId
     })
   })
 }
 
 /**
- * The default identity source: {@link makeIncarnation} over whatever process
- * id the running platform reports.
- *
- * @category constructors
- * @since 0.1.0
- */
-export const makeDefault = (): Service => makeIncarnation(hostProcessId)
-
-/**
- * Provides {@link makeDefault}. This is what engine composition supplies
- * unless a host has a better answer.
+ * Provides {@link makeIncarnation} over whatever process id the running
+ * platform reports and the composition's `Crypto` service. This is what
+ * engine composition supplies unless a host has a better answer.
  *
  * @category layers
  * @since 0.1.0
  */
-export const layer: Layer.Layer<OwnerIdentity> = Layer.sync(OwnerIdentity)(makeDefault)
+export const layer: Layer.Layer<OwnerIdentity, never, Crypto.Crypto> = Layer.effect(
+  OwnerIdentity,
+  Effect.map(Crypto.Crypto, (crypto) => makeIncarnation(hostProcessId(), crypto))
+)
 
 /**
  * Provides a fixed identity. A test — or a host that derives ownership from

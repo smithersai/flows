@@ -24,7 +24,7 @@ const layer = Layer.mergeAll(RunStore.layer, AttemptStore.layer).pipe(
 
 | Export | Kind | Notes |
 | --- | --- | --- |
-| `RunStore` | service tag | `flows/journal/RunStore` |
+| `RunStore` | service tag | `@smthrs/run-store-next/RunStore` |
 | `RunStatus` | const + type | `pending`, `running`, `suspended`, `completed`, `failed`, `cancelled` |
 | `RunRow`, `RunSnapshot`, `CreateOptions`, `TransitionGuard` | interfaces | row and argument shapes |
 | `RunStoreError`, `RunStoreErrorCode` | class + codes | |
