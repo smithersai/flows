@@ -21,13 +21,18 @@
  *    dispatch under differs from the one it dispatched under, and the
  *    dispatch-time recheck already computes that. There is no dirty bit to
  *    propagate, so there is nothing for a visitor to walk.
- * 2. **A wavefront, not restart-based dependency discovery.** Skyframe
- *    restarts a `SkyFunction` when it asks for a value that is not ready; our
- *    dependencies are declared in the plan before anything runs, so a round
- *    admits every ready node the caps allow and waits for it. The cost is that
- *    a round is a barrier; the benefit is that scheduling is a pure function
- *    of the plan and the settled set, which is what makes these tests
- *    deterministic without the `DeterministicHelper` the vault rejected.
+ * 2. **Completion-driven, without Skyframe restarts.** Skyframe atomically
+ *    signals reverse dependencies when one node settles. Our dependencies are
+ *    declared in the plan before anything runs, so one coordinator can make
+ *    the equivalent decision from the plan, settled state, and scheduling
+ *    permits: every completion is reconciled and immediately opens another
+ *    admission pass. Giving up the wavefront barrier also gives up its
+ *    trivially serialized reconciliation; draining and applying the durable
+ *    deviation journal after each settlement, before reevaluating downstream
+ *    readiness, restores that ordering without holding unrelated ready cones.
+ *    The coordinator is the sole writer of scheduling state, which keeps every
+ *    admission decision deterministic without the `DeterministicHelper` the
+ *    vault rejected.
  *
  * ## The three limits
  *
@@ -39,9 +44,11 @@
  * `Agent Adapters` and are not modelled here.
  *
  * Under contention, ready work is ordered by effective priority — declared
- * `priority` plus one point per round spent waiting. Aging is what lets
- * priority change latency without permitting starvation; equal effective
- * priorities preserve deterministic plan order.
+ * `priority` plus one point per capacity-constrained admission pass. A ready
+ * node gains a point exactly when a pass considers it but cannot give it the
+ * required permits. Aging is what lets priority change latency without
+ * permitting starvation; equal effective priorities preserve deterministic
+ * plan order.
  *
  * ## Observing the world exactly once
  *
@@ -71,6 +78,7 @@ import * as Exit from "effect/Exit"
 import * as FileSystem from "effect/FileSystem"
 import * as Layer from "effect/Layer"
 import * as Option from "effect/Option"
+import * as Queue from "effect/Queue"
 import * as Ref from "effect/Ref"
 import * as Schema from "effect/Schema"
 import * as ActionPersistence from "./internal/ActionPersistence.ts"
@@ -225,7 +233,7 @@ export interface Options {
    * The admission caps. Both default to unbounded, because a cap the caller
    * did not declare is not the scheduler's to invent — `aspects.ts` owns the
    * policy and narrows it. Both floor at one: a cap of zero admits nothing,
-   * and a round that admits nothing never settles anything.
+   * and a scheduler with no permits can never make progress.
    */
   readonly concurrency?: {
     readonly steps?: number | undefined
@@ -340,12 +348,22 @@ const digestOf = Schema.decodeUnknownEffect(Sha256)
 
 /** @private */
 interface NodeState {
-  status: "pending" | "settled"
+  status: "pending" | "running" | "settled"
   outcome: Outcome
   attempts: number
   rebases: number
   waited: number
   dispatchKey: string
+}
+
+/** @private */
+interface DispatchStart {
+  readonly dispatchKey: string
+  readonly attempts: number
+  readonly rebases: number
+  readonly waited: number
+  readonly results: ReadonlyMap<string, unknown>
+  readonly inputs: ReadonlyArray<ResolvedInput>
 }
 
 /** @private */
@@ -356,9 +374,43 @@ interface ObservedRead {
 }
 
 /** @private */
-type Dispatched =
-  | { readonly outcome: "built" | "clean" | "failed" }
-  | { readonly outcome: "conflicted"; readonly strategy: Plan.RuntimeStrategy }
+interface DispatchProgress {
+  readonly dispatchKey: string
+  readonly attempts: number
+  readonly rebases: number
+}
+
+/** @private */
+interface CompletedDispatch extends DispatchProgress {
+  readonly outcome: "built" | "clean"
+  readonly result: unknown
+}
+
+/** @private */
+interface FailedDispatch extends DispatchProgress {
+  readonly outcome: "failed"
+}
+
+/** @private */
+interface ConflictedDispatch extends DispatchProgress {
+  readonly outcome: "conflicted"
+  readonly strategy: Plan.RuntimeStrategy
+}
+
+/** @private */
+type Dispatched = CompletedDispatch | FailedDispatch | ConflictedDispatch
+
+/** @private */
+interface DispatchSettlementEvent {
+  readonly _tag: "DispatchSettled"
+  readonly node: Plan.PlanNode
+  readonly exit: Exit.Exit<Dispatched, SchedulerError>
+}
+
+/** @private */
+type CoordinatorEvent =
+  | { readonly _tag: "AttemptKeyed"; readonly nodeId: string; readonly digest: string }
+  | DispatchSettlementEvent
 
 const storeFailure = (message: string) => (cause: unknown) =>
   new SchedulerError({ code: "store_failed", message, cause })
@@ -371,10 +423,9 @@ const storeFailure = (message: string) => (cause: unknown) =>
  */
 export const make = (options: Options): Service => {
   const rebaseLimit = options.rebaseLimit ?? 3
-  // A cap below one is not admission control, it is a stop: a round that
-  // admits nothing settles nothing, so the wavefront would spin forever
-  // ageing work it can never dispatch. Both caps therefore floor at one — the
-  // scheduler narrows latency, never liveness.
+  // A cap below one is not admission control, it is a stop: no node could ever
+  // acquire a permit, so ready work would wait forever. Both caps therefore
+  // floor at one — the scheduler narrows latency, never liveness.
   const stepCap = Math.max(1, options.concurrency?.steps ?? Number.MAX_SAFE_INTEGER)
   const agentCap = Math.max(1, options.concurrency?.agents ?? Number.MAX_SAFE_INTEGER)
 
@@ -459,6 +510,7 @@ export const make = (options: Options): Service => {
       const writers = new Map<string, string>()
       const writerEntries: Array<{ readonly entry: FileSet.Entry; readonly nodeId: string }> = []
       let cursor: number | undefined = undefined
+      const events = yield* Queue.unbounded<CoordinatorEvent>()
 
       const stateOf = (node: Plan.PlanNode): NodeState => {
         const existing = states.get(node.id)
@@ -703,12 +755,16 @@ export const make = (options: Options): Service => {
        * input files differ declare the same graph, and serving one the other's
        * result is exactly the staleness the boundary exists to prevent.
        */
-      const dispatchKeyFor = (node: Plan.PlanNode, boundary: FileBoundary) =>
+      const dispatchKeyFor = (
+        node: Plan.PlanNode,
+        boundary: FileBoundary,
+        settledResults: ReadonlyMap<string, unknown>
+      ) =>
         StepKey.dispatchIdentity({
           material: node.material,
           results: Object.fromEntries(
             node.material.inputs.flatMap((input) =>
-              input._tag === "Ref" ? [[input.from, results.get(input.from)] as const] : []
+              input._tag === "Ref" ? [[input.from, settledResults.get(input.from)] as const] : []
             )
           ),
           digestMemo,
@@ -773,7 +829,7 @@ export const make = (options: Options): Service => {
             // Persisting the edge is the caller's next elaboration; the
             // verdict is journaled so it can be.
             for (const owner of verdict.dependsOn) {
-              if (states.get(owner)?.status === "settled") continue
+              if (states.get(owner)?.status !== "pending") continue
               discovered.set(owner, [...new Set([...discovered.get(owner) ?? [], nodeId])])
             }
           }
@@ -781,47 +837,44 @@ export const make = (options: Options): Service => {
           // collapse to one key by themselves, so the second is a `clean`.
         })
 
-      const dispatch = (node: Plan.PlanNode): Effect.Effect<Dispatched, SchedulerError, Requirements> =>
+      const dispatch = (
+        node: Plan.PlanNode,
+        start: DispatchStart
+      ): Effect.Effect<Dispatched, SchedulerError, Requirements> =>
         Effect.gen(function*() {
-          const state = stateOf(node)
-          // Only material `Ref` inputs, pre-projected. `dependenciesOf` also
-          // carries `Pending` and discovered ordering edges, but those never
-          // enter the dispatch key, so their results must never reach an
-          // executor either.
-          const inputs = node.material.inputs.flatMap((input) =>
-            input._tag === "Ref" && results.has(input.from)
-              ? [{ from: input.from, path: input.path, value: StepKey.project(results.get(input.from), input.path) }]
-              : []
-          )
+          // Attempt bookkeeping is local to this fiber. The coordinator owns
+          // the durable scheduler state and applies this progress only when it
+          // processes the terminal event.
+          let dispatchKey = start.dispatchKey
+          let attempts = start.attempts
+          let rebases = start.rebases
           while (true) {
             const boundary = yield* measure(node)
-            const dispatchKey = yield* dispatchKeyFor(node, boundary)
-            if (state.dispatchKey !== "" && state.dispatchKey !== dispatchKey) {
-              yield* emit(JournalRecords.nodeInvalidated(source(`node/${node.id}/${state.attempts}/invalidated`), {
+            const measuredKey = yield* dispatchKeyFor(node, boundary, start.results)
+            if (dispatchKey !== "" && dispatchKey !== measuredKey) {
+              yield* emit(JournalRecords.nodeInvalidated(source(`node/${node.id}/${attempts}/invalidated`), {
                 planId: plan.planId,
                 nodeId: node.id,
                 planKey: node.key,
-                from: state.dispatchKey,
-                to: dispatchKey,
+                from: dispatchKey,
+                to: measuredKey,
                 reason: "measured-inputs-changed"
               }))
             }
-            state.dispatchKey = dispatchKey
-            state.attempts = state.attempts + 1
-            yield* emit(JournalRecords.nodeScheduled(source(`node/${node.id}/${state.attempts}`), {
+            dispatchKey = measuredKey
+            attempts = attempts + 1
+            yield* emit(JournalRecords.nodeScheduled(source(`node/${node.id}/${attempts}`), {
               planId: plan.planId,
               nodeId: node.id,
               kind: node.kind,
               planKey: node.key,
               dispatchKey,
-              attempt: state.attempts,
+              attempt: attempts,
               priority: node.priority,
-              waited: state.waited
+              waited: start.waited
             }))
             const dispatchDigest = yield* Effect.orDie(digestOf(dispatchKey))
-            const dispatchedUnder = digestToNode.get(dispatchDigest)
-            if (dispatchedUnder === undefined) digestToNode.set(dispatchDigest, [node.id])
-            else if (!dispatchedUnder.includes(node.id)) dispatchedUnder.push(node.id)
+            yield* Queue.offer(events, { _tag: "AttemptKeyed", nodeId: node.id, digest: dispatchDigest })
             const ran = yield* Ref.make(false)
             const exit = yield* ActionPersistence.make({
               runId: options.runId,
@@ -829,11 +882,11 @@ export const make = (options: Options): Service => {
               sourceId: `${options.sourceId}/node/${node.id}`,
               execute: () =>
                 Ref.set(ran, true).pipe(
-                  Effect.andThen(executor.execute({ node, attempt: state.attempts, boundary, inputs }))
+                  Effect.andThen(executor.execute({ node, attempt: attempts, boundary, inputs: start.inputs }))
                 )
             })({
               action: {},
-              attempt: state.attempts,
+              attempt: attempts,
               key: dispatchKey,
               tier: "sealed",
               nondeterministic: node.material.nondeterministic,
@@ -842,20 +895,29 @@ export const make = (options: Options): Service => {
               Effect.exit
             )
             if (Exit.isSuccess(exit)) {
-              results.set(node.id, exit.value)
-              return { outcome: (yield* Ref.get(ran)) ? "built" : "clean" } as const
+              return {
+                outcome: (yield* Ref.get(ran)) ? "built" : "clean",
+                result: exit.value,
+                dispatchKey,
+                attempts,
+                rebases
+              } as const
             }
-            if (!isConflict(exit.cause)) return { outcome: "failed" } as const
+            // Losing a fence self-interrupts `ActionPersistence`. An
+            // interrupted dispatch is the run losing ownership, never a node
+            // failure that the scheduler may report and continue past.
+            if (Cause.hasInterrupts(exit.cause)) return yield* Effect.interrupt
+            if (!isConflict(exit.cause)) return { outcome: "failed", dispatchKey, attempts, rebases } as const
             const strategy = runtimeStrategyOf(node)
-            if (strategy === "delay-rebase" && state.rebases < rebaseLimit) {
-              // Hold the dependents — they are not ready while this node is
-              // pending — and re-execute against the newly recorded base. The
+            if (strategy === "delay-rebase" && rebases < rebaseLimit) {
+              // Hold the dependents — they are not ready while this node is in
+              // flight — and re-execute against the newly recorded base. The
               // next turn of the loop re-measures, which re-keys, which is a
               // new attempt rather than a retry of the old identity.
-              state.rebases = state.rebases + 1
+              rebases = rebases + 1
               continue
             }
-            return { outcome: "conflicted", strategy } as const
+            return { outcome: "conflicted", strategy, dispatchKey, attempts, rebases } as const
           }
         })
 
@@ -906,6 +968,42 @@ export const make = (options: Options): Service => {
           yield* append(grown)
         })
 
+      const pendingSettlements: Array<DispatchSettlementEvent> = []
+      const registerAttempt = (event: Extract<CoordinatorEvent, { readonly _tag: "AttemptKeyed" }>) => {
+        const dispatchedUnder = digestToNode.get(event.digest)
+        if (dispatchedUnder === undefined) {
+          digestToNode.set(event.digest, [event.nodeId])
+        } else if (!dispatchedUnder.includes(event.nodeId)) {
+          digestToNode.set(event.digest, [...dispatchedUnder, event.nodeId])
+        }
+      }
+      /**
+       * Absorbs every report already offered without processing another node's
+       * settlement. Attempt-key reports update attribution state immediately;
+       * terminal reports stay ordered in `pendingSettlements` for the one-at-a-
+       * time coordinator. A deviation can appear in a journal page only after
+       * its attempt-key report was offered, so calling this after each page
+       * closes the journal/queue observation race without a shared mutable map.
+       */
+      const drainReportedEvents = Effect.gen(function*() {
+        while (true) {
+          const next = yield* Queue.poll(events)
+          if (Option.isNone(next)) return
+          if (next.value._tag === "AttemptKeyed") registerAttempt(next.value)
+          else pendingSettlements.push(next.value)
+        }
+      })
+
+      const nextSettlement = Effect.gen(function*() {
+        const pending = pendingSettlements.shift()
+        if (pending !== undefined) return pending
+        while (true) {
+          const event = yield* Queue.take(events)
+          if (event._tag === "DispatchSettled") return event
+          registerAttempt(event)
+        }
+      })
+
       /**
        * The first consumer `flows.engine.expected-set-deviation` has ever had.
        * The events are read from the journal rather than from the attempt row
@@ -923,18 +1021,30 @@ export const make = (options: Options): Service => {
        *    node saw no peer and was failed, and only the second was factored
        *    out. Every deviation on the page is attributed first, so both sides
        *    of a pair see each other.
-       * 2. **Drain the journal, not one page of it.** A wide round journals
-       *    more records than one page holds, and the last round is the one that
-       *    matters: nothing follows it to pick up what a single page left
-       *    behind, so a deviation past the cursor would never reach the seam.
+       * 2. **Drain the journal, not one page of it.** Concurrent dispatches can
+       *    journal more records than one page holds, and the final completion
+       *    is the one that matters: nothing follows it to pick up what a single
+       *    page left behind, so a deviation past the cursor would never reach
+       *    the seam.
        */
+      const pendingDeviations: Array<{
+        readonly nodeId: string
+        readonly signature: string
+        readonly payload: typeof DeviationPayload.Type
+      }> = []
       const drainDeviations = Effect.gen(function*() {
-        while (true) {
+        let hasMore = true
+        while (hasMore) {
           const page = yield* journal.entries({
             runId: options.runId as JournalEvent.RunId,
             ...(cursor === undefined ? {} : { after: cursor as JournalEvent.Seq }),
             limit: 512
           }).pipe(Effect.mapError(storeFailure("could not read the run's journal")))
+          // Every deviation in this page causally follows its attempt-key
+          // report. Absorb those reports now, after the journal read, so even
+          // an in-flight sibling can be attributed without dispatch fibers
+          // mutating coordinator state.
+          yield* drainReportedEvents
           const attributed: Array<{ nodeId: string; signature: string; payload: typeof DeviationPayload.Type }> = []
           for (const entry of page.entries) {
             cursor = entry.seq
@@ -952,7 +1062,17 @@ export const make = (options: Options): Service => {
             deviationSignatures.set(nodeId, signature)
             attributed.push({ nodeId, signature, payload: payload.value })
           }
-          for (const { nodeId, payload, signature } of attributed) {
+          pendingDeviations.push(...attributed)
+          for (let index = 0; index < pendingDeviations.length;) {
+            const { nodeId, payload, signature } = pendingDeviations[index]!
+            // A concurrent dispatch can durably journal its deviation before
+            // its terminal event reaches the head of the coordinator queue.
+            // Its signature participates in symmetric attribution now, but
+            // its verdict waits until that node's settlement is processed.
+            if (states.get(nodeId)?.status !== "settled") {
+              index = index + 1
+              continue
+            }
             const alsoDeviatedBy = [...deviationSignatures.entries()]
               .filter(([other, otherSignature]) => other !== nodeId && otherSignature === signature)
               .map(([other]) => other)
@@ -972,8 +1092,9 @@ export const make = (options: Options): Service => {
               alsoDeviatedBy
             })
             yield* applyVerdict(nodeId, verdict, "deviation")
+            pendingDeviations.splice(index, 1)
           }
-          if (!page.hasMore) break
+          hasMore = page.hasMore
         }
       })
 
@@ -1045,91 +1166,200 @@ export const make = (options: Options): Service => {
       // future non-sink deferral from reaching dispatch with a missing
       // upstream result.
       const blockingOutcomes = new Set(["failed", "skipped", "deferred"])
-      while ([...states.values()].filter((state) => state.status === "settled").length < plan.nodes.length) {
-        const pending = plan.nodes.filter((node) => stateOf(node).status === "pending")
-        const blocked: Array<Plan.PlanNode> = []
-        const ready: Array<Plan.PlanNode> = []
-        for (const node of pending) {
-          const dependencies = dependenciesOf(node).map((id) => states.get(id))
-          if (dependencies.some((state) => state === undefined || state.status === "pending")) continue
-          if (dependencies.some((state) => blockingOutcomes.has(state!.outcome))) {
-            blocked.push(node)
-            continue
+      const passiveSettlements = Effect.gen(function*() {
+        while (true) {
+          const pending = plan.nodes.filter((node) => stateOf(node).status === "pending")
+          const blocked: Array<Plan.PlanNode> = []
+          const ready: Array<Plan.PlanNode> = []
+          for (const node of pending) {
+            const dependencies = dependenciesOf(node).map((id) => states.get(id))
+            if (dependencies.some((state) => state === undefined || state.status !== "settled")) continue
+            if (dependencies.some((state) => blockingOutcomes.has(state!.outcome))) {
+              blocked.push(node)
+              continue
+            }
+            ready.push(node)
           }
-          ready.push(node)
+          // Halt, not continue-on-failure: a dependent of failed work never
+          // dispatches. Repeating this pass makes the skip cascade settle in
+          // dependency order before any newly exposed work is admitted.
+          for (const node of blocked) yield* settle(node, "skipped")
+          if (blocked.length > 0) continue
+          // A deferral is a postponement, never a removal, and it only takes
+          // effect on work that was genuinely runnable: a marked sink whose
+          // cone failed settled `skipped` above instead, because work that
+          // could not have run is not a debt. The debt record precedes the
+          // settlement so `Selection.debt` reads them in cause-then-effect
+          // order.
+          const postponed = ready.filter((node) => deferrals.has(node.id))
+          for (const node of postponed) {
+            const debt = deferrals.get(node.id)!
+            yield* emit(JournalRecords.selectionDeferred(source(`node/${node.id}/selection-deferred`), {
+              planId: plan.planId,
+              nodeId: node.id,
+              planKey: node.key,
+              edge: debt.edge,
+              likelihood: debt.likelihood
+            }))
+            yield* settle(node, "deferred")
+          }
+          if (postponed.length > 0) continue
+          return ready
         }
-        // Halt, not continue-on-failure: a dependent of failed work never
-        // dispatches. `docs/specs/Concepts/Failure Policy.md`'s two open
-        // questions stay open — this is the conservative half both answers
-        // agree on.
-        for (const node of blocked) yield* settle(node, "skipped")
-        if (blocked.length > 0) continue
-        // A deferral is a postponement, never a removal, and it only takes
-        // effect on work that was genuinely runnable: a marked sink whose
-        // cone failed settles `skipped` above instead, because work that
-        // could not have run is not a debt. The debt record precedes the
-        // settlement so `Selection.debt` reads them in cause-then-effect
-        // order.
-        const postponed = ready.filter((node) => deferrals.has(node.id))
-        for (const node of postponed) {
-          const debt = deferrals.get(node.id)!
-          yield* emit(JournalRecords.selectionDeferred(source(`node/${node.id}/selection-deferred`), {
-            planId: plan.planId,
-            nodeId: node.id,
-            planKey: node.key,
-            edge: debt.edge,
-            likelihood: debt.likelihood
-          }))
-          yield* settle(node, "deferred")
-        }
-        if (postponed.length > 0) continue
-        /* v8 ignore next -- the plan compiler rejects cycles, so a round with pending work and nothing ready is unreachable */
-        if (ready.length === 0) break
+      })
 
-        const order = new Map(plan.nodes.map((node, index) => [node.id, index]))
-        const admitted: Array<Plan.PlanNode> = []
-        let agents = 0
-        const contenders = [...ready].sort((left, right) => {
-          const delta = (right.priority + stateOf(right).waited) - (left.priority + stateOf(left).waited)
-          return delta === 0 ? order.get(left.id)! - order.get(right.id)! : delta
-        })
-        for (const node of contenders) {
-          const isAgent = node.kind === "agent"
-          if (admitted.length >= stepCap || (isAgent && agents >= agentCap)) continue
-          if (isAgent) agents = agents + 1
-          admitted.push(node)
+      const dispatchStart = (node: Plan.PlanNode): DispatchStart => {
+        const state = stateOf(node)
+        const settledResults = new Map<string, unknown>()
+        const inputs: Array<ResolvedInput> = []
+        for (const input of node.material.inputs) {
+          if (input._tag !== "Ref") continue
+          const value = results.get(input.from)
+          settledResults.set(input.from, value)
+          // Admission proved every dependency settled successfully; `settle`
+          // records even an `undefined` result in the map, so every material
+          // Ref has a value to project here.
+          inputs.push({ from: input.from, path: input.path, value: StepKey.project(value, input.path) })
         }
-        for (const node of ready) {
-          if (!admitted.includes(node)) stateOf(node).waited = stateOf(node).waited + 1
+        return {
+          dispatchKey: state.dispatchKey,
+          attempts: state.attempts,
+          rebases: state.rebases,
+          waited: state.waited,
+          results: settledResults,
+          inputs
         }
-
-        const dispatched = yield* Effect.forEach(admitted, dispatch, { concurrency: "unbounded" })
-        for (let index = 0; index < admitted.length; index++) {
-          const node = admitted[index]!
-          const result = dispatched[index]!
-          if (result.outcome !== "conflicted") {
-            yield* settle(node, result.outcome)
-            continue
-          }
-          if (result.strategy === "stop-merge") {
-            yield* settle(node, "skipped")
-            yield* appendMerge(node)
-            continue
-          }
-          const state = stateOf(node)
-          const verdict = yield* reconciler.onConflict({
-            nodeId: node.id,
-            keyDigest: state.dispatchKey,
-            attempt: state.attempts,
-            rebases: state.rebases,
-            strategy: result.strategy,
-            conflictsWith: node.conflicts.map((conflict) => conflict.with)
-          })
-          yield* settle(node, "failed")
-          yield* applyVerdict(node.id, verdict, "materialization-conflict")
-        }
-        yield* drainDeviations
       }
+
+      yield* Effect.scoped(Effect.gen(function*() {
+        let inFlightSteps = 0
+        let inFlightAgents = 0
+        const pendingMerges: Array<{
+          readonly node: Plan.PlanNode
+          readonly peers: ReadonlyArray<string>
+        }> = []
+
+        const appendReadyMerges = Effect.gen(function*() {
+          for (let index = 0; index < pendingMerges.length;) {
+            const pending = pendingMerges[index]!
+            if (pending.peers.some((peer) => states.get(peer)?.status === "running")) {
+              index = index + 1
+              continue
+            }
+            yield* appendMerge(pending.node)
+            pendingMerges.splice(index, 1)
+          }
+        })
+
+        const admit = (ready: ReadonlyArray<Plan.PlanNode>) =>
+          Effect.gen(function*() {
+            const order = new Map(plan.nodes.map((node, index) => [node.id, index]))
+            const admitted: Array<Plan.PlanNode> = []
+            let admittedAgents = 0
+            const contenders = [...ready].sort((left, right) => {
+              const delta = (right.priority + stateOf(right).waited) - (left.priority + stateOf(left).waited)
+              return delta === 0 ? order.get(left.id)! - order.get(right.id)! : delta
+            })
+            for (const node of contenders) {
+              const isAgent = node.kind === "agent"
+              if (
+                inFlightSteps + admitted.length >= stepCap ||
+                (isAgent && inFlightAgents + admittedAgents >= agentCap)
+              ) continue
+              if (isAgent) admittedAgents = admittedAgents + 1
+              admitted.push(node)
+            }
+            // Event-driven aging: this admission pass considered every ready
+            // node, and only capacity can leave one behind.
+            for (const node of ready) {
+              if (!admitted.includes(node)) stateOf(node).waited = stateOf(node).waited + 1
+            }
+            const launches = admitted.map((node) => {
+              const state = stateOf(node)
+              const start = dispatchStart(node)
+              state.status = "running"
+              inFlightSteps = inFlightSteps + 1
+              if (node.kind === "agent") inFlightAgents = inFlightAgents + 1
+              return { node, start }
+            })
+            for (const { node, start } of launches) {
+              yield* dispatch(node, start).pipe(
+                Effect.exit,
+                Effect.flatMap((exit) => Queue.offer(events, { _tag: "DispatchSettled", node, exit })),
+                Effect.asVoid,
+                Effect.forkScoped({ startImmediately: true })
+              )
+            }
+          })
+
+        yield* Effect.flatMap(passiveSettlements, admit)
+        while (plan.nodes.some((node) => stateOf(node).status !== "settled")) {
+          /* v8 ignore next -- compiled plans are acyclic, inferred edges refuse cycle closure, and discovered edges point only from undispatched nodes to the already-settled node whose verdict added them; pending work with no in-flight producer therefore cannot have an empty ready set */
+          if (inFlightSteps === 0) break
+          const event = yield* nextSettlement
+          if (Exit.isFailure(event.exit)) return yield* Effect.failCause(event.exit.cause)
+
+          const node = event.node
+          const result = event.exit.value
+          const state = stateOf(node)
+          inFlightSteps = inFlightSteps - 1
+          if (node.kind === "agent") inFlightAgents = inFlightAgents - 1
+          state.dispatchKey = result.dispatchKey
+          state.attempts = result.attempts
+          state.rebases = result.rebases
+
+          switch (result.outcome) {
+            case "built":
+            case "clean":
+              results.set(node.id, result.result)
+              yield* settle(node, result.outcome)
+              break
+            case "failed":
+              yield* settle(node, "failed")
+              break
+            case "conflicted": {
+              if (result.strategy === "stop-merge") {
+                yield* settle(node, "skipped")
+                // The former dispatch barrier guaranteed that every
+                // conflicting sibling admitted beside this node had reported
+                // its result before `appendMerge` selected winners. Preserve
+                // that semantic boundary only for those already-running
+                // peers; unrelated work never holds the merge cone.
+                pendingMerges.push({
+                  node,
+                  peers: node.conflicts
+                    .map((conflict) => conflict.with)
+                    .filter((peer) => states.get(peer)?.status === "running")
+                })
+                break
+              }
+              const verdict = yield* reconciler.onConflict({
+                nodeId: node.id,
+                keyDigest: state.dispatchKey,
+                attempt: state.attempts,
+                rebases: state.rebases,
+                strategy: result.strategy,
+                conflictsWith: node.conflicts.map((conflict) => conflict.with)
+              })
+              yield* settle(node, "failed")
+              yield* applyVerdict(node.id, verdict, "materialization-conflict")
+              break
+            }
+          }
+
+          yield* appendReadyMerges
+
+          // The dispatch durably journalled every deviation before its event.
+          // Apply those verdicts before consulting downstream readiness.
+          yield* drainDeviations
+          // Process terminal events already observed by the journal drain
+          // before opening more permits. This preserves fail-fast behavior for
+          // an already-failed sibling while still admitting immediately when
+          // unrelated work is genuinely still in flight.
+          const ready = yield* passiveSettlements
+          if (pendingSettlements.length === 0) yield* admit(ready)
+        }
+      }))
 
       return {
         planId: plan.planId,
