@@ -388,6 +388,7 @@ export const fromKeyMaterial = (
 const materialBody = (material: KeyMaterial.KeyMaterial) => ({
   version: material.version,
   declaration: material.body,
+  ...(material.nondeterministic === undefined ? {} : { nondeterministic: material.nondeterministic }),
   ...(material.effects === undefined ? {} : { effects: material.effects }),
   ...(material.placement === undefined ? {} : { placement: material.placement })
 })
