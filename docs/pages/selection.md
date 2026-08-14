@@ -79,12 +79,12 @@ selection draws the same line, for the same reason: tests are sinks.
 ## Recertification debt
 
 A deferred step is a debt, not a decision. It is journaled with the guess
-that caused it, and a `SelectionDebt` query lists every open one — node, key,
+that caused it, and the `Selection.debt` query lists every open one — node, key,
 edge, likelihood, and journal provenance — so a guess-free pass can execute
 exactly what was deferred.
 
 v1 ships the primitives a recertification pass is built from: the
-`SelectionDebt` query and a run-level override that forces every verdict to
+`Selection.debt` query and a run-level override that forces every verdict to
 `Admit` for one run, itself journaled, the way `--fresh` ignores the cache.
 v1 does not ship a scheduled system flow that runs that pass automatically —
 a nightly or per-merge "recertify" flow is future work layered on top of
@@ -128,7 +128,7 @@ only edge that exists at all.
   outcome, distinct from `clean`/`built` and from the existing
   dependency-failure `"skipped"`; a `Propose` is journaled, not
   auto-appended; a run-level override treats every verdict as `Admit`.
-- The `SelectionDebt` query.
+- The `Selection.debt` query.
 
 See `packages/engine-store/README.md` for the API and `docs/reference/engine-store.md`
 for the exact contract, including the four laws every layer is held to.
