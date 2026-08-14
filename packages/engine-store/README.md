@@ -156,27 +156,34 @@ const program = Effect.gen(function*() {
   const selection = yield* Selection.Selection
   return yield* selection.select({
     changed: ["packages/engine/src/PlanScheduler.ts"],
-    sinks: [{ nodeId: "lint-docs" }],
+    sinks: [{ nodeId: "lint-docs", planKey: "key-lint" }],
+    present: ["example/Review", "build", "engine-tests", "lint-docs"],
     beliefs,
     policy: { deferBelow: 0.05 }
   })
 }).pipe(Effect.provide(Selection.layerHeuristic))
 ```
 
-`layerHeuristic` glob-matches `changed` against each edge's `scope`; a match
-yields `likelihood = edge.confidence`; a sink whose best matching likelihood
-falls below `policy.deferBelow` becomes `Defer`; an edge whose `affects`
-names a flow the plan does not contain becomes `Propose`; everything else is
-`Admit`. A model-backed layer is a different composition — this package has
-no model dependency and must not grow one.
+`layerHeuristic` glob-matches `changed` against the scope of each edge live
+at the pin (`validFromMs <= pinnedAtMs`); a match yields
+`likelihood = edge.confidence`; a sink whose best matching likelihood is
+strictly below `policy.deferBelow` becomes `Defer` under its best edge; a
+live edge whose `affects` names nothing in `present` — the plan's flow and
+its node ids — becomes `Propose`, once per flow under its highest-confidence
+edge, carried under the proposed flow's name since it maps to no plan node;
+everything else is `Admit`. A model-backed layer is a different composition —
+this package has no model dependency and must not grow one.
 
-**Selection debt.** `SelectionDebt` lists every open deferred entry — node/key,
-edge, likelihood, and journal provenance — so a later guess-free run can
-execute exactly what was deferred. It is a small projection populated
-alongside the `flows.engine.selection-deferred` journal write, the same
-idiom `DurableEngineState`'s `waitingRuns` and `dueClocks` already use for
-actionable rows, rather than a full journal replay: a recertification pass
-needs a bounded query, not a scan.
+**Selection debt.** `Selection.debt(runId)` lists every open deferred entry —
+node, plan key, edge, likelihood, and journal provenance — so a later
+guess-free run can execute exactly what was deferred. It folds the run's
+journal directly rather than projecting into a table: a
+`flows.engine.selection-deferred` record opens a debt under its plan key,
+and a later `flows.engine.node-settled` under the same key with outcome
+`built`, `clean`, or `failed` closes it — `skipped` does not, because that
+work never ran and is still owed. The journal is read for the same reason
+the scheduler consumes deviations from it: a deferral is a durable,
+replayable fact, and a second store would be a cache of one.
 
 **Not in v1:** rendering `deferred`/`proposed` rows in a plan card, a
 model-backed `Selection` layer, belief training or confidence decay, a

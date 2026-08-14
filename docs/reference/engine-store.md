@@ -160,7 +160,8 @@ The advisory seam: it may schedule work, it may never decide what is cached, cor
 interface Service {
   select(input: {
     changed: ReadonlyArray<string>
-    sinks: ReadonlyArray<{ nodeId: string }>
+    sinks: ReadonlyArray<{ nodeId: string; planKey: string }>
+    present: ReadonlyArray<string>
     beliefs: BeliefSnapshot
     policy: { deferBelow: number }
   }): Effect<ReadonlyArray<{ nodeId: string; verdict: SelectionVerdict }>>
@@ -172,15 +173,15 @@ type SelectionVerdict =
   | { _tag: "Propose"; flow: string; edge: SuspectedEdge; confidence: number }
 ```
 
-`BeliefSnapshot` (`pinnedAtMs`, `edges: ReadonlyArray<SuspectedEdge>`) is pinned before planning, and `select` is a pure function of it — no IO, no clock read mid-call. `SuspectedEdge` is `{ scope, affects, confidence, validFromMs, evidence }`, a path glob paired with the flow it is believed to affect.
+`BeliefSnapshot` (`pinnedAtMs`, `edges: ReadonlyArray<SuspectedEdge>`) is pinned before planning, and `select` is a pure function of it — no IO, no clock read mid-call. `SuspectedEdge` is `{ scope, affects, confidence, validFromMs, evidence }`, a path glob paired with the flow it is believed to affect. `present` lists every name the plan accounts for — its flow and its node ids — because whether an edge's `affects` names work outside the plan is undecidable from the sink list alone. In the result, `nodeId` names the offered candidate for `Admit` and `Defer`; a `Propose` names work outside the plan, so its entry carries the proposed flow's name instead of a plan node id.
 
-`layerNoop` is the default: every candidate is `Admit`, so engine behavior with no `Selection` layer, or with `layerNoop`, is byte-identical to today. `layerHeuristic` is the only other shipped layer — pure and deterministic, no IO, no model calls: it glob-matches `changed` against each edge's `scope`, a match yields `likelihood = edge.confidence`, a sink whose best likelihood falls below `policy.deferBelow` becomes `Defer`, an edge whose `affects` names a flow absent from the plan becomes `Propose`, and everything else is `Admit`. A model-backed layer is a different composition; this package has no model dependency and must not grow one, the same rule `Reconciliation` follows.
+`layerNoop` is the default: every candidate is `Admit`, so engine behavior with no `Selection` layer, or with `layerNoop`, is byte-identical to today. `layerHeuristic` is the only other shipped layer — pure and deterministic, no IO, no model calls: it glob-matches `changed` against the scope of each edge live at the pin (`validFromMs <= pinnedAtMs`), a match yields `likelihood = edge.confidence`, a sink whose best likelihood is strictly below `policy.deferBelow` becomes `Defer` under its best edge, a live edge whose `affects` names nothing in `present` becomes `Propose` — once per flow, under its highest-confidence edge — and everything else is `Admit`. A model-backed layer is a different composition; this package has no model dependency and must not grow one, the same rule `Reconciliation` follows.
 
 `PlanScheduler` consults `Selection` only for sink candidates — nodes with no dependents in the plan. A `Defer` or `Propose` verdict returned for a non-sink is not honored; it is ignored and journaled as an inconsistency observation. A `Defer` settles its node with a new outcome, `"deferred"` — distinct from `clean`/`built` and from the existing dependency-failure `"skipped"` — writes no step-cache row, and is journaled as `flows.engine.selection-deferred` with the node id, dispatch/plan key, the edge, and the likelihood. A `Propose` is journaled as `flows.engine.selection-proposed` (flow, edge, confidence); v1 records and surfaces it and does not append a plan node. A run-level override treats every verdict as `Admit` for one run, journaled the way `--fresh` bypasses the cache.
 
 Four laws hold regardless of which layer is installed: guesses never enter a step key or change a cache row (admitted nodes are byte-identical under `layerNoop` and `layerHeuristic`); `deferred` is never `passed`; only a sink can ever end deferred; and a guess only adds or postpones work, never removes a node the plan requires — the override option restores full execution.
 
-`SelectionDebt` lists every open deferred entry — node/key, edge, likelihood, journal provenance — so a later guess-free run can repay exactly what was deferred. It is a small projection kept alongside the `flows.engine.selection-deferred` write, the same idiom `DurableEngineState`'s `waitingRuns`/`dueClocks` use for actionable rows, rather than a full journal replay.
+`SelectionDebt` (`Selection.debt(runId)`) lists every open deferred entry — node, plan key, edge, likelihood, journal provenance — so a later guess-free run can repay exactly what was deferred. It folds the run's journal directly rather than projecting into a table: a `flows.engine.selection-deferred` record opens a debt under its plan key, and a later `flows.engine.node-settled` under the same key with outcome `built`, `clean`, or `failed` closes it — `skipped` does not, because that work never ran and is still owed. The journal-read matches how the scheduler consumes deviations: a deferral is a durable, replayable fact, and a second store would be a cache of one.
 
 Not in v1: plan-card rendering of `deferred`/`proposed` rows, a model-backed layer, belief training or confidence decay, a read-set proposer for agent steps, plan-level risk scoring, and auto-appending a `Propose` verdict as a plan node.
 
