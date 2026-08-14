@@ -88,7 +88,7 @@ export interface Service {
  * @since 0.1.0
  */
 export class SelectionStore extends Context.Service<SelectionStore, Service>()(
-  "flows/engine-store/SelectionStore"
+  "@smthrs/engine-store-next/SelectionStore"
 ) {}
 
 const EvidenceListFromJsonString = Schema.fromJsonString(Schema.Array(Schema.String))
