@@ -26,9 +26,12 @@ The `queue/` to `factory/queue/` rename was unrelated to package migration. It
 was reverted in its own commit, restoring the exact pre-migration queue files
 and paths.
 
-The dead chain package was not migrated. The agent repository's `flows`
-symlink package and `.flows-link` mount were not migrated. Generated build,
-coverage, and dependency directories were not migrated.
+The dead chain package from the agent repository was not migrated. A separate
+`packages/chain` promoted from the app repository's vendored sources belongs
+to the concurrent app migration and is unrelated to this package move. The
+agent repository's `flows` symlink package and its old workspace mount were
+not migrated. Generated build, coverage, and dependency directories were not
+migrated.
 
 Package metadata, exports, scripts, TypeScript projects, build scripts, lint
 configuration, and tests were normalized to flows repository conventions.
@@ -50,4 +53,8 @@ identity break from the plan work stream, not migration-induced drift.
 `pnpm install --frozen-lockfile` succeeds. Each of the nineteen migrated
 packages is verified independently with its own `check`, `test`, and `lint`
 scripts. Root-wide failures caused by concurrent app or tsflows work are not a
-migration completion gate and were not modified here.
+migration completion gate and were not modified here. During verification,
+in-flight app workspace wiring temporarily made pnpm's automatic dependency
+status check attempt an inconsistent install, and in-flight core identity work
+temporarily broke plan-dependent tests. The owning runs completed those edits;
+the final package gates were rerun against their settled state.
