@@ -6,7 +6,6 @@
  */
 import {
   DefaultRule,
-  GithubCiGen,
   PnpmWorkspace,
   StandardPackage,
   file
@@ -22,9 +21,11 @@ export const workspaceTsconfig = file("//tsconfig.json")
 export const rootJSDocConfig = file("//eslint.jsdoc.js")
 export const pnpmWorkspace = file("//pnpm-workspace.yaml")
 
-export const ci = GithubCiGen({
-  cacheUrlSecret: "TSFLOWS_CACHE_URL"
-})
+// There is deliberately no GithubCiGen target here yet. Its write mode's
+// default output is .github/workflows/ci.yml, which is still hand-written,
+// so a declared target made `tsflows build //:ci` an overwrite of the real
+// CI configuration. Re-declare it with an explicit path when workflow
+// generation is adopted and the generated file becomes the source of truth.
 
 export const packageDefaults = DefaultRule({
   directories: "packages/*",
