@@ -277,8 +277,9 @@ describe("fork boundary assessment", () => {
       expect(workspaceFailure.message).toBe("could not add fork workspace")
     }))
 
-  // BUG: createFork commits before workspaceAdd, so a failed workspace leaves a durable orphan child and edge.
-  it.effect.fails("leaves no child run, lineage edge, or copied records when workspace creation fails", () =>
+  // The fork provisions the workspace BEFORE the store commits, so a failed
+  // provision leaves nothing durable — no child run, no edge, no copied rows.
+  it.effect("leaves no child run, lineage edge, or copied records when workspace creation fails", () =>
     Effect.gen(function*() {
       const store = MemoryTimeTravelStore.make({
         records: [{ runId: "parent", seq: 0, eventId: "parent-0", lineageId: frame.lineageId, payload: {} }]
@@ -312,9 +313,58 @@ describe("fork boundary assessment", () => {
       expect(store.state().records).toEqual(before.records)
     }))
 
-  // BUG: the SQL createFork transaction commits the child, edge, copied journal prefix, and copied attempt before
-  // workspaceAdd runs; the typed workspace failure has no compensating transaction to remove that durable orphan.
-  it.effect.fails("rolls back every SQL fork row when workspace creation fails", () =>
+  // The other half of the provision-then-commit protocol: a commit that fails
+  // AFTER the workspace exists compensates by forgetting the lane it added.
+  it.effect("forgets the provisioned workspace when the store commit fails", () =>
+    Effect.gen(function*() {
+      const calls: Array<string> = []
+      const store = MemoryTimeTravelStore.make({ failAt: "createFork:start" })
+
+      const failure = yield* (
+        Effect.scoped(
+          Effect.gen(function*() {
+            const failure = yield* Effect.flip(
+              Fork.fork({
+                parentRunId: "parent",
+                frame,
+                workspaceName: "fork-workspace",
+                workspacePath: "/tmp/fork-workspace"
+              })
+            )
+            // Compensation, not scope cleanup: the lane is already forgotten
+            // while the fork's scope is still open.
+            expect(calls).toEqual(["add:fork-workspace", "forget:fork-workspace"])
+            return failure
+          }).pipe(
+            Effect.provide(
+              Layer.succeed(RunStore.RunStore, RunStore.makeNoop({ get: () => Effect.succeed(row()) }))
+            ),
+            Effect.provide(Layer.succeed(TimeTravelStore, store)),
+            Effect.provide(
+              Layer.succeed(
+                Jj.Jj,
+                Jj.makeNoop({
+                  workspaceAdd: (name) => Effect.sync(() => void calls.push(`add:${name}`)),
+                  workspaceForget: (name) => Effect.sync(() => void calls.push(`forget:${name}`))
+                })
+              )
+            ),
+            Effect.provide(journalOf([], 1)),
+            Effect.provide(Layer.succeed(CacheStore.CacheStore, CacheStore.makeNoop())),
+            Effect.provide(EffectHandlerRegistry.layerNoop)
+          )
+        )
+      )
+
+      expect(failure).toMatchObject({ code: "unknown", message: "injected failure at createFork:start" })
+      expect(store.state().records).toEqual([])
+      expect(store.state().edges).toEqual([])
+    }))
+
+  // The SQL fork commits its child, edge, copied journal prefix, copied
+  // attempts, and copied anchors in one transaction that only runs once the
+  // workspace exists; a typed workspace failure therefore commits nothing.
+  it.effect("rolls back every SQL fork row when workspace creation fails", () =>
     Effect.gen(function*() {
       const migrated = Layer.provideMerge(Migrations.layer, TestDatabase.layer)
       const services = Layer.mergeAll(

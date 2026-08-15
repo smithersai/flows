@@ -94,8 +94,10 @@ const normalize = (
  * owned — a fork copies a settled prefix, and a live parent has no settled
  * prefix to copy. Otherwise it reads the journal suffix past the frame,
  * assesses the effects in it, normalizes every classification to a warning
- * (see the module header), asks the store to create the fork, and adds the
- * child's jj workspace. The parent is never mutated.
+ * (see the module header), provisions the child's jj workspace, and only then
+ * asks the store to commit the fork in one transaction — so a failed
+ * provision leaves nothing durable, and a failed commit forgets the lane it
+ * provisioned. The parent is never mutated.
  *
  * @since 0.1.0
  * @category constructors
@@ -138,10 +140,28 @@ export const fork = (
       const plan = yield* Compensation.assess(EffectBoundary.fromEntries(suffix), snapshot?.changeId)
       const warnings = normalize(plan.assessments)
 
-      const result = yield* store.createFork(options.parentRunId, options.frame)
       const jj = yield* Jj
+      /**
+       * PROVISION, THEN COMMIT — in that order, on purpose.
+       *
+       * The store commit is the fork's finalization step, the way Temporal
+       * finalizes a workflow record only after what it names exists
+       * (`reference/temporal`'s transactional finalization): `createFork`
+       * writes the child run, its copied prefix, attempts, and anchors, and
+       * the lineage edge in ONE store transaction, and nothing durable exists
+       * until that transaction commits. A failed `workspaceAdd` therefore
+       * leaves no orphan child, no half-copied history, and no lineage edge
+       * to a run that cannot execute — the durable residue the reverse order
+       * left behind. A commit that fails AFTER provisioning is compensated
+       * right here by forgetting the lane it provisioned. The residual crash
+       * window between the two steps leaves only an unregistered jj
+       * workspace on disk, never a lie in the system of record.
+       */
       yield* jj.workspaceAdd(options.workspaceName, options.workspacePath).pipe(
         Effect.mapError((cause) => error("unknown", "could not add fork workspace", cause))
+      )
+      const result = yield* store.createFork(options.parentRunId, options.frame).pipe(
+        Effect.onError(() => jj.workspaceForget(options.workspaceName).pipe(Effect.ignore))
       )
       yield* Effect.addFinalizer(() => jj.workspaceForget(options.workspaceName).pipe(Effect.ignore))
       /**
