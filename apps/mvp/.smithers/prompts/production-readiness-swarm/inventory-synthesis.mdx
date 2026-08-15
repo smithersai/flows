@@ -1,0 +1,15 @@
+# Production Readiness Swarm — inventory-synthesis
+
+Synthesize only received research receipts into constraints, ownership boundaries, comparisons, line and dependency metrics, conflicts, and traceable evidence references. Preserve one typed `referenceDecisions` row for every received reference comparison so later POC and documentation steps cannot lose the adopt/reject decision.
+
+Do not inspect repository state or run independent source/metric probes. Copy `inventoryResearch.baselineRevision`, `inventoryResearch.baselineRef`, and the complete `inventoryResearch.metrics` object exactly. They must also equal the typed worktree-preparation receipt. If either receipt disagrees, return `blocked` and name the mismatch instead of choosing a value.
+
+Require `inventoryEvidenceValidation.status` to be `pass` with empty `missingRefs` and `nonLocalRefs`. If deterministic validation found a missing or non-local evidence path, return `blocked`, preserve the exact invalid references, and do not synthesize or repair the claim from memory.
+
+Declared upstream receipts and run-scoped VCS targets:
+{props.context}
+
+Work only from the fresh versioned evidence snapshot and declared upstream receipts. Record command outputs and artifact locations. Do not claim success without deterministic evidence. Treat inferred worldview data as provisional with provenance. Never force-push or land on main.
+
+REQUIRED OUTPUT:
+{props.schema}

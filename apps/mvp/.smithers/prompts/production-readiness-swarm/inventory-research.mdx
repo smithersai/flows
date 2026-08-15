@@ -1,0 +1,26 @@
+# Production Readiness Swarm — inventory-research
+
+Inventory repository instructions, status records, source, tests, dependencies, and history. Label each claim implemented, prototype, superseded, or proposed; cite concrete provenance and never elevate inference to fact.
+
+Inspect the target repository and every path in `requiredReferenceRepos`. Return exactly one `referenceComparisons` row per supplied reference path. For each, state what the final product should adopt, what it must not carry forward, its evidence-backed product state, and code/docs evidence. A reference path that cannot be read is a blocker; never silently omit one. Treat `flows/ui` as current UX reference but reject its legacy React Smithers runtime, `multi` as the strongest prototype architecture reference, `gui` as the oldest/least relevant prototype, `/Users/williamcory/flows` as the only eligible Flows/Harness implementation, and Smithers-Ops as product intent whose claims still require owning-repo evidence.
+
+You must read `/Users/williamcory/flows/flows/docs/architecture/implementation-status.md` and preserve its crash-consistency boundary as an explicit constraint: `Journal.transact` contains storage work only; Flow bodies, Activity bodies, model calls, tools, MCP, connectors, filesystem work, boundary prepare/settle, and other external effects do not run inside it. Record that external effects require the implemented Activity tier/idempotency/fencing/compensation model because no local WAL makes a remote effect atomic. A reference comparison for `/Users/williamcory/flows` without this evidence path is invalid.
+
+Treat missing initial E2E commands as an implementation gap to plan and build, never as an initialization blocker. Product code may use only new Smithers from `/Users/williamcory/flows` through `@smithers/*`; report every product import of `@smthrs/*` or `/Users/williamcory/smithers` as a boundary violation. The workflow and its control-plane UI may import `smthrs`.
+
+Mandatory acceptance contract:
+{props.acceptance}
+
+Declared upstream receipts and run-scoped VCS targets:
+{props.context}
+
+For the target repository, `baselinePreparation.baseRevision`, `baselinePreparation.baseRef`, and `baselinePreparation.metrics` are the sole content and metric authority. Copy all three exactly into `baselineRevision`, `baselineRef`, and `metrics`; the deterministic preparation task has already measured product lines, production dependencies, and unique legacy-violating files. Do not recalculate or reinterpret those metrics. Never substitute detached `HEAD`, the mutable target filesystem, `main`, or `origin/main`. Reference repositories may be read at their own recorded revisions.
+
+Every `evidenceRef`, including nested claim, comparison, command, and instruction refs, must resolve to an existing absolute local filesystem path after removing only an optional numeric `:line` or `:start-end` suffix. Never append a heading, section title, Git ref, or prose label after `:`. Cite the implementation-status crash boundary as the exact file path or a real numeric line obtained with `rg -n`; a value such as `implementation-status.md:Crash consistency (...)` is invalid. A branch, revision, or prepared baseline is not a directory: cite the existing `targetRepo`, a real worktree path from `baselinePreparation.worktrees`, or a real file, never an imagined `<worktreeRoot>/baseline` path. Before returning, mechanically strip permitted numeric suffixes and run `test -e` (or equivalent) for every evidence path; do not emit the receipt until all resolve.
+
+When `priorEvidenceValidation` is non-null, this is an automatic repair iteration. Treat every `missingRefs` and `nonLocalRefs` entry in that receipt as a mandatory correction list: replace or remove each invalid reference, re-run the existence check over the entire new receipt, and do not repeat any rejected value. Preserve valid inventory content where possible so the repair stays narrow.
+
+Work only from the fresh versioned evidence snapshot and declared upstream receipts. Record command outputs and artifact locations. Do not claim success without deterministic evidence. Treat inferred worldview data as provisional with provenance. Never force-push or land on main.
+
+REQUIRED OUTPUT:
+{props.schema}

@@ -1,0 +1,18 @@
+# Production Readiness Swarm — poc-transcript-chat-ui
+
+In a disposable worktree, prove or falsify a renderer-neutral transcript schema, mixed-provider timeline, normalized memory/search/export/context/frame behavior, keyboard/accessibility fixtures, and visual evidence.
+
+Use the accessible React primitives published at `https://brainless.swerdlow.dev/components`. Vendor only the individual Claude message/thinking/tool-call/diff/permission and Codex message/working/exec/diff/permissions registry components needed by the mixed transcript. Record each upstream registry URL, content digest, captured CLI version, and verified reuse terms. Do not use the Brainless full `claude-session`, `codex-session`, header, prompt, or slash-menu blocks inside the product transcript: Smithers owns one persistent composer and surrounding chrome. Pin visual fixtures against real tmux captures and trace Codex fidelity to the open-source `https://github.com/openai/codex` TUI. Provider-specific React props, HTML, and CSS must remain projections of normalized transcript events, never persisted state.
+
+Read `/Users/williamcory/mvp/DESIGN.md` directly before editing; it may be newer than the pinned snapshot and is the authoritative engineering handoff. Preserve and verify checked D1/D2 behavior rather than reimplementing it from prose. Implement the current unchecked demo-adjacent UI work assigned to this lane: lucide `ArrowUp` / `Square` composer glyphs and World `BacklinksPanel` / `OutlineView`, while keeping the one live approval path honest. Do not promote the document's explicitly post-demo `ArtifactCard`, `DiffCard`, full frame-navigation, Analyze-codebase, day-grouping, or Vitest/Testing Library smoke-test items into a D2/demo claim; broader architecture work must stay labelled as such.
+
+Declared upstream receipts and run-scoped VCS targets:
+{props.context}
+
+Before reading or editing files, require `roundBasePreparation.status: pass`, `cd` to the exact declared `worktreePath`, record `pwd -P`, switch this checkout to the exact declared `branch`, and assert `git branch --show-current` equals it. Before the first edit, assert the committed content tree equals `roundBasePreparation.baseRevision` with `git diff --quiet roundBasePreparation.baseRevision HEAD -- .` and assert the worktree is clean. Smithers durability snapshots may rewrite commit identity as a sibling, so never require SHA equality or ancestry. After editing, derive ownership with the two-endpoint tree diff `git diff --name-only roundBasePreparation.baseRevision HEAD`, never triple-dot. Run every VCS, build, and test command from that worktree; do not fall back to `targetRepo`. Copy the canonical `pwd -P` into `executionCwd`. If any assertion fails, return `environment_failure`; do not work from detached HEAD or invent a replacement branch. Do not modify `package.json` or `bun.lock` and do not run an install: deterministic preparation provides the verified foundation dependency tree as a copy-on-write clone.
+
+Work only from the fresh versioned evidence snapshot and declared upstream receipts. Record command outputs and artifact locations. Do not claim success without deterministic evidence. Treat inferred worldview data as provisional with provenance. Never force-push or land on main.
+Reference repositories are read-only source evidence: never install, build, typecheck, or test them from this lane.
+
+REQUIRED OUTPUT:
+{props.schema}

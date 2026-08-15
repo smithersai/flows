@@ -1,0 +1,12 @@
+name: mvp
+version: 0.0.0
+description: ""
+repository: ""
+smithers: *
+contents:
+  workflows[12]: add,create-skill,create-ui,create-workflow,docs-driven-development,eval-suite-run,init,post-failure,share-pack,smithers-repo-federation,upgrade,whole-foods-meal-planner
+  ui[6]: create-skill,create-workflow,docs-driven-development,share-pack,smithers-repo-federation,whole-foods-meal-planner
+capabilities:
+  bins: []
+  env: []
+  writes: none

@@ -1,0 +1,35 @@
+{
+  "name": "smithers-workflows",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test --preload ./preload.ts --max-concurrency=1 ./tests/production-readiness-swarm.test.tsx ./tests/universal-flow-runtime-swarm.test.tsx",
+    "typecheck": "tsc --noEmit",
+    "typecheck:production-readiness": "tsc -p ./tsconfig.production-readiness.json --noEmit",
+    "gateway": "bun ./gateway.ts",
+    "workflow:list": "smithers workflow list",
+    "workflow:run": "smithers workflow run",
+    "workflow:inspect": "smithers workflow inspect",
+    "workflow:skills": "smithers workflow skills"
+  },
+  "dependencies": {
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "smthrs": "^0.33.1",
+    "@smthrs/cli": "^0.33.1",
+    "zod": "4.4.3",
+    "@milkdown/crepe": "7.21.2",
+    "mermaid": "11.12.1",
+    "yaml": "2.9.0",
+    "@xyflow/react": "12.11.1",
+    "dagre": "0.8.5"
+  },
+  "devDependencies": {
+    "typescript": "6.0.3",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "@types/mdx": "2.0.14",
+    "@types/node": "26.1.0",
+    "@types/dagre": "0.7.54"
+  }
+}

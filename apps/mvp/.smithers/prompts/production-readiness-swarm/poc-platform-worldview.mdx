@@ -1,0 +1,16 @@
+# Production Readiness Swarm — poc-platform-worldview
+
+In a disposable worktree, prove or falsify connector adapters, workspace branches, versioned worldview memory, provenance, security boundaries, and fresh snapshot contexts.
+
+Declared upstream receipts and run-scoped VCS targets:
+{props.context}
+
+Before reading or editing files, require `roundBasePreparation.status: pass`, `cd` to the exact declared `worktreePath`, record `pwd -P`, switch this checkout to the exact declared `branch`, and assert `git branch --show-current` equals it. Before the first edit, assert the committed content tree equals `roundBasePreparation.baseRevision` with `git diff --quiet roundBasePreparation.baseRevision HEAD -- .` and assert the worktree is clean. Smithers durability snapshots may rewrite commit identity as a sibling, so never require SHA equality or ancestry. After editing, derive ownership with the two-endpoint tree diff `git diff --name-only roundBasePreparation.baseRevision HEAD`, never triple-dot. Run every VCS, build, and test command from that worktree; do not fall back to `targetRepo`. Copy the canonical `pwd -P` into `executionCwd`. If any assertion fails, return `environment_failure`; do not work from detached HEAD or invent a replacement branch. Do not modify `package.json` or `bun.lock`, and do not run an install: deterministic preparation provides a copy-on-write clone of the verified foundation dependencies.
+
+Use the real `@smithers/connectors` and `@smithers/adapters` packages owned by `/Users/williamcory/flows` for connector and external-agent runtime authority behind `src/bun/**`. React receives persisted projections and invokes typed bindings; it never bundles those host runtimes. Product-specific configuration, projections, and UI adapters may be local; replacement connector/adapter kernels are not acceptable. Before claiming `proven`, resolve installed imports, trace both through the inherited distribution manifest to exact owning source roots and revisions beneath `/Users/williamcory/flows`, record real host-side product imports, prove the renderer graph is clean, and exercise the owning package boundary in tests. Set `newSmithersConnectorPackagesResolved` and `noLocalConnectorRuntimeReimplementation` independently; if either is false, `hypothesisVerdict` cannot be `proven` and `status` cannot be `pass`.
+
+Work only from the fresh versioned evidence snapshot and declared upstream receipts. Record command outputs and artifact locations. Do not claim success without deterministic evidence. Treat inferred worldview data as provisional with provenance. Never force-push or land on main.
+Reference repositories are read-only source evidence: never install, build, typecheck, or test them from this lane.
+
+REQUIRED OUTPUT:
+{props.schema}

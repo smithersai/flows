@@ -1,0 +1,11 @@
+# Production Readiness Swarm — production-plan-state-journal
+
+Plan dependency-aware production slices for collection authority, SQLite persistence, Flux dispatch, Journal transactions, frames, navigation, and atomic tests. Preserve the authoritative two-boundary model from `/Users/williamcory/flows/flows/docs/architecture/implementation-status.md`: `Journal.transact` contains storage work only, committing app tables plus Journal evidence in one host SQLite transaction. Flow/Activity bodies and all model, tool, MCP, connector, filesystem, and boundary prepare/settle effects execute outside it. Plan instrumentation that fails if non-storage work enters the transaction and proves no renderer projection is visible before commit.
+
+Declared upstream receipts and run-scoped VCS targets:
+{props.context}
+
+Work only from the fresh versioned evidence snapshot and declared upstream receipts. Record command outputs and artifact locations. Do not claim success without deterministic evidence. Treat inferred worldview data as provisional with provenance. Never force-push or land on main.
+
+REQUIRED OUTPUT:
+{props.schema}
