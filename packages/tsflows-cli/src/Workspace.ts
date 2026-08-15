@@ -1023,16 +1023,7 @@ export class Workspace {
   async targets(patternText: string): Promise<ReadonlyArray<Rule.AnyTarget>> {
     const pattern = Label.parse(patternText, this.currentPackage)
     if (pattern._tag === "Exact") {
-      const buildFile = this.buildForPackage(pattern.packagePath)
-      if (this.buildFiles.includes(buildFile)) {
-        const module = await this.loadBuild(buildFile)
-        return [this.select(pattern.packagePath, module.targets, pattern.target)]
-      }
-      await this.ensureDefaults()
-      const targets = this.synthesizeDirectory(pattern.packagePath)
-      if (targets === undefined) {
-        throw new Error(`package //${pattern.packagePath} has no BUILD.ts and matches no default rule`)
-      }
+      const targets = await this.packageTargets(pattern.packagePath)
       return [this.select(pattern.packagePath, targets, pattern.target)]
     }
     const prefix = pattern.packagePath === "" ? "" : `${pattern.packagePath}/`
@@ -1046,6 +1037,26 @@ export class Workspace {
       if (targets !== undefined) synthesized.push(...targets.values())
     }
     return [...modules.flatMap((module) => [...module.targets.values()]), ...synthesized]
+  }
+
+  /**
+   * Resolves the complete target map of one package, loading its BUILD.ts or
+   * synthesizing it through the first eligible default-rule declaration.
+   *
+   * @category querying
+   * @since 0.1.0
+   */
+  async packageTargets(packagePath: string): Promise<ReadonlyMap<string, Rule.AnyTarget>> {
+    const buildFile = this.buildForPackage(packagePath)
+    if (this.buildFiles.includes(buildFile)) {
+      return (await this.loadBuild(buildFile)).targets
+    }
+    await this.ensureDefaults()
+    const targets = this.synthesizeDirectory(packagePath)
+    if (targets === undefined) {
+      throw new Error(`package //${packagePath} has no BUILD.ts and matches no default rule`)
+    }
+    return targets
   }
 
   private select(

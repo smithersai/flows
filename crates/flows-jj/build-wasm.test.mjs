@@ -1,7 +1,15 @@
 import assert from "node:assert/strict"
 import { join, resolve } from "node:path"
 import test from "node:test"
-import { canonicalHost, foreignHostError, remapFlags, rustcCommitHash, rustcHost, targetDir } from "./build-wasm.mjs"
+import {
+  buildEnvironment,
+  canonicalHost,
+  foreignHostError,
+  remapFlags,
+  rustcCommitHash,
+  rustcHost,
+  targetDir
+} from "./build-wasm.mjs"
 
 const verboseVersion = [
   "rustc 1.89.0 (29483883e 2025-08-04)",
@@ -84,4 +92,21 @@ test("remapFlags replaces every machine-specific prefix with a fixed token", () 
         "=/rustc/abc123"
     ]
   )
+})
+
+test("buildEnvironment authors RUSTFLAGS from the remap flags alone", () => {
+  const environment = buildEnvironment(
+    { PATH: "/usr/bin", RUSTFLAGS: "-C target-cpu=native" },
+    ["--remap-path-prefix=/a=/flows"]
+  )
+  assert.equal(environment.RUSTFLAGS, "--remap-path-prefix=/a=/flows")
+  assert.equal(environment.PATH, "/usr/bin")
+})
+
+test("buildEnvironment deletes an ambient CARGO_ENCODED_RUSTFLAGS", () => {
+  const environment = buildEnvironment(
+    { CARGO_ENCODED_RUSTFLAGS: "-Clto", PATH: "/usr/bin" },
+    ["--remap-path-prefix=/a=/flows"]
+  )
+  assert.equal("CARGO_ENCODED_RUSTFLAGS" in environment, false)
 })

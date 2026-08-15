@@ -122,6 +122,22 @@ export const remapFlags = ({ cargoHome, commitHash, sysroot, workspaceRoot }) =>
   `--remap-path-prefix=${join(sysroot, "lib", "rustlib", "src", "rust")}=/rustc/${commitHash}`
 ]
 
+/**
+ * The child cargo environment, authored rather than inherited.
+ *
+ * `RUSTFLAGS` is set from the remap flags alone: an ambient value would bake
+ * extra codegen into the artifact. `CARGO_ENCODED_RUSTFLAGS` is deleted
+ * because cargo prefers it over `RUSTFLAGS` entirely — an ambient value
+ * would silently drop the remap flags and embed machine paths. The
+ * byte-compare would catch the damage one step later on CI, but a build on
+ * the canonical host must produce the canonical bytes on the first try.
+ */
+export const buildEnvironment = (env, flags) => {
+  const environment = { ...env, RUSTFLAGS: flags.join(" ") }
+  delete environment.CARGO_ENCODED_RUSTFLAGS
+  return environment
+}
+
 const isMain = process.argv[1] !== undefined &&
   import.meta.url === pathToFileURL(resolve(process.argv[1])).href
 
@@ -158,6 +174,7 @@ if (isMain) {
     workspaceRoot: repoRoot
   })
 
+  const environment = buildEnvironment(process.env, flags)
   const build = spawnSync(
     "cargo",
     ["build", "--locked", "--release", "--target", "wasm32-wasip1", "--package", "flows-jj"],
@@ -165,7 +182,7 @@ if (isMain) {
       cwd: repoRoot,
       // RUSTFLAGS applies to wasm32-wasip1 units only (cargo exempts host
       // units when --target is passed), so proc macros build untouched.
-      env: { ...process.env, RUSTFLAGS: [process.env.RUSTFLAGS, ...flags].filter(Boolean).join(" ") },
+      env: environment,
       stdio: "inherit"
     }
   )
