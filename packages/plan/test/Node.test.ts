@@ -349,6 +349,7 @@ describe("internal/node call factories", () => {
     expect(identity).toEqual(tagged(Node.map(Node.succeed(1), mapper).ast, "Map").mapper)
     expect(Node.functionIdentity((value: number): number => value + 2)).not.toEqual(identity)
     expect(identity.digest).toMatch(/^[0-9a-f]{64}$/)
+    expect(() => Node.functionIdentity(null)).toThrow(/requires a function/)
   })
 
   it("does not collapse behaviorally significant source or known FNV-1a collisions", () => {
