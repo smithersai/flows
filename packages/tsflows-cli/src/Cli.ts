@@ -75,8 +75,9 @@ interface PreparedWorkspace {
 }
 
 /**
- * Settles the cache directory one command runs under and applies the declared
- * gitignore policy before anything reads or writes it.
+ * Settles the cache directory one command runs under. Executing commands apply
+ * the declared gitignore policy before writing state; query, graph, and plan
+ * commands pass `writeState = false` and remain observational.
  *
  * Reading the declared token from the environment is a read, never a write.
  * Removing the name from `process.env` here would mutate state the caller
@@ -90,7 +91,8 @@ interface PreparedWorkspace {
  */
 const prepare = async (
   flags: WorkspaceFlags,
-  runtime: RuntimeConfig = {}
+  runtime: RuntimeConfig = {},
+  writeState = true
 ): Promise<PreparedWorkspace> => {
   runtime.signal?.throwIfAborted()
   const root = NodePath.resolve(flags.workspace)
@@ -104,7 +106,7 @@ const prepare = async (
       : process.env[remoteCache.tokenEnv]
     preparedRemote = { ...remoteCache, token }
   }
-  if (config.gitignored) await ensureGitignored(root, config.cacheDirectory)
+  if (writeState && config.gitignored) await ensureGitignored(root, config.cacheDirectory)
   runtime.signal?.throwIfAborted()
   return preparedRemote === undefined
     ? { root, cacheDirectory: config.cacheDirectory }
@@ -114,9 +116,10 @@ const prepare = async (
 /** Opens the workspace index under the resolved cache directory. */
 const openWorkspace = async (
   flags: WorkspaceFlags,
-  runtime: RuntimeConfig = {}
+  runtime: RuntimeConfig = {},
+  writeState = true
 ): Promise<{ readonly workspace: Workspace; readonly remoteCache: PreparedWorkspace["remoteCache"] }> => {
-  const prepared = await prepare(flags, runtime)
+  const prepared = await prepare(flags, runtime, writeState)
   return {
     workspace: await Workspace.make(prepared.root, process.cwd(), {
       cacheDirectory: prepared.cacheDirectory,
@@ -139,7 +142,7 @@ const runVerb = async (
   flags: ExecutionFlags,
   config: RuntimeConfig
 ): Promise<Planner.Plan | Executor.Summary> => {
-  const { remoteCache, workspace } = await openWorkspace(flags, config)
+  const { remoteCache, workspace } = await openWorkspace(flags, config, !flags.plan)
   const plan = await Planner.make(workspace, verb, pattern)
   if (flags.plan) return plan
   return Executor.execute({
@@ -177,7 +180,7 @@ const runCi = async (
   flags: ExecutionFlags,
   config: RuntimeConfig
 ): Promise<CiPlan | Executor.Summary> => {
-  const { remoteCache, workspace } = await openWorkspace(flags, config)
+  const { remoteCache, workspace } = await openWorkspace(flags, config, !flags.plan)
   const plans: Array<Planner.Plan> = []
   const refusals: Array<unknown> = []
   for (const kind of ciKinds) {
@@ -389,7 +392,7 @@ export const makeCli = (config: RuntimeConfig = {}) =>
       alias: { workspace: "w" },
       async run(context) {
         try {
-          const { workspace } = await openWorkspace(context.options, config)
+          const { workspace } = await openWorkspace(context.options, config, false)
           return await Query.run(workspace, context.args.expr)
         } catch (cause) {
           return context.error({ code: "query_failed", exitCode: 1, message: message(cause) })
@@ -405,7 +408,7 @@ export const makeCli = (config: RuntimeConfig = {}) =>
       alias: { workspace: "w", mermaid: "m" },
       async run(context) {
         try {
-          const { workspace } = await openWorkspace(context.options, config)
+          const { workspace } = await openWorkspace(context.options, config, false)
           const plan = await Planner.make(workspace, "graph", context.args.pattern)
           return {
             pattern: context.args.pattern,
