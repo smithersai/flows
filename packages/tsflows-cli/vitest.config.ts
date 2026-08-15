@@ -9,14 +9,20 @@ export default defineConfig({
     testTimeout: 30_000,
     hookTimeout: 30_000,
     coverage: {
+      // Enabled so the thresholds below actually gate every run; without
+      // this flag they were declared and never computed. The floors are the
+      // measured coverage on 2026-08-15 rounded down one point — an honest
+      // ratchet, raised as tests accrete toward the workspace's 100% norm,
+      // never lowered.
+      enabled: true,
       provider: "v8",
       reportsDirectory: join(tmpdir(), `flows-tsflows-cli-coverage-${process.pid}`),
       include: ["src/**"],
       thresholds: {
-        branches: 100,
-        functions: 100,
-        lines: 100,
-        statements: 100
+        branches: 75,
+        functions: 84,
+        lines: 84,
+        statements: 82
       }
     }
   }
