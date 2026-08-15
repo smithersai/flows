@@ -17,6 +17,13 @@
  * topology loss, such as a missing or invalid continuation, is reported in
  * {@link Graph.diagnostics} so the remaining graph can still be inspected.
  *
+ * The walk is stack-safe by construction: topology and payloads are traversed
+ * with explicit stacks, never native recursion, and each carries a nesting
+ * bound. Topology past the bound is a typed `graph_too_deep` refusal, a
+ * payload past it is `payload_too_deep`, and a payload containing itself is
+ * `cyclic_payload` — all three fail loudly where unbounded recursion would
+ * overflow the native stack without a typed error.
+ *
  * Composition follows the same note: `Other.call(payload)` splices the
  * callee's body into this graph with the capabilities of the two declarations
  * intersected, and a flow that calls itself inline throws with the trampoline
@@ -274,36 +281,159 @@ const placeholder = (reference: PlannedRecord, node: string): unknown =>
   )
 
 /**
- * Rebuilds a plain object under a mapped value per key, keeping every own key
- * as data.
- *
- * `output[key] = …` on an object literal is not a copy for one key: `__proto__`
- * routes through `Object.prototype`'s accessor, so an own `__proto__` field
- * whose value is a primitive is silently DROPPED and one whose value is an
- * object reparents the clone instead of being recorded on it. A payload may
- * carry that key — `JSON.parse` produces it as an own data property — and both
- * outcomes are wrong here: a hydrated payload would be planned and run with a
- * field its author wrote missing, and two payloads that differ only in that
- * field would hash to one key. `@smthrs/plan-next`'s AST cloner answers this with a
- * null-prototype target and `defineProperty`, and this is the same answer.
+ * The nesting bound the build enforces on authored topology. The walk itself
+ * is iterative and cannot overflow the native stack, so the bound is policy:
+ * topology a thousand combinators deep is a generated artifact, and refusing
+ * it with a typed `graph_too_deep` names the fix — `.child()` boundaries or
+ * trampoline handoffs — where unbounded acceptance would only defer the
+ * failure to whatever walks the plan next.
  *
  * @private
  */
-const rebuild = (
-  value: Record<string, unknown>,
-  keys: ReadonlyArray<string>,
-  map: (member: unknown) => unknown
-): Record<string, unknown> => {
-  const output: Record<string, unknown> = Object.create(null) as Record<string, unknown>
-  for (const key of keys) {
-    Object.defineProperty(output, key, {
-      configurable: true,
-      enumerable: true,
-      value: map(value[key]),
-      writable: true
-    })
+const maximumGraphDepth = 1_000
+
+/**
+ * The nesting bound the build enforces on payload data, for the same reason
+ * {@link maximumGraphDepth} bounds topology: hydration, hashing, and reference
+ * scanning walk iteratively, and the bound turns a pathologically deep payload
+ * into a typed `payload_too_deep` refusal instead of an unbounded walk over
+ * data a plan would have to hash and store level by level.
+ *
+ * @private
+ */
+const maximumPayloadDepth = 1_000
+
+/**
+ * How one payload walk behaves: where it is walking, for refusal attribution;
+ * how a placeholder-like leaf resolves; the member order of a plain object;
+ * and whether a mapped copy is built at all.
+ *
+ * @private
+ */
+interface PayloadWalk {
+  readonly at: string
+  readonly resolve: (value: unknown) => { readonly value: unknown } | undefined
+  readonly keysOf: (value: Record<string, unknown>) => ReadonlyArray<string>
+  readonly rebuild: boolean
+}
+
+/**
+ * One container being walked: the source, the copy being filled when the walk
+ * rebuilds, and the member position reached. `keys` is `undefined` for an
+ * array, whose members are positional.
+ *
+ * @private
+ */
+interface PayloadFrame {
+  readonly source: Record<string, unknown> | ReadonlyArray<unknown>
+  readonly keys: ReadonlyArray<string> | undefined
+  readonly output: Record<string, unknown> | Array<unknown> | undefined
+  index: number
+}
+
+/** @private */
+const isContainer = (value: unknown): value is Record<string, unknown> | ReadonlyArray<unknown> =>
+  Array.isArray(value) || isPlainObject(value)
+
+/**
+ * Walks one payload with an explicit stack. Real recursion would let a deep
+ * payload overflow the native stack instead of failing loudly, so depth is a
+ * typed refusal here: a value already on the ancestor chain is
+ * `cyclic_payload`, and nesting past {@link maximumPayloadDepth} is
+ * `payload_too_deep`. Values that are neither placeholders nor plain data
+ * pass through untraversed to the key canonicalizer, which is the one
+ * component entitled to refuse them.
+ *
+ * Rebuilding writes members with a null-prototype target and
+ * `defineProperty`, never `output[key] = …`: `__proto__` routes through
+ * `Object.prototype`'s accessor, so an own `__proto__` field whose value is a
+ * primitive would be silently DROPPED and one whose value is an object would
+ * reparent the copy instead of being recorded on it. A payload may carry that
+ * key — `JSON.parse` produces it as an own data property — and both outcomes
+ * are wrong here: a hydrated payload would be planned and run with a field
+ * its author wrote missing, and two payloads that differ only in that field
+ * would hash to one key. `@smthrs/plan-next`'s AST cloner answers this the
+ * same way.
+ *
+ * @private
+ */
+const walkPayload = (root: unknown, walk: PayloadWalk): unknown => {
+  const resolvedRoot = walk.resolve(root)
+  if (resolvedRoot !== undefined) return resolvedRoot.value
+  if (!isContainer(root)) return root
+  const open = (source: Record<string, unknown> | ReadonlyArray<unknown>): PayloadFrame =>
+    Array.isArray(source)
+      ? { source, keys: undefined, output: walk.rebuild ? [] : undefined, index: 0 }
+      : {
+        source,
+        // `Array.isArray` does not narrow a readonly array out of its else
+        // branch, so the branch re-states what `isContainer` established.
+        keys: walk.keysOf(source as Record<string, unknown>),
+        output: walk.rebuild ? Object.create(null) as Record<string, unknown> : undefined,
+        index: 0
+      }
+  const rootFrame = open(root)
+  const frames: Array<PayloadFrame> = [rootFrame]
+  const ancestors = new Set<object>([root])
+  while (frames.length > 0) {
+    const frame = frames[frames.length - 1]!
+    if (frame.index >= (frame.keys ?? frame.source as ReadonlyArray<unknown>).length) {
+      frames.pop()
+      ancestors.delete(frame.source)
+      continue
+    }
+    const position = frame.index
+    frame.index = position + 1
+    const key = frame.keys?.[position]
+    const member = key === undefined
+      ? (frame.source as ReadonlyArray<unknown>)[position]
+      : (frame.source as Record<string, unknown>)[key]
+    const place = (produced: unknown): void => {
+      if (frame.output === undefined) return
+      if (key === undefined) {
+        const members = frame.output as Array<unknown>
+        members.push(produced)
+        return
+      }
+      Object.defineProperty(frame.output, key, {
+        configurable: true,
+        enumerable: true,
+        value: produced,
+        writable: true
+      })
+    }
+    const resolved = walk.resolve(member)
+    if (resolved !== undefined) {
+      place(resolved.value)
+      continue
+    }
+    if (!isContainer(member)) {
+      place(member)
+      continue
+    }
+    if (ancestors.has(member)) {
+      throw new GraphBuildError({
+        code: "cyclic_payload",
+        node: walk.at,
+        path: [],
+        message: `Payload at "${walk.at}" contains itself, so no plan can hash or serialize it. Pass acyclic data.`
+      })
+    }
+    if (frames.length >= maximumPayloadDepth) {
+      throw new GraphBuildError({
+        code: "payload_too_deep",
+        node: walk.at,
+        path: [],
+        message: `Payload at "${walk.at}" nests more than ${maximumPayloadDepth} levels deep. ` +
+          "Flatten the payload: a plan hashes and stores every level of it."
+      })
+    }
+    const opened = open(member)
+    place(opened.output)
+    ancestors.add(member)
+    frames.push(opened)
   }
-  return output
+  return rootFrame.output
 }
 
 /**
@@ -315,30 +445,36 @@ const rebuild = (
  *
  * @private
  */
-const hydrate = (value: unknown, substitutions: ReadonlyMap<string, string>): unknown => {
-  const reference = referenceOf(value)
-  if (reference !== undefined) return placeholder(reference, substitutions.get(reference.node) ?? reference.node)
-  if (Array.isArray(value)) return value.map((item) => hydrate(item, substitutions))
-  if (!isPlainObject(value)) return value
-  return rebuild(value, Object.keys(value), (member) => hydrate(member, substitutions))
-}
+const hydrate = (value: unknown, substitutions: ReadonlyMap<string, string>, at: string): unknown =>
+  walkPayload(value, {
+    at,
+    rebuild: true,
+    keysOf: Object.keys,
+    resolve: (member) => {
+      const reference = referenceOf(member)
+      return reference === undefined
+        ? undefined
+        : { value: placeholder(reference, substitutions.get(reference.node) ?? reference.node) }
+    }
+  })
 
 /**
  * The hashed form of a payload: placeholders keep their property path and drop
  * the node they came from, because the node id is a lookup address and the
- * dependency itself is named by a separate `Ref`. Values that are not plain
- * data pass through to the key canonicalizer, which is the one component
- * entitled to refuse them.
+ * dependency itself is named by a separate `Ref`.
  *
  * @private
  */
-const literal = (value: unknown): unknown => {
-  const reference = Planned.reference(value)
-  if (reference !== undefined) return { _tag: "PlannedInput", path: [...reference.path] }
-  if (Array.isArray(value)) return value.map((item) => literal(item))
-  if (!isPlainObject(value)) return value
-  return rebuild(value, Object.keys(value).sort(), literal)
-}
+const literal = (value: unknown, at: string): unknown =>
+  walkPayload(value, {
+    at,
+    rebuild: true,
+    keysOf: (member) => Object.keys(member).sort(),
+    resolve: (member) => {
+      const reference = Planned.reference(member)
+      return reference === undefined ? undefined : { value: { _tag: "PlannedInput", path: [...reference.path] } }
+    }
+  })
 
 /**
  * Whether an inline call would place the callee somewhere the enclosing flow
@@ -360,9 +496,9 @@ const literal = (value: unknown): unknown => {
  *
  * @private
  */
-const placementConflicts = (enclosing: unknown, callee: unknown): boolean =>
+const placementConflicts = (enclosing: unknown, callee: unknown, at: string): boolean =>
   enclosing !== undefined && callee !== undefined &&
-  JSON.stringify(literal(enclosing)) !== JSON.stringify(literal(callee))
+  JSON.stringify(literal(enclosing, at)) !== JSON.stringify(literal(callee, at))
 
 /**
  * Collects the upstream results a payload consumes, in declaration order and
@@ -370,18 +506,18 @@ const placementConflicts = (enclosing: unknown, callee: unknown): boolean =>
  *
  * @private
  */
-const references = (value: unknown, into: Array<PlannedRecord>): void => {
-  const reference = Planned.reference(value)
-  if (reference !== undefined) {
-    into.push(reference)
-    return
-  }
-  if (Array.isArray(value)) {
-    for (const item of value) references(item, into)
-    return
-  }
-  if (!isPlainObject(value)) return
-  for (const key of Object.keys(value).sort()) references(value[key], into)
+const references = (value: unknown, into: Array<PlannedRecord>, at: string): void => {
+  walkPayload(value, {
+    at,
+    rebuild: false,
+    keysOf: (member) => Object.keys(member).sort(),
+    resolve: (member) => {
+      const reference = Planned.reference(member)
+      if (reference === undefined) return undefined
+      into.push(reference)
+      return { value: undefined }
+    }
+  })
 }
 
 /**
@@ -390,10 +526,10 @@ const references = (value: unknown, into: Array<PlannedRecord>): void => {
  *
  * @private
  */
-const payloadInputs = (payload: unknown): ReadonlyArray<KeyMaterial.InputRef> => {
+const payloadInputs = (payload: unknown, at: string): ReadonlyArray<KeyMaterial.InputRef> => {
   const found: Array<PlannedRecord> = []
-  references(payload, found)
-  const inputs: Array<KeyMaterial.InputRef> = [{ _tag: "Literal", value: literal(payload) }]
+  references(payload, found, at)
+  const inputs: Array<KeyMaterial.InputRef> = [{ _tag: "Literal", value: literal(payload, at) }]
   const seen = new Set<string>()
   for (const reference of found) {
     const identity = JSON.stringify([reference.node, ...reference.path])
@@ -405,15 +541,23 @@ const payloadInputs = (payload: unknown): ReadonlyArray<KeyMaterial.InputRef> =>
 }
 
 /**
- * What one visit needs to know: where it is, what it may do, where it runs,
- * which node the enclosing branch's subject stands for, which flows are already
- * being spliced, and the upstream node it continues from.
+ * What one visit needs to know: where it is, how deeply it is nested, what it
+ * may do, where it runs, which node the enclosing branch's subject stands
+ * for, which flows are already being spliced, and the upstream node it
+ * continues from.
  *
  * @private
  */
 interface Visit {
   readonly ast: Node.Ast
   readonly id: string
+  /**
+   * How many visits enclose this one, checked against
+   * {@link maximumGraphDepth}. The walk itself is an explicit operation stack
+   * and cannot overflow, so the count exists to refuse pathological topology
+   * with a typed error rather than accept it unbounded.
+   */
+  readonly depth: number
   readonly capabilities: ReadonlyArray<string>
   /**
    * The placement of the flow whose body this visit is inside, which an inline
@@ -447,6 +591,20 @@ export const build = (
   const observedEdges: Array<Edge> = []
   const observedDiagnostics: Array<GraphBuildError> = []
 
+  /**
+   * The explicit walk stack. Every step is a thunk; expanding a node pushes
+   * its steps in reverse so they pop in authoring order, which keeps the
+   * observed nodes, edges, and diagnostics in exactly the order a recursive
+   * walk would produce while making depth a data structure instead of native
+   * stack frames a deep graph could exhaust.
+   */
+  const operations: Array<() => void> = []
+
+  /** Stacks steps to run in the order written, ahead of everything stacked. */
+  const sequence = (steps: ReadonlyArray<() => void>): void => {
+    for (let index = steps.length - 1; index >= 0; index--) operations.push(steps[index]!)
+  }
+
   const record = (entry: {
     readonly id: string
     readonly kind: Node.Ast["_tag"]
@@ -459,7 +617,7 @@ export const build = (
     readonly inputs: ReadonlyArray<KeyMaterial.InputRef>
     readonly ast: Node.Ast
     readonly payload: unknown
-  }): string => {
+  }): void => {
     const material: KeyMaterial.KeyMaterial = {
       version: KeyMaterial.version,
       kind: entry.tier,
@@ -488,15 +646,15 @@ export const build = (
       ast: entry.ast,
       payload: entry.payload
     })
-    return entry.id
   }
 
   /**
-   * The node a flow call becomes, shared by the entry point and by every
-   * `FlowCall` in a body.
+   * Expands the node a flow call becomes, shared by the entry point and by
+   * every `FlowCall` in a body.
    */
-  const flowNode = (call: {
+  const expandFlowCall = (call: {
     readonly id: string
+    readonly depth: number
     readonly ast: Node.Ast
     readonly flow: string
     readonly mode: "inline" | "boundary" | "handoff"
@@ -509,10 +667,10 @@ export const build = (
     readonly stack: ReadonlyArray<Flow.Any>
     readonly dependencies: Array<string>
     readonly inputs: ReadonlyArray<KeyMaterial.InputRef>
-  }): string => {
+  }): void => {
     const annotations = call.declaration?.annotations ?? Context.empty()
     const dependencies = call.dependencies
-    const inputs: Array<KeyMaterial.InputRef> = [...payloadInputs(call.payload), ...call.inputs]
+    const inputs: Array<KeyMaterial.InputRef> = [...payloadInputs(call.payload, call.id), ...call.inputs]
     const target = call.mode === "inline" ? call.declaration : undefined
     const ceiling = sorted(Context.get(annotations, Annotations.Capabilities))
     const placement = declaredPlacement(annotations)
@@ -520,31 +678,68 @@ export const build = (
     // inline call the caller cannot host is invalid whether or not the callee's
     // declaration survived to be spliced, because inline expansion is the claim
     // that these steps run in the caller's execution.
-    if (call.mode === "inline" && placementConflicts(call.placement, placement)) {
+    if (call.mode === "inline" && placementConflicts(call.placement, placement, call.id)) {
       throw new GraphBuildError({
         code: "placement_requires_boundary",
         node: call.id,
         path: [],
         message: `Flow "${call.flow}" is called inline at "${call.id}", but its declared placement ` +
-          `${JSON.stringify(literal(placement))} is not the enclosing flow's ` +
-          `${JSON.stringify(literal(call.placement))}. ` +
+          `${JSON.stringify(literal(placement, call.id))} is not the enclosing flow's ` +
+          `${JSON.stringify(literal(call.placement, call.id))}. ` +
           `An inline .call() runs in the caller's execution, so use ${call.flow}.child(payload) to give it its own.`
       })
     }
-    if (target !== undefined) {
-      if (call.stack.includes(target)) {
-        throw new GraphBuildError({
-          code: "recursion_requires_boundary",
-          node: call.id,
-          path: [],
-          message: `Flow "${call.flow}" calls itself inline at "${call.id}". ` +
-            `Use ${call.flow}.to(payload) to hand off to the next round, or .child(payload) for an explicit boundary.`
-        })
-      } else {
-        const built = target.body(call.payload)
-        const spliced = visit({
+    const recordCall = (): void => {
+      record({
+        id: call.id,
+        kind: "FlowCall",
+        dependencies,
+        capabilities: call.capabilities,
+        effects: declaredEffects(annotations),
+        placement,
+        tier: "sealed",
+        body: {
+          _tag: "FlowCall",
+          flow: call.flow,
+          mode: call.mode,
+          declaration: call.declaration === undefined ? undefined : {
+            payload: schemaIdentity(call.declaration.payloadSchema),
+            success: schemaIdentity(call.declaration.successSchema),
+            error: schemaIdentity(call.declaration.errorSchema),
+            capabilities: ceiling,
+            // A spliced body re-keys this call through the `Ref` on the node it
+            // produced. A call the graph keeps as a LEAF — an explicit boundary,
+            // a handoff — has no such node, and its own digest is the only thing
+            // an edited body can move.
+            body: Node.functionIdentity(call.declaration.body)
+          }
+        },
+        inputs,
+        ast: call.ast,
+        payload: call.payload
+      })
+    }
+    if (target === undefined) {
+      recordCall()
+      return
+    }
+    if (call.stack.includes(target)) {
+      throw new GraphBuildError({
+        code: "recursion_requires_boundary",
+        node: call.id,
+        path: [],
+        message: `Flow "${call.flow}" calls itself inline at "${call.id}". ` +
+          `Use ${call.flow}.to(payload) to hand off to the next round, or .child(payload) for an explicit boundary.`
+      })
+    }
+    const built = target.body(call.payload)
+    const spliced = `${call.id}.flow`
+    sequence([
+      () =>
+        expand({
           ast: built.ast,
-          id: `${call.id}.flow`,
+          id: spliced,
+          depth: call.depth + 1,
           capabilities: ceiling.filter((capability) => call.capabilities.includes(capability)),
           // Inside the spliced body the callee's own placement is the one to
           // satisfy; a callee that declared none keeps running under the
@@ -553,40 +748,14 @@ export const build = (
           substitutions: call.substitutions,
           stack: [...call.stack, target],
           prerequisite: undefined
-        })
+        }),
+      () => {
         dependencies.push(spliced)
         observedEdges.push({ from: spliced, to: call.id, reason: "value" })
         inputs.push({ _tag: "Ref", from: spliced, path: [] })
-      }
-    }
-    return record({
-      id: call.id,
-      kind: "FlowCall",
-      dependencies,
-      capabilities: call.capabilities,
-      effects: declaredEffects(annotations),
-      placement,
-      tier: "sealed",
-      body: {
-        _tag: "FlowCall",
-        flow: call.flow,
-        mode: call.mode,
-        declaration: call.declaration === undefined ? undefined : {
-          payload: schemaIdentity(call.declaration.payloadSchema),
-          success: schemaIdentity(call.declaration.successSchema),
-          error: schemaIdentity(call.declaration.errorSchema),
-          capabilities: ceiling,
-          // A spliced body re-keys this call through the `Ref` on the node it
-          // produced. A call the graph keeps as a LEAF — an explicit boundary,
-          // a handoff — has no such node, and its own digest is the only thing
-          // an edited body can move.
-          body: Node.functionIdentity(call.declaration.body)
-        }
       },
-      inputs,
-      ast: call.ast,
-      payload: call.payload
-    })
+      recordCall
+    ])
   }
 
   /**
@@ -628,8 +797,17 @@ export const build = (
     return undefined
   }
 
-  const visit = (request: Visit): string => {
-    const { ast, capabilities, id, placement, stack, substitutions } = request
+  const expand = (request: Visit): void => {
+    if (request.depth > maximumGraphDepth) {
+      throw new GraphBuildError({
+        code: "graph_too_deep",
+        node: request.id,
+        path: [],
+        message: `The graph nests more than ${maximumGraphDepth} levels deep. ` +
+          "Split the flow with .child() boundaries or trampoline handoffs so one execution plans a bounded graph."
+      })
+    }
+    const { ast, capabilities, depth, id, placement, stack, substitutions } = request
     const dependencies: Array<string> = []
     const inputs: Array<KeyMaterial.InputRef> = []
     const depend = (from: string, reason: EdgeReason): void => {
@@ -640,28 +818,29 @@ export const build = (
     const child = (childAst: Node.Ast, childId: string, options: {
       readonly substitutions?: ReadonlyMap<string, string>
       readonly prerequisite?: string | undefined
-    } = {}): string =>
-      visit({
-        ast: childAst,
-        id: childId,
-        capabilities,
-        placement,
-        substitutions: options.substitutions ?? substitutions,
-        stack,
-        prerequisite: options.prerequisite
-      })
+    } = {}): Visit => ({
+      ast: childAst,
+      id: childId,
+      depth: depth + 1,
+      capabilities,
+      placement,
+      substitutions: options.substitutions ?? substitutions,
+      stack,
+      prerequisite: options.prerequisite
+    })
 
     if (request.prerequisite !== undefined) depend(request.prerequisite, "continuation")
 
     switch (ast._tag) {
       case "FlowCall": {
-        return flowNode({
+        expandFlowCall({
           id,
+          depth,
           ast,
           flow: ast.flow,
           mode: ast.mode,
           declaration: flowDeclaration(Node.declaration(ast)),
-          payload: hydrate(ast.payload, substitutions),
+          payload: hydrate(ast.payload, substitutions, id),
           capabilities,
           placement,
           substitutions,
@@ -669,12 +848,13 @@ export const build = (
           dependencies,
           inputs
         })
+        return
       }
       case "ActionCall": {
         const declared = actionDeclaration(Node.declaration(ast))
         const annotations = declared?.annotations ?? Context.empty()
-        const payload = hydrate(ast.payload, substitutions)
-        return record({
+        const payload = hydrate(ast.payload, substitutions, id)
+        record({
           id,
           kind: ast._tag,
           dependencies,
@@ -692,14 +872,15 @@ export const build = (
               error: schemaIdentity(declared.errorSchema)
             }
           },
-          inputs: [...payloadInputs(payload), ...inputs],
+          inputs: [...payloadInputs(payload, id), ...inputs],
           ast,
           payload
         })
+        return
       }
       case "Succeed": {
-        const value = hydrate(ast.value, substitutions)
-        return record({
+        const value = hydrate(ast.value, substitutions, id)
+        record({
           id,
           kind: ast._tag,
           dependencies,
@@ -708,113 +889,158 @@ export const build = (
           placement: undefined,
           tier: "sealed",
           body: { _tag: ast._tag },
-          inputs: [...payloadInputs(value), ...inputs],
+          inputs: [...payloadInputs(value, id), ...inputs],
           ast,
           payload: value
         })
+        return
       }
       case "All": {
         const members = Object.keys(ast.nodes)
-        for (const member of members) depend(child(ast.nodes[member]!, `${id}.all.${member}`), "value")
-        return record({
-          id,
-          kind: ast._tag,
-          dependencies,
-          capabilities,
-          effects: undefined,
-          placement: undefined,
-          tier: "sealed",
-          body: { _tag: ast._tag, members },
-          inputs,
-          ast,
-          payload: undefined
-        })
+        const steps: Array<() => void> = []
+        for (const member of members) {
+          const memberId = `${id}.all.${member}`
+          steps.push(() => expand(child(ast.nodes[member]!, memberId)))
+          steps.push(() => depend(memberId, "value"))
+        }
+        steps.push(() =>
+          record({
+            id,
+            kind: ast._tag,
+            dependencies,
+            capabilities,
+            effects: undefined,
+            placement: undefined,
+            tier: "sealed",
+            body: { _tag: ast._tag, members },
+            inputs,
+            ast,
+            payload: undefined
+          })
+        )
+        sequence(steps)
+        return
       }
       case "Map": {
-        depend(child(ast.first, `${id}.map`), "value")
-        return record({
-          id,
-          kind: ast._tag,
-          dependencies,
-          capabilities,
-          effects: undefined,
-          placement: undefined,
-          tier: "sealed",
-          body: { _tag: ast._tag, mapper: ast.mapper },
-          inputs,
-          ast,
-          payload: undefined
-        })
+        const first = `${id}.map`
+        sequence([
+          () => expand(child(ast.first, first)),
+          () => depend(first, "value"),
+          () =>
+            record({
+              id,
+              kind: ast._tag,
+              dependencies,
+              capabilities,
+              effects: undefined,
+              placement: undefined,
+              tier: "sealed",
+              body: { _tag: ast._tag, mapper: ast.mapper },
+              inputs,
+              ast,
+              payload: undefined
+            })
+        ])
+        return
       }
       case "AndThen": {
-        const first = child(ast.first, `${id}.andThen`)
-        depend(first, "value")
-        const next = ast.next ?? continuation(ast, id, first)
-        if (next !== undefined) depend(child(next, `${id}.then`, { prerequisite: first }), "value")
-        return record({
-          id,
-          kind: ast._tag,
-          dependencies,
-          capabilities,
-          effects: undefined,
-          placement: undefined,
-          tier: "sealed",
-          body: { _tag: ast._tag, continuation: ast.continuation, static: ast.next !== undefined },
-          inputs,
-          ast,
-          payload: undefined
-        })
+        const first = `${id}.andThen`
+        sequence([
+          () => expand(child(ast.first, first)),
+          () => depend(first, "value"),
+          () => {
+            // The continuation builder runs only after the first subtree is
+            // fully observed, exactly where the recursive walk evaluated it.
+            const next = ast.next ?? continuation(ast, id, first)
+            if (next === undefined) return
+            const thenId = `${id}.then`
+            sequence([
+              () => expand(child(next, thenId, { prerequisite: first })),
+              () => depend(thenId, "value")
+            ])
+          },
+          () =>
+            record({
+              id,
+              kind: ast._tag,
+              dependencies,
+              capabilities,
+              effects: undefined,
+              placement: undefined,
+              tier: "sealed",
+              body: { _tag: ast._tag, continuation: ast.continuation, static: ast.next !== undefined },
+              inputs,
+              ast,
+              payload: undefined
+            })
+        ])
+        return
       }
       case "Branch": {
-        const first = child(ast.first, `${id}.branch`)
-        depend(first, "value")
+        const first = `${id}.branch`
         // DECIDED (2026-08-11, pending review): each Branch AST carries its own
         // subject token. An outer subject captured inside a nested arm must
         // retain the outer binding; one shared token silently rebound it to
         // the inner branch's subject.
         const arms = new Map([...substitutions, [ast.subject, first]])
-        depend(child(ast.then, `${id}.then`, { substitutions: arms, prerequisite: first }), "value")
-        depend(child(ast.else, `${id}.else`, { substitutions: arms, prerequisite: first }), "value")
-        return record({
-          id,
-          kind: ast._tag,
-          dependencies,
-          capabilities,
-          effects: undefined,
-          placement: undefined,
-          tier: "sealed",
-          body: { _tag: ast._tag, predicate: ast.predicate },
-          inputs,
-          ast,
-          payload: undefined
-        })
+        sequence([
+          () => expand(child(ast.first, first)),
+          () => depend(first, "value"),
+          () => expand(child(ast.then, `${id}.then`, { substitutions: arms, prerequisite: first })),
+          () => depend(`${id}.then`, "value"),
+          () => expand(child(ast.else, `${id}.else`, { substitutions: arms, prerequisite: first })),
+          () => depend(`${id}.else`, "value"),
+          () =>
+            record({
+              id,
+              kind: ast._tag,
+              dependencies,
+              capabilities,
+              effects: undefined,
+              placement: undefined,
+              tier: "sealed",
+              body: { _tag: ast._tag, predicate: ast.predicate },
+              inputs,
+              ast,
+              payload: undefined
+            })
+        ])
+        return
       }
       case "Catch": {
-        const protectedId = child(ast.protected, `${id}.protected`)
-        depend(protectedId, "value")
+        const protectedId = `${id}.protected`
+        const failureId = `${id}.failure`
         // DECIDED (2026-08-11, pending review): each Catch AST carries its own
         // subject token, exactly as each Branch does. An outer error captured
         // inside a nested failure arm must retain the outer binding; one shared
         // token silently rebound it to the inner catch's protected node.
         const recovery = new Map([...substitutions, [ast.subject, protectedId]])
-        const failureId = child(ast.failure, `${id}.failure`, { substitutions: recovery, prerequisite: protectedId })
-        dependencies.push(failureId)
-        observedEdges.push({ from: protectedId, to: failureId, reason: "failure" })
-        observedEdges.push({ from: failureId, to: id, reason: "value" })
-        inputs.push({ _tag: "Ref", from: failureId, path: [] })
-        return record({
-          id,
-          kind: ast._tag,
-          dependencies,
-          capabilities,
-          effects: undefined,
-          placement: undefined,
-          tier: "sealed",
-          body: { _tag: ast._tag, filter: ast.filter },
-          inputs,
-          ast,
-          payload: undefined
-        })
+        sequence([
+          () => expand(child(ast.protected, protectedId)),
+          () => depend(protectedId, "value"),
+          () => expand(child(ast.failure, failureId, { substitutions: recovery, prerequisite: protectedId })),
+          () => {
+            dependencies.push(failureId)
+            observedEdges.push({ from: protectedId, to: failureId, reason: "failure" })
+            observedEdges.push({ from: failureId, to: id, reason: "value" })
+            inputs.push({ _tag: "Ref", from: failureId, path: [] })
+          },
+          () =>
+            record({
+              id,
+              kind: ast._tag,
+              dependencies,
+              capabilities,
+              effects: undefined,
+              placement: undefined,
+              tier: "sealed",
+              body: { _tag: ast._tag, filter: ast.filter },
+              inputs,
+              ast,
+              payload: undefined
+            })
+        ])
+        return
       }
     }
   }
@@ -822,9 +1048,10 @@ export const build = (
   const declaration = flowDeclaration(flowOrNode)
   const root = options.root ?? "root"
   if (declaration === undefined) {
-    visit({
+    expand({
       ast: (flowOrNode as Node.Any).ast,
       id: root,
+      depth: 0,
       capabilities: [],
       placement: undefined,
       substitutions: new Map(),
@@ -832,9 +1059,10 @@ export const build = (
       prerequisite: undefined
     })
   } else {
-    const entry = hydrate(payload, new Map())
-    flowNode({
+    const entry = hydrate(payload, new Map(), root)
+    expandFlowCall({
       id: root,
+      depth: 0,
       // The entry is a call to the flow itself that no author wrote, so its
       // AST is synthesized here rather than recorded by `Node.flowCall`, which
       // would replace a payload's non-JSON values with their plain-object
@@ -854,6 +1082,9 @@ export const build = (
       inputs: []
     })
   }
+  // The walk itself: pop until every stacked step has run. A refusal thrown
+  // by any step propagates out of the build unchanged.
+  while (operations.length > 0) operations.pop()!()
 
   return {
     nodes: observed,
