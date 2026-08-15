@@ -312,10 +312,7 @@ describe("CacheStore", () => {
       }
     }))
 
-  // BUG: CacheStore.evict validates only `keyDigest`; a malformed `ifRecordedBy`
-  // fence is bound straight into the DELETE, so a compare-and-swap the caller
-  // could never satisfy silently reports `false` instead of failing invalid_cache.
-  it.effect.fails("rejects a malformed eviction fence with invalid_cache and no DELETE", () =>
+  it.effect("rejects a malformed eviction fence with invalid_cache and no DELETE", () =>
     Effect.gen(function*() {
       // The fence is a compare-and-swap the caller supplies at runtime. A value
       // that can name no row is a caller defect, and reporting it as an ordinary
@@ -349,8 +346,8 @@ describe("CacheStore", () => {
       )
 
       expect(deletes).toEqual([])
-      // Today every one of these reads `evicted:false` — an eviction that could
-      // never have matched, reported as an ordinary miss.
+      // An eviction that could never have matched fails, and is never reported
+      // as an ordinary miss.
       expect(result.outcomes).toEqual(Array.from({ length: 5 }, () => "invalid_cache"))
       // The row the fence could not name is untouched.
       expect(result.count).toBe(1)

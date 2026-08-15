@@ -179,8 +179,14 @@ const error = (code: CacheStoreErrorCode, message: string, cause?: unknown): Cac
  * naming a divergence that did not exist. Canonicalizing on the way in makes
  * the text comparison a structural one, which is what `@smthrs/canonical-next`
  * exists for.
+ *
+ * `RemoteCacheStore.put` runs the same check before serializing an entry onto
+ * the wire, so a value with no JSON form is refused identically by both tiers.
+ *
+ * @since 0.1.0
+ * @private
  */
-const encode = (value: unknown, field: string): Effect.Effect<string, CacheStoreError> =>
+export const encodeCanonical = (value: unknown, field: string): Effect.Effect<string, CacheStoreError> =>
   Schema.decodeUnknownEffect(Canonical)(value).pipe(
     Effect.mapError((cause) => error("invalid_cache", `${field} must have a canonical JSON form`, cause))
   )
@@ -190,10 +196,41 @@ const decode = (value: string, field: string): Effect.Effect<unknown, CacheStore
     Effect.mapError((cause) => error("decode_failed", `could not decode ${field}`, cause))
   )
 
-const validateKey = (keyDigest: string): Effect.Effect<void, CacheStoreError> =>
+/**
+ * Refuses an empty key digest before any statement or request is issued.
+ *
+ * @since 0.1.0
+ * @private
+ */
+export const validateKey = (keyDigest: string): Effect.Effect<void, CacheStoreError> =>
   keyDigest.length > 0
     ? Effect.void
     : Effect.fail(error("invalid_cache", "keyDigest must not be empty"))
+
+/** The shape a caller-supplied eviction fence must decode into. */
+const EvictFence = Schema.Struct({
+  runId: Schema.NonEmptyString,
+  eventSeq: NonNegativeSafeInt
+})
+
+/**
+ * Refuses a malformed eviction fence before any statement or request is
+ * issued. A fence naming an empty run or a sequence number no journal can
+ * record is a compare-and-swap no row could ever satisfy; running it anyway
+ * would misreport the caller's mistake as an ordinary "nothing matched".
+ *
+ * @since 0.1.0
+ * @private
+ */
+export const validateFence = (
+  fence: EvictOptions["ifRecordedBy"]
+): Effect.Effect<void, CacheStoreError> =>
+  fence === undefined
+    ? Effect.void
+    : Schema.decodeUnknownEffect(EvictFence)(fence).pipe(
+      Effect.asVoid,
+      Effect.mapError((cause) => error("invalid_cache", "eviction fence violates the persistence contract", cause))
+    )
 
 const validateEntry = (entry: CacheEntry): Effect.Effect<void, CacheStoreError> =>
   Schema.decodeUnknownEffect(CacheEntry)(entry).pipe(
@@ -269,8 +306,8 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
     Effect.gen(function*() {
       yield* Effect.annotateCurrentSpan({ keyDigest: entry.keyDigest })
       yield* validateEntry(entry)
-      const result = yield* encode(entry.result, "result")
-      const meta = yield* encode(entry.meta, "meta")
+      const result = yield* encodeCanonical(entry.result, "result")
+      const meta = yield* encodeCanonical(entry.meta, "meta")
       return yield* writer.write(
         Effect.gen(function*() {
           const inserted = yield* sql`
@@ -305,6 +342,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
     Effect.gen(function*() {
       yield* Effect.annotateCurrentSpan({ keyDigest })
       yield* validateKey(keyDigest)
+      yield* validateFence(options?.ifRecordedBy)
       // The provenance predicate rides in the DELETE itself (issue #119):
       // a read-then-delete leaves a window in which another *process* records
       // a fresh row under the same key, and the unconditional delete would
