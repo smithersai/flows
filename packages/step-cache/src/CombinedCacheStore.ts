@@ -66,12 +66,14 @@ export const make = (options: Options): CacheStore.Service => {
   const { local, remote } = options
   const deferred = options.publication === "deferred"
 
-  const get: CacheStore.Service["get"] = Effect.fn("CombinedCacheStore.get")((keyDigest: string) =>
+  const get: CacheStore.Service["get"] = Effect.fn("CombinedCacheStore.get")((keyDigest, options) =>
     Effect.gen(function*() {
       yield* Effect.annotateCurrentSpan({ keyDigest })
-      const cached = yield* local.get(keyDigest)
+      // The provenance fence travels with the lookup: each tier answers with
+      // its recorded version when it holds one and its head otherwise.
+      const cached = yield* local.get(keyDigest, options)
       if (Option.isSome(cached)) return cached
-      const shared = yield* remote.get(keyDigest)
+      const shared = yield* remote.get(keyDigest, options)
       if (Option.isNone(shared)) return shared
       // Write-back, exactly as `downloadActionResultFromRemote` does: the
       // shared entry becomes a local row so this machine's next lookup — and

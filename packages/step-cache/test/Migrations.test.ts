@@ -27,7 +27,7 @@ describe("step-cache migrations", () => {
       }))
     }))
 
-  it.effect("creates the step cache table and nothing else", () =>
+  it.effect("creates the head table, the recorded ledger, and nothing else", () =>
     Effect.gen(function*() {
       const master = yield* migrated(Effect.gen(function*() {
         const sql = yield* Effect.service(SqlClient.SqlClient)
@@ -36,15 +36,20 @@ describe("step-cache migrations", () => {
 
       expect(master.filter((row) => row.type === "table").map((row) => row.name).sort()).toEqual([
         "flows_migrations",
-        "flows_step_cache"
+        "flows_step_cache",
+        "flows_step_cache_recorded"
       ])
-      const cacheSql = master.find((row) => row.name === "flows_step_cache")?.sql ?? ""
-      expect(cacheSql).toContain("length(key_digest) > 0")
-      expect(cacheSql).toContain("json_valid(result_json)")
-      expect(cacheSql).toContain("json_valid(meta_json)")
-      expect(cacheSql).toContain("typeof(created_at_ms) = 'integer'")
-      expect(cacheSql).toContain("length(recorded_run_id) > 0")
-      expect(cacheSql).toContain("typeof(recorded_event_seq) = 'integer'")
+      for (const table of ["flows_step_cache", "flows_step_cache_recorded"]) {
+        const cacheSql = master.find((row) => row.name === table)?.sql ?? ""
+        expect(cacheSql).toContain("length(key_digest) > 0")
+        expect(cacheSql).toContain("json_valid(result_json)")
+        expect(cacheSql).toContain("json_valid(meta_json)")
+        expect(cacheSql).toContain("typeof(created_at_ms) = 'integer'")
+        expect(cacheSql).toContain("length(recorded_run_id) > 0")
+        expect(cacheSql).toContain("typeof(recorded_event_seq) = 'integer'")
+      }
+      const ledgerSql = master.find((row) => row.name === "flows_step_cache_recorded")?.sql ?? ""
+      expect(ledgerSql).toContain("PRIMARY KEY (key_digest, recorded_run_id, recorded_event_seq)")
     }))
 
   it.effect("reserves its own migration id block so ids cannot collide", () =>

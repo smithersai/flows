@@ -93,6 +93,27 @@ export const CacheEntry = Schema.Struct({
 export type CacheEntry = typeof CacheEntry.Type
 
 /**
+ * Provenance selector for a lookup.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type GetOptions = {
+  /**
+   * Prefers the entry as it was recorded by this `(runId, eventSeq)` pair —
+   * the append-only `flows_step_cache_recorded` ledger row a `put` lands
+   * beside the head — falling back to the mutable head when no recorded
+   * version under that provenance exists. Replay reads through this fence so
+   * an old frame's projection stays a function of durable state: evicting or
+   * replacing the head never changes what that event recorded.
+   */
+  readonly recordedBy?: {
+    readonly runId: string
+    readonly eventSeq: number
+  }
+}
+
+/**
  * Fencing predicate for an eviction.
  *
  * @category models
@@ -127,7 +148,15 @@ export type PutResult =
  * @since 0.1.0
  */
 export interface Service {
-  readonly get: (keyDigest: string) => Effect.Effect<Option.Option<CacheEntry>, CacheStoreError>
+  /**
+   * The entry under `keyDigest`: the mutable head by default, or — with
+   * `recordedBy` — the durable recorded version that exact event landed,
+   * falling back to the head when the ledger holds none.
+   */
+  readonly get: (
+    keyDigest: string,
+    options?: GetOptions
+  ) => Effect.Effect<Option.Option<CacheEntry>, CacheStoreError>
   readonly put: (entry: CacheEntry) => Effect.Effect<PutResult, CacheStoreError>
   /**
    * Removes the row for `keyDigest`, returning whether a row was deleted.
@@ -284,10 +313,29 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
   const sql = yield* Effect.service(SqlClient.SqlClient)
   const writer = yield* DurableWriter
 
-  const get: Service["get"] = Effect.fn("CacheStore.get")((keyDigest) =>
+  const get: Service["get"] = Effect.fn("CacheStore.get")((keyDigest, options) =>
     Effect.gen(function*() {
       yield* Effect.annotateCurrentSpan({ keyDigest })
       yield* validateKey(keyDigest)
+      const recordedBy = options?.recordedBy
+      if (recordedBy !== undefined) {
+        // The ledger row is the durable evidence a replay of that exact event
+        // must read; the head is only the fallback for entries recorded under
+        // another provenance (a fork sharing the parent's keys, a shared-tier
+        // write-back, a pre-ledger row).
+        const recorded = yield* sql<Record<string, unknown>>`
+          SELECT key_digest, result_json, meta_json, created_at_ms, recorded_run_id, recorded_event_seq
+          FROM flows_step_cache_recorded
+          WHERE key_digest = ${keyDigest}
+            AND recorded_run_id = ${recordedBy.runId}
+            AND recorded_event_seq = ${recordedBy.eventSeq}
+        `.pipe(Effect.mapError(mapPersistenceError))
+        if (recorded.length > 0) {
+          const entry = yield* decodeRow(recorded[0]!)
+          yield* Metric.update(CacheStoreMetrics.hit, 1)
+          return Option.some(entry)
+        }
+      }
       const rows = yield* sql<Record<string, unknown>>`
         SELECT key_digest, result_json, meta_json, created_at_ms, recorded_run_id, recorded_event_seq
         FROM flows_step_cache WHERE key_digest = ${keyDigest}
@@ -310,6 +358,18 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
       const meta = yield* encodeCanonical(entry.meta, "meta")
       return yield* writer.write(
         Effect.gen(function*() {
+          // The recorded ledger lands first and unconditionally: whatever the
+          // head decides — first write, duplicate, or conflict — this event
+          // durably recorded these bytes, and a later replay naming exactly
+          // this provenance must read them back. First writer wins per
+          // provenance key; nothing ever deletes a ledger row.
+          yield* sql`
+            INSERT INTO flows_step_cache_recorded (
+              key_digest, result_json, meta_json, created_at_ms, recorded_run_id, recorded_event_seq
+            ) VALUES (
+              ${entry.keyDigest}, ${result}, ${meta}, ${entry.createdAtMs}, ${entry.recordedRunId}, ${entry.recordedEventSeq}
+            ) ON CONFLICT (key_digest, recorded_run_id, recorded_event_seq) DO NOTHING
+          `.pipe(Effect.mapError(mapPersistenceError))
           const inserted = yield* sql`
             INSERT INTO flows_step_cache (
               key_digest, result_json, meta_json, created_at_ms, recorded_run_id, recorded_event_seq
