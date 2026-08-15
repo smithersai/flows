@@ -1,17 +1,18 @@
 import * as FlowPackage from "@smthrs/flow-next"
 import * as Effect from "effect/Effect"
-import { readdirSync, statSync } from "node:fs"
+import { readdirSync, readFileSync, statSync } from "node:fs"
 import { join, resolve } from "node:path"
 import { describe, expect, it } from "vitest"
 import * as Flows from "../src/index.ts"
 
 /**
- * The expected namespace list is DERIVED from the `packages/*` universe, never
- * hardcoded (issue #161): a literal list reproduced the #148 un-gated-universe
- * defect in the barrel dimension — a new `packages/scheduler` satisfied every
- * coverage conformance cell while the barrel silently omitted it and
- * `Flows.Scheduler` was undefined for every consumer. Deriving here means a
- * new package fails THIS test until `src/index.ts` re-exports it.
+ * The expected namespace list is derived from this barrel's declared
+ * `@smthrs/*` dependencies, never hardcoded (issue #161). Not every package in
+ * the monorepo belongs in the durable-engine barrel: CLI, gateway, testing,
+ * and build-tool packages have their own public surfaces and some are
+ * intentionally Node-only. Adding one of those packages must not silently
+ * drag it into every browser consumer. Adding a dependency to the barrel,
+ * however, fails this test until `src/index.ts` re-exports it.
  */
 const packagesDir = resolve(import.meta.dirname, "..", "..")
 const isFile = (path: string) => {
@@ -52,6 +53,12 @@ const isPlatformBundle = (name: string) => name.startsWith("platform-")
 const isBuildTooling = (name: string) => name === "tsflows" || name.startsWith("tsflows-")
 const packageNames = readdirSync(packagesDir)
   .filter((name) => isFile(join(packagesDir, name, "package.json")))
+const manifest = JSON.parse(readFileSync(join(packagesDir, "flows", "package.json"), "utf8")) as {
+  readonly dependencies?: Readonly<Record<string, string>>
+}
+const dependencyPackageNames = Object.keys(manifest.dependencies ?? {})
+  .filter((name) => name.startsWith("@smthrs/"))
+  .map((name) => name.slice("@smthrs/".length).replace(/-next$/, ""))
 // `@smthrs/flow-next` is the one package re-exported FLAT rather than as a single
 // namespace: writing a flow is the point of the library, so `Flow`,
 // `Action`, `RetryPolicy`, and their siblings sit at the top level. Its
@@ -60,15 +67,15 @@ const packageNames = readdirSync(packagesDir)
 // the barrel re-exports it, exactly as a new package does.
 const expected = [
   ...new Set([
-    ...packageNames
-      .filter((name) => name !== "flows" && name !== "flow" && !isPlatformBundle(name) && !isBuildTooling(name))
+    ...dependencyPackageNames
+      .filter((name) => name !== "flow")
       .map(namespaceName),
     ...Object.keys(FlowPackage)
   ])
 ].sort()
 
 describe("barrel", () => {
-  it("derives a non-trivial universe from packages/*", () => {
+  it("derives a non-trivial universe from the barrel manifest", () => {
     // Guard the derivation itself: an empty or near-empty universe would make
     // every assertion below vacuously green.
     expect(expected.length).toBeGreaterThanOrEqual(10)
@@ -83,6 +90,7 @@ describe("barrel", () => {
     // Guard the exclusion the same way: if `platform-*` ever stopped matching,
     // the filter would silently become a no-op instead of a decision.
     expect(packageNames.filter(isPlatformBundle).length).toBeGreaterThanOrEqual(3)
+    expect(dependencyPackageNames.filter(isPlatformBundle)).toEqual([])
     expect(expected.filter((name) => name.startsWith("Platform"))).toEqual([])
   })
 
@@ -90,6 +98,7 @@ describe("barrel", () => {
     // Same guard as the platform bundles above: if `tsflows*` ever stopped
     // matching, the filter would silently become a no-op instead of a decision.
     expect(packageNames.filter(isBuildTooling).sort()).toEqual(["tsflows", "tsflows-cli", "tsflows-rules"])
+    expect(dependencyPackageNames.filter(isBuildTooling)).toEqual([])
     expect(expected.filter((name) => name.startsWith("Tsflows"))).toEqual([])
   })
 
