@@ -106,7 +106,7 @@ describe("Graph.build topology", () => {
 
     expect(body(graph, "root.flow.andThen").mapper).toMatchObject({
       _tag: "FunctionIdentity",
-      algorithm: "fnv1a32-source/v1"
+      algorithm: "sha256-source/v2"
     })
     expect(body(graph, "root.flow.andThen.map")).toEqual({ _tag: "All", members: ["left", "right"] })
     expect(body(graph, "root.flow")).toMatchObject({ _tag: "AndThen", static: false })
@@ -255,7 +255,7 @@ describe("Graph.build planned values", () => {
     ])
     expect(body(graph, "root.flow").predicate).toMatchObject({
       _tag: "FunctionIdentity",
-      algorithm: "fnv1a32-source/v1"
+      algorithm: "sha256-source/v2"
     })
     expect(material(graph, "root.flow.then").inputs).toEqual([
       { _tag: "Literal", value: { _tag: "Done", value: { _tag: "PlannedInput", path: [] } } },
@@ -474,7 +474,7 @@ describe("Graph.build composition", () => {
     }
     const one = digestOf(({ path }) => Write.call({ path, value: 1 }))
 
-    expect(one).toMatchObject({ _tag: "FunctionIdentity", algorithm: "fnv1a32-source/v1" })
+    expect(one).toMatchObject({ _tag: "FunctionIdentity", algorithm: "sha256-source/v2" })
     expect(digestOf(({ path }) => Write.call({ path, value: 1 }))).toEqual(one)
     expect(digestOf(({ path }) => Write.call({ path, value: 2 }))).not.toEqual(one)
 

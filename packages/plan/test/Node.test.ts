@@ -56,8 +56,8 @@ describe("Node", () => {
     const node = Node.succeed(2).pipe(Node.map((value) => value + 1))
     const ast = tagged(node.ast, "Map")
     expect(ast.first).toEqual({ _tag: "Succeed", value: 2 })
-    expect(ast.mapper).toMatchObject({ _tag: "FunctionIdentity", algorithm: "fnv1a32-source/v1" })
-    expect(ast.mapper.digest).toMatch(/^[0-9a-f]{8}$/)
+    expect(ast.mapper).toMatchObject({ _tag: "FunctionIdentity", algorithm: "sha256-source/v2" })
+    expect(ast.mapper.digest).toMatch(/^[0-9a-f]{64}$/)
     expect(internal.operation(ast)?.(2)).toBe(3)
   })
 
@@ -345,5 +345,24 @@ describe("internal/node call factories", () => {
 
     expect(identity).toEqual(tagged(Node.map(Node.succeed(1), mapper).ast, "Map").mapper)
     expect(Node.functionIdentity((value: number): number => value + 2)).not.toEqual(identity)
+    expect(identity.digest).toMatch(/^[0-9a-f]{64}$/)
+  })
+
+  it("does not collapse behaviorally significant source or known FNV-1a collisions", () => {
+    const oneSpace = Function("return 'one space'")
+    const twoSpaces = Function("return 'one  space'")
+    expect(Node.functionIdentity(oneSpace)).not.toEqual(Node.functionIdentity(twoSpaces))
+
+    // After the previous whitespace normalization, these two sources both
+    // have the 32-bit FNV-1a digest 4b1d29dc.
+    function f2152() {
+      return 2152
+    }
+    function f19965() {
+      return 19965
+    }
+    const first = f2152
+    const second = f19965
+    expect(Node.functionIdentity(first)).not.toEqual(Node.functionIdentity(second))
   })
 })

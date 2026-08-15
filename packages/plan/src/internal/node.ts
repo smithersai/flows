@@ -28,6 +28,7 @@ import { pipeArguments } from "effect/Pipeable"
 import * as Schema from "effect/Schema"
 import type * as Types from "effect/Types"
 import * as Planned from "../Planned.ts"
+import { sha256 } from "./sha256.ts"
 
 /**
  * The runtime type identifier every node carries.
@@ -187,7 +188,7 @@ export interface ActionCall {
 }
 
 /**
- * The serializable stand-in for a function: a tagged digest of its normalized
+ * The serializable stand-in for a function: a tagged digest of its exact
  * source. The algorithm tag is versioned so a change to how sources are
  * digested re-keys everything derived from one, rather than colliding with it.
  *
@@ -196,7 +197,7 @@ export interface ActionCall {
  */
 export interface FunctionIdentity {
   readonly _tag: "FunctionIdentity"
-  readonly algorithm: "fnv1a32-source/v1"
+  readonly algorithm: "sha256-source/v2"
   readonly digest: string
 }
 
@@ -266,24 +267,19 @@ export const value = (input: unknown, seen: WeakMap<object, unknown> = new WeakM
 }
 
 /**
- * Digests a function by its source: whitespace collapsed, then FNV-1a over the
- * UTF-16 code units. Two separately written functions with the same source
- * therefore key identically, and an edited one does not.
+ * Digests a function's exact source as UTF-8 with SHA-256. Exact source matters:
+ * whitespace inside a string literal is behavior, and normalizing it before
+ * hashing can make different functions share an identity.
  *
  * @since 0.1.0
  * @private
  */
 export const functionIdentity = (operation: unknown): FunctionIdentity => {
-  const source = Function.prototype.toString.call(operation).replaceAll(/\s+/g, " ").trim()
-  let hash = 0x811c9dc5
-  for (let index = 0; index < source.length; index++) {
-    hash ^= source.charCodeAt(index)
-    hash = Math.imul(hash, 0x01000193)
-  }
+  const source = Function.prototype.toString.call(operation)
   return {
     _tag: "FunctionIdentity",
-    algorithm: "fnv1a32-source/v1",
-    digest: (hash >>> 0).toString(16).padStart(8, "0")
+    algorithm: "sha256-source/v2",
+    digest: sha256(source)
   }
 }
 
@@ -385,7 +381,7 @@ export const andThen = (first: NodeAst, operation: Operation, source: unknown): 
 export const andThenNode = (first: NodeAst, next: NodeAst): AndThen => ({
   _tag: "AndThen",
   first,
-  continuation: { _tag: "FunctionIdentity", algorithm: "fnv1a32-source/v1", digest: "static-node" },
+  continuation: { _tag: "FunctionIdentity", algorithm: "sha256-source/v2", digest: "static-node" },
   next
 })
 
