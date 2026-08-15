@@ -50,16 +50,15 @@ session re-runs tests itself.
 
 ## Status
 
-|           |                                                   |
-| --------- | ------------------------------------------------- |
-| Kinds     | `run`                                             |
-| Cacheable | Never; it is a long-lived process                 |
-| Executes  | Yes, through `ExecLive`, but only as a dependency |
+|           |                                                        |
+| --------- | ------------------------------------------------------ |
+| Kinds     | `run`                                                  |
+| Cacheable | Never; it is a long-lived process                      |
+| Executes  | Yes, through `ExecLive`, as a `run` root or dependency |
 
-The CLI has no `run` verb, so a `VitestWatch` target is never selected as a root.
-If a selected target depends on one, the executor runs it and the session holds
-its concurrency slot until it exits. Do not put a watch target in a dependency
-chain that `build`, `test`, `lint`, or `ci` reaches.
+Invoke it explicitly with `tsflows run <label>`. The session holds its
+concurrency slot until it exits. Do not put a watch target in a dependency chain
+that `build`, `test`, `lint`, or `ci` reaches.
 
 ## See also
 

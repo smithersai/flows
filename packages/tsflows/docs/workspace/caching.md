@@ -44,7 +44,7 @@ Two substitutions happen inside `inputs.attrs` before hashing:
   The pattern text and path never reach the key directly; only the content
   digest does.
 
-`layers` and `capabilities` are hand-maintained tables in `cli/src/Planner.ts`:
+`layers` and `capabilities` are hand-maintained tables in `packages/tsflows-cli/src/Planner.ts`:
 
 | Rule               | `layers`                   | `capabilities`                      |
 | ------------------ | -------------------------- | ----------------------------------- |
@@ -96,28 +96,28 @@ and the resolved cache directory name. See
 
 ## Cacheability
 
-A target is cacheable unless its rule says otherwise. `Rule.make` takes a `cache`
-option that is either a boolean or a function of the decoded attrs.
+A target is **non-cacheable by default**. `Rule.make` takes an explicit `cache`
+boolean or a function of decoded attrs. This fails safe for custom rules and for
+catalog rules that invoke an external tool whose complete toolchain identity is
+not yet key material.
 
-| Rule                                                      | Cacheable                           |
-| --------------------------------------------------------- | ----------------------------------- |
-| `EsLint`                                                  | When `fix` is false                 |
-| `SortPackageJson`                                         | When `check` is true                |
-| `PackageJsonCheck`, `GithubCiGen`                         | Check target / effective check mode |
-| `PackageJsonWrite`, `PackageJsonRefresh`                  | Never                               |
-| `Changesets`                                              | When `operation` is `status`        |
-| `ToolBuild`                                               | The `cache` attribute               |
-| `Clean`, `Dev`, `VitestWatch`, `NpmPublish`, `JsrPublish` | Never                               |
-| Every other catalog rule                                  | Always                              |
+| Rule                                          | Cacheable                                                        |
+| --------------------------------------------- | ---------------------------------------------------------------- |
+| `DocsParity`, `Filegroup`, `PackageJsonCheck` | Always; each is a bounded in-process check over declared content |
+| `GithubCiGen`                                 | In `contract` and `check` modes; never in `write` mode           |
+| `ToolBuild`                                   | Only when its declaration sets `cache: true`                     |
+| Every other catalog rule                      | Never                                                            |
 
-The pattern is consistent: a target that mutates the working tree, holds a
-long-lived process, or changes external state is never cached.
+Mutation, long-lived processes, model calls, and external publication are never
+cached. External compiler, test, and lint rules also remain non-cacheable until
+their executable and runtime toolchain are represented in the content key; a
+lockfile path or command name alone is not toolchain identity.
 
 ## Keys vary by verb
 
 The planner resolves a target's attrs, declared inputs, declared outputs, and
-cacheability through `Metadata.forKind(verb)` for `build`, `test`, and `lint`,
-and uses the declared form for `graph` and `query`.
+cacheability through `Metadata.forKind(verb)` for `build`, `test`, `lint`,
+`run`, and `docs`, and uses the declared form for `graph` and `query`.
 
 A rule that maps one verb to a different form of its attrs therefore has a
 different content key under each verb. The generator rules do exactly this: under
@@ -156,10 +156,10 @@ following Bazel's `DiskCacheClient.saveFile`:
   does not implement directory sync are tolerated, while permission, open, and
   unknown errors fail the write. Windows has no portable directory descriptor
   through Node and skips the barrier deliberately.
-- The temporary file is removed on every failure, and the original error is the
-  one reported. A removal that fails after an otherwise-complete publication is
-  reported too, rather than claiming a clean success while leaking one file per
-  concurrent writer.
+- Temporary removal is attempted on every failure. If it fails, the diagnostic
+  retains the primary error code and reports cleanup as a secondary cause;
+  cleanup failure after an otherwise-complete concurrent publication is also
+  reported rather than silently leaking one file per writer.
 - On POSIX the rename replaces the destination atomically, and the directory
   entry is flushed afterwards. Windows refuses a rename onto a destination another
   process holds open; because entries are content addressed, an existing
@@ -196,9 +196,9 @@ itself:
   regular file. A concurrent publish loses that identity check and is retried.
 - An entry larger than 16 MiB is a miss, checked on the descriptor before a
   byte is read.
-- A remote body is bounded the same way, by `Content-Length` when the server
-  declares one and by the accumulated length while a chunked or streaming body
-  is read.
+- A remote body is capped at 1 MiB (the server's action-entry limit), by exact
+  `Content-Length` when declared and by accumulated bytes and chunk count while
+  a chunked or streaming body is read. Local entries retain the 16 MiB ceiling.
 
 Every request to the remote — the fetch, its whole body, and the parse — runs
 inside one deadline that is a real race against a timer, not only an
@@ -310,9 +310,10 @@ booleans, finite numbers, strings, plain objects, and dense arrays of the same. 
 cycle, a nested `undefined`, `NaN`, `Infinity`, a bigint, a function, a symbol, a
 `Date`, a `Map`, and a class instance all leave the target green and skip
 publication with a diagnostic. A top-level `undefined` is the one accepted
-conversion, recorded as `null`: it is what a rule whose success schema is `Void`
-returns, so there is no value to lose. Storing an unserializable result as `null`
-and replaying it later was the bug this replaced.
+non-JSON value: it is what a rule whose success schema is `Void` returns, and an
+explicit tagged envelope records it without confusing it with `null`. Storing
+an unserializable result as `null` and replaying it later was the bug this
+replaced.
 
 A cache hit replays the recorded success value only. It does not restore output
 files. Build rules that produce files record digests of what they produced, not
@@ -323,7 +324,7 @@ correctly, so a target whose `dist` directory was deleted re-executes.
 
 The planner computes the key but consults no cache. `--plan` output still reports
 `cacheLookup: "not-wired"` and `wouldRun: true` for every target. Those two
-fields are stale relative to `cli/src/Executor.ts`, which performs the real
+fields are stale relative to `packages/tsflows-cli/src/Executor.ts`, which performs the real
 lookup at execution time.
 
 ## Next

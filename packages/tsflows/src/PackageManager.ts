@@ -4,9 +4,11 @@
  * Installing dependencies has two distinct jobs.
  * Fetching populates a content-addressed store under `.flows/store`;
  * linking materializes one project's `node_modules` out of that store.
- * The first is determined by declared package-manager inputs and is therefore
- * cacheable and shareable. The second writes a local tree of hardlinks,
- * symlinks, or copies, so it is never restored from another machine.
+ * The first has stable identity from declared package-manager inputs, but the
+ * current absolute-root implementation is deliberately not shared across
+ * runs because it cannot freeze those files across a child-process open. The
+ * second writes a local tree of hardlinks, symlinks, or copies, so it is never
+ * restored from another machine either.
  *
  * This module is the `Layer` that decides which manager performs those two
  * jobs. It holds no flow vocabulary: `Install.ts` declares the actions and the
@@ -142,9 +144,8 @@ export class PackageManagerError extends Schema.TaggedError<PackageManagerError>
  *
  * The digest is machine-independent on purpose. It names the fetch's inputs,
  * not a host-specific store directory, so two machines that fetched the same
- * lockfile under the same manager agree on it and a shared cache entry means
- * the same thing on both. The fetch boundary records the store files as CAS
- * artifacts. A shared hit hydrates those files before link runs.
+ * lockfile under the same manager agree on it. The current expected boundary
+ * does not publish this value or the store files across runs.
  *
  * @category models
  * @since 0.1.0
@@ -169,11 +170,11 @@ export const StoreManifest = Schema.Struct({
 export type StoreManifest = typeof StoreManifest.Type
 
 /**
- * The workspace-relative root of every replayable package-manager store.
+ * The workspace-relative root of every package-manager store.
  *
- * Fetch writes beneath this path so the flows boundary can record the store
- * files in the existing artifact CAS. Link reads them locally and writes
- * `node_modules`, which is never published.
+ * Fetch writes beneath this path so its declared write set is exact. Link
+ * reads the store locally and writes `node_modules`; neither tree is currently
+ * published.
  *
  * @category constants
  * @since 0.1.0
@@ -345,7 +346,25 @@ const unreadable = (
   new PackageManagerError({ code, message: `could not read ${path}: ${failureMessage(cause)}`, cause })
 
 /** @private */
-const failureMessage = (cause: unknown): string => cause instanceof Error ? cause.message : String(cause)
+const failureMessage = (cause: unknown): string => {
+  if (typeof cause === "string") return cause === "" ? "unknown failure" : cause
+  if (
+    typeof cause === "number" ||
+    typeof cause === "bigint" ||
+    typeof cause === "boolean" ||
+    typeof cause === "symbol"
+  ) return String(cause)
+  if ((typeof cause !== "object" && typeof cause !== "function") || cause === null) return "unknown failure"
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(cause, "message")
+    return descriptor !== undefined && "value" in descriptor && typeof descriptor.value === "string" &&
+        descriptor.value !== ""
+      ? descriptor.value
+      : "unknown failure"
+  } catch {
+    return "unknown failure"
+  }
+}
 
 const bootstrapEnvironment = [
   "HTTP_PROXY",
@@ -365,11 +384,18 @@ const bootstrapEnvironment = [
   "no_proxy"
 ] as const
 
-const timeoutOf = (options: Options): number => {
-  const timeout = options.timeoutMs ?? defaultCommandTimeoutMs
-  if (!Number.isSafeInteger(timeout) || timeout < 1 || timeout > maximumCommandTimeoutMs) {
+const timeoutOf = (value: unknown): number => {
+  const timeout = value ?? defaultCommandTimeoutMs
+  if (
+    typeof timeout !== "number" ||
+    !Number.isSafeInteger(timeout) ||
+    timeout < 1 ||
+    timeout > maximumCommandTimeoutMs
+  ) {
     throw new TypeError(
-      `package-manager timeout must be an integer from 1 to ${maximumCommandTimeoutMs}, received ${String(timeout)}`
+      `package-manager timeout must be an integer from 1 to ${maximumCommandTimeoutMs}, received ${
+        typeof timeout === "number" ? String(timeout) : typeof timeout
+      }`
     )
   }
   return timeout
@@ -389,39 +415,118 @@ const isWellFormedText = (value: string): boolean => {
   return true
 }
 
-const environmentSource = (
-  options: Options
+interface NormalizedOptions {
+  readonly projectRoot: string
+  readonly platform: Platform
+  readonly environment: ReadonlyMap<string, string>
+  readonly timeoutMs: number
+  readonly executable: string | undefined
+}
+
+const inspect = <A>(what: string, operation: () => A): A => {
+  try {
+    return operation()
+  } catch {
+    throw new TypeError(`${what} could not be inspected safely`)
+  }
+}
+
+const plainRecord = (value: unknown, what: string): Record<PropertyKey, unknown> => {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new TypeError(`${what} must be a plain object`)
+  }
+  const prototype = inspect(what, () => Object.getPrototypeOf(value))
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new TypeError(`${what} must be a plain object`)
+  }
+  return value as Record<PropertyKey, unknown>
+}
+
+const ownData = (
+  value: Record<PropertyKey, unknown>,
+  name: string,
+  what: string
+): unknown => {
+  const descriptor = inspect(what, () => Object.getOwnPropertyDescriptor(value, name))
+  if (descriptor === undefined) return undefined
+  if (!("value" in descriptor) || descriptor.enumerable !== true) {
+    throw new TypeError(`${what}.${name} must be an enumerable data property`)
+  }
+  return descriptor.value
+}
+
+const exactKeys = (
+  value: Record<PropertyKey, unknown>,
+  allowed: ReadonlySet<string>,
+  what: string
+): void => {
+  const keys = inspect(what, () => Reflect.ownKeys(value))
+  for (const key of keys) {
+    if (typeof key !== "string" || !allowed.has(key)) {
+      throw new TypeError(
+        `${what} contains unknown property ${typeof key === "string" ? JSON.stringify(key) : "symbol"}`
+      )
+    }
+  }
+}
+
+const normalizeEnvironment = (
+  value: unknown,
+  windows: boolean
 ): ReadonlyMap<string, string> => {
-  const entries = Object.entries(options.environment ?? {})
-  if (entries.length > maximumEnvironmentEntries) {
+  if (value === undefined) return new Map()
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new TypeError("package-manager environment must be an object of string values")
+  }
+  const record = value as Record<PropertyKey, unknown>
+  const keys = inspect("package-manager environment", () => Reflect.ownKeys(record))
+  if (keys.length > maximumEnvironmentEntries) {
     throw new TypeError(`package-manager environment has more than ${maximumEnvironmentEntries} entries`)
   }
   const output = new Map<string, string>()
   let bytes = 0
-  for (const [name, value] of entries) {
+  for (const key of keys) {
+    if (typeof key !== "string") {
+      throw new TypeError("package-manager environment must not contain symbol properties")
+    }
+    const name = key
     if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) {
       throw new TypeError(`package-manager environment name is not portable: ${JSON.stringify(name)}`)
     }
-    if (value === undefined) continue
-    if (value.includes("\0") || !isWellFormedText(value)) {
+    const descriptor = inspect("package-manager environment", () => Object.getOwnPropertyDescriptor(record, name))
+    if (descriptor === undefined || !("value" in descriptor) || descriptor.enumerable !== true) {
+      throw new TypeError(`package-manager environment ${name} must be an enumerable data property`)
+    }
+    const member = descriptor.value
+    if (member === undefined) continue
+    if (typeof member !== "string") {
+      throw new TypeError(`package-manager environment ${name} must be a string or undefined`)
+    }
+    if (member.includes("\0") || !isWellFormedText(member)) {
       throw new TypeError(`package-manager environment ${name} is not usable text`)
     }
-    bytes += Buffer.byteLength(name, "utf8") + Buffer.byteLength(value, "utf8")
+    bytes += Buffer.byteLength(name, "utf8") + Buffer.byteLength(member, "utf8")
     if (!Number.isSafeInteger(bytes) || bytes > maximumEnvironmentBytes) {
       throw new TypeError(`package-manager environment exceeds ${maximumEnvironmentBytes} bytes`)
     }
-    const key = options.platform.os === "win32" ? name.toUpperCase() : name
-    if (output.has(key)) {
+    const normalizedName = windows ? name.toUpperCase() : name
+    if (output.has(normalizedName)) {
       throw new TypeError(`package-manager environment repeats a case-insensitive name: ${JSON.stringify(name)}`)
     }
-    output.set(key, value)
+    output.set(normalizedName, member)
   }
   return output
 }
 
-/** Refuses malformed host configuration before any service or child exists. */
-const validateOptions = (options: Options): void => {
-  const root = options.projectRoot
+/** Snapshots and validates host configuration before any service or child exists. */
+const normalizeOptions = (value: Options): NormalizedOptions => {
+  const options = plainRecord(value, "package-manager options")
+  exactKeys(
+    options,
+    new Set(["projectRoot", "platform", "environment", "timeoutMs", "executable"]),
+    "package-manager options"
+  )
+  const root = ownData(options, "projectRoot", "package-manager options")
   if (
     typeof root !== "string" ||
     root.length === 0 ||
@@ -432,11 +537,21 @@ const validateOptions = (options: Options): void => {
   ) {
     throw new TypeError("package-manager projectRoot must be a usable absolute path")
   }
+  const platformRecord = plainRecord(
+    ownData(options, "platform", "package-manager options"),
+    "package-manager platform"
+  )
+  exactKeys(platformRecord, new Set(["os", "arch", "libc"]), "package-manager platform")
+  const platform = {
+    os: ownData(platformRecord, "os", "package-manager platform"),
+    arch: ownData(platformRecord, "arch", "package-manager platform"),
+    libc: ownData(platformRecord, "libc", "package-manager platform")
+  }
   for (
     const [name, value] of [
-      ["platform.os", options.platform.os],
-      ["platform.arch", options.platform.arch],
-      ["platform.libc", options.platform.libc]
+      ["platform.os", platform.os],
+      ["platform.arch", platform.arch],
+      ["platform.libc", platform.libc]
     ] as const
   ) {
     if (
@@ -447,15 +562,36 @@ const validateOptions = (options: Options): void => {
       throw new TypeError(`package-manager ${name} must be non-empty usable text no longer than 256 bytes`)
     }
   }
+  if (typeof platform.os !== "string" || typeof platform.arch !== "string") {
+    throw new TypeError("package-manager platform os and arch must be strings")
+  }
+  if (platform.libc !== null && typeof platform.libc !== "string") {
+    throw new TypeError("package-manager platform libc must be a string or null")
+  }
+  const executable = ownData(options, "executable", "package-manager options")
   if (
-    options.executable !== undefined &&
-    (options.executable.length === 0 || options.executable.includes("\0") ||
-      !isWellFormedText(options.executable) || Buffer.byteLength(options.executable, "utf8") > 32 * 1024)
+    executable !== undefined &&
+    (typeof executable !== "string" || executable.length === 0 || executable.includes("\0") ||
+      !isWellFormedText(executable) || Buffer.byteLength(executable, "utf8") > 32 * 1024)
   ) {
     throw new TypeError("package-manager executable must be usable non-empty text")
   }
-  timeoutOf(options)
-  environmentSource(options)
+  const timeoutMs = timeoutOf(ownData(options, "timeoutMs", "package-manager options"))
+  const normalizedPlatform = Object.freeze<Platform>({
+    os: platform.os,
+    arch: platform.arch,
+    libc: platform.libc
+  })
+  return Object.freeze({
+    projectRoot: root,
+    platform: normalizedPlatform,
+    environment: normalizeEnvironment(
+      ownData(options, "environment", "package-manager options"),
+      normalizedPlatform.os === "win32"
+    ),
+    timeoutMs,
+    executable
+  })
 }
 
 const sourceValue = (source: ReadonlyMap<string, string>, name: string, windows: boolean): string | undefined =>
@@ -480,15 +616,38 @@ const fileIdentity = (info: FileSystem.File.Info): string =>
   `${info.dev}:${Option.getOrUndefined(info.ino) ?? "none"}:${info.size}:` +
   `${Option.getOrUndefined(info.mtime)?.getTime() ?? "none"}`
 
+const comparablePath = (path: string): string => {
+  const normalized = path.replaceAll("\\", "/")
+  return /^(?:[A-Za-z]:\/|\/\/)/.test(normalized) ? normalized.toLowerCase() : normalized
+}
+
+const insideRoot = (root: string, candidate: string): boolean => {
+  const boundary = comparablePath(root)
+  const path = comparablePath(candidate)
+  return path === boundary || path.startsWith(boundary.endsWith("/") ? boundary : `${boundary}/`)
+}
+
 /** Reads one descriptor-stable regular file while enforcing an actual byte limit. */
-const boundedText = (
+const boundedBytes = (
   fs: FileSystem.FileSystem,
   code: ErrorCode,
+  projectRoot: string,
   path: string,
   limit: number
-): Effect.Effect<string, PackageManagerError> =>
+): Effect.Effect<Uint8Array, PackageManagerError> =>
   Effect.scoped(
     Effect.gen(function*() {
+      const canonicalRoot = yield* fs.realPath(projectRoot).pipe(
+        Effect.mapError((cause) => unreadable(code, projectRoot, cause))
+      )
+      const canonicalPath = yield* fs.realPath(path).pipe(
+        Effect.mapError((cause) => unreadable(code, path, cause))
+      )
+      if (!insideRoot(canonicalRoot, canonicalPath)) {
+        return yield* Effect.fail(
+          unreadable(code, path, new Error(`file resolves outside project root ${canonicalRoot}`))
+        )
+      }
       // Reject stable FIFOs, sockets, devices, and directories before open;
       // opening a FIFO for reading can otherwise wait forever for a writer.
       const before = yield* fs.stat(path).pipe(Effect.mapError((cause) => unreadable(code, path, cause)))
@@ -509,54 +668,76 @@ const boundedText = (
       if (fileIdentity(before) !== fileIdentity(info)) {
         return yield* Effect.fail(unreadable(code, path, new Error("file changed while it was opened")))
       }
-      const chunks: Array<Uint8Array> = []
+      const advertised = Number(info.size)
+      const bytes = new Uint8Array(advertised + 1)
       let length = 0
-      while (length <= limit) {
-        const buffer = new Uint8Array(Math.min(64 * 1024, limit + 1 - length))
+      while (length < bytes.byteLength) {
+        const destination = bytes.subarray(length)
         const read = Number(
-          yield* file.read(buffer).pipe(
+          yield* file.read(destination).pipe(
             Effect.mapError((cause) => unreadable(code, path, cause))
           )
         )
+        if (!Number.isSafeInteger(read) || read < 0 || read > destination.byteLength) {
+          return yield* Effect.fail(unreadable(code, path, new Error("file returned an invalid read length")))
+        }
         if (read === 0) break
-        chunks.push(buffer.subarray(0, read))
         length += read
       }
-      if (length > limit) {
-        return yield* Effect.fail(unreadable(code, path, new Error(`file exceeds ${limit} bytes`)))
+      if (length > limit || BigInt(length) !== info.size) {
+        return yield* Effect.fail(unreadable(code, path, new Error("file length changed while it was read")))
       }
       const after = yield* file.stat.pipe(Effect.mapError((cause) => unreadable(code, path, cause)))
       if (fileIdentity(info) !== fileIdentity(after)) {
         return yield* Effect.fail(unreadable(code, path, new Error("file changed while it was read")))
       }
-      const bytes = new Uint8Array(length)
-      let offset = 0
-      for (const chunk of chunks) {
-        bytes.set(chunk, offset)
-        offset += chunk.byteLength
+      const canonicalPathAfter = yield* fs.realPath(path).pipe(
+        Effect.mapError((cause) => unreadable(code, path, cause))
+      )
+      const canonicalRootAfter = yield* fs.realPath(projectRoot).pipe(
+        Effect.mapError((cause) => unreadable(code, projectRoot, cause))
+      )
+      if (
+        comparablePath(canonicalRootAfter) !== comparablePath(canonicalRoot) ||
+        comparablePath(canonicalPathAfter) !== comparablePath(canonicalPath) ||
+        !insideRoot(canonicalRootAfter, canonicalPathAfter)
+      ) {
+        return yield* Effect.fail(unreadable(code, path, new Error("file changed its canonical location while read")))
       }
-      return yield* Effect.try({
+      return bytes.subarray(0, length)
+    })
+  )
+
+const boundedText = (
+  fs: FileSystem.FileSystem,
+  code: ErrorCode,
+  projectRoot: string,
+  path: string,
+  limit: number
+): Effect.Effect<string, PackageManagerError> =>
+  boundedBytes(fs, code, projectRoot, path, limit).pipe(
+    Effect.flatMap((bytes) =>
+      Effect.try({
         try: () => decodedText(bytes, path),
         catch: (cause) => unreadable(code, path, cause)
       })
-    })
+    )
   )
 
 /** Selects only bootstrap, network, and project-declared credential variables. */
 const managerEnvironment = (
   fs: FileSystem.FileSystem,
-  options: Options
+  options: NormalizedOptions
 ): Effect.Effect<Record<string, string>, PackageManagerError> =>
   Effect.gen(function*() {
-    const source = yield* Effect.try({
-      try: () => environmentSource(options),
-      catch: (cause) => new PackageManagerError({ code: "unsafe_configuration", message: failureMessage(cause), cause })
-    })
+    const source = options.environment
     const path = `${options.projectRoot}/.npmrc`
     const present = yield* fs.exists(path).pipe(
       Effect.mapError((cause) => unreadable("manifest_unreadable", path, cause))
     )
-    const npmrc = present ? yield* boundedText(fs, "manifest_unreadable", path, maximumNpmrcBytes) : ""
+    const npmrc = present
+      ? yield* boundedText(fs, "manifest_unreadable", options.projectRoot, path, maximumNpmrcBytes)
+      : ""
     if (hasEmbeddedNpmCredential(npmrc)) {
       return yield* Effect.fail(
         new PackageManagerError({
@@ -719,10 +900,13 @@ const digestText = (text: string): Effect.Effect<Digest, never, Crypto.Crypto> =
 const digestFile = (
   fs: FileSystem.FileSystem,
   code: ErrorCode,
+  projectRoot: string,
   path: string,
   limit: number
 ): Effect.Effect<Digest, PackageManagerError, Crypto.Crypto> =>
-  boundedText(fs, code, path, limit).pipe(Effect.flatMap(digestText))
+  boundedBytes(fs, code, projectRoot, path, limit).pipe(
+    Effect.flatMap((bytes) => Effect.orDie(Schema.decodeUnknownEffect(Sha256)(bytes)))
+  )
 
 /**
  * Builds the explicit unsupported npm implementation.
@@ -739,7 +923,7 @@ const digestFile = (
 export const makeNpm = (options: Options): Effect.Effect<
   Service,
   never
-> => Effect.succeed(makeNoop("npm", options))
+> => Effect.sync(() => makeNoop("npm", options))
 
 /**
  * Provides the npm implementation.
@@ -768,55 +952,63 @@ export const makePnpm = (options: Options): Effect.Effect<
   never,
   ChildProcessSpawner | FileSystem.FileSystem
 > =>
-  Effect.sync(() => validateOptions(options)).pipe(Effect.andThen(Effect.gen(function*() {
-    const spawner = yield* ChildProcessSpawner
-    const fs = yield* FileSystem.FileSystem
-    const executable = options.executable ?? "pnpm"
-    const projectRoot = options.projectRoot
-    const timeoutMs = timeoutOf(options)
-    const storeDirectory = `${storeRoot}/pnpm`
-    const storeArgs = ["--store-dir", `${projectRoot}/${storeDirectory}`]
-    const command = (label: string, args: ReadonlyArray<string>) =>
-      Effect.flatMap(managerEnvironment(fs, options), (environment) =>
-        run(spawner, label, managerCommand(executable, args, projectRoot, environment, "inherit"), timeoutMs))
-    return {
-      name: "pnpm",
-      projectRoot,
-      storeDirectory,
-      lockfileName: "pnpm-lock.yaml",
-      platformSensitive: true,
-      platform: options.platform,
-      version: Effect.flatMap(managerEnvironment(fs, options), (environment) =>
-        capture(
-          spawner,
-          "pnpm --version",
-          managerCommand(executable, ["--version"], projectRoot, environment, "capture"),
-          timeoutMs
-        )),
-      fetch: command(
-        "pnpm fetch",
-        ["fetch", "--frozen-lockfile", "--ignore-scripts", "--reporter=append-only", ...storeArgs]
-      ),
-      link: command(
-        "pnpm install --offline",
-        [
-          "install",
-          "--offline",
-          "--frozen-lockfile",
-          "--ignore-scripts",
-          "--reporter=append-only",
-          ...storeArgs
-        ]
-      ),
-      // pnpm records the state of the virtual store it linked from.
-      linkManifest: digestFile(
-        fs,
-        "manifest_unreadable",
-        `${projectRoot}/node_modules/.modules.yaml`,
-        maximumLockfileBytes
+  Effect.sync(() => normalizeOptions(options)).pipe(Effect.flatMap((normalized) =>
+    Effect.gen(function*() {
+      const spawner = yield* ChildProcessSpawner
+      const fs = yield* FileSystem.FileSystem
+      const executable = normalized.executable ?? "pnpm"
+      const projectRoot = normalized.projectRoot
+      const timeoutMs = normalized.timeoutMs
+      const storeDirectory = `${storeRoot}/pnpm`
+      const storeArgs = ["--store-dir", `${projectRoot}/${storeDirectory}`]
+      const command = (label: string, args: ReadonlyArray<string>) =>
+        Effect.flatMap(
+          managerEnvironment(fs, normalized),
+          (environment) =>
+            run(spawner, label, managerCommand(executable, args, projectRoot, environment, "inherit"), timeoutMs)
+        )
+      return Object.freeze(
+        {
+          name: "pnpm",
+          projectRoot,
+          storeDirectory,
+          lockfileName: "pnpm-lock.yaml",
+          platformSensitive: true,
+          platform: normalized.platform,
+          version: Effect.flatMap(managerEnvironment(fs, normalized), (environment) =>
+            capture(
+              spawner,
+              "pnpm --version",
+              managerCommand(executable, ["--version"], projectRoot, environment, "capture"),
+              timeoutMs
+            )),
+          fetch: command(
+            "pnpm fetch",
+            ["fetch", "--frozen-lockfile", "--ignore-scripts", "--reporter=append-only", ...storeArgs]
+          ),
+          link: command(
+            "pnpm install --offline",
+            [
+              "install",
+              "--offline",
+              "--frozen-lockfile",
+              "--ignore-scripts",
+              "--reporter=append-only",
+              ...storeArgs
+            ]
+          ),
+          // pnpm records the state of the virtual store it linked from.
+          linkManifest: digestFile(
+            fs,
+            "manifest_unreadable",
+            projectRoot,
+            `${projectRoot}/node_modules/.modules.yaml`,
+            maximumLockfileBytes
+          )
+        } satisfies Service
       )
-    } satisfies Service
-  })))
+    })
+  ))
 
 /**
  * Provides the pnpm implementation.
@@ -844,7 +1036,7 @@ export const layerPnpm = (
 export const makeBun = (options: Options): Effect.Effect<
   Service,
   never
-> => Effect.succeed(makeNoop("bun", options))
+> => Effect.sync(() => makeNoop("bun", options))
 
 /**
  * Provides the Bun implementation.
@@ -869,7 +1061,10 @@ export const layerBun = (
  * @since 0.1.0
  */
 export const makeNoop = (name: Name, options: Options): Service => {
-  validateOptions(options)
+  if (name !== "npm" && name !== "pnpm" && name !== "bun" && name !== "yarn") {
+    throw new TypeError("package-manager name is unsupported")
+  }
+  const normalized = normalizeOptions(options)
   const refuse = <A>(operation: string): Effect.Effect<A, PackageManagerError> =>
     Effect.fail(
       new PackageManagerError({
@@ -877,9 +1072,9 @@ export const makeNoop = (name: Name, options: Options): Service => {
         message: `no ${name} implementation is wired for ${operation}`
       })
     )
-  return {
+  return Object.freeze({
     name,
-    projectRoot: options.projectRoot,
+    projectRoot: normalized.projectRoot,
     storeDirectory: `${storeRoot}/${name}`,
     lockfileName: name === "yarn"
       ? "yarn.lock"
@@ -889,12 +1084,12 @@ export const makeNoop = (name: Name, options: Options): Service => {
       ? "pnpm-lock.yaml"
       : "package-lock.json",
     platformSensitive: true,
-    platform: options.platform,
-    version: refuse("version"),
-    fetch: refuse("fetch"),
-    link: refuse("link"),
-    linkManifest: refuse("linkManifest")
-  }
+    platform: normalized.platform,
+    version: refuse<string>("version"),
+    fetch: refuse<void>("fetch"),
+    link: refuse<void>("link"),
+    linkManifest: refuse<Digest>("linkManifest")
+  })
 }
 
 /**
@@ -906,24 +1101,83 @@ export const makeNoop = (name: Name, options: Options): Service => {
 export const layerNoop = (name: Name, options: Options): Layer.Layer<PackageManager> =>
   Layer.succeed(PackageManager)(makeNoop(name, options))
 
-/**
- * The canonical text a store manifest digest is taken over.
- *
- * It is built here rather than by a JSON serializer so the field order is
- * fixed by this function and not by object construction order. The version
- * prefix is hashed with everything else, so a change to this shape can never
- * collide with a digest minted under the old one.
- *
- * @category constructors
- * @since 0.1.0
- */
-export const storeManifestText = (input: {
+interface NormalizedStoreManifestInput {
   readonly manager: Name
   readonly managerVersion: string
   readonly platform: Platform | null
   readonly lockfileDigest: string
   readonly npmrcDigest: string | null
-}): string =>
+}
+
+const digestPattern = /^[0-9a-f]{64}$/
+
+const normalizedPlatform = (value: unknown, what: string): Platform => {
+  const record = plainRecord(value, what)
+  exactKeys(record, new Set(["os", "arch", "libc"]), what)
+  const os = ownData(record, "os", what)
+  const arch = ownData(record, "arch", what)
+  const libc = ownData(record, "libc", what)
+  for (const [name, member] of [["os", os], ["arch", arch], ["libc", libc]] as const) {
+    if (
+      member !== null &&
+      (typeof member !== "string" || member.length === 0 || !isWellFormedText(member) ||
+        Buffer.byteLength(member, "utf8") > 256)
+    ) {
+      throw new TypeError(`${what}.${name} must be bounded non-empty usable text or null`)
+    }
+  }
+  if (typeof os !== "string" || typeof arch !== "string" || (libc !== null && typeof libc !== "string")) {
+    throw new TypeError(`${what} must contain string os and arch fields and a string-or-null libc field`)
+  }
+  return Object.freeze({ os, arch, libc })
+}
+
+const normalizeStoreManifestInput = (value: {
+  readonly manager: Name
+  readonly managerVersion: string
+  readonly platform: Platform | null
+  readonly lockfileDigest: string
+  readonly npmrcDigest: string | null
+}): NormalizedStoreManifestInput => {
+  const record = plainRecord(value, "store manifest input")
+  exactKeys(
+    record,
+    new Set(["manager", "managerVersion", "platform", "lockfileDigest", "npmrcDigest"]),
+    "store manifest input"
+  )
+  const manager = ownData(record, "manager", "store manifest input")
+  if (manager !== "npm" && manager !== "pnpm" && manager !== "bun" && manager !== "yarn") {
+    throw new TypeError("store manifest manager is unsupported")
+  }
+  const managerVersion = ownData(record, "managerVersion", "store manifest input")
+  if (
+    typeof managerVersion !== "string" ||
+    managerVersion.length === 0 ||
+    !isWellFormedText(managerVersion) ||
+    Buffer.byteLength(managerVersion, "utf8") > maximumVersionOutputBytes ||
+    /[\u0000-\u001f\u007f]/.test(managerVersion)
+  ) {
+    throw new TypeError("store manifest managerVersion must be bounded single-line usable text")
+  }
+  const lockfileDigest = ownData(record, "lockfileDigest", "store manifest input")
+  const npmrcDigest = ownData(record, "npmrcDigest", "store manifest input")
+  if (typeof lockfileDigest !== "string" || !digestPattern.test(lockfileDigest)) {
+    throw new TypeError("store manifest lockfileDigest must be a lowercase SHA-256 digest")
+  }
+  if (npmrcDigest !== null && (typeof npmrcDigest !== "string" || !digestPattern.test(npmrcDigest))) {
+    throw new TypeError("store manifest npmrcDigest must be a lowercase SHA-256 digest or null")
+  }
+  const platformValue = ownData(record, "platform", "store manifest input")
+  return Object.freeze({
+    manager,
+    managerVersion,
+    platform: platformValue === null ? null : normalizedPlatform(platformValue, "store manifest platform"),
+    lockfileDigest,
+    npmrcDigest
+  })
+}
+
+const renderStoreManifestText = (input: NormalizedStoreManifestInput): string =>
   JSON.stringify([
     "tsflows/store-manifest/v1",
     input.manager,
@@ -934,6 +1188,25 @@ export const storeManifestText = (input: {
     input.lockfileDigest,
     input.npmrcDigest
   ])
+
+/**
+ * The canonical text a store manifest digest is taken over.
+ *
+ * It is represented as a fixed JSON tuple, so field order is independent of
+ * object construction order. The version prefix is hashed with everything
+ * else, so a change to this shape cannot collide with a digest minted under
+ * the old one.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const storeManifestText = (input: {
+  readonly manager: Name
+  readonly managerVersion: string
+  readonly platform: Platform | null
+  readonly lockfileDigest: string
+  readonly npmrcDigest: string | null
+}): string => renderStoreManifestText(normalizeStoreManifestInput(input))
 
 /**
  * Computes the store manifest a fetch reports.
@@ -948,12 +1221,17 @@ export const storeManifest = (input: {
   readonly lockfileDigest: string
   readonly npmrcDigest: string | null
 }): Effect.Effect<StoreManifest, never, Crypto.Crypto> =>
-  Effect.map(digestText(storeManifestText(input)), (digest) => ({
-    manager: input.manager,
-    managerVersion: input.managerVersion,
-    platform: input.platform,
-    digest
-  }))
+  Effect.sync(() => normalizeStoreManifestInput(input)).pipe(
+    Effect.flatMap((normalized) =>
+      Effect.map(digestText(renderStoreManifestText(normalized)), (digest) =>
+        Object.freeze({
+          manager: normalized.manager,
+          managerVersion: normalized.managerVersion,
+          platform: normalized.platform,
+          digest
+        }))
+    )
+  )
 
 /**
  * Computes the digest used to decide whether a linked tree is still fresh.
@@ -970,18 +1248,29 @@ export const linkedTreeManifest = (input: {
   readonly packageJsonDigest: Digest
   readonly managerEvidence: Digest
 }): Effect.Effect<Digest, never, Crypto.Crypto> =>
-  digestText(JSON.stringify([
-    "tsflows/linked-tree-manifest/v1",
-    input.storeDigest,
-    input.packageJsonDigest,
-    input.managerEvidence
-  ]))
+  Effect.sync(() => {
+    const record = plainRecord(input, "linked tree manifest input")
+    exactKeys(
+      record,
+      new Set(["storeDigest", "packageJsonDigest", "managerEvidence"]),
+      "linked tree manifest input"
+    )
+    const values = [
+      ownData(record, "storeDigest", "linked tree manifest input"),
+      ownData(record, "packageJsonDigest", "linked tree manifest input"),
+      ownData(record, "managerEvidence", "linked tree manifest input")
+    ]
+    if (!values.every((member) => typeof member === "string" && digestPattern.test(member))) {
+      throw new TypeError("linked tree manifest inputs must be lowercase SHA-256 digests")
+    }
+    return JSON.stringify(["tsflows/linked-tree-manifest/v1", ...values])
+  }).pipe(Effect.flatMap(digestText))
 
 /**
  * Reports whether `.npmrc` embeds a credential instead of referring to an
  * environment variable.
  *
- * The hard boundary hashes the complete file. Literal credentials therefore
+ * Install key material hashes the complete file. Literal credentials therefore
  * cannot be allowed in it. A value such as `${NPM_TOKEN}` is safe because the
  * file contains only the variable name. The environment value remains a host
  * capability and never enters the key or journal.
@@ -1021,7 +1310,7 @@ export const npmrcDigest = (
       Effect.mapError((cause) => unreadable("manifest_unreadable", path, cause))
     )
     if (!present) return null
-    const text = yield* boundedText(fs, "manifest_unreadable", path, maximumNpmrcBytes)
+    const text = yield* boundedText(fs, "manifest_unreadable", projectRoot, path, maximumNpmrcBytes)
     if (hasEmbeddedNpmCredential(text)) {
       return yield* Effect.fail(
         new PackageManagerError({
@@ -1048,6 +1337,7 @@ export const lockfileDigest = (
     return yield* digestFile(
       fs,
       "lockfile_unreadable",
+      projectRoot,
       `${projectRoot}/${lockfileName}`,
       maximumLockfileBytes
     )
@@ -1067,6 +1357,7 @@ export const packageJsonDigest = (
     return yield* digestFile(
       fs,
       "manifest_unreadable",
+      projectRoot,
       `${projectRoot}/package.json`,
       maximumPackageJsonBytes
     )

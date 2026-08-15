@@ -58,16 +58,15 @@ Collected from the attrs: every declaration in `inputs`.
 
 ## Status
 
-|           |                                                   |
-| --------- | ------------------------------------------------- |
-| Kinds     | `run`                                             |
-| Cacheable | Never; the process stays live                     |
-| Executes  | Yes, through `ExecLive`, but only as a dependency |
+|           |                                                        |
+| --------- | ------------------------------------------------------ |
+| Kinds     | `run`                                                  |
+| Cacheable | Never; the process stays live                          |
+| Executes  | Yes, through `ExecLive`, as a `run` root or dependency |
 
-The CLI has no `run` verb, so a `Dev` target is never selected as a root. If a
-selected target depends on one, the executor runs it and it holds its concurrency
-slot until the process exits. Do not put a `Dev` target in a dependency chain
-that `build`, `test`, `lint`, or `ci` reaches.
+Invoke it explicitly with `tsflows run <label>`. It holds its concurrency slot
+until the process exits. Do not put a `Dev` target in a dependency chain that
+`build`, `test`, `lint`, or `ci` reaches.
 
 ## See also
 

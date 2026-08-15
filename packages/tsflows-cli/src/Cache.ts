@@ -20,6 +20,7 @@ import { createHash, randomUUID } from "node:crypto"
 import * as NodeFs from "node:fs"
 import * as Fs from "node:fs/promises"
 import * as NodePath from "node:path"
+import * as NodeUtil from "node:util/types"
 import * as Config from "tsflows-rules/Config"
 
 /**
@@ -29,12 +30,12 @@ import * as Config from "tsflows-rules/Config"
  * @since 0.1.0
  */
 export interface CachedResult {
-  key: string
-  rule: string
-  label: string
-  exitOk: boolean
-  output: unknown
-  storedAt: string
+  readonly key: string
+  readonly rule: string
+  readonly label: string
+  readonly exitOk: boolean
+  readonly output: unknown
+  readonly storedAt: string
 }
 
 /**
@@ -61,6 +62,25 @@ export interface CacheStore {
  * @since 0.1.0
  */
 export const entryLimit = 16 * 1024 * 1024
+
+/**
+ * The action-cache publication ceiling shared by both remote backends.
+ *
+ * Local entries retain the larger {@link entryLimit}; a remote tier stores
+ * entries in a database row and deliberately accepts no more than one MiB.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const remoteEntryLimit = 1024 * 1024
+
+/**
+ * Bounds CPU and bookkeeping for adversarial response streams of tiny chunks.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const maximumRemoteBodyChunks = 16_384
 
 /**
  * The default deadline for one remote request, including its whole body.
@@ -101,10 +121,15 @@ const decodeStored = Schema.decodeUnknownOption(StoredResult)
 const decodeFor = (key: string, candidate: unknown): CachedResult | null => {
   const decoded = decodeStored(candidate)
   if (Option.isNone(decoded) || decoded.value.key !== key) return null
-  return decoded.value
+  try {
+    return normalizeCachedResult(key, decoded.value)
+  } catch {
+    return null
+  }
 }
 
 const wellFormedKey = /^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/
+const maximumCacheKeyCodeUnits = 4_096
 
 /**
  * Maps a cache key onto a name that is safe as a single path segment.
@@ -120,16 +145,273 @@ const wellFormedKey = /^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/
  * @category utilities
  * @since 0.1.0
  */
-export const sanitizeKey = (key: string): string =>
-  wellFormedKey.test(key) ? key : createHash("sha256").update(Buffer.from(key, "utf16le")).digest("hex")
+export const sanitizeKey = (key: string): string => {
+  if (typeof key !== "string" || key.length === 0 || key.length > maximumCacheKeyCodeUnits) {
+    throw new TypeError(`cache key must contain 1 to ${maximumCacheKeyCodeUnits} UTF-16 code units`)
+  }
+  return wellFormedKey.test(key) ? key : createHash("sha256").update(Buffer.from(key, "utf16le")).digest("hex")
+}
 
-const errorCode = (error: unknown): string | undefined =>
-  typeof error === "object" && error !== null && "code" in error && typeof error.code === "string"
-    ? error.code
-    : undefined
+const errorCode = (error: unknown): string | undefined => {
+  if (typeof error !== "object" || error === null || NodeUtil.isProxy(error)) return undefined
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(error, "code")
+    return descriptor !== undefined && "value" in descriptor && typeof descriptor.value === "string"
+      ? descriptor.value
+      : undefined
+  } catch {
+    return undefined
+  }
+}
 
-const failureMessage = (cause: unknown): string =>
-  cause instanceof Error && cause.message !== "" ? cause.message : String(cause)
+const failureMessage = (cause: unknown): string => {
+  if ((typeof cause !== "object" && typeof cause !== "function") || cause === null || NodeUtil.isProxy(cause)) {
+    return "unavailable failure"
+  }
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(cause, "message")
+    if (descriptor !== undefined && "value" in descriptor && typeof descriptor.value === "string") {
+      return descriptor.value === "" ? "unavailable failure" : descriptor.value
+    }
+  } catch {
+    // Fall through to the deliberately generic message.
+  }
+  return "unavailable failure"
+}
+
+const combinedFailure = (primary: unknown, secondary: unknown, secondaryLabel: string): Error => {
+  const combined = new Error(
+    `${failureMessage(primary)}; ${secondaryLabel}: ${failureMessage(secondary)}`,
+    { cause: new AggregateError([primary, secondary]) }
+  ) as Error & { code?: string }
+  const code = errorCode(primary)
+  if (code !== undefined) combined.code = code
+  return combined
+}
+
+const plainDataRecord = (value: unknown, what: string): Record<PropertyKey, unknown> => {
+  if (typeof value !== "object" || value === null || Array.isArray(value) || NodeUtil.isProxy(value)) {
+    throw new TypeError(`${what} must be a plain object`)
+  }
+  let prototype: object | null
+  try {
+    prototype = Object.getPrototypeOf(value) as object | null
+  } catch {
+    throw new TypeError(`${what} could not be inspected safely`)
+  }
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new TypeError(`${what} must be a plain object`)
+  }
+  return value as Record<PropertyKey, unknown>
+}
+
+const exactDataKeys = (
+  value: Record<PropertyKey, unknown>,
+  allowed: ReadonlySet<string>,
+  what: string
+): void => {
+  let keys: Array<string | symbol>
+  try {
+    keys = Reflect.ownKeys(value)
+  } catch {
+    throw new TypeError(`${what} could not be inspected safely`)
+  }
+  for (const key of keys) {
+    if (typeof key !== "string" || !allowed.has(key)) {
+      throw new TypeError(`${what} contains an unknown property: ${String(key)}`)
+    }
+  }
+}
+
+const dataMember = (value: Record<PropertyKey, unknown>, name: string, what: string): unknown => {
+  let descriptor: PropertyDescriptor | undefined
+  try {
+    descriptor = Object.getOwnPropertyDescriptor(value, name)
+  } catch {
+    throw new TypeError(`${what}.${name} could not be inspected safely`)
+  }
+  if (descriptor === undefined) return undefined
+  if (!("value" in descriptor) || descriptor.enumerable !== true) {
+    throw new TypeError(`${what}.${name} must be an enumerable data property`)
+  }
+  return descriptor.value
+}
+
+const jsonStringBytes = (value: string): number => {
+  let bytes = 2
+  for (let index = 0; index < value.length; index += 1) {
+    const unit = value.charCodeAt(index)
+    if (
+      unit === 0x22 || unit === 0x5c || unit === 0x08 || unit === 0x09 || unit === 0x0a || unit === 0x0c ||
+      unit === 0x0d
+    ) {
+      bytes += 2
+    } else if (unit < 0x20 || (unit >= 0xd800 && unit <= 0xdfff)) {
+      if (unit >= 0xd800 && unit <= 0xdbff && index + 1 < value.length) {
+        const next = value.charCodeAt(index + 1)
+        if (next >= 0xdc00 && next <= 0xdfff) {
+          bytes += 4
+          index += 1
+          continue
+        }
+      }
+      bytes += 6
+    } else if (unit < 0x80) {
+      bytes += 1
+    } else if (unit < 0x800) {
+      bytes += 2
+    } else {
+      bytes += 3
+    }
+    if (!Number.isSafeInteger(bytes) || bytes > entryLimit) return bytes
+  }
+  return bytes
+}
+
+const snapshotJson = (value: unknown): unknown => {
+  const ancestors = new Set<object>()
+  let members = 0
+  let bytes = 0
+  const addBytes = (count: number): void => {
+    bytes += count
+    if (!Number.isSafeInteger(bytes) || bytes > entryLimit) {
+      throw new RangeError(`cached JSON exceeds its ${entryLimit}-byte limit`)
+    }
+  }
+  const visit = (current: unknown, depth: number): unknown => {
+    if (depth > 64) throw new TypeError("cached JSON is nested too deeply")
+    if (current === null) {
+      addBytes(4)
+      return null
+    }
+    if (typeof current === "string") {
+      addBytes(jsonStringBytes(current))
+      return current
+    }
+    if (typeof current === "boolean") {
+      addBytes(current ? 4 : 5)
+      return current
+    }
+    if (typeof current === "number") {
+      if (!Number.isFinite(current) || Object.is(current, -0)) {
+        throw new TypeError("cached JSON contains a lossy number")
+      }
+      addBytes(String(current).length)
+      return current
+    }
+    if (typeof current !== "object" || current === null) {
+      throw new TypeError("cached output must be an inert JSON value")
+    }
+    if (ancestors.has(current)) throw new TypeError("cached JSON contains a cycle")
+    ancestors.add(current)
+    try {
+      if (Array.isArray(current)) {
+        const lengthDescriptor = Object.getOwnPropertyDescriptor(current, "length")
+        if (
+          lengthDescriptor === undefined ||
+          !("value" in lengthDescriptor) ||
+          !Number.isSafeInteger(lengthDescriptor.value) ||
+          lengthDescriptor.value < 0
+        ) throw new TypeError("cached output contains an invalid array")
+        const length = lengthDescriptor.value as number
+        if (length > 100_000 - members) throw new TypeError("cached JSON has too many members")
+        const keys = Reflect.ownKeys(current).filter((key) => key !== "length")
+        if (keys.length !== length) throw new TypeError("cached output contains a sparse or extended array")
+        members += length
+        addBytes(2 + Math.max(0, length - 1))
+        const output: Array<unknown> = []
+        for (let index = 0; index < length; index += 1) {
+          const descriptor = Object.getOwnPropertyDescriptor(current, String(index))
+          if (descriptor === undefined || !("value" in descriptor) || descriptor.enumerable !== true) {
+            throw new TypeError("cached output arrays must contain only data entries")
+          }
+          output.push(visit(descriptor.value, depth + 1))
+        }
+        return Object.freeze(output)
+      }
+      const record = plainDataRecord(current, "cached output object")
+      const keys = Reflect.ownKeys(record)
+      if (!keys.every((key) => typeof key === "string")) {
+        throw new TypeError("cached output objects must not contain symbol properties")
+      }
+      if (keys.length > 100_000 - members) throw new TypeError("cached JSON has too many members")
+      members += keys.length
+      addBytes(2 + Math.max(0, keys.length - 1) + keys.length)
+      const entries: Array<readonly [string, unknown]> = []
+      for (const key of keys.sort()) {
+        const descriptor = Object.getOwnPropertyDescriptor(record, key)
+        if (descriptor === undefined || !("value" in descriptor) || descriptor.enumerable !== true) {
+          throw new TypeError("cached output objects must contain only data properties")
+        }
+        addBytes(jsonStringBytes(key))
+        entries.push([key, visit(descriptor.value, depth + 1)])
+      }
+      return Object.freeze(Object.fromEntries(entries))
+    } finally {
+      ancestors.delete(current)
+    }
+  }
+  return visit(value, 0)
+}
+
+const isWellFormedText = (value: string): boolean => {
+  for (let index = 0; index < value.length; index += 1) {
+    const unit = value.charCodeAt(index)
+    if (unit >= 0xd800 && unit <= 0xdbff) {
+      if (index + 1 >= value.length) return false
+      const next = value.charCodeAt(index + 1)
+      if (next < 0xdc00 || next > 0xdfff) return false
+      index += 1
+    } else if (unit >= 0xdc00 && unit <= 0xdfff) return false
+  }
+  return true
+}
+
+const remoteKeySupported = (key: string): boolean =>
+  isWellFormedText(key) &&
+  Buffer.byteLength(key, "utf8") <= 512 &&
+  !/[\u0000-\u001f\u007f]/.test(key)
+
+const normalizeCachedResult = (key: string, value: unknown): CachedResult => {
+  const record = plainDataRecord(value, "cached result")
+  exactDataKeys(record, new Set(["key", "rule", "label", "exitOk", "output", "storedAt"]), "cached result")
+  const storedKey = dataMember(record, "key", "cached result")
+  const rule = dataMember(record, "rule", "cached result")
+  const label = dataMember(record, "label", "cached result")
+  const exitOk = dataMember(record, "exitOk", "cached result")
+  const output = dataMember(record, "output", "cached result")
+  const storedAt = dataMember(record, "storedAt", "cached result")
+  if (!Object.hasOwn(record, "output")) throw new TypeError("cached result output is required")
+  if (typeof storedKey !== "string" || storedKey.length === 0 || storedKey !== key) {
+    throw new TypeError("cached result key does not match")
+  }
+  for (const [name, member] of [["rule", rule], ["label", label], ["storedAt", storedAt]] as const) {
+    if (
+      typeof member !== "string" ||
+      member.length === 0 ||
+      member.length > 8 * 1024 ||
+      !isWellFormedText(member) ||
+      Buffer.byteLength(member, "utf8") > 8 * 1024
+    ) throw new TypeError(`cached result ${name} must be bounded non-empty usable text`)
+  }
+  if (typeof exitOk !== "boolean") throw new TypeError("cached result exitOk must be a boolean")
+  const storedAtMs = typeof storedAt === "string" ? Date.parse(storedAt) : Number.NaN
+  if (
+    typeof storedAt !== "string" ||
+    !Number.isFinite(storedAtMs) ||
+    new Date(storedAtMs).toISOString() !== storedAt
+  ) {
+    throw new TypeError("cached result storedAt must be a canonical ISO timestamp")
+  }
+  return Object.freeze({
+    key: storedKey,
+    rule: rule as string,
+    label: label as string,
+    exitOk,
+    output: snapshotJson(output === undefined ? null : output),
+    storedAt
+  })
+}
 
 /** Reports whether `candidate` is `root` or below it, lexically. */
 const inside = (root: string, candidate: string): boolean => {
@@ -286,7 +568,11 @@ const readEntryFile = async (path: string): Promise<unknown> => {
         while (total < buffer.length) {
           const { bytesRead } = await handle.read(buffer, total, buffer.length - total, total)
           if (!Number.isSafeInteger(bytesRead) || bytesRead < 0 || bytesRead > buffer.length - total) {
-            throw new Error(`cache entry returned an invalid read length: ${String(bytesRead)}`)
+            throw new Error(
+              `cache entry returned an invalid read length: ${
+                typeof bytesRead === "number" ? String(bytesRead) : typeof bytesRead
+              }`
+            )
           }
           if (bytesRead === 0) break
           total += bytesRead
@@ -466,11 +752,11 @@ const renameTolerantly = async (
  * generated-file writer:
  *
  * - A close failure never publishes as success. When an earlier failure exists
- *   the close still runs and the earlier failure is the one reported.
+ *   the diagnostic reports both while retaining the earlier error code.
  * - Temp removal is attempted on every path that did not consume the temp, and
- *   never masks a primary failure. A removal that fails after an otherwise
- *   successful publication is reported, because the alternative is claiming a
- *   clean success while leaking one file per concurrent writer.
+ *   never masks a primary failure. Every removal failure is reported as a
+ *   secondary cause, because the alternative is silently leaking one file per
+ *   failed or concurrent writer.
  * - The containing directory is fsynced last, and its failures are real.
  */
 const writeLocal = async (
@@ -490,8 +776,7 @@ const writeLocal = async (
   const removeTemp = io.removeTemp ?? removeTempLive
   const path = localPath(cacheRoot, key)
   const directory = NodePath.dirname(path)
-  const stored: CachedResult = { ...result, output: result.output === undefined ? null : result.output }
-  const text = JSON.stringify(stored)
+  const text = JSON.stringify(result)
   const bytes = Buffer.byteLength(text, "utf8")
   if (bytes > entryLimit) {
     throw new RangeError(`cache entry is ${bytes} bytes, exceeding its limit of ${entryLimit}`)
@@ -513,7 +798,9 @@ const writeLocal = async (
   try {
     await closeHandle(handle)
   } catch (cause) {
-    primary ??= { cause }
+    primary = primary === undefined
+      ? { cause }
+      : { cause: combinedFailure(primary.cause, cause, "temporary file close also failed") }
   }
   if (primary === undefined) {
     try {
@@ -526,11 +813,19 @@ const writeLocal = async (
     try {
       await removeTemp(temp)
     } catch (cause) {
-      primary ??= {
-        cause: new Error(
-          `the entry was published but the temporary file ${temp} could not be removed: ${failureMessage(cause)}`
-        )
-      }
+      primary = primary === undefined
+        ? {
+          cause: new Error(
+            `the entry was published but the temporary file ${temp} could not be removed: ${failureMessage(cause)}`
+          )
+        }
+        : {
+          cause: combinedFailure(
+            primary.cause,
+            cause,
+            `temporary file ${temp} cleanup also failed`
+          )
+        }
     }
   }
   if (primary !== undefined) throw primary.cause
@@ -571,6 +866,15 @@ const withDeadline = async <A>(
   }
 }
 
+const cancelBody = (body: ReadableStream<Uint8Array> | null): void => {
+  if (body === null) return
+  try {
+    void body.cancel().catch(() => undefined)
+  } catch {
+    // Cancellation is best effort and must not replace the cache outcome.
+  }
+}
+
 /**
  * Reads a response body with a hard byte ceiling.
  *
@@ -587,24 +891,39 @@ const readBoundedBody = async (response: Response, limit: number): Promise<strin
   if (declared !== null) {
     const length = Number(declared)
     if (!/^\d+$/.test(declared) || !Number.isSafeInteger(length) || length > limit) {
-      await response.body?.cancel().catch(() => undefined)
+      cancelBody(response.body)
       return undefined
     }
     declaredLength = length
   }
   const body = response.body
-  if (body === null) return ""
+  if (body === null) return declaredLength === undefined || declaredLength === 0 ? "" : undefined
   const reader = body.getReader()
   let bytes = Buffer.allocUnsafe(Math.min(limit, Math.max(1024, declaredLength ?? 64 * 1024)))
   let total = 0
+  let chunks = 0
+  let releaseFailed = false
   try {
     while (true) {
       const { done, value } = await reader.read()
       if (done) break
-      if (value === undefined) continue
+      chunks += 1
+      if (chunks > maximumRemoteBodyChunks || !(value instanceof Uint8Array)) {
+        try {
+          void reader.cancel().catch(() => undefined)
+        } catch {
+          // The refusal remains a refusal when cancellation itself fails.
+        }
+        return undefined
+      }
+      if (value.byteLength === 0) continue
       total += value.byteLength
       if (total > limit) {
-        await reader.cancel().catch(() => undefined)
+        try {
+          void reader.cancel().catch(() => undefined)
+        } catch {
+          // The refusal remains a refusal when cancellation itself fails.
+        }
         return undefined
       }
       if (total > bytes.byteLength) {
@@ -617,8 +936,14 @@ const readBoundedBody = async (response: Response, limit: number): Promise<strin
       Buffer.from(value.buffer, value.byteOffset, value.byteLength).copy(bytes, total - value.byteLength)
     }
   } finally {
-    reader.releaseLock()
+    try {
+      reader.releaseLock()
+    } catch {
+      releaseFailed = true
+    }
   }
+  if (releaseFailed) return undefined
+  if (declaredLength !== undefined && total !== declaredLength) return undefined
   try {
     return new TextDecoder("utf-8", { fatal: true }).decode(bytes.subarray(0, total))
   } catch {
@@ -630,19 +955,175 @@ const maximumRemoteTimeoutMs = 5 * 60 * 1000
 
 /** Validates programmatic deadline overrides before a timer or filesystem mutation. */
 const validateTimeouts = (
-  value: { readonly get: number; readonly put: number } | undefined
+  value: unknown
 ): { readonly get: number; readonly put: number } => {
-  const timeouts = value ?? remoteTimeouts
+  if (value === undefined) return remoteTimeouts
+  const record = plainDataRecord(value, "remote cache timeouts")
+  exactDataKeys(record, new Set(["get", "put"]), "remote cache timeouts")
+  const timeouts = {
+    get: dataMember(record, "get", "remote cache timeouts"),
+    put: dataMember(record, "put", "remote cache timeouts")
+  }
   for (const operation of ["get", "put"] as const) {
     const milliseconds = timeouts[operation]
-    if (!Number.isSafeInteger(milliseconds) || milliseconds < 1 || milliseconds > maximumRemoteTimeoutMs) {
+    if (
+      typeof milliseconds !== "number" ||
+      !Number.isSafeInteger(milliseconds) ||
+      milliseconds < 1 ||
+      milliseconds > maximumRemoteTimeoutMs
+    ) {
       throw new TypeError(
         `remote cache ${operation} timeout must be an integer from 1 to ${maximumRemoteTimeoutMs}, ` +
-          `received ${String(milliseconds)}`
+          `received ${typeof milliseconds === "number" ? String(milliseconds) : typeof milliseconds}`
       )
     }
   }
-  return { get: timeouts.get, put: timeouts.put }
+  return { get: timeouts.get as number, put: timeouts.put as number }
+}
+
+/**
+ * Options for {@link openCache}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export interface OpenCacheOptions {
+  readonly workspaceRoot: string
+  readonly cacheDirectory?: string | undefined
+  readonly endpoint?: string | undefined
+  readonly token?: string | undefined
+  readonly fetch?: typeof globalThis.fetch | undefined
+  readonly warn?: ((line: string) => void) | undefined
+  readonly timeouts?: { readonly get: number; readonly put: number } | undefined
+  readonly io?: CacheIo | undefined
+}
+
+interface NormalizedOpenCacheOptions {
+  readonly workspaceRoot: string
+  readonly cacheDirectory: string
+  readonly endpoint: string | undefined
+  readonly token: string | undefined
+  readonly fetch: typeof globalThis.fetch
+  readonly warn: (line: string) => void
+  readonly timeouts: { readonly get: number; readonly put: number }
+  readonly io: CacheIo
+}
+
+const normalizeEndpoint = (value: unknown): string | undefined => {
+  if (value === undefined) return undefined
+  if (typeof value !== "string") throw new TypeError("remote cache endpoint must be a string")
+  if (value.length > 8 * 1024) throw new TypeError("remote cache endpoint must be bounded well-formed text")
+  const trimmed = value.trim()
+  if (trimmed === "") return undefined
+  if (trimmed.length > 8 * 1024 || !isWellFormedText(trimmed)) {
+    throw new TypeError("remote cache endpoint must be bounded well-formed text")
+  }
+  let endpoint: URL
+  try {
+    endpoint = new URL(trimmed)
+  } catch {
+    throw new TypeError("remote cache endpoint must be an absolute URL")
+  }
+  const loopback = endpoint.hostname === "localhost" || endpoint.hostname === "127.0.0.1" ||
+    endpoint.hostname === "[::1]"
+  if (endpoint.protocol !== "https:" && !(endpoint.protocol === "http:" && loopback)) {
+    throw new TypeError("remote cache endpoint must use HTTPS (HTTP is allowed only on loopback)")
+  }
+  if (endpoint.username !== "" || endpoint.password !== "") {
+    throw new TypeError("remote cache endpoint must not contain credentials")
+  }
+  if (endpoint.search !== "" || endpoint.hash !== "") {
+    throw new TypeError("remote cache endpoint must not contain a query or fragment")
+  }
+  return endpoint.href.replace(/\/+$/, "")
+}
+
+const normalizeCacheIo = (value: unknown): CacheIo => {
+  if (value === undefined) return Object.freeze({})
+  const record = plainDataRecord(value, "cache I/O overrides")
+  const names = [
+    "rename",
+    "writeContents",
+    "openDirectory",
+    "syncHandle",
+    "closeHandle",
+    "removeTemp"
+  ] as const
+  exactDataKeys(record, new Set(names), "cache I/O overrides")
+  const methods = Object.fromEntries(names.map((name) => [name, dataMember(record, name, "cache I/O overrides")]))
+  for (const name of names) {
+    const method = methods[name]
+    if (method !== undefined && typeof method !== "function") {
+      throw new TypeError(`cache I/O override ${name} must be a function`)
+    }
+  }
+  return Object.freeze({
+    ...(methods["rename"] === undefined ? {} : { rename: methods["rename"] as NonNullable<CacheIo["rename"]> }),
+    ...(methods["writeContents"] === undefined
+      ? {}
+      : { writeContents: methods["writeContents"] as NonNullable<CacheIo["writeContents"]> }),
+    ...(methods["openDirectory"] === undefined
+      ? {}
+      : { openDirectory: methods["openDirectory"] as NonNullable<CacheIo["openDirectory"]> }),
+    ...(methods["syncHandle"] === undefined
+      ? {}
+      : { syncHandle: methods["syncHandle"] as NonNullable<CacheIo["syncHandle"]> }),
+    ...(methods["closeHandle"] === undefined
+      ? {}
+      : { closeHandle: methods["closeHandle"] as NonNullable<CacheIo["closeHandle"]> }),
+    ...(methods["removeTemp"] === undefined
+      ? {}
+      : { removeTemp: methods["removeTemp"] as NonNullable<CacheIo["removeTemp"]> })
+  })
+}
+
+const normalizeOpenCacheOptions = (value: OpenCacheOptions): NormalizedOpenCacheOptions => {
+  const record = plainDataRecord(value, "cache options")
+  exactDataKeys(
+    record,
+    new Set(["workspaceRoot", "cacheDirectory", "endpoint", "token", "fetch", "warn", "timeouts", "io"]),
+    "cache options"
+  )
+  const workspaceRoot = dataMember(record, "workspaceRoot", "cache options")
+  const cacheDirectory = dataMember(record, "cacheDirectory", "cache options")
+  const token = dataMember(record, "token", "cache options")
+  const fetch = dataMember(record, "fetch", "cache options") ?? globalThis.fetch
+  const warn = dataMember(record, "warn", "cache options") ?? ((line: string) => process.stderr.write(`${line}\n`))
+  if (
+    typeof workspaceRoot !== "string" ||
+    workspaceRoot.length === 0 ||
+    workspaceRoot.length > 32 * 1024 ||
+    !isWellFormedText(workspaceRoot) ||
+    workspaceRoot.includes("\0") ||
+    Buffer.byteLength(workspaceRoot, "utf8") > 32 * 1024
+  ) throw new TypeError("cache workspaceRoot must be bounded non-empty usable text")
+  if (cacheDirectory !== undefined && typeof cacheDirectory !== "string") {
+    throw new TypeError("cache cacheDirectory must be a string")
+  }
+  if (
+    typeof cacheDirectory === "string" &&
+    (cacheDirectory.length > 32 * 1024 || !isWellFormedText(cacheDirectory) || cacheDirectory.includes("\0"))
+  ) throw new TypeError("cache cacheDirectory must be bounded usable text")
+  if (
+    token !== undefined &&
+    (typeof token !== "string" ||
+      token.length > 4_096 ||
+      !isWellFormedText(token) ||
+      /[\u0000-\u001f\u007f]/.test(token) ||
+      Buffer.byteLength(token, "utf8") > 4_096)
+  ) throw new TypeError("remote cache token must be bounded control-free text")
+  if (typeof fetch !== "function") throw new TypeError("remote cache fetch must be a function")
+  if (typeof warn !== "function") throw new TypeError("remote cache warn must be a function")
+  return Object.freeze({
+    workspaceRoot,
+    cacheDirectory: Config.normalizeCacheDirectory(cacheDirectory ?? Config.defaultCacheDirectory),
+    endpoint: normalizeEndpoint(dataMember(record, "endpoint", "cache options")),
+    token,
+    fetch: fetch as typeof globalThis.fetch,
+    warn: warn as (line: string) => void,
+    timeouts: validateTimeouts(dataMember(record, "timeouts", "cache options")),
+    io: normalizeCacheIo(dataMember(record, "io", "cache options"))
+  })
 }
 
 /** What one bounded remote GET settled on, inside its deadline. */
@@ -696,7 +1177,7 @@ class RemoteStore {
   }
 
   async get(key: string): Promise<CachedResult | null> {
-    if (this.degraded) return null
+    if (this.degraded || !remoteKeySupported(key)) return null
     let fetched: Fetched
     try {
       // The whole exchange runs inside one deadline: the request, the body,
@@ -713,14 +1194,14 @@ class RemoteStore {
             signal
           })
           if (response.status === 404) {
-            await response.body?.cancel().catch(() => undefined)
+            cancelBody(response.body)
             return { _tag: "miss" }
           }
           if (response.status !== 200) {
-            await response.body?.cancel().catch(() => undefined)
+            cancelBody(response.body)
             return { _tag: "degrade", status: response.status }
           }
-          const text = await readBoundedBody(response, entryLimit)
+          const text = await readBoundedBody(response, remoteEntryLimit)
           if (text === undefined) return { _tag: "degrade" }
           let value: unknown
           try {
@@ -728,7 +1209,12 @@ class RemoteStore {
           } catch {
             return { _tag: "degrade" }
           }
-          const candidate = typeof value === "object" && value !== null && "result" in value ? value.result : value
+          const envelope = typeof value === "object" && value !== null && !Array.isArray(value) &&
+            Object.hasOwn(value, "keyDigest") && Object.hasOwn(value, "result")
+          if (envelope && (value as Record<string, unknown>)["keyDigest"] !== key) {
+            return { _tag: "degrade" }
+          }
+          const candidate = envelope ? (value as Record<string, unknown>)["result"] : value
           const decoded = decodeFor(key, candidate)
           return decoded === null ? { _tag: "degrade" } : { _tag: "entry", result: decoded }
         }
@@ -743,19 +1229,18 @@ class RemoteStore {
   }
 
   async put(key: string, result: CachedResult): Promise<void> {
-    if (this.degraded) return
+    if (this.degraded || !remoteKeySupported(key)) return
     try {
-      const parsedStoredAt = Date.parse(result.storedAt)
       const body = JSON.stringify({
         keyDigest: key,
-        result: { ...result, output: result.output === undefined ? null : result.output },
+        result,
         meta: { rule: result.rule, label: result.label, exitOk: result.exitOk },
-        createdAtMs: Number.isFinite(parsedStoredAt) ? parsedStoredAt : Date.now(),
-        recordedRunId: `tsflows-cli:${result.label}`,
+        createdAtMs: Date.parse(result.storedAt),
+        recordedRunId: `tsflows-cli:${createHash("sha256").update(result.label, "utf8").digest("hex")}`,
         recordedEventSeq: 0
       })
-      if (Buffer.byteLength(body, "utf8") > entryLimit) {
-        throw new RangeError(`remote cache request exceeds its ${entryLimit}-byte limit`)
+      if (Buffer.byteLength(body, "utf8") > remoteEntryLimit) {
+        throw new RangeError(`remote cache request exceeds its ${remoteEntryLimit}-byte limit`)
       }
       const status = await withDeadline("put", this.timeouts.put, async (signal) => {
         const response = await this.fetch(this.url(key), {
@@ -767,7 +1252,7 @@ class RemoteStore {
         })
         // Draining inside the deadline keeps a server that answers and then
         // holds the connection open from stalling the run.
-        await response.body?.cancel().catch(() => undefined)
+        cancelBody(response.body)
         return response.status
       })
       if (status === 200 || status === 201) return
@@ -807,34 +1292,21 @@ class RemoteStore {
  * @category constructors
  * @since 0.1.0
  */
-export const openCache = async (
-  opts: {
-    readonly workspaceRoot: string
-    readonly cacheDirectory?: string | undefined
-    readonly endpoint?: string | undefined
-    readonly token?: string | undefined
-    readonly fetch?: typeof globalThis.fetch | undefined
-    readonly warn?: ((line: string) => void) | undefined
-    readonly timeouts?: { readonly get: number; readonly put: number } | undefined
-    readonly io?: CacheIo | undefined
-  }
-): Promise<CacheStore> => {
-  const timeouts = validateTimeouts(opts.timeouts)
-  const workspaceRoot = await Fs.realpath(NodePath.resolve(opts.workspaceRoot))
+export const openCache = async (opts: OpenCacheOptions): Promise<CacheStore> => {
+  const options = normalizeOpenCacheOptions(opts)
+  const workspaceRoot = await Fs.realpath(NodePath.resolve(options.workspaceRoot))
   const cacheRoot = await ensureCacheDirectory(
     workspaceRoot,
-    opts.cacheDirectory ?? Config.defaultCacheDirectory
+    options.cacheDirectory
   )
-  const io = opts.io ?? {}
-  const endpoint = opts.endpoint?.trim()
-  const remote = endpoint === undefined || endpoint === ""
+  const remote = options.endpoint === undefined
     ? null
     : new RemoteStore({
-      endpoint,
-      token: opts.token,
-      fetch: opts.fetch ?? globalThis.fetch,
-      warn: opts.warn ?? ((line) => process.stderr.write(`${line}\n`)),
-      timeouts
+      endpoint: options.endpoint,
+      token: options.token,
+      fetch: options.fetch,
+      warn: options.warn,
+      timeouts: options.timeouts
     })
   return {
     async get(key: string): Promise<CachedResult | null> {
@@ -843,12 +1315,14 @@ export const openCache = async (
       if (remote === null) return null
       const fetched = await remote.get(key)
       if (fetched === null) return null
-      await writeLocal(cacheRoot, key, fetched, io).catch(() => undefined)
+      await writeLocal(cacheRoot, key, fetched, options.io).catch(() => undefined)
       return fetched
     },
     async put(key: string, r: CachedResult): Promise<void> {
-      await writeLocal(cacheRoot, key, r, io)
-      if (remote !== null) await remote.put(key, r)
+      sanitizeKey(key)
+      const result = normalizeCachedResult(key, r)
+      await writeLocal(cacheRoot, key, result, options.io)
+      if (remote !== null) await remote.put(key, result)
     },
     async close(): Promise<void> {
       if (remote !== null) await remote.close()

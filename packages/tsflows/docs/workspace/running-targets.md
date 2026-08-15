@@ -1,13 +1,15 @@
 # Running targets
 
-A verb selects a target set, plans its transitive dependency closure, and
-executes it. Targets carry no per-command scripts.
+A verb selects targets, plans their transitive dependency closure, and executes
+it. Targets carry no per-command shell scripts.
 
 ```sh
 tsflows install --workspace .
 tsflows build //packages/...
 tsflows test //packages/flow:test
 tsflows lint //packages/flow:lint
+tsflows docs //...
+tsflows run //:newPackage --name @scope/widget
 tsflows ci //...
 ```
 
@@ -16,101 +18,103 @@ For every flag, output field, and exit code, see
 
 ## Verb selection
 
-Each rule declares the verbs it participates in as its `kinds`. `build`, `test`,
-and `lint` select the targets a pattern matches whose kinds include that verb.
-`ci` plans all three over one pattern and merges them.
+Each rule declares its `kinds`. A verb selects matching roots and always adds
+their dependencies, regardless of the dependencies' own kinds.
 
-| Verb      | Selects targets whose kinds include       | Executes             |
-| --------- | ----------------------------------------- | -------------------- |
-| `build`   | `build`                                   | Yes, unless `--plan` |
-| `test`    | `test`                                    | Yes, unless `--plan` |
-| `lint`    | `lint`                                    | Yes, unless `--plan` |
-| `ci`      | `build`, `test`, `lint`, merged           | Yes, unless `--plan` |
-| `install` | Not label-driven; runs the `Install` flow | Yes                  |
-| `query`   | Every target the pattern matches          | No                   |
-| `graph`   | Every target the pattern matches          | No                   |
+| Verb      | Root selection                          | Executes             |
+| --------- | --------------------------------------- | -------------------- |
+| `build`   | kind includes `build`                   | Yes, unless `--plan` |
+| `test`    | kind includes `test`                    | Yes, unless `--plan` |
+| `lint`    | kind includes `lint`                    | Yes, unless `--plan` |
+| `docs`    | kind includes `docs`                    | Yes, unless `--plan` |
+| `run`     | kind includes `run`                     | Yes, unless `--plan` |
+| `ci`      | lint, build, and test plans, merged     | Yes, unless `--plan` |
+| `install` | the `Install` flow, not a label pattern | Yes                  |
+| `query`   | every target the expression matches     | No                   |
+| `graph`   | every target the pattern matches        | No                   |
 
-An exact label that does not participate in the verb fails with
+An exact label that does not participate in the requested verb fails with
 `target selected by <pattern> does not support the <verb> verb`. A recursive
-pattern that matches nothing for a verb selects nothing and plans an empty graph.
-`ci` tolerates a per-kind refusal as long as at least one kind accepts the
+pattern that selects nothing for one verb returns an empty graph. `ci` tolerates
+a per-kind refusal as long as at least one of lint, build, or test accepts the
 pattern.
 
-**There is no `run` verb.** `Rule.Kind` includes `run` and several rules declare
-it, but `cli/src/Cli.ts` defines no `run` command. A `run`-kind target is never
-selected as a root. It still appears in `query` and `graph`, and it still
-executes when a selected target depends on it.
+`run` is intentionally outside `ci`: it selects operational targets such as
+cleaning, watch processes, source generation, and release actions. `docs` is an
+on-demand documentation gate and is also outside `ci`.
 
 ## What executes
 
-The executor composes one runtime per target. It supplies the install action
-implementations, the shared exec implementation `ExecLive`, the generated-file
-implementations `WriteFileLive` and `CheckFileLive`, and the not-implemented stub
-layer.
+The executor gives each target its own in-memory runtime and provides:
 
-It does not supply the irreversible-exec or llm-review implementations. A target
-whose plan calls one of those actions fails at interpretation with an
-`unresolved_action` refusal.
+- pnpm install actions;
+- process execution and output capture;
+- filegroup expansion and declared-output verification;
+- generated-file writes/checks and package-manifest synchronization;
+- GitHub workflow and documentation checks;
+- LLM review and package scaffolding.
 
-| Rule                                                           | Root verb       | Executes today                                                                                          |
-| -------------------------------------------------------------- | --------------- | ------------------------------------------------------------------------------------------------------- |
-| `TsBuild`, `DtsBuild`, `Typecheck`, `ToolBuild`, `TypedocDocs` | `build`         | Yes                                                                                                     |
-| `Vitest`, `VitestCoverage`                                     | `test`          | Yes                                                                                                     |
-| `EsLint`, `BiomeCheck`, `DepsLint`, `PackageLint`              | `lint`          | Yes                                                                                                     |
-| `SortPackageJson`                                              | `build`, `lint` | Yes                                                                                                     |
-| `PackageJsonCheck`                                             | `lint`          | Yes, through `SyncPackageJsonLive`                                                                      |
-| `PackageJsonWrite`, `PackageJsonRefresh`                       | `run`           | Yes, through `SyncPackageJsonLive`; explicitly mutates the source tree                                  |
-| `GithubCiGen`                                                  | `build`, `lint` | Yes, through `WriteFileLive` and `CheckFileLive`                                                        |
-| `PnpmWorkspace`                                                | none (`run`)    | Yes, as a dependency                                                                                    |
-| `Clean`, `Dev`, `VitestWatch`                                  | none (`run`)    | Yes, as a dependency; `Dev` and `VitestWatch` are long-lived and block their slot                       |
-| `LlmLint`                                                      | `lint`          | No: the llm-review action has no implementation in scope                                                |
-| `Changesets`                                                   | none (`run`)    | `status` yes as a dependency; `version` no, the irreversible-exec action has no implementation in scope |
-| `NpmPublish`, `JsrPublish`                                     | none (`run`)    | No: the irreversible-exec action has no implementation in scope                                         |
+The irreversible-exec implementation is intentionally absent. A target that
+calls it fails at interpretation with `unresolved_action`.
 
-A `BUILD.ts` that exports an `LlmLint` target therefore fails
-`tsflows lint //...` on that one target while every other target still runs.
-Keep-going semantics contain the failure to its dependent cone, and the run's
-exit code is 1.
+| Rule                                                           | Root verb       | Executes today                                            |
+| -------------------------------------------------------------- | --------------- | --------------------------------------------------------- |
+| `TsBuild`, `DtsBuild`, `Typecheck`, `ToolBuild`, `TypedocDocs` | `build`         | Yes                                                       |
+| `Vitest`, `VitestCoverage`                                     | `test`          | Yes                                                       |
+| `EsLint`, `BiomeCheck`, `DepsLint`, `PackageLint`, `LlmLint`   | `lint`          | Yes                                                       |
+| `SortPackageJson`                                              | `build`, `lint` | Yes                                                       |
+| `PackageJsonCheck`                                             | `lint`          | Yes                                                       |
+| `PackageJsonWrite`, `PackageJsonRefresh`                       | `run`           | Yes; mutates the source manifest                          |
+| `GithubCiGen`                                                  | `build`, `lint` | Yes; CI selects its checking form                         |
+| `DocsParity`                                                   | `docs`          | Yes                                                       |
+| `NewPackage`                                                   | `run`           | Yes; requires `--name` and creates a package              |
+| `PnpmWorkspace`                                                | `run`           | Yes                                                       |
+| `Clean`, `Dev`, `VitestWatch`                                  | `run`           | Yes; the watch processes hold their execution slot        |
+| `Changesets`                                                   | `run`           | `status` yes; `version` lacks the irreversible-exec layer |
+| `NpmPublish`, `JsrPublish`                                     | `run`           | No; both require the absent irreversible-exec layer       |
 
-## Verb-effective attrs
+An `LlmLint` target now runs through `LlmReviewLive`; it is no longer a
+plan-only declaration. Release mutations remain separately gated.
 
-A rule that declares several kinds can execute a different form under each one.
-`GithubCiGen` maps the `lint` verb to its drift-check form. `PackageJson` uses
-separate check, write, and refresh targets instead.
+## Verb-effective attributes
 
-Because the planner resolves attrs, declared inputs, and cacheability per verb,
-one target can have two different content keys. `tsflows ci` merges the three
-plans on label and keeps the first occurrence, and `build` is planned first, so a
-generator target runs its write form under `ci`.
+A rule that declares several kinds may execute a different form under each one.
+`GithubCiGen` maps `lint` to drift checking. Package manifests use distinct
+check, write, and refresh targets.
+
+The planner resolves attributes, declared inputs, cacheability, and therefore
+content keys per verb. `ci` plans lint first, then build and test, and keeps the
+first occurrence when merging by label. A generator shared by build and lint
+therefore contributes its non-mutating check form to CI.
 
 See [Verb-effective attrs](../concepts/targets-and-rules.md#verb-effective-attrs).
 
 ## Execution semantics
 
-- **Order.** The plan lists dependencies before dependents. The executor drains
-  that list with at most `--jobs` targets in flight, defaulting to the host's
-  available parallelism. `jobs` must be a positive integer; the programmatic API
-  refuses anything else rather than silently running nothing.
-- **Keep going.** A failed target fails the run, but only its transitive
-  dependents are skipped. Every unrelated target still executes, and every result
-  is collected. An internal fault, as opposed to a target failure, stops further
-  dispatch and still waits for the targets already in flight before it is
-  reported, so nothing keeps writing to the workspace or the cache after the run
-  has returned.
-- **Cache.** Before a cacheable target runs, its content key is looked up in the
-  workspace cache. A stored green result reports `hit` and skips the run. A green
-  run stores its result. `--no-cache` bypasses reads and still writes. See
-  [Caching](caching.md).
-- **Working directory.** The whole run happens with the process working directory
-  moved to the workspace root, restored afterwards.
-- **Runtime isolation.** Each target gets a fresh in-memory flows runtime, because
-  two targets of one rule share a flow tag.
+- **Order and concurrency.** Dependencies precede dependents. At most `--jobs`
+  targets run at once; the default is host available parallelism. Invalid job
+  counts are refused.
+- **Keep going.** A failed target blocks only its dependent cone. Unrelated
+  targets continue. An internal scheduler fault stops new dispatch and waits
+  for work already in flight.
+- **Cache.** A cacheable target consults its content key. A validated green hit
+  skips execution; a validated green run is stored. `--no-cache` bypasses reads
+  and still writes.
+- **Input stability.** Declared inputs are re-expanded before cache admission
+  and after execution. A changed path set or digest fails the target under the
+  original plan rather than publishing stale work.
+- **Output integrity.** Declared outputs must exist and match the returned
+  manifest before either a run or a cache hit is reported green.
+- **Working directory.** The process-wide `cwd` is never changed. Every action
+  resolves and validates its own directory under the canonical workspace root.
+- **Runtime isolation.** Each target gets a fresh runtime because targets made
+  from one rule share a flow tag.
 
 ## Output
 
-One status line per settled target goes to standard error, followed by a summary:
+One line per settled target goes to standard error, followed by a summary:
 
-```
+```text
 //packages/flow:lib  hit  2ms
 //packages/engine:lib  ran  3.1s
 //packages/engine:test  failed  0.4s  {"_tag":"tsflows-rules/ExecError", ...}
@@ -118,37 +122,38 @@ One status line per settled target goes to standard error, followed by a summary
 4 targets: 1 hit, 1 ran, 1 failed, 1 skipped (3.6s)
 ```
 
-Each field is separated by two spaces; the columns are not padded.
-
-The command's structured result goes to standard output. It reports the verb, the
-pattern, the job count, the total duration, per-status counts, the `ok` verdict,
-and every target's report.
+The structured result on standard output reports the verb, pattern, jobs,
+duration, counts, verdict, and one report per target.
 
 ## Planning only
 
-`--plan` prints the inert plan instead of executing it. The plan is the same
-structure the executor consumes: dependency-first targets, expanded declared
-inputs, the four key-material fields, and the sha256 content key.
+`--plan` prints the inert dependency-first plan, expanded declared inputs, key
+material, and SHA-256 content key without executing. `query` and `graph` are
+always non-executing.
 
 ```sh
 tsflows build //... --plan
+tsflows docs //... --plan
+tsflows run //:clean --plan
 tsflows ci //... --plan
 ```
 
-`query` and `graph` never execute. See [Querying](querying.md).
+The planner does not consult the cache, so its `cacheLookup` remains
+`"not-wired"` and `wouldRun` remains `true`; the executor performs the real
+lookup.
 
 ## Installing dependencies
 
-`tsflows install` does not take a label. It resolves the workspace and cache
-directory, then plans and executes the `Install` flow under the pnpm
-package-manager layer.
+`tsflows install` takes no label. It executes the two-round install flow under
+the pnpm layer and returns the canonical workspace, manager, first-round nodes,
+and link manifest.
 
-```sh
-tsflows install --workspace /path/to/workspace
-```
+The declared store is fixed at `.flows/store/pnpm`. If `--cache-dir` or the
+root `Workspace` declaration selects another directory, install refuses rather
+than declaring one path and writing another. Other verbs support custom cache
+directories.
 
-The result reports the workspace path, the manager, the round-one plan nodes, and
-the link manifest. See [Install](../concepts/install.md).
+See [Install](../concepts/install.md).
 
 ## Next
 

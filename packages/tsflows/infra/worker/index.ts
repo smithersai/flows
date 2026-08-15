@@ -1,9 +1,12 @@
 import {
   type ActionCache,
   type ActionCachePublication,
+  canonicalJson,
   type ContentStore,
   createHandler,
-  maxArtifactBodyBytes
+  describeFailure,
+  maxArtifactBodyBytes,
+  maxCanonicalJsonBytes
 } from "./protocol.ts"
 
 interface CacheWorkerEnv {
@@ -46,13 +49,35 @@ const sameBytes = (left: ArrayBuffer, right: Uint8Array<ArrayBuffer>): boolean =
 }
 
 const assertContentObject = (digest: string, object: R2Object): void => {
-  if (object.key !== digest || object.size > maxArtifactBodyBytes) {
+  if (
+    object.key !== digest ||
+    !Number.isSafeInteger(object.size) ||
+    object.size < 0 ||
+    object.size > maxArtifactBodyBytes
+  ) {
     throw new Error("R2 returned an object outside the content-store invariant")
   }
   const checksum = object.checksums.sha256
-  if (checksum !== undefined && !sameBytes(checksum, digestBytes(digest))) {
+  if (checksum === undefined || !sameBytes(checksum, digestBytes(digest))) {
     throw new Error("R2 returned an object with a mismatched SHA-256 checksum")
   }
+}
+
+const validateStoredResult = (value: unknown): string => {
+  if (
+    typeof value !== "string" ||
+    new TextEncoder().encode(value).byteLength > maxCanonicalJsonBytes
+  ) throw new Error("D1 returned an invalid action-cache discriminator")
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value) as unknown
+  } catch {
+    throw new Error("D1 returned an invalid action-cache discriminator")
+  }
+  if (canonicalJson(parsed) !== value) {
+    throw new Error("D1 returned a non-canonical action-cache discriminator")
+  }
+  return value
 }
 
 const insertEntry = (
@@ -123,7 +148,7 @@ const makeActionCache = (database: D1Database): ActionCache => ({
       if ((await insertEntry(database, keyDigest, publication)) !== null) return "inserted"
       const stored = await readAndTouchStoredResult(database, keyDigest)
       if (stored !== null) {
-        return stored.result_json === publication.resultJson ? "identical" : "conflict"
+        return validateStoredResult(stored.result_json) === publication.resultJson ? "identical" : "conflict"
       }
     }
     throw new Error("action-cache publication lost its row repeatedly")
@@ -225,7 +250,15 @@ const handlerFor = (env: CacheWorkerEnv): CacheHandler => {
  */
 const worker = {
   async fetch(request: Request, env: CacheWorkerEnv): Promise<Response> {
-    return handlerFor(env)(request)
+    try {
+      return await handlerFor(env)(request)
+    } catch (cause) {
+      console.error(describeFailure(cause))
+      return new Response(JSON.stringify({ error: "the cache tier failed to initialize" }), {
+        status: 503,
+        headers: { "content-type": "application/json" }
+      })
+    }
   }
 } satisfies ExportedHandler<CacheWorkerEnv>
 

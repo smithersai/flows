@@ -44,8 +44,10 @@ per-run choice, so there is no flag for it.
 | `<cacheDirectory>/knip-<fingerprint>.json` | `DepsLint`, when its ignore lists are non-empty and the tool is knip |
 
 Package-manager stores are not controlled by this setting. They stay at
-`.flows/store/<manager>` because fetch declares those paths as `TreeArtifact`
-boundaries, which is key material.
+`.flows/store/<manager>` because fetch declares those fixed paths as
+`TreeArtifact` boundaries. The `install` verb requires the default `.flows`
+configuration; build, test, lint, docs, run, query, graph, and CI may use a
+custom directory.
 
 ## The gitignore policy
 

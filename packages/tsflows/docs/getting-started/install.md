@@ -52,7 +52,7 @@ The CLI package depends on the flows engine packages, on
 `@smthrs/tsflows-next`, and on `tsflows-rules` at the workspace version:
 
 ```json
-// flows/packages/tsflows-cli/package.json
+// packages/tsflows-cli/package.json
 {
   "dependencies": {
     "@smthrs/engine-next": "0.1.0",
@@ -105,6 +105,10 @@ export const config = Workspace({ cacheDirectory: ".flows", gitignored: true })
 ```
 
 See [Configuration](../workspace/configuration.md).
+
+The ordinary target verbs may use another configured directory. The dedicated
+`tsflows install` verb currently requires `.flows`, because its declared pnpm
+store boundary is fixed at `.flows/store/pnpm`.
 
 ## Next
 

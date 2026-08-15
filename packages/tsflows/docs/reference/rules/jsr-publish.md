@@ -57,8 +57,9 @@ Collected from the attrs: `config`, plus every declaration in `sources`.
 | Cacheable | Never                                                                                                                                                                                                             |
 | Executes  | **No.** The CLI executor does not provide `ExecIrreversibleLive`, so the `tsflows-rules/exec-irreversible` action has no implementation in scope and the target fails at interpretation with `unresolved_action`. |
 
-The rule plans only under the `run` kind, so `build`, `test`, and `lint` never
-select it as a root.
+The rule is selected by `tsflows run`, but the normal executor refuses before
+publication because the irreversible layer is absent. `build`, `test`, `lint`,
+and `ci` never select it as a root.
 
 ## See also
 

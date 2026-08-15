@@ -61,11 +61,11 @@ PackageReport = { publint: Exec.Result, attw: Exec.Result | null }
 
 ## Status
 
-|           |                         |
-| --------- | ----------------------- |
-| Kinds     | `lint`                  |
-| Cacheable | Always                  |
-| Executes  | Yes, through `ExecLive` |
+|           |                                                              |
+| --------- | ------------------------------------------------------------ |
+| Kinds     | `lint`                                                       |
+| Cacheable | Never; the executable toolchain is not complete key material |
+| Executes  | Yes, through `ExecLive`                                      |
 
 ## See also
 

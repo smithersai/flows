@@ -226,6 +226,39 @@ describe("schedule", () => {
     await expect(done).rejects.toThrow("a thrown string")
   })
 
+  it("settles without invoking conversion on an object rejection", async () => {
+    const work = controlled()
+    const done = schedule([target("//:a")], 1, work.runOne)
+    let calls = 0
+    const cause = {
+      toString: () => {
+        calls += 1
+        throw new Error("conversion must not run")
+      }
+    }
+
+    await tick()
+    work.settle("//:a", cause)
+    await expect(done).rejects.toThrow("scheduled target rejected")
+    expect(calls).toBe(0)
+  })
+
+  it("settles an object-valued abort without inspecting its Proxy", async () => {
+    let calls = 0
+    const reason = new Proxy(new Error("hidden"), {
+      getOwnPropertyDescriptor: (target, property) => {
+        calls += 1
+        return Reflect.getOwnPropertyDescriptor(target, property)
+      }
+    })
+    const controller = new AbortController()
+    controller.abort(reason)
+
+    await expect(schedule([target("//:a")], 1, () => Promise.resolve(), controller.signal))
+      .rejects.toThrow("execution aborted")
+    expect(calls).toBe(0)
+  })
+
   /**
    * The regression: a drained scheduler resolved whenever the ready queue was
    * empty, even with targets it never dispatched. `execute` then summarized

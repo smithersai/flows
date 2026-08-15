@@ -68,11 +68,10 @@ None. The rule declares no input attributes.
 | --------- | -------------------------------------------------------------- |
 | Kinds     | `run`                                                          |
 | Cacheable | Never; deletion changes local state and has no reusable result |
-| Executes  | Yes, through `ExecLive`, but only as a dependency              |
+| Executes  | Yes, through `ExecLive`, as a `run` root or dependency         |
 
-The CLI has no `run` verb, so a `Clean` target is never selected as a root. It
-executes when a selected target depends on it, which is rarely what you want:
-cleaning before a build defeats the cache.
+Invoke it explicitly with `tsflows run <label>`. Making a build depend on clean
+is rarely useful: deleting outputs before a build defeats cache reuse.
 
 ## See also
 

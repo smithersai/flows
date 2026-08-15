@@ -84,11 +84,11 @@ Collected from the attrs: `packageJson`, plus every declaration in `sources`.
 
 ## Status
 
-|           |                         |
-| --------- | ----------------------- |
-| Kinds     | `lint`                  |
-| Cacheable | Always                  |
-| Executes  | Yes, through `ExecLive` |
+|           |                                                              |
+| --------- | ------------------------------------------------------------ |
+| Kinds     | `lint`                                                       |
+| Cacheable | Never; the executable toolchain is not complete key material |
+| Executes  | Yes, through `ExecLive`                                      |
 
 ## See also
 

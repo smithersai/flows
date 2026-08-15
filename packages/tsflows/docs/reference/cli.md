@@ -10,18 +10,19 @@ form of their schema key, so `cacheDir` is `--cache-dir`. A boolean option that
 defaults to true is turned off with its `--no-` form.
 
 Commands: [`install`](#install), [`build`](#build), [`test`](#test),
-[`lint`](#lint), [`ci`](#ci), [`query`](#query), [`graph`](#graph).
+[`lint`](#lint), [`docs`](#docs), [`run`](#run), [`ci`](#ci),
+[`query`](#query), [`graph`](#graph).
 
 ## Common options
 
 Every command accepts these.
 
-| Option        | Alias | Type   | Default                       | Description                                                                                             |
-| ------------- | ----- | ------ | ----------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `--workspace` | `-w`  | string | the process working directory | Workspace root containing `BUILD.ts` files                                                              |
-| `--cache-dir` |       | string | unset                         | Workspace-relative cache directory. Overrides the root `BUILD.ts` `Workspace` declaration and `.flows`. |
+| Option        | Alias | Type   | Default                       | Description                                                                                                           |
+| ------------- | ----- | ------ | ----------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `--workspace` | `-w`  | string | the process working directory | Workspace root containing `BUILD.ts` files                                                                            |
+| `--cache-dir` |       | string | unset                         | Workspace-relative cache directory. Overrides the root declaration; `install` requires the result to remain `.flows`. |
 
-`build`, `test`, `lint`, and `ci` also accept:
+`build`, `test`, `lint`, `docs`, `run`, and `ci` also accept:
 
 | Option                   | Alias | Type        | Default                    | Description                                                                            |
 | ------------------------ | ----- | ----------- | -------------------------- | -------------------------------------------------------------------------------------- |
@@ -63,8 +64,13 @@ tsflows install --workspace /path/to/workspace
 
 Options: the [common options](#common-options) only.
 
-The flow runs with the process working directory moved to the workspace root,
-restored afterwards. The execution id is derived from the workspace path.
+The package-manager service is anchored to the canonical workspace root; the
+process-wide working directory is never changed. The execution id is derived
+from the workspace path.
+
+The store boundary is fixed at `.flows/store/pnpm`. A `--cache-dir` value or
+root `Workspace` declaration other than `.flows` makes install fail rather than
+declare one path and write another.
 
 Result:
 
@@ -146,6 +152,47 @@ targets. Exit code 1 for both.
 
 ---
 
+## docs
+
+Identical to [`build`](#build) except that it selects targets whose rule
+declares the `docs` kind. Documentation checks are on demand and are not part
+of the `ci` merged graph.
+
+```sh
+tsflows docs //...
+tsflows docs //packages/plan:docs --plan
+```
+
+Failure codes: `docs_failed` for planning errors, `targets_failed` for failed
+targets. Exit code 1 for both.
+
+---
+
+## run
+
+Executes operational targets whose rule declares the `run` kind. These targets
+may deliberately mutate source files, delete generated paths, hold a watch
+process open, or request an externally gated release action, so `run` is never
+folded into `ci`.
+
+```sh
+tsflows run //:clean
+tsflows run //:newPackage --name @scope/widget
+tsflows run //packages/app:dev --no-cache
+```
+
+In addition to the common execution options, `run` accepts:
+
+| Option   | Alias | Type   | Default | Description                                               |
+| -------- | ----- | ------ | ------- | --------------------------------------------------------- |
+| `--name` | `-n`  | string | unset   | Per-invocation package name consumed by `NewPackage` only |
+
+Failure codes: `run_failed` for planning errors, `targets_failed` for failed
+targets. Exit code 1 for both. A rule requiring the intentionally absent
+irreversible-exec layer reports a target failure with `unresolved_action`.
+
+---
+
 ## ci
 
 Plans `build`, `test`, and `lint` over one pattern and executes the merged graph
@@ -158,9 +205,10 @@ tsflows ci //packages/... --plan
 
 Options: the [common options](#common-options) plus the execution options.
 
-Merging deduplicates roots, targets, and edges on label. Every plan lists
-dependencies before dependents and first occurrence wins, so the merged list
-keeps a valid dependency-first order. A target selected by two verbs runs once.
+The command plans lint first, then build and test. Merging deduplicates roots,
+targets, and edges on label; first occurrence wins while dependency-first order
+is preserved. A target selected by two verbs runs once. Lint-first ordering
+makes a generator's non-mutating check form win over its build/write form.
 
 An exact label that does not participate in one of the three kinds is tolerated
 as long as it participates in another. Any other planning error propagates. If no
@@ -259,14 +307,14 @@ Failure: error code `graph_failed`, exit code 1.
 
 `--plan` prints the planner's output.
 
-| Field      | Description                                        |
-| ---------- | -------------------------------------------------- |
-| `verb`     | `build`, `test`, `lint`, `graph`, `query`, or `ci` |
-| `pattern`  | The pattern as given                               |
-| `roots`    | The selected target labels                         |
-| `targets`  | Planned targets, dependencies before dependents    |
-| `edges`    | `{from, to}` pairs                                 |
-| `warnings` | Currently always empty                             |
+| Field      | Description                                                       |
+| ---------- | ----------------------------------------------------------------- |
+| `verb`     | `build`, `test`, `lint`, `docs`, `run`, `graph`, `query`, or `ci` |
+| `pattern`  | The pattern as given                                              |
+| `roots`    | The selected target labels                                        |
+| `targets`  | Planned targets, dependencies before dependents                   |
+| `edges`    | `{from, to}` pairs                                                |
+| `warnings` | Currently always empty                                            |
 
 Each planned target:
 
@@ -344,10 +392,10 @@ run.
 
 ## Environment variables
 
-| Variable              | Read by           | Effect                                                                                     |
-| --------------------- | ----------------- | ------------------------------------------------------------------------------------------ |
-| `TSFLOWS_CACHE_URL`   | `cli/src/main.ts` | Optional HTTPS endpoint override for the root `RemoteCache` declaration.                   |
-| `TSFLOWS_CACHE_TOKEN` | `cli/src/main.ts` | Default bearer-token variable for the HTTP cache. A declaration may name another variable. |
+| Variable              | Read by                            | Effect                                                                                                         |
+| --------------------- | ---------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `TSFLOWS_CACHE_URL`   | `packages/tsflows-cli/src/main.ts` | Optional endpoint override for the root `RemoteCache` declaration. HTTPS is required except for loopback HTTP. |
+| `TSFLOWS_CACHE_TOKEN` | `packages/tsflows-cli/src/main.ts` | Default bearer-token variable for the HTTP cache. A declaration may name another variable.                     |
 
 ## Exit codes
 
@@ -360,14 +408,14 @@ run.
 
 The `tsflows-cli` package exports the pieces the verbs are built from.
 
-| Export                      | Kind      | Purpose                                                                                                              |
-| --------------------------- | --------- | -------------------------------------------------------------------------------------------------------------------- |
-| `cli`                       | value     | The configured incur CLI. `main.ts` calls `cli.serve()`.                                                             |
-| `runInstall(workspaceRoot)` | function  | Plans and executes the `Install` flow under pnpm and returns the [install result](#install).                         |
-| `Workspace`                 | namespace | `Workspace.make`, `resolveConfig`, `ensureGitignored`, `discoverable`, and the workspace index type.                 |
-| `Planner`                   | namespace | `Planner.make(workspace, verb, pattern)`, `keyOf`, and the `Plan`, `PlannedTarget`, `KeyMaterial`, and `Edge` types. |
-| `Query`                     | namespace | `Query.run(workspace, expression)` and the `Listing` and `Dependencies` result types.                                |
-| `Label`                     | namespace | `Label.parse`, `Label.format`, `Label.currentPackage`, and the `Pattern` type.                                       |
+| Export                                | Kind      | Purpose                                                                                                                         |
+| ------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `cli`                                 | value     | The configured incur CLI. `main.ts` calls `cli.serve()`.                                                                        |
+| `runInstall(workspaceRoot, options?)` | function  | Plans and executes the `Install` flow under pnpm. Options carry cache directory, sensitive environment names, and cancellation. |
+| `Workspace`                           | namespace | `Workspace.make`, `resolveConfig`, `ensureGitignored`, `discoverable`, and the workspace index type.                            |
+| `Planner`                             | namespace | `Planner.make(workspace, verb, pattern)`, `keyOf`, and the `Plan`, `PlannedTarget`, `KeyMaterial`, and `Edge` types.            |
+| `Query`                               | namespace | `Query.run(workspace, expression)` and the `Listing` and `Dependencies` result types.                                           |
+| `Label`                               | namespace | `Label.parse`, `Label.format`, `Label.currentPackage`, and the `Pattern` type.                                                  |
 
 `Executor`, `Cache`, `GraphOutput`, and `engine` are internal to the package and
 reachable only by subpath import.

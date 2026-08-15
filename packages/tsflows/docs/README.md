@@ -29,7 +29,7 @@ wired is marked as such on the page that covers it.
 | [Structure](workspace/structure.md)                     | Discovery, `BUILD.ts` placement, package boundaries, default-rule synthesis.                                        |
 | [Writing BUILD files](workspace/writing-build-files.md) | Targets as named exports, rule calls, import edges, macros.                                                         |
 | [Configuration](workspace/configuration.md)             | The `Workspace` declaration, `cacheDirectory`, `gitignored`, `--cache-dir`.                                         |
-| [Running targets](workspace/running-targets.md)         | `install`, `build`, `test`, `lint`, `ci`, and what actually executes.                                               |
+| [Running targets](workspace/running-targets.md)         | `install`, target verbs including `run` and `docs`, `ci`, and what actually executes.                               |
 | [Querying](workspace/querying.md)                       | `query`, `deps()`, and `graph`.                                                                                     |
 | [Caching](workspace/caching.md)                         | Content keys, the result cache, and what re-keys a target.                                                          |
 | [Remote caching](workspace/remote-caching.md)           | The HTTP read-through cache, the hosted and self-hosted `/ac` and `/cas` services, and the current engine boundary. |

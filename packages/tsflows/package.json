@@ -3,7 +3,7 @@
   "type": "module",
   "version": "0.1.0",
   "license": "MIT",
-  "description": "Dependency installation as a sealed fetch action and a local link action",
+  "description": "Bazel-style TypeScript workflow orchestration with explicit pnpm installation",
   "homepage": "https://github.com/smithersai/flows",
   "repository": {
     "type": "git",

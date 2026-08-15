@@ -14,10 +14,8 @@ install step.
 | `@smthrs/plan-next`   | `0.1.0`        | Planned nodes                                  |
 | `@smthrs/crypto-next` | `0.1.0`        | SHA-256 digests                                |
 
-The imports use published package paths. They are
-`@smthrs/flow-next`, `@smthrs/flow-next/FileInput`,
-`@smthrs/plan-next/Node`, `@smthrs/crypto-next`, `effect/FileSystem`, and the
-two `effect/unstable/process` modules.
+The CLI additionally uses the flows engine, action implementations, and Node
+platform services declared in `../tsflows-cli/package.json`.
 
 ## Workspace membership
 
@@ -45,55 +43,90 @@ The flows workspace root declares `"tsflows-rules": "0.1.0"` as a
 devDependency, resolved to the workspace package. `BUILD.ts` files import the
 rule catalog by bare specifier: `import { ... } from "tsflows-rules"`.
 
-## Runtime layers
+Embedding the install flow requires:
 
-Running the flow also requires these layers:
+- an `Install.layer` containing its action implementations;
+- an interpreter registration for `Install.Install` so the second trampoline
+  round can resolve the flow by tag;
+- a `FlowRuntime`;
+- Node `FileSystem`, `ChildProcessSpawner`, and `Crypto` services;
+- one `PackageManager` layer.
 
-- A `FlowRuntime` from the durable engine or the memory test runtime.
-- Node implementations of `FileSystem`, `ChildProcessSpawner`, and `Crypto`.
-- One `PackageManager` layer. The npm, pnpm, and Bun layers are implemented.
+Only `PackageManager.layerPnpm` performs work today. `layerNpm`, `layerBun`, and
+`layerNoop("yarn", ...)` resolve the service but fail every operation with a
+typed `unsupported` error.
 
-Run the engine from the project root so the declared relative paths and
-manager command paths match. The flow payload is empty on its first round:
+The pnpm layer is constructed with an absolute project root and explicit host
+facts:
 
 ```ts
-Install.Install.execute({}).pipe(
-  Effect.provide(Install.layer),
-  Effect.provide(PackageManager.layerNpm({
-    platform: { os: "linux", arch: "x64", libc: "glibc" }
-  })),
-  Effect.provide(flowRuntimeLayer),
-  Effect.provide(nodeHostLayer)
-)
+PackageManager.layerPnpm({
+  projectRoot: "/absolute/workspace",
+  platform: { os: "linux", arch: "x64", libc: "glibc" }
+})
 ```
 
-For remote caching, compose `RemoteCacheStore` with the local step cache and
-compose `RemoteArtifacts` with the local artifact store. Pass the Terraform
-endpoint and authorization header as layer construction options. They do not
-enter a step key.
+Optional construction values are a bounded command timeout, an executable
+override, and an environment snapshot. Child processes do not inherit the
+complete host environment. The layer selects bootstrap/network variables and
+variables referenced by the project `.npmrc`, clears user/global npm config,
+refuses embedded credentials and process-control variable references, and
+passes `extendEnv: false`.
 
-## Cache directory
+`../tsflows-cli/src/engine.ts` is the production composition. It uses an
+in-memory flows runtime per invocation, anchors the package-manager service to
+the canonical workspace root, and never changes process-wide `cwd`. The
+`install` command requires the default `.flows` configuration because the
+declared store boundary is fixed at `.flows/store/pnpm`.
 
-The CLI resolves one workspace-relative cache directory per run: the
-`--cache-dir` flag, then the `Workspace` declaration exported from the root
-`BUILD.ts` file, then `.flows`. The CLI result cache lives at
-`<cacheDirectory>/cache` and `DepsLint` writes its generated knip
-configuration under the same directory. `Workspace` passes the value directly
-to glob expansion, while `ExecLive` receives it as host state and replaces the
-constant token used by `DepsLint` immediately before spawning the tool. The
-real directory string therefore never enters a step payload or key, and
-concurrent workspace instances do not share mutable configuration.
+## Target executor composition
 
-Manager stores are not part of that seam. They stay at
-`.flows/store/<manager>` because a fetch declares them as a `TreeArtifact`
-boundary, which is key material. Discovery always excludes this fixed store,
-including when the configured cache lives elsewhere. Configurable store
-placement is future work.
+Each selected target gets a fresh in-memory runtime so two targets built from
+the same rule tag cannot alias each other's flow registration. The executor
+provides implementations for:
 
-## Current engine boundary
+- shared process execution and output capture;
+- generated-file write/check and package-manifest synchronization;
+- declared-output verification and filegroup expansion;
+- install actions under pnpm;
+- GitHub workflow checks, documentation parity, LLM review, and package
+  scaffolding.
 
-Each fetch action declares `.flows/store/<manager>` as a `TreeArtifact`. The
-filesystem boundary can capture and replay that tree locally. It cannot attest
-writes outside the declaration, so its evidence stays run-local. Wire
-`WorkspaceSandbox` for remote publication. This is an engine wiring
-limitation, not a second cache protocol.
+Irreversible release actions are intentionally absent. A `Changesets` version,
+`NpmPublish`, or `JsrPublish` target therefore refuses with
+`unresolved_action` instead of mutating external state through the ordinary
+executor.
+
+## Cache-directory host state
+
+For normal target verbs the CLI resolves `--cache-dir`, then the root
+`Workspace` declaration, then `.flows`. Target results live below
+`<cacheDirectory>/cache`; rule scratch files use the same root.
+
+The real directory is not action payload or key material. Rules that need it
+emit a constant token and `ExecLive` substitutes the validated host value just
+before spawn. Discovery and glob expansion receive the same resolved value and
+exclude it explicitly. The fixed `.flows/store` install tree is excluded
+separately.
+
+## Remote caches
+
+The CLI target-result cache speaks `/ac` directly. `RemoteCacheStore` and
+`RemoteArtifacts` in the flows engine are a different composition: they store
+engine step rows and artifact blobs through `/ac` and `/cas`. The tsflows CLI
+does not provide those engine layers today.
+
+An embedding host that needs engine-level remote artifacts must compose those
+layers with its local step cache and artifact store itself. Endpoint and
+authorization values are host capabilities and must not enter step-key
+material.
+
+## Current boundary limit
+
+Install fetch actions declare `.flows/store/<manager>` as a `TreeArtifact`, but
+their boundary mode is `expected`. The current absolute-root manager process
+cannot freeze the lockfile and `.npmrc` across the child's own opens, and the
+unsandboxed filesystem observer cannot attest that nothing else was read or
+written. Consequently install results and store trees are not published to a
+cross-run engine cache. Wiring a sandbox that produces hermetic-read and
+whole-tree evidence is required before changing that admission policy.

@@ -103,6 +103,14 @@ const gitTimeoutMs = 30_000
 const gitPathLimit = 500_000
 const gitPathBytes = 16 * 1024
 
+/**
+ * Maximum bytes accepted from the root `.gitignore` before an update.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const maximumGitignoreBytes = 16 * 1024 * 1024
+
 /** One failed git invocation, described well enough to decide what to do. */
 interface GitFailure {
   readonly code: string | undefined
@@ -229,8 +237,8 @@ const nulPaths = (output: string): ReadonlyArray<string> => {
  * if those files were deleted.
  */
 const fallbackApplies = (cause: unknown): boolean => {
-  if (!(cause instanceof Error)) return false
-  const failure = failures.get(cause)
+  if (typeof cause !== "object" || cause === null) return false
+  const failure = failures.get(cause as Error)
   if (failure === undefined) return false
   if (failure.code === "ENOENT" || failure.code === "EACCES") return true
   return failure.status === 128 && /not a git repository|not a working tree/i.test(failure.stderr)
@@ -536,8 +544,30 @@ const gitignoreForms = (cacheDirectory: string): ReadonlyArray<string> => [
 const optionalOpenFlag = (name: "O_NOFOLLOW" | "O_NONBLOCK"): number =>
   (NodeFs.constants as Partial<Record<string, number>>)[name] ?? 0
 
-const errorCode = (cause: unknown): string | undefined =>
-  typeof cause === "object" && cause !== null && "code" in cause ? String(cause.code) : undefined
+const errorCode = (cause: unknown): string | undefined => {
+  if (typeof cause !== "object" || cause === null) return undefined
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(cause, "code")
+    return descriptor !== undefined && "value" in descriptor && typeof descriptor.value === "string"
+      ? descriptor.value
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
+const failureMessage = (cause: unknown): string => {
+  if (typeof cause !== "object" || cause === null) return "unavailable failure"
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(cause, "message")
+    return descriptor !== undefined && "value" in descriptor && typeof descriptor.value === "string" &&
+        descriptor.value !== ""
+      ? descriptor.value
+      : "unavailable failure"
+  } catch {
+    return "unavailable failure"
+  }
+}
 
 /**
  * Reads the root `.gitignore`, or returns undefined when there is none.
@@ -553,7 +583,10 @@ const errorCode = (cause: unknown): string | undefined =>
  * this function reads, and — through the write that follows — what it
  * overwrites. The open then adds `O_NOFOLLOW` and `O_NONBLOCK` where the
  * platform provides them, and the descriptor is `fstat`-checked to be the same
- * regular file the `lstat` saw before a byte is read.
+ * regular file the `lstat` saw before a byte is read. The descriptor size is
+ * bounded before allocation, one byte of slack detects growth, and a second
+ * descriptor stat proves the same file remained stable through the read.
+ * Invalid UTF-8 is refused rather than repaired with replacement characters.
  *
  * This deliberately does not use `SafeFs.readText`, which follows a link whose
  * whole resolution stays inside the workspace. That policy is right for a read:
@@ -563,9 +596,9 @@ const errorCode = (cause: unknown): string | undefined =>
  * half of a read-modify-write gets the stricter rule.
  */
 const readGitignore = async (path: string): Promise<string | undefined> => {
-  let expected: NodeFs.Stats
+  let expected: NodeFs.BigIntStats
   try {
-    expected = await Fs.lstat(path)
+    expected = await Fs.lstat(path, { bigint: true })
   } catch (cause) {
     if (errorCode(cause) === "ENOENT") return undefined
     throw cause
@@ -574,6 +607,10 @@ const readGitignore = async (path: string): Promise<string | undefined> => {
     throw new Error(`.gitignore is a symbolic link; refusing to read or replace it through the link: ${path}`)
   }
   if (!expected.isFile()) throw new Error(`.gitignore is not a regular file: ${path}`)
+  if (expected.nlink !== 1n) throw new Error(`.gitignore must not be hard-linked: ${path}`)
+  if (expected.size > BigInt(maximumGitignoreBytes)) {
+    throw new Error(`.gitignore exceeds its ${maximumGitignoreBytes}-byte limit: ${path}`)
+  }
   const handle = await Fs.open(
     path,
     NodeFs.constants.O_RDONLY | optionalOpenFlag("O_NOFOLLOW") | optionalOpenFlag("O_NONBLOCK")
@@ -581,11 +618,47 @@ const readGitignore = async (path: string): Promise<string | undefined> => {
   let primary: { readonly cause: unknown } | undefined
   let text: string | undefined
   try {
-    const opened = await handle.stat()
-    if (!opened.isFile() || opened.dev !== expected.dev || opened.ino !== expected.ino) {
+    const opened = await handle.stat({ bigint: true })
+    if (
+      !opened.isFile() ||
+      opened.dev !== expected.dev ||
+      opened.ino !== expected.ino ||
+      opened.nlink !== 1n ||
+      opened.size !== expected.size ||
+      opened.mtimeNs !== expected.mtimeNs ||
+      opened.ctimeNs !== expected.ctimeNs ||
+      opened.size > BigInt(maximumGitignoreBytes)
+    ) {
       throw new Error(`.gitignore changed identity while it was being read: ${path}`)
     }
-    text = (await handle.readFile()).toString("utf8")
+    const buffer = Buffer.allocUnsafe(Number(opened.size) + 1)
+    let length = 0
+    while (length < buffer.byteLength) {
+      const { bytesRead } = await handle.read(buffer, length, buffer.byteLength - length, length)
+      if (!Number.isSafeInteger(bytesRead) || bytesRead < 0 || bytesRead > buffer.byteLength - length) {
+        throw new Error(`.gitignore returned an invalid read length: ${path}`)
+      }
+      if (bytesRead === 0) break
+      length += bytesRead
+    }
+    const after = await handle.stat({ bigint: true })
+    if (
+      !after.isFile() ||
+      after.dev !== opened.dev ||
+      after.ino !== opened.ino ||
+      after.nlink !== opened.nlink ||
+      after.size !== opened.size ||
+      after.mtimeNs !== opened.mtimeNs ||
+      after.ctimeNs !== opened.ctimeNs ||
+      BigInt(length) !== opened.size
+    ) {
+      throw new Error(`.gitignore changed while it was being read: ${path}`)
+    }
+    try {
+      text = new TextDecoder("utf-8", { fatal: true }).decode(buffer.subarray(0, length))
+    } catch {
+      throw new Error(`.gitignore is not valid UTF-8: ${path}`)
+    }
   } catch (cause) {
     primary = { cause }
   }
@@ -644,10 +717,7 @@ export const ensureGitignored = async (
   )
   if (Exit.isFailure(exit)) {
     const failure = Cause.squash(exit.cause)
-    const message = typeof failure === "object" && failure !== null && "message" in failure
-      ? String(failure.message)
-      : String(failure)
-    throw new Error(`could not update .gitignore: ${message}`)
+    throw new Error(`could not update .gitignore: ${failureMessage(failure)}`)
   }
 }
 

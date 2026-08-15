@@ -4,14 +4,14 @@ Two independent caches carry the word "remote". They store different things,
 speak different protocols, and are wired in different places. Read this page
 before choosing one.
 
-|                 | CLI result cache                                  | Engine step cache and artifact CAS                                             |
-| --------------- | ------------------------------------------------- | ------------------------------------------------------------------------------ |
-| Stores          | The success value of one executed target          | Keyed step results, plus the files a declared `TreeArtifact` boundary produced |
-| Keyed by        | The planner content key                           | The engine step key                                                            |
-| Local tier      | JSON files under `<cacheDirectory>/cache`         | The flows local step cache and artifact store                                  |
-| Remote tier     | HTTP `/ac`, read-through                          | HTTP `/ac` and `/cas`                                                          |
-| Wired by        | `cli/src/Cache.ts`, when configured               | Not composed by the tsflows CLI today                                          |
-| Configured with | Root `RemoteCache`; `TSFLOWS_CACHE_URL` overrides | `RemoteCacheStore` and `RemoteArtifacts` layer options                         |
+|                 | CLI result cache                                     | Engine step cache and artifact CAS                                             |
+| --------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Stores          | The success value of one executed target             | Keyed step results, plus the files a declared `TreeArtifact` boundary produced |
+| Keyed by        | The planner content key                              | The engine step key                                                            |
+| Local tier      | JSON files under `<cacheDirectory>/cache`            | The flows local step cache and artifact store                                  |
+| Remote tier     | HTTP `/ac`, read-through                             | HTTP `/ac` and `/cas`                                                          |
+| Wired by        | `packages/tsflows-cli/src/Cache.ts`, when configured | Not composed by the tsflows CLI today                                          |
+| Configured with | Root `RemoteCache`; `TSFLOWS_CACHE_URL` overrides    | `RemoteCacheStore` and `RemoteArtifacts` layer options                         |
 
 ## The CLI result cache remote tier
 
@@ -40,7 +40,9 @@ tsflows ci //...
 ```
 
 `TSFLOWS_CACHE_URL` is an optional process override and has precedence over
-the declared endpoint. It must also be HTTPS.
+the declared endpoint. It requires HTTPS except for `http://localhost`,
+`http://127.0.0.1`, and `http://[::1]`, which are admitted for a cache running
+on the same host.
 
 Behavior:
 
@@ -106,16 +108,17 @@ client retries a refusal and must never read one as a miss.
 
 An action-cache document is stored and returned verbatim. Two shapes are
 accepted: the `CacheEntry` envelope `RemoteCacheStore` publishes, and the CLI's
-bare `CachedResult` JSON. Conflict is decided on the `result` member when the
-document has one and on the whole document otherwise, compared with object
-members in sorted order, so a re-publication that only reordered its members is
-`200` rather than `409`.
+bare `CachedResult` JSON. A document is an envelope only when both `keyDigest`
+and `result` are present, and the key must match the route. Conflict is decided
+on that envelope's `result` and on the whole document otherwise, compared with
+object members in sorted order, so a re-publication that only reordered its
+members is `200` rather than `409`.
 
 The endpoint and its bearer token arrive as layer construction options. They are
 capabilities, so they never enter a step key or the journal.
 
 **The tsflows CLI does not compose these engine layers.** Its target result
-cache uses the same `/ac` service directly. `cli/src/Executor.ts` builds its
+cache uses the same `/ac` service directly. `packages/tsflows-cli/src/Executor.ts` builds its
 runtime from the install layer, `ExecLive`, the catalog action layers, and an
 in-memory flow engine. Using remote engine artifacts still means composing
 `RemoteCacheStore` and `RemoteArtifacts` into a flows runtime yourself.
@@ -136,9 +139,11 @@ terraform apply \
   -var 'bun_image=oven/bun@sha256:<digest>'
 ```
 
-The module publishes a loopback HTTP endpoint. Put TLS in front of it before
-using it in a `RemoteCache` declaration, because declarations require HTTPS.
-Engine layers may use the module output directly on the trusted local host.
+The module publishes a loopback HTTP endpoint. A local CLI may point
+`TSFLOWS_CACHE_URL` at it directly; put TLS in front of it before using it in a
+checked-in `RemoteCache` declaration, because declarations require HTTPS.
+Engine layers may also use the module output directly on the trusted local
+host.
 
 Terraform deployments require an `auth_token` of 16-4096 printable ASCII
 characters and immutable `name@sha256:digest` references for both container
@@ -153,9 +158,10 @@ probe it, but it performs a database/schema readiness check and reveals no
 cache state.
 
 The service admits at most 64 cache requests at once and, within that bound,
-at most four simultaneous artifact uploads or downloads. Excess work receives
-`429` with `Retry-After: 1`; refused request bodies are cancelled rather than
-left streaming. The Terraform container is limited to 256 MiB with no swap,
+at most four action publications, eight `findMissing` requests, and two large
+artifact uploads or downloads. Excess work receives `429` with
+`Retry-After: 1`; refused request bodies are cancelled without waiting for a
+hostile cancellation promise. The Terraform container is limited to 256 MiB with no swap,
 runs as the image's unprivileged user on a read-only root filesystem, drops all
 Linux capabilities, and enables `no-new-privileges`. Postgres is limited to
 512 MiB with no swap, and the service's SQL pool uses at most eight connections.
@@ -235,9 +241,12 @@ CI=1 npx alchemy plan alchemy.run.ts --stage prod
 CI=1 npm run deploy -- --yes
 ```
 
-Every route, including `/healthz`, requires the bearer token. A client switches
-between the hosted and self-hosted services by changing the endpoint and token;
-cache keys and payloads do not change.
+`GET` and `HEAD /healthz` are public readiness probes over D1 and R2 and reveal
+no cache state. Every `/ac` and `/cas` route requires the bearer token. A client
+switches between the hosted and self-hosted services by changing the endpoint
+and token; cache keys and payloads do not change. Hosted migrations live in
+`infra/worker/migrations/`; the second migration bounds legacy and future D1
+rows before the Worker serves them.
 
 ## The current engine boundary
 

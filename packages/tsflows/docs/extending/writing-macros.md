@@ -9,7 +9,7 @@ targets it returns are the only things that exist afterwards.
 `StandardPackage` expands one conventional TypeScript package into three targets.
 
 ```ts
-// rules/src/StandardPackage.ts
+// packages/tsflows-rules/src/StandardPackage.ts
 export interface Options {
   readonly deps: ReadonlyArray<Rule.AnyTarget>
   readonly cwd?: string | undefined

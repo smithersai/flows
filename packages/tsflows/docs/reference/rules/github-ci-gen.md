@@ -44,7 +44,7 @@ explicit `tsflows build` of a `mode: "write"` target generates a file.
 | ------------------ | ---------------------------------- | -------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `workflowName`     | `string`                           | `"CI"`                           | Generated workflow name.                                                                                                                                                                                                                                                 |
 | `pattern`          | `string`                           | `"//..."`                        | Pattern executed by the generated tsflows step. Must be `//...`, `//pkg/...`, `//pkg`, `//pkg:target`, or `//:target`; rendered as one single-quoted shell word.                                                                                                         |
-| `kinds`            | `Array<Rule.Kind>`                 | build, test, lint                | Verbs emitted by generation, restricted to the ones the CLI has a command for: `build`, `test`, `lint`, `docs`. The complete default set emits one `tsflows ci` command.                                                                                                 |
+| `kinds`            | `Array<Rule.Kind>`                 | build, test, lint                | Pipeline-safe verbs emitted by generation: `build`, `test`, `lint`, and `docs`. The complete default set emits one `tsflows ci` command. `run` stays manual because run targets may be long-lived or mutate the source tree.                                             |
 | `pushBranches`     | `Array<string>`                    | `["main"]`                       | Generated push branches.                                                                                                                                                                                                                                                 |
 | `pullRequest`      | `boolean`                          | `true`                           | Generated pull-request trigger.                                                                                                                                                                                                                                          |
 | `workflowDispatch` | `boolean`                          | `true`                           | Generated manual trigger.                                                                                                                                                                                                                                                |
@@ -172,8 +172,9 @@ never run.
   negative values are rejected by the runner and larger ones are silently
   capped, so both render a job that does not enforce what it declares. The attrs
   schema bounds it and `render` checks it again;
-- a kind the CLI has no command for, such as `run`, which would render a step
-  that fails with `COMMAND_NOT_FOUND`;
+- the manual `run` kind. Run targets may start long-lived development services
+  or mutate the source tree (for example, a scaffold), so generated CI admits
+  only `build`, `test`, `lint`, and `docs`;
 - a control character in a rendered value, such as the carriage return of a
   CRLF script, which the shell cannot run;
 - a `pattern` outside the CLI's label grammar. The supported forms are exactly

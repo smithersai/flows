@@ -60,11 +60,11 @@ summary. `outDir` is key material and a command-line argument.
 
 ## Status
 
-|           |                         |
-| --------- | ----------------------- |
-| Kinds     | `build`                 |
-| Cacheable | Always                  |
-| Executes  | Yes, through `ExecLive` |
+|           |                                                  |
+| --------- | ------------------------------------------------ |
+| Kinds     | `build`                                          |
+| Cacheable | Never; generated output restoration is not wired |
+| Executes  | Yes, through `ExecLive`                          |
 
 ## See also
 

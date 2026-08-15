@@ -2,23 +2,23 @@
 
 ## Read in this order
 
-1. `../flows/BUILD.ts` shows the real pnpm install target, shared root inputs,
+1. `BUILD.ts` shows the real pnpm install target, shared root inputs,
    and the workspace default-rule declaration.
-2. `../flows/packages/engine/BUILD.ts` shows `StandardPackage` plus one extra
-   policy target. `../flows/packages/flow/BUILD.ts` shows the same package
-   longhand. `../flows/packages/plan/BUILD.ts` shows the bare macro.
-3. `rules/src/StandardPackage.ts` expands a conventional package into `lib`,
+2. `packages/engine/BUILD.ts` shows `StandardPackage` plus one extra
+   policy target. `packages/flow/BUILD.ts` shows the same package
+   longhand. `packages/plan/BUILD.ts` shows the bare macro.
+3. `packages/tsflows-rules/src/StandardPackage.ts` expands a conventional package into `lib`,
    `test`, and `lint`.
-4. `rules/src/Rule.ts` defines `Rule.make`. Attrs are an Effect Struct schema.
+4. `packages/tsflows-rules/src/Rule.ts` defines `Rule.make`. Attrs are an Effect Struct schema.
    The implementation is the required pure Flow body. A rule call returns a
    Flow with planner metadata attached.
-5. `rules/src/TsBuild.ts` is a representative catalog rule.
-   `rules/src/LlmLint.ts` shows a git diff as declared key material.
-6. `rules/src/Config.ts` is the inert workspace configuration declaration the
+5. `packages/tsflows-rules/src/TsBuild.ts` is a representative catalog rule.
+   `packages/tsflows-rules/src/LlmLint.ts` shows a git diff as declared key material.
+6. `packages/tsflows-rules/src/Config.ts` is the inert workspace configuration declaration the
    root BUILD.ts file exports.
-7. `cli/src/Cli.ts` defines the incur verbs. `cli/src/Workspace.ts` handles lazy
-   BUILD.ts loading and cache-directory resolution. `cli/src/Planner.ts`
-   constructs the target graph and key preview. `cli/src/engine.ts` isolates
+7. `packages/tsflows-cli/src/Cli.ts` defines the incur verbs. `packages/tsflows-cli/src/Workspace.ts` handles lazy
+   BUILD.ts loading and cache-directory resolution. `packages/tsflows-cli/src/Planner.ts`
+   constructs the target graph and key preview. `packages/tsflows-cli/src/engine.ts` isolates
    install-runtime assumptions.
 
 ## Workspace configuration
@@ -90,7 +90,7 @@ SIGTERM.
 
 Every key carries the rule implementation digest, Node version, platform,
 architecture, and workspace `pnpm-lock.yaml` digest. `EXECUTION_FORMAT` in
-`cli/src/Planner.ts` is the global executor-semantics salt. Increment it when
+`packages/tsflows-cli/src/Planner.ts` is the global executor-semantics salt. Increment it when
 executor behavior changes without otherwise changing key material.
 
 Each target executes through a fresh in-memory flows runtime because two
@@ -146,7 +146,7 @@ build, test, and lint set, and otherwise emits one command per declared kind.
    exactly `lib`, `test`, and `lint`.
 5. Key previews carry `body`, `inputs`, `layers`, and `capabilities`, and the
    preview digest is now the executor's cache key. Layer and capability lists
-   are still hand-maintained catalog declarations in `cli/src/Planner.ts`.
+   are still hand-maintained catalog declarations in `packages/tsflows-cli/src/Planner.ts`.
    Executable rules should eventually derive them from the real Flow graph and
    resolved Layers.
 6. Source distributions use a JavaScript bin bootstrap plus tsx to evaluate
@@ -155,11 +155,11 @@ build, test, and lint set, and otherwise emits one command per declared kind.
 
 ## Install-package seam
 
-`rules/src/PnpmWorkspace.ts` and `cli/src/engine.ts` are reconciled against
+`packages/tsflows-rules/src/PnpmWorkspace.ts` and `packages/tsflows-cli/src/engine.ts` are reconciled against
 the current install package: the Install payload is `{ environment? }`, the
 workspace root is the engine's working directory, and the executor and
 `runInstall` move there through `withWorkingDirectory`. All CLI-side runtime
-assumptions stay confined to `cli/src/engine.ts`.
+assumptions stay confined to `packages/tsflows-cli/src/engine.ts`.
 
 One duplication remains: the root target's `lockfile`, `workspaceFile`, and
 `packageManager` attrs are planner declarations, while the Install Flow

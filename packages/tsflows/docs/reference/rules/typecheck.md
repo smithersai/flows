@@ -61,11 +61,11 @@ summary.
 
 ## Status
 
-|           |                         |
-| --------- | ----------------------- |
-| Kinds     | `build`                 |
-| Cacheable | Always                  |
-| Executes  | Yes, through `ExecLive` |
+|           |                                                              |
+| --------- | ------------------------------------------------------------ |
+| Kinds     | `build`                                                      |
+| Cacheable | Never; the executable toolchain is not complete key material |
+| Executes  | Yes, through `ExecLive`                                      |
 
 ## Notes
 

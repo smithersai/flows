@@ -1,4 +1,6 @@
 import { NodeServices } from "@effect/platform-node"
+import { Flow } from "@smthrs/flow-next"
+import * as Context from "effect/Context"
 import * as Effect from "effect/Effect"
 import * as Fs from "node:fs/promises"
 import * as Os from "node:os"
@@ -34,6 +36,12 @@ const installEnvironment = async (root: string): Promise<Install.Environment> =>
 })
 
 describe("Install", () => {
+  it("keeps every absolute-root package-manager action out of the shared cache", () => {
+    for (const action of [Install.FetchNpm, Install.FetchPnpm, Install.FetchBun, Install.FetchYarn]) {
+      expect(Context.getUnsafe(action.annotations, Flow.EffectsDeclaration).boundaryMode).toBe("expected")
+    }
+  })
+
   it("always reconciles node_modules instead of trusting a freshness marker", async () => {
     await withFixture(async (root) => {
       await Fs.mkdir(NodePath.join(root, "node_modules"))
@@ -116,6 +124,40 @@ describe("Install", () => {
           Effect.provideService(PackageManager.PackageManager, service)
         )
       )).rejects.toThrow(/measured install environment changed/)
+      expect(fetched).toBe(false)
+    })
+  })
+
+  it("refuses a manager whose paths disagree with the declared Flow boundary", async () => {
+    await withFixture(async (root) => {
+      let versionRead = false
+      let fetched = false
+      const service: PackageManager.Service = {
+        name: "pnpm",
+        projectRoot: root,
+        storeDirectory: ".flows/store/elsewhere",
+        lockfileName: "nested/pnpm-lock.yaml",
+        platformSensitive: true,
+        platform,
+        version: Effect.sync(() => {
+          versionRead = true
+          return "10.10.0"
+        }),
+        fetch: Effect.sync(() => {
+          fetched = true
+        }),
+        link: Effect.void,
+        linkManifest: Effect.succeed("0".repeat(64) as PackageManager.Digest)
+      }
+      const environment = await installEnvironment(root)
+
+      await expect(Effect.runPromise(
+        Install.executeFetch({ environment }).pipe(
+          Effect.provide(NodeServices.layer),
+          Effect.provideService(PackageManager.PackageManager, service)
+        )
+      )).rejects.toThrow(/install Flow boundary requires/)
+      expect(versionRead).toBe(false)
       expect(fetched).toBe(false)
     })
   })

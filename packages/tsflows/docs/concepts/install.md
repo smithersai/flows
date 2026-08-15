@@ -1,58 +1,56 @@
 # Install
 
-`tsflows` expresses dependency installation as one flow with two rounds and three
-kinds of action: measure, fetch, and link.
+`tsflows` expresses dependency installation as one flow with two rounds and
+three actions: measure, fetch, and link. Only pnpm performs work today; npm,
+Bun, and Yarn are explicit typed refusals.
 
-```ts
-import { Install, PackageManager } from "@smthrs/tsflows-next"
-import { Effect } from "effect"
+The CLI runs the supported composition:
 
-const program = Install.Install.execute({}).pipe(
-  Effect.provide(Install.layer),
-  Effect.provide(PackageManager.layerPnpm({
-    platform: { os: "linux", arch: "x64", libc: "glibc" }
-  })),
-  Effect.provide(flowRuntimeLayer),
-  Effect.provide(nodeHostLayer)
-)
+```sh
+tsflows install --workspace /absolute/or/relative/workspace
 ```
 
-The CLI wires the same thing under pnpm. See
-[Running targets](../workspace/running-targets.md#installing-dependencies) and
-[PnpmWorkspace](../reference/rules/pnpm-workspace.md).
+The library layer requires an absolute project root and explicit platform:
+
+```ts
+PackageManager.layerPnpm({
+  projectRoot: "/workspace",
+  platform: { os: "linux", arch: "x64", libc: "glibc" }
+})
+```
+
+The complete embedding also supplies `Install.layer` from
+`@smthrs/tsflows-next`, an interpreter
+registration for `Install.Install`, a flow runtime, and Node filesystem,
+process, and crypto services. The CLI composition in
+`packages/tsflows-cli/src/engine.ts` is the reference.
 
 ## Two rounds
 
-The flow payload is `{ environment?: Environment }`. It is empty on the first
-round.
+The flow payload is `{ environment?: Environment }` and starts empty.
 
-```
-round 1 (environment absent):
+```text
+round 1:
   Measure.call({})
-    |> andThen((measured) => Install.to({ environment: measured }))
+    -> Install.to({ environment: measured })
 
-round 2 (environment present):
+round 2:
   Fetch[environment.manager].call({ environment })
-    |> andThen((store) => Link.call({ environment, store }))
+    -> Link.call({ environment, store })
 ```
 
-`maxRounds` is 2, and round two never hands off again.
+`maxRounds` is two, and round two never hands off again.
 
-The round split exists for one reason. The package manager is selected by a
-layer, so it is unknown while round one is planned. A pure round-one body cannot
-inspect a planned value as a JavaScript discriminant and pick one
-manager-specific action. A single generic fetch action would have to declare every
-supported lockfile in its read set, which would put unrelated lockfiles into the
-boundary and the key.
-
-`to` ends round one and carries the measurement into round two as ordinary
-payload. The round-two body reads `environment.manager` and names exactly one
-fetch action, which reads exactly one lockfile.
+The package-manager implementation is a runtime layer, so a pure first-round
+body cannot branch on it. `to` carries the measured value into the next round
+as ordinary payload. That body can select one manager-specific fetch action
+with one exact lockfile declaration rather than putting every supported
+lockfile into one boundary.
 
 ## Measure
 
-`Measure` runs `<manager> --version`, digests the manager's lockfile, and digests
-`.npmrc` if present.
+`Measure` runs `<manager> --version`, digests the manager lockfile, and digests
+the project `.npmrc` when present.
 
 ```ts
 Environment = {
@@ -64,129 +62,130 @@ Environment = {
 }
 ```
 
-It exists as its own action because a lockfile digest is a read of the world, and
-the plan phase may not read the world. Moving the read into an action moves it
-into the run phase, where it is legal.
+The action uses an `expected` boundary and is never answered from the cross-run
+engine cache. The manager binary on `PATH` is not a declared file input, so
+reusing another host's measurement would put a version into downstream keys
+that this host never ran.
 
-Its boundary mode is `expected`, so no cross-run cache ever answers it. Re-measuring
-costs one `--version` spawn and two file digests.
+Version output is limited to 64 KiB and one control-free line. `.npmrc` is
+limited to 256 KiB, `package.json` to 4 MiB, and lockfiles to 64 MiB. Reads use
+stable regular-file descriptors, exact UTF-8, and canonical-path checks inside
+the project root.
 
-## Fetch key material
+## Fetch identity
 
-Round two's payload is hashed inline, so the fetch key folds:
+The second-round payload includes:
 
-1. **Lockfile digest.** sha256 of the manager's lockfile, paired with its path.
-2. **Registry configuration digest.** sha256 of `.npmrc`, after checking that
-   credential fields use environment-variable placeholders. A literal token is
-   refused, because the hard boundary also hashes the file. The environment
-   value is a capability and never enters a key or the journal. `null` when there
-   is no `.npmrc`.
-3. **Manager identity and exact version.** Measured by running the manager, not
-   declared.
-4. **Platform**, as `{os, arch, libc}`, when the manager reports
-   `platformSensitive`. All three implemented managers do, because optional
-   dependencies resolve per platform.
+1. the lockfile path and SHA-256 digest;
+2. the project `.npmrc` digest or `null`;
+3. manager name and exact measured version;
+4. `{os, arch, libc}` for a platform-sensitive manager.
 
-Plus what the engine folds into every key: the action's declaration identity, its
-resolved layer set, its capability ceiling, and its declared effects. At dispatch
-the scheduler folds the measured read-set digests on top, so the lockfile and
-`.npmrc` digests reach the key twice.
+The scheduler also folds declaration identity, layers, capabilities, effects,
+and settled dependencies into its step key. The absolute project root and
+store path are host placement, not content identity.
 
-The store directory and the project root are not key material. Every
-implementation writes to a fixed workspace-relative store, and the engine and
-manager both run from the workspace root. Two checkouts at different absolute
-paths compute the same fetch key.
+Before fetch starts, the implementation re-runs the manager version probe and
+re-digests the lockfile and `.npmrc`. Any disagreement with round one fails
+with `environment_mismatch`.
 
-## Fetch value and replay
+Fetch returns a `StoreManifest`:
 
-Fetch returns a `StoreManifest`: `{manager, managerVersion, platform, digest}`.
-The digest is a sha256 over canonical text built from the key material above. It
-is a description, never the store's bytes and never a `node_modules` archive.
+```ts
+{
+  manager, managerVersion, platform, digest
+}
+```
 
-Each fetch declares `.flows/store/<manager>` as a `TreeArtifact`. The boundary
-records every file below that directory by content digest. A cache hit removes
-that store, hydrates the recorded tree, and replays the result. npm and pnpm link
-offline, so an incomplete replay fails instead of reaching the registry.
+Its digest is SHA-256 over a versioned canonical tuple of the measured
+environment. It describes what populated the store; it is not the store bytes.
+
+## Why fetch is not cache-admissible
+
+Fetch declares `.flows/store/<manager>` as a `TreeArtifact`, but its boundary
+mode is `expected`, not `hard`. The current manager process runs against an
+absolute workspace root and opens the lockfile and `.npmrc` itself. The parent
+can compare those files before and after execution but cannot freeze their
+paths across the child's opens. The unsandboxed observer also cannot attest
+that no undeclared path was read or written.
+
+Consequently no fetch result or store tree is replayed from a cross-run engine
+cache today. A sandbox lane that supplies hermetic-read and whole-tree evidence
+is required before changing this policy.
 
 ## Link
 
-Link materializes `node_modules` from the already-populated store and returns a
-manifest digest, never the tree.
+Link verifies the measured environment and `StoreManifest`, digests the root
+`package.json`, runs the manager's link operation, digests the manager's own
+tree evidence, and returns:
 
 ```ts
-LinkManifest = { store: Digest, manifest: Digest, linked: boolean }
+LinkManifest = { store: Digest, manifest: Digest, linked: true }
 ```
 
-Link always executes and is never restored from another machine. Its boundary
-mode is `expected`, and admission requires `hard`.
+Link always reconciles `node_modules`. A hidden lockfile or modules manifest
+describes the graph a manager intended to create, but cannot prove that every
+package file is still present and unmodified. There is no
+`node_modules/.flows-link.json` freshness shortcut.
 
-Its step key still supports local freshness. The implementation keeps a marker at
-`node_modules/.flows-link.json` holding the store manifest digest and the
-linked-tree manifest digest. The latter folds the store digest, the root
-`package.json` digest, and the manager's own evidence about the tree:
+The action uses an `expected` boundary and declares no materialized output.
+`node_modules` is a host-local graph of links into the store and is never
+restored from another machine.
 
-| Manager | Evidence digested                          |
-| ------- | ------------------------------------------ |
-| npm     | `node_modules/.package-lock.json`          |
-| pnpm    | `node_modules/.modules.yaml`               |
-| Bun     | sorted top-level listing of `node_modules` |
+## Manager support
 
-When both digests still match, the action executes but skips the manager command
-and reports `linked: false`. The marker is read on this host only, never
-published, and treated as absent whenever it fails to parse: a damaged marker
-costs one link, not a failure.
+| Manager | Status      | Behavior                                                                             |
+| ------- | ----------- | ------------------------------------------------------------------------------------ |
+| pnpm    | Implemented | Frozen fetch into `.flows/store/pnpm`, then frozen offline link with scripts ignored |
+| npm     | Unsupported | No verified fetch-only verb satisfying the declared lockfile boundary                |
+| Bun     | Unsupported | No documented fetch-only and offline-link pair satisfying the contract               |
+| Yarn    | Unsupported | Named for future compatibility; no implementation is wired                           |
 
-Before using either a fresh or a cached store, link rechecks the manager
-identity, version, platform, lockfile, and `.npmrc` against the round-one payload,
-and rechecks the store manifest against the measured environment. Either mismatch
-fails with `environment_mismatch`.
+The pnpm commands are:
 
-## The manager as a layer
+```text
+pnpm fetch --frozen-lockfile --ignore-scripts --reporter=append-only \
+  --store-dir <projectRoot>/.flows/store/pnpm
 
-`PackageManager` is a `Context.Service` with one shape and several
-implementations. Selecting one is a layer swap.
+pnpm install --offline --frozen-lockfile --ignore-scripts \
+  --reporter=append-only --store-dir <projectRoot>/.flows/store/pnpm
+```
 
-| Manager | fetch                                                                                   | link                                                                                      |
-| ------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| pnpm    | `pnpm fetch --store-dir .flows/store/pnpm`                                              | `pnpm install --offline --frozen-lockfile --ignore-scripts --store-dir .flows/store/pnpm` |
-| npm     | one `npm cache add <resolved-url> --cache .flows/store/npm` per registry tarball        | `npm ci --offline --no-audit --no-fund --ignore-scripts --cache .flows/store/npm`         |
-| Bun     | `bun install --frozen-lockfile --ignore-scripts --dry-run --cache-dir .flows/store/bun` | `bun install --frozen-lockfile --ignore-scripts --cache-dir .flows/store/bun`             |
-| Yarn    | not implemented                                                                         | not implemented                                                                           |
+`layerNpm`, `layerBun`, and `layerNoop("yarn", options)` still provide the
+service shape. Version, fetch, link, and manifest operations fail with
+`PackageManagerError { code: "unsupported" }`, making unsupported selection
+deterministic rather than a missing-layer defect.
 
-Constructors: `layerNpm`, `layerPnpm`, `layerBun`, and `layerNoop(name, options)`.
-Each takes a `platform` option rather than reading `globalThis.process`, so the
-module stays browser-bundleable.
+## Environment and credentials
 
-Yarn is named in the `Name` schema and has no implementation.
-`layerNoop("yarn", options)` refuses with a typed `unsupported` error. The
-abstraction fits Yarn without change: classic Yarn fetches into a mirror and links
-a tree, and Yarn PnP fetches into a zip cache and links nothing.
+Package-manager children use `extendEnv: false`. They receive deterministic
+locale/color settings, selected bootstrap and network variables, and variables
+explicitly referenced as `${NAME}` in the project `.npmrc`.
 
-Two implementation notes carry over from `DESIGN.md`. npm has no fetch-only verb,
-so its fetch reads resolved tarball URLs out of `package-lock.json`; the parse
-decides only what to download, never what to key, and workspace links and
-non-HTTP sources are skipped. Bun documents no fetch-only verb and no offline
-install flag, so Bun's link can reach the network when the cache is incomplete.
-Bun has the weakest replay guarantee of the three.
+Literal auth tokens, passwords, key files, and certificate fields in `.npmrc`
+are refused. Placeholders that reference process-control names such as
+`NODE_*`, `NPM_CONFIG_*`, `PNPM_*`, `BUN_*`, loader variables, or shell startup
+variables are also refused. User and global npm configuration paths are forced
+to the null device.
+
+Remote-cache endpoint and token variables are removed before the install layer
+receives its environment snapshot.
+
+## Store placement
+
+Manager stores are fixed below `.flows/store/<manager>`. Discovery and glob
+expansion always exclude that tree.
+
+Because the install action declaration contains that fixed path, the direct
+`install` command rejects a custom `cacheDirectory`. Other target verbs may use
+one. Making install placement configurable requires changing the declared
+boundary and host-state substitution together; silently writing one path while
+declaring another is not allowed.
 
 ## Lifecycle scripts
 
-Every command runs with `--ignore-scripts`. Running arbitrary package code is a
-different action with a different tier: at least `compensable`, often
-`irreversible`, and not sealed by any lockfile digest. Modelling it is deferred
-work.
-
-## The store directory
-
-Manager stores stay at `.flows/store/<manager>` and are not controlled by
-`cacheDirectory`. Those paths are declared `TreeArtifact` boundaries, and a
-declared boundary is key material that must mean the same thing on every machine.
-Making store placement configurable requires the boundary to carry the location
-as resolved host state rather than as a declared path. `DESIGN.md` records it as
-future work.
-
-Discovery and glob expansion always exclude the store, including when the cache
-directory is configured elsewhere.
+Every supported command passes `--ignore-scripts`. Arbitrary package lifecycle
+code needs a separate non-sealed execution model and is not part of this flow.
 
 ## Next
 

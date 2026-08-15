@@ -14,7 +14,11 @@ import {
   createHandler,
   describeFailure,
   maxBodyChunks,
+  maxCanonicalJsonBytes,
+  maxConcurrentActionCachePublications,
+  maxConcurrentArtifactTransfers,
   maxConcurrentCacheRequests,
+  maxConcurrentFindMissingRequests,
   maxFindMissingDigests,
   maxJsonDepth,
   maxReferencedDigests
@@ -213,7 +217,7 @@ describe("authentication", () => {
     expect(wrong.status).toBe(401)
     expect(prefix.status).toBe(401)
     expect(await wrong.text()).toBe("")
-    expect(wrong.headers.get("www-authenticate")).toBeNull()
+    expect(wrong.headers.get("www-authenticate")).toBe("Bearer realm=\"tsflows-cache\"")
   })
 
   test("answers the container healthcheck without a token", async () => {
@@ -306,6 +310,15 @@ describe("authentication", () => {
     }))
     expect(response.status).toBe(401)
     expect(streamed.log).toEqual(["body-cancel"])
+  })
+
+  test("does not wait forever for a sender's cancellation", async () => {
+    const body = { cancel: () => new Promise(() => undefined) }
+    const response = await makeHandler()(rawRequest(`/ac/${keyDigest}`, {
+      headers: { authorization: "Bearer wrong" },
+      body
+    }))
+    expect(response.status).toBe(401)
   })
 })
 
@@ -405,15 +418,23 @@ describe("action-cache publication", () => {
     const blank = await handler(
       jsonRequest("/ac/blank", { ...envelope, keyDigest: "blank", recordedRunId: "" }, { method: "PUT" })
     )
+    const malformedText = await handler(
+      jsonRequest("/ac/malformed-text", {
+        ...envelope,
+        keyDigest: "malformed-text",
+        recordedRunId: "\ud800"
+      }, { method: "PUT" })
+    )
     const half = { ...envelope, keyDigest: "missing-half" }
     delete half.recordedEventSeq
     const missing = await handler(jsonRequest("/ac/missing-half", half, { method: "PUT" }))
 
     expect(actionCache.entries.get("paired").recordedRunId).toBe("run-1")
     expect(actionCache.entries.get("paired").recordedEventSeq).toBe(7)
-    expect([negative.status, blank.status, missing.status]).toEqual([400, 400, 400])
+    expect([negative.status, blank.status, malformedText.status, missing.status]).toEqual([400, 400, 400, 400])
     expect(actionCache.entries.has("half")).toBe(false)
     expect(actionCache.entries.has("blank")).toBe(false)
+    expect(actionCache.entries.has("malformed-text")).toBe(false)
     expect(actionCache.entries.has("missing-half")).toBe(false)
   })
 
@@ -875,7 +896,7 @@ describe("content-addressed storage", () => {
     expect(response.status).toBe(201)
   })
 
-  test("admits at most four simultaneous artifact uploads and cancels excess bodies", async () => {
+  test("bounds simultaneous artifact uploads and cancels excess bodies", async () => {
     let releaseUploads
     const gate = new Promise((resolve) => {
       releaseUploads = resolve
@@ -889,13 +910,13 @@ describe("content-addressed storage", () => {
       ...memoryContentStore(),
       put: async () => {
         entered += 1
-        if (entered === 4) reportFull()
+        if (entered === maxConcurrentArtifactTransfers) reportFull()
         await gate
         return "inserted"
       }
     }
     const handler = makeHandler({ contentStore })
-    const uploads = Array.from({ length: 4 }, (_, index) => {
+    const uploads = Array.from({ length: maxConcurrentArtifactTransfers }, (_, index) => {
       const bytes = new TextEncoder().encode(`upload-${index}`)
       return handler(request(`/cas/${digestOf(`upload-${index}`)}`, {
         method: "PUT",
@@ -917,7 +938,9 @@ describe("content-addressed storage", () => {
     expect(fifthBody.log).toEqual(["body-cancel"])
 
     releaseUploads()
-    expect((await Promise.all(uploads)).map((response) => response.status)).toEqual([201, 201, 201, 201])
+    expect((await Promise.all(uploads)).map((response) => response.status)).toEqual(
+      Array.from({ length: maxConcurrentArtifactTransfers }, () => 201)
+    )
   })
 
   test("rejects impossible artifact limits at handler construction", () => {
@@ -975,6 +998,7 @@ describe("findMissing", () => {
       { digests: [null] },
       { digests: ["A".repeat(64)] },
       { digests: [{ digest: "a".repeat(64) }] },
+      { digests: [], ignored: true },
       {},
       []
     ]
@@ -1176,14 +1200,17 @@ describe("failure diagnostics", () => {
 
   test("survives a failure whose fields throw or are not errors at all", () => {
     const throwing = {}
+    let reads = 0
     for (const field of ["name", "code", "errno", "syscall"]) {
       Object.defineProperty(throwing, field, {
         get() {
+          reads += 1
           throw new Error(`getter leaked ${token}`)
         }
       })
     }
     expect(describeFailure(throwing)).toBe("tsflows cache: request failed (unattributed)")
+    expect(reads).toBe(0)
     expect(describeFailure(null)).toBe("tsflows cache: request failed (kind=null)")
     expect(describeFailure(token)).toBe("tsflows cache: request failed (kind=string)")
     expect(describeFailure(undefined)).toBe("tsflows cache: request failed (kind=undefined)")
@@ -1227,6 +1254,139 @@ describe("storage failure", () => {
       }
     })
     expect(captured.lines).toHaveLength(cases.length)
+  })
+
+  test("turns malformed storage answers into retryable refusals", async () => {
+    const invalidActionCache = {
+      get: async () => "not-json",
+      put: async () => "unexpected",
+      delete: async () => "yes"
+    }
+    const invalidContentStore = {
+      get: async () => Object.defineProperty({}, "body", { get: () => token }),
+      has: async () => "yes",
+      put: async () => "unexpected",
+      presentDigests: async () => ({ has: () => true })
+    }
+    const captured = await captureErrors(async () => {
+      const actionHandler = makeHandler({ actionCache: invalidActionCache })
+      expect((await actionHandler(request(`/ac/${keyDigest}`))).status).toBe(503)
+      expect((await actionHandler(jsonRequest(`/ac/${keyDigest}`, cachedResult, { method: "PUT" }))).status)
+        .toBe(503)
+      expect((await actionHandler(request(`/ac/${keyDigest}`, { method: "DELETE" }))).status).toBe(503)
+
+      const contentHandler = makeHandler({ contentStore: invalidContentStore })
+      const digest = digestOf("invalid-storage")
+      expect((await contentHandler(request(`/cas/${digest}`))).status).toBe(503)
+      expect((await contentHandler(request(`/cas/${digest}`, { method: "HEAD" }))).status).toBe(503)
+      expect(
+        (await contentHandler(request(`/cas/${digest}`, {
+          method: "PUT",
+          headers: { "content-type": "application/octet-stream" },
+          body: new TextEncoder().encode("invalid-storage")
+        }))).status
+      ).toBe(503)
+      expect((await contentHandler(jsonRequest("/cas/findMissing", { digests: [digest] }, { method: "POST" }))).status)
+        .toBe(503)
+    })
+    expect(captured.lines).toHaveLength(7)
+  })
+
+  test("snapshots dependencies and rejects dependency accessors", async () => {
+    const actionCache = memoryActionCache()
+    const dependencies = {
+      actionCache,
+      contentStore: memoryContentStore(),
+      health: async () => true,
+      tokenHash,
+      maxArtifactBytes: 1024
+    }
+    const handler = createHandler(dependencies)
+    dependencies.actionCache = {
+      get: async () => "corrupt",
+      put: async () => "conflict",
+      delete: async () => false
+    }
+    expect((await handler(request(`/ac/${keyDigest}`))).status).toBe(404)
+
+    let reads = 0
+    const accessor = Object.defineProperty(
+      {
+        actionCache,
+        contentStore: memoryContentStore(),
+        maxArtifactBytes: 1024
+      },
+      "tokenHash",
+      {
+        enumerable: true,
+        get: () => {
+          reads += 1
+          return tokenHash
+        }
+      }
+    )
+    expect(() => createHandler(accessor)).toThrow("data property")
+    expect(reads).toBe(0)
+  })
+
+  test("bounds publication and findMissing work independently", async () => {
+    let releasePublications
+    const publicationGate = new Promise((resolve) => {
+      releasePublications = resolve
+    })
+    let publications = 0
+    let publicationFull
+    const publicationCapacity = new Promise((resolve) => {
+      publicationFull = resolve
+    })
+    const memory = memoryActionCache()
+    const actionCache = {
+      ...memory,
+      put: async (...args) => {
+        publications += 1
+        if (publications === maxConcurrentActionCachePublications) publicationFull()
+        await publicationGate
+        return memory.put(...args)
+      }
+    }
+    const actionHandler = makeHandler({ actionCache })
+    const admittedPublications = Array.from(
+      { length: maxConcurrentActionCachePublications },
+      () => actionHandler(jsonRequest(`/ac/${keyDigest}`, cachedResult, { method: "PUT" }))
+    )
+    await publicationCapacity
+    expect((await actionHandler(jsonRequest(`/ac/${keyDigest}`, cachedResult, { method: "PUT" }))).status).toBe(429)
+    releasePublications()
+    expect((await Promise.all(admittedPublications)).every((response) => response.status < 300)).toBe(true)
+
+    let releaseProbes
+    const probeGate = new Promise((resolve) => {
+      releaseProbes = resolve
+    })
+    let probes = 0
+    let probesFull
+    const probeCapacity = new Promise((resolve) => {
+      probesFull = resolve
+    })
+    const contentStore = {
+      ...memoryContentStore(),
+      presentDigests: async () => {
+        probes += 1
+        if (probes === maxConcurrentFindMissingRequests) probesFull()
+        await probeGate
+        return new Set()
+      }
+    }
+    const findHandler = makeHandler({ contentStore })
+    const probe = { digests: [digestOf("probe")] }
+    const admittedProbes = Array.from(
+      { length: maxConcurrentFindMissingRequests },
+      () => findHandler(jsonRequest("/cas/findMissing", probe, { method: "POST" }))
+    )
+    await probeCapacity
+    expect((await findHandler(jsonRequest("/cas/findMissing", probe, { method: "POST" }))).status).toBe(429)
+    releaseProbes()
+    expect((await Promise.all(admittedProbes)).every((response) => response.status === 200)).toBe(true)
   })
 
   test("bounds simultaneous cache work independently of storage pool size", async () => {
@@ -1274,7 +1434,14 @@ describe("canonicalJson", () => {
     const cycle = {}
     cycle.self = cycle
     const accessor = {}
-    Object.defineProperty(accessor, "value", { enumerable: true, get: () => 1 })
+    let reads = 0
+    Object.defineProperty(accessor, "value", {
+      enumerable: true,
+      get: () => {
+        reads += 1
+        return 1
+      }
+    })
     const sparse = new Array(2)
     sparse[1] = 1
     let deep = 0
@@ -1283,5 +1450,16 @@ describe("canonicalJson", () => {
     for (const value of [-0, cycle, accessor, sparse, deep]) {
       expect(() => canonicalJson(value)).toThrow()
     }
+    expect(reads).toBe(0)
+    let proxyReads = 0
+    const proxy = new Proxy({ value: "safe" }, {
+      get: (target, property, receiver) => {
+        proxyReads += 1
+        return Reflect.get(target, property, receiver)
+      }
+    })
+    expect(canonicalJson(proxy)).toBe("{\"value\":\"safe\"}")
+    expect(proxyReads).toBe(0)
+    expect(() => canonicalJson("x".repeat(maxCanonicalJsonBytes + 1))).toThrow("byte bound")
   })
 })
