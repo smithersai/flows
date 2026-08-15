@@ -202,12 +202,12 @@ describe("EngineStore.make liveness", () => {
           )
           const created = yield* store.get("foreign-run")
           const expected = { status: created.status, owner: created.owner, heartbeatAtMs: created.heartbeatAtMs }
-          const claim = yield* store.claim("foreign-run", expected, otherOwner, 0)
-          expect(claim._tag).toBe("Claimed")
-          yield* store.activate("foreign-run", otherOwner, 0, expected)
-          // Backdate the heartbeat well past `heartbeatStaleAfter`, so the
-          // liveness probe — not freshness — decides the steal.
-          yield* store.heartbeat("foreign-run", otherOwner, 0)
+          // Activate with a lease backdated well past `heartbeatStaleAfter`,
+          // so the liveness probe — not freshness — decides the steal. The
+          // backdating goes through `claimAndOwn`'s caller-stamped time:
+          // `heartbeat` is monotonic and cannot rewind a lease.
+          const owned = yield* store.claimAndOwn("foreign-run", expected, otherOwner, 0)
+          expect(owned._tag).toBe("Activated")
 
           const engine = yield* EngineStore.make({
             owner: { hostId: "layer-host" },

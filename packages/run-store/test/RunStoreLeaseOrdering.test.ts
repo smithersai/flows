@@ -33,20 +33,27 @@ const activate = (store: RunStoreLive.Service, runId: string) =>
   })
 
 describe("RunStore heartbeat timestamp ordering", () => {
-  // BUG: a fenced heartbeat overwrites heartbeat_at_ms even when its caller timestamp is older.
-  it.effect.fails("keeps the lease timestamp monotonic when an older heartbeat arrives late", () =>
+  // A late-arriving heartbeat with an older caller timestamp still reports
+  // `Updated` — the fence held and the write proves liveness — but it never
+  // moves `heartbeat_at_ms` backwards, so a live run cannot be made to look
+  // stale to `claimAndOwn`/`steal`'s cutoff by a delayed packet.
+  it.effect("keeps the lease timestamp monotonic when an older heartbeat arrives late", () =>
     Effect.gen(function*() {
-      const row = yield* migrated(
+      const rows = yield* migrated(
         Effect.gen(function*() {
           const store = yield* RunStore
           yield* activate(store, "lease-monotonic")
           expect(yield* store.heartbeat("lease-monotonic", owner, 200)).toEqual({ _tag: "Updated" })
           expect(yield* store.heartbeat("lease-monotonic", owner, 150)).toEqual({ _tag: "Updated" })
-          return yield* store.get("lease-monotonic")
+          const afterLate = yield* store.get("lease-monotonic")
+          expect(yield* store.heartbeat("lease-monotonic", owner, 250)).toEqual({ _tag: "Updated" })
+          return { afterLate, afterNewer: yield* store.get("lease-monotonic") }
         })
       )
 
-      expect(row.heartbeatAtMs).toBe(200)
+      expect(rows.afterLate.heartbeatAtMs).toBe(200)
+      // A genuinely newer heartbeat still advances the lease.
+      expect(rows.afterNewer.heartbeatAtMs).toBe(250)
     }))
 
   it.effect("accepts a safe-integer timestamp arbitrarily far in the future", () =>
@@ -66,7 +73,7 @@ describe("RunStore heartbeat timestamp ordering", () => {
       expect(result.row.heartbeatAtMs).toBe(future)
     }))
 
-  it.effect("lets SQLite reject negative, fractional, and NaN heartbeat timestamps", () =>
+  it.effect("rejects negative, fractional, and NaN heartbeat timestamps before persistence", () =>
     Effect.gen(function*() {
       const result = yield* migrated(
         Effect.gen(function*() {
@@ -80,8 +87,9 @@ describe("RunStore heartbeat timestamp ordering", () => {
         })
       )
 
-      // CONTRACT: heartbeat has no explicit timestamp validator; invalid values
-      // fail through persistence rather than RunStore's invalid_run vocabulary.
+      // CONTRACT: heartbeat validates its timestamp explicitly. It has to —
+      // the monotonic MAX() write would otherwise silently absorb an invalid
+      // older value instead of letting the column CHECK reject it.
       expect(result.exits.every((exit) => Exit.isFailure(exit))).toBe(true)
       expect(
         result.exits.map((exit) =>
@@ -90,9 +98,9 @@ describe("RunStore heartbeat timestamp ordering", () => {
             : undefined
         )
       ).toEqual([
-        expect.objectContaining({ code: "constraint", method: "heartbeat" }),
-        expect.objectContaining({ code: "constraint", method: "heartbeat" }),
-        expect.objectContaining({ method: "heartbeat" })
+        expect.objectContaining({ code: "invalid_run", method: "heartbeat" }),
+        expect.objectContaining({ code: "invalid_run", method: "heartbeat" }),
+        expect.objectContaining({ code: "invalid_run", method: "heartbeat" })
       ])
       expect(result.row.heartbeatAtMs).toBe(100)
     }))

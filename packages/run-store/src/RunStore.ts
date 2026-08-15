@@ -1030,13 +1030,28 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
     nowMs: number
   ): Effect.Effect<HeartbeatOutcome, RunStoreError> =>
     Effect.annotateCurrentSpan({ runId, ownerHostId: owner.hostId }).pipe(
-      Effect.andThen(
-        write(
+      Effect.andThen(Effect.suspend(() => {
+        // Validated before the write because the monotonic MAX below would
+        // otherwise silently absorb a negative or non-integer timestamp
+        // instead of letting the column CHECK reject it.
+        if (!Number.isSafeInteger(nowMs) || nowMs < 0) {
+          return Effect.fail(invalidRunError("heartbeat", { runId, nowMs }))
+        }
+        return write(
           "heartbeat",
           Effect.gen(function*() {
+            // The lease timestamp is monotonic: MAX() keeps a heartbeat that
+            // arrives late — delayed past a newer one from the same owner —
+            // from moving `heartbeat_at_ms` backwards and making a live run
+            // look stale to `claimAndOwn`/`steal`'s cutoff. The outcome is
+            // still `Updated`: the fence held, and the write proves liveness
+            // regardless of which caller clock reading it carried. Prior art:
+            // Temporal's shard `rangeID` only ever advances
+            // (`reference/temporal/service/history/shard/context_impl.go`,
+            // `renewRangeLocked`).
             const rows = yield* sql<{ readonly runId: string }>`
           UPDATE flows_runs
-          SET heartbeat_at_ms = ${nowMs}
+          SET heartbeat_at_ms = MAX(heartbeat_at_ms, ${nowMs})
           WHERE run_id = ${runId}
             AND status = 'running'
             AND owner_host_id = ${owner.hostId}
@@ -1049,7 +1064,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
             return current.length === 0 ? notFound : fenceLost
           })
         )
-      ),
+      })),
       observeOutcome((outcome) => RunStoreMetrics.heartbeat[outcome._tag])
     )
   )
