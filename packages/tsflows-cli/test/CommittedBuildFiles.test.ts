@@ -1,6 +1,7 @@
 import * as NodePath from "node:path"
 import { fileURLToPath } from "node:url"
 import { describe, expect, it } from "vitest"
+import { Rule } from "tsflows-rules"
 import { Workspace } from "../src/Workspace.ts"
 
 /**
@@ -31,12 +32,22 @@ describe("committed BUILD.ts files", () => {
     }
   })
 
-  it("the standard-package BUILD.ts files declare the four conventional targets", async () => {
+  it("the standard-package BUILD.ts files declare six package-local targets", async () => {
     const workspace = await Workspace.make(repositoryRoot)
-    for (const file of ["packages/engine/BUILD.ts", "packages/flow/BUILD.ts", "packages/plan/BUILD.ts"]) {
+    for (
+      const file of [
+        "packages/engine/BUILD.ts",
+        "packages/flow/BUILD.ts",
+        "packages/plan/BUILD.ts",
+        "packages/tsflows/BUILD.ts"
+      ]
+    ) {
       const module = await workspace.loadBuild(file)
-      for (const name of ["lib", "test", "lint", "docs"]) {
+      const packagePath = NodePath.posix.dirname(file)
+      for (const name of ["lib", "check", "test", "lint", "fmt", "docs"]) {
         expect(module.targets.has(name), `${file} exports ${name}`).toBe(true)
+        const attrs = Rule.metadata(module.targets.get(name)!).attrs as { readonly cwd?: string }
+        expect(attrs.cwd, `${file} anchors ${name} in its package`).toBe(packagePath)
       }
     }
   })
