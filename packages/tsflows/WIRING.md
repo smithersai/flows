@@ -39,9 +39,11 @@ current `@smthrs/flow-next` package shape.
 
 ## BUILD.ts imports
 
-The flows workspace root declares `"tsflows-rules": "0.1.0"` as a
-devDependency, resolved to the workspace package. `BUILD.ts` files import the
-rule catalog by bare specifier: `import { ... } from "tsflows-rules"`.
+The flows workspace root declares `"tsflows-rules": "0.1.0"` and
+`"tsflows-cli": "0.1.0"` as devDependencies, resolved to the workspace
+packages. `BUILD.ts` files import the rule catalog by bare specifier:
+`import { ... } from "tsflows-rules"`, and `pnpm exec tsflows` resolves the
+CLI's workspace bin.
 
 Embedding the install flow requires:
 

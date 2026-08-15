@@ -35,6 +35,9 @@ importers:
       react-dom:
         specifier: ^19.2.8
         version: 19.2.8(react@19.2.8)
+      tsflows-cli:
+        specifier: 0.1.0
+        version: link:packages/tsflows-cli
       tsflows-rules:
         specifier: 0.1.0
         version: link:packages/tsflows-rules
