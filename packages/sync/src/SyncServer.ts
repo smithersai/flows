@@ -134,6 +134,21 @@ export const makeLiveWith = (
           })
         )
 
+    /**
+     * Chunk-level admission for the live path. Each subscription frame
+     * carries one entry, so the per-frame ceiling is a per-entry ceiling —
+     * but the check runs once per journal chunk, not once per entry, because
+     * a per-element effect hop de-chunks the stream and multiplies the cost
+     * of every downstream combinator on the hot follow path.
+     */
+    const guardEntryChunk = (chunk: ReadonlyArray<JournalEvent.Entry>): Effect.Effect<void, SyncError> => {
+      for (const entry of chunk) {
+        const bytes = SyncProtocol.encodedByteLength(entry)
+        if (bytes > maxFrameBytes) return guardFrameBytes(bytes)
+      }
+      return Effect.void
+    }
+
     const covered = Effect.map(catalog.list, (ids) => [...ids].sort())
 
     /**
@@ -235,7 +250,9 @@ export const makeLiveWith = (
       const after = cursorOf(cursors, runId)
       return journal.stream({ runId, ...(after === undefined ? {} : { afterSequence: after }) }).pipe(
         Stream.mapError(journalFailure),
-        Stream.tap((entry) => guardFrameBytes(SyncProtocol.encodedByteLength(entry))),
+        Stream.chunks,
+        Stream.tap(guardEntryChunk),
+        Stream.flattenArray,
         Stream.mapAccum(
           () => after === undefined ? -1 : after,
           (previous, entry) => [

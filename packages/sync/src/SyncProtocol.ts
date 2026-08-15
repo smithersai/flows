@@ -227,6 +227,8 @@ export const covers = (scope: Scope, runId: JournalEvent.RunId): boolean =>
  */
 export const defaultMaxFrameBytes = 1024 * 1024
 
+const utf8 = new TextEncoder()
+
 /**
  * The wire size of one value: the UTF-8 byte length of its JSON text.
  *
@@ -236,4 +238,4 @@ export const defaultMaxFrameBytes = 1024 * 1024
  * @category limits
  * @since 0.1.0
  */
-export const encodedByteLength = (value: unknown): number => new TextEncoder().encode(JSON.stringify(value)).length
+export const encodedByteLength = (value: unknown): number => utf8.encode(JSON.stringify(value)).length
