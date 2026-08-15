@@ -38,8 +38,10 @@ Credit is a hard limit on frames emitted by one subscription. There is no acknow
 
 | Export | Source | Notes |
 | --- | --- | --- |
-| `SyncRpcs.SyncRpcs`, `SyncAuth` | [src/SyncRpcs.ts](https://github.com/smithersai/flows/blob/main/packages/sync/src/SyncRpcs.ts) | `Read` and `Subscribe`; `SyncAuth` is RPC middleware a deployment implements |
-| `SyncServer.SyncServer`, `Service`, `make`, `makeLive`, `makeNoop`, `layer`, `layerNoop` | [src/SyncServer.ts](https://github.com/smithersai/flows/blob/main/packages/sync/src/SyncServer.ts) | serves reads over `Journal` and `RunCatalog` |
+| `SyncRpcs.SyncRpcs`, `SyncAuth` | [src/SyncRpcs.ts](https://github.com/smithersai/flows/blob/main/packages/sync/src/SyncRpcs.ts) | `Read` and `Subscribe`; `SyncAuth` is the RPC middleware; `SyncAuth.layer` in [src/SyncAuth.ts](https://github.com/smithersai/flows/blob/main/packages/sync/src/SyncAuth.ts) is the shipped header-verifying implementation |
+| `WorkspaceShare.WorkspaceShare`, `Service`, `WorkspaceClaims`, `WorkspaceCapability`, `Keyring`, `makeHmac`, `layerHmac`, `layerConfig`, `layerNoop` | [src/WorkspaceShare.ts](https://github.com/smithersai/flows/blob/main/packages/sync/src/WorkspaceShare.ts) | workspace-read capability authority: HMAC claims with `kid` rotation over a `Redacted` keyring |
+| `SyncPrincipal.SyncPrincipal`, `Principal`, `anonymous`, `workspace`, `isWorkspace`, `layerWorkspace` | [src/SyncPrincipal.ts](https://github.com/smithersai/flows/blob/main/packages/sync/src/SyncPrincipal.ts) | per-request principal reference, default anonymous; non-branch reads refuse anonymous callers |
+| `SyncServer.SyncServer`, `Service`, `make`, `makeLive`, `makeLiveWith`, `makeNoop`, `layer`, `layerWith`, `layerHandlers`, `layerNoop` | [src/SyncServer.ts](https://github.com/smithersai/flows/blob/main/packages/sync/src/SyncServer.ts) | serves reads over `Journal` and `RunCatalog` |
 | `SyncClient.Sync`, `Service`, `SubscribeOptions`, `make`, `makeNoop`, `layer`, `layerNoop` | [src/SyncClient.ts](https://github.com/smithersai/flows/blob/main/packages/sync/src/SyncClient.ts) | detects invalid cursor movement as `SyncGapError` |
 | `RunCatalog.RunCatalog`, `Service`, `make`, `makeMemory`, `layerStatic`, `layerNoop` | [src/RunCatalog.ts](https://github.com/smithersai/flows/blob/main/packages/sync/src/RunCatalog.ts) | supplies the run list for workspace reads |
 
