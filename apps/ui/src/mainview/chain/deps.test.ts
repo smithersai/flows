@@ -1,19 +1,21 @@
 import { describe, expect, test } from "bun:test";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { Effect, Layer } from "effect";
 import { Author, Catalog, Chain, Journal, QuickJsRunner, ScriptRunner } from "@smthrs/chain-next";
 import type { Event, Outcome } from "@smthrs/chain-next";
 
 /*
- * DESIGN.md §14 dependency law, proven not asserted: @smthrs/chain resolves
- * through the vendored closure (vendor/smthrs, scripts/vendor-smthrs.mjs),
- * runs under bun, seals in QuickJS, and stays browser-bundleable. Vendoring
- * keeps one effect instance in the graph — Bun symlinks file: deps, and a
- * package resolving effect from a sibling repo's node_modules would load a
- * second copy whose identity-keyed features (Redacted, references) cannot
- * see this one's. If a re-vendor breaks any of that, this file fails before
- * any product code does.
+ * DESIGN.md §14 dependency law, proven not asserted: @smthrs/chain-next
+ * resolves through this app's declared dependencies, runs under bun, seals in
+ * QuickJS, and stays browser-bundleable. The closure used to be vendored
+ * (vendor/smthrs + a copy script); it is now pnpm workspace links to
+ * ../../packages/*, so the two properties vendoring bought are asserted
+ * directly here: the closure carries no path specifiers, and exactly one
+ * effect instance is in the graph — a package resolving effect from a second
+ * copy would load identity-keyed features (Redacted, references) that cannot
+ * see this one's. If a dependency change breaks any of that, this file fails
+ * before any product code does.
  */
 
 const flow = (...lines: ReadonlyArray<string>): string => ["```flow", ...lines, "```"].join("\n");
@@ -78,6 +80,54 @@ describe("chain stays browser-bundleable", () => {
 		const result = await Bun.build({ entrypoints: [entry], target: "browser" });
 		expect(result.success).toBe(true);
 	}, 30000);
+});
+
+const appRoot = join(import.meta.dir, "..", "..", "..");
+const manifest = JSON.parse(readFileSync(join(appRoot, "package.json"), "utf8")) as {
+	dependencies: Record<string, string>;
+	devDependencies: Record<string, string>;
+};
+
+describe("the dependency closure", () => {
+	/*
+	 * The vendored closure is gone: every @smthrs package is a workspace link
+	 * to ../../packages/*, and nothing is pulled in by path. A `file:` or
+	 * `link:` specifier is a re-vendor by another name — it escapes the
+	 * workspace's single resolution and its version pins.
+	 */
+	test("declares only workspace and registry specifiers, never a path", () => {
+		const declared = Object.entries({ ...manifest.dependencies, ...manifest.devDependencies });
+		const paths = declared.filter(([, range]) => /^(?:file|link|portal):/.test(range));
+		expect(paths).toEqual([]);
+		const smthrs = declared.filter(([name]) => name.startsWith("@smthrs/"));
+		expect(smthrs.length).toBeGreaterThan(0);
+		const offScope = smthrs.filter(([, range]) => !(range === "workspace:*" || /^\d/.test(range)));
+		expect(offScope).toEqual([]);
+	});
+
+	/*
+	 * What vendoring guaranteed structurally, the workspace must now prove:
+	 * this app and every workspace package it depends on load the SAME effect.
+	 */
+	test("one effect instance is shared with every workspace package", () => {
+		const ours = realpathSync(Bun.resolveSync("effect", appRoot));
+		const resolved = Object.entries(manifest.dependencies)
+			.filter(([name, range]) => name.startsWith("@smthrs/") && range === "workspace:*")
+			.flatMap(([name]) => {
+				const packageRoot = realpathSync(join(appRoot, "node_modules", name));
+				// A workspace package that does not depend on effect has nothing to share.
+				const theirs = ((): string | undefined => {
+					try {
+						return realpathSync(Bun.resolveSync("effect", packageRoot));
+					} catch {
+						return undefined;
+					}
+				})();
+				return theirs === undefined ? [] : [[name, theirs] as const];
+			});
+		expect(resolved.length).toBeGreaterThan(0);
+		expect(resolved.filter(([, theirs]) => theirs !== ours)).toEqual([]);
+	});
 });
 
 /*

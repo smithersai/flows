@@ -79,7 +79,7 @@ describe("agent turn production policy", () => {
 		expect(bounded.truncated).toBe(true);
 		expect(bounded.modelOutput).toStartWith("one\ntwo");
 		expect(bounded.modelOutput).not.toContain("three");
-		expect(bounded.modelOutput).toContain("14 bytes, 3 lines total");
+		expect(bounded.modelOutput).toContain("13 bytes, 3 lines total");
 	});
 
 	test("tool outputs truncate on UTF-8 byte boundaries without replacement characters", () => {

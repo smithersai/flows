@@ -3,6 +3,16 @@ import type { Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { installAgentApi } from "./src/dev/AgentApi";
 
+/*
+ * Every vite invocation in package.json passes `--configLoader runner`. This
+ * config reaches the `smithers-shared` workspace package (through AgentApi),
+ * which ships TypeScript source; the default `bundle` loader hands bare
+ * specifiers to node's ESM loader, which cannot resolve that package's
+ * extensionless relative imports. The runner loader resolves the config
+ * through Vite itself, so the workspace source loads the same way it does in
+ * the app graph.
+ */
+
 const crossOriginIsolationHeaders = {
 	"Cross-Origin-Opener-Policy": "same-origin",
 	"Cross-Origin-Embedder-Policy": "require-corp",

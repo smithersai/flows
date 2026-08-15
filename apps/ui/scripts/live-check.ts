@@ -25,6 +25,7 @@
  */
 import { createRequire } from "node:module";
 import { mkdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { createStubIdentity } from "./stub-backends";
 
 interface PlaywrightPage {
@@ -147,7 +148,7 @@ const local = async (): Promise<void> => {
 		// the Worker's proxy states http://<route host> to the siblings, not
 		// localhost — list it like the real workers' ALLOWED_ORIGINS would.
 		await (async (): Promise<ReadonlyArray<string>> => {
-			const config = await Bun.file(new URL("../wrangler.jsonc", import.meta.url)).text();
+			const config = await Bun.file(new URL("../../server/wrangler.jsonc", import.meta.url)).text();
 			const host = /"pattern"\s*:\s*"([^"/]+)"/.exec(config)?.[1];
 			return host === undefined ? [] : [`http://${host}`];
 		})(),
@@ -181,7 +182,9 @@ const local = async (): Promise<void> => {
 			String(WORKER_PORT),
 			...Object.entries(sealed).flatMap(([key, value]) => ["--var", `${key}:${value}`]),
 		],
-		{ stdout: "inherit", stderr: "inherit" },
+		// The Worker and its wrangler.jsonc live in the sibling `smithers-server`
+		// package; the config's `main` and `assets.directory` are relative to it.
+		{ cwd: fileURLToPath(new URL("../../server/", import.meta.url)), stdout: "inherit", stderr: "inherit" },
 	);
 	const cleanup = (code: number): never => {
 		wrangler.kill();

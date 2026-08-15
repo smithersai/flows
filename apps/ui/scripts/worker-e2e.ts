@@ -17,6 +17,7 @@
  *
  * Usage: bun scripts/worker-e2e.ts
  */
+import { fileURLToPath } from "node:url";
 import {
 	createStubBilling,
 	createStubGateway,
@@ -34,6 +35,13 @@ const WORKER_PORT = 8790;
 const WORKER_ORIGIN = `http://127.0.0.1:${WORKER_PORT}`;
 
 /*
+ * The Worker and its wrangler.jsonc live in the sibling `smithers-server`
+ * package; the config's `main` and `assets.directory` are relative to it, so
+ * `wrangler dev` must be spawned there.
+ */
+const SERVER_DIR = fileURLToPath(new URL("../../server/", import.meta.url));
+
+/*
  * `wrangler dev` rewrites request URLs to the route in wrangler.jsonc, so the
  * Worker's proxy states THAT origin (http://<route host>) to the siblings, not
  * localhost. The doubles list it as an allowed origin, exactly like the real
@@ -41,7 +49,7 @@ const WORKER_ORIGIN = `http://127.0.0.1:${WORKER_PORT}`;
  * config so a route change cannot silently rebreak this.
  */
 const DEV_PRESENTED_ORIGINS: ReadonlyArray<string> = await (async (): Promise<ReadonlyArray<string>> => {
-	const config = await Bun.file(new URL("../wrangler.jsonc", import.meta.url)).text();
+	const config = await Bun.file(new URL("../../server/wrangler.jsonc", import.meta.url)).text();
 	const host = /"pattern"\s*:\s*"([^"/]+)"/.exec(config)?.[1];
 	return host === undefined ? [] : [`http://${host}`];
 })();
@@ -287,7 +295,7 @@ const bootWorker = async (vars: Record<string, string>): Promise<void> => {
 			String(WORKER_PORT),
 			...Object.entries(sealed).flatMap(([key, value]) => ["--var", `${key}:${value}`]),
 		],
-		{ stdout: "inherit", stderr: "inherit" },
+		{ cwd: SERVER_DIR, stdout: "inherit", stderr: "inherit" },
 	);
 	for (let attempt = 0; attempt < 120; attempt += 1) {
 		try {
