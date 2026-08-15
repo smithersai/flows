@@ -10,8 +10,8 @@
  * only `fstat` can identify — use real files and swap only what capture is
  * told to look at, so the guard being tested is the real one.
  */
-import { createHash } from "node:crypto"
 import { execFile } from "node:child_process"
+import { createHash } from "node:crypto"
 import type * as NodeFs from "node:fs"
 import * as Fs from "node:fs/promises"
 import * as Os from "node:os"
@@ -479,7 +479,8 @@ describe("capture confinement", () => {
   it("fails closed when the workspace root cannot be canonicalized", async () => {
     await write("out/file", "content")
     const io = seam({
-      realpath: (path) => path === root ? Promise.reject(new Error("root unavailable")) : defaultCaptureIo.realpath(path)
+      realpath: (path) =>
+        path === root ? Promise.reject(new Error("root unavailable")) : defaultCaptureIo.realpath(path)
     })
     await expect(measureOutput(root, ".", "out", { io }))
       .rejects.toMatchObject({ message: expect.stringContaining("workspace root could not be resolved") })

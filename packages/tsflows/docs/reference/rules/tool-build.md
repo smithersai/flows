@@ -4,7 +4,7 @@ Runs one arbitrary command for Rust, Zig, native addons, or any other toolchain.
 This is the deliberate escape hatch.
 
 ```ts
-import { ToolBuild, glob } from "tsflows-rules"
+import { glob, ToolBuild } from "tsflows-rules"
 
 export const nativeLib = ToolBuild({
   tool: "cargo",
@@ -21,17 +21,17 @@ export const nativeLib = ToolBuild({
 
 ## Attributes
 
-| Name | Type | Default | Description |
-| --- | --- | --- | --- |
-| `tool` | `string` | required | A name for the toolchain. Key material only; it does not reach argv. |
-| `command` | `string` | required | The executable. Spawned directly, not through `pnpm exec` and not through a shell. |
-| `args` | `Array<string>` | required | Arguments passed after the executable. |
-| `inputs` | `Array<Input.Declared>` | required | Input declarations digested as key material. |
-| `outputs` | `Array<string>` | required | Output paths, relative to `cwd`, digested after the run. |
-| `deps` | `Array<Rule.Target>` | required | Dependency targets. |
-| `env` | `Record<string, string>` | required | Environment merged over the host `process.env`. |
-| `cache` | `boolean` | required | Whether a green result is stored. |
-| `cwd` | `string` | `"."` | Workspace-relative directory the command runs in. |
+| Name      | Type                     | Default  | Description                                                                        |
+| --------- | ------------------------ | -------- | ---------------------------------------------------------------------------------- |
+| `tool`    | `string`                 | required | A name for the toolchain. Key material only; it does not reach argv.               |
+| `command` | `string`                 | required | The executable. Spawned directly, not through `pnpm exec` and not through a shell. |
+| `args`    | `Array<string>`          | required | Arguments passed after the executable.                                             |
+| `inputs`  | `Array<Input.Declared>`  | required | Input declarations digested as key material.                                       |
+| `outputs` | `Array<string>`          | required | Output paths, relative to `cwd`, digested after the run.                           |
+| `deps`    | `Array<Rule.Target>`     | required | Dependency targets.                                                                |
+| `env`     | `Record<string, string>` | required | Environment merged over the host `process.env`.                                    |
+| `cache`   | `boolean`                | required | Whether a green result is stored.                                                  |
+| `cwd`     | `string`                 | `"."`    | Workspace-relative directory the command runs in.                                  |
 
 ## Command
 
@@ -51,7 +51,9 @@ Collected from the attrs: every declaration in `inputs`.
 Success is `Outputs`:
 
 ```ts
-{ outputs: Array<{ path: string, fileCount: number, contentDigest: string }> }
+{
+  outputs: Array<{ path: string; fileCount: number; contentDigest: string }>
+}
 ```
 
 Each declared path is walked by the `CaptureOutputs` action. A directory
@@ -124,10 +126,10 @@ The same `Output`, `Outputs`, and `captureOutputs` exports are used by
 
 ## Channels
 
-| Channel | Type |
-| --- | --- |
-| Success | `Outputs` |
-| Error | `BuildError` (`Exec.ExecError \| OutputError`) |
+| Channel | Type                                           |
+| ------- | ---------------------------------------------- |
+| Success | `Outputs`                                      |
+| Error   | `BuildError` (`Exec.ExecError \| OutputError`) |
 
 ## Key material
 
@@ -136,11 +138,11 @@ The same `Output`, `Outputs`, and `captureOutputs` exports are used by
 
 ## Status
 
-| | |
-| --- | --- |
-| Kinds | `build` |
-| Cacheable | The `cache` attribute |
-| Executes | Yes, through `ExecLive` |
+|           |                         |
+| --------- | ----------------------- |
+| Kinds     | `build`                 |
+| Cacheable | The `cache` attribute   |
+| Executes  | Yes, through `ExecLive` |
 
 ## Notes
 

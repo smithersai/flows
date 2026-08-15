@@ -345,8 +345,7 @@ const unreadable = (
   new PackageManagerError({ code, message: `could not read ${path}: ${failureMessage(cause)}`, cause })
 
 /** @private */
-const failureMessage = (cause: unknown): string =>
-  cause instanceof Error ? cause.message : String(cause)
+const failureMessage = (cause: unknown): string => cause instanceof Error ? cause.message : String(cause)
 
 const bootstrapEnvironment = [
   "HTTP_PROXY",
@@ -433,11 +432,13 @@ const validateOptions = (options: Options): void => {
   ) {
     throw new TypeError("package-manager projectRoot must be a usable absolute path")
   }
-  for (const [name, value] of [
-    ["platform.os", options.platform.os],
-    ["platform.arch", options.platform.arch],
-    ["platform.libc", options.platform.libc]
-  ] as const) {
+  for (
+    const [name, value] of [
+      ["platform.os", options.platform.os],
+      ["platform.arch", options.platform.arch],
+      ["platform.libc", options.platform.libc]
+    ] as const
+  ) {
     if (
       value !== null &&
       (typeof value !== "string" || value.length === 0 || value.includes("\0") ||
@@ -462,9 +463,10 @@ const sourceValue = (source: ReadonlyMap<string, string>, name: string, windows:
 
 /** Variables that can mutate the runtime or package-manager command itself. */
 const unsafeReferencedEnvironmentName = (name: string): boolean =>
-  /^(?:BASH_ENV|BUN_.+|CDPATH|COREPACK_.+|DENO_.+|DYLD_.+|ENV|GIT_.+|GLOBIGNORE|LD_.+|NODE_.+|NPM_CONFIG_.+|PNPM_.+|SHELLOPTS)$/i.test(
-    name
-  )
+  /^(?:BASH_ENV|BUN_.+|CDPATH|COREPACK_.+|DENO_.+|DYLD_.+|ENV|GIT_.+|GLOBIGNORE|LD_.+|NODE_.+|NPM_CONFIG_.+|PNPM_.+|SHELLOPTS)$/i
+    .test(
+      name
+    )
 
 const decodedText = (bytes: Uint8Array, path: string): string => {
   try {
@@ -511,9 +513,11 @@ const boundedText = (
       let length = 0
       while (length <= limit) {
         const buffer = new Uint8Array(Math.min(64 * 1024, limit + 1 - length))
-        const read = Number(yield* file.read(buffer).pipe(
-          Effect.mapError((cause) => unreadable(code, path, cause))
-        ))
+        const read = Number(
+          yield* file.read(buffer).pipe(
+            Effect.mapError((cause) => unreadable(code, path, cause))
+          )
+        )
         if (read === 0) break
         chunks.push(buffer.subarray(0, read))
         length += read
@@ -596,7 +600,9 @@ interface ByteState {
   length: number
 }
 
-const collectVersion = (stream: Stream.Stream<Uint8Array, PlatformError.PlatformError>): Effect.Effect<Uint8Array, unknown> =>
+const collectVersion = (
+  stream: Stream.Stream<Uint8Array, PlatformError.PlatformError>
+): Effect.Effect<Uint8Array, unknown> =>
   Stream.runFoldEffect(
     stream,
     (): ByteState => ({ buffer: new Uint8Array(1024), length: 0 }),
@@ -671,12 +677,16 @@ const capture = (
     Effect.flatMap(spawner.spawn(command), (handle) =>
       Effect.all([collectVersion(handle.stdout), handle.exitCode], { concurrency: "unbounded" }))
   ).pipe(
-    Effect.mapError((cause) => failedToStart(label, cause)),
+    Effect.mapError((cause) =>
+      failedToStart(label, cause)
+    ),
     Effect.timeoutOrElse({
       duration: Math.min(timeoutMs, 30_000),
       orElse: () => Effect.fail(failedToFinish(label, Math.min(timeoutMs, 30_000)))
     }),
-    Effect.flatMap(([output, status]) => status === 0 ? Effect.succeed(output) : Effect.fail(failedToRun(label, status))),
+    Effect.flatMap(([output, status]) =>
+      status === 0 ? Effect.succeed(output) : Effect.fail(failedToRun(label, status))
+    ),
     Effect.flatMap((output) =>
       Effect.try({
         try: () => {

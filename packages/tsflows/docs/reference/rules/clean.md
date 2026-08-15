@@ -15,12 +15,12 @@ export const clean = Clean({
 
 ## Attributes
 
-| Name | Type | Default | Description |
-| --- | --- | --- | --- |
-| `paths` | `Array<string>` | required | Paths to remove, resolved from `cwd`. Every entry must stay inside `cwd`. |
-| `deps` | `Array<Rule.Target>` | required | Dependency targets. |
-| `includeNodeModules` | `boolean` | required | Also remove `node_modules` in `cwd`. |
-| `cwd` | `string` | `"."` | Workspace-relative directory the paths resolve from. |
+| Name                 | Type                 | Default  | Description                                                               |
+| -------------------- | -------------------- | -------- | ------------------------------------------------------------------------- |
+| `paths`              | `Array<string>`      | required | Paths to remove, resolved from `cwd`. Every entry must stay inside `cwd`. |
+| `deps`               | `Array<Rule.Target>` | required | Dependency targets.                                                       |
+| `includeNodeModules` | `boolean`            | required | Also remove `node_modules` in `cwd`.                                      |
+| `cwd`                | `string`             | `"."`    | Workspace-relative directory the paths resolve from.                      |
 
 ## Command
 
@@ -52,10 +52,10 @@ None. The rule declares no input attributes.
 
 ## Channels
 
-| Channel | Type |
-| --- | --- |
-| Success | `Exec.Result` |
-| Error | `Exec.ExecError` |
+| Channel | Type             |
+| ------- | ---------------- |
+| Success | `Exec.Result`    |
+| Error   | `Exec.ExecError` |
 
 ## Key material
 
@@ -64,11 +64,11 @@ None. The rule declares no input attributes.
 
 ## Status
 
-| | |
-| --- | --- |
-| Kinds | `run` |
+|           |                                                                |
+| --------- | -------------------------------------------------------------- |
+| Kinds     | `run`                                                          |
 | Cacheable | Never; deletion changes local state and has no reusable result |
-| Executes | Yes, through `ExecLive`, but only as a dependency |
+| Executes  | Yes, through `ExecLive`, but only as a dependency              |
 
 The CLI has no `run` verb, so a `Clean` target is never selected as a root. It
 executes when a selected target depends on it, which is rarely what you want:

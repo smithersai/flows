@@ -4,8 +4,8 @@
 kinds of action: measure, fetch, and link.
 
 ```ts
-import { Effect } from "effect"
 import { Install, PackageManager } from "@smthrs/tsflows-next"
+import { Effect } from "effect"
 
 const program = Install.Install.execute({}).pipe(
   Effect.provide(Install.layer),

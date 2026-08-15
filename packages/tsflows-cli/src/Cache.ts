@@ -527,9 +527,9 @@ const writeLocal = async (
       await removeTemp(temp)
     } catch (cause) {
       primary ??= {
-        cause: new Error(`the entry was published but the temporary file ${temp} could not be removed: ${
-          failureMessage(cause)
-        }`)
+        cause: new Error(
+          `the entry was published but the temporary file ${temp} could not be removed: ${failureMessage(cause)}`
+        )
       }
     }
   }

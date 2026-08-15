@@ -244,9 +244,7 @@ export const expand = (rule: DefaultRule, directory: string): Expansion => {
   const targets: Array<readonly [string, Rule.AnyTarget]> = []
   const declarations: Array<readonly [string, PackageJson.Declaration]> = []
   for (
-    const [name, value] of Object.entries(produced).sort(([left], [right]) =>
-      left < right ? -1 : left > right ? 1 : 0
-    )
+    const [name, value] of Object.entries(produced).sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
   ) {
     if (Rule.isTarget(value)) targets.push([name, value])
     else if (PackageJson.isDeclaration(value)) declarations.push([name, value])

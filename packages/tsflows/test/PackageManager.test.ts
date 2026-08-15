@@ -68,13 +68,15 @@ describe("PackageManager.storeRoot", () => {
         platform,
         projectRoot: "/workspace",
         timeoutMs: 0
-      })).toThrow(/timeout must be an integer/)
+      })
+    ).toThrow(/timeout must be an integer/)
     expect(() =>
       PackageManager.makeNoop("yarn", {
         platform: { ...platform, os: "win32" },
         projectRoot: "/workspace",
         environment: { Path: "one", PATH: "two" }
-      })).toThrow(/case-insensitive name/)
+      })
+    ).toThrow(/case-insensitive name/)
   })
 
   it("anchors concurrent manager processes to their own project roots without changing the host cwd", async () => {
@@ -159,7 +161,9 @@ describe("PackageManager.storeRoot", () => {
       const invocation = NodePath.join(root, "invocation.json")
       await writeExecutable(
         executable,
-        `import { writeFileSync } from "node:fs"\nwriteFileSync(${JSON.stringify(invocation)}, JSON.stringify(process.argv.slice(2)))`
+        `import { writeFileSync } from "node:fs"\nwriteFileSync(${
+          JSON.stringify(invocation)
+        }, JSON.stringify(process.argv.slice(2)))`
       )
       const manager = await makePnpm(root, executable)
       await Effect.runPromise(manager.fetch)
@@ -182,7 +186,9 @@ describe("PackageManager.storeRoot", () => {
       const manager = await makePnpm(root, executable, {
         environment: { PATH: process.env.PATH, NODE_OPTIONS: "--inspect" }
       })
-      await expect(Effect.runPromise(manager.version)).rejects.toThrow(/process-control environment variable NODE_OPTIONS/)
+      await expect(Effect.runPromise(manager.version)).rejects.toThrow(
+        /process-control environment variable NODE_OPTIONS/
+      )
     })
   })
 
@@ -191,7 +197,10 @@ describe("PackageManager.storeRoot", () => {
       const executable = NodePath.join(root, "pnpm.mjs")
       const marker = NodePath.join(root, "spawned")
       await Fs.writeFile(NodePath.join(root, ".npmrc"), "//registry.example/:_authToken=secret\n", "utf8")
-      await writeExecutable(executable, `import { writeFileSync } from "node:fs"\nwriteFileSync(${JSON.stringify(marker)}, "yes")`)
+      await writeExecutable(
+        executable,
+        `import { writeFileSync } from "node:fs"\nwriteFileSync(${JSON.stringify(marker)}, "yes")`
+      )
       const manager = await makePnpm(root, executable)
       await expect(Effect.runPromise(manager.version)).rejects.toThrow(/embeds a credential/)
       await expect(Fs.stat(marker)).rejects.toMatchObject({ code: "ENOENT" })
@@ -253,8 +262,7 @@ describe("PackageManager.storeRoot", () => {
     await withFixture("package-manager-timeout-tree", async (root) => {
       const executable = NodePath.join(root, "pnpm.mjs")
       const marker = NodePath.join(root, "descendant-survived")
-      const child =
-        `setTimeout(() => require("node:fs").writeFileSync(${JSON.stringify(marker)}, "yes"), 700)`
+      const child = `setTimeout(() => require("node:fs").writeFileSync(${JSON.stringify(marker)}, "yes"), 700)`
       await writeExecutable(
         executable,
         "import { spawn } from \"node:child_process\"\n" +

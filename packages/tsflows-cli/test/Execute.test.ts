@@ -13,10 +13,10 @@
  * 3. A checking verb does not mutate the working tree. Drifted generated files
  *    fail the run, byte for byte unchanged.
  */
+import { spawn } from "node:child_process"
 import * as Fs from "node:fs/promises"
 import * as Os from "node:os"
 import * as NodePath from "node:path"
-import { spawn } from "node:child_process"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import * as Executor from "../src/Executor.ts"
 import * as Planner from "../src/Planner.ts"
@@ -36,8 +36,7 @@ const write = async (relative: string, text: string): Promise<void> => {
 
 const read = (relative: string): Promise<string> => Fs.readFile(NodePath.join(root, relative), "utf8")
 
-const open = async (): Promise<Workspace> =>
-  Workspace.make(root, root, { cacheDirectory: ".flows" })
+const open = async (): Promise<Workspace> => Workspace.make(root, root, { cacheDirectory: ".flows" })
 
 /** Plans and executes one verb, exactly as the CLI command does. */
 const run = async (

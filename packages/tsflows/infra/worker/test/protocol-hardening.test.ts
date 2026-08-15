@@ -76,7 +76,7 @@ class MemoryContentStore implements ContentStore {
     return "inserted"
   }
 
-  async presentDigests(digests: readonly string[]): Promise<ReadonlySet<string>> {
+  async presentDigests(digests: ReadonlyArray<string>): Promise<ReadonlySet<string>> {
     this.presentCalls += 1
     return new Set(digests.filter((digest) => this.objects.has(digest)))
   }
@@ -115,14 +115,14 @@ const jsonRequest = (path: string, body: unknown, init: RequestInit = {}): Reque
   })
 
 interface InstrumentedOptions {
-  readonly chunks?: readonly unknown[]
+  readonly chunks?: ReadonlyArray<unknown>
   readonly failCancel?: boolean
   readonly failRead?: boolean
   readonly failRelease?: boolean
 }
 
 const instrumentedBody = (options: InstrumentedOptions = {}) => {
-  const log: string[] = []
+  const log: Array<string> = []
   const chunks = options.chunks ?? []
   let index = 0
   const body = {
@@ -314,7 +314,7 @@ describe("remote-cache hardening", () => {
   it("rejects lossy or structurally hostile canonical JSON", () => {
     expect(() => canonicalJson(-0)).toThrow()
     expect(() => canonicalJson(Number.POSITIVE_INFINITY)).toThrow()
-    const cycle: unknown[] = []
+    const cycle: Array<unknown> = []
     cycle.push(cycle)
     expect(() => canonicalJson(cycle)).toThrow("cycle")
     const sparse = new Array(1)
@@ -347,7 +347,7 @@ describe("remote-cache hardening", () => {
     expect(malformedResponse.status).toBe(400)
     expect(malformed.log).toEqual(["body-cancel"])
 
-    const mismatch = instrumentedBody({ chunks: [textEncoder.encode("{}") ] })
+    const mismatch = instrumentedBody({ chunks: [textEncoder.encode("{}")] })
     const mismatchResponse = await handler(
       rawRequest(`/ac/${keyDigest}`, {
         method: "PUT",
@@ -493,8 +493,7 @@ describe("remote-cache hardening", () => {
 
   it("admits no more than the configured number of simultaneous requests", async () => {
     const handler = makeHandler()
-    const admitted = Array.from({ length: maxConcurrentCacheRequests }, () =>
-      handler(request(`/ac/${keyDigest}`)))
+    const admitted = Array.from({ length: maxConcurrentCacheRequests }, () => handler(request(`/ac/${keyDigest}`)))
     const overflow = await handler(request(`/ac/${keyDigest}`))
 
     expect(overflow.status).toBe(429)
@@ -521,8 +520,7 @@ describe("remote-cache hardening", () => {
     }
     const handler = makeHandler({ contentStore: blockingStore })
     const digest = "b".repeat(64)
-    const admitted = Array.from({ length: maxConcurrentArtifactTransfers }, () =>
-      handler(request(`/cas/${digest}`)))
+    const admitted = Array.from({ length: maxConcurrentArtifactTransfers }, () => handler(request(`/cas/${digest}`)))
     await vi.waitFor(() => expect(entered).toBe(maxConcurrentArtifactTransfers))
 
     const overflow = await handler(request(`/cas/${digest}`))

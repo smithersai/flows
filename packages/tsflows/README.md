@@ -60,8 +60,8 @@ Run the engine from the project root. The Flow payload starts empty because
 filesystem paths must not enter a shareable fetch key.
 
 ```ts
-import { Effect } from "effect"
 import { Install, PackageManager } from "@smthrs/tsflows-next"
+import { Effect } from "effect"
 
 const program = Install.Install.execute({}).pipe(
   Effect.provide(Install.layer),

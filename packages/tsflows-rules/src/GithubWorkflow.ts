@@ -625,7 +625,10 @@ export const parseWorkflow = (source: string): Workflow => {
       }
       if (jobUses !== undefined) {
         if (jobUses.trim() === "") {
-          throw new WorkflowParseError(jobLine.number, `reusable job ${JSON.stringify(job.key)} has an empty uses value`)
+          throw new WorkflowParseError(
+            jobLine.number,
+            `reusable job ${JSON.stringify(job.key)} has an empty uses value`
+          )
         }
         if (runsOn !== undefined || jobKeys.has("steps")) {
           throw new WorkflowParseError(
@@ -992,8 +995,7 @@ export const commandSpans = (script: string): ReadonlyArray<CommandSpan> => {
  * @category verification
  * @since 0.1.0
  */
-export const commandStarts = (script: string): ReadonlyArray<number> =>
-  commandSpans(script).map((span) => span.start)
+export const commandStarts = (script: string): ReadonlyArray<number> => commandSpans(script).map((span) => span.start)
 
 /** Whether a character ends the shell word a command name occupies. */
 const endsWord = (character: string | undefined): boolean =>
@@ -1014,9 +1016,7 @@ export const runsCommand = (script: string, command: string): boolean => {
   const wanted = command.trim()
   if (wanted === "") return false
   const text = stripShellComments(script)
-  return commandStarts(text).some((start) =>
-    text.startsWith(wanted, start) && endsWord(text[start + wanted.length])
-  )
+  return commandStarts(text).some((start) => text.startsWith(wanted, start) && endsWord(text[start + wanted.length]))
 }
 
 /**

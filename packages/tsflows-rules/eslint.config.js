@@ -25,6 +25,7 @@ export default tseslint.config(
         typescript: {
           project: ["./tsconfig.json"]
         }
+      }
     },
     plugins: {
       unicorn
@@ -42,6 +43,7 @@ export default tseslint.config(
       "import/no-empty-named-blocks": "error",
       "import/no-self-import": "error",
       "no-await-in-loop": "off",
+      "no-control-regex": "off",
       "no-console": "error",
       "no-fallthrough": "off",
       "no-shadow": "off",

@@ -27,7 +27,8 @@ const treeLines = (
   return [
     line,
     ...target.dependencies.flatMap((dependency, index) =>
-      treeLines(dependency, targets, childPrefix, index === target.dependencies.length - 1, seen))
+      treeLines(dependency, targets, childPrefix, index === target.dependencies.length - 1, seen)
+    )
   ]
 }
 
@@ -48,7 +49,7 @@ export const text = (plan: Planner.Plan): string => {
 }
 
 const mermaidId = (label: string): string => `n_${Buffer.from(label).toString("hex")}`
-const mermaidLabel = (label: string): string => label.replaceAll('"', "&quot;")
+const mermaidLabel = (label: string): string => label.replaceAll("\"", "&quot;")
 
 /**
  * Renders a Mermaid target graph.

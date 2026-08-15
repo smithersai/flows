@@ -26,60 +26,59 @@ exists for future additions and is unused. See
 
 ## Build
 
-| Rule | Kinds | Cacheable | Status | Summary |
-| --- | --- | --- | --- | --- |
-| [TsBuild](ts-build.md) | `build` | Always | Executes | Builds a JavaScript distribution with `tsc -p` or `tsup`. |
-| [DtsBuild](dts-build.md) | `build` | Always | Executes | Emits type declarations with `tsc --emitDeclarationOnly` or `tsup --dts-only`. |
-| [Typecheck](typecheck.md) | `build` | Always | Executes | Checks a package with `tsc --noEmit` or TypeScript build mode. |
-| [ToolBuild](tool-build.md) | `build` | `cache` attr | Executes | Runs an arbitrary command for a non-TypeScript toolchain. |
-| [TypedocDocs](typedoc-docs.md) | `build` | Always | Executes | Generates API documentation with TypeDoc. |
+| Rule                           | Kinds   | Cacheable    | Status   | Summary                                                                        |
+| ------------------------------ | ------- | ------------ | -------- | ------------------------------------------------------------------------------ |
+| [TsBuild](ts-build.md)         | `build` | Always       | Executes | Builds a JavaScript distribution with `tsc -p` or `tsup`.                      |
+| [DtsBuild](dts-build.md)       | `build` | Always       | Executes | Emits type declarations with `tsc --emitDeclarationOnly` or `tsup --dts-only`. |
+| [Typecheck](typecheck.md)      | `build` | Always       | Executes | Checks a package with `tsc --noEmit` or TypeScript build mode.                 |
+| [ToolBuild](tool-build.md)     | `build` | `cache` attr | Executes | Runs an arbitrary command for a non-TypeScript toolchain.                      |
+| [TypedocDocs](typedoc-docs.md) | `build` | Always       | Executes | Generates API documentation with TypeDoc.                                      |
 
 ## Test
 
-| Rule | Kinds | Cacheable | Status | Summary |
-| --- | --- | --- | --- | --- |
-| [Vitest](vitest.md) | `test` | Always | Executes | Runs `vitest run` over a declared test set. |
-| [VitestCoverage](vitest-coverage.md) | `test` | Always | Executes | Runs `vitest run` with coverage and thresholds. |
-| [VitestWatch](vitest-watch.md) | `run` | Never | Executes as a dependency | Runs an interactive `vitest watch` session. |
+| Rule                                 | Kinds  | Cacheable | Status                   | Summary                                         |
+| ------------------------------------ | ------ | --------- | ------------------------ | ----------------------------------------------- |
+| [Vitest](vitest.md)                  | `test` | Always    | Executes                 | Runs `vitest run` over a declared test set.     |
+| [VitestCoverage](vitest-coverage.md) | `test` | Always    | Executes                 | Runs `vitest run` with coverage and thresholds. |
+| [VitestWatch](vitest-watch.md)       | `run`  | Never     | Executes as a dependency | Runs an interactive `vitest watch` session.     |
 
 ## Lint
 
-| Rule | Kinds | Cacheable | Status | Summary |
-| --- | --- | --- | --- | --- |
-| [EsLint](es-lint.md) | `lint` | When `fix` is false | Executes | Runs ESLint over declared source sets with a flat config. |
-| [BiomeCheck](biome-check.md) | `lint` | Always | Executes | Runs `biome check` and `biome format` without writing files. |
-| [DepsLint](deps-lint.md) | `lint` | Always | Executes | Checks dependency declarations with knip or depcheck. |
-| [PackageLint](package-lint.md) | `lint` | Always | Executes | Checks the published package surface with publint and attw. |
-| [LlmLint](llm-lint.md) | `lint` | Always | Executes | Reviews changed files with a model against a rubric, through the claude or codex CLI. |
+| Rule                           | Kinds  | Cacheable           | Status   | Summary                                                                               |
+| ------------------------------ | ------ | ------------------- | -------- | ------------------------------------------------------------------------------------- |
+| [EsLint](es-lint.md)           | `lint` | When `fix` is false | Executes | Runs ESLint over declared source sets with a flat config.                             |
+| [BiomeCheck](biome-check.md)   | `lint` | Always              | Executes | Runs `biome check` and `biome format` without writing files.                          |
+| [DepsLint](deps-lint.md)       | `lint` | Always              | Executes | Checks dependency declarations with knip or depcheck.                                 |
+| [PackageLint](package-lint.md) | `lint` | Always              | Executes | Checks the published package surface with publint and attw.                           |
+| [LlmLint](llm-lint.md)         | `lint` | Always              | Executes | Reviews changed files with a model against a rubric, through the claude or codex CLI. |
 
 ## Generation
 
-| Rule | Kinds | Cacheable | Status | Summary |
-| --- | --- | --- | --- | --- |
-| [SortPackageJson](sort-package-json.md) | `build`, `lint` | When `check` is true | Executes | Validates or rewrites `package.json` key ordering. |
-| [PackageJson](package-json-gen.md) | `lint` / `run` | Check only | Executes | Expands a typed manifest declaration into check, write, and refresh targets. |
-| [GithubCiGen](github-ci-gen.md) | `build`, `lint` | When the effective `mode` is `check` | Executes | Generates the GitHub Actions CI workflow from attrs. |
+| Rule                                    | Kinds           | Cacheable                            | Status   | Summary                                                                      |
+| --------------------------------------- | --------------- | ------------------------------------ | -------- | ---------------------------------------------------------------------------- |
+| [SortPackageJson](sort-package-json.md) | `build`, `lint` | When `check` is true                 | Executes | Validates or rewrites `package.json` key ordering.                           |
+| [PackageJson](package-json-gen.md)      | `lint` / `run`  | Check only                           | Executes | Expands a typed manifest declaration into check, write, and refresh targets. |
+| [GithubCiGen](github-ci-gen.md)         | `build`, `lint` | When the effective `mode` is `check` | Executes | Generates the GitHub Actions CI workflow from attrs.                         |
 
 `PackageJson` uses separate targets for checking and source-tree writes.
-`GithubCiGen` maps its `lint` verb to the drift-check form. See [Verb-effective
-attrs](../../concepts/targets-and-rules.md#verb-effective-attrs).
+`GithubCiGen` maps its `lint` verb to the drift-check form. See [Verb-effective attrs](../../concepts/targets-and-rules.md#verb-effective-attrs).
 
 ## Install, release, and processes
 
-| Rule | Kinds | Cacheable | Status | Summary |
-| --- | --- | --- | --- | --- |
-| [PnpmWorkspace](pnpm-workspace.md) | `run` | Always | Executes as a dependency | Runs the tsflows install flow for a pnpm workspace. |
-| [Changesets](changesets.md) | `run` | When `operation` is `status` | `status` executes as a dependency; `version` plans only | Reports Changesets status or applies versioning. |
-| [NpmPublish](npm-publish.md) | `run` | Never | Plans only | Publishes a package to an npm registry. |
-| [JsrPublish](jsr-publish.md) | `run` | Never | Plans only | Publishes a package to JSR. |
-| [Clean](clean.md) | `run` | Never | Executes as a dependency | Deletes explicitly declared generated paths. |
-| [Dev](dev.md) | `run` | Never | Executes as a dependency | Runs a long-lived development or watch command. |
+| Rule                               | Kinds | Cacheable                    | Status                                                  | Summary                                             |
+| ---------------------------------- | ----- | ---------------------------- | ------------------------------------------------------- | --------------------------------------------------- |
+| [PnpmWorkspace](pnpm-workspace.md) | `run` | Always                       | Executes as a dependency                                | Runs the tsflows install flow for a pnpm workspace. |
+| [Changesets](changesets.md)        | `run` | When `operation` is `status` | `status` executes as a dependency; `version` plans only | Reports Changesets status or applies versioning.    |
+| [NpmPublish](npm-publish.md)       | `run` | Never                        | Plans only                                              | Publishes a package to an npm registry.             |
+| [JsrPublish](jsr-publish.md)       | `run` | Never                        | Plans only                                              | Publishes a package to JSR.                         |
+| [Clean](clean.md)                  | `run` | Never                        | Executes as a dependency                                | Deletes explicitly declared generated paths.        |
+| [Dev](dev.md)                      | `run` | Never                        | Executes as a dependency                                | Runs a long-lived development or watch command.     |
 
 ## File sets
 
-| Rule | Kinds | Cacheable | Status | Summary |
-| --- | --- | --- | --- | --- |
-| [Filegroup](filegroup.md) | none | Always | Executes as a dependency | Names a set of files under one label, composing transitively. |
+| Rule                      | Kinds | Cacheable | Status                   | Summary                                                       |
+| ------------------------- | ----- | --------- | ------------------------ | ------------------------------------------------------------- |
+| [Filegroup](filegroup.md) | none  | Always    | Executes as a dependency | Names a set of files under one label, composing transitively. |
 
 A group joins no verb, so it is never selected as a root and never performs work
 under `build`, `test`, or `lint`. It is still addressable by label, listed by
@@ -87,22 +86,22 @@ under `build`, `test`, or `lint`. It is still addressable by label, listed by
 
 ## Macros
 
-| Name | Summary |
-| --- | --- |
-| [StandardPackage](standard-package.md) | Expands one conventional TypeScript package into `lib`, `test`, and `lint`. |
-| [PackageJsonTemplate](package-json-gen.md#templates-and-merge-semantics) | Holds inert workspace-wide manifest defaults. |
+| Name                                                                     | Summary                                                                     |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------- |
+| [StandardPackage](standard-package.md)                                   | Expands one conventional TypeScript package into `lib`, `test`, and `lint`. |
+| [PackageJsonTemplate](package-json-gen.md#templates-and-merge-semantics) | Holds inert workspace-wide manifest defaults.                               |
 
 ## Authoring surface
 
 These modules are not rules. They are documented elsewhere.
 
-| Module | Documented in |
-| --- | --- |
-| `Rule` | [Writing rules](../../extending/writing-rules.md), [Targets and rules](../../concepts/targets-and-rules.md) |
-| `Input` | [Inputs](../../concepts/inputs.md) |
-| `Exec` | [Actions and boundaries](../../concepts/actions-and-boundaries.md) |
-| `Workspace` | [Workspace reference](../config.md) |
-| `DefaultRule` | [Default rules](../../extending/default-rules.md) |
+| Module        | Documented in                                                                                               |
+| ------------- | ----------------------------------------------------------------------------------------------------------- |
+| `Rule`        | [Writing rules](../../extending/writing-rules.md), [Targets and rules](../../concepts/targets-and-rules.md) |
+| `Input`       | [Inputs](../../concepts/inputs.md)                                                                          |
+| `Exec`        | [Actions and boundaries](../../concepts/actions-and-boundaries.md)                                          |
+| `Workspace`   | [Workspace reference](../config.md)                                                                         |
+| `DefaultRule` | [Default rules](../../extending/default-rules.md)                                                           |
 
 ## Conventions shared by every tool-running rule
 

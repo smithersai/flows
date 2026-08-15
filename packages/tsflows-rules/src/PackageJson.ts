@@ -35,6 +35,7 @@ import * as Schema from "effect/Schema"
 import { createHash } from "node:crypto"
 import * as NodePath from "node:path"
 import * as NodeUtil from "node:util/types"
+import * as Config from "./Config.ts"
 import {
   checkGeneratedFile,
   DriftError,
@@ -43,7 +44,6 @@ import {
   WriteFileError,
   writeGeneratedFile
 } from "./GeneratedFile.ts"
-import * as Config from "./Config.ts"
 import * as Input from "./Input.ts"
 import { Engine, promptEngine } from "./LlmLint.ts"
 import * as ManifestJson from "./ManifestJson.ts"
@@ -422,7 +422,8 @@ export const publishFields = (
   }
   const base = entryBase(metadata.attrs, label)
   const root = resolveOutputPath(outDir)
-  const at = (kind: "esm" | "cjs", extension: string): string => `./${root}/${formatDirectory[kind]}/${base}${extension}`
+  const at = (kind: "esm" | "cjs", extension: string): string =>
+    `./${root}/${formatDirectory[kind]}/${base}${extension}`
   // Declarations sit beside the ESM output for `esm` and `dual`, and beside the
   // CommonJS output for a package that only emits CommonJS.
   const types = at(format === "cjs" ? "cjs" : "esm", ".d.ts")
@@ -699,7 +700,9 @@ const validateKeywords = (value: unknown): ReadonlyArray<string> => {
 const parseCachedFields = (text: string, contextDigest: string): CachedFields | undefined => {
   try {
     const value: unknown = JSON.parse(text)
-    if (!isPlainObject(value) || Object.keys(value).some((key) => !["version", "contextDigest", "fields"].includes(key))) {
+    if (
+      !isPlainObject(value) || Object.keys(value).some((key) => !["version", "contextDigest", "fields"].includes(key))
+    ) {
       return undefined
     }
     if (value["version"] !== 1 || value["contextDigest"] !== contextDigest || !isPlainObject(value["fields"])) {
@@ -943,10 +946,11 @@ export const sync = (
     let resolved: CachedFields = {}
     if (payload.generated.length > 0) {
       const context = yield* Effect.tryPromise({
-        try: (signal) => generationContext(options.workspaceRoot, safePayload, {
-          cacheDirectory: options.cacheDirectory,
-          signal
-        }),
+        try: (signal) =>
+          generationContext(options.workspaceRoot, safePayload, {
+            cacheDirectory: options.cacheDirectory,
+            signal
+          }),
         catch: (cause) => failure(failureMessage(cause))
       })
       const cachePath = yield* Effect.try({
@@ -1235,13 +1239,17 @@ const copyPackageOptions = (options: Options): Record<string, unknown> => {
     throw new TypeError("PackageJson options must be a plain object")
   }
   const prototype = Object.getPrototypeOf(options)
-  if (prototype !== Object.prototype && prototype !== null) throw new TypeError("PackageJson options must be a plain object")
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new TypeError("PackageJson options must be a plain object")
+  }
   if (Object.getOwnPropertySymbols(options).length > 0) {
     throw new TypeError("PackageJson options must not carry symbol-keyed properties")
   }
   const copied = Object.create(null) as Record<string, unknown>
   for (const key of Object.getOwnPropertyNames(options)) {
-    if (!packageOptionNames.has(key)) throw new TypeError(`PackageJson received an unknown option ${JSON.stringify(key)}`)
+    if (!packageOptionNames.has(key)) {
+      throw new TypeError(`PackageJson received an unknown option ${JSON.stringify(key)}`)
+    }
     const descriptor = Object.getOwnPropertyDescriptor(options, key)
     if (descriptor === undefined || !("value" in descriptor) || descriptor.enumerable !== true) {
       throw new TypeError(`PackageJson option ${JSON.stringify(key)} is an accessor or non-enumerable property`)
@@ -1314,7 +1322,7 @@ const copyPublish = (value: unknown): Declaration["publish"] => {
   const access = copied["access"] ?? "public"
   const provenance = copied["provenance"] ?? true
   if (access !== "public" && access !== "restricted") {
-    throw new TypeError('PackageJson publish access must be "public" or "restricted"')
+    throw new TypeError("PackageJson publish access must be \"public\" or \"restricted\"")
   }
   if (typeof provenance !== "boolean") throw new TypeError("PackageJson publish provenance must be a boolean")
   return Object.freeze({

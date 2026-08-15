@@ -258,9 +258,11 @@ describe("verifyOutputs", () => {
   })
 
   it("reports a declared output that was never produced", async () => {
-    expect(await verifyOutputs(root, { cwd: ".", paths: ["dist"] }, {
-      outputs: [{ path: "dist", fileCount: 0, contentDigest: "a".repeat(64) }]
-    })).toMatch(/could not be measured/)
+    expect(
+      await verifyOutputs(root, { cwd: ".", paths: ["dist"] }, {
+        outputs: [{ path: "dist", fileCount: 0, contentDigest: "a".repeat(64) }]
+      })
+    ).toMatch(/could not be measured/)
   })
 })
 

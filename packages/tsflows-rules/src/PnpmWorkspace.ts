@@ -3,9 +3,9 @@
  *
  * @since 0.1.0
  */
+import { Install, PackageManager } from "@smthrs/tsflows-next"
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
-import { Install, PackageManager } from "@smthrs/tsflows-next"
 import * as Input from "./Input.ts"
 import * as Rule from "./Rule.ts"
 

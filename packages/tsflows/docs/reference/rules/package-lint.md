@@ -4,7 +4,7 @@ Checks the published package surface with publint, and optionally checks the
 packed tarball's types with arethetypeswrong.
 
 ```ts
-import { PackageLint, file, glob } from "tsflows-rules"
+import { file, glob, PackageLint } from "tsflows-rules"
 
 export const packageLint = PackageLint({
   packageJson: file("package.json"),
@@ -19,15 +19,15 @@ export const packageLint = PackageLint({
 
 ## Attributes
 
-| Name | Type | Default | Description |
-| --- | --- | --- | --- |
-| `packageJson` | `Input.File` | required | The manifest being checked. Key material. |
-| `artifacts` | `Array<Input.Declared>` | required | Built output declarations, so a rebuild re-keys the check. |
-| `deps` | `Array<Rule.Target>` | required | Dependency targets, usually the build that produced the artifacts. |
-| `strict` | `boolean` | required | Report publint warnings as errors. |
-| `pack` | `boolean` | required | Let publint pack the package. When false it reads the directory as-is. |
-| `attw` | `boolean` | required | Also run arethetypeswrong. |
-| `cwd` | `string` | `"."` | Workspace-relative directory both tools lint. |
+| Name          | Type                    | Default  | Description                                                            |
+| ------------- | ----------------------- | -------- | ---------------------------------------------------------------------- |
+| `packageJson` | `Input.File`            | required | The manifest being checked. Key material.                              |
+| `artifacts`   | `Array<Input.Declared>` | required | Built output declarations, so a rebuild re-keys the check.             |
+| `deps`        | `Array<Rule.Target>`    | required | Dependency targets, usually the build that produced the artifacts.     |
+| `strict`      | `boolean`               | required | Report publint warnings as errors.                                     |
+| `pack`        | `boolean`               | required | Let publint pack the package. When false it reads the directory as-is. |
+| `attw`        | `boolean`               | required | Also run arethetypeswrong.                                             |
+| `cwd`         | `string`                | `"."`    | Workspace-relative directory both tools lint.                          |
 
 ## Commands
 
@@ -50,10 +50,10 @@ too is what makes their content part of this target's key.
 
 ## Channels
 
-| Channel | Type |
-| --- | --- |
-| Success | `PackageReport` |
-| Error | `Exec.ExecError` |
+| Channel | Type             |
+| ------- | ---------------- |
+| Success | `PackageReport`  |
+| Error   | `Exec.ExecError` |
 
 ```ts
 PackageReport = { publint: Exec.Result, attw: Exec.Result | null }
@@ -61,11 +61,11 @@ PackageReport = { publint: Exec.Result, attw: Exec.Result | null }
 
 ## Status
 
-| | |
-| --- | --- |
-| Kinds | `lint` |
-| Cacheable | Always |
-| Executes | Yes, through `ExecLive` |
+|           |                         |
+| --------- | ----------------------- |
+| Kinds     | `lint`                  |
+| Cacheable | Always                  |
+| Executes  | Yes, through `ExecLive` |
 
 ## See also
 

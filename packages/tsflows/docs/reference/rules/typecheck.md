@@ -3,7 +3,7 @@
 Checks a package with `tsc --noEmit` or TypeScript build mode.
 
 ```ts
-import { Typecheck, file, glob } from "tsflows-rules"
+import { file, glob, Typecheck } from "tsflows-rules"
 
 export const typecheck = Typecheck({
   srcs: [glob("src/**/*.ts"), glob("test/**/*.ts")],
@@ -17,14 +17,14 @@ export const typecheck = Typecheck({
 
 ## Attributes
 
-| Name | Type | Default | Description |
-| --- | --- | --- | --- |
-| `srcs` | `Array<Input.Declared>` | required | Source declarations. Digested as key material. |
-| `deps` | `Array<Rule.Target>` | required | Dependency targets. |
-| `tsconfig` | `Input.File` | required | The tsconfig to check. |
-| `buildMode` | `boolean` | required | Use `tsc -b` for project references instead of `tsc -p`. |
-| `incremental` | `boolean` | required | Trust incremental build info. |
-| `cwd` | `string` | `"."` | Workspace-relative directory `tsc` runs in. |
+| Name          | Type                    | Default  | Description                                              |
+| ------------- | ----------------------- | -------- | -------------------------------------------------------- |
+| `srcs`        | `Array<Input.Declared>` | required | Source declarations. Digested as key material.           |
+| `deps`        | `Array<Rule.Target>`    | required | Dependency targets.                                      |
+| `tsconfig`    | `Input.File`            | required | The tsconfig to check.                                   |
+| `buildMode`   | `boolean`               | required | Use `tsc -b` for project references instead of `tsc -p`. |
+| `incremental` | `boolean`               | required | Trust incremental build info.                            |
+| `cwd`         | `string`                | `"."`    | Workspace-relative directory `tsc` runs in.              |
 
 ## Command
 
@@ -54,18 +54,18 @@ summary.
 
 ## Channels
 
-| Channel | Type |
-| --- | --- |
-| Success | `Exec.Result` |
-| Error | `Exec.ExecError` |
+| Channel | Type             |
+| ------- | ---------------- |
+| Success | `Exec.Result`    |
+| Error   | `Exec.ExecError` |
 
 ## Status
 
-| | |
-| --- | --- |
-| Kinds | `build` |
-| Cacheable | Always |
-| Executes | Yes, through `ExecLive` |
+|           |                         |
+| --------- | ----------------------- |
+| Kinds     | `build`                 |
+| Cacheable | Always                  |
+| Executes  | Yes, through `ExecLive` |
 
 ## Notes
 

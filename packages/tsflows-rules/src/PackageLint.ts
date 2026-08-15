@@ -100,7 +100,8 @@ export const PackageLint = Rule.make("PackageLint", {
           cwd: attrs.cwd,
           argv: ["pnpm", "exec", "attw", "--pack", "."],
           after: publint
-        }).pipe(Node.map((attw) => ({ publint, attw }))))
+        }).pipe(Node.map((attw) => ({ publint, attw })))
+      )
     )
   }
 })

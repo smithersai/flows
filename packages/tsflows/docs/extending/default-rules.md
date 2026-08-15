@@ -19,13 +19,13 @@ Every directory under `packages/` that contains a `package.json` and no
 
 ## Options
 
-| Option        | Type                      | Default      | Description                                                                       |
-| ------------- | ------------------------- | ------------ | --------------------------------------------------------------------------------- |
-| `directories` | `string \| Input.Glob`     | required     | Which directories the declaration covers. A string lifts to `glob(string)` and resolves against the declaring package. |
-| `marker`      | `string`                  | `"package.json"` | A file that must exist in a directory for it to be eligible.                  |
-| `unless`      | `string`                  | `"BUILD.ts"` | A file that, if present, makes the directory ineligible.                          |
-| `macro`       | `(attrs) => object`       | required     | Called once per eligible directory.                                               |
-| `attrs`       | `Record<string, unknown>` | `{}`         | Passed to the macro, over a `cwd` default.                                        |
+| Option        | Type                      | Default          | Description                                                                                                            |
+| ------------- | ------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `directories` | `string \| Input.Glob`    | required         | Which directories the declaration covers. A string lifts to `glob(string)` and resolves against the declaring package. |
+| `marker`      | `string`                  | `"package.json"` | A file that must exist in a directory for it to be eligible.                                                           |
+| `unless`      | `string`                  | `"BUILD.ts"`     | A file that, if present, makes the directory ineligible.                                                               |
+| `macro`       | `(attrs) => object`       | required         | Called once per eligible directory.                                                                                    |
+| `attrs`       | `Record<string, unknown>` | `{}`             | Passed to the macro, over a `cwd` default.                                                                             |
 
 `DefaultRule` validates and lifts the declaration while performing no I/O.
 

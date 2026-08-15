@@ -47,10 +47,12 @@ describe("mergePlans", () => {
   })
 
   it("refuses incompatible non-lint views instead of dropping one", () => {
-    expect(() => Executor.mergePlans([
-      plan("build", ["//:root"], [target("//:root", "build-root")]),
-      plan("test", ["//:root"], [target("//:root", "test-root")])
-    ])).toThrow(/incompatible execution views/)
+    expect(() =>
+      Executor.mergePlans([
+        plan("build", ["//:root"], [target("//:root", "build-root")]),
+        plan("test", ["//:root"], [target("//:root", "test-root")])
+      ])
+    ).toThrow(/incompatible execution views/)
   })
 
   it("deduplicates warnings and equal-key views", () => {
@@ -64,9 +66,11 @@ describe("mergePlans", () => {
   })
 
   it("refuses a cycle created by the selected views", () => {
-    expect(() => Executor.mergePlans([
-      plan("lint", ["//:a"], [target("//:a", "a", ["//:b"])]),
-      plan("build", ["//:b"], [target("//:b", "b", ["//:a"])])
-    ])).toThrow(/merged dependency cycle/)
+    expect(() =>
+      Executor.mergePlans([
+        plan("lint", ["//:a"], [target("//:a", "a", ["//:b"])]),
+        plan("build", ["//:b"], [target("//:b", "b", ["//:a"])])
+      ])
+    ).toThrow(/merged dependency cycle/)
   })
 })

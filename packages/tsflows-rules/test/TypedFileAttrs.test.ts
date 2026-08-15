@@ -28,17 +28,18 @@ describe("PnpmWorkspace typed file attrs", () => {
       { _tag: "File", path: "//package.json" }
     ])
     expect(metadata.inputs).toHaveLength(3)
-    expect(metadata.inputs.map((input) =>
-      input._tag === "File" ? Input.resolvePath("", input.path) : input._tag
-    )).toEqual(["pnpm-lock.yaml", "pnpm-workspace.yaml", "package.json"])
+    expect(metadata.inputs.map((input) => input._tag === "File" ? Input.resolvePath("", input.path) : input._tag))
+      .toEqual(["pnpm-lock.yaml", "pnpm-workspace.yaml", "package.json"])
   })
 
   it("rejects bare strings for every file attr", () => {
     expect(() => PnpmWorkspace.PnpmWorkspace({ ...attrs, lockfile: "pnpm-lock.yaml" } as never)).toThrow()
-    expect(() => PnpmWorkspace.PnpmWorkspace({
-      ...attrs,
-      workspaceFile: "pnpm-workspace.yaml"
-    } as never)).toThrow()
+    expect(() =>
+      PnpmWorkspace.PnpmWorkspace({
+        ...attrs,
+        workspaceFile: "pnpm-workspace.yaml"
+      } as never)
+    ).toThrow()
     expect(() => PnpmWorkspace.PnpmWorkspace({ ...attrs, packageJson: "package.json" } as never)).toThrow()
   })
 })

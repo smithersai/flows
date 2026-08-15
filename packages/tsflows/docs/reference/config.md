@@ -14,7 +14,6 @@ Import the callable from the package root. The `Config` module subpath is an
 internal CLI surface for normalization and declaration recognition, not a
 `BUILD.ts` authoring namespace.
 
-
 ## Options
 
 | Option           | Type      | Default    | Description                                                                                                      |
@@ -40,8 +39,8 @@ itself, `cacheDirectory` must be a string, and `gitignored` must be a boolean.
 
 ## Constants
 
-| Export                         | Value                                | Description                                           |
-| ------------------------------ | ------------------------------------ | ----------------------------------------------------- |
+| Export                  | Value                                   | Description                                           |
+| ----------------------- | --------------------------------------- | ----------------------------------------------------- |
 | `defaultCacheDirectory` | `".flows"`                              | Used when no declaration and no flag name a directory |
 | `TypeId`                | `Symbol.for("tsflows-rules/Workspace")` | Runtime marker                                        |
 

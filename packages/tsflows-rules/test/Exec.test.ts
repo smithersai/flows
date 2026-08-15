@@ -45,7 +45,12 @@ describe("run", () => {
   it("substitutes the cache directory token for an ordinary directory", async () => {
     const exit = await run(
       { workspaceRoot: root, cacheDirectory: ".flows" },
-      payload(["node", "-e", `require('node:fs').writeFileSync(process.argv[1], 'ok')`, `${Exec.cacheDirectoryToken}.txt`])
+      payload([
+        "node",
+        "-e",
+        `require('node:fs').writeFileSync(process.argv[1], 'ok')`,
+        `${Exec.cacheDirectoryToken}.txt`
+      ])
     )
     expect(Exit.isSuccess(exit)).toBe(true)
     expect(await Fs.readFile(NodePath.join(root, ".flows.txt"), "utf8")).toBe("ok")

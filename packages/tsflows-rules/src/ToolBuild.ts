@@ -379,8 +379,7 @@ interface CaptureState {
   treeBytes: number
 }
 
-const fail = (state: CaptureState, message: string): OutputError =>
-  new OutputError({ path: state.declared, message })
+const fail = (state: CaptureState, message: string): OutputError => new OutputError({ path: state.declared, message })
 
 const checkCancelled = (state: CaptureState): void => {
   if (state.signal?.aborted === true) throw fail(state, "declared output capture was cancelled")
@@ -651,9 +650,10 @@ const collect = async (
     }
     const child = NodePath.join(directory, entry.name)
     const stats = await state.io.lstat(child).catch((cause: unknown) => {
-      throw fail(state, `declared output entry was replaced while it was being captured: ${child}: ${
-        failureMessage(cause)
-      }`)
+      throw fail(
+        state,
+        `declared output entry was replaced while it was being captured: ${child}: ${failureMessage(cause)}`
+      )
     })
     // The listing's own answer counts as well as the fresh one: an entry that
     // was a link when it was listed is refused even if it is a plain file now.
@@ -664,8 +664,7 @@ const collect = async (
       const relative = reserve(state, child, false)
       state.found.push(["directory", relative])
       await collect(state, child, identity(stats), depth + 1)
-    }
-    else if (stats.isFile()) {
+    } else if (stats.isFile()) {
       const relative = reserve(state, child, true)
       const measured = await hashFile(state, child, identity(stats))
       state.found.push(["file", relative, measured.executable, measured.digest])

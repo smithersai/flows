@@ -74,10 +74,11 @@ describe("Install", () => {
         }).pipe(Effect.provide(NodeServices.layer))
       )
 
-      const link = () => Install.executeLink({ environment, store }).pipe(
-        Effect.provide(NodeServices.layer),
-        Effect.provideService(PackageManager.PackageManager, service)
-      )
+      const link = () =>
+        Install.executeLink({ environment, store }).pipe(
+          Effect.provide(NodeServices.layer),
+          Effect.provideService(PackageManager.PackageManager, service)
+        )
       const first = await Effect.runPromise(link())
       const second = await Effect.runPromise(link())
       expect(first.linked).toBe(true)

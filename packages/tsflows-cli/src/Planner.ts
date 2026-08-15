@@ -5,8 +5,8 @@
  */
 import { createHash } from "node:crypto"
 import * as NodePath from "node:path"
-import * as NodeUtil from "node:util/types"
 import { fileURLToPath } from "node:url"
+import * as NodeUtil from "node:util/types"
 import { Input, Rule, SafeFs } from "tsflows-rules"
 import * as Label from "./Label.ts"
 import type * as Workspace from "./Workspace.ts"

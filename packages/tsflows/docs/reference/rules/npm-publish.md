@@ -3,7 +3,7 @@
 Publishes a package to an npm registry.
 
 ```ts
-import { NpmPublish, file, glob } from "tsflows-rules"
+import { file, glob, NpmPublish } from "tsflows-rules"
 
 export const publish = NpmPublish({
   packageJson: file("//packages/flow/package.json"),
@@ -19,16 +19,16 @@ export const publish = NpmPublish({
 
 ## Attributes
 
-| Name | Type | Default | Description |
-| --- | --- | --- | --- |
-| `packageJson` | `Input.File` | required | The manifest. Its directory is where `pnpm publish` runs. |
-| `artifacts` | `Array<Input.Declared>` | required | Built output declarations, digested as key material. |
-| `deps` | `Array<Rule.Target>` | required | Dependency targets: the build, the package lint, and versioning. |
-| `registry` | `string` | required | Passed as `--registry`. |
-| `access` | `"public" \| "restricted"` | required | Passed as `--access`. |
-| `provenance` | `boolean` | required | When true, sets `npm_config_provenance=true` in the environment. |
-| `tag` | `string` | required | The dist-tag, passed as `--tag`. |
-| `dryRun` | `boolean` | `true` | Append `--dry-run`. A real publish is always an explicit opt-out. |
+| Name          | Type                       | Default  | Description                                                       |
+| ------------- | -------------------------- | -------- | ----------------------------------------------------------------- |
+| `packageJson` | `Input.File`               | required | The manifest. Its directory is where `pnpm publish` runs.         |
+| `artifacts`   | `Array<Input.Declared>`    | required | Built output declarations, digested as key material.              |
+| `deps`        | `Array<Rule.Target>`       | required | Dependency targets: the build, the package lint, and versioning.  |
+| `registry`    | `string`                   | required | Passed as `--registry`.                                           |
+| `access`      | `"public" \| "restricted"` | required | Passed as `--access`.                                             |
+| `provenance`  | `boolean`                  | required | When true, sets `npm_config_provenance=true` in the environment.  |
+| `tag`         | `string`                   | required | The dist-tag, passed as `--tag`.                                  |
+| `dryRun`      | `boolean`                  | `true`   | Append `--dry-run`. A real publish is always an explicit opt-out. |
 
 There is no `cwd`. The publish directory is the directory of `packageJson.path`,
 with a leading `//` stripped.
@@ -58,18 +58,18 @@ Collected from the attrs: `packageJson`, plus every declaration in `artifacts`.
 
 ## Channels
 
-| Channel | Type |
-| --- | --- |
-| Success | `Exec.Result` |
-| Error | `Exec.ExecError` |
+| Channel | Type             |
+| ------- | ---------------- |
+| Success | `Exec.Result`    |
+| Error   | `Exec.ExecError` |
 
 ## Status
 
-| | |
-| --- | --- |
-| Kinds | `run` |
-| Cacheable | Never |
-| Executes | **No.** The CLI executor does not provide `ExecIrreversibleLive`, so the `tsflows-rules/exec-irreversible` action has no implementation in scope and the target fails at interpretation with `unresolved_action`. |
+|           |                                                                                                                                                                                                                   |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Kinds     | `run`                                                                                                                                                                                                             |
+| Cacheable | Never                                                                                                                                                                                                             |
+| Executes  | **No.** The CLI executor does not provide `ExecIrreversibleLive`, so the `tsflows-rules/exec-irreversible` action has no implementation in scope and the target fails at interpretation with `unresolved_action`. |
 
 The rule plans only under the `run` kind, so `build`, `test`, and `lint` never
 select it as a root.

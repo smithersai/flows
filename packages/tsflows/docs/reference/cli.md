@@ -16,9 +16,9 @@ Commands: [`install`](#install), [`build`](#build), [`test`](#test),
 
 Every command accepts these.
 
-| Option        | Alias | Type   | Default                       | Description                                                                                          |
-| ------------- | ----- | ------ | ----------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `--workspace` | `-w`  | string | the process working directory | Workspace root containing `BUILD.ts` files                                                           |
+| Option        | Alias | Type   | Default                       | Description                                                                                             |
+| ------------- | ----- | ------ | ----------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `--workspace` | `-w`  | string | the process working directory | Workspace root containing `BUILD.ts` files                                                              |
 | `--cache-dir` |       | string | unset                         | Workspace-relative cache directory. Overrides the root `BUILD.ts` `Workspace` declaration and `.flows`. |
 
 `build`, `test`, `lint`, and `ci` also accept:

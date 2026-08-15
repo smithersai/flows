@@ -18,15 +18,15 @@ export const lint = BiomeCheck({
 
 ## Attributes
 
-| Name | Type | Default | Description |
-| --- | --- | --- | --- |
+| Name      | Type                    | Default  | Description                                          |
+| --------- | ----------------------- | -------- | ---------------------------------------------------- |
 | `sources` | `Array<Input.Declared>` | required | What to check. Reduced to path arguments; see below. |
-| `deps` | `Array<Rule.Target>` | required | Dependency targets. |
-| `config` | `Input.File` | required | The Biome configuration, passed as `--config-path`. |
-| `lint` | `boolean` | required | Run `biome check`. |
-| `format` | `boolean` | required | Run `biome format` in its default check mode. |
-| `unsafe` | `boolean` | required | Forward `--unsafe` to the check run. |
-| `cwd` | `string` | `"."` | Workspace-relative directory the tool runs in. |
+| `deps`    | `Array<Rule.Target>`    | required | Dependency targets.                                  |
+| `config`  | `Input.File`            | required | The Biome configuration, passed as `--config-path`.  |
+| `lint`    | `boolean`               | required | Run `biome check`.                                   |
+| `format`  | `boolean`               | required | Run `biome format` in its default check mode.        |
+| `unsafe`  | `boolean`               | required | Forward `--unsafe` to the check run.                 |
+| `cwd`     | `string`                | `"."`    | Workspace-relative directory the tool runs in.       |
 
 ## Commands
 
@@ -42,11 +42,11 @@ A disabled family contributes `null` to the result instead of a run.
 Biome walks paths itself and does not expand glob patterns, so the source
 declarations reduce to path arguments as follows:
 
-| Declaration | Contributes |
-| --- | --- |
-| `Glob` | its static directory prefix, the leading segments before the first glob metacharacter, or `.` when there is none |
-| `File` | its `path` |
-| `GitDiff` | nothing |
+| Declaration | Contributes                                                                                                      |
+| ----------- | ---------------------------------------------------------------------------------------------------------------- |
+| `Glob`      | its static directory prefix, the leading segments before the first glob metacharacter, or `.` when there is none |
+| `File`      | its `path`                                                                                                       |
+| `GitDiff`   | nothing                                                                                                          |
 
 Duplicates are removed. With no usable source, Biome checks `.`.
 
@@ -56,10 +56,10 @@ Collected from the attrs: every declaration in `sources`, plus `config`.
 
 ## Channels
 
-| Channel | Type |
-| --- | --- |
-| Success | `BiomeReport` |
-| Error | `Exec.ExecError` |
+| Channel | Type             |
+| ------- | ---------------- |
+| Success | `BiomeReport`    |
+| Error   | `Exec.ExecError` |
 
 ```ts
 BiomeReport = { check: Exec.Result | null, format: Exec.Result | null }
@@ -67,11 +67,11 @@ BiomeReport = { check: Exec.Result | null, format: Exec.Result | null }
 
 ## Status
 
-| | |
-| --- | --- |
-| Kinds | `lint` |
-| Cacheable | Always |
-| Executes | Yes, through `ExecLive` |
+|           |                         |
+| --------- | ----------------------- |
+| Kinds     | `lint`                  |
+| Cacheable | Always                  |
+| Executes  | Yes, through `ExecLive` |
 
 ## See also
 

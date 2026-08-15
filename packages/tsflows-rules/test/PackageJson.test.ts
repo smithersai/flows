@@ -9,8 +9,8 @@ import {
   assertPackageName,
   diffFields,
   fieldCacheDirectory,
-  generationContext,
   generated,
+  generationContext,
   maximumFieldCacheBytes,
   maximumGeneratedResponseBytes,
   maximumManifestBytes,
@@ -116,9 +116,9 @@ describe("PackageJson typing and defaults", () => {
     })
     expect(declaration.fields["homepage"]).toBe("https://example.invalid")
     expect(declaration.fields["private"]).toBe(true)
-    expect(() =>
-      PackageJson({ name: "widget", version: "0.1.0", fields: { dependencies: { effect: "4" } } })
-    ).toThrow(/the package manager owns/)
+    expect(() => PackageJson({ name: "widget", version: "0.1.0", fields: { dependencies: { effect: "4" } } })).toThrow(
+      /the package manager owns/
+    )
     expect(() => PackageJson({ name: "widget", version: "0.1.0", fields: { name: "other" } })).toThrow(
       /modeled field "name" twice/
     )
@@ -229,11 +229,13 @@ describe("script resolution", () => {
     expect(() => scriptCommand("build", lib, "//packages/widget:lib; touch owned")).toThrow(
       /unsafe or non-exact target label/
     )
-    expect(() => targets(
-      PackageJson({ name: "widget", version: "0.1.0", scripts: { build: lib } }),
-      "packages/widget",
-      () => "//packages/widget:$lib"
-    )).toThrow(/unsafe or non-exact label/)
+    expect(() =>
+      targets(
+        PackageJson({ name: "widget", version: "0.1.0", scripts: { build: lib } }),
+        "packages/widget",
+        () => "//packages/widget:$lib"
+      )
+    ).toThrow(/unsafe or non-exact label/)
   })
 })
 
@@ -391,8 +393,8 @@ describe("render", () => {
   })
 
   it("preserves __proto__ as data and refuses values JSON would change", () => {
-    const text = render(JSON.parse('{"name":"widget","__proto__":{"safe":true}}') as Record<string, unknown>)
-    expect(JSON.parse(text)).toEqual(JSON.parse('{"name":"widget","__proto__":{"safe":true}}'))
+    const text = render(JSON.parse("{\"name\":\"widget\",\"__proto__\":{\"safe\":true}}") as Record<string, unknown>)
+    expect(JSON.parse(text)).toEqual(JSON.parse("{\"name\":\"widget\",\"__proto__\":{\"safe\":true}}"))
     expect(() => render({ value: undefined })).toThrow(/undefined/)
     expect(() => render({ value: Number.POSITIVE_INFINITY })).toThrow(/non-finite/)
   })
@@ -467,13 +469,17 @@ describe("check and write roundtrip", () => {
     await Fs.writeFile(
       NodePath.join(root, "package.json"),
       `${
-        JSON.stringify({
-          name: "widget",
-          version: "0.1.0",
-          license: "MIT",
-          dependencies: { effect: "4.0.0" },
-          devDependencies: { vitest: "4" }
-        }, undefined, 2)
+        JSON.stringify(
+          {
+            name: "widget",
+            version: "0.1.0",
+            license: "MIT",
+            dependencies: { effect: "4.0.0" },
+            devDependencies: { vitest: "4" }
+          },
+          undefined,
+          2
+        )
       }\n`,
       "utf8"
     )
@@ -543,21 +549,23 @@ describe("generated fields, cache, and refresh", () => {
 
   it("accepts only an exact, bounded model JSON object", () => {
     expect(parseGenerated(
-      '{"description":"a widget","keywords":["widget","test","typescript"]}',
+      "{\"description\":\"a widget\",\"keywords\":[\"widget\",\"test\",\"typescript\"]}",
       ["description", "keywords"]
     )).toEqual({ description: "a widget", keywords: ["widget", "test", "typescript"] })
-    for (const answer of [
-      'prose {"description":"a widget"}',
-      '```json\n{"description":"a widget"}\n```',
-      '{"description":"a widget","extra":true}',
-      '{"description":" a widget "}',
-      '{"keywords":["widget","widget","typescript"]}'
-    ]) {
+    for (
+      const answer of [
+        "prose {\"description\":\"a widget\"}",
+        "```json\n{\"description\":\"a widget\"}\n```",
+        "{\"description\":\"a widget\",\"extra\":true}",
+        "{\"description\":\" a widget \"}",
+        "{\"keywords\":[\"widget\",\"widget\",\"typescript\"]}"
+      ]
+    ) {
       expect(() => parseGenerated(answer, answer.includes("keywords") ? ["keywords"] : ["description"]))
         .toThrow()
     }
     expect(() => parseGenerated("{}", [])).toThrow(/empty or contains duplicates/)
-    expect(() => parseGenerated('{"description":"a widget"}', ["description", "description"])).toThrow(
+    expect(() => parseGenerated("{\"description\":\"a widget\"}", ["description", "description"])).toThrow(
       /empty or contains duplicates/
     )
     expect(() => parseGenerated("x".repeat(maximumGeneratedResponseBytes + 1), ["description"])).toThrow(
@@ -593,13 +601,17 @@ describe("generated fields, cache, and refresh", () => {
     await Fs.writeFile(
       NodePath.join(root, "package.json"),
       `${
-        JSON.stringify({
-          name: "widget",
-          version: "0.1.0",
-          description: "hand written",
-          keywords: ["existing"],
-          license: "MIT"
-        }, undefined, 2)
+        JSON.stringify(
+          {
+            name: "widget",
+            version: "0.1.0",
+            description: "hand written",
+            keywords: ["existing"],
+            license: "MIT"
+          },
+          undefined,
+          2
+        )
       }\n`,
       "utf8"
     )

@@ -139,7 +139,9 @@ const copyOptions = (options: Options): Record<string, ManifestJson.Value> => {
   }
   const copied = Object.create(null) as Record<string, ManifestJson.Value>
   for (const key of Object.getOwnPropertyNames(options)) {
-    if (!optionNames.has(key)) throw new TypeError(`PackageJsonTemplate received an unknown option ${JSON.stringify(key)}`)
+    if (!optionNames.has(key)) {
+      throw new TypeError(`PackageJsonTemplate received an unknown option ${JSON.stringify(key)}`)
+    }
     const descriptor = Object.getOwnPropertyDescriptor(options, key)
     if (descriptor === undefined || !("value" in descriptor) || descriptor.enumerable !== true) {
       throw new TypeError(`PackageJsonTemplate option ${JSON.stringify(key)} is an accessor or non-enumerable property`)
@@ -195,7 +197,7 @@ export const make = (options: Options = {}): Template => {
   const fields: Record<string, unknown> = {}
   if (safe["type"] !== undefined) {
     if (safe["type"] !== "module" && safe["type"] !== "commonjs") {
-      throw new TypeError('PackageJsonTemplate type must be "module" or "commonjs"')
+      throw new TypeError("PackageJsonTemplate type must be \"module\" or \"commonjs\"")
     }
     fields["type"] = safe["type"]
   }
@@ -206,7 +208,8 @@ export const make = (options: Options = {}): Template => {
       fields["sideEffects"] = safe["sideEffects"]
     } else if (Array.isArray(safe["sideEffects"])) {
       fields["sideEffects"] = safe["sideEffects"].map((member, index) =>
-        text(`PackageJsonTemplate sideEffects[${index}]`, member, 4096))
+        text(`PackageJsonTemplate sideEffects[${index}]`, member, 4096)
+      )
     } else {
       throw new TypeError("PackageJsonTemplate sideEffects must be a boolean or an array of strings")
     }

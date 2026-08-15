@@ -69,7 +69,7 @@ class MemoryContentStore implements ContentStore {
     return "inserted"
   }
 
-  async presentDigests(digests: readonly string[]): Promise<ReadonlySet<string>> {
+  async presentDigests(digests: ReadonlyArray<string>): Promise<ReadonlySet<string>> {
     return new Set(digests.filter((digest) => this.objects.has(digest)))
   }
 }

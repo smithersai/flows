@@ -17,14 +17,14 @@ export const dev = Dev({
 
 ## Attributes
 
-| Name | Type | Default | Description |
-| --- | --- | --- | --- |
-| `command` | `string` | required | The executable. Spawned directly, not through a shell. |
-| `args` | `Array<string>` | required | Arguments passed after the executable. |
-| `inputs` | `Array<Input.Declared>` | required | Input declarations digested as startup key material. |
-| `deps` | `Array<Rule.Target>` | required | Dependency targets. |
-| `cwd` | `string` | required | Workspace-relative directory the command runs in. **No default.** |
-| `readyWhen` | `string \| null` | required | A readiness marker. Key material only; the shared exec action has no readiness probe. |
+| Name        | Type                    | Default  | Description                                                                           |
+| ----------- | ----------------------- | -------- | ------------------------------------------------------------------------------------- |
+| `command`   | `string`                | required | The executable. Spawned directly, not through a shell.                                |
+| `args`      | `Array<string>`         | required | Arguments passed after the executable.                                                |
+| `inputs`    | `Array<Input.Declared>` | required | Input declarations digested as startup key material.                                  |
+| `deps`      | `Array<Rule.Target>`    | required | Dependency targets.                                                                   |
+| `cwd`       | `string`                | required | Workspace-relative directory the command runs in. **No default.**                     |
+| `readyWhen` | `string \| null`        | required | A readiness marker. Key material only; the shared exec action has no readiness probe. |
 
 `Dev` is the one tool-running rule whose `cwd` has no constructor default. Pass
 it explicitly.
@@ -44,10 +44,10 @@ Collected from the attrs: every declaration in `inputs`.
 
 ## Channels
 
-| Channel | Type |
-| --- | --- |
-| Success | `Exec.Result` |
-| Error | `Exec.ExecError` |
+| Channel | Type             |
+| ------- | ---------------- |
+| Success | `Exec.Result`    |
+| Error   | `Exec.ExecError` |
 
 ## Key material
 
@@ -58,11 +58,11 @@ Collected from the attrs: every declaration in `inputs`.
 
 ## Status
 
-| | |
-| --- | --- |
-| Kinds | `run` |
-| Cacheable | Never; the process stays live |
-| Executes | Yes, through `ExecLive`, but only as a dependency |
+|           |                                                   |
+| --------- | ------------------------------------------------- |
+| Kinds     | `run`                                             |
+| Cacheable | Never; the process stays live                     |
+| Executes  | Yes, through `ExecLive`, but only as a dependency |
 
 The CLI has no `run` verb, so a `Dev` target is never selected as a root. If a
 selected target depends on one, the executor runs it and it holds its concurrency

@@ -117,16 +117,16 @@ export const BiomeCheck = Rule.make("BiomeCheck", {
         : Node.succeed({ check: null, format: null })
     }
     const checked = Rule.runTool({
-        cwd: attrs.cwd,
-        argv: [
-          "pnpm",
-          "exec",
-          "biome",
-          "check",
-          ...(attrs.unsafe ? ["--unsafe"] : []),
-          ...shared
-        ]
-      })
+      cwd: attrs.cwd,
+      argv: [
+        "pnpm",
+        "exec",
+        "biome",
+        "check",
+        ...(attrs.unsafe ? ["--unsafe"] : []),
+        ...shared
+      ]
+    })
     if (!attrs.format) {
       return checked.pipe(Node.map((check) => ({ check, format: null })))
     }
@@ -136,7 +136,8 @@ export const BiomeCheck = Rule.make("BiomeCheck", {
           cwd: attrs.cwd,
           argv: ["pnpm", "exec", "biome", "format", ...shared],
           after: check
-        }).pipe(Node.map((format) => ({ check, format }))))
+        }).pipe(Node.map((format) => ({ check, format })))
+      )
     )
   }
 })

@@ -19,8 +19,8 @@ import {
   fingerprintSources,
   implementationFingerprint,
   type KeyMaterial,
-  keyOf,
   KeyMaterialError,
+  keyOf,
   maximumSourceFileBytes,
   productionSourceRoots
 } from "../src/Planner.ts"
@@ -119,7 +119,11 @@ describe("keyOf", () => {
     ["a function", () => ({ value: () => 1 })],
     ["a Date", () => ({ value: new Date(0) })],
     ["a Map", () => ({ value: new Map() })],
-    ["a class instance", () => ({ value: new (class Holder { readonly a = 1 })() })],
+    ["a class instance", () => ({
+      value: new (class Holder {
+        readonly a = 1
+      })()
+    })],
     ["a null-prototype value nested under an accessor", () => {
       const holder = {}
       Object.defineProperty(holder, "value", { get: () => 1, enumerable: true, configurable: true })

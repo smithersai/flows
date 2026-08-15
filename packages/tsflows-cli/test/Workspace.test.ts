@@ -526,7 +526,9 @@ describe("Workspace.make", () => {
   it("keeps the resolved directory out of target cache keys", async () => {
     await write(
       "BUILD.ts",
-      `import { DepsLint, file, glob } from "${NodePath.resolve(import.meta.dirname, "../../tsflows-rules/src/index.ts")}"\n` +
+      `import { DepsLint, file, glob } from "${
+        NodePath.resolve(import.meta.dirname, "../../tsflows-rules/src/index.ts")
+      }"\n` +
         "export const lint = DepsLint({\n" +
         "  packageJson: file(\"package.json\"),\n" +
         "  sources: [glob(\"src/**/*.ts\")],\n" +

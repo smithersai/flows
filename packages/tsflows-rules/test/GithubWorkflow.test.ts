@@ -17,14 +17,14 @@ import {
 } from "../src/GithubCiGen.ts"
 import {
   isSupportedInstall,
-  missingGates,
   maximumWorkflowBytes,
+  missingGates,
   parseWorkflow as parseStrictWorkflow,
   performsInstall,
   stripShellComments,
   supportedInstallCommands,
-  workspaceExec,
-  WorkflowParseError
+  WorkflowParseError,
+  workspaceExec
 } from "../src/GithubWorkflow.ts"
 import * as Rule from "../src/Rule.ts"
 
@@ -228,7 +228,7 @@ describe("parseWorkflow", () => {
       ].join("\n")
     )
     expect(workflow.jobs[0]!.steps.map((step) => step.run)).toEqual([
-      'echo "; pnpm run check"',
+      "echo \"; pnpm run check\"",
       "echo '; pnpm run lint'"
     ])
     expect(
@@ -241,7 +241,7 @@ describe("parseWorkflow", () => {
     // shell program by this intentionally smaller scalar decoder.
     expect(() =>
       parseWorkflow(
-        'jobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: "echo \\x22; pnpm run check\\x22"\n'
+        "jobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: \"echo \\x22; pnpm run check\\x22\"\n"
       )
     ).toThrow(/unsupported double-quoted scalar/)
   })
@@ -1039,7 +1039,9 @@ describe("performsInstall", () => {
     }
     // The flag policy still applies to the whole command, wherever it starts
     // and however it is wrapped.
-    expect(performsInstall("corepack enable && pnpm install --frozen-lockfile --prod", "pnpm install --frozen-lockfile"))
+    expect(
+      performsInstall("corepack enable && pnpm install --frozen-lockfile --prod", "pnpm install --frozen-lockfile")
+    )
       .toBe(false)
     expect(performsInstall("pnpm install --frozen-lockfile \\\n  --prod", "pnpm install --frozen-lockfile"))
       .toBe(false)
@@ -1399,7 +1401,14 @@ describe("render", () => {
         }]
       })[Rule.TargetTypeId].attrs as never
     )
-    for (const line of ["  \"no\":\n", "          \"NO\": \"1\"\n", "          \"ON\": \"2\"\n", "          \"Y\": \"3\"\n"]) {
+    for (
+      const line of [
+        "  \"no\":\n",
+        "          \"NO\": \"1\"\n",
+        "          \"ON\": \"2\"\n",
+        "          \"Y\": \"3\"\n"
+      ]
+    ) {
       expect({ line, present: rendered.includes(line) }).toEqual({ line, present: true })
     }
     expect(rendered).toContain("          \"on\": x\n")
