@@ -123,6 +123,7 @@ describe("Discovery", () => {
             stat: fs.stat,
             readDirectory: fs.readDirectory,
             stream: fs.stream,
+            readFile: fs.readFile,
             readFileString: () => Effect.die("discovery must not load complete bodies")
           }),
           path
