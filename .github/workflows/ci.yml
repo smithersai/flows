@@ -233,6 +233,35 @@ jobs:
       - name: Test all workspaces
         run: pnpm test
 
+  # Shadow lane for the dogfooded build system: the same gate surface as the
+  # `test` job's check/lint/test steps, planned and executed as tsflows
+  # targets (lib+check, lint+fmt, test — 130 targets over 26 packages).
+  # Advisory until it holds a green streak with verdicts matching the pnpm
+  # gates; then it becomes required and the recursive scripts retire.
+  tsflows-shadow:
+    name: tsflows ci (shadow, advisory)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.19.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      # Same jj setup as the Node job: the jj and time-travel suites exercise
+      # a real jj binary and refuse to skip silently.
+      - name: Install jj
+        uses: taiki-e/install-action@v2
+        with:
+          tool: jj-cli@0.39.0
+      - name: Initialize colocated jj repository
+        run: jj git init --colocate
+      - name: Execute the merged ci graph
+        run: node packages/tsflows-cli/src/main.js ci "//packages/..."
+
   node-windows:
     name: node suite (Windows, advisory)
     runs-on: windows-latest
