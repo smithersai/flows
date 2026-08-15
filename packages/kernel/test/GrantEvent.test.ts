@@ -98,9 +98,7 @@ describe("GrantEvent schema", () => {
     })
   }
 
-  // BUG: Grant-event structs discard excess fields, so a payload combining
-  // envelope and request-only fields is accepted instead of rejected.
-  it.fails("rejects an envelope carrying request-only payload fields", () => {
+  it("rejects an envelope carrying request-only payload fields", () => {
     expect(
       GrantEvent.decode({
         ...envelope,
