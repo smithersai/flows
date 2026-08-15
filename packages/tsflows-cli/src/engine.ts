@@ -7,7 +7,13 @@
  *
  * @since 0.1.0
  */
-import { NodeServices } from "@effect/platform-node"
+import {
+  NodeChildProcessSpawner,
+  NodeCrypto,
+  NodeFileSystem,
+  NodePath as EffectNodePath,
+  NodeStdio
+} from "@effect/platform-node"
 import { FlowEngine } from "@smthrs/engine-next"
 import { Action, Graph, Interpreter } from "@smthrs/flow-next"
 import { Install, PackageManager } from "@smthrs/tsflows-next"
@@ -16,6 +22,30 @@ import * as Layer from "effect/Layer"
 import { createHash } from "node:crypto"
 import * as Fs from "node:fs/promises"
 import * as NodePath from "node:path"
+
+/**
+ * Node host services needed by non-interactive tsflows execution.
+ *
+ * `NodeServices.layer` also acquires `NodeTerminal`, which attaches listeners
+ * to process stdin. The executor gives every target an isolated flow runtime;
+ * acquiring the aggregate layer in sixteen concurrent runtimes therefore
+ * attached sixteen terminal listeners even though no rule reads a terminal,
+ * producing leak warnings during ordinary CI. Keeping the host layer to the
+ * services the CLI actually uses avoids shared-terminal state and preserves
+ * per-target flow isolation.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
+export const layerNonInteractiveNodeServices = Layer.provideMerge(
+  NodeChildProcessSpawner.layer,
+  Layer.mergeAll(
+    NodeFileSystem.layer,
+    NodeCrypto.layer,
+    EffectNodePath.layer,
+    NodeStdio.layer
+  )
+)
 
 /**
  * Structured result returned by the install command.
@@ -86,7 +116,7 @@ export const runInstall = async (
     Layer.provideMerge(Action.layerImplementations),
     Layer.provideMerge(FlowEngine.layerMemory),
     Layer.provideMerge(layerPackageManager(workspace)),
-    Layer.provideMerge(NodeServices.layer)
+    Layer.provideMerge(layerNonInteractiveNodeServices)
   )
   const graph = Graph.build(Install.Install, {})
   const executionId = `tsflows-install-${createHash("sha256").update(workspace).digest("hex").slice(0, 16)}`

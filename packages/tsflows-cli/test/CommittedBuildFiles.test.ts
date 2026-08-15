@@ -1,7 +1,7 @@
 import * as NodePath from "node:path"
 import { fileURLToPath } from "node:url"
-import { describe, expect, it } from "vitest"
 import { Rule } from "tsflows-rules"
+import { describe, expect, it } from "vitest"
 import { Workspace } from "../src/Workspace.ts"
 
 /**

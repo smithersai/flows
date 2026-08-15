@@ -13,7 +13,6 @@
  *
  * @since 0.1.0
  */
-import { NodeServices } from "@effect/platform-node"
 import { FlowEngine } from "@smthrs/engine-next"
 import { Action, type Flow, Interpreter } from "@smthrs/flow-next"
 import * as Cause from "effect/Cause"
@@ -40,7 +39,7 @@ import {
   WriteFileLive
 } from "tsflows-rules"
 import { entryLimit, openCache } from "./Cache.ts"
-import { layerInstall, layerPackageManager } from "./engine.ts"
+import { layerInstall, layerNonInteractiveNodeServices, layerPackageManager } from "./engine.ts"
 import type * as Planner from "./Planner.ts"
 import type { ExpandedInput, Workspace } from "./Workspace.ts"
 
@@ -260,7 +259,7 @@ const runTarget = (
     Layer.provideMerge(Action.layerImplementations),
     Layer.provideMerge(FlowEngine.layerMemory),
     Layer.provideMerge(layerPackageManager(workspaceRoot)),
-    Layer.provideMerge(NodeServices.layer)
+    Layer.provideMerge(layerNonInteractiveNodeServices)
   )
   return Effect.runPromiseExit(
     flow.execute(attrs as {}, { executionId }).pipe(
