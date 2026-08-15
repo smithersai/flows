@@ -78,16 +78,14 @@ alias their bodies. `API-REVIEW.md` records this as open question 1.
 
 ## Kinds
 
-`Rule.Kind` is `"build" | "test" | "lint" | "run"`. A rule declares the verbs its
-targets participate in.
+`Rule.Kind` is `"build" | "test" | "lint" | "run" | "docs"`. A rule declares
+the verbs its targets participate in.
 
 ```ts
-kinds: ;
-;["build"] // TsBuild
-kinds: ;
-;["build", "lint"] // SortPackageJson, GithubCiGen
-kinds: ;
-;["run"] // PnpmWorkspace, Clean, Dev, Changesets, publishes
+const buildKinds = ["build"] // TsBuild
+const generatedKinds = ["build", "lint"] // SortPackageJson, GithubCiGen
+const runKinds = ["run"] // PnpmWorkspace, Clean, Dev, Changesets, publishes
+const docsKinds = ["docs"] // DocsParity
 ```
 
 The `run` verb executes explicitly selected run targets, including source-tree
@@ -102,8 +100,8 @@ that verb runs with.
 `GithubCiGen` uses it to map `lint` to its drift-check form:
 
 ```ts
-attrsForKind: ;
-;((kind, attrs) => kind === "lint" && attrs.mode !== "check" ? { ...attrs, mode: "check" as const } : attrs)
+const attrsForKind = (kind, attrs) =>
+  kind === "lint" && attrs.mode !== "check" ? { ...attrs, mode: "check" as const } : attrs
 ```
 
 `PackageJson` instead synthesizes separate check, write, and refresh targets.
@@ -117,10 +115,11 @@ neither.
 
 Dependencies never vary by verb. Only attrs, declared inputs, and cacheability do.
 
-The planner calls `forKind(verb)` for `build`, `test`, and `lint`, and uses the
-declared view for `graph` and `query`. Because key material is built from the
-resolved view, one target can have two different content keys, one per verb. The
-executor passes the same resolved attrs to the flow.
+The planner calls `forKind(verb)` for every execution verb (`build`, `test`,
+`lint`, `run`, and `docs`) and uses the declared view for `graph` and `query`.
+Because key material is built from the resolved view, one target can have two
+different content keys, one per verb. The executor passes the same resolved
+attrs to the flow.
 
 ## Export discovery
 

@@ -4,7 +4,7 @@
 function from attributes to a target, carrying `id`, `attrs`, and `kinds`.
 
 ```ts
-// rules/src/Typecheck.ts
+// packages/tsflows-rules/src/Typecheck.ts
 import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import * as Exec from "./Exec.ts"
@@ -193,35 +193,27 @@ Use `inputs(attrs)` when key material must include a file that is not already a
 declared attribute value.
 
 ```ts
-// PnpmWorkspace: the three files the install depends on.
-inputs: ;
-;(({ lockfile, workspaceFile }) => [
-  Input.file(lockfile),
-  Input.file(workspaceFile),
-  Input.file("package.json")
-])
-
 // PackageJsonCheck: the output file is an input, so editing it re-keys.
-inputs: ;
-;((attrs) => attrs.mode === "check" ? [Input.file(attrs.output)] : [])
+const packageJsonInputs = (attrs) => [Input.file(attrs.output)]
+
+// GithubCiGen: non-writing modes read the checked-in workflow.
+const workflowInputs = (attrs) => attrs.mode === "write" ? [] : [Input.file(attrs.output)]
 ```
 
 ## Cacheability
 
 ```ts
-cache: false // never cacheable
-cache: ;
-;((attrs) => !attrs.fix) // EsLint
-cache: ;
-;((attrs) => attrs.check) // SortPackageJson
-cache: ;
-;((attrs) => attrs.mode === "check") // GithubCiGen
-cache: ;
-;((attrs) => attrs.cache) // ToolBuild, caller's choice
+const neverCache = false
+const pureCheck = true // DocsParity, Filegroup, PackageJsonCheck
+const githubCache = (attrs) => attrs.mode !== "write"
+const toolBuildCache = (attrs) => attrs.cache // caller's explicit choice
 ```
 
-Mark a rule non-cacheable when it mutates the working tree, holds a long-lived
-process, or changes external state.
+The default is `false`. Opt in only when attrs, declared inputs, dependency
+keys, implementation identity, and toolchain identity completely determine the
+result. A rule that mutates the working tree, holds a long-lived process, calls
+a model, changes external state, or invokes an incompletely keyed external
+tool stays non-cacheable.
 
 ## Per-verb attrs
 
@@ -231,8 +223,8 @@ Return the same object to leave the verb alone.
 
 ```ts
 // GithubCiGen: build writes, lint checks for drift.
-attrsForKind: ;
-;((kind, attrs) => kind === "lint" && attrs.mode !== "check" ? { ...attrs, mode: "check" as const } : attrs)
+const attrsForKind = (kind, attrs) =>
+  kind === "lint" && attrs.mode !== "check" ? { ...attrs, mode: "check" as const } : attrs
 ```
 
 When the mapping returns a different value, the rule re-derives declared inputs
@@ -240,10 +232,10 @@ from the mapped attrs, re-runs its own `inputs(attrs)` function against it, and
 re-evaluates `cache(attrs)`. Dependencies never vary by verb.
 
 `Metadata.forKind(kind)` exposes the result as a `KindView` of
-`{attrs, inputs, cacheable}`. The planner uses it for `build`, `test`, and
-`lint`, and uses the declared view for `graph` and `query`. Key material is built
-from the resolved view, so one target can have two content keys, and the executor
-passes the same resolved attrs to the flow.
+`{attrs, inputs, cacheable}`. The planner uses it for `build`, `test`, `lint`,
+`run`, and `docs`, and uses the declared view for `graph` and `query`.
+Key material is built from the resolved view, so one target can have two content
+keys, and the executor passes the same resolved attrs to the flow.
 
 Use this when one target genuinely has two forms of the same work. Declare two
 targets when the two forms have different dependencies.
@@ -299,7 +291,7 @@ See [Actions and boundaries](../concepts/actions-and-boundaries.md).
 
 ## Registering the rule
 
-Export it from `rules/src/index.ts`:
+Export it from `packages/tsflows-rules/src/index.ts`:
 
 ```ts
 /** @category rules @since 0.1.0 */
@@ -307,7 +299,7 @@ export { Typecheck } from "./Typecheck.ts"
 ```
 
 If the rule needs non-default key material, add it to the `layers` or
-`capabilities` table in `cli/src/Planner.ts`. Both tables are hand-maintained
+`capabilities` table in `packages/tsflows-cli/src/Planner.ts`. Both tables are hand-maintained
 today; `API-REVIEW.md` records that they should eventually be derived from the
 real flow graph.
 

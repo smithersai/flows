@@ -1,7 +1,8 @@
 # First build
 
-This tutorial writes a root `BUILD.ts` and one package `BUILD.ts`, then runs each
-CLI verb against them. It assumes the layout from [Install](install.md).
+This tutorial writes a root `BUILD.ts` and one package `BUILD.ts`, then runs the
+core query, graph, build, test, lint, CI, and install paths. It assumes the
+layout from [Install](install.md).
 
 ## 1. Declare the root
 
@@ -146,7 +147,9 @@ tsflows install --workspace .
 ```
 
 This runs the `Install` flow under the pnpm layer: measure, fetch into
-`.flows/store/pnpm`, then link `node_modules`. See
+`.flows/store/pnpm`, then reconcile `node_modules`. Install requires the
+default `.flows` cache-directory setting and is not answered from the cross-run
+engine cache. See
 [Install](../concepts/install.md).
 
 ## Next

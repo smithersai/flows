@@ -1,28 +1,74 @@
 # @smthrs/tsflows-next
 
-## Documentation
+`@smthrs/tsflows-next` is a Bazel-style build orchestrator for TypeScript
+workspaces.
+`BUILD.ts` files are ordinary TypeScript modules whose named exports are
+targets. Rules declare inputs, outputs, capabilities, cacheability, and the
+flow that implements the target; imports between build files form dependency
+edges.
 
-The full documentation suite lives in [`docs/`](docs/README.md): the
-`BUILD.ts` authoring surface, the CLI, the rule catalog, and the concepts
-behind targets, inputs, caching, and install.
+The complete user documentation lives in [`docs/`](docs/README.md). It covers
+workspace authoring, every CLI verb, the rule catalog, caching, and the install
+flow.
 
-`@smthrs/tsflows-next` expresses dependency installation as a flows workflow.
+## Current execution model
 
-- `fetch` populates `.flows/store/<manager>` from the lockfile. It is a
-  sealed Action with a hard `TreeArtifact` boundary. The existing artifact CAS
-  records the store files. Its result value is a store-manifest digest.
-- `link` runs locally from that store. It materializes `node_modules`, returns
-  a manifest digest, and never records or publishes the tree as an artifact.
+The CLI discovers and digests declared inputs before execution, computes a
+content key, runs dependency-first with bounded parallelism, and keeps going
+outside a failed target's dependent cone. Successful cacheable results are
+stored as bounded JSON under `<cacheDirectory>/cache`; a configured HTTPS
+remote adds a read-through `/ac` tier.
 
-The package includes npm, pnpm, and Bun layers. The fetch/link split does not
-depend on the selected manager. Add `.flows/` to the target repository's
-ignore file. It contains replayable cache data, not source.
+This is not a sandbox. Tools run directly in the workspace, so an effects
+declaration is analysis and cache metadata rather than proof that the process
+read and wrote only those paths. The executor revalidates declared inputs
+before cache admission and after execution, and verifies declared outputs
+before reporting or caching success. It does not claim Bazel-style hermeticity
+without the sandbox evidence needed to support that claim.
+
+## Dependency installation
+
+Installation is a two-round flow:
+
+1. `measure` records the selected manager's exact version, platform, lockfile
+   digest, and credential-free project `.npmrc` digest.
+2. A manager-specific `fetch` populates `.flows/store/<manager>`, then `link`
+   reconciles `node_modules` from that store.
+
+All three actions currently use an `expected` filesystem boundary. None is
+admitted to a cross-run engine cache: the absolute-root package-manager process
+cannot freeze its lockfile and `.npmrc` across the child's own opens, and the
+linked tree is host-local. `link` always runs; manager metadata cannot prove
+that every installed package file is still present and intact.
+
+Only pnpm has a live implementation. It runs:
+
+```text
+pnpm fetch --frozen-lockfile --ignore-scripts --reporter=append-only \
+  --store-dir <workspace>/.flows/store/pnpm
+
+pnpm install --offline --frozen-lockfile --ignore-scripts \
+  --reporter=append-only --store-dir <workspace>/.flows/store/pnpm
+```
+
+The npm, Bun, and Yarn layers are explicit typed refusals. They remain in the
+service schema so unsupported selection fails with `code: "unsupported"`
+instead of silently approximating a verified fetch.
+
+Run the supported flow with:
+
+```sh
+tsflows install --workspace /path/to/workspace
+```
+
+The install store is fixed at `.flows/store/pnpm`, so `install` requires the
+default `.flows` cache-directory configuration. Other CLI verbs may use a
+custom workspace-relative cache directory.
 
 ## Cache directory
 
-The CLI keeps its result cache and rule scratch files in a workspace-relative
-cache directory. It defaults to `.flows`. The root `BUILD.ts` file configures
-it by exporting one `Workspace` declaration:
+The root `BUILD.ts` may declare where target results and rule scratch files
+live:
 
 ```ts
 import { Workspace } from "tsflows-rules"
@@ -30,74 +76,18 @@ import { Workspace } from "tsflows-rules"
 export const config = Workspace({ cacheDirectory: ".flows", gitignored: true })
 ```
 
-`cacheDirectory` names a single workspace-relative directory. An empty value,
-an absolute path, and any `..` segment are refused. `gitignored` defaults to
-false; when it is true every command first ensures the root `.gitignore`
-carries an entry for the directory, creating the file when it is absent. The
-`--cache-dir` flag overrides the declaration on every command, and the
-declaration overrides `.flows`.
+Precedence is `--cache-dir`, then the declaration, then `.flows`. The value is
+bounded, control-free, workspace-relative text; absolute paths, parent
+traversal, oversized segments, and malformed Unicode are refused. When
+`gitignored` is true, the CLI updates the root `.gitignore` with a bounded,
+descriptor-stable, atomic read-modify-write.
 
-The directory is host state. Discovery never lists a path inside it, declared
-globs never expand into it, and its name never reaches a cache key or a content
-digest.
+The resolved directory is host state and never enters a target key. Discovery
+and globs exclude it, as well as the fixed `.flows/store` install tree.
 
-Manager stores stay at `.flows/store/<manager>` and are not controlled by
-`cacheDirectory`; discovery and globs always exclude that fixed store as host
-state too. Those paths are declared `TreeArtifact` boundaries and therefore
-key material, so configurable store placement is future work.
+## Remote result cache
 
-## Relation to rules_js
-
-rules_js translates a lockfile into integrity-keyed package fetches, then
-builds a pnpm-layout symlink forest for each Bazel sandbox. `tsflows` uses the
-same fetch/link boundary. Its first version keys fetch on the complete
-lockfile, and it lets the selected package manager build the linked tree.
-Per-package fetch actions and lifecycle-script actions remain future work.
-
-## Install flow
-
-Run the engine from the project root. The Flow payload starts empty because
-filesystem paths must not enter a shareable fetch key.
-
-```ts
-import { Install, PackageManager } from "@smthrs/tsflows-next"
-import { Effect } from "effect"
-
-const program = Install.Install.execute({}).pipe(
-  Effect.provide(Install.layer),
-  Effect.provide(PackageManager.layerNpm({
-    platform: { os: "linux", arch: "x64", libc: "glibc" }
-  })),
-  Effect.provide(flowRuntimeLayer),
-  Effect.provide(nodeHostLayer)
-)
-```
-
-Round one measures the manager version, lockfile, `.npmrc`, and platform. It
-hands that value to round two with `Flow.to`. Round two fetches, then links.
-This handoff lets a pure plan select one manager-specific Action and one exact
-lockfile boundary. Planning never reads the filesystem.
-
-The requested dogfood checkout at `/Users/williamcory/flows/flows` currently
-contains `pnpm-lock.yaml` and declares `pnpm@11.21.0`. It has no
-`package-lock.json`. The task forbids running pnpm against that checkout, so
-this scaffold does not execute install there. Planning is safe:
-
-```ts
-import { Graph } from "@smthrs/flow-next"
-import { Install } from "@smthrs/tsflows-next"
-
-const firstRound = Graph.build(Install.Install, {})
-```
-
-Use the npm layer against an npm workspace with `package-lock.json`. Use the
-pnpm layer only where pnpm execution is permitted. `WIRING.md` lists the host
-and runtime layers required for execution.
-
-## Remote cache
-
-Declare the shared HTTP cache in the root `BUILD.ts` file. The declaration is
-inert and contains only the endpoint and an environment-variable name:
+Declare an endpoint without embedding a credential:
 
 ```ts
 import { RemoteCache } from "tsflows-rules"
@@ -107,39 +97,32 @@ export const remoteCache = RemoteCache.make({
 })
 ```
 
-`endpoint` must use HTTPS. `tokenEnv` defaults to
-`TSFLOWS_CACHE_TOKEN`; it can name a different environment variable, but the
-bearer token itself must only be supplied through that environment variable.
-Never put a token in `BUILD.ts`.
+`tokenEnv` defaults to `TSFLOWS_CACHE_TOKEN`. The bearer value must arrive
+through that environment variable and never enters `BUILD.ts`, a target key,
+or a stored entry. `TSFLOWS_CACHE_URL` can override the declared HTTPS endpoint
+for one process.
 
-```sh
-export TSFLOWS_CACHE_TOKEN='<token>'
-tsflows ci //...
-```
+A local hit avoids HTTP. A remote hit hydrates the local cache. Remote failures
+warn once and degrade to local-only; a first-writer conflict warns without
+failing the run. Bodies, keys, JSON structure, timeouts, and stream chunk counts
+are bounded, and corrupt or misfiled entries are misses rather than results.
 
-`TSFLOWS_CACHE_URL` overrides the declared endpoint for the process. A local
-hit avoids HTTP, a remote hit hydrates the local cache, and puts write both.
-Any remote failure warns once and degrades to local-only. A `409` publication
-conflict warns without failing the run.
+The shared hosted and self-hosted protocol exposes:
 
-For a self-hosted cache, use [`terraform/`](terraform/) and put TLS in front of
-its loopback HTTP service before declaring the resulting HTTPS endpoint.
+- `/ac/{keyDigest}` for action-cache documents;
+- `/cas/{sha256}` for content-addressed artifacts;
+- `/cas/findMissing` for batched artifact probes;
+- public `/healthz` readiness checks that reveal no cache state.
 
-The service protocol is:
+The tsflows CLI currently uses `/ac` directly for target success values. It
+does not compose the flows engine's remote step-cache and artifact layers.
+See [remote caching](docs/workspace/remote-caching.md) for that distinction.
 
-- `/ac/{stepKeyDigest}` for cache entries.
-- `/cas/{contentDigest}` for artifacts used by flows engine cache layers.
-- `/cas/findMissing` for batched artifact probes.
+## Development
 
-The hosted service is deployed from [`infra/`](infra/). The self-hosted stack
-starts Postgres and the HTTP service with:
+Use Node.js 22.19 or newer. The repository's supported gates are:
 
-```sh
-cd terraform/examples/docker
-terraform init
-terraform apply \
-  -var 'postgres_password=<password>' \
-  -var 'auth_token=<token>'
-```
-
-Run `terraform destroy` to remove the containers and named cache volume.
+From the flows repository root, run `pnpm check`, `pnpm lint`, `pnpm test`,
+`pnpm circular`, and `pnpm browser`. To work on only these packages, use pnpm's
+`--filter` option with `@smthrs/tsflows-next`, `tsflows-rules`, or
+`tsflows-cli`.

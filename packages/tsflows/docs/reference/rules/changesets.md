@@ -62,14 +62,14 @@ Collected from the attrs: every declaration in `changesets`, plus `config`,
 
 ## Status
 
-|           |                                                                                                                                                                                                |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Kinds     | `run`                                                                                                                                                                                          |
-| Cacheable | When `operation` is `status`                                                                                                                                                                   |
-| Executes  | `status` yes, through `ExecLive`, as a dependency. `version` **no**: the CLI executor does not provide `ExecIrreversibleLive`, so the target fails at interpretation with `unresolved_action`. |
+|           |                                                                                                                                                                                                              |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Kinds     | `run`                                                                                                                                                                                                        |
+| Cacheable | Never                                                                                                                                                                                                        |
+| Executes  | `status` yes, through `ExecLive`, as a `run` root or dependency. `version` **no**: the CLI executor does not provide `ExecIrreversibleLive`, so the target fails at interpretation with `unresolved_action`. |
 
-Both operations plan only under the `run` kind, so `build`, `test`, and `lint`
-never select them as roots.
+Both operations are selected by `tsflows run`; `build`, `test`, `lint`, and
+`ci` never select them as roots.
 
 ## Release order
 

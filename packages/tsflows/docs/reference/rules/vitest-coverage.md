@@ -64,11 +64,11 @@ the written reports.
 
 ## Status
 
-|           |                         |
-| --------- | ----------------------- |
-| Kinds     | `test`                  |
-| Cacheable | Always                  |
-| Executes  | Yes, through `ExecLive` |
+|           |                                                              |
+| --------- | ------------------------------------------------------------ |
+| Kinds     | `test`                                                       |
+| Cacheable | Never; the executable toolchain is not complete key material |
+| Executes  | Yes, through `ExecLive`                                      |
 
 ## See also
 

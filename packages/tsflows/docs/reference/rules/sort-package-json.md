@@ -29,8 +29,9 @@ pnpm exec sort-package-json [--check] <manifests...>
 ```
 
 With `check: true` the run only reports, which suits the `lint` verb. Without it
-the run rewrites the manifests in place, which suits the `build` verb and is not
-cacheable.
+the run rewrites the manifests in place, which suits the `build` verb. Both
+forms remain non-cacheable because the external toolchain is not complete key
+material.
 
 ## Inputs
 
@@ -48,7 +49,7 @@ Collected from the attrs: every entry in `manifests`.
 |           |                         |
 | --------- | ----------------------- |
 | Kinds     | `build`, `lint`         |
-| Cacheable | When `check` is true    |
+| Cacheable | Never                   |
 | Executes  | Yes, through `ExecLive` |
 
 Because the rule declares both kinds, one target is selected by both

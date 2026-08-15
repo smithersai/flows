@@ -23,7 +23,7 @@ export const lint = EsLint({
 | `deps`        | `Array<Rule.Target>`    | required | Dependency targets. Usually empty: linting sources needs nothing built.                                  |
 | `configs`     | `Array<Input.File>`     | required | Flat configs. The first is passed as `--config`; the rest are key material for files the config imports. |
 | `maxWarnings` | `number`                | required | The warning budget, passed as `--max-warnings`.                                                          |
-| `fix`         | `boolean`               | required | Apply autofixes. Makes the target non-cacheable.                                                         |
+| `fix`         | `boolean`               | required | Apply autofixes. The target remains non-cacheable in either mode.                                        |
 | `cwd`         | `string`                | `"."`    | Workspace-relative directory the tool runs in.                                                           |
 
 ## Command
@@ -55,11 +55,11 @@ Collected from the attrs: every declaration in `sources`, plus every entry in
 
 ## Status
 
-|           |                         |
-| --------- | ----------------------- |
-| Kinds     | `lint`                  |
-| Cacheable | When `fix` is false     |
-| Executes  | Yes, through `ExecLive` |
+|           |                                                              |
+| --------- | ------------------------------------------------------------ |
+| Kinds     | `lint`                                                       |
+| Cacheable | Never; the executable toolchain is not complete key material |
+| Executes  | Yes, through `ExecLive`                                      |
 
 ## Notes
 

@@ -51,11 +51,11 @@ Collected from the attrs: every declaration in `tests` and `sources`, plus
 
 ## Status
 
-|           |                         |
-| --------- | ----------------------- |
-| Kinds     | `test`                  |
-| Cacheable | Always                  |
-| Executes  | Yes, through `ExecLive` |
+|           |                                                              |
+| --------- | ------------------------------------------------------------ |
+| Kinds     | `test`                                                       |
+| Cacheable | Never; the executable toolchain is not complete key material |
+| Executes  | Yes, through `ExecLive`                                      |
 
 ## See also
 

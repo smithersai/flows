@@ -64,7 +64,7 @@ const runCi = async (pattern: string): Promise<Executor.Summary> => {
     try {
       plans.push(await Planner.make(workspace, kind, pattern))
     } catch (cause) {
-      if (!String(cause).includes(`does not support the ${kind} verb`)) throw cause
+      if (!(cause instanceof Planner.UnsupportedVerbError) || cause.verb !== kind) throw cause
     }
   }
   const merged = Executor.mergePlans(plans)

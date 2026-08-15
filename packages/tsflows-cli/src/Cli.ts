@@ -5,6 +5,7 @@
  */
 import { Cli, z } from "incur"
 import * as NodePath from "node:path"
+import * as Diagnostic from "./Diagnostic.ts"
 import { runInstall } from "./engine.ts"
 import * as Executor from "./Executor.ts"
 import * as GraphOutput from "./GraphOutput.ts"
@@ -17,8 +18,6 @@ import {
   resolveRemoteCache,
   Workspace
 } from "./Workspace.ts"
-
-const message = (cause: unknown): string => cause instanceof Error ? cause.message : String(cause)
 
 const workspaceOption = z.object({
   workspace: z.string().default(process.cwd()).describe("Workspace root containing BUILD.ts files"),
@@ -188,7 +187,7 @@ const runCi = async (
       // An exact label that does not participate in one of the CI kinds is
       // fine as long as it participates in another; any other planning error
       // is real and propagates.
-      if (message(cause).includes(`does not support the ${kind} verb`)) refusals.push(cause)
+      if (cause instanceof Planner.UnsupportedVerbError && cause.verb === kind) refusals.push(cause)
       else throw cause
     }
   }
@@ -234,12 +233,18 @@ export const makeCli = (config: RuntimeConfig = {}) =>
       async run(context) {
         try {
           const prepared = await prepare(context.options, config)
-          return await runInstall(prepared.root, { signal: config.signal })
+          return await runInstall(prepared.root, {
+            cacheDirectory: prepared.cacheDirectory,
+            sensitiveEnvironment: prepared.remoteCache === undefined
+              ? []
+              : [prepared.remoteCache.tokenEnv],
+            signal: config.signal
+          })
         } catch (cause) {
           return context.error({
             code: "install_failed",
             exitCode: 1,
-            message: message(cause),
+            message: Diagnostic.message(cause),
             retryable: false
           })
         }
@@ -255,7 +260,7 @@ export const makeCli = (config: RuntimeConfig = {}) =>
         try {
           outcome = await runVerb("build", context.args.pattern, context.options, config)
         } catch (cause) {
-          return context.error({ code: "build_failed", exitCode: 1, message: message(cause) })
+          return context.error({ code: "build_failed", exitCode: 1, message: Diagnostic.message(cause) })
         }
         if (failedSummary(outcome)) {
           return context.error({
@@ -278,7 +283,7 @@ export const makeCli = (config: RuntimeConfig = {}) =>
         try {
           outcome = await runVerb("test", context.args.pattern, context.options, config)
         } catch (cause) {
-          return context.error({ code: "test_failed", exitCode: 1, message: message(cause) })
+          return context.error({ code: "test_failed", exitCode: 1, message: Diagnostic.message(cause) })
         }
         if (failedSummary(outcome)) {
           return context.error({
@@ -301,7 +306,7 @@ export const makeCli = (config: RuntimeConfig = {}) =>
         try {
           outcome = await runVerb("lint", context.args.pattern, context.options, config)
         } catch (cause) {
-          return context.error({ code: "lint_failed", exitCode: 1, message: message(cause) })
+          return context.error({ code: "lint_failed", exitCode: 1, message: Diagnostic.message(cause) })
         }
         if (failedSummary(outcome)) {
           return context.error({
@@ -324,7 +329,7 @@ export const makeCli = (config: RuntimeConfig = {}) =>
         try {
           outcome = await runVerb("docs", context.args.pattern, context.options, config)
         } catch (cause) {
-          return context.error({ code: "docs_failed", exitCode: 1, message: message(cause) })
+          return context.error({ code: "docs_failed", exitCode: 1, message: Diagnostic.message(cause) })
         }
         if (failedSummary(outcome)) {
           return context.error({
@@ -347,7 +352,7 @@ export const makeCli = (config: RuntimeConfig = {}) =>
         try {
           outcome = await runVerb("run", context.args.pattern, context.options, config)
         } catch (cause) {
-          return context.error({ code: "run_failed", exitCode: 1, message: message(cause) })
+          return context.error({ code: "run_failed", exitCode: 1, message: Diagnostic.message(cause) })
         }
         if (failedSummary(outcome)) {
           return context.error({
@@ -370,7 +375,7 @@ export const makeCli = (config: RuntimeConfig = {}) =>
         try {
           outcome = await runCi(context.args.pattern, context.options, config)
         } catch (cause) {
-          return context.error({ code: "ci_failed", exitCode: 1, message: message(cause) })
+          return context.error({ code: "ci_failed", exitCode: 1, message: Diagnostic.message(cause) })
         }
         if (failedSummary(outcome)) {
           return context.error({
@@ -393,7 +398,7 @@ export const makeCli = (config: RuntimeConfig = {}) =>
           const { workspace } = await openWorkspace(context.options, config, false)
           return await Query.run(workspace, context.args.expr)
         } catch (cause) {
-          return context.error({ code: "query_failed", exitCode: 1, message: message(cause) })
+          return context.error({ code: "query_failed", exitCode: 1, message: Diagnostic.message(cause) })
         }
       }
     })
@@ -418,7 +423,7 @@ export const makeCli = (config: RuntimeConfig = {}) =>
             warnings: plan.warnings
           }
         } catch (cause) {
-          return context.error({ code: "graph_failed", exitCode: 1, message: message(cause) })
+          return context.error({ code: "graph_failed", exitCode: 1, message: Diagnostic.message(cause) })
         }
       }
     })

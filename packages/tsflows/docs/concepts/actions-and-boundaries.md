@@ -39,14 +39,17 @@ keeps a result out of the shared cache.
 
 ## The install boundaries
 
-| Action                            | Tier     | Boundary   | Reads                              | Writes                                     | Cache-admissible              |
-| --------------------------------- | -------- | ---------- | ---------------------------------- | ------------------------------------------ | ----------------------------- |
-| `tsflows/install/measure`         | `sealed` | `expected` | `.npmrc`, every supported lockfile | none                                       | No                            |
-| `tsflows/install/fetch/{manager}` | `sealed` | `hard`     | the manager's lockfile, `.npmrc`   | `TreeArtifact` at `.flows/store/<manager>` | Yes, with whole-tree evidence |
-| `tsflows/install/link`            | `sealed` | `expected` | `package.json`                     | none                                       | No                            |
+| Action                            | Tier     | Boundary   | Reads                              | Writes                                     | Cache-admissible |
+| --------------------------------- | -------- | ---------- | ---------------------------------- | ------------------------------------------ | ---------------- |
+| `tsflows/install/measure`         | `sealed` | `expected` | `.npmrc`, every supported lockfile | none                                       | No               |
+| `tsflows/install/fetch/{manager}` | `sealed` | `expected` | the manager's lockfile, `.npmrc`   | `TreeArtifact` at `.flows/store/<manager>` | No               |
+| `tsflows/install/link`            | `sealed` | `expected` | `package.json`                     | none                                       | No               |
 
-Fetch is the shareable half. Its `TreeArtifact` write is what the artifact CAS
-records and hydrates.
+Fetch is shaped as the potentially shareable half, but it is not shared today.
+The absolute-root package-manager process can open the lockfile and `.npmrc`
+after the parent verifies them, and the current observer cannot freeze those
+paths or prove there were no undeclared effects. Calling that boundary `hard`
+would be a false hermeticity claim.
 
 Measure is not admissible because it reports the host's package-manager version,
 which no declared read set covers. A restored measurement would carry the version
@@ -105,19 +108,18 @@ at once and the engine refuses with `ConcurrentKeylessDispatch`.
 
 ## The other actions
 
-| Action                            | Tier           | Implementation layer                           | Provided by the CLI executor |
-| --------------------------------- | -------------- | ---------------------------------------------- | ---------------------------- |
-| `tsflows-rules/exec`              | `sealed`       | `ExecLive({ workspaceRoot, cacheDirectory })`  | Yes                          |
-| `tsflows-rules/write-file`        | `sealed`       | `WriteFileLive({ workspaceRoot })`             | Yes                          |
-| `tsflows-rules/check-file`        | `sealed`       | `CheckFileLive({ workspaceRoot })`             | Yes                          |
-| `tsflows-rules/not-implemented`   | `sealed`       | `Rule.layerNotImplemented`                     | Yes                          |
-| `tsflows/install/*`               | `sealed`       | `Install.layer`                                | Yes                          |
-| `tsflows-rules/exec-irreversible` | `irreversible` | `ExecIrreversibleLive({ workspaceRoot })`      | No                           |
-| `tsflows-rules/llm-review`        | `sealed`       | `LlmReviewLive({ workspaceRoot, executable })` | No                           |
+| Action group                                    | Tier           | Provided by the CLI executor |
+| ----------------------------------------------- | -------------- | ---------------------------- |
+| `exec`, `capture-outputs`, `filegroup`          | `sealed`       | Yes                          |
+| `write-file`, `check-file`, `sync-package-json` | `sealed`       | Yes                          |
+| `check-workflow`, `check-docs`, `llm-review`    | `sealed`       | Yes                          |
+| `scaffold-package`, `not-implemented`           | `sealed`       | Yes                          |
+| `tsflows/install/*`                             | `sealed`       | Yes, under pnpm              |
+| `tsflows-rules/exec-irreversible`               | `irreversible` | No                           |
 
-`ExecLive`, `WriteFileLive`, and `CheckFileLive` are re-exported from the
-`tsflows-rules` package root. `ExecIrreversibleLive` and `LlmReviewLive` are not;
-import them from `tsflows-rules/Changesets` and `tsflows-rules/LlmLint`.
+The ordinary implementations are re-exported from the `tsflows-rules` package
+root. `ExecIrreversibleLive` remains an explicit opt-in from the Changesets
+module and is intentionally absent from the normal executor.
 
 An action call with no implementation in scope is a wiring error, not a runtime
 contingency. The interpreter refuses with `unresolved_action` before it runs

@@ -66,6 +66,9 @@ Refusals:
 | Starts with `/` or `\`                                 | `cacheDirectory must be workspace-relative: <value>`   |
 | Starts with a drive letter, such as `C:\cache`         | `cacheDirectory must be workspace-relative: <value>`   |
 | Contains a `..` segment                                | `cacheDirectory must not leave the workspace: <value>` |
+| Contains a control character or malformed Unicode      | `cacheDirectory must be well-formed text...`           |
+| Exceeds 4,096 UTF-8 bytes                              | `cacheDirectory must be at most 4096 UTF-8 bytes`      |
+| A segment exceeds 255 UTF-8 bytes                      | `cacheDirectory segments must be at most 255...`       |
 
 Examples:
 
@@ -130,8 +133,9 @@ There is no flag for this. It is a workspace policy, not a per-run choice.
 | `<cacheDirectory>/knip-<fingerprint>.json` | `DepsLint`, when its ignore lists are non-empty and the tool is knip |
 
 It does not control package-manager stores. Those stay at
-`.flows/store/<manager>` because fetch declares them as `TreeArtifact`
-boundaries, which is key material.
+`.flows/store/<manager>` because fetch declares that fixed path as its
+`TreeArtifact` boundary. The direct `install` verb therefore requires the
+default `.flows` setting; other verbs accept a custom directory.
 
 ## Not key material
 

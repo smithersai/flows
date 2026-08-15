@@ -33,21 +33,24 @@ Labels never appear in rule attributes. A target value found anywhere inside an
 attrs object becomes a dependency edge. See
 [Dependencies](../concepts/dependencies.md).
 
-## Why is there no `run` verb?
+## What are `run` and `docs` for?
 
-`Rule.Kind` includes `run`, and several rules declare it, but `cli/src/Cli.ts`
-defines no `run` command. A `run`-kind target is therefore never selected as a
-root by `build`, `test`, `lint`, or `ci`. It still appears in `query` and
-`graph`, and it still executes when a selected target depends on it.
+`run` selects operational targets that should never be pulled into ordinary
+build, test, lint, or CI selection. Examples are cleaning, watch processes,
+package scaffolding, and generated-file writes. `NewPackage` receives its name
+through `tsflows run <label> --name <package>`.
+
+`docs` selects documentation-parity targets on demand. It is deliberately not
+part of `ci`, whose merged graph contains lint, build, and test only.
 
 ## Which rules actually execute?
 
-The CLI executor supplies implementations for the shared exec action, the
-generated-file write and check actions, and the install actions. Rules built on
-those run for real. Rules that call the irreversible-exec or llm-review actions
-have no implementation in scope, so executing them fails with an
-`unresolved_action` refusal. That is `LlmLint`, `NpmPublish`, `JsrPublish`, and
-the `version` operation of `Changesets`. The per-rule status is on each page under
+The CLI executor supplies implementations for process execution, output
+capture, filegroups, generated files, package-manifest synchronization,
+workflow and documentation checks, LLM review, package scaffolding, and the
+pnpm install actions. The irreversible-exec layer is intentionally absent, so
+`NpmPublish`, `JsrPublish`, and the `version` operation of `Changesets` fail
+with an `unresolved_action` refusal. The per-rule status is on each page under
 [Rule catalog](../reference/rules/README.md), and the summary table is in
 [Running targets](../workspace/running-targets.md).
 
@@ -61,12 +64,13 @@ See [Actions and boundaries](../concepts/actions-and-boundaries.md).
 
 ## Is `node_modules` cached?
 
-No. `Install` splits into fetch and link. Fetch populates
-`.flows/store/<manager>` and declares it as a `TreeArtifact`, which is
-cache-admissible in principle. Link materializes `node_modules` from that store,
-declares an `expected` boundary, and is never admitted to a cross-run cache. A
-`node_modules` tree is a graph of links into a local store, so restoring one from
-another machine would produce a tree pointing at nothing. See
+No. `Install` splits into fetch and link, and both use `expected` boundaries.
+Fetch populates `.flows/store/<manager>` but is not admitted to a cross-run
+engine cache because the current child-process boundary cannot freeze its
+lockfile/configuration inputs or prove hermetic reads. Link materializes
+`node_modules` locally and always reconciles it. A `node_modules` tree is a
+graph of links into a host-local store, so restoring one from another machine
+would produce a tree pointing at nothing. See
 [Install](../concepts/install.md).
 
 ## Why do two targets of the same rule need separate runtimes?
@@ -93,7 +97,7 @@ See [Configuration](../workspace/configuration.md).
 ## Can I move the package-manager store?
 
 Not today. Manager stores stay at `.flows/store/<manager>` regardless of
-`cacheDirectory`. Those paths are declared `TreeArtifact` boundaries and
-therefore key material, so a configurable location would have to travel as
-resolved host state instead of as a declared path. `DESIGN.md` records this as
-future work.
+`cacheDirectory`. The direct `install` command therefore rejects a custom cache
+directory instead of declaring one path and writing another. Other target verbs
+may use a custom directory. Supporting configurable install stores requires the
+declaration and host-state substitution to change together.

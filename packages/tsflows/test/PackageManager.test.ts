@@ -79,6 +79,170 @@ describe("PackageManager.storeRoot", () => {
     ).toThrow(/case-insensitive name/)
   })
 
+  it("does not invoke user string conversion while rejecting an invalid timeout", () => {
+    let calls = 0
+    const timeout = {
+      toString: () => {
+        calls += 1
+        return "0"
+      }
+    }
+    expect(() =>
+      PackageManager.makeNoop("yarn", {
+        platform,
+        projectRoot: "/workspace",
+        timeoutMs: timeout as never
+      })
+    ).toThrow(/received object/)
+    expect(calls).toBe(0)
+  })
+
+  it("rejects accessors, proxies, unknown fields, and malformed environment values", () => {
+    let reads = 0
+    const accessor = Object.defineProperty({ platform }, "projectRoot", {
+      enumerable: true,
+      get: () => {
+        reads += 1
+        return "/workspace"
+      }
+    })
+    expect(() => PackageManager.makeNoop("yarn", accessor as never)).toThrow(/data property/)
+    expect(reads).toBe(0)
+    expect(() =>
+      PackageManager.makeNoop(
+        "yarn",
+        new Proxy({ platform, projectRoot: "/workspace" }, {
+          ownKeys: () => {
+            throw new Error("trap")
+          }
+        })
+      )
+    ).toThrow(/inspected safely/)
+    expect(() =>
+      PackageManager.makeNoop("yarn", {
+        platform,
+        projectRoot: "/workspace",
+        typo: true
+      } as never)
+    ).toThrow(/unknown property "typo"/)
+    expect(() =>
+      PackageManager.makeNoop("yarn", {
+        platform,
+        projectRoot: "/workspace",
+        environment: { TOKEN: 42 } as never
+      })
+    ).toThrow(/must be a string or undefined/)
+  })
+
+  it("snapshots options and environment before exposing a service", async () => {
+    await withFixture("package-manager-options-snapshot", async (root) => {
+      const other = await Fs.mkdtemp(NodePath.join(Os.tmpdir(), "tsflows-mutated-root-"))
+      try {
+        const executable = NodePath.join(root, "pnpm.mjs")
+        await Fs.writeFile(NodePath.join(root, ".npmrc"), "token=${NPM_TOKEN}\n", "utf8")
+        await writeExecutable(
+          executable,
+          "process.stdout.write(`${process.cwd()}|${process.env.NPM_TOKEN}\\n`)"
+        )
+        const environment: Record<string, string | undefined> = {
+          NPM_TOKEN: "original",
+          PATH: process.env.PATH
+        }
+        const mutablePlatform = { ...platform }
+        const options = {
+          projectRoot: root,
+          platform: mutablePlatform,
+          executable,
+          environment
+        }
+        const manager = await Effect.runPromise(
+          PackageManager.makePnpm(options).pipe(Effect.provide(NodeServices.layer))
+        )
+        options.projectRoot = other
+        environment.NPM_TOKEN = "mutated"
+        mutablePlatform.arch = "arm64"
+
+        expect(await Effect.runPromise(manager.version)).toBe(`${root}|original`)
+        expect(manager.projectRoot).toBe(root)
+        expect(manager.platform.arch).toBe("x64")
+      } finally {
+        await Fs.rm(other, { recursive: true, force: true })
+      }
+    })
+  })
+
+  it("strictly validates canonical store and linked-tree manifest inputs", async () => {
+    const digest = "0".repeat(64) as PackageManager.Digest
+    const alternate = "1".repeat(64) as PackageManager.Digest
+    const valid = {
+      manager: "pnpm" as const,
+      managerVersion: "10.10.0",
+      platform,
+      lockfileDigest: digest,
+      npmrcDigest: null
+    }
+    expect(PackageManager.storeManifestText(valid)).toContain("tsflows/store-manifest/v1")
+    expect(() => PackageManager.storeManifestText({ ...valid, npmrcDigest: undefined as never })).toThrow(
+      /SHA-256 digest or null/
+    )
+    expect(() => PackageManager.storeManifestText({ ...valid, lockfileDigest: "A".repeat(64) })).toThrow(
+      /lowercase SHA-256 digest/
+    )
+    expect(() => PackageManager.storeManifestText({ ...valid, extra: true } as never)).toThrow(
+      /unknown property "extra"/
+    )
+
+    let reads = 0
+    const accessor = Object.defineProperty({ ...valid }, "managerVersion", {
+      enumerable: true,
+      get: () => {
+        reads += 1
+        return "10.10.0"
+      }
+    })
+    expect(() => PackageManager.storeManifestText(accessor)).toThrow(/data property/)
+    expect(reads).toBe(0)
+
+    await expect(Effect.runPromise(
+      PackageManager.linkedTreeManifest({
+        storeDigest: digest,
+        packageJsonDigest: alternate,
+        managerEvidence: undefined as never
+      }).pipe(Effect.provide(NodeServices.layer))
+    )).rejects.toThrow(/lowercase SHA-256 digests/)
+  })
+
+  it("snapshots and freezes store manifest identity while hashing", async () => {
+    const digest = "0".repeat(64) as PackageManager.Digest
+    const mutablePlatform = { ...platform }
+    const input = {
+      manager: "pnpm" as const,
+      managerVersion: "10.10.0",
+      platform: mutablePlatform,
+      lockfileDigest: digest,
+      npmrcDigest: null
+    }
+    const resultPromise = Effect.runPromise(
+      PackageManager.storeManifest(input).pipe(Effect.provide(NodeServices.layer))
+    )
+    input.managerVersion = "99.0.0"
+    mutablePlatform.arch = "arm64"
+    const result = await resultPromise
+    expect(result.managerVersion).toBe("10.10.0")
+    expect(result.platform).toEqual(platform)
+    expect(Object.isFrozen(result)).toBe(true)
+    expect(Object.isFrozen(result.platform)).toBe(true)
+    expect(result.digest).toBe(
+      await Effect.runPromise(
+        PackageManager.storeManifest({
+          ...input,
+          managerVersion: "10.10.0",
+          platform
+        }).pipe(Effect.provide(NodeServices.layer), Effect.map((manifest) => manifest.digest))
+      )
+    )
+  })
+
   it("anchors concurrent manager processes to their own project roots without changing the host cwd", async () => {
     const fixture = await Fs.realpath(
       await Fs.mkdtemp(NodePath.join(Os.tmpdir(), "tsflows-package-manager-root-"))
@@ -221,6 +385,28 @@ describe("PackageManager.storeRoot", () => {
 
       await Fs.writeFile(NodePath.join(root, ".npmrc"), Buffer.from([0xff]))
       await expect(Effect.runPromise(manager.version)).rejects.toThrow(/not valid UTF-8/)
+    })
+  })
+
+  it("refuses project inputs that resolve outside the project root", async () => {
+    await withFixture("package-manager-outside-input", async (root) => {
+      const outside = await Fs.mkdtemp(NodePath.join(Os.tmpdir(), "tsflows-outside-input-"))
+      try {
+        const executable = NodePath.join(root, "pnpm.mjs")
+        const marker = NodePath.join(root, "spawned")
+        await writeExecutable(
+          executable,
+          `import { writeFileSync } from "node:fs"\nwriteFileSync(${JSON.stringify(marker)}, "yes")`
+        )
+        await Fs.writeFile(NodePath.join(outside, "npmrc"), "registry=https://example.test\n", "utf8")
+        await Fs.symlink(NodePath.join(outside, "npmrc"), NodePath.join(root, ".npmrc"))
+        const manager = await makePnpm(root, executable)
+
+        await expect(Effect.runPromise(manager.version)).rejects.toThrow(/resolves outside project root/)
+        await expect(Fs.stat(marker)).rejects.toMatchObject({ code: "ENOENT" })
+      } finally {
+        await Fs.rm(outside, { recursive: true, force: true })
+      }
     })
   })
 

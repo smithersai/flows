@@ -123,6 +123,29 @@ export class KeyMaterialError extends Error {
   }
 }
 
+/**
+ * An exact target exists but does not participate in the requested verb.
+ *
+ * `ci` uses this type to ignore only the expected per-verb refusal while it
+ * merges the other verb plans. Matching error text would also swallow an
+ * unrelated planner or filesystem failure that happened to contain the same
+ * words.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
+export class UnsupportedVerbError extends Error {
+  override readonly name = "UnsupportedVerbError"
+  readonly pattern: string
+  readonly verb: Rule.Kind
+
+  constructor(pattern: string, verb: Rule.Kind) {
+    super(`target selected by ${pattern} does not support the ${verb} verb`)
+    this.pattern = pattern
+    this.verb = verb
+  }
+}
+
 /** Renders a traversal step for a {@link KeyMaterialError} path. */
 const step = (path: string, key: string): string => path === "" ? key : `${path}.${key}`
 
@@ -699,7 +722,10 @@ export const make = async (
     : selected.filter((target) => Rule.metadata(target).kinds.includes(verb))
   if (parsed._tag === "Exact" && compatible.length === 0) {
     if (selected[0] !== undefined) await assertVerbGate(selected[0])
-    throw new Error(`target selected by ${pattern} does not support the ${verb} verb`)
+    if (verb === "graph" || verb === "query") {
+      throw new Error(`target selected by ${pattern} is unavailable to the ${verb} operation`)
+    }
+    throw new UnsupportedVerbError(pattern, verb)
   }
 
   const roots = await Promise.all(compatible.map((target) => workspace.label(target)))

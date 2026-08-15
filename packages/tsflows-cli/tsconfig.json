@@ -15,8 +15,26 @@
     "erasableSyntaxOnly": true,
     "isolatedModules": true,
     "skipLibCheck": true,
-    "noEmit": true,
-    "types": ["node"]
+    "rootDir": "src",
+    "outDir": "dist/esm",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "inlineSources": true,
+    "rewriteRelativeImportExtensions": true,
+    "types": ["node"],
+    "plugins": [
+      {
+        "name": "@effect/language-service",
+        "namespaceImportPackages": ["effect", "@effect/*"],
+        "includeSuggestionsInTsc": false,
+        "ignoreEffectWarningsInTscExitCode": true,
+        "ignoreEffectErrorsInTscExitCode": true,
+        "diagnosticSeverity": {
+          "globalErrorInEffectFailure": "off"
+        }
+      }
+    ]
   },
-  "include": ["src/**/*", "test/**/*"]
+  "include": ["src/**/*"]
 }

@@ -39,6 +39,7 @@ import {
   WriteFileLive
 } from "tsflows-rules"
 import { entryLimit, openCache } from "./Cache.ts"
+import * as Diagnostic from "./Diagnostic.ts"
 import { layerInstall, layerNonInteractiveNodeServices, layerPackageManager } from "./engine.ts"
 import type * as Planner from "./Planner.ts"
 import type { ExpandedInput, Workspace } from "./Workspace.ts"
@@ -306,7 +307,9 @@ const resolveFlows = async (
 export const resolveJobs = (jobs?: number | undefined): number => {
   if (jobs === undefined) return Math.max(1, Os.availableParallelism())
   if (!Number.isInteger(jobs) || jobs < 1) {
-    throw new TypeError(`jobs must be a positive integer, received ${String(jobs)}`)
+    throw new TypeError(
+      `jobs must be a positive integer, received ${typeof jobs === "number" ? String(jobs) : typeof jobs}`
+    )
   }
   return jobs
 }
@@ -414,7 +417,11 @@ export const schedule = (
   signal?: AbortSignal | undefined
 ): Promise<void> => {
   if (!Number.isInteger(jobs) || jobs < 1) {
-    return Promise.reject(new TypeError(`jobs must be a positive integer, received ${String(jobs)}`))
+    return Promise.reject(
+      new TypeError(
+        `jobs must be a positive integer, received ${typeof jobs === "number" ? String(jobs) : typeof jobs}`
+      )
+    )
   }
   const invalid = validateWorkList(targets)
   if (invalid !== undefined) return Promise.reject(new Error(`scheduler refused the work list: ${invalid}`))
@@ -437,7 +444,7 @@ export const schedule = (
     let failure: Error | undefined
     const abortFailure = (): Error => {
       const reason: unknown = signal?.reason
-      return reason instanceof Error ? reason : new Error(reason === undefined ? "execution aborted" : String(reason))
+      return Diagnostic.error(reason, "execution aborted")
     }
     // A synchronous throw from `runOne` must join the ordinary rejection path:
     // thrown out of a completion handler it would reject nothing anyone
@@ -465,7 +472,7 @@ export const schedule = (
         }, (cause: unknown) => {
           active -= 1
           // Keep the first fault: a later one is usually a consequence of it.
-          failure ??= cause instanceof Error ? cause : new Error(String(cause))
+          failure ??= Diagnostic.error(cause, "scheduled target rejected")
           pump()
         })
       }
@@ -503,16 +510,22 @@ const formatDuration = (durationMs: number): string =>
 
 /** Renders a failure value compactly for a status line. */
 const describeFailure = (value: unknown): string => {
-  if (typeof value === "object" && value !== null && "_tag" in value) {
+  if (typeof value === "object" && value !== null) {
     try {
-      const encoded = JSON.stringify(value)
-      if (encoded !== undefined && encoded !== "{}") return encoded
+      const cloned = cloneCacheJson(
+        value,
+        new Set(),
+        { bytes: entryLimit - Diagnostic.maximumMessageCodeUnits, members: 0 },
+        "failure",
+        0
+      )
+      const encoded = JSON.stringify(cloned)
+      if (encoded !== undefined && encoded !== "{}") return Diagnostic.message(encoded, "target failed")
     } catch {
       // Fall through to the generic renderings.
     }
   }
-  if (value instanceof Error) return value.message === "" ? value.name : value.message
-  return typeof value === "string" ? value : String(value)
+  return Diagnostic.message(value, "target failed")
 }
 
 /**

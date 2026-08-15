@@ -261,8 +261,11 @@ jobs:
           tool: jj-cli@0.39.0
       - name: Initialize colocated jj repository
         run: jj git init --colocate
+      # Two concurrent targets: the heavy vitest suites carry finite 30s
+      # per-test budgets that host parallelism on a 4-core runner starves
+      # when several run at once.
       - name: Execute the merged ci graph
-        run: node packages/tsflows-cli/src/main.js ci "//packages/..."
+        run: node packages/tsflows-cli/src/main.js ci "//packages/..." --jobs 2
 
   node-windows:
     name: node suite (Windows, advisory)

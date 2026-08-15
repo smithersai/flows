@@ -77,11 +77,11 @@ zero without creating it fails the target.
 
 ## Status
 
-|           |                         |
-| --------- | ----------------------- |
-| Kinds     | `build`                 |
-| Cacheable | Always                  |
-| Executes  | Yes, through `ExecLive` |
+|           |                                                                         |
+| --------- | ----------------------------------------------------------------------- |
+| Kinds     | `build`                                                                 |
+| Cacheable | Never; output restoration and complete toolchain identity are not wired |
+| Executes  | Yes, through `ExecLive`                                                 |
 
 ## See also
 

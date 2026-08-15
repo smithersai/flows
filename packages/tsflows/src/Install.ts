@@ -13,7 +13,7 @@
  * | round | step    | tier   | boundary | admitted to the cross-run cache |
  * | ----- | ------- | ------ | -------- | ------------------------------- |
  * | 1     | measure | sealed | expected | no                              |
- * | 2     | fetch/* | sealed | hard     | with sandbox whole-tree proof  |
+ * | 2     | fetch/* | sealed | expected | no                              |
  * | 2     | link    | sealed | expected | no                              |
  *
  * Every tier is `sealed` because `Plan.compile` refuses to key anything else:
@@ -22,7 +22,7 @@
  * either tier makes the flow unplannable. The `expected` boundary mode is what
  * keeps measure and link out of the cross-run cache, because
  * `ActionPersistence` admits a result only when the tier is `sealed` AND the
- * boundary mode is `hard`. DESIGN.md, section 7, records the gap.
+ * boundary mode is `hard`. No install action currently uses that mode.
  *
  * A `node_modules` tree is a graph of links into a local store, so
  * restoring one from another machine would produce a tree whose entries point
@@ -57,7 +57,7 @@ import * as PackageManager from "./PackageManager.ts"
  *
  * Every field is either content (a digest) or identity (a name, a version, a
  * platform). Nothing here is a path into a host's store, because this value
- * travels into a shared cache key.
+ * is durable content identity even while the current CLI keeps it local.
  *
  * @category models
  * @since 0.1.0
@@ -147,18 +147,21 @@ export const Measure = Action.make("tsflows/install/measure", {
 /**
  * Populates the package-manager store, and writes no `node_modules`.
  *
- * This is the shareable half. Its key material is the measured environment:
+ * Its key material is the measured environment:
  * the lockfile digest, the credential-free `.npmrc` digest, the manager name
  * and its exact version, and the host platform when it affects fetched data.
  * All of it reaches the key as a payload `Literal`, because the
  * measurement arrived as this round's payload rather than as an upstream
  * reference. Its value is a store-manifest digest, never the store's bytes and
- * never a `node_modules` archive. The store files are declared outputs. The
- * existing artifact CAS records and hydrates them before replaying a hit.
+ * never a `node_modules` archive. The store files are declared outputs, but
+ * the shipped implementation pins its child process to an absolute project
+ * root. It cannot freeze the lockfile and `.npmrc` between verification and
+ * the child's own opens, so this action uses an `expected` boundary and is
+ * not admitted to a cross-run cache.
  *
  * Every manager uses a workspace-local directory beneath `.flows/store`.
- * This static path lets the sandbox boundary prove the complete write set and
- * publish the files without publishing `node_modules`.
+ * This static path keeps the write declaration exact and makes a future
+ * sandbox-root-aware implementation possible without changing the Flow API.
  *
  * @category actions
  * @since 0.1.0
@@ -179,7 +182,7 @@ const makeFetch = <Tag extends string>(
     .annotate(Flow.EffectsDeclaration, {
       reads: [lockfile, ".npmrc"],
       writes: [{ _tag: "TreeArtifact", path: `${PackageManager.storeRoot}/${manager}` }],
-      boundaryMode: "hard"
+      boundaryMode: "expected"
     })
 
 /**
@@ -348,6 +351,33 @@ export const Install: InstallFlow = Flow.make("tsflows/install", {
 const environmentMismatch = (message: string): PackageManager.PackageManagerError =>
   new PackageManager.PackageManagerError({ code: "environment_mismatch", message })
 
+const lockfileFor = (manager: PackageManager.Name): string =>
+  manager === "npm"
+    ? "package-lock.json"
+    : manager === "pnpm"
+    ? "pnpm-lock.yaml"
+    : manager === "bun"
+    ? "bun.lock"
+    : "yarn.lock"
+
+const verifyManagerContract = (
+  manager: PackageManager.Service
+): Effect.Effect<void, PackageManager.PackageManagerError> => {
+  if (!["npm", "pnpm", "bun", "yarn"].includes(manager.name)) {
+    return Effect.fail(environmentMismatch("the package-manager layer declares an unknown manager"))
+  }
+  const expectedLockfile = lockfileFor(manager.name)
+  const expectedStore = `${PackageManager.storeRoot}/${manager.name}`
+  return manager.lockfileName === expectedLockfile && manager.storeDirectory === expectedStore
+    ? Effect.void
+    : Effect.fail(
+      environmentMismatch(
+        `the ${manager.name} layer declares ${manager.lockfileName} and ${manager.storeDirectory}; ` +
+          `the install Flow boundary requires ${expectedLockfile} and ${expectedStore}`
+      )
+    )
+}
+
 /**
  * Rechecks round-one measurements before a durable round-two fetch.
  *
@@ -362,6 +392,7 @@ const verifyEnvironment = (
   FileSystem.FileSystem | Crypto.Crypto
 > =>
   Effect.gen(function*() {
+    yield* verifyManagerContract(manager)
     const managerVersion = yield* manager.version
     const lockfile = yield* PackageManager.lockfileDigest(manager.projectRoot, manager.lockfileName)
     const npmrc = yield* PackageManager.npmrcDigest(manager.projectRoot)
@@ -417,6 +448,7 @@ const verifyStoreManager = (
 export const MeasureLive = Measure.toLayer(() =>
   Effect.gen(function*() {
     const manager = yield* PackageManager.PackageManager
+    yield* verifyManagerContract(manager)
     const managerVersion = yield* manager.version
     const lockfile = yield* PackageManager.lockfileDigest(manager.projectRoot, manager.lockfileName)
     const npmrc = yield* PackageManager.npmrcDigest(manager.projectRoot)

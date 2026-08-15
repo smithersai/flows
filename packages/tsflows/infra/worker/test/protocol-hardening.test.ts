@@ -9,8 +9,11 @@ import {
   type DeleteFence,
   describeFailure,
   maxBodyChunks,
+  maxCanonicalJsonBytes,
+  maxConcurrentActionCachePublications,
   maxConcurrentArtifactTransfers,
   maxConcurrentCacheRequests,
+  maxConcurrentFindMissingRequests,
   maxFindMissingDigests,
   maxJsonDepth,
   maxKeyDigestLength,
@@ -227,7 +230,21 @@ describe("remote-cache hardening", () => {
       })
     )
     expect(refused.status).toBe(401)
+    expect(refused.headers.get("www-authenticate")).toBe("Bearer realm=\"tsflows-cache\"")
     expect(refusedBody.log).toEqual(["body-cancel"])
+  })
+
+  it("does not let a non-settling cancellation hold an admission slot", async () => {
+    const body = {
+      cancel: () => new Promise<void>(() => undefined)
+    }
+    const response = await makeHandler()(
+      rawRequest(`/ac/${keyDigest}`, {
+        headers: { authorization: "Bearer wrong" },
+        body
+      })
+    )
+    expect(response.status).toBe(401)
   })
 
   it("rejects malformed, oversized, and control-bearing action keys", async () => {
@@ -251,6 +268,7 @@ describe("remote-cache hardening", () => {
       { ...base, recordedEventSeq: 1 },
       { ...base, recordedRunId: "", recordedEventSeq: 1 },
       { ...base, recordedRunId: "bad\u0000run", recordedEventSeq: 1 },
+      { ...base, recordedRunId: "\ud800", recordedEventSeq: 1 },
       { ...base, recordedRunId: "r", recordedEventSeq: -1 }
     ]
     for (const body of cases) {
@@ -320,8 +338,26 @@ describe("remote-cache hardening", () => {
     const sparse = new Array(1)
     expect(() => canonicalJson(sparse)).toThrow()
     const accessor = {}
-    Object.defineProperty(accessor, "secret", { enumerable: true, get: () => "value" })
+    let accessorReads = 0
+    Object.defineProperty(accessor, "secret", {
+      enumerable: true,
+      get: () => {
+        accessorReads += 1
+        return "value"
+      }
+    })
     expect(() => canonicalJson(accessor)).toThrow("inert")
+    expect(accessorReads).toBe(0)
+    let proxyReads = 0
+    const proxy = new Proxy({ value: "safe" }, {
+      get(target, property, receiver) {
+        proxyReads += 1
+        return Reflect.get(target, property, receiver)
+      }
+    })
+    expect(canonicalJson(proxy)).toBe("{\"value\":\"safe\"}")
+    expect(proxyReads).toBe(0)
+    expect(() => canonicalJson("x".repeat(maxCanonicalJsonBytes + 1))).toThrow("byte bound")
     let deep: unknown = null
     for (let index = 0; index <= maxJsonDepth; index += 1) deep = [deep]
     expect(() => canonicalJson(deep)).toThrow("deeply")
@@ -489,6 +525,84 @@ describe("remote-cache hardening", () => {
     )
     expect(refused.status).toBe(413)
     expect(contentStore.presentCalls).toBe(1)
+
+    const ambiguous = await handler(
+      jsonRequest("/cas/findMissing", { digests: [], ignored: true }, { method: "POST" })
+    )
+    expect(ambiguous.status).toBe(400)
+  })
+
+  it("turns malformed storage answers into retryable refusals", async () => {
+    const invalidActionCache = {
+      get: async () => "not-json",
+      put: async () => "unexpected",
+      delete: async () => "yes"
+    } as unknown as ActionCache
+    const invalidContentStore = {
+      get: async () => ({
+        get body() {
+          throw new Error("must not invoke body getter")
+        }
+      }),
+      has: async () => "yes",
+      put: async () => "unexpected",
+      presentDigests: async () => ({ has: () => true })
+    } as unknown as ContentStore
+    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined)
+    try {
+      const actionHandler = makeHandler({ actionCache: invalidActionCache })
+      expect((await actionHandler(request(`/ac/${keyDigest}`))).status).toBe(503)
+      expect((await actionHandler(jsonRequest(`/ac/${keyDigest}`, { ok: true }, { method: "PUT" }))).status)
+        .toBe(503)
+      expect((await actionHandler(request(`/ac/${keyDigest}`, { method: "DELETE" }))).status).toBe(503)
+
+      const contentHandler = makeHandler({ contentStore: invalidContentStore })
+      const digest = "b".repeat(64)
+      expect((await contentHandler(request(`/cas/${digest}`))).status).toBe(503)
+      expect((await contentHandler(request(`/cas/${digest}`, { method: "HEAD" }))).status).toBe(503)
+      expect((await contentHandler(jsonRequest("/cas/findMissing", { digests: [digest] }, { method: "POST" }))).status)
+        .toBe(503)
+    } finally {
+      errors.mockRestore()
+    }
+  })
+
+  it("snapshots dependencies and rejects dependency accessors without invoking them", async () => {
+    const actionCache = new MemoryActionCache()
+    const dependencies: {
+      actionCache: ActionCache
+      contentStore: ContentStore
+      tokenHash: string
+    } = {
+      actionCache,
+      contentStore: new MemoryContentStore(),
+      tokenHash
+    }
+    const handler = createHandler(dependencies)
+    dependencies.actionCache = {
+      get: async () => "corrupt",
+      put: async () => "conflict",
+      delete: async () => false
+    }
+    expect((await handler(request(`/ac/${keyDigest}`))).status).toBe(404)
+
+    let reads = 0
+    const accessor = Object.defineProperty(
+      {
+        actionCache,
+        contentStore: new MemoryContentStore()
+      },
+      "tokenHash",
+      {
+        enumerable: true,
+        get: () => {
+          reads += 1
+          return tokenHash
+        }
+      }
+    )
+    expect(() => createHandler(accessor as never)).toThrow(/data property/)
+    expect(reads).toBe(0)
   })
 
   it("admits no more than the configured number of simultaneous requests", async () => {
@@ -524,6 +638,67 @@ describe("remote-cache hardening", () => {
     await vi.waitFor(() => expect(entered).toBe(maxConcurrentArtifactTransfers))
 
     const overflow = await handler(request(`/cas/${digest}`))
+    expect(overflow.status).toBe(429)
+    release?.()
+    await Promise.all(admitted)
+  })
+
+  it("bounds memory-heavy action-cache publications independently of reads", async () => {
+    let entered = 0
+    let release: (() => void) | undefined
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const memory = new MemoryActionCache()
+    const actionCache: ActionCache = {
+      get: (key) => memory.get(key),
+      delete: (key, fence) => memory.delete(key, fence),
+      put: async (key, publication) => {
+        entered += 1
+        await gate
+        return memory.put(key, publication)
+      }
+    }
+    const handler = makeHandler({ actionCache })
+    const body = { keyDigest, result: { exitOk: true } }
+    const admitted = Array.from(
+      { length: maxConcurrentActionCachePublications },
+      () => handler(jsonRequest(`/ac/${keyDigest}`, body, { method: "PUT" }))
+    )
+    await vi.waitFor(() => expect(entered).toBe(maxConcurrentActionCachePublications))
+
+    const overflow = await handler(jsonRequest(`/ac/${keyDigest}`, body, { method: "PUT" }))
+    expect(overflow.status).toBe(429)
+    release?.()
+    await Promise.all(admitted)
+  })
+
+  it("bounds simultaneous findMissing materialization", async () => {
+    let entered = 0
+    let release: (() => void) | undefined
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const memory = new MemoryContentStore()
+    const contentStore: ContentStore = {
+      get: (digest) => memory.get(digest),
+      has: (digest) => memory.has(digest),
+      put: (digest, bytes) => memory.put(digest, bytes),
+      presentDigests: async (digests) => {
+        entered += 1
+        await gate
+        return memory.presentDigests(digests)
+      }
+    }
+    const handler = makeHandler({ contentStore })
+    const body = { digests: ["b".repeat(64)] }
+    const admitted = Array.from(
+      { length: maxConcurrentFindMissingRequests },
+      () => handler(jsonRequest("/cas/findMissing", body, { method: "POST" }))
+    )
+    await vi.waitFor(() => expect(entered).toBe(maxConcurrentFindMissingRequests))
+
+    const overflow = await handler(jsonRequest("/cas/findMissing", body, { method: "POST" }))
     expect(overflow.status).toBe(429)
     release?.()
     await Promise.all(admitted)
@@ -575,12 +750,15 @@ describe("remote-cache hardening", () => {
   })
 
   it("survives diagnostics with throwing fields and primitive failures", () => {
+    let reads = 0
     const hostile = Object.defineProperty({}, "name", {
       get: () => {
+        reads += 1
         throw new Error("diagnostic trap")
       }
     })
     expect(describeFailure(hostile)).toBe("tsflows cache: request failed (unattributed)")
+    expect(reads).toBe(0)
     expect(describeFailure("secret string")).toBe("tsflows cache: request failed (kind=string)")
   })
 })

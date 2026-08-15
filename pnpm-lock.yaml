@@ -35,6 +35,9 @@ importers:
       react-dom:
         specifier: ^19.2.8
         version: 19.2.8(react@19.2.8)
+      tsflows-cli:
+        specifier: 0.1.0
+        version: link:packages/tsflows-cli
       tsflows-rules:
         specifier: 0.1.0
         version: link:packages/tsflows-rules
@@ -3324,6 +3327,9 @@ importers:
         specifier: 4.23.12
         version: 4.23.12
     devDependencies:
+      '@effect/language-service':
+        specifier: 0.87.1
+        version: 0.87.1
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
@@ -3351,6 +3357,9 @@ importers:
       eslint-plugin-unicorn:
         specifier: 61.0.2
         version: 61.0.2(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))
+      madge:
+        specifier: 8.0.0
+        version: 8.0.0(supports-color@8.1.1)(typescript@6.0.3)
       typescript:
         specifier: 6.0.3
         version: 6.0.3
@@ -3391,6 +3400,9 @@ importers:
         specifier: 10.2.6
         version: 10.2.6
     devDependencies:
+      '@effect/language-service':
+        specifier: 0.87.1
+        version: 0.87.1
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
@@ -3421,6 +3433,9 @@ importers:
       eslint-plugin-unicorn:
         specifier: 61.0.2
         version: 61.0.2(eslint@9.39.1(jiti@2.7.0)(supports-color@8.1.1))
+      madge:
+        specifier: 8.0.0
+        version: 8.0.0(supports-color@8.1.1)(typescript@6.0.3)
       typescript:
         specifier: 6.0.3
         version: 6.0.3

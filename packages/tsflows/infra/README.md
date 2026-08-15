@@ -69,9 +69,11 @@ CI=1 npm run deploy -- --yes
 The `CI=1` prefix is for the environment-token path. Omit it when you use an
 interactive Alchemy OAuth profile.
 
-Alchemy creates a stage-specific D1 database and R2 bucket, applies
-`worker/migrations/0001_initial.sql`, deploys the Worker with the three
-bindings, and attaches `tsflows.smithers.sh` as its custom domain. The
+Alchemy creates a stage-specific D1 database and R2 bucket, applies every SQL
+file in `worker/migrations/` in order, deploys the Worker with the three
+bindings, and attaches `tsflows.smithers.sh` as its custom domain. Migration
+`0001_initial.sql` creates the table; `0002_bound_cache_rows.sql` constrains
+existing and future body/discriminator sizes. The
 production Worker does not expose a `workers.dev` URL.
 
 ## Deploy a development stage
@@ -88,13 +90,14 @@ the production custom domain.
 
 ## Verify the service
 
-Every route, including `/healthz`, requires the bearer token:
+`GET` and `HEAD /healthz` are public readiness probes. They check D1 and R2,
+return no cache state, and coalesce successful probes for one second:
 
 ```sh
-curl --fail-with-body \
-  -H "Authorization: Bearer $TSFLOWS_CACHE_TOKEN" \
-  https://tsflows.smithers.sh/healthz
+curl --fail-with-body https://tsflows.smithers.sh/healthz
 ```
+
+Every `/ac` and `/cas` request requires the bearer token.
 
 Run the unit tests and TypeScript check locally:
 
@@ -118,25 +121,39 @@ keys are the CLI's sanitized, non-empty path segments.
 | `HEAD /cas/{digest}`     | `200`                  | Checks R2 without returning a body; missing objects return `404`.                                                   |
 | `POST /cas/findMissing`  | `200` JSON             | Accepts `{"digests":[...]}` and returns unique missing digests in request order.                                    |
 
-The `/ac` body can be the CLI's `CachedResult` JSON verbatim; the Worker does
-not require the richer self-hosted table shape. For compatibility with the
-existing cache protocol, an object containing a `result` member uses that
-member for conflict classification. Other JSON bodies, including
-`CachedResult`, use the whole value. Object keys are canonicalized before the
-comparison, while the first writer's original JSON text is preserved for
-reads.
+The `/ac` body can be the CLI's `CachedResult` JSON verbatim or the richer
+`CacheEntry` envelope. A document is an envelope only when it contains both
+`keyDigest` and `result`; its key must match the request path. Conflict
+classification uses the envelope's `result`, and uses the whole document for
+every other shape. Object keys are canonicalized before comparison, while the
+first writer's original JSON text is preserved for reads.
 
 Requests use these bounds:
 
 - `/ac` JSON body: 1 MiB.
-- `/cas` upload: 64 MiB and `application/octet-stream`.
+- `/cas` upload: 16 MiB and `application/octet-stream`.
 - `/cas/findMissing`: 256 KiB, at most 1,000 digests, and
   `application/json`.
+
+JSON is also bounded to depth 64, 100,000 aggregate members, a 2 MiB canonical
+conflict discriminator, and 16,384 stream chunks. Action keys are at most 512
+UTF-8 bytes and one publication may reference at most 1,000 artifacts.
+
+One isolate admits at most 64 cache requests, with independent route ceilings
+of four action-cache publications, eight `findMissing` requests, and two large
+artifact transfers. Excess work returns `429` with `Retry-After: 1` and its
+request body is cancelled without waiting for a hostile cancellation promise.
 
 Malformed input returns `400`, unsupported content types return `415`, and
 oversized input returns `413`. Unsupported methods return `405`. An internal
 storage refusal returns `503`, which clients treat as retryable rather than as
 a cache miss.
+
+The deploy wrapper forwards termination to the Alchemy process group, waits a
+bounded grace period, escalates when necessary, and runs state redaction after
+success, failure, or signal. Redaction uses bounded descriptor-stable reads and
+atomic durable publication; use the wrapper instead of invoking Alchemy deploy
+directly.
 
 ## Self-host instead
 

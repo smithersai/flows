@@ -24,20 +24,22 @@ flows/
 
 ## Link the authoring package
 
-The flows root manifest declares `tsflows-rules` as a devDependency at the
-workspace version:
+The flows root manifest declares both the authoring package and CLI as
+devDependencies at the workspace version:
 
 ```json
 // flows/package.json
 {
   "devDependencies": {
+    "tsflows-cli": "0.1.0",
     "tsflows-rules": "0.1.0"
   }
 }
 ```
 
 `linkWorkspacePackages` resolves the exact version to the workspace package, so
-`pnpm install` links it with no `file:` or `link:` specifier.
+`pnpm install` links both packages with no `file:` or `link:` specifier. The CLI
+dependency exposes the `tsflows` bin to `pnpm exec` at the workspace root.
 
 `BUILD.ts` files then import by bare specifier:
 
@@ -52,7 +54,7 @@ The CLI package depends on the flows engine packages, on
 `@smthrs/tsflows-next`, and on `tsflows-rules` at the workspace version:
 
 ```json
-// flows/packages/tsflows-cli/package.json
+// packages/tsflows-cli/package.json
 {
   "dependencies": {
     "@smthrs/engine-next": "0.1.0",
@@ -105,6 +107,10 @@ export const config = Workspace({ cacheDirectory: ".flows", gitignored: true })
 ```
 
 See [Configuration](../workspace/configuration.md).
+
+The ordinary target verbs may use another configured directory. The dedicated
+`tsflows install` verb currently requires `.flows`, because its declared pnpm
+store boundary is fixed at `.flows/store/pnpm`.
 
 ## Next
 

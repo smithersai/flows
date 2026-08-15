@@ -9,6 +9,19 @@ const jsonContentType = /^application\/(?:[a-z0-9!#$&^_.+-]+\+)?json$/
 const decimalDigits = /^[0-9]+$/
 const controlCharacters = /[\u0000-\u001f\u007f]/
 
+const isWellFormedText = (value: string): boolean => {
+  for (let index = 0; index < value.length; index += 1) {
+    const unit = value.charCodeAt(index)
+    if (unit >= 0xd800 && unit <= 0xdbff) {
+      if (index + 1 >= value.length) return false
+      const next = value.charCodeAt(index + 1)
+      if (next < 0xdc00 || next > 0xdfff) return false
+      index += 1
+    } else if (unit >= 0xdc00 && unit <= 0xdfff) return false
+  }
+  return true
+}
+
 /**
  * The largest action-cache document the service accepts.
  *
@@ -98,12 +111,28 @@ export const maxBodyChunks = 16_384
 export const maxConcurrentCacheRequests = 64
 
 /**
+ * The maximum number of action-cache publications admitted by one isolate.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const maxConcurrentActionCachePublications = 4
+
+/**
+ * The maximum number of `findMissing` bodies admitted by one isolate.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const maxConcurrentFindMissingRequests = 8
+
+/**
  * The maximum number of large CAS transfers admitted by one Worker isolate.
  *
  * @category constants
  * @since 0.1.0
  */
-export const maxConcurrentArtifactTransfers = 4
+export const maxConcurrentArtifactTransfers = 2
 
 /**
  * Successful readiness checks are coalesced for this monotonic interval.
@@ -223,6 +252,12 @@ const json = (status: number, body: unknown): Response =>
 
 const empty = (status: number): Response => new Response(null, { status })
 
+const unauthorized = (): Response =>
+  new Response(null, {
+    status: 401,
+    headers: { "www-authenticate": "Bearer realm=\"tsflows-cache\"" }
+  })
+
 const busy = (message: string): Response =>
   new Response(JSON.stringify({ error: message }), {
     status: 429,
@@ -237,13 +272,14 @@ const mediaType = (request: Request): string =>
 const utf8Bytes = (value: string): number => textEncoder.encode(value).byteLength
 
 /** Cancels a body the handler has refused without allowing cleanup to mask the response. */
-const discardBody = async (body: ReadableStream<Uint8Array> | null): Promise<void> => {
-  if (body === null) return
+const discardBody = (body: ReadableStream<Uint8Array> | null): Promise<void> => {
+  if (body === null) return Promise.resolve()
   try {
-    await body.cancel()
+    void body.cancel().catch(() => undefined)
   } catch {
     // A sender that has already gone away needs no further cleanup.
   }
+  return Promise.resolve()
 }
 
 const readBody = async (request: Request, limit: number): Promise<BodyRead> => {
@@ -278,13 +314,14 @@ const readBody = async (request: Request, limit: number): Promise<BodyRead> => {
       // A reader that cannot be released is already unusable; the answer stands.
     }
   }
-  const abandon = async (): Promise<void> => {
+  const abandon = (): Promise<void> => {
     try {
-      await reader.cancel()
+      void reader.cancel().catch(() => undefined)
     } catch {
       // Cancellation is best effort and must not replace the client-facing error.
     }
     release()
+    return Promise.resolve()
   }
 
   const bytes = new Uint8Array(declaredLength ?? limit)
@@ -351,25 +388,6 @@ const readJson = async (request: Request, limit: number): Promise<JsonRead> => {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value)
 
-const renderCanonicalJson = (value: unknown): string => {
-  if (value === null) return "null"
-  if (typeof value === "string" || typeof value === "boolean") return JSON.stringify(value)
-  if (typeof value === "number") {
-    if (!Number.isFinite(value)) throw new Error("JSON number is outside the supported range")
-    return JSON.stringify(value)
-  }
-  if (Array.isArray(value)) return `[${value.map(renderCanonicalJson).join(",")}]`
-  if (isRecord(value)) {
-    return `{${
-      Object.keys(value)
-        .sort()
-        .map((key) => `${JSON.stringify(key)}:${renderCanonicalJson(value[key])}`)
-        .join(",")
-    }}`
-  }
-  throw new Error("unsupported JSON value")
-}
-
 /**
  * Renders an inert JSON value with deterministic member order and hard bounds.
  *
@@ -378,14 +396,39 @@ const renderCanonicalJson = (value: unknown): string => {
  */
 export const canonicalJson = (value: unknown): string => {
   const ancestors = new Set<object>()
+  const chunks: Array<string> = []
+  let bytes = 0
   let members = 0
-  const validate = (current: unknown, depth: number): void => {
+  const append = (fragment: string): void => {
+    bytes += utf8Bytes(fragment)
+    if (!Number.isSafeInteger(bytes) || bytes > maxCanonicalJsonBytes) {
+      throw new Error("canonical JSON exceeds its byte bound")
+    }
+    chunks.push(fragment)
+  }
+  const appendString = (text: string): void => {
+    if (text.length > maxCanonicalJsonBytes) throw new Error("canonical JSON exceeds its byte bound")
+    append(JSON.stringify(text))
+  }
+  const render = (current: unknown, depth: number): void => {
     if (depth > maxJsonDepth) throw new Error("JSON is nested too deeply")
-    if (current === null || typeof current === "string" || typeof current === "boolean") return
+    if (current === null) {
+      append("null")
+      return
+    }
+    if (typeof current === "string") {
+      appendString(current)
+      return
+    }
+    if (typeof current === "boolean") {
+      append(current ? "true" : "false")
+      return
+    }
     if (typeof current === "number") {
       if (!Number.isFinite(current) || Object.is(current, -0)) {
         throw new Error("JSON number is outside the supported range")
       }
+      append(JSON.stringify(current))
       return
     }
     if (!Array.isArray(current) && !isRecord(current)) throw new Error("unsupported JSON value")
@@ -393,17 +436,28 @@ export const canonicalJson = (value: unknown): string => {
     ancestors.add(current)
     try {
       if (Array.isArray(current)) {
+        const lengthDescriptor = Object.getOwnPropertyDescriptor(current, "length")
+        if (
+          lengthDescriptor === undefined ||
+          !("value" in lengthDescriptor) ||
+          !Number.isSafeInteger(lengthDescriptor.value) ||
+          lengthDescriptor.value < 0
+        ) throw new Error("array is not an inert JSON array")
+        const length = lengthDescriptor.value as number
         const keys = Reflect.ownKeys(current).filter((key) => key !== "length")
-        if (keys.length !== current.length) throw new Error("array is not a JSON array")
-        if (current.length > maxJsonMembers - members) throw new Error("JSON has too many members")
-        members += current.length
-        for (let index = 0; index < current.length; index += 1) {
+        if (keys.length !== length) throw new Error("array is not a JSON array")
+        if (length > maxJsonMembers - members) throw new Error("JSON has too many members")
+        members += length
+        append("[")
+        for (let index = 0; index < length; index += 1) {
+          if (index > 0) append(",")
           const descriptor = Object.getOwnPropertyDescriptor(current, String(index))
           if (descriptor === undefined || !("value" in descriptor) || !descriptor.enumerable) {
             throw new Error("array is not an inert JSON array")
           }
-          validate(descriptor.value, depth + 1)
+          render(descriptor.value, depth + 1)
         }
+        append("]")
         return
       }
 
@@ -415,33 +469,66 @@ export const canonicalJson = (value: unknown): string => {
       if (!keys.every((key) => typeof key === "string")) throw new Error("object has symbol keys")
       if (keys.length > maxJsonMembers - members) throw new Error("JSON has too many members")
       members += keys.length
-      for (const key of keys) {
+      const stringKeys = keys.sort()
+      append("{")
+      for (let index = 0; index < stringKeys.length; index += 1) {
+        const key = stringKeys[index]
+        if (key === undefined) throw new Error("object key disappeared during canonicalization")
+        if (index > 0) append(",")
         const descriptor = Object.getOwnPropertyDescriptor(current, key)
         if (descriptor === undefined || !("value" in descriptor) || !descriptor.enumerable) {
           throw new Error("object is not an inert JSON object")
         }
-        validate(descriptor.value, depth + 1)
+        appendString(key)
+        append(":")
+        render(descriptor.value, depth + 1)
       }
+      append("}")
     } finally {
       ancestors.delete(current)
     }
   }
 
-  validate(value, 0)
-  const rendered = renderCanonicalJson(value)
-  if (utf8Bytes(rendered) > maxCanonicalJsonBytes) {
-    throw new Error("canonical JSON exceeds its byte bound")
-  }
-  return rendered
+  render(value, 0)
+  return chunks.join("")
 }
 
 const invalidKeyDigest = (keyDigest: string): string | null => {
   if (keyDigest.length === 0) return "empty keyDigest"
+  if (!isWellFormedText(keyDigest)) return "keyDigest must be well-formed Unicode text"
   if (utf8Bytes(keyDigest) > maxKeyDigestLength) {
     return `keyDigest must be at most ${maxKeyDigestLength} UTF-8 bytes`
   }
   if (controlCharacters.test(keyDigest)) return "keyDigest must not contain control characters"
   return null
+}
+
+const validateStoredActionBody = (keyDigest: string, body: unknown): string => {
+  if (typeof body !== "string" || utf8Bytes(body) > maxActionCacheBodyBytes) {
+    throw new Error("action cache returned an invalid stored body")
+  }
+  let value: unknown
+  try {
+    value = JSON.parse(body) as unknown
+    canonicalJson(value)
+  } catch {
+    throw new Error("action cache returned invalid stored JSON")
+  }
+  if (isRecord(value) && Object.hasOwn(value, "keyDigest") && value["keyDigest"] !== keyDigest) {
+    throw new Error("action cache returned a row for a different key")
+  }
+  return body
+}
+
+const validatedContentBody = (object: unknown): BodyInit => {
+  if (!isRecord(object)) throw new Error("content store returned an invalid object")
+  const descriptor = Object.getOwnPropertyDescriptor(object, "body")
+  if (
+    descriptor === undefined || !("value" in descriptor) || descriptor.value === null || descriptor.value === undefined
+  ) {
+    throw new Error("content store returned an invalid object body")
+  }
+  return descriptor.value as BodyInit
 }
 
 const referencedDigests = (record: Record<string, unknown>): ReadonlyArray<string> => {
@@ -520,6 +607,7 @@ const readPublication = async (request: Request, keyDigest: string): Promise<Pub
     hasRecordedRunId &&
     (typeof recordedRunId !== "string" ||
       recordedRunId.length === 0 ||
+      !isWellFormedText(recordedRunId) ||
       utf8Bytes(recordedRunId) > maxKeyDigestLength ||
       controlCharacters.test(recordedRunId) ||
       !Number.isSafeInteger(recordedEventSeq) ||
@@ -578,14 +666,19 @@ const handleActionCache = async (
     const body = await actionCache.get(keyDigest)
     return body === null
       ? empty(404)
-      : new Response(body, { status: 200, headers: { "content-type": "application/json" } })
+      : new Response(validateStoredActionBody(keyDigest, body), {
+        status: 200,
+        headers: { "content-type": "application/json" }
+      })
   }
   if (request.method === "PUT") {
     const publication = await readPublication(request, keyDigest)
     if (!publication.ok) return publication.response
     const result = await actionCache.put(keyDigest, publication.publication)
     if (result === "inserted") return json(201, { keyDigest })
-    return empty(result === "identical" ? 200 : 409)
+    if (result === "identical") return empty(200)
+    if (result === "conflict") return empty(409)
+    throw new Error("action cache returned an invalid publication outcome")
   }
   if (request.method === "DELETE") {
     await discardBody(request.body)
@@ -603,7 +696,12 @@ const handleActionCache = async (
     }
     let fence: DeleteFence | null = null
     if (runId !== null && eventSeq !== null) {
-      if (runId.length === 0 || utf8Bytes(runId) > maxKeyDigestLength || controlCharacters.test(runId)) {
+      if (
+        runId.length === 0 ||
+        !isWellFormedText(runId) ||
+        utf8Bytes(runId) > maxKeyDigestLength ||
+        controlCharacters.test(runId)
+      ) {
         return json(400, { error: "recordedRunId must be a non-empty bounded string" })
       }
       const parsedEventSeq = Number(eventSeq)
@@ -614,7 +712,9 @@ const handleActionCache = async (
       }
       fence = { runId, eventSeq: parsedEventSeq }
     }
-    return empty((await actionCache.delete(keyDigest, fence)) ? 200 : 404)
+    const deleted = await actionCache.delete(keyDigest, fence)
+    if (typeof deleted !== "boolean") throw new Error("action cache returned an invalid deletion outcome")
+    return empty(deleted ? 200 : 404)
   }
   await discardBody(request.body)
   return methodNotAllowed("GET, PUT, DELETE")
@@ -632,14 +732,16 @@ const handleArtifact = async (
   }
   if (request.method === "HEAD") {
     await discardBody(request.body)
-    return empty((await contentStore.has(digest)) ? 200 : 404)
+    const present = await contentStore.has(digest)
+    if (typeof present !== "boolean") throw new Error("content store returned an invalid presence outcome")
+    return empty(present ? 200 : 404)
   }
   if (request.method === "GET") {
     await discardBody(request.body)
     const object = await contentStore.get(digest)
     return object === null
       ? empty(404)
-      : new Response(object.body, {
+      : new Response(validatedContentBody(object), {
         status: 200,
         headers: { "content-type": "application/octet-stream" }
       })
@@ -654,7 +756,9 @@ const handleArtifact = async (
     const measured = await sha256Hex(body.bytes)
     if (measured !== digest) return json(400, { error: `bytes digest to ${measured}` })
     const result = await contentStore.put(digest, body.bytes)
-    return empty(result === "inserted" ? 201 : 200)
+    if (result === "inserted") return empty(201)
+    if (result === "present") return empty(200)
+    throw new Error("content store returned an invalid publication outcome")
   }
   await discardBody(request.body)
   return methodNotAllowed("GET, HEAD, PUT")
@@ -670,7 +774,12 @@ const handleFindMissing = async (
   }
   const parsed = await readJson(request, maxFindMissingBodyBytes)
   if (!parsed.ok) return parsed.response
-  const digests = isRecord(parsed.value) ? parsed.value["digests"] : null
+  if (
+    !isRecord(parsed.value) ||
+    Reflect.ownKeys(parsed.value).length !== 1 ||
+    !Object.hasOwn(parsed.value, "digests")
+  ) return json(400, { error: "body must be exactly {\"digests\":[...]}" })
+  const digests = parsed.value["digests"]
   if (!Array.isArray(digests)) return json(400, { error: "body must be {\"digests\":[...]}" })
   if (digests.length > maxFindMissingDigests) {
     return json(413, { error: `at most ${maxFindMissingDigests} digests may be probed at once` })
@@ -682,6 +791,13 @@ const handleFindMissing = async (
   const typedDigests = unique as Array<string>
   if (typedDigests.length === 0) return json(200, { missing: [] })
   const present = await contentStore.presentDigests(typedDigests)
+  if (!(present instanceof Set)) throw new Error("content store returned an invalid digest set")
+  const requested = new Set(typedDigests)
+  for (const digest of present) {
+    if (typeof digest !== "string" || !requested.has(digest)) {
+      throw new Error("content store returned a digest outside the request")
+    }
+  }
   return json(200, {
     missing: typedDigests.filter((digest) => !present.has(digest))
   })
@@ -695,11 +811,20 @@ const diagnosticTag = (
   field: "code" | "errno" | "name" | "syscall",
   shape: RegExp
 ): string | null => {
+  let current: object | null = cause
   let value: unknown
-  try {
-    value = Reflect.get(cause, field)
-  } catch {
-    return null
+  for (let depth = 0; current !== null && depth < 16; depth += 1) {
+    try {
+      const descriptor = Object.getOwnPropertyDescriptor(current, field)
+      if (descriptor !== undefined) {
+        if (!("value" in descriptor)) return null
+        value = descriptor.value
+        break
+      }
+      current = Object.getPrototypeOf(current) as object | null
+    } catch {
+      return null
+    }
   }
   if (typeof value === "number") return Number.isSafeInteger(value) ? String(value) : null
   return typeof value === "string" && shape.test(value) ? value : null
@@ -728,6 +853,127 @@ export const describeFailure = (cause: unknown): string => {
   return `tsflows cache: request failed (${attribution})`
 }
 
+interface NormalizedProtocolDependencies {
+  readonly actionCache: ActionCache
+  readonly contentStore: ContentStore
+  readonly health: () => Promise<void>
+  readonly maxArtifactBytes: number
+  readonly tokenHash: string
+}
+
+const serviceMethod = <Args extends ReadonlyArray<unknown>, Result>(
+  service: unknown,
+  name: string,
+  what: string
+): (...args: Args) => Result => {
+  if ((typeof service !== "object" || service === null) && typeof service !== "function") {
+    throw new TypeError(`${what} must be an object`)
+  }
+  let current: object | null = service
+  for (let depth = 0; current !== null && depth < 16; depth += 1) {
+    let descriptor: PropertyDescriptor | undefined
+    try {
+      descriptor = Object.getOwnPropertyDescriptor(current, name)
+    } catch {
+      throw new TypeError(`${what}.${name} could not be inspected safely`)
+    }
+    if (descriptor !== undefined) {
+      if (!("value" in descriptor) || typeof descriptor.value !== "function") {
+        throw new TypeError(`${what}.${name} must be a data method`)
+      }
+      const implementation: (...args: Args) => Result = descriptor.value
+      return (...args: Args): Result => Reflect.apply(implementation, service, args)
+    }
+    try {
+      current = Object.getPrototypeOf(current)
+    } catch {
+      throw new TypeError(`${what}.${name} could not be inspected safely`)
+    }
+  }
+  throw new TypeError(`${what}.${name} must be a method`)
+}
+
+const normalizeDependencies = (value: ProtocolDependencies): NormalizedProtocolDependencies => {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new TypeError("protocol dependencies must be a plain object")
+  }
+  let prototype: object | null
+  let keys: Array<string | symbol>
+  try {
+    prototype = Object.getPrototypeOf(value) as object | null
+    keys = Reflect.ownKeys(value)
+  } catch {
+    throw new TypeError("protocol dependencies could not be inspected safely")
+  }
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new TypeError("protocol dependencies must be a plain object")
+  }
+  const allowed = new Set(["actionCache", "contentStore", "health", "maxArtifactBytes", "tokenHash"])
+  for (const key of keys) {
+    if (typeof key !== "string" || !allowed.has(key)) {
+      throw new TypeError(`protocol dependencies contain an unknown property: ${String(key)}`)
+    }
+  }
+  const read = (name: string): unknown => {
+    let descriptor: PropertyDescriptor | undefined
+    try {
+      descriptor = Object.getOwnPropertyDescriptor(value, name)
+    } catch {
+      throw new TypeError(`protocol dependency ${name} could not be inspected safely`)
+    }
+    if (descriptor === undefined) return undefined
+    if (!("value" in descriptor) || descriptor.enumerable !== true) {
+      throw new TypeError(`protocol dependency ${name} must be an enumerable data property`)
+    }
+    return descriptor.value
+  }
+  const action = read("actionCache")
+  const content = read("contentStore")
+  const configuredHealth = read("health")
+  const health = configuredHealth ?? (async (): Promise<void> => undefined)
+  if (typeof health !== "function") throw new TypeError("health must be a function")
+  const tokenHash = read("tokenHash")
+  if (typeof tokenHash !== "string" || !hexDigest.test(tokenHash)) {
+    throw new TypeError("tokenHash must be a lowercase SHA-256 digest")
+  }
+  const configuredMaximum = read("maxArtifactBytes")
+  const maxArtifactBytes = configuredMaximum ?? maxArtifactBodyBytes
+  if (
+    !Number.isSafeInteger(maxArtifactBytes) ||
+    (maxArtifactBytes as number) < 1 ||
+    (maxArtifactBytes as number) > maxArtifactBodyBytes
+  ) throw new TypeError(`maxArtifactBytes must be an integer from 1 through ${maxArtifactBodyBytes}`)
+
+  return Object.freeze({
+    actionCache: Object.freeze({
+      get: serviceMethod<[keyDigest: string], Promise<string | null>>(action, "get", "actionCache"),
+      put: serviceMethod<
+        [keyDigest: string, publication: ActionCachePublication],
+        Promise<Publication>
+      >(action, "put", "actionCache"),
+      delete: serviceMethod<
+        [keyDigest: string, fence: DeleteFence | null],
+        Promise<boolean>
+      >(action, "delete", "actionCache")
+    }),
+    contentStore: Object.freeze({
+      get: serviceMethod<[digest: string], Promise<ContentObject | null>>(content, "get", "contentStore"),
+      has: serviceMethod<[digest: string], Promise<boolean>>(content, "has", "contentStore"),
+      put: serviceMethod<
+        [digest: string, bytes: Uint8Array<ArrayBuffer>],
+        Promise<"inserted" | "present">
+      >(content, "put", "contentStore"),
+      presentDigests: serviceMethod<
+        [digests: ReadonlyArray<string>],
+        Promise<ReadonlySet<string>>
+      >(content, "presentDigests", "contentStore")
+    }),
+    health: health as () => Promise<void>,
+    maxArtifactBytes: maxArtifactBytes as number,
+    tokenHash
+  })
+}
+
 /**
  * Creates the authenticated HTTP handler for the remote-cache protocol.
  *
@@ -738,26 +984,17 @@ export const describeFailure = (cause: unknown): string => {
  * @since 0.1.0
  */
 export const createHandler = (dependencies: ProtocolDependencies) => {
-  const maxArtifactBytes = dependencies.maxArtifactBytes ?? maxArtifactBodyBytes
-  if (
-    !Number.isSafeInteger(maxArtifactBytes) ||
-    maxArtifactBytes < 1 ||
-    maxArtifactBytes > maxArtifactBodyBytes
-  ) {
-    throw new TypeError(`maxArtifactBytes must be an integer from 1 through ${maxArtifactBodyBytes}`)
-  }
-  if (typeof dependencies.tokenHash !== "string" || !hexDigest.test(dependencies.tokenHash)) {
-    throw new TypeError("tokenHash must be a lowercase SHA-256 digest")
-  }
-  const health = dependencies.health ?? (async (): Promise<void> => undefined)
-  if (typeof health !== "function") throw new TypeError("health must be a function")
+  const normalized = normalizeDependencies(dependencies)
+  const { actionCache, contentStore, health, maxArtifactBytes, tokenHash } = normalized
   const expectedTokenHash = Uint8Array.from(
-    dependencies.tokenHash.match(/.{2}/g) ?? [],
+    tokenHash.match(/.{2}/g) ?? [],
     (pair) => Number.parseInt(pair, 16)
   )
 
   let activeCacheRequests = 0
+  let activeActionCachePublications = 0
   let activeArtifactTransfers = 0
+  let activeFindMissingRequests = 0
   let healthInFlight: Promise<void> | null = null
   let lastHealthyAt = Number.NEGATIVE_INFINITY
   const ready = (): Promise<void> => {
@@ -766,7 +1003,7 @@ export const createHandler = (dependencies: ProtocolDependencies) => {
       return Promise.resolve()
     }
     if (healthInFlight !== null) return healthInFlight
-    const current: Promise<void> = Promise.resolve()
+    const current = Promise.resolve()
       .then(health)
       .then(() => {
         lastHealthyAt = performance.now()
@@ -781,43 +1018,64 @@ export const createHandler = (dependencies: ProtocolDependencies) => {
   return async (request: Request): Promise<Response> => {
     try {
       const url = new URL(request.url)
-      if (url.pathname === "/healthz") {
-        if (request.method !== "GET" && request.method !== "HEAD") {
-          await discardBody(request.body)
-          return methodNotAllowed("GET, HEAD")
-        }
-        await discardBody(request.body)
-        await ready()
-        return request.method === "HEAD" ? empty(200) : json(200, { ok: true })
-      }
       if (activeCacheRequests >= maxConcurrentCacheRequests) {
         await discardBody(request.body)
         return busy("too many simultaneous cache requests")
       }
       activeCacheRequests += 1
       try {
+        if (url.pathname === "/healthz") {
+          if (request.method !== "GET" && request.method !== "HEAD") {
+            await discardBody(request.body)
+            return methodNotAllowed("GET, HEAD")
+          }
+          await discardBody(request.body)
+          await ready()
+          return request.method === "HEAD" ? empty(200) : json(200, { ok: true })
+        }
         if (!(await authorized(request, expectedTokenHash))) {
           await discardBody(request.body)
-          return empty(401)
+          return unauthorized()
         }
-        const segments = url.pathname.split("/").filter((segment) => segment.length > 0)
-        if (segments.length === 2 && segments[0] === "cas" && segments[1] === "findMissing") {
-          return await handleFindMissing(request, dependencies.contentStore)
+        const segments = url.pathname.split("/")
+        if (segments.length === 3 && segments[0] === "" && segments[1] === "cas" && segments[2] === "findMissing") {
+          if (activeFindMissingRequests >= maxConcurrentFindMissingRequests) {
+            await discardBody(request.body)
+            return busy("too many simultaneous findMissing requests")
+          }
+          activeFindMissingRequests += 1
+          try {
+            return await handleFindMissing(request, contentStore)
+          } finally {
+            activeFindMissingRequests -= 1
+          }
         }
-        if (segments.length === 2 && segments[0] === "ac") {
+        if (segments.length === 3 && segments[0] === "" && segments[1] === "ac") {
           let keyDigest: string
           try {
-            keyDigest = decodeURIComponent(segments[1] ?? "")
+            keyDigest = decodeURIComponent(segments[2] ?? "")
           } catch {
             await discardBody(request.body)
             return json(400, { error: "keyDigest must be valid URL encoding" })
           }
-          return await handleActionCache(request, keyDigest, url, dependencies.actionCache)
+          if (request.method === "PUT") {
+            if (activeActionCachePublications >= maxConcurrentActionCachePublications) {
+              await discardBody(request.body)
+              return busy("too many simultaneous action-cache publications")
+            }
+            activeActionCachePublications += 1
+            try {
+              return await handleActionCache(request, keyDigest, url, actionCache)
+            } finally {
+              activeActionCachePublications -= 1
+            }
+          }
+          return await handleActionCache(request, keyDigest, url, actionCache)
         }
-        if (segments.length === 2 && segments[0] === "cas") {
+        if (segments.length === 3 && segments[0] === "" && segments[1] === "cas") {
           let digest: string
           try {
-            digest = decodeURIComponent(segments[1] ?? "")
+            digest = decodeURIComponent(segments[2] ?? "")
           } catch {
             await discardBody(request.body)
             return json(400, { error: "digest must be valid URL encoding" })
@@ -832,14 +1090,14 @@ export const createHandler = (dependencies: ProtocolDependencies) => {
               return await handleArtifact(
                 request,
                 digest,
-                dependencies.contentStore,
+                contentStore,
                 maxArtifactBytes
               )
             } finally {
               activeArtifactTransfers -= 1
             }
           }
-          return await handleArtifact(request, digest, dependencies.contentStore, maxArtifactBytes)
+          return await handleArtifact(request, digest, contentStore, maxArtifactBytes)
         }
         await discardBody(request.body)
         return empty(404)

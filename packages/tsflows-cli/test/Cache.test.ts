@@ -1,11 +1,19 @@
 import { execFileSync } from "node:child_process"
+import { createHash } from "node:crypto"
 import { once } from "node:events"
 import * as Fs from "node:fs/promises"
 import * as Http from "node:http"
 import * as Os from "node:os"
 import * as NodePath from "node:path"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
-import { type CachedResult, entryLimit, openCache, sanitizeKey } from "../src/Cache.ts"
+import {
+  type CachedResult,
+  entryLimit,
+  maximumRemoteBodyChunks,
+  openCache,
+  remoteEntryLimit,
+  sanitizeKey
+} from "../src/Cache.ts"
 
 let root: string
 let server: Http.Server
@@ -98,6 +106,59 @@ describe("openCache", () => {
       .rejects.toThrow(/remote cache put timeout/)
   })
 
+  it("rejects unknown and accessor cache options before creating cache state", async () => {
+    let invoked = false
+    const accessor = { workspaceRoot: root } as Record<string, unknown>
+    Object.defineProperty(accessor, "endpoint", {
+      enumerable: true,
+      get: () => {
+        invoked = true
+        return endpoint
+      }
+    })
+
+    await expect(openCache(accessor as never)).rejects.toThrow(/endpoint must be an enumerable data property/)
+    expect(invoked).toBe(false)
+    await expect(openCache({ workspaceRoot: root, surprise: true } as never)).rejects.toThrow(/unknown property/)
+    await expect(Fs.stat(NodePath.join(root, ".flows"))).rejects.toMatchObject({ code: "ENOENT" })
+  })
+
+  it("does not invoke timeout or I/O accessors while validating options", async () => {
+    let invoked = false
+    const timeouts = Object.defineProperty({ put: 1 }, "get", {
+      enumerable: true,
+      get: () => {
+        invoked = true
+        return 1
+      }
+    })
+    const io = Object.defineProperty({}, "rename", {
+      enumerable: true,
+      get: () => {
+        invoked = true
+        return Fs.rename
+      }
+    })
+
+    await expect(openCache({ workspaceRoot: root, timeouts } as never)).rejects.toThrow(
+      /get must be an enumerable data property/
+    )
+    await expect(openCache({ workspaceRoot: root, io })).rejects.toThrow(/rename must be an enumerable data property/)
+    expect(invoked).toBe(false)
+    await expect(Fs.stat(NodePath.join(root, ".flows"))).rejects.toMatchObject({ code: "ENOENT" })
+  })
+
+  it.each([
+    "http://example.com/cache",
+    "https://user:password@example.com/cache",
+    "https://example.com/cache?tenant=one",
+    "https://example.com/cache#fragment",
+    "example.com/cache"
+  ])("rejects the unsafe remote endpoint %s before creating cache state", async (unsafeEndpoint) => {
+    await expect(openCache({ workspaceRoot: root, endpoint: unsafeEndpoint })).rejects.toThrow(/endpoint/)
+    await expect(Fs.stat(NodePath.join(root, ".flows"))).rejects.toMatchObject({ code: "ENOENT" })
+  })
+
   it("stores local entries below the default .flows/cache directory", async () => {
     const cache = await openCache({ workspaceRoot: root })
     await cache.put(result.key, result)
@@ -156,7 +217,8 @@ describe("openCache", () => {
 
   it("hydrates a remote hit into the local cache", async () => {
     respond = (_request, response) => {
-      response.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify({ result }))
+      response.writeHead(200, { "content-type": "application/json" })
+        .end(JSON.stringify({ keyDigest: result.key, result }))
     }
     const remote = await openCache({ workspaceRoot: root, endpoint })
     expect(await remote.get(result.key)).toEqual(result)
@@ -177,9 +239,27 @@ describe("openCache", () => {
     expect(JSON.parse(requests[0]!.body)).toMatchObject({
       keyDigest: "alpha",
       result,
-      recordedRunId: "tsflows-cli://:test",
+      recordedRunId: `tsflows-cli:${createHash("sha256").update("//:test", "utf8").digest("hex")}`,
       recordedEventSeq: 0
     })
+    await cache.close()
+  })
+
+  it("refuses a publication larger than the server's action-cache bound", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(() => Promise.resolve(new Response(null, { status: 201 })))
+    const warnings: string[] = []
+    const cache = await openCache({
+      workspaceRoot: root,
+      endpoint,
+      fetch,
+      warn: (line) => warnings.push(line)
+    })
+
+    await expect(
+      cache.put(result.key, { ...result, output: "x".repeat(remoteEntryLimit) })
+    ).resolves.toBeUndefined()
+    expect(fetch).not.toHaveBeenCalled()
+    expect(warnings).toEqual(["tsflows: remote cache disabled after a failure: PUT request failed"])
     await cache.close()
   })
 
@@ -277,7 +357,7 @@ describe("openCache", () => {
     const warnings: Array<string> = []
     respond = (_request, response) => {
       response.writeHead(200, { "content-type": "application/json" })
-        .end(JSON.stringify({ result: { ...result, key: "beta" } }))
+        .end(JSON.stringify({ keyDigest: "alpha", result: { ...result, key: "beta" } }))
     }
     const cache = await openCache({ workspaceRoot: root, endpoint, warn: (line) => warnings.push(line) })
     expect(await cache.get("alpha")).toBeNull()
@@ -291,17 +371,75 @@ describe("openCache", () => {
 
   it("refuses to store an entry under a key it does not name", async () => {
     const cache = await openCache({ workspaceRoot: root })
-    await expect(cache.put("alpha", { ...result, key: "beta" })).rejects.toThrow(/keyed beta under alpha/)
+    await expect(cache.put("alpha", { ...result, key: "beta" })).rejects.toThrow(/key does not match/)
     await expect(Fs.stat(NodePath.join(root, ".flows/cache/al/alpha.json"))).rejects.toMatchObject({
       code: "ENOENT"
     })
     await cache.close()
   })
 
+  it("snapshots and freezes a result before the caller can mutate it", async () => {
+    const mutable = { ...result, output: { nested: { value: "before" } } }
+    const cache = await openCache({ workspaceRoot: root })
+    const pending = cache.put(result.key, mutable)
+    mutable.output.nested.value = "after"
+    await pending
+
+    const stored = await cache.get(result.key)
+    expect(stored?.output).toEqual({ nested: { value: "before" } })
+    expect(Object.isFrozen(stored)).toBe(true)
+    expect(Object.isFrozen(stored?.output)).toBe(true)
+    expect(Object.isFrozen((stored?.output as { nested: object }).nested)).toBe(true)
+    await cache.close()
+  })
+
+  it("never invokes cached-result accessors or toJSON hooks", async () => {
+    let invoked = false
+    const accessor = { ...result } as Record<string, unknown>
+    Object.defineProperty(accessor, "output", {
+      enumerable: true,
+      get: () => {
+        invoked = true
+        return { ok: true }
+      }
+    })
+    const withHook = {
+      ...result,
+      output: {
+        toJSON: () => {
+          invoked = true
+          return { admitted: true }
+        }
+      }
+    }
+    const cache = await openCache({ workspaceRoot: root })
+
+    await expect(cache.put(result.key, accessor as unknown as CachedResult)).rejects.toThrow(/data property/)
+    await expect(cache.put(result.key, withHook)).rejects.toThrow(/inert JSON value/)
+    expect(invoked).toBe(false)
+    await expect(Fs.stat(NodePath.join(root, ".flows/cache/al"))).rejects.toMatchObject({ code: "ENOENT" })
+    await cache.close()
+  })
+
+  it.each([
+    ["a cycle", () => {
+      const output: Record<string, unknown> = {}
+      output["self"] = output
+      return output
+    }],
+    ["negative zero", () => -0],
+    ["a sparse array", () => new Array(2)]
+  ])("refuses cached output containing %s before publishing", async (_name, makeOutput) => {
+    const cache = await openCache({ workspaceRoot: root })
+    await expect(cache.put(result.key, { ...result, output: makeOutput() })).rejects.toThrow()
+    await expect(Fs.stat(NodePath.join(root, ".flows/cache/al"))).rejects.toMatchObject({ code: "ENOENT" })
+    await cache.close()
+  })
+
   it("refuses an oversize entry before creating a shard or temporary file", async () => {
     const cache = await openCache({ workspaceRoot: root })
     await expect(cache.put(result.key, { ...result, output: "x".repeat(entryLimit) }))
-      .rejects.toThrow(/exceeding its limit/)
+      .rejects.toThrow(/exceeds its .*byte limit/)
     await expect(Fs.stat(NodePath.join(root, ".flows/cache/al"))).rejects.toMatchObject({ code: "ENOENT" })
     await cache.close()
   })
@@ -575,6 +713,79 @@ describe("openCache", () => {
       await cache.close()
     })
 
+    it("does not wait for a response-body cancellation that never settles", async () => {
+      const body = new ReadableStream<Uint8Array>({
+        cancel: () => new Promise<void>(() => {})
+      })
+      const cache = await openCache({
+        workspaceRoot: root,
+        endpoint,
+        timeouts,
+        fetch: () => Promise.resolve(new Response(body, { status: 404 })),
+        warn: () => {}
+      })
+
+      expect(await cache.get("alpha")).toBeNull()
+      await cache.close()
+    })
+
+    it.each([
+      ["shorter", "3"],
+      ["longer", "1"]
+    ])("refuses a body %s than its declared content length", async (_name, contentLength) => {
+      const warnings: Array<string> = []
+      const cache = await openCache({
+        workspaceRoot: root,
+        endpoint,
+        fetch: () =>
+          Promise.resolve(
+            new Response("{}", {
+              status: 200,
+              headers: { "content-length": contentLength }
+            })
+          ),
+        warn: (line) => warnings.push(line)
+      })
+
+      expect(await cache.get("alpha")).toBeNull()
+      expect(warnings).toHaveLength(1)
+      await cache.close()
+    })
+
+    it("does not mistake an object with only a result member for a cache envelope", async () => {
+      const warnings: Array<string> = []
+      const cache = await openCache({
+        workspaceRoot: root,
+        endpoint,
+        fetch: () => Promise.resolve(new Response(JSON.stringify({ result }), { status: 200 })),
+        warn: (line) => warnings.push(line)
+      })
+
+      expect(await cache.get("alpha")).toBeNull()
+      expect(warnings).toHaveLength(1)
+      await cache.close()
+    })
+
+    it("refuses an envelope whose key does not match its request path", async () => {
+      const warnings: Array<string> = []
+      const cache = await openCache({
+        workspaceRoot: root,
+        endpoint,
+        fetch: () =>
+          Promise.resolve(
+            new Response(
+              JSON.stringify({ keyDigest: "beta", result }),
+              { status: 200 }
+            )
+          ),
+        warn: (line) => warnings.push(line)
+      })
+
+      expect(await cache.get("alpha")).toBeNull()
+      expect(warnings).toHaveLength(1)
+      await cache.close()
+    })
+
     it("refuses a body that declares more than the entry limit", async () => {
       const cache = await openCache({
         workspaceRoot: root,
@@ -594,7 +805,7 @@ describe("openCache", () => {
       await cache.close()
     })
 
-    it("abandons a streaming body that grows past the entry limit", async () => {
+    it("abandons a streaming body that grows past the remote entry limit", async () => {
       // No `Content-Length` at all: the ceiling has to be enforced while the
       // stream is read, or a chunked response is unbounded.
       const chunk = new Uint8Array(1024 * 1024).fill(0x61)
@@ -621,8 +832,34 @@ describe("openCache", () => {
       expect(await cache.get("alpha")).toBeNull()
       // Bounded: the stream is abandoned rather than drained. The slack is the
       // stream's own read-ahead, not accumulated bytes.
-      expect(sent).toBeGreaterThan(entryLimit)
-      expect(sent).toBeLessThan(entryLimit * 2)
+      expect(sent).toBeGreaterThan(remoteEntryLimit)
+      expect(sent).toBeLessThanOrEqual(remoteEntryLimit + 2 * chunk.byteLength)
+      await cache.close()
+    })
+
+    it("abandons a bounded response made of unbounded empty chunks", async () => {
+      let sent = 0
+      const cache = await openCache({
+        workspaceRoot: root,
+        endpoint,
+        fetch: () =>
+          Promise.resolve(
+            new Response(
+              new ReadableStream({
+                pull: (controller) => {
+                  sent += 1
+                  controller.enqueue(new Uint8Array())
+                }
+              }),
+              { status: 200 }
+            )
+          ),
+        warn: () => {}
+      })
+
+      expect(await cache.get("alpha")).toBeNull()
+      expect(sent).toBeGreaterThan(maximumRemoteBodyChunks)
+      expect(sent).toBeLessThan(maximumRemoteBodyChunks * 2)
       await cache.close()
     })
 
@@ -639,6 +876,26 @@ describe("openCache", () => {
       expect(warnings).toHaveLength(1)
       await cache.close()
     })
+  })
+
+  it("keeps server-invalid keys local without disabling the remote", async () => {
+    const fetch = vi.fn<typeof globalThis.fetch>(() => Promise.resolve(new Response(null, { status: 404 })))
+    const warnings: Array<string> = []
+    const invalidKey = "control\u0000key"
+    const cache = await openCache({
+      workspaceRoot: root,
+      endpoint,
+      fetch,
+      warn: (line) => warnings.push(line)
+    })
+
+    expect(await cache.get(invalidKey)).toBeNull()
+    await cache.put(invalidKey, { ...result, key: invalidKey })
+    expect(fetch).not.toHaveBeenCalled()
+    expect(await cache.get("valid-miss")).toBeNull()
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(warnings).toEqual([])
+    await cache.close()
   })
 
   describe("publication holds its resources honestly", () => {
@@ -704,7 +961,15 @@ describe("openCache", () => {
       // never publish as a clean success.
       const cache = await openCache({
         workspaceRoot: root,
-        io: { closeHandle: () => Promise.reject(failing("EIO")) }
+        io: {
+          closeHandle: async (handle) => {
+            // Model a close that reports failure after releasing the native
+            // descriptor. Leaving the injected handle open makes Node surface
+            // an unrelated GC-time ERR_INVALID_STATE after the assertion.
+            await handle.close()
+            throw failing("EIO")
+          }
+        }
       })
       await expect(cache.put(result.key, result)).rejects.toMatchObject({ code: "EIO" })
       // And the temporary file is gone: cleanup ran, and it did not mask the
@@ -732,7 +997,7 @@ describe("openCache", () => {
       await cache.close()
     })
 
-    it("keeps the primary failure when cleanup fails too", async () => {
+    it("preserves the primary code and reports a cleanup failure too", async () => {
       const cache = await openCache({
         workspaceRoot: root,
         io: {
@@ -740,7 +1005,10 @@ describe("openCache", () => {
           removeTemp: () => Promise.reject(failing("EPERM"))
         }
       })
-      await expect(cache.put(result.key, result)).rejects.toMatchObject({ code: "ENOSPC" })
+      await expect(cache.put(result.key, result)).rejects.toMatchObject({
+        code: "ENOSPC",
+        message: expect.stringMatching(/ENOSPC.*EPERM/)
+      })
       await cache.close()
     })
   })

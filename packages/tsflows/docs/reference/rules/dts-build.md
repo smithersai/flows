@@ -67,11 +67,11 @@ plan ends with the shared output-capture step over `outDir`.
 
 ## Status
 
-|           |                         |
-| --------- | ----------------------- |
-| Kinds     | `build`                 |
-| Cacheable | Always                  |
-| Executes  | Yes, through `ExecLive` |
+|           |                                                                         |
+| --------- | ----------------------------------------------------------------------- |
+| Kinds     | `build`                                                                 |
+| Cacheable | Never; output restoration and complete toolchain identity are not wired |
+| Executes  | Yes, through `ExecLive`                                                 |
 
 ## See also
 

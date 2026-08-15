@@ -7,6 +7,7 @@ import {
   discoverable,
   ensureGitignored,
   isGitPath,
+  maximumGitignoreBytes,
   resolveConfig,
   resolveRemoteCache,
   Workspace
@@ -407,6 +408,28 @@ describe("ensureGitignored", () => {
   it("refuses a .gitignore that is not a regular file", async () => {
     await Fs.mkdir(NodePath.join(root, ".gitignore"), { recursive: true })
     await expect(ensureGitignored(root, ".flows")).rejects.toThrow(/not a regular file/)
+  })
+
+  it("refuses an oversized or invalid UTF-8 .gitignore without replacing it", async () => {
+    const path = NodePath.join(root, ".gitignore")
+    const oversized = Buffer.alloc(maximumGitignoreBytes + 1, 0x61)
+    await Fs.writeFile(path, oversized)
+    await expect(ensureGitignored(root, ".flows")).rejects.toThrow(/byte limit/)
+    expect((await Fs.stat(path)).size).toBe(oversized.byteLength)
+
+    const invalid = Buffer.from([0xc3, 0x28])
+    await Fs.writeFile(path, invalid)
+    await expect(ensureGitignored(root, ".flows")).rejects.toThrow(/not valid UTF-8/)
+    expect(await Fs.readFile(path)).toEqual(invalid)
+  })
+
+  it.skipIf(process.platform === "win32")("refuses a hard-linked .gitignore", async () => {
+    const original = NodePath.join(root, "shared-ignore")
+    await Fs.writeFile(original, "/dist/\n", "utf8")
+    await Fs.link(original, NodePath.join(root, ".gitignore"))
+
+    await expect(ensureGitignored(root, ".flows")).rejects.toThrow(/hard-linked/)
+    expect(await Fs.readFile(original, "utf8")).toBe("/dist/\n")
   })
 
   /**
