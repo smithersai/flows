@@ -11,8 +11,8 @@
  *
  * @since 0.1.0
  */
-import * as Capability from "@smthrs/capability/Capability"
-import type * as Permission from "@smthrs/capability/Permission"
+import * as Capability from "@smthrs/capability-next/Capability"
+import type * as Permission from "@smthrs/capability-next/Permission"
 import { Context, Effect, Layer, Option, Schema } from "effect"
 import type * as Catalog from "./Catalog.ts"
 
