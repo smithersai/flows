@@ -46,10 +46,11 @@ const workspacePath = (path: string): string => path.startsWith("//") ? path.sli
  * the shared sealed exec action: the declared tsconfig, the optional TypeDoc
  * options file, every plugin, and the entry points land on argv, and `--out`
  * points at `outDir`. Key material contains source, tsconfig, and TypeDoc
- * config digests, dependency keys, entry points, plugins, and output path,
- * so the target is cacheable. This models tevm's `generate:docs` target and
- * follows TypeDoc prior art. Executing the plan requires
- * {@link Exec.ExecLive}.
+ * config digests, dependency keys, entry points, plugins, and output path.
+ * The target remains non-cacheable until generated-output restoration and
+ * complete external toolchain identity are wired. This models tevm's
+ * `generate:docs` target and follows TypeDoc prior art. Executing the plan
+ * requires {@link Exec.ExecLive}.
  *
  * @category rules
  * @since 0.1.0

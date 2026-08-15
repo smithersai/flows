@@ -36,6 +36,29 @@ afterEach(async () => {
   await Fs.rm(outside, { recursive: true, force: true })
 })
 
+describe("SafeFs.errorCode", () => {
+  it("reads only an own data property without invoking user code", () => {
+    let calls = 0
+    const getter = Object.defineProperty({}, "code", {
+      get: () => {
+        calls += 1
+        return "ENOENT"
+      }
+    })
+    const proxy = new Proxy({ code: "ENOENT" }, {
+      getOwnPropertyDescriptor: (target, property) => {
+        calls += 1
+        return Reflect.getOwnPropertyDescriptor(target, property)
+      }
+    })
+
+    expect(SafeFs.errorCode({ code: "ENOENT" })).toBe("ENOENT")
+    expect(SafeFs.errorCode(getter)).toBeUndefined()
+    expect(SafeFs.errorCode(proxy)).toBeUndefined()
+    expect(calls).toBe(0)
+  })
+})
+
 describe("SafeFs.digestFile", () => {
   it("digests a regular file and reports a missing one as undefined", async () => {
     await write("a.ts", "content\n")

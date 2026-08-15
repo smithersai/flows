@@ -15,6 +15,7 @@ import * as Effect from "effect/Effect"
 import type * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import * as NodePath from "node:path"
+import { failureMessage } from "./GeneratedFile.ts"
 import * as Input from "./Input.ts"
 import * as Rule from "./Rule.ts"
 import * as SafeFs from "./SafeFs.ts"
@@ -196,12 +197,6 @@ export const CheckDocs = Action.make("tsflows-rules/check-docs", {
   error: DocsParityError,
   tier: "sealed"
 })
-
-/** Renders a failure cause as a non-empty message. */
-const failureMessage = (cause: unknown): string => {
-  const message = cause instanceof Error ? cause.message : String(cause)
-  return message === "" ? "unknown failure" : message
-}
 
 /** Applies the parity policy to one README's contents. */
 const judge = (payload: ReadmePayload, contents: string | undefined): Effect.Effect<void, DocsParityError> => {

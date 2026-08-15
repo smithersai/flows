@@ -45,6 +45,7 @@ import { Action, type FlowRuntime } from "@smthrs/flow-next"
 import * as Effect from "effect/Effect"
 import type * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
+import { failureMessage } from "./GeneratedFile.ts"
 import * as Input from "./Input.ts"
 import * as Rule from "./Rule.ts"
 
@@ -299,7 +300,7 @@ export const ExpandFilegroupLive = (options: {
       try: () => expand(options.workspaceRoot, payload.sources, { cacheDirectory: options.cacheDirectory }),
       catch: (cause) =>
         new FilegroupError({
-          message: cause instanceof Error && cause.message !== "" ? cause.message : String(cause)
+          message: failureMessage(cause)
         })
     })
   )

@@ -31,6 +31,22 @@ export const TypeId: unique symbol = Symbol.for("tsflows-rules/Workspace") as ne
 export const defaultCacheDirectory = ".flows"
 
 /**
+ * Maximum UTF-8 size of a normalized cache-directory path.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const maximumCacheDirectoryBytes = 4 * 1024
+
+/**
+ * Maximum UTF-8 size of one cache-directory path segment.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const maximumCacheDirectorySegmentBytes = 255
+
+/**
  * A pure workspace configuration declaration.
  *
  * `cacheDirectory` is a workspace-relative directory holding the result cache
@@ -75,13 +91,31 @@ const absolute = /^([/\\]|[A-Za-z]:)/
  */
 export const normalizeCacheDirectory = (value: string): string => {
   if (typeof value !== "string") throw new TypeError("cacheDirectory must be a string")
+  if (value.length > maximumCacheDirectoryBytes) {
+    throw new Error(`cacheDirectory must be at most ${maximumCacheDirectoryBytes} UTF-8 bytes`)
+  }
   const trimmed = value.trim()
   if (trimmed === "") throw new Error("cacheDirectory must not be empty")
+  if (!trimmed.isWellFormed() || /[\u0000-\u001f\u007f]/.test(trimmed)) {
+    throw new Error("cacheDirectory must be well-formed text without control characters")
+  }
   if (absolute.test(trimmed)) throw new Error(`cacheDirectory must be workspace-relative: ${value}`)
   const segments = trimmed.split(/[/\\]/).filter((segment) => segment !== "" && segment !== ".")
   if (segments.length === 0) throw new Error("cacheDirectory must not be empty")
   if (segments.includes("..")) throw new Error(`cacheDirectory must not leave the workspace: ${value}`)
-  return segments.join("/")
+  const encoder = new TextEncoder()
+  for (const segment of segments) {
+    if (encoder.encode(segment).byteLength > maximumCacheDirectorySegmentBytes) {
+      throw new Error(
+        `cacheDirectory segments must be at most ${maximumCacheDirectorySegmentBytes} UTF-8 bytes`
+      )
+    }
+  }
+  const normalized = segments.join("/")
+  if (encoder.encode(normalized).byteLength > maximumCacheDirectoryBytes) {
+    throw new Error(`cacheDirectory must be at most ${maximumCacheDirectoryBytes} UTF-8 bytes`)
+  }
+  return normalized
 }
 
 /**

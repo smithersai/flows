@@ -206,11 +206,11 @@ describe("readOutputManifest", () => {
   })
 
   it("refuses accessor, sparse, extra, symbol, and proxy shapes without invoking accessors", () => {
-    let invoked = false
+    let invocations = 0
     const accessor = {}
     Object.defineProperty(accessor, "outputs", {
       get: () => {
-        invoked = true
+        invocations += 1
         return []
       },
       enumerable: true
@@ -221,15 +221,16 @@ describe("readOutputManifest", () => {
     const symbol = { outputs: [entry("dist"), entry("types")], [Symbol("extra")]: true }
     const extra = { outputs: [entry("dist"), entry("types")], extra: true }
     const proxy = new Proxy({ outputs: [entry("dist"), entry("types")] }, {
-      ownKeys: () => {
-        throw new Error("hostile")
+      ownKeys: (target) => {
+        invocations += 1
+        return Reflect.ownKeys(target)
       }
     })
 
     for (const value of [accessor, { outputs: sparse }, symbol, extra, proxy]) {
       expect(readOutputManifest(declared, value)).toBeTypeOf("string")
     }
-    expect(invoked).toBe(false)
+    expect(invocations).toBe(0)
   })
 
   it("refuses negative zero as a file count", () => {

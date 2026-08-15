@@ -9,6 +9,7 @@ import * as Effect from "effect/Effect"
 import type * as Layer from "effect/Layer"
 import * as Predicate from "effect/Predicate"
 import * as Schema from "effect/Schema"
+import * as SchemaIssue from "effect/SchemaIssue"
 import { createHash } from "node:crypto"
 import * as NodePath from "node:path"
 import { fileURLToPath } from "node:url"
@@ -554,7 +555,20 @@ const collect = (
   }
 }
 
-const sourceFile = (): string | undefined => {
+/**
+ * The BUILD.ts call site a declaration was written at.
+ *
+ * `path` alone identifies the declaring package. `line` and `column` are
+ * reported back to the author when a declaration is rejected, and are absent
+ * when the host does not expose them.
+ */
+interface SourceSite {
+  readonly path: string
+  readonly line: number | undefined
+  readonly column: number | undefined
+}
+
+const sourceSite = (): SourceSite | undefined => {
   let sites: ReturnType<typeof getCallSites>
   try {
     sites = getCallSites(100, { sourceMap: true })
@@ -568,9 +582,75 @@ const sourceFile = (): string | undefined => {
     } catch {
       continue
     }
-    if (NodePath.basename(file) === "BUILD.ts") return NodePath.resolve(file)
+    if (NodePath.basename(file) !== "BUILD.ts") continue
+    const positive = (value: unknown): number | undefined =>
+      typeof value === "number" && Number.isSafeInteger(value) && value > 0 ? value : undefined
+    return { path: NodePath.resolve(file), line: positive(site.lineNumber), column: positive(site.columnNumber) }
   }
   return undefined
+}
+
+/**
+ * Maximum UTF-16 code units of formatted schema detail admitted into one
+ * declaration-rejected message.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const maximumRejectionDetailCodeUnits = 8 * 1024
+
+const formatIssue = SchemaIssue.makeFormatterDefault()
+
+/**
+ * Renders why one declaration was rejected, without running author code.
+ *
+ * A rejected `Schema.make` carries the structured issue on `cause`. Reporting
+ * only the constructor's own `"Schema validation failed"` loses the path and
+ * the expectation, which is the whole content of the failure: an author is
+ * told a BUILD file is invalid without being told which attr is wrong. The
+ * issue is formatted when it is one, and otherwise the message is taken from
+ * an own data property so an author-supplied accessor or Proxy cannot run.
+ */
+const rejectionDetail = (cause: unknown): string | undefined => {
+  const bound = (text: string): string | undefined => {
+    const wellFormed = text.isWellFormed() ? text : text.toWellFormed()
+    if (wellFormed === "") return undefined
+    return wellFormed.length <= maximumRejectionDetailCodeUnits
+      ? wellFormed
+      : `${wellFormed.slice(0, maximumRejectionDetailCodeUnits - 3)}...`
+  }
+  if (typeof cause !== "object" || cause === null || NodeUtil.isProxy(cause)) return undefined
+  const issue = Object.getOwnPropertyDescriptor(cause, "cause")
+  if (issue !== undefined && "value" in issue && SchemaIssue.isIssue(issue.value)) {
+    try {
+      return bound(formatIssue(issue.value))
+    } catch {
+      // Fall through to the plain message below.
+    }
+  }
+  const message = Object.getOwnPropertyDescriptor(cause, "message")
+  return message !== undefined && "value" in message && typeof message.value === "string"
+    ? bound(message.value)
+    : undefined
+}
+
+/**
+ * Rejects one declaration with the rule, the authoring site, and the reason.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
+export const declarationRejected = (id: string, site: SourceSite | undefined, cause: unknown): Error => {
+  const where = site === undefined
+    ? ""
+    : ` at ${site.path}${
+      site.line === undefined ? "" : `:${site.line}${site.column === undefined ? "" : `:${site.column}`}`
+    }`
+  const detail = rejectionDetail(cause)
+  return new Error(
+    `${id} declaration${where} is invalid${detail === undefined ? "" : `: ${detail}`}`,
+    { cause }
+  )
 }
 
 /**
@@ -610,8 +690,16 @@ export const make = <
     schemas: schemaIdentity
   })).digest("hex")
   const definition = (attrsInput: Attrs["~type.make.in"]) => {
-    const attrs = options.attrs.make(attrsInput)
-    const declarationSourceFile = sourceFile()
+    // Resolved before the attrs are constructed so a rejection can name the
+    // BUILD.ts line the author has to edit.
+    const site = sourceSite()
+    let attrs: Attrs["Type"]
+    try {
+      attrs = options.attrs.make(attrsInput)
+    } catch (cause) {
+      throw declarationRejected(id, site, cause)
+    }
+    const declarationSourceFile = site?.path
     const context: ImplementationContext = {
       sourceFile: declarationSourceFile,
       packageDirectory: declarationSourceFile === undefined ? undefined : NodePath.dirname(declarationSourceFile)
@@ -643,7 +731,12 @@ export const make = <
         kindViews.set(kind, baseView)
         return baseView
       }
-      const mapped = options.attrs.make(candidate)
+      let mapped: Attrs["Type"]
+      try {
+        mapped = options.attrs.make(candidate)
+      } catch (cause) {
+        throw declarationRejected(`${id} (${kind})`, site, cause)
+      }
       const mappedInputs: Array<Input.Declared> = []
       const mappedDependencies: Array<AnyTarget> = []
       collect(mapped, mappedInputs, mappedDependencies, new Set())

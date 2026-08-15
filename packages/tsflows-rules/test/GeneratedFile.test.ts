@@ -6,6 +6,8 @@ import * as NodePath from "node:path"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import {
   checkGeneratedFile,
+  failureMessage,
+  maximumFailureMessageCodeUnits,
   maximumGeneratedFileBytes,
   resolveOutputPath,
   writeGeneratedFile
@@ -33,6 +35,42 @@ beforeEach(async () => {
 afterEach(async () => {
   await Fs.rm(root, { recursive: true, force: true })
   for (const directory of outside.splice(0)) await Fs.rm(directory, { recursive: true, force: true })
+})
+
+describe("failureMessage", () => {
+  it("does not invoke accessors, proxy traps, or user string conversion", () => {
+    let calls = 0
+    const getter = Object.defineProperty({}, "message", {
+      get: () => {
+        calls += 1
+        return "getter message"
+      }
+    })
+    const converted = {
+      toString: () => {
+        calls += 1
+        return "converted message"
+      }
+    }
+    const proxied = new Proxy(new Error("proxied message"), {
+      getOwnPropertyDescriptor: (target, property) => {
+        calls += 1
+        return Reflect.getOwnPropertyDescriptor(target, property)
+      }
+    })
+
+    expect(failureMessage(getter)).toBe("unknown failure")
+    expect(failureMessage(converted)).toBe("unknown failure")
+    expect(failureMessage(proxied)).toBe("unknown failure")
+    expect(calls).toBe(0)
+  })
+
+  it("bounds and well-forms diagnostic text", () => {
+    expect(failureMessage("bad\ud800text")).toBe("bad\ufffdtext")
+    expect(failureMessage("x".repeat(maximumFailureMessageCodeUnits + 1))).toHaveLength(
+      maximumFailureMessageCodeUnits
+    )
+  })
 })
 
 describe("generated file paths", () => {

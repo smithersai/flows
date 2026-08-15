@@ -52,6 +52,9 @@ export type Attrs = typeof Attrs.Type
  * fetch, then always materializes host-local links. The caller declares the
  * lockfile, workspace manifest, and root package.json directly in attrs, so
  * their content reaches key material through {@link Rule.make} collection.
+ * The wrapper target itself is not cacheable: a JSON hit would skip the whole
+ * nested flow, including link, without restoring either the manager store or
+ * `node_modules`.
  *
  * @category rules
  * @since 0.1.0
@@ -61,5 +64,6 @@ export const PnpmWorkspace = Rule.make("PnpmWorkspace", {
   kinds: ["run"],
   success: Install.LinkManifest,
   error: PackageManager.PackageManagerError,
+  cache: false,
   implementation: () => Install.Install.call({})
 })

@@ -22,6 +22,22 @@ export const TypeId: unique symbol = Symbol.for("tsflows-rules/RemoteCache") as 
 export const defaultTokenEnv = "TSFLOWS_CACHE_TOKEN"
 
 /**
+ * Maximum UTF-8 size of one remote-cache endpoint.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const maximumEndpointBytes = 8 * 1024
+
+/**
+ * Maximum length of the environment-variable name carrying a cache token.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
+export const maximumTokenEnvironmentLength = 256
+
+/**
  * A pure remote-cache declaration.
  *
  * The declaration carries only the HTTPS endpoint and the name of the
@@ -58,7 +74,15 @@ const environmentName = /^[A-Za-z_][A-Za-z0-9_]*$/
  */
 export const normalizeEndpoint = (value: string): string => {
   if (typeof value !== "string") throw new TypeError("remote cache endpoint must be a string")
+  if (
+    value.length > maximumEndpointBytes ||
+    !value.isWellFormed() ||
+    /[\u0000-\u001f\u007f]/.test(value)
+  ) throw new Error("remote cache endpoint must be bounded well-formed text without control characters")
   const trimmed = value.trim()
+  if (trimmed === "" || new TextEncoder().encode(trimmed).byteLength > maximumEndpointBytes) {
+    throw new Error("remote cache endpoint must be a bounded absolute HTTPS URL")
+  }
   let endpoint: URL
   try {
     endpoint = new URL(trimmed)
@@ -74,7 +98,7 @@ export const normalizeEndpoint = (value: string): string => {
   if (endpoint.search !== "" || endpoint.hash !== "") {
     throw new Error("remote cache endpoint must not contain a query or fragment")
   }
-  return endpoint.href.replace(/\/$/, "")
+  return endpoint.href.replace(/\/+$/, "")
 }
 
 /**
@@ -85,6 +109,11 @@ export const normalizeEndpoint = (value: string): string => {
  */
 export const normalizeTokenEnv = (value: string): string => {
   if (typeof value !== "string") throw new TypeError("remote cache tokenEnv must be a string")
+  if (
+    value.length > maximumTokenEnvironmentLength ||
+    !value.isWellFormed() ||
+    /[\u0000-\u001f\u007f]/.test(value)
+  ) throw new Error("remote cache tokenEnv must be bounded well-formed text")
   const trimmed = value.trim()
   if (!environmentName.test(trimmed)) {
     throw new Error(`remote cache tokenEnv must be an environment variable name: ${value}`)

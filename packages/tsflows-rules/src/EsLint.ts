@@ -54,9 +54,10 @@ const lintPatterns = (sources: ReadonlyArray<Input.Declared>): ReadonlyArray<str
  * config is declared key material for files the flat config imports. Tools
  * resolve through `pnpm exec`, matching the pnpm workspace install target.
  * Key material contains source and flat-config digests, dependency keys,
- * warning policy, and fix mode; fix mode is non-cacheable. The rule follows
- * ESLint flat-config prior art and the flows repo's current package lint
- * scripts. Executing the plan requires {@link Exec.ExecLive}.
+ * warning policy, and fix mode. The target remains non-cacheable in either
+ * mode until the external ESLint toolchain is complete key material. The rule
+ * follows ESLint flat-config prior art and the flows repo's current package
+ * lint scripts. Executing the plan requires {@link Exec.ExecLive}.
  *
  * @category rules
  * @since 0.1.0

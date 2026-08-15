@@ -15,6 +15,7 @@ import * as Schema from "effect/Schema"
 import { minimatch } from "minimatch"
 import * as NodeChildProcess from "node:child_process"
 import * as NodePath from "node:path"
+import { failureMessage } from "./GeneratedFile.ts"
 import * as Input from "./Input.ts"
 import * as Rule from "./Rule.ts"
 import * as SafeFs from "./SafeFs.ts"
@@ -317,12 +318,6 @@ const severityRank: Record<Severity, number> = { info: 0, warning: 1, error: 2 }
 /** Checks whether a severity meets the failOn threshold. */
 const meets = (severity: Severity, failOn: Severity): boolean => severityRank[severity] >= severityRank[failOn]
 
-/** Renders a failure cause as a non-empty message. */
-const failureMessage = (cause: unknown): string => {
-  const message = cause instanceof Error ? cause.message : String(cause)
-  return message === "" ? "unknown failure" : message
-}
-
 /** Keeps the last 2 KiB of captured stderr for error messages. */
 const stderrTail = (text: string): string => text.length <= 2048 ? text : text.slice(text.length - 2048)
 
@@ -489,7 +484,7 @@ const spawnText = (
         windowsHide: true
       })
     } catch (cause) {
-      resume(Effect.fail(cause instanceof Error ? cause : new Error(failureMessage(cause))))
+      resume(Effect.fail(new Error(failureMessage(cause), { cause })))
       return Effect.void
     }
     const stdout = byteCapture(options.stdoutBytes)
@@ -530,7 +525,7 @@ const spawnText = (
       try {
         decoded = decodeBytes(stdout, "subprocess stdout")
       } catch (cause) {
-        settle(Effect.fail(cause instanceof Error ? cause : new Error(failureMessage(cause))))
+        settle(Effect.fail(new Error(failureMessage(cause), { cause })))
         return
       }
       const diagnostic = decodeTail(stderr)
@@ -571,7 +566,7 @@ const matchesGlob = (path: string, declaration: Input.Glob): boolean =>
 
 /** Validates one path before it can be joined to the workspace or embedded in a prompt. */
 const reviewPath = (path: string): string => {
-  if (/[ -]/.test(path)) {
+  if (/[\u0000-\u001f\u007f]/.test(path)) {
     throw new Error(`git listed a path containing control characters: ${JSON.stringify(path)}`)
   }
   const normalized = Input.resolvePath("", path)
@@ -913,7 +908,9 @@ const validatedTimeout = (value: number | undefined): number => {
   const timeout = value ?? defaultReviewTimeoutMs
   if (!Number.isSafeInteger(timeout) || timeout < 1 || timeout > maximumReviewTimeoutMs) {
     throw new TypeError(
-      `LLM review timeout must be an integer from 1 to ${maximumReviewTimeoutMs}, received ${String(timeout)}`
+      `LLM review timeout must be an integer from 1 to ${maximumReviewTimeoutMs}, received ${
+        typeof timeout === "number" ? String(timeout) : typeof timeout
+      }`
     )
   }
   return timeout
