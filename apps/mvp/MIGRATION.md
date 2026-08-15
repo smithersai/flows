@@ -20,34 +20,38 @@ Copy method: `git -C /Users/williamcory/mvp ls-files --cached --others
 --exclude-standard` enumerated 602 files (tracked at HEAD + uncommitted
 modifications + staged additions, excluding `.git`, `node_modules`, `build`,
 `dist`, `coverage`, `smithers.db*`, and everything matched by the source
-`.gitignore`). All 602 files were copied preserving paths and verified by
-byte-for-byte comparison against the source: 602/602 identical. `vendor/`
-(vendored `@smthrs/*` packages) and `bun.lock` were carried over.
+`.gitignore`). All 602 files were copied preserving paths and count-verified.
+The review comparison found 601/602 byte-for-byte identical; the only
+intentional content difference is the app-local `.gitignore`, which adds
+negations for the monorepo root's broad `.smithers/` and `*.log` rules. Those
+negations keep the source app's tracked workflow pack and eight tracked live-
+check evidence logs visible when `apps/` is eventually committed. `vendor/`
+(vendored `@smthrs/*` packages) and the source `bun.lock` were carried over
+byte-for-byte.
 
-## Deviation from the source tree: regenerated bun.lock
+## Bun canary install workaround
 
-The source `bun.lock` could not be installed by the available bun
-(1.4.0-canary.1): `bun install` (and `bun install --frozen-lockfile`) hung
-indefinitely in dependency resolution with the source lockfile present,
-reproduced both in `apps/mvp` and in an isolated directory outside the
-monorepo. This is a bun canary resolution bug with that lockfile, not a
-path problem. Fix: `bun.lock` was regenerated in place by `bun install`.
-The regenerated lockfile resolves the identical dependency set; the only
-content difference from the source lockfile is two transitive patch bumps
-(`baseline-browser-mapping` 2.11.13 -> 2.11.14, `electron-to-chromium`
-1.5.405 -> 1.5.407). No other file under `apps/mvp` was modified relative
-to the source state; no tsconfig paths, imports, or hardcoded paths
-required move-related fixes (no relative import reaches outside the app).
+The available bun (1.4.0-canary.1) does not finish dependency resolution
+when this source lockfile is already present. For verification only, the
+lockfile was temporarily set aside, plain `bun install` was run in
+`apps/mvp`, and the original source lockfile was restored afterward. The
+successful install generated the same dependency graph with two newer
+transitive patch releases, but that generated lockfile was discarded so the
+migration continues to carry the source dependency lock byte-for-byte. This
+is a bun canary lockfile-resolution issue, not a path-sensitive breakage.
+
+No tsconfig paths, imports, or hardcoded source-path references required
+move-related fixes. No relative import reaches outside the app.
 
 ## Verification results (all run inside apps/mvp)
 
-- `bun install` — PASS (632 packages installed in ~4s after lockfile
-  regeneration; one postinstall blocked by bun trust policy, same as
-  upstream behavior)
+- `bun install` — PASS with the source lockfile temporarily set aside due to
+  the bun canary issue described above (38 package links refreshed in 1.4s;
+  the existing local install contains 632 resolved packages)
 - `bun run typecheck` (`tsc --noEmit`) — PASS (no errors)
 - `bun run test` (`bun test src`) — PASS (560 pass, 0 fail, 2425 expect()
   calls, 55 files)
-- `bun run build` (`vite build`) — PASS (built in ~6s; output in
+- `bun run build` (`vite build`) — PASS (built in ~54s; output in
   `apps/mvp/dist`, chunk-size warning only)
 
 ## Constraints honored during migration
