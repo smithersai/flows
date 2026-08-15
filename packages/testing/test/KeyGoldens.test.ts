@@ -19,6 +19,9 @@ import goldens from "./fixtures/key-goldens.json" with { type: "json" }
 // engine dispatches under `Key` and a plan keyed in a second format could never
 // be the thing the step cache is consulted against. Same material, same hash,
 // one namespace: the values below are the first pinning of the new format.
+// The graph root was re-pinned deliberately after `@smthrs/plan-next` moved
+// function identities from FNV-1a source hashes to SHA-256 source hashes. The
+// leaf keys are unchanged; only the parent plan material includes that identity.
 
 const buildGraph = (): Core.Graph.Graph => {
   const read = Core.Node.dynamic({
