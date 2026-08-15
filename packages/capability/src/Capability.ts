@@ -176,18 +176,76 @@ const normalizeSlashes = (value: string): string => value.replaceAll("\\", "/")
 const matchesAction = (pattern: PatternAction, action: Action): boolean =>
   pattern === "*" || pattern === action || (pattern.endsWith(":*") && action.startsWith(pattern.slice(0, -1)))
 
+/**
+ * ECMA-262 non-Unicode `i`-flag canonicalization, applied per UTF-16 code
+ * unit: uppercase the unit, but keep the original when uppercasing changes
+ * its length or maps a non-ASCII unit onto ASCII. Matching the earlier
+ * RegExp-based matcher's `i` flag exactly keeps Windows-path matching
+ * byte-for-byte compatible with every stored grant.
+ */
+const canonicalUnit = (unit: string): string => {
+  const upper = unit.toUpperCase()
+  if (upper.length !== 1) {
+    return unit
+  }
+  return unit.charCodeAt(0) >= 128 && upper.charCodeAt(0) < 128 ? unit : upper
+}
+
+const unitsEqual = (left: string, right: string, foldCase: boolean): boolean =>
+  left === right || (foldCase && canonicalUnit(left) === canonicalUnit(right))
+
+/**
+ * Iterative glob matcher over UTF-16 code units: `*` matches any run of
+ * units (path separators and newlines included), `?` matches exactly one
+ * unit, and everything else is literal.
+ *
+ * Grant patterns are attacker-influenced input on the authorization path, so
+ * the matcher must not be built on RegExp backtracking: a pattern such as
+ * `a*a*a*a*b` against a long non-matching resource made the old
+ * `.*`-compiled RegExp exponential. This two-pointer form remembers only the
+ * most recent `*` and re-anchors it one unit at a time, which bounds the
+ * whole match at O(pattern × resource) with constant memory — the standard
+ * linear-scan wildcard algorithm.
+ */
+const matchGlob = (pattern: string, resource: string, foldCase: boolean): boolean => {
+  let patternIndex = 0
+  let resourceIndex = 0
+  let starIndex = -1
+  let starResourceIndex = 0
+  while (resourceIndex < resource.length) {
+    const unit = pattern[patternIndex]
+    if (unit === "*") {
+      starIndex = patternIndex
+      starResourceIndex = resourceIndex
+      patternIndex += 1
+    } else if (unit !== undefined && (unit === "?" || unitsEqual(unit, resource[resourceIndex]!, foldCase))) {
+      patternIndex += 1
+      resourceIndex += 1
+    } else if (starIndex >= 0) {
+      patternIndex = starIndex + 1
+      starResourceIndex += 1
+      resourceIndex = starResourceIndex
+    } else {
+      return false
+    }
+  }
+  while (pattern[patternIndex] === "*") {
+    patternIndex += 1
+  }
+  return patternIndex === pattern.length
+}
+
 const matchesResource = (pattern: string, resource: string): boolean => {
   const normalizedPattern = normalizeSlashes(pattern)
   const normalizedResource = normalizeSlashes(resource)
-  let expression = normalizedPattern
-    .replace(/[.+^${}()|[\]\\]/g, "\\$&")
-    .replaceAll("*", ".*")
-    .replaceAll("?", ".")
-  if (expression.endsWith(" .*")) {
-    expression = `${expression.slice(0, -3)}( .*)?`
+  const foldCase = /^[A-Za-z]:\//.test(normalizedPattern) || /^[A-Za-z]:\//.test(normalizedResource)
+  // A pattern ending in ` *` (`proc:spawn` command grants such as `npm *`)
+  // additionally matches the bare resource without its trailing argument
+  // text, exactly as the old `( .*)?` compilation did.
+  if (normalizedPattern.endsWith(" *") && matchGlob(normalizedPattern.slice(0, -2), normalizedResource, foldCase)) {
+    return true
   }
-  const windowsPath = /^[A-Za-z]:\//.test(normalizedPattern) || /^[A-Za-z]:\//.test(normalizedResource)
-  return new RegExp(`^${expression}$`, windowsPath ? "is" : "s").test(normalizedResource)
+  return matchGlob(normalizedPattern, normalizedResource, foldCase)
 }
 
 /**
