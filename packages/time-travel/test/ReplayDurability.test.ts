@@ -158,8 +158,7 @@ describe("durable replay", () => {
     { timeout: 30_000 }
   )
 
-  // BUG: replay reads the mutable cache head, so later cache replacement changes an old frame's projection.
-  it.effect.fails("keeps the projection stable when cache contents mutate between lifetimes", () =>
+  it.effect("keeps the projection stable when cache contents mutate between lifetimes", () =>
     Effect.gen(function*() {
       const directory = yield* Effect.promise(() => mkdtemp(join(tmpdir(), "flows-replay-cache-mutation-")))
       const filename = join(directory, "journal.sqlite")
@@ -191,8 +190,7 @@ describe("durable replay", () => {
       }
     }))
 
-  // BUG: replay neither sorts nor deduplicates malformed duplicate/out-of-order journal pages.
-  it.effect.fails("normalizes duplicate and out-of-order pages to the durable projection", () =>
+  it.effect("normalizes duplicate and out-of-order pages to the durable projection", () =>
     Effect.gen(function*() {
       const directory = yield* Effect.promise(() => mkdtemp(join(tmpdir(), "flows-replay-pages-")))
       const filename = join(directory, "journal.sqlite")

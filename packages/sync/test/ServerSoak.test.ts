@@ -14,6 +14,7 @@ import { describe, expect, it } from "@effect/vitest"
 import { Journal, JournalEvent } from "@smthrs/journal-next"
 import { Effect, Layer, Stream } from "effect"
 import * as RunCatalog from "../src/RunCatalog.ts"
+import * as SyncPrincipal from "../src/SyncPrincipal.ts"
 import * as SyncServer from "../src/SyncServer.ts"
 
 const runId = (value: string) => value as JournalEvent.RunId
@@ -99,7 +100,11 @@ describe("SyncServer fan-out budgets", () => {
             { concurrency: "unbounded" }
           )
         }).pipe(
-          Effect.provide(Layer.mergeAll(trackedJournal(byRun, tracker), RunCatalog.layerStatic(ids))),
+          Effect.provide(Layer.mergeAll(
+            trackedJournal(byRun, tracker),
+            RunCatalog.layerStatic(ids),
+            SyncPrincipal.layerWorkspace("soak-suite")
+          )),
           Effect.scoped
         )
       )
@@ -134,7 +139,11 @@ describe("SyncServer fan-out budgets", () => {
             )
           }
         }).pipe(
-          Effect.provide(Layer.mergeAll(trackedJournal(byRun, tracker), RunCatalog.layerStatic(ids))),
+          Effect.provide(Layer.mergeAll(
+            trackedJournal(byRun, tracker),
+            RunCatalog.layerStatic(ids),
+            SyncPrincipal.layerWorkspace("soak-suite")
+          )),
           Effect.scoped
         )
       )
@@ -148,7 +157,11 @@ describe("SyncServer fan-out budgets", () => {
     Effect.gen(function*() {
       const { byRun, ids } = workspace(4, 25)
       const tracker: Tracker = { open: 0, opened: 0, peak: 0 }
-      const layers = Layer.mergeAll(trackedJournal(byRun, tracker), RunCatalog.layerStatic(ids))
+      const layers = Layer.mergeAll(
+        trackedJournal(byRun, tracker),
+        RunCatalog.layerStatic(ids),
+        SyncPrincipal.layerWorkspace("soak-suite")
+      )
       const soak = (cycles: number) =>
         Effect.gen(function*() {
           const server = yield* SyncServer.makeLive

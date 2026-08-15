@@ -11,9 +11,11 @@ import { TimeTravel } from "../src/TimeTravel.ts"
 import { jjInstalled, runReal, runState, withRealFixture } from "./RealTimeTravelHarness.ts"
 
 describe.skipIf(!jjInstalled)("real public fork chain", () => {
-  // BUG: a fork-of-fork copies the first fork-created source identity, then inserts a duplicate source_id/source_seq.
+  // Every fork-created marker keeps `source_seq = seq`, so a fork-of-fork whose
+  // copied prefix reaches the parent's own marker never collides with the new
+  // child's on the journal's source-identity constraint.
   // The finite budget covers two public fork lifetimes and real workspace creation.
-  it.effect.fails(
+  it.effect(
     "keeps parent evidence immutable across a fork-of-fork with distinct jj workspaces",
     () =>
       Effect.gen(function*() {

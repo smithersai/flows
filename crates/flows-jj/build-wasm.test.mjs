@@ -1,7 +1,17 @@
 import assert from "node:assert/strict"
 import { join, resolve } from "node:path"
 import test from "node:test"
-import { remapFlags, rustcCommitHash, targetDir } from "./build-wasm.mjs"
+import { canonicalHost, foreignHostError, remapFlags, rustcCommitHash, rustcHost, targetDir } from "./build-wasm.mjs"
+
+const verboseVersion = [
+  "rustc 1.89.0 (29483883e 2025-08-04)",
+  "binary: rustc",
+  "commit-hash: 29483883eed69d5fb4db01964cdf2af4d86e9cb2",
+  "commit-date: 2025-08-04",
+  "host: aarch64-apple-darwin",
+  "release: 1.89.0",
+  "LLVM version: 20.1.7"
+].join("\n")
 
 test("targetDir defaults to the workspace target directory", () => {
   assert.equal(targetDir({}, "/repo"), join("/repo", "target"))
@@ -24,20 +34,32 @@ test("targetDir resolves a relative CARGO_TARGET_DIR against the workspace root,
 })
 
 test("rustcCommitHash extracts the commit-hash line of rustc -vV", () => {
-  const verboseVersion = [
-    "rustc 1.89.0 (29483883e 2025-08-04)",
-    "binary: rustc",
-    "commit-hash: 29483883eed69d5fb4db01964cdf2af4d86e9cb2",
-    "commit-date: 2025-08-04",
-    "host: aarch64-apple-darwin",
-    "release: 1.89.0",
-    "LLVM version: 20.1.7"
-  ].join("\n")
   assert.equal(rustcCommitHash(verboseVersion), "29483883eed69d5fb4db01964cdf2af4d86e9cb2")
 })
 
 test("rustcCommitHash rejects output without a commit-hash line", () => {
   assert.throws(() => rustcCommitHash("rustc 1.89.0"), /commit-hash/)
+})
+
+test("rustcHost extracts the host line of rustc -vV", () => {
+  assert.equal(rustcHost(verboseVersion), "aarch64-apple-darwin")
+})
+
+test("rustcHost rejects output without a host line", () => {
+  assert.throws(() => rustcHost("rustc 1.89.0"), /host/)
+})
+
+test("foreignHostError passes the host the committed artifact is built on", () => {
+  assert.equal(foreignHostError(canonicalHost), undefined)
+})
+
+test("foreignHostError refuses a host whose bytes CI cannot reproduce", () => {
+  const error = foreignHostError("aarch64-apple-darwin")
+  assert.match(error, /aarch64-apple-darwin/)
+  assert.match(error, new RegExp(canonicalHost))
+  // The refusal is only actionable if it carries the canonical rebuild.
+  assert.match(error, /docker run/)
+  assert.match(error, /node crates\/flows-jj\/build-wasm\.mjs/)
 })
 
 test("remapFlags replaces every machine-specific prefix with a fixed token", () => {

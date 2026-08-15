@@ -128,6 +128,7 @@ const acquire = (
 
 const archiveCommitted = (
   journal: Journal.Service,
+  store: TimeTravelStore["Service"],
   audit: Audit,
   detail: AuditDetail
 ): Effect.Effect<boolean, TimeTravelFailure> => {
@@ -140,8 +141,17 @@ const archiveCommitted = (
     after: audit.frame.seq as JournalEvent.Seq,
     limit: 1
   }).pipe(
-    Effect.map((page) => page.entries.length === 0),
-    Effect.mapError((cause) => error("unknown", `could not inspect archive commit for ${audit.id}`, cause))
+    Effect.mapError((cause) => error("unknown", `could not inspect archive commit for ${audit.id}`, cause)),
+    Effect.flatMap((page) => {
+      if (page.entries.length > 0) return Effect.succeed(false)
+      // An empty live suffix alone is not commit evidence: the suffix the
+      // audit recorded must actually be IN the archive. A journal missing
+      // rows on both sides is corruption, and recovery rolls it back rather
+      // than declaring an archive that never happened complete.
+      return detail.suffixTailSeq === undefined
+        ? Effect.succeed(false)
+        : store.archivedAt(audit.runId, detail.suffixTailSeq)
+    })
   )
 }
 
@@ -202,7 +212,7 @@ const recoverOne = (
       Effect.uninterruptible(
         Effect.gen(function*() {
           const ownership = yield* acquire(runs, audit, options)
-          const committed = yield* archiveCommitted(journal, audit, detail)
+          const committed = yield* archiveCommitted(journal, store, audit, detail)
           if (committed) {
             if (ownership.owned) {
               const suspended = yield* runs.transitionOwned(audit.runId, options.owner, "suspended").pipe(

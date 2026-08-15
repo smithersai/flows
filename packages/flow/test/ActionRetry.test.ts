@@ -37,7 +37,10 @@ const run = (
   Host.execute({ id }, { executionId: id }).pipe(
     Effect.provide(
       layerWired(Layer.mergeAll(Block.toLayer(() => body), Interpreter.layer(Host)))
-    )
+    ),
+    // The literal payload above always satisfies the schema, so the typed
+    // `SchemaError` on `execute` cannot occur here.
+    Effect.orDie
   ) as Effect.Effect<number, never, Crypto.Crypto>
 
 describe("Action.retry", () => {

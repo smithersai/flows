@@ -319,6 +319,11 @@ export const make = (options: Options = {}): TimeTravelStore.Service & { readonl
         }))
       )
     ),
+    archivedAt: Effect.fn("TimeTravelStore.archivedAt")((runId, seq) =>
+      Effect.annotateCurrentSpan({ runId, seq }).pipe(Effect.andThen(
+        Effect.sync(() => archived.some((record) => record.runId === runId && record.seq === seq))
+      ))
+    ),
     createFork: Effect.fn("TimeTravelStore.createFork")((parentRunId, frame) =>
       Effect.annotateCurrentSpan({ parentRunId, lineageId: frame.lineageId, seq: frame.seq }).pipe(
         Effect.andThen(atomic(() => {
@@ -336,6 +341,15 @@ export const make = (options: Options = {}): TimeTravelStore.Service & { readonl
           const prefix = records.filter((record) => record.runId === parentRunId && record.seq <= frame.seq)
           fail("createFork:copy")
           records.push(...prefix.map((record) => ({ ...record, runId, eventId: `fork:${runId}:${record.seq}` })))
+          // The frame's anchors cross the fork with the prefix, mirroring the
+          // SQL store: the child's history must be self-contained without a
+          // later projection of its copied journal.
+          snapshots = [
+            ...snapshots,
+            ...snapshots
+              .filter((snapshot) => snapshot.runId === parentRunId && snapshot.frame.seq <= frame.seq)
+              .map((snapshot) => ({ ...snapshot, runId }))
+          ]
           const edge: LineageEdge = {
             parentRunId,
             parentSeq: frame.seq,

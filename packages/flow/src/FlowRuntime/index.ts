@@ -7,6 +7,7 @@
  */
 export * from "./CancelRequestFailed.ts"
 export * from "./FlowCycleDetected.ts"
+export * from "./FlowExecutionNotFound.ts"
 export * from "./FlowInstance.ts"
 export * from "./FlowRuntime.ts"
 export * from "./WaitingAnnotation.ts"

@@ -281,13 +281,23 @@ export const make: Effect.Effect<Service, TimeTravelError, Requirements | Scope.
           seq: position.frame.seq
         })
         return yield* provided(
-          refreshAnchors(position.runId).pipe(Effect.andThen(Rewind.rewind({
+          // The validation phase runs before anything durable: a refused page
+          // size or a frame that is not on this run's lineage leaves no claim,
+          // no audit row, and no refreshed anchor behind.
+          Rewind.validate({
             runId: position.runId,
             frame: position.frame,
-            owner,
-            detachedChildPolicy: options?.detachedChildren ?? "block",
             ...(options?.pageSize === undefined ? {} : { pageSize: options.pageSize })
-          })))
+          }).pipe(
+            Effect.andThen(refreshAnchors(position.runId)),
+            Effect.andThen(Rewind.rewind({
+              runId: position.runId,
+              frame: position.frame,
+              owner,
+              detachedChildPolicy: options?.detachedChildren ?? "block",
+              ...(options?.pageSize === undefined ? {} : { pageSize: options.pageSize })
+            }))
+          )
         )
       })()
   }

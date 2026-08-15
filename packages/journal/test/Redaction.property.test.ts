@@ -87,7 +87,16 @@ describe("Redaction properties", () => {
         const once = Redaction.redact(value)
         expect(Redaction.redact(once)).toStrictEqual(once)
       }),
-      { ...params, examples: [[{ apiKey: "sk-abcdefghij", nested: { token: 1, note: "Bearer abcdefghij" } }]] }
+      {
+        ...params,
+        examples: [
+          [{ apiKey: "sk-abcdefghij", nested: { token: 1, note: "Bearer abcdefghij" } }],
+          // A literal `__proto__` member: rebuilding the object by assignment
+          // moved it onto the prototype, so the second pass saw a different
+          // object than the first produced.
+          [{ ["__proto__"]: null }]
+        ]
+      }
     )
   })
 

@@ -68,8 +68,10 @@ describe("Capability", () => {
     expect(Capability.matches(selectedPattern, selectedCapability)).toBe(expected)
   })
 
-  // BUG: Repeated `*` translation creates a catastrophically backtracking RegExp for this non-match.
-  it.fails("completes a 10k-character non-match for a repeated-star grant pattern", () => {
+  // Regression pin for the repeated-star ReDoS: the matcher is an iterative
+  // glob walk, so this non-match completes instead of backtracking
+  // exponentially. The subprocess keeps a regression from hanging the suite.
+  it("completes a 10k-character non-match for a repeated-star grant pattern", () => {
     const matchProcess = spawnSync(
       process.execPath,
       ["--input-type=module", "--eval", repeatedStarProgram],
@@ -103,6 +105,16 @@ describe("Capability", () => {
     expect(
       Capability.matches(pattern("fs:read", "/Work/**"), capability("fs:read", "/work/a"))
     ).toBe(false)
+  })
+
+  it("folds Windows-path case exactly like the regex i-flag canonicalization", () => {
+    // `é` uppercases within one unit, so the fold applies; `ß` uppercases to
+    // two units and `ı` uppercases onto ASCII `I`, so the ECMA-262
+    // non-Unicode canonicalization keeps both distinct from their uppercase
+    // forms — and therefore so does the matcher.
+    expect(Capability.matches(pattern("fs:read", "c:/é"), capability("fs:read", "C:/É"))).toBe(true)
+    expect(Capability.matches(pattern("fs:read", "c:/ß"), capability("fs:read", "C:/SS"))).toBe(false)
+    expect(Capability.matches(pattern("fs:read", "c:/ı"), capability("fs:read", "C:/I"))).toBe(false)
   })
 
   it("preserves resource delimiters and newlines after a valid action while rejecting a malformed action prefix", () => {

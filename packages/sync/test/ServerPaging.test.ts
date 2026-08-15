@@ -8,6 +8,7 @@ import { Journal, JournalEvent } from "@smthrs/journal-next"
 import { Effect, Layer, Stream } from "effect"
 import * as RunCatalog from "../src/RunCatalog.ts"
 import { SyncError } from "../src/SyncError.ts"
+import * as SyncPrincipal from "../src/SyncPrincipal.ts"
 import * as SyncServer from "../src/SyncServer.ts"
 
 const runId = (value: string) => value as JournalEvent.RunId
@@ -28,6 +29,14 @@ const entry = (id: JournalEvent.RunId, sequence: number) =>
     meta: null
   })
 
+// Non-branch reads are fail-closed; this suite tests paging mechanics, so its
+// server runs every request as the workspace principal.
+const principal = SyncPrincipal.workspace("paging-suite")
+const asWorkspace = (server: SyncServer.Service): SyncServer.Service => ({
+  read: (request) => Effect.provideService(server.read(request), SyncPrincipal.SyncPrincipal, principal),
+  subscribe: (request) => Stream.provideService(server.subscribe(request), SyncPrincipal.SyncPrincipal, principal)
+})
+
 const makeServer = (
   runs: ReadonlyArray<JournalEvent.RunId>,
   journal: Partial<Journal.Service>
@@ -35,7 +44,8 @@ const makeServer = (
   SyncServer.makeLive.pipe(
     Effect.provide(
       Layer.mergeAll(Journal.layerNoop(journal), RunCatalog.layerStatic(runs))
-    )
+    ),
+    Effect.map(asWorkspace)
   )
 
 const pagesOf = (entries: ReadonlyMap<JournalEvent.RunId, ReadonlyArray<JournalEvent.Entry>>) => ({

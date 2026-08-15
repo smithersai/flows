@@ -7,7 +7,7 @@
  * the settled result.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Action, DurableDeferred, Flow, Interpreter } from "@smthrs/flow-next"
+import { Action, DurableDeferred, Flow, FlowRuntime, Interpreter } from "@smthrs/flow-next"
 import { Effect, Exit, Layer, Option, Result, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { FlowEngine } from "../src/index.ts"
@@ -18,9 +18,9 @@ const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Cr
 
 /** Polls a result until the predicate holds, bounded by scheduler turns. */
 const pollUntil = <A, E, R>(
-  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>,
+  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, FlowRuntime.FlowExecutionNotFound, R>,
   predicate: (result: Flow.Result<A, E>) => boolean
-): Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R> =>
+): Effect.Effect<Option.Option<Flow.Result<A, E>>, FlowRuntime.FlowExecutionNotFound, R> =>
   Effect.gen(function*() {
     let result = yield* poll
     for (let index = 0; index < 50 && (Option.isNone(result) || !predicate(result.value)); index++) {

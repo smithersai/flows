@@ -115,8 +115,12 @@ describe("AttemptStore ownership interleavings", () => {
       )
     }))
 
-  // BUG: patch is unfenced and can overwrite opaque terminal outcome after ownership and lifecycle ended.
-  it.effect.fails("refuses an old worker's patch after takeover and terminal transition", () =>
+  // `patch` is fenced on run ownership like every other write: a delayed
+  // patch from the pre-takeover owner arrives after the takeover owner
+  // finished the attempt and completed the run, so the run's owner columns
+  // are cleared and the fence refuses it — the opaque terminal outcome the
+  // engine replays verbatim is never rewritten.
+  it.effect("refuses an old worker's patch after takeover and terminal transition", () =>
     Effect.gen(function*() {
       const result = yield* migrated(
         Effect.gen(function*() {
@@ -128,17 +132,21 @@ describe("AttemptStore ownership interleavings", () => {
             outcome: { writer: "new", terminal: true }
           }, ownerB)
           yield* runs.transitionOwned(id.runId, ownerB, "completed")
-          // AttemptPatch carries no owner token, so this represents a delayed
-          // write from ownerA but the store has no way to authenticate it.
+          // The delayed write carries the old worker's own token, and the
+          // fence — not the caller's honesty — is what refuses it.
           const patch = yield* attempts.patch(id, {
             outcome: { writer: "old", terminal: false },
             meta: { writer: "delayed-old" }
-          })
-          return { patch, stored: Option.getOrThrow(yield* attempts.get(id)) }
+          }, ownerA)
+          // The terminal transition cleared the owner columns, so even the
+          // owner that won the takeover cannot patch the settled row.
+          const patchByWinner = yield* attempts.patch(id, { meta: { writer: "late-new" } }, ownerB)
+          return { patch, patchByWinner, stored: Option.getOrThrow(yield* attempts.get(id)) }
         })
       )
 
-      expect(result.patch._tag).not.toBe("Patched")
+      expect(result.patch).toEqual({ _tag: "FenceLost" })
+      expect(result.patchByWinner).toEqual({ _tag: "FenceLost" })
       expect(result.stored).toMatchObject({
         state: "completed",
         outcome: { writer: "new", terminal: true },

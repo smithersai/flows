@@ -174,9 +174,7 @@ describe("GrantStore.isValidEnvelopePattern", () => {
 })
 
 describe("GrantStore.reply", () => {
-  // BUG: A runtime-invalid resolution falls through the exhaustive switch,
-  // returns success, and leaves the attended request suspended forever.
-  it.effect.fails("fails a runtime-invalid resolution without stranding its waiter", () =>
+  itEffect("fails a runtime-invalid resolution without stranding its waiter", () =>
     Effect.scoped(
       Effect.gen(function*() {
         const store = yield* make()
@@ -314,9 +312,7 @@ describe("GrantStore.reply", () => {
 })
 
 describe("GrantStore malformed policy input", () => {
-  // BUG: The runtime envelope scope reaches the schema constructor and dies
-  // with a validation defect instead of returning typed `invalid_resolution`.
-  it.effect.fails("rejects an invalid runtime envelope scope with a typed store error", () =>
+  itEffect("rejects an invalid runtime envelope scope with a typed store error", () =>
     Effect.scoped(
       Effect.gen(function*() {
         const store = yield* make({ planDigest: "plan-1" })

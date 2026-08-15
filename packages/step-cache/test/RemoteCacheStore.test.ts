@@ -198,11 +198,7 @@ describe("publications", () => {
       expect(tier.calls).toEqual([])
     }))
 
-  // BUG: RemoteCacheStore.put encodes `result`/`meta` as Schema.Unknown and then
-  // serializes with bodyJsonUnsafe, so a BigInt or cyclic value escapes as a
-  // JSON.stringify TypeError defect instead of a typed invalid_cache, and an
-  // `undefined` value is silently published as a body with the field missing.
-  it.effect.fails("refuses a result or meta that has no JSON form, without a request or a defect", () =>
+  it.effect("refuses a result or meta that has no JSON form, without a request or a defect", () =>
     Effect.gen(function*() {
       const cyclic: Record<string, unknown> = { name: "cycle" }
       cyclic["self"] = cyclic
@@ -270,9 +266,7 @@ describe("evictions", () => {
       expect(errorOf(exit).code).toBe("persistence_failed")
     }))
 
-  // BUG: RemoteCacheStore.evict has no empty-key preflight, so `evict("")`
-  // sends DELETE to the collection root `/ac/` instead of failing invalid_cache.
-  it.effect.fails("refuses an empty key without issuing a DELETE to the /ac/ root", () =>
+  it.effect("refuses an empty key without issuing a DELETE to the /ac/ root", () =>
     Effect.gen(function*() {
       // `get` already refuses an empty key without a round trip; `evict` is the
       // more dangerous half, because a malformed key targets a collection-like
@@ -281,10 +275,27 @@ describe("evictions", () => {
       const exit = yield* (
         Effect.flatMap(tier.store, (store) => store.evict("")).pipe(Effect.exit)
       )
-      // The request log is asserted first because it is the finding: today this
-      // records a `DELETE https://cache.example.com/ac/`, the collection root.
+      // The request log is the load-bearing assertion: a `DELETE` to
+      // `https://cache.example.com/ac/`, the collection root, is the outcome
+      // being ruled out.
       expect(tier.calls).toEqual([])
       expect(Exit.isFailure(exit)).toBe(true)
+      expect(errorOf(exit).code).toBe("invalid_cache")
+    }))
+
+  it.effect("refuses a malformed provenance fence without issuing a DELETE", () =>
+    Effect.gen(function*() {
+      // The fence rides to the server as query parameters, so a fence the SQL
+      // tier would reject must not become a request either — the two tiers
+      // implement one contract.
+      const tier = tierOf(() => new Response(null, { status: 204 }))
+      const exit = yield* (
+        Effect.flatMap(
+          tier.store,
+          (store) => store.evict(entry.keyDigest, { ifRecordedBy: { runId: "", eventSeq: -1 } })
+        ).pipe(Effect.exit)
+      )
+      expect(tier.calls).toEqual([])
       expect(errorOf(exit).code).toBe("invalid_cache")
     }))
 })

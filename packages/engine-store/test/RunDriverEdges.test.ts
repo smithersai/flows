@@ -242,7 +242,7 @@ describe("RunDriver missing and foreign rows", () => {
 })
 
 describe("RunDriver poll", () => {
-  it.effect("reports None for a missing row, a foreign flow tag, and an unfinished run", () =>
+  it.effect("fails typed for a missing row and reports None for a foreign flow tag and an unfinished run", () =>
     Effect.gen(function*() {
       const result = yield* withCrypto(provideJournal(Effect.gen(function*() {
         const store = yield* RunStore.RunStore
@@ -252,14 +252,20 @@ describe("RunDriver poll", () => {
         yield* driver.register(EdgeFlow, () => Effect.succeed("done"))
         yield* driver.execute(EdgeFlow, { executionId: "settled", payload: {}, discard: true })
         return {
-          missing: yield* driver.poll(EdgeFlow, "absent"),
+          // An id with no run row at all is a typed not-found; `Option.none`
+          // is reserved for a run the store knows and has not settled.
+          missing: yield* Effect.flip(driver.poll(EdgeFlow, "absent")),
           foreign: yield* driver.poll(EdgeFlow, "other-flow"),
           unfinished: yield* driver.poll(EdgeFlow, "no-result"),
           settled: yield* driver.poll(EdgeFlow, "settled")
         }
       })))
 
-      expect(Option.isNone(result.missing)).toBe(true)
+      expect(result.missing).toMatchObject({
+        _tag: "@smthrs/flow-next/FlowExecutionNotFound",
+        code: "execution_not_found",
+        executionId: "absent"
+      })
       expect(Option.isNone(result.foreign)).toBe(true)
       expect(Option.isNone(result.unfinished)).toBe(true)
       expect(Option.isSome(result.settled)).toBe(true)
@@ -538,15 +544,16 @@ describe("RunDriver stale-owner recovery", () => {
               evidence.push(stealEvidence)
             }).pipe(Effect.andThen(base.steal(runId, expected, claimant, nowMs, stealEvidence)))
         })
-        // A previous process on this very host owned the row and died.
+        // A previous process on this very host owned the row and died. The
+        // stale lease is arranged through `claimAndOwn`'s caller-stamped
+        // activation time: `heartbeat` is monotonic and can no longer rewind
+        // a lease, so a backdated pulse would keep the real activation time.
         const deadSameHost: Ownership.OwnerId = { hostId: owner.hostId, pid: owner.pid + 1, nonce: "dead" }
         yield* base.create("same-host", stateJson(EdgeFlow._tag))
         const created = yield* base.get("same-host")
         const expected = { status: created.status, owner: created.owner, heartbeatAtMs: created.heartbeatAtMs }
-        const claim = yield* base.claim("same-host", expected, deadSameHost, 0)
-        if (claim._tag !== "Claimed") return yield* Effect.die(new Error("claim lost"))
-        yield* base.activate("same-host", deadSameHost, claim.claimedAtMs, expected)
-        yield* base.heartbeat("same-host", deadSameHost, 0)
+        const owned = yield* base.claimAndOwn("same-host", expected, deadSameHost, 0)
+        if (owned._tag !== "Activated") return yield* Effect.die(new Error("claim lost"))
 
         const driver = yield* makeDriver().pipe(Effect.provideService(RunStore.RunStore, recording))
         yield* driver.register(EdgeFlow, () => Effect.succeed("recovered"))

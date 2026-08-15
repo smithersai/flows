@@ -71,10 +71,17 @@ export interface Encoded {
     Discard extends true ? void : Flow.Result<unknown, unknown>,
     FlowRuntime.FlowCycleDetected
   >
+  /**
+   * `Option.none` is a known, unsettled execution; an unknown execution id
+   * fails with `FlowRuntime.FlowExecutionNotFound`.
+   */
   readonly poll: (
     flow: Flow.Any,
     executionId: string
-  ) => Effect.Effect<Option.Option<Flow.Result<unknown, unknown>>>
+  ) => Effect.Effect<
+    Option.Option<Flow.Result<unknown, unknown>>,
+    FlowRuntime.FlowExecutionNotFound
+  >
   /**
    * Requests cancellation with normal cleanup and compensation semantics.
    * This is not a pause operation.

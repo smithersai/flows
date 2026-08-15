@@ -594,33 +594,40 @@ describe("Graph.build into a plan", () => {
       expect(plan.nodes).toHaveLength(501)
     }))
 
-  // BUG: Deep AndThen graphs recurse until a native stack overflow instead of returning a bounded typed refusal.
-  it.fails("rejects a very deep AndThen graph with a typed error instead of overflowing the stack", () => {
+  // The walk is an explicit stack, so depth is a policy refusal rather than a
+  // native stack overflow: topology past the bound fails typed and loudly.
+  it("rejects a very deep AndThen graph with a typed error instead of overflowing the stack", () => {
     let deep: Node.Node<number> = Node.succeed(0)
     for (let index = 1; index <= 10_000; index++) deep = Node.andThen(deep, Node.succeed(index))
 
     expect(() => Graph.build(deep)).toThrowError(expect.objectContaining({
-      _tag: "@smthrs/plan-next/GraphBuildError"
+      _tag: "@smthrs/plan-next/GraphBuildError",
+      code: "graph_too_deep",
+      message: expect.stringContaining(".child()")
     }))
   })
 
-  // BUG: Cyclic unknown payloads recurse in graph hydration instead of returning a typed build refusal.
-  it.fails("rejects a cyclic unknown payload with a typed error instead of overflowing the stack", () => {
+  it("rejects a cyclic unknown payload with a typed error instead of overflowing the stack", () => {
     const cyclic: { self?: unknown } = {}
     cyclic.self = cyclic
 
     expect(() => Graph.build(Node.succeed(cyclic))).toThrowError(expect.objectContaining({
-      _tag: "@smthrs/plan-next/GraphBuildError"
+      _tag: "@smthrs/plan-next/GraphBuildError",
+      code: "cyclic_payload",
+      node: "root",
+      message: expect.stringContaining("acyclic")
     }))
   })
 
-  // BUG: Very deep unknown payloads recurse in graph hydration instead of returning a bounded typed refusal.
-  it.fails("rejects a very deep unknown payload with a typed error instead of overflowing the stack", () => {
+  it("rejects a very deep unknown payload with a typed error instead of overflowing the stack", () => {
     let payload: Record<string, unknown> = { value: "leaf" }
     for (let index = 0; index < 20_000; index++) payload = { next: payload }
 
     expect(() => Graph.build(Node.succeed(payload))).toThrowError(expect.objectContaining({
-      _tag: "@smthrs/plan-next/GraphBuildError"
+      _tag: "@smthrs/plan-next/GraphBuildError",
+      code: "payload_too_deep",
+      node: "root",
+      message: expect.stringContaining("Flatten the payload")
     }))
   })
 

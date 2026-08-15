@@ -16,7 +16,13 @@ import type * as RpcClientError from "effect/unstable/rpc/RpcClientError"
 import type * as RpcGroup from "effect/unstable/rpc/RpcGroup"
 import type { ShareCapability } from "./BranchProtocol.ts"
 import { SyncError, SyncGapError } from "./SyncError.ts"
-import type { EntriesFrame, Scope, WorkspaceCursor } from "./SyncProtocol.ts"
+import {
+  defaultMaxFrameBytes,
+  encodedByteLength,
+  type EntriesFrame,
+  type Scope,
+  type WorkspaceCursor
+} from "./SyncProtocol.ts"
 import { SyncRpcs } from "./SyncRpcs.ts"
 
 /**
@@ -134,6 +140,51 @@ const isTransportCause = (cause: Cause.Cause<SyncError | SyncGapError>): boolean
     SyncError.is(reason.error) && reason.error.code === "transport_failed"
   )
 
+const entriesByteLength = (entries: ReadonlyArray<JournalEvent.Entry>): number =>
+  entries.reduce((bytes, entry) => bytes + encodedByteLength(entry), 0)
+
+const oversized = (bytes: number, maxFrameBytes: number): SyncError =>
+  new SyncError({
+    code: "frame_too_large",
+    message: `Encoded entries of ${bytes} bytes exceed the ${maxFrameBytes}-byte frame ceiling`
+  })
+
+/**
+ * The first internal inconsistency of a server frame, or `undefined` for a
+ * consistent one.
+ *
+ * A schema-valid frame can still contradict itself: carry another run's
+ * entry, repeat or reorder sequences, or carry an entry outside its own
+ * declared covered interval. Applying one would corrupt the client's cursor
+ * bookkeeping, so an inconsistent frame is refused as a protocol violation
+ * before any entry is admitted or any cursor moves.
+ */
+const frameViolation = (frame: EntriesFrame): SyncError | undefined => {
+  let previous = -1
+  for (const entry of frame.entries) {
+    if (entry.runId !== frame.runId) {
+      return new SyncError({
+        code: "protocol_violation",
+        message: `Frame for run ${frame.runId} carried an entry for run ${entry.runId}`
+      })
+    }
+    if (entry.seq <= previous) {
+      return new SyncError({
+        code: "protocol_violation",
+        message: `Frame entries must ascend strictly: sequence ${entry.seq} arrived after ${previous}`
+      })
+    }
+    if (entry.seq < frame.fromSeq || frame.toSeq < entry.seq) {
+      return new SyncError({
+        code: "protocol_violation",
+        message: `Entry ${entry.seq} lies outside the frame's covered interval ${frame.fromSeq}..${frame.toSeq}`
+      })
+    }
+    previous = entry.seq
+  }
+  return undefined
+}
+
 /**
  * Projects a Sync RPC client into the local replication service.
  *
@@ -143,6 +194,12 @@ const isTransportCause = (cause: Cause.Cause<SyncError | SyncGapError>): boolean
  * consumer. Interrupted partial pages therefore retain the last admitted
  * entry rather than incorrectly acknowledging the server's whole page.
  *
+ * Server responses are admitted, never trusted: a frame or bootstrap page
+ * whose encoded entries exceed `maxFrameBytes` is refused with
+ * `frame_too_large`, an internally inconsistent frame is refused as a
+ * protocol violation before any cursor moves, and an incomplete bootstrap
+ * page that makes no progress fails typed instead of re-reading forever.
+ *
  * A live follow that loses its transport reconnects under
  * {@link reconnectPolicy}, resuming from the acknowledged cursors; the failure
  * cause is logged before the retry folds it.
@@ -150,7 +207,14 @@ const isTransportCause = (cause: Cause.Cause<SyncError | SyncGapError>): boolean
  * @category constructors
  * @since 0.1.0
  */
-export const make = ({ client }: { readonly client: Client }): Effect.Effect<Service> =>
+export const make = ({ client, maxFrameBytes = defaultMaxFrameBytes }: {
+  readonly client: Client
+  /**
+   * Largest summed encoded-entry size one frame or bootstrap page may carry,
+   * in bytes. Defaults to {@link defaultMaxFrameBytes}.
+   */
+  readonly maxFrameBytes?: number | undefined
+}): Effect.Effect<Service> =>
   Effect.sync(() => {
     const acknowledged = Ref.makeUnsafe<ReadonlyMap<JournalEvent.RunId, JournalEvent.Seq>>(new Map())
 
@@ -171,6 +235,10 @@ export const make = ({ client }: { readonly client: Client }): Effect.Effect<Ser
           )
 
         const batch = (frame: EntriesFrame): Stream.Stream<JournalEvent.Entry, SyncError | SyncGapError> => {
+          const frameBytes = entriesByteLength(frame.entries)
+          if (frameBytes > maxFrameBytes) return Stream.fail(oversized(frameBytes, maxFrameBytes))
+          const violation = frameViolation(frame)
+          if (violation !== undefined) return Stream.fail(violation)
           const afterSeq: number = cursor.get(frame.runId) ?? -1
           // `fromSeq` is the start of the server-declared covered interval. It is
           // intentionally compared to the cursor, not to the first entry's seq:
@@ -250,6 +318,8 @@ export const make = ({ client }: { readonly client: Client }): Effect.Effect<Ser
             }).pipe(
               Effect.mapError(transportError),
               Effect.map((response) => {
+                const pageBytes = entriesByteLength(response.entries)
+                if (pageBytes > maxFrameBytes) return Stream.fail(oversized(pageBytes, maxFrameBytes))
                 const page = Stream.flatMap(
                   Stream.fromIterable(response.entries),
                   (entry) =>
@@ -258,7 +328,19 @@ export const make = ({ client }: { readonly client: Client }): Effect.Effect<Ser
                       Stream.succeed(entry)
                     )
                 )
-                return response.done ? Stream.concat(page, follow()) : Stream.concat(page, bootstrap())
+                if (response.done) return Stream.concat(page, follow())
+                if (response.entries.length === 0) {
+                  // An incomplete page with no entries can never converge:
+                  // the next read would carry the same cursors and receive
+                  // the same page. Fail typed instead of spinning.
+                  return Stream.fail(
+                    new SyncError({
+                      code: "protocol_violation",
+                      message: "Bootstrap read reported more durable entries but returned an empty page"
+                    })
+                  )
+                }
+                return Stream.concat(page, bootstrap())
               })
             )
           )

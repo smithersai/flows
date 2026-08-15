@@ -214,3 +214,28 @@ export type Frame = typeof Frame.Type
  */
 export const covers = (scope: Scope, runId: JournalEvent.RunId): boolean =>
   scope._tag === "Workspace" || scope.runId === runId
+
+/**
+ * Default ceiling on the encoded entries one frame, page, or command may
+ * carry, in bytes.
+ *
+ * Both ends of the wire enforce it: the server refuses to serve or append
+ * anything larger, and the client refuses to apply anything larger.
+ *
+ * @category limits
+ * @since 0.1.0
+ */
+export const defaultMaxFrameBytes = 1024 * 1024
+
+const utf8 = new TextEncoder()
+
+/**
+ * The wire size of one value: the UTF-8 byte length of its JSON text.
+ *
+ * Ceilings measure this encoded form rather than in-memory object size, so a
+ * limit tracks what a transport actually carries.
+ *
+ * @category limits
+ * @since 0.1.0
+ */
+export const encodedByteLength = (value: unknown): number => utf8.encode(JSON.stringify(value)).length

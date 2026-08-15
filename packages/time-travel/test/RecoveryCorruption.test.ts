@@ -27,7 +27,7 @@ const persistence = Layer.mergeAll(
 interface Corruption {
   readonly suffixRows: ReadonlyArray<{ readonly seq: number; readonly payload: string }>
   readonly suffixCount: number
-  readonly suffixTailSeq: number
+  readonly suffixTailSeq?: number
 }
 
 const recover = (corruption: Corruption) =>
@@ -59,7 +59,7 @@ const recover = (corruption: Corruption) =>
         phase: "compensated",
         originalStatus: "suspended",
         suffixCount: corruption.suffixCount,
-        suffixTailSeq: corruption.suffixTailSeq,
+        ...(corruption.suffixTailSeq === undefined ? {} : { suffixTailSeq: corruption.suffixTailSeq }),
         compensation: { handlerReceipts: [] },
         warnings: [],
         cancelledChildren: []
@@ -129,13 +129,20 @@ describe("SQL recovery corruption", () => {
       expect(JSON.parse(result.audits[0]!.detail_json)).toMatchObject({ phase: "rolled_back" })
     }))
 
-  // BUG: recovery has no archive-row evidence check before declaring the compensated audit complete.
-  it.effect.fails("requires archive evidence when all live suffix rows are absent", () =>
+  it.effect("requires archive evidence when all live suffix rows are absent", () =>
     Effect.gen(function*() {
       const result = yield* recover({ suffixRows: [], suffixCount: 1, suffixTailSeq: 1 })
 
       expect(result.archive).toBe(0)
       expect(result.outcomes[0]?._tag).not.toBe("Completed")
       expect(result.audits[0]?.status).not.toBe("completed")
+    }))
+
+  it.effect("rolls back when the audit records a suffix but no tail coordinate", () =>
+    Effect.gen(function*() {
+      const result = yield* recover({ suffixRows: [], suffixCount: 1 })
+
+      expect(result.outcomes).toEqual([{ _tag: "RolledBack", auditId: "audit" }])
+      expect(result.audits[0]?.status).toBe("failed")
     }))
 })

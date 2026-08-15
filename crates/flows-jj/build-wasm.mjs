@@ -14,12 +14,29 @@
  * toolchain sysroot — to fixed tokens. Without the remapping, the same
  * commit produces different bytes on every machine and checkout path.
  *
+ * The contract is scoped to one host triple, because no flag remaps the host.
+ * Cargo compiles build scripts for the host, so the `-C metadata` hash of
+ * every crate that has one — and of everything above it, which here reaches
+ * jj-lib and flows-jj — carries the host triple. rustc folds `-C metadata`
+ * into the crate's `StableCrateId`, which seeds every symbol hash, and it
+ * orders codegen items by symbol name, so a different host reorders the
+ * module and LLVM then optimizes it differently. Measured on 1.89.0 from
+ * identical sources: aarch64-apple-darwin, x86_64-unknown-linux-gnu, and
+ * aarch64-unknown-linux-gnu each produce a different artifact, differing in
+ * function count and code size, not just in symbol names. The committed
+ * bytes therefore belong to the declared host below — the one CI runs — and
+ * this script refuses to build them anywhere else rather than write bytes CI
+ * cannot match.
+ *
  * Honors `CARGO_TARGET_DIR`; a relative value resolves against the workspace
- * root, exactly as cargo resolves it for the build itself.
+ * root, exactly as cargo resolves it for the build itself. It needs no token
+ * of its own: an out-of-tree target directory builds the same bytes as the
+ * in-tree default, verified on the canonical host and on macOS.
  *
  * Run it from anywhere: `node crates/flows-jj/build-wasm.mjs`.
  * Prerequisite: rustup — `rust-toolchain.toml` supplies the toolchain,
- * the `wasm32-wasip1` target, and the components.
+ * the `wasm32-wasip1` target, and the components. Off the canonical host,
+ * run it in a container; `foreignHostError` prints the command.
  */
 import { spawnSync } from "node:child_process"
 import { copyFileSync, mkdirSync, statSync } from "node:fs"
@@ -47,6 +64,47 @@ export const rustcCommitHash = (verboseVersion) => {
   }
   return match[1]
 }
+
+/** The `host` line of `rustc -vV`, the triple the artifact's bytes are keyed on. */
+export const rustcHost = (verboseVersion) => {
+  const match = verboseVersion.match(/^host: (\S+)$/m)
+  if (match === null) {
+    throw new Error(`rustc -vV output has no host line:\n${verboseVersion}`)
+  }
+  return match[1]
+}
+
+/**
+ * The host triple the committed artifact is built on: the one CI's
+ * `ubuntu-latest` runner reports, and the only one whose bytes the
+ * `wasm-repro` job can reproduce.
+ */
+export const canonicalHost = "x86_64-unknown-linux-gnu"
+
+/**
+ * The refusal for a host whose build CI could never match, or `undefined` on
+ * the canonical host. The container command it prints is the one CI runs,
+ * one layer down: a Node image, rustup reading `rust-toolchain.toml`, and
+ * this script.
+ */
+export const foreignHostError = (host) =>
+  host === canonicalHost ? undefined : [
+    `error: the committed flows_jj.wasm is built on ${canonicalHost}, and this host is ${host}.`,
+    "Cargo builds every build script for the host, so the metadata hash of each crate that has",
+    "one — and of everything above it — carries the host triple, and rustc turns that into a",
+    "different module. Building here would produce bytes CI cannot reproduce.",
+    "",
+    "Rebuild the committed artifact on the canonical host, from the repository root:",
+    "  docker run --rm --platform linux/amd64 -v \"$PWD\":/repo -w /repo \\",
+    "    -e CARGO_TARGET_DIR=/tmp/wasm-target node:22-bookworm sh -c \\",
+    "    'curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal >/dev/null \\",
+    "      && . \"$HOME/.cargo/env\" && rustup toolchain install \\",
+    "      && node crates/flows-jj/build-wasm.mjs'",
+    "",
+    "For a scratch module to run locally, build the crate directly and read it out of the",
+    "target directory instead of committing it:",
+    "  cargo build --locked --release --target wasm32-wasip1 --package flows-jj"
+  ].join("\n")
 
 /**
  * `--remap-path-prefix` flags that replace every machine-specific source
@@ -86,9 +144,16 @@ if (isMain) {
     return result.stdout
   }
 
+  const verboseVersion = rustc(["-vV"])
+  const foreignHost = foreignHostError(rustcHost(verboseVersion))
+  if (foreignHost !== undefined) {
+    console.error(foreignHost)
+    process.exit(1)
+  }
+
   const flags = remapFlags({
     cargoHome: process.env.CARGO_HOME ?? join(homedir(), ".cargo"),
-    commitHash: rustcCommitHash(rustc(["-vV"])),
+    commitHash: rustcCommitHash(verboseVersion),
     sysroot: rustc(["--print", "sysroot"]).trim(),
     workspaceRoot: repoRoot
   })

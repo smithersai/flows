@@ -27,6 +27,7 @@ const BROWSER_SAFE = [
   { name: "@smthrs/artifacts-next", entry: "packages/artifacts/src/index.ts" },
   { name: "@smthrs/canonical-next", entry: "packages/canonical/src/index.ts" },
   { name: "@smthrs/capability-next", entry: "packages/capability/src/index.ts" },
+  { name: "@smthrs/chain-next", entry: "packages/chain/src/index.ts" },
   { name: "@smthrs/crypto-next", entry: "packages/crypto/src/index.ts" },
   { name: "@smthrs/jj-next", entry: "packages/jj/src/index.ts" },
   { name: "@smthrs/jj-next/browser/BrowserJj", entry: "packages/jj/src/browser/BrowserJj.ts" },

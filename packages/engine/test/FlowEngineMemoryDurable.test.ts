@@ -20,12 +20,8 @@ import { withCrypto } from "./Crypto.ts"
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
   it.effect(name, () => withCrypto(body().pipe(Effect.provide(TestClock.layer()))))
 
-/** An `effect` case that documents a known defect: it passes while the bug stands. */
-const effectFails = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it.effect.fails(name, () => withCrypto(body().pipe(Effect.provide(TestClock.layer()))))
-
 const pollSuspended = <A, E, R>(
-  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>
+  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, FlowRuntime.FlowExecutionNotFound, R>
 ) =>
   Effect.gen(function*() {
     let result = yield* poll
@@ -38,7 +34,7 @@ const pollSuspended = <A, E, R>(
   })
 
 const pollComplete = <A, E, R>(
-  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>
+  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, FlowRuntime.FlowExecutionNotFound, R>
 ) =>
   Effect.gen(function*() {
     let result = yield* poll
@@ -107,8 +103,42 @@ describe("FlowEngine.layerMemory durable waits", () => {
       const engine = yield* FlowRuntime.FlowRuntime
       yield* engine.resume(Parked, "never-started")
       yield* engine.interrupt(Parked, "never-started")
-      expect(Option.isNone(yield* Parked.poll("never-started"))).toBe(true)
+      // Neither no-op invented an execution: poll still reports the id as a
+      // typed not-found rather than `Option.none`.
+      const error = yield* Effect.flip(Parked.poll("never-started"))
+      expect(error).toMatchObject({
+        _tag: "@smthrs/flow-next/FlowExecutionNotFound",
+        executionId: "never-started"
+      })
     }).pipe(Effect.provide(ParkedLayer)))
+
+  effect("a wake with no remaining registration leaves the execution parked", () =>
+    Effect.gen(function*() {
+      const engine = yield* FlowRuntime.FlowRuntime
+      const Fleeting = Flow.make("Memory/Fleeting", {
+        payload: { id: Schema.String },
+        success: Schema.String,
+        body: (payload) => ParkedActionDeclaration.call(payload)
+      })
+      yield* Effect.scoped(
+        Effect.gen(function*() {
+          yield* engine.register(Fleeting, () =>
+            Effect.gen(function*() {
+              const instance = yield* FlowRuntime.FlowInstance
+              return yield* Flow.suspend(instance)
+            }))
+          yield* engine.execute(Fleeting, { executionId: "fleeting-run", payload: { id: "x" }, discard: true })
+          expect(Option.isSome(yield* pollSuspended(engine.poll(Fleeting, "fleeting-run")))).toBe(true)
+        })
+      )
+      // Every registration of the tag is closed: the wake is a no-op and the
+      // execution stays parked for a process that registers the flow again —
+      // the durable driver takes the same posture for a run that wakes where
+      // its flow is unknown.
+      yield* engine.resume(Fleeting, "fleeting-run")
+      const polled = yield* engine.poll(Fleeting, "fleeting-run")
+      expect(Option.isSome(polled) && polled.value._tag).toBe("Suspended")
+    }).pipe(Effect.provide(FlowEngine.layerMemory)))
 
   effect("arms a scheduled clock and completes its deferred at the deadline", () =>
     Effect.gen(function*() {
@@ -145,20 +175,22 @@ describe("FlowEngine.layerMemory normal interrupt of a live action", () => {
     return { actionDeclaration, events, flow }
   }
 
-  effect("a cancel requested mid-flight becomes the terminal result when the live action settles", () => {
+  effect("a cancel of an uninterruptible live action lets it settle, then reports the recorded cancellation", () => {
     const { actionDeclaration, events, flow } = liveCase("Memory/LiveSettle")
     return Effect.gen(function*() {
       const entered = yield* Deferred.make<void>()
       const release = yield* Deferred.make<void>()
       const layer = Layer.mergeAll(
         actionDeclaration.toLayer(() =>
-          Effect.gen(function*() {
+          // Uninterruptible: the prompt delivery below cannot tear this body,
+          // so it is the case that still settles on its own after a cancel.
+          Effect.uninterruptible(Effect.gen(function*() {
             events.push("enter")
             yield* Deferred.succeed(entered, undefined)
             yield* Deferred.await(release)
             events.push("settle")
             return "done"
-          }).pipe(Effect.ensuring(Effect.sync(() => void events.push("cleanup"))))
+          })).pipe(Effect.ensuring(Effect.sync(() => void events.push("cleanup"))))
         ),
         Interpreter.layer(flow)
       ).pipe(
@@ -167,8 +199,9 @@ describe("FlowEngine.layerMemory normal interrupt of a live action", () => {
       return yield* Effect.gen(function*() {
         const executionId = yield* flow.execute({ id: "live-settle" }, { discard: true })
         yield* Deferred.await(entered)
-        // The action is live; the normal interrupt records the request and
-        // returns without settling anything.
+        // The normal interrupt records the request and delivers the
+        // interruption, but the uninterruptible body holds it off: nothing
+        // settles until the body does.
         yield* flow.interrupt(executionId)
         yield* Effect.yieldNow
         expect(Option.isNone(yield* flow.poll(executionId))).toBe(true)
@@ -192,13 +225,12 @@ describe("FlowEngine.layerMemory normal interrupt of a live action", () => {
     })
   })
 
-  // BUG: layerMemory.interrupt is inert against a LIVE execution. `resume`
-  // returns while the fiber is running and nothing else delivers the
-  // interruption, so an action blocked in flight is never cancelled: the run
-  // stays live forever, its finalizers never run, and poll never reaches a
-  // terminal state — despite `interrupt`'s contract that the engine
-  // "interrupts active work while preserving its normal cleanup".
-  effectFails("normal interrupt cancels a live blocked action promptly with its cleanup", () => {
+  // `layerMemory.interrupt` delivers the interruption to the live body fiber:
+  // an action blocked in flight is cancelled, its finalizers run, and the
+  // round fiber converts the interruption into the recorded cancellation —
+  // `interrupt`'s contract that the engine "interrupts active work while
+  // preserving its normal cleanup".
+  effect("normal interrupt cancels a live blocked action promptly with its cleanup", () => {
     const { actionDeclaration, events, flow } = liveCase("Memory/LivePrompt")
     return Effect.gen(function*() {
       const entered = yield* Deferred.make<void>()
@@ -223,6 +255,39 @@ describe("FlowEngine.layerMemory normal interrupt of a live action", () => {
         // runs, and the poll observes the terminal cancellation.
         expect(Option.isSome(polled) && polled.value._tag).toBe("Complete")
         expect(events).toContain("cleanup")
+      }).pipe(Effect.provide(layer))
+    })
+  })
+
+  effect("an interrupt landing before the round fiber starts cancels without dispatching the action", () => {
+    const { actionDeclaration, events, flow } = liveCase("Memory/LiveUnstarted")
+    return Effect.gen(function*() {
+      const layer = Layer.mergeAll(
+        actionDeclaration.toLayer(() =>
+          Effect.sync(() => {
+            events.push("enter")
+            return "done"
+          })
+        ),
+        Interpreter.layer(flow)
+      ).pipe(
+        Layer.provideMerge(Action.layerImplementations)
+      ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
+      return yield* Effect.gen(function*() {
+        const executionId = yield* flow.execute({ id: "live-unstarted" }, { discard: true })
+        // Same tick as `execute`: the round fiber is installed but has not
+        // run, so there is no body fiber to signal yet — the request lands on
+        // the instance and the body observes it the moment it starts.
+        yield* flow.interrupt(executionId)
+        const polled = yield* pollComplete(flow.poll(executionId))
+        expect(Option.isSome(polled) && polled.value._tag).toBe("Complete")
+        const exit = Option.isSome(polled) && polled.value._tag === "Complete"
+          ? polled.value.exit
+          : undefined
+        expect(exit !== undefined && Exit.isFailure(exit)).toBe(true)
+        // The cancellation arrived before the body started: no action work
+        // was ever dispatched.
+        expect(events).toEqual([])
       }).pipe(Effect.provide(layer))
     })
   })

@@ -93,6 +93,27 @@ export const CacheEntry = Schema.Struct({
 export type CacheEntry = typeof CacheEntry.Type
 
 /**
+ * Provenance selector for a lookup.
+ *
+ * @category models
+ * @since 0.1.0
+ */
+export type GetOptions = {
+  /**
+   * Prefers the entry as it was recorded by this `(runId, eventSeq)` pair —
+   * the append-only `flows_step_cache_recorded` ledger row a `put` lands
+   * beside the head — falling back to the mutable head when no recorded
+   * version under that provenance exists. Replay reads through this fence so
+   * an old frame's projection stays a function of durable state: evicting or
+   * replacing the head never changes what that event recorded.
+   */
+  readonly recordedBy?: {
+    readonly runId: string
+    readonly eventSeq: number
+  }
+}
+
+/**
  * Fencing predicate for an eviction.
  *
  * @category models
@@ -127,7 +148,15 @@ export type PutResult =
  * @since 0.1.0
  */
 export interface Service {
-  readonly get: (keyDigest: string) => Effect.Effect<Option.Option<CacheEntry>, CacheStoreError>
+  /**
+   * The entry under `keyDigest`: the mutable head by default, or — with
+   * `recordedBy` — the durable recorded version that exact event landed,
+   * falling back to the head when the ledger holds none.
+   */
+  readonly get: (
+    keyDigest: string,
+    options?: GetOptions
+  ) => Effect.Effect<Option.Option<CacheEntry>, CacheStoreError>
   readonly put: (entry: CacheEntry) => Effect.Effect<PutResult, CacheStoreError>
   /**
    * Removes the row for `keyDigest`, returning whether a row was deleted.
@@ -179,8 +208,14 @@ const error = (code: CacheStoreErrorCode, message: string, cause?: unknown): Cac
  * naming a divergence that did not exist. Canonicalizing on the way in makes
  * the text comparison a structural one, which is what `@smthrs/canonical-next`
  * exists for.
+ *
+ * `RemoteCacheStore.put` runs the same check before serializing an entry onto
+ * the wire, so a value with no JSON form is refused identically by both tiers.
+ *
+ * @since 0.1.0
+ * @private
  */
-const encode = (value: unknown, field: string): Effect.Effect<string, CacheStoreError> =>
+export const encodeCanonical = (value: unknown, field: string): Effect.Effect<string, CacheStoreError> =>
   Schema.decodeUnknownEffect(Canonical)(value).pipe(
     Effect.mapError((cause) => error("invalid_cache", `${field} must have a canonical JSON form`, cause))
   )
@@ -190,10 +225,41 @@ const decode = (value: string, field: string): Effect.Effect<unknown, CacheStore
     Effect.mapError((cause) => error("decode_failed", `could not decode ${field}`, cause))
   )
 
-const validateKey = (keyDigest: string): Effect.Effect<void, CacheStoreError> =>
+/**
+ * Refuses an empty key digest before any statement or request is issued.
+ *
+ * @since 0.1.0
+ * @private
+ */
+export const validateKey = (keyDigest: string): Effect.Effect<void, CacheStoreError> =>
   keyDigest.length > 0
     ? Effect.void
     : Effect.fail(error("invalid_cache", "keyDigest must not be empty"))
+
+/** The shape a caller-supplied eviction fence must decode into. */
+const EvictFence = Schema.Struct({
+  runId: Schema.NonEmptyString,
+  eventSeq: NonNegativeSafeInt
+})
+
+/**
+ * Refuses a malformed eviction fence before any statement or request is
+ * issued. A fence naming an empty run or a sequence number no journal can
+ * record is a compare-and-swap no row could ever satisfy; running it anyway
+ * would misreport the caller's mistake as an ordinary "nothing matched".
+ *
+ * @since 0.1.0
+ * @private
+ */
+export const validateFence = (
+  fence: EvictOptions["ifRecordedBy"]
+): Effect.Effect<void, CacheStoreError> =>
+  fence === undefined
+    ? Effect.void
+    : Schema.decodeUnknownEffect(EvictFence)(fence).pipe(
+      Effect.asVoid,
+      Effect.mapError((cause) => error("invalid_cache", "eviction fence violates the persistence contract", cause))
+    )
 
 const validateEntry = (entry: CacheEntry): Effect.Effect<void, CacheStoreError> =>
   Schema.decodeUnknownEffect(CacheEntry)(entry).pipe(
@@ -247,10 +313,29 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
   const sql = yield* Effect.service(SqlClient.SqlClient)
   const writer = yield* DurableWriter
 
-  const get: Service["get"] = Effect.fn("CacheStore.get")((keyDigest) =>
+  const get: Service["get"] = Effect.fn("CacheStore.get")((keyDigest, options) =>
     Effect.gen(function*() {
       yield* Effect.annotateCurrentSpan({ keyDigest })
       yield* validateKey(keyDigest)
+      const recordedBy = options?.recordedBy
+      if (recordedBy !== undefined) {
+        // The ledger row is the durable evidence a replay of that exact event
+        // must read; the head is only the fallback for entries recorded under
+        // another provenance (a fork sharing the parent's keys, a shared-tier
+        // write-back, a pre-ledger row).
+        const recorded = yield* sql<Record<string, unknown>>`
+          SELECT key_digest, result_json, meta_json, created_at_ms, recorded_run_id, recorded_event_seq
+          FROM flows_step_cache_recorded
+          WHERE key_digest = ${keyDigest}
+            AND recorded_run_id = ${recordedBy.runId}
+            AND recorded_event_seq = ${recordedBy.eventSeq}
+        `.pipe(Effect.mapError(mapPersistenceError))
+        if (recorded.length > 0) {
+          const entry = yield* decodeRow(recorded[0]!)
+          yield* Metric.update(CacheStoreMetrics.hit, 1)
+          return Option.some(entry)
+        }
+      }
       const rows = yield* sql<Record<string, unknown>>`
         SELECT key_digest, result_json, meta_json, created_at_ms, recorded_run_id, recorded_event_seq
         FROM flows_step_cache WHERE key_digest = ${keyDigest}
@@ -269,10 +354,22 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
     Effect.gen(function*() {
       yield* Effect.annotateCurrentSpan({ keyDigest: entry.keyDigest })
       yield* validateEntry(entry)
-      const result = yield* encode(entry.result, "result")
-      const meta = yield* encode(entry.meta, "meta")
+      const result = yield* encodeCanonical(entry.result, "result")
+      const meta = yield* encodeCanonical(entry.meta, "meta")
       return yield* writer.write(
         Effect.gen(function*() {
+          // The recorded ledger lands first and unconditionally: whatever the
+          // head decides — first write, duplicate, or conflict — this event
+          // durably recorded these bytes, and a later replay naming exactly
+          // this provenance must read them back. First writer wins per
+          // provenance key; nothing ever deletes a ledger row.
+          yield* sql`
+            INSERT INTO flows_step_cache_recorded (
+              key_digest, result_json, meta_json, created_at_ms, recorded_run_id, recorded_event_seq
+            ) VALUES (
+              ${entry.keyDigest}, ${result}, ${meta}, ${entry.createdAtMs}, ${entry.recordedRunId}, ${entry.recordedEventSeq}
+            ) ON CONFLICT (key_digest, recorded_run_id, recorded_event_seq) DO NOTHING
+          `.pipe(Effect.mapError(mapPersistenceError))
           const inserted = yield* sql`
             INSERT INTO flows_step_cache (
               key_digest, result_json, meta_json, created_at_ms, recorded_run_id, recorded_event_seq
@@ -305,6 +402,7 @@ export const make: Effect.Effect<Service, never, DurableWriter | SqlClient.SqlCl
     Effect.gen(function*() {
       yield* Effect.annotateCurrentSpan({ keyDigest })
       yield* validateKey(keyDigest)
+      yield* validateFence(options?.ifRecordedBy)
       // The provenance predicate rides in the DELETE itself (issue #119):
       // a read-then-delete leaves a window in which another *process* records
       // a fresh row under the same key, and the unconditional delete would

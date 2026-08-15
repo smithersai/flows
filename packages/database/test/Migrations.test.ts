@@ -44,8 +44,7 @@ const failureMessage = <A, E>(effect: Effect.Effect<A, E, SqlClient.SqlClient>) 
   })
 
 describe("composed migrations", () => {
-  // BUG: rejectSkipped treats zero as already below the fresh database's high-water mark.
-  it.effect.fails("applies migration id zero on a fresh database", () =>
+  it.effect("applies migration id zero on a fresh database", () =>
     Effect.gen(function*() {
       const zero: Migrations.MigrationSet = {
         namespace: "zero",
@@ -56,6 +55,93 @@ describe("composed migrations", () => {
 
       expect(exit._tag).toBe("Success")
       expect(exit._tag === "Success" ? exit.value : []).toEqual([[0, "zero_initial"]])
+    }))
+
+  it.effect("records and persists the id-zero migration like any other", () =>
+    Effect.gen(function*() {
+      const zero: Migrations.MigrationSet = {
+        namespace: "zero",
+        idOffset: 0,
+        migrations: {
+          "0000_initial": createTable("zero_rows"),
+          "0001_second": createTable("zero_more_rows")
+        }
+      }
+      const result = yield* (
+        Effect.gen(function*() {
+          const sql = yield* SqlClient.SqlClient
+          const first = yield* Migrations.run([zero])
+          const second = yield* Migrations.run([zero])
+          const records = yield* sql<
+            { readonly migration_id: number; readonly name: string }
+          >`SELECT migration_id, name FROM ${sql(Migrations.table)} ORDER BY migration_id`
+          return { first, records, second }
+        }).pipe(Effect.provide(TestDatabase.layer))
+      )
+
+      expect(result.first).toEqual([
+        [0, "zero_initial"],
+        [1, "zero_second"]
+      ])
+      expect(result.second).toEqual([])
+      expect(result.records).toEqual([
+        { migration_id: 0, name: "zero_initial" },
+        { migration_id: 1, name: "zero_second" }
+      ])
+    }))
+
+  it.effect("rolls back a failing id-zero migration with the whole run", () =>
+    Effect.gen(function*() {
+      const broken: Migrations.MigrationSet = {
+        namespace: "zero",
+        idOffset: 0,
+        migrations: { "0000_initial": Effect.fail("zero migration failed") }
+      }
+      const result = yield* (
+        Effect.gen(function*() {
+          const sql = yield* SqlClient.SqlClient
+          const failed = yield* Effect.exit(Migrations.run([broken]))
+          const records = yield* sql<
+            { readonly migration_id: number }
+          >`SELECT migration_id FROM ${sql(Migrations.table)}`
+          return { failed, records }
+        }).pipe(Effect.provide(TestDatabase.layer))
+      )
+
+      expect(Exit.isFailure(result.failed)).toBe(true)
+      if (Exit.isFailure(result.failed)) {
+        const defect = Cause.findDefect(result.failed.cause)
+        expect(Result.isSuccess(defect)).toBe(true)
+        if (Result.isSuccess(defect)) {
+          expect(defect.success).toBeInstanceOf(Migrator.MigrationError)
+          expect(defect.success).toMatchObject({ kind: "Failed", message: `Migration "0_zero_initial" failed` })
+        }
+      }
+      expect(result.records).toEqual([])
+    }))
+
+  it.effect("applies migration id zero through a hand-wired loader", () =>
+    Effect.gen(function*() {
+      const zero: Migrations.MigrationSet = {
+        namespace: "zero",
+        idOffset: 0,
+        migrations: { "0000_initial": createTable("zero_rows") }
+      }
+      const result = yield* (
+        Effect.gen(function*() {
+          const sql = yield* SqlClient.SqlClient
+          // Creates the migrations table the standalone loader reads.
+          yield* Migrations.run([])
+          const resolved = yield* Migrations.loader([zero])
+          const records = yield* sql<
+            { readonly migration_id: number; readonly name: string }
+          >`SELECT migration_id, name FROM ${sql(Migrations.table)}`
+          return { records, resolved: resolved.map(([id, name]) => [id, name]) }
+        }).pipe(Effect.provide(TestDatabase.layer))
+      )
+
+      expect(result.resolved).toEqual([[0, "zero_initial"]])
+      expect(result.records).toEqual([{ migration_id: 0, name: "zero_initial" }])
     }))
 
   it.effect("lifts each package's local ids into the block it reserves", () =>
@@ -227,8 +313,7 @@ describe("composed migrations", () => {
       expect(exit._tag === "Success" ? exit.value : "failed").toEqual([])
     }))
 
-  // BUG: loader accepts a negative offset when its resulting migration id remains positive.
-  it.effect.fails("rejects a negative idOffset as bad migration state", () =>
+  it.effect("rejects a negative idOffset as bad migration state", () =>
     Effect.gen(function*() {
       const invalid: Migrations.MigrationSet = {
         namespace: "negative",
@@ -242,8 +327,7 @@ describe("composed migrations", () => {
       expect(failure).toMatchObject({ kind: "BadState" })
     }))
 
-  // BUG: loader forwards a fractional migration id to SQLite instead of rejecting the invalid offset itself.
-  it.effect.fails("rejects a non-integer idOffset as bad migration state", () =>
+  it.effect("rejects a non-integer idOffset as bad migration state", () =>
     Effect.gen(function*() {
       const invalid: Migrations.MigrationSet = {
         namespace: "fractional",

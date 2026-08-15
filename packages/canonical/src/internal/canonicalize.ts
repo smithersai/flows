@@ -13,12 +13,43 @@
 const hasToJson = (value: object): value is { toJSON: () => unknown } =>
   "toJSON" in value && typeof (value as { toJSON: unknown }).toJSON === "function"
 
+/**
+ * Refuses a string containing a lone surrogate.
+ *
+ * A lone surrogate has no UTF-8 encoding, so a document containing one has no
+ * canonical byte sequence to hash — different runtimes would substitute
+ * different replacement characters and produce different digests. The check
+ * runs at the point a string is serialized, which is the only place that sees
+ * every string in the output: the input's own strings and keys, and the ones a
+ * `toJSON` mints during serialization.
+ *
+ * @private
+ */
+const assertWellFormed = (value: string): string => {
+  for (let index = 0; index < value.length; index++) {
+    const code = value.charCodeAt(index)
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next = value.charCodeAt(index + 1)
+      if (index + 1 >= value.length || next < 0xdc00 || next > 0xdfff) {
+        throw new TypeError("Lone surrogate is not allowed")
+      }
+      index++
+    } else if (code >= 0xdc00 && code <= 0xdfff) {
+      throw new TypeError("Lone surrogate is not allowed")
+    }
+  }
+  return value
+}
+
 const serialize = (value: unknown, ancestors: WeakSet<object>): string | undefined => {
   if (typeof value === "number" && Number.isNaN(value)) {
     throw new TypeError("NaN is not allowed")
   }
   if (typeof value === "number" && !Number.isFinite(value)) {
     throw new TypeError("Infinity is not allowed")
+  }
+  if (typeof value === "string") {
+    return JSON.stringify(assertWellFormed(value))
   }
   if (value === null || typeof value !== "object") {
     return JSON.stringify(value)
@@ -43,7 +74,7 @@ const serialize = (value: unknown, ancestors: WeakSet<object>): string | undefin
       if (member === undefined || typeof member === "symbol") {
         return []
       }
-      return [`${JSON.stringify(key)}:${serialize(member, ancestors)}`]
+      return [`${JSON.stringify(assertWellFormed(key))}:${serialize(member, ancestors)}`]
     })
     return `{${members.join(",")}}`
   } finally {
@@ -56,8 +87,8 @@ const serialize = (value: unknown, ancestors: WeakSet<object>): string | undefin
  *
  * Returns `undefined` when the top-level value has no JSON representation
  * (`undefined`, a symbol, or a function), mirroring `JSON.stringify`.
- * Throws on non-finite numbers and circular references, which RFC 8785
- * cannot represent.
+ * Throws on non-finite numbers, circular references, and strings or property
+ * names carrying a lone surrogate, none of which RFC 8785 can represent.
  *
  * @category constructors
  * @since 0.1.0

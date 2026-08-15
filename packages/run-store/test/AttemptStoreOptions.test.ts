@@ -160,13 +160,13 @@ describe("AttemptStore options", () => {
         })
     ))
 
-  it.effect("patches unfenced fields without touching state", () =>
+  it.effect("patches opaque fields without touching state", () =>
     withStore(
       { inProgressStates: ["in-progress"] },
       (store) =>
         Effect.gen(function*() {
           yield* store.put(attempt({ error: { message: "kept" } }), owner)
-          expect(yield* store.patch({ runId: "run", stepKeyDigest: "digest", attempt: 0 }, { meta: { a: 3 } }))
+          expect(yield* store.patch({ runId: "run", stepKeyDigest: "digest", attempt: 0 }, { meta: { a: 3 } }, owner))
             .toEqual({ _tag: "Patched" })
           const row = Option.getOrThrow(yield* store.get({ runId: "run", stepKeyDigest: "digest", attempt: 0 }))
           expect(row.meta).toEqual({ a: 3 })
@@ -180,10 +180,10 @@ describe("AttemptStore options", () => {
       { inProgressStates: ["in-progress"] },
       (store) =>
         Effect.gen(function*() {
-          expect(yield* store.patch({ runId: "run", stepKeyDigest: "missing", attempt: 0 }, { meta: 1 }))
+          expect(yield* store.patch({ runId: "run", stepKeyDigest: "missing", attempt: 0 }, { meta: 1 }, owner))
             .toEqual({ _tag: "NotFound" })
           yield* store.put(attempt(), owner)
-          expect(yield* store.patch({ runId: "run", stepKeyDigest: "digest", attempt: 0 }, {}))
+          expect(yield* store.patch({ runId: "run", stepKeyDigest: "digest", attempt: 0 }, {}, owner))
             .toEqual({ _tag: "Patched" })
         })
     ))
@@ -195,11 +195,11 @@ describe("AttemptStore options", () => {
         Effect.gen(function*() {
           expect(
             (yield* Effect.flip(
-              store.patch({ runId: "run", stepKeyDigest: "digest", attempt: 0 }, { checkpoint: "y".repeat(64) })
+              store.patch({ runId: "run", stepKeyDigest: "digest", attempt: 0 }, { checkpoint: "y".repeat(64) }, owner)
             )).code
           ).toBe("invalid_attempt")
           expect(
-            (yield* Effect.flip(store.patch({ runId: "", stepKeyDigest: "digest", attempt: 0 }, {}))).code
+            (yield* Effect.flip(store.patch({ runId: "", stepKeyDigest: "digest", attempt: 0 }, {}, owner))).code
           ).toBe("invalid_attempt")
         })
     ))
@@ -216,7 +216,7 @@ describe("AttemptStore options", () => {
               error: { e: 1 },
               outcome: { o: 1 },
               meta: { m: 1 }
-            })
+            }, owner)
           ).toEqual({ _tag: "Patched" })
           const row = Option.getOrThrow(yield* store.get({ runId: "run", stepKeyDigest: "digest", attempt: 0 }))
           expect(row).toMatchObject({
@@ -239,7 +239,7 @@ describe("AttemptStore options", () => {
   it.effect("the noop store reports patch as unavailable", () =>
     Effect.gen(function*() {
       const store = AttemptStore.makeNoop()
-      const failure = yield* Effect.flip(store.patch({ runId: "r", stepKeyDigest: "d", attempt: 0 }, {}))
+      const failure = yield* Effect.flip(store.patch({ runId: "r", stepKeyDigest: "d", attempt: 0 }, {}, owner))
       expect(failure.code).toBe("unknown")
     }))
 

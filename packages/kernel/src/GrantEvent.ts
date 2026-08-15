@@ -148,10 +148,16 @@ export type GrantEvent = typeof GrantEventSchema.Type
 /**
  * Decodes one JSON-compatible journal payload into a grant event.
  *
+ * Excess payload keys are rejected rather than stripped. Grant payloads are
+ * replayed as active permission authority, so a payload that mixes fields
+ * from two grant variants — for example an envelope carrying request-only
+ * fields — is treated as corrupt instead of silently narrowed to whichever
+ * variant its declared keys happen to satisfy.
+ *
  * @category decoding
  * @since 0.1.0
  */
-export const decode = Schema.decodeUnknownResult(GrantEventSchema)
+export const decode = Schema.decodeUnknownResult(GrantEventSchema, { onExcessProperty: "error" })
 
 /**
  * Encodes a grant event into its JSON-compatible journal payload.

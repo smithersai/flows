@@ -90,7 +90,11 @@ The wasm artifact ships in the package at `wasm/flows_jj.wasm`; how it becomes
 a URL is the bundler's business (Vite: `?url` import, or copy it as an asset).
 It is rebuilt reproducibly with `pnpm run build:wasm` in this package, which
 drives `crates/flows-jj/build-wasm.mjs` (`cargo build --release --target
-wasm32-wasip1` + copy).
+wasm32-wasip1` + copy). Reproducible means per host triple: cargo builds
+build scripts for the host, which puts the host triple into every symbol
+hash, so the committed bytes are the `x86_64-unknown-linux-gnu` build that CI
+reproduces. The script refuses to run on another host and prints the
+container command that produces those bytes anywhere.
 
 **Durability is the mount's job, not this layer's.** ZenFS fronts OPFS or
 IndexedDB with a synchronous mirror and writes back asynchronously — that sync

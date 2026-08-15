@@ -12,7 +12,7 @@ const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Cr
   it.effect(name, () => withCrypto(body()))
 
 const pollSuspended = <A, E, R>(
-  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>
+  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, FlowRuntime.FlowExecutionNotFound, R>
 ) =>
   Effect.gen(function*() {
     let result = yield* poll
@@ -24,7 +24,7 @@ const pollSuspended = <A, E, R>(
   })
 
 const pollComplete = <A, E, R>(
-  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>
+  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, FlowRuntime.FlowExecutionNotFound, R>
 ) =>
   Effect.gen(function*() {
     let result = yield* poll

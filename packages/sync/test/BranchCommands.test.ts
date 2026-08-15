@@ -58,7 +58,11 @@ describe("BranchCommands", () => {
       expect(receipt.status).toBe("admitted")
       expect(page.entries).toHaveLength(1)
       expect(page.entries[0]?.eventType).toBe(BranchProtocol.CommandEvent)
-      expect(page.entries[0]?.sourceId).toBe(BranchProtocol.participantSourceId(alice))
+      // The producer identity IS the exactly-once constraint: it must derive
+      // from the command, not the participant, so two servers racing the same
+      // command collide durably inside the journal.
+      expect(page.entries[0]?.sourceId).toBe(BranchProtocol.commandSourceId(commandId("c1")))
+      expect(page.entries[0]?.sourceSeq).toBe(BranchProtocol.commandSourceSeq)
       expect(page.entries[0]?.seq).toBe(receipt.seq)
     }))
 
@@ -190,8 +194,8 @@ describe("BranchCommands", () => {
           runId,
           seq: (index + 2) as JournalEvent.Seq,
           eventId: `command-${index}`,
-          sourceId: BranchProtocol.participantSourceId(alice),
-          sourceSeq: (index + 1) as JournalEvent.SourceSeq,
+          sourceId: BranchProtocol.commandSourceId(commandId(`command-${index}`)),
+          sourceSeq: BranchProtocol.commandSourceSeq,
           emittedAtMs: 0,
           eventType: BranchProtocol.CommandEvent,
           payload,
@@ -276,6 +280,50 @@ describe("BranchCommands", () => {
 
       expect((yield* failureOf(new Error("disk is gone"))).message).toBe("disk is gone")
       expect((yield* failureOf("nope")).message).toBe("Branch journal write failed")
+    }))
+
+  it.effect("refuses to call a conflict a duplicate when the replay cannot find the winner", () =>
+    Effect.gen(function*() {
+      // A journal whose conflict report and entries disagree is broken; the
+      // ledger must report that honestly instead of minting a receipt for an
+      // admission it cannot see.
+      const failure = yield* (
+        Effect.gen(function*() {
+          const commands = yield* BranchCommands.makeLive
+          const capability = yield* capabilityFor(branchId, "write")
+          return yield* Effect.flip(
+            commands.submit({
+              capability,
+              submission: BranchCommands.submission({
+                branchId,
+                commandId: commandId("contested"),
+                participantId: alice,
+                name: BranchProtocol.SayCommand
+              })
+            })
+          )
+        }).pipe(
+          Effect.provide(
+            Layer.mergeAll(
+              Journal.layerNoop({
+                entries: () => Effect.succeed({ entries: [], hasMore: false }),
+                emitDurable: () =>
+                  Effect.fail(
+                    new Journal.JournalError({
+                      code: "idempotency_conflict",
+                      message: "source event reused with different content"
+                    })
+                  )
+              }),
+              shareLayer
+            )
+          ),
+          Effect.provide(TestClock.layer())
+        )
+      )
+
+      expect(failure.code).toBe("unknown")
+      expect(failure.message).toBe("source event reused with different content")
     }))
 
   it.effect("admits nothing through the noop layer, and honours overrides", () =>

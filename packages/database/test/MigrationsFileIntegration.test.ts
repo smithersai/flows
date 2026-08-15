@@ -69,8 +69,7 @@ describe("file-backed migrations", () => {
       }
     }))
 
-  // BUG: SQLite migration runs do not retry a peer's BEGIN IMMEDIATE lock, so one concurrent caller fails busy.
-  it.effect.fails("serializes two connections migrating one file without duplicate application", () =>
+  it.effect("serializes two connections migrating one file without duplicate application", () =>
     Effect.gen(function*() {
       const directory = mkdtempSync(join(tmpdir(), "flows-migrations-concurrent-"))
       const filename = join(directory, "migrations.sqlite")

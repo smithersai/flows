@@ -185,8 +185,8 @@ describe("BrowserFileSystem error mapping", () => {
       expect(yield* (make("other").stat("/o"))).toMatchObject({ type: "Unknown" })
     }))
 
-  // BUG: BrowserFileSystem documents makeTemp* as NotFound, but Effect's makeNoop defects instead.
-  it.effect.fails("fails every deliberately unsupported operation with NotFound", () =>
+  // Effect's makeNoop defects on makeTemp*, so BrowserFileSystem wires those four explicitly to NotFound.
+  it.effect("fails every deliberately unsupported operation with NotFound", () =>
     Effect.gen(function*() {
       const fileSystem = BrowserFileSystem.make(throwingFs(codeError("ENOENT")))
       const operations: ReadonlyArray<

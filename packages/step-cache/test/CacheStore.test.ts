@@ -130,6 +130,59 @@ describe("CacheStore", () => {
       expect(Option.getOrThrow(result.found)).toEqual(entry)
     }))
 
+  it.effect("serves each provenance its recorded version however the head has moved", () =>
+    Effect.gen(function*() {
+      const replaced = {
+        ...entry,
+        result: { output: "replaced" },
+        createdAtMs: 20,
+        recordedRunId: "run-2",
+        recordedEventSeq: 9
+      }
+      const result = yield* migrated(Effect.gen(function*() {
+        const store = yield* CacheStore
+        yield* store.put(entry)
+        yield* store.evict(entry.keyDigest)
+        yield* store.put(replaced)
+        return {
+          original: yield* store.get(entry.keyDigest, {
+            recordedBy: { runId: entry.recordedRunId, eventSeq: entry.recordedEventSeq }
+          }),
+          current: yield* store.get(entry.keyDigest, {
+            recordedBy: { runId: replaced.recordedRunId, eventSeq: replaced.recordedEventSeq }
+          }),
+          // No ledger row under this provenance: the head answers instead.
+          fallback: yield* store.get(entry.keyDigest, {
+            recordedBy: { runId: entry.recordedRunId, eventSeq: 8 }
+          }),
+          head: yield* store.get(entry.keyDigest)
+        }
+      }))
+
+      expect(Option.getOrThrow(result.original)).toEqual(entry)
+      expect(Option.getOrThrow(result.current)).toEqual(replaced)
+      expect(Option.getOrThrow(result.fallback)).toEqual(replaced)
+      expect(Option.getOrThrow(result.head)).toEqual(replaced)
+    }))
+
+  it.effect("keeps the first recorded bytes for a provenance across a conflicting re-put", () =>
+    Effect.gen(function*() {
+      const result = yield* migrated(Effect.gen(function*() {
+        const store = yield* CacheStore
+        yield* store.put(entry)
+        const put = yield* store.put({ ...entry, result: { output: "different" } })
+        return {
+          put,
+          recorded: yield* store.get(entry.keyDigest, {
+            recordedBy: { runId: entry.recordedRunId, eventSeq: entry.recordedEventSeq }
+          })
+        }
+      }))
+
+      expect(result.put).toEqual({ _tag: "Conflict" })
+      expect(Option.getOrThrow(result.recorded)).toEqual(entry)
+    }))
+
   it.effect("recognizes an identical re-put", () =>
     Effect.gen(function*() {
       const result = yield* migrated(Effect.gen(function*() {
@@ -312,10 +365,7 @@ describe("CacheStore", () => {
       }
     }))
 
-  // BUG: CacheStore.evict validates only `keyDigest`; a malformed `ifRecordedBy`
-  // fence is bound straight into the DELETE, so a compare-and-swap the caller
-  // could never satisfy silently reports `false` instead of failing invalid_cache.
-  it.effect.fails("rejects a malformed eviction fence with invalid_cache and no DELETE", () =>
+  it.effect("rejects a malformed eviction fence with invalid_cache and no DELETE", () =>
     Effect.gen(function*() {
       // The fence is a compare-and-swap the caller supplies at runtime. A value
       // that can name no row is a caller defect, and reporting it as an ordinary
@@ -349,8 +399,8 @@ describe("CacheStore", () => {
       )
 
       expect(deletes).toEqual([])
-      // Today every one of these reads `evicted:false` — an eviction that could
-      // never have matched, reported as an ordinary miss.
+      // An eviction that could never have matched fails, and is never reported
+      // as an ordinary miss.
       expect(result.outcomes).toEqual(Array.from({ length: 5 }, () => "invalid_cache"))
       // The row the fence could not name is untouched.
       expect(result.count).toBe(1)

@@ -182,8 +182,13 @@ describe("FlowProxyServer.layerRpcHandlers", () => {
       const client = yield* RpcTest.makeClient(FlowProxy.toRpcGroup(flows))
       yield* client["Proxy/EchoResume"]({ executionId: "proxy-never-started" })
       yield* client["Proxy/SuspendsResume"]({ executionId: "" })
-      // Nothing was started, dispatched, or invented for the unknown id.
-      expect(Option.isNone(yield* Echo.poll("proxy-never-started"))).toBe(true)
+      // Nothing was started, dispatched, or invented for the unknown id: the
+      // engine still reports it as a typed not-found.
+      const error = yield* Effect.flip(Echo.poll("proxy-never-started"))
+      expect(error).toMatchObject({
+        _tag: "@smthrs/flow-next/FlowExecutionNotFound",
+        executionId: "proxy-never-started"
+      })
       expect(calls()).toBe(0)
     }).pipe(
       Effect.provide(FlowProxyServer.layerRpcHandlers(flows).pipe(Layer.provideMerge(layer)))

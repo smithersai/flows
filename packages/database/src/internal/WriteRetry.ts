@@ -131,11 +131,14 @@ export const withWriteRetry = <A, E, R>(
   const maxAttempts = boundedPositiveInteger(options?.maxAttempts, defaultMaxAttempts)
   const baseDelayMs = boundedPositiveInteger(options?.baseDelayMs, defaultBaseDelayMs)
   const maxDelayMs = boundedPositiveInteger(options?.maxDelayMs, defaultMaxDelayMs)
+  // Jitter runs before the cap so `maxDelayMs` bounds the delay that is
+  // actually slept: capping first and jittering after lets a jitter draw
+  // above 1 stretch a delay past the documented upper bound.
   const schedule = Schedule.exponential(Duration.millis(baseDelayMs)).pipe(
+    Schedule.jittered,
     Schedule.modifyDelay(({ duration }) =>
       Effect.succeed(Duration.millis(Math.min(maxDelayMs, Duration.toMillis(duration))))
     ),
-    Schedule.jittered,
     Schedule.upTo({ times: maxAttempts - 1 }),
     // The tap sits after `upTo`, so it fires once per step that actually
     // schedules a replay and never for the exhausted attempt that surfaces

@@ -19,7 +19,7 @@ const liveEffect = (name: string, body: () => Effect.Effect<void, unknown, Crypt
   it.live(name, () => withCrypto(body()))
 
 const pollUntil = <A, E, R>(
-  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>,
+  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, FlowRuntime.FlowExecutionNotFound, R>,
   predicate: (result: Flow.Result<A, E>) => boolean
 ) =>
   Effect.gen(function*() {
@@ -115,8 +115,10 @@ describe("child flow suspension and interruption", () => {
     // UNDER the parent's rather than beside it: that is what answers the child
     // flow's requirement where the parent's implementation asks for it.
     const layer = Layer.mergeAll(
+      // The literal child payload always satisfies its schema, so the typed
+      // SchemaError on execute cannot occur and is disposed of as a defect.
       parentActionDeclaration.toLayer(() =>
-        Effect.map(child.execute({ n: 1 }, { executionId: "child-gated" }), (n) => n + 1)
+        Effect.map(Effect.orDie(child.execute({ n: 1 }, { executionId: "child-gated" })), (n) => n + 1)
       ),
       Interpreter.layer(parent)
     ).pipe(
@@ -240,7 +242,7 @@ describe("child flow suspension and interruption", () => {
     // UNDER the parent's rather than beside it: that is what answers the child
     // flow's requirement where the parent's implementation asks for it.
     const layer = Layer.mergeAll(
-      parentActionDeclaration.toLayer(() => child.execute({ n: 5 }, { executionId: "child-quick" })),
+      parentActionDeclaration.toLayer(() => Effect.orDie(child.execute({ n: 5 }, { executionId: "child-quick" }))),
       Interpreter.layer(parent)
     ).pipe(
       Layer.provideMerge(Action.layerImplementations),

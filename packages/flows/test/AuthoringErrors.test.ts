@@ -116,18 +116,20 @@ describe("authoring input errors", () => {
         return { error, row: yield* store.get("missing-action-run") }
       }))
 
-      expect(observed.error._tag).toBe("@smthrs/flow-next/InterpreterError")
-      expect(observed.error.code).toBe("unresolved_action")
-      expect(observed.error.flow).toBe("authoring/missing-flow")
-      expect(observed.error.node).toContain("root.flow")
+      expect(observed.error).toMatchObject({
+        _tag: "@smthrs/flow-next/InterpreterError",
+        code: "unresolved_action",
+        flow: "authoring/missing-flow"
+      })
+      expect(observed.error).toBeInstanceOf(Interpreter.InterpreterError)
+      const interpreterError = observed.error as Interpreter.InterpreterError
+      expect(interpreterError.node).toContain("root.flow")
       expect(observed.error.message).toContain("Action \"authoring/missing-action\" has no implementation")
       expect(observed.error.message).toContain("Action.layerImplementations")
       expect(observed.row.status).toBe("failed")
     }))
 
-  // BUG: Flow.execute uses Schema.make, so invalid caller input dies with a
-  // plain Error instead of failing with the schema's typed SchemaError.
-  it.effect.fails("fails an invalid execute payload with a typed SchemaError and field path", () =>
+  it.effect("fails an invalid execute payload with a typed SchemaError and field path", () =>
     Effect.gen(function*() {
       const Checked = Flow.make("authoring/schema-checked", {
         payload: { count: Schema.Number },
@@ -194,9 +196,7 @@ describe("authoring input errors", () => {
       expect(observed.row.status).toBe("completed")
     }))
 
-  // BUG: the durable runtime returns Option.none for an unknown execution,
-  // so callers cannot distinguish "not found" from a known, unsettled run.
-  it.effect.fails("fails poll on an unknown execution id with typed not-found", () =>
+  it.effect("fails poll on an unknown execution id with typed not-found", () =>
     Effect.gen(function*() {
       const Pollable = Flow.make("authoring/pollable", {
         payload: {},

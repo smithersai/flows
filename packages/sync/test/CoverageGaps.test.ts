@@ -13,6 +13,7 @@ import * as Socket from "effect/unstable/socket/Socket"
 import * as RunCatalog from "../src/RunCatalog.ts"
 import * as SyncClient from "../src/SyncClient.ts"
 import { SyncError, SyncGapError } from "../src/SyncError.ts"
+import * as SyncPrincipal from "../src/SyncPrincipal.ts"
 import * as SyncServer from "../src/SyncServer.ts"
 import * as TestSocket from "../src/test/TestSocket.ts"
 
@@ -159,7 +160,8 @@ describe("sync malformed and terminal boundaries", () => {
           Effect.provide(
             Layer.mergeAll(
               Journal.layerNoop({ entries: () => Effect.fail("offline" as unknown as Journal.JournalError) }),
-              RunCatalog.layerStatic([runId("boundary")])
+              RunCatalog.layerStatic([runId("boundary")]),
+              SyncPrincipal.layerWorkspace("coverage-suite")
             )
           )
         )

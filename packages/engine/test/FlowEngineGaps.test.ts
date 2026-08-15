@@ -20,7 +20,7 @@ const liveEffect = (name: string, body: () => Effect.Effect<void, unknown, Crypt
   it.live(name, () => withCrypto(body()))
 
 const pollUntil = <A, E, R>(
-  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>,
+  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, FlowRuntime.FlowExecutionNotFound, R>,
   predicate: (result: Flow.Result<A, E>) => boolean
 ) =>
   Effect.gen(function*() {
@@ -423,7 +423,15 @@ describe("suspended resume policy", () => {
       const fiber = yield* Effect.forkChild(
         flow.execute({ id: "x" }, { executionId: "run-late" })
       )
-      const suspended = yield* pollUntil(flow.poll("run-late"), isSuspended)
+      // The forked execute may not have recorded the run on the first poll
+      // tick, so a typed not-found during startup reads as "not settled yet"
+      // for this loop.
+      const suspended = yield* pollUntil(
+        flow.poll("run-late").pipe(
+          Effect.catchTag("@smthrs/flow-next/FlowExecutionNotFound", () => Effect.succeedNone)
+        ),
+        isSuspended
+      )
       expect(Option.isSome(suspended)).toBe(true)
       const token = DurableDeferred.tokenFromExecutionId(Gate, { flow, executionId: "run-late" })
       yield* DurableDeferred.succeed(Gate, { token, value: "opened" })
@@ -600,7 +608,13 @@ describe("memory engine lifecycle", () => {
       const engine = yield* FlowRuntime.FlowRuntime
       yield* engine.interruptUnsafe(flow, "never-started")
       yield* engine.resume(flow, "never-started")
-      expect(Option.isNone(yield* flow.poll("never-started"))).toBe(true)
+      // Neither no-op invented an execution: the id is still unknown, which
+      // poll reports as a typed not-found rather than `Option.none`.
+      const error = yield* Effect.flip(flow.poll("never-started"))
+      expect(error).toMatchObject({
+        _tag: "@smthrs/flow-next/FlowExecutionNotFound",
+        executionId: "never-started"
+      })
     }).pipe(Effect.provide(layer))
   })
 

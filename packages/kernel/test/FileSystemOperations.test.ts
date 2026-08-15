@@ -440,8 +440,12 @@ describe("FileSystem operation guards", () => {
       )
 
       expect(exit._tag).toBe("Success")
+      // The first `file.stat` is the open-time fstat that binds the handle's
+      // authorization to a resource identity; the second is the guarded
+      // `handle.stat` operation itself.
       expect(calls.filter((call) => call !== "stat")).toEqual([
         "open",
+        "file.stat",
         "file.stat",
         "file.sync",
         "file.read",
@@ -477,6 +481,7 @@ describe("FileSystem operation guards", () => {
         (fs) => fs.copy("a", "b"),
         (fs) => fs.rename("a", "b"),
         (fs) => fs.stat("a"),
+        (fs) => Effect.scoped(fs.open("a")),
         (fs) => fs.makeTempDirectory(),
         (fs) => fs.makeTempDirectory({ directory: "scratch" }),
         (fs) => Effect.scoped(fs.makeTempDirectoryScoped()),

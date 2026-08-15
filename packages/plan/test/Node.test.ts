@@ -318,6 +318,40 @@ describe("internal/node call factories", () => {
     })
   })
 
+  it("clones a very deep payload without exhausting the native stack", () => {
+    let payload: Record<string, unknown> = { value: "leaf" }
+    for (let index = 0; index < 20_000; index++) payload = { next: payload }
+    const cloned = tagged(Node.succeed(payload).ast, "Succeed").value as Record<string, unknown>
+
+    let depth = 0
+    let current: Record<string, unknown> | undefined = cloned
+    while (current !== undefined && Object.hasOwn(current, "next")) {
+      depth++
+      current = current.next as Record<string, unknown>
+    }
+    expect(depth).toBe(20_000)
+    expect(current).toEqual({ value: "leaf" })
+    expect(Object.getPrototypeOf(cloned)).toBeNull()
+  })
+
+  it("clones shared and cyclic references into shared and cyclic clones", () => {
+    // Whether a cyclic payload is PLANNABLE is graph building's verdict; the
+    // cloner's own contract is only that it terminates and preserves aliasing.
+    const shared = { leaf: true }
+    const cyclic: { self?: unknown; twice?: ReadonlyArray<unknown> } = { twice: [shared, shared] }
+    cyclic.self = cyclic
+    const cloned = tagged(Node.succeed(cyclic).ast, "Succeed").value as {
+      readonly self: unknown
+      readonly twice: ReadonlyArray<unknown>
+    }
+
+    expect(cloned).not.toBe(cyclic)
+    expect(cloned.self).toBe(cloned)
+    expect(cloned.twice[0]).toEqual({ leaf: true })
+    expect(cloned.twice[0]).not.toBe(shared)
+    expect(cloned.twice[1]).toBe(cloned.twice[0])
+  })
+
   it("preserves an own __proto__ payload field without changing the clone prototype", () => {
     const payload = Object.create(null) as Record<string, unknown>
     Object.defineProperty(payload, "__proto__", { enumerable: true, value: "safe" })

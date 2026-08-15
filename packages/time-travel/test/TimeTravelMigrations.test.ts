@@ -75,8 +75,7 @@ describe("time-travel migrations", () => {
       }
     }))
 
-  // BUG: migrate ignores every ALTER TABLE failure, not only SQLite's duplicate-column error.
-  it.effect.fails("surfaces a non-duplicate ALTER TABLE failure", () =>
+  it.effect("surfaces a non-duplicate ALTER TABLE failure", () =>
     Effect.gen(function*() {
       const directory = yield* Effect.promise(() => mkdtemp(join(tmpdir(), "flows-time-travel-alter-")))
       const filename = join(directory, "alter.sqlite")

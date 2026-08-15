@@ -140,61 +140,50 @@ describe("SyncClient properties", () => {
     { fastCheck: params }
   )
 
-  // BUG: schema-valid Entries frames are trusted without checking their
-  // internal run/range/sequence consistency, so inconsistent frames are
-  // admitted (duplicates delivered twice, foreign-run and out-of-interval
-  // entries accepted) and advance the cursor instead of failing with
-  // protocol_violation. Corroborates the pinned cases in
-  // ClientProtocolValidation.test.ts.
-  it.effect.fails(
+  // A schema-valid Entries frame can still contradict itself. Every mutation
+  // below is an internal run/range/sequence inconsistency the client must
+  // refuse as a protocol violation without moving the acknowledged cursor.
+  // Corroborates the pinned cases in ClientProtocolValidation.test.ts.
+  it.effect.prop(
     "rejects arbitrary inconsistent frames with protocol_violation and never moves the cursor",
-    () =>
+    [
+      FastCheck.constantFrom(
+        "duplicate-seq",
+        "descending-seq",
+        "foreign-run-entry",
+        "toSeq-below-entry"
+      ),
+      FastCheck.integer({ min: 2, max: 9 }),
+      FastCheck.nat({ max: 8 })
+    ],
+    ([mutation, total, rawIndex]) =>
       Effect.gen(function*() {
-        const mutationArb = FastCheck.constantFrom(
-          "duplicate-seq",
-          "descending-seq",
-          "foreign-run-entry",
-          "toSeq-below-entry"
-        )
-        const check = (
-          mutation: string,
-          total: number,
-          rawIndex: number
-        ) =>
-          Effect.gen(function*() {
-            const index = rawIndex % total
-            const base = Array.from({ length: total }, (_, sequence) => entry(sequence))
-            const mutated = mutation === "duplicate-seq"
-              ? [...base.slice(0, index + 1), base[index]!, ...base.slice(index + 1)]
-              : mutation === "descending-seq"
-              ? [...base].reverse()
-              : mutation === "foreign-run-entry"
-              ? base.map((value, position) => position === index ? entry(position, foreignRunId) : value)
-              : base
-            const frame: SyncProtocol.Frame = {
-              _tag: "Entries",
-              runId,
-              fromSeq: seq(0),
-              toSeq: seq(mutation === "toSeq-below-entry" ? total - 2 : total - 1),
-              entries: mutated
-            }
-
-            const client = yield* stubClient([frame, closed])
-            const { acknowledged, failure } = yield* collect(client, [])
-
-            // The contract: an internally inconsistent frame is a protocol
-            // violation and must not advance the acknowledged cursor.
-            expect(SyncError.is(failure) && failure.code === "protocol_violation").toBe(true)
-            expect(acknowledged).toEqual([])
-          })
-
-        // The corpus is driven from inside the Effect: FastCheck's own async
-        // runner is what `it.effect.prop` replaces, and `it.effect.fails`
-        // cannot carry arbitraries.
-        yield* check("duplicate-seq", 2, 0)
-        for (const mutation of yield* Effect.sync(() => FastCheck.sample(mutationArb, params.numRuns))) {
-          yield* check(mutation, 2 + (params.seed % 7), params.seed % 7)
+        const index = rawIndex % total
+        const base = Array.from({ length: total }, (_, sequence) => entry(sequence))
+        const mutated = mutation === "duplicate-seq"
+          ? [...base.slice(0, index + 1), base[index]!, ...base.slice(index + 1)]
+          : mutation === "descending-seq"
+          ? [...base].reverse()
+          : mutation === "foreign-run-entry"
+          ? base.map((value, position) => position === index ? entry(position, foreignRunId) : value)
+          : base
+        const frame: SyncProtocol.Frame = {
+          _tag: "Entries",
+          runId,
+          fromSeq: seq(0),
+          toSeq: seq(mutation === "toSeq-below-entry" ? total - 2 : total - 1),
+          entries: mutated
         }
-      })
+
+        const client = yield* stubClient([frame, closed])
+        const { acknowledged, delivered, failure } = yield* collect(client, [])
+
+        // The contract: an internally inconsistent frame is a protocol
+        // violation, delivers nothing, and must not advance the cursor.
+        expect(SyncError.is(failure) && failure.code === "protocol_violation").toBe(true)
+        expect(delivered).toEqual([])
+        expect(acknowledged).toEqual([])
+      }),
+    { fastCheck: params }
   )
 })

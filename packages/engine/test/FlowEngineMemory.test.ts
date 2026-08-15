@@ -11,10 +11,6 @@ import { withCrypto } from "./Crypto.ts"
 const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
   it.effect(name, () => withCrypto(body()))
 
-/** An `effect` case that documents a known defect: it passes while the bug stands. */
-const effectFails = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Crypto>) =>
-  it.effect.fails(name, () => withCrypto(body()))
-
 describe("memory engine execution surface", () => {
   effect("dies when executing a flow that was never registered", () => {
     const flow = Flow.make("Memory/unregistered", {
@@ -29,7 +25,7 @@ describe("memory engine execution surface", () => {
     }).pipe(Effect.provide(FlowEngine.layerMemory))
   })
 
-  effect("polls None for an unknown execution id", () => {
+  effect("fails poll for an unknown execution id with a typed not-found", () => {
     const flowActionDeclaration = Action.make("Memory/poll-none/action", {
       payload: { id: Schema.String },
       success: Schema.Void
@@ -45,7 +41,14 @@ describe("memory engine execution surface", () => {
       Layer.provideMerge(FlowEngine.layerMemory)
     )
     return Effect.gen(function*() {
-      expect(Option.isNone(yield* flow.poll("never-started"))).toBe(true)
+      // `Option.none` is reserved for a known, unsettled run; an id the
+      // engine never recorded is a typed failure the caller can distinguish.
+      const error = yield* Effect.flip(flow.poll("never-started"))
+      expect(error).toMatchObject({
+        _tag: "@smthrs/flow-next/FlowExecutionNotFound",
+        code: "execution_not_found",
+        executionId: "never-started"
+      })
     }).pipe(Effect.provide(layer))
   })
 
@@ -108,12 +111,13 @@ describe("memory engine execution surface", () => {
 })
 
 describe("execution identity", () => {
-  // BUG: layerMemory.execute keys its executions map by execution id alone.
-  // Reusing one id under a DIFFERENT flow declaration silently joins the
-  // other flow's fiber and answers its result under this flow's declared
-  // schemas — cross-flow result leakage where the identity clash should be
-  // refused (or at minimum keyed by flow tag as well).
-  effectFails("refuses to reuse an execution id under a different flow declaration", () => {
+  // An execution id names one run of ONE flow declaration. Reusing the id
+  // under a DIFFERENT declaration used to silently join the other flow's
+  // fiber and answer its result under this flow's declared schemas;
+  // `layerMemory.execute` now refuses the identity clash with a defect, the
+  // same posture the durable driver's `ensureCreatedRun` takes for a run row
+  // that belongs to a different flow tag.
+  effect("refuses to reuse an execution id under a different flow declaration", () => {
     const aActionDeclaration = Action.make("Memory/reuse-a/action", {
       payload: { id: Schema.String },
       success: Schema.Number
@@ -142,10 +146,11 @@ describe("execution identity", () => {
     ).pipe(Layer.provideMerge(FlowEngine.layerMemory))
     return Effect.gen(function*() {
       expect(yield* flowA.execute({ id: "x" }, { executionId: "shared-id" })).toBe(7)
-      // Today this succeeds with flowA's `7` presented as flowB's declared
-      // string — the leak the refusal must prevent.
+      // Without the refusal this would succeed with flowA's `7` presented as
+      // flowB's declared string — the leak the refusal prevents.
       const exit = yield* flowB.execute({ id: "x" }, { executionId: "shared-id" }).pipe(Effect.exit)
       expect(Exit.isFailure(exit)).toBe(true)
+      expect(Exit.isFailure(exit) && exit.cause.toString()).toContain("already belongs to flow Memory/reuse-a")
     }).pipe(Effect.provide(layer))
   })
 
@@ -644,7 +649,9 @@ describe("flow definition surface", () => {
     // UNDER the parent's rather than beside it: that is what answers the child
     // flow's requirement where the parent's implementation asks for it.
     const layer = Layer.mergeAll(
-      parentActionDeclaration.toLayer(() => child.execute({ n: 1 }, { executionId: "child-run" })),
+      // The literal child payload always satisfies its schema, so the typed
+      // SchemaError on execute cannot occur and is disposed of as a defect.
+      parentActionDeclaration.toLayer(() => Effect.orDie(child.execute({ n: 1 }, { executionId: "child-run" }))),
       Interpreter.layer(parent)
     ).pipe(
       Layer.provideMerge(Action.layerImplementations),
@@ -690,7 +697,11 @@ describe("flow definition surface", () => {
     // UNDER the parent's rather than beside it: that is what answers the child
     // flow's requirement where the parent's implementation asks for it.
     const layer = Layer.mergeAll(
-      parentActionDeclaration.toLayer(() => child.execute({ n: 1 }, { executionId: "child-run-f" })),
+      parentActionDeclaration.toLayer(() =>
+        child.execute({ n: 1 }, { executionId: "child-run-f" }).pipe(
+          Effect.catchTag("SchemaError", (error) => Effect.die(error))
+        )
+      ),
       Interpreter.layer(parent)
     ).pipe(
       Layer.provideMerge(Action.layerImplementations),

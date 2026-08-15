@@ -119,21 +119,17 @@ describe("Capability properties", () => {
     )
   })
 
-  // BUG: repeated-star grant patterns compile to catastrophically backtracking
-  // regexes; matching modest non-matching resources already exceeds any honest
-  // linear-time budget. Corroborates the 10k-character repeated-star non-match
-  // pinned as it.fails via spawnSync in the example suite
-  // ("completes a 10k-character non-match for a repeated-star grant pattern").
-  it.fails("bounds wall time for adversarial repeated-star patterns against long non-matching resources", () => {
-    // Caps keep the worst single evaluation around one second so the failing
-    // run and its shrink attempts terminate; honest glob matching would take
-    // microseconds at these sizes, so the 100 ms budget has ample slack.
-    const resourceLengthCap: Record<number, number> = { 2: 256, 3: 256, 4: 192, 5: 128, 6: 64 }
-    const adversarial = FastCheck.integer({ min: 2, max: 6 }).chain((stars) =>
-      FastCheck.tuple(
-        FastCheck.constant(stars),
-        FastCheck.integer({ min: 8, max: resourceLengthCap[stars] ?? 64 })
-      )
+  // Regression pin for the repeated-star ReDoS: the iterative glob matcher is
+  // bounded at O(pattern x resource), so adversarial repeated-star patterns
+  // stay inside an honest wall-time budget. Corroborates the 10k-character
+  // repeated-star non-match pinned via spawnSync in the example suite.
+  it("bounds wall time for adversarial repeated-star patterns against long non-matching resources", () => {
+    // At these sizes the old RegExp compilation needed longer than the heat
+    // death of the test runner; the iterative matcher needs microseconds, so
+    // the 100 ms budget has ample slack even under coverage instrumentation.
+    const adversarial = FastCheck.tuple(
+      FastCheck.integer({ min: 2, max: 12 }),
+      FastCheck.integer({ min: 8, max: 4096 })
     )
     FastCheck.assert(
       FastCheck.property(adversarial, ([stars, length]) => {
@@ -145,7 +141,80 @@ describe("Capability properties", () => {
         expect(matched).toBe(false)
         expect(elapsedMs).toBeLessThan(100)
       }),
-      { ...params, examples: [[[5, 128]]] }
+      { ...params, examples: [[[12, 4096]]] }
+    )
+  })
+
+  it("agrees with the retired RegExp compilation on non-adversarial patterns", () => {
+    // The retired matcher, verbatim: grant patterns compiled to an anchored
+    // RegExp with `*` as `.*`, `?` as `.`, an optional trailing ` .*`, and
+    // Windows-path case folding. It is the semantic oracle for the iterative
+    // glob matcher; the generator keeps star counts small so the oracle
+    // itself cannot backtrack catastrophically.
+    const oracle = (patternResource: string, resource: string): boolean => {
+      const normalize = (value: string) => value.replaceAll("\\", "/")
+      const normalizedPattern = normalize(patternResource)
+      const normalizedResource = normalize(resource)
+      let expression = normalizedPattern
+        .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+        .replaceAll("*", ".*")
+        .replaceAll("?", ".")
+      if (expression.endsWith(" .*")) {
+        expression = `${expression.slice(0, -3)}( .*)?`
+      }
+      const windowsPath = /^[A-Za-z]:\//.test(normalizedPattern) || /^[A-Za-z]:\//.test(normalizedResource)
+      return new RegExp(`^${expression}$`, windowsPath ? "is" : "s").test(normalizedResource)
+    }
+
+    const fragmentUnit = FastCheck.oneof(
+      literalUnit,
+      FastCheck.constantFrom("A", "z", "?", "\n", "\uD83D", "\uDE00")
+    )
+    const fragment = FastCheck.string({ unit: fragmentUnit, maxLength: 8 })
+    // At most two `*`s and one optional ` *` tail, splicing fragments so the
+    // pattern and the resource share text often enough to exercise both
+    // accepting and rejecting paths, plus Windows drive prefixes for the
+    // case-folding branch.
+    const drive = FastCheck.constantFrom("", "C:/", "c:/")
+    const caseArb = FastCheck.tuple(
+      drive,
+      fragment,
+      FastCheck.constantFrom("", "*"),
+      fragment,
+      FastCheck.constantFrom("", "*", "?"),
+      fragment,
+      FastCheck.constantFrom("", " *"),
+      drive,
+      fragment,
+      fragment,
+      FastCheck.boolean()
+    )
+    FastCheck.assert(
+      FastCheck.property(
+        caseArb,
+        ([
+          patternDrive,
+          left,
+          starOne,
+          middle,
+          starTwo,
+          right,
+          tail,
+          resourceDrive,
+          filler,
+          extra,
+          mirror
+        ]) => {
+          const patternResource = `${patternDrive}${left}${starOne}${middle}${starTwo}${right}${tail}`
+          const resource = mirror
+            ? `${resourceDrive}${left}${filler}${middle}${extra}${right}`
+            : `${resourceDrive}${filler}${extra}`
+          const selectedPattern = pattern("fs:read", patternResource)
+          const selectedCapability = capability("fs:read", resource)
+          expect(Capability.matches(selectedPattern, selectedCapability)).toBe(oracle(patternResource, resource))
+        }
+      ),
+      { ...params, numRuns: Math.max(params.numRuns, 500) }
     )
   })
 

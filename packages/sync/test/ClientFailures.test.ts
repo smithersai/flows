@@ -351,8 +351,10 @@ describe("SyncClient failure paths", () => {
       expect(reads).toBe(2)
     }))
 
-  // BUG: done:false with an empty page recursively issues reads without cursor progress or delay.
-  it.effect.fails("does not spin on an incomplete bootstrap page that makes no progress", () =>
+  // An incomplete page with no entries can never converge: the next read
+  // would carry the same cursors and receive the same page. The client fails
+  // typed on the first such page instead of re-reading in a hot loop.
+  it.effect("does not spin on an incomplete bootstrap page that makes no progress", () =>
     Effect.gen(function*() {
       let reads = 0
       const client = stubClient({

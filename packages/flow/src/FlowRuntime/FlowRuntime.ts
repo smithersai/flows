@@ -35,6 +35,7 @@ import type * as Flow from "../Flow/index.ts"
 import type * as RetryPolicy from "../RetryPolicy.ts"
 import type { CancelRequestFailed } from "./CancelRequestFailed.ts"
 import type { FlowCycleDetected } from "./FlowCycleDetected.ts"
+import type { FlowExecutionNotFound } from "./FlowExecutionNotFound.ts"
 import type { FlowInstance } from "./FlowInstance.ts"
 
 /**
@@ -111,6 +112,11 @@ export class FlowRuntime extends Context.Service<
 
     /**
      * Poll the current status of a registered flow execution.
+     *
+     * `Option.none` means the execution is known and has not settled;
+     * {@link FlowExecutionNotFound} means the runtime has no record of the
+     * execution id at all. Folding the two together would leave a caller
+     * unable to tell a run still in flight from an id that names nothing.
      */
     readonly poll: <
       Name extends string,
@@ -122,7 +128,7 @@ export class FlowRuntime extends Context.Service<
       executionId: string
     ) => Effect.Effect<
       Option.Option<Flow.Result<Success["Type"], Error["Type"]>>,
-      never,
+      FlowExecutionNotFound,
       Success["DecodingServices"] | Error["DecodingServices"]
     >
 

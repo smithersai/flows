@@ -43,6 +43,20 @@ describe("FileSet", () => {
     expect(FileSet.matchesGlob({ _tag: "Glob", include: ["*.ts"] }, "a.ts")).toBe(true)
   })
 
+  it("compares exact paths in canonical separator form", () => {
+    // `workspaceRelative` accepts a backslash as a separator, so the two
+    // spellings below name one workspace path and must overlap.
+    expect(FileSet.canonical("dist\\same.js")).toBe("dist/same.js")
+    expect(FileSet.overlaps("dist\\same.js", "dist/same.js")).toBe(true)
+    expect(FileSet.overlaps("dist/same.js", "dist\\same.js")).toBe(true)
+    expect(FileSet.overlaps("dist\\other.js", "dist/same.js")).toBe(false)
+    expect(FileSet.overlaps({ _tag: "TreeArtifact", path: "dist\\nested" }, "dist/nested/a.js")).toBe(true)
+    expect(FileSet.overlaps(
+      { _tag: "TreeArtifact", path: "dist" },
+      { _tag: "TreeArtifact", path: "dist\\nested" }
+    )).toBe(true)
+  })
+
   it("uses the conservative overlap matrix", () => {
     const all: FileSet.Glob = { _tag: "Glob", include: ["**/*.ts"] }
     expect(FileSet.overlaps("a", "a")).toBe(true)

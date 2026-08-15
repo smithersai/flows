@@ -180,10 +180,7 @@ describe("write-back races", () => {
   const localEntry: CacheStore.CacheEntry = { ...entry, result: { ok: "local" } }
   const remoteEntry: CacheStore.CacheEntry = { ...entry, result: { ok: "remote" } }
 
-  // BUG: CombinedCacheStore.get ignores the write-back put's Conflict/ExistingSame
-  // outcome, so the caller is served the remote result while the durable local
-  // row this machine replays from holds a different one.
-  it.effect.fails("serves the durable local winner when a concurrent put wins the write-back", () =>
+  it.effect("serves the durable local winner when a concurrent put wins the write-back", () =>
     Effect.gen(function*() {
       const gate = Deferred.makeUnsafe<void>()
       const reached = Deferred.makeUnsafe<void>()
@@ -214,6 +211,21 @@ describe("write-back races", () => {
       // this machine replays `localEntry`, so serving `remoteEntry` is a cache
       // collision the caller cannot detect.
       expect(Option.getOrThrow(observed)).toEqual(localEntry)
+    }))
+
+  it.effect("serves the remote row when the losing write-back finds no local row to defer to", () =>
+    Effect.gen(function*() {
+      // The write-back reported a losing outcome, but by the time the durable
+      // row is re-read the winner is gone again — recorded and evicted by a
+      // sibling within the window. The remote entry is then the only row
+      // anyone holds, and it is what the caller gets.
+      const local = tier({ putOutcome: { _tag: "Conflict" } })
+      const remote = tier()
+      yield* (remote.store.put(remoteEntry))
+      const combined = CombinedCacheStore.make({ local: local.store, remote: remote.store })
+      const observed = yield* (combined.get(entry.keyDigest))
+      expect(local.calls).toEqual(["get", "put", "get"])
+      expect(Option.getOrThrow(observed)).toEqual(remoteEntry)
     }))
 
   it.effect("keeps the local row and fails the caller when the shared publication fails", () =>

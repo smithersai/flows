@@ -1,4 +1,4 @@
-# queue/
+# factory/queue/
 
 The intake of the software factory. One markdown file per requested change;
 presence is registration. The design is in the spec vault:

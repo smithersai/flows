@@ -52,10 +52,12 @@ interface OpenFailure {
  * not by workload, so a caller has nothing to say about them.
  */
 const openSchedule = Schedule.exponential(Duration.millis(openBaseDelayMs)).pipe(
+  // Jitter before the cap, as `WriteRetry` does, so `openMaxDelayMs` bounds
+  // the delay that is actually slept.
+  Schedule.jittered,
   Schedule.modifyDelay(({ duration }) =>
     Effect.succeed(Duration.millis(Math.min(openMaxDelayMs, Duration.toMillis(duration))))
   ),
-  Schedule.jittered,
   Schedule.upTo({ times: openAttempts - 1 })
 )
 

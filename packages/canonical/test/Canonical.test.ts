@@ -131,18 +131,17 @@ describe("toJSON", () => {
 })
 
 describe("toJSON well-formedness", () => {
-  // BUG: `validateUnicode` walks the input value, never the `toJSON` result, so a lone surrogate minted by `toJSON`
-  // is serialized as `"\ud800"` instead of being refused.
-  it.fails("has no canonical form for a lone surrogate returned by toJSON", () => {
+  it("has no canonical form for a lone surrogate returned by toJSON", () => {
     // The module docblock promises a value carrying a lone surrogate has no
     // canonical form and decoding fails rather than approximates. `toJSON` is
-    // the one door into the serializer that the well-formedness pass does not
-    // guard, so the promise does not hold there.
+    // a door into the serializer that no pre-pass over the input value can
+    // guard, so the well-formedness check lives in the serializer itself and
+    // fires on the minted string.
     expect(failure({ toJSON: () => "\ud800" })).toEqual(expect.objectContaining({ _tag: "SchemaError" }))
   })
 
-  // BUG: the same hole on the key side - `toJSON` returning `{ "\ud800": 1 }` canonicalizes to `{"\ud800":1}`.
-  it.fails("has no canonical form for a lone surrogate key returned by toJSON", () => {
+  // The same guard on the key side: `toJSON` returning `{ "\ud800": 1 }` is refused, not emitted.
+  it("has no canonical form for a lone surrogate key returned by toJSON", () => {
     expect(failure({ toJSON: () => ({ ["\ud800"]: 1 }) })).toEqual(expect.objectContaining({ _tag: "SchemaError" }))
   })
 })
@@ -452,29 +451,27 @@ describe("unsupported value boundaries", () => {
 
 describe("Canonical repeated-reference validation", () => {
   it("validates both occurrences of an object that appears twice", () => {
-    // `validateUnicode` carries a `WeakSet` of visited objects and skips
-    // repeats, which is correct only because the FIRST visit validated them.
-    // Nothing asserted that, so a future change that made the skip happen
-    // before validation — or that seeded the set from the wrong place — would
-    // let a lone surrogate through on its second appearance and produce a
-    // digest another host disagrees with.
+    // The serializer's cycle tracking removes an object from `ancestors` once
+    // its subtree is written, so a shared object is re-walked — and therefore
+    // re-validated — at every occurrence. A future change that skipped repeated
+    // objects would have to keep the guarantee these cells pin: a lone
+    // surrogate is refused whichever occurrence reaches it, and a valid object
+    // repeated is not rejected.
     const invalid = { text: "lone \ud800 surrogate" }
 
-    // Reached first through `a`, skipped at `b`: the rejection must come from
-    // the first visit.
+    // Reached first through `a`: the rejection comes from the first visit.
     expect(failure({ a: invalid, b: invalid })).toEqual(expect.objectContaining({ _tag: "SchemaError" }))
-    // And the same object repeated inside an array, where the skip is the
+    // And the same object repeated inside an array, where the repeat is the
     // second element rather than a sibling key.
     expect(failure([invalid, invalid])).toEqual(expect.objectContaining({ _tag: "SchemaError" }))
-    // A valid object repeated is not rejected by the skip either — the set
-    // suppresses re-walking, not the result.
+    // A valid object repeated is not mistaken for a cycle or rejected.
     const shared = { text: "fine" }
     expect(serialize({ a: shared, b: shared })).toBe("{\"a\":{\"text\":\"fine\"},\"b\":{\"text\":\"fine\"}}")
   })
 
   it("rejects a value whose only invalid occurrence is the repeated one", () => {
-    // The ordering half: the invalid object is visited first at `a`, so the
-    // `seen` skip at `b` can never be what decides validity.
+    // The ordering half: the invalid object is visited first at `a`, nested a
+    // level deeper, so visit order can never be what decides validity.
     const invalid = { text: "\udfff" }
     expect(failure({ a: { nested: invalid }, b: invalid })).toEqual(
       expect.objectContaining({ _tag: "SchemaError" })

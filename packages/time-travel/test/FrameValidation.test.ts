@@ -158,11 +158,11 @@ describe("public TimeTravel frame validation", () => {
     const [name, frame] of [
       ["tail plus one", { lineageId: "run/root", seq: 3 }],
       ["nonexistent frame", { lineageId: "run/root", seq: 99 }],
-      ["sibling-lineage coordinate", { lineageId: "run/sibling", seq: 1 }]
+      ["sibling-lineage coordinate", { lineageId: "run/sibling", seq: 1 }],
+      ["foreign-lineage coordinate", { lineageId: "run/root", seq: 1 }]
     ] as const
   ) {
-    // BUG: public rewind never validates that the selected coordinate belongs to the requested lineage and run.
-    it.effect.fails(`refuses ${name} before any durable or workspace mutation`, () =>
+    it.effect(`refuses ${name} before any durable or workspace mutation`, () =>
       Effect.gen(function*() {
         const harness = makeHarness()
         const before = harness.store.state()
@@ -178,6 +178,135 @@ describe("public TimeTravel frame validation", () => {
         expect(harness.store.state()).toEqual(before)
       }))
   }
+})
+
+const bareHarness = (journal: Journal.Service) => {
+  const store = MemoryTimeTravelStore.make()
+  let claims = 0
+  const runs = RunStore.makeNoop({
+    get: () => Effect.succeed(row()),
+    claim: (_runId, _expected, _owner, nowMs) =>
+      Effect.sync(() => {
+        claims += 1
+        return { _tag: "Claimed" as const, claimedAtMs: nowMs }
+      }),
+    activate: () => Effect.succeed({ _tag: "Activated" as const }),
+    transitionOwned: () => Effect.succeed({ _tag: "Transitioned" as const })
+  })
+  const layer = TimeTravel.layer.pipe(
+    Layer.provide(
+      Layer.mergeAll(
+        Layer.succeed(TimeTravelStore)(store),
+        Layer.succeed(RunStore.RunStore)(runs),
+        Layer.succeed(Journal.Journal)(journal),
+        Layer.succeed(Jj.Jj)(Jj.makeNoop({ snapshot: () => Effect.succeed({ changeId: "current" }) })),
+        CacheStore.layerNoop()
+      )
+    )
+  )
+  const rewindTo = (frame: { readonly lineageId: string; readonly seq: number }) =>
+    Effect.scoped(
+      Effect.gen(function*() {
+        const timeTravel = yield* TimeTravel
+        return yield* Effect.exit(timeTravel.rewind({ runId: "run", frame }))
+      }).pipe(Effect.provide(layer))
+    )
+  return { claims: () => claims, rewindTo, store }
+}
+
+const lineageFreeEntry = (seq: number): JournalEvent.Entry => ({
+  runId: "run" as JournalEvent.RunId,
+  seq: seq as JournalEvent.Seq,
+  eventId: `bare-${seq}`,
+  sourceId: "frame-validation" as JournalEvent.SourceId,
+  sourceSeq: seq as JournalEvent.SourceSeq,
+  emittedAtMs: seq,
+  eventType: "test",
+  payload: {},
+  meta: {}
+})
+
+describe("public TimeTravel frame validation edges", () => {
+  it.effect("accepts frame zero of an empty journal and refuses any later frame", () =>
+    Effect.gen(function*() {
+      const harness = bareHarness(Journal.makeNoop({
+        entries: () => Effect.succeed({ entries: [], hasMore: false })
+      }))
+
+      const zero = yield* harness.rewindTo({ lineageId: "run/root", seq: 0 })
+      const later = yield* harness.rewindTo({ lineageId: "run/root", seq: 5 })
+
+      expect(Exit.isSuccess(zero)).toBe(true)
+      expect(Exit.isFailure(later)).toBe(true)
+      if (Exit.isFailure(later)) {
+        expect(Cause.squash(later.cause)).toMatchObject({ code: "not_found" })
+      }
+    }))
+
+  it.effect("treats lineage-free records as evidence compatible with every frame", () =>
+    Effect.gen(function*() {
+      const bare = [lineageFreeEntry(0), lineageFreeEntry(1)]
+      const harness = bareHarness(Journal.makeNoop({
+        entries: ({ after }) =>
+          Effect.succeed({
+            entries: bare.filter((entry) => entry.seq > (after ?? -1)),
+            hasMore: false
+          })
+      }))
+
+      expect(Exit.isSuccess(yield* harness.rewindTo({ lineageId: "run/root", seq: 1 }))).toBe(true)
+    }))
+
+  it.effect("holds the tail at the maximum coordinate across an out-of-order page", () =>
+    Effect.gen(function*() {
+      const outOfOrder = [
+        { ...lineageFreeEntry(2), meta: { lineageId: "run/root" } },
+        { ...lineageFreeEntry(0), meta: { lineageId: "run/root" } }
+      ]
+      const harness = bareHarness(Journal.makeNoop({
+        entries: ({ after }) =>
+          Effect.succeed({
+            entries: outOfOrder.filter((entry) => entry.seq > (after ?? -1)),
+            hasMore: false
+          })
+      }))
+
+      expect(Exit.isSuccess(yield* harness.rewindTo({ lineageId: "run/root", seq: 2 }))).toBe(true)
+    }))
+
+  it.effect("terminates on a malformed empty continuation page and refuses the frame", () =>
+    Effect.gen(function*() {
+      let pages = 0
+      const harness = bareHarness(Journal.makeNoop({
+        entries: () =>
+          Effect.sync(() => {
+            pages += 1
+            return { entries: [], hasMore: true }
+          })
+      }))
+
+      const exit = yield* harness.rewindTo({ lineageId: "run/root", seq: 5 })
+
+      expect(pages).toBe(1)
+      expect(Exit.isFailure(exit)).toBe(true)
+      expect(harness.claims()).toBe(0)
+    }))
+
+  it.effect("maps a journal outage during validation to a typed unknown failure", () =>
+    Effect.gen(function*() {
+      const harness = bareHarness(Journal.makeNoop())
+
+      const exit = yield* harness.rewindTo({ lineageId: "run/root", seq: 0 })
+
+      expect(Exit.isFailure(exit)).toBe(true)
+      if (Exit.isFailure(exit)) {
+        expect(Cause.squash(exit.cause)).toMatchObject({
+          code: "unknown",
+          message: "could not validate frame run/root@0 for run"
+        })
+      }
+      expect(harness.claims()).toBe(0)
+    }))
 })
 
 const sqlLayer = () => {
@@ -254,11 +383,11 @@ describe("SQL public TimeTravel frame validation mirror", () => {
     const [name, frame] of [
       ["tail plus one", { lineageId: "run/root", seq: 3 }],
       ["nonexistent frame", { lineageId: "run/root", seq: 99 }],
-      ["sibling-lineage coordinate", { lineageId: "run/sibling", seq: 1 }]
+      ["sibling-lineage coordinate", { lineageId: "run/sibling", seq: 1 }],
+      ["foreign-lineage coordinate", { lineageId: "run/root", seq: 1 }]
     ] as const
   ) {
-    // BUG: the SQL-backed public service also mutates before validating the selected frame.
-    it.effect.fails(`refuses ${name} with no SQL mutation`, () =>
+    it.effect(`refuses ${name} with no SQL mutation`, () =>
       Effect.gen(function*() {
         const result = yield* rewindSql(frame)
 

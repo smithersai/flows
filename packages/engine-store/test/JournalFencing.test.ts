@@ -175,7 +175,7 @@ describe("SqlJournal ownership fencing", () => {
       })
     ))
 
-  effect("a fenced retry of an already-committed entry stays idempotent after fence loss", () =>
+  effect("a fenced retry of an already-committed entry reports fence_lost after fence loss", () =>
     withJournal(
       Effect.gen(function*() {
         const journal = yield* Journal
@@ -186,12 +186,21 @@ describe("SqlJournal ownership fencing", () => {
           input(run, sourceId("s"), "created", 1, sourceSeq(0)),
           ownerA
         )
-        yield* reclaimRun(sql, run, ownerB)
-        const retry = yield* journal.emitDurable(
+        // While the fence holds, a retry of the same identity is idempotent.
+        const held = yield* journal.emitDurable(
           input(run, sourceId("s"), "created", 1, sourceSeq(0)),
           ownerA
         )
-        expect(retry).toEqual({ _tag: "Duplicate", seq: first.seq, sourceSeq: 0, status: "committed" })
+        expect(held).toEqual({ _tag: "Duplicate", seq: first.seq, sourceSeq: 0, status: "committed" })
+        yield* reclaimRun(sql, run, ownerB)
+        // Once the fence is lost, the fence outranks dedup: the zombie is
+        // told it lost the run, never handed a `Duplicate` receipt for work
+        // the journal will no longer accept from it.
+        const retry = yield* Effect.flip(
+          journal.emitDurable(input(run, sourceId("s"), "created", 1, sourceSeq(0)), ownerA)
+        )
+        expect((retry as JournalError).code).toBe("fence_lost")
+        expect(yield* seqsOf(sql, run)).toEqual([first.seq])
       })
     ))
 })

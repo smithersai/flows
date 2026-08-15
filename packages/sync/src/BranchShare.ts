@@ -20,6 +20,7 @@ import * as Effect from "effect/Effect"
 import * as Layer from "effect/Layer"
 import * as Schema from "effect/Schema"
 import { Access, BranchId, ShareCapability, ShareClaims } from "./BranchProtocol.ts"
+import * as shareSigner from "./internal/shareSigner.ts"
 import { SyncError } from "./SyncError.ts"
 
 /**
@@ -116,26 +117,11 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service =>
  */
 export const layerNoop: Layer.Layer<BranchShare> = Layer.succeed(BranchShare, makeNoop())
 
-const encoder = new TextEncoder()
-
 /** Length-prefixed so no two distinct claim sets share an encoding. */
 const canonical = (claims: ShareClaims): string =>
-  [claims.branchId, claims.capabilityId, claims.access, String(claims.issuedAtMs), String(claims.expiresAtMs)]
-    .map((field) => `${field.length}:${field}`)
-    .join("")
-
-const hex = (bytes: Uint8Array): string => Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("")
-
-/** Length-independent comparison, so a signature check leaks no prefix length. */
-const constantTimeEquals = (left: string, right: string): boolean => {
-  let difference = left.length ^ right.length
-  // `charCodeAt` past the end is NaN, and `NaN | 0` is 0, so the loop reads
-  // both strings to the longer length without an early return.
-  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
-    difference |= (left.charCodeAt(index) | 0) ^ (right.charCodeAt(index) | 0)
-  }
-  return difference === 0
-}
+  shareSigner.lengthPrefixed(
+    [claims.branchId, claims.capabilityId, claims.access, String(claims.issuedAtMs), String(claims.expiresAtMs)]
+  )
 
 /**
  * Constructs the HMAC-SHA-256 share authority over a shared secret.
@@ -148,24 +134,10 @@ const constantTimeEquals = (left: string, right: string): boolean => {
  */
 export const makeHmac = (options: { readonly secret: string }): Effect.Effect<Service, SyncError> =>
   Effect.map(
-    Effect.tryPromise({
-      try: () =>
-        crypto.subtle.importKey("raw", encoder.encode(options.secret), { name: "HMAC", hash: "SHA-256" }, false, [
-          "sign"
-        ]),
-      catch: (cause) =>
-        new SyncError({ code: "unknown", message: "Web Crypto could not import the HMAC signing key", cause })
-    }),
+    shareSigner.importHmacKey(options.secret),
     (key) => {
       const sign = (claims: ShareClaims): Effect.Effect<string, SyncError> =>
-        Effect.map(
-          Effect.tryPromise({
-            try: () => crypto.subtle.sign("HMAC", key, encoder.encode(canonical(claims))),
-            catch: (cause) =>
-              new SyncError({ code: "unknown", message: "Web Crypto could not sign the share claims", cause })
-          }),
-          (signature) => hex(new Uint8Array(signature))
-        )
+        shareSigner.signHmac(key, canonical(claims))
 
       const mint = Effect.fn("BranchShare.mint")(function*(request: MintRequest) {
         yield* Effect.annotateCurrentSpan({ branchId: request.branchId, access: request.access })
@@ -187,7 +159,7 @@ export const makeHmac = (options: { readonly secret: string }): Effect.Effect<Se
         yield* Effect.annotateCurrentSpan({ branchId: request.branchId, access: request.access })
         const claims = capability.claims
         const expected = yield* sign(claims)
-        if (!constantTimeEquals(expected, capability.signature)) {
+        if (!shareSigner.constantTimeEquals(expected, capability.signature)) {
           return yield* Effect.fail(denied("The share capability signature is invalid"))
         }
         if (claims.branchId !== request.branchId) {

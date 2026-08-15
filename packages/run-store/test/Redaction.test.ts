@@ -128,7 +128,11 @@ describe("durable run state redaction", () => {
           pid: 42,
           nonce: "nonce-a"
         })
-        yield* store.patch(id, { checkpoint: executable })
+        yield* store.patch(id, { checkpoint: executable }, {
+          hostId: "host-a",
+          pid: 42,
+          nonce: "nonce-a"
+        })
         return yield* store.get(id)
       }))
 

@@ -136,11 +136,16 @@ export const redact = (value: unknown, options?: Options): unknown => {
       if (Array.isArray(node)) {
         return node.map((element) => walk(element, ancestors))
       }
-      const result: Record<string, unknown> = {}
-      for (const [key, field] of Object.entries(node as Record<string, unknown>)) {
-        result[key] = isSensitiveKey(key) ? placeholder : walk(field, ancestors)
-      }
-      return result
+      // `result[key] = …` routes a literal `__proto__` key through the
+      // inherited setter, so the field would silently become the result's
+      // prototype instead of a member: the payload loses data and redaction
+      // stops being a fixed point. `Object.fromEntries` defines own data
+      // properties and has no such hole.
+      return Object.fromEntries(
+        Object.entries(node as Record<string, unknown>).map((
+          [key, field]
+        ) => [key, isSensitiveKey(key) ? placeholder : walk(field, ancestors)])
+      )
     } finally {
       ancestors.delete(node)
     }

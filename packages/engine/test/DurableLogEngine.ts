@@ -246,7 +246,17 @@ export const layerDurable = (log: DurableLog): Layer.Layer<FlowRuntime.FlowRunti
         actionLatestAttempt: ({ key }) => Effect.sync(() => Option.fromNullishOr(log.attempts.get(key)?.latest)),
         poll: (_flow, executionId) =>
           Effect.suspend(() => {
+            // An id with no durable execution row and no live fiber is a typed
+            // not-found; `Option.none` is reserved for a known, unsettled run.
             const state = live.get(executionId)
+            if (state === undefined && !log.executions.has(executionId)) {
+              return Effect.fail(
+                new FlowRuntime.FlowExecutionNotFound({
+                  code: "execution_not_found",
+                  executionId
+                })
+              )
+            }
             const exit = state?.fiber?.pollUnsafe()
             if (exit !== undefined) {
               return exit._tag === "Success"

@@ -26,6 +26,7 @@ import type * as Schema from "effect/Schema"
 import type * as Scope from "effect/Scope"
 import type { PlannedPayload } from "../Action/Action.ts"
 import type { CancelRequestFailed } from "../FlowRuntime/CancelRequestFailed.ts"
+import type { FlowExecutionNotFound } from "../FlowRuntime/FlowExecutionNotFound.ts"
 import type { FlowInstance, FlowRuntime } from "../FlowRuntime/index.ts"
 import type * as RetryPolicy from "../RetryPolicy.ts"
 import type { Outcome, To } from "./Outcome.ts"
@@ -168,6 +169,10 @@ export interface Flow<
    * option, the flow's declared `idempotencyKey`, then the ambient
    * `CurrentExecutionIds` source, whose default derives an id from the flow
    * tag and the payload's canonical form.
+   *
+   * A payload that fails the flow's own schema is a typed
+   * `Schema.SchemaError` failure carrying the offending field path — caller
+   * input is data, not programmer wiring, so it fails rather than dies.
    */
   readonly execute: <const Discard extends boolean = false>(
     payload: Payload["~type.make.in"],
@@ -177,7 +182,7 @@ export interface Flow<
     }
   ) => Effect.Effect<
     Discard extends true ? string : Success["Type"],
-    Discard extends true ? never : Error["Type"],
+    Schema.SchemaError | (Discard extends true ? never : Error["Type"]),
     | FlowRuntime
     | Requires
     | Payload["EncodingServices"]
@@ -187,12 +192,16 @@ export interface Flow<
 
   /**
    * Poll the current status of a flow execution.
+   *
+   * `Option.none` means the execution is known and has not settled;
+   * {@link FlowExecutionNotFound} means the runtime has no record of the
+   * execution id at all.
    */
   readonly poll: (
     executionId: string
   ) => Effect.Effect<
     Option.Option<Result<Success["Type"], Error["Type"]>>,
-    never,
+    FlowExecutionNotFound,
     FlowRuntime | Success["DecodingServices"] | Error["DecodingServices"]
   >
 

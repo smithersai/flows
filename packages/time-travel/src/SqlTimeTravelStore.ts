@@ -27,6 +27,24 @@ import { error, TimeTravelError } from "./TimeTravelError.ts"
 import * as TimeTravelStore from "./TimeTravelStore.ts"
 
 /**
+ * Recognizes the one ALTER TABLE failure {@link migrate} may absorb: the
+ * column already exists. SQLite reports it as `duplicate column name`,
+ * Postgres as `column ... already exists`; the failure's message chain is
+ * walked because the SQL layer wraps the driver error.
+ */
+const isDuplicateColumn = (cause: unknown): boolean => {
+  const seen = new Set<unknown>()
+  let current = cause
+  while (typeof current === "object" && current !== null && !seen.has(current)) {
+    seen.add(current)
+    const message = (current as { readonly message?: unknown }).message
+    if (typeof message === "string" && /duplicate column|already exists/i.test(message)) return true
+    current = (current as { readonly cause?: unknown }).cause
+  }
+  return false
+}
+
+/**
  * Creates the time-travel tables. The SQL uses only portable scalar columns.
  *
  * @since 0.1.0
@@ -61,8 +79,13 @@ export const migrate: Effect.Effect<void, unknown, SqlClient.SqlClient> = Effect
   )`
   // Idempotent widening for a database migrated before the plan digest joined
   // the anchor. `ADD COLUMN` on a table that already has it is an error, not a
-  // no-op, and there is nothing to repair when it fails.
-  yield* sql`ALTER TABLE flows_time_travel_snapshots ADD COLUMN plan_digest TEXT`.pipe(Effect.ignore)
+  // no-op, and there is nothing to repair when it fails — so exactly that one
+  // failure is absorbed. Every other ALTER failure (a view squatting on the
+  // table name, a locked or corrupt database) is real damage the migration
+  // must surface, never swallow.
+  yield* sql`ALTER TABLE flows_time_travel_snapshots ADD COLUMN plan_digest TEXT`.pipe(
+    Effect.catch((cause) => isDuplicateColumn(cause) ? Effect.void : Effect.fail(cause))
+  )
   // The frame address is `(lineageId, seq)`, and every engine record carries
   // its lineage in the open `meta` envelope. Indexing it out of `meta_json`
   // keeps a lineage-filtered replay from degenerating into a full run scan.
@@ -526,6 +549,17 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter |
           ).pipe(Effect.mapError(mapError))
         ))
       ),
+      archivedAt: Effect.fn("TimeTravelStore.archivedAt")((runId, seq) =>
+        Effect.annotateCurrentSpan({ runId, seq }).pipe(Effect.andThen(
+          sql<{ readonly count: number }>`
+            SELECT COUNT(*) AS count FROM flows_time_travel_archive
+            WHERE run_id = ${runId} AND seq = ${seq}
+          `.pipe(
+            Effect.map((rows) => Number(rows[0]!.count) > 0),
+            Effect.mapError(mapError)
+          )
+        ))
+      ),
       createFork: Effect.fn("TimeTravelStore.createFork")((parentRunId, frame) =>
         Effect.annotateCurrentSpan({ parentRunId, lineageId: frame.lineageId, seq: frame.seq }).pipe(Effect.andThen(
           writer.write(
@@ -625,6 +659,24 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter |
                 AND attempt = ${ref.attempt}
             `
               }
+              /**
+               * THE FRAME'S ANCHORS CROSS THE FORK WITH IT.
+               *
+               * The anchor table is a projection of the parent's
+               * `snapshot-identified` records, and the copied prefix carries
+               * those records — but a fresh engine incarnation that forks the
+               * CHILD next never projects the child's journal first. Copying
+               * the rows at or below the frame makes the child's history
+               * self-contained on restart, exactly as its copied journal and
+               * attempts already are; a later projection of the child upserts
+               * the same `(runId, lineageId, seq)` rows and changes nothing.
+               */
+              yield* sql`
+            INSERT INTO flows_time_travel_snapshots (run_id, lineage_id, seq, change_id, plan_digest)
+            SELECT ${runId}, lineage_id, seq, change_id, plan_digest
+            FROM flows_time_travel_snapshots
+            WHERE run_id = ${parentRunId} AND seq <= ${frame.seq}
+          `
               yield* sql`
             INSERT INTO flows_time_travel_edges
               (parent_run_id, parent_seq, child_run_id, kind, attached)
@@ -636,6 +688,14 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter |
                * the parent and the offset it was cut at. A cross-fork timeline
                * can now start from any child and find its origin without
                * consulting the edge table.
+               *
+               * `source_seq` is the marker's own seq, never a constant: the
+               * copy above preserves source identities, so a fork-of-fork
+               * whose prefix reaches the parent's own marker inherits a row
+               * with this same `source_id`. Every marker keeps
+               * `source_seq = seq`, and the new marker sits strictly above
+               * everything it copied, so `UNIQUE (run_id, source_id,
+               * source_seq)` can never collide.
                */
               yield* sql`
             INSERT INTO flows_journal_events
@@ -646,7 +706,7 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter |
               ${frame.seq + 1},
               ${`fork:${runId}:created`},
               ${"flows/time-travel/fork"},
-              0,
+              ${frame.seq + 1},
               ${nowMs},
               ${forkCreatedEventType},
               ${JSON.stringify({ parentRunId, forkJournalOffset: frame.seq, childRunId: runId })},

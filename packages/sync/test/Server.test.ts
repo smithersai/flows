@@ -2,6 +2,7 @@ import { describe, expect, it } from "@effect/vitest"
 import { Journal, JournalEvent } from "@smthrs/journal-next"
 import { Effect, Layer, Stream } from "effect"
 import * as RunCatalog from "../src/RunCatalog.ts"
+import * as SyncPrincipal from "../src/SyncPrincipal.ts"
 import * as SyncServer from "../src/SyncServer.ts"
 
 const runId = "gapped-run" as JournalEvent.RunId
@@ -35,10 +36,15 @@ const makeServer = (entries: ReadonlyArray<JournalEvent.Entry>) =>
     )
   )
 
+// Non-branch reads are fail-closed; these suites test replication mechanics,
+// so they run as the workspace principal.
+const asWorkspace = <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
+  Effect.provide(effect, SyncPrincipal.layerWorkspace("server-suite"))
+
 describe("SyncServer", () => {
   it.effect("covers legitimate journal gaps and enforces subscription credit", () =>
     Effect.gen(function*() {
-      const frames = yield* (
+      const frames = yield* asWorkspace(
         Effect.gen(function*() {
           const server = yield* makeServer([entry(2), entry(5), entry(8)])
           return yield* server.subscribe({
@@ -57,7 +63,7 @@ describe("SyncServer", () => {
 
   it.effect("emits no frames when credit is zero", () =>
     Effect.gen(function*() {
-      const frames = yield* (
+      const frames = yield* asWorkspace(
         Effect.gen(function*() {
           const server = yield* makeServer([entry(0)])
           return yield* server.subscribe({

@@ -58,7 +58,7 @@ const wired = (
   )
 
 const pollUntil = <A, E, R>(
-  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>,
+  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, FlowRuntime.FlowExecutionNotFound, R>,
   predicate: (result: Flow.Result<A, E>) => boolean
 ) =>
   Effect.gen(function*() {

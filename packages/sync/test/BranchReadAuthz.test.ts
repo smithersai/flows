@@ -1,8 +1,11 @@
 /**
- * The read-path authorization invariant: a branch run is visible only through
- * a capability that verifies for that branch — scoped reads fail, workspace
- * listings and change-follows exclude what the caller cannot read, and a
- * server without a share authority closes every branch run.
+ * The read-path authorization invariant, along both boundaries. A branch run
+ * is visible only through a capability that verifies for that branch —
+ * scoped reads fail, workspace listings and change-follows exclude what the
+ * caller's capability does not cover, and a server without a share authority
+ * closes every branch run. A non-branch run and the workspace scope itself
+ * are visible only to the workspace principal: an unauthenticated caller is
+ * refused outright, branch capability or not.
  *
  * @since 0.1.0
  */
@@ -15,6 +18,7 @@ import { type BranchId, branchRunId, type ShareCapability } from "../src/BranchP
 import * as BranchShare from "../src/BranchShare.ts"
 import * as RunCatalog from "../src/RunCatalog.ts"
 import { SyncError } from "../src/SyncError.ts"
+import * as SyncPrincipal from "../src/SyncPrincipal.ts"
 import * as SyncServer from "../src/SyncServer.ts"
 
 const branchId = "guarded-branch" as BranchId
@@ -77,6 +81,10 @@ const readBranch = (server: SyncServer.Service, capability?: ShareCapability) =>
     limit: 10,
     ...(capability === undefined ? {} : { capability })
   })
+
+/** Runs an effect as the authenticated workspace principal. */
+const asWorkspace = <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
+  Effect.provide(effect, SyncPrincipal.layerWorkspace("authz-suite"))
 
 describe("branch read authorization", () => {
   it.effect("fails a scoped branch read without a capability, with a foreign one, and without a share authority", () =>
@@ -147,11 +155,55 @@ describe("branch read authorization", () => {
       expect(texts).toEqual(["visible to the link holder"])
     }))
 
-  it.effect("excludes unreadable branch runs from a workspace read and includes them with a capability", () =>
+  it.effect("refuses an unauthenticated workspace read outright, branch capability or not", () =>
+    Effect.gen(function*() {
+      const codes = yield* program(
+        Effect.gen(function*() {
+          const { capability, register, server } = yield* rig
+          yield* register(engineRun)
+          yield* writeEntry(engineRun, "engine")
+          const bare = yield* Effect.flip(server.read({ scope: { _tag: "Workspace" }, cursors: [], limit: 10 }))
+          // A branch share link authorizes exactly its branch's run — it never
+          // upgrades a caller to workspace listings.
+          const withLink = yield* Effect.flip(
+            server.read({ scope: { _tag: "Workspace" }, cursors: [], limit: 10, capability })
+          )
+          const subscribed = yield* Effect.flip(
+            Stream.runCollect(server.subscribe({ scope: { _tag: "Workspace" }, cursors: [], credit: 1 }))
+          )
+          return [bare.code, withLink.code, (subscribed as SyncError).code]
+        })
+      )
+
+      expect(codes).toEqual(["unauthorized", "unauthorized", "unauthorized"])
+    }))
+
+  it.effect("refuses an unauthenticated scoped read of a non-branch run and serves the workspace principal", () =>
+    Effect.gen(function*() {
+      const [code, texts] = yield* program(
+        Effect.gen(function*() {
+          const { register, server } = yield* rig
+          yield* register(engineRun)
+          yield* writeEntry(engineRun, "engine")
+          const scoped = { scope: { _tag: "Run", runId: engineRun }, cursors: [], limit: 10 } as const
+          const refused = yield* Effect.flip(server.read(scoped))
+          const served = yield* asWorkspace(server.read(scoped))
+          return [
+            refused.code,
+            served.entries.map((entry) => (entry.payload as { readonly text: string }).text)
+          ]
+        })
+      )
+
+      expect(code).toBe("unauthorized")
+      expect(texts).toEqual(["engine"])
+    }))
+
+  it.effect("excludes unreadable branch runs from an owner's workspace read and includes them with a capability", () =>
     Effect.gen(function*() {
       const [withoutLink, withLink] = yield* program(
-        Effect.gen(function*() {
-          const { server, capability, register } = yield* rig
+        asWorkspace(Effect.gen(function*() {
+          const { capability, register, server } = yield* rig
           yield* register(engineRun)
           yield* register(branchRun)
           yield* writeEntry(engineRun, "engine")
@@ -162,7 +214,7 @@ describe("branch read authorization", () => {
             denied.entries.map((entry) => entry.runId),
             granted.entries.map((entry) => entry.runId)
           ]
-        })
+        }))
       )
 
       expect(withoutLink).toEqual([engineRun])
@@ -172,8 +224,8 @@ describe("branch read authorization", () => {
   it.effect("filters branch runs out of workspace change-follows without a capability", () =>
     Effect.gen(function*() {
       const frames = yield* program(
-        Effect.gen(function*() {
-          const { server, register } = yield* rig
+        asWorkspace(Effect.gen(function*() {
+          const { register, server } = yield* rig
           const followed = yield* Stream.runCollect(
             Stream.take(server.subscribe({ scope: { _tag: "Workspace" }, cursors: [], credit: 4 }), 1)
           ).pipe(Effect.forkChild({ startImmediately: true }))
@@ -188,7 +240,7 @@ describe("branch read authorization", () => {
           yield* writeEntry(engineRun, "engine change")
           yield* register(engineRun)
           return yield* Effect.map(Fiber.join(followed), (chunk) => Array.from(chunk))
-        })
+        }))
       )
 
       expect(frames).toHaveLength(1)

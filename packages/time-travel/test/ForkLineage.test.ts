@@ -78,8 +78,40 @@ describe("fork lineage", () => {
       expect(row.status).toBe("pending")
     }))
 
-  // BUG: public fork-of-fork reconstructs an anchor for the parent but does not materialize it for the new child.
-  it.effect.fails("copies public fork prefixes, attempts, and anchors across an engine restart", () =>
+  it.effect("forks a fork at a frame that includes its own creation marker", () =>
+    Effect.gen(function*() {
+      const result = yield* (
+        Effect.gen(function*() {
+          yield* Migrations.run
+          const sql = yield* Effect.service(SqlClient.SqlClient)
+          const store = yield* SqlTimeTravelStore.make
+          yield* seed("root")
+          const child = yield* store.createFork("root", { lineageId: "root/root", seq: 0 })
+          // seq 1 is the child's own fork-created marker. Forking above it
+          // copies a row that already carries the marker's source id, so the
+          // grandchild's own marker must take a distinct source_seq or die on
+          // the journal's `UNIQUE (run_id, source_id, source_seq)`.
+          const grandchild = yield* store.createFork(child.runId, { lineageId: "root/root", seq: 1 })
+          const markers = yield* sql<{ readonly seq: number; readonly source_seq: number }>`
+          SELECT seq, source_seq FROM flows_journal_events
+          WHERE run_id = ${grandchild.runId} AND source_id = 'flows/time-travel/fork'
+          ORDER BY seq
+        `
+          return { markers }
+        }).pipe(Effect.provide(TestDatabase.layer), Effect.scoped)
+      )
+
+      // Every marker keeps `source_seq = seq`: the copied one at the fork
+      // offset, the grandchild's own strictly above it.
+      expect(result.markers).toEqual([
+        { seq: 1, source_seq: 1 },
+        { seq: 2, source_seq: 2 }
+      ])
+    }))
+
+  // The fork copies the frame's anchors with the prefix, so a fresh engine
+  // incarnation can fork the child again without ever projecting its journal.
+  it.effect("copies public fork prefixes, attempts, and anchors across an engine restart", () =>
     Effect.gen(function*() {
       const directory = yield* Effect.promise(() => mkdtemp(join(tmpdir(), "flows-public-fork-lineage-")))
       const filename = join(directory, "lineage.sqlite")

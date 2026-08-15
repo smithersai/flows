@@ -2,7 +2,10 @@
 # `packages/jj/wasm/flows_jj.wasm` artifact. CI rebuilds the wasm with this
 # exact toolchain and fails on byte drift (see ci.yml's wasm-repro job), so
 # bumping the channel means rebuilding and recommitting the artifact with
-# `node crates/flows-jj/build-wasm.mjs` in the same change.
+# `node crates/flows-jj/build-wasm.mjs` in the same change, on the host the
+# artifact is built for — `x86_64-unknown-linux-gnu`. The script refuses to
+# build it on any other host and prints the container command; its header
+# explains why the bytes are host-specific.
 #
 # 1.89.0 is the release recorded in the committed artifact's `producers`
 # section. The minimal profile is deliberate: `rust-src` stays uninstalled so

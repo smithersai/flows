@@ -3056,6 +3056,9 @@ importers:
       '@eslint/js':
         specifier: 9.39.1
         version: 9.39.1
+      '@smthrs/artifacts-next':
+        specifier: 0.1.0
+        version: link:../artifacts
       '@smthrs/engine-next':
         specifier: 0.1.0
         version: link:../engine
@@ -3065,6 +3068,9 @@ importers:
       '@smthrs/kernel-next':
         specifier: 0.1.0
         version: link:../kernel
+      '@smthrs/plan-next':
+        specifier: 0.1.0
+        version: link:../plan
       '@types/node':
         specifier: 25.9.5
         version: 25.9.5
