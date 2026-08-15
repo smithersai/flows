@@ -16,7 +16,7 @@
 import { describe, expect, expectTypeOf, it } from "@effect/vitest"
 import { Action, Flow, FlowRuntime, Graph, Interpreter, Sleep, WaitFor } from "@smthrs/flow-next"
 import { Node } from "@smthrs/plan-next"
-import { Effect, Layer, Option, Schema } from "effect"
+import { Effect, Exit, Layer, Option, Schema, Scope } from "effect"
 import { withCrypto } from "./Crypto.ts"
 import { layerMemory } from "./MemoryFlowRuntime.ts"
 
@@ -258,8 +258,10 @@ describe("system actions require nothing of a caller", () => {
 })
 
 describe("toLayer provides the requirement it mints", () => {
-  // BUG: A nested layerImplementations provision reuses and replaces the enclosing table's same-tag entry.
-  it.effect.fails("confines a duplicate tag replacement to its nested implementation table", () =>
+  // A nested provision reuses the enclosing table through layer memoization,
+  // so its same-tag registration must shadow for its own lifetime and restore
+  // the enclosing entry when its scope closes, never leak the replacement.
+  it.effect("confines a duplicate tag replacement to its nested implementation table", () =>
     Effect.gen(function*() {
       const Duplicate = Action.make("requirement/duplicate", {
         payload: { value: Schema.Number },
@@ -295,6 +297,32 @@ describe("toLayer provides the requirement it mints", () => {
         expect(observed.nested.value).not.toBe(observed.before.value)
       }
     }))
+
+  it.effect("leaves a successor registration in place when an earlier sibling scope closes first", () =>
+    Effect.gen(function*() {
+      // Scoped restoration unwinds LIFO through finalizers. When scopes close
+      // OUT of order, an earlier registration must not clobber the successor
+      // that replaced it: only the filed implementation restores what it
+      // itself replaced.
+      const table = yield* Action.Implementations
+      const older: Action.Implementation = { name: "requirement/sibling", action: () => Effect.succeed(1) }
+      const newer: Action.Implementation = { name: "requirement/sibling", action: () => Effect.succeed(2) }
+      const olderScope = yield* Scope.make()
+      const newerScope = yield* Scope.make()
+      yield* table.add(older).pipe(Scope.provide(olderScope))
+      yield* table.add(newer).pipe(Scope.provide(newerScope))
+
+      yield* Scope.close(olderScope, Exit.void)
+      const surviving = yield* table.get("requirement/sibling")
+      yield* Scope.close(newerScope, Exit.void)
+      const unwound = yield* table.get("requirement/sibling")
+
+      expect(Option.isSome(surviving) && surviving.value).toBe(newer)
+      // The newer registration's finalizer restores what IT replaced. The
+      // restoration is structural — the table maps names to implementations
+      // and does not track a restored entry's own lifetime.
+      expect(Option.isSome(unwound) && unwound.value).toBe(older)
+    }).pipe(Effect.provide(Action.layerImplementations)))
 
   it.effect("answers with the same implementation the name-keyed table holds", () =>
     Effect.gen(function*() {
