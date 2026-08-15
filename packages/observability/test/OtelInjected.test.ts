@@ -1,5 +1,5 @@
-import { InMemoryMetricExporter } from "@opentelemetry/sdk-metrics"
 import { LoggerProvider } from "@opentelemetry/sdk-logs"
+import { InMemoryMetricExporter } from "@opentelemetry/sdk-metrics"
 import { PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics"
 import { BasicTracerProvider } from "@opentelemetry/sdk-trace-base"
 import { Effect } from "effect"
