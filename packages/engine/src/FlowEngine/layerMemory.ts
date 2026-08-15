@@ -54,6 +54,13 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
       readonly parent: string | undefined
       instance: FlowRuntime.FlowInstance["Service"]
       fiber: Fiber.Fiber<Flow.Result<unknown, unknown>> | undefined
+      /**
+       * The fiber the flow body actually runs in: `Flow.intoResult` forks the
+       * body as a child of the round fiber, and a normal `interrupt` targets
+       * this child so the round fiber survives to CONVERT the interruption
+       * into the recorded cancellation instead of dying on it.
+       */
+      bodyFiber: Fiber.Fiber<unknown, unknown> | undefined
     }
     const executions = new Map<string, ExecutionState>()
 
@@ -88,6 +95,18 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
       instance.interrupted = state.instance.interrupted
       state.instance = instance
       state.fiber = yield* entry.execute(state.payload, state.instance.executionId).pipe(
+        // Runs as the forked body fiber's first instruction: it hands
+        // `interrupt` the fiber the body runs in, and it answers a
+        // cancellation that landed BEFORE the body started — the flag is
+        // already set, so the body self-interrupts instead of dispatching
+        // work whose cancellation was requested.
+        (body) =>
+          Effect.withFiber<unknown, unknown, FlowRuntime.FlowInstance | FlowRuntime.FlowRuntime>(
+            (fiber) => {
+              state.bodyFiber = fiber
+              return instance.interrupted ? Effect.interrupt : body
+            }
+          ),
         Effect.onExit(() => {
           if (!instance.interrupted) {
             return Effect.void
@@ -158,6 +177,7 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
             payload: options.payload,
             instance: makeInstance(flow, options.executionId),
             fiber: undefined,
+            bodyFiber: undefined,
             parent: options.parent?.executionId
           }
           executions.set(options.executionId, state)
@@ -171,6 +191,27 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
         const state = executions.get(executionId)
         if (!state) return
         state.instance.interrupted = true
+        // `execute` installs the state and synchronously starts `resume`
+        // before it can return its execution id, so every publicly
+        // observable execution has a round fiber to inspect.
+        const exit = state.fiber!.pollUnsafe()
+        if (exit === undefined) {
+          // The round is LIVE. The interruption is delivered to the body
+          // fiber rather than the round fiber: the round fiber then converts
+          // it into the recorded cancellation — `Complete` with an interrupt
+          // cause, after the body's finalizers ran — where interrupting the
+          // round fiber itself would leave `poll` dying on a bare interrupt
+          // exit. Delivery is a send, not an await: the contract is a
+          // cancellation REQUEST, and a body pinned in an uninterruptible
+          // region settles on its own time with the request already
+          // recorded. A round fiber that has not started yet has no body
+          // fiber; its body observes the flag and self-interrupts on start.
+          if (state.bodyFiber !== undefined) {
+            const bodyFiber = state.bodyFiber
+            yield* Effect.withFiber((fiber) => Effect.sync(() => bodyFiber.interruptUnsafe(fiber.id)))
+          }
+          return
+        }
         yield* resume(executionId)
       }),
       // Untraced because interruption is coordinated from recursive execution.
