@@ -7,7 +7,9 @@ import * as BranchCommands from "../src/BranchCommands.ts"
 import * as BranchProtocol from "../src/BranchProtocol.ts"
 import * as BranchShare from "../src/BranchShare.ts"
 import * as RunCatalog from "../src/RunCatalog.ts"
+import * as SyncClient from "../src/SyncClient.ts"
 import { SyncError } from "../src/SyncError.ts"
+import type * as SyncProtocol from "../src/SyncProtocol.ts"
 import * as SyncServer from "../src/SyncServer.ts"
 
 const branchId = "payload-limits" as BranchProtocol.BranchId
@@ -198,5 +200,61 @@ describe("sync payload and frame limits", () => {
 
       expect(failureOf(exit)).toBeInstanceOf(SyncError)
       expect(failureOf(exit)).toMatchObject({ code: "frame_too_large" })
+    }))
+
+  it.effect("client refuses a live frame whose encoded entries exceed its frame ceiling", () =>
+    Effect.gen(function*() {
+      const client = yield* SyncClient.make({
+        client: {
+          "Sync.Read": () => Effect.succeed({ entries: [], cursors: [], done: true }),
+          "Sync.Subscribe": () =>
+            Stream.succeed<SyncProtocol.Frame>({
+              _tag: "Entries",
+              runId,
+              fromSeq: 0 as JournalEvent.Seq,
+              toSeq: 0 as JournalEvent.Seq,
+              entries: [entry(0, "x".repeat(512))]
+            })
+        } as unknown as Parameters<typeof SyncClient.make>[0]["client"],
+        maxFrameBytes: 256
+      })
+
+      const exit = yield* Effect.exit(
+        client.subscribe({ scope: { _tag: "Run", runId }, cursors: [] }).pipe(
+          Stream.take(1),
+          Stream.runCollect
+        )
+      )
+
+      expect(failureOf(exit)).toBeInstanceOf(SyncError)
+      expect(failureOf(exit)).toMatchObject({ code: "frame_too_large" })
+      expect(yield* client.cursors).toEqual([])
+    }))
+
+  it.effect("client refuses a bootstrap page whose encoded entries exceed its frame ceiling", () =>
+    Effect.gen(function*() {
+      const client = yield* SyncClient.make({
+        client: {
+          "Sync.Read": () =>
+            Effect.succeed({
+              entries: [entry(0, "x".repeat(512))],
+              cursors: [{ runId, afterSeq: 0 as JournalEvent.Seq }],
+              done: true
+            }),
+          "Sync.Subscribe": () => Stream.empty
+        } as unknown as Parameters<typeof SyncClient.make>[0]["client"],
+        maxFrameBytes: 256
+      })
+
+      const exit = yield* Effect.exit(
+        client.subscribe({ scope: { _tag: "Run", runId }, cursors: [] }).pipe(
+          Stream.take(1),
+          Stream.runCollect
+        )
+      )
+
+      expect(failureOf(exit)).toBeInstanceOf(SyncError)
+      expect(failureOf(exit)).toMatchObject({ code: "frame_too_large" })
+      expect(yield* client.cursors).toEqual([])
     }))
 })

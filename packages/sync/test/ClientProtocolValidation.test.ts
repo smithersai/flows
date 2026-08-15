@@ -53,10 +53,11 @@ const cases: ReadonlyArray<Case> = [
 ]
 
 describe("SyncClient protocol consistency validation", () => {
-  // BUG: schema-valid Entries frames are trusted without checking their internal run/range/sequence consistency.
-  // `it.effect.fails` has no `each`, so the corpus is iterated directly.
+  // A schema-valid Entries frame can still contradict itself. Each case is an
+  // internal run/range/sequence inconsistency the client must refuse as a
+  // protocol violation without moving any cursor.
   for (const { cursors = [], frame, name } of cases) {
-    it.effect.fails(`${name} and leaves cursors intact`, () =>
+    it.effect(`${name} and leaves cursors intact`, () =>
       Effect.gen(function*() {
         const client = yield* SyncClient.make({
           client: {
