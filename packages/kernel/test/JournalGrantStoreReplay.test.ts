@@ -439,9 +439,7 @@ describe("JournalGrantStore construction envelopes", () => {
       })
     ))
 
-  // BUG: Envelope signatures sort but do not remove duplicate patterns, so a
-  // semantically identical constructor emits a second durable envelope.
-  it.effect.fails("deduplicates construction envelopes with repeated patterns", () =>
+  itEffect("deduplicates construction envelopes with repeated patterns", () =>
     run(
       Effect.gen(function*() {
         const journal = yield* Journal
@@ -463,9 +461,7 @@ describe("JournalGrantStore construction envelopes", () => {
       })
     ))
 
-  // BUG: Two constructors can both replay absence before either persists, so
-  // both append the same construction envelope.
-  it.effect.fails("serializes concurrent construction-envelope deduplication", () =>
+  itEffect("serializes concurrent construction-envelope deduplication", () =>
     run(
       Effect.gen(function*() {
         const base = yield* Journal
@@ -502,6 +498,31 @@ describe("JournalGrantStore construction envelopes", () => {
 
         const page = yield* base.entries({ runId: runId(options.runId), limit: 10 })
         expect(page.entries).toHaveLength(1)
+      })
+    ))
+
+  itEffect("skips a runtime envelope that repeats a replayed construction envelope", () =>
+    run(
+      Effect.gen(function*() {
+        const journal = yield* Journal
+        const readPattern = new Capability.CapabilityPattern({
+          action: "fs:read",
+          resource: "/workspace/**"
+        })
+        yield* JournalGrantStore.make({
+          ...options,
+          envelope: { patterns: [insidePattern, readPattern], scope: "run" }
+        })
+        const resumed = yield* JournalGrantStore.make(options)
+        yield* resumed.grantEnvelope({
+          planDigest: options.planDigest,
+          patterns: [readPattern, insidePattern],
+          scope: "run"
+        })
+
+        const page = yield* journal.entries({ runId: runId(options.runId), limit: 10 })
+        expect(page.entries).toHaveLength(1)
+        yield* resumed.check(insideWrite)
       })
     ))
 
@@ -587,17 +608,70 @@ const entry = (seq: number, event: GrantEvent.GrantEvent, target: string): Entry
   })
 
 describe("JournalGrantStore paging and journal failures", () => {
-  // BUG: Replay accepts a non-advancing page cursor and requests the same page
-  // forever instead of failing construction with a typed corruption error.
-  it.fails("fails closed when a page repeats its last sequence with hasMore", () => {
+  it("fails closed when a page repeats its last sequence with hasMore", () => {
+    // The subprocess exists to bound the regression case — an unfixed replay
+    // loops forever, which would hang an in-process assertion. Node boot plus
+    // TS-stripped effect imports take seconds under coverage-instrumented
+    // parallel workers, so the kill budget is generous but finite and stays
+    // inside the suite's 30 s test budget.
     const replay = spawnSync(process.execPath, ["--input-type=module", "--eval", repeatedCursorProgram], {
       encoding: "utf8",
-      timeout: 2_000
+      timeout: 25_000
     })
 
     expect(replay.error).toBeUndefined()
     expect(replay.status).toBe(0)
     expect(replay.stdout).toBe("invalid_resolution:2")
+  })
+
+  itEffect("refuses a non-advancing policy page instead of looping", () => {
+    let calls = 0
+    const journal = JournalModule.layerNoop({
+      entries: (entriesOptions) =>
+        Effect.sync(() => {
+          if (entriesOptions.runId !== options.policyRunId) {
+            return { entries: [], hasMore: false }
+          }
+          calls += 1
+          return { entries: [entry(1, rememberedGrant(insidePattern), options.policyRunId)], hasMore: true }
+        })
+    })
+
+    return Effect.gen(function*() {
+      const failure = yield* Effect.flip(JournalGrantStore.make(options))
+      expect(failure.code).toBe("invalid_resolution")
+      expect(failure.message).toContain("non-advancing journal page at sequence 1")
+      expect(calls).toBe(2)
+    }).pipe(
+      Effect.provide(journal),
+      Effect.provide(Workspace.layer(workspaceRoot)),
+      Effect.scoped
+    )
+  })
+
+  itEffect("refuses a non-advancing run page instead of looping", () => {
+    let calls = 0
+    const journal = JournalModule.layerNoop({
+      entries: (entriesOptions) =>
+        Effect.sync(() => {
+          if (entriesOptions.runId === options.policyRunId) {
+            return { entries: [], hasMore: false }
+          }
+          calls += 1
+          return { entries: [entry(1, runGrant(insidePattern), options.runId)], hasMore: true }
+        })
+    })
+
+    return Effect.gen(function*() {
+      const failure = yield* Effect.flip(JournalGrantStore.make(options))
+      expect(failure.code).toBe("invalid_resolution")
+      expect(failure.message).toContain("non-advancing journal page at sequence 1")
+      expect(calls).toBe(2)
+    }).pipe(
+      Effect.provide(journal),
+      Effect.provide(Workspace.layer(workspaceRoot)),
+      Effect.scoped
+    )
   })
 
   itEffect("follows the cursor across every page of remembered policy", () => {

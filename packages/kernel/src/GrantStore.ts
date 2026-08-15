@@ -11,6 +11,7 @@ import {
   type Capability,
   CapabilityPattern,
   type EffectTier,
+  format,
   matches,
   subsumes,
   tierOf
@@ -113,6 +114,13 @@ export interface MakeOptions {
   readonly rules?: ReadonlyArray<Rule> | ReadonlyArray<ReadonlyArray<Rule>> | undefined
   readonly runRules?: ReadonlyArray<Rule> | undefined
   readonly envelope?: EnvelopeGrantOptions | undefined
+  /**
+   * {@link envelopeSignature} values of envelopes that are already durable —
+   * typically replayed from a journal. A construction or runtime envelope
+   * matching a seeded signature still activates its rules but is not
+   * persisted again.
+   */
+  readonly envelopeSignatures?: ReadonlyArray<string> | undefined
   readonly runId?: string | undefined
   readonly planDigest?: string | undefined
   readonly persist?: Persist | undefined
@@ -130,6 +138,64 @@ const exactPattern = (capability: Capability): CapabilityPattern =>
   })
 
 const hasResourceWildcard = (resource: string): boolean => resource.includes("*") || resource.includes("?")
+
+const isResolution = (value: string): value is Resolution =>
+  value === "once" || value === "run" || value === "remembered" || value === "deny"
+
+const isEnvelopeScope = (value: string): value is "run" | "remembered" => value === "run" || value === "remembered"
+
+/**
+ * Canonicalizes an envelope pattern list: duplicate predicates collapse to
+ * their first occurrence and the survivors sort by their formatted identity.
+ *
+ * An envelope is a *set* of predicates, so two envelopes listing the same
+ * predicates in a different order or multiplicity are the same approval. Every
+ * envelope is canonicalized before it is persisted or compared, which makes
+ * envelope idempotency structural rather than dependent on caller discipline.
+ *
+ * The ordering is the code-unit sort of `format(pattern)` — the one renderer
+ * for capability identity. RFC 8785 canonical JSON (`@smthrs/canonical-next`)
+ * was considered and does not fit: it canonicalizes object keys but preserves
+ * array order as semantic, and the ordering that matters here is exactly the
+ * pattern-array order.
+ *
+ * @category validation
+ * @since 0.1.0
+ */
+export const canonicalEnvelopePatterns = (
+  patterns: ReadonlyArray<CapabilityPattern>
+): Array<CapabilityPattern> => {
+  const byIdentity = new Map<string, CapabilityPattern>()
+  for (const pattern of patterns) {
+    const identity = format(pattern)
+    if (!byIdentity.has(identity)) {
+      byIdentity.set(identity, pattern)
+    }
+  }
+  return [...byIdentity.keys()].sort().map((identity) => byIdentity.get(identity)!)
+}
+
+/**
+ * Computes the canonical identity of an envelope approval.
+ *
+ * Two envelopes with the same plan digest, scope, and predicate set produce
+ * the same signature regardless of pattern order or repetition. The signature
+ * is how the store, and journal replay above it, recognise an envelope that
+ * is already durable.
+ *
+ * @category validation
+ * @since 0.1.0
+ */
+export const envelopeSignature = (
+  planDigest: string,
+  scope: "run" | "remembered",
+  patterns: ReadonlyArray<CapabilityPattern>
+): string =>
+  JSON.stringify({
+    planDigest,
+    scope,
+    patterns: canonicalEnvelopePatterns(patterns).map(format)
+  })
 
 /**
  * Checks that a request-scoped grant cannot authorize a different action or a
@@ -237,6 +303,7 @@ export const make = (
     const rememberedRules = initial.remembered
     const pending = new Map<string, PendingEntry>()
     const persist = options.persist ?? (() => Effect.void)
+    const grantedEnvelopes = new Set<string>(options.envelopeSignatures ?? [])
     let nextRequestId = 1
     let closed = false
     const mutation = yield* Semaphore.make(1)
@@ -249,25 +316,32 @@ export const make = (
     }
 
     if (options.envelope !== undefined && options.envelope.patterns.length > 0) {
+      const scope = options.envelope.scope ?? "run"
       if (
-        options.planDigest === undefined
+        !isEnvelopeScope(scope)
+        || options.planDigest === undefined
         || options.envelope.planDigest !== options.planDigest
         || options.envelope.planDigest.length === 0
         || options.envelope.patterns.some((pattern) => !isValidEnvelopePattern(pattern, workspaceRoot))
       ) {
         return yield* Effect.fail(new GrantStoreError({ code: "invalid_resolution" }))
       }
-      yield* persist(
-        new EnvelopeGrant({
-          eventType: "flows.kernel.grant.envelope.v1",
-          runId: options.runId ?? "",
-          planDigest: options.envelope.planDigest,
-          patterns: [...options.envelope.patterns],
-          scope: options.envelope.scope ?? "run"
-        })
-      )
-      const destination = options.envelope.scope === "remembered" ? rememberedRules : envelopeRules
-      for (const pattern of options.envelope.patterns) {
+      const patterns = canonicalEnvelopePatterns(options.envelope.patterns)
+      const signature = envelopeSignature(options.envelope.planDigest, scope, patterns)
+      if (!grantedEnvelopes.has(signature)) {
+        yield* persist(
+          new EnvelopeGrant({
+            eventType: "flows.kernel.grant.envelope.v1",
+            runId: options.runId ?? "",
+            planDigest: options.envelope.planDigest,
+            patterns,
+            scope
+          })
+        )
+        grantedEnvelopes.add(signature)
+      }
+      const destination = scope === "remembered" ? rememberedRules : envelopeRules
+      for (const pattern of patterns) {
         destination.push(new Rule({ effect: "allow", pattern }))
       }
     }
@@ -410,6 +484,18 @@ export const make = (
             if (closed) {
               return yield* Effect.fail(new GrantStoreError({ code: "store_closed" }))
             }
+            if (!isResolution(resolution)) {
+              // A runtime-invalid resolution must fail the reply, not fall
+              // through the switch below: silently succeeding would strand
+              // the request's waiter on its Deferred forever. The request
+              // stays pending so the caller can still answer it.
+              return yield* Effect.fail(
+                new GrantStoreError({
+                  code: "invalid_resolution",
+                  message: "unknown grant resolution"
+                })
+              )
+            }
             const entry = pending.get(requestId)
             if (entry === undefined) {
               return yield* Effect.fail(new GrantStoreError({ code: "request_not_found" }))
@@ -538,14 +624,26 @@ export const make = (
               return yield* Effect.fail(new GrantStoreError({ code: "store_closed" }))
             }
             if (
-              options.planDigest === undefined
+              !isEnvelopeScope(scope)
+              || options.planDigest === undefined
               || planDigest !== options.planDigest
               || planDigest.length === 0
               || patterns.some((pattern) => !isValidEnvelopePattern(pattern, workspaceRoot))
             ) {
+              // A runtime-invalid scope is caller input, not a defect: it must
+              // surface as a typed store error before it can reach the event
+              // schema constructor.
               return yield* Effect.fail(new GrantStoreError({ code: "invalid_resolution" }))
             }
             if (patterns.length === 0) {
+              return
+            }
+            const canonical = canonicalEnvelopePatterns(patterns)
+            const signature = envelopeSignature(planDigest, scope, canonical)
+            if (grantedEnvelopes.has(signature)) {
+              // The same approval was already activated and persisted —
+              // repeating or reordering its predicates is a no-op, not new
+              // durable evidence.
               return
             }
             yield* persist(
@@ -553,12 +651,13 @@ export const make = (
                 eventType: "flows.kernel.grant.envelope.v1",
                 runId: options.runId ?? "",
                 planDigest,
-                patterns: [...patterns],
+                patterns: canonical,
                 scope
               })
             )
+            grantedEnvelopes.add(signature)
             const destination = scope === "remembered" ? rememberedRules : envelopeRules
-            for (const pattern of patterns) {
+            for (const pattern of canonical) {
               destination.push(new Rule({ effect: "allow", pattern }))
             }
             yield* resolveCovered

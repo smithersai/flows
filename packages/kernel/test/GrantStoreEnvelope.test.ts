@@ -181,6 +181,23 @@ describe("GrantStore construction-time envelope", () => {
       })
     ))
 
+  itEffect("refuses a runtime-invalid envelope scope with a typed store error", () =>
+    Effect.scoped(
+      Effect.gen(function*() {
+        const failure = yield* Effect.flip(
+          make({
+            planDigest: "plan-1",
+            envelope: {
+              planDigest: "plan-1",
+              patterns: [workspaceReads],
+              scope: "once" as unknown as "run" | "remembered"
+            }
+          })
+        )
+        expect(failure.code).toBe("invalid_resolution")
+      })
+    ))
+
   itEffect("refuses an envelope pattern that widens the filesystem effect tier", () =>
     Effect.scoped(
       Effect.gen(function*() {
@@ -217,9 +234,7 @@ describe("GrantStore construction-time envelope", () => {
 })
 
 describe("GrantStore.grantEnvelope", () => {
-  // BUG: A runtime envelope persists duplicate predicates verbatim instead of
-  // treating its pattern list as a capability set.
-  it.effect.fails("persists each predicate only once inside a runtime envelope", () =>
+  itEffect("persists each predicate only once inside a runtime envelope", () =>
     Effect.scoped(
       Effect.gen(function*() {
         const { events, persist } = recorder()
@@ -235,9 +250,7 @@ describe("GrantStore.grantEnvelope", () => {
       })
     ))
 
-  // BUG: Repeated approvals are appended and persisted again; reordered
-  // patterns therefore create duplicate durable envelope evidence.
-  it.effect.fails("makes repeated and reordered runtime envelopes idempotent", () =>
+  itEffect("makes repeated and reordered runtime envelopes idempotent", () =>
     Effect.scoped(
       Effect.gen(function*() {
         const { events, persist } = recorder()
