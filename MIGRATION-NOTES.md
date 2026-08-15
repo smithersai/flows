@@ -26,9 +26,10 @@ The `queue/` to `factory/queue/` rename was unrelated to package migration. It
 was reverted in its own commit, restoring the exact pre-migration queue files
 and paths.
 
-The dead chain package from the agent repository was not migrated. A separate
-`packages/chain` promoted from the app repository's vendored sources belongs
-to the concurrent app migration and is unrelated to this package move. The
+The dead chain package from the agent repository was not migrated. The
+`packages/chain` directory in this workspace is `@smthrs/chain-next`, promoted
+from the app repository's vendored sources by the concurrent app migration; it
+is a different package and is unrelated to this package move. The
 agent repository's `flows` symlink package and its old workspace mount were
 not migrated. Generated build, coverage, and dependency directories were not
 migrated.
