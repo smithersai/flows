@@ -524,7 +524,7 @@ const loadedModuleRoot = (name: string, specifier: string): SourceRoot => ({
 export const productionSourceRoots = (): ReadonlyArray<SourceRoot> => [
   { name: "cli", directory: cliSourceDirectory },
   loadedModuleRoot("tsflows-rules", "tsflows-rules"),
-  loadedModuleRoot("tsflows", "tsflows"),
+  loadedModuleRoot("tsflows", "@smthrs/tsflows-next"),
   loadedModuleRoot("canonical", "@smthrs/canonical-next"),
   loadedModuleRoot("crypto", "@smthrs/crypto-next"),
   loadedModuleRoot("engine", "@smthrs/engine-next"),
