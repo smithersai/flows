@@ -6,7 +6,7 @@
  * build; the two documentation lints report at `warning` while their rubrics
  * are tuned.
  */
-import { LlmLint, gitDiff } from "tsflows-rules"
+import { gitDiff, glob, LlmLint } from "tsflows-rules"
 
 /** The base revision every first-wave lint diffs against. */
 const changes = gitDiff("origin/main")
@@ -28,15 +28,15 @@ const prompt = "You are reviewing a diff in `flows`, an Effect v4 coding-agent h
 export const durableIdentityGuard = LlmLint({
   changes,
   include: [
-    "packages/engine-store/src/**",
-    "packages/run-store/src/**",
-    "packages/step-cache/src/**",
-    "packages/journal/src/**",
-    "packages/database/src/**",
-    "packages/engine-store/src/migrations/**",
-    "packages/run-store/src/migrations/**",
-    "packages/step-cache/src/migrations/**",
-    "packages/journal/src/migrations/**"
+    glob("packages/engine-store/src/**"),
+    glob("packages/run-store/src/**"),
+    glob("packages/step-cache/src/**"),
+    glob("packages/journal/src/**"),
+    glob("packages/database/src/**"),
+    glob("packages/engine-store/src/migrations/**"),
+    glob("packages/run-store/src/migrations/**"),
+    glob("packages/step-cache/src/migrations/**"),
+    glob("packages/journal/src/migrations/**")
   ],
   deps: [],
   prompt,
@@ -68,8 +68,8 @@ export const durableIdentityGuard = LlmLint({
  */
 export const docsReferenceSync = LlmLint({
   changes,
-  include: ["packages/*/src/**"],
-  context: ["docs/reference/*.md", "docs/concepts/**/*.md", "docs/guides/**/*.md"],
+  include: [glob("packages/*/src/**")],
+  context: [glob("docs/reference/*.md"), glob("docs/concepts/**/*.md"), glob("docs/guides/**/*.md")],
   deps: [],
   prompt,
   rubric: [
@@ -97,7 +97,7 @@ export const docsReferenceSync = LlmLint({
  */
 export const jsdocTruthfulness = LlmLint({
   changes,
-  include: ["packages/*/src/**/*.ts"],
+  include: [glob("packages/*/src/**/*.ts")],
   deps: [],
   prompt,
   rubric: [

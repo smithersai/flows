@@ -1,14 +1,25 @@
 /**
- * The tsflows workspace root.
+ * Targets for the `@smthrs/tsflows-next` package plus the declarations it
+ * carried as a standalone workspace root:
  *
- * Two inert declarations and one run target:
- *
+ * - `lib`, `test`, `lint`, and `docs` are this package's own standard
+ *   targets. The BUILD.ts file suppresses default-rule synthesis, so they
+ *   must be declared here explicitly.
  * - `template` is the inert shared manifest every package merges under.
  * - `packageDefaults` synthesizes a standard package's targets, and its
  *   manifest targets, for any `packages/*` directory without a BUILD.ts.
+ *   Its glob anchors at this package, so in the flows monorepo it matches
+ *   nothing; the workspace-wide declaration lives in the root BUILD.ts.
  * - `newPackage` is the `run` target that creates such a directory.
  */
 import { DefaultRule, NewPackage, PackageJson, PackageJsonTemplate, StandardPackage } from "tsflows-rules"
+
+const standard = StandardPackage({ cwd: "packages/tsflows" })
+
+export const lib = standard.lib
+export const test = standard.test
+export const lint = standard.lint
+export const docs = standard.docs
 
 /**
  * The manifest fields every package in this workspace shares.
