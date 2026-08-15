@@ -23,7 +23,7 @@ const flow = Flow.make("RetryOriginFallback/flow", {
   payload: { id: Schema.String },
   success: Schema.Number,
   error: Schema.String,
-  body: () => Node.succeed(undefined)
+  body: () => Node.succeed(0)
 })
 
 describe("retry origin fallback when the durable hook yields none", () => {

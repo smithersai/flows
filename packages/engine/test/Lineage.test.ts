@@ -4,7 +4,7 @@ import * as Schema from "effect/Schema"
 import { describe, expect, it } from "vitest"
 import { FlowEngine } from "../src/index.ts"
 
-const flow = Flow.make("engine/Lineage", { payload: {}, success: Schema.String, body: () => Node.succeed(undefined) })
+const flow = Flow.make("engine/Lineage", { payload: {}, success: Schema.String, body: () => Node.succeed("ready") })
 
 describe("FlowEngine.Lineage", () => {
   it("addresses a run's root, and a node by its path from that root", () => {

@@ -320,7 +320,7 @@ describe("a lineage on the memory engine", () => {
       const Stranger = Flow.make("trampoline/stranger", {
         payload: { value: Schema.Number },
         success: Schema.Number,
-        body: () => Node.succeed(undefined)
+        body: () => Node.succeed(0)
       })
       const Orphan = Flow.make("trampoline/orphan", {
         payload: { value: Schema.Number },

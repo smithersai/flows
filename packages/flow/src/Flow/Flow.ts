@@ -17,6 +17,7 @@
  * @since 4.0.0
  */
 import type * as Node from "@smthrs/plan-next/Node"
+import type * as Planned from "@smthrs/plan-next/Planned"
 import type * as Cause from "effect/Cause"
 import type * as Context from "effect/Context"
 import type * as Effect from "effect/Effect"
@@ -27,9 +28,21 @@ import type { PlannedPayload } from "../Action/Action.ts"
 import type { CancelRequestFailed } from "../FlowRuntime/CancelRequestFailed.ts"
 import type { FlowInstance, FlowRuntime } from "../FlowRuntime/index.ts"
 import type * as RetryPolicy from "../RetryPolicy.ts"
-import type { To } from "./Outcome.ts"
+import type { Outcome, To } from "./Outcome.ts"
 import type { Result } from "./Result.ts"
 import type { TypeId } from "./TypeId.ts"
+
+/**
+ * Values with which a flow body may settle one round.
+ *
+ * A plain decoded success completes the flow. A planned success is a symbolic
+ * reference the graph resolves before settlement. An outcome either completes
+ * explicitly, hands off to another round, or parks durably.
+ *
+ * @category models
+ * @since 4.0.0
+ */
+export type BodySuccess<A> = A | Planned.Planned<A> | Outcome<A | Planned.Planned<A>, unknown>
 
 /**
  * Durable flow definition with typed payload, success, and error schemas
@@ -71,7 +84,7 @@ export interface Flow<
    * implementation it does not carry, and that obligation travels with the flow
    * until something executes it.
    */
-  readonly body: (payload: Payload["Type"]) => Node.Node<unknown, unknown, Requires>
+  readonly body: (payload: Payload["Type"]) => Node.Node<BodySuccess<Success["Type"]>, Error["Type"], Requires>
   readonly idempotencyKey?: ((payload: Payload["Type"]) => string) | undefined
   readonly suspendedRetryPolicy?: RetryPolicy.RetryPolicy | undefined
   /**

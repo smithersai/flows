@@ -127,6 +127,7 @@ describe("Graph.build topology", () => {
     const seen: Array<unknown> = []
     const flow = Flow.make("literal/passthrough", {
       payload: { when: Schema.Unknown, missing: Schema.Unknown, tags: Schema.Unknown },
+      success: Schema.Unknown,
       body: (payload) => {
         seen.push(payload.when)
         return Node.succeed(payload.missing)
@@ -146,6 +147,7 @@ describe("Graph.build topology", () => {
     const seen: Array<unknown> = []
     const flow = Flow.make("literal/proto-field", {
       payload: { data: Schema.Unknown },
+      success: Schema.Unknown,
       body: (payload) => {
         seen.push(payload.data)
         return Node.succeed(payload.data)
@@ -167,6 +169,7 @@ describe("Graph.build topology", () => {
   it("records an object-valued own __proto__ field instead of reparenting the clone", () => {
     const flow = Flow.make("literal/proto-object", {
       payload: { data: Schema.Unknown },
+      success: Schema.Unknown,
       body: (payload) => Node.succeed(payload.data)
     })
     const graph = Graph.build(flow, { data: { ["__proto__"]: { evil: 1 } } })
@@ -187,6 +190,7 @@ describe("Graph.build planned values", () => {
   it("threads reference paths from a payload into Ref inputs, once per distinct path", () => {
     const flow = Flow.make("refs/thread", {
       payload: { path: Schema.String },
+      success: Schema.Unknown,
       body: ({ path }) =>
         Read.call({ path }).pipe(
           Node.andThen((result) =>
@@ -231,12 +235,12 @@ describe("Graph.build planned values", () => {
     const CountTo100 = Flow.make("counter/count-to-100", {
       payload: { path: Schema.String },
       success: Schema.Number,
-      body: ({ path }): Node.Node<unknown, never, Action.Requirement<"counter/increment">> =>
+      body: ({ path }) =>
         Increment.call({ path }).pipe(
           Node.branch({
             if: (value) => value >= 100,
             then: (value) => Flow.done(value),
-            else: (): Node.Node<unknown> => CountTo100.to({ path })
+            else: (): Node.Node<Flow.To<{ readonly path: string }>> => CountTo100.to({ path })
           })
         )
     })
@@ -295,6 +299,7 @@ describe("Graph.build planned values", () => {
     let armed = 0
     const flow = Flow.make("strict/once", {
       payload: { path: Schema.String },
+      success: Schema.String,
       body: ({ path }) =>
         Increment.call({ path }).pipe(
           Node.andThen((value) => {
@@ -324,6 +329,7 @@ describe("Graph.build planned values", () => {
   it("throws on computation in a continuation, naming the source node and the fix", () => {
     const flow = Flow.make("strict/computed", {
       payload: { path: Schema.String },
+      success: Schema.String,
       body: ({ path }) =>
         Read.call({ path }).pipe(
           Node.andThen((result) => Node.succeed(`${result.value}`))
@@ -341,6 +347,7 @@ describe("Graph.build planned values", () => {
   it("throws on computation inside a branch arm", () => {
     const flow = Flow.make("strict/armed", {
       payload: { path: Schema.String },
+      success: Schema.String,
       body: ({ path }) =>
         Increment.call({ path }).pipe(
           Node.branch({
@@ -363,7 +370,7 @@ describe("Graph.build planned values", () => {
     const boom = new TypeError("the body itself is broken")
     const flow = Flow.make("strict/defect", {
       payload: {},
-      body: (): Node.Node<unknown> => {
+      body: (): Node.Node<never> => {
         throw boom
       }
     })
@@ -377,7 +384,7 @@ describe("Graph.build composition", () => {
     const Recursive = Flow.make("recursion/self", {
       payload: { depth: Schema.Number },
       success: Schema.Number,
-      body: ({ depth }): Node.Node<unknown> => Recursive.call({ depth })
+      body: ({ depth }): Node.Node<number> => Recursive.call({ depth })
     })
     expect(() => Graph.build(Recursive, { depth: 0 })).toThrowError(expect.objectContaining({
       _tag: "@smthrs/plan-next/GraphBuildError",
@@ -393,12 +400,12 @@ describe("Graph.build composition", () => {
       .make("recursion/ping", {
         payload: { depth: Schema.Number },
         success: Schema.Number,
-        body: ({ depth }): Node.Node<unknown> => Pong.call({ depth })
+        body: ({ depth }): Node.Node<number> => Pong.call({ depth })
       })
     const Pong = Flow.make("recursion/pong", {
       payload: { depth: Schema.Number },
       success: Schema.Number,
-      body: ({ depth }): Node.Node<unknown> => Ping.call({ depth })
+      body: ({ depth }): Node.Node<number> => Ping.call({ depth })
     })
     expect(() => Graph.build(Ping, { depth: 0 })).toThrowError(expect.objectContaining({
       _tag: "@smthrs/plan-next/GraphBuildError",
@@ -415,6 +422,7 @@ describe("Graph.build composition", () => {
     const leaf = detached<number>(Node.flowCall(Child, "counter/child", "inline", { path: "p", seed: 1 }))
     const flow = Flow.make("counter/leaves", {
       payload: {},
+      success: Schema.Struct({ boundary: Schema.Number, leaf: Schema.Number }),
       body: () => Node.all({ boundary, leaf })
     })
     const graph = Graph.build(flow, {})
@@ -433,10 +441,12 @@ describe("Graph.build composition", () => {
   it("intersects the caller's capabilities with the callee's declared ceiling", () => {
     const Narrow = Flow.make("caps/narrow", {
       payload: {},
+      success: Schema.Number,
       body: () => Increment.call({ path: "counter.txt" })
     }).annotate(Flow.Capabilities, ["fs:read"])
     const Wide = Flow.make("caps/wide", {
       payload: {},
+      success: Schema.Number,
       body: () => Narrow.call({})
     }).annotate(Flow.Capabilities, ["fs:read", "fs:write"])
     const graph = Graph.build(Wide, {})
@@ -488,6 +498,7 @@ describe("Graph.build annotations", () => {
       .annotate(Flow.Placement, placement)
     const flow = Flow.make("counter/annotated", {
       payload: {},
+      success: Schema.Number,
       body: () => Risky.call({ path: "counter.txt" })
     })
     const graph = Graph.build(flow, {}, {

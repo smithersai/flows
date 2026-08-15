@@ -170,12 +170,12 @@ describe("child flow suspension and interruption", () => {
       const child = Flow.make("Child/matrix-child", {
         payload: { n: Schema.Number },
         success: Schema.Number,
-        body: () => Node.succeed(undefined)
+        body: () => Node.succeed(0)
       })
       const parentFlow = Flow.make("Child/matrix-parent", {
         payload: { id: Schema.String },
         success: Schema.Number,
-        body: () => Node.succeed(undefined)
+        body: () => Node.succeed(0)
       })
       const scripted = FlowEngine.makeUnsafe({
         register: () => Effect.void,
@@ -279,7 +279,7 @@ describe("resumeSignal", () => {
         factor: 1,
         maxMs: 3_600_000
       }),
-      body: () => Node.succeed(undefined)
+      body: () => Node.succeed("ready")
     })
     let executions = 0
     let signals = 0
@@ -315,7 +315,7 @@ describe("resumeSignal", () => {
       payload: { id: Schema.String },
       success: Schema.String,
       suspendedRetryPolicy: RetryPolicy.make({ initialMs: 1, factor: 1, maxMs: 1 }),
-      body: () => Node.succeed(undefined)
+      body: () => Node.succeed("ready")
     })
     let executions = 0
     const scripted = FlowEngine.makeUnsafe({

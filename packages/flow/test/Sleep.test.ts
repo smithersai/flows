@@ -81,6 +81,7 @@ describe("Sleep as a plan node", () => {
   const Timed = Flow.make("sleep/plan", {
     payload: { millis: Schema.Number },
     success: Schema.Void,
+    error: Sleep.SleepRequestInvalid,
     body: ({ millis }) => Sleep.action.call({ millis })
   })
 
@@ -118,6 +119,7 @@ describe("Sleep parks", () => {
     const Timed = Flow.make("sleep/durable", {
       payload: { millis: Schema.Number },
       success: Schema.String,
+      error: Sleep.SleepRequestInvalid,
       body: ({ millis }) =>
         Mark.call({ label: "before" }).pipe(
           Node.andThen(() => Sleep.action.call({ millis })),
@@ -156,6 +158,7 @@ describe("Sleep parks", () => {
     const Twice = Flow.make("sleep/twice", {
       payload: {},
       success: Schema.String,
+      error: Sleep.SleepRequestInvalid,
       body: () =>
         Sleep.action.call({ millis: 600_000 }).pipe(
           Node.andThen(() => Sleep.action.call({ millis: 600_000 })),
@@ -198,6 +201,7 @@ describe("Sleep parks", () => {
     const Rearmed = Flow.make("sleep/rearm", {
       payload: {},
       success: Schema.String,
+      error: Sleep.SleepRequestInvalid,
       body: () =>
         Mark.call({ label: "before" }).pipe(
           Node.andThen(() => Sleep.action.call({ millis: 600_000 })),

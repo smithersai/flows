@@ -14,7 +14,7 @@ import * as Schema from "effect/Schema"
 import { FlowRuntime } from "../FlowRuntime/FlowRuntime.ts"
 import type * as RetryPolicy from "../RetryPolicy.ts"
 import { CurrentExecutionIds } from "./ExecutionIds.ts"
-import type { AnyStructSchema, AnyWithProps, Flow } from "./Flow.ts"
+import type { AnyStructSchema, AnyWithProps, BodySuccess, Flow } from "./Flow.ts"
 import type { To } from "./Outcome.ts"
 import { withRollback } from "./Runtime.ts"
 import { TypeId } from "./TypeId.ts"
@@ -152,7 +152,7 @@ const makeProto = <
   readonly successSchema: Success
   readonly errorSchema: Error
   readonly annotations: Context.Context<never>
-  readonly body: (payload: Payload["Type"]) => Node.Node<unknown, unknown, Requires>
+  readonly body: (payload: Payload["Type"]) => Node.Node<BodySuccess<Success["Type"]>, Error["Type"], Requires>
   readonly idempotencyKey?: ((payload: Payload["Type"]) => string) | undefined
   readonly suspendedRetryPolicy?: RetryPolicy.RetryPolicy | undefined
   readonly maxRounds?: number | undefined
@@ -195,9 +195,14 @@ interface MakeOptions<
  *
  * @private
  */
-type Body<Payload extends Schema.Struct.Fields | AnyStructSchema, Requires> = (
+type Body<
+  Payload extends Schema.Struct.Fields | AnyStructSchema,
+  Success extends Schema.Top,
+  Error extends Schema.Top,
+  Requires
+> = (
   payload: Payload extends Schema.Struct.Fields ? Schema.Struct.Type<Payload> : Payload["Type"]
-) => Node.Node<unknown, unknown, Requires>
+) => Node.Node<BodySuccess<Success["Type"]>, Error["Type"], Requires>
 
 /**
  * The payload schema a declaration's `payload` field stands for.
@@ -229,7 +234,7 @@ export const make = <
   Requires = never
 >(
   tag: Tag,
-  options: MakeOptions<Payload, Success, Error> & { readonly body: Body<Payload, Requires> }
+  options: MakeOptions<Payload, Success, Error> & { readonly body: Body<Payload, Success, Error, Requires> }
 ): Flow<Tag, PayloadSchemaOf<Payload>, Success, Error, Requires> => {
   // Invalid static configuration is a programmer error thrown at construction,
   // the same contract as effect's own `ExecutionPlan.make` (which throws on
@@ -248,7 +253,9 @@ export const make = <
     successSchema: options.success ?? (Schema.Void as any),
     errorSchema: options.error ?? (Schema.Never as any),
     annotations: options.annotations ?? Context.empty(),
-    body: options.body as (payload: PayloadSchemaOf<Payload>["Type"]) => Node.Node<unknown, unknown, Requires>,
+    body: options.body as (
+      payload: PayloadSchemaOf<Payload>["Type"]
+    ) => Node.Node<BodySuccess<Success["Type"]>, Error["Type"], Requires>,
     idempotencyKey: options.idempotencyKey as any,
     suspendedRetryPolicy: options.suspendedRetryPolicy,
     maxRounds: options.maxRounds

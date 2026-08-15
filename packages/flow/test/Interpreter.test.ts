@@ -509,7 +509,7 @@ describe("Interpreter refusals", () => {
       const Target = Flow.make("interpreter/handoff-target", {
         payload: { path: Schema.String },
         success: Schema.Number,
-        body: () => Node.succeed(undefined)
+        body: () => Node.succeed(0)
       })
       const lost = detached(
         Node.flowCall<number>(Target, Target._tag, "handoff", { path: "p" })

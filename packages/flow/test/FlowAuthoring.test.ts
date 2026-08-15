@@ -24,7 +24,7 @@ describe("Flow body and calls", () => {
       payload: { count: Schema.Number },
       success: Schema.String,
       error: Schema.Number,
-      body: () => Node.succeed(undefined)
+      body: () => Node.succeed("ready")
     })
     const count = Planned.make<number>("upstream")
 
@@ -42,6 +42,7 @@ describe("Flow body and calls", () => {
     const body = ({ count }: { readonly count: number }) => Node.succeed(count)
     const flow = Flow.make("Authoring/body-annotations", {
       payload: { count: Schema.Number },
+      success: Schema.Number,
       body
     })
 

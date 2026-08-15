@@ -84,6 +84,7 @@ describe("WaitFor as a plan node", () => {
   const Gated = Flow.make("waitFor/plan", {
     payload: { name: Schema.String },
     success: Schema.Json,
+    error: WaitFor.WaitForRequestInvalid,
     body: ({ name }) => WaitFor.action.call({ name })
   })
 
@@ -124,6 +125,7 @@ describe("WaitFor parks", () => {
     const Gated = Flow.make("waitFor/gated", {
       payload: { name: Schema.String },
       success: Schema.Json,
+      error: WaitFor.WaitForRequestInvalid,
       body: ({ name }) =>
         Mark.call({ label: "before" }).pipe(
           Node.andThen(() => WaitFor.action.call({ name }))

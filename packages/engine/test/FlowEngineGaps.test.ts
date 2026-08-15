@@ -327,7 +327,7 @@ describe("suspended resume policy", () => {
         maxMs: 100,
         expirationMs: 150
       }),
-      body: () => Node.succeed(undefined)
+      body: () => Node.succeed("ready")
     })
     let executions = 0
     const scripted = FlowEngine.makeUnsafe({
@@ -450,7 +450,7 @@ describe("action retry give-up reasons", () => {
       payload: { id: Schema.String },
       success: Schema.Number,
       error: Schema.String,
-      body: () => Node.succeed(undefined)
+      body: () => Node.succeed(0)
     })
     let requestedKey: string | undefined
     const scripted = FlowEngine.makeUnsafe({

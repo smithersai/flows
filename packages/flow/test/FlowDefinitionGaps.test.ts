@@ -116,6 +116,22 @@ describe("Flow.make requires a body", () => {
     expectTypeOf<Flow.Any["body"]>().not.toBeNullable()
     expect(typeof declared.body).toBe("function")
   })
+
+  it("rejects a body whose settled value contradicts its success schema", () => {
+    Flow.make("Definition/wrong-success", {
+      payload: {},
+      success: Schema.String,
+      // @ts-expect-error -- a Number body cannot satisfy a String success contract.
+      body: () => Node.succeed(42)
+    })
+
+    const valid = Flow.make("Definition/right-success", {
+      payload: {},
+      success: Schema.String,
+      body: () => Node.succeed("forty-two")
+    })
+    expect(valid.body({}).ast).toEqual({ _tag: "Succeed", value: "forty-two" })
+  })
 })
 
 /**

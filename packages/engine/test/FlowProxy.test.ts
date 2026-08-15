@@ -18,7 +18,7 @@ describe("FlowProxy", () => {
     success: Schema.Number,
     error: Schema.Literal("invalid"),
     idempotencyKey: ({ value }) => String(value),
-    body: () => Node.succeed(undefined)
+    body: () => Node.succeed(0)
   })
 
   effect("uses an envelope that forwards executionId for execute and discard", () =>

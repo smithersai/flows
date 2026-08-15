@@ -180,7 +180,7 @@ describe("requirements travel the way the plan does", () => {
 
   const Middle = Flow.make("requirement/middle", {
     payload: { cents: Schema.Number },
-    success: Schema.Number,
+    success: Schema.String,
     error: Schema.String,
     body: ({ cents }) => Inner.call({ cents }).pipe(Node.andThen(() => Audit.call({ note: "ok" })))
   })
@@ -197,7 +197,7 @@ describe("requirements travel the way the plan does", () => {
 
     const Boundary = Flow.make("requirement/boundary", {
       payload: { cents: Schema.Number },
-      success: Schema.Number,
+      success: Schema.String,
       error: Schema.String,
       body: ({ cents }) => Middle.child({ cents })
     })
@@ -213,13 +213,14 @@ describe("requirements travel the way the plan does", () => {
       "requirement/self",
       Schema.Struct<{ value: typeof Schema.Number; target: typeof Schema.Number }>,
       typeof Schema.Number,
-      typeof Schema.Never,
+      typeof Schema.String,
       ChargeNeeded
     >
 
     const Self: SelfFlow = Flow.make("requirement/self", {
       payload: { value: Schema.Number, target: Schema.Number },
       success: Schema.Number,
+      error: Schema.String,
       body: ({ target, value }: { readonly value: number; readonly target: number }) =>
         Charge.call({ cents: value }).pipe(
           Node.branch({
@@ -245,6 +246,7 @@ describe("system actions require nothing of a caller", () => {
     const Waiting = Flow.make("requirement/waiting", {
       payload: { millis: Schema.Number },
       success: Schema.Unknown,
+      error: Schema.Union([Sleep.SleepRequestInvalid, WaitFor.WaitForRequestInvalid]),
       body: ({ millis }) =>
         Sleep.action.call({ millis }).pipe(
           Node.andThen(() => WaitFor.action.call({ name: "approval" }))

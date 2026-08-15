@@ -29,7 +29,7 @@ const flow = Flow.make("AttemptResume/flow", {
   payload: { id: Schema.String },
   success: Schema.Number,
   error: Schema.String,
-  body: () => Node.succeed(undefined)
+  body: () => Node.succeed(0)
 })
 
 const scriptedWith = (options: {

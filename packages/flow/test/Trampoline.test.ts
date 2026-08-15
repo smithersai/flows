@@ -55,7 +55,7 @@ const Parking = Flow.make("trampoline/parking", {
 const EncodedTarget = Flow.make("trampoline/encoded-target", {
   payload: { count: Schema.NumberFromString },
   success: Schema.Number,
-  body: () => Node.succeed(undefined)
+  body: () => Node.succeed(0)
 })
 
 const EncodedSource = Flow.make("trampoline/encoded-source", {
