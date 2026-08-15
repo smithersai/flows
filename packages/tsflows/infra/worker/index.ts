@@ -50,7 +50,10 @@ const assertContentObject = (digest: string, object: R2Object): void => {
     throw new Error("R2 returned an object outside the content-store invariant")
   }
   const checksum = object.checksums.sha256
-  if (checksum !== undefined && !sameBytes(checksum, digestBytes(digest))) {
+  if (checksum === undefined) {
+    throw new Error("R2 returned an object without a SHA-256 checksum")
+  }
+  if (!sameBytes(checksum, digestBytes(digest))) {
     throw new Error("R2 returned an object with a mismatched SHA-256 checksum")
   }
 }
@@ -148,7 +151,13 @@ const makeActionCache = (database: D1Database): ActionCache => ({
   }
 })
 
-const makeContentStore = (bucket: R2Bucket): ContentStore => ({
+/**
+ * Adapts R2 to the checksum-verifying content-store contract.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const makeContentStore = (bucket: R2Bucket): ContentStore => ({
   async get(digest) {
     const object = await bucket.get(digest)
     if (object === null) return null
@@ -162,19 +171,37 @@ const makeContentStore = (bucket: R2Bucket): ContentStore => ({
     return true
   },
   async put(digest, bytes) {
-    const object = await bucket.put(digest, bytes, {
-      onlyIf: new Headers({ "if-none-match": "*" }),
+    const options = {
       httpMetadata: { contentType: "application/octet-stream" },
       sha256: digestBytes(digest)
-    })
-    if (object !== null) {
-      assertContentObject(digest, object)
-      return "inserted"
+    } as const
+    for (let attempt = 0; attempt < maxPublicationAttempts; attempt += 1) {
+      const object = await bucket.put(digest, bytes, {
+        ...options,
+        onlyIf: new Headers({ "if-none-match": "*" })
+      })
+      if (object !== null) {
+        assertContentObject(digest, object)
+        return "inserted"
+      }
+      const existing = await bucket.head(digest)
+      if (existing === null) continue
+      try {
+        assertContentObject(digest, existing)
+        return "present"
+      } catch {
+        // A conditional miss proves an object owns this digest, but an absent
+        // or mismatched provider checksum means it is not CAS content. The
+        // request body was already address-verified by the protocol, so an
+        // unconditional write is a deterministic repair. A concurrent repair
+        // writes the same bytes and checksum and is therefore harmless.
+        const repaired = await bucket.put(digest, bytes, options)
+        if (repaired === null) throw new Error("R2 did not return the repaired content object")
+        assertContentObject(digest, repaired)
+        return "inserted"
+      }
     }
-    const existing = await bucket.head(digest)
-    if (existing === null) throw new Error("R2 conditional publication lost its object")
-    assertContentObject(digest, existing)
-    return "present"
+    throw new Error("R2 conditional publication lost its object repeatedly")
   },
   async presentDigests(digests) {
     const present = new Set<string>()
