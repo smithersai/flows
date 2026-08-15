@@ -1,3 +1,10 @@
+/**
+ * Credential handling for a model route: which field names carry secrets,
+ * and how a redacted credential is resolved at request time without ever
+ * entering the request's canonical, sealed form.
+ *
+ * @since 0.1.0
+ */
 import { Effect, Redacted as EffectRedacted } from "effect"
 import { ModelError } from "./ModelError.ts"
 

@@ -17,7 +17,7 @@ export default defineConfig({
       // each other's coverage scratch state (issues #115/#121).
       reportsDirectory: join(tmpdir(), `flows-testing-coverage-${process.pid}`),
       include: ["src/**"],
-      exclude: ["src/Vitest.ts"],
+      exclude: ["src/Vitest.ts"]
     }
   }
 })

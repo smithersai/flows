@@ -16,30 +16,71 @@ import * as StdError from "./StdError.ts"
 
 const maxBytes = 5 * 1024 * 1024
 const maxRedirects = 10
-/** @category identifiers @since 0.1.0 */
+/**
+ * The registry name of the `webfetch` flow.
+ *
+ * @category identifiers
+ * @since 0.1.0
+ */
 export const name = "webfetch"
-/** @category descriptions @since 0.1.0 */
+/**
+ * The one-line description the model sees for the `webfetch` flow.
+ *
+ * @category descriptions
+ * @since 0.1.0
+ */
 export const description = "Fetch an HTTP URL and render its content as text, Markdown, or HTML."
-/** @category schemas @since 0.1.0 */
+/**
+ * What the `webfetch` flow accepts.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
 export const Input = Schema.Struct({
   url: Schema.String,
   format: Schema.optional(Schema.Literals(["text", "markdown", "html"])),
   timeout: Schema.optional(Schema.Number.check(Schema.isGreaterThan(0)))
 })
-/** @category schemas @since 0.1.0 */
+/**
+ * What the `webfetch` flow returns.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
 export const Output = Schema.Struct({
   url: Schema.String,
   status: Schema.Int,
   contentType: Schema.String,
   content: Schema.String
 })
-/** @category effects @since 0.1.0 */
+/**
+ * The declared effect envelope of the `webfetch` flow, before any input is known.
+ *
+ * @category effects
+ * @since 0.1.0
+ */
 export const effects = envelope({ tier: "sealed", mode: "expected", reads: [], writes: [] })
-/** @category effects @since 0.1.0 */
+/**
+ * Narrows {@link effects} to what this particular input actually touches.
+ *
+ * @category effects
+ * @since 0.1.0
+ */
 export const effectsFor = (_input: typeof Input.Type) => effects
-/** @category capabilities @since 0.1.0 */
+/**
+ * The authority the `webfetch` flow requires.
+ *
+ * @category capabilities
+ * @since 0.1.0
+ */
 export const capabilities = [capability("net:get", "*")]
-/** @category flows @since 0.1.0 */
+/**
+ * The `webfetch` flow declaration: schemas, capabilities, and effects, with the
+ * implementation attached separately.
+ *
+ * @category flows
+ * @since 0.1.0
+ */
 export const flow = Flow.make({ name, description, input: Input, output: Output, capabilities, effects })
 
 const parseUrl = (value: string): URL | undefined => {
@@ -84,7 +125,12 @@ const readBounded = <E, R>(
     })
   )
 
-/** @category handlers @since 0.1.0 */
+/**
+ * Runs the `webfetch` flow: fetches one HTTP URL and renders it as text.
+ *
+ * @category handlers
+ * @since 0.1.0
+ */
 export const run = (
   input: typeof Input.Type
 ): Effect.Effect<typeof Output.Type, StdError.StdError, HttpClient.HttpClient> =>

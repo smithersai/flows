@@ -1,6 +1,6 @@
 import { Journal, JournalEvent } from "@smthrs/journal-next"
 import * as TestJournal from "@smthrs/journal-next/test/TestJournal"
-import { Effect, Layer } from "effect"
+import { Effect, Layer, Logger } from "effect"
 import { describe, expect, it } from "vitest"
 import { layerJournalForwarding } from "../src/JournalLogger.ts"
 
@@ -30,13 +30,42 @@ describe("JournalLogger", () => {
 
   it("drops when full and swallows journal failures", async () => {
     const result = await run(
-      Effect.logInfo("does not fail").pipe(
-        Effect.as("ok"),
+      Effect.gen(function*() {
+        yield* Effect.logInfo("does not fail")
+        // The forwarder is a forked worker, so the failing `emitLossy` only
+        // runs if the scope stays open long enough for it to drain the queue.
+        yield* Effect.sleep("20 millis")
+        return "ok"
+      }).pipe(
         Effect.provide(
           Layer.provide(layerJournalForwarding({ runId: "drop-run", capacity: 1 }), Journal.layerNoop())
         )
       )
     )
     expect(result).toBe("ok")
+  })
+
+  it("keeps the ambient loggers when asked to merge with them", async () => {
+    const seen: Array<unknown> = []
+    const ambient = Logger.make<unknown, void>((options) => {
+      seen.push(options.message)
+    })
+    await run(
+      Effect.gen(function*() {
+        const journal = yield* Journal.Journal
+        yield* Effect.logInfo("merged")
+        yield* Effect.sleep("10 millis")
+        yield* journal.flush
+      }).pipe(
+        Effect.provide(
+          Layer.provideMerge(
+            layerJournalForwarding({ runId: "obs-merge", mergeWithExisting: true }),
+            Layer.merge(TestJournal.layer(), Logger.layer([ambient], { mergeWithExisting: false }))
+          )
+        )
+      )
+    )
+
+    expect(seen).toEqual([["merged"]])
   })
 })

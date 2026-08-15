@@ -18,7 +18,12 @@ export const Provenance = Schema.Struct({
   sourceActor: Schema.String
 })
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link Provenance}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Provenance = typeof Provenance.Type
 
 const common = {

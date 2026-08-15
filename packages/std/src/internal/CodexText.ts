@@ -15,17 +15,37 @@ const APPROX_BYTES_PER_TOKEN = 4
 const encoder = new TextEncoder()
 const decoder = new TextDecoder()
 
-/** UTF-8 byte length of a string. */
+/**
+ * UTF-8 byte length of a string.
+ *
+ * @since 0.1.0
+ * @private
+ */
 export const byteLength = (text: string): number => encoder.encode(text).byteLength
 
-/** Approximate token count: ceil(utf8Bytes / 4). */
+/**
+ * Approximate token count: ceil(utf8Bytes / 4).
+ *
+ * @since 0.1.0
+ * @private
+ */
 export const approxTokenCount = (text: string): number =>
   Math.floor((byteLength(text) + APPROX_BYTES_PER_TOKEN - 1) / APPROX_BYTES_PER_TOKEN)
 
-/** Approximate byte budget for a token budget. */
+/**
+ * Approximate byte budget for a token budget.
+ *
+ * @since 0.1.0
+ * @private
+ */
 export const approxBytesForTokens = (tokens: number): number => tokens * APPROX_BYTES_PER_TOKEN
 
-/** Approximate tokens represented by a byte count: ceil(bytes / 4). */
+/**
+ * Approximate tokens represented by a byte count: ceil(bytes / 4).
+ *
+ * @since 0.1.0
+ * @private
+ */
 export const approxTokensFromByteCount = (bytes: number): number =>
   Math.floor((bytes + APPROX_BYTES_PER_TOKEN - 1) / APPROX_BYTES_PER_TOKEN)
 
@@ -95,13 +115,21 @@ const truncateWithByteEstimate = (s: string, maxBytes: number, useTokens: boolea
   return `${before}${marker}${after}`
 }
 
-/** Middle-truncate to a byte budget with a char-count marker. */
+/**
+ * Middle-truncate to a byte budget with a char-count marker.
+ *
+ * @since 0.1.0
+ * @private
+ */
 export const truncateMiddleChars = (s: string, maxBytes: number): string => truncateWithByteEstimate(s, maxBytes, false)
 
 /**
  * Middle-truncate to an approximate token budget, preserving the beginning
  * and end. Returns the possibly truncated string and the original token
  * count when truncation occurred.
+ *
+ * @since 0.1.0
+ * @private
  */
 export const truncateMiddleWithTokenBudget = (
   s: string,
@@ -125,6 +153,9 @@ const countLines = (content: string): number => {
 /**
  * Codex `format_exec_output_for_model`: exit code, wall time, optional line
  * count disclosure, then the (possibly middle-truncated) output.
+ *
+ * @since 0.1.0
+ * @private
  */
 export const formatExecOutputForModel = (options: {
   readonly output: string

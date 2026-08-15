@@ -140,13 +140,29 @@ export type ModelLikeError =
   | ReplayHarnessMismatchError
   | UnscriptedModelError
 
-/** @since 0.0.0 @category services */
+/**
+ * The model seam a test drives, structurally identical to
+ * `@smthrs/model`'s `Model` but not depending on it.
+ *
+ * @category services
+ * @since 0.0.0
+ */
 export interface ModelLike {
   readonly stream: (request: ModelRequestLike) => Stream.Stream<ModelEventLike, ModelLikeError>
 }
 
-/** @since 0.0.0 @category services */
+/**
+ * The {@link ModelLike} service tag.
+ *
+ * @category services
+ * @since 0.0.0
+ */
 export const ModelLike: Context.Service<ModelLike, ModelLike> = Context.Service("flows/testing/ModelLike")
 
-/** @since 0.0.0 @category constructors */
+/**
+ * Builds a {@link ModelLike} from an implementation of its one method.
+ *
+ * @category constructors
+ * @since 0.0.0
+ */
 export const make = (implementation: ModelLike): ModelLike => ModelLike.of(implementation)

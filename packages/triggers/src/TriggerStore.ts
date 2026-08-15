@@ -13,22 +13,46 @@ import type { Action } from "./Overlap.ts"
 import type { Trigger } from "./Trigger.ts"
 import { TriggerError } from "./TriggerError.ts"
 
-/** @category models @since 0.1.0 */
+/**
+ * A stored trigger, with the revision that fences concurrent edits and
+ * when it last fired.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface Registered extends Trigger {
   readonly revision: number
   readonly lastFiredAt?: number | undefined
 }
-/** @category models @since 0.1.0 */
+/**
+ * One scheduled occurrence of a trigger, addressed by its occurrence
+ * number so a retry cannot fire it twice.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface Fire {
   readonly triggerId: string
   readonly occurrence: number
 }
-/** @category models @since 0.1.0 */
+/**
+ * A {@link Fire} together with the overlap policy the claim must apply and
+ * whether it is resuming a buffered occurrence.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface ClaimFire extends Fire {
   readonly overlap: Trigger["overlap"]
   readonly resumeBuffered?: boolean | undefined
 }
-/** @category models @since 0.1.0 */
+/**
+ * The outcome of claiming an occurrence: either another worker holds it, or
+ * this caller does and must take `action`.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Claim =
   | { readonly claimed: false }
   | {
@@ -37,16 +61,33 @@ export type Claim =
     readonly reservationId?: string | undefined
     readonly activeRunId?: string | undefined
   }
-/** @category models @since 0.1.0 */
+/**
+ * How a claimed occurrence ended.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Outcome = "launched" | "completed" | "skipped" | "buffered" | "superseded" | "failed"
-/** @category models @since 0.1.0 */
+/**
+ * The reported end of one occurrence, with the run it started when it
+ * launched one.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface Result extends Fire {
   readonly outcome: Outcome
   readonly runId?: string | undefined
   readonly error?: string | undefined
 }
 
-/** @category models @since 0.1.0 */
+/**
+ * Durable trigger state: registration, due-time queries, and the claim
+ * protocol that keeps two schedulers from firing the same occurrence.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface Service {
   readonly register: (trigger: Trigger) => Effect.Effect<Registered, TriggerError>
   readonly get: (triggerId: string) => Effect.Effect<Option.Option<Registered>, TriggerError>
@@ -60,13 +101,24 @@ export interface Service {
   readonly clearActive: (triggerId: string, runId: string) => Effect.Effect<void, TriggerError>
 }
 
-/** @category services @since 0.1.0 */
+/**
+ * The {@link Service} tag.
+ *
+ * @category services
+ * @since 0.1.0
+ */
 export class TriggerStore extends Context.Service<TriggerStore, Service>()("flows/triggers/TriggerStore") {}
 
 const unavailable = (method: string): Effect.Effect<never, TriggerError> =>
   Effect.fail(new TriggerError({ code: "store", message: `${method} is unavailable` }))
 
-/** @category constructors @since 0.1.0 */
+/**
+ * A {@link Service} that fails every method as unavailable, for an
+ * environment with no trigger store. Overrides replace individual methods.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const makeNoop = (overrides: Partial<Service> = {}): Service => ({
   register: () => unavailable("register"),
   get: () => unavailable("get"),
@@ -81,6 +133,11 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service => ({
   ...overrides
 })
 
-/** @category layers @since 0.1.0 */
+/**
+ * Provides {@link makeNoop}.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
 export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<TriggerStore> =>
   Layer.succeed(TriggerStore)(makeNoop(overrides))

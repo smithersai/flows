@@ -7,13 +7,24 @@
 import { Context, Effect, Layer } from "effect"
 import * as StdError from "./StdError.ts"
 
-/** @category models @since 0.1.0 */
+/**
+ * A point in a file, addressed the way a language server addresses it.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface Position {
   readonly path: string
   readonly line: number
   readonly character: number
 }
-/** @category models @since 0.1.0 */
+/**
+ * The code-intelligence seam. Every method answers one language-server
+ * request and reports an unavailable server as a typed failure.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface LanguageServer {
   readonly hover: (position: Position) => Effect.Effect<unknown, StdError.StdError>
   readonly definition: (position: Position) => Effect.Effect<unknown, StdError.StdError>
@@ -26,15 +37,31 @@ export interface LanguageServer {
   readonly callHierarchyOutgoing: (position: Position) => Effect.Effect<unknown, StdError.StdError>
   readonly diagnostics: (path: string) => Effect.Effect<unknown, StdError.StdError>
 }
-/** @category services @since 0.1.0 */
+/**
+ * The {@link LanguageServer} service tag.
+ *
+ * @category services
+ * @since 0.1.0
+ */
 export const LanguageServer: Context.Service<LanguageServer, LanguageServer> = Context.Service(
   "/std/LanguageServer"
 )
-/** @category constructors @since 0.1.0 */
+/**
+ * Builds a {@link LanguageServer} from an implementation of its methods.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const make = (service: LanguageServer): LanguageServer => LanguageServer.of(service)
 const unsupported = (): Effect.Effect<never, StdError.StdError> =>
   Effect.fail(new StdError.StdError({ code: "unsupported", message: "Language server support is unavailable" }))
-/** @category constructors @since 0.1.0 */
+/**
+ * A {@link LanguageServer} that reports `unsupported` for every request,
+ * for an environment with no server configured.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const makeNoop = (): LanguageServer =>
   make({
     hover: unsupported,
@@ -48,5 +75,10 @@ export const makeNoop = (): LanguageServer =>
     callHierarchyOutgoing: unsupported,
     diagnostics: unsupported
   })
-/** @category layers @since 0.1.0 */
+/**
+ * Provides {@link makeNoop}.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
 export const layerNoop: Layer.Layer<LanguageServer> = Layer.succeed(LanguageServer, makeNoop())

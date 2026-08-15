@@ -2,7 +2,14 @@
 import { Option, Schema } from "effect"
 import { AssistantMessage, JsonObject, StopReason, ToolCallPart } from "./ModelRequest.ts"
 
-/** @category models @since 0.1.0 */
+/**
+ * Token counts a provider reports for one request. Every field is
+ * optional: providers disagree on which counters they expose, and a missing
+ * count is not a zero count.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const Usage = Object.assign(
   Schema.Struct({
     inputTokens: Schema.optional(Schema.Number),
@@ -17,64 +24,162 @@ export const Usage = Object.assign(
   }
 )
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded token counts of {@link Usage}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Usage = typeof Usage.Type
 
-/** @category models @since 0.1.0 */
+/**
+ * Opens a text part. Its `id` correlates the later deltas and end event
+ * that belong to the same part.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const TextStart = Schema.Struct({ type: Schema.Literal("text-start"), id: Schema.String })
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link TextStart}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type TextStart = typeof TextStart.Type
-/** @category models @since 0.1.0 */
+/**
+ * One incremental chunk of a text part's content.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const TextDelta = Schema.Struct({ type: Schema.Literal("text-delta"), id: Schema.String, text: Schema.String })
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link TextDelta}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type TextDelta = typeof TextDelta.Type
-/** @category models @since 0.1.0 */
+/**
+ * Closes the text part opened by the matching {@link TextStart}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const TextEnd = Schema.Struct({ type: Schema.Literal("text-end"), id: Schema.String })
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link TextEnd}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type TextEnd = typeof TextEnd.Type
-/** @category models @since 0.1.0 */
+/**
+ * Opens a reasoning part. `signature` carries the provider's attestation
+ * for the block, which a later request must echo back verbatim.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const ThinkingStart = Schema.Struct({
   type: Schema.Literal("thinking-start"),
   id: Schema.String,
   signature: Schema.optional(Schema.String)
 })
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link ThinkingStart}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type ThinkingStart = typeof ThinkingStart.Type
-/** @category models @since 0.1.0 */
+/**
+ * One incremental chunk of a reasoning part's content.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const ThinkingDelta = Schema.Struct({
   type: Schema.Literal("thinking-delta"),
   id: Schema.String,
   text: Schema.String
 })
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link ThinkingDelta}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type ThinkingDelta = typeof ThinkingDelta.Type
-/** @category models @since 0.1.0 */
+/**
+ * Closes the reasoning part opened by the matching {@link ThinkingStart}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const ThinkingEnd = Schema.Struct({ type: Schema.Literal("thinking-end"), id: Schema.String })
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link ThinkingEnd}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type ThinkingEnd = typeof ThinkingEnd.Type
-/** @category models @since 0.1.0 */
+/**
+ * Opens a tool call and names the tool. The arguments arrive as deltas.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const ToolCallStart = Schema.Struct({
   type: Schema.Literal("tool-call-start"),
   id: Schema.String,
   name: Schema.String
 })
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link ToolCallStart}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type ToolCallStart = typeof ToolCallStart.Type
-/** @category models @since 0.1.0 */
+/**
+ * One incremental chunk of a tool call's JSON argument text.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const ToolCallDelta = Schema.Struct({
   type: Schema.Literal("tool-call-delta"),
   id: Schema.String,
   arguments: Schema.String
 })
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link ToolCallDelta}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type ToolCallDelta = typeof ToolCallDelta.Type
-/** @category models @since 0.1.0 */
+/**
+ * Closes a tool call. `arguments` repeats the complete argument text when
+ * the provider sends it, which lets a consumer skip reassembling deltas.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const ToolCallEnd = Schema.Struct({
   type: Schema.Literal("tool-call-end"),
   id: Schema.String,
   arguments: Schema.optional(Schema.String)
 })
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link ToolCallEnd}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type ToolCallEnd = typeof ToolCallEnd.Type
 /**
  * The result of an executed tool call, as reported by a harness. Tool output
@@ -90,9 +195,20 @@ export const ToolResult = Schema.Struct({
   output: Schema.String,
   isError: Schema.optional(Schema.Boolean)
 })
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link ToolResult}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type ToolResult = typeof ToolResult.Type
-/** @category models @since 0.1.0 */
+/**
+ * Reports token counts mid-stream. The same counters as {@link Usage},
+ * carried as a stream event.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const UsageEvent = Schema.Struct({
   type: Schema.Literal("usage"),
   inputTokens: Schema.optional(Schema.Number),
@@ -102,9 +218,19 @@ export const UsageEvent = Schema.Struct({
   cacheWriteTokens: Schema.optional(Schema.Number),
   totalTokens: Schema.optional(Schema.Number)
 })
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link UsageEvent}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type UsageEvent = typeof UsageEvent.Type
-/** @category models @since 0.1.0 */
+/**
+ * Ends the stream and states why. A stream without one was interrupted.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const Settle = Schema.Struct({
   type: Schema.Literal("settle"),
   stopReason: StopReason,
@@ -115,10 +241,21 @@ export const Settle = Schema.Struct({
    */
   itemIds: Schema.optional(Schema.Array(Schema.String))
 })
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link Settle}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Settle = typeof Settle.Type
 
-/** @category models @since 0.1.0 */
+/**
+ * Every event a model stream can emit, tagged by `type`, with a constructor
+ * per member and {@link settledMessage} attached.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const ModelEvent = Object.assign(
   Schema.Union([
     TextStart,
@@ -151,7 +288,12 @@ export const ModelEvent = Object.assign(
   }
 )
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link ModelEvent}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type ModelEvent = typeof ModelEvent.Type
 
 const decodeToolArguments = Schema.decodeUnknownOption(

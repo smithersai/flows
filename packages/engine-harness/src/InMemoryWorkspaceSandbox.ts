@@ -6,13 +6,28 @@
  */
 import * as WorkspaceSandbox from "@smthrs/engine-store-next/WorkspaceSandbox"
 
-/** @category models @since 0.1.0 */
+/**
+ * The files an in-memory workspace starts from.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type InitialFiles = WorkspaceSandbox.InitialFiles
 
-/** @category models @since 0.1.0 */
+/**
+ * One file in the in-memory host.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type HostFile = WorkspaceSandbox.HostFile
 
-/** @category models @since 0.1.0 */
+/**
+ * The in-memory sandbox this module constructs.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type InMemoryWorkspaceSandbox = WorkspaceSandbox.MemorySandbox
 
 /**

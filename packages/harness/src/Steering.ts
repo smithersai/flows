@@ -123,7 +123,13 @@ export interface Drain {
   readonly queued: boolean
 }
 
-/** @category models @since 0.1.0 */
+/**
+ * The boundary a drain is being attempted at, and whether the run would go
+ * idle if nothing were delivered. Followups are held back until it would.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface BoundaryInput {
   readonly boundary: string
   readonly wouldIdle: boolean
@@ -310,7 +316,12 @@ export interface Source {
   readonly drain: (input: BoundaryInput) => Effect.Effect<Drain, HarnessError>
 }
 
-/** @category models @since 0.1.0 */
+/**
+ * The methods {@link make} needs to build a {@link Source}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface SourceInput {
   readonly read: () => Effect.Effect<Queue, HarnessError>
   readonly drain: (input: BoundaryInput) => Effect.Effect<Drain, HarnessError>

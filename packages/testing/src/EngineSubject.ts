@@ -17,7 +17,13 @@ import { Context, Effect, Layer } from "effect"
 import type { EngineSubjectError } from "./TestingError.ts"
 import { EngineUnavailableError } from "./TestingError.ts"
 
-/** @since 0.0.0 @category models */
+/**
+ * One step of a conformance flow: either a body to run or a race between
+ * branches. `sealed` states whether a replay may reuse a recorded result.
+ *
+ * @category models
+ * @since 0.0.0
+ */
 export type StepSpec =
   | {
     readonly key: string
@@ -37,13 +43,25 @@ export type StepSpec =
     readonly branches: ReadonlyArray<StepSpec>
   }
 
-/** @since 0.0.0 @category models */
+/**
+ * A conformance flow, described only by its ordered steps. This is the
+ * subject-neutral shape every engine under test is driven with.
+ *
+ * @category models
+ * @since 0.0.0
+ */
 export interface FlowSpec {
   readonly name: string
   readonly steps: ReadonlyArray<StepSpec>
 }
 
-/** @since 0.0.0 @category models */
+/**
+ * One journal entry, in the shape the conformance assertions read. An
+ * engine's own richer entry is projected onto this before comparison.
+ *
+ * @category models
+ * @since 0.0.0
+ */
 export interface JournalEntryLike {
   readonly index: number
   readonly stepKey: string
@@ -52,14 +70,25 @@ export interface JournalEntryLike {
   readonly value?: unknown
 }
 
-/** @since 0.0.0 @category models */
+/**
+ * How one execution ended.
+ *
+ * @category models
+ * @since 0.0.0
+ */
 export interface ExecutionResult {
   readonly executionId: string
   readonly status: "completed" | "aborted" | "failed" | "suspended"
   readonly value?: unknown
 }
 
-/** @since 0.0.0 @category services */
+/**
+ * The engine under test, reduced to what conformance needs: start, read a
+ * result, interrupt, resume, and read the journal.
+ *
+ * @category services
+ * @since 0.0.0
+ */
 export interface EngineSubject {
   readonly name: string
   readonly run: (options: {
@@ -74,22 +103,43 @@ export interface EngineSubject {
   readonly journal: (executionId: string) => Effect.Effect<ReadonlyArray<JournalEntryLike>, EngineSubjectError>
 }
 
-/** @since 0.0.0 @category services */
+/**
+ * The {@link EngineSubject} service tag.
+ *
+ * @category services
+ * @since 0.0.0
+ */
 export const EngineSubject: Context.Service<EngineSubject, EngineSubject> = Context.Service(
   "flows/testing/EngineSubject"
 )
 
-/** @since 0.0.0 @category constructors */
+/**
+ * Builds an {@link EngineSubject} from an implementation of its methods.
+ *
+ * @category constructors
+ * @since 0.0.0
+ */
 export const make = (implementation: EngineSubject): EngineSubject => EngineSubject.of(implementation)
 
-/** @since 0.0.0 @category layers */
+/**
+ * Provides {@link EngineSubject} from an implementation.
+ *
+ * @category layers
+ * @since 0.0.0
+ */
 export const layer = (implementation: EngineSubject): Layer.Layer<EngineSubject> =>
   Layer.succeed(EngineSubject)(make(implementation))
 
 const unavailable = (operation: string): EngineUnavailableError =>
   new EngineUnavailableError({ message: `no engine subject is available for ${operation}` })
 
-/** @since 0.0.0 @category constructors */
+/**
+ * An {@link EngineSubject} that fails every operation as unavailable.
+ * Overrides replace individual methods.
+ *
+ * @category constructors
+ * @since 0.0.0
+ */
 export const makeNoop = (overrides: Partial<EngineSubject> = {}): EngineSubject =>
   EngineSubject.of({
     name: "unavailable",
@@ -101,6 +151,11 @@ export const makeNoop = (overrides: Partial<EngineSubject> = {}): EngineSubject 
     ...overrides
   })
 
-/** @since 0.0.0 @category layers */
+/**
+ * Provides {@link makeNoop}.
+ *
+ * @category layers
+ * @since 0.0.0
+ */
 export const layerNoop = (overrides: Partial<EngineSubject> = {}): Layer.Layer<EngineSubject> =>
   Layer.succeed(EngineSubject)(makeNoop(overrides))

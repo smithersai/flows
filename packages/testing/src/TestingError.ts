@@ -39,6 +39,8 @@ export const PlanAssertionCode = Schema.Literals([
 ])
 
 /**
+ * The decoded form of {@link PlanAssertionCode}.
+ *
  * @since 0.0.0
  * @category codes
  */
@@ -61,6 +63,8 @@ export const JournalAssertionCode = Schema.Literals([
 ])
 
 /**
+ * The decoded form of {@link JournalAssertionCode}.
+ *
  * @since 0.0.0
  * @category codes
  */
@@ -81,6 +85,8 @@ export const ScoreGateCode = Schema.Literals([
 ])
 
 /**
+ * The decoded form of {@link ScoreGateCode}.
+ *
  * @since 0.0.0
  * @category codes
  */
@@ -113,6 +119,8 @@ export const Code = Schema.Literals([
 ])
 
 /**
+ * The decoded form of {@link Code}.
+ *
  * @since 0.0.0
  * @category codes
  */
@@ -280,12 +288,10 @@ export class ScoreGateError extends Schema.TaggedError<ScoreGateError>()("ScoreG
  * @since 0.0.0
  * @category errors
  */
-export class EngineUnavailableError
-  extends Schema.TaggedError<EngineUnavailableError>()("EngineUnavailableError", {
-    code: constantCode("engine_unavailable"),
-    message: Schema.String
-  })
-{}
+export class EngineUnavailableError extends Schema.TaggedError<EngineUnavailableError>()("EngineUnavailableError", {
+  code: constantCode("engine_unavailable"),
+  message: Schema.String
+}) {}
 
 /**
  * Transaction commit-failure injection boundaries.
@@ -296,6 +302,8 @@ export class EngineUnavailableError
 export const TransactionBoundary = Schema.Literals(["frame", "snapshot", "output", "attempt", "event"])
 
 /**
+ * The decoded form of {@link TransactionBoundary}.
+ *
  * @since 0.0.0
  * @category codes
  */
@@ -319,6 +327,8 @@ export const RewindBoundary = Schema.Literals([
 ])
 
 /**
+ * The decoded form of {@link RewindBoundary}.
+ *
  * @since 0.0.0
  * @category codes
  */
@@ -345,12 +355,10 @@ export class CapabilityOperationError
  * @since 0.0.0
  * @category errors
  */
-export class TransactionCommitError
-  extends Schema.TaggedError<TransactionCommitError>()("TransactionCommitError", {
-    code: constantCode("transaction_commit_failed"),
-    boundary: TransactionBoundary
-  })
-{}
+export class TransactionCommitError extends Schema.TaggedError<TransactionCommitError>()("TransactionCommitError", {
+  code: constantCode("transaction_commit_failed"),
+  boundary: TransactionBoundary
+}) {}
 
 /**
  * A failure raised at an injected frame-rewind boundary.

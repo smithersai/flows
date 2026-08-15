@@ -29,9 +29,9 @@ import * as Recall from "@smthrs/memory/Recall"
 import * as Model from "@smthrs/model/Model"
 import * as ModelEvent from "@smthrs/model/ModelEvent"
 import type * as Route from "@smthrs/model/Route"
+import { Node } from "@smthrs/plan-next"
 import type { FlowsHooks, PluginInput } from "@smthrs/plugin"
 import { make as makePlugin } from "@smthrs/plugin"
-import { Node } from "@smthrs/plan-next"
 import * as Descriptor from "@smthrs/registry/Descriptor"
 import * as Registry from "@smthrs/registry/Registry"
 import {
@@ -49,8 +49,8 @@ import {
   Sink,
   Stream
 } from "effect"
-import { ExitCode, makeHandle, ProcessId } from "effect/unstable/process/ChildProcessSpawner"
 import type * as Crypto from "effect/Crypto"
+import { ExitCode, makeHandle, ProcessId } from "effect/unstable/process/ChildProcessSpawner"
 import { describe, expect, it } from "vitest"
 import * as CellHarness from "../src/CellHarness.ts"
 import * as CellPlugin from "../src/CellPlugin.ts"

@@ -18,7 +18,13 @@ const key = (triggerId: string, occurrence: number) => `${triggerId}:${occurrenc
 const unknown = (triggerId: string) =>
   new TriggerError({ code: "unknown_trigger", message: `unknown trigger ${triggerId}` })
 
-/** @category layers @since 0.1.0 */
+/**
+ * Provides an in-memory {@link TriggerStore} for tests: real claim and
+ * overlap semantics, no database.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
 export const layer: Layer.Layer<TriggerStore> = Layer.effect(TriggerStore)(Effect.gen(function*() {
   const state = yield* Ref.make<State>({ triggers: new Map(), fires: new Set(), pending: new Map(), active: new Map() })
   const get: Service["get"] = (triggerId) =>

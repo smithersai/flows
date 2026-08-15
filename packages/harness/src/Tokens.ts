@@ -5,20 +5,39 @@
  */
 import { Schema } from "effect"
 
-/** @category models @since 0.1.0 */
+/**
+ * A token count, and whether it was estimated locally or reported by a
+ * provider. The flag travels with the number so a consumer never mistakes
+ * an approximation for billing data.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export class Count extends Schema.Class<Count>("flows/harness/Tokens/Count")({
   value: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
   estimated: Schema.Boolean
 }) {}
 
-/** @category models @since 0.1.0 */
+/**
+ * One segment's contribution to the accounting, keyed by its content
+ * digest so an unchanged segment keeps its count across turns.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export class Segment extends Schema.Class<Segment>("flows/harness/Tokens/Segment")({
   digest: Schema.String,
   zone: Schema.Literals(["prefix", "tail"]),
   tokens: Count
 }) {}
 
-/** @category models @since 0.1.0 */
+/**
+ * The token totals of a whole context window, split by cache zone and
+ * broken down per segment.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export class Accounting extends Schema.Class<Accounting>("flows/harness/Tokens/Accounting")({
   prefix: Count,
   tail: Count,
@@ -46,11 +65,22 @@ export const estimate: Estimator = (text) => {
   return Math.ceil((text.length + codeCharacters * 0.75 + newlines * 1.5) / 4)
 }
 
-/** @category constructors @since 0.1.0 */
+/**
+ * Counts the tokens of `text`, defaulting to {@link estimate}. The result
+ * is always marked estimated.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const count = (text: string, estimator: Estimator = estimate): Count =>
   new Count({ value: Math.max(0, Math.ceil(estimator(text))), estimated: true })
 
-/** @category combinators @since 0.1.0 */
+/**
+ * Sums per-segment counts into one {@link Accounting}.
+ *
+ * @category combinators
+ * @since 0.1.0
+ */
 export const combine = (segments: ReadonlyArray<Segment>): Accounting => {
   const prefix = segments.filter((segment) => segment.zone === "prefix").reduce(
     (sum, segment) => sum + segment.tokens.value,

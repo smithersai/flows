@@ -9,13 +9,23 @@ import type { Baseline, Record as BaselineRecord } from "./Baseline.ts"
 import { EvalError } from "./EvalError.ts"
 import type { Observation, RunResult } from "./Runner.ts"
 
-/** Tolerances used for score comparisons. @since 0.1.0 @category models */
+/**
+ * Tolerances used for score comparisons.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface Tolerances {
   readonly absolute?: number | undefined
   readonly relative?: number | undefined
 }
 
-/** A score drop at a changed step key. @since 0.1.0 @category models */
+/**
+ * A score drop at a changed step key.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface Regression {
   readonly case: string
   readonly scorer: string
@@ -24,7 +34,12 @@ export interface Regression {
   readonly drop: number
 }
 
-/** A changed score at the same step key, indicating nondeterminism. @since 0.1.0 @category models */
+/**
+ * A changed score at the same step key, indicating nondeterminism.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface Nondeterminism {
   readonly case: string
   readonly scorer: string
@@ -33,7 +48,12 @@ export interface Nondeterminism {
   readonly delta: number
 }
 
-/** An observation present on only one side of a comparison. @since 0.1.0 @category models */
+/**
+ * An observation present on only one side of a comparison.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface MissingObservation {
   readonly side: "baseline" | "run"
   readonly case: string
@@ -41,7 +61,12 @@ export interface MissingObservation {
   readonly stepKey?: string | undefined
 }
 
-/** Complete regression comparison. @since 0.1.0 @category models */
+/**
+ * Complete regression comparison.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface Report {
   readonly suite: string
   readonly baseline: Baseline
@@ -56,7 +81,12 @@ export interface Report {
 const key = (caseName: string, scorer: string): string => `${caseName}\u0000${scorer}`
 const validTolerance = (value: number): boolean => Number.isFinite(value) && value >= 0
 
-/** Compares a run to a baseline, preserving missing and inconclusive observations. @since 0.1.0 @category constructors */
+/**
+ * Compares a run to a baseline, preserving missing and inconclusive observations.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const compare = (
   baseline: Baseline,
   run: RunResult,
@@ -155,5 +185,10 @@ export const compare = (
   })
 }
 
-/** Alias for {@link compare}. @since 0.1.0 @category constructors */
+/**
+ * Alias for {@link compare}.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const check = compare

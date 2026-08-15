@@ -8,6 +8,13 @@
 import * as Digest from "@smthrs/core/Digest"
 import * as CanonicalJson from "@smthrs/model/CanonicalJson"
 
+/**
+ * The fixed set of sections the built-in prompt is assembled from, in
+ * render order.
+ *
+ * @since 0.1.0
+ * @private
+ */
 export type SectionId =
   | "identity"
   | "verbs"
@@ -17,11 +24,24 @@ export type SectionId =
   | "self-documentation"
   | "project-context"
 
+/**
+ * Text supplied by a declaration, carried with the digest that
+ * identifies it.
+ *
+ * @since 0.1.0
+ * @private
+ */
 export interface DeclaredText {
   readonly text: string
   readonly digest: string
 }
 
+/**
+ * Everything the prompt sections are rendered from.
+ *
+ * @since 0.1.0
+ * @private
+ */
 export interface Input {
   readonly envelope: DeclaredText
   readonly registry: string
@@ -34,6 +54,13 @@ export interface Input {
   readonly selfDocumentation?: DeclaredText | undefined
 }
 
+/**
+ * One rendered prompt section, with the digest that identifies its
+ * content.
+ *
+ * @since 0.1.0
+ * @private
+ */
 export interface Section {
   readonly id: SectionId
   readonly text: string

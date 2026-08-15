@@ -1,3 +1,10 @@
+/**
+ * The credential-free HTTP target of a model route, and its validation.
+ * An endpoint is public data: it is part of a sealed step's key material, so
+ * nothing secret may appear in it.
+ *
+ * @since 0.1.0
+ */
 import * as Result from "effect/Result"
 import { isCredentialName } from "./Auth.ts"
 import { ModelError } from "./ModelError.ts"

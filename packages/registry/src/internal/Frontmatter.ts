@@ -1,3 +1,10 @@
+/**
+ * YAML frontmatter parsing for markdown flow sources. Split out so the
+ * fence handling — BOM, CRLF, an unterminated document — is stated once and
+ * tested directly.
+ *
+ * @since 0.1.0
+ */
 import type * as Schema from "effect/Schema"
 import * as Yaml from "yaml"
 import type { DiscoveryWarning } from "../Descriptor.ts"

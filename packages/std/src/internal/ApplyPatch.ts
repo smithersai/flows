@@ -26,6 +26,9 @@ const ENVIRONMENT_ID_MARKER = "*** Environment ID:"
  *
  * `invalid patch: {message}` for patch-level failures and
  * `invalid hunk at line {line}, {message}` for hunk-level failures.
+ *
+ * @since 0.1.0
+ * @private
  */
 export class ParseError extends Error {
   readonly kind: "invalid_patch" | "invalid_hunk"
@@ -37,7 +40,12 @@ export class ParseError extends Error {
   }
 }
 
-/** One replaced region of an update hunk. */
+/**
+ * One replaced region of an update hunk.
+ *
+ * @since 0.1.0
+ * @private
+ */
 export interface UpdateFileChunk {
   changeContext: string | undefined
   oldLines: Array<string>
@@ -45,7 +53,12 @@ export interface UpdateFileChunk {
   isEndOfFile: boolean
 }
 
-/** A parsed patch hunk. */
+/**
+ * A parsed patch hunk.
+ *
+ * @since 0.1.0
+ * @private
+ */
 export type Hunk =
   | { readonly kind: "add"; readonly path: string; contents: string }
   | { readonly kind: "delete"; readonly path: string }
@@ -56,7 +69,12 @@ export type Hunk =
     readonly chunks: Array<UpdateFileChunk>
   }
 
-/** Parsed patch: hunks plus the optional environment id preamble. */
+/**
+ * Parsed patch: hunks plus the optional environment id preamble.
+ *
+ * @since 0.1.0
+ * @private
+ */
 export interface ParsedPatch {
   readonly hunks: ReadonlyArray<Hunk>
   readonly environmentId: string | undefined
@@ -87,6 +105,9 @@ const unexpectedUpdateLine = (line: string, lineNumber: number): ParseError =>
 /**
  * Streaming line state machine for the V4A patch grammar; a faithful port of
  * `StreamingPatchParser`.
+ *
+ * @since 0.1.0
+ * @private
  */
 export class StreamingPatchParser {
   private lineBuffer = ""
@@ -372,6 +393,9 @@ const checkPatchBoundariesLenient = (originalLines: ReadonlyArray<string>): Read
 /**
  * Parse a complete patch text; lenient mode (heredoc unwrapping) is always
  * on, matching Codex.
+ *
+ * @since 0.1.0
+ * @private
  */
 export const parsePatch = (patch: string): ParsedPatch => {
   const trimmed = patch.trim()
@@ -427,6 +451,9 @@ const normalise = (s: string): string =>
  * Fuzzy sequence search with the Codex leniency ladder: exact, rstrip, trim,
  * then unicode-normalised comparison; end-of-file patterns anchor at the end
  * first.
+ *
+ * @since 0.1.0
+ * @private
  */
 export const seekSequence = (
   lines: ReadonlyArray<string>,
@@ -459,7 +486,12 @@ export const seekSequence = (
   return undefined
 }
 
-/** Applier failure carrying the Codex message text verbatim. */
+/**
+ * Applier failure carrying the Codex message text verbatim.
+ *
+ * @since 0.1.0
+ * @private
+ */
 export class ComputeReplacementsError extends Error {}
 
 type Replacement = readonly [startIndex: number, oldLength: number, newLines: ReadonlyArray<string>]
@@ -524,6 +556,9 @@ const applyReplacements = (lines: Array<string>, replacements: ReadonlyArray<Rep
 /**
  * Derive the new file contents for an update hunk from the original
  * contents, matching Codex `derive_new_contents_from_chunks`.
+ *
+ * @since 0.1.0
+ * @private
  */
 export const deriveNewContents = (
   originalContents: string,
@@ -541,6 +576,9 @@ export const deriveNewContents = (
 /**
  * Render the Codex success summary: `Success. Updated the following files:`
  * with `A`/`M`/`D` lines for adds, updates, and deletes in that order.
+ *
+ * @since 0.1.0
+ * @private
  */
 export const printSummary = (affected: {
   readonly added: ReadonlyArray<string>

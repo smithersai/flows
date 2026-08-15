@@ -1,4 +1,8 @@
-/** Fixed-suite evaluation tools for flows. @since 0.1.0 */
+/**
+ * Fixed-suite evaluation tools for flows.
+ *
+ * @since 0.1.0
+ */
 
 /** @since 0.1.0 @category errors */
 export * as EvalError from "./EvalError.ts"

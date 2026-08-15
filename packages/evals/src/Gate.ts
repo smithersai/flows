@@ -1,3 +1,9 @@
+/**
+ * The pass/fail decision over a finished evaluation run: how a threshold
+ * is applied and what a failing gate reports.
+ *
+ * @since 0.1.0
+ */
 import { expectScores, type ScoreSample, type Verdict } from "@smthrs/testing/ScoreGate"
 import type { ScoreGateError } from "@smthrs/testing/TestingError"
 import * as Effect from "effect/Effect"
@@ -36,7 +42,12 @@ const samples = (report: Report): ReadonlyArray<ScoreSample> =>
       }
   )
 
-/** Checks thresholds through `/testing`'s shared ScoreGate arithmetic. @since 0.1.0 @category constructors */
+/**
+ * Checks thresholds through `/testing`'s shared ScoreGate arithmetic.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const check = (report: Report, options: Options = {}): Effect.Effect<Verdict, ScoreGateError> =>
   Effect.gen(function*() {
     const expectation = expectScores(samples(report))
@@ -57,7 +68,12 @@ export const check = (report: Report, options: Options = {}): Effect.Effect<Verd
     return result
   })
 
-/** Maps a gate verdict to the shared CI convention: inconclusive is exit code 5. @since 0.1.0 @category grading */
+/**
+ * Maps a gate verdict to the shared CI convention: inconclusive is exit code 5.
+ *
+ * @category grading
+ * @since 0.1.0
+ */
 export const ciGrade = (verdict: Verdict): { readonly exitCode: 0 | 5; readonly summary: string } =>
   verdict._tag === "Passed"
     ? { exitCode: 0, summary: "passed" }

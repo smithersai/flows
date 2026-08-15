@@ -211,7 +211,7 @@ export const unsupportedLimit = (limit: string): SandboxError =>
 /**
  * A queued call awaiting resolution by the driver.
  *
- * @internal
+ * @private
  */
 interface Pending {
   readonly ordinal: number
@@ -228,7 +228,7 @@ interface Pending {
  * settled; the interleaving of "drain queued calls, then wait" is identical,
  * so it lives here once.
  *
- * @internal
+ * @private
  */
 interface Pump {
   readonly pending: Array<Pending>
@@ -246,7 +246,7 @@ interface Pump {
  * One at a time is deliberate. Data-dependent calls are the normal case, and a
  * deterministic execution ordinal is what makes a mid-cell crash replayable.
  *
- * @internal
+ * @private
  */
 const drive = (
   pump: Pump,
@@ -318,7 +318,7 @@ const makeLatch = (): Latch => {
  * `globalThis`, `process`, `require`, `WebAssembly` — is omitted because the
  * cell's only authority is `ctx.call`.
  *
- * @internal
+ * @private
  */
 const deterministicMath: Readonly<Record<string, unknown>> = Object.freeze(
   Object.fromEntries(
@@ -369,7 +369,7 @@ const allowedGlobals: Readonly<Record<string, unknown>> = Object.freeze({
 /**
  * The receiver a cell body is invoked with, so `this` reaches nothing.
  *
- * @internal
+ * @private
  */
 const hostless: object = Object.freeze(Object.create(null) as object)
 
@@ -446,7 +446,7 @@ export const compile = (cell: Cell.Source): string | Cell.Rejected => {
 /**
  * Builds the frozen `ctx` binding handed to one cell.
  *
- * @internal
+ * @private
  */
 const makeContext = (
   flows: Readonly<Record<string, Cell.FlowProjection>>,
@@ -478,7 +478,7 @@ const makeContext = (
 /**
  * The failure a cell threw, projected into stable serializable text.
  *
- * @internal
+ * @private
  */
 const raised = (error: unknown): Cell.Raised => {
   if (error instanceof Error) {
@@ -490,7 +490,7 @@ const raised = (error: unknown): Cell.Raised => {
 /**
  * A flow failure, as the exception the cell observes.
  *
- * @internal
+ * @private
  */
 const callFailure = (result: Cell.CallResult): Error => {
   const error = new Error(result.message ?? "The flow call failed")

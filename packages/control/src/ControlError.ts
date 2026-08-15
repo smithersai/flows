@@ -9,19 +9,35 @@ import { FlowId, RunId } from "./ControlSchema.ts"
 const constantCode = <const Code extends string>(code: Code) =>
   Schema.Literal(code).pipe(Schema.withConstructorDefault(Effect.succeed(code)))
 
-/** @since 0.1.0 @category errors */
+/**
+ * No run with this id exists.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
 export class RunNotFound extends Schema.TaggedError<RunNotFound>()("/control/RunNotFound", {
   code: constantCode("run_not_found"),
   runId: RunId
 }) {}
 
-/** @since 0.1.0 @category errors */
+/**
+ * No flow with this id is registered.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
 export class FlowNotFound extends Schema.TaggedError<FlowNotFound>()("/control/FlowNotFound", {
   code: constantCode("flow_not_found"),
   flowId: FlowId
 }) {}
 
-/** @since 0.1.0 @category errors */
+/**
+ * The submitted plan does not hash to the digest the caller declared, so
+ * the control plane refuses to store it.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
 export class PlanDigestMismatch extends Schema.TaggedError<PlanDigestMismatch>()("/control/PlanDigestMismatch", {
   code: constantCode("plan_digest_mismatch"),
   planId: Schema.String,
@@ -29,7 +45,12 @@ export class PlanDigestMismatch extends Schema.TaggedError<PlanDigestMismatch>()
   actual: Schema.String
 }) {}
 
-/** @since 0.1.0 @category errors */
+/**
+ * The plan's effect envelope differs from the one the caller declared.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
 export class EnvelopeMismatch extends Schema.TaggedError<EnvelopeMismatch>()("/control/EnvelopeMismatch", {
   code: constantCode("envelope_mismatch"),
   planId: Schema.String,
@@ -37,52 +58,95 @@ export class EnvelopeMismatch extends Schema.TaggedError<EnvelopeMismatch>()("/c
   actual: Schema.String
 }) {}
 
-/** @since 0.1.0 @category errors */
+/**
+ * The caller does not hold this run's claim, so it may not act on it.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
 export class NotOwner extends Schema.TaggedError<NotOwner>()("/control/NotOwner", {
   code: constantCode("not_owner"),
   runId: RunId,
   ownerId: Schema.String
 }) {}
 
-/** @since 0.1.0 @category errors */
+/**
+ * The caller's claim on this run lapsed or was fenced by a newer owner.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
 export class ClaimLost extends Schema.TaggedError<ClaimLost>()("/control/ClaimLost", {
   code: constantCode("claim_lost"),
   runId: RunId
 }) {}
 
-/** @since 0.1.0 @category errors */
+/**
+ * This request was already answered; a second answer is refused rather
+ * than overwriting the first.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
 export class AlreadyResolved extends Schema.TaggedError<AlreadyResolved>()("/control/AlreadyResolved", {
   code: constantCode("already_resolved"),
   requestId: Schema.String
 }) {}
 
-/** @since 0.1.0 @category errors */
+/**
+ * The request did not satisfy its schema or a stated precondition.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
 export class InvalidInput extends Schema.TaggedError<InvalidInput>()("/control/InvalidInput", {
   code: constantCode("invalid_input"),
   issue: Schema.String
 }) {}
 
-/** @since 0.1.0 @category errors */
+/**
+ * The caller presented no usable credential for this operation.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
 export class Unauthorized extends Schema.TaggedError<Unauthorized>()("/control/Unauthorized", {
   code: constantCode("unauthorized"),
   message: Schema.String
 }) {}
 
-/** @since 0.1.0 @category errors */
+/**
+ * The operation is not implemented in this deployment. `ticket` names the
+ * issue that tracks it, per `Concepts/Tickets Not Exceptions.md`.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
 export class Unavailable extends Schema.TaggedError<Unavailable>()("/control/Unavailable", {
   code: constantCode("unavailable"),
   feature: Schema.String,
   ticket: Schema.String
 }) {}
 
-/** @since 0.1.0 @category errors */
+/**
+ * The request did not reach the control plane, or its reply did not come
+ * back. `retryable` states whether resending is safe.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
 export class TransportError extends Schema.TaggedError<TransportError>()("/control/TransportError", {
   code: constantCode("transport_error"),
   message: Schema.String,
   retryable: Schema.Boolean
 }) {}
 
-/** @since 0.1.0 @category errors */
+/**
+ * A control-plane store operation failed.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
 export class PersistenceError extends Schema.TaggedError<PersistenceError>()("/control/PersistenceError", {
   code: constantCode("persistence_failed"),
   operation: Schema.String,
@@ -90,7 +154,12 @@ export class PersistenceError extends Schema.TaggedError<PersistenceError>()("/c
   cause: Schema.optional(Schema.Unknown)
 }) {}
 
-/** @since 0.1.0 @category errors */
+/**
+ * The executor refused or could not start the run.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
 export class LaunchFailed extends Schema.TaggedError<LaunchFailed>()("/control/LaunchFailed", {
   code: constantCode("launch_failed"),
   runId: RunId,

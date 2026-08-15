@@ -9,7 +9,14 @@ import * as CronSchedule from "./Cron.ts"
 import type { CatchUp as Policy } from "./Trigger.ts"
 import { TriggerError } from "./TriggerError.ts"
 
-/** @category computation @since 0.1.0 */
+/**
+ * The occurrences a trigger owes since it last fired, bounded by
+ * `maxCatchUp` and by the policy: `skip` owes nothing, `last` owes only the
+ * most recent, and `all` owes every missed tick.
+ *
+ * @category computation
+ * @since 0.1.0
+ */
 export const occurrences = (
   policy: Policy,
   maxCatchUp: number,

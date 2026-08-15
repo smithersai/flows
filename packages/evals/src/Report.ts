@@ -18,15 +18,30 @@ const canonical = (value: unknown): unknown => {
   return typeof value === "number" && Object.is(value, -0) ? 0 : value
 }
 
-/** Serializes a regression report as stable, sorted-key JSON. @since 0.1.0 @category serialization */
+/**
+ * Serializes a regression report as stable, sorted-key JSON.
+ *
+ * @category serialization
+ * @since 0.1.0
+ */
 export const json = (report: RegressionReport): string => `${JSON.stringify(canonical(report))}\n`
 
-/** Alias for {@link json}. @since 0.1.0 @category serialization */
+/**
+ * Alias for {@link json}.
+ *
+ * @category serialization
+ * @since 0.1.0
+ */
 export const renderJson = json
 
 const cell = (value: string): string => value.replaceAll("|", "\\|").replaceAll("\n", " ")
 
-/** Renders a concise stable Markdown regression report. @since 0.1.0 @category rendering */
+/**
+ * Renders a concise stable Markdown regression report.
+ *
+ * @category rendering
+ * @since 0.1.0
+ */
 export const markdown = (report: RegressionReport): string => {
   const lines = [
     `# Evaluation report: ${report.suite}`,
@@ -72,5 +87,10 @@ export const markdown = (report: RegressionReport): string => {
   return `${lines.join("\n").trim()}\n`
 }
 
-/** Alias for {@link markdown}. @since 0.1.0 @category rendering */
+/**
+ * Alias for {@link markdown}.
+ *
+ * @category rendering
+ * @since 0.1.0
+ */
 export const renderMarkdown = markdown

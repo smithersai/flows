@@ -1,6 +1,17 @@
+/**
+ * The shared machinery every composition pattern is built from: reading a
+ * flow's declaration, calling it as a node, and intersecting the effect
+ * envelopes of the flows a pattern wraps.
+ *
+ * @since 0.1.0
+ */
 import { Effects, Flow, Node } from "@smthrs/core"
 import * as Schema from "effect/Schema"
 
+/**
+ * @since 0.1.0
+ * @private
+ */
 export interface FlowDetails extends Flow.Any {
   readonly name?: string | undefined
   readonly description?: string | undefined
@@ -8,6 +19,10 @@ export interface FlowDetails extends Flow.Any {
   readonly effects: Effects.Declaration | undefined
 }
 
+/**
+ * @since 0.1.0
+ * @private
+ */
 export interface EffectIntersection {
   readonly declaration: Effects.Declaration | undefined
   readonly reads: ReadonlyArray<string>
@@ -16,8 +31,16 @@ export interface EffectIntersection {
   readonly tier: boolean
 }
 
+/**
+ * @since 0.1.0
+ * @private
+ */
 export const details = (flow: Flow.Any): FlowDetails => flow as FlowDetails
 
+/**
+ * @since 0.1.0
+ * @private
+ */
 export const call = (flow: Flow.Any, input: unknown): Node.Node<unknown, unknown> =>
   (flow as unknown as (input: unknown) => Node.Node<unknown, unknown>)(input)
 
@@ -48,6 +71,10 @@ const tierRank = {
 
 const tierOf = (declaration: Effects.Declaration): keyof typeof tierRank => declaration.tier ?? "sealed"
 
+/**
+ * @since 0.1.0
+ * @private
+ */
 export const intersectEffects = (
   template: Effects.Declaration | undefined,
   supplied: Effects.Declaration | undefined
@@ -88,11 +115,19 @@ export const intersectEffects = (
   }
 }
 
+/**
+ * @since 0.1.0
+ * @private
+ */
 export const intersectCapabilities = (
   template: ReadonlyArray<string>,
   supplied: ReadonlyArray<string>
 ): ReadonlyArray<string> => normalized(supplied.filter((capability) => template.includes(capability)))
 
+/**
+ * @since 0.1.0
+ * @private
+ */
 export const redeclare = (
   template: Flow.Any,
   supplied: Flow.Any,
@@ -116,6 +151,10 @@ export const redeclare = (
   })
 }
 
+/**
+ * @since 0.1.0
+ * @private
+ */
 export const seal = (flow: Flow.Any): Flow.Any =>
   Flow.sealed(flow as unknown as Flow.Flow<Schema.Top, Schema.Top, unknown>)
 
@@ -138,6 +177,10 @@ const sameSchema = (left: Schema.Top, right: Schema.Top): boolean => {
   return leftDocument !== undefined && rightDocument !== undefined && leftDocument === rightDocument
 }
 
+/**
+ * @since 0.1.0
+ * @private
+ */
 export const schemasCompatible = (
   input: Schema.Top,
   output: Schema.Top,
@@ -148,4 +191,8 @@ export const schemasCompatible = (
   return flowAcceptsSlotInput && flowProducesSlotOutput
 }
 
+/**
+ * @since 0.1.0
+ * @private
+ */
 export const displayName = (flow: Flow.Any): string => details(flow).name ?? "anonymous"

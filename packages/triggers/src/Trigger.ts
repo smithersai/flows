@@ -10,16 +10,43 @@ import * as Schema from "effect/Schema"
 import * as Schedule from "./Schedule.ts"
 import { TriggerError } from "./TriggerError.ts"
 
-/** @category schemas @since 0.1.0 */
+/**
+ * How a trigger behaves when an occurrence arrives while its previous run
+ * is still going.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
 export const Overlap = Schedule.Overlap
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link Overlap}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Overlap = Schedule.Overlap
-/** @category schemas @since 0.1.0 */
+/**
+ * How many missed occurrences a trigger owes after downtime.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
 export const CatchUp = Schedule.CatchUp
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link CatchUp}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type CatchUp = Schedule.CatchUp
 
-/** @category schemas @since 0.1.0 */
+/**
+ * A trigger declaration: which flow to run, with what input, on what
+ * schedule.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
 export const Trigger = Schema.Struct({
   id: Schema.NonEmptyString,
   flowId: Schema.NonEmptyString,
@@ -27,7 +54,12 @@ export const Trigger = Schema.Struct({
   ...Schedule.Schedule.fields,
   enabled: Schema.Boolean
 })
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link Trigger}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Trigger = typeof Trigger.Type
 
 /**

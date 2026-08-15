@@ -1,11 +1,25 @@
+/**
+ * Metadata extraction from a discovered flow module: its description, its
+ * declared schemas, and the effect envelope inferred from what it calls.
+ *
+ * @since 0.1.0
+ */
 import * as Option from "effect/Option"
 import type { EffectDeclaration, EffectTier, Placement } from "../Descriptor.ts"
 import { inferEffectTier, maxTier } from "./Authority.ts"
 
+/**
+ * @since 0.1.0
+ * @private
+ */
 export interface MetadataWarning {
   readonly message: string
 }
 
+/**
+ * @since 0.1.0
+ * @private
+ */
 export interface Metadata {
   readonly description: string | undefined
   readonly hasInput: boolean
@@ -259,9 +273,10 @@ const placementFromSource = (source: string): Option.Option<Placement> => {
 
 /**
  * Returns whether the default flow declaration is complete in a source prefix.
+ * @category predicates
  *
  * @since 0.1.0
- * @category predicates
+ * @private
  */
 export const isComplete = (source: string): boolean => findFlowObject(source) !== undefined
 
@@ -537,9 +552,10 @@ const effectDeclaration = (
 /**
  * Statically reads the metadata carried by the default `Flow.make` or
  * `Flow.agent` value without evaluating the module.
+ * @category parsing
  *
  * @since 0.1.0
- * @category parsing
+ * @private
  */
 export const parse = (source: string): Metadata => {
   const flowObject = findFlowObject(source)

@@ -20,7 +20,12 @@ import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawne
 import { CapabilityContractError } from "./TestingError.ts"
 import { poisonedClockAndRandom } from "./TestLayers.ts"
 
-/** A declared Host capability expectation. @since 0.0.0 @category models */
+/**
+ * A declared Host capability expectation.
+ *
+ * @category models
+ * @since 0.0.0
+ */
 export type CapabilityExpectation =
   | { readonly supported: true }
   | { readonly supported: false; readonly code: string }
@@ -60,7 +65,12 @@ export interface HostProfile {
   readonly random: CapabilityExpectation
 }
 
-/** A declarative conformance case consumable by any Effect test runner. @since 0.0.0 @category models */
+/**
+ * A declarative conformance case consumable by any Effect test runner.
+ *
+ * @category models
+ * @since 0.0.0
+ */
 export interface HostSuiteCase {
   readonly name: string
   readonly run: Effect.Effect<void, unknown>

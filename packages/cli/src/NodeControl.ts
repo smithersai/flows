@@ -11,6 +11,7 @@ import { Migrations, SqlJournal } from "@smthrs/journal-next"
 import * as KernelFileSystem from "@smthrs/kernel-next/FileSystem"
 import * as GrantStore from "@smthrs/kernel-next/GrantStore"
 import * as Workspace from "@smthrs/kernel-next/Workspace"
+import * as AtomicFileSystem from "@smthrs/platform-node-next/AtomicFileSystem"
 import type * as Descriptor from "@smthrs/registry/Descriptor"
 import * as Discovery from "@smthrs/registry/Discovery"
 import * as Registry from "@smthrs/registry/Registry"
@@ -112,9 +113,12 @@ export const projectSources = (root: string): ReadonlyArray<Descriptor.Source> =
  * @since 0.1.0
  */
 export const layerRegistry = (root: string = process.cwd()): Layer.Layer<Registry.Registry> => {
+  // `NodeServices` alone is not enough: the kernel's guarded `FileSystem`
+  // refuses every operation unless the host provides descriptor-relative,
+  // no-follow access, which is what `AtomicFileSystem` adds on Node.
   const platform = Layer.orDie(KernelFileSystem.layer).pipe(
     Layer.provide([Workspace.layer(root), GrantStore.layerNoop]),
-    Layer.provideMerge(NodeServices.layer)
+    Layer.provideMerge(Layer.provideMerge(AtomicFileSystem.layer, NodeServices.layer))
   )
   const discovery = Discovery.layer.pipe(Layer.provide(platform))
   return Registry.layer({ sources: projectSources(root) }).pipe(

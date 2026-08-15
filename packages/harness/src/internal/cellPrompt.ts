@@ -9,6 +9,13 @@ import * as Digest from "@smthrs/core/Digest"
 import * as CanonicalJson from "@smthrs/model/CanonicalJson"
 import type * as Cell from "../Cell.ts"
 
+/**
+ * One rendered prompt section, with the digest that identifies its
+ * content.
+ *
+ * @since 0.1.0
+ * @private
+ */
 export interface Section {
   readonly id: "cell-contract" | "cell-catalog"
   readonly text: string

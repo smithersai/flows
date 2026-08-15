@@ -20,10 +20,21 @@ export const JsonObject = Schema.Json.pipe(
   )
 )
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link JsonObject}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type JsonObject = typeof JsonObject.Type
 
-/** @category models @since 0.1.0 */
+/**
+ * Why a model stream stopped. `aborted` is this layer's own value for an
+ * interrupted stream, which no provider reports.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const StopReason = Schema.Literals([
   "stop",
   "length",
@@ -34,10 +45,21 @@ export const StopReason = Schema.Literals([
   "unknown"
 ])
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link StopReason}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type StopReason = typeof StopReason.Type
 
-/** @category models @since 0.1.0 */
+/**
+ * One text segment of the system prompt. The prompt is a list rather than a
+ * string so a cache breakpoint can fall between segments.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const SystemPart = Object.assign(
   Schema.Struct({ type: Schema.Literal("text"), text: Schema.String }).annotate({
     identifier: "flows/model/SystemPart"
@@ -45,19 +67,40 @@ export const SystemPart = Object.assign(
   { make: (input: { readonly text: string }): SystemPart => ({ type: "text", text: input.text }) }
 )
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link SystemPart}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type SystemPart = typeof SystemPart.Type
 
-/** @category models @since 0.1.0 */
+/**
+ * Plain text inside a message.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const TextPart = Object.assign(
   Schema.Struct({ type: Schema.Literal("text"), text: Schema.String }).annotate({ identifier: "flows/model/TextPart" }),
   { make: (input: { readonly text: string }): TextPart => ({ type: "text", text: input.text }) }
 )
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link TextPart}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type TextPart = typeof TextPart.Type
 
-/** @category models @since 0.1.0 */
+/**
+ * A reasoning block. `signature` is the provider's attestation and must be
+ * echoed back unchanged for the block to be accepted on a later request.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const ThinkingPart = Object.assign(
   Schema.Struct({
     type: Schema.Literal("thinking"),
@@ -73,10 +116,21 @@ export const ThinkingPart = Object.assign(
   }
 )
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link ThinkingPart}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type ThinkingPart = typeof ThinkingPart.Type
 
-/** @category models @since 0.1.0 */
+/**
+ * A tool the model asked to run. `arguments` stays JSON text rather than a
+ * decoded object so it survives a round trip byte for byte.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const ToolCallPart = Object.assign(
   Schema.Struct({
     type: Schema.Literal("tool-call"),
@@ -92,10 +146,21 @@ export const ToolCallPart = Object.assign(
   }
 )
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link ToolCallPart}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type ToolCallPart = typeof ToolCallPart.Type
 
-/** @category models @since 0.1.0 */
+/**
+ * What a tool returned, addressed back to its call by `toolCallId`.
+ * `addedToolNames` names the tools the result made available.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const ToolResultPart = Object.assign(
   Schema.Struct({
     type: Schema.Literal("tool-result"),
@@ -117,32 +182,70 @@ export const ToolResultPart = Object.assign(
   }
 )
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link ToolResultPart}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type ToolResultPart = typeof ToolResultPart.Type
 
-/** @category models @since 0.1.0 */
+/**
+ * Any part a message can carry, tagged by `type`.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const ContentPart = Schema.Union([TextPart, ThinkingPart, ToolCallPart, ToolResultPart]).pipe(
   Schema.toTaggedUnion("type")
 )
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link ContentPart}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type ContentPart = typeof ContentPart.Type
 
-/** @category models @since 0.1.0 */
+/**
+ * The parts an assistant message can carry: everything in
+ * {@link ContentPart} except a tool result, which belongs to a tool message.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const AssistantContentPart = Schema.Union([TextPart, ThinkingPart, ToolCallPart]).pipe(
   Schema.toTaggedUnion("type")
 )
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link AssistantContentPart}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type AssistantContentPart = typeof AssistantContentPart.Type
 
-/** @category models @since 0.1.0 */
+/**
+ * A turn from the user. Text only: attachments and tool output enter the
+ * transcript through their own message roles.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export class UserMessage extends Schema.Class<UserMessage>("flows/model/UserMessage")({
   role: Schema.Literal("user"),
   content: Schema.Array(TextPart)
 }) {}
 
-/** @category models @since 0.1.0 */
+/**
+ * One settled model turn, including why it stopped and the provider item
+ * ids a continuation has to replay.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export class AssistantMessage extends Schema.Class<AssistantMessage>("flows/model/AssistantMessage")({
   role: Schema.Literal("assistant"),
   content: Schema.Array(AssistantContentPart),
@@ -155,13 +258,24 @@ export class AssistantMessage extends Schema.Class<AssistantMessage>("flows/mode
   itemIds: Schema.optional(Schema.Array(Schema.String))
 }) {}
 
-/** @category models @since 0.1.0 */
+/**
+ * The results of the tool calls the previous assistant message asked for.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export class ToolMessage extends Schema.Class<ToolMessage>("flows/model/ToolMessage")({
   role: Schema.Literal("tool"),
   content: Schema.Array(ToolResultPart)
 }) {}
 
-/** @category models @since 0.1.0 */
+/**
+ * Any transcript message, tagged by `role`, with the per-role constructors
+ * attached.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const Message = Object.assign(
   Schema.Union([UserMessage, AssistantMessage, ToolMessage]).pipe(Schema.toTaggedUnion("role")),
   {
@@ -188,7 +302,12 @@ export const Message = Object.assign(
   }
 )
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link Message}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Message = typeof Message.Type
 
 const userContentParts = (content: string | TextPart | ReadonlyArray<TextPart>): ReadonlyArray<TextPart> =>
@@ -223,7 +342,13 @@ export class ToolDefinition extends Schema.Class<ToolDefinition>("flows/model/To
   }
 }
 
-/** @category models @since 0.1.0 */
+/**
+ * How much reasoning to spend on a request, in the provider-neutral
+ * vocabulary the adapters map onto their own.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const ReasoningEffort = Schema.Literals([
   "none",
   "minimal",
@@ -233,10 +358,21 @@ export const ReasoningEffort = Schema.Literals([
   "xhigh"
 ])
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link ReasoningEffort}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type ReasoningEffort = typeof ReasoningEffort.Type
 
-/** @category models @since 0.1.0 */
+/**
+ * The sampling and budget knobs of one request. Every field is optional;
+ * an omitted field leaves the provider default in place.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export class GenerationParams extends Schema.Class<GenerationParams>("flows/model/GenerationParams")({
   maxTokens: Schema.optional(Schema.Finite),
   temperature: Schema.optional(Schema.Finite),

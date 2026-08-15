@@ -1,3 +1,11 @@
+/**
+ * The wire contract of a model API family, split from the deployment that
+ * serves it. A protocol owns the body encoder, the event decoder, and the
+ * state machine that turns decoded frames into {@link ModelEvent}s; an
+ * endpoint owns where to send them.
+ *
+ * @since 0.1.0
+ */
 import { type Effect, Schema } from "effect"
 import type { ModelError } from "./ModelError.ts"
 import type { ModelEvent } from "./ModelEvent.ts"

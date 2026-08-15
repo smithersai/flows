@@ -1,7 +1,13 @@
 /** @since 0.1.0 */
 import { Schema } from "effect"
 
-/** @category models @since 0.1.0 */
+/**
+ * The provider-neutral failure vocabulary. A consumer branches on these
+ * codes; provider message text is not a contract.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const ModelErrorCode = Schema.Literals([
   "invalid_request",
   "context_overflow",
@@ -16,7 +22,12 @@ export const ModelErrorCode = Schema.Literals([
   "unknown"
 ])
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link ModelErrorCode}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type ModelErrorCode = typeof ModelErrorCode.Type
 
 /**

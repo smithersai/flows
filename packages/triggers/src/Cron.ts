@@ -8,14 +8,26 @@ import * as Effect from "effect/Effect"
 import * as Result from "effect/Result"
 import { TriggerError } from "./TriggerError.ts"
 
-/** @category models @since 0.1.0 */
+/**
+ * A parsed cron expression, kept beside the text it came from so the
+ * declaration can be round-tripped.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface Cron {
   readonly expression: string
   readonly timezone?: string | undefined
   readonly value: EffectCron.Cron
 }
 
-/** @category constructors @since 0.1.0 */
+/**
+ * Parses a cron expression in an optional timezone, reporting a malformed
+ * one as `invalid_cron`.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const parse = (expression: string, timezone?: string): Effect.Effect<Cron, TriggerError> => {
   const parsed = EffectCron.parse(expression, timezone)
   return Result.isFailure(parsed)
@@ -23,7 +35,12 @@ export const parse = (expression: string, timezone?: string): Effect.Effect<Cron
     : Effect.succeed({ expression, ...(timezone === undefined ? {} : { timezone }), value: parsed.success })
 }
 
-/** @category getters @since 0.1.0 */
+/**
+ * The first occurrence strictly after `from`.
+ *
+ * @category getters
+ * @since 0.1.0
+ */
 export const next = (cron: Cron, from: Date): Date => EffectCron.next(cron.value, from)
 
 /**
@@ -41,7 +58,12 @@ export const previousAtOrBefore = (cron: Cron, at: Date): Date => {
   return EffectCron.prev(cron.value, at)
 }
 
-/** @category sequencing @since 0.1.0 */
+/**
+ * The occurrences in `(from, to]`, in order, capped at `limit`.
+ *
+ * @category sequencing
+ * @since 0.1.0
+ */
 export const occurrencesBetween = (
   cron: Cron,
   from: Date,

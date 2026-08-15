@@ -1,3 +1,10 @@
+/**
+ * Route construction for providers that serve the OpenAI Responses API
+ * without its native extensions. The shape is deliberately narrower than
+ * {@link OpenAIResponses}: only what every compatible deployment implements.
+ *
+ * @since 0.1.0
+ */
 import * as Auth from "./Auth.ts"
 import * as Endpoint from "./Endpoint.ts"
 import * as Framing from "./Framing.ts"

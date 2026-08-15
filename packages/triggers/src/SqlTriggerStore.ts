@@ -62,7 +62,13 @@ const decode = (row: Row): Effect.Effect<Registered, TriggerError> =>
     catch: (cause) => storeError("could not decode trigger row", cause)
   })
 
-/** @category constructors @since 0.1.0 */
+/**
+ * Builds a {@link TriggerStore.Service} over the ambient SQL client, with
+ * every write going through the durable writer.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const make: Effect.Effect<
   Service,
   TriggerError,
@@ -244,7 +250,12 @@ export const make: Effect.Effect<
   }
 })
 
-/** @category layers @since 0.1.0 */
+/**
+ * Provides {@link TriggerStore.TriggerStore} backed by SQL.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
 export const layer: Layer.Layer<
   TriggerStore,
   TriggerError,

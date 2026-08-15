@@ -11,7 +11,12 @@ import * as Layer from "effect/Layer"
 import { EvalError } from "./EvalError.ts"
 import type { Case } from "./Suite.ts"
 
-/** The result of executing one target-flow case. @since 0.1.0 @category models */
+/**
+ * The result of executing one target-flow case.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface Execution {
   readonly output: unknown
   readonly stepKey: string
@@ -19,25 +24,50 @@ export interface Execution {
   readonly target: Flow.Any
 }
 
-/** Input accepted by a case executor. @since 0.1.0 @category models */
+/**
+ * Input accepted by a case executor.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type CaseInput = Case
 
-/** Runtime shape for an injectable target-flow executor. @since 0.1.0 @category services */
+/**
+ * Runtime shape for an injectable target-flow executor.
+ *
+ * @category services
+ * @since 0.1.0
+ */
 export interface Service {
   readonly run: (suiteCase: CaseInput) => Effect.Effect<Execution, EvalError>
   readonly execute: (suiteCase: CaseInput) => Effect.Effect<Execution, EvalError>
 }
 
-/** Implementation accepted by {@link make}. @since 0.1.0 @category models */
+/**
+ * Implementation accepted by {@link make}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface Implementation {
   readonly run?: ((suiteCase: CaseInput) => Effect.Effect<Execution, EvalError>) | undefined
   readonly execute?: ((suiteCase: CaseInput) => Effect.Effect<Execution, EvalError>) | undefined
 }
 
-/** Injectable execution boundary for a target flow. @since 0.1.0 @category services */
+/**
+ * Injectable execution boundary for a target flow.
+ *
+ * @category services
+ * @since 0.1.0
+ */
 export class CaseExecutor extends Context.Service<CaseExecutor, Service>()("flows/evals/CaseExecutor") {}
 
-/** Builds an executor; `run` and `execute` are aliases by design. @since 0.1.0 @category constructors */
+/**
+ * Builds an executor; `run` and `execute` are aliases by design.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const make = (
   implementation: Implementation | ((suiteCase: CaseInput) => Effect.Effect<Execution, EvalError>)
 ): Service => {
@@ -52,11 +82,21 @@ export const make = (
 const unavailable = (suiteCase: CaseInput): Effect.Effect<Execution, EvalError> =>
   Effect.fail(new EvalError({ code: "executor", message: `No executor is available for case '${suiteCase.name}'` }))
 
-/** Builds an executor that fails with a typed executor error. @since 0.1.0 @category constructors */
+/**
+ * Builds an executor that fails with a typed executor error.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const makeNoop = (overrides: Partial<Service> = {}): Service => {
   const run = unavailable
   return CaseExecutor.of({ run, execute: run, ...overrides })
 }
 
-/** Provides the unavailable executor. @since 0.1.0 @category layers */
+/**
+ * Provides the unavailable executor.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
 export const layerNoop: Layer.Layer<CaseExecutor> = Layer.succeed(CaseExecutor)(makeNoop())

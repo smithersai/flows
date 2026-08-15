@@ -14,22 +14,50 @@ import type { ModelRequest } from "./ModelRequest.ts"
  */
 export type ModelFailure = ModelError | PermissionRequired | PermissionDenied | GrantStoreError
 
-/** @category services @since 0.1.0 */
+/**
+ * The one provider seam: a request in, a stream of events out.
+ * Cancellation is fiber interruption, so there is no abort parameter.
+ *
+ * @category services
+ * @since 0.1.0
+ */
 export interface Model {
   /** Streams model progress; cancellation is fiber interruption only. */
   readonly stream: (request: ModelRequest) => Stream.Stream<ModelEvent, ModelFailure>
 }
 
-/** @category services @since 0.1.0 */
+/**
+ * The {@link Model} service tag.
+ *
+ * @category services
+ * @since 0.1.0
+ */
 export const Model: Context.Service<Model, Model> = Context.Service("/model/Model")
 
-/** @category constructors @since 0.1.0 */
+/**
+ * Builds a {@link Model} from an implementation of its one method.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const make = (implementation: Model): Model => Model.of(implementation)
 
-/** @category layers @since 0.1.0 */
+/**
+ * Provides {@link Model} from an implementation of its one method.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
 export const layer = (implementation: Model): Layer.Layer<Model> => Layer.succeed(Model)(make(implementation))
 
-/** @category constructors @since 0.1.0 */
+/**
+ * A {@link Model} that fails every stream with `no_route`, so an
+ * environment with no provider configured reports that rather than hanging.
+ * Overrides replace individual methods.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const makeNoop = (overrides: Partial<Model> = {}): Model =>
   Model.of({
     stream: () =>
@@ -43,6 +71,11 @@ export const makeNoop = (overrides: Partial<Model> = {}): Model =>
     ...overrides
   })
 
-/** @category layers @since 0.1.0 */
+/**
+ * Provides {@link makeNoop}.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
 export const layerNoop = (overrides: Partial<Model> = {}): Layer.Layer<Model> =>
   Layer.succeed(Model)(makeNoop(overrides))

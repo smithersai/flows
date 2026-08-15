@@ -36,7 +36,12 @@ export const RetryConfig = Schema.Struct({
   backoffCoefficient: Schema.optionalKey(Schema.Finite.check(Schema.isGreaterThan(0))),
   maxDelayMs: Schema.optionalKey(Schema.Finite.check(Schema.isGreaterThanOrEqualTo(0)))
 })
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link RetryConfig}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type RetryConfig = typeof RetryConfig.Type
 
 /**
@@ -48,7 +53,12 @@ export type RetryConfig = typeof RetryConfig.Type
 export const EngineConfig = Schema.Struct({
   maxConcurrency: Schema.optionalKey(Schema.Int.check(Schema.isGreaterThan(0)))
 })
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link EngineConfig}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type EngineConfig = typeof EngineConfig.Type
 
 /**
@@ -66,7 +76,12 @@ export const FlowsConfig = Schema.StructWithRest(
   }),
   [Schema.Record(Schema.String, Schema.Unknown)]
 )
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link FlowsConfig}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type FlowsConfig = typeof FlowsConfig.Type
 
 /**
@@ -88,7 +103,12 @@ export const ResolvedConfig = Schema.StructWithRest(
   }),
   [Schema.Record(Schema.String, Schema.Unknown)]
 )
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link ResolvedConfig}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type ResolvedConfig = typeof ResolvedConfig.Type
 
 /**

@@ -1,3 +1,11 @@
+/**
+ * A resolved model route: an endpoint, a protocol, a framing, and the
+ * credentials to authorize with. Preparing a route yields a credential-free
+ * request that can enter a sealed step's key material, with the secret
+ * applied only as the request leaves.
+ *
+ * @since 0.1.0
+ */
 import { Effect, Layer, Result, Schema, Stream } from "effect"
 import * as HttpClientRequest from "effect/unstable/http/HttpClientRequest"
 import * as AnthropicMessages from "./AnthropicMessages.ts"

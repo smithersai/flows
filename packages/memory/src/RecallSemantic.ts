@@ -85,6 +85,12 @@ export const budgetLimits = {
   high: 20
 } as const
 
+/**
+ * The embedding model semantic recall uses when a declaration names none.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
 export const defaultModel = Embedding.inProcessModel
 const defaultHalfLifeMs = 7 * 24 * 60 * 60 * 1000
 
@@ -413,8 +419,21 @@ export const layer = (
     })
   )
 
-/** @category models @since 0.1.0 */
+/**
+ * Cosine similarity between two embedding vectors. Exported so the
+ * ranking can be tested without a store.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const cosineSimilarity = cosine
 
-/** @category models @since 0.1.0 */
+/**
+ * The recency weight applied to a row's similarity, decaying with the
+ * configured half-life. Exported so the ranking can be tested without a
+ * store.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const recencyDecay = recency

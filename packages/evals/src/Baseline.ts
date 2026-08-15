@@ -8,10 +8,20 @@ import * as Effect from "effect/Effect"
 import { EvalError } from "./EvalError.ts"
 import type { Observation, RunResult } from "./Runner.ts"
 
-/** Current committed baseline artifact version. @since 0.1.0 @category models */
+/**
+ * Current committed baseline artifact version.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const version = 1 as const
 
-/** One successful score retained by a baseline. @since 0.1.0 @category models */
+/**
+ * One successful score retained by a baseline.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface Record {
   readonly suite: string
   readonly case: string
@@ -20,7 +30,12 @@ export interface Record {
   readonly score: number
 }
 
-/** Canonical committed evaluation baseline. @since 0.1.0 @category models */
+/**
+ * Canonical committed evaluation baseline.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface Baseline {
   readonly version: typeof version
   readonly records: ReadonlyArray<Record>
@@ -57,7 +72,12 @@ const validate = (value: unknown): Effect.Effect<Baseline, EvalError> => {
   return Effect.succeed({ version, records: artifact.records })
 }
 
-/** Builds and validates a baseline from a run's successful observations. @since 0.1.0 @category constructors */
+/**
+ * Builds and validates a baseline from a run's successful observations.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const fromRun = (run: RunResult): Effect.Effect<Baseline, EvalError> => {
   const records: Array<Record> = run.observations.flatMap((observation: Observation) =>
     observation.kind === "score"
@@ -73,12 +93,22 @@ export const fromRun = (run: RunResult): Effect.Effect<Baseline, EvalError> => {
   return validate({ version, records })
 }
 
-/** Validates an in-memory baseline. @since 0.1.0 @category constructors */
+/**
+ * Validates an in-memory baseline.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const make = (
   baseline: Omit<Baseline, "version"> & { readonly version?: typeof version }
 ): Effect.Effect<Baseline, EvalError> => validate({ version: baseline.version ?? version, records: baseline.records })
 
-/** Serializes a baseline with recursively sorted keys and stable numbers. @since 0.1.0 @category serialization */
+/**
+ * Serializes a baseline with recursively sorted keys and stable numbers.
+ *
+ * @category serialization
+ * @since 0.1.0
+ */
 export const write = (baseline: Baseline): string => {
   const records = [...baseline.records].sort((left, right) =>
     `${left.suite}\u0000${left.case}\u0000${left.scorer}\u0000${left.stepKey}`.localeCompare(
@@ -88,12 +118,22 @@ export const write = (baseline: Baseline): string => {
   return `${JSON.stringify(canonical({ version: baseline.version, records }))}\n`
 }
 
-/** Loads and validates canonical baseline JSON. @since 0.1.0 @category serialization */
+/**
+ * Loads and validates canonical baseline JSON.
+ *
+ * @category serialization
+ * @since 0.1.0
+ */
 export const load = (text: string): Effect.Effect<Baseline, EvalError> =>
   Effect.try({
     try: () => JSON.parse(text) as unknown,
     catch: (cause) => new EvalError({ code: "invalid_baseline", message: "Baseline is not valid JSON", cause })
   }).pipe(Effect.flatMap(validate))
 
-/** Alias for {@link load}. @since 0.1.0 @category serialization */
+/**
+ * Alias for {@link load}.
+ *
+ * @category serialization
+ * @since 0.1.0
+ */
 export const parse = load

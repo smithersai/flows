@@ -28,7 +28,13 @@ const freshnessDays = {
   year: 365
 } as const
 
-/** @category layers @since 0.1.0 */
+/**
+ * Provides {@link WebSearch.WebSearch} backed by the Exa API, reading its
+ * key from the named credential.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
 export const layer = (
   credentialId: string
 ): Layer.Layer<WebSearch.WebSearch, never, Credential.Credential | HttpClient.HttpClient> =>

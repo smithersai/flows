@@ -1,3 +1,9 @@
+/**
+ * Flow naming: how a discovered source path becomes the owned flow name a
+ * registry entry is addressed by.
+ *
+ * @since 0.1.0
+ */
 import * as Option from "effect/Option"
 import type { DiscoveryWarning } from "../Descriptor.ts"
 

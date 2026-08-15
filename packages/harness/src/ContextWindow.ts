@@ -14,13 +14,30 @@ import * as Result from "effect/Result"
 import * as Schema from "effect/Schema"
 import * as Tokens from "./Tokens.ts"
 
-/** @category type ids @since 0.1.0 */
+/**
+ * The brand a {@link ContextWindow} carries so a structurally similar
+ * object cannot pass for one.
+ *
+ * @category type ids
+ * @since 0.1.0
+ */
 export const TypeId = "~flows/harness/ContextWindow" as const
 
-/** @category type ids @since 0.1.0 */
+/**
+ * The type of {@link TypeId}.
+ *
+ * @category type ids
+ * @since 0.1.0
+ */
 export type TypeId = typeof TypeId
 
-/** @category models @since 0.1.0 */
+/**
+ * What a segment holds. The kind fixes where the segment may sit and
+ * whether compaction is allowed to replace it.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const SegmentKind = Schema.Literals([
   "system",
   "instructions",
@@ -31,27 +48,64 @@ export const SegmentKind = Schema.Literals([
   "steering"
 ])
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link SegmentKind}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type SegmentKind = typeof SegmentKind.Type
 
-/** @category models @since 0.1.0 */
+/**
+ * Where a segment sits relative to the cache breakpoint. `prefix` segments
+ * are stable across turns; `tail` segments change every turn.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const SegmentZone = Schema.Literals(["prefix", "tail"])
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link SegmentZone}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type SegmentZone = typeof SegmentZone.Type
 
-/** @category models @since 0.1.0 */
+/**
+ * The parts a segment may hold: system text, transcript messages, and tool
+ * declarations, in the provider-neutral vocabulary of `@smthrs/model`.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const Content = Schema.Array(
   Schema.Union([ModelRequest.SystemPart, ModelRequest.Message, ModelRequest.ToolDefinition])
 )
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link Content}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Content = typeof Content.Type
 
-/** @category models @since 0.1.0 */
+/**
+ * The failure vocabulary of a context window operation.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const ContextWindowErrorCode = Schema.Literal("invalid_compaction_prefix")
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link ContextWindowErrorCode}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type ContextWindowErrorCode = typeof ContextWindowErrorCode.Type
 
 /** Stable failure returned for an invalid public compaction prefix.
@@ -78,7 +132,14 @@ export class Segment extends Schema.Class<Segment>("flows/harness/ContextWindow/
   content: Content
 }) {}
 
-/** @category models @since 0.1.0 */
+/**
+ * One assembled, immutable model context: its ordered segments, the tools
+ * currently active, and the token accounting for both. Every combinator
+ * returns a new window rather than mutating this one.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export class ContextWindow extends Schema.Class<ContextWindow>("flows/harness/ContextWindow")({
   modelId: Schema.String,
   segments: Schema.Array(Segment),
@@ -132,7 +193,13 @@ export class ContextWindow extends Schema.Class<ContextWindow>("flows/harness/Co
   }
 }
 
-/** @category models @since 0.1.0 */
+/**
+ * A segment before its digest and token count are computed. Supplying
+ * `declaredDigest` or `tokens` skips the corresponding computation.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface SegmentInput {
   readonly kind: SegmentKind
   readonly zone: SegmentZone
@@ -141,7 +208,12 @@ export interface SegmentInput {
   readonly tokens?: Tokens.Count | undefined
 }
 
-/** @category models @since 0.1.0 */
+/**
+ * The declaration {@link ContextWindow.make} takes.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface MakeOptions {
   readonly modelId: string
   readonly segments?: ReadonlyArray<Segment | SegmentInput> | undefined

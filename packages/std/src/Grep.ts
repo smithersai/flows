@@ -1,3 +1,9 @@
+/**
+ * The `grep` flow: content search over the workspace, with a deterministic
+ * order and both a match count and a byte budget bounding the output.
+ *
+ * @since 0.1.0
+ */
 import * as Flow from "@smthrs/core/Flow"
 import * as Path from "@smthrs/kernel-next/Path"
 import * as Effect from "effect/Effect"

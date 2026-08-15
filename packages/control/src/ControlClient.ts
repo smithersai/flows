@@ -24,6 +24,13 @@ import {
 } from "./ControlError.ts"
 import { ControlRpcs } from "./ControlRpcs.ts"
 
+/**
+ * Whether a value is one of the control plane's declared failures, as opposed
+ * to a defect that escaped some other layer.
+ *
+ * @category refinements
+ * @since 0.1.0
+ */
 export const isControlError = Schema.is(Schema.Union([
   RunNotFound,
   FlowNotFound,

@@ -15,7 +15,12 @@
 import { Effect } from "effect"
 import { ScoreGateError } from "./TestingError.ts"
 
-/** A score observation collected for one fixed test case and step key. @since 0.0.0 @category models */
+/**
+ * A score observation collected for one fixed test case and step key.
+ *
+ * @category models
+ * @since 0.0.0
+ */
 export type ScoreSample =
   & {
     readonly case: string
@@ -27,7 +32,12 @@ export type ScoreSample =
     | { readonly kind: "inconclusive"; readonly reason: string }
   )
 
-/** The non-error result of grading a fixed suite. @since 0.0.0 @category models */
+/**
+ * The non-error result of grading a fixed suite.
+ *
+ * @category models
+ * @since 0.0.0
+ */
 export type Verdict =
   | { readonly _tag: "Passed" }
   | { readonly _tag: "Inconclusive"; readonly reasons: ReadonlyArray<string> }
@@ -62,7 +72,12 @@ const inconclusive = (samples: ReadonlyArray<ScoreSample>, extra: ReadonlyArray<
 const scoreValues = (samples: ReadonlyArray<ScoreSample>): ReadonlyArray<number> =>
   samples.flatMap((sample) => sample.kind === "score" ? [sample.value] : [])
 
-/** A fixed-suite score-gate builder. @since 0.0.0 @category constructors */
+/**
+ * A fixed-suite score-gate builder.
+ *
+ * @category constructors
+ * @since 0.0.0
+ */
 export interface ScoreExpectation {
   /** Requires the arithmetic mean of all score observations to meet `threshold`. @since 0.0.0 @category gates */
   readonly mean: (threshold: number) => Effect.Effect<Verdict, ScoreGateError>

@@ -11,7 +11,12 @@ import { Effect, Layer } from "effect"
 import { HarnessError } from "./HarnessError.ts"
 import * as Steering from "./Steering.ts"
 
-/** @category models @since 0.1.0 */
+/**
+ * Which run and lineage this steering source draws notifications for.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface Options {
   readonly runId: string
   readonly lineageId: string
@@ -77,7 +82,13 @@ export const make = (
     })
   })
 
-/** @category layers @since 0.1.0 */
+/**
+ * Provides {@link Steering.Source} backed by the durable notification
+ * queue for one run lineage.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
 export const layer = (
   options: Options
 ): Layer.Layer<Steering.Source, never, NotificationQueue.NotificationQueue> =>

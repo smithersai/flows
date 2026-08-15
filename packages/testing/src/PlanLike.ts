@@ -16,7 +16,12 @@ export interface PlanPlacementLike {
   readonly options: Readonly<Record<string, unknown>>
 }
 
-/** @since 0.0.0 @category models */
+/**
+ * One plan node, in the shape the plan assertions read.
+ *
+ * @category models
+ * @since 0.0.0
+ */
 export interface PlanNodeLike {
   readonly id: string
   readonly key: string
@@ -33,7 +38,12 @@ export interface PlanNodeLike {
   readonly envelope?: Record<string, unknown>
 }
 
-/** @since 0.0.0 @category models */
+/**
+ * A compiled plan, in the shape the plan assertions read.
+ *
+ * @category models
+ * @since 0.0.0
+ */
 export interface PlanLike {
   readonly nodes: ReadonlyArray<PlanNodeLike>
   readonly edges: ReadonlyArray<{ readonly from: string; readonly to: string }>

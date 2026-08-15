@@ -85,6 +85,7 @@
     "@smthrs/journal-next": "0.1.0",
     "@smthrs/kernel-next": "0.1.0",
     "@smthrs/notifications": "0.1.0",
+    "@smthrs/platform-node-next": "0.1.0",
     "@smthrs/registry": "0.1.0",
     "@smthrs/run-store-next": "0.1.0",
     "effect": "4.0.0-rc.108"

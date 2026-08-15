@@ -1,3 +1,10 @@
+/**
+ * Byte-stream framing, chosen independently of the protocol that interprets
+ * the frames. Server-sent events are one framing; a provider that ships
+ * newline-delimited JSON is another, over the same protocol decoder.
+ *
+ * @since 0.1.0
+ */
 import * as Stream from "effect/Stream"
 import * as Sse from "effect/unstable/encoding/Sse"
 

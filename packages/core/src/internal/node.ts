@@ -14,27 +14,42 @@ import { pipeArguments } from "effect/Pipeable"
 import type * as Types from "effect/Types"
 import type * as Effects from "../Effects.ts"
 
-/** @internal */
+/**
+ * @since 0.0.0
+ * @private
+ */
 export const TypeId = "~flows/core/Node" as const
 
-/** @internal */
+/**
+ * @since 0.0.0
+ * @private
+ */
 export type TypeId = typeof TypeId
 
-/** @internal */
+/**
+ * @since 0.0.0
+ * @private
+ */
 export interface Succeed {
   readonly _tag: "Succeed"
   readonly value: unknown
   readonly annotations: Context.Context<never>
 }
 
-/** @internal */
+/**
+ * @since 0.0.0
+ * @private
+ */
 export interface All {
   readonly _tag: "All"
   readonly nodes: Readonly<Record<string, NodeAst>>
   readonly annotations: Context.Context<never>
 }
 
-/** @internal */
+/**
+ * @since 0.0.0
+ * @private
+ */
 export interface Dynamic {
   readonly _tag: "Dynamic"
   readonly model?: string | undefined
@@ -45,7 +60,10 @@ export interface Dynamic {
   readonly annotations: Context.Context<never>
 }
 
-/** @internal */
+/**
+ * @since 0.0.0
+ * @private
+ */
 export interface AndThen {
   readonly _tag: "AndThen"
   readonly first: NodeAst
@@ -54,7 +72,10 @@ export interface AndThen {
   readonly annotations: Context.Context<never>
 }
 
-/** @internal */
+/**
+ * @since 0.0.0
+ * @private
+ */
 export interface Map {
   readonly _tag: "Map"
   readonly first: NodeAst
@@ -62,14 +83,20 @@ export interface Map {
   readonly annotations: Context.Context<never>
 }
 
-/** @internal */
+/**
+ * @since 0.0.0
+ * @private
+ */
 export interface FunctionIdentity {
   readonly _tag: "FunctionIdentity"
   readonly algorithm: "fnv1a32-source/v1"
   readonly digest: string
 }
 
-/** @internal */
+/**
+ * @since 0.0.0
+ * @private
+ */
 export interface FlowCall {
   readonly _tag: "FlowCall"
   readonly target: unknown
@@ -77,7 +104,10 @@ export interface FlowCall {
   readonly annotations: Context.Context<never>
 }
 
-/** @internal */
+/**
+ * @since 0.0.0
+ * @private
+ */
 export type NodeAst = Succeed | All | Dynamic | AndThen | Map | FlowCall
 
 type Operation = (value: unknown) => unknown
@@ -85,7 +115,10 @@ type Operation = (value: unknown) => unknown
 const operations = new WeakMap<AndThen | Map, Operation>()
 const flows = new WeakMap<FlowCall, unknown>()
 
-/** @internal */
+/**
+ * @since 0.0.0
+ * @private
+ */
 export const functionIdentity = (operation: unknown): FunctionIdentity => {
   const source = Function.prototype.toString.call(operation).replaceAll(/\s+/g, " ").trim()
   let hash = 0x811c9dc5
@@ -100,7 +133,10 @@ export const functionIdentity = (operation: unknown): FunctionIdentity => {
   }
 }
 
-/** @internal */
+/**
+ * @since 0.0.0
+ * @private
+ */
 export interface Node<out A, out E = never> extends Pipeable.Pipeable {
   readonly [TypeId]: {
     readonly _A: Types.Covariant<A>
@@ -109,7 +145,10 @@ export interface Node<out A, out E = never> extends Pipeable.Pipeable {
   readonly ast: NodeAst
 }
 
-/** @internal */
+/**
+ * @since 0.0.0
+ * @private
+ */
 export const NodeProto = {
   [TypeId]: {
     _A: identity,
@@ -121,18 +160,27 @@ export const NodeProto = {
   }
 }
 
-/** @internal */
+/**
+ * @since 0.0.0
+ * @private
+ */
 export const makeNode = <A = unknown, E = never>(ast: NodeAst): Node<A, E> =>
   Object.assign(Object.create(NodeProto), { ast })
 
-/** @internal */
+/**
+ * @since 0.0.0
+ * @private
+ */
 export const succeed = (value: unknown, annotations: Context.Context<never>): Succeed => ({
   _tag: "Succeed",
   value,
   annotations
 })
 
-/** @internal */
+/**
+ * @since 0.0.0
+ * @private
+ */
 export const all = (
   nodes: Readonly<Record<string, NodeAst>>,
   annotations: Context.Context<never>
@@ -142,7 +190,10 @@ export const all = (
   annotations
 })
 
-/** @internal */
+/**
+ * @since 0.0.0
+ * @private
+ */
 export const dynamic = (
   options: Omit<Dynamic, "_tag" | "annotations">,
   annotations: Context.Context<never>
@@ -152,7 +203,10 @@ export const dynamic = (
   annotations
 })
 
-/** @internal */
+/**
+ * @since 0.0.0
+ * @private
+ */
 export const andThen = (
   first: NodeAst,
   operation: Operation,
@@ -169,7 +223,10 @@ export const andThen = (
   return ast
 }
 
-/** @internal */
+/**
+ * @since 0.0.0
+ * @private
+ */
 export const andThenNode = (
   first: NodeAst,
   next: NodeAst,
@@ -186,7 +243,10 @@ export const andThenNode = (
   annotations
 })
 
-/** @internal */
+/**
+ * @since 0.0.0
+ * @private
+ */
 export const map = (
   first: NodeAst,
   operation: Operation,
@@ -203,10 +263,16 @@ export const map = (
   return ast
 }
 
-/** @internal */
+/**
+ * @since 0.0.0
+ * @private
+ */
 export const operation = (ast: AndThen | Map): Operation | undefined => operations.get(ast)
 
-/** @internal */
+/**
+ * @since 0.0.0
+ * @private
+ */
 export const flowCall = (
   flow: unknown,
   target: unknown,
@@ -223,10 +289,16 @@ export const flowCall = (
   return ast
 }
 
-/** @internal */
+/**
+ * @since 0.0.0
+ * @private
+ */
 export const flow = (ast: FlowCall): unknown => flows.get(ast)
 
-/** @internal */
+/**
+ * @since 0.0.0
+ * @private
+ */
 export const withAnnotations = (
   ast: NodeAst,
   annotations: Context.Context<never>

@@ -9,20 +9,40 @@ import * as Effect from "effect/Effect"
 import * as Schema from "effect/Schema"
 import { EvalError } from "./EvalError.ts"
 
-/** A scorer binding accepted from `/scorers`. @since 0.1.0 @category models */
+/**
+ * A scorer binding accepted from `/scorers`.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Binding = ScorerBinding.Binding
 
-/** One immutable fixed-suite case. @since 0.1.0 @category models */
+/**
+ * One immutable fixed-suite case.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface Case {
   readonly name: string
   readonly input: unknown
   readonly expected?: unknown | undefined
 }
 
-/** Alias for a fixed-suite case. @since 0.1.0 @category models */
+/**
+ * Alias for a fixed-suite case.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type SuiteCase = Case
 
-/** Options for constructing a suite. @since 0.1.0 @category models */
+/**
+ * Options for constructing a suite.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface MakeOptions {
   readonly name: string
   readonly cases: ReadonlyArray<Case>
@@ -30,10 +50,20 @@ export interface MakeOptions {
   readonly concurrency: number
 }
 
-/** Alias for suite construction options. @since 0.1.0 @category models */
+/**
+ * Alias for suite construction options.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type SuiteOptions = MakeOptions
 
-/** A validated, named collection of fixed cases and scorer bindings. @since 0.1.0 @category models */
+/**
+ * A validated, named collection of fixed cases and scorer bindings.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface Suite {
   readonly name: string
   readonly cases: ReadonlyArray<Case>
@@ -59,7 +89,12 @@ const validate = (options: MakeOptions): EvalError | undefined => {
   return undefined
 }
 
-/** Builds and validates a fixed suite. @since 0.1.0 @category constructors */
+/**
+ * Builds and validates a fixed suite.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const make = (options: MakeOptions): Effect.Effect<Suite, EvalError> => {
   const error = validate(options)
   return error === undefined
@@ -72,7 +107,12 @@ export const make = (options: MakeOptions): Effect.Effect<Suite, EvalError> => {
     : Effect.fail(error)
 }
 
-/** Options used when decoding JSON Lines. @since 0.1.0 @category models */
+/**
+ * Options used when decoding JSON Lines.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface JsonLinesOptions {
   readonly name: string
   readonly bindings?: ReadonlyArray<Binding> | undefined
@@ -85,7 +125,12 @@ const jsonCase = Schema.Struct({
   expected: Schema.optional(Schema.Unknown)
 })
 
-/** Loads the `{ name, input, expected? }` JSON Lines fixture format. @since 0.1.0 @category constructors */
+/**
+ * Loads the `{ name, input, expected? }` JSON Lines fixture format.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const fromJsonLines = (text: string, options: JsonLinesOptions): Effect.Effect<Suite, EvalError> =>
   Effect.gen(function*() {
     const cases: Array<Case> = []

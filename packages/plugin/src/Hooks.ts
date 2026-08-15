@@ -122,16 +122,28 @@ export type KeysOfKind<H, K extends HookKind> =
   }[keyof H]
   & string
 
-/** @internal */
+/**
+ * @since 0.1.0
+ * @private
+ */
 export type ArgsOf<T> = HandlerOf<T> extends (...args: infer A) => any ? A : never
 
-/** @internal */
+/**
+ * @since 0.1.0
+ * @private
+ */
 export type ReturnOf<T> = HandlerOf<T> extends (...args: any) => infer R ? R : never
 
-/** @internal */
+/**
+ * @since 0.1.0
+ * @private
+ */
 export type SuccessOf<T> = ReturnOf<T> extends Effect.Effect<infer A, any, any> ? A : never
 
-/** @internal */
+/**
+ * @since 0.1.0
+ * @private
+ */
 export type ContextOf<T> = ReturnOf<T> extends Effect.Effect<any, any, infer R> ? R : never
 
 /**

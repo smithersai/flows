@@ -205,7 +205,10 @@ export class GraphBuildError extends Schema.TaggedError<GraphBuildError>()("flow
   nodes: Schema.optional(Schema.Tuple([Schema.String, Schema.String]))
 }) {}
 
-/** @internal */
+/**
+ * @since 0.0.0
+ * @private
+ */
 interface GraphImpl {
   readonly nodes: ReadonlyArray<InternalNode>
   readonly edges: ReadonlyArray<InternalEdge>

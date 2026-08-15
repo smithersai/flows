@@ -12,14 +12,29 @@ import { capability, envelope } from "./internal/Declaration.ts"
 import { DEFAULT_READ_LIMIT, MAX_ENTRIES, notice } from "./internal/Text.ts"
 import * as StdError from "./StdError.ts"
 
-/** @category identifiers @since 0.1.0 */
+/**
+ * The registry name of the `ls` flow.
+ *
+ * @category identifiers
+ * @since 0.1.0
+ */
 export const name = "ls"
 
-/** @category descriptions @since 0.1.0 */
+/**
+ * The one-line description the model sees for the `ls` flow.
+ *
+ * @category descriptions
+ * @since 0.1.0
+ */
 export const description =
   "List a directory with directories first and trailing /; use 1-based offset and limit to page large listings."
 
-/** @category schemas @since 0.1.0 */
+/**
+ * What the `ls` flow accepts.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
 export const Input = Schema.Struct({
   path: Schema.String.annotate({ description: "Directory path to list" }),
   offset: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(1))).annotate({
@@ -30,7 +45,12 @@ export const Input = Schema.Struct({
   })
 })
 
-/** @category schemas @since 0.1.0 */
+/**
+ * What the `ls` flow returns.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
 export const Output = Schema.Struct({
   entries: Schema.Array(Schema.Struct({
     name: Schema.String.annotate({ description: "Entry name; directories end in /" }),
@@ -41,17 +61,38 @@ export const Output = Schema.Struct({
   notice: Schema.optional(Schema.String.annotate({ description: "Truncation disclosure" }))
 })
 
-/** @category effects @since 0.1.0 */
+/**
+ * The declared effect envelope of the `ls` flow, before any input is known.
+ *
+ * @category effects
+ * @since 0.1.0
+ */
 export const effects = envelope({ tier: "sealed", mode: "hermetic", reads: ["/**"], writes: [] })
 
-/** @category effects @since 0.1.0 */
+/**
+ * Narrows {@link effects} to what this particular input actually touches.
+ *
+ * @category effects
+ * @since 0.1.0
+ */
 export const effectsFor = (input: typeof Input.Type) =>
   envelope({ tier: "sealed", mode: "hermetic", reads: [input.path], writes: [] })
 
-/** @category capabilities @since 0.1.0 */
+/**
+ * The authority the `ls` flow requires.
+ *
+ * @category capabilities
+ * @since 0.1.0
+ */
 export const capabilities = [capability("fs:read", "/**")]
 
-/** @category flows @since 0.1.0 */
+/**
+ * The `ls` flow declaration: schemas, capabilities, and effects, with the
+ * implementation attached separately.
+ *
+ * @category flows
+ * @since 0.1.0
+ */
 export const flow = Flow.make({ name, description, input: Input, output: Output, capabilities, effects })
 
 /**

@@ -33,4 +33,18 @@ describe("Logger layers", () => {
     expect(values).toHaveLength(1)
     expect(values[0]?.annotations).toEqual({ runId: "run-1" })
   })
+
+  it("composes `layer` around a caller-supplied logger, defaults and all", async () => {
+    const { logger, values } = captured()
+    const level = await Effect.runPromise(
+      Effect.gen(function*() {
+        yield* Effect.logDebug("below the default minimum")
+        yield* Effect.logInfo("at the default minimum")
+        return yield* References.MinimumLogLevel
+      }).pipe(Effect.provide(Logger.layer(logger)))
+    )
+
+    expect(level).toBe("Info")
+    expect(values).toHaveLength(1)
+  })
 })

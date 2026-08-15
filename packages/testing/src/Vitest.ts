@@ -23,7 +23,12 @@ import { assert, describe, expect, it as vitestIt, type TestOptions } from "vite
 /** @since 0.0.0 @category testing */
 export { assert, describe, expect }
 
-/** @since 0.0.0 @category testing */
+/**
+ * The Effect-aware `it`, with `scoped` aliased onto `it.effect`.
+ *
+ * @category testing
+ * @since 0.0.0
+ */
 export const it = Object.assign(EffectVitest.it, { scoped: EffectVitest.it.effect })
 
 type Body<A, E, R> = Effect.Effect<A, E, R> | (() => Effect.Effect<A, E, R>)
@@ -41,7 +46,14 @@ interface EffectTest<R> extends TestRegistration<R> {
   readonly only: TestRegistration<R>
 }
 
-/** @since 0.0.0 @category testing */
+/**
+ * The Effect-aware test registrars, each carrying the requirements `R` a
+ * body may use: `effect` under the test clock, `live` under the real one,
+ * and `scoped` with a scope provided.
+ *
+ * @category testing
+ * @since 0.0.0
+ */
 export interface TestEffect<R> {
   readonly effect: EffectTest<R>
   readonly live: EffectTest<R>

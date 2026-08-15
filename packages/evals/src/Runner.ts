@@ -16,7 +16,12 @@ import { CaseExecutor, type Execution, type Service as CaseExecutorService } fro
 import { EvalError } from "./EvalError.ts"
 import type { Binding, Case, Suite } from "./Suite.ts"
 
-/** One score observation emitted by a suite run. @since 0.1.0 @category models */
+/**
+ * One score observation emitted by a suite run.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Observation =
   & {
     readonly case: string
@@ -34,7 +39,12 @@ export type Observation =
     | { readonly kind: "inconclusive"; readonly reason: string; readonly meta?: unknown }
   )
 
-/** A request sent to the scorers batch runner. @since 0.1.0 @category models */
+/**
+ * A request sent to the scorers batch runner.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface ScoreRequest {
   readonly case: string
   readonly stepKey: string
@@ -48,10 +58,20 @@ export interface ScoreRequest {
   }
 }
 
-/** A blocking scorer job, matching `/scorers/Runner`. @since 0.1.0 @category models */
+/**
+ * A blocking scorer job, matching `/scorers/Runner`.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type ScoreJob = ScorerRunner.Job
 
-/** Structural adapter for `/scorers`' blocking batch runner. @since 0.1.0 @category services */
+/**
+ * Structural adapter for `/scorers`' blocking batch runner.
+ *
+ * @category services
+ * @since 0.1.0
+ */
 export interface ScoreBatchRunner {
   readonly runBatch: (
     jobs: ReadonlyArray<ScoreJob>,
@@ -59,10 +79,20 @@ export interface ScoreBatchRunner {
   ) => Effect.Effect<ReadonlyArray<ScoreObservation>, unknown>
 }
 
-/** A score result aligned with a {@link ScoreRequest}. @since 0.1.0 @category models */
+/**
+ * A score result aligned with a {@link ScoreRequest}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type ScoreObservation = ScoreStore.Observation
 
-/** Per-case result retained by the deterministic runner. @since 0.1.0 @category models */
+/**
+ * Per-case result retained by the deterministic runner.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface CaseResult {
   readonly case: string
   readonly execution?: Execution | undefined
@@ -70,7 +100,12 @@ export interface CaseResult {
   readonly observations: ReadonlyArray<Observation>
 }
 
-/** Stable result of a suite run. @since 0.1.0 @category models */
+/**
+ * Stable result of a suite run.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface RunResult {
   readonly runId: string
   readonly suite: string
@@ -78,7 +113,12 @@ export interface RunResult {
   readonly observations: ReadonlyArray<Observation>
 }
 
-/** Options for a deterministic suite run. @since 0.1.0 @category models */
+/**
+ * Options for a deterministic suite run.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface RunOptions {
   readonly scorer?: ScoreBatchRunner | undefined
   readonly runId?: string | undefined
@@ -86,7 +126,12 @@ export interface RunOptions {
   readonly at?: string | undefined
 }
 
-/** Injectable batch-runner service used when a caller wants a reusable adapter. @since 0.1.0 @category services */
+/**
+ * Injectable batch-runner service used when a caller wants a reusable adapter.
+ *
+ * @category services
+ * @since 0.1.0
+ */
 export class Runner extends Context.Service<Runner, ScoreBatchRunner>()("flows/evals/Runner") {}
 
 const scorerName = (binding: Binding): string => {
@@ -251,7 +296,12 @@ const score = (
     }))
   })
 
-/** Runs a fixed suite with bounded execution and declaration-order results. @since 0.1.0 @category constructors */
+/**
+ * Runs a fixed suite with bounded execution and declaration-order results.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const run = (
   suite: Suite,
   options: RunOptions = {}
@@ -277,7 +327,12 @@ export const run = (
     }
   })
 
-/** Provides an unavailable scorer batch runner. @since 0.1.0 @category layers */
+/**
+ * Provides an unavailable scorer batch runner.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
 export const layerNoop: Layer.Layer<Runner> = Layer.succeed(Runner)({
   runBatch: () => Effect.fail(new EvalError({ code: "executor", message: "No scorer batch runner is available" }))
 })

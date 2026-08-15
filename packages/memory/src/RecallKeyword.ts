@@ -99,8 +99,20 @@ export const layer: Layer.Layer<Recall.Recall, never, MemoryStore.MemoryStore> =
   })
 )
 
-/** @category models @since 0.1.0 */
+/**
+ * Splits a query into the normalized terms scoring compares against.
+ * Exported so the ranking can be tested without a store.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const normalizeQueryTerms = normalize
 
-/** @category models @since 0.1.0 */
+/**
+ * Scores one row against normalized query terms. Exported so the ranking
+ * can be tested without a store.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const scoreRow = score

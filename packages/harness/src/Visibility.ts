@@ -12,10 +12,20 @@
 import type { FlowDescriptor } from "@smthrs/registry/Descriptor"
 import * as Schema from "effect/Schema"
 
-/** @category models @since 0.1.0 */
+/**
+ * Whether a matching rule reveals a flow or hides it.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const RuleEffect = Schema.Literals(["allow", "deny"])
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link RuleEffect}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type RuleEffect = typeof RuleEffect.Type
 
 /** An ordered allow or deny pattern over flow names.
@@ -33,7 +43,12 @@ export class Rule extends Schema.Class<Rule>("flows/harness/Visibility/Rule")({
  */
 export const Ruleset = Schema.Array(Rule)
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link Ruleset}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Ruleset = typeof Ruleset.Type
 
 /** The resolved visibility policy associated with one model seat.
@@ -45,7 +60,13 @@ export class Seat extends Schema.Class<Seat>("flows/harness/Visibility/Seat")({
   ruleset: Ruleset
 }) {}
 
-/** @category models @since 0.1.0 */
+/**
+ * The declaration {@link make} takes. `rules` is accepted as an alias for
+ * `ruleset`.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface MakeOptions {
   readonly name: string
   readonly ruleset?: Ruleset | undefined

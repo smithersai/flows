@@ -90,7 +90,12 @@ export const Body = Schema.Struct({
   stream: Schema.Literal(true)
 })
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of the Responses request body.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Body = typeof Body.Type
 
 type InputItem = typeof InputItem.Type
@@ -114,7 +119,14 @@ type OpenAIEvent = typeof OpenAIEvent.Type
 const decodeReasoningInput = Schema.decodeUnknownOption(Schema.fromJsonString(ReasoningInput))
 const decodeErrorBody = Schema.decodeUnknownOption(Schema.fromJsonString(JsonObject))
 
-/** @category models @since 0.1.0 */
+/**
+ * What the adapter must carry between events of one Responses stream: the
+ * partially assembled tool calls, the ids already opened, and the response
+ * identity a continuation replays.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface State {
   readonly tools: ToolStream.State
   readonly toolNames: Readonly<Record<string, string>>

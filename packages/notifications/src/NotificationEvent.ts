@@ -24,19 +24,25 @@ export const AdmittedEventType = "flows/notifications/Admitted"
  */
 export const PromotedEventType = "flows/notifications/Promoted"
 
+const AdmissionDecision = Schema.Literals(["admitted", "coalesced", "rejected-full"])
+
 /**
  * A durable admission record.
  *
  * @category models
  * @since 0.1.0
  */
-const AdmissionDecision = Schema.Literals(["admitted", "coalesced", "rejected-full"])
-
 export const Admitted = Schema.Struct({
   notification: Notification.Notification,
   decision: AdmissionDecision
 })
 
+/**
+ * The decoded form of {@link Admitted}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Admitted = typeof Admitted.Type
 
 /**
@@ -51,6 +57,12 @@ export const Promoted = Schema.Struct({
   ids: Schema.Array(Schema.String)
 })
 
+/**
+ * The decoded form of {@link Promoted}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Promoted = typeof Promoted.Type
 
 /**

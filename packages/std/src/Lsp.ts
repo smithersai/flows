@@ -11,10 +11,27 @@ import { capability, envelope } from "./internal/Declaration.ts"
 import * as LanguageServer from "./LanguageServer.ts"
 import * as StdError from "./StdError.ts"
 
-/** @category identifiers @since 0.1.0 */ export const name = "lsp"
-/** @category descriptions @since 0.1.0 */ export const description =
-  "Inspect code intelligence through the configured language server."
-/** @category schemas @since 0.1.0 */ export const Input = Schema.Struct({
+/**
+ * The registry name of the `lsp` flow.
+ *
+ * @category identifiers
+ * @since 0.1.0
+ */
+export const name = "lsp"
+/**
+ * The one-line description the model sees for the `lsp` flow.
+ *
+ * @category descriptions
+ * @since 0.1.0
+ */
+export const description = "Inspect code intelligence through the configured language server."
+/**
+ * What the `lsp` flow accepts.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const Input = Schema.Struct({
   operation: Schema.Literals([
     "hover",
     "definition",
@@ -32,19 +49,50 @@ import * as StdError from "./StdError.ts"
   character: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(1))),
   query: Schema.optional(Schema.String)
 })
-/** @category schemas @since 0.1.0 */ export const Output = Schema.Struct({ result: Schema.Unknown })
-/** @category effects @since 0.1.0 */ export const effects = envelope({
+/**
+ * What the `lsp` flow returns.
+ *
+ * @category schemas
+ * @since 0.1.0
+ */
+export const Output = Schema.Struct({ result: Schema.Unknown })
+/**
+ * The declared effect envelope of the `lsp` flow, before any input is known.
+ *
+ * @category effects
+ * @since 0.1.0
+ */
+export const effects = envelope({
   tier: "sealed",
   mode: "hermetic",
   reads: ["/**"],
   writes: []
 })
-/** @category effects @since 0.1.0 */ export const effectsFor = (input: typeof Input.Type) =>
+/**
+ * Narrows {@link effects} to what this particular input actually touches.
+ *
+ * @category effects
+ * @since 0.1.0
+ */
+export const effectsFor = (input: typeof Input.Type) =>
   input.path === undefined
     ? effects
     : envelope({ tier: "sealed", mode: "hermetic", reads: [input.path], writes: [] })
-/** @category capabilities @since 0.1.0 */ export const capabilities = [capability("fs:read", "/**")]
-/** @category flows @since 0.1.0 */ export const flow = Flow.make({
+/**
+ * The authority the `lsp` flow requires.
+ *
+ * @category capabilities
+ * @since 0.1.0
+ */
+export const capabilities = [capability("fs:read", "/**")]
+/**
+ * The `lsp` flow declaration: schemas, capabilities, and effects, with the
+ * implementation attached separately.
+ *
+ * @category flows
+ * @since 0.1.0
+ */
+export const flow = Flow.make({
   name,
   description,
   input: Input,
@@ -53,7 +101,13 @@ import * as StdError from "./StdError.ts"
   effects
 })
 const isAbsolutePath = (path: string): boolean => path.startsWith("/") || /^[A-Za-z]:[\\/]/.test(path)
-/** @category handlers @since 0.1.0 */ export const run = (
+/**
+ * Runs the `lsp` flow: queries the configured language server.
+ *
+ * @category handlers
+ * @since 0.1.0
+ */
+export const run = (
   input: typeof Input.Type
 ): Effect.Effect<typeof Output.Type, StdError.StdError, LanguageServer.LanguageServer> =>
   Effect.gen(function*() {

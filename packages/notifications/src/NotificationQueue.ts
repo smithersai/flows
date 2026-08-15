@@ -12,7 +12,12 @@ import * as NotificationEvent from "./NotificationEvent.ts"
 import * as NotificationState from "./NotificationState.ts"
 import { defaultCapacity } from "./Projection.ts"
 
-/** @category errors @since 0.1.0 */
+/**
+ * The queue could not be reached or served the request.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
 export class NotificationError extends Schema.TaggedError<NotificationError>()(
   "/notifications/NotificationError",
   {
@@ -23,7 +28,13 @@ export class NotificationError extends Schema.TaggedError<NotificationError>()(
   }
 ) {}
 
-/** @category models @since 0.1.0 */
+/**
+ * What admitting one notification decided: its durable sequence number and
+ * whether the id had already been admitted.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface AdmissionReceipt {
   readonly notificationId: string
   readonly decision: NotificationState.AdmissionDecision
@@ -31,7 +42,13 @@ export interface AdmissionReceipt {
   readonly duplicate: boolean
 }
 
-/** @category models @since 0.1.0 */
+/**
+ * The boundary a drain is attempted at, and whether the run would go idle
+ * if nothing were delivered.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface DrainInput {
   readonly runId: string
   readonly targetLineageId: string
@@ -39,14 +56,26 @@ export interface DrainInput {
   readonly wouldIdle: boolean
 }
 
-/** @category models @since 0.1.0 */
+/**
+ * The notifications this boundary delivers, and whether the boundary had
+ * already drained.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface DrainReceipt {
   readonly notifications: ReadonlyArray<NotificationModel.Notification>
   readonly boundary: string
   readonly duplicate: boolean
 }
 
-/** @category services @since 0.1.0 */
+/**
+ * The durable pending queue: admit a notification exactly once, and drain
+ * what a boundary is allowed to deliver.
+ *
+ * @category services
+ * @since 0.1.0
+ */
 export interface Service {
   readonly admit: (
     runId: string,
@@ -57,18 +86,34 @@ export interface Service {
   ) => Effect.Effect<DrainReceipt, Journal.JournalError | NotificationError>
 }
 
-/** @category services @since 0.1.0 */
+/**
+ * The {@link Service} tag.
+ *
+ * @category services
+ * @since 0.1.0
+ */
 export class NotificationQueue extends Context.Service<NotificationQueue, Service>()(
   "/notifications/NotificationQueue"
 ) {}
 
-/** @category constructors @since 0.1.0 */
+/**
+ * Builds a {@link Service} from an implementation of its methods.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const make = (implementation: Service): Service => NotificationQueue.of(implementation)
 
 const unavailable = (operation: string): NotificationError =>
   new NotificationError({ message: `${operation} is unavailable` })
 
-/** @category constructors @since 0.1.0 */
+/**
+ * A {@link Service} that fails both methods as unavailable. Overrides
+ * replace individual methods.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const makeNoop = (overrides: Partial<Service> = {}): Service =>
   make({
     admit: Effect.fn("NotificationQueue.admit")(() => Effect.fail(unavailable("admit"))),
@@ -76,7 +121,12 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service =>
     ...overrides
   })
 
-/** @category layers @since 0.1.0 */
+/**
+ * Provides {@link makeNoop}.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
 export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<NotificationQueue> =>
   Layer.succeed(NotificationQueue)(makeNoop(overrides))
 

@@ -15,7 +15,12 @@ import { Effect, Schema } from "effect"
 import type { ApprovalTarget } from "../Control.ts"
 import type { Envelope, FlowId, IdempotencyKey, PlanCard, PlanNode, Receipt, RunId } from "../ControlSchema.ts"
 
-/** The envelope a flow with no declared capabilities carries. */
+/**
+ * The envelope a flow with no declared capabilities carries.
+ *
+ * @since 0.1.0
+ * @private
+ */
 export const emptyEnvelope: Envelope = {
   capabilities: [],
   flows: [],
@@ -24,25 +29,47 @@ export const emptyEnvelope: Envelope = {
 
 /**
  * Canonical bytes for a value.
- *
  * Throws on a non-serializable value; every caller either wraps it in
  * `Effect.try` or has already validated the value.
+ *
+ * @since 0.1.0
+ * @private
  */
 export const canonical = (value: unknown): string => Schema.decodeUnknownSync(Canonical)(value)
 
-/** The content digest of a value's canonical bytes. */
+/**
+ * The content digest of a value's canonical bytes.
+ *
+ * @since 0.1.0
+ * @private
+ */
 export const digest = (value: unknown) => Schema.decodeUnknownEffect(Sha256)(canonical(value)).pipe(Effect.orDie)
 
-/** Envelope equality by canonical bytes, not by reference or key order. */
+/**
+ * Envelope equality by canonical bytes, not by reference or key order.
+ *
+ * @since 0.1.0
+ * @private
+ */
 export const sameEnvelope = (left: Envelope, right: Envelope): boolean => canonical(left) === canonical(right)
 
-/** An accepted receipt, carrying a run id when one exists. */
+/**
+ * An accepted receipt, carrying a run id when one exists.
+ *
+ * @since 0.1.0
+ * @private
+ */
 export const accepted = (receiptId: string, runId?: RunId): Receipt =>
   runId === undefined
     ? { _tag: "Accepted", receiptId }
     : { _tag: "Accepted", receiptId, runId }
 
-/** The receipt a replayed mutation returns, derived from the recorded one. */
+/**
+ * The receipt a replayed mutation returns, derived from the recorded one.
+ *
+ * @since 0.1.0
+ * @private
+ */
 export const alreadyApplied = (key: IdempotencyKey, receipt: Receipt): Receipt => {
   const receiptId = receipt._tag === "Accepted" || receipt._tag === "AlreadyApplied" ? receipt.receiptId : key
   const runId = receipt._tag === "Accepted" || receipt._tag === "AlreadyApplied" || receipt._tag === "Terminal"
@@ -53,7 +80,12 @@ export const alreadyApplied = (key: IdempotencyKey, receipt: Receipt): Receipt =
     : { _tag: "AlreadyApplied", receiptId, runId }
 }
 
-/** The plan inputs a card is derived from. */
+/**
+ * The plan inputs a card is derived from.
+ *
+ * @since 0.1.0
+ * @private
+ */
 export interface PlanSource {
   readonly planId: string
   readonly flowId: FlowId
@@ -70,6 +102,9 @@ export interface PlanSource {
 
 /**
  * Builds the immutable plan card and the approval target bound to its digest.
+ *
+ * @since 0.1.0
+ * @private
  */
 export const planCard = (source: PlanSource) =>
   Effect.gen(function*() {

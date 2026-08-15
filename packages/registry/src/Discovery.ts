@@ -72,25 +72,37 @@ const warning = (
 const metadataReadLimit = 64 * 1024
 const metadataChunkSize = 512
 
+/**
+ * Reads just enough of an entry file to decide its metadata.
+ *
+ * This reads the whole file and then truncates, rather than streaming until
+ * the metadata block closes. `FileSystem.stream` is only available from a host
+ * that attests whole-filesystem isolation; the Node host provides
+ * descriptor-relative access one operation at a time, so a streaming read is
+ * refused there and every entry would be reported `unreadable`. `readFile` is
+ * one of the operations the atomic host does serve, and the host applies its
+ * own read ceiling, so the bound below is a second, explicit one rather than
+ * the only one.
+ */
 const readMetadata = (
   fs: FileSystem.FileSystem,
   location: string,
   kind: "markdown" | "module"
-) => {
-  const decoder = new TextDecoder()
-  let text = ""
-  return fs.stream(location, {
-    bytesToRead: metadataReadLimit,
-    chunkSize: metadataChunkSize
-  }).pipe(
-    Stream.takeUntil((chunk) => {
-      text += decoder.decode(chunk, { stream: true })
-      return kind === "markdown" ? Frontmatter.isMetadataComplete(text) : ModuleMetadata.isComplete(text)
-    }),
-    Stream.runDrain,
-    Effect.map(() => text + decoder.decode())
+) =>
+  fs.readFile(location).pipe(
+    Effect.map((bytes) => {
+      const decoder = new TextDecoder()
+      let text = ""
+      for (let offset = 0; offset < bytes.length; offset += metadataChunkSize) {
+        text += decoder.decode(bytes.subarray(offset, offset + metadataChunkSize), { stream: true })
+        const complete = kind === "markdown"
+          ? Frontmatter.isMetadataComplete(text)
+          : ModuleMetadata.isComplete(text)
+        if (complete || text.length >= metadataReadLimit) break
+      }
+      return text + decoder.decode()
+    })
   )
-}
 
 const compareWarnings = (left: DiscoveryWarning, right: DiscoveryWarning): number => {
   if (left.path !== right.path) {

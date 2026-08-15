@@ -5,8 +5,18 @@ import initial from "./0001_triggers.ts"
 
 const migrations = { "0001_triggers": initial }
 
-/** @category migrations @since 0.1.0 */
+/**
+ * Applies the triggers schema migrations.
+ *
+ * @category migrations
+ * @since 0.1.0
+ */
 export const run = Migrator.make({})({ loader: Migrator.fromRecord(migrations), table: "flows_trigger_migrations" })
 
-/** @category layers @since 0.1.0 */
+/**
+ * Runs {@link run} once as a layer.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
 export const layer = Layer.effectDiscard(run)

@@ -17,16 +17,36 @@ import type { MemoryError } from "./MemoryError.ts"
 import * as MemoryStore from "./MemoryStore.ts"
 import * as Recall from "./Recall.ts"
 
-/** @category identifiers @since 0.1.0 */
+/**
+ * The registry name of the `remember` flow.
+ *
+ * @category identifiers
+ * @since 0.1.0
+ */
 export const rememberName = "remember"
 
-/** @category identifiers @since 0.1.0 */
+/**
+ * The registry name of the `recall` flow.
+ *
+ * @category identifiers
+ * @since 0.1.0
+ */
 export const recallName = "recall"
 
-/** @category descriptions @since 0.1.0 */
+/**
+ * The one-line description the model sees for the `remember` flow.
+ *
+ * @category descriptions
+ * @since 0.1.0
+ */
 export const rememberDescription = "Persist a memory record in a named bank."
 
-/** @category descriptions @since 0.1.0 */
+/**
+ * The one-line description the model sees for the `recall` flow.
+ *
+ * @category descriptions
+ * @since 0.1.0
+ */
 export const recallDescription = "Recall advisory memory rows from named banks."
 
 /**
@@ -180,11 +200,26 @@ export const handlers = {
   recall: runRecall
 } as const
 
-/** @category types @since 0.1.0 */
+/**
+ * What the `remember` flow accepts.
+ *
+ * @category types
+ * @since 0.1.0
+ */
 export type RememberInputType = typeof RememberInput.Type
 
-/** @category types @since 0.1.0 */
+/**
+ * What the `recall` flow accepts.
+ *
+ * @category types
+ * @since 0.1.0
+ */
 export type RecallInputType = Recall.Input
 
-/** @category types @since 0.1.0 */
+/**
+ * What the `recall` flow returns.
+ *
+ * @category types
+ * @since 0.1.0
+ */
 export type RecallOutputType = Recall.Output
