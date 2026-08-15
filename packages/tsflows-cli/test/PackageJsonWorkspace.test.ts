@@ -14,7 +14,7 @@ vi.mock("node:child_process", () => ({
   ): void => callback(Object.assign(new Error("git unavailable in this test"), { code: "ENOENT" }), "")
 }))
 
-const rules = NodePath.resolve(import.meta.dirname, "../../rules/src/index.ts")
+const rules = NodePath.resolve(import.meta.dirname, "../../tsflows-rules/src/index.ts")
 
 let root: string
 

@@ -15,7 +15,7 @@ const write = async (relative: string, text: string): Promise<void> => {
   await Fs.writeFile(path, text, "utf8")
 }
 
-const rules = NodePath.resolve(import.meta.dirname, "../../rules/src/index.ts")
+const rules = NodePath.resolve(import.meta.dirname, "../../tsflows-rules/src/index.ts")
 
 beforeEach(async () => {
   root = await Fs.mkdtemp(NodePath.join(Os.tmpdir(), "tsflows-filegroup-exec-"))

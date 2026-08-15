@@ -57,11 +57,11 @@ const read = (relative: string): Promise<string> => Fs.readFile(NodePath.join(ro
  * an earlier case.
  */
 const buildFile = (options: string): string =>
-  `import { Workspace } from "${NodePath.resolve(import.meta.dirname, "../../rules/src/index.ts")}"\n` +
+  `import { Workspace } from "${NodePath.resolve(import.meta.dirname, "../../tsflows-rules/src/index.ts")}"\n` +
   `export const workspace = Workspace(${options})\n`
 
 const remoteCacheBuildFile = (options: string): string =>
-  `import { RemoteCache } from "${NodePath.resolve(import.meta.dirname, "../../rules/src/index.ts")}"\n` +
+  `import { RemoteCache } from "${NodePath.resolve(import.meta.dirname, "../../tsflows-rules/src/index.ts")}"\n` +
   `export const remoteCache = RemoteCache.make(${options})\n`
 
 beforeEach(async () => {
@@ -94,7 +94,7 @@ describe("resolveConfig", () => {
     await write("package.json", `${JSON.stringify({ type: "commonjs" })}\n`)
     await write(
       "BUILD.ts",
-      `import { Workspace } from "${NodePath.resolve(import.meta.dirname, "../../rules/src/index.ts")}"\n` +
+      `import { Workspace } from "${NodePath.resolve(import.meta.dirname, "../../tsflows-rules/src/index.ts")}"\n` +
         "const cacheDirectory = await Promise.resolve(\"build/cache\")\n" +
         "export const workspace = Workspace({ cacheDirectory, gitignored: false })\n"
     )
@@ -130,7 +130,7 @@ describe("resolveConfig", () => {
   it("validates a structurally forged declaration", async () => {
     await write(
       "BUILD.ts",
-      `import * as Config from "${NodePath.resolve(import.meta.dirname, "../../rules/src/Config.ts")}"\n` +
+      `import * as Config from "${NodePath.resolve(import.meta.dirname, "../../tsflows-rules/src/Config.ts")}"\n` +
         "export const config = {\n" +
         "  [Config.TypeId]: Config.TypeId,\n" +
         "  cacheDirectory: \"../escape\",\n" +
@@ -237,7 +237,7 @@ describe("resolveRemoteCache", () => {
   it("validates a structurally forged declaration", async () => {
     await write(
       "BUILD.ts",
-      `import { RemoteCache } from "${NodePath.resolve(import.meta.dirname, "../../rules/src/index.ts")}"\n` +
+      `import { RemoteCache } from "${NodePath.resolve(import.meta.dirname, "../../tsflows-rules/src/index.ts")}"\n` +
         "export const remoteCache = {\n" +
         "  [RemoteCache.TypeId]: RemoteCache.TypeId,\n" +
         "  endpoint: \"http://insecure.example.test\",\n" +
@@ -260,7 +260,7 @@ describe("resolveRemoteCache", () => {
       await write(
         "BUILD.ts",
         `import { DepsLint, file, glob, RemoteCache } from "${
-          NodePath.resolve(import.meta.dirname, "../../rules/src/index.ts")
+          NodePath.resolve(import.meta.dirname, "../../tsflows-rules/src/index.ts")
         }"\n` +
           "export const remoteCache = RemoteCache.make({\n" +
           "  endpoint: \"https://cache.example.test\",\n" +
@@ -299,7 +299,7 @@ describe("planner ambient inputs", () => {
       await write(
         "BUILD.ts",
         `import { DepsLint, file, glob } from "${
-          NodePath.resolve(import.meta.dirname, "../../rules/src/index.ts")
+          NodePath.resolve(import.meta.dirname, "../../tsflows-rules/src/index.ts")
         }"\n` +
           "export const lint = DepsLint({\n" +
           "  packageJson: file(\"package.json\"),\n" +
@@ -526,7 +526,7 @@ describe("Workspace.make", () => {
   it("keeps the resolved directory out of target cache keys", async () => {
     await write(
       "BUILD.ts",
-      `import { DepsLint, file, glob } from "${NodePath.resolve(import.meta.dirname, "../../rules/src/index.ts")}"\n` +
+      `import { DepsLint, file, glob } from "${NodePath.resolve(import.meta.dirname, "../../tsflows-rules/src/index.ts")}"\n` +
         "export const lint = DepsLint({\n" +
         "  packageJson: file(\"package.json\"),\n" +
         "  sources: [glob(\"src/**/*.ts\")],\n" +
@@ -749,7 +749,7 @@ describe("module namespace cache", () => {
     await write(
       "BUILD.ts",
       `import { DepsLint, file, glob, Workspace } from "${
-        NodePath.resolve(import.meta.dirname, "../../rules/src/index.ts")
+        NodePath.resolve(import.meta.dirname, "../../tsflows-rules/src/index.ts")
       }"\n` +
         "export const config = Workspace({ cacheDirectory: \"one/cache\" })\n" +
         "export const lint = DepsLint({\n" +
@@ -780,7 +780,7 @@ describe("declared input confinement", () => {
       await write(
         "BUILD.ts",
         `import { DepsLint, file, glob } from "${
-          NodePath.resolve(import.meta.dirname, "../../rules/src/index.ts")
+          NodePath.resolve(import.meta.dirname, "../../tsflows-rules/src/index.ts")
         }"\n` +
           "export const lint = DepsLint({\n" +
           "  packageJson: file(\"escape.ts\"),\n" +

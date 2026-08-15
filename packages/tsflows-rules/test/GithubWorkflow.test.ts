@@ -35,7 +35,7 @@ import * as Rule from "../src/Rule.ts"
  */
 const realWorkflowPath = NodePath.resolve(
   import.meta.dirname,
-  "../../../flows/.github/workflows/ci.yml"
+  "../../.github/workflows/ci.yml"
 )
 
 const readReal = async (): Promise<string | undefined> => Fs.readFile(realWorkflowPath, "utf8").catch(() => undefined)
@@ -1491,7 +1491,7 @@ describe("render", () => {
    * somebody's pipeline.
    */
   it("emits only verbs the CLI actually defines", async () => {
-    const cli = await Fs.readFile(NodePath.resolve(import.meta.dirname, "../../cli/src/Cli.ts"), "utf8")
+    const cli = await Fs.readFile(NodePath.resolve(import.meta.dirname, "../../tsflows-cli/src/Cli.ts"), "utf8")
     const commands = new Set([...cli.matchAll(/\.command\("([\w-]+)"/g)].map((match) => match[1]!))
     expect(commands.size).toBeGreaterThan(0)
     expect(executableKinds.filter((kind) => !commands.has(kind))).toEqual([])

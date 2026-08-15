@@ -13,7 +13,7 @@ import * as NodePath from "node:path"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { makeCli } from "../src/Cli.ts"
 
-const rulesModule = NodePath.resolve(import.meta.dirname, "../../rules/src/index.ts")
+const rulesModule = NodePath.resolve(import.meta.dirname, "../../tsflows-rules/src/index.ts")
 
 let roots: Array<string>
 

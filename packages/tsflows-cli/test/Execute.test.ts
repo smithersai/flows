@@ -22,7 +22,7 @@ import * as Executor from "../src/Executor.ts"
 import * as Planner from "../src/Planner.ts"
 import { Workspace } from "../src/Workspace.ts"
 
-const rulesModule = NodePath.resolve(import.meta.dirname, "../../rules/src/index.ts")
+const rulesModule = NodePath.resolve(import.meta.dirname, "../../tsflows-rules/src/index.ts")
 const schemaModule = import.meta.resolve("effect/Schema")
 const cli = NodePath.resolve(import.meta.dirname, "../src/main.js")
 
