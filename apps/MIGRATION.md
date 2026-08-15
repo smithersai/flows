@@ -73,3 +73,73 @@ deleted. Nothing was pushed.
    `node_modules`, `file:vendor/...` dependencies), so pnpm workspace
    membership is optional and can be decided later without blocking use of
    the app.
+
+---
+
+# 2026-08-15: apps/mvp split into apps/{ui,server,shared}; vendoring removed
+
+Both deferred follow-ups above are now resolved: `apps/*` is a pnpm
+workspace member, and everything is committed on `merge-agent-packages`.
+
+## What changed
+
+- `apps/mvp` no longer exists. The split (pure git renames, history
+  preserved):
+  - `apps/ui` (`smithers-ui`) — the Electrobun + React app. The former
+    `src/server` is now `src/dev`: it is the vite dev/preview AgentApi
+    middleware, not a deployable.
+  - `apps/server` (`smithers-server`) — the Cloudflare Worker, former
+    `src/worker`. The wrangler `name` stays `smithers-mvp-web` and its
+    routes/durable_objects/migrations/vars are byte-identical (verified by
+    SHA-256 against the pre-split config); renaming the Worker would orphan
+    the Durable Object state and the canary.smithers.sh domain binding.
+    Only `main` and `assets.directory` (`../ui/dist`) changed.
+  - `apps/shared` (`smithers-shared`) — the agent contract, former
+    `src/shared`, imported as `smithers-shared/<Module>` via an exports
+    map. Runtime-free by design law (its own test forbids `@smthrs/*` and
+    `effect` imports).
+  - Product-level docs (this file, DESIGN.md, WAVE receipts, reports/)
+    moved up to `apps/`.
+- `vendor/smthrs/` (14 packages, vendored 2026-08-12 from
+  `flows@20cedc3` + `agent@ed41681`), `scripts/vendor-smthrs.mjs`, and the
+  per-app `bun.lock` are deleted. `@smthrs/*` dependencies are now pnpm
+  workspace links into `packages/` under their current names (several are
+  `-next`: canonical, capability, chain, crypto, database, jj, journal,
+  kernel, platform-browser; bare: core, memory, model, patterns, registry;
+  `@smthrs/ui` remains a published npm dep). `effect` moved
+  `4.0.0-beta.102` → `4.0.0-rc.108` (the workspace pin).
+- `@smthrs/chain` was promoted to `packages/chain` as `@smthrs/chain-next`.
+  Why: the upstream agent repo deleted its source (only `dist/` leftovers
+  remain there) and the merge spec excluded it, so the vendored copy was
+  the only living source. It was verified md5-identical to `agent@ed41681`
+  (the vendor-manifest pin), and its 21-file test suite plus build
+  boilerplate were restored from that exact commit
+  (`scripts/prompts.mjs` regenerates `src/internal/prompts.ts`
+  byte-identically, confirming provenance). Known upstream work NOT
+  carried: the agent repo's chain lineage after `ed41681` (7 commits
+  through 2026-08-13, incl. "retire the flowFacade").
+
+## Verification
+
+- `pnpm -C apps/shared typecheck` + `bun test`: 33/33.
+- `pnpm -C apps/server typecheck` + `bun test`: 100/100;
+  `bun x wrangler deploy --dry-run` passes (190 assets from `../ui/dist`,
+  both DO classes resolve).
+- `pnpm -C apps/ui typecheck` (0 errors) + `bun test` (465/465) +
+  `pnpm -C apps/ui run build` emits `apps/ui/dist`. Vite invocations carry
+  `--configLoader runner` so `vite.config.ts` can load the TS-source
+  `smithers-shared` package.
+- `packages/chain`: effect rc.108 conformance (TaggedErrorClass →
+  `Schema.TaggedError<Self>()` idiom et al.) — see the package's own gate
+  run in the commit history.
+
+## Known follow-ups
+
+- `apps/ui/.gitignore` still carries stale `reports/` rules from before
+  the docs moved to `apps/reports/`; e2e scripts still write screenshots
+  to `apps/ui/reports/`.
+- `packages/chain` service/error identity strings are still `"/chain/…"`;
+  repo rule says identity = defining module path. Durable-key decision
+  deferred to will.
+- `scripts/browser-check.mjs` browser-safe entry list does not yet include
+  `@smthrs/chain-next`.
