@@ -30,10 +30,20 @@ import * as Chain from "./Chain.ts"
 import * as Journal from "./Journal.ts"
 import * as ScriptRunner from "./ScriptRunner.ts"
 
-/** @category constants @since 0.1.0 */
+/**
+ * The catalog name a script spawns a sub-agent by.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
 export const agentName = "agent"
 
-/** @category constants @since 0.1.0 */
+/**
+ * The agent entry's description, as the model reads it in the catalog block.
+ *
+ * @category constants
+ * @since 0.1.0
+ */
 export const agentDescription = "Run a sub-agent chain to completion and return its terminal outcome as data"
 
 /**
@@ -53,7 +63,13 @@ const AgentInput = Schema.Struct({
 
 const decodeInput = Schema.decodeUnknownOption(AgentInput)
 
-/** @category models @since 0.1.0 */
+/**
+ * What the recursive catalog needs: the host's own entries, the nesting
+ * bound, and the budgets and prefix every child runs under.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface Options {
   /** Entries every chain in the tree can call; the agent and system entries are appended. */
   readonly entries: ReadonlyArray<Catalog.Entry>

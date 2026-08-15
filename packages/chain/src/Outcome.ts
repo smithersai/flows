@@ -12,43 +12,103 @@
 import { Schema } from "effect"
 import * as Script from "./Script.ts"
 
-/** @category models @since 0.1.0 */
+/**
+ * What a parked lineage is waiting for.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const ParkCode = Schema.Literals(["approval", "event", "timer", "quota", "plugin"])
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link ParkCode}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type ParkCode = typeof ParkCode.Type
 
-/** @category models @since 0.1.0 */
+/**
+ * A park's typed code plus the prose a reader needs to act on it.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const ParkReason = Schema.Struct({
   code: ParkCode,
   message: Schema.String
 })
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link ParkReason}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type ParkReason = typeof ParkReason.Type
 
-/** @category models @since 0.1.0 */
+/**
+ * The chain completed, carrying its result value.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const Done = Schema.TaggedStruct("Done", { value: Schema.Json })
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link Done}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Done = typeof Done.Type
 
-/** @category models @since 0.1.0 */
+/**
+ * The link hands off to a successor script — the trampoline's one bounce.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const To = Schema.TaggedStruct("To", { script: Script.Script })
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link To}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type To = typeof To.Type
 
-/** @category models @since 0.1.0 */
+/**
+ * The lineage suspends, carrying the reason it is waiting.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const Park = Schema.TaggedStruct("Park", { reason: ParkReason })
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link Park}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Park = typeof Park.Type
 
-/** @category models @since 0.1.0 */
+/**
+ * Every outcome a link can end with.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const Outcome = Schema.Union([Done, To, Park])
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link Outcome}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Outcome = typeof Outcome.Type
 
 /**
@@ -60,11 +120,27 @@ export type Outcome = typeof Outcome.Type
  */
 export type Terminal = Done | Park
 
-/** @category constructors @since 0.1.0 */
+/**
+ * Completes the chain with a value; `undefined` becomes `null`, the one
+ * JSON representation of "no value".
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const done = (value: typeof Schema.Json.Type): Done => ({ _tag: "Done", value: value ?? null })
 
-/** @category constructors @since 0.1.0 */
+/**
+ * Continues the chain with a successor script.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const to = (script: Script.Script): To => ({ _tag: "To", script })
 
-/** @category constructors @since 0.1.0 */
+/**
+ * Suspends the lineage with a typed waiting reason.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const park = (code: ParkCode, message = ""): Park => ({ _tag: "Park", reason: { code, message } })

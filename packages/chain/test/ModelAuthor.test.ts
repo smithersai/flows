@@ -40,7 +40,7 @@ const authorVia = (replay: RecordedModel.Replay): Layer.Layer<Author.Author> =>
 
 const seatOver = <A>(
   calls: ReadonlyArray<Fixture.RecordedCall>,
-  use: (seat: Author.Service) => Effect.Effect<A, never>
+  use: (seat: Author.Service) => Effect.Effect<A, unknown>
 ): Promise<A> =>
   Effect.runPromise(
     Effect.gen(function*() {

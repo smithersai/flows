@@ -11,8 +11,14 @@
  */
 import { Context, Effect, Layer, Ref, Schema } from "effect"
 
-/** @category errors @since 0.1.0 */
-export class AuthorError extends Schema.TaggedErrorClass<AuthorError>()("/chain/AuthorError", {
+/**
+ * A failure of the author seat: the seat is unreachable, or a scripted mock
+ * ran out of outputs.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
+export class AuthorError extends Schema.TaggedError<AuthorError>()("/chain/AuthorError", {
   code: Schema.Literals(["author_unavailable", "exhausted"]),
   message: Schema.String,
   /**
@@ -53,18 +59,40 @@ export const contextOf = (payload: unknown): ReadonlyArray<string> => {
   return []
 }
 
-/** @category services @since 0.1.0 */
+/**
+ * The seat's one operation: turn an author input into the raw model output
+ * the chain extracts a script from.
+ *
+ * @category services
+ * @since 0.1.0
+ */
 export interface Service {
   readonly author: (input: Input) => Effect.Effect<string, AuthorError>
 }
 
-/** @category services @since 0.1.0 */
+/**
+ * The author seat service tag.
+ *
+ * @category services
+ * @since 0.1.0
+ */
 export class Author extends Context.Service<Author, Service>()("/chain/Author") {}
 
-/** @category constructors @since 0.1.0 */
+/**
+ * Builds a seat from an implementation.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const make = (implementation: Service): Service => Author.of(implementation)
 
-/** @category constructors @since 0.1.0 */
+/**
+ * A seat whose every operation fails as unavailable, with per-operation
+ * overrides — the default a test starts from.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const makeNoop = (overrides: Partial<Service> = {}): Service =>
   make({
     author: Effect.fn("Author.author")(() =>
@@ -73,7 +101,12 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service =>
     ...overrides
   })
 
-/** @category layers @since 0.1.0 */
+/**
+ * The unavailable seat as a layer.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
 export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<Author> =>
   Layer.succeed(Author)(makeNoop(overrides))
 

@@ -11,8 +11,14 @@
 import * as Digest from "@smthrs/core/Digest"
 import { Clock, Context, type Effect, Layer, Random, Schema } from "effect"
 
-/** @category errors @since 0.1.0 */
-export class CallError extends Schema.TaggedErrorClass<CallError>()("/chain/CallError", {
+/**
+ * A call that reached its entry and failed there. The chain journals it as
+ * an observation rather than crashing the run.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
+export class CallError extends Schema.TaggedError<CallError>()("/chain/CallError", {
   name: Schema.String,
   message: Schema.String,
   /**
@@ -37,7 +43,13 @@ export interface CallSlot {
   readonly ordinal: number
 }
 
-/** @category models @since 0.1.0 */
+/**
+ * One entry a script may call: the name it is reached by, the description
+ * the model reads, and the handler that settles it.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface Entry {
   readonly name: string
   readonly description: string
@@ -55,13 +67,23 @@ export interface Entry {
   readonly capabilities?: ReadonlyArray<string> | undefined
 }
 
-/** @category services @since 0.1.0 */
+/**
+ * The visible entries and the lookup gate 3 decides membership with.
+ *
+ * @category services
+ * @since 0.1.0
+ */
 export interface Service {
   readonly entries: ReadonlyArray<Entry>
   readonly lookup: (name: string) => Entry | undefined
 }
 
-/** @category services @since 0.1.0 */
+/**
+ * The catalog service tag.
+ *
+ * @category services
+ * @since 0.1.0
+ */
 export class Catalog extends Context.Service<Catalog, Service>()("/chain/Catalog") {}
 
 /**
@@ -84,7 +106,12 @@ export const entryDigest = (entry: Entry): string =>
       name: entry.name
     }))
 
-/** @category constructors @since 0.1.0 */
+/**
+ * Builds a catalog over the given entries, indexed by name.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const make = (entries: ReadonlyArray<Entry>): Service => {
   const byName = new Map(entries.map((entry) => [entry.name, entry]))
   return Catalog.of({
@@ -129,11 +156,26 @@ export const system: ReadonlyArray<Entry> = [
  */
 export const withSystem = (entries: ReadonlyArray<Entry>): ReadonlyArray<Entry> => [...system, ...entries]
 
-/** @category constructors @since 0.1.0 */
+/**
+ * The empty catalog: every call misses gate 3.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const makeNoop = (): Service => make([])
 
-/** @category layers @since 0.1.0 */
+/**
+ * A catalog over the given entries, as a layer.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
 export const layer = (entries: ReadonlyArray<Entry>): Layer.Layer<Catalog> => Layer.succeed(Catalog)(make(entries))
 
-/** @category layers @since 0.1.0 */
+/**
+ * The empty catalog as a layer.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
 export const layerNoop: Layer.Layer<Catalog> = Layer.succeed(Catalog)(makeNoop())

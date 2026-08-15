@@ -8,13 +8,15 @@ import * as Script from "../src/Script.ts"
 import * as ScriptRunner from "../src/ScriptRunner.ts"
 import { flow, runChain } from "./harness.ts"
 
-const runners: ReadonlyArray<readonly [string, Layer.Layer<ScriptRunner.ScriptRunner>]> = [
+const runners: ReadonlyArray<
+  readonly [string, Layer.Layer<ScriptRunner.ScriptRunner, ScriptRunner.ScriptFailure>]
+> = [
   ["in-process", ScriptRunner.layerInProcess],
   ["quickjs", QuickJsRunner.layer()]
 ]
 
 const runWith = <E>(
-  layer: Layer.Layer<ScriptRunner.ScriptRunner>,
+  layer: Layer.Layer<ScriptRunner.ScriptRunner, ScriptRunner.ScriptFailure>,
   text: string,
   handler: (request: ScriptRunner.Request) => Effect.Effect<unknown, E>
 ): Promise<Outcome.Outcome> =>
@@ -25,7 +27,7 @@ const runWith = <E>(
   )
 
 const failWith = <E>(
-  layer: Layer.Layer<ScriptRunner.ScriptRunner>,
+  layer: Layer.Layer<ScriptRunner.ScriptRunner, ScriptRunner.ScriptFailure>,
   text: string,
   handler: (request: ScriptRunner.Request) => Effect.Effect<unknown, E>
 ): Promise<unknown> =>
@@ -261,7 +263,7 @@ describe("QuickJs sealed realm", () => {
       entries: Catalog.withSystem([]),
       runner: QuickJsRunner.layer()
     })
-    const [now, random] = (first.outcome as { value: [number, number] }).value
+    const [now, random] = (first.outcome as Outcome.Done).value as [number, number]
     expect(typeof now).toBe("number")
     expect(typeof random).toBe("number")
     expect(random).toBeGreaterThanOrEqual(0)

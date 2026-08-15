@@ -24,27 +24,55 @@ import * as Script from "./Script.ts"
  */
 const scoped = { chain: Schema.optional(Schema.String) }
 
-/** @category models @since 0.1.0 */
+/**
+ * The chain's first event: the goal it was started with and the caller's
+ * envelope.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const ChainStarted = Schema.TaggedStruct("ChainStarted", {
   ...scoped,
   goal: Schema.String,
   envelope: Schema.Json
 })
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link ChainStarted}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type ChainStarted = typeof ChainStarted.Type
 
-/** @category models @since 0.1.0 */
+/**
+ * The script a link will execute, recorded before it runs so a resumed link
+ * replays the same source.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const LinkAuthored = Schema.TaggedStruct("LinkAuthored", {
   ...scoped,
   link: CallKey.LinkId,
   script: Script.Script
 })
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link LinkAuthored}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type LinkAuthored = typeof LinkAuthored.Type
 
-/** @category models @since 0.1.0 */
+/**
+ * One call that reached an entry and produced a result — the unit the
+ * replay cache is keyed by.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const CallSettled = Schema.TaggedStruct("CallSettled", {
   ...scoped,
   link: CallKey.LinkId,
@@ -54,10 +82,21 @@ export const CallSettled = Schema.TaggedStruct("CallSettled", {
   result: Schema.Json
 })
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link CallSettled}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type CallSettled = typeof CallSettled.Type
 
-/** @category models @since 0.1.0 */
+/**
+ * One call a gate refused, recorded as the observation the next authoring
+ * reads.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const GateRejected = Schema.TaggedStruct("GateRejected", {
   ...scoped,
   link: CallKey.LinkId,
@@ -65,17 +104,32 @@ export const GateRejected = Schema.TaggedStruct("GateRejected", {
   observation: Observation.Observation
 })
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link GateRejected}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type GateRejected = typeof GateRejected.Type
 
-/** @category models @since 0.1.0 */
+/**
+ * The outcome a link ended with — the event that advances the link counter.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const LinkEnded = Schema.TaggedStruct("LinkEnded", {
   ...scoped,
   link: CallKey.LinkId,
   outcome: Outcome.Outcome
 })
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link LinkEnded}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type LinkEnded = typeof LinkEnded.Type
 
 /**
@@ -95,13 +149,28 @@ export const SteeringDrained = Schema.TaggedStruct("SteeringDrained", {
   messages: Schema.Array(Schema.String)
 })
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link SteeringDrained}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type SteeringDrained = typeof SteeringDrained.Type
 
-/** @category models @since 0.1.0 */
+/**
+ * Every event a chain can journal.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const Event = Schema.Union([ChainStarted, LinkAuthored, CallSettled, GateRejected, LinkEnded, SteeringDrained])
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link Event}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Event = typeof Event.Type
 
 /**

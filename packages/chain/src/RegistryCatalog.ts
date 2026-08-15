@@ -38,7 +38,14 @@ export type PromptRunner = (
   descriptor: Descriptor.FlowDescriptor
 ) => Effect.Effect<string, Catalog.CallError>
 
-/** @category models @since 0.1.0 */
+/**
+ * How the registry is projected into a catalog: which flows have host
+ * implementations, how markdown prompts execute, which flows are visible,
+ * and what extra entries follow.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface Options {
   readonly implementations?: ReadonlyMap<string, Implementation> | undefined
   readonly prompt?: PromptRunner | undefined

@@ -18,7 +18,23 @@ import * as ModelRequest from "@smthrs/model/ModelRequest"
 import { Effect, Layer, Stream } from "effect"
 import * as Author from "./Author.ts"
 
-/** @category models @since 0.1.0 */
+/**
+ * Joins an assistant message's visible text parts — the one fold every
+ * consumer of a settled message shares, so "what counts as visible text"
+ * has exactly one definition.
+ */
+const visibleText = (message: ModelRequest.AssistantMessage): string =>
+  message.content
+    .filter((part): part is ModelRequest.TextPart => part.type === "text")
+    .map((part) => part.text)
+    .join("\n")
+
+/**
+ * Which model the seat calls, and the generation parameters it calls with.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface Config {
   readonly modelId: string
   readonly params?: ModelRequest.GenerationParams | undefined
@@ -100,7 +116,7 @@ export const make = (config: Config): Effect.Effect<Author.Service, never, Model
               settled.message.stopReason
             )
           }
-          const text = ModelEvent.ModelEvent.visibleText(settled.message)
+          const text = visibleText(settled.message)
           if (text.trim() === "") {
             // The cell loop's "returned no text" rule: a reasoning-only
             // response is a seat failure, not an empty authored script.

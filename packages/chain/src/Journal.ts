@@ -10,29 +10,55 @@
 import { Context, Effect, Layer, Ref, Schema } from "effect"
 import type * as Event from "./Event.ts"
 
-/** @category errors @since 0.1.0 */
-export class JournalError extends Schema.TaggedErrorClass<JournalError>()("/chain/JournalError", {
+/**
+ * A journal that cannot be appended to or read.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
+export class JournalError extends Schema.TaggedError<JournalError>()("/chain/JournalError", {
   code: Schema.Literal("journal_unavailable").pipe(
     Schema.withConstructorDefault(Effect.succeed("journal_unavailable"))
   ),
   message: Schema.String
 }) {}
 
-/** @category services @since 0.1.0 */
+/**
+ * The two operations the chain needs: append one event, read them all.
+ *
+ * @category services
+ * @since 0.1.0
+ */
 export interface Service {
   readonly append: (event: Event.Event) => Effect.Effect<void, JournalError>
   readonly read: Effect.Effect<ReadonlyArray<Event.Event>, JournalError>
 }
 
-/** @category services @since 0.1.0 */
+/**
+ * The journal service tag.
+ *
+ * @category services
+ * @since 0.1.0
+ */
 export class Journal extends Context.Service<Journal, Service>()("/chain/Journal") {}
 
-/** @category constructors @since 0.1.0 */
+/**
+ * Builds a journal from an implementation.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const make = (implementation: Service): Service => Journal.of(implementation)
 
 const unavailable = (operation: string): JournalError => new JournalError({ message: `${operation} is unavailable` })
 
-/** @category constructors @since 0.1.0 */
+/**
+ * A journal whose every operation fails as unavailable, with per-operation
+ * overrides — the default a test starts from.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const makeNoop = (overrides: Partial<Service> = {}): Service =>
   make({
     append: Effect.fn("Journal.append")(() => Effect.fail(unavailable("append"))),
@@ -40,7 +66,12 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service =>
     ...overrides
   })
 
-/** @category layers @since 0.1.0 */
+/**
+ * The unavailable journal as a layer.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
 export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<Journal> =>
   Layer.succeed(Journal)(makeNoop(overrides))
 

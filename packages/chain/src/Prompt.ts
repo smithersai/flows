@@ -32,16 +32,36 @@ import * as sections from "./internal/prompts.ts"
  */
 export type Role = "concierge" | "sub"
 
-/** @category sections @since 0.1.0 */
+/**
+ * The BASE section: what the agent is and what a flow is.
+ *
+ * @category sections
+ * @since 0.1.0
+ */
 export const base = sections.base
 
-/** @category sections @since 0.1.0 */
+/**
+ * The CONCIERGE section, added only for the concierge role.
+ *
+ * @category sections
+ * @since 0.1.0
+ */
 export const concierge = sections.concierge
 
-/** @category sections @since 0.1.0 */
+/**
+ * The RULES section.
+ *
+ * @category sections
+ * @since 0.1.0
+ */
 export const rules = sections.rules
 
-/** @category sections @since 0.1.0 */
+/**
+ * The authoring contract: what one turn's reply must contain.
+ *
+ * @category sections
+ * @since 0.1.0
+ */
 export const contract = sections.contract
 
 const inline = (text: string): string => text.replaceAll(/\s+/g, " ").trim()
@@ -75,7 +95,13 @@ export const catalogBlock = (entries: ReadonlyArray<Catalog.Entry>): string => {
   ].join("\n")
 }
 
-/** @category models @since 0.1.0 */
+/**
+ * What assembly needs: the role the prefix addresses and the entries the
+ * catalog block advertises.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface AssembleOptions {
   readonly role: Role
   readonly entries: ReadonlyArray<Catalog.Entry>

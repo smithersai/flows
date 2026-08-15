@@ -24,13 +24,19 @@ import * as Script from "./Script.ts"
 import * as ScriptRunner from "./ScriptRunner.ts"
 import * as Steering from "./Steering.ts"
 
-/** @category errors @since 0.1.0 */
-export class ChainError extends Schema.TaggedErrorClass<ChainError>()("/chain/ChainError", {
+/**
+ * A chain that cannot proceed: a replayed link diverged from its journal,
+ * or the journal itself is not a valid chain history.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
+export class ChainError extends Schema.TaggedError<ChainError>()("/chain/ChainError", {
   code: Schema.Literals(["replay_divergence", "invalid_journal"]),
   message: Schema.String
 }) {}
 
-class LinkAborted extends Schema.TaggedErrorClass<LinkAborted>()("/chain/internal/LinkAborted", {
+class LinkAborted extends Schema.TaggedError<LinkAborted>()("/chain/internal/LinkAborted", {
   observation: Observation.Observation
 }) {}
 
@@ -39,11 +45,17 @@ class LinkAborted extends Schema.TaggedErrorClass<LinkAborted>()("/chain/interna
  * `LinkEnded`: resuming re-executes the link from its settled prefix and
  * re-asks the seam, converging under whatever grant now exists.
  */
-class ApprovalPark extends Schema.TaggedErrorClass<ApprovalPark>()("/chain/internal/ApprovalPark", {
+class ApprovalPark extends Schema.TaggedError<ApprovalPark>()("/chain/internal/ApprovalPark", {
   message: Schema.String
 }) {}
 
-/** @category models @since 0.1.0 */
+/**
+ * What a run needs: the goal, the budgets it may spend, and the journal
+ * scope it owns.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export interface Options {
   readonly goal: string
   readonly envelope?: typeof Schema.Json.Type | undefined

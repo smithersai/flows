@@ -215,7 +215,7 @@ describe("MemoryEntries", () => {
         (service) => Effect.succeed(service.entries.map((entry) => entry.name))
       ).pipe(
         Effect.provide(MemoryEntries.layer.pipe(Layer.provide(services)))
-      ) as Effect.Effect<ReadonlyArray<string>, never, never>
+      )
     )
     expect(catalog).toEqual(["sys/now", "sys/random", "remember", "recall"])
   })

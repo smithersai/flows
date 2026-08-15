@@ -39,8 +39,16 @@ const declaration = (name, text) => {
   return single.length <= 120 ? single : `export const ${name} =\n  ${JSON.stringify(text)}`
 }
 
+const block = (name) =>
+  `/**
+ * The \`${name}\` prompt section, compiled from \`prompts/${name}.mdx\`.
+ *
+ * @category sections
+ * @since 0.1.0
+ */`
+
 const body = sections
-  .map((section) => `/** @category sections @since 0.1.0 */\n${declaration(section.name, section.text)}\n`)
+  .map((section) => `${block(section.name)}\n${declaration(section.name, section.text)}\n`)
   .join("\n")
 
 writeFileSync(target, `${header}\n${body}`)

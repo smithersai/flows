@@ -10,7 +10,12 @@
  */
 import { Schema } from "effect"
 
-/** @category models @since 0.1.0 */
+/**
+ * Which gate produced the observation, or which stage failed.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const Kind = Schema.Literals([
   "shape",
   "fuel",
@@ -20,19 +25,39 @@ export const Kind = Schema.Literals([
   "denied"
 ])
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link Kind}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Kind = typeof Kind.Type
 
-/** @category models @since 0.1.0 */
+/**
+ * One gate observation: its kind and the prose the next authoring reads.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export const Observation = Schema.Struct({
   kind: Kind,
   message: Schema.String
 })
 
-/** @category models @since 0.1.0 */
+/**
+ * The decoded form of {@link Observation}.
+ *
+ * @category models
+ * @since 0.1.0
+ */
 export type Observation = typeof Observation.Type
 
-/** @category constructors @since 0.1.0 */
+/**
+ * Builds an observation from its kind and message.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const make = (kind: Kind, message: string): Observation => ({ kind, message })
 
 /**

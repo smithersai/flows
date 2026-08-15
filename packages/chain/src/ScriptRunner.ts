@@ -12,8 +12,15 @@ import { Context, Effect, Layer, Schema } from "effect"
 import * as Outcome from "./Outcome.ts"
 import type * as Script from "./Script.ts"
 
-/** @category errors @since 0.1.0 */
-export class ScriptFailure extends Schema.TaggedErrorClass<ScriptFailure>()("/chain/ScriptFailure", {
+/**
+ * A script that did not reach an outcome: it failed to compile, threw at
+ * runtime, returned something that is not an outcome, or the interpreter
+ * itself is unavailable.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
+export class ScriptFailure extends Schema.TaggedError<ScriptFailure>()("/chain/ScriptFailure", {
   code: Schema.Literals(["compile", "runtime", "invalid_outcome", "runner_unavailable"]),
   message: Schema.String
 }) {}
@@ -30,7 +37,13 @@ export interface Request {
   readonly payload: unknown
 }
 
-/** @category services @since 0.1.0 */
+/**
+ * The interpreter's one operation: run a script to an outcome, settling
+ * each call it issues through the given handler.
+ *
+ * @category services
+ * @since 0.1.0
+ */
 export interface Service {
   readonly run: <E>(
     script: Script.Script,
@@ -38,13 +51,29 @@ export interface Service {
   ) => Effect.Effect<Outcome.Outcome, ScriptFailure | E>
 }
 
-/** @category services @since 0.1.0 */
+/**
+ * The script interpreter service tag.
+ *
+ * @category services
+ * @since 0.1.0
+ */
 export class ScriptRunner extends Context.Service<ScriptRunner, Service>()("/chain/ScriptRunner") {}
 
-/** @category constructors @since 0.1.0 */
+/**
+ * Builds an interpreter from an implementation.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const make = (implementation: Service): Service => ScriptRunner.of(implementation)
 
-/** @category constructors @since 0.1.0 */
+/**
+ * An interpreter whose every operation fails as unavailable, with
+ * per-operation overrides — the default a test starts from.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const makeNoop = (overrides: Partial<Service> = {}): Service =>
   make({
     run: Effect.fn("ScriptRunner.run")(() =>
@@ -53,7 +82,12 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service =>
     ...overrides
   })
 
-/** @category layers @since 0.1.0 */
+/**
+ * The unavailable interpreter as a layer.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
 export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<ScriptRunner> =>
   Layer.succeed(ScriptRunner)(makeNoop(overrides))
 

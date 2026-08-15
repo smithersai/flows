@@ -16,8 +16,14 @@ import type * as Permission from "@smthrs/capability-next/Permission"
 import { Context, Effect, Layer, Option, Schema } from "effect"
 import type * as Catalog from "./Catalog.ts"
 
-/** @category errors @since 0.1.0 */
-export class AuthorizeError extends Schema.TaggedErrorClass<AuthorizeError>()("/chain/AuthorizeError", {
+/**
+ * A refusal from the authorization seam: a policy denial, a required
+ * approval, or an unreachable seam.
+ *
+ * @category errors
+ * @since 0.1.0
+ */
+export class AuthorizeError extends Schema.TaggedError<AuthorizeError>()("/chain/AuthorizeError", {
   code: Schema.Literals(["denied", "approval_required", "authorize_unavailable"]),
   message: Schema.String
 }) {}
@@ -36,18 +42,40 @@ export interface Request {
   readonly slot: Catalog.CallSlot
 }
 
-/** @category services @since 0.1.0 */
+/**
+ * The seam's one operation: succeed when the call is allowed, fail with the
+ * typed refusal otherwise.
+ *
+ * @category services
+ * @since 0.1.0
+ */
 export interface Service {
   readonly authorize: (request: Request) => Effect.Effect<void, AuthorizeError>
 }
 
-/** @category services @since 0.1.0 */
+/**
+ * The authorization seam service tag.
+ *
+ * @category services
+ * @since 0.1.0
+ */
 export class Authorize extends Context.Service<Authorize, Service>()("/chain/Authorize") {}
 
-/** @category constructors @since 0.1.0 */
+/**
+ * Builds a seam from an implementation.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const make = (implementation: Service): Service => Authorize.of(implementation)
 
-/** @category constructors @since 0.1.0 */
+/**
+ * A seam whose every operation fails as unavailable, with per-operation
+ * overrides — the default a test starts from.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
 export const makeNoop = (overrides: Partial<Service> = {}): Service =>
   make({
     authorize: Effect.fn("Authorize.authorize")(() =>
@@ -56,7 +84,12 @@ export const makeNoop = (overrides: Partial<Service> = {}): Service =>
     ...overrides
   })
 
-/** @category layers @since 0.1.0 */
+/**
+ * The unavailable seam as a layer.
+ *
+ * @category layers
+ * @since 0.1.0
+ */
 export const layerNoop = (overrides: Partial<Service> = {}): Layer.Layer<Authorize> =>
   Layer.succeed(Authorize)(makeNoop(overrides))
 

@@ -16,9 +16,17 @@ export interface RunOptions {
   readonly author: Layer.Layer<Author.Author>
   readonly goal?: string
   readonly entries?: ReadonlyArray<Catalog.Entry>
-  readonly catalog?: Layer.Layer<Catalog.Catalog>
+  /**
+   * A catalog layer may itself need the base services (SubChains); `layersOf`
+   * provides them from the very same memoized instances the chain runs on.
+   */
+  readonly catalog?: Layer.Layer<
+    Catalog.Catalog,
+    never,
+    Journal.Journal | Author.Author | ScriptRunner.ScriptRunner
+  >
   readonly initial?: ReadonlyArray<Event.Event>
-  readonly runner?: Layer.Layer<ScriptRunner.ScriptRunner>
+  readonly runner?: Layer.Layer<ScriptRunner.ScriptRunner, ScriptRunner.ScriptFailure>
   readonly steering?: Layer.Layer<Steering.Steering>
   readonly authorize?: Layer.Layer<Authorize.Authorize>
   readonly envelope?: unknown
