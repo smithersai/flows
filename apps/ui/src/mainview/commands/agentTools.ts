@@ -9,7 +9,7 @@
  * `CommandRegistry.executeForAgent` (actor smithers), and the honest result
  * string below is what the continuation turn posts back to the model.
  */
-import type { AgentToolSpec } from "../../shared/NativeAgent";
+import type { AgentToolSpec } from "smithers-shared/NativeAgent";
 import type { CommandRegistry } from "./Commands";
 import type { CommandMeta } from "./registry";
 import { visible } from "./registry";

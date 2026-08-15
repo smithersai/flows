@@ -1,10 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { lookup } from "node:dns/promises";
 import { createCloudAgent } from "../bun/CloudAgent";
-import { AgentRuntimeContextSchema } from "../shared/AgentContext";
-import { CANCEL_PATH, TOOLS_BROWSER_FETCH_PATH, TURN_PATH } from "../shared/AgentApiRoutes";
-import { browserFetch, browserFetchResponseBody } from "../shared/BrowserFetch";
-import type { AgentTurnFrame, StartAgentTurnRequest } from "../shared/NativeAgent";
+import { AgentRuntimeContextSchema } from "smithers-shared/AgentContext";
+import { CANCEL_PATH, TOOLS_BROWSER_FETCH_PATH, TURN_PATH } from "smithers-shared/AgentApiRoutes";
+import { browserFetch, browserFetchResponseBody } from "smithers-shared/BrowserFetch";
+import type { AgentTurnFrame, StartAgentTurnRequest } from "smithers-shared/NativeAgent";
 
 /*
  * Same-origin server boundary for pure-web Smithers chat. The browser posts a turn to

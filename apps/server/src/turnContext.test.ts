@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import worker from "./index";
 import type { WorkerEnv } from "./index";
-import type { AgentRuntimeContext } from "../shared/AgentContext";
+import type { AgentRuntimeContext } from "smithers-shared/AgentContext";
 
 const context: AgentRuntimeContext = {
 	version: 1,

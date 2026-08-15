@@ -5,7 +5,7 @@ import type {
 	LocalRepositoryInspection,
 	PickLocalRepositoryResult,
 	RepositoryAccess,
-} from "../shared/NativeRepository";
+} from "smithers-shared/NativeRepository";
 
 const git = async (
 	directory: string,

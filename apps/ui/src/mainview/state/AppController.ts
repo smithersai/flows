@@ -1,6 +1,6 @@
 import { parseWikilinks, restoreWikilinks } from "@smthrs/ui/vault";
-import type { RepositoryAccess } from "../../shared/NativeRepository";
-import type { AgentChatMessage, AgentTurnFrame, FetchLike } from "../../shared/NativeAgent";
+import type { RepositoryAccess } from "smithers-shared/NativeRepository";
+import type { AgentChatMessage, AgentTurnFrame, FetchLike } from "smithers-shared/NativeAgent";
 import {
 	ADMIN_ALLOWLIST_PATH,
 	ADMIN_FEEDBACK_PATH,
@@ -26,7 +26,7 @@ import {
 	WORKFLOW_PROVISION_PATH,
 	WORKFLOW_RPC_PATH,
 	WORKFLOW_STREAM_PATH,
-} from "../../shared/AgentApiRoutes";
+} from "smithers-shared/AgentApiRoutes";
 import type { NativeAgent, NativeRepositories } from "../native/NativeBridge";
 import { createCommandRegistry } from "../commands/Commands";
 import type { CommandOutcome, CommandRegistry } from "../commands/Commands";
@@ -70,8 +70,8 @@ import type { Palette } from "./AppState";
 import type { Card, RecoDigestPayload, RecoRecommendationPayload, WorldDocument } from "./AppState";
 import type { AppStore } from "./AppStore";
 import { REPO_CHOOSER_CARD_ID, THEME_PICKER_CARD_ID } from "./AppStore";
-import { AGENT_RUNTIME_CONTEXT_VERSION } from "../../shared/AgentContext";
-import type { AgentRuntimeContext } from "../../shared/AgentContext";
+import { AGENT_RUNTIME_CONTEXT_VERSION } from "smithers-shared/AgentContext";
+import type { AgentRuntimeContext } from "smithers-shared/AgentContext";
 import { foldLineages } from "../chain/DebugFolds";
 
 /**

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { StorageApi } from "@tanstack/db";
 import { Effect, Layer } from "effect";
-import { Author, Catalog, Chain, ScriptRunner } from "@smthrs/chain";
+import { Author, Catalog, Chain, ScriptRunner } from "@smthrs/chain-next";
 import { createAppStore } from "../state/AppStore";
 import { layerCollection } from "./CollectionJournal";
 import { foldLineages } from "./DebugFolds";

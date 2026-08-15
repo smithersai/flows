@@ -3,16 +3,16 @@ import {
 	CardPlanItemSchema,
 	CardPatchSchema,
 	CardSchema,
-} from "../../shared/Cards";
-import { REPOSITORY_ACCESS_VALUES } from "../../shared/NativeRepository";
+} from "smithers-shared/Cards";
+import { REPOSITORY_ACCESS_VALUES } from "smithers-shared/NativeRepository";
 import type {
 	LocalRepositoryInspection,
 	RepositoryAccess,
-} from "../../shared/NativeRepository";
+} from "smithers-shared/NativeRepository";
 
 export { CardPlanItemSchema, CardPatchSchema, CardSchema };
-import type { Card, CardPatch } from "../../shared/Cards";
-export type { Card, CardPatch, CardPlanItem } from "../../shared/Cards";
+import type { Card, CardPatch } from "smithers-shared/Cards";
+export type { Card, CardPatch, CardPlanItem } from "smithers-shared/Cards";
 
 export const ActorSchema = z.enum(["user", "smithers", "system"]);
 export type Actor = z.infer<typeof ActorSchema>;

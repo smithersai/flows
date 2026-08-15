@@ -4,8 +4,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { createAppController } from "./AppController";
 import { CardView } from "../ChatCards";
 import type { NativeAgent, NativeRepositories } from "../native/NativeBridge";
-import type { AgentTurnFrame } from "../../shared/NativeAgent";
-import type { Card } from "../../shared/Cards";
+import type { AgentTurnFrame } from "smithers-shared/NativeAgent";
+import type { Card } from "smithers-shared/Cards";
 import { createAppStore } from "./AppStore";
 
 const memoryStorage = (): StorageApi => {

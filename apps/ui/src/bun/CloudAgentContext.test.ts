@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { createCloudAgent } from "./CloudAgent";
-import type { AgentRuntimeContext } from "../shared/AgentContext";
+import type { AgentRuntimeContext } from "smithers-shared/AgentContext";
 
 const context: AgentRuntimeContext = {
 	version: 1,

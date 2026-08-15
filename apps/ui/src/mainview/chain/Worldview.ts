@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import { Catalog } from "@smthrs/chain";
+import { Catalog } from "@smthrs/chain-next";
 import type { AppStore } from "../state/AppStore";
 
 /*

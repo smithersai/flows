@@ -1,0 +1,21 @@
+{
+	"name": "smithers-server",
+	"version": "1.0.0",
+	"private": true,
+	"type": "module",
+	"description": "Smithers closed-alpha Cloudflare Worker: same-origin agent API, gateway relay, and host for the smithers-ui build",
+	"scripts": {
+		"dev": "bun x wrangler dev",
+		"serve:local": "bun x wrangler dev",
+		"deploy:dry-run": "bun x wrangler deploy --dry-run",
+		"typecheck": "tsc --noEmit",
+		"test": "bun test src"
+	},
+	"dependencies": {
+		"smithers-shared": "workspace:*"
+	},
+	"devDependencies": {
+		"@types/bun": "latest",
+		"typescript": "^5.7.2"
+	}
+}

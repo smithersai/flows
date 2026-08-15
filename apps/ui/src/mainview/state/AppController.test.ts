@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { StorageApi } from "@tanstack/db";
 import { createAppController } from "./AppController";
 import type { NativeAgent, NativeRepositories } from "../native/NativeBridge";
-import type { AgentTurnFrame } from "../../shared/NativeAgent";
+import type { AgentTurnFrame } from "smithers-shared/NativeAgent";
 import { createAppStore } from "./AppStore";
 
 const memoryStorage = (): StorageApi => {

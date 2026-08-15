@@ -1,13 +1,13 @@
 import { z } from "zod";
-import { composeAgentInstructions } from "../shared/AgentContext";
-import { CardPatchSchema, CardSchema } from "../shared/Cards";
-import { AgentTurnDoneReasonSchema } from "../shared/NativeAgent";
+import { composeAgentInstructions } from "smithers-shared/AgentContext";
+import { CardPatchSchema, CardSchema } from "smithers-shared/Cards";
+import { AgentTurnDoneReasonSchema } from "smithers-shared/NativeAgent";
 import type {
 	AgentTurnFrame,
 	FetchLike,
 	StartAgentTurnRequest,
 	StartAgentTurnResult,
-} from "../shared/NativeAgent";
+} from "smithers-shared/NativeAgent";
 
 const DEFAULT_CHAT_URL = "https://chat.smithers.sh/chat";
 const DEFAULT_APP_ORIGIN = "https://smithers.sh";

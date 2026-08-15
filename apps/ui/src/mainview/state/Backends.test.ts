@@ -5,7 +5,7 @@ import type { AppServices } from "./AppController";
 import { createAppStore } from "./AppStore";
 import type { AppStore } from "./AppStore";
 import type { NativeAgent, NativeRepositories } from "../native/NativeBridge";
-import type { AgentTurnFrame } from "../../shared/NativeAgent";
+import type { AgentTurnFrame } from "smithers-shared/NativeAgent";
 import type { Card } from "./AppState";
 
 const memoryStorage = (): StorageApi => {

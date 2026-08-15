@@ -18,8 +18,8 @@ import { createAppController } from "./AppController";
 import type { AppServices } from "./AppController";
 import { createAppStore } from "./AppStore";
 import type { NativeAgent, NativeRepositories } from "../native/NativeBridge";
-import type { AgentTurnFrame, StartAgentTurnRequest } from "../../shared/NativeAgent";
-import type { Card } from "../../shared/Cards";
+import type { AgentTurnFrame, StartAgentTurnRequest } from "smithers-shared/NativeAgent";
+import type { Card } from "smithers-shared/Cards";
 import { claimsRunState, renderedRunTurnText, runLaunchCommandOf, toolResultLaunchedRun } from "./RunClaims";
 
 const memoryStorage = (): StorageApi => {

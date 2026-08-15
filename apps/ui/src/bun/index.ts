@@ -1,6 +1,6 @@
 import { BrowserView, BrowserWindow, Updater, Utils } from "electrobun/bun";
-import type { AgentTurnFrame } from "../shared/NativeAgent";
-import type { SmithersNativeRPC } from "../shared/NativeRPC";
+import type { AgentTurnFrame } from "smithers-shared/NativeAgent";
+import type { SmithersNativeRPC } from "smithers-shared/NativeRPC";
 import { createCloudAgent } from "./CloudAgent";
 import { inspectLocalRepository } from "./LocalRepository";
 

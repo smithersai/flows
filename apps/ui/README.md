@@ -5,8 +5,8 @@ A fast Electrobun desktop app template with React, Tailwind CSS, and Vite for ho
 ## Getting Started
 
 ```bash
-# Install dependencies
-bun install
+# Install dependencies (pnpm workspace install, from the monorepo root)
+pnpm install
 
 # Development without HMR (uses bundled assets)
 bun run dev
@@ -37,24 +37,33 @@ When you run `bun run dev` (without HMR):
 
 ## Project Structure
 
+This package (`smithers-ui`) is one of three apps in the monorepo. Code it used
+to own now lives in siblings: `apps/shared` publishes the wire contracts as the
+workspace package `smithers-shared`, and `apps/server` holds the Cloudflare
+Worker. Runtime packages come from the monorepo's `packages/` tree as pnpm
+workspace links; there is no vendored `@smthrs` closure any more.
+
 ```
-├── src/
-│   ├── bun/
-│   │   └── index.ts        # Main process (Electrobun/Bun)
-│   └── mainview/
-│       ├── App.tsx         # React app component
-│       ├── main.tsx        # React entry point
-│       ├── index.html      # HTML template
-│       └── index.css       # Tailwind CSS
-├── electrobun.config.ts    # Electrobun configuration
-├── vite.config.ts          # Vite configuration
-├── tailwind.config.js      # Tailwind configuration
-└── package.json
+apps/
+├── shared/                 # smithers-shared: wire contracts (imported as "smithers-shared/<Module>")
+├── server/                 # Cloudflare Worker + wrangler.jsonc
+└── ui/                     # this package
+    ├── src/
+    │   ├── bun/            # Electrobun main process (index.ts, CloudAgent, LocalRepository)
+    │   ├── dev/            # AgentApi middleware for the vite dev/preview server
+    │   └── mainview/       # React renderer (App.tsx, main.tsx, index.html, index.css)
+    ├── scripts/            # e2e and live-check drivers
+    ├── electrobun.config.ts
+    ├── vite.config.ts
+    ├── tailwind.config.js
+    └── package.json
 ```
 
 ## Customizing
 
 - **React components**: Edit files in `src/mainview/`
+- **Shared contracts**: Edit `apps/shared/src/`, import as `smithers-shared/<Module>`
+- **Dev-server API**: Edit `src/dev/AgentApi.ts`
 - **Tailwind theme**: Edit `tailwind.config.js`
 - **Vite settings**: Edit `vite.config.ts`
 - **Window settings**: Edit `src/bun/index.ts`

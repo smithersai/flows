@@ -1,6 +1,6 @@
-import { CANCEL_PATH, TURN_PATH } from "../../shared/AgentApiRoutes";
-import { isAgentTurnFrame } from "../../shared/NativeAgent";
-import type { AgentTurnFrame, FetchLike, StartAgentTurnResult } from "../../shared/NativeAgent";
+import { CANCEL_PATH, TURN_PATH } from "smithers-shared/AgentApiRoutes";
+import { isAgentTurnFrame } from "smithers-shared/NativeAgent";
+import type { AgentTurnFrame, FetchLike, StartAgentTurnResult } from "smithers-shared/NativeAgent";
 import type { NativeAgent } from "./NativeBridge";
 
 const MAX_ERROR_BYTES = 320;

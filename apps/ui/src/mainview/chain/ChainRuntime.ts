@@ -1,13 +1,13 @@
 import { Effect, Fiber, Layer, Ref } from "effect";
-import { Catalog, Chain, Journal, Prompt, QuickJsRunner, Steering, SubChains } from "@smthrs/chain";
-import type { Author, Event, Outcome, ScriptRunner } from "@smthrs/chain";
-import { CardPatchSchema, CardSchema } from "../../shared/Cards";
+import { Catalog, Chain, Journal, Prompt, QuickJsRunner, Steering, SubChains } from "@smthrs/chain-next";
+import type { Author, Event, Outcome, ScriptRunner } from "@smthrs/chain-next";
+import { CardPatchSchema, CardSchema } from "smithers-shared/Cards";
 import type {
 	AgentChatMessage,
 	AgentTurnFrame,
 	FetchLike,
 	StartAgentTurnRequest,
-} from "../../shared/NativeAgent";
+} from "smithers-shared/NativeAgent";
 import type { CommandRegistry } from "../commands/Commands";
 import type { NativeAgent } from "../native/NativeBridge";
 import type { AppStore } from "../state/AppStore";

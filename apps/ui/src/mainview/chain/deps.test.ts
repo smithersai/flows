@@ -2,8 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { Effect, Layer } from "effect";
-import { Author, Catalog, Chain, Journal, QuickJsRunner, ScriptRunner } from "@smthrs/chain";
-import type { Event, Outcome } from "@smthrs/chain";
+import { Author, Catalog, Chain, Journal, QuickJsRunner, ScriptRunner } from "@smthrs/chain-next";
+import type { Event, Outcome } from "@smthrs/chain-next";
 
 /*
  * DESIGN.md §14 dependency law, proven not asserted: @smthrs/chain resolves

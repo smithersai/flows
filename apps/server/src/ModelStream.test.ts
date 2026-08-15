@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { MODEL_STREAM_PATH } from "../shared/AgentApiRoutes";
+import { MODEL_STREAM_PATH } from "smithers-shared/AgentApiRoutes";
 import worker from "./index";
 import type { WorkerEnv } from "./index";
 

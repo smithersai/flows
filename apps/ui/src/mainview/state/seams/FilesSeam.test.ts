@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { StorageApi } from "@tanstack/db";
-import { CardSchema } from "../../../shared/Cards";
+import { CardSchema } from "smithers-shared/Cards";
 import type { NativeAgent, NativeRepositories } from "../../native/NativeBridge";
 import { createAppController } from "../AppController";
 import type { AppServices } from "../AppController";

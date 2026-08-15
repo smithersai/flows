@@ -1,7 +1,7 @@
 import { defineConfig } from "vite";
 import type { Plugin } from "vite";
 import react from "@vitejs/plugin-react";
-import { installAgentApi } from "./src/server/AgentApi";
+import { installAgentApi } from "./src/dev/AgentApi";
 
 const crossOriginIsolationHeaders = {
 	"Cross-Origin-Opener-Policy": "same-origin",

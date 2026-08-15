@@ -3,6 +3,6 @@
  * in the app imports this file; Bun.build compiles it from inside the repo so
  * module resolution sees the real node_modules.
  */
-import { Chain, QuickJsRunner } from "@smthrs/chain";
+import { Chain, QuickJsRunner } from "@smthrs/chain-next";
 
 export const probe = [typeof Chain.run, typeof QuickJsRunner.layer];

@@ -1,12 +1,12 @@
 import { Effect, Layer, Redacted, Result } from "effect";
 import * as FetchHttpClient from "effect/unstable/http/FetchHttpClient";
 import * as HttpClient from "effect/unstable/http/HttpClient";
-import * as KernelHttpClient from "@smthrs/kernel/HttpClient";
+import * as KernelHttpClient from "@smthrs/kernel-next/HttpClient";
 import { Endpoint, Model, RequestExecutor, Route } from "@smthrs/model";
-import { ModelAuthor } from "@smthrs/chain";
-import type { Author } from "@smthrs/chain";
-import { MODEL_STREAM_PATH } from "../../shared/AgentApiRoutes";
-import type { FetchLike } from "../../shared/NativeAgent";
+import { ModelAuthor } from "@smthrs/chain-next";
+import type { Author } from "@smthrs/chain-next";
+import { MODEL_STREAM_PATH } from "smithers-shared/AgentApiRoutes";
+import type { FetchLike } from "smithers-shared/NativeAgent";
 
 /*
  * The browser model seat (DESIGN.md §14, decision D1): the real @smthrs/model

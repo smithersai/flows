@@ -515,10 +515,12 @@ export const predicate = (ast: Ast): ((value: unknown) => boolean) | undefined =
 export const catchFilter = (ast: Ast): Schema.Top | undefined => ast._tag === "Catch" ? internal.filter(ast) : undefined
 
 /**
- * Digests a plan-time function the AST does NOT store — a flow's `body` —
- * exactly as the AST digests the mapper and the continuation it does store.
+ * Identifies a plan-time function the AST does NOT store — a flow's `body` —
+ * exactly as the AST identifies the mapper and continuation it does store.
  * A call that keeps its callee as a leaf still has to re-key when that
- * callee's body is edited, and this is the identity it folds in.
+ * callee's body is edited, and this is the identity it folds in. Unannotated
+ * functions fail closed with process-local identity; use {@link capture} to
+ * declare inert captures and obtain deterministic identity.
  *
  * @since 0.1.0
  * @private

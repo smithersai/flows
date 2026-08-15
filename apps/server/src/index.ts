@@ -21,10 +21,10 @@ import {
 	WORKFLOW_PROVISION_PATH,
 	WORKFLOW_RPC_PATH,
 	WORKFLOW_STREAM_PATH,
-} from "../shared/AgentApiRoutes";
-import { AgentRuntimeContextSchema, composeAgentInstructions } from "../shared/AgentContext";
-import { browserFetch, browserFetchResponseBody, resolveHostOverHttps } from "../shared/BrowserFetch";
-import type { StartAgentTurnRequest } from "../shared/NativeAgent";
+} from "smithers-shared/AgentApiRoutes";
+import { AgentRuntimeContextSchema, composeAgentInstructions } from "smithers-shared/AgentContext";
+import { browserFetch, browserFetchResponseBody, resolveHostOverHttps } from "smithers-shared/BrowserFetch";
+import type { StartAgentTurnRequest } from "smithers-shared/NativeAgent";
 import {
 	ALLOWED_GATEWAY_METHODS,
 	callGateway,

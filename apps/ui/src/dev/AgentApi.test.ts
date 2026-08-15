@@ -1,7 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
-import { CANCEL_PATH, TURN_PATH } from "../shared/AgentApiRoutes";
+import { CANCEL_PATH, TURN_PATH } from "smithers-shared/AgentApiRoutes";
 import { installAgentApi } from "./AgentApi";
 import type { MiddlewareHost } from "./AgentApi";
 

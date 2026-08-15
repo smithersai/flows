@@ -4,7 +4,7 @@ import { createAppController } from "./AppController";
 import type { AppServices } from "./AppController";
 import { createAppStore } from "./AppStore";
 import type { NativeAgent, NativeRepositories } from "../native/NativeBridge";
-import type { AgentTurnFrame, StartAgentTurnRequest } from "../../shared/NativeAgent";
+import type { AgentTurnFrame, StartAgentTurnRequest } from "smithers-shared/NativeAgent";
 
 /*
  * Wave 10 — the onboarding conversation (repos.watch), the watched set, the

@@ -3,7 +3,7 @@ import type { StorageApi } from "@tanstack/db";
 import { createAppController } from "./AppController";
 import { createAppStore } from "./AppStore";
 import type { NativeAgent, NativeRepositories } from "../native/NativeBridge";
-import type { AgentTurnFrame, StartAgentTurnRequest } from "../../shared/NativeAgent";
+import type { AgentTurnFrame, StartAgentTurnRequest } from "smithers-shared/NativeAgent";
 
 const memoryStorage = (): StorageApi => {
 	const data = new Map<string, string>();

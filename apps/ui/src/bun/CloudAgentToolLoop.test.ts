@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import type { AgentToolSpec, AgentTurnFrame } from "../shared/NativeAgent";
+import type { AgentToolSpec, AgentTurnFrame } from "smithers-shared/NativeAgent";
 import { createCloudAgent } from "./CloudAgent";
 
 /*
  * The native/dev boundary must speak the SAME tool-loop contract as the product
- * Worker (src/worker/index.ts). It previously forwarded neither the tool specs
+ * Worker (apps/server/src/index.ts). It previously forwarded neither the tool specs
  * nor the tool_call / done.reason frames, so the whole Wave-3b loop was dead on
  * the native app and on `bun dev` while passing on the deployed Worker.
  */

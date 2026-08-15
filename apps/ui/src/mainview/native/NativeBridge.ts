@@ -3,12 +3,12 @@ import type {
 	AgentTurnFrame,
 	StartAgentTurnRequest,
 	StartAgentTurnResult,
-} from "../../shared/NativeAgent";
-import type { SmithersNativeRPC } from "../../shared/NativeRPC";
+} from "smithers-shared/NativeAgent";
+import type { SmithersNativeRPC } from "smithers-shared/NativeRPC";
 import type {
 	PickLocalRepositoryResult,
 	RepositoryAccess,
-} from "../../shared/NativeRepository";
+} from "smithers-shared/NativeRepository";
 import { createWebAgent } from "./WebAgent";
 
 const agentFrameListeners = new Set<(frame: AgentTurnFrame) => void>();

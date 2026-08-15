@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { Card } from "../../shared/Cards";
-import type { AgentTurnFrame, StartAgentTurnRequest } from "../../shared/NativeAgent";
+import type { Card } from "smithers-shared/Cards";
+import type { AgentTurnFrame, StartAgentTurnRequest } from "smithers-shared/NativeAgent";
 import { createWebAgent } from "./WebAgent";
 
 const request: StartAgentTurnRequest = {

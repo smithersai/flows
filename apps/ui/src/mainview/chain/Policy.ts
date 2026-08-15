@@ -1,5 +1,5 @@
 import { Effect, Layer } from "effect";
-import { Authorize } from "@smthrs/chain";
+import { Authorize } from "@smthrs/chain-next";
 
 /*
  * The three-tier policy (Now §6 → DESIGN.md §14) as the chain's gate-4 seam.

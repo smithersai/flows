@@ -106,7 +106,7 @@ describe("Graph.build topology", () => {
 
     expect(body(graph, "root.flow.andThen").mapper).toMatchObject({
       _tag: "FunctionIdentity",
-      algorithm: "sha256-source/v2"
+      algorithm: "sha256-source-ephemeral/v4"
     })
     expect(body(graph, "root.flow.andThen.map")).toEqual({ _tag: "All", members: ["left", "right"] })
     expect(body(graph, "root.flow")).toMatchObject({ _tag: "AndThen", static: false })
@@ -255,7 +255,7 @@ describe("Graph.build planned values", () => {
     ])
     expect(body(graph, "root.flow").predicate).toMatchObject({
       _tag: "FunctionIdentity",
-      algorithm: "sha256-source/v2"
+      algorithm: "sha256-source-ephemeral/v4"
     })
     expect(material(graph, "root.flow.then").inputs).toEqual([
       { _tag: "Literal", value: { _tag: "Done", value: { _tag: "PlannedInput", path: [] } } },
@@ -467,14 +467,14 @@ describe("Graph.build composition", () => {
       const Callee = Flow.make("keys/callee", {
         payload: { path: Schema.String },
         success: Schema.Number,
-        body: calleeBody
+        body: Node.capture({}, calleeBody)
       })
       const boundary: Node.Node<number> = Node.flowCall(Callee, "keys/callee", "boundary", { path: "counter.txt" })
       return (body(Graph.build(boundary), "root").declaration as Record<string, unknown>).body
     }
     const one = digestOf(({ path }) => Write.call({ path, value: 1 }))
 
-    expect(one).toMatchObject({ _tag: "FunctionIdentity", algorithm: "sha256-source/v2" })
+    expect(one).toMatchObject({ _tag: "FunctionIdentity", algorithm: "sha256-source-captures/v3" })
     expect(digestOf(({ path }) => Write.call({ path, value: 1 }))).toEqual(one)
     expect(digestOf(({ path }) => Write.call({ path, value: 2 }))).not.toEqual(one)
 
@@ -733,25 +733,25 @@ describe("Graph.build into a plan", () => {
 
   it.effect("re-keys exactly what reads an edited mapper, and nothing upstream of it", () =>
     Effect.gen(function*() {
-      const flowWith = (bump: (value: number) => number) =>
+      const flowWith = (delta: number) =>
         Flow.make("keys/map", {
           payload: { path: Schema.String },
           success: Schema.Number,
-          body: ({ path }) =>
+          body: Node.capture({ delta }, ({ path }) =>
             Increment.call({ path }).pipe(
-              Node.map(bump),
-              Node.andThen((value) => Write.call({ path, value }))
+              Node.map(Node.capture({ delta }, (value: number) => value + delta)),
+              Node.andThen(Node.capture({ path }, (value) => Write.call({ path, value })))
             )
         })
       const before = yield* compile(
         "plan-keys",
         "keys/map",
-        Graph.build(flowWith((value) => value + 1), { path: "counter.txt" })
+        Graph.build(flowWith(1), { path: "counter.txt" })
       )
       const after = yield* compile(
         "plan-keys",
         "keys/map",
-        Graph.build(flowWith((value) => value + 2), { path: "counter.txt" })
+        Graph.build(flowWith(2), { path: "counter.txt" })
       )
 
       expect(after.nodes.map((planned) => planned.id)).toEqual(before.nodes.map((planned) => planned.id))

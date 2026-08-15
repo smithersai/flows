@@ -1,10 +1,10 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
-import { TURN_PATH } from "../shared/AgentApiRoutes";
+import { TURN_PATH } from "smithers-shared/AgentApiRoutes";
 import { installAgentApi } from "./AgentApi";
 import type { MiddlewareHost } from "./AgentApi";
-import type { AgentRuntimeContext } from "../shared/AgentContext";
+import type { AgentRuntimeContext } from "smithers-shared/AgentContext";
 
 const contextFixture = (overrides: Partial<AgentRuntimeContext> = {}): AgentRuntimeContext => ({
 	version: 1,

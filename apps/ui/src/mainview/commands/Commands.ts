@@ -5,7 +5,7 @@
  * through the one `run` path below. Launch law: a button with no command
  * behind it is a launch blocker (parity.test.ts gates this).
  */
-import type { RepositoryAccess } from "../../shared/NativeRepository";
+import type { RepositoryAccess } from "smithers-shared/NativeRepository";
 import { splitTrailingRepo } from "../state/RepoContext";
 import type { AppController } from "../state/AppController";
 import { PALETTES, WORLD_DISPLAY_NAME } from "../state/AppState";

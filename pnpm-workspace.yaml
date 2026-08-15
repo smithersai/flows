@@ -2,6 +2,7 @@ packages:
   - "packages/*"
   - "packages/tsflows/infra"
   - "examples"
+  - "apps/*"
 
 allowBuilds:
   dprint: false

@@ -188,16 +188,20 @@ export interface ActionCall {
 }
 
 /**
- * The serializable stand-in for a function: a tagged digest of its exact
- * source. The algorithm tag is versioned so a change to how sources are
- * digested re-keys everything derived from one, rather than colliding with it.
+ * The serializable stand-in for a function. Captured functions digest their
+ * exact source and declared inert captures. Unannotated functions additionally
+ * carry process-local, per-object entropy so indistinguishable closure sources
+ * fail closed instead of sharing a cache key.
+ *
+ * The algorithm tag is versioned so a change to identity semantics re-keys
+ * everything derived from one, rather than colliding with it.
  *
  * @since 0.1.0
  * @private
  */
 export interface FunctionIdentity {
   readonly _tag: "FunctionIdentity"
-  readonly algorithm: "sha256-source/v2" | "sha256-source-captures/v3"
+  readonly algorithm: "sha256-source-ephemeral/v4" | "sha256-source-captures/v3" | "static-node/v1"
   readonly digest: string
 }
 
@@ -212,6 +216,12 @@ interface CapturedMetadata {
 
 /** @private */
 type CapturedFunction = { readonly [CapturedTypeId]?: CapturedMetadata }
+
+const ephemeralNonceBytes = new Uint8Array(16)
+globalThis.crypto.getRandomValues(ephemeralNonceBytes)
+const ephemeralNonce = [...ephemeralNonceBytes].map((byte) => byte.toString(16).padStart(2, "0")).join("")
+const ephemeralIdentities = new WeakMap<object, string>()
+let ephemeralOrdinal = 0
 
 /** @private */
 const captureError = (path: string, reason: string): TypeError =>
@@ -378,18 +388,27 @@ export const value = (input: unknown, seen: WeakMap<object, unknown> = new WeakM
 /**
  * Digests a function's exact source as UTF-8 with SHA-256. Exact source matters:
  * whitespace inside a string literal is behavior, and normalizing it before
- * hashing can make different functions share an identity.
+ * hashing can make different functions share an identity. Unless its inert
+ * captures were declared with {@link capture}, the digest also includes
+ * process-local, per-function entropy: JavaScript cannot inspect a closure, so
+ * source-only identity would permit incorrect cache hits.
  *
  * @since 0.1.0
  * @private
  */
 export const functionIdentity = (operation: unknown): FunctionIdentity => {
+  if (typeof operation !== "function") throw new TypeError("function identity requires a function")
   const metadata = (operation as CapturedFunction)[CapturedTypeId]
   const source = metadata?.source ?? Function.prototype.toString.call(operation)
+  let ephemeral = ephemeralIdentities.get(operation)
+  if (metadata === undefined && ephemeral === undefined) {
+    ephemeral = `${ephemeralNonce}:${ephemeralOrdinal++}`
+    ephemeralIdentities.set(operation, ephemeral)
+  }
   return {
     _tag: "FunctionIdentity",
-    algorithm: metadata === undefined ? "sha256-source/v2" : "sha256-source-captures/v3",
-    digest: sha256(metadata === undefined ? source : `${source}\0${metadata.captures}`)
+    algorithm: metadata === undefined ? "sha256-source-ephemeral/v4" : "sha256-source-captures/v3",
+    digest: sha256(metadata === undefined ? `${source}\0${ephemeral}` : `${source}\0${metadata.captures}`)
   }
 }
 
@@ -491,7 +510,7 @@ export const andThen = (first: NodeAst, operation: Operation, source: unknown): 
 export const andThenNode = (first: NodeAst, next: NodeAst): AndThen => ({
   _tag: "AndThen",
   first,
-  continuation: { _tag: "FunctionIdentity", algorithm: "sha256-source/v2", digest: "static-node" },
+  continuation: { _tag: "FunctionIdentity", algorithm: "static-node/v1", digest: sha256("static-node") },
   next
 })
 

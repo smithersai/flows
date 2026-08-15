@@ -56,7 +56,7 @@ describe("Node", () => {
     const node = Node.succeed(2).pipe(Node.map((value) => value + 1))
     const ast = tagged(node.ast, "Map")
     expect(ast.first).toEqual({ _tag: "Succeed", value: 2 })
-    expect(ast.mapper).toMatchObject({ _tag: "FunctionIdentity", algorithm: "sha256-source/v2" })
+    expect(ast.mapper).toMatchObject({ _tag: "FunctionIdentity", algorithm: "sha256-source-ephemeral/v4" })
     expect(ast.mapper.digest).toMatch(/^[0-9a-f]{64}$/)
     expect(internal.operation(ast)?.(2)).toBe(3)
   })
@@ -70,7 +70,7 @@ describe("Node", () => {
     const ast = tagged(node.ast, "AndThen")
     expect(built).toBe(0)
     expect(ast.next).toBeUndefined()
-    expect(ast.continuation.digest).not.toBe("static-node")
+    expect(ast.continuation.algorithm).toBe("sha256-source-ephemeral/v4")
     const continued = internal.operation(ast)?.(Planned.make<number>("upstream"))
     expect(built).toBe(1)
     expect(Node.isNode(continued)).toBe(true)
@@ -80,7 +80,8 @@ describe("Node", () => {
     const node = Node.succeed(2).pipe(Node.andThen(Node.succeed("done")))
     const ast = tagged(node.ast, "AndThen")
     expect(ast.next).toEqual({ _tag: "Succeed", value: "done" })
-    expect(ast.continuation.digest).toBe("static-node")
+    expect(ast.continuation.algorithm).toBe("static-node/v1")
+    expect(ast.continuation.digest).toMatch(/^[0-9a-f]{64}$/)
     expect(internal.operation(ast)).toBeUndefined()
   })
 
@@ -229,13 +230,14 @@ describe("Node", () => {
     expect(JSON.parse(json)).toEqual(node.ast)
   })
 
-  it("digests a function by its source, so identical sources key identically", () => {
+  it("keeps raw function identity stable per object and fail-closed across objects", () => {
     const increment = (value: number): number => value + 1
     const alsoIncrement = (value: number): number => value + 1
     const decrement = (value: number): number => value - 1
     const digest = (f: (value: number) => number): string =>
       tagged(Node.succeed(1).pipe(Node.map(f)).ast, "Map").mapper.digest
-    expect(digest(increment)).toBe(digest(alsoIncrement))
+    expect(digest(increment)).toBe(digest(increment))
+    expect(digest(increment)).not.toBe(digest(alsoIncrement))
     expect(digest(increment)).not.toBe(digest(decrement))
 
     const continueWithValue = (value: Planned.Planned<number>) => Node.succeed(value)
@@ -244,7 +246,8 @@ describe("Node", () => {
     const continuationDigest = (
       f: (value: Planned.Planned<number>) => Node.Any
     ): string => tagged(Node.andThen(Node.succeed(1), f).ast, "AndThen").continuation.digest
-    expect(continuationDigest(continueWithValue)).toBe(continuationDigest(alsoContinueWithValue))
+    expect(continuationDigest(continueWithValue)).toBe(continuationDigest(continueWithValue))
+    expect(continuationDigest(continueWithValue)).not.toBe(continuationDigest(alsoContinueWithValue))
     expect(continuationDigest(continueWithValue)).not.toBe(continuationDigest(continueWithZero))
   })
 })
