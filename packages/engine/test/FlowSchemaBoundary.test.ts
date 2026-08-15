@@ -27,6 +27,16 @@ const InvalidFailure = Flow.make("SchemaBoundary/invalid-failure", {
   body: () => Node.succeed("unused")
 })
 
+const NestedSuccess = Schema.Struct({
+  outputs: Schema.Array(Schema.Struct({ path: Schema.NonEmptyString }))
+})
+
+const ValidSuccess = Flow.make("SchemaBoundary/valid-success", {
+  payload: {},
+  success: NestedSuccess,
+  body: () => Node.succeed({ outputs: [{ path: "unused" }] })
+})
+
 const layers = (): ReadonlyArray<readonly [string, Layer.Layer<FlowRuntime.FlowRuntime>]> => [
   ["memory", FlowEngine.layerMemory],
   ["durable", layerDurable(makeLog())]
@@ -39,6 +49,21 @@ const assertDefect = (exit: Exit.Exit<unknown, unknown>): void => {
 
 describe("flow schema boundary", () => {
   for (const [runtime, layer] of layers()) {
+    effect(`${runtime} accepts a valid value with nested checks`, () =>
+      Effect.gen(function*() {
+        const value = { outputs: [{ path: "out" }] }
+        const result = yield* Effect.scoped(Effect.gen(function*() {
+          const engine = yield* FlowRuntime.FlowRuntime
+          yield* engine.register(ValidSuccess, () => Effect.succeed(value))
+          return yield* ValidSuccess.execute(
+            {},
+            { executionId: `${runtime}-valid-nested-success` }
+          )
+        })).pipe(Effect.provide(layer))
+
+        expect(result).toEqual(value)
+      }))
+
     effect(`${runtime} rejects a success outside the declared schema`, () =>
       Effect.gen(function*() {
         const exit = yield* Effect.scoped(Effect.gen(function*() {

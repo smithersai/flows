@@ -71,8 +71,6 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
     register: Effect.fnUntraced(function*(flow, execute) {
       const services = yield* Effect.context<FlowRuntime.FlowRuntime>()
       const registration = { flow }
-      const successSchema = Schema.toCodecJson(flow.successSchema)
-      const errorSchema = Schema.toCodecJson(flow.errorSchema)
       const existing = declarations.get(flow._tag)
       const entries = existing ?? []
       if (existing === undefined) declarations.set(flow._tag, entries)
@@ -89,7 +87,7 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
           Effect.matchEffect(Effect.suspend(() => execute(payload, executionId)), {
             onFailure: (error) =>
               Effect.flatMap(
-                Effect.orDie(Schema.encodeEffect(errorSchema)(error)),
+                Effect.orDie(flow.errorSchema.makeEffect(error)),
                 () => Effect.fail(error)
               ),
             onSuccess: (value) =>
@@ -98,7 +96,7 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
                 // returns `undefined` only to leave through `Flow.intoResult`,
                 // which replaces that value with the recorded handoff.
                 instance.handoff === undefined
-                  ? Effect.as(Effect.orDie(Schema.encodeEffect(successSchema)(value)), value)
+                  ? Effect.as(Effect.orDie(flow.successSchema.makeEffect(value)), value)
                   : Effect.succeed(value))
           }).pipe(
             Effect.updateContext(
