@@ -5,6 +5,21 @@
  */
 import * as Schema from "effect/Schema"
 
+/**
+ * The canonical spelling of a declared path or pattern: every separator is
+ * `/`.
+ *
+ * {@link workspaceRelative} accepts a backslash as a separator, so
+ * `dist\same.js` and `dist/same.js` are two spellings of ONE workspace path.
+ * Every exact-path comparison in this module goes through this form, because
+ * comparing the raw spellings would let the separator alias defeat overlap
+ * detection exactly as `.` segments and empty segments would.
+ *
+ * @category accessors
+ * @since 0.1.0
+ */
+export const canonical = (path: string): string => path.replaceAll("\\", "/")
+
 /** Workspace-relative glob pattern.
  * @category schemas
  * @since 0.1.0
@@ -27,7 +42,7 @@ export const Pattern = Schema.NonEmptyString.check(
  */
 export const workspaceRelative = (pattern: string): boolean => {
   if (pattern.startsWith("/")) return false
-  const segments = pattern.replaceAll("\\", "/").split("/")
+  const segments = canonical(pattern).split("/")
   if (segments[0]!.endsWith(":")) return false
   return segments.every((segment) => segment !== ".." && segment !== "." && segment !== "")
 }
@@ -185,7 +200,7 @@ const escape = (value: string): string => value.replaceAll(/[.+?^${}()|[\]\\]/g,
 
 /** Compiles Bazel's `*`/`**` path semantics without permitting traversal. */
 const patternExpression = (pattern: string): RegExp => {
-  const segments = pattern.replaceAll("\\", "/").split("/")
+  const segments = canonical(pattern).split("/")
   let source = "^"
   for (let index = 0; index < segments.length; index++) {
     const segment = segments[index]!
@@ -213,17 +228,27 @@ export const matchesGlob = (glob: Glob, path: string): boolean =>
   glob.include.some((pattern) => matchesPattern(pattern, path)) &&
   !(glob.exclude ?? []).some((pattern) => matchesPattern(pattern, path))
 
-const beneath = (tree: string, path: string): boolean => path === tree || path.startsWith(`${tree}/`)
+const beneath = (tree: string, path: string): boolean => {
+  const root = canonical(tree)
+  const inside = canonical(path)
+  return inside === root || inside.startsWith(`${root}/`)
+}
 
 /**
  * Conservative static overlap. `true` may over-serialize; `false` proves that
  * no path can belong to both declarations.
  *
+ * Exact paths compare in their {@link canonical} separator form, so the
+ * backslash and slash spellings of one workspace path overlap. A glob tests
+ * the path bytes it is handed — its property suite pins a backslash INSIDE a
+ * path segment as literal text — so canonicalizing a measured path before
+ * matching is its caller's decision, not this module's.
+ *
  * @category predicates
  * @since 0.1.0
  */
 export const overlaps = (left: Entry, right: Entry): boolean => {
-  if (typeof left === "string" && typeof right === "string") return left === right
+  if (typeof left === "string" && typeof right === "string") return canonical(left) === canonical(right)
   if (typeof left === "string" && isGlob(right)) return matchesGlob(right, left)
   if (isGlob(left) && typeof right === "string") return matchesGlob(left, right)
   if (isGlob(left) && isGlob(right)) return true

@@ -67,13 +67,13 @@ describe("FileBoundary", () => {
     if (decoded._tag === "Success") expect(decoded.success.writeSet).toHaveLength(writeSet.length)
   })
 
-  // BUG: Backslash and slash spellings denote one workspace path but overlap compares them as distinct strings.
-  it.fails("normalizes Windows and POSIX separator spellings when comparing overlaps", () => {
+  // Backslash and slash spellings denote one workspace path, so overlap
+  // compares them in FileSet's canonical separator form.
+  it("normalizes Windows and POSIX separator spellings when comparing overlaps", () => {
     expect(FileSet.overlaps("dist\\same.js", "dist/same.js")).toBe(true)
   })
 
-  // BUG: FileBoundary accepts one path as both written and removed when its separators differ.
-  it.fails("rejects separator variants of the same written and removed path", () => {
+  it("rejects separator variants of the same written and removed path", () => {
     expectSchemaFailure({
       readSet: [],
       writeSet: ["dist\\same.js"],
