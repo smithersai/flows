@@ -73,9 +73,9 @@ const wire = (value: number) => {
 
 /** Polls a result until the predicate holds, so a suspension is observed rather than timed. */
 const pollUntil = <A, E, R>(
-  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>,
+  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, FlowRuntime.FlowExecutionNotFound, R>,
   predicate: (result: Flow.Result<A, E>) => boolean
-): Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R> =>
+): Effect.Effect<Option.Option<Flow.Result<A, E>>, FlowRuntime.FlowExecutionNotFound, R> =>
   Effect.gen(function*() {
     let result = yield* poll
     for (let index = 0; index < 50 && (Option.isNone(result) || !predicate(result.value)); index++) {

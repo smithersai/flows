@@ -289,8 +289,11 @@ describe("a durable lineage", () => {
           ),
           Interpreter.layer(Counter),
           Layer.mergeAll(
+            // The constructed child payload always satisfies its schema, so
+            // the typed SchemaError on execute cannot occur and is disposed of
+            // as a defect.
             ParentActionDeclaration.toLayer(({ target }) =>
-              Counter.execute({ value: 0, target }, { executionId: "durable-child-lineage" })
+              Effect.orDie(Counter.execute({ value: 0, target }, { executionId: "durable-child-lineage" }))
             ),
             Interpreter.layer(Parent)
           ).pipe(

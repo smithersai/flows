@@ -12,7 +12,7 @@
  * without real process boundaries. See `DurableLogEngine.ts`.
  */
 import { describe, expect, it } from "@effect/vitest"
-import { Action, DurableDeferred, Flow, Interpreter, RetryPolicy } from "@smthrs/flow-next"
+import { Action, DurableDeferred, Flow, FlowRuntime, Interpreter, RetryPolicy } from "@smthrs/flow-next"
 import { Cause, Effect, Exit, Layer, Option, Schema } from "effect"
 import type * as Crypto from "effect/Crypto"
 import { TestClock } from "effect/testing"
@@ -24,9 +24,9 @@ const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Cr
 
 /** Polls a result until the predicate holds, bounded by scheduler turns. */
 const pollUntil = <A, E, R>(
-  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>,
+  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, FlowRuntime.FlowExecutionNotFound, R>,
   predicate: (result: Flow.Result<A, E>) => boolean
-): Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R> =>
+): Effect.Effect<Option.Option<Flow.Result<A, E>>, FlowRuntime.FlowExecutionNotFound, R> =>
   Effect.gen(function*() {
     let result = yield* poll
     for (let index = 0; index < 100 && (Option.isNone(result) || !predicate(result.value)); index++) {
@@ -278,7 +278,9 @@ describe("durable driver contract across an engine restart", () => {
       body: (payload) => parentStepDeclaration.call(payload)
     })
     const stack = Layer.mergeAll(
-      parentStepDeclaration.toLayer(() => child.execute({ n: 1 }, { executionId: "cascade-child" })),
+      // The literal child payload always satisfies its schema, so the typed
+      // SchemaError on execute cannot occur and is disposed of as a defect.
+      parentStepDeclaration.toLayer(() => Effect.orDie(child.execute({ n: 1 }, { executionId: "cascade-child" }))),
       Interpreter.layer(parent)
     ).pipe(
       Layer.provideMerge(Action.layerImplementations),

@@ -1600,7 +1600,16 @@ export const make = (
             : Effect.die(error)
         ),
         Effect.flatMap((row) => {
-          if (row === undefined) return Effect.succeedNone
+          if (row === undefined) {
+            // No run row at all is a typed not-found; `Option.none` is
+            // reserved for a known run that has not settled yet.
+            return Effect.fail(
+              new FlowRuntime.FlowExecutionNotFound({
+                code: "execution_not_found",
+                executionId
+              })
+            )
+          }
           return decodeState(row.stateJson).pipe(
             Effect.flatMap((state) => {
               if (
@@ -1654,7 +1663,9 @@ export const make = (
         yield* ensureRun(flow, options)
         yield* coordinator.run(options.executionId)
         if (options.discard) return undefined as Discard extends true ? void : never
-        const result = yield* poll(flow, options.executionId)
+        // `ensureRun` created the row above, so a not-found here is a broken
+        // store invariant, not a caller-recoverable state.
+        const result = yield* Effect.orDie(poll(flow, options.executionId))
         return Option.getOrElse(result, () => new Flow.Suspended({})) as Discard extends true ? void
           : Flow.Result<unknown, unknown>
       }

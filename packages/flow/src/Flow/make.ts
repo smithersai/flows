@@ -92,23 +92,29 @@ const Proto = {
       readonly executionId?: string | undefined
     } | undefined
   ) {
-    return Effect.suspend(() => {
-      const payload = this.payloadSchema.make(fields)
-      return Effect.flatMap(
-        resolveExecutionId(this, payload, opts?.executionId),
-        (executionId) =>
-          Effect.flatMap(FlowRuntime, (engine) =>
-            Effect.andThen(
-              Effect.annotateCurrentSpan({ executionId }),
-              engine.execute(this as any, {
-                executionId,
-                payload,
-                discard: opts?.discard,
-                suspendedRetryPolicy: this.suspendedRetryPolicy
-              })
-            ))
+    // Caller input that fails the payload schema is data, not programmer
+    // wiring, so it FAILS with the schema's typed `SchemaError` — carrying
+    // the offending field path — instead of dying with the raw constructor
+    // throw `payloadSchema.make` would produce.
+    return this.payloadSchema.makeEffect(fields).pipe(
+      Effect.mapError((issue) => new Schema.SchemaError(issue)),
+      Effect.flatMap((payload) =>
+        Effect.flatMap(
+          resolveExecutionId(this, payload, opts?.executionId),
+          (executionId) =>
+            Effect.flatMap(FlowRuntime, (engine) =>
+              Effect.andThen(
+                Effect.annotateCurrentSpan({ executionId }),
+                engine.execute(this as any, {
+                  executionId,
+                  payload,
+                  discard: opts?.discard,
+                  suspendedRetryPolicy: this.suspendedRetryPolicy
+                })
+              ))
+        )
       )
-    }).pipe(
+    ).pipe(
       Effect.withSpan(
         `${this._tag}.execute`,
         {},

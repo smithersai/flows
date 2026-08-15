@@ -25,7 +25,7 @@ describe("memory engine execution surface", () => {
     }).pipe(Effect.provide(FlowEngine.layerMemory))
   })
 
-  effect("polls None for an unknown execution id", () => {
+  effect("fails poll for an unknown execution id with a typed not-found", () => {
     const flowActionDeclaration = Action.make("Memory/poll-none/action", {
       payload: { id: Schema.String },
       success: Schema.Void
@@ -41,7 +41,14 @@ describe("memory engine execution surface", () => {
       Layer.provideMerge(FlowEngine.layerMemory)
     )
     return Effect.gen(function*() {
-      expect(Option.isNone(yield* flow.poll("never-started"))).toBe(true)
+      // `Option.none` is reserved for a known, unsettled run; an id the
+      // engine never recorded is a typed failure the caller can distinguish.
+      const error = yield* Effect.flip(flow.poll("never-started"))
+      expect(error).toMatchObject({
+        _tag: "@smthrs/flow-next/FlowExecutionNotFound",
+        code: "execution_not_found",
+        executionId: "never-started"
+      })
     }).pipe(Effect.provide(layer))
   })
 
@@ -642,7 +649,9 @@ describe("flow definition surface", () => {
     // UNDER the parent's rather than beside it: that is what answers the child
     // flow's requirement where the parent's implementation asks for it.
     const layer = Layer.mergeAll(
-      parentActionDeclaration.toLayer(() => child.execute({ n: 1 }, { executionId: "child-run" })),
+      // The literal child payload always satisfies its schema, so the typed
+      // SchemaError on execute cannot occur and is disposed of as a defect.
+      parentActionDeclaration.toLayer(() => Effect.orDie(child.execute({ n: 1 }, { executionId: "child-run" }))),
       Interpreter.layer(parent)
     ).pipe(
       Layer.provideMerge(Action.layerImplementations),
@@ -688,7 +697,11 @@ describe("flow definition surface", () => {
     // UNDER the parent's rather than beside it: that is what answers the child
     // flow's requirement where the parent's implementation asks for it.
     const layer = Layer.mergeAll(
-      parentActionDeclaration.toLayer(() => child.execute({ n: 1 }, { executionId: "child-run-f" })),
+      parentActionDeclaration.toLayer(() =>
+        child.execute({ n: 1 }, { executionId: "child-run-f" }).pipe(
+          Effect.catchTag("SchemaError", (error) => Effect.die(error))
+        )
+      ),
       Interpreter.layer(parent)
     ).pipe(
       Layer.provideMerge(Action.layerImplementations),

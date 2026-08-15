@@ -21,7 +21,7 @@ const effect = (name: string, body: () => Effect.Effect<void, unknown, Crypto.Cr
   it.effect(name, () => withCrypto(body().pipe(Effect.provide(TestClock.layer()))))
 
 const pollSuspended = <A, E, R>(
-  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>
+  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, FlowRuntime.FlowExecutionNotFound, R>
 ) =>
   Effect.gen(function*() {
     let result = yield* poll
@@ -34,7 +34,7 @@ const pollSuspended = <A, E, R>(
   })
 
 const pollComplete = <A, E, R>(
-  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, never, R>
+  poll: Effect.Effect<Option.Option<Flow.Result<A, E>>, FlowRuntime.FlowExecutionNotFound, R>
 ) =>
   Effect.gen(function*() {
     let result = yield* poll
@@ -103,7 +103,13 @@ describe("FlowEngine.layerMemory durable waits", () => {
       const engine = yield* FlowRuntime.FlowRuntime
       yield* engine.resume(Parked, "never-started")
       yield* engine.interrupt(Parked, "never-started")
-      expect(Option.isNone(yield* Parked.poll("never-started"))).toBe(true)
+      // Neither no-op invented an execution: poll still reports the id as a
+      // typed not-found rather than `Option.none`.
+      const error = yield* Effect.flip(Parked.poll("never-started"))
+      expect(error).toMatchObject({
+        _tag: "@smthrs/flow-next/FlowExecutionNotFound",
+        executionId: "never-started"
+      })
     }).pipe(Effect.provide(ParkedLayer)))
 
   effect("a wake with no remaining registration leaves the execution parked", () =>

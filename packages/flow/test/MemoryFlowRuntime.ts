@@ -195,7 +195,12 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
       poll: ((_flow: any, executionId: string) =>
         Effect.suspend(() => {
           const state = executions.get(executionId)
-          const exit = state?.fiber?.pollUnsafe()
+          if (!state) {
+            return Effect.fail(
+              new FlowRuntime.FlowExecutionNotFound({ code: "execution_not_found", executionId })
+            )
+          }
+          const exit = state.fiber?.pollUnsafe()
           if (!exit) return Effect.succeedNone
           return exit._tag === "Success" ? Effect.succeedSome(exit.value) : Effect.die(exit.cause)
         })) as any,

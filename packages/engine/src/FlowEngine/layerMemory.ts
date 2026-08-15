@@ -275,7 +275,14 @@ export const layerMemory: Layer.Layer<FlowRuntime.FlowRuntime> = Layer.effect(Fl
         Effect.suspend(() => {
           const state = executions.get(executionId)
           if (!state) {
-            return Effect.succeedNone
+            // An unknown execution is a typed failure, not `Option.none`:
+            // `none` is reserved for a known run that has not settled yet.
+            return Effect.fail(
+              new FlowRuntime.FlowExecutionNotFound({
+                code: "execution_not_found",
+                executionId
+              })
+            )
           }
           const exit = state.fiber?.pollUnsafe()
           if (!exit) {

@@ -265,8 +265,11 @@ describe("a lineage on the memory engine", () => {
       const { calls, layer } = wire(
         Interpreter.layer(Counter),
         Layer.mergeAll(
+          // The constructed child payload always satisfies its schema, so the
+          // typed SchemaError on execute cannot occur and is disposed of as a
+          // defect.
           ParentActionDeclaration.toLayer(({ target }) =>
-            Counter.execute({ value: 0, target }, { executionId: "memory-child-lineage" })
+            Effect.orDie(Counter.execute({ value: 0, target }, { executionId: "memory-child-lineage" }))
           ),
           Interpreter.layer(Parent)
         ).pipe(
@@ -361,7 +364,10 @@ describe("a lineage on the memory engine", () => {
                 payload: { value: 0, target: 1 },
                 discard: true
               })
-              let polled: Exit.Exit<Option.Option<Flow.Result<unknown, unknown>>> = yield* Effect.exit(
+              let polled: Exit.Exit<
+                Option.Option<Flow.Result<unknown, unknown>>,
+                FlowRuntime.FlowExecutionNotFound
+              > = yield* Effect.exit(
                 runtime.poll(Counter, "memory-scoped-lifetime")
               )
               for (let index = 0; index < 50; index++) {
