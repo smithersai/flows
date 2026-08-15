@@ -741,7 +741,7 @@ describe("Graph.build into a plan", () => {
             Increment.call({ path }).pipe(
               Node.map(Node.capture({ delta }, (value: number) => value + delta)),
               Node.andThen(Node.capture({ path }, (value) => Write.call({ path, value })))
-            )
+            ))
         })
       const before = yield* compile(
         "plan-keys",
