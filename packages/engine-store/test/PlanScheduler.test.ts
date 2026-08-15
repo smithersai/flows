@@ -790,6 +790,50 @@ describe("PlanScheduler conflict strategies", () => {
     expect(Option.getOrThrow(persisted).generation).toBe(1)
   })
 
+  it("holds a stop/merge elaboration until its conflicting peer settles", async () => {
+    const plan = await runPromise(compile([
+      draft("lane-a", { writes: ["shared.out"] }),
+      draft("lane-b", { writes: ["shared.out"], conflictStrategy: "lane", runtimeStrategy: "stop-merge" })
+    ]))
+    const observed = await runPromise(
+      Effect.gen(function*() {
+        const laneAGate = yield* Latch.make()
+        const laneAStarted = yield* Latch.make()
+        const executor: PlanScheduler.Executor = {
+          execute: ({ node }) => {
+            if (node.id === "lane-a") {
+              return Latch.open(laneAStarted).pipe(
+                Effect.andThen(Latch.await(laneAGate)),
+                Effect.as(node.id)
+              )
+            }
+            if (node.id === "lane-b") {
+              return Latch.await(laneAStarted).pipe(Effect.andThen(Effect.fail(conflict())))
+            }
+            return Effect.succeed(node.id)
+          }
+        }
+        yield* activate("run-merge-waits-for-peer")
+        const service = scheduler({ runId: "run-merge-waits-for-peer", executor })
+        yield* service.record(plan)
+        const running = yield* Effect.provide(
+          service.run(plan),
+          harness({ runId: "run-merge-waits-for-peer", executor })
+        ).pipe(Effect.forkChild({ startImmediately: true }))
+
+        yield* awaitNodeSettlement("run-merge-waits-for-peer", "lane-b")
+        const store = yield* PlanStore.PlanStore
+        const beforePeerSettled = yield* store.get("plan-1")
+        yield* Latch.open(laneAGate)
+        return { beforePeerSettled, report: yield* Fiber.join(running) }
+      }).pipe(Effect.provide(TestStores.layer()))
+    )
+
+    expect(Option.getOrThrow(observed.beforePeerSettled).nodes.map((node) => node.id)).toEqual(["lane-a", "lane-b"])
+    expect(observed.report.appended).toEqual(["lane-b+merge"])
+    expect(outcomes(observed.report)).toEqual({ "lane-a": "built", "lane-b": "skipped", "lane-b+merge": "built" })
+  })
+
   it("appends and settles a stop/merge node while unrelated work remains in flight", async () => {
     const plan = await runPromise(compile([
       draft("lane-a", { writes: ["shared.out"] }),

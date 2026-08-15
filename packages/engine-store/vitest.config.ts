@@ -14,8 +14,13 @@ export default defineConfig({
     // correct suites over the default wall. Raise the budget instead of
     // trimming the workload, and keep it FINITE so a genuine hang still
     // fails the run rather than hanging the gate forever.
-    testTimeout: 30_000,
-    hookTimeout: 30_000,
+    testTimeout: 60_000,
+    hookTimeout: 60_000,
+    // The package has several real-filesystem integration suites. Letting
+    // Vitest scale to every logical CPU makes sixteen coverage-instrumented
+    // workers contend for the same disk and turns 13-17 s tests into 60 s
+    // timeouts. A bounded pool is faster and stable under a loaded CI host.
+    maxWorkers: 4,
     coverage: {
       // `enabled: true` makes every `vitest` run compute and ENFORCE these
       // thresholds — a red gate fails the run (issues #20/#32).

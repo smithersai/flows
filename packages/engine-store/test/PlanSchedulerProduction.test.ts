@@ -226,73 +226,77 @@ const draft = (id: string, options: DraftOptions = {}): Plan.NodeDraft => ({
 })
 
 describe("a persisted plan driven end to end under the production composition", () => {
-  it.effect("re-runs only the cone below an edited input; every unchanged branch is a cache hit", () =>
-    Effect.gen(function*() {
-      const root = mkdtempSync(join(tmpdir(), "flows-plan-"))
-      const plan = yield* withCrypto(Plan.compile({ planId: "prod-plan", flow: "example/Render", nodes: graph() }))
-      const first: Array<string> = []
-      const second: Array<string> = []
+  it.effect(
+    "re-runs only the cone below an edited input; every unchanged branch is a cache hit",
+    () =>
+      Effect.gen(function*() {
+        const root = mkdtempSync(join(tmpdir(), "flows-plan-"))
+        const plan = yield* withCrypto(Plan.compile({ planId: "prod-plan", flow: "example/Render", nodes: graph() }))
+        const first: Array<string> = []
+        const second: Array<string> = []
 
-      const stores = TestStores.layer()
-      const program = Effect.gen(function*() {
-        yield* write(join(root, "src/a.txt"), "alpha")
-        yield* write(join(root, "src/b.txt"), "beta")
+        const stores = TestStores.layer()
+        const program = Effect.gen(function*() {
+          yield* write(join(root, "src/a.txt"), "alpha")
+          yield* write(join(root, "src/b.txt"), "beta")
 
-        yield* activate("prod-run-1")
-        const one = PlanScheduler.make({ runId: "prod-run-1", owner, sourceId: "plan/prod-run-1" })
-        const recorded = yield* one.record(plan)
-        const before = yield* Effect.provide(
-          one.run(plan),
-          Layer.merge(production(root), PlanScheduler.layerExecutor(renderer(first)))
-        )
+          yield* activate("prod-run-1")
+          const one = PlanScheduler.make({ runId: "prod-run-1", owner, sourceId: "plan/prod-run-1" })
+          const recorded = yield* one.record(plan)
+          const before = yield* Effect.provide(
+            one.run(plan),
+            Layer.merge(production(root), PlanScheduler.layerExecutor(renderer(first)))
+          )
 
-        // The world moves: one source file is edited between runs. Nothing else
-        // changes — same plan value, same keys, same declarations.
-        yield* write(join(root, "src/a.txt"), "ALPHA")
+          // The world moves: one source file is edited between runs. Nothing else
+          // changes — same plan value, same keys, same declarations.
+          yield* write(join(root, "src/a.txt"), "ALPHA")
 
-        yield* activate("prod-run-2")
-        const two = PlanScheduler.make({ runId: "prod-run-2", owner, sourceId: "plan/prod-run-2" })
-        const after = yield* Effect.provide(
-          two.run(plan),
-          Layer.merge(production(root), PlanScheduler.layerExecutor(renderer(second)))
-        )
-        const events = yield* JournalRecords.entries("prod-run-2", undefined, 512)
-        return { after, before, events, recorded }
-      }).pipe(Effect.provide(stores))
+          yield* activate("prod-run-2")
+          const two = PlanScheduler.make({ runId: "prod-run-2", owner, sourceId: "plan/prod-run-2" })
+          const after = yield* Effect.provide(
+            two.run(plan),
+            Layer.merge(production(root), PlanScheduler.layerExecutor(renderer(second)))
+          )
+          const events = yield* JournalRecords.entries("prod-run-2", undefined, 512)
+          return { after, before, events, recorded }
+        }).pipe(Effect.provide(stores))
 
-      const { after, before, events, recorded } = yield* withCrypto(program)
+        const { after, before, events, recorded } = yield* withCrypto(program)
 
-      expect(recorded).toEqual({ _tag: "Recorded" })
-      expect(outcomes(before)).toEqual({ "render-a": "built", "render-b": "built", combine: "built" })
-      expect(first.sort()).toEqual(["combine", "render-a", "render-b"])
+        expect(recorded).toEqual({ _tag: "Recorded" })
+        expect(outcomes(before)).toEqual({ "render-a": "built", "render-b": "built", combine: "built" })
+        expect(first.sort()).toEqual(["combine", "render-a", "render-b"])
 
-      // THE HEADLINE. `render-b` reads a file nothing touched, so its dispatch
-      // key is unchanged and the cross-run cache serves it: it never executed in
-      // run 2. `render-a` re-keyed because the host measured different bytes,
-      // and `combine` re-keyed because the file `render-a` produced changed.
-      expect(outcomes(after)).toEqual({ "render-a": "built", "render-b": "clean", combine: "built" })
-      expect(second.sort()).toEqual(["combine", "render-a"])
+        // THE HEADLINE. `render-b` reads a file nothing touched, so its dispatch
+        // key is unchanged and the cross-run cache serves it: it never executed in
+        // run 2. `render-a` re-keyed because the host measured different bytes,
+        // and `combine` re-keyed because the file `render-a` produced changed.
+        expect(outcomes(after)).toEqual({ "render-a": "built", "render-b": "clean", combine: "built" })
+        expect(second.sort()).toEqual(["combine", "render-a"])
 
-      // The workspace holds what the second run computed, copied back through
-      // the sandbox's materialize.
-      expect(yield* withCrypto(read(join(root, "out/a.txt")))).toBe("render-a(ALPHA)")
-      expect(yield* withCrypto(read(join(root, "out/all.txt")))).toBe("combine(render-a(ALPHA)+render-b(beta))")
+        // The workspace holds what the second run computed, copied back through
+        // the sandbox's materialize.
+        expect(yield* withCrypto(read(join(root, "out/a.txt")))).toBe("render-a(ALPHA)")
+        expect(yield* withCrypto(read(join(root, "out/all.txt")))).toBe("combine(render-a(ALPHA)+render-b(beta))")
 
-      // And the journal explains it: a cache hit for the clean node, node
-      // outcomes for all three.
-      const settled = events.entries.filter((entry) => entry.eventType === "flows.engine.node-settled")
-      expect(settled.map((entry) => (entry.payload as { nodeId: string }).nodeId).sort()).toEqual([
-        "combine",
-        "render-a",
-        "render-b"
-      ])
-      expect(
-        events.entries.some((entry) =>
-          entry.eventType === "flows.engine.cache-provenance" &&
-          (entry.payload as { action?: string }).action === undefined
-        )
-      ).toBe(true)
-    }))
+        // And the journal explains it: a cache hit for the clean node, node
+        // outcomes for all three.
+        const settled = events.entries.filter((entry) => entry.eventType === "flows.engine.node-settled")
+        expect(settled.map((entry) => (entry.payload as { nodeId: string }).nodeId).sort()).toEqual([
+          "combine",
+          "render-a",
+          "render-b"
+        ])
+        expect(
+          events.entries.some((entry) =>
+            entry.eventType === "flows.engine.cache-provenance" &&
+            (entry.payload as { action?: string }).action === undefined
+          )
+        ).toBe(true)
+      }),
+    { timeout: 120_000 }
+  )
 
   it.effect("pins a source-glob expansion once per run and re-keys when a new file matches", () =>
     Effect.gen(function*() {
