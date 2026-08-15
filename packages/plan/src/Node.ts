@@ -524,3 +524,19 @@ export const catchFilter = (ast: Ast): Schema.Top | undefined => ast._tag === "C
  * @private
  */
 export const functionIdentity = (operation: unknown): FunctionIdentity => internal.functionIdentity(operation)
+
+/**
+ * Declares the inert values a plan-time function closes over.
+ *
+ * The capture record is canonicalized into function identity and deeply frozen
+ * immediately. Unsupported values, accessors, exotic prototypes, symbols, and
+ * cycles are refused instead of producing an identity that cannot describe the
+ * function's behavior.
+ *
+ * @since 0.1.0
+ * @category constructors
+ */
+export const capture = <Args extends ReadonlyArray<unknown>, A>(
+  captures: Readonly<Record<string, unknown>>,
+  operation: (...args: Args) => A
+): (...args: Args) => A => internal.capture(captures, operation)

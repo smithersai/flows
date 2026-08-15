@@ -365,4 +365,64 @@ describe("internal/node call factories", () => {
     const second = f19965
     expect(Node.functionIdentity(first)).not.toEqual(Node.functionIdentity(second))
   })
+
+  it("keys declared closure captures and freezes the captured graph", () => {
+    const make = (offset: number) => Node.capture({ offset }, (value: number) => value + offset)
+    const one = make(1)
+    const two = make(2)
+
+    expect(one(2)).toBe(3)
+    expect(Node.functionIdentity(one)).toMatchObject({ algorithm: "sha256-source-captures/v3" })
+    expect(Node.functionIdentity(one)).not.toEqual(Node.functionIdentity(two))
+    expect(Node.functionIdentity(make(1))).toEqual(Node.functionIdentity(one))
+
+    const nested = { threshold: { value: 3 } }
+    Node.capture(nested, (value: number) => value >= nested.threshold.value)
+    expect(Object.isFrozen(nested)).toBe(true)
+    expect(Object.isFrozen(nested.threshold)).toBe(true)
+    expect(() => nested.threshold.value++).toThrow(TypeError)
+  })
+
+  it("canonicalizes capture records without erasing observable values", () => {
+    const operation = (value: number) => value
+    expect(Node.functionIdentity(Node.capture({ a: 1, b: 2 }, operation))).toEqual(
+      Node.functionIdentity(Node.capture({ b: 2, a: 1 }, operation))
+    )
+    expect(Node.functionIdentity(Node.capture({ value: -0 }, operation))).not.toEqual(
+      Node.functionIdentity(Node.capture({ value: 0 }, operation))
+    )
+    const complete = Node.capture({ array: [null, true, false, "text"], empty: Object.create(null) }, operation)
+    expect(complete(3)).toBe(3)
+
+    const shared = { value: 1 }
+    Node.capture({ left: shared, right: shared }, operation)
+    expect(Object.isFrozen(shared)).toBe(true)
+  })
+
+  it("refuses capture material whose behavior cannot be canonically identified", () => {
+    const cyclic: { self?: unknown } = {}
+    cyclic.self = cyclic
+    expect(() => Node.capture(cyclic, () => undefined)).toThrow(/capture at \$\.self is cyclic/)
+
+    const accessor = Object.defineProperty({}, "value", { enumerable: true, get: () => 1 })
+    expect(() => Node.capture(accessor, () => undefined)).toThrow(/capture at \$\.value is an accessor/)
+    expect(() => Node.capture({ [Symbol("key")]: 1 }, () => undefined)).toThrow(/has symbol key/)
+    expect(() => Node.capture({ date: new Date(0) }, () => undefined)).toThrow(/non-plain prototype/)
+    expect(() => Node.capture({ value: Number.NaN }, () => undefined)).toThrow(/is not finite/)
+    expect(() => Node.capture({ values: Array(1) }, () => undefined)).toThrow(/is an array hole/)
+    for (const value of [undefined, 1n, Symbol("value"), () => undefined]) {
+      expect(() => Node.capture({ value }, () => undefined)).toThrow(/has unsupported type/)
+    }
+
+    const arrayAccessor: Array<unknown> = [1]
+    Object.defineProperty(arrayAccessor, "0", { get: () => 1 })
+    expect(() => Node.capture({ arrayAccessor }, () => undefined)).toThrow(/is an accessor/)
+
+    const arrayProperty: Array<unknown> = []
+    Object.defineProperty(arrayProperty, "extra", { value: 1 })
+    expect(() => Node.capture({ arrayProperty }, () => undefined)).toThrow(/unsupported array key extra/)
+    const arraySymbol: Array<unknown> = []
+    Object.defineProperty(arraySymbol, Symbol("extra"), { value: 1 })
+    expect(() => Node.capture({ arraySymbol }, () => undefined)).toThrow(/unsupported array key Symbol\(extra\)/)
+  })
 })

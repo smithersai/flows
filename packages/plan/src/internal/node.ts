@@ -197,8 +197,117 @@ export interface ActionCall {
  */
 export interface FunctionIdentity {
   readonly _tag: "FunctionIdentity"
-  readonly algorithm: "sha256-source/v2"
+  readonly algorithm: "sha256-source/v2" | "sha256-source-captures/v3"
   readonly digest: string
+}
+
+/** @private */
+const CapturedTypeId = Symbol.for("@smthrs/plan-next/Node/CapturedFunction")
+
+/** @private */
+interface CapturedMetadata {
+  readonly source: string
+  readonly captures: string
+}
+
+/** @private */
+type CapturedFunction = { readonly [CapturedTypeId]?: CapturedMetadata }
+
+/** @private */
+const captureError = (path: string, reason: string): TypeError =>
+  new TypeError(`Node.capture: capture at ${path} ${reason}; captures must be finite, inert data`)
+
+/** @private */
+const canonicalCapture = (input: unknown, path: string, ancestors: WeakSet<object>): string => {
+  if (input === null) return "null"
+  switch (typeof input) {
+    case "boolean":
+      return input ? "true" : "false"
+    case "number":
+      if (!Number.isFinite(input)) throw captureError(path, "is not finite")
+      return Object.is(input, -0) ? "[\"number\",\"-0\"]" : `["number",${JSON.stringify(input)}]`
+    case "string":
+      return `["string",${JSON.stringify(input)}]`
+    case "undefined":
+    case "bigint":
+    case "symbol":
+    case "function":
+      throw captureError(path, `has unsupported type ${typeof input}`)
+  }
+
+  if (ancestors.has(input)) throw captureError(path, "is cyclic")
+  const prototype = Object.getPrototypeOf(input)
+  if (!Array.isArray(input) && prototype !== Object.prototype && prototype !== null) {
+    throw captureError(path, "has a non-plain prototype")
+  }
+  ancestors.add(input)
+  try {
+    if (Array.isArray(input)) {
+      const descriptors = Object.getOwnPropertyDescriptors(input)
+      for (const key of Reflect.ownKeys(descriptors)) {
+        if (key === "length") continue
+        if (typeof key === "symbol" || !/^(0|[1-9]\d*)$/.test(key)) {
+          throw captureError(path, `has unsupported array key ${String(key)}`)
+        }
+      }
+      const items: Array<string> = []
+      for (let index = 0; index < input.length; index++) {
+        const descriptor = descriptors[String(index)]
+        if (descriptor === undefined) throw captureError(`${path}[${index}]`, "is an array hole")
+        if (!("value" in descriptor)) throw captureError(`${path}[${index}]`, "is an accessor")
+        items.push(canonicalCapture(descriptor.value, `${path}[${index}]`, ancestors))
+      }
+      return `["array",[${items.join(",")}]]`
+    }
+    const members = Object.getOwnPropertyDescriptors(input)
+    const keys = Reflect.ownKeys(members)
+    const symbol = keys.find((key) => typeof key === "symbol")
+    if (symbol !== undefined) throw captureError(path, `has symbol key ${String(symbol)}`)
+    const encoded = (keys as Array<string>).sort().map((key) => {
+      const descriptor = members[key]!
+      if (!("value" in descriptor)) throw captureError(`${path}.${key}`, "is an accessor")
+      return `${JSON.stringify(key)}:${canonicalCapture(descriptor.value, `${path}.${key}`, ancestors)}`
+    })
+    return `["object",{${encoded.join(",")}}]`
+  } finally {
+    ancestors.delete(input)
+  }
+}
+
+/** @private */
+const freezeCapture = (input: unknown, seen: WeakSet<object>): void => {
+  if (typeof input !== "object" || input === null || seen.has(input)) return
+  seen.add(input)
+  for (const descriptor of Object.values(Object.getOwnPropertyDescriptors(input))) {
+    /* v8 ignore else -- canonicalCapture rejects every accessor before freezing starts */
+    if ("value" in descriptor) freezeCapture(descriptor.value, seen)
+  }
+  Object.freeze(input)
+}
+
+/**
+ * Brands an operation with every inert value it closes over.
+ *
+ * @since 0.1.0
+ * @private
+ */
+export const capture = <Args extends ReadonlyArray<unknown>, A>(
+  captures: Readonly<Record<string, unknown>>,
+  operation: (...args: Args) => A
+): (...args: Args) => A => {
+  const source = Function.prototype.toString.call(operation)
+  const canonical = canonicalCapture(captures, "$", new WeakSet())
+  freezeCapture(captures, new WeakSet())
+  const wrapped = function(this: unknown, ...args: ReadonlyArray<unknown>): unknown {
+    return Reflect.apply(operation, this, args)
+  }
+  Object.defineProperty(wrapped, CapturedTypeId, {
+    configurable: false,
+    enumerable: false,
+    value: { source, captures: canonical } satisfies CapturedMetadata,
+    writable: false
+  })
+  return wrapped as (...args: Args) => A
 }
 
 /**
@@ -275,11 +384,12 @@ export const value = (input: unknown, seen: WeakMap<object, unknown> = new WeakM
  * @private
  */
 export const functionIdentity = (operation: unknown): FunctionIdentity => {
-  const source = Function.prototype.toString.call(operation)
+  const metadata = (operation as CapturedFunction)[CapturedTypeId]
+  const source = metadata?.source ?? Function.prototype.toString.call(operation)
   return {
     _tag: "FunctionIdentity",
-    algorithm: "sha256-source/v2",
-    digest: sha256(source)
+    algorithm: metadata === undefined ? "sha256-source/v2" : "sha256-source-captures/v3",
+    digest: sha256(metadata === undefined ? source : `${source}\0${metadata.captures}`)
   }
 }
 
