@@ -520,6 +520,17 @@ describe("Graph.build annotations", () => {
     expect(root.draft.material.layers).toEqual([])
     expect(root.placement).toBeUndefined()
   })
+
+  it("folds a declared action's output nondeterminism into plan key material", () => {
+    const Unstable = Action.make("counter/unstable", {
+      payload: {},
+      success: Schema.Number,
+      nondeterministic: true
+    })
+    const graph = Graph.build(Unstable.call({}))
+
+    expect(material(graph, "root").nondeterministic).toBe(true)
+  })
 })
 
 describe("Graph.build diagnostics", () => {

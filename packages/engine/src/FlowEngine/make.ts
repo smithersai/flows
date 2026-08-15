@@ -407,6 +407,7 @@ export const makeUnsafe = (options: Encoded): FlowRuntime.FlowRuntime["Service"]
           attempt: currentAttempt,
           key,
           tier: action.tier,
+          ...(action.nondeterministic === undefined ? {} : { nondeterministic: action.nondeterministic }),
           metadata: action.metadata
         }
         let result: Flow.Result<unknown, unknown>

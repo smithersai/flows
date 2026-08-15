@@ -116,6 +116,8 @@ export interface Declared<
   readonly errorSchema: Error
   readonly tier: Tier
   readonly idempotencyKey: IdempotencyKey | undefined
+  /** Allows multiple legitimate sealed results to race under one cache key. */
+  readonly nondeterministic: true | undefined
   readonly annotations: Context.Context<never>
   /**
    * The context key this declaration's implementation is provided under, and
@@ -180,6 +182,8 @@ export interface Action<
   readonly annotations: Context.Context<never>
   readonly tier: Tier
   readonly idempotencyKey: IdempotencyKey | undefined
+  /** Allows multiple legitimate sealed results to race under one cache key. */
+  readonly nondeterministic: true | undefined
   readonly metadata: unknown
   readonly retryPolicy: RetryPolicy.RetryPolicy | undefined
   annotate<I, S>(
@@ -229,6 +233,7 @@ export interface Any {
   readonly annotations: Context.Context<never>
   readonly tier: Tier
   readonly idempotencyKey: IdempotencyKey | undefined
+  readonly nondeterministic: true | undefined
   readonly metadata: unknown
   readonly retryPolicy: RetryPolicy.RetryPolicy | undefined
 }
@@ -248,6 +253,7 @@ export interface AnyWithProps {
   readonly executeEncoded: Effect.Effect<any, any, any>
   readonly tier: Tier
   readonly idempotencyKey: IdempotencyKey | undefined
+  readonly nondeterministic: true | undefined
   readonly metadata: unknown
   readonly retryPolicy: RetryPolicy.RetryPolicy | undefined
 }

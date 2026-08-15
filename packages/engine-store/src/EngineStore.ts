@@ -147,13 +147,7 @@ export const make = (
       fireRetryPolicy: options.clockFireRetryPolicy
     })
 
-    const actionExecute = Effect.fn("FlowEngine.actionExecute")(function*(input: {
-      readonly action: Action.Any
-      readonly attempt: number
-      readonly key: string
-      readonly tier: Action.Tier
-      readonly metadata: unknown
-    }) {
+    const actionExecute = Effect.fn("FlowEngine.actionExecute")(function*(input: FlowEngine.ActionExecuteOptions) {
       const parent = yield* FlowRuntime.FlowInstance
       yield* Effect.annotateCurrentSpan({
         runId: parent.executionId,
@@ -202,6 +196,7 @@ export const make = (
         attempt: input.attempt,
         key: input.key,
         tier: input.tier,
+        ...(input.nondeterministic === undefined ? {} : { nondeterministic: input.nondeterministic }),
         ...(isBoundaryMetadata(input.metadata)
           ? { metadata: input.metadata }
           : {})

@@ -164,11 +164,16 @@ export const actionKey = Effect.fn("FlowEngine.actionKey")(function*(
     // The caller-owned object can carry material canonicalization
     // rejects; the typed `SchemaError` propagates to the dispatch site
     // (issue #151) instead of being discarded through `Result.getOrThrow`.
+    // A declared nondeterministic result is also key material. Otherwise a
+    // tolerant declaration could consume a strict row (or the reverse) under
+    // an identity whose conflict policy was never part of the claim. Omitting
+    // it emits no field and preserves every deterministic key byte-for-byte.
     return yield* Schema.decodeUnknownEffect(Key)({
       kind: environment === undefined ? "run" : "cache",
       form,
       input,
       ...(environment === undefined ? { runId: executionId } : { environment }),
+      ...(action.nondeterministic === undefined ? {} : { nondeterministic: action.nondeterministic }),
       ...(boundary === undefined ? {} : { boundary })
     })
   }

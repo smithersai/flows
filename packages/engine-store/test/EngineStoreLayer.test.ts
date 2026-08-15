@@ -6,9 +6,11 @@ import { Jj } from "@smthrs/kernel-next"
 import { Node } from "@smthrs/plan-next"
 import { type Ownership, RunStore } from "@smthrs/run-store-next"
 import * as Cause from "effect/Cause"
+import * as Deferred from "effect/Deferred"
 import * as Effect from "effect/Effect"
 import * as Exit from "effect/Exit"
 import * as Layer from "effect/Layer"
+import * as Ref from "effect/Ref"
 import * as Schema from "effect/Schema"
 import * as DurableEngineState from "../src/DurableEngineState.ts"
 import * as EngineStore from "../src/EngineStore.ts"
@@ -307,6 +309,83 @@ describe("EngineStore.make liveness", () => {
 })
 
 describe("EngineStore boundary metadata", () => {
+  it.effect("propagates declared nondeterminism through a keyed durable cache race", () =>
+    Effect.gen(function*() {
+      const state = DurableEngineState.makeMemory()
+      const bothStarted = yield* Deferred.make<void>()
+      const executions = yield* Ref.make(0)
+      const action = Action.make({
+        name: "hermetic-nondeterministic",
+        success: Schema.String,
+        tier: "sealed",
+        idempotencyKey: "engine-store-nondeterministic-v1",
+        nondeterministic: true,
+        metadata: { readSet: [], writeSet: ["output.txt"], boundaryMode: "hard" },
+        execute: Effect.gen(function*() {
+          const ordinal = yield* Ref.updateAndGet(executions, (value) => value + 1)
+          if (ordinal === 2) yield* Deferred.succeed(bothStarted, undefined)
+          yield* Deferred.await(bothStarted)
+          return `result-${ordinal}`
+        })
+      })
+
+      const result = yield* withCrypto(
+        Effect.scoped(Effect.gen(function*() {
+          const engine = yield* EngineStore.make({
+            owner: { hostId: "layer-host" },
+            journalSource: "layer-test",
+            isAlive: () => Effect.succeed(false)
+          })
+          yield* engine.register(LayerFlow, () => action as unknown as Effect.Effect<string, never, never>)
+          const raced = yield* Effect.all([
+            engine.execute(LayerFlow, {
+              executionId: "nondeterministic-a",
+              payload: {},
+              discard: false
+            }),
+            engine.execute(LayerFlow, {
+              executionId: "nondeterministic-b",
+              payload: {},
+              discard: false
+            })
+          ], { concurrency: "unbounded" })
+          const replayed = yield* engine.execute(LayerFlow, {
+            executionId: "nondeterministic-c",
+            payload: {},
+            discard: false
+          })
+          const journal = yield* Journal.Journal
+          yield* journal.flush
+          const pages = yield* Effect.forEach(
+            ["nondeterministic-a", "nondeterministic-b"],
+            (runId) => journal.entries({ runId: runId as never, limit: 100 })
+          )
+          return {
+            raced,
+            replayed,
+            executions: yield* Ref.get(executions),
+            firstWriterEvents: pages.flatMap((page) => page.entries).filter((entry) =>
+              entry.eventType === "flows.engine.cache-provenance" &&
+              (entry.payload as { readonly action?: string }).action === "conflict_first_writer"
+            )
+          }
+        })).pipe(
+          Effect.provide(
+            Layer.mergeAll(
+              baseLayers(recordingJj([]), state),
+              StepSandbox.layerTest(),
+              Action.layerCacheEnvironment({ layers: [], capabilities: {} })
+            )
+          )
+        )
+      )
+
+      expect(new Set(result.raced)).toEqual(new Set(["result-1", "result-2"]))
+      expect(result.raced).toContain(result.replayed)
+      expect(result.executions).toBe(2)
+      expect(result.firstWriterEvents).toHaveLength(1)
+    }))
+
   it.effect("forwards a hermetic boundary descriptor so a sealed result is shared across runs", () =>
     Effect.gen(function*() {
       const state = DurableEngineState.makeMemory()

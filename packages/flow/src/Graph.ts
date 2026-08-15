@@ -193,6 +193,7 @@ interface ActionDeclaration {
   readonly successSchema: Schema.Top
   readonly errorSchema: Schema.Top
   readonly tier: Action.Tier
+  readonly nondeterministic: true | undefined
   readonly annotations: Context.Context<never>
 }
 
@@ -455,6 +456,7 @@ export const build = (
     readonly effects: Annotations.Effects | undefined
     readonly placement: unknown
     readonly tier: KeyMaterial.KeyMaterial["kind"]
+    readonly nondeterministic?: true | undefined
     readonly body: unknown
     readonly inputs: ReadonlyArray<KeyMaterial.InputRef>
     readonly ast: Node.Ast
@@ -475,6 +477,7 @@ export const build = (
         }) ?? []
       ),
       capabilities: entry.capabilities,
+      ...(entry.nondeterministic === undefined ? {} : { nondeterministic: entry.nondeterministic }),
       ...(entry.effects === undefined ? {} : { effects: entry.effects }),
       ...(entry.placement === undefined ? {} : { placement: entry.placement })
     }
@@ -682,6 +685,7 @@ export const build = (
           effects: declaredEffects(annotations),
           placement: declaredPlacement(annotations),
           tier: declared?.tier ?? "sealed",
+          nondeterministic: declared?.nondeterministic,
           body: {
             _tag: "ActionCall",
             action: ast.action,

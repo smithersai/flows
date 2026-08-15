@@ -120,6 +120,45 @@ describe("action execution keys", () => {
     }).pipe(Effect.provide(layer))
   })
 
+  effect("folds declared output nondeterminism into the sealed action key", () => {
+    let executions = 0
+    const action = (nondeterministic?: true) =>
+      Action.make({
+        name: "ActionKeys/nondeterministic",
+        success: Schema.Number,
+        idempotencyKey: "shared",
+        ...(nondeterministic === undefined ? {} : { nondeterministic }),
+        execute: Effect.sync(() => ++executions)
+      })
+    const flowActionDeclaration = Action.make("ActionKeys/nondeterministic/action", {
+      payload: {},
+      success: Schema.Number
+    })
+    const flow = Flow.make("ActionKeys/nondeterministic/flow", {
+      payload: {},
+      success: Schema.Number,
+      body: (payload) => flowActionDeclaration.call(payload)
+    })
+    const layer = Layer.mergeAll(
+      flowActionDeclaration.toLayer(() =>
+        Effect.gen(function*() {
+          expect(yield* action()).toBe(1)
+          expect(yield* action(true)).toBe(2)
+          return yield* action(true)
+        })
+      ),
+      Interpreter.layer(flow)
+    ).pipe(
+      Layer.provideMerge(Action.layerImplementations),
+      Layer.provideMerge(FlowEngine.layerMemory)
+    )
+
+    return Effect.gen(function*() {
+      expect(yield* flow.execute({}, { executionId: "nondeterministic-key" })).toBe(2)
+      expect(executions).toBe(2)
+    }).pipe(Effect.provide(layer))
+  })
+
   effect("folds the boundary descriptor into string idempotency keys so a changed read set misses (issue #25)", () => {
     // Skyframe's dirty→recheck→rebuild collapses to key-based invalidation
     // here: the hermetic descriptor (readSet digests, writeSet,

@@ -30,6 +30,8 @@ export interface ActionExecuteOptions {
   readonly attempt: number
   readonly key: string
   readonly tier: Action.Tier
+  /** Allows a cache put race to retain the first row without failing this run. */
+  readonly nondeterministic?: true | undefined
   readonly metadata: unknown
 }
 

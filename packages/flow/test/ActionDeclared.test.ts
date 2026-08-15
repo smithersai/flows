@@ -108,7 +108,8 @@ describe("Action.make declared overload", () => {
       success: Schema.String,
       error: Schema.Number,
       tier: "irreversible",
-      idempotencyKey: { operation: "fields" }
+      idempotencyKey: { operation: "fields" },
+      nondeterministic: true
     })
     const defaults = Action.make("Declared/defaults", {
       payload: { value: Schema.Number }
@@ -119,8 +120,10 @@ describe("Action.make declared overload", () => {
     expect(declared.errorSchema).toBe(Schema.Number)
     expect(declared.tier).toBe("irreversible")
     expect(declared.idempotencyKey).toEqual({ operation: "fields" })
+    expect(declared.nondeterministic).toBe(true)
     expect(defaults.tier).toBe("sealed")
     expect(defaults.idempotencyKey).toBeUndefined()
+    expect(defaults.nondeterministic).toBeUndefined()
   })
 
   it("builds an action-call node and preserves planned payload references", () => {

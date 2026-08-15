@@ -42,6 +42,7 @@ const makeInline = <
   readonly execute: Effect.Effect<Success["Type"], Error["Type"], R>
   readonly tier?: Tier | undefined
   readonly idempotencyKey?: IdempotencyKey | undefined
+  readonly nondeterministic?: true | undefined
   readonly metadata?: unknown
   readonly interruptRetryPolicy?: Schedule.Schedule<any, unknown> | undefined
   readonly retryPolicy?: RetryPolicy.RetryPolicy | undefined
@@ -73,6 +74,7 @@ const makeInline = <
     annotations: options.annotations ?? Context.empty(),
     tier: options.tier ?? "sealed",
     idempotencyKey: options.idempotencyKey,
+    nondeterministic: options.nondeterministic,
     metadata: options.metadata,
     retryPolicy: options.retryPolicy,
     annotate(tag: Context.Key<any, any>, value: any) {
@@ -108,6 +110,7 @@ const makeDeclared = <
   readonly error?: Error | undefined
   readonly tier?: Tier | undefined
   readonly idempotencyKey?: IdempotencyKey | undefined
+  readonly nondeterministic?: true | undefined
   readonly annotations?: Context.Context<never> | undefined
 }): Declared<
   Tag,
@@ -136,6 +139,7 @@ const makeDeclared = <
     errorSchema,
     tier: options.tier ?? "sealed",
     idempotencyKey: options.idempotencyKey,
+    nondeterministic: options.nondeterministic,
     annotations,
     requirement,
     annotate(key: Context.Key<any, any>, value: any) {
@@ -179,6 +183,7 @@ const makeDeclared = <
           error: errorSchema,
           tier: self.tier,
           idempotencyKey: self.idempotencyKey,
+          nondeterministic: self.nondeterministic,
           annotations,
           execute: execute(payload)
         })
@@ -247,6 +252,7 @@ export const make: {
     readonly error?: Error | undefined
     readonly tier?: Tier | undefined
     readonly idempotencyKey?: IdempotencyKey | undefined
+    readonly nondeterministic?: true | undefined
     readonly annotations?: Context.Context<never> | undefined
   }): Declared<
     Tag,
@@ -265,6 +271,7 @@ export const make: {
     readonly execute: Effect.Effect<Success["Type"], Error["Type"], R>
     readonly tier?: Tier | undefined
     readonly idempotencyKey?: IdempotencyKey | undefined
+    readonly nondeterministic?: true | undefined
     readonly metadata?: unknown
     readonly interruptRetryPolicy?: Schedule.Schedule<any, unknown> | undefined
     readonly retryPolicy?: RetryPolicy.RetryPolicy | undefined
@@ -304,6 +311,7 @@ export const makeSystem = <
   readonly error?: Error | undefined
   readonly tier?: Tier | undefined
   readonly idempotencyKey?: IdempotencyKey | undefined
+  readonly nondeterministic?: true | undefined
   readonly annotations?: Context.Context<never> | undefined
 }): Declared<
   Tag,
