@@ -1,3 +1,4 @@
+import * as Node from "@smthrs/plan-next/Node"
 import * as Schema from "effect/Schema"
 import { describe, expect, it } from "vitest"
 import * as Rule from "../src/Rule.ts"
@@ -144,5 +145,17 @@ describe("Rule metadata traversal", () => {
       })
     expect(Rule.metadata(definition(false)({})).implementationDigest)
       .not.toBe(Rule.metadata(definition(true)({})).implementationDigest)
+  })
+
+  it("changes implementation identity when declared captures change", () => {
+    const definition = (tool: string) =>
+      Rule.make("RuleTestCapturedIdentity", {
+        attrs: Schema.Struct({}),
+        kinds: ["build"],
+        implementation: Node.capture({ tool }, () => Rule.notImplemented(tool))
+      })
+
+    expect(Rule.metadata(definition("first")({})).implementationDigest)
+      .not.toBe(Rule.metadata(definition("second")({})).implementationDigest)
   })
 })

@@ -4,7 +4,7 @@
  * @since 0.1.0
  */
 import { Action, Flow, type FlowRuntime } from "@smthrs/flow-next"
-import type * as Node from "@smthrs/plan-next/Node"
+import * as Node from "@smthrs/plan-next/Node"
 import * as Effect from "effect/Effect"
 import type * as Layer from "effect/Layer"
 import * as Predicate from "effect/Predicate"
@@ -678,15 +678,19 @@ export const make = <
     success: Schema.toJsonSchemaDocument(successSchema),
     error: Schema.toJsonSchemaDocument(errorSchema)
   }
+  const functionIdentity = (operation: unknown): Node.FunctionIdentity | null =>
+    operation === undefined ? null : Node.functionIdentity(operation)
   const implementationDigest = createHash("sha256").update(JSON.stringify({
-    implementation: String(options.implementation),
-    attrsForKind: options.attrsForKind === undefined ? null : String(options.attrsForKind),
+    implementation: functionIdentity(options.implementation),
+    attrsForKind: functionIdentity(options.attrsForKind),
     cache: typeof options.cache === "function"
-      ? ["function", String(options.cache)]
+      ? ["function", Node.functionIdentity(options.cache)]
       : ["constant", options.cache ?? false],
-    inputs: options.inputs === undefined ? null : String(options.inputs),
-    outputs: options.outputs === undefined ? null : String(options.outputs),
-    verbGate: typeof options.verbGate === "function" ? String(options.verbGate) : options.verbGate ?? null,
+    inputs: functionIdentity(options.inputs),
+    outputs: functionIdentity(options.outputs),
+    verbGate: typeof options.verbGate === "function"
+      ? Node.functionIdentity(options.verbGate)
+      : options.verbGate ?? null,
     schemas: schemaIdentity
   })).digest("hex")
   const definition = (attrsInput: Attrs["~type.make.in"]) => {
