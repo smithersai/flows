@@ -17,7 +17,6 @@ export default defineConfig({
       // each other's coverage scratch state (issues #115/#121).
       reportsDirectory: join(tmpdir(), `flows-gateway-coverage-${process.pid}`),
       include: ["src/**"],
-      exclude: ["src/test/**"],
       thresholds: {
         branches: 100,
         functions: 100,
