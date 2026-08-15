@@ -1,7 +1,7 @@
 import { describe, expect, it } from "@effect/vitest"
 import { Journal, JournalEvent } from "@smthrs/journal-next"
 import * as TestJournal from "@smthrs/journal-next/test/TestJournal"
-import { Effect, Exit, Layer } from "effect"
+import { Effect, Exit, Layer, Stream } from "effect"
 import { TestClock } from "effect/testing"
 import * as BranchCommands from "../src/BranchCommands.ts"
 import * as BranchProtocol from "../src/BranchProtocol.ts"
@@ -33,43 +33,60 @@ const entry = (sequence: number, payload: unknown) =>
     meta: null
   })
 
+const branchLayers = Layer.mergeAll(
+  TestJournal.layer(),
+  BranchShare.layerHmac({ secret: "payload-secret" })
+)
+
+const submitOutcome = (
+  ledger: Layer.Layer<BranchCommands.BranchCommands, never, Journal.Journal | BranchShare.BranchShare>,
+  args: string
+) =>
+  Effect.gen(function*() {
+    const commands = yield* BranchCommands.BranchCommands
+    const share = yield* BranchShare.BranchShare
+    const journal = yield* Journal.Journal
+    const capability = yield* share.mint({
+      branchId,
+      capabilityId: "payload-capability",
+      access: "write",
+      ttlMs: 60_000
+    })
+    const exit = yield* Effect.exit(
+      commands.submit({
+        capability,
+        submission: BranchCommands.submission({
+          branchId,
+          commandId: "oversized-command" as BranchProtocol.CommandId,
+          participantId: "alice" as BranchProtocol.ParticipantId,
+          name: BranchProtocol.SayCommand,
+          args
+        })
+      })
+    )
+    return { exit, page: yield* journal.entries({ runId: branchRunId, limit: 10 }) }
+  }).pipe(
+    Effect.provide(Layer.mergeAll(branchLayers, ledger.pipe(Layer.provide(branchLayers)))),
+    Effect.provide(TestClock.layer())
+  )
+
 describe("sync payload and frame limits", () => {
-  // BUG: CommandSubmission.args has no encoded-size limit despite frame_too_large being public.
-  it.effect.fails("refuses a multi-megabyte command before appending it", () =>
+  // An oversized CommandSubmission is refused with frame_too_large BEFORE it
+  // reaches the journal: nothing is appended, so no follower ever pulls it.
+  it.effect("refuses a multi-megabyte command before appending it", () =>
     Effect.gen(function*() {
-      const result = yield* (
-        Effect.gen(function*() {
-          const commands = yield* BranchCommands.makeLive
-          const share = yield* BranchShare.BranchShare
-          const journal = yield* Journal.Journal
-          const capability = yield* share.mint({
-            branchId,
-            capabilityId: "payload-capability",
-            access: "write",
-            ttlMs: 60_000
-          })
-          const exit = yield* Effect.exit(
-            commands.submit({
-              capability,
-              submission: BranchCommands.submission({
-                branchId,
-                commandId: "oversized-command" as BranchProtocol.CommandId,
-                participantId: "alice" as BranchProtocol.ParticipantId,
-                name: BranchProtocol.SayCommand,
-                args: twoMiB
-              })
-            })
-          )
-          return { exit, page: yield* journal.entries({ runId: branchRunId, limit: 10 }) }
-        }).pipe(
-          Effect.provide(
-            Layer.mergeAll(
-              TestJournal.layer(),
-              BranchShare.layerHmac({ secret: "payload-secret" })
-            )
-          ),
-          Effect.provide(TestClock.layer())
-        )
+      const result = yield* submitOutcome(BranchCommands.layer, twoMiB)
+
+      expect(failureOf(result.exit)).toBeInstanceOf(SyncError)
+      expect(failureOf(result.exit)).toMatchObject({ code: "frame_too_large" })
+      expect(result.page.entries).toEqual([])
+    }))
+
+  it.effect("honors a configured command ceiling below the default", () =>
+    Effect.gen(function*() {
+      const result = yield* submitOutcome(
+        BranchCommands.layerWith({ maxCommandBytes: 64 }),
+        "a modest command that still overflows a 64-byte ceiling"
       )
 
       expect(failureOf(result.exit)).toBeInstanceOf(SyncError)
@@ -77,8 +94,9 @@ describe("sync payload and frame limits", () => {
       expect(result.page.entries).toEqual([])
     }))
 
-  // BUG: SyncServer.read returns one arbitrarily large journal payload without enforcing a frame ceiling.
-  it.effect.fails("refuses a page containing one multi-megabyte journal payload", () =>
+  // The read path refuses to serve one arbitrarily large journal payload:
+  // a page that cannot fit the frame ceiling fails instead of shipping.
+  it.effect("refuses a page containing one multi-megabyte journal payload", () =>
     Effect.gen(function*() {
       const exit = yield* (
         Effect.gen(function*() {
@@ -102,8 +120,9 @@ describe("sync payload and frame limits", () => {
       expect(failureOf(exit)).toMatchObject({ code: "frame_too_large" })
     }))
 
-  // BUG: aggregate ReadResponse size is unbounded even when each entry is individually moderate.
-  it.effect.fails("refuses an aggregate page whose encoded entries exceed a frame ceiling", () =>
+  // The ceiling bounds the aggregate response, not each entry alone: entries
+  // that are individually moderate still cannot compose into a giant page.
+  it.effect("refuses an aggregate page whose encoded entries exceed a frame ceiling", () =>
     Effect.gen(function*() {
       const entries = Array.from(
         { length: 4 },
@@ -119,6 +138,58 @@ describe("sync payload and frame limits", () => {
           Effect.provide(
             Layer.mergeAll(
               Journal.layerNoop({ entries: () => Effect.succeed({ entries, hasMore: false }) }),
+              RunCatalog.layerStatic([runId])
+            )
+          )
+        )
+      )
+
+      expect(failureOf(exit)).toBeInstanceOf(SyncError)
+      expect(failureOf(exit)).toMatchObject({ code: "frame_too_large" })
+    }))
+
+  it.effect("honors a configured read frame ceiling below the default", () =>
+    Effect.gen(function*() {
+      const exit = yield* (
+        Effect.gen(function*() {
+          const server = yield* SyncServer.SyncServer
+          return yield* Effect.exit(
+            server.read({ scope: { _tag: "Run", runId }, cursors: [], limit: 1 })
+          )
+        }).pipe(
+          Effect.provide(
+            SyncServer.layerWith({ maxFrameBytes: 64 }).pipe(
+              Layer.provide(
+                Layer.mergeAll(
+                  Journal.layerNoop({
+                    entries: () => Effect.succeed({ entries: [entry(0, "x".repeat(128))], hasMore: false })
+                  }),
+                  RunCatalog.layerStatic([runId])
+                )
+              )
+            )
+          )
+        )
+      )
+
+      expect(failureOf(exit)).toBeInstanceOf(SyncError)
+      expect(failureOf(exit)).toMatchObject({ code: "frame_too_large" })
+    }))
+
+  it.effect("refuses a live subscription frame carrying an oversized journal payload", () =>
+    Effect.gen(function*() {
+      const exit = yield* (
+        Effect.gen(function*() {
+          const server = yield* SyncServer.makeLive
+          return yield* Effect.exit(
+            Stream.runCollect(
+              server.subscribe({ scope: { _tag: "Run", runId }, cursors: [], credit: 1 })
+            )
+          )
+        }).pipe(
+          Effect.provide(
+            Layer.mergeAll(
+              Journal.layerNoop({ stream: () => Stream.succeed(entry(0, twoMiB)) }),
               RunCatalog.layerStatic([runId])
             )
           )
