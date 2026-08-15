@@ -625,6 +625,24 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter |
                 AND attempt = ${ref.attempt}
             `
               }
+              /**
+               * THE FRAME'S ANCHORS CROSS THE FORK WITH IT.
+               *
+               * The anchor table is a projection of the parent's
+               * `snapshot-identified` records, and the copied prefix carries
+               * those records — but a fresh engine incarnation that forks the
+               * CHILD next never projects the child's journal first. Copying
+               * the rows at or below the frame makes the child's history
+               * self-contained on restart, exactly as its copied journal and
+               * attempts already are; a later projection of the child upserts
+               * the same `(runId, lineageId, seq)` rows and changes nothing.
+               */
+              yield* sql`
+            INSERT INTO flows_time_travel_snapshots (run_id, lineage_id, seq, change_id, plan_digest)
+            SELECT ${runId}, lineage_id, seq, change_id, plan_digest
+            FROM flows_time_travel_snapshots
+            WHERE run_id = ${parentRunId} AND seq <= ${frame.seq}
+          `
               yield* sql`
             INSERT INTO flows_time_travel_edges
               (parent_run_id, parent_seq, child_run_id, kind, attached)
@@ -636,6 +654,14 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter |
                * the parent and the offset it was cut at. A cross-fork timeline
                * can now start from any child and find its origin without
                * consulting the edge table.
+               *
+               * `source_seq` is the marker's own seq, never a constant: the
+               * copy above preserves source identities, so a fork-of-fork
+               * whose prefix reaches the parent's own marker inherits a row
+               * with this same `source_id`. Every marker keeps
+               * `source_seq = seq`, and the new marker sits strictly above
+               * everything it copied, so `UNIQUE (run_id, source_id,
+               * source_seq)` can never collide.
                */
               yield* sql`
             INSERT INTO flows_journal_events
@@ -646,7 +672,7 @@ export const make: Effect.Effect<TimeTravelStore.Service, never, DurableWriter |
               ${frame.seq + 1},
               ${`fork:${runId}:created`},
               ${"flows/time-travel/fork"},
-              0,
+              ${frame.seq + 1},
               ${nowMs},
               ${forkCreatedEventType},
               ${JSON.stringify({ parentRunId, forkJournalOffset: frame.seq, childRunId: runId })},
