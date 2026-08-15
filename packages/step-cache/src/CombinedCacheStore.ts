@@ -75,12 +75,18 @@ export const make = (options: Options): CacheStore.Service => {
       if (Option.isNone(shared)) return shared
       // Write-back, exactly as `downloadActionResultFromRemote` does: the
       // shared entry becomes a local row so this machine's next lookup — and
-      // every sibling run on it — is a local hit. The local `put` is
-      // insert-or-nothing, so a row that landed concurrently wins and the
-      // write-back is a no-op; the entry this caller returns is still the one
-      // it read.
-      yield* local.put(shared.value)
-      return shared
+      // every sibling run on it — is a local hit.
+      const written = yield* local.put(shared.value)
+      if (written._tag === "Inserted") return shared
+      // The write-back lost: a sibling run recorded its own row under the key
+      // while this lookup was inside the remote tier. The durable local row is
+      // the one this machine replays from and the one a fenced eviction must
+      // name, so the caller is served that row — handing out the remote entry
+      // over a local `Conflict` would be a cache collision the caller cannot
+      // detect. If the winner is already gone again, the remote entry is the
+      // only row anyone holds and stands.
+      const durable = yield* local.get(keyDigest)
+      return Option.isSome(durable) ? durable : shared
     })
   )
 
