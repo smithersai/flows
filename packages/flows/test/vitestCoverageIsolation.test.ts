@@ -95,34 +95,17 @@ describe("vitest coverage isolation conformance", () => {
     }
   )
 
-  // The 100%-coverage cell below is deferred for exactly these three packages,
-  // decided in review when tsflows was absorbed into this repo (2026-08-15).
-  // They arrived wholesale from a separate repository that ran no coverage
-  // gate, and they land at 84.16% / 94.37% / 83.32% statement coverage
-  // (`tsflows` / `tsflows-rules` / `tsflows-cli`) — roughly 580 uncovered
-  // statements and 640 uncovered branches. Enabling the gate on absorption
-  // would either turn the root `pnpm test` red or force ~600 statements of
-  // coverage-chasing tests written against code the absorbing change does not
-  // otherwise touch.
-  //
-  // This is a DEFERRAL, not an exemption, and it is deliberately narrow:
-  // - The set is enumerated literally, so a fourth package cannot join it by
-  //   matching a pattern.
-  // - Every OTHER conformance cell still applies to all three: they ship a
-  //   vitest config, pin `provider: "v8"`, isolate `reportsDirectory` per pid,
-  //   pin `scripts.test`, and declare the Effect-style + publication exports.
-  // - The assertion below is inverted for them rather than skipped, so the day
-  //   a package here does enable the full gate, THIS test goes red and the name
-  //   must be removed from the set — the deferral cannot rot silently.
-  //
-  // Follow-up: raise each package to 100% and delete its entry.
-  const coverageGateDeferred = new Set(["tsflows", "tsflows-rules", "tsflows-cli"])
+  // No package currently lacks an enabled coverage gate. Keep this explicit
+  // set and its inverted assertion so any future temporary deferral remains
+  // narrow, reviewable, and self-expiring when the package enables its gate.
+  const coverageGateDeferred = new Set<string>()
 
-  // These packages were migrated wholesale from the former agent repository.
-  // They already enforce honest measured floors, but did not arrive with
-  // complete branch coverage. Treating those floors as if they were 100%
-  // made this conformance suite red while every package-local gate was green;
-  // simply writing `100` into the configs would make the root gate unusable.
+  // These packages were migrated wholesale from the former agent and tsflows
+  // repositories. They already enforce honest measured floors, but did not
+  // arrive with complete branch coverage. Treating those floors as if they
+  // were 100% made this conformance suite red while every package-local gate
+  // was green; simply writing `100` into the configs would make the root gate
+  // unusable.
   // The set is explicit and self-expiring: every member must retain a real,
   // non-zero threshold in all four categories and at least one category below
   // 100. Once a package reaches full coverage it must leave this set.
@@ -140,7 +123,10 @@ describe("vitest coverage isolation conformance", () => {
     "scorers",
     "std",
     "testing",
-    "triggers"
+    "triggers",
+    "tsflows",
+    "tsflows-cli",
+    "tsflows-rules"
   ])
 
   const assertCoverageDenominator = (source: string) => {
