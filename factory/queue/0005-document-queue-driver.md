@@ -16,7 +16,7 @@ on `main`+`vibe` together.
   `docs/specs/Concepts/Software Factory.md` (outer repo) to name the
   queue-driver workflow as the operator implementation that drives the queue
   until the flows-native factory flow (item 0003) ships.
-- Update `queue/README.md`'s "Operating it today" section to say: run
+- Update `factory/queue/README.md`'s "Operating it today" section to say: run
   `smithers workflow run queue-driver` (optionally
   `--input '{"item":"<slug>"}'`) instead of the hand-driven DDD pack
   instructions.
@@ -32,7 +32,7 @@ untouched). The verify phase withheld approval over two doc-vs-behavior
 mismatches it reproduced — the documented `--input item=<slug>` syntax fails
 (smithers `--input` takes inline JSON) and the wrap step still moved `vibe` —
 both fixed immediately after the run: docs corrected to
-`--input '{"item":"<slug>"}'` in `queue/README.md` and the vault note, and
+`--input '{"item":"<slug>"}'` in `factory/queue/README.md` (then `queue/README.md`) and the vault note, and
 the workflow's wrap step rewritten to commit the status flip via a temporary
 git index and push `main` only. This item prescribed the wrong `--input`
 syntax itself; the pipeline caught its own spec bug on the first pass.

@@ -1,0 +1,19 @@
+# factory/
+
+The software factory: everything that turns queued prompts into landed,
+documented commits. The process design lives in the spec vault:
+`docs/specs/Concepts/Software Factory.md` (process),
+`docs/specs/Concepts/Clean History.md` (the `vibe`/`main` branch model), and
+`docs/specs/Concepts/Colocated Docs.md` (documentation planes).
+
+## Contents
+
+- `queue/` — the intake. One markdown file per requested change; presence is
+  registration. See `queue/README.md`.
+
+## Planned
+
+Factory tooling consolidates here over time. The queue-driver workflow
+(`.smithers/workflows/queue-driver.tsx`, untracked today) and the factory
+flow that replaces it (queue item `0003-factory-flow`) move under this
+directory when they become tracked code.
