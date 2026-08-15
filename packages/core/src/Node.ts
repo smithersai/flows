@@ -70,6 +70,21 @@ export interface Node<out A, out E = never> extends Pipeable.Pipeable {
 export type Any = Node<unknown, unknown>
 
 /**
+ * Declares the inert values a plan-time function closes over.
+ *
+ * Capture data is canonicalized into function identity and deeply frozen.
+ * Unsupported values are rejected instead of producing an incomplete cache
+ * identity.
+ *
+ * @category constructors
+ * @since 0.1.0
+ */
+export const capture = <Args extends ReadonlyArray<unknown>, A>(
+  captures: Readonly<Record<string, unknown>>,
+  operation: (...args: Args) => A
+): (...args: Args) => A => internal.capture(captures, operation)
+
+/**
  * Extracts the success type of a `Node`.
  *
  * @category utility types

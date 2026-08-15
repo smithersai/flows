@@ -58,12 +58,12 @@ describe("Node", () => {
       expect(dataFirst.ast.first).toBe(source.ast)
       expect(dataFirst.ast.mapper).toMatchObject({
         _tag: "FunctionIdentity",
-        algorithm: "fnv1a32-source/v1"
+        algorithm: "sha256-source/v2"
       })
       expect(dataLast.ast.first).toBe(source.ast)
       expect(dataLast.ast.mapper).toMatchObject({
         _tag: "FunctionIdentity",
-        algorithm: "fnv1a32-source/v1"
+        algorithm: "sha256-source/v2"
       })
       expect(dataFirst.ast.mapper).not.toEqual(dataLast.ast.mapper)
       expect(JSON.stringify(dataFirst.ast)).not.toContain("increment")
@@ -95,11 +95,11 @@ describe("Node", () => {
     ) {
       expect(dataFirst.ast.continuation).toMatchObject({
         _tag: "FunctionIdentity",
-        algorithm: "fnv1a32-source/v1"
+        algorithm: "sha256-source/v2"
       })
       expect(dataLast.ast.continuation).toMatchObject({
         _tag: "FunctionIdentity",
-        algorithm: "fnv1a32-source/v1"
+        algorithm: "sha256-source/v2"
       })
       expect(dataFirst.ast.continuation).not.toEqual(dataLast.ast.continuation)
       expect(staticFirst.ast.next).toBe(next.ast)
@@ -171,6 +171,87 @@ describe("Node", () => {
       })
 
     expect(build().ast).toEqual(build().ast)
+  })
+
+  it("uses full SHA-256 identities without source normalization collisions", () => {
+    function f2152() {
+      return 2152
+    }
+    function f19965() {
+      return 19965
+    }
+    const identity = (operation: () => unknown) => {
+      const ast = Node.map(Node.succeed(undefined), operation).ast
+      if (ast._tag !== "Map") throw new Error("expected Map")
+      return ast.mapper
+    }
+
+    const one = identity(f2152)
+    const two = identity(f19965)
+    expect(one.digest).toMatch(/^[0-9a-f]{64}$/)
+    expect(one).not.toEqual(two)
+    expect(identity(Function("return 'one space'") as () => unknown))
+      .not.toEqual(identity(Function("return 'one  space'") as () => unknown))
+  })
+
+  it("includes declared closure captures in identity and freezes them", () => {
+    const make = (offset: number) => {
+      const captures = { offset, nested: { stable: true } }
+      const operation = Node.capture(captures, (value: number) => value + offset)
+      return { captures, operation, node: Node.map(Node.succeed(1), operation) }
+    }
+    const one = make(1)
+    const same = make(1)
+    const two = make(2)
+    const identity = (node: Node.Node<number>) => {
+      if (node.ast._tag !== "Map") throw new Error("expected Map")
+      return node.ast.mapper
+    }
+
+    expect(one.operation(2)).toBe(3)
+    expect(identity(one.node)).toEqual(identity(same.node))
+    expect(identity(one.node)).not.toEqual(identity(two.node))
+    expect(identity(one.node).algorithm).toBe("sha256-source-captures/v3")
+    expect(Object.isFrozen(one.captures)).toBe(true)
+    expect(Object.isFrozen(one.captures.nested)).toBe(true)
+    expect(() => Node.capture({ value: Number.NaN }, () => undefined)).toThrow(/is not finite/)
+  })
+
+  it("canonicalizes every supported capture shape and rejects ambiguous data", () => {
+    const operation = () => undefined
+    const identity = (captures: Readonly<Record<string, unknown>>) => {
+      const ast = Node.map(Node.succeed(undefined), Node.capture(captures, operation)).ast
+      if (ast._tag !== "Map") throw new Error("expected Map")
+      return ast.mapper
+    }
+
+    expect(identity({ a: 1, b: 2 })).toEqual(identity({ b: 2, a: 1 }))
+    expect(identity({ value: -0 })).not.toEqual(identity({ value: 0 }))
+    expect(() => identity({ array: [null, true, false, "text"], empty: Object.create(null) })).not.toThrow()
+    const shared = { value: 1 }
+    expect(() => identity({ left: shared, right: shared })).not.toThrow()
+
+    const cyclic: Record<string, unknown> = {}
+    cyclic.self = cyclic
+    expect(() => identity(cyclic)).toThrow(/is cyclic/)
+    const accessor = Object.defineProperty({}, "value", { enumerable: true, get: () => 1 })
+    expect(() => identity(accessor)).toThrow(/is an accessor/)
+    expect(() => identity({ [Symbol("key")]: 1 })).toThrow(/has symbol key/)
+    expect(() => identity({ date: new Date(0) })).toThrow(/non-plain prototype/)
+    expect(() => identity({ values: Array(1) })).toThrow(/is an array hole/)
+    for (const value of [undefined, 1n, Symbol("value"), operation]) {
+      expect(() => identity({ value })).toThrow(/has unsupported type/)
+    }
+
+    const arrayAccessor: Array<unknown> = []
+    Object.defineProperty(arrayAccessor, "0", { enumerable: true, get: () => 1 })
+    expect(() => identity({ arrayAccessor })).toThrow(/is an accessor/)
+    const arrayProperty: Array<unknown> = []
+    Object.defineProperty(arrayProperty, "extra", { enumerable: true, value: 1 })
+    expect(() => identity({ arrayProperty })).toThrow(/unsupported array key extra/)
+    const arraySymbol: Array<unknown> = []
+    Object.defineProperty(arraySymbol, Symbol("extra"), { enumerable: true, value: 1 })
+    expect(() => identity({ arraySymbol })).toThrow(/unsupported array key Symbol\(extra\)/)
   })
 
   it("rejects non-Node members with NodeBuildError", () => {

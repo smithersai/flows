@@ -110,12 +110,11 @@ export type Reference = Any | string
 export type Seat = string & {}
 
 /**
- * Closure-free implementation identity included when a flow is used as a
- * dynamic flow.
+ * Implementation identity included when a flow is used as a dynamic flow.
  *
- * The source fingerprint is a conservative bridge until `/keys`
- * supplies build-generated semantic identities. It may invalidate on a
- * cosmetic callback edit, but cannot reuse a key after a callback changes.
+ * The exact source is hashed with SHA-256. Authors whose body closes over
+ * inert configuration declare it with {@link Node.capture}, which folds the
+ * canonical capture data into this identity.
  *
  * @category models
  * @since 0.0.0
@@ -123,7 +122,7 @@ export type Seat = string & {}
 export type Implementation =
   | {
     readonly _tag: "Body"
-    readonly algorithm: "fnv1a32-source/v1"
+    readonly algorithm: "sha256-source/v2" | "sha256-source-captures/v3"
     readonly digest: string
   }
   | {
