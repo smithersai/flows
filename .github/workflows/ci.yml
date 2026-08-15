@@ -133,7 +133,9 @@ jobs:
           fi
 
   # Runtime-compatibility check: the suites below pass under bun today
-  # (verified locally on bun 1.4.0, 2026-08-13). Coverage is disabled because
+  # (verified locally on bun 1.3.14, 2026-08-15). The pin has to name a
+  # published oven-sh/bun release: setup-bun downloads the release asset, so a
+  # version that exists only as a local build 404s. Coverage is disabled because
   # @vitest/coverage-v8 needs V8's inspector and bun runs JavaScriptCore; the
   # Node `test` job stays the coverage gate.
   #
@@ -160,7 +162,7 @@ jobs:
           cache: pnpm
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.0
+          bun-version: 1.3.14
       - run: pnpm install --frozen-lockfile --ignore-scripts
       # Same jj setup as the Node job: the Bun host contract exercises a
       # successful `jj status` when the binary is present.
