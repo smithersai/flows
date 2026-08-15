@@ -88,7 +88,9 @@ describe("entry-point file attrs", () => {
       outDir: "docs/api",
       plugin: []
     }
-    expect(Rule.metadata(TypedocDocs.TypedocDocs(attrs)).inputs).toEqual([tsconfig, entry])
+    const metadata = Rule.metadata(TypedocDocs.TypedocDocs(attrs))
+    expect(metadata.inputs).toEqual([tsconfig, entry])
+    expect(metadata.outputs).toEqual({ cwd: ".", paths: ["docs/api"] })
     expect(() => TypedocDocs.TypedocDocs({ ...attrs, entryPoints: ["src/index.ts"] } as never)).toThrow()
   })
 })
