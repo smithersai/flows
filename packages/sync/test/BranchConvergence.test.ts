@@ -201,8 +201,9 @@ describe("branch convergence", () => {
       expect(projections[0]?.messages).toHaveLength(1)
     }))
 
-  // BUG: BranchProjection advances seq on a high arrival and permanently drops a later lower-sequence edit.
-  it.effect.fails("converges two writers on one target under duplicate and out-of-order client delivery", () =>
+  // The projection folds a late lower-sequence edit into canonical order
+  // instead of dropping it, so both delivery orders reach the same document.
+  it.effect("converges two writers on one target under duplicate and out-of-order client delivery", () =>
     Effect.gen(function*() {
       const [left, right] = yield* run(
         Effect.gen(function*() {
