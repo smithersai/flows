@@ -26,3 +26,7 @@ reports/**/trace.zip
 # The monorepo root .gitignore excludes every .smithers/ directory; this app's
 # .smithers/ is a tracked workflow pack (its own .smithers/.gitignore excludes state).
 !.smithers/
+
+# The monorepo root .gitignore excludes *.log; the source repo tracked its
+# live-check evidence logs, so restore source semantics inside this app.
+!*.log
