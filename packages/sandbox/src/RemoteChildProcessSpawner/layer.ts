@@ -145,8 +145,15 @@ const handleOf = (
     const stdout = outputStream(rawStdout, options.stdout)
     const stderr = outputStream(rawStderr, options.stderr)
     const completed = yield* Deferred.make<ExitCode, PlatformError.PlatformError>()
+    // Either settlement of the provider's exit observation — a code or a
+    // failure — means the remote process is gone, so both clear `running`:
+    // a handle whose exit could not be read must not keep reporting itself
+    // as a live process.
     const observeExit = process.exitCode.pipe(
-      Effect.mapError(platformError("exitCode", command)),
+      Effect.mapError((error) => {
+        running = false
+        return platformError("exitCode", command)(error)
+      }),
       Effect.map((code) => {
         running = false
         return ExitCode(code)

@@ -280,8 +280,7 @@ describe("RemoteChildProcessSpawner", () => {
       })
   )
 
-  // BUG: handleOf only clears `isRunning` after a successful provider exit code.
-  it.effect.fails("maps an exitCode failure and then reports the handle as no longer running", () =>
+  it.effect("maps an exitCode failure and then reports the handle as no longer running", () =>
     Effect.gen(function*() {
       const providerFailure = new RemoteChildProcessSpawner.ProviderError({
         code: "unknown",
