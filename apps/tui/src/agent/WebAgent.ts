@@ -1,11 +1,11 @@
 import { CANCEL_PATH, TURN_PATH } from "smithers-shared/AgentApiRoutes";
-import { isAgentTurnFrame } from "smithers-shared/NativeAgent";
 import type {
 	AgentTurnFrame,
 	FetchLike,
 	StartAgentTurnRequest,
 	StartAgentTurnResult,
 } from "smithers-shared/NativeAgent";
+import { AgentTurnFrameDecoder } from "../state/Transcript";
 
 /*
  * The Worker-boundary transport: POSTs turns to `/api/agent/turn` on a product
@@ -63,32 +63,22 @@ const streamFrames = async (
 ): Promise<void> => {
 	const reader = body.getReader();
 	const decoder = new TextDecoder();
-	let buffer = "";
 	let settled = false;
+	const frames = new AgentTurnFrameDecoder((frame) => {
+		if (settled) return;
+		publish(frame);
+		if (frame.type === "done") {
+			settled = true;
+			// Release the turn's cancel handle BEFORE the stream teardown
+			// settles: a future continuation seam may re-POST this runId the
+			// moment the terminal frame is published.
+			onTerminal?.();
+		}
+	}, expectedRunId);
 	for (;;) {
 		const { value, done } = await reader.read();
-		buffer += decoder.decode(value, { stream: !done });
-		const lines = buffer.split("\n");
-		buffer = done ? "" : (lines.pop() ?? "");
-		for (const line of lines) {
-			if (line.trim() === "") continue;
-			let parsed: unknown;
-			try {
-				parsed = JSON.parse(line);
-			} catch {
-				continue;
-			}
-			if (!isAgentTurnFrame(parsed) || parsed.runId !== expectedRunId) continue;
-			publish(parsed);
-			if (parsed.type === "done") {
-				settled = true;
-				// Release the turn's cancel handle BEFORE the stream teardown
-				// settles: a tool-loop continuation leg re-POSTs this runId the
-				// moment the terminal frame is published, and must not meet a
-				// stale "already running" from this agent's own map.
-				onTerminal?.();
-			}
-		}
+		frames.push(decoder.decode(value, { stream: !done }));
+		if (done) frames.finish();
 		if (done || settled) break;
 	}
 	// A `done` frame ends the turn even if the boundary keeps the socket open.

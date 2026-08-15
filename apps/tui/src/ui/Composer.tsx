@@ -1,4 +1,3 @@
-import { useState } from "react";
 import type { ChatPhase } from "../state/Transcript";
 
 /*
@@ -14,12 +13,17 @@ import type { ChatPhase } from "../state/Transcript";
  */
 export const Composer = ({
 	phase,
+	value,
+	inputKey,
+	onInput,
 	onSubmit,
 }: {
 	readonly phase: ChatPhase;
+	readonly value: string;
+	readonly inputKey: number;
+	readonly onInput: (value: string) => void;
 	readonly onSubmit: (text: string) => void;
 }) => {
-	const [value, setValue] = useState("");
 	const responding = phase === "responding";
 	return (
 		<box
@@ -30,16 +34,16 @@ export const Composer = ({
 			paddingLeft={1}
 		>
 			<input
+				key={inputKey}
 				focused
 				value={value}
 				placeholder={responding ? "responding… (Esc to cancel)" : "message"}
-				onInput={setValue}
+				onInput={onInput}
 				onSubmit={(submitted) => {
-					// InputRenderableOptions inherits TextareaOptions.onSubmit, so the
-					// prop type is string | SubmitEvent; for <input> it is the value.
+					// The JSX catalogue combines the core and React callback shapes;
+					// InputRenderable emits the controlled string value at runtime.
 					if (typeof submitted !== "string") return;
 					if (responding || submitted.trim() === "") return;
-					setValue("");
 					onSubmit(submitted);
 				}}
 			/>

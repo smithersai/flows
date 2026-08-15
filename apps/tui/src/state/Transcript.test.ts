@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
 	applyFrame,
+	AgentTurnFrameDecoder,
 	cardPlaceholder,
 	feedNdjson,
 	toolCallLine,
@@ -42,13 +43,26 @@ describe("feedNdjson — NDJSON frame decoding into transcript state", () => {
 		});
 	});
 
-	test("a delta split across chunks arrives with a partial trailing line", () => {
+	test("a frame split across chunks is buffered until its line is complete", () => {
 		const store = new TranscriptStore();
-		const first = `{"runId":"r1","type":"delta","kind":"text","text":"Hel"}\n{"runId":"r1","type":"delta","kind":"text","text":"lo"}`;
-		// Feed the two complete lines; the stream's trailing partial line is the
-		// transport's buffer concern, not the fold's.
-		expect(feedNdjson(store, first)).toBe(2);
+		const decoder = new AgentTurnFrameDecoder((frame) => applyFrame(store, frame), "r1");
+		expect(decoder.push('{"runId":"r1","type":"delta","kind":"text","text":"Hel')).toBe(0);
+		expect(store.entries()).toHaveLength(0);
+		expect(decoder.push('lo"}\n')).toBe(1);
 		expect(store.entries()[0]).toMatchObject({ text: "Hello", status: "streaming" });
+	});
+
+	test("finish flushes an unterminated final line and rejects another run", () => {
+		const store = new TranscriptStore();
+		const decoder = new AgentTurnFrameDecoder((frame) => applyFrame(store, frame), "r1");
+		expect(
+			decoder.push(
+				'{"runId":"other","type":"delta","kind":"text","text":"wrong"}\n' +
+					'{"runId":"r1","type":"delta","kind":"text","text":"right"}',
+			),
+		).toBe(0);
+		expect(decoder.finish()).toBe(1);
+		expect(store.entries()[0]).toMatchObject({ text: "right" });
 	});
 
 	test("reasoning deltas accumulate on the reasoning channel", () => {
@@ -96,6 +110,7 @@ describe("feedNdjson — NDJSON frame decoding into transcript state", () => {
 		feedNdjson(cancelled, JSON.stringify({ runId: "r1", type: "done", reason: "cancelled" }));
 		// Killed before the first delta: the turn still says what happened.
 		expect(cancelled.entries()[0]).toMatchObject({ status: "interrupted" });
+		expect(cancelled.entries()[0]).toMatchObject({ text: "", detail: "Stopped the current response." });
 	});
 
 	test("garbage lines and foreign frames are skipped", () => {

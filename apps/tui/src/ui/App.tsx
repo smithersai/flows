@@ -30,6 +30,9 @@ export const App = ({
 			<Transcript store={controller.store} />
 			<Composer
 				phase={controller.store.phase()}
+				value={controller.store.draft()}
+				inputKey={controller.store.draftRevision()}
+				onInput={controller.store.setDraft}
 				onSubmit={(text) => {
 					void controller.submit(text);
 				}}
