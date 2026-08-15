@@ -674,7 +674,18 @@ export const make = async (
   pattern: string
 ): Promise<Plan> => {
   const parsed = Label.parse(pattern, workspace.currentPackage)
-  const selected = await workspace.targets(pattern)
+  // A bare package label under an executing verb selects every target of the
+  // package that participates in that verb, exactly as a recursive pattern
+  // scoped to the package would: `lint //packages/plan` runs the lint and fmt
+  // targets, `build` runs lib and check. The default-target convention still
+  // answers `graph` and `query`, where no verb narrows the selection, and an
+  // explicit `:name` keeps its strict refusal when the named target does not
+  // participate.
+  const verbSelectsPackage = parsed._tag === "Exact" && parsed.target === undefined &&
+    verb !== "graph" && verb !== "query"
+  const selected = verbSelectsPackage
+    ? [...(await workspace.packageTargets(parsed.packagePath)).values()]
+    : await workspace.targets(pattern)
   const assertVerbGate = async (target: Rule.AnyTarget): Promise<void> => {
     if (verb === "graph" || verb === "query") return
     const gate = Rule.metadata(target).verbGate
